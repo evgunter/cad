@@ -123,7 +123,10 @@ pub(crate) const SELF_INTERSECTION_ON_SHARED: &str = "self_intersection_on_share
 /// across it, or its value where no side is shared, metres.
 pub(crate) const SELF_INTERSECTION_DEPARTURE: &str = "self_intersection_departure";
 /// The funnel site of the graph arm's monotone edge: the edge's advance
-/// along the projection's first axis over its piece, metres.
+/// along the projection's first axis over its piece, metres; and, where
+/// the graph runs on along a run's other edge ([`graph_run`]), that
+/// edge's advance along the same axis over its reach from the vertex,
+/// metres.
 pub(crate) const SELF_INTERSECTION_GRAPH: &str = "self_intersection_graph";
 /// The funnel site of a planar presentation's reach along its edge:
 /// how far inside the edge's two ends the cell's extent stays, metres.
@@ -2712,7 +2715,10 @@ fn present_plane<'a>(
 /// curve's advance along the column axis over one of its pieces, times
 /// the chart's speed along that axis (an upper bound, `rect_jet`'s),
 /// metres. Only a definite sign, one sign over every piece, reads the
-/// curve as a graph over that axis.
+/// curve as a graph over that axis. Also a run's straight other edge
+/// ([`line_onward`]): its one segment's advance along the column axis
+/// from the vertex, times the same speed, metres, which must be
+/// decided the way the run goes.
 pub(crate) const SELF_INTERSECTION_COLUMN: &str = "self_intersection_column";
 
 /// How many halvings place a curved presentation's run on its columns'
@@ -3229,7 +3235,12 @@ fn within(x: Interval, (lo, hi): (f64, f64)) -> bool {
 /// Through a `corner` the curve is continued past the vertex by its
 /// closed form in the same way, `R` is widened to hold the vertex, and
 /// the corner's other edge is admitted in reach where it leaves the
-/// vertex onto the face's side ([`present_corner`] argues the region).
+/// vertex onto the face's side. Where it is not decided to, the curve
+/// stops at the vertex and the other edge, straight in the chart, is
+/// read on from it: one run, the zero `past` the vertex
+/// ([`Curved::run`]). [`present_corner`] argues both regions. A column
+/// axis over which the run is no graph does not stop the other being
+/// tried.
 fn present_curved<'a>(
     piece: &Piece<'a>,
     ei: usize,
@@ -3778,9 +3789,11 @@ fn on_vertex(a: [Interval; 2], b: [Interval; 2], speed: [f64; 2], band: Band) ->
 const LEAVES: u32 = 24;
 
 /// **A corner of a cell's boundary**: its two walls meeting at `vertex`,
-/// `read` the one on the shared cell, read through the vertex, and
-/// `other`, which leaves it. `alone`: the shared cell is `vertex` alone,
-/// neither wall on it, and `read` is the one of lower key.
+/// `read` the one read through the vertex and `other` the one that
+/// leaves it. `read` is the wall on the shared cell, except under `run`,
+/// where it is the curve the shared line gives way to. `alone`: the
+/// shared cell is `vertex` alone, neither wall on it, and `read` is the
+/// one of lower key.
 #[derive(Clone, Copy, Debug)]
 struct Corner {
     vertex: VertexKey,
@@ -3892,11 +3905,13 @@ fn corner_of(
     }
 }
 
-/// **Present a cell at a corner** ([`corner_of`]) by its shared edge
-/// alone, read through the vertex: a curve by its closed form continued
-/// ([`present_curved`]), a coordinate line of a chart by the line
-/// ([`present_line_corner`]), a plane's line edge by its line
-/// ([`present_plane_corner`]). `None` where none reads it.
+/// **Present a cell at a corner** ([`corner_of`]): by its shared edge
+/// alone, read through the vertex (a curve by its closed form continued,
+/// [`present_curved`]; a coordinate line of a chart by the line,
+/// [`present_line_corner`]; a plane's line edge by its line,
+/// [`present_plane_corner`]), or, where a curve's straight other edge is
+/// not decided to leave onto its face side, by the two edges as one run
+/// through the vertex (below). `None` where none reads it.
 ///
 /// **Why the face's part of the cell lies on the read edge's face
 /// side**, for `R` the presentation's rectangle, which holds the vertex
@@ -5246,8 +5261,17 @@ fn graph(
     graph_read(piece, ei, plus, p, through, band).ok_or(Unpresented::Local)?
 }
 
-/// [`graph`], `None` where the curve is not read as one; a corner it
-/// reads and decides reflex is `Some(Err(Structural))`.
+/// [`graph`], `None` where the curve is not read as one. Through a
+/// corner whose other edge is decided onto the curve's face side
+/// ([`leaving`]) the curve is read alone, continued past the vertex.
+/// Where it is not decided so (reflex, or no rate decided) and the
+/// other edge is straight in the chart, the two are read as one run
+/// ([`line_onward`]; [`present_corner`], "one run through the vertex"),
+/// `Graph::run` the vertex's parameter. A line that is no graph with
+/// the curve over this column is `Some(Err(Structural))` where the
+/// corner is decided reflex or is read from its line ([`Corner::run`]),
+/// and `None` where no rate was decided; an other edge that is not
+/// straight in the chart is `None`.
 fn graph_read(
     piece: &Piece<'_>,
     ei: usize,
@@ -14769,6 +14793,112 @@ mod presentation_rows {
                 "a side {d:e} past the vertex, on no key"
             );
         }
+    }
+
+    /// **What a keyed side may be cut by: any distance.** The wall of
+    /// [`a_side_on_no_key_is_read_past_the_vertex_by_no_distance`], its
+    /// side now stopped at the run's vertex by key
+    /// ([`Along::stops`]), its parameters past the vertex by `0.1` down
+    /// to `1e-16`: a graph at every one, the side read to the vertex.
+    /// [`Along::ending`] compares no length, so nothing here bounds the
+    /// stretch: the bound is the body's, enforced where the stop is
+    /// recorded ([`present_chart`], on a rectangle
+    /// [`sides_are_the_faces`] has passed), and a side built by hand
+    /// with a stop, as here, has none. Red if a keyed side is refused
+    /// on its length; the row states what the code does, not a bound.
+    #[test]
+    fn a_keyed_side_is_cut_at_the_vertex_however_far_past_it_reaches() {
+        let s = floor();
+        let local = both_arcs();
+        let b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let x = piece_on(&s, &b, &local, 1);
+        let Ok(Presentation::Of(p)) = present_plane(&x, &[0], &[], band()) else {
+            panic!("presented");
+        };
+        let cyl = cylinder();
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        for k in 1..=16 {
+            let d = 10f64.powi(-k);
+            let wall = Presented {
+                surface: &cyl,
+                map: Map::Chart,
+                x: (-d, 0.02),
+                y: (0.0, 0.02),
+                zero: Zero::Side(
+                    Side::YLo,
+                    Along {
+                        edges: vec![edge(10)],
+                        vertex: None,
+                        whole: true,
+                        params: Some(Params {
+                            t: (-d, 0.02),
+                            periodic: true,
+                        }),
+                        on_edges: true,
+                        stops: vec![vertex(1)],
+                    },
+                ),
+                corner: false,
+                cache: Cache::default(),
+            };
+            assert!(
+                graph_of(&x, &x, &near, &p, &wall, band()).is_some(),
+                "a keyed side {d:e} past the vertex"
+            );
+        }
+    }
+
+    /// **A chart side records as stops the corners it makes, and no
+    /// other end of its edge.** The cylinder's rim `v = ½` clipped at the
+    /// ruling `u = 1` through its end, vertex 1
+    /// ([`a_chart_side_run_on_past_its_edges_end_answers_nothing_under_the_graph`]'s
+    /// corner): the rim's side stops at vertex 1 and not at vertex 2,
+    /// the rim's other end, which no line of the other axis clips the
+    /// cell at. Red if a side's stops are taken from every clip, its own
+    /// included (every end of its edge a stop). On a whole patch, which
+    /// keeps its cell and is not asked whether its sides are its edges',
+    /// no stop is recorded.
+    #[test]
+    fn a_chart_side_stops_at_the_corners_it_makes_and_at_no_other_end() {
+        let s = cylinder();
+        let b = rim_corner(
+            rim(11, [3, 1], Axis::U, 1.0, (1.0, 0.0), (1.0, 0.5)),
+            (1.0, 0.0),
+        );
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let stops = |whole: bool| {
+            // A whole patch's lines are bounds of its exact domain.
+            let (u, v) = if whole {
+                ((0.97, 1.0), (0.45, 0.5))
+            } else {
+                ((0.97, 1.01), (0.45, 0.51))
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole,
+                boundary: &b,
+                u,
+                v,
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            match present_chart(&piece, &[0], &[vertex(1)], band()) {
+                Ok(Presentation::Of(q)) => match q.zero {
+                    Zero::Side(_, a) => Ok(a.stops),
+                    other => Err(format!("{other:?}")),
+                },
+                other => Err(format!("{:?}", read(other))),
+            }
+        };
+        assert_eq!(stops(false), Ok(vec![vertex(1)]), "the rim's side");
+        assert_eq!(stops(true), Ok(Vec::new()), "on a whole patch");
     }
 
     /// **A wedge plane and a cone face sharing a ruling to the apex.** The

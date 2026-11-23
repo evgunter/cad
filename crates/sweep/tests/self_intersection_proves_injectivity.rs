@@ -3369,8 +3369,8 @@ fn rounded_plate_drawn_turned<T: Scalar>() -> Option<topo::AtRestBody<T>> {
 /// a strip's section arc is stored a rounding off a parallel, and the
 /// strip's own corner is read by its ruling run on past the vertex
 /// (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`).
-/// Pinned as what it reads, a finding: refused, and never across a
-/// plane and a torus's arc.
+/// Pinned at the exit it reads, a finding: `Uncertified Departure
+/// cylinder x plane across an edge`.
 #[test]
 fn a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints() {
     door_reads::<f64>("the inset corner", inset_filleted(), "Embedded");
@@ -3379,18 +3379,19 @@ fn a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints() {
     let class = door_class::<f64>(&turned);
     println!("[tangent] the plate drawn turned: {class}");
     assert!(
-        (class.starts_with("Uncertified Departure cylinder x plane across an edge")
-            || class.starts_with("Refused Budget"))
-            && !class.contains("plane x torus across an edge"),
+        class.starts_with("Uncertified Departure cylinder x plane across an edge"),
         "the plate drawn turned: {class}"
     );
 }
 
 /// **The same bodies at `Interval`**, the scalar the shell gate and the
-/// document door ask at, as built. Every support plane against every
-/// corner patch it shares an arc with holds, asked alone: the run reads
-/// there as at `f64`. The whole bodies do not hold: each refuses on a
-/// pair this reading does not touch, a finding and not a target
+/// document door ask at, as built. What is asserted, and no more: of
+/// the support planes asked alone against a corner patch they touch, no
+/// pair is refused across an edge (their arc), and at least one pair is
+/// `Embedded`; a pair may read something else (a vertex alone, a
+/// budget), and no exit is named. The whole bodies do not hold: each
+/// refuses on a pair this reading does not touch, a finding and not a
+/// target
 /// (`work/embed/three-fillet-bodies-embedded-at-f64-refuse-at-interval-on-pairs-untraced.md`),
 /// so the row reads no one verdict class at both scalars. Which pair
 /// the door names first moves with ε and the build, so the row pins
@@ -3433,6 +3434,54 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
             "{what} at Interval, whole: refused on another pair, not {whole}"
         );
     }
+}
+
+/// **One plate in every pose.** A rounded plate of four different
+/// corner radii (so its mirror image is not itself), every edge
+/// filleted, at `f64`: as built, turned about a generic axis, a hundred
+/// units out, 990 units out on each axis (the session box's wall is at
+/// 1000), and mirrored across `x = 0`, all `Embedded`.
+///
+/// **Mirrored across a generic plane it is not**: it reads `Uncertified
+/// Departure cylinder x plane across an edge`, pinned at that exit as a
+/// finding, likely the cause of
+/// `work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`
+/// (the mirror re-mints the rows on a turned frame) and untraced. The
+/// mirror's result is asked as a body and not put through the at-rest
+/// finish, which refuses its re-minted rows on a generic plane. The
+/// probe is the re-review's.
+#[test]
+fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
+    use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect};
+    use geom_core::{Affine3, Vec3};
+    let body = prism::<f64>(&rect(1.0, 0.6, [0.3, 0.26, 0.34, 0.28]), 0.0, 0.5);
+    let body = rounded("the uneven plate", &body, &every_edge(&body), 0.1).expect("f64 fillets");
+    assert_eq!(door_class::<f64>(&body), "Embedded", "as built");
+    for (pose, m) in poses() {
+        assert_eq!(door_class::<f64>(&moved(&body, &m)), "Embedded", "{pose}");
+    }
+    let wall = Affine3::translation(Vec3::new(990.0, -990.0, 990.0));
+    assert_eq!(
+        door_class::<f64>(&moved(&body, &wall)),
+        "Embedded",
+        "990 units out on each axis"
+    );
+    let mirrored = |point, n| {
+        let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
+        let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
+        door_class::<f64>(&mirrored)
+    };
+    assert_eq!(
+        mirrored(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+        "Embedded",
+        "mirrored across x = 0"
+    );
+    let generic = mirrored(Point3::new(0.2, -0.1, 0.3), Vec3::new(0.3, -0.5, 0.81));
+    println!("[tangent] the uneven plate mirrored across a generic plane: {generic}");
+    assert!(
+        generic.starts_with("Uncertified Departure cylinder x plane across an edge"),
+        "mirrored across a generic plane: {generic}"
+    );
 }
 
 /// **A copy pushed through a tangent joint crosses**: the inset corner
