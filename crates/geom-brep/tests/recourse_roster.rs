@@ -92,6 +92,9 @@ const CARRIERS: &[NameCarrier] = &[
     // The forwarders that hand on their callers' names, declared so
     // those names are read.
     NameCarrier::Call("apart_in_order_as"),
+    NameCarrier::Call("stops"),
+    NameCarrier::Call("probe_pick"),
+    NameCarrier::Call("span_incidence_as"),
     NameCarrier::Call("bound_as"),
     NameCarrier::Call("classify_len_as"),
     NameCarrier::Call("closed_form_shown"),

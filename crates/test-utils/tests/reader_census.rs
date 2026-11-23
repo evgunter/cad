@@ -257,20 +257,12 @@ fn gated_to_names(code: &str) -> usize {
     total
 }
 
-/// `code` with `//`-to-end-of-line comments removed — a marker is an ITEM and
-/// never a comment, and without the cut the macro's own documentation (which
-/// quotes a call) subtracts paths nothing declares. A line cut rather than a
-/// lexer, the same trade `scripts/ci-filter.py` makes and for the same reason:
-/// a `//` inside a string literal truncates the line early, which can only
-/// LOSE an invocation and never invent one.
+/// `code` with its comments blanked by the shared lexer — a marker is an
+/// ITEM and never a comment, and without the cut the macro's own
+/// documentation (which quotes a call) subtracts paths nothing declares.
+/// Literals are kept: the marker's paths are literals.
 fn strip_line_comments(code: &str) -> String {
-    code.lines()
-        .map(|l| match l.find("//") {
-            Some(i) => &l[..i],
-            None => l,
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    code_and_literals(code)
 }
 
 /// **The subtraction's own guard.** `gated_to_names` is the one number in this

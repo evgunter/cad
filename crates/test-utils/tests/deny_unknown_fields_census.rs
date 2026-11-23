@@ -392,9 +392,10 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
 /// walk's per-file tally is compared with a second, cruder count that
 /// shares none of its reading: its own directory walk with its own skip
 /// list (`target`, `.git`), over the raw text, counting every line that
-/// opens an attribute (`#[`) and contains the attribute's name as a
-/// plain substring — no [`SKIPPED_DIRS`], [`NEEDLE`], `word` or lexer. A walk that stops reaching a file, a skip that
-/// swallows the tree, or a reader that stops finding the word differs
+/// opens an attribute (`#[`) and holds `deny_unknown_fields)` or
+/// `deny_unknown_fields,` as a plain substring — no [`SKIPPED_DIRS`],
+/// [`NEEDLE`], `word` or lexer. A walk that stops reaching a file, a
+/// skip that swallows the tree, or a reader that stops finding the word differs
 /// from it, wherever the sites are and however many there are.
 #[test]
 fn the_walk_still_sees_every_attribute_site() {
@@ -439,7 +440,9 @@ fn crude_attribute_lines(root: &Path) -> BTreeMap<String, usize> {
                 let n = text
                     .lines()
                     .filter(|l| {
-                        l.trim_start().starts_with("#[") && l.contains("deny_unknown_fields")
+                        l.trim_start().starts_with("#[")
+                            && (l.contains("deny_unknown_fields)")
+                                || l.contains("deny_unknown_fields,"))
                     })
                     .count();
                 if n > 0 {
