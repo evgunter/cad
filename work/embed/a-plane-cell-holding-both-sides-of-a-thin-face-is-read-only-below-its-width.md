@@ -233,3 +233,23 @@ figures are the first head's; the fix pass's are below.)
   reach, the margin PR 7095 re-meters.
 - The test still fails, on its − (`Departure` at an edge).
 
+**Last pass (re-review of `a54717c96`, approve with fixes).**
+- The end's cap reads one lean: the base's points on the cap's face
+  side over a reach from the corner. Two checks went as implied, each
+  after its mutant survived:
+  - the cap's rise: its height is 1 at the corner, and the lean keeps
+    its line off the base;
+  - the run check: an undecided height bounds nothing, and the far side
+    is then the cell's reach.
+- A structural refusal from either corner stands.
+- Rows pin the cap's band, the reach starting at the corner, and a
+  structural end.
+- The reviewer's fuzz of three-edge chains is a counterexample search
+  in `injective`'s rows (`a_presented_end_holds_the_faces_part_at_random`).
+  At effort 15 with seed `0x1234` it finds failures for three mutants:
+  the cap's lean dropped, a reach from the cell instead of the corner,
+  and `Vacuous` read before the cap. It does not catch a looser cap,
+  which is still sound. 56,545 cells at 1e-9 in the reviewer's run
+  read 578 three-edge cells `Vacuous` where main read every
+  three-edge cell `Local`, and all 578 are sound.
+
