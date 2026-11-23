@@ -317,11 +317,10 @@ the wall. It is refused, with that miss, past a fixed number of rounds
 or knots. The foot path follows the carrier
 continuously: its first foot is the wall's nearest point to the
 carrier's start, on the side of a closed wall's seam the path leaves
-into the rectangle from, and each next foot is reached from the last
-and kept only where the chart step agrees with the one the wall's
-tangents predict, so the path stays on the sheet of a folded wall it
-started on and reaches a seam from the side it came by. A foot is
-settled to `f64`'s resolution at the wall's point. The trace's
+into the rectangle from, and each next foot is Newton's from the last,
+never the wall's nearest point found afresh, so the path stays on the
+sheet of a folded wall it started on and reaches a seam from the side
+it came by. The trace's
 certificate, the pcurve mint and the edge certificate at rest all call
 this function, on one chart operand: limb 3 reads the wall's chart on
 its own cells, and where that refuses, on the certificate's grid

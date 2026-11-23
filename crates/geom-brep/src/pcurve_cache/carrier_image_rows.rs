@@ -574,10 +574,10 @@ fn folded_wall(gap: f64) -> NurbsSurface<f64> {
 
 /// **The foot path stays on the sheet of a folded wall its carrier lies
 /// on** (C2). A carrier across the upper sheet of [`folded_wall`], from
-/// `u = 0.9` back to `u = 0.55`: the wall's nearest point by the
-/// projection's one seed lands on the lower sheet at some of its points
-/// (the row's own check), and the image follows the upper one, holding
-/// the carrier to the band.
+/// `u = 0.8` back to `u = 0.55`: the wall's nearest point by the
+/// projection's one seed lands on the lower sheet at its start and at
+/// others of its points (the row's own check), and the image follows the
+/// upper one, holding the carrier to the band.
 ///
 /// Red against: the first foot taken from the nearest seed alone, and
 /// each foot taken as the projection's with no continuation (either
@@ -586,7 +586,7 @@ fn folded_wall(gap: f64) -> NurbsSurface<f64> {
 fn the_foot_path_stays_on_the_sheet_its_carrier_lies_on() {
     let gap = 0.02;
     let wall = folded_wall(gap);
-    let at = |t: f64| wall.eval(0.9 - 0.35 * t, 0.2 + 0.6 * t);
+    let at = |t: f64| wall.eval(0.8 - 0.25 * t, 0.3 + 0.5 * t);
     let points: Vec<Point3<f64>> = (0..=16).map(|i| at(f64::from(i) / 16.0)).collect();
     let carrier = Curve3::Nurbs(Arc::new(NurbsCurve3::interpolate(&points, 3).unwrap()));
     let jumps = (0..=64)
@@ -595,9 +595,13 @@ fn the_foot_path_stays_on_the_sheet_its_carrier_lies_on() {
             wall.project(p).is_ok_and(|foot| foot.distance > 0.5 * gap)
         })
         .count();
+    let start_jumps = wall
+        .project(carrier.eval(0.0))
+        .is_ok_and(|foot| foot.distance > 0.5 * gap);
     assert!(
-        jumps > 0,
-        "the fixture folds: the projection's own seed reads the lower sheet somewhere"
+        jumps > 0 && start_jumps,
+        "the fixture folds: the projection's own seed reads the lower sheet at the carrier's \
+         start and at {jumps} of its points"
     );
     let image = FittedLane::<f64>::certified()
         .general_image(&carrier, (0.0, 1.0), &wall, band())

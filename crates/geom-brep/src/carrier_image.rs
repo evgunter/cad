@@ -16,11 +16,10 @@
 //! - **The feet.** One at each Greville abscissa of the chain, so the
 //!   interpolant is on the chain's knots exactly. They are found by
 //!   **continuation**: the first is the wall's nearest point to the
-//!   carrier's start, and each next one is Newton's from the last
-//!   ([`follow`]), accepted where the wall's point moved as the carrier
-//!   did and the chart step is no longer than that motion allows, and
-//!   otherwise reached through the halfway parameter. So the path stays
-//!   on the sheet of a folded wall it started on, and reaches a closed
+//!   carrier's start, and each next one is Newton's from the last, moved
+//!   as the wall's tangents predict for the carrier's step ([`follow`]),
+//!   never the wall's nearest point found afresh. So the path stays on
+//!   the sheet of a folded wall it started on, and reaches a closed
 //!   wall's seam from the side it came by.
 //! - **The start on a seam.** A start whose nearest point lies on a side
 //!   of the wall's rectangle that the wall closes across has two chart
@@ -96,21 +95,9 @@ const CROSSING_HALVINGS: u32 = 60;
 /// is that knot's ([`crossing`]).
 const CREASE_SNAP: f64 = 1e-13;
 
-/// The Newton steps a settled foot is polished by ([`polished`], D9).
-const FOOT_POLISH: usize = 2;
-
 /// How many times [`follow`] halves the way to a foot it cannot reach
 /// from the last one (D9).
 const FOLLOW_HALVINGS: u32 = 16;
-
-/// The share of the carrier's step by which a foot's motion in space may
-/// differ from it ([`follow`]).
-const FOLLOW_AGREEMENT: f64 = 0.5;
-
-/// How many times the motion in space a foot's chart step may measure,
-/// through the wall's tangents at the foot ([`follow`]): past any jump
-/// of a chart's speed across a knot line the kernel's walls carry.
-const FOLLOW_STRETCH: f64 = 4.0;
 
 /// Why a carrier has no image on a wall.
 #[derive(Debug)]
@@ -197,11 +184,7 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     match wall.project_from_seed(p, u, v) {
-        Ok(proj) => Ok(polished(
-            wall,
-            p,
-            (Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance)),
-        )),
+        Ok(proj) => Ok((Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance))),
         Err(e) => {
             let jet = wall.ders(T::from_computed(e.last_u), T::from_computed(e.last_v));
             let at = Point3::new(mid(jet.point.x), mid(jet.point.y), mid(jet.point.z));
@@ -217,46 +200,6 @@ where
             }
         }
     }
-}
-
-/// **A settled foot, polished**: [`FOOT_POLISH`] more Newton steps on
-/// the two orthogonality conditions, each kept where it brings the foot
-/// no farther from `p`. The projection accepts a foot within its
-/// coincidence threshold of `p` as it stands, wherever along the wall
-/// that is; a path of such feet wanders by that threshold, which a fine
-/// band's image may not.
-fn polished<T>(wall: &NurbsSurface<T>, p: Point3<T>, foot: Settled<T>) -> Settled<T>
-where
-    T: Decide + Bounds + geom_core::CertifiedEnclosure,
-{
-    let [ud, vd] = rectangle(wall);
-    let mut best = foot;
-    for _ in 0..FOOT_POLISH {
-        let (uv, _, distance) = best;
-        let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
-        let r = mid3(jet.point - p);
-        let (su, sv) = (mid3(jet.du), mid3(jet.dv));
-        let (fu, fv) = (su.dot(r), sv.dot(r));
-        let a = su.dot(su) + mid3(jet.duu).dot(r);
-        let b = su.dot(sv) + mid3(jet.duv).dot(r);
-        let d = sv.dot(sv) + mid3(jet.dvv).dot(r);
-        let det = a * d - b.powi(2);
-        let step = (-(d * fu - b * fv) / det, -(a * fv - b * fu) / det);
-        if !(step.0.is_finite() && step.1.is_finite()) {
-            break;
-        }
-        let next = Point2::new(
-            (uv.x + step.0).clamp(ud.0, ud.1),
-            (uv.y + step.1).clamp(vd.0, vd.1),
-        );
-        let at = wall.eval(T::from_computed(next.x), T::from_computed(next.y));
-        let moved = mid((at - p).norm());
-        if moved.is_nan() || moved > distance || next.equals_exactly(uv) {
-            break;
-        }
-        best = (next, at, moved);
-    }
-    best
 }
 
 fn mid<T: Decide + Bounds>(x: T) -> f64 {
@@ -801,20 +744,11 @@ where
 }
 
 /// **The next foot of the path**, at the unit fraction `at`, from the
-/// last one: Newton's from the chart point the wall's tangents predict,
-/// kept where it is the last foot moved as the carrier moved:
-///
-/// - the wall's point moved with the carrier's, to within
-///   [`FOLLOW_AGREEMENT`] of the carrier's step and the carrier's
-///   standoff at the two feet;
-/// - the chart step, as a length through the wall's tangents at the new
-///   foot, is no more than [`FOLLOW_STRETCH`] times that motion. A foot
-///   on another sheet of a folded wall, or across a closed wall's seam,
-///   is near in space and far in the chart; a chart whose speed jumps
-///   across a knot line stretches a step by that jump and no more.
-///
-/// A foot that fails either is refused, and the path is followed through
-/// the halfway parameter instead, `halvings` deep.
+/// last one: Newton's from the chart point the wall's tangents at the
+/// last foot predict for the carrier's step, so the foot is the last
+/// one's own sheet's and side's, not the wall's nearest point. Where
+/// that does not settle, the path is followed through the halfway
+/// parameter instead, `halvings` deep.
 ///
 /// # Errors
 ///
@@ -836,21 +770,7 @@ where
         Point2::new(last.uv.x + du, last.uv.y + dv)
     });
     let last_distance = match settle(wall, p, (seed.x, seed.y)) {
-        Ok(foot) => {
-            let (uv, standoff) = (foot.0, foot.2);
-            let slack = last.standoff + standoff;
-            let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
-            let from = wall.eval(T::from_computed(last.uv.x), T::from_computed(last.uv.y));
-            let moved = mid3(jet.point - from);
-            let chart =
-                (mid3(jet.du) * (uv.x - last.uv.x) + mid3(jet.dv) * (uv.y - last.uv.y)).norm();
-            let with_the_carrier = (moved - dc).norm() <= FOLLOW_AGREEMENT * dc.norm() + slack;
-            let on_its_sheet = chart <= FOLLOW_STRETCH * (moved.norm() + dc.norm()) + slack;
-            if with_the_carrier && on_its_sheet {
-                return Ok(settled(at, foot));
-            }
-            standoff
-        }
+        Ok(foot) => return Ok(settled(at, foot)),
         Err(last_distance) => last_distance,
     };
     let half = 0.5 * (last.at + at);
