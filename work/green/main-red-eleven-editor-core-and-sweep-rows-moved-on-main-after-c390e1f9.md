@@ -104,11 +104,3 @@ branch's own.
 lowers `revalue_boss_union_apart_to_its_parting`'s `moved` floor for
 its own reasons (stated there); whoever re-cuts that row's other pin
 should do so on a tree that holds it if it has landed.
-
-**Seen again, 2026-11-22 (PR 7219's delta review):** the two `sweep`
-rows are red on `3900eb46` and on that PR's head `c65b9292` alike, with
-no seed and no ε set, on a binary carrying only a decision logger
-(`analysis/oneround/lever-sites-brep/delta-review-report.md` on
-`oneround/lever-sites-brep-review`, finding D5). That PR does not move
-them: its head merged with main at `5d5cb7d8` gives the two payloads
-above.
