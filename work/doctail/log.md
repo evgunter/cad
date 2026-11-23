@@ -597,3 +597,14 @@ body has the reasons):
   - So main is fail-closed only behind the budget: latent, not safe.
   - The unit stays P1, with main's latent exposure recorded in its row,
     and Shape 1 is added as a row.
+- 2026-11-23 00:10 — **7434's FULL review found no MAJOR.** The fix
+  closes 7396's false proof, on 7434 alone and with 7396 merged over it.
+  Reverting the fix reds the guards, and the `Sym<Interval>` [0, 0]
+  deviation is likely sound.
+  - **MINORs, in a last pass with the gated-suite marker fix:**
+    - plain `Interval`'s `zero_everywhere` default reads a subnormal
+      enclosure as zero (an override is due);
+    - the DECIDE row's wording;
+    - the mate-chart P2 overstates.
+  - **Orchestrator's read, then merge.** 7396 follows: merge main,
+    re-measure, re-check the zero-tilt P2, then a delta review.
