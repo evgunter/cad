@@ -161,3 +161,194 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod review_probe {
+    //! Reviewer probe (PR 7430): loop re-assignment outside operator
+    //! order. Each step moves a loop between faces of one shell, swaps a
+    //! face's outer with a ring, promotes a ring to a fresh face, or
+    //! absorbs a face's outer into another face as a ring (deleting the
+    //! face). A mutant is kept only when passes 1–7 and 10 stay clean
+    //! (8, 9, 12 errors are tolerated); on each kept body the theorem
+    //! must hold.
+    use geom_core::Tol;
+
+    use super::*;
+    use crate::fixtures::{
+        detached_digons, mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, ops_ring_bridge,
+        ops_strut_cube, ops_strutted, ops_two_ring_face, pillow, prov, raw_prism,
+    };
+    use crate::test_support_fixtures::declined_cube;
+    use crate::validate::{ValidationError as E, validate};
+
+    fn premise_holds(body: &Body<f64>) -> bool {
+        match validate(body) {
+            Ok(()) => true,
+            Err(errs) => errs.iter().all(|e| {
+                matches!(
+                    e,
+                    E::OrphanGeometry { .. }
+                        | E::SolidWithoutShells { .. }
+                        | E::ShellWithoutFaces { .. }
+                        | E::MissingProvenance { .. }
+                        | E::LeakedProvenance { .. }
+                )
+            }),
+        }
+    }
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self, n: usize) -> usize {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((self.0 >> 33) as usize) % n.max(1)
+        }
+    }
+
+    fn mutate(body: &mut Body<f64>, rng: &mut Lcg) -> bool {
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        if faces.is_empty() {
+            return false;
+        }
+        let a = faces[rng.next(faces.len())];
+        let shell = body.get_face(a).unwrap().shell;
+        let peers: Vec<FaceKey> = body.shells().find(|(k, _)| *k == shell).unwrap().1.faces.clone();
+        let b = peers[rng.next(peers.len())];
+        match rng.next(4) {
+            0 => {
+                // move a ring of a to b
+                let rings = body.get_face(a).unwrap().rings.clone();
+                if rings.is_empty() || a == b {
+                    return false;
+                }
+                let r = rings[rng.next(rings.len())];
+                body.get_face_mut(a).unwrap().rings.retain(|&k| k != r);
+                body.get_face_mut(b).unwrap().rings.push(r);
+                body.get_loop_mut(r).unwrap().face = b;
+            }
+            1 => {
+                // swap outer with a ring
+                let f = body.get_face(a).unwrap().clone();
+                if f.rings.is_empty() {
+                    return false;
+                }
+                let i = rng.next(f.rings.len());
+                let face = body.get_face_mut(a).unwrap();
+                let r = face.rings[i];
+                face.rings[i] = face.outer;
+                face.outer = r;
+            }
+            2 => {
+                // promote a ring of a to a fresh face in the shell
+                let f = body.get_face(a).unwrap().clone();
+                if f.rings.is_empty() {
+                    return false;
+                }
+                let r = f.rings[rng.next(f.rings.len())];
+                body.get_face_mut(a).unwrap().rings.retain(|&k| k != r);
+                let mut g = f.clone();
+                g.outer = r;
+                g.rings = vec![];
+                let gk = body.add_face(g, prov());
+                body.get_loop_mut(r).unwrap().face = gk;
+                body.get_shell_mut(shell).unwrap().faces.push(gk);
+            }
+            _ => {
+                // absorb a: its outer and rings become rings of b; delete a
+                if a == b {
+                    return false;
+                }
+                let f = body.get_face(a).unwrap().clone();
+                for l in std::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                    body.get_loop_mut(l).unwrap().face = b;
+                    body.get_face_mut(b).unwrap().rings.push(l);
+                }
+                body.get_shell_mut(shell).unwrap().faces.retain(|&k| k != a);
+                body.faces.remove(a);
+            }
+        }
+        true
+    }
+
+    #[test]
+    fn loop_reassignment_never_breaks_the_theorem() {
+        let tol = Tol::witness();
+        let makers: Vec<(&str, Box<dyn Fn() -> Body<f64>>)> = vec![
+            ("declined_cube", Box::new(move || declined_cube(tol).body)),
+            ("ops_strut_cube", Box::new(move || ops_strut_cube(tol).body)),
+            ("ops_holed_box", Box::new(move || ops_holed_box(tol).body)),
+            ("ops_genus2", Box::new(move || ops_genus2(tol))),
+            ("ops_ring_bridge", Box::new(move || ops_ring_bridge(tol).body)),
+            ("ops_strutted", Box::new(move || ops_strutted(tol).0)),
+            ("pillow", Box::new(move || pillow(tol).body)),
+            ("ngon_pillow5", Box::new(move || ngon_pillow(5, tol).body)),
+            ("raw_prism3", Box::new(move || raw_prism(3, tol).body)),
+            ("mvfs_state", Box::new(|| mvfs_state().body)),
+            ("ops_two_ring_face", Box::new(move || ops_two_ring_face(tol).body)),
+            ("two detached digons", Box::new(|| detached_digons(2).0)),
+        ];
+        let (mut kept, mut tried, mut multi) = (0, 0, 0);
+        for (name, make) in &makers {
+            for seed in 0..300_u64 {
+                let mut rng = Lcg(seed.wrapping_mul(0x9E3779B97F4A7C15) ^ 0xD1B54A32D192ED03);
+                let mut body = make();
+                for step in 0..12 {
+                    let mut trial = body.clone();
+                    if !mutate(&mut trial, &mut rng) {
+                        continue;
+                    }
+                    tried += 1;
+                    if !premise_holds(&trial) {
+                        continue;
+                    }
+                    kept += 1;
+                    body = trial;
+                    let comps = component_censuses(&body);
+                    if comps.len() > body.shells().count() {
+                        multi += 1;
+                    }
+                    assert_eq!(
+                        check_component_theorem(&body),
+                        Ok(()),
+                        "{name} seed {seed} step {step}: {comps:?}"
+                    );
+                }
+            }
+        }
+        eprintln!("probe: tried {tried}, kept {kept}, multi-component {multi}");
+        assert!(kept > 100, "the probe exercised something: {kept}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod review_probe_gate {
+    //! Reviewer probe (PR 7430, claim 2): a shell that is genuinely
+    //! disconnected (c = 3) beside an unrelated pass-10 defect.
+    use super::*;
+    use crate::entity::Shell;
+    use crate::fixtures::{detached_digons, prov};
+    use crate::validate::{ValidationError as E, validate_closed};
+
+    #[test]
+    fn a_disconnected_shell_beside_a_cross_shell_edge() {
+        let (mut body, shell, _seed, promoted) = detached_digons(2);
+        let solid = body.get_shell(shell).unwrap().solid;
+        let moved = promoted[1];
+        let shell2 = body.add_shell(Shell { faces: vec![], solid }, prov());
+        body.get_solid_mut(solid).unwrap().shells.push(shell2);
+        body.get_face_mut(moved).unwrap().shell = shell2;
+        body.get_shell_mut(shell).unwrap().faces.retain(|&k| k != moved);
+        body.get_shell_mut(shell2).unwrap().faces.push(moved);
+        let in_shell = component_censuses(&body)
+            .iter()
+            .filter(|(s, _, _)| *s == shell)
+            .count();
+        let errs = validate_closed(&body).unwrap_err();
+        eprintln!("probe: components in the old shell = {in_shell}; tier 2 = {errs:?}");
+        let disconnected = errs.iter().any(|e| matches!(e, E::ShellDisconnected { .. }));
+        assert!(in_shell >= 2, "the old shell is genuinely disconnected");
+        assert!(disconnected, "tier 2 names the disconnected shell");
+    }
+}
