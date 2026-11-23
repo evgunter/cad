@@ -631,8 +631,14 @@ mod edge_pair_rows {
             )
         };
         assert!(!clear(&flat, &above(0.0)), "a tangent segment");
-        assert!(!clear(&flat, &above(1e-12)), "a segment within the band");
-        assert!(clear(&flat, &above(1e-6)), "a segment past the band");
+        assert!(
+            !clear(&flat, &above(band().zero() * 0.5)),
+            "a segment within the band"
+        );
+        assert!(
+            clear(&flat, &above(band().escalate() * 4.0)),
+            "a segment past the band"
+        );
         // A segment from the arc's start point outward.
         let p0 = Point3::new(5.0 * 0.3f64.cos(), 0.05 * 0.3f64.sin(), 0.0);
         let out = segment(p0, p0 + Vec3::new(1.0, 1.0, 0.0));
