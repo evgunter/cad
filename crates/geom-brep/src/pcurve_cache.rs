@@ -13088,11 +13088,15 @@ fn torus_oblique_circle<T: Decide>(
     // rule: a gate decided apart answers past an earlier in-band one.
     // What reaches these gates through `chart_pcurve`, as measured:
     // - On `R = 2`, `r = 0.7`, a circle's first-order departure from the
-    //   torus at the 64 incidence samples has a one-dimensional null space
+    //   torus at the 65 incidence samples has a one-dimensional null space
     //   (a turn about the axis, which moves no gate), and the least
-    //   departure that puts any one gate at `m` is `0.995·m` to `1.04·m`
-    //   at its farthest sample: a gate in band or past it is read about as
-    //   far off the torus by the incidence test, which decides first.
+    //   departure that puts any one gate at `m` is `m` for the offset,
+    //   equator and radius, `0.9985·m` for the plane and `0.9966·m` for
+    //   the tilt at its farthest sample: a gate past the band is read about
+    //   as far off the torus by the incidence test, which decides first.
+    //   Only in that sliver at the band's zero does a gate decide, and
+    //   there the tilt chooses the lane: in band, the general lane
+    //   (`pcurve_villarceau::a_tilt_just_past_the_band_takes_the_general_lane`).
     // - Near a horn torus the plane gate is cheaper. On `R = 2`,
     //   `R − r = 1e-6`, band `(1e-9, 1e-8)`, the Villarceau circle moved
     //   along its own normal by `3e-9` to `1e-8` escalates here on
@@ -13794,11 +13798,13 @@ fn incidence_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// ([`SpiricImage::Cap`]'s docs).
 ///
 /// **Torus wall.** Two decisions ([`SpiricImage::Wall`]'s derivation).
-/// `sense = σ`, the cosine of the chart axis against the carrier's
-/// levered at the chart's major radius (`pcurve_spiric_chart_axis`):
-/// `+1` when they agree, `−1` when they oppose, and Zero refuses — a
-/// torus whose axis is perpendicular to the carrier's holds no oval of
-/// it ([`spiric_off_own_chart`]). `torus`, which of the two tori
+/// `sense = σ`, the sign of the cosine of the chart axis against the
+/// carrier's (`pcurve_spiric_chart_axis`): `+1` when they agree, `−1`
+/// when they oppose. The incidence test has read the whole oval on the
+/// chart by then, and a torus that holds the oval has its axis parallel
+/// to the carrier's, so the cosine is `±1` and only its sign is read; an
+/// exact zero refuses — a torus whose axis is perpendicular to the
+/// carrier's holds no oval of it ([`spiric_off_own_chart`]). `torus`, which of the two tori
 /// holding the oval the chart is: [`WallTorus::Own`] when its centre is
 /// the carrier's (`pcurve_spiric_mint_center`), else
 /// [`WallTorus::Mirror`] — check 1 then gates the centre against
@@ -13827,8 +13833,6 @@ fn spiric_chart_pcurve<T: Decide>(
     place: Placement<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
-    // The consumed arc's extent, read from below: the chart axis's lever.
-    let arc = crate::edge_extent_inf(carrier, place.span.0, place.span.1);
     let Curve3::Spiric {
         frame: carrier_frame,
         major_radius,
@@ -13872,12 +13876,15 @@ fn spiric_chart_pcurve<T: Decide>(
             let cv = chart_axis.cross(chart_u);
             // Both readings place the oval on one of the tori that hold
             // it, so their far or Zero arm is the chart's incidence, never
-            // a lane choice. The axis reading's sign is all that can
-            // place it: a reading Zero or in the sliver puts the axes
-            // within `K·ε` over the arc's extent of perpendicular, far from the parallel ones
-            // every torus holding the oval has, so it is definitely off
-            // (no margin to quote). A poisoned read says only that. The centre's reading in the sliver is
-            // the chart's distance from the own torus, an incidence
+            // a lane choice. The incidence test above read the oval's
+            // whole turn on this ring torus (a spiric's placement is never
+            // the edge's alone), so the chart holds the oval and its axis
+            // is the carrier's or the opposite one: the cosine is `±1`, a
+            // sense with no length, read for its sign alone. An exact zero
+            // is a perpendicular axis, which holds no oval (no margin to
+            // quote); an enclosure that holds zero or a poisoned read shows
+            // nothing about the axes. The centre's reading in the sliver
+            // is the chart's distance from the own torus, an incidence
             // reading ([`PcurveCheck::ChartIncidence`]).
             let perpendicular = || {
                 spiric_off_own_chart(
@@ -13888,25 +13895,20 @@ fn spiric_chart_pcurve<T: Decide>(
             };
             let sigma = decide(
                 "pcurve_spiric_chart_axis",
-                // A cosine of unit vectors, levered at the consumed arc's
-                // extent from below: the turn between the axes moves the
-                // arc by it over the span it occupies.
-                Margin::levered(chart_axis.dot(axis), arc),
-                band,
+                Margin::sign_of(chart_axis.dot(axis)),
+                Band::enclosure_sign(),
             )
             .map_err(|cause| {
-                if cause.margin.is_invalid() {
-                    // A poisoned read shows nothing about the axes: no
-                    // claim that they are perpendicular, and no lever
-                    // makes it readable (the defect ending).
-                    spiric_off_own_chart(
-                        "the chart torus's axis could not be read against the carrier's (its \
-                         reading was poisoned)",
-                    )
-                    .refusal(surface, carrier)
+                // No claim that the axes are perpendicular, and no lever
+                // makes the read decide (the defect ending).
+                spiric_off_own_chart(if cause.margin.is_invalid() {
+                    "the chart torus's axis could not be read against the carrier's (its \
+                     reading was poisoned)"
                 } else {
-                    perpendicular()
-                }
+                    "the chart torus's axis could not be read against the carrier's (its \
+                     enclosure holds zero)"
+                })
+                .refusal(surface, carrier)
             })?
             .nonzero()
             .ok_or_else(perpendicular)?
@@ -16694,8 +16696,8 @@ mod off_chart_class_rows {
     /// - a unit circle on a plane tilted mid-band off the axis of a unit
     ///   cylinder, centred 2 m out (the orientation reading in band);
     /// - a spiric met with a torus whose axis is mid-band off perpendicular
-    ///   to its own (`pcurve_spiric_chart_axis` in band), an incidence
-    ///   reading.
+    ///   to its own, which the incidence test reads off before its axis is
+    ///   read.
     #[test]
     fn a_carrier_off_its_chart_never_ends_as_a_class_reading() {
         fn ends<T: geom_core::Decide>(carrier: &Curve3<T>, surface: &Surface<T>) -> String {

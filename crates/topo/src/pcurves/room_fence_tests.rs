@@ -71,8 +71,9 @@ fn at_a_small_k_a_cone_joint_near_the_axis_has_no_room() {
 /// the arc reading admitted, refuses, and one `8ε` off has room. One
 /// `6.6ε` off refuses: its quarter chord, `2.33ε`, is short of the
 /// escalation padded by the ends' `ε`, though the chord at `d − 2ε`
-/// would pass the escalation alone. The arm is the parallel's radius,
-/// not the sphere's: at that one every vertex would have room.
+/// would pass the escalation alone. The chord is the vertex's parallel's,
+/// at its distance from the axis, not a chord of the sphere's radius: at
+/// that one every vertex would have room.
 #[test]
 fn at_a_small_k_a_sphere_joint_near_a_pole_has_no_room() {
     let sphere = Surface::Sphere {

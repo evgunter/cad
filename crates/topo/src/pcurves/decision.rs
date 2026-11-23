@@ -1842,8 +1842,9 @@ fn spline_gap_closes<T: Decide>(
 /// where that chord exceeds the joint bound `4ε` no such pair exists, and
 /// the integer is the joint's own. So the fence decides the chord in the
 /// same quantity as the bound: a quarter of it, `d·sin(step/4)/2`, a
-/// sine levered at the parallel's curvature arm, must decide definitely
-/// past the band's escalation (`loop_windings_joint_room`), which puts
+/// length (the step is a fixed half or whole period, so the sine is a
+/// constant factor, not a turn), must decide definitely past the band's
+/// escalation (`loop_windings_joint_room`), which puts
 /// the chord past `4·K·ε > 4ε` at every admitted `K > 1`. The ends are
 /// each within `2ε` of the vertex in 3-D (its row's envelope and the edge
 /// certificate's pin), which moves their parallel's radius by as much and
@@ -1869,24 +1870,17 @@ pub(super) fn joint_has_room<T: Decide>(
         return true;
     };
     // A periodic chart with no axis is a spline chart, exempt above.
-    if axis_distance(chart, vertex).is_none() {
+    let Some(distance) = axis_distance(chart, vertex) else {
         return true;
-    }
+    };
     // The step the walk decided this joint's integer in.
     let step = orbit.step(period).length();
-    let quarter_chord = (step * T::from_f64(0.25)).sin() * T::from_f64(0.5);
+    let quarter_chord = distance * ((step * T::from_f64(0.25)).sin() * T::from_f64(0.5));
     let ends = band
         .padded(band.zero())
         .unwrap_or_else(|e| unreachable!("a band's own ε pads it: {e:?}"));
     matches!(
-        decide(
-            "loop_windings_joint_room",
-            Margin::levered(
-                quarter_chord,
-                geom_brep::parallel_curvature_arm(chart.surface(), vertex),
-            ),
-            ends,
-        ),
+        decide("loop_windings_joint_room", Margin::of(quarter_chord), ends),
         Ok(Sign::Positive)
     )
 }
