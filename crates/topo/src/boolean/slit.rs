@@ -2961,10 +2961,9 @@ fn touches_an_edge(contacts: &ContactRecords, v: VertexKey) -> bool {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod unread_piece {
-    use super::{ContainError, EdgeInFaceGap, Names, holding};
+    use super::{Names, holding};
     use crate::Body;
     use crate::LoopBoundary;
-    use crate::boolean::BooleanError;
     use crate::construction::MevSite;
     use crate::entity::{EdgeKey, FaceKey, LoopKey};
     use geom_core::{Band, Point3, Tol};
@@ -3011,12 +3010,12 @@ mod unread_piece {
         (body, p.top_face, ring, edge)
     }
 
-    /// Where both the edge's ends lie on the face, the unread piece
-    /// refuses with the door's refusal; where nothing names the pair but
-    /// a crossing, the face is not asked.
+    /// A lone-vertex ring bounds no area, so the face is read past it
+    /// whether its ends or only a crossing name the pair. Red where the
+    /// face door refused the face whose ends named it as a lone loop.
     #[test]
-    fn an_unread_piece_refuses_unless_only_a_crossing_names_the_pair() {
-        let (body, top, ring, edge) = top_with_an_empty_ring();
+    fn a_lone_ring_leaves_the_face_read() {
+        let (body, top, _, edge) = top_with_an_empty_ring();
         let band = Band::linear(Tol::witness()).unwrap();
         let read = |ends| {
             holding(
@@ -3033,15 +3032,8 @@ mod unread_piece {
         };
         let named = read(true);
         assert!(
-            matches!(
-                &named,
-                Err(BooleanError::EdgeInFace {
-                    edge: e,
-                    face: f,
-                    gap: EdgeInFaceGap::Unread(Some(ContainError::EmptyLoop(lk))),
-                }) if *e == edge && *f == top && *lk == ring
-            ),
-            "ends on the face: the unread piece refuses naming the door's refusal, got {named:?}"
+            matches!(named, Ok(None)),
+            "ends on the face: the face is read, got {named:?}"
         );
         let crossed = read(false);
         assert!(

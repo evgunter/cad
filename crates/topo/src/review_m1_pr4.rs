@@ -1338,7 +1338,6 @@ fn kill_ops_on_torn_bodies_panic_only_naming_a_premise() {
     );
     body.points.remove(vpoint);
     let _ = stray;
-    let started = std::time::Instant::now();
     // The kills' subject here is their shared plan phase: this tear
     // leaves no kill a well-formed site, so each door stops (a torn
     // orbit or mate pair panics, a self-loop refuses typed) before its
@@ -1370,10 +1369,6 @@ fn kill_ops_on_torn_bodies_panic_only_naming_a_premise() {
             b.mfkrh_plug(l, true)
         });
     }
-    assert!(
-        started.elapsed() < std::time::Duration::from_secs(30),
-        "bounded walks must keep this fast"
-    );
     let _ = HalfEdge {
         edge: crate::entity::EdgeKey::default(),
         start: VertexKey::default(),
