@@ -5,7 +5,7 @@ title: turn_defect_speed_hi's sup bound sits below an Interval sample of the spe
 status: closed
 closed: 2026-11-23
 opened: 2026-10-29
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -106,6 +106,8 @@ gap 1.33e-3). The excess is about 7 ulps. This reproduces on
 `origin/main` `818092d44a`
 (`CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom -E 'test(/turn_defect_speeds_bound_the_speed_on_the_true_defect/)'`),
 so the PR did not cause it.
+
+- 2026-11-23 (GERM orchestrator) — another seed: `CAD_FUZZ_SEED=0x33ed5f8575435ac4` reds `r2_turn_probes::turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval` on PR 7553's gate (run 45271446252): sup 137.656887657693 (f64 and Interval) is under the sample 137.65688765769306, at 40/64. Since this varying-seed row reds other PRs, it is priced as a gate hazard.
 
 ## Fixed
 

@@ -30,3 +30,9 @@ The body is a radius-1 rod cut by a slab (`notched` in `crates/sweep/tests/self_
 Re-banded P0 on that evidence: a cut of a cylinder by a box that built yesterday is refused today (a normal verb on normal geometry), where the row as filed knew only of fitted loops far off their carriers. EMBED does not re-pin its row at the refusal. If the escalation is right for this body, say so here and EMBED pins the pose refusing at the build with this row named.
 
 **Which case (20:05Z, same day):** the first, "as built": radius 1, not mirrored, no pose applied. The escalation is raised inside `notched_rod_of::<f64>(1.0, false)` while the body is being built, so every pose of the row meets it. Read by EMBED's merge lane with a temporary print in the row's loop, on the second landing's branch at main `74feb4851c`.
+
+**A second built body (22:27Z, same day).** `sweep::all verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar` (slow set; a test of another program's, not EMBED's) fails on main `e3fdefa369` with the same refusal, from the Boolean under the ring lane at the `Interval` scalar:
+
+`the ring lane refused: Escalated { decision: Coincidence(Section, Moot), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("section_site_foot_bend") } }`
+
+`cargo nextest run -p sweep --test all --profile ci --ignore-default-filter -E 'test(/verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar/)'`. Not checked by EMBED: whether it was green before PR 7408 (it was not among the reds EMBED's lanes listed on the landing branch before today's merges of main).
