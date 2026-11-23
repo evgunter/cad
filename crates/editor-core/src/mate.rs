@@ -1209,11 +1209,11 @@ impl crate::spoken::Say for MateFault {
     ) -> core::fmt::Result {
         use crate::spoken::Said;
         let mate_ = |m: MateRef| by.mate(m);
-        // What a placement places, as its sentence says it: a datum's
-        // frame, any other placement's copy.
+        // What a placement places, as its sentence says it: the datum
+        // itself, any other placement its copy.
         let placed = |placement: RecipeNodeId| {
             if by.spoken(placement).kind() == Some("Datum") {
-                "frame"
+                "datum"
             } else {
                 "copy"
             }
