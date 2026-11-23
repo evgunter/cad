@@ -277,14 +277,18 @@ fn an_offset_cylinder_keeps_its_boss_through_a_centre_edit() {
 /// its cap's normal and its wall's axis are both functions of the three,
 /// and the chart turns the face's normal by the least turn. The door
 /// reads the wall's axis along the sketch's `z` in the symbols, through
-/// the placement as through a frame (`[placement.placement]`).
+/// the placement as through a frame (`[placement.placement]`), at a tilt
+/// and at a tilt of zero, where the cap's normal is the space's `z` in
+/// value alone.
 #[test]
 fn a_tilted_cylinders_boss_is_tangent_for_every_tilt() {
-    let (doc, a) = with_angle("a", 0.2);
-    let (doc, base) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
-    let (doc, cylinder) = turned_cylinder(doc, base, a, ([0.0, 0.0], 0.0));
-    let scene = boss(doc, cylinder, CapEnd::End, unslid(), BOSS_H);
-    assert_proven(&scene, "tilted by a");
+    for value in [0.2, 0.0] {
+        let (doc, a) = with_angle("a", value);
+        let (doc, base) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
+        let (doc, cylinder) = turned_cylinder(doc, base, a, ([0.0, 0.0], 0.0));
+        let scene = boss(doc, cylinder, CapEnd::End, unslid(), BOSS_H);
+        assert_proven(&scene, &format!("tilted by a at {value}"));
+    }
 }
 
 /// A document holding the free angle `name` at `value`, and its read.
@@ -422,21 +426,15 @@ fn face_of_kind(doc: &ProfileDoc, node: RecipeNodeId, kind: SurfaceKind) -> Stab
 /// traced from the chart of a box's top beside it. At `a = 0` the wall
 /// stands square to the box's top, so the boss is tangent, but the wall's
 /// axis leaves the sketch's `z` by `sin a`: no identity, and the finding
-/// names where to draw. The placement is not why: placed the same way
-/// at a tilt, the cylinder's boss on its own cap proves. At `a = 0` that
-/// boss asks for the axis too
-/// (`work/coincide/a-boss-on-a-placed-cylinders-cap-at-zero-tilt-asks-for-the-axis.md`).
+/// names where to draw. The placement is not why: the same placed
+/// cylinder's boss on its own cap proves.
 #[test]
 fn a_hole_parallel_to_the_face_by_value_only_asks_for_the_axis() {
-    let placed = |value| {
-        let (doc, a) = with_angle("a", value);
-        let (doc, block) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
-        let (doc, cylinder) = turned_cylinder(doc, block, a, ([0.0, 0.0], 0.0));
-        (doc, block, cylinder)
-    };
-    let (doc, block, cylinder) = placed(0.0);
+    let (doc, a) = with_angle("a", 0.0);
+    let (doc, block) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
+    let (doc, cylinder) = turned_cylinder(doc, block, a, ([0.0, 0.0], 0.0));
     let (on_the_box, traced) = boss_tracing(
-        doc,
+        doc.clone(),
         (block, cap(block, CapEnd::End)),
         cylinder,
         unslid(),
@@ -444,9 +442,8 @@ fn a_hole_parallel_to_the_face_by_value_only_asks_for_the_axis() {
     );
     let proof = tangency_of(on_the_box, cylinder, traced);
     assert!(asks_for_the_axis(&proof), "{proof:?}");
-    let (tilted, _, cylinder) = placed(0.2);
-    let on_the_cap = boss(tilted, cylinder, CapEnd::End, unslid(), BOSS_H);
-    assert_proven(&on_the_cap, "placed at a tilt, on its own cap");
+    let on_the_cap = boss(doc, cylinder, CapEnd::End, unslid(), BOSS_H);
+    assert_proven(&on_the_cap, "the placed cylinder's own cap");
 }
 
 /// **A turn written in radians tilts the wall by its rounding; a frame
@@ -801,8 +798,15 @@ fn a_faces_chart_reads_a_trace_before_anything_is_drawn_there() {
 /// `a` and the box's corners.
 #[test]
 fn a_cylinder_tilted_on_a_frame_read_off_a_corner_is_tangent_for_every_tilt() {
+    for value in [0.2, 0.0] {
+        tilted_on_a_corner_frame(value);
+    }
+}
+
+/// The corner-frame row at the tilt `value`.
+fn tilted_on_a_corner_frame(value: f64) {
     use editor_core::pose::PoseRole;
-    let (doc, a) = with_angle("a", 0.2);
+    let (doc, a) = with_angle("a", value);
     let (doc, block) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
     let ev = eval(&doc);
     let corner = editor_core::corner_frame_in(
@@ -840,7 +844,10 @@ fn a_cylinder_tilted_on_a_frame_read_off_a_corner_is_tangent_for_every_tilt() {
     );
     let (doc, cylinder) = extruded(doc, disc);
     let scene = boss(doc, cylinder, CapEnd::End, unslid(), BOSS_H);
-    assert_proven(&scene, "tilted on the corner frame by a");
+    assert_proven(
+        &scene,
+        &format!("tilted on the corner frame by a at {value}"),
+    );
 }
 
 /// **A boss on a cylinder tilted by a variable at zero, tracing an upright

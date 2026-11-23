@@ -39,10 +39,15 @@ Once the prover sees through a placement, check that each row still asks for the
 
 ## Closed
 
-The replay saw the placement all along: the placed spelling's heading component held all three of the placement's spins as symbols (its `y` and `z` spins are written zeros, each a variable). It was not shown zero because its form outgrew the door's 256 terms; it discharged at 4096. The `Through` spelling was the same, with five symbols (the angle and the box's corners). The bloat was the face chart's spin at `Sym`: `settle` turned the folded map by `v − atan2(…)` of it, and renormalized the least turn's axes. `Sym<T>` now sets a chart's spin from its frames, `rot(a, θ)·S·O`, as the interval lane does (`SolveScalar::spins_by_frames`). The two are one map over the reals, and each spelling proves at 256.
+**Why it went `Numeric`.** The replay saw the placement all along: the placed spelling's heading component held all three of the placement's spins as symbols (its `y` and `z` spins are written zeros, each a variable). The form outgrew the door's 256 terms (it discharged at 4096). The `Through` spelling was the same, with five symbols (the angle and the box's corners).
 
-- `a_tilted_cylinders_boss_is_tangent_for_every_tilt` is lifted to `by_its_heading`.
-- `a_cylinder_tilted_on_a_frame_read_off_a_corner_is_tangent_for_every_tilt` (new) proves the `Through` spelling.
+**Where the form grew.** The face chart's spin at `Sym`: `settle` turned the folded map by `v − atan2(…)` of it, and renormalized the least turn's axes.
+
+**The fix.** `Sym<T>` now sets a chart's spin from its frames, `rot(a, θ)·S·O`, as the interval lane does (`SolveScalar::spins_by_frames`). Over the reals that is the measured spelling's map, because `S` is the least turn as a function of its directions. That holds since `doctail/the-least-turn-and-aligned-read-exactness-off-the-nominal-at-sym` (PR 7434), which this row waited on after its review found a false proof through the value-exact identity. Each spelling proves at 256.
+
+**Rows:**
+- `a_tilted_cylinders_boss_is_tangent_for_every_tilt` is lifted to `by_its_heading`, at `a = 0.2` and at `a = 0`.
+- `a_cylinder_tilted_on_a_frame_read_off_a_corner_is_tangent_for_every_tilt` (new) proves the `Through` spelling, at both tilts.
 - `a_boss_on_a_box_mated_flat_onto_the_cap_is_tangent_for_every_tilt` stays pinned red. It needs 512 terms, through two nested charts: `coincide/a-heading-through-a-chart-on-a-mated-copy-outgrows-the-doors-budget`.
-- The two `Owed` rows each assert a placed twin that proves, so their ask cannot be the placement's map. The hole row's twin is at `a = 0.2`: at `a = 0` the twin itself asks, `coincide/a-boss-on-a-placed-cylinders-cap-at-zero-tilt-asks-for-the-axis`.
-- `coincidence_door::the_door_proves_every_composed_dies_joint` (renamed from `…two_thirds…`): all 42 of the tour die's joints now prove, up from 28. Those are the pips placed through charts turned off the die's axes.
+- The two `Owed` rows each assert a placed twin that proves, so their ask cannot be the placement's map. The hole row's twin is on its own zero-tilt document. `coincide/a-boss-on-a-placed-cylinders-cap-at-zero-tilt-asks-for-the-axis`, filed and closed here, records that the twin asked at `a = 0` until PR 7434.
+- `coincidence_door::the_door_proves_two_thirds_of_the_composed_dies_joints`: the tour die proves 29 of its 42 joints, up from 28. The other 13 are `Numeric/Budget`, as are the 42 meetings.

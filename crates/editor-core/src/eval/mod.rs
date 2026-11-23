@@ -3752,7 +3752,12 @@ where
 
     /// A chart's map is set from its frames, `rot(a, θ)·S·O`: a
     /// polynomial in the chart's inputs, with no `atan2` of the folded
-    /// map and no renormalized axes for the tier to see through.
+    /// map and no renormalized axes for the tier to see through. It is
+    /// the measured spelling's map over the reals because `S` is the least
+    /// turn as a function of its directions: neither the least turn nor
+    /// the chart's aligned axis reads an exact value off the nominal at
+    /// `Sym` (`SolveScalar::zero_everywhere`), so `S` carries every
+    /// variable the face's normal does.
     fn spins_by_frames() -> bool {
         true
     }
