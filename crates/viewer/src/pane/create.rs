@@ -158,15 +158,10 @@ pub(crate) fn boolean_waiting(tool: &BooleanTool) -> Vec<(usize, String)> {
         .collect()
 }
 
-/// **Pick `i` of the boolean tool as its panel line calls it**: a
-/// member by its place in the list, a subtraction's seat by its role.
+/// **Pick `i` of the boolean tool as its panel line calls it**
+/// ([`BooleanTool::pick_called`]).
 fn boolean_pick_called(tool: &BooleanTool, i: usize) -> String {
-    match tool.operation() {
-        BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
-            .name()
-            .to_owned(),
-        BooleanOp::Union | BooleanOp::Intersect => format!("{} {}", Seat::Member.name(), i + 1),
-    }
+    tool.pick_called(i)
 }
 
 /// **The boolean tool's picks reading a family**, each called as its

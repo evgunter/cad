@@ -771,7 +771,7 @@ fn a_cut_offers_the_source_of_its_tool_as_well() {
         SessionOp::AddBoolean {
             spec: viewer::session::BooleanSpec::Subtract {
                 from: body.into(),
-                tool: tool.into(),
+                tool: vec![tool.into()],
             },
         },
     );
