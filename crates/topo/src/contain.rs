@@ -1014,7 +1014,7 @@ fn curved_interior_placement<T: Decide>(
     let view = body.proven_face(face);
     let analytic = match *view.surface() {
         geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             let radial = geom::Line { origin, dir: axis }.offset(q);
             ruled_face_containment(body, face, radial.norm() - radius, q, band, cut)
         }
@@ -1025,7 +1025,7 @@ fn curved_interior_placement<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let elevation = geom_brep::cone_elevation(
                 geom::Line {
                     origin: apex,
@@ -1047,7 +1047,7 @@ fn curved_interior_placement<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             torus_face_containment(
                 body,
                 face,

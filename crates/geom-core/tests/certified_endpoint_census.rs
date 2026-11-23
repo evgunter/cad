@@ -365,7 +365,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `TubeRun::of`'s 2, a side's ends read through `is_certified().then`, so a piece with a \
          side that does not certify has no run",
     ),
-    ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
+    (
+        "crates/geom-brep/src/pair_section/ruling.rs",
+        9,
+        9,
+        "the coverage walk's six (`96b964110`) sit in a function that asks: `apart`'s two \
+         behind its own `is_certified()`, and the unseparated root's four (`|−B + σ√D|`'s low \
+         end, `|A|`'s high, the ball's reach and the ruling's speed) each the end of an \
+         enclosure that bounds the way it is read, formed by sums, products and roots alone",
+    ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
         9,
@@ -444,10 +452,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/pcurve_cache/speed.rs",
-        38,
+        41,
         4,
-        "not yet dispositioned: the 34 that do not ask are \
-         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`",
+        "not yet dispositioned: 34 of the 37 that do not ask are \
+         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`. \
+         `pole_azimuth_speed`'s three (`fa3cd6593`, `0593c7cfb`) are safe at the site: `det M`'s \
+         sign and low end are read off products and sums of exact points, which no quotient or \
+         power decorates, and the quotient's high end only behind `det.lo() > 0`, its divisor \
+         proven off zero",
     ),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
@@ -715,6 +727,32 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
+        "crates/step-import/src/on_built.rs",
+        24,
+        0,
+        "the printed-on-built certificates (`651aed96e` to `1259b698b`), none in a function \
+         that asks, each safe at the site: `printed_off_line`'s one, the far end of the trim \
+         cover's distance range, read outward; `segment_reach`'s five, behind `length2.lo() > 0` \
+         (a sum of squares of exact differences), past which every quotient divides by a length \
+         proven positive, each high end the bound read (`point_segment_sup`'s quotient by that \
+         length reaches a read only past the same guard); and `arc_on_circle`'s 18, over \
+         enclosures formed by sums, products and roots of non-negative values of exact points, \
+         which no quotient or power decorates: the coefficients' ends as widths and middles (a \
+         direction the slack covers), the amplitude's low end behind `amp.lo() > 0`, `S`'s ends, \
+         `ρ_min`'s root behind `inner.lo() > 0`, and the high ends the bound is formed of",
+    ),
+    (
+        "crates/step-import/src/recognize_curve.rs",
+        5,
+        0,
+        "none in a function that asks, each safe at the site: `circle_distance_of`'s three \
+         take the lower root only where `r − δ_s` and the radicand read positive at their low \
+         ends, and otherwise `0`, which refuses at every band; `δ_s` divides by the radius as an \
+         exact point, and a zero radius makes it empty, whose ends read NaN, so neither \
+         comparison holds and the refusing `0` is taken. `try_line`'s two are the high ends of \
+         sums and products of exact points (the overshoot past either end), checked finite",
+    ),
+    (
         "crates/topo/src/clearance.rs",
         54,
         16,
@@ -777,14 +815,20 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/props.rs",
-        7,
+        11,
         3,
         "the 3 that ask are `deciding_walk`'s confirmation reads, which refine on a re-derivation \
-         that does not certify. The other 4: `far_from`'s 2 read the distances that decide \
+         that does not certify. The other 8: `far_from`'s 2 read the distances that decide \
          whether a region is carried, a choice of reference point, and the carry it selects is \
          refused by name in `carry_of` unless it certifies; `SignCertificate::interval_volume`'s \
          2, its ends, are a refusal's payload (`outward_volume`, the bracket `Undecided` \
-         reports) and certify nothing",
+         reports) and certify nothing; `closed_form_reads`' 4, its `ends` closure's `lo` and \
+         `hi` of a face's flux and area, read the walk's lifted sums and the closed form run \
+         again (`walked_closed_form`, `lifted_closed_form`) into the `(lo, hi)` pairs a \
+         `ClosedFormRead` reports. That function is test vocabulary, built only under `test` or \
+         `test-support`, and its rows compare the two readings bit for bit or match the \
+         refusal `lifted_closed_form` returns: no branch is taken on an end, so a pair that \
+         does not certify is reported as an enclosure and certifies nothing",
     ),
     ("crates/topo/src/props/quad_lane.rs", 27, 27, ""),
     ("crates/topo/src/test_support_fixtures.rs", 2, 2, ""),

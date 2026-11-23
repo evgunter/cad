@@ -1218,12 +1218,21 @@ impl ClearanceReport {
 /// census made global and parametric): the selection's boundary is
 /// injective, ERROR-DESIGN's *Self-intersection scope*.
 ///
-/// Every pair of the selection's faces is examined, a face against
-/// itself included. A face on an analytic carrier is injective by its
-/// kind; two cells that share no point of the boundary are certified at
-/// strictly positive distance; two that do are certified by a local
-/// certificate or refuse typed, naming the two faces, the shared cell
-/// and the arm ([`topo::clearance::Sweep::run`]).
+/// `Holds` rests on every pair of the selection's faces, a face
+/// against itself included. A face on an analytic carrier is injective
+/// by its kind; two cells that share no point of the boundary are
+/// certified at strictly positive distance; two that do are certified
+/// by a local certificate or refuse typed, naming the two faces, the
+/// shared cell and the arm ([`topo::clearance::Sweep::run`]).
+///
+/// It ends one of three ways: it proves the boundary clean (`Holds`);
+/// it finds and verifies a place where the boundary meets itself (a
+/// crossing, `Violated`); or it cannot decide a pair of faces
+/// (`Refused`). It ends at the first crossing or refusal it meets, and
+/// that is the leaf's verdict: the pairs after it are not read. A boundary that crosses itself and also holds a place the
+/// engine cannot read is told whichever the walk meets first, which
+/// moves with the body's pose and its faces' order; it is never told
+/// that it holds.
 pub fn self_intersection(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -1248,10 +1257,12 @@ pub fn self_intersection(
 /// and the strict bound over one body is the injectivity question.
 /// Between two bodies it is metric.
 ///
-/// The verdict combines the pairs' outcomes in one fixed order: a
-/// definite violation outranks a refusal, which outranks `Holds`. A
-/// finding is a stronger statement than an unknown, and an unknown is
-/// never presented as a pass.
+/// A metric bound's verdict combines the pairs' outcomes in one fixed
+/// order: a definite violation outranks a refusal, which outranks
+/// `Holds`. A finding is a stronger statement than an unknown, and an
+/// unknown is never presented as a pass. The injectivity question ends
+/// at its first finding instead ([`self_intersection`]), so its
+/// violation is one met before any refusal.
 pub fn clearance_at_dials(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,

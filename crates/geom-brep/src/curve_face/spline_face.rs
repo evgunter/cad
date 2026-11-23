@@ -303,7 +303,7 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
         let path = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => Self::Line {
                 o: p(origin),
-                d: v(dir),
+                d: v(dir.get()),
             },
             Curve3::Circle(_) | Curve3::Ellipse(_) => {
                 let lifted = carrier.map_scalar(Interval::from_certified);

@@ -161,13 +161,15 @@ fn trim_cover(spec: &EdgeSpec) -> Option<geom::cover::Cover<Interval>> {
     carrier.cover_over(window).ok()
 }
 
-/// A line at the certification scalar, exact.
-fn exact_line(origin: Point3<f64>, dir: Vec3<f64>) -> geom::Line<Interval> {
+/// A built line at the certification scalar: its origin exact, and its
+/// direction the polar enclosure of the `f64` direction's normalization
+/// ([`geom_core::UnitVec3::map_scalar`]), the same point set, since a
+/// line's distance reads its direction only up to length.
+fn exact_line(origin: Point3<f64>, dir: geom_core::UnitVec3<f64>) -> geom::Line<Interval> {
     let [ox, oy, oz] = pt(origin);
-    let [dx, dy, dz] = vc(dir);
     geom::Line {
         origin: Point3::new(ox, oy, oz),
-        dir: Vec3::new(dx, dy, dz),
+        dir: dir.map_scalar(Interval::point),
     }
 }
 
@@ -190,7 +192,14 @@ pub(crate) fn printed_on_segment(spec: &EdgeSpec, (a, b): (Point3<f64>, Point3<f
     let Some(cover) = trim_cover(spec) else {
         return f64::NAN;
     };
-    let site = geom::cover::Site::Line(exact_line(a, b - a));
+    // The segment's line at the certification scalar: the chord of its
+    // two exact ends, whose Interval normalization encloses `b − a`'s
+    // direction.
+    let at = |p: Point3<f64>| {
+        let [x, y, z] = pt(p);
+        Point3::new(x, y, z)
+    };
+    let site = geom::cover::Site::Line(geom::Line::chord(at(a), at(b)).0);
     let across = cover.distance_range(&site).1;
     let [dx, dy, dz] = sub(pt(b), pt(a));
     segment_reach(across, cover.range_along(Vec3::new(dx, dy, dz)), (a, b))
@@ -514,7 +523,7 @@ mod tests {
 
     #[test]
     fn a_spline_on_a_line_is_bounded_over_its_trim_alone() {
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_y());
         let truth = |p: Point3<f64>| p.x.hypot(p.z);
         let printed = bulging_line(1e-3);
         let straight = spec(printed.clone(), (0.0, 1.0));
@@ -563,8 +572,11 @@ mod tests {
 
     #[test]
     fn a_line_on_a_line_reads_its_trim_ends() {
-        let built = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
-        let tilted = Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, 1e-6, 0.0));
+        let built = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_x());
+        let tilted = Curve3::line(
+            Point3::new(0.0, 1e-6, 0.0),
+            geom_core::UnitVec3::squared(Vec3::new(1.0, 1e-6, 0.0)),
+        );
         let printed = spec(tilted, (0.0, 3.0));
         let bound = printed_on(&printed, &built).unwrap();
         let true_sup = dense(&printed, |p| p.y.hypot(p.z));
@@ -687,7 +699,7 @@ mod tests {
                 "{trim:?}: read: {bound:e}"
             );
         }
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_y());
         let straight = bulging_line(1e-3);
         let inner = printed_on(&spec(straight.clone(), (0.2, 0.8)), &line).unwrap();
         assert!(inner <= 1e-15, "a trim inside the straight span: {inner:e}");
@@ -792,7 +804,7 @@ mod tests {
         let true_sup = dense(&s, |p| (p.x - 1.0).max(-p.x).max(0.0).hypot(p.y));
         assert!(true_sup > 0.5, "the overshoot is there: {true_sup}");
         assert!(bound >= true_sup, "sound: {bound} < {true_sup}");
-        let on_line = printed_on(&s, &Curve3::line(a, Vec3::new(1.0, 0.0, 0.0))).unwrap();
+        let on_line = printed_on(&s, &Curve3::line(a, geom_core::UnitVec3::exact_x())).unwrap();
         assert!(on_line <= 1e-15, "it is on the infinite line: {on_line:e}");
     }
 }

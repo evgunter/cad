@@ -635,7 +635,7 @@ impl<T: Real> Site<T> {
     fn direction(&self, v: Vec3<T>) -> Vec3<T> {
         match self {
             Site::Point(_) => v,
-            Site::Line(line) => off_line(v, line.dir),
+            Site::Line(line) => off_line(v, line.dir.get()),
         }
     }
 }
@@ -717,7 +717,7 @@ impl<T: Real> Cover<T> {
         reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
     )]
     pub fn circle(core: Core<T>) -> Option<Self> {
-        let axis = core.axis.dir.normalize();
+        let axis = core.axis.dir.get().normalize();
         let frame = Frame::new(core.axis.origin, axis, axis.orthonormal_basis().0);
         Self::arc(
             &frame,
@@ -738,10 +738,7 @@ impl<T: Real> Cover<T> {
         (finite_point(origin) && finite_vec(axis.get()) && finite(&[radius]) && window.finite())
             .then(|| {
                 Self::piece(Piece::Slab(Slab {
-                    axis: Line {
-                        origin,
-                        dir: axis.get(),
-                    },
+                    axis: Line { origin, dir: axis },
                     radius: radius.abs(),
                     window,
                     wall: None,
@@ -760,7 +757,8 @@ impl<T: Real> Cover<T> {
     /// `within`, that is not a finite number, an axis of zero length
     /// among them.
     pub fn wall(frame: &Frame<T>, radius: T, within: &Self) -> Option<Self> {
-        let axis = frame.axis().normalize();
+        let unit = UnitVec3::squared(frame.axis());
+        let axis = unit.get();
         let base = vec_of(frame.origin()).dot(axis);
         let (lo, hi) = within.range_along(axis);
         let window = ParamWindow::new(lo - base, hi - base);
@@ -772,7 +770,7 @@ impl<T: Real> Cover<T> {
                 Self::piece(Piece::Slab(Slab {
                     axis: Line {
                         origin: frame.origin(),
-                        dir: axis,
+                        dir: unit,
                     },
                     radius: outer,
                     window,
@@ -797,7 +795,8 @@ impl<T: Real> Cover<T> {
     /// generators are not decided to climb (a denominator not decided
     /// positive).
     pub fn cone(frame: &Frame<T>, half_angle: T, within: &Self) -> Option<Self> {
-        let axis = frame.axis().normalize();
+        let unit = UnitVec3::squared(frame.axis());
+        let axis = unit.get();
         let base = vec_of(frame.origin()).dot(axis);
         let (lo, hi) = within.range_along(axis);
         let window = ParamWindow::new(lo - base, hi - base);
@@ -809,7 +808,7 @@ impl<T: Real> Cover<T> {
             Self::piece(Piece::Frustum(Frustum {
                 axis: Line {
                     origin: frame.origin(),
-                    dir: axis,
+                    dir: unit,
                 },
                 tan,
                 window,
@@ -834,7 +833,7 @@ impl<T: Real> Cover<T> {
             Self::piece(Piece::Frustum(Frustum {
                 axis: Line {
                     origin: apex,
-                    dir: axis.get(),
+                    dir: axis,
                 },
                 tan: tan_half_angle.abs(),
                 window,
@@ -1020,7 +1019,7 @@ impl<T: Real> Core<T> {
     /// from the axis line (`line`) and its support (`support`).
     fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
         let (near, far) = line(&Site::Line(self.axis));
-        let a = self.axis.dir.normalize();
+        let a = self.axis.dir.get().normalize();
         let base = vec_of(self.axis.origin).dot(a);
         let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
         let r = self.radius.abs();
@@ -1329,8 +1328,9 @@ impl<T: Real> Tube<T> {
         let turn = own
             .axis
             .dir
+            .get()
             .normalize()
-            .cross(other.axis.dir.normalize())
+            .cross(other.axis.dir.get().normalize())
             .norm();
         (other.axis.origin - own.axis.origin).norm()
             + (other.radius.abs() - own.radius).abs()
@@ -1388,8 +1388,8 @@ impl<T: Real> Patch<T> {
 impl<T: Real> Slab<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
-        let ae = self.axis.dir.dot(e);
-        let room = self.axis.dir.cross(e).norm();
+        let ae = self.axis.dir.get().dot(e);
+        let room = self.axis.dir.get().cross(e).norm();
         vec_of(self.axis.origin).dot(e) + (lo * ae).max(hi * ae) + self.radius * room
     }
 
@@ -1423,9 +1423,9 @@ impl<T: Real> Slab<T> {
     /// level about its own axis.
     fn line_range(&self, line: &Line<T>) -> (T, T) {
         let (lo, hi) = self.window.ordered();
-        let end = |h: T| line.distance(self.axis.origin + self.axis.dir * h);
+        let end = |h: T| line.distance(self.axis.origin + self.axis.dir.get() * h);
         let reach = end(lo).max(end(hi));
-        let along = self.axis.dir.dot(line.dir.normalize()).abs();
+        let along = self.axis.dir.get().dot(line.dir.get().normalize()).abs();
         let (n0, f0) = ball_range(self.ball(), &Site::Line(*line));
         let near = (self.inner() * along - reach).max(T::zero());
         (n0.max(near), f0.min(self.radius + reach))
@@ -1434,7 +1434,7 @@ impl<T: Real> Slab<T> {
     fn ball(&self) -> Ball<T> {
         let (lo, hi) = self.window.ordered();
         let half = T::from_f64(0.5);
-        let c = self.axis.origin + self.axis.dir * ((lo + hi) * half);
+        let c = self.axis.origin + self.axis.dir.get() * ((lo + hi) * half);
         let r = (((hi - lo) * half).powi(2) + self.radius.powi(2)).sqrt();
         (c, r)
     }
@@ -1443,8 +1443,8 @@ impl<T: Real> Slab<T> {
 impl<T: Real> Frustum<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
-        let ae = self.axis.dir.dot(e);
-        let k = self.tan * self.axis.dir.cross(e).norm();
+        let ae = self.axis.dir.get().dot(e);
+        let k = self.tan * self.axis.dir.get().cross(e).norm();
         // Convex in `t`, so greatest at an end.
         let at = |t: T| t * ae + t.abs() * k;
         vec_of(self.axis.origin).dot(e) + at(lo).max(at(hi))
@@ -1522,7 +1522,7 @@ impl<T: Real> Arc<T> {
                 }
             }
             Site::Line(line) => {
-                let a = line.dir.normalize();
+                let a = line.dir.get().normalize();
                 let p = site.direction(self.frame.u_ref() * self.semi_u);
                 let q = site.direction(self.frame.v_ref() * self.semi_v);
                 let half = T::from_f64(0.5);

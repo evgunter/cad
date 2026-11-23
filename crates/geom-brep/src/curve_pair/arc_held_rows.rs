@@ -302,7 +302,7 @@ fn all_green(failures: Vec<String>) {
 fn a_line_through_a_point_of_an_arc_held_ellipse_meets_it() {
     let mut failed = Vec::new();
     for f in poses() {
-        let line = |lift: f64| Curve3::line(f.p - f.d * (2.0 * f.r) + f.n * lift, f.d);
+        let line = |lift: f64| Curve3::line(f.p - f.d * (2.0 * f.r) + f.n * lift, geom_core::UnitVec3::checked(f.d));
         failed.extend(
             Case {
                 f: &f,
@@ -360,7 +360,7 @@ fn a_line_piercing_the_plane_through_a_point_of_the_arc_meets_it() {
     let mut failed = Vec::new();
     for f in poses() {
         let dir = (f.d * g.cos() + f.n * g.sin()).normalize();
-        let line = |at: Point3<f64>| Curve3::line(at - dir * (2.0 * f.r), dir);
+        let line = |at: Point3<f64>| Curve3::line(at - dir * (2.0 * f.r), geom_core::UnitVec3::checked(dir));
         failed.extend(
             Case {
                 f: &f,
@@ -388,7 +388,7 @@ fn a_line_out_through_the_anchor_vertex_meets_it() {
     for f in poses() {
         let (vertex, u) = (f.e.point_at(0.0), f.e.u_ref());
         let half = 10.0 * f.r / f.b;
-        let line = |start: Point3<f64>| Curve3::line(start, u);
+        let line = |start: Point3<f64>| Curve3::line(start, geom_core::UnitVec3::checked(u));
         failed.extend(
             Case {
                 f: &f,

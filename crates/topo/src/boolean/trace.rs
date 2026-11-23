@@ -252,7 +252,7 @@ pub fn ray_crossings<T: Decide>(
     let span = Span::new(&carrier, (ray.start(), ray.from_start(reach)));
     meetings(&span, surface, &[SpanEnd::Start], band)?
         .into_iter()
-        .map(|(t, point)| crossing(surface, sense, t, point, dir, arm, band))
+        .map(|(t, point)| crossing(surface, sense, t, point, dir.get(), arm, band))
         .collect()
 }
 
@@ -345,7 +345,7 @@ pub fn ray_crossings_to<T: Decide>(
     band: Band,
     taken: impl Fn(&[Crossing<T>]) -> Option<usize>,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    let dir = ray.line().dir;
+    let dir = ray.line().dir.get();
     let carrier = Curve3::Line(ray.line());
     let read = |run: T, whole: bool| {
         // The run read as the segment it covers, levered from the ray's
@@ -432,7 +432,7 @@ pub fn circle_crossings<T: Decide>(
     // The circle on the frame its stated directions square to; the
     // crossings' velocity reads that same frame, so it is the carrier's.
     let frame = geom::Frame::new(center, axis, u_ref);
-    let (axis, u_ref, v_ref) = (frame.axis(), frame.u_ref(), frame.v_ref());
+    let (axis, u_ref, v_ref) = (frame.axis_unit(), frame.u_ref(), frame.v_ref());
     // The circle's period: its parameter is its angle.
     let tau = geom::conic_period::<T>().length();
     let carrier = Curve3::Circle(geom::Circle::new(frame, radius));

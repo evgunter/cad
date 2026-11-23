@@ -88,6 +88,7 @@
 
 use geom::Conic;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, Vec3};
 
 use crate::validate::decide;
@@ -174,7 +175,7 @@ impl<T: Decide> Quadric<T> {
             } => {
                 let (h, w) = line.param_and_offset(p);
                 let (s, c) = half_angle.sin_cos();
-                w.normalize() * c - axis * h.select_le_zero(-s, s)
+                w.normalize() * c - axis.get() * h.select_le_zero(-s, s)
             }
             Self::Torus { axis, major, .. } => {
                 let tube = p - Self::core(axis, major, p);
@@ -340,50 +341,18 @@ impl<T: Decide> Quadric<T> {
                 let (rs, rt) = (ws.norm(), wt.norm());
                 let mut paths = Vec::with_capacity(2);
                 // Round the start's meridian to `to`'s parallel, then round.
-                let turned = centre + axis * ht + ef * rt;
-                let meridian = parallel(
-                    geom::Line {
-                        origin: kf,
-                        dir: ef.cross(axis),
-                    },
-                    off_t,
-                    start,
-                    turned,
-                );
-                let round = parallel(
-                    geom::Line {
-                        origin: centre + axis * ht,
-                        dir: axis,
-                    },
-                    rt,
-                    turned,
-                    to,
-                );
+                let turned = centre + axis.get() * ht + ef * rt;
+                let meridian = parallel((kf, ef.cross(axis.get())), off_t, start, turned);
+                let round = parallel((centre + axis.get() * ht, axis.get()), rt, turned, to);
                 paths.push(Path {
                     pieces: vec![lead.clone(), Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
                     reach: None,
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
-                let turned = centre + axis * hs + et * rs;
-                let round = parallel(
-                    geom::Line {
-                        origin: centre + axis * hs,
-                        dir: axis,
-                    },
-                    rs,
-                    start,
-                    turned,
-                );
-                let meridian = parallel(
-                    geom::Line {
-                        origin: kt,
-                        dir: et.cross(axis),
-                    },
-                    off_t,
-                    turned,
-                    to,
-                );
+                let turned = centre + axis.get() * hs + et * rs;
+                let round = parallel((centre + axis.get() * hs, axis.get()), rs, start, turned);
+                let meridian = parallel((kt, et.cross(axis.get())), off_t, turned, to);
                 paths.push(Path {
                     pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
@@ -438,7 +407,7 @@ impl<T: Decide> Quadric<T> {
         let (rise, ruling_at_to) = match *self {
             Self::Cone { .. } => {
                 let e = to - base;
-                (e.norm() - (below - base).norm(), e.normalize())
+                (e.norm() - (below - base).norm(), UnitVec3::squared(e))
             }
             _ => (ht - hf, axis),
         };
@@ -460,15 +429,7 @@ impl<T: Decide> Quadric<T> {
             Margin::of(charge(rise, slack)),
             band,
         )?;
-        let round_at_to = parallel(
-            geom::Line {
-                origin: base + axis * ht,
-                dir: axis,
-            },
-            rt,
-            turned,
-            to,
-        );
+        let round_at_to = parallel((base + axis.get() * ht, axis.get()), rt, turned, to);
         let turn = decide(
             "split_ring_path_turn",
             Margin::of(charge(
@@ -486,21 +447,13 @@ impl<T: Decide> Quadric<T> {
             });
         }
         if rise != Sign::Zero {
-            let round = parallel(
-                geom::Line {
-                    origin: base + axis * hf,
-                    dir: axis,
-                },
-                rf,
-                from,
-                below,
-            );
+            let round = parallel((base + axis.get() * hf, axis.get()), rf, from, below);
             paths.push(Path {
                 pieces: vec![Piece::Arc(round), piece(below, to, to)],
                 arrival: if rise == Sign::Positive {
-                    ruling_at_to
+                    ruling_at_to.get()
                 } else {
-                    -ruling_at_to
+                    -ruling_at_to.get()
                 },
                 reach: None,
             });
@@ -554,8 +507,8 @@ fn ruled_corners<T: Decide>(
     let (ht, wt) = line.param_and_offset(to);
     let (rf, rt) = (wf.norm(), wt.norm());
     [
-        line.origin + line.dir * ht + (wf / rf) * rt,
-        line.origin + line.dir * hf + (wt / rt) * rf,
+        line.origin + line.dir.get() * ht + (wf / rf) * rt,
+        line.origin + line.dir.get() * hf + (wt / rt) * rf,
     ]
 }
 
@@ -573,15 +526,11 @@ impl<T: Real> Path<T> {
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
 fn parallel<T: Decide>(
-    axis: geom::Line<T>,
+    (centre, axis): (Point3<T>, Vec3<T>),
     radius: T,
     from: Point3<T>,
     to: Point3<T>,
 ) -> CircleArc<T> {
-    let geom::Line {
-        origin: centre,
-        dir: axis,
-    } = axis;
     let u = from - centre;
     let u = u.normalize();
     let w = to - centre;
@@ -830,7 +779,7 @@ pub(crate) enum LoopArc<T: Real> {
         circle: geom::Circle<T>,
         span: (T, T),
         /// The torus's centre, unit axis and major radius `R`.
-        core: (Point3<T>, Vec3<T>, T),
+        core: (Point3<T>, UnitVec3<T>, T),
         own: ArcLoop<T>,
     },
     /// An arc of a spline carrier known to lie on the face's surface
@@ -951,9 +900,12 @@ impl<T: Real> LoopArc<T> {
     /// The straight arc from `from` to `to`.
     pub(crate) fn segment(from: Point3<T>, to: Point3<T>) -> Self {
         let d = to - from;
-        let (dir, length) = d.direction_and_length();
+        let (_, length) = d.direction_and_length();
         Self::Line {
-            line: geom::Line { origin: from, dir },
+            line: geom::Line {
+                origin: from,
+                dir: UnitVec3::squared(d),
+            },
             span: (T::zero(), length),
         }
     }
@@ -1108,7 +1060,7 @@ impl<T: Real> LoopSplit<T> {
             geom_brep::PlaneTorusSection::ConcentricCircles { .. } => Some(Self::Radius {
                 axis: geom::Line {
                     origin: centre,
-                    dir: axis.normalize(),
+                    dir: UnitVec3::squared(axis),
                 },
                 radius: major,
             }),
@@ -1256,7 +1208,7 @@ impl<T: Decide> Quadric<T> {
         };
         if decide(
             "split_ring_torus_meridian",
-            Margin::levered(n.dot(axis), arm),
+            Margin::levered(n.dot(axis.get()), arm),
             band,
         )? == Sign::Zero
         {
@@ -1275,7 +1227,7 @@ impl<T: Decide> Quadric<T> {
         }
         if decide(
             "split_ring_torus_parallel",
-            Margin::levered(n.cross(axis).norm(), arm),
+            Margin::levered(n.cross(axis.get()).norm(), arm),
             band,
         )? != Sign::Zero
         {
@@ -1294,7 +1246,7 @@ impl<T: Decide> Quadric<T> {
                 // centre's height, `±r` on the torus).
                 let top = match decide(
                     "split_ring_torus_crest",
-                    Margin::of((k - centre).dot(axis)),
+                    Margin::of((k - centre).dot(axis.get())),
                     band,
                 )? {
                     Sign::Positive => true,
@@ -1308,7 +1260,7 @@ impl<T: Decide> Quadric<T> {
                     own: ArcLoop {
                         split: LoopSplit::Side {
                             origin: centre,
-                            dir: axis,
+                            dir: axis.get(),
                         },
                         positive: top,
                     },
@@ -1539,7 +1491,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let PlaneMeet::Meets(roots) = plane_roots(
                         &p,
                         // `ê` is square to the axis `a`, which seams the plane.
-                        &geom::Frame::new(p.circle.frame().origin(), e, a),
+                        &geom::Frame::new(p.circle.frame().origin(), e, a.get()),
                         arrival,
                         band,
                     )?
@@ -1600,7 +1552,7 @@ pub(crate) fn path_parity<T: Decide>(
                         span,
                     },
                 ) => {
-                    let across = p.circle.axis().dot(dir);
+                    let across = p.circle.axis().dot(dir.get());
                     if decide_m(
                         "split_ring_path_line_across",
                         Margin::levered(across, geom_brep::circle_curvature_arm(&p.circle)),
@@ -1617,7 +1569,7 @@ pub(crate) fn path_parity<T: Decide>(
                         .axis()
                         .dot(p.circle.frame().origin() - origin)
                         / across;
-                    let t = p.param(origin + dir * s);
+                    let t = p.param(origin + dir.get() * s);
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.
                     let slope = across.abs();
@@ -1712,7 +1664,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let rounding = slack / lever.length() + slack / (span.1 - span.0);
                     if decide_m(
                         "split_ring_path_rulings_apart",
-                        Margin::levered(charge(ruling.cross(dir).norm(), rounding), lever),
+                        Margin::levered(charge(ruling.cross(dir.get()).norm(), rounding), lever),
                     )? != Sign::Positive
                     {
                         return Ok(None);
@@ -1836,9 +1788,10 @@ fn spline_crossings<T: Decide>(
         }
         &(Piece::Segment { from, to, .. } | Piece::Ruling { from, to }) => {
             let length = geom_brep::ExtentBall::point(from).lever_from(to);
+            let (chord, chord_length) = geom::Line::chord(from, to);
             (
-                geom::Curve3::line(from, to - from),
-                (T::zero(), T::one()),
+                geom::Curve3::Line(chord),
+                (T::zero(), chord_length),
                 length,
                 Margin::of(charge(length.length(), slack)),
                 SpanEnd::Stop,
@@ -2619,7 +2572,7 @@ mod tests {
         for u in [0.5, 1.0] {
             let ruling = geom::Curve3::Line(geom::Line {
                 origin: at(u, 0.0),
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             });
             for (t0, t1) in cuts(0.3, 0.7) {
                 arcs.push(LoopArc::of(&ruling, (t0, t1)).unwrap());
