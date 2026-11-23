@@ -984,6 +984,16 @@ impl Along {
     /// chart (a plane's affine one included). On an analytic carrier that
     /// line's image is a line or a circle, so an edge on it whose carrier
     /// is a line or a circle has that line or circle as its own.
+    ///
+    /// **This reads the carrier's kind, not which line or circle it is.**
+    /// That the stored carrier is the chart line's image is the body's:
+    /// a finished body's pcurve rows re-certify against their edges'
+    /// carriers through the chart (tier 3's check 8,
+    /// `ValidationError::Pcurve`), so a line carried on a circle's chart
+    /// line, or a circle on a ruling's, is not a body this runs on. A
+    /// reading that needs more than the kind asks for it itself
+    /// ([`zero_of`]'s side through a vertex: a line edge on a chart line
+    /// whose image is a line).
     fn of(surface: &Surface<Interval>, b: &Boundary, edges: &[usize]) -> Self {
         let analytic = matches!(
             surface,
