@@ -459,9 +459,6 @@ pub enum ExtrudeError {
         /// The operator-layer failure.
         source: EulerOpError,
     },
-    /// The final whole-body pcurve mint refused: every curved wall
-    /// leaves the door storing its certified rows (C4).
-    Pcurve(topo::PcurveMintError),
 }
 
 impl ExtrudeError {
@@ -548,7 +545,6 @@ impl ExtrudeError {
                     geom_brep::recourse::read_at(source, at)
                 )
             }
-            Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }
     }
 }
@@ -1123,7 +1119,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     }
 
     body.close_already_checked();
-    topo::mint_pcurves(&mut built, tol).map_err(ExtrudeError::Pcurve)?;
 
     Ok(Extruded {
         body: T::leaf(built, tol).map_err(|findings| ExtrudeError::NotFinished { findings })?,

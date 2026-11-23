@@ -1985,20 +1985,6 @@ pub enum BlendError {
         /// own region's boundary.
         margin: ClassifiedMargin,
     },
-    /// **The result's pcurve caches could not be re-minted** after the
-    /// surgery — a chart image outside a derivation route, a loop that
-    /// does not close in the chart, or a cache that fails its
-    /// certification.
-    ///
-    /// The pass's own typed refusal is nested whole: it names the
-    /// half-edge or face at fault and its own reason, which no
-    /// rendering of this error has to reconstruct.
-    Certify {
-        /// The surgery step that ran the pass.
-        site: &'static str,
-        /// The pcurve pass's typed refusal.
-        source: topo::PcurveMintError,
-    },
     /// **An Euler operator refused during assembly.**
     ///
     /// The operator's own refusal is nested whole — `Argument`,
@@ -2110,7 +2096,6 @@ impl BlendError {
             | Self::NonpositiveSize { .. }
             | Self::NotFinished { .. }
             | Self::RingClearance { .. }
-            | Self::Certify { .. }
             | Self::Op { .. }
             | Self::Join { .. } => None,
         }
@@ -2393,9 +2378,6 @@ impl BlendError {
                      {FILLET3_INSIDE_RECOURSE}"
                 )
             }
-            Self::Certify { site, source } => {
-                write!(f, "{site} — {}", geom_brep::recourse::read_at(source, door))
-            }
             Self::Op { site, source } => {
                 write!(
                     f,
@@ -2616,7 +2598,6 @@ mod recourse_tests {
             BlendError::NotFinished { .. } => Recourse::None,
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
-            BlendError::Certify { .. } => Recourse::None,
             BlendError::Op { .. } => Recourse::None,
             // The join's refusal carries its own ending.
             BlendError::Join { .. } => Recourse::None,
@@ -2802,12 +2783,6 @@ mod recourse_tests {
                 at: EntityId::Face(FaceKey::default()),
                 chain: Convexity::Convex,
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-            },
-            BlendError::Certify {
-                site: "blend face pcurves",
-                source: topo::PcurveMintError::LoopNotClosed {
-                    face: FaceKey::default(),
-                },
             },
             BlendError::Op {
                 site: "strut mev",

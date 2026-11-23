@@ -485,7 +485,14 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door_row() {
                 let pose = tipped(r, c, half, drift / (2.0 * half));
                 for (op, res, _) in pose.runs() {
                     assert!(
-                        matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
+                        matches!(&res, Err(e) if !matches!(
+                            e,
+                            BooleanError::ResultInvalid { findings }
+                                if findings
+                                    .as_slice()
+                                    .iter()
+                                    .any(|f| matches!(f, topo::ValidationError::Pcurve { .. }))
+                        )),
                         "{} | {op}: {:?}",
                         pose.label,
                         res.map(|_| "a body")

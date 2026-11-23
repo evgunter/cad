@@ -104,16 +104,6 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 attempts.len()
             )
         }
-        // **The arc rims mint** (a tripwire, not a cell): wall `#382`
-        // states its circle as four rational spans at end weights 1 and
-        // 2, an exact cylinder that stage-1 recognition promotes whole;
-        // the l-bracket witness below imports.
-        Err(StepImportError::Pcurves { source, .. }) => {
-            panic!(
-                "the l-bracket's arc rims mint on their rows: {}",
-                source.render(geom_brep::recourse::Reading::Build)
-            )
-        }
         // **The frontier: the aggregate gate, on the instances' touches.**
         // The bolts and nuts sit on the bracket, so vertices of two
         // instances share a position, and the assembled body's at-rest

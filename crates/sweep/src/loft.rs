@@ -114,7 +114,7 @@ use geom_core::spline::{ProjectiveScalar, ProjectiveSplit, SplineError};
 use geom_core::{Affine3, Band, BandError, Decide, Indeterminate, Point2, Point3, Real, Tol};
 use profile::{CanonicalStructure, SketchPlane, ValidatedProfile};
 use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
-use topo::{Body, EdgeKey, EulerOpError, FaceKey, PcurveMintError, ShellKey, SolidKey};
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 
 use crate::skin::{
     PathCarry, Section, SectionLoop, SkinError, check_counts, check_shapes, compatible_strips,
@@ -233,9 +233,6 @@ pub enum LoftError {
     /// (D4 ¶2 reports surface inside
     /// [`EulerOpError::Certification`]).
     Euler(EulerOpError),
-    /// The whole-body pcurve mint pass refused: a wall boundary's
-    /// exact line-in-UV image failed its certification.
-    Pcurve(PcurveMintError),
     /// The wall-boundary carrier extraction failed to re-wrap — a
     /// structurally corrupt skinned surface (unreachable from
     /// [`loft_geometry`](crate::loft_geometry) output; surfaced rather than swallowed).
@@ -528,7 +525,6 @@ impl LoftError {
                 "an Euler operation of the assembly refused: {}",
                 geom_brep::recourse::read_at(e, at)
             ),
-            Self::Pcurve(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::SeamStructure { source } => write!(
                 f,
                 "a wall's boundary curve failed to re-wrap: {source}. {}",
@@ -1628,10 +1624,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
             tol,
         )?;
     }
-    // ---- Phase 7: whole-body pcurve mint (spec §1's final pass) —
-    // every wall boundary stores its exact line-in-UV image. ----
-    topo::mint_pcurves(&mut body, tol).map_err(LoftError::Pcurve)?;
-
     body.close_already_checked();
 
     Ok(Lofted {

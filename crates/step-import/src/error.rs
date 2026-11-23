@@ -345,13 +345,6 @@ pub enum StepImportError {
         /// inside ε_in.
         margin: f64,
     },
-    /// Pcurve re-minting refused on the adopted body.
-    Pcurves {
-        /// The minting pass's error, displayed.
-        source: topo::PcurveMintError,
-        /// The file's ε_in: the import door the refusal is read at.
-        file: FileCoincidence,
-    },
     /// The join every finisher ends with (`docs/DESIGN.md`, maximal
     /// edges; Ev's PR 4251 ruling) refused on the adopted solid: where
     /// the file states two edges of one carrier meeting at a vertex, the
@@ -685,11 +678,6 @@ impl StepImportError {
                  interpretation budget, so the refusal is typed rather than guessed \
                  (D7's ambiguity contract)"
             ),
-            Self::Pcurves { source, file } => write!(
-                f,
-                "step import: pcurve re-mint on the adopted body: {}",
-                read_at(source, door(file))
-            ),
             Self::C0KnotUnsplit { face, knot, what } => write!(
                 f,
                 "step import: face #{face}: its B-spline chart has a C⁰ knot at {knot:e} whose \
@@ -951,13 +939,13 @@ mod join_text {
 #[cfg(test)]
 mod nested_at_the_door {
     //! **A nested refusal the import door renders reads that door**: the
-    //! placement's map meeting a corrupt body, and the pcurve re-mint's
-    //! escalation past the file's ε_in, end in the damaged file's ending. Red if
+    //! placement's map meeting a corrupt body ends in the damaged file's
+    //! ending. Red if
     //! the door renders the nested refusal's `Display` (a build) or reads
     //! it at rest.
     #![allow(clippy::unwrap_used)]
 
-    use geom_core::{Band, DAMAGED_FILE_ENDING, FileCoincidence, Indeterminate, MarginDiag};
+    use geom_core::{DAMAGED_FILE_ENDING, FileCoincidence};
 
     use super::StepImportError;
 
@@ -976,69 +964,6 @@ mod nested_at_the_door {
                 && text.ends_with(DAMAGED_FILE_ENDING),
             "{text}"
         );
-    }
-
-    /// The re-mint's undecided escalation opens on the file's door and
-    /// reads as rest does: undecided, so the last resort (ONEHOME fork
-    /// 259), not the damaged file.
-    #[test]
-    fn a_pcurve_remints_escalation_names_the_file() {
-        let error = StepImportError::Pcurves {
-            source: topo::PcurveMintError::Certify {
-                half_edge: topo::HalfEdgeKey::default(),
-                error: geom_brep::PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartWinding,
-                    sample: 0,
-                    cause: Indeterminate {
-                        margin: MarginDiag::value(5e-9),
-                        band: Band::new(1e-9, 1e-8).unwrap(),
-                        predicate: None,
-                        terminal_sliver: false,
-                    },
-                },
-            },
-            file: FileCoincidence::new(1e-6),
-        };
-        let text = error.render();
-        assert!(
-            text.starts_with("step import: pcurve re-mint on the adopted body:")
-                && text.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
-            "{text}"
-        );
-    }
-
-    /// **An adopted curve off its face names the damaged file, with no
-    /// ε_in offer** (D3, D4 ¶1 (iv)): a definite incidence miss read at
-    /// the import door, with no margin or with the pose height it may
-    /// quote (`OffMargin::Past`, within ε_in here), is the file's, whoever
-    /// declared the curve; its margin is no reading of the miss, so the
-    /// door's within-ε_in sentence is not offered.
-    #[test]
-    fn an_adopted_curve_off_its_face_names_the_damaged_file() {
-        for margin in [
-            None,
-            Some(geom_brep::OffMargin::Past(MarginDiag::value(5e-7))),
-        ] {
-            let error = StepImportError::Pcurves {
-                source: topo::PcurveMintError::Certify {
-                    half_edge: topo::HalfEdgeKey::default(),
-                    error: geom_brep::PcurveCertifyError::Incidence(
-                        geom_brep::IncidenceRefusal::off_chart(
-                            geom::SurfaceKind::Cone,
-                            geom::CurveKind::Circle,
-                            "the circle dips below the apex",
-                            margin,
-                        ),
-                    ),
-                },
-                file: FileCoincidence::new(1e-6),
-            };
-            let text = error.render();
-            assert!(text.ends_with(DAMAGED_FILE_ENDING), "{margin:?}: {text}");
-            for word in ["ε_in", "declared", "kernel defect"] {
-                assert!(!text.contains(word), "{margin:?}: {word}: {text}");
-            }
-        }
     }
 }
 

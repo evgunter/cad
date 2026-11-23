@@ -455,7 +455,14 @@ fn r1_hunt_the_pcurve_arm() {
             ),
         }
         assert!(
-            !matches!(out, Err(ShellError::Pcurve { .. })),
+            !matches!(
+                &out,
+                Err(ShellError::NotValid { findings })
+                    if findings
+                        .as_slice()
+                        .iter()
+                        .any(|f| matches!(f, topo::ValidationError::Pcurve { .. }))
+            ),
             "{name}: the arm is reached"
         );
     }
