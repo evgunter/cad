@@ -144,13 +144,14 @@ pub use editor_core::{
     Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
 };
 
-// How a sentence names a node: the kind noun and tag a person reads, the
-// speaker a refusal holding bare ids is said by, the nodes a door kept
-// beside a refusal it carries whole, and the full-width id a machine
-// channel prints.
+// How a sentence names a node: a sentence of words and mentions, the
+// one spelling of a mention, the speaker a refusal holding bare ids is
+// said by, the nodes a door kept beside a refusal it carries whole, and
+// the full-width id a machine channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
-    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
+    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said, held_by,
+    node_kind_noun, node_text, say, sentence, spoken_by, spoken_within, var_text,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
@@ -495,8 +496,8 @@ pub use editor_core::{
 // between two copies' material is an `InterferenceFinding`: its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
 // `Unlocalized` with why), the assertion that quiets it, if any, and
-// whether one could (`quietable`): one no assertion could quiet refuses
-// at no severity. A pair the census could not look at is an
+// the faces one would be written over (`quieting`): one no assertion
+// could quiet refuses at no severity. A pair the census could not look at is an
 // `AtRestEvidence`, loud and never refusing. A part's own findings cross the seam with it, each
 // reported once, as the part's: `CarriedInterference`,
 // `CarriedAtRestFinding` and `CarriedCoincidence`, each with the `Route`
@@ -507,8 +508,14 @@ pub use editor_core::{
 pub use editor_core::{
     AtRestEvidence, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
-    PinnedDoc, Route, Unlocalized,
+    PinnedDoc, Route, RouteHop, Unlocalized,
 };
+// What a finding's assertion recourse determines, as data: the
+// `Quieting` an unproven coincidence carries (a `Gap` or `Distance`
+// over two `QuietingRef`s, `= 0`, with the edits that author it), and
+// the `OpposedPair` of faces an interference's quieting `Gap` is
+// written over.
+pub use editor_core::{CarriedAssertion, OpposedPair, Quieting, QuietingRef};
 
 // Split, inline and flatten: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new

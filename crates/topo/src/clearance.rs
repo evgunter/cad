@@ -141,11 +141,11 @@ use crate::cell_region::{
     Ball, BoundaryStop, CellRegion, cell_region_lifted, centre, lift_boundary, station_region,
 };
 use crate::census::depth_gap;
-use crate::entity::{EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
-use crate::live::{BoundaryMember, FaceView, proven};
+use crate::live::{BoundaryMember, FaceView};
 use crate::validate::definitely_positive;
 use lift::{Lift, certified_lift};
 
@@ -714,95 +714,148 @@ impl EngineRefusal {
         }
     }
 
-    /// **The refusal in words**, each face and scope named with its
-    /// side as `sides` names it: the first side's, then the second's.
-    pub fn say(
+    /// **The refusal in words, into `f`**, each face and scope named with
+    /// its side as `sides` writes it: the first side's, then the
+    /// second's. A side is written by its caller, so a caller writing a
+    /// sentence of its own says each side in its own terms.
+    ///
+    /// # Errors
+    ///
+    /// The writer's.
+    pub fn say<W: core::fmt::Write + ?Sized>(
         &self,
-        f: &mut core::fmt::Formatter<'_>,
-        sides: [&dyn core::fmt::Display; 2],
+        f: &mut W,
+        sides: [&dyn Fn(&mut W) -> core::fmt::Result; 2],
     ) -> core::fmt::Result {
         let [first, second] = sides;
         match self {
-            Self::Sliver { predicate, a, b } => write!(
-                f,
-                "the separation of face {a:?} of {first} and face {b:?} of {second} sits wholly \
-                 inside {predicate}'s ambiguity band, so no refinement can decide it"
-            ),
+            Self::Sliver { predicate, a, b } => {
+                write!(f, "the separation of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " sits wholly inside {predicate}'s ambiguity band, so no refinement can \
+                     decide it"
+                )
+            }
             Self::Budget { stop, a, b } => {
-                let of = format_args!("face {a:?} of {first} and face {b:?} of {second}");
+                let pair = |f: &mut W| -> core::fmt::Result {
+                    write!(f, "face {a:?} of ")?;
+                    first(f)?;
+                    write!(f, " and face {b:?} of ")?;
+                    second(f)
+                };
                 match stop {
-                    CellBudget::Depth { max_cell_depth } => write!(
-                        f,
-                        "a cell pair of {of} was split {max_cell_depth} times, the depth \
-                         budget, and is still undecided"
-                    ),
-                    CellBudget::Pairs { max_cell_pairs } => write!(
-                        f,
-                        "the query examined {max_cell_pairs} cell pairs, its budget, with pairs \
-                         still undecided, the first of them of {of}"
-                    ),
-                    CellBudget::Resolution => write!(
-                        f,
-                        "a cell pair of {of} could not be bisected: its midpoint lands on an \
-                         endpoint, so the f64 grid itself is the bound"
-                    ),
+                    CellBudget::Depth { max_cell_depth } => {
+                        f.write_str("a cell pair of ")?;
+                        pair(f)?;
+                        write!(
+                            f,
+                            " was split {max_cell_depth} times, the depth budget, and is still \
+                             undecided"
+                        )
+                    }
+                    CellBudget::Pairs { max_cell_pairs } => {
+                        write!(
+                            f,
+                            "the query examined {max_cell_pairs} cell pairs, its budget, with \
+                             pairs still undecided, the first of them of "
+                        )?;
+                        pair(f)
+                    }
+                    CellBudget::Resolution => {
+                        f.write_str("a cell pair of ")?;
+                        pair(f)?;
+                        f.write_str(
+                            " could not be bisected: its midpoint lands on an endpoint, so the \
+                             f64 grid itself is the bound",
+                        )
+                    }
                 }
             }
             Self::Unsupported {
                 carrier,
                 face,
                 side,
-            } => write!(
-                f,
-                "the clearance engine cannot answer for face {face:?} of {}: it is {carrier}",
-                side.of(sides)
-            ),
-            Self::WitnessUnverified { what, a, b } => write!(
-                f,
-                "a pair of face {a:?} of {first} and face {b:?} of {second} the interval pass \
-                 found below the lower bound or within the upper one was not confirmed by the \
-                 verifier: {what}"
-            ),
-            Self::PoisonEnclosure { a, b } => write!(
-                f,
-                "the enclosure between face {a:?} of {first} and face {b:?} of {second} did \
-                 not evaluate, which is geometry, not a budget"
-            ),
-            Self::BoxDependent { a, b, separation } => write!(
-                f,
-                "the closest pair of face {a:?} of {first} and face {b:?} of {second} reaches \
-                 [{}, {}] over the parameter box, within the upper bound at some of its \
-                 points and past it at others, so the box does not decide it; a narrower box \
-                 can",
-                separation.0, separation.1
-            ),
-            Self::EmptyScope { side } => write!(
-                f,
-                "the scope of {} names no face, so there is nothing to measure",
-                side.of(sides)
-            ),
-            Self::Uncertified { a, b, shared, arm } => write!(
-                f,
-                "face {a:?} of {first} and face {b:?} of {second} touch through {}, and the \
-                 {} certificate did not discharge them",
-                shared.payload(),
-                arm.name()
-            ),
-            Self::CollapsedChart { face, side, vertex } => write!(
-                f,
-                "the chart of face {face:?} of {} collapses an edge to its vertex {vertex:?} \
-                 near a touching pair, and the monotone certificate reads no collapsed chart",
-                side.of(sides)
-            ),
+            } => {
+                write!(
+                    f,
+                    "the clearance engine cannot answer for face {face:?} of "
+                )?;
+                side.of(sides)(f)?;
+                write!(f, ": it is {carrier}")
+            }
+            Self::WitnessUnverified { what, a, b } => {
+                write!(f, "a pair of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " the interval pass found below the lower bound or within the upper one was \
+                     not confirmed by the verifier: {what}"
+                )
+            }
+            Self::PoisonEnclosure { a, b } => {
+                write!(f, "the enclosure between face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                f.write_str(" did not evaluate, which is geometry, not a budget")
+            }
+            Self::BoxDependent { a, b, separation } => {
+                write!(f, "the closest pair of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " reaches [{}, {}] over the parameter box, within the upper bound at some \
+                     of its points and past it at others, so the box does not decide it; a \
+                     narrower box can",
+                    separation.0, separation.1
+                )
+            }
+            Self::EmptyScope { side } => {
+                f.write_str("the scope of ")?;
+                side.of(sides)(f)?;
+                f.write_str(" names no face, so there is nothing to measure")
+            }
+            Self::Uncertified { a, b, shared, arm } => {
+                write!(f, "face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " touch through {}, and the {} certificate did not discharge them",
+                    shared.payload(),
+                    arm.name()
+                )
+            }
+            Self::CollapsedChart { face, side, vertex } => {
+                write!(f, "the chart of face {face:?} of ")?;
+                side.of(sides)(f)?;
+                write!(
+                    f,
+                    " collapses an edge to its vertex {vertex:?} near a touching pair, and the \
+                     monotone certificate reads no collapsed chart"
+                )
+            }
             Self::TorusNotRing {
                 face,
                 side,
                 refusal,
-            } => write!(
-                f,
-                "face {face:?} of {} lies on a torus not decided a ring (R > r > 0): {refusal}",
-                side.of(sides)
-            ),
+            } => {
+                write!(f, "face {face:?} of ")?;
+                side.of(sides)(f)?;
+                write!(
+                    f,
+                    " lies on a torus not decided a ring (R > r > 0): {refusal}"
+                )
+            }
         }
     }
 }
@@ -811,7 +864,13 @@ impl EngineRefusal {
 /// the second.
 impl core::fmt::Display for EngineRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, [&"the first side", &"the second side"])
+        self.say(
+            f,
+            [
+                &|f: &mut core::fmt::Formatter<'_>| f.write_str("the first side"),
+                &|f: &mut core::fmt::Formatter<'_>| f.write_str("the second side"),
+            ],
+        )
     }
 }
 
@@ -4023,7 +4082,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 let p = point(&body.member_point(member));
                 out.vertices.insert(member.vertex(), p);
                 pts.push(p);
-                if let BoundaryMember::Edge { he, ek, .. } = *member {
+                if let BoundaryMember::Edge { edge, he, .. } = *member {
+                    let ek = edge.key();
                     halves.entry(ek).or_default().push(he);
                     cycle = true;
                 }
@@ -4069,8 +4129,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             }
         }
         for (ek, hes) in halves {
-            let e = proven(&body.edges, ek, EntityId::Edge);
-            let curve = body.edge_curve_linked(ek, e).certified()?;
+            let e = body.proven_edge(ek);
+            let curve = e.certified()?;
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
@@ -4091,7 +4151,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 .map(|he| {
                     let found = images.get(he);
                     Use {
-                        plus: e.he_plus == *he,
+                        plus: e.record().he_plus == *he,
                         image: found.map(|(image, ..)| *image),
                         harmonic: found.and_then(|(_, _, h, _)| *h),
                         wall: found.and_then(|(.., w)| *w),

@@ -1775,8 +1775,8 @@ them only through the freedoms its mates leave.
 nothing. With nothing, it is a **datum**: what it places is a bare
 frame, its one output, and the rules of spaces, bundles and values
 hold of it as written.
-Its mates' near sides are that frame's own roles (its xy plane, its z
-axis, its origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
+Its mates' near sides are that frame's own roles (its frame, xy plane, z
+axis or origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
 as a finer pose is read off any frame ([variables.poses]). An offset
 from a face is the mate's far side slid along its normal, as for a
 body ([placement.mates]); a datum has no number of its own beyond its

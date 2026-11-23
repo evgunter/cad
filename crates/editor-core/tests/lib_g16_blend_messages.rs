@@ -58,7 +58,7 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
         Tol::witness(),
     );
     match ev.nodes.get(&node) {
-        Some(NodeResult::Failed(e)) => e.kind_spoken(doc),
+        Some(NodeResult::Failed(e)) => e.kind_spoken(doc).to_string(),
         other => panic!("expected a refusal, got {other:?}"),
     }
 }

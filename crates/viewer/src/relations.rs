@@ -12,48 +12,88 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Doc, Node, OperandRead, OperandSlot, ProfileProgram, ReadIndex, RecipeNodeId,
+    Doc, Mention, Mentioned, Node, OperandRead, OperandSlot, ProfileProgram, ReadIndex,
+    RecipeNodeId, Said, Sentence, Speaker,
 };
 
 use crate::parts::PartFiles;
 use crate::session::Selection;
 
-/// **One entry of a relation row**: what it reads as, and what a click
-/// on it selects, `None` for an entry that names something this
-/// document does not hold (an instance's part file, the world, a node
-/// since deleted).
+/// **One entry of a relation row**: a sentence, whose mention — the
+/// node or variable it names, stamped with this document — is what a
+/// click on it selects. An entry that names something this document
+/// does not hold (an instance's part file, the world, a node since
+/// deleted) is words, and selects nothing.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Related {
-    /// What the entry reads as.
-    pub said: String,
-    /// What a click selects.
-    pub selects: Option<Selection>,
-}
+pub struct Related(Sentence);
 
 impl Related {
-    /// The node `node`, said as the tree says it, selecting it.
+    /// The node `node`, said as the tree says it (its spelling, then
+    /// which one of its kind it is, [`crate::tree::node_label`]), a
+    /// mention in `doc`.
     pub(crate) fn node(doc: &Doc<ProfileProgram>, node: RecipeNodeId, files: &PartFiles) -> Self {
-        Self {
-            said: crate::tree::node_label(doc, node, files),
-            selects: Some(Selection::Node(node)),
+        let which = doc
+            .node(node)
+            .and_then(|held| crate::tree::part_file(held, files));
+        let mut said = pncad::document::sentence!(Speaker::of(doc).mention(&doc.spoken(node)));
+        if let Some(which) = which {
+            let _ = pncad::document::say!(&mut said, format_args!(" — {which}"));
         }
+        Self(said)
     }
 
-    /// The variable `var` by its name, selecting it; `None` for an
-    /// unnamed one.
+    /// The variable `var` by its name, a mention in `doc`; `None` for
+    /// an unnamed one.
     pub(crate) fn named(doc: &Doc<ProfileProgram>, var: pncad::document::VarId) -> Option<Self> {
-        Some(Self {
-            said: doc.var_name(var)?.to_string(),
-            selects: Some(Selection::Variable(var)),
-        })
+        doc.var_name(var)?;
+        Some(Self(pncad::document::sentence!(
+            Speaker::of(doc).var(&doc.spoken_var(var))
+        )))
     }
 
     /// Words that select nothing.
-    pub(crate) fn plain(said: impl Into<String>) -> Self {
-        Self {
-            said: said.into(),
-            selects: None,
-        }
+    pub(crate) fn plain(said: impl AsRef<str>) -> Self {
+        Self(Sentence::from(said.as_ref()))
+    }
+
+    /// What the entry reads as.
+    #[must_use]
+    pub fn said(&self) -> &Sentence {
+        &self.0
+    }
+
+    /// **What a click selects**: the node or variable the entry
+    /// mentions, read off the mention; `None` for words.
+    #[must_use]
+    pub fn selects(&self) -> Option<Selection> {
+        self.0
+            .mentions()
+            .next()
+            .map(|mention| match mention.mentioned() {
+                Mentioned::Node(node) => Selection::Node(node.id()),
+                Mentioned::Var(var) => Selection::Variable(var.id()),
+            })
+    }
+}
+
+/// **What a click on `mention` selects in `on_screen`**, the document
+/// drawn: its node or variable, when the mention's id is spelled in
+/// that document and the document holds it; `None` otherwise. An id is
+/// not document-scoped, so a mention from another document — an
+/// instance's part, a check run on another landing — or of a node since
+/// deleted links nothing, and is drawn as words.
+#[must_use]
+pub fn link(on_screen: &Doc<ProfileProgram>, mention: &Mention) -> Option<Selection> {
+    if mention.document() != Some(on_screen.id()) {
+        return None;
+    }
+    match mention.mentioned() {
+        Mentioned::Node(node) => on_screen
+            .node(node.id())
+            .map(|_| Selection::Node(node.id())),
+        Mentioned::Var(var) => on_screen
+            .var(var.id())
+            .map(|_| Selection::Variable(var.id())),
     }
 }
 
@@ -214,7 +254,12 @@ fn read_row(
         .reaches
         .iter()
         .filter_map(|&at| match at {
-            RecipeNodeId::WORLD => Some(Related::plain(doc.spoken_space(read.read).to_string())),
+            // The world is no node a click selects: its words alone.
+            RecipeNodeId::WORLD => Some(Related::plain(
+                Said(&doc.spoken_space(read.read), Speaker::of(doc))
+                    .sentence()
+                    .to_string(),
+            )),
             _ => doc.node(at).map(|_| Related::node(doc, at, files)),
         })
         .collect();

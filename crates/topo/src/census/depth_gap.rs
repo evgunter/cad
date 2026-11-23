@@ -137,18 +137,14 @@ pub(crate) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                 segments.push((point, point));
                 continue;
             }
-            BoundaryMember::Edge { ek, edge, .. } => (ek, edge),
+            BoundaryMember::Edge { edge, .. } => (edge.key(), edge),
         };
-        let Some(carrier) = body
-            .edge_curve_linked(ek, edge)
-            .certified()
-            .map(geom_brep::EdgeCurve::carrier)
-        else {
+        let Some(carrier) = edge.certified().map(geom_brep::EdgeCurve::carrier) else {
             continue;
         };
         let ends = (
-            edge_end_point(body, ek, edge.he_plus, "he_plus"),
-            edge_end_point(body, ek, edge.he_minus, "he_minus"),
+            edge_end_point(body, ek, edge.record().he_plus, "he_plus"),
+            edge_end_point(body, ek, edge.record().he_minus, "he_minus"),
         );
         if super::edge_line(body, ek).is_some() {
             segments.push(ends);

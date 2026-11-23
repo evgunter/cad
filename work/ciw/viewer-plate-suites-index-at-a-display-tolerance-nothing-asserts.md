@@ -4,8 +4,8 @@ kind: issue
 title: Six viewer suites index at a display tolerance no row can see move, measured over 5000x
 status: open
 opened: 2026-09-20
-priority: P3
-cost: D
+priority: P4
+cost: E
 ---
 
 
@@ -137,3 +137,6 @@ defect"*). The vocabulary half is closed on S-DUP's slate; this is the
 other half, and the lane that measured it does not own it.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** `common::plate_delta` still the shared door (`viewer/tests/common/mod.rs:836-838`). Its
+remedy includes "delete the prose", which is free; a new row is optional. Not latency.

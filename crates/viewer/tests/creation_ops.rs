@@ -602,7 +602,9 @@ fn a_profile_with_no_loops_inserts_and_what_sweeps_it_refuses() {
     );
     match common::status_of(&rows, extrude) {
         viewer::tree::RowStatus::Failed { message, .. } => assert!(
-            message.contains("profile has no loops — nothing to sweep"),
+            message
+                .to_string()
+                .contains("profile has no loops — nothing to sweep"),
             "the extrude's badge says it: {message}"
         ),
         other => panic!("the extrude's row is its own failure: {other:?}"),
