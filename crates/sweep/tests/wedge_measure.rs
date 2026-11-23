@@ -126,6 +126,9 @@ fn read<T: Decide + topo::AtRestPolicy + geom_core::Certifies + geom_core::Certi
             verdict
         );
     }
+    for mode in ["fold", "narrow"] {
+        walk(name, body, mode);
+    }
     let side = Side {
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
@@ -416,6 +419,21 @@ fn flat_twin<T: Decide + topo::AtRestPolicy>(s: f64) -> Result<Body<T>, String> 
         .map_err(|e| format!("extrude refused: {e:?}"))
 }
 
+/// The flat twin with its far edge carried up a wall: floor 1 m, the
+/// strip 1e-7 wide at sine `s`, a wall from the strip's far edge to
+/// y = 1, a roof, the floor's far wall.
+fn flat_notch<T: Decide + topo::AtRestPolicy>(s: f64) -> Result<Body<T>, String> {
+    let c = (1.0 - s * s).sqrt();
+    let w = 1e-7;
+    let p = |x: f64, y: f64| Point2::new(T::from_f64(x), T::from_f64(y));
+    let lp = profile::ProfileLoop::polygon([p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(w * c, 1.0), p(w * c, w * s)]);
+    let tol = Tol::witness();
+    let vp = Profile::new(SketchPlane::<T>::xy(), vec![lp]).validate(tol).map_err(|e| format!("profile refused: {e:?}"))?;
+    extrude(&vp, Extrusion::Distance { depth: T::from_f64(1.0), side: ExtrudeSide::Along }, tol)
+        .map(|t| t.body.into_body())
+        .map_err(|e| format!("extrude refused: {e:?}"))
+}
+
 #[test]
 fn wm6_table_bodies() {
     use core::f64::consts::PI;
@@ -453,6 +471,12 @@ fn wm6_table_bodies() {
             None => eprintln!("WM6 oblique_cone EMPTY"),
         },
         Err(e) => eprintln!("WM6 oblique_cone REFUSED {e:?}"),
+    }
+    for notch in [true] {
+        match flat_notch::<f64>(5e-5) {
+            Ok(b) => edges_and_stations("flat_twin_notch", &b),
+            Err(e) => eprintln!("WM6 flat_twin_notch [f64] NOT BUILT: {e} {notch}"),
+        }
     }
     for s in [5e-5] {
         match flat_twin::<f64>(s) {

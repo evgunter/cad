@@ -139,6 +139,29 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
     let in_scope: BTreeSet<FaceKey> = faces.iter().copied().collect();
     let mut map = BTreeMap::new();
     let reach_home = crate::WedgeReach::new(body);
+    // Every face's boundary, sampled along its edges' curves (17 points
+    // each), so a face whose vertices all lie on one edge (a disc on its
+    // rim) still reads its run across it.
+    let mut face_samples: BTreeMap<FaceKey, Vec<[f64; 3]>> = BTreeMap::new();
+    {
+        let m = |x: T| 0.5 * (geom_core::Bounds::lo(x) + geom_core::Bounds::hi(x));
+        for (e, edge) in body.edges() {
+            let Some(curve) = body.get_curve_geom(edge.curve).and_then(|c| c.certified()) else {
+                continue;
+            };
+            let (t0, t1) = curve.params();
+            let pts: Vec<[f64; 3]> = (0..=16)
+                .map(|k| {
+                    let p = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(f64::from(k) / 16.0));
+                    [m(p.x), m(p.y), m(p.z)]
+                })
+                .collect();
+            let [a, b] = crate::edge_faces(body, e);
+            for f in [a, b] {
+                face_samples.entry(f).or_default().extend(pts.iter().copied());
+            }
+        }
+    }
     for (e, edge) in body.edges() {
         let [a, b] = crate::edge_faces(body, e);
         if !(in_scope.contains(&a) && in_scope.contains(&b)) {
@@ -187,11 +210,14 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
                 .fold(f64::INFINITY, f64::min)
         };
         let run = |f: FaceKey| {
+            let on_curves = face_samples
+                .get(&f)
+                .map_or(0.0, |v: &Vec<[f64; 3]>| v.iter().map(|&q| dist(q)).fold(0.0_f64, f64::max));
             reach_home
                 .face_points(f)
                 .iter()
                 .map(|&p| dist(p3(p)))
-                .fold(0.0_f64, f64::max)
+                .fold(on_curves, f64::max)
         };
         let (ra, rb) = (run(a), run(b));
         let (narrow, narrow_face) = if ra <= rb { (ra, a) } else { (rb, b) };
