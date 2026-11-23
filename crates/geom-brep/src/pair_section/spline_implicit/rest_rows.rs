@@ -145,6 +145,7 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
         ("the sphere", 1e-2, ball(1e-2, (0.0, 1.1, 0.0), 0.4)),
         ("the sphere", 1.0, ball(1.0, (0.0, 1.1, 0.0), 0.4)),
         ("the sphere", 10.0, ball(10.0, (0.0, 1.1, 0.0), 0.4)),
+        ("the sphere", 100.0, ball(100.0, (0.0, 1.1, 0.0), 0.4)),
         ("the cylinder", 1.0, rod(1.0)),
         ("the torus", 1.0, ring(1.0)),
     ];
@@ -283,19 +284,8 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
 /// # Panics
 ///
 /// At an ε no row here was measured at.
-fn image_holds(eps: f64, partner: &Surface<f64>, s: f64) -> bool {
-    if matches!(partner, Surface::Cylinder { .. }) {
-        return true;
-    }
-    if eps == 1e-6 {
-        true
-    } else if eps == 1e-9 {
-        s <= 1.0
-    } else if eps == 1e-12 {
-        false
-    } else {
-        panic!("the image's miss was measured at ε = 1e-6, 1e-9 and 1e-12, not at {eps:e}")
-    }
+fn image_holds(_eps: f64, _partner: &Surface<f64>, _s: f64) -> bool {
+    true
 }
 
 /// The section's first carried component.

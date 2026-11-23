@@ -3809,7 +3809,11 @@ mod tests {
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
 
-        let speeds = ChartedNurbs::mint(&wall).unwrap().speeds();
+        // The certificate reads the wall on its own grid.
+        let minted = ChartedNurbs::mint(&wall).unwrap();
+        let grid = minted.certificate_grid();
+        let on_grid = minted.on_certificate_grid(grid.as_ref()).unwrap();
+        let speeds = on_grid.speeds();
         let (su, sv) = (speeds.u.get(), speeds.v.get());
         assert!(
             su < sv,
@@ -3861,7 +3865,7 @@ mod tests {
             let ends = (ends, band);
             let probe = probe_tube_chart(
                 pc,
-                &NurbsBoxes::new(&wall),
+                on_grid.boxes(),
                 &crate::ssi::residual::ImplicitForm::of(&plane).unwrap(),
                 (rung, (pad_u, pad_v), nodes),
                 ends,
@@ -3888,7 +3892,7 @@ mod tests {
             let folded = rung / su.max(sv);
             let at_fold = probe_tube_chart(
                 pc,
-                &NurbsBoxes::new(&wall),
+                on_grid.boxes(),
                 &crate::ssi::residual::ImplicitForm::of(&plane).unwrap(),
                 (rung, (folded, folded), nodes),
                 ends,
@@ -4195,8 +4199,10 @@ mod tests {
 
     /// **An operand's cells are built once for its life, not once per
     /// rung**: the mint reads the one-cell fold's speeds, limb 3 walks
-    /// its ladder with every rung reading the wall's chart enclosures,
-    /// and the cell's net is built once over all of it.
+    /// its ladder with every rung reading the wall's chart enclosures on
+    /// the certificate's grid, and each of the grid's cells is built at
+    /// most once over all of it, beside the wall's own cell at each of
+    /// its two mints.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn every_rung_reads_the_operands_one_build_of_each_cell() {
@@ -4223,9 +4229,10 @@ mod tests {
             rungs >= 2,
             "the ladder probed {rungs} rungs: the row reads nothing"
         );
-        assert_eq!(
-            built, 1,
-            "the one-cell wall's net was built {built} times over {rungs} rungs"
+        let cells = crate::edge_nurbs::PXN_WALL_SPANS.pow(2);
+        assert!(
+            (1..=cells + 2).contains(&built),
+            "the one-cell wall's {cells} grid cells were built {built} times over {rungs} rungs"
         );
     }
 

@@ -31,7 +31,8 @@
 //!   point and the carrier's foot there, followed from the image's
 //!   ([`miss`]). The carrier's own standoff from the wall is no part of
 //!   it. A chain whose every reading is within
-//!   [`IMAGE_MISS`] of the band's zero is the image. Otherwise each
+//!   [`IMAGE_MISS`] of the band's zero, or of the carrier's standoff
+//!   there where that is the larger, is the image. Otherwise each
 //!   knot span holding a larger one takes a knot at its middle and the
 //!   feet are followed again, at most [`IMAGE_ROUNDS`] times; past that
 //!   the image is refused with the miss it read
@@ -72,6 +73,10 @@ pub(crate) const IMAGE_KNOTS: usize = 4096;
 /// resolved to ([`resolution`]): a miss under it asks no knot, and a
 /// foot whose tangential offset is under it is settled.
 const RESOLUTION_ULPS: f64 = 64.0;
+
+/// How many of the seed grid's nearest points [`nearest`] settles a foot
+/// from (D9).
+const START_SEEDS: usize = 8;
 
 /// How many times [`follow`] halves the way to a foot it cannot reach
 /// from the last one (D9).
@@ -273,8 +278,15 @@ where
     };
     let degree = chain_degree(carrier);
     let mut chain = chain(carrier, domain).ok_or(ImageRefusal::Fit)?;
-    let first = chain.len();
+    let chain_knots = chain.len();
     let tol = IMAGE_MISS * band.zero();
+    // The first foot, from the chain's own first step.
+    let first = start(
+        &read,
+        wall,
+        (0.0, greville(&chain, degree).get(1).copied()),
+        band,
+    )?;
     for round in 0..=IMAGE_ROUNDS {
         let knots = KnotVector::clamped(chain.clone(), degree).map_err(|_| ImageRefusal::Fit)?;
         // The chain on the carrier's own span, before any foot is read
@@ -285,7 +297,7 @@ where
             .and_then(|flat| flat.on_domain(t0, t1))
             .map_err(|e| domain_refusal(t0, t1, &e))?;
         let nodes = greville(&chain, degree);
-        let feet = path(&read, wall, &nodes, band)?;
+        let feet = path(&read, wall, &nodes, first)?;
         let collocation = geom::Collocation::on(&nodes, knots).map_err(|_| ImageRefusal::Fit)?;
         let uv: Vec<Point2<f64>> = feet.iter().map(|f| f.uv).collect();
         let image = NurbsCurve2::<f64>::interpolate_on(&uv, &collocation)
@@ -296,20 +308,26 @@ where
         for (i, pair) in feet.windows(2).enumerate() {
             let at = 0.5 * (pair[0].at + pair[1].at);
             #[allow(clippy::cast_possible_truncation)]
-            let miss = miss(&read, wall, (at, i as u32 + 1), image.eval(at))?;
+            let (miss, standoff) = miss(&read, wall, (at, i as u32 + 1), image.eval(at))?;
+            // Where the carrier itself stands off the wall past the
+            // band, the image is held to its share of that standoff: a
+            // finer image changes nothing a certificate reads of such a
+            // carrier.
+            let tol = tol.max(IMAGE_MISS * standoff);
+            if miss <= tol {
+                continue;
+            }
             worst = worst.max(miss);
-            if miss > tol
-                && let Some(k) = span_middle(&chain, at)
-            {
+            if let Some(k) = span_middle(&chain, at) {
                 add.push(k);
             }
         }
-        if worst <= tol {
+        if worst == 0.0 {
             return Ok((image, domain));
         }
         add.sort_by(f64::total_cmp);
         add.dedup();
-        if add.is_empty() || round == IMAGE_ROUNDS || chain.len() + add.len() > first + IMAGE_KNOTS
+        if add.is_empty() || round == IMAGE_ROUNDS || chain.len() + add.len() > chain_knots + IMAGE_KNOTS
         {
             return Err(ImageRefusal::Miss { miss: worst });
         }
@@ -390,7 +408,7 @@ fn span_middle(knots: &[f64], at: f64) -> Option<f64> {
 /// point `p`: the distance between the
 /// wall's point at `p` and its point at the carrier's foot there, which
 /// Newton reaches from `p`; zero where that is under [`resolution`].
-/// Poison reads `+∞`.
+/// Poison reads `+∞`. Beside it, the carrier's distance from that foot.
 ///
 /// # Errors
 ///
@@ -400,11 +418,11 @@ fn miss<T>(
     wall: &NurbsSurface<T>,
     (at, node): (f64, u32),
     p: Point2<f64>,
-) -> Result<f64, ImageRefusal>
+) -> Result<(f64, f64), ImageRefusal>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    let (_, foot, _) = settle(wall, read.point(at), (p.x, p.y)).map_err(|last_distance| {
+    let (_, foot, standoff) = settle(wall, read.point(at), (p.x, p.y)).map_err(|last_distance| {
         let (t0, t1) = read.domain;
         ImageRefusal::Foot {
             t: t0 + (t1 - t0) * at,
@@ -415,19 +433,19 @@ where
     let here = wall.eval(T::from_computed(p.x), T::from_computed(p.y));
     let d = mid((here - foot).norm());
     if d.is_nan() {
-        return Ok(f64::INFINITY);
+        return Ok((f64::INFINITY, standoff));
     }
     // A miss the wall's own evaluation does not resolve is none.
     let floor = resolution(Point3::new(mid(here.x), mid(here.y), mid(here.z)));
-    Ok(if d <= floor { 0.0 } else { d })
+    Ok((if d <= floor { 0.0 } else { d }, standoff))
 }
 
-/// The foot path at `nodes`, by continuation from the start.
+/// The foot path at `nodes`, by continuation from its first foot.
 fn path<T>(
     read: &Read<'_, T>,
     wall: &NurbsSurface<T>,
     nodes: &[f64],
-    band: Band,
+    first: Foot,
 ) -> Result<Vec<Foot>, ImageRefusal>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
@@ -436,7 +454,7 @@ where
     let Some((&at0, rest)) = nodes.split_first() else {
         return Err(ImageRefusal::Fit);
     };
-    let mut last = start(read, wall, (at0, rest.first().copied()), band)?;
+    let mut last = Foot { at: at0, ..first };
     feet.push(last);
     for (i, &at) in rest.iter().enumerate() {
         #[allow(clippy::cast_possible_truncation)]
@@ -454,25 +472,61 @@ where
     Ok(feet)
 }
 
-/// A converged projection as a foot.
-fn foot_of<T>(at: f64, proj: &geom::SurfaceProjection<T>) -> Foot
-where
-    T: Decide + Bounds + geom_core::CertifiedEnclosure,
-{
-    Foot {
-        at,
-        uv: Point2::new(proj.u, proj.v),
-        standoff: mid(proj.distance),
-    }
-}
-
 /// A settled foot ([`settle`]) as a foot of the path.
 fn settled<T: geom_core::Real>(at: f64, (uv, _, standoff): Settled<T>) -> Foot {
     Foot { at, uv, standoff }
 }
 
+/// **The wall's nearest point to `p`**, over the whole wall: Newton's
+/// foot from each of the [`START_SEEDS`] nearest points of the
+/// projection's own seed grid (`geom::PROJECT_SEEDS_PER_SPAN` a side of
+/// every span cell, scanned in ascending order), the nearest of them
+/// kept and the first of equals. One seed's foot can be a far sheet's
+/// where a wall folds back within a grid step of itself; the carrier's
+/// start lies on the wall, so its own sheet's foot is the nearer.
+///
+/// # Errors
+///
+/// The last distance read, where no seed settles.
+fn nearest<T>(wall: &NurbsSurface<T>, p: Point3<T>) -> Result<Settled<T>, f64>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    let (ku, kv) = (wall.knots_u_f64_interim(), wall.knots_v_f64_interim());
+    let n = geom::PROJECT_SEEDS_PER_SPAN;
+    #[allow(clippy::cast_precision_loss)]
+    let at = |a: f64, b: f64, i: usize| a + (b - a) * (i as f64 / (n - 1) as f64);
+    let mut seeds: Vec<(f64, f64, f64)> = Vec::new();
+    for su in ku.knots().windows(2).filter(|w| w[0] < w[1]) {
+        for sv in kv.knots().windows(2).filter(|w| w[0] < w[1]) {
+            for i in 0..n {
+                for j in 0..n {
+                    let (u, v) = (at(su[0], su[1], i), at(sv[0], sv[1], j));
+                    let d = wall.eval(T::from_computed(u), T::from_computed(v)) - p;
+                    let d2 = mid(d.dot(d));
+                    if !d2.is_nan() {
+                        seeds.push((d2, u, v));
+                    }
+                }
+            }
+        }
+    }
+    // A stable sort: equal distances keep the scan's order.
+    seeds.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut best: Result<Settled<T>, f64> = Err(f64::NAN);
+    for &(_, u, v) in seeds.iter().take(START_SEEDS) {
+        match (settle(wall, p, (u, v)), &best) {
+            (Ok(foot), Ok(held)) if foot.2 < held.2 => best = Ok(foot),
+            (Ok(foot), Err(_)) => best = Ok(foot),
+            (Err(d), Err(_)) => best = Err(d),
+            _ => {}
+        }
+    }
+    best
+}
+
 /// **The path's first foot**: the wall's nearest point to the carrier's
-/// start. Where that lies on a side of the rectangle the wall closes
+/// start ([`nearest`]). Where that lies on a side of the rectangle the wall closes
 /// across, the same point of the wall is on the far side too: the nearer
 /// of the two is taken, and of two as near as the band tells apart, the
 /// one the path's first step leaves into the rectangle from.
@@ -486,16 +540,15 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     let p = read.point(at);
-    let refused = |e: geom::SurfaceProjectionInconclusive| {
+    let refused = |last_distance| {
         let (t0, t1) = read.domain;
         ImageRefusal::Foot {
             t: t0 + (t1 - t0) * at,
             node: 0,
-            last_distance: e.last_distance,
+            last_distance,
         }
     };
-    let proj = wall.project(p).map_err(refused)?;
-    let mut best = foot_of(at, &proj);
+    let mut best = nearest(wall, p).map(|foot| settled(at, foot)).map_err(refused)?;
     let domains = [
         wall.knots_u_f64_interim().domain(),
         wall.knots_v_f64_interim().domain(),

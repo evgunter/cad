@@ -420,3 +420,185 @@ fn a_miss_beside_a_standoff_takes_a_knot_at_f64() {
 fn a_miss_beside_a_standoff_takes_a_knot_at_interval() {
     a_miss_beside_a_standoff_takes_a_knot(FittedLane::<Interval>::certified());
 }
+
+/// The whole unit cylinder over `z ∈ [0, 1]` in four rational quadratic
+/// quarter arcs: closed along `u`, its seam the ruling at azimuth 0.
+fn closed_wall() -> NurbsSurface<f64> {
+    let w = core::f64::consts::FRAC_1_SQRT_2;
+    let ring = [
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (-1.0, 0.0),
+        (-1.0, -1.0),
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.0),
+    ];
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for (j, (x, y)) in ring.into_iter().enumerate() {
+        for z in [0.0, 1.0] {
+            control.push(Point3::new(x, y, z));
+            weights.push(if j % 2 == 1 { w } else { 1.0 });
+        }
+    }
+    let ku = vec![
+        0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+    ];
+    NurbsSurface::new(
+        KnotVector::clamped(ku, 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        weights,
+    )
+    .unwrap()
+}
+
+/// The largest distance between `carrier` and `wall`'s point at `image`
+/// over `span`, at 65 samples.
+fn image_gap(
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    wall: &NurbsSurface<f64>,
+    image: &NurbsCurve2<f64>,
+) -> f64 {
+    (0..=64)
+        .map(|i| {
+            let t = t0 + (t1 - t0) * f64::from(i) / 64.0;
+            let p = image.eval(t);
+            wall.eval(p.x, p.y).distance(carrier.eval(t))
+        })
+        .fold(0.0, f64::max)
+}
+
+/// **The foot path reads a closed wall's seam from the side it runs on**
+/// (C2). The circle at `z = ½` of [`closed_wall`], whose seam ruling is
+/// at azimuth 0:
+///
+/// - an arc from the seam toward positive azimuth starts at `u = 0`;
+/// - the same arc run the other way round the axis leaves the seam
+///   toward negative azimuth, and starts at `u = 1`, the same point of
+///   the wall on the far side of its rectangle;
+/// - an arc from azimuth −1 to the seam ends at `u = 1`.
+///
+/// Each image holds its carrier to the image's share of the band. A
+/// path across the seam leaves the rectangle and is refused on its
+/// miss.
+///
+/// Red against: the first foot taken as the nearest point alone (the
+/// second arc starts at `u = 0`, stalls against the rectangle's side and
+/// is refused), and each foot taken as the wall's nearest point with no
+/// continuation (the third arc's last foot reads `u = 0`).
+#[test]
+fn the_foot_path_reads_a_closed_walls_seam_from_the_side_it_runs_on() {
+    let wall = closed_wall();
+    let circle = |axis: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, axis),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
+    };
+    let lane = FittedLane::<f64>::certified();
+    for (what, carrier, span, (u0, u1)) in [
+        ("from the seam, up", circle(1.0), (0.0, 1.0), (Some(0.0), None)),
+        (
+            "from the seam, down",
+            circle(-1.0),
+            (0.0, 1.0),
+            (Some(1.0), None),
+        ),
+        ("to the seam", circle(1.0), (-1.0, 0.0), (None, Some(1.0))),
+    ] {
+        let image = lane
+            .general_image(&carrier, span, &wall, band())
+            .unwrap_or_else(|e| panic!("{what}: the arc is imaged: {e:?}"));
+        let gap = image_gap(&carrier, span, &wall, &image);
+        assert!(
+            gap <= band().zero(),
+            "{what}: the image holds the arc: {gap:e} m"
+        );
+        for (end, t, want) in [("start", span.0, u0), ("end", span.1, u1)] {
+            let u = image.eval(t).x;
+            assert!(
+                want.is_none_or(|w: f64| (u - w).abs() <= 1e-9),
+                "{what}: its {end} reads the seam at u = {want:?}: {u}"
+            );
+        }
+    }
+    let across = lane.general_image(&circle(1.0), (-0.5, 0.5), &wall, band());
+    assert!(
+        matches!(
+            across,
+            Err(PcurveCertifyError::FittedCertificate {
+                limb: Some(crate::ssi::SsiLimb::ImageMiss),
+                ..
+            })
+        ),
+        "an arc across the seam is refused on its image's miss: {across:?}"
+    );
+}
+
+/// A hairpin: the cubic profile from `(0, 0)` out along `x` and back to
+/// `(0.3, gap)` above its start, extruded along `y`. Its two sheets stand
+/// `gap` apart, far nearer than a step of the projection's seed grid,
+/// and its return runs slower than its way out, so the grid's points on
+/// the two sheets do not face each other.
+fn folded_wall(gap: f64) -> NurbsSurface<f64> {
+    let profile = [(0.0, 0.0), (3.0, 0.0), (1.5, gap), (0.3, gap)];
+    let mut control = Vec::new();
+    for (x, z) in profile {
+        for y in [0.0, 1.0] {
+            control.push(Point3::new(x, y, z));
+        }
+    }
+    NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        vec![1.0; 8],
+    )
+    .unwrap()
+}
+
+/// **The foot path stays on the sheet of a folded wall its carrier lies
+/// on** (C2). A carrier across the upper sheet of [`folded_wall`], from
+/// `u = 0.9` back to `u = 0.55`: the wall's nearest point by the
+/// projection's one seed lands on the lower sheet at some of its points
+/// (the row's own check), and the image follows the upper one, holding
+/// the carrier to the band.
+///
+/// Red against: the first foot taken from the nearest seed alone, and
+/// each foot taken as the projection's with no continuation (either
+/// reads a foot `gap` below the carrier and the image misses it).
+#[test]
+fn the_foot_path_stays_on_the_sheet_its_carrier_lies_on() {
+    let gap = 0.02;
+    let wall = folded_wall(gap);
+    let at = |t: f64| wall.eval(0.9 - 0.35 * t, 0.2 + 0.6 * t);
+    let points: Vec<Point3<f64>> = (0..=16).map(|i| at(f64::from(i) / 16.0)).collect();
+    let carrier = Curve3::Nurbs(Arc::new(NurbsCurve3::interpolate(&points, 3).unwrap()));
+    let jumps = (0..=64)
+        .filter(|i| {
+            let p = carrier.eval(f64::from(*i) / 64.0);
+            wall.project(p).is_ok_and(|foot| foot.distance > 0.5 * gap)
+        })
+        .count();
+    assert!(
+        jumps > 0,
+        "the fixture folds: the projection's own seed reads the lower sheet somewhere"
+    );
+    let image = FittedLane::<f64>::certified()
+        .general_image(&carrier, (0.0, 1.0), &wall, band())
+        .unwrap_or_else(|e| panic!("the carrier is imaged: {e:?}"));
+    let miss = image_gap(&carrier, (0.0, 1.0), &wall, &image);
+    let lowest = (0..=64)
+        .map(|i| image.eval(f64::from(i) / 64.0).x)
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        miss <= 1e-6 && lowest > 0.5,
+        "the image stays on the upper sheet: {miss:e} m off the carrier, u down to {lowest}"
+    );
+}
