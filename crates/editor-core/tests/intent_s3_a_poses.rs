@@ -1009,7 +1009,7 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
     // wall's axis read off the revolve: its `to` side.
     let read = fixture::bundle(&doc, ring)
         .into_iter()
-        .find_map(|c| c.mate().map(|m| m.to))
+        .find_map(|c| c.mate().map(|m| m.to.read))
         .expect("the ring");
     let ((o1, d1), (o2, d2)) = (axis_of(port), axis_of(read));
     let slack = 8.0 * f64::EPSILON * 4.0;

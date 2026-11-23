@@ -105,6 +105,8 @@ pub enum NodeErrorClass {
     UnfinishedLeaf,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
+    /// [`NodeErrorKind::HalfOfAFamily`].
+    HalfOfAFamily,
     /// [`NodeErrorKind::MemberOutOfRange`].
     MemberOutOfRange,
     /// [`NodeErrorKind::MemberRefused`].
@@ -186,6 +188,8 @@ pub enum NodeErrorClass {
     MateUnpinned,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotOnTheCopy`].
     MateNotOnTheCopy,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotTheDatumsOwn`].
+    MateNotTheDatumsOwn,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
     MateUnleverable,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::KindsDiffer`].
@@ -258,6 +262,7 @@ impl NodeErrorKind {
             Self::NotFinished { .. } => C::NotFinished,
             Self::UnfinishedLeaf { .. } => C::UnfinishedLeaf,
             Self::EmptyHalf { .. } => C::EmptyHalf,
+            Self::HalfOfAFamily { .. } => C::HalfOfAFamily,
             Self::MemberOutOfRange { .. } => C::MemberOutOfRange,
             Self::MemberRefused { .. } => C::MemberRefused,
             Self::IndicesUnrelated { .. } => C::IndicesUnrelated,
@@ -323,6 +328,7 @@ impl NodeErrorClass {
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::Unpinned { .. } => Self::MateUnpinned,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
+            MateFault::NotTheDatumsOwn { .. } => Self::MateNotTheDatumsOwn,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
             MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
             MateFault::SideUnevaluated { .. } | MateFault::ReadUnevaluated { .. } => {
@@ -404,6 +410,7 @@ mod tests {
         NotFinished,
         UnfinishedLeaf,
         EmptyHalf,
+        HalfOfAFamily,
         MemberOutOfRange,
         MemberRefused,
         IndicesUnrelated,
@@ -442,6 +449,7 @@ mod tests {
         MateOverconstrained,
         MateUnpinned,
         MateNotOnTheCopy,
+        MateNotTheDatumsOwn,
         MateUnleverable,
         MateKindsDiffer,
         MateSideUnevaluated,
@@ -644,6 +652,11 @@ mod tests {
                 input: n(3),
                 half: crate::SplitHalf::Above,
             },
+            C::HalfOfAFamily => K::HalfOfAFamily {
+                read: crate::VarId::new(2, 0),
+                input: n(3),
+                half: crate::SplitHalf::Below,
+            },
             C::MemberOutOfRange => K::MemberOutOfRange {
                 input: n(3),
                 at: vec![7],
@@ -779,6 +792,7 @@ mod tests {
                 free: 2,
             }),
             C::MateNotOnTheCopy => mate(crate::MateFault::NotOnTheCopy { mate: m(9) }),
+            C::MateNotTheDatumsOwn => mate(crate::MateFault::NotTheDatumsOwn { mate: m(9) }),
             C::MateUnleverable => mate(crate::MateFault::Unleverable {
                 mate: m(9),
                 refusal: Box::new(crate::LeverRefusal::Reach {

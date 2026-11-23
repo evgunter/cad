@@ -5,6 +5,7 @@ title: two suites sort two point clouds independently and zip them under a toler
 status: open
 opened: 2026-10-01
 priority: P3
+cost: E
 ---
 
 Found by `linalg/doors` (PR 3710) while folding in the ruling that a

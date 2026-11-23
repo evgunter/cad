@@ -73,7 +73,8 @@ fn every_corner_encodes_and_holds_no_pole<T: topo::AtRestPolicy + Decide + Bound
             panic!("{tag}: a fillet corner patch is a sphere");
         };
         let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-        let (outer, _) = topo::props::loop_edges(body, f.outer).expect("the loop reads");
+        let (outer, _) = topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+            .expect("the loop reads");
         let want = if f.sense {
             Sign::Positive
         } else {

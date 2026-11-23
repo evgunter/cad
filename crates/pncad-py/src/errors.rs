@@ -526,6 +526,16 @@ pub enum ErrorClass {
     /// so a caller who branches on `band_has_no_measure` reads the
     /// same word from either door.
     Mc,
+    /// A certified-range request that could not be searched: a seed
+    /// that does not bracket the field's value, a field with no axis,
+    /// or a witness that does not build. The Python class keeps the
+    /// Rust type's own name,
+    /// [`RangeRefusal`](pncad::analysis::RangeRefusal).
+    ///
+    /// One class for the request's refusals and the witness build's,
+    /// because both say there is no search to step; the driver's arm
+    /// answers `variant` in the driver's own word.
+    Range,
     /// An authored step handle that does not bind in the profile it was
     /// read against: its address is off that loop's program, or the
     /// role asked of it is one its verb never draws. The Python class
@@ -600,6 +610,7 @@ impl ErrorClass {
             Self::Measure => "MeasureUnavailable",
             Self::AnalysisPolicy => "AnalysisPolicyError",
             Self::Mc => "McRefusal",
+            Self::Range => "RangeRefusal",
             Self::StepHandle => "StepHandleError",
         }
     }

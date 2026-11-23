@@ -26,8 +26,8 @@ use super::join::SectionKind;
 use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
-use crate::entity::{EntityId, HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::live::{linked, proven};
+use crate::entity::{HalfEdgeKey, LoopKey};
+use crate::live::{EdgeMember, NoCycle};
 use geom_brep::props::chord_bulge;
 use geom_core::Tol;
 
@@ -526,38 +526,37 @@ enum HalfCarrier<T: Real> {
 /// On a torn scratch body, a kernel bug: `l` is a loop the join
 /// completed on `body`, and every hop past it is a link.
 fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, SectionError<T>> {
-    let Some(loop_data) = body.get_loop(l) else {
-        unreachable!(
+    let lp = match body.cycle_loop(l) {
+        Ok(lp) => lp,
+        Err(NoCycle::Lone(_)) => {
+            return Err(
+                SplitError::Join(crate::chord_join::JoinError::SectionInvariant {
+                    face: body.loops[l].face,
+                    what: "a completed section polygon's below loop holds a lone vertex instead \
+                           of a cycle",
+                })
+                .into(),
+            );
+        }
+        Err(NoCycle::Torn) => body.torn_loop(l),
+        Err(NoCycle::Stale) => unreachable!(
             "the join's completed section names below loop {l:?}, which does not resolve: the \
              join walks a section's below loop and files it in its null face's pair as it \
              completes the polygon, and {}",
             crate::live::OPERATORS_KEEP_LINKS
-        )
-    };
-    let LoopBoundary::Cycle { first } = loop_data.boundary else {
-        return Err(
-            SplitError::Join(crate::chord_join::JoinError::SectionInvariant {
-                face: loop_data.face,
-                what: "a completed section polygon's below loop holds a lone vertex instead of a \
-                       cycle",
-            })
-            .into(),
-        );
+        ),
     };
     let mut halves = Vec::new();
-    for he in body.loop_walk_of(first, l).closed_in(l, first) {
-        let half = proven(&body.half_edges, he, EntityId::HalfEdge);
-        let ek = half.edge;
-        let edge = linked(
-            &body.edges,
-            ek,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let corner = body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-        let forward = crate::live::claimed(he, ek, edge).plus;
-        let curve = body.edge_curve_linked(ek, edge).certified();
+    for EdgeMember {
+        he,
+        edge,
+        point: corner,
+        ..
+    } in lp.edges()
+    {
+        let ek = edge.key();
+        let forward = crate::live::claimed(he, ek, edge.record()).plus;
+        let curve = edge.certified();
         let carrier = match curve {
             None => HalfCarrier::Chord,
             Some(curve) => match curve.carrier() {

@@ -151,6 +151,19 @@ fn eps_change_diff_reports_exactly_the_shifted_predicate() {
     // ends, are gone, and the straight pairs that replace them and
     // share no vertex each read their gap first) —
     // never absorbed, never guessed about (vdiff module docs).
+    //
+    // The `chord_side` Zero → Positive shift is NOT a reading crossing the
+    // band, and it breaks this golden's rule that a re-pin moves no
+    // predicate's shift. The straight branch's line pairs take their
+    // shared vertex by construction (`profile::seg`'s `line_line`), but
+    // the arc branch's line × arc pairs still read the arc's shared end
+    // against the line, and that `chord_side` reads Zero.
+    // So the arc branch carries four Zeros more, and the residual pairing
+    // matches them against the straight branch's Positive surplus.
+    // `profile/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`
+    // takes the curved arms' shared vertex by construction too, and its
+    // fix removes this shift: re-pin then to the one
+    // `segment_straightness` shift.
     assert_eq!(
         shifts.nodes.len(),
         1,
@@ -163,12 +176,20 @@ fn eps_change_diff_reports_exactly_the_shifted_predicate() {
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,
         new_status: RunStatus::Ok,
-        shifts: vec![editor_core::SummaryShift {
-            predicate: "segment_straightness".into(),
-            from: Sign::Positive,
-            to: Sign::Zero,
-            count: 4,
-        }],
+        shifts: vec![
+            editor_core::SummaryShift {
+                predicate: "chord_side".into(),
+                from: Sign::Zero,
+                to: Sign::Positive,
+                count: 4,
+            },
+            editor_core::SummaryShift {
+                predicate: "segment_straightness".into(),
+                from: Sign::Positive,
+                to: Sign::Zero,
+                count: 4,
+            },
+        ],
         diverged: vec![
             editor_core::SummaryDivergence {
                 predicate: "arc_diameter_clearance".into(),
@@ -191,8 +212,8 @@ fn eps_change_diff_reports_exactly_the_shifted_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "chord_side".into(),
-                old_count: 40,
-                new_count: 56,
+                old_count: 32,
+                new_count: 40,
             },
             editor_core::SummaryDivergence {
                 predicate: "circle_side".into(),
@@ -201,13 +222,13 @@ fn eps_change_diff_reports_exactly_the_shifted_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "contact_at_shared_vertex".into(),
-                old_count: 20,
-                new_count: 16,
+                old_count: 12,
+                new_count: 0,
             },
             editor_core::SummaryDivergence {
                 predicate: "line_span".into(),
-                old_count: 24,
-                new_count: 16,
+                old_count: 16,
+                new_count: 0,
             },
             editor_core::SummaryDivergence {
                 predicate: "segment_gap".into(),
@@ -219,7 +240,7 @@ fn eps_change_diff_reports_exactly_the_shifted_predicate() {
     assert_eq!(delta, &expected, "the ε audit's goldened report drifted");
     // The report surface: exactly the shifted predicates, in order.
     let report = shifts.report();
-    assert_eq!(report.len(), 1);
+    assert_eq!(report.len(), 2);
     assert!(report.iter().all(|(node, _)| *node == profile));
 
     // The no-edit control: a summary diffs empty against itself.
