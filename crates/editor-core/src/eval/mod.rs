@@ -1155,10 +1155,10 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
-    /// A [`crate::Node::Datum`]'s frame: its target's axes moved by the value's
-    /// motion ([`NodeValue::motion`]), the identity where it has none. Not
-    /// body-denoting.
-    Datum,
+    /// A [`crate::Node::Datum`]'s frame, in its target's coordinates: the
+    /// target's axes moved by the motion its bundle solved to
+    /// ([`NodeValue::motion`]). Not body-denoting.
+    Datum(geom_core::RigidMotion<T>),
     /// **A family of anything but bodies** (D10 `[repetition]`):
     /// profiles, measures, splits, assertions, a family of families. Its
     /// members are the value's ([`NodeValue::members`]); it has no
@@ -1327,7 +1327,7 @@ impl<T: topo::AtRestPolicy + Decide> ValuePayload<T> {
             Self::Measure { .. } => family::MEASURE,
             Self::Assertion(_) => family::ASSERTION,
             Self::Family => family::FAMILY,
-            Self::Datum => family::DATUM,
+            Self::Datum(_) => family::DATUM,
         }
     }
 }
@@ -3710,6 +3710,12 @@ where
         self.value.exactly_zero()
     }
 
+    /// The value and the derivative both zero everywhere: a value zero
+    /// only at the seed's point is no zero of the function.
+    fn zero_everywhere(self) -> bool {
+        self.value.zero_everywhere() && self.deriv.zero_everywhere()
+    }
+
     fn solve_atan2(y: Self, x: Self) -> Self {
         let angle = geom_core::Real::atan2(y, x);
         Self {
@@ -3738,6 +3744,16 @@ where
     }
 
     fn exactly_zero(self) -> bool {
+        self.value.exactly_zero()
+    }
+
+    /// **A box lane's point zero, never a point lane's number**: at
+    /// `Sym<Interval>` the enclosure `[0, 0]`, which holds over the whole
+    /// box the lane claims over; at `Sym<f64>` never, since the replay's
+    /// claim ranges over every value of the symbols and the number is the
+    /// nominal's alone (DESIGN `[scalars]`). The form's own zero is the
+    /// follow-up (BOXFINISH's EX1, `Expression::proves_zero`).
+    fn zero_everywhere(self) -> bool {
         self.value.exactly_zero()
     }
 

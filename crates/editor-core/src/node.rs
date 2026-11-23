@@ -2791,6 +2791,50 @@ impl OutputPort {
 }
 
 impl<P, S: Slot> Node<P, S> {
+    /// **The bundle this node holds as a placement** (D10
+    /// `[placement.datums]`: a placement's source is a body or nothing):
+    /// a `Place`'s, an instance's or a datum's constraints, `None` for a
+    /// node that is no placement. The one reading of "is a placement".
+    #[must_use]
+    pub fn bundle(&self) -> Option<&[crate::mate::Constraint<S>]> {
+        match self {
+            Self::Place { constraints, .. }
+            | Self::InstantiatePart { constraints, .. }
+            | Self::Datum { constraints, .. } => Some(constraints),
+            _ => None,
+        }
+    }
+
+    /// [`Self::bundle`], writable.
+    pub fn bundle_mut(&mut self) -> Option<&mut Vec<crate::mate::Constraint<S>>> {
+        match self {
+            Self::Place { constraints, .. }
+            | Self::InstantiatePart { constraints, .. }
+            | Self::Datum { constraints, .. } => Some(constraints),
+            _ => None,
+        }
+    }
+
+    /// **The space a placement places into**, `None` for a node that is
+    /// no placement ([`Self::bundle`]).
+    #[must_use]
+    pub fn placement_target(&self) -> Option<&S::Read> {
+        match self {
+            Self::Place { target, .. }
+            | Self::InstantiatePart { target, .. }
+            | Self::Datum { target, .. } => Some(target),
+            _ => None,
+        }
+    }
+
+    /// **Whether this placement makes a copy**: a `Place` or an instance,
+    /// whose output is a body; a datum places a bare frame
+    /// ([`crate::Doc::copies`]).
+    #[must_use]
+    pub fn makes_a_copy(&self) -> bool {
+        matches!(self, Self::Place { .. } | Self::InstantiatePart { .. })
+    }
+
     /// **A loft's section ids**, first to last, each `None` where the
     /// section carries none yet; `None` for a node that is not a loft.
     #[must_use]
@@ -3145,9 +3189,7 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
             Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
-            Node::Place { constraints, .. }
-            | Node::InstantiatePart { constraints, .. }
-            | Node::Datum { constraints, .. } => constraints
+            node if let Some(constraints) = node.bundle() => constraints
                 .iter()
                 .flat_map(|c| match &c.kind {
                     crate::mate::ConstraintKind::Mate(m) => {
@@ -3183,11 +3225,10 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
             (Node::Mirror { plane, .. }, O::Plane) => Some(&mut plane.role),
             (
-                Node::Place { constraints, .. }
-                | Node::InstantiatePart { constraints, .. }
-                | Node::Datum { constraints, .. },
+                node,
                 O::Along { constraint } | O::About { constraint } | O::Side { constraint, .. },
-            ) => constraints
+            ) => node
+                .bundle_mut()?
                 .iter_mut()
                 .find(|c| c.id == constraint)
                 .and_then(|c| match (&mut c.kind, seat) {
@@ -3454,10 +3495,7 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Shell { .. }, O::Open) => "shell",
             (Node::Measure { .. }, O::Measured(..)) => "measure",
             (Node::Assertion(_), O::Cleared(..)) => "clearance",
-            (
-                Node::Place { .. } | Node::InstantiatePart { .. } | Node::Datum { .. },
-                O::Side { .. },
-            ) => "constraint",
+            (node, O::Side { .. }) if node.bundle().is_some() => "constraint",
             _ => return None,
         };
         Some((owner, slot.selection_entry(reference)?))
@@ -3723,14 +3761,7 @@ where
         // A constraint's own scalars are float payload no slot
         // addresses, and the `PartialEq` above compares them by value:
         // they compare here, by bits.
-        if let (
-            Node::Place { constraints: a, .. }
-            | Node::InstantiatePart { constraints: a, .. }
-            | Node::Datum { constraints: a, .. },
-            Node::Place { constraints: b, .. }
-            | Node::InstantiatePart { constraints: b, .. }
-            | Node::Datum { constraints: b, .. },
-        ) = (self, other)
+        if let (Some(a), Some(b)) = (self.bundle(), other.bundle())
             && (a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.bit_eq(y)))
         {
             return false;

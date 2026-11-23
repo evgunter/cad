@@ -438,9 +438,12 @@ fn side<P: crate::ProfilePayload>(
             .collect(),
     };
     let Some(body) = body else {
+        // A datum's own side is its frame where the frame stands: a datum
+        // copies nothing, so no copy carries it.
+        let own = crate::mate::solve::datum_frame(doc, placement).is_some();
         return vec![match side {
-            MateSide::On => copied(placement),
-            MateSide::To => at,
+            MateSide::On if !own => copied(placement),
+            MateSide::On | MateSide::To => at,
         }];
     };
     let copies = crate::mate::copies_of(doc, body);

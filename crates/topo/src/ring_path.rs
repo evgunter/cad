@@ -1084,9 +1084,10 @@ impl<T: Real> LoopSplit<T> {
     ) -> Option<Self> {
         match section {
             geom_brep::PlaneTorusSection::MeridianCircles {
-                c1: geom::Curve3::Circle(geom::Circle { frame, .. }),
+                c1: geom::Curve3::Circle(the_circle @ geom::Circle { .. }),
                 ..
             } => {
+                let frame = the_circle.frame();
                 let center = frame.origin();
                 Some(Self::Side {
                     origin: centre,
@@ -1218,24 +1219,19 @@ impl<T: Decide> Quadric<T> {
                 major,
                 ..
             },
-            geom::Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: carrier_frame,
-                    ..
-                },
-            ),
+            geom::Curve3::Circle(circle),
         ) = (*self, carrier)
         else {
             return Ok(None);
         };
-        let (k, n) = (carrier_frame.origin(), carrier_frame.axis());
+        let (k, n) = (circle.frame().origin(), circle.frame().axis());
         let radius = circle.radius();
         let (k, n, radius) = (k, n, radius);
         let arm = geom_brep::circle_curvature_arm(circle);
         let Some(LoopArc::Conic(conic)) = LoopArc::of(carrier, params) else {
             return Ok(None);
         };
-        let (frame, ra, span) = (*conic.conic().frame(), radius, conic.span);
+        let (frame, ra, span) = (conic.conic().frame(), radius, conic.span);
         let arc = |own| {
             LoopArc::Conic(ConicArc {
                 own: Some(own),
@@ -1515,10 +1511,10 @@ pub(crate) fn path_parity<T: Decide>(
                         own,
                     },
                 ) => {
-                    let e = geom::Line { origin: c, dir: a }.offset(p.circle.frame.origin());
+                    let e = geom::Line { origin: c, dir: a }.offset(p.circle.frame().origin());
                     let e = e.normalize();
                     let Some(roots) =
-                        plane_roots(&p, (p.circle.frame.origin(), e), arrival, slack, band)?
+                        plane_roots(&p, (p.circle.frame().origin(), e), arrival, slack, band)?
                     else {
                         return Ok(None);
                     };
@@ -1575,7 +1571,7 @@ pub(crate) fn path_parity<T: Decide>(
                         span,
                     },
                 ) => {
-                    let across = p.circle.frame.axis().dot(dir);
+                    let across = p.circle.frame().axis().dot(dir);
                     if decide_m(
                         "split_ring_path_line_across",
                         Margin::levered(across, geom_brep::circle_curvature_arm(&p.circle)),
@@ -1586,7 +1582,12 @@ pub(crate) fn path_parity<T: Decide>(
                     if arrival {
                         return Ok(Some(flip));
                     }
-                    let s = p.circle.frame.axis().dot(p.circle.frame.origin() - origin) / across;
+                    let s = p
+                        .circle
+                        .frame()
+                        .axis()
+                        .dot(p.circle.frame().origin() - origin)
+                        / across;
                     let t = p.param(origin + dir * s);
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.
@@ -1895,7 +1896,7 @@ impl<T: Decide> ConicArc<T> {
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
-        let circle = geom::Curve3::Circle(geom::Circle::new(*f, b));
+        let circle = geom::Curve3::Circle(geom::Circle::new(f, b));
         let Some(arc) = circle.distance_within(x, self.span) else {
             unreachable!("a circle's arc distance is closed-form")
         };
@@ -1993,7 +1994,7 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     for piece in &path.pieces {
         match piece {
             &(Piece::Arc(p) | Piece::Meridian(p)) => {
-                points.extend([p.circle.frame.origin(), p.at(p.span.0), p.at(p.span.1)]);
+                points.extend([p.circle.frame().origin(), p.at(p.span.0), p.at(p.span.1)]);
             }
             &(Piece::Segment { from, to, .. } | Piece::Ruling { from, to }) => {
                 points.extend([from, to]);
@@ -2007,7 +2008,7 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     for arc in arcs {
         match arc {
             LoopArc::Conic(_) => {}
-            LoopArc::Crest { circle, .. } => points.push(circle.frame.origin()),
+            LoopArc::Crest { circle, .. } => points.push(circle.frame().origin()),
             LoopArc::Oval(Oval { centre, .. }) => points.push(*centre),
             LoopArc::Line { line, .. } => points.push(line.origin),
             LoopArc::Spline(SplineArc { carrier, span }) => {
@@ -2078,7 +2079,7 @@ fn misses_in_plane<T: Decide>(
     }
     let conic = arc.conic();
     let (a, b) = conic.semi_axes();
-    let apart = (p.circle.frame.origin() - conic.frame().origin()).norm();
+    let apart = (p.circle.frame().origin() - conic.frame().origin()).norm();
     let differ = apart
         .max((p.circle.radius() - a).abs())
         .max((p.circle.radius() - b).abs());
@@ -2135,7 +2136,7 @@ fn coplanar_apart<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let conic = arc.conic();
-    let apart = (p.circle.frame.origin() - conic.frame().origin()).norm();
+    let apart = (p.circle.frame().origin() - conic.frame().origin()).norm();
     let (inner, outer) = (conic.speed_lo(), conic.speed_hi());
     let gap = (apart - p.circle.radius() - outer)
         .max(inner - p.circle.radius() - apart)
@@ -2165,8 +2166,11 @@ fn plane_roots<T: Decide>(
     slack: T,
     band: Band,
 ) -> Result<Option<Vec<(T, T)>>, Indeterminate> {
-    let (ca, cb) = (n.dot(p.circle.frame.u_ref()), n.dot(p.circle.frame.v_ref()));
-    let d = n.dot(p.circle.frame.origin() - o);
+    let (ca, cb) = (
+        n.dot(p.circle.frame().u_ref()),
+        n.dot(p.circle.frame().v_ref()),
+    );
+    let d = n.dot(p.circle.frame().origin() - o);
     let rho = (ca.powi(2) + cb.powi(2)).sqrt();
     // The gap `rρ − |D|`: moving the plane by it flips the meeting, so
     // it is the deviation the sign rests on.
@@ -3029,7 +3033,7 @@ mod tests {
             let LoopArc::Conic(conic) = LoopArc::of(&edge.carrier, edge.params).unwrap() else {
                 panic!("a meridian is a conic");
             };
-            let frame = *conic.conic().frame();
+            let frame = conic.conic().frame();
             let centre = frame.origin();
             let on = |span| CircleArc {
                 circle: geom::Circle::new(frame, small),
@@ -3066,7 +3070,10 @@ mod tests {
                     misses_in_plane(
                         &piece,
                         &conic,
-                        resolution(&[piece.circle.frame.origin(), conic.conic().frame().origin()]),
+                        resolution(&[
+                            piece.circle.frame().origin(),
+                            conic.conic().frame().origin()
+                        ]),
                         band()
                     )
                     .unwrap(),
@@ -3113,7 +3120,7 @@ mod tests {
             );
             assert!(
                 ((x - conic.conic().frame().origin()).norm() - f.s).abs() < 1e-6 * f.s
-                    && ((x - piece.circle.frame.origin()).norm() - 2.0 * f.s).abs() < 1e-6 * f.s,
+                    && ((x - piece.circle.frame().origin()).norm() - 2.0 * f.s).abs() < 1e-6 * f.s,
                 "the crossing lies on both circles"
             );
             assert!(
@@ -3125,7 +3132,10 @@ mod tests {
                 !misses_in_plane(
                     &piece,
                     &conic,
-                    resolution(&[piece.circle.frame.origin(), conic.conic().frame().origin()]),
+                    resolution(&[
+                        piece.circle.frame().origin(),
+                        conic.conic().frame().origin()
+                    ]),
                     band()
                 )
                 .unwrap(),
@@ -3338,7 +3348,7 @@ mod tests {
                 span: (0.0, 6.0),
             };
             let n = unit(&mut rng);
-            let frame = &piece.circle.frame;
+            let frame = &piece.circle.frame();
             let rho = (n.dot(frame.u_ref()).powi(2) + n.dot(frame.v_ref()).powi(2)).sqrt();
             let w = n.cross(unit(&mut rng)).normalize();
             let gap = rng.range(-2.0, 2.0) * band.escalate();
@@ -3457,7 +3467,7 @@ mod tests {
         let own = geom_brep::carrier_resolution::resolution(&conic.carrier, span.0, span.1)
             .expect("an ellipse has a resolution");
         let points = [
-            piece.circle.frame.origin(),
+            piece.circle.frame().origin(),
             piece.at(span.0),
             piece.at(span.1),
         ];

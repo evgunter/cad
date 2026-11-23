@@ -3465,6 +3465,9 @@ impl DocSession {
         // History ids are arena positions of the outgoing history.
         self.inserts.clear();
         self.forget_priced_delete();
+        // A bundle's scratch solve names a placement of the outgoing
+        // document, which the incoming one may hold by the same id.
+        self.landing = None;
     }
 
     /// Drop the kept delete rehearsal (`DocSession::priced`).
@@ -5546,7 +5549,8 @@ impl ProductDoor {
                 }),
             };
         }
-        let world_copies: Vec<(RecipeNodeId, VarId)> = crate::world::placements_of_var(doc, var)
+        let world_copies: Vec<(RecipeNodeId, VarId)> = doc
+            .placements_of_var(var)
             .into_iter()
             .filter(|&copy| doc.node_space(copy) == Some(VarId::WORLD))
             .filter_map(|copy| Some((copy, doc.output(copy, 0)?)))
@@ -5678,7 +5682,7 @@ impl Takeover {
         let copies = self
             .sources
             .iter()
-            .flat_map(|&source| crate::world::placements_of_var(doc, source));
+            .flat_map(|&source| doc.placements_of_var(source));
         for copy in copies {
             let outputs = doc.outputs(copy);
             if let Some(&(pick, _)) = picks

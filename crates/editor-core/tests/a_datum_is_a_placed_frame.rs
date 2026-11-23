@@ -46,26 +46,39 @@ fn datum_at_x(doc: ProfileDoc, space: VarId, x: f64) -> (ProfileDoc, RecipeNodeI
     fixture::insert(doc, Node::datum(Operand::Var(space), bundle))
 }
 
+/// A datum in `space` slid `xyz` along the space's axes, every spin zero.
+fn datum_at(doc: ProfileDoc, space: VarId, xyz: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
+    let moves = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+        .into_iter()
+        .zip(xyz)
+        .map(|(axis, by)| (Coord::slide(axis), len(by)))
+        .collect();
+    let bundle = editor_core::Placed::of(&doc, Vec::new(), moves).bundle();
+    fixture::insert(doc, Node::datum(Operand::Var(space), bundle))
+}
+
 /// The frame the datum `datum` placed: its origin and its `z`.
 fn frame(doc: &ProfileDoc, datum: RecipeNodeId) -> ([f64; 3], [f64; 3]) {
     let ev = fixture::run(doc, &editor_core::EvalOptions::default());
-    match ev.nodes.get(&datum) {
-        Some(NodeResult::Ok(v)) => {
-            let m = v
-                .motion
-                .expect("the datum is placed off its space's origin");
+    match ev.nodes.get(&datum).map(|r| match r {
+        NodeResult::Ok(v) => Some(&v.payload),
+        _ => None,
+    }) {
+        Some(Some(editor_core::ValuePayload::Datum(m))) => {
             (m.origin().to_array(), m.w().get().to_array())
         }
         other => panic!("the datum did not evaluate: {other:?}"),
     }
 }
 
+/// Every corner of `node`'s body, sorted, as it stands in its space
+/// ([`fixture::in_space`]).
 fn corners(doc: &ProfileDoc, node: RecipeNodeId) -> Vec<[f64; 3]> {
     let ev = fixture::run(doc, &editor_core::EvalOptions::default());
     let Some(NodeResult::Ok(v)) = ev.nodes.get(&node) else {
         panic!("node {node:?} did not build")
     };
-    let body = v.payload.output_body(0).expect("one body").body();
+    let body = fixture::in_space(v.payload.output_body(0).expect("one body"));
     let mut out: Vec<[f64; 3]> = body.points().map(|(_, p)| p.to_array()).collect();
     out.sort_by(|a, b| a.partial_cmp(b).unwrap());
     out
@@ -132,12 +145,14 @@ fn a_datum_flush_on_a_face_follows_the_face() {
     assert_eq!(origin[2], 3.0, "the datum moved with the cap");
 }
 
-/// **A mate may read a datum at all-zero values**: a copy of the block
-/// rests its start cap on the xy plane of a datum at the world's origin.
+/// **A mate's far side reads a datum through its xy plane**: a copy of
+/// the block rests its start cap on a world datum raised `3` up the
+/// world's `z`, so the copy's lowest corner stands at `3` in the world.
+/// The datum at all-zero values is the review rows'.
 #[test]
-fn a_copy_rests_on_a_datum_at_its_spaces_origin() {
+fn a_copy_rests_on_a_datums_xy_plane() {
     let (doc, block, _) = block("datum-far-side");
-    let (doc, datum) = datum_at_x(doc, VarId::WORLD, 0.0);
+    let (doc, datum) = datum_at(doc, VarId::WORLD, [0.5, -0.25, 3.0]);
     let own = doc.output(datum, 0).expect("a datum defines its frame");
     let (doc, copy) = fixture::insert(doc, fixture::stood(Operand::output(block, 0)));
     let start = Operand::select(
@@ -154,7 +169,7 @@ fn a_copy_rests_on_a_datum_at_its_spaces_origin() {
         .into_iter()
         .map(|[_, _, z]| z)
         .fold(f64::INFINITY, f64::min);
-    assert_eq!(lowest, 0.0, "the copy stands on the datum's xy plane");
+    assert_eq!(lowest, 3.0, "the copy stands on the datum's xy plane");
 }
 
 /// **A datum read from outside its space refuses**: a mirror of a body
@@ -192,25 +207,47 @@ fn a_datums_mate_reads_its_own_xy_z_or_origin() {
         Operand::output(block, 0),
         vec![fixture::fname(block, RoleSeg::Cap(CapEnd::End))],
     );
-    let mate = editor_core::Mate {
-        on: RoleRead::through(Operand::Var(own), PoseRole::Yz),
-        to: fixture::plane(cap).into(),
-        orient: editor_core::Orientation::IDENTITY,
-    };
-    let placed = editor_core::Placed::of(&doc, vec![mate], Vec::<(Coord<Operand>, Formula)>::new());
-    let refused = doc.apply(
-        &DocEdit::SetConstraints {
-            placement: datum,
-            constraints: placed.bundle(),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    );
-    match refused {
-        Err(EditError::MateRefused { fault, .. }) => assert!(
-            matches!(*fault, MateFault::NotTheDatumsOwn { .. }),
-            "the refusal is the datum's own side: {fault:?}"
+    let own_plane = || RoleRead::through(Operand::Var(own), PoseRole::Xy);
+    let flipped_own = Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
+        pose: own_plane(),
+    }));
+    let sides: [(&str, RoleRead<Operand>); 4] = [
+        (
+            "its yz plane",
+            RoleRead::through(Operand::Var(own), PoseRole::Yz),
         ),
-        other => panic!("a datum mate off its yz plane refuses: {other:?}"),
+        (
+            "its zx plane",
+            RoleRead::through(Operand::Var(own), PoseRole::Zx),
+        ),
+        (
+            "its x axis",
+            RoleRead::through(Operand::Var(own), PoseRole::X),
+        ),
+        ("its xy plane flipped", RoleRead::plain(flipped_own)),
+    ];
+    for (said, on) in sides {
+        let mate = editor_core::Mate {
+            on,
+            to: fixture::plane(cap.clone()).into(),
+            orient: editor_core::Orientation::IDENTITY,
+        };
+        let placed =
+            editor_core::Placed::of(&doc, vec![mate], Vec::<(Coord<Operand>, Formula)>::new());
+        let refused = doc.apply(
+            &DocEdit::SetConstraints {
+                placement: datum,
+                constraints: placed.bundle(),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        );
+        match refused {
+            Err(EditError::MateRefused { fault, .. }) => assert!(
+                matches!(*fault, MateFault::NotTheDatumsOwn { .. }),
+                "{said}: the refusal is the datum's own side: {fault:?}"
+            ),
+            other => panic!("{said}: a datum mate off its own side refuses: {other:?}"),
+        }
     }
 }

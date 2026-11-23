@@ -618,7 +618,7 @@ fn profile_x_extent(value: &pncad::document::NodeValue<f64>) -> Result<(f64, f64
         .flat_map(|lp| {
             let vertices = lp.vertices().iter().map(|p| (p.x, p.x));
             let arcs = lp.segments().iter().filter_map(|s| match s.kind {
-                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Line { .. } => None,
                 pncad::profile::SegmentKind::Arc { arc, .. } => {
                     Some((arc.centre.x - arc.radius, arc.centre.x + arc.radius))
                 }
@@ -1166,19 +1166,22 @@ impl ViewerBehavior<'_> {
             return;
         };
         let body = doc.through_sources(source).read;
-        let through = match doc.var_name(source) {
-            Some(name) => format!(" through {name}"),
-            None => String::new(),
-        };
+        let files = self.session.part_files();
+        let copied = doc.operation_of(body).map_or_else(
+            || crate::relations::Related::plain(crate::relations::DELETED),
+            |node| crate::relations::Related::node(doc, node, files),
+        );
+        let through = crate::relations::Related::named(doc, source);
         let button = self
             .session
             .repoint_button(source, self.session.selection().node());
-        ui.horizontal(|ui| {
-            let copied = doc.operation_of(body).map_or_else(
-                || doc.spoken_var(body).to_string(),
-                |node| doc.spoken(node).to_string(),
-            );
-            ui.label(format!("copy of: {copied}{through}"));
+        ui.horizontal_wrapped(|ui| {
+            ui.label("copy of:");
+            crate::pane::properties::related_entry(ui, &copied, self.ops);
+            if let Some(through) = &through {
+                ui.label(crate::pane::properties::THROUGH);
+                crate::pane::properties::related_entry(ui, through, self.ops);
+            }
             crate::widgets::repoint_button(ui, button, self.ops);
         });
     }

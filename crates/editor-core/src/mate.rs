@@ -125,15 +125,12 @@ impl<S: crate::Slot> Mate<S> {
     }
 }
 
-/// **The kind a mate side reads**, off the recipe: through its role, the
-/// kind the role reads; plainly, its variable's. `None` where it reads
-/// nothing live.
+/// [`pin::side_kind`] of a stored side.
 pub(crate) fn side_kind<P>(
     doc: &crate::doc::Doc<P>,
     side: crate::pose::RoleRead<crate::VarId>,
 ) -> Option<crate::VarKind> {
-    let held = doc.var(side.read)?.kind();
-    Some(side.role.map_or(held, crate::pose::PoseRole::kind))
+    pin::side_kind(doc, &side.map(|&var| crate::Operand::Var(var)))
 }
 
 /// **The two faces a mate rests**, when it equates two faces' planes:
@@ -186,14 +183,21 @@ pub(crate) fn poses_equated<P>(
     crate::pose::RoleRead<crate::VarId>,
     bool,
 ) {
+    // A flip is unwound under a read that keeps its sense
+    // ([`crate::pose::RoleRead::keeps_sense`]), the role carried down
+    // onto the pose flipped where that pose is read plainly.
     let unwound = |mut read: crate::pose::RoleRead<crate::VarId>| {
         let mut flipped = false;
-        while read.role.is_none()
+        while read.keeps_sense()
             && let Some(crate::var::VarDef::Pose(crate::pose::PoseDef::Flip { pose })) =
                 doc.var(read.read).map(crate::Var::def)
+            && (read.role.is_none() || pose.role.is_none())
         {
             flipped = !flipped;
-            read = *pose;
+            read = crate::pose::RoleRead {
+                read: pose.read,
+                role: read.role.or(pose.role),
+            };
         }
         (read, flipped)
     };
@@ -225,7 +229,7 @@ pub(crate) fn copies_of<P>(
 ) -> Vec<(RecipeNodeId, Copying)> {
     let own = doc.operation_of(body);
     let mut out = Vec::new();
-    for p in doc.placements() {
+    for p in doc.copies() {
         if own == Some(p) {
             out.push((p, Copying::Own));
             continue;
@@ -1168,6 +1172,10 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
         "whether the mated direction lies opposite to where the orientation puts the copy's",
     ),
     (
+        geom_core::LEAST_TURN_CONDITIONING,
+        "whether a chart's least turn is determined at the tolerance by the two directions it turns between",
+    ),
+    (
         value::FACE_CHART_SELECTION_POLE,
         "whether a face's chart's least turn has an answer over the session box, before what it carries is read",
     ),
@@ -1205,6 +1213,15 @@ impl crate::spoken::Say for MateFault {
     ) -> core::fmt::Result {
         use crate::spoken::Said;
         let mate_ = |m: MateRef| by.mate(m);
+        // What a placement places, as its sentence says it: the datum
+        // itself, any other placement its copy.
+        let placed = |placement: RecipeNodeId| {
+            if by.spoken(placement).kind() == Some("Datum") {
+                "datum"
+            } else {
+                "copy"
+            }
+        };
         let ids = |placement: RecipeNodeId, ids: &[crate::node::ConstraintId]| {
             ids.iter()
                 .map(|&id| by.constraint_numeral(MateRef { placement, id }))
@@ -1227,10 +1244,11 @@ impl crate::spoken::Say for MateFault {
                     [_] => "constraint",
                     _ => "each of constraints",
                 };
+                let it = placed(*placement);
                 let left = match free {
-                    0 => "the bundle pins its copy".to_string(),
-                    1 => "the bundle leaves its copy one freedom".to_string(),
-                    n => format!("the bundle leaves its copy {n} freedoms"),
+                    0 => format!("the bundle pins its {it}"),
+                    1 => format!("the bundle leaves its {it} one freedom"),
+                    n => format!("the bundle leaves its {it} {n} freedoms"),
                 };
                 write!(
                     f,
@@ -1245,10 +1263,11 @@ impl crate::spoken::Say for MateFault {
                     1 => "one freedom".to_string(),
                     n => format!("{n} freedoms"),
                 };
+                let it = placed(*placement);
                 write!(
                     f,
-                    "{}'s bundle leaves {left} of its copy unwritten, and every bundle pins its \
-                     copy. Recourse: {UNPINNED_RECOURSE}",
+                    "{}'s bundle leaves {left} of its {it} unwritten, and every bundle pins its \
+                     {it}. Recourse: {UNPINNED_RECOURSE}",
                     by.node(*placement),
                 )
             }
@@ -1283,9 +1302,10 @@ impl crate::spoken::Say for MateFault {
             } => write!(
                 f,
                 "{} sets a slide beside a ball mate, which fixes every translation, so the \
-                 slide could only turn the copy about the ball. Recourse: set the turn as a \
+                 slide could only turn the {} about the ball. Recourse: set the turn as a \
                  spin value, or pin it by a frame mate and its values",
-                mate_(*value)
+                mate_(*value),
+                placed(value.placement)
             ),
             Self::NoChart {
                 value,
@@ -1302,9 +1322,10 @@ impl crate::spoken::Say for MateFault {
                 write!(
                     f,
                     "{}'s slides do not span what its mate leaves{along}. Recourse: write the \
-                     slides along {write} instead, or an orientation that puts the copy's mated \
+                     slides along {write} instead, or an orientation that puts the {}'s mated \
                      direction where the slides written meet it",
-                    mate_(*value)
+                    mate_(*value),
+                    placed(value.placement)
                 )
             }
             Self::NoChart {
@@ -1324,10 +1345,11 @@ impl crate::spoken::Say for MateFault {
                 write,
             } => write!(
                 f,
-                "{}'s orientation ({orient}) puts the copy's mated direction opposite to the \
+                "{}'s orientation ({orient}) puts the {}'s mated direction opposite to the \
                  mated one, where no least turn is decided. Recourse: write the orientation \
                  {write}",
-                mate_(*mate)
+                mate_(*mate),
+                placed(mate.placement)
             ),
             Self::Unoriented { mate } => write!(
                 f,

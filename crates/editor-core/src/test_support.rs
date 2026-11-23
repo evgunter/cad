@@ -1520,7 +1520,7 @@ pub fn assemble_world_copies_edits(
     // A product already the world's copies is kept as it is, so a
     // document written twice is the one document.
     let world: Vec<crate::VarId> = doc
-        .placements()
+        .copies()
         .into_iter()
         .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
         .filter_map(|p| doc.output(p, 0))

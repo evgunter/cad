@@ -80,7 +80,6 @@ const KERNEL_KEYED: &[&str] = &[
     "SolidWithoutShells",
     "ShellWithoutFaces",
     "EdgeAcrossShells",
-    "ComponentEulerViolation",
     "MissingProvenance",
     "LeakedProvenance",
     "ScaffoldingEmptyLoop",

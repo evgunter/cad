@@ -1300,7 +1300,7 @@ impl<'a> Speaker<'a> {
 
     /// The node `id` as this speaker's document holds it, its subject
     /// or not.
-    fn spoken(self, id: RecipeNodeId) -> SpokenNode {
+    pub(crate) fn spoken(self, id: RecipeNodeId) -> SpokenNode {
         let said = match self.doc {
             None => SpokenNode::absent(id),
             Some(doc) => doc.speak(id),

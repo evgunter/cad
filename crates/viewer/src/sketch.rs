@@ -2083,7 +2083,7 @@ fn drawing(
         .iter()
         .map(|lp| {
             let arcs = lp.segments().iter().map(|s| match s.kind {
-                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Line { .. } => None,
                 pncad::profile::SegmentKind::Arc { arc, .. } => Some(arc),
             });
             flatten(lp.vertices(), arcs, chord).map(|(points, vertices)| PreviewLoop {

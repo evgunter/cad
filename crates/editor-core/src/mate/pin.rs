@@ -380,16 +380,16 @@ pub fn operand_kind<P>(doc: &crate::doc::Doc<P>, operand: &Operand) -> Option<cr
     }
 }
 
-/// **The kind a mate side reads**: through its role, the kind the role
-/// reads; plainly, [`operand_kind`].
+/// **The kind a mate side reads**, the one rule for a stored side and
+/// an authored one: its read's kind ([`operand_kind`]), and through a
+/// role the kind the role reads. `None` where the read reaches nothing
+/// live, through a role or not.
 pub fn side_kind<P>(
     doc: &crate::doc::Doc<P>,
     side: &crate::pose::RoleRead<Operand>,
 ) -> Option<crate::VarKind> {
-    match side.role {
-        Some(role) => Some(role.kind()),
-        None => operand_kind(doc, &side.read),
-    }
+    let held = operand_kind(doc, &side.read)?;
+    Some(side.role.map_or(held, crate::pose::PoseRole::kind))
 }
 
 /// **A copy standing where its body stands** (D10 `[placement.values]`:

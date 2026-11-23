@@ -628,12 +628,13 @@ where
             let own: Results<T> = BTreeMap::from([(
                 id,
                 NodeResult::Ok(super::NodeValue::scratch(OpOut::plain(
-                    ValuePayload::Datum,
+                    ValuePayload::Datum(RigidMotion::identity()),
                     names::empty(),
                 ))),
             )]);
             let placed = fold_with(doc, &own, unprojected, id, constraints, Ok(0.0), env, tol)?;
-            Ok(OpOut::plain(ValuePayload::Datum, names::empty()).moved(placed))
+            let frame = placed.unwrap_or_else(RigidMotion::identity);
+            Ok(OpOut::plain(ValuePayload::Datum(frame), names::empty()).moved(placed))
         }
         Node::InstantiatePart {
             doc_ref,

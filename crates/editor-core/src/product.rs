@@ -567,7 +567,7 @@ pub(crate) fn sources_of<T: topo::AtRestPolicy + Decide>(
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::Assertion(_)
-        | ValuePayload::Datum
+        | ValuePayload::Datum(_)
         | ValuePayload::Family => None,
     }
 }

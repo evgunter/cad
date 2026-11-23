@@ -1487,14 +1487,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             shell_plus: shell,
             shell_minus: shell,
         },
-        ValidationError::ComponentEulerViolation {
-            shell,
-            seed: face,
-            vertices: 2,
-            edges: 2,
-            faces: 1,
-            rings: 0,
-        },
         ValidationError::MissingProvenance {
             entity: EntityId::Face(face),
         },

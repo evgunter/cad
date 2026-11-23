@@ -3253,6 +3253,8 @@ impl MateTool {
                     }
                     _ => written,
                 };
+                // A side written over is plain: only a plain `to` is
+                // unslid, and toggling a plain side keeps it plain.
                 let read = match (restood, &row.offset, offset_role(row.kind)) {
                     (true, Some(by), Some(role)) => offset_read(read, role, by.clone()),
                     _ => read,
