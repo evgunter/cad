@@ -487,10 +487,9 @@ pub(crate) enum Routed {
 /// run). On a ruled face with a split side the fact also asks whether the
 /// walk takes it (`trimmed::walkable`): one `chart_singularity_at_vertex`
 /// per singular point of the chart per vertex of the outer loop. The walk
-/// itself records, in the lane, one `walked side beyond its neighbour's
-/// reach` per side and face across asked (`trimmed::may_make`). Both are
-/// pinned on a split-side body (`tests/route_rows.rs`,
-/// `a_split_side_body_records_the_walks_decisions`).
+/// itself records nothing of its own: whether a face across can reach a
+/// side (`trimmed::may_make`) reads no band. Pinned on a split-side body
+/// (`tests/route_rows.rs`, `a_split_side_body_records_the_walks_decisions`).
 pub(crate) struct FaceRoute {
     pub(crate) face: FaceKey,
     pub(crate) route: Result<Route, TessellateError>,

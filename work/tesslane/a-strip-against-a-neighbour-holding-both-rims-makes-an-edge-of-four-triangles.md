@@ -46,8 +46,8 @@ whose four uses come from two topological edges between one vertex pair.
 With a ruling split, the bore is the chart lane's walk. It cuts a walked
 side whose two ends one face across holds (`TrimPolygon::faces_holding_side`,
 the CDT arms' one test) wherever that face may make it (`trimmed::may_make`:
-the side's midpoint is not decided, on the run's band, to lie farther than
-`δ·(1 + cert::ALLOWANCE_SHARE)` from its surface), and those cells mesh
+the side's midpoint within `δ·(1 + cert::ALLOWANCE_SHARE)` of its surface,
+plus the certificate's rounding; no ε is read), and those cells mesh
 manifold (`split_rulings::a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge`).
 The unsplit bore is the rectangle lane's, which reads no such fact.
 

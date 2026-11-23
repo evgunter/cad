@@ -1313,10 +1313,10 @@ fn bored_ball_of(r: f64, sign: f64) -> Body<f64> {
 /// rim-to-rim side of the bore is one it holds both ends of
 /// (`TrimPolygon::faces_holding_side`). Its midpoint stands about the
 /// shell's thickness (0.05) from the neighbour's surface: at δ 0.04 and
-/// coarser that is not decided past `δ·(1 + ALLOWANCE_SHARE)`, the
-/// neighbour may make the side (`trimmed::may_make`), and the walk cuts
-/// it; at δ 0.035 and finer it is, and the bore keeps the count relation
-/// exactly. Each cell pins the number of sides cut ([`holds_the_relation`]).
+/// coarser that is within `δ·(1 + ALLOWANCE_SHARE)` and the certificate's
+/// rounding, the neighbour may make the side (`trimmed::may_make`), and
+/// the walk cuts it; at δ 0.035 and finer it is past it, and the bore
+/// keeps the count relation exactly. Each cell pins the number of sides cut ([`holds_the_relation`]).
 ///
 /// The cut is needed where the neighbour does make the side: with it off,
 /// sign +1 at δ 3, 1 and 0.3 and sign −1 at δ 3 to 0.1 refuse
@@ -1671,39 +1671,37 @@ fn a_thin_d_prism_split_on_every_line_edge_refuses_as_its_split_caps_do() {
     }
 }
 
-/// **A side whose reach the band cannot decide is cut.** The bored ball
-/// of sign +1 ([`bored_ball`]), its seam split at its middle, placed
-/// obliquely. As δ grows, the walk starts to cut the bore's rim-to-rim
-/// sides (`trimmed::may_make`) where `d − δ·(1 + ALLOWANCE_SHARE)`, `d` a
-/// side's midpoint's distance from the neighbour's surface, drops below
-/// the band's escalation width (`10ε`, `geom_core::k_stats::decide`); it
-/// is undecided down to the zero width (`ε`), and decided not greater past
-/// it. Measured, the first cut falls at δ 0.036 955 750 473 at the
-/// default ε, 0.036 947 758 473 at `10⁻⁶` and 0.036 955 758 465 at
-/// `10⁻¹²`, the undecided window `9ε/(1 + ALLOWANCE_SHARE)` wide above
-/// each. This row's cell is inside the window at each ε: all 36 of the
-/// bore's sides there are undecided, and the walk cuts each, as it must
-/// where the neighbour may make the side. Reading undecided as "beyond
-/// reach" cuts none of them, which this cell reds at every ε.
+/// **The cut is a function of the body and δ: no ε moves it.** DESIGN
+/// `[tolerance.chordal]`: an ε flip never moves emitted coordinates with
+/// δ held fixed. The bored ball of sign +1 ([`bored_ball`]), its seam split
+/// at its middle, placed obliquely, at the two δ either side of its cut
+/// threshold (`trimmed::may_make`; the first cut falls at δ
+/// 0.036 955 758, where the first rim-to-rim side's midpoint stands
+/// `δ·(1 + ALLOWANCE_SHARE)` and the certificate's rounding from the
+/// neighbour's surface): just below it the walk cuts no side, just above
+/// it cuts 36, and the mesh's bytes are the same pinned digest at ε
+/// `10⁻⁹`, `10⁻⁶` and `10⁻¹²` alike. An ε read put back into the decision
+/// (a band's undecided width, which cuts) moves the threshold down by
+/// about `8ε`, and at `10⁻⁶` cuts the cell below it: red.
 #[test]
-fn a_side_whose_reach_the_band_cannot_decide_is_cut() {
+fn the_walks_cut_is_the_same_at_every_eps() {
+    use crate::route_rows::mesh_digest;
     let body = bored_ball(1.0);
     let [seam] = rulings(&body)[..] else {
         panic!("the bore has one seam");
     };
     let split = split_and_placed(&body, &[seam], &[0.5]);
     let solid = split_and_placed(&body, &[], &[]);
-    // Inside each ε's undecided window, past the first cut.
-    let delta = match eps_row() {
-        EpsRow::Coarse => 0.036_951_758_469_4,
-        EpsRow::Default => 0.036_955_754_469_4,
-        EpsRow::Fine => 0.036_955_758_469_0,
-    };
-    holds_the_relation(
-        "the ball bored with sign 1, its seam split at [0.5], in the band",
-        &split,
-        &solid,
-        delta,
-        36,
-    );
+    for (delta, cuts, digest) in [
+        (0.036_955, 0, 0x5fdc_3103_244e_21ec_u64),
+        (0.036_957, 36, 0x5942_fa6e_f91c_0eb2),
+    ] {
+        let what = "the ball bored with sign 1, its seam split at [0.5], beside its threshold";
+        holds_the_relation(what, &split, &solid, delta, cuts);
+        assert_eq!(
+            mesh_digest(&split, delta),
+            digest,
+            "{what}, δ {delta}: the mesh's bytes"
+        );
+    }
 }
