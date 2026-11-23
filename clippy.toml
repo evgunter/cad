@@ -13,15 +13,18 @@
 # itself is behind a shared `Arc` with no mutable door.
 ignore-interior-mutability = ["editor_core::names::role::NameRef"]
 
-# A conic's centre is read through the conic
-# (`crates/geom-core/README.md`, "Float rounding": "Every reading of
-# where a conic is goes through the conic"). These doors hand out the
-# frame at the centre, which an ellipse held on its arc derives on each
-# read at its semi-axes' rounding, or read a point about that centre,
-# or take a conic restated on a caller's frame; so production code outside
-# `crates/geom/src/curves/conic.rs` reads them only at a site that says
-# why (`#[expect(clippy::disallowed_methods, reason = "...")]`).
-# `scripts/gates/conic-centre-reads.sh` holds the arming and the count.
+# Where a conic is is read from its stored position
+# (`crates/geom-core/README.md`, "Float rounding": "every reading of
+# where the conic is (at a parameter, along it, or of a point against
+# it) is read from that position"). These doors hand out the frame at
+# the centre, which an ellipse held on its arc derives on each read at
+# its semi-axes' rounding, or read a point about that centre, or take a
+# conic restated on a caller's frame. The lint job's clippy reports
+# every use of one (`--force-warn clippy::disallowed_methods`) and
+# `scripts/conic_centre_census.py` holds the production reads per file
+# at their pins; a production site that reads one says why
+# (`#[expect(clippy::disallowed_methods, reason = "...")]`).
+# `scripts/gates/conic-centre-reads.sh` holds the wiring.
 disallowed-methods = [
     { path = "geom::Conic::frame", reason = "a conic's centre frame: read where the conic is through its readings (point_at, extent_along, cover_over, azimuth, axis, u_ref, v_ref)" },
     { path = "geom::Conic::center", reason = "a conic's centre: read where the conic is through its readings" },

@@ -71,7 +71,8 @@
 //! nears the axis; across a half turn, which is exact, it does not move.
 //!
 //! The placement is private to this module, and nothing outside it asks
-//! which point a conic holds: a position is read as the centre
+//! which point a conic holds: where the conic is is read through its
+//! readings (below), its centre is a datum of the whole conic
 //! ([`Conic::center`], the origin of [`Conic::frame`]), and the stored
 //! data are walked by name ([`Curve3::data`], whose datum for the stored
 //! point is [`CurveDatum::Center`] or [`CurveDatum::Anchor`]). A motion

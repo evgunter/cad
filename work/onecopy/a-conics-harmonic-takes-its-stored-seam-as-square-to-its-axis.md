@@ -31,20 +31,25 @@ Both `Frame::new` and `along` are the merge base's; PR 7510 changed
 neither. The miss is larger than the ones that PR removed (2.5e-10 m at
 2.2e7), on a fixture no mint produces.
 
-## Which mints produce such a seam: measured for one
+## Which mints produce such a seam
 
-`plane_cone_section` does not. 6,200 of its tilted ellipses (half-angles
-0.05, 0.4, 1.2 and 1.55; planes from 0.5 to 1e-7 of the way short of the
-parabola; a temporary probe beside
-`carrier_resolution::tests::a_far_centred_section_stands_at_the_scale_its_form_is_stored_at`,
-not kept): the worst `|u_ref · axis|` is 1.7e-16, and the worst
-`a · |u_ref · axis|` at a semi-axis of at most 1e6 m is 4.5e-11 m, under
-ε = 1e-9.
+- `plane_cone_section` does not. 6,200 of its tilted ellipses
+  (half-angles 0.05, 0.4, 1.2 and 1.55; planes from 0.5 to 1e-7 of the
+  way short of the parabola; a temporary probe beside
+  `carrier_resolution::tests::a_far_centred_section_stands_at_the_scale_its_form_is_stored_at`,
+  not kept): the worst `|u_ref · axis|` is 1.7e-16, and the worst
+  `a · |u_ref · axis|` at a semi-axis of at most 1e6 m is 4.5e-11 m.
+- The cylinder's section and the re-seams do not either (PR 7510's
+  reviewers; not re-measured here).
+- **STEP import's placement does, past ε at an ordinary size.**
+  `RigidMotion::from_axis_and_reference` (and `Frame::new`, one
+  Gram–Schmidt pass) admits a reference within about 1e-6 rad of its
+  axis and mints a frame out of square by 4.4e-10: a stored point 1e-9 m
+  off its extent at 2.3 m (a reviewer, measured at the mint). That mint
+  is `work/importgate/a-step-placement-whose-reference-lies-nearly-along-its-axis-mints-a-frame-out-of-square.md`.
 
-Not measured: `plane_cylinder_section`, the STEP import's conics (a
-file's `ref_direction` is squared by the same door), `Ellipse::new` on
-a frame a caller built, and any re-seam (`quarter_turned_where` takes
-`v_ref().normalize()` unsquared at an `Inexact` scalar).
+So "under ε at a buildable size" holds of the kernel's own section mints
+and is false of an imported placement.
 
 ## What is owed
 
