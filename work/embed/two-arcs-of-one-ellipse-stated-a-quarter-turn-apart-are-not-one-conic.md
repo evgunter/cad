@@ -112,3 +112,70 @@ and `…::a_needle_and_a_near_flat_cone_cut_read_as_any_cone`
 **The rule the unit builds, and why it is not a fork.** `crates/geom-core/README.md` (ratified; Ev on PR 7523): "A conic is the curve its stored numbers state … A conic's position is the point it stores plus two vectors times two functions of its parameter." Two statements are one stated conic exactly where their numbers state one curve, and that holds for more than identical content: the statement has exact symmetries. Negating an axis vector together with its phase component, or exchanging the two axis vectors with their semi-axes and phase components (with the sign that keeps the position), maps a statement to another statement of the same point set, and negation and exchange are exact in floating point. `same_content` plus `v` (PR 7491's ellipse arm) is narrower than that, and every plane cap a cone's split mints states its two arcs a half turn apart. What stays refused: two statements that differ by any rounding (an anchor 2⁻⁶⁰ away, a derived centre equal to the bit), which state two curves.
 
 **Acceptance.** Each symmetry admitted has a unit row that states it and a negative beside it (the axis negated WITHOUT its phase component; the semi-axes exchanged without the vectors; the anchored pair 2⁻⁶⁰ apart from PR 7491's row still two); the first landing's ten mutants on `one_stated_conic` still die and each new admission has its own; the cut cones of `embed/cone-image` (PR 7605) read `Embedded` at f64 again once both are in one tree, measured by that lane or this one. Where the symmetry belongs (a method beside `same_content` in `geom`, ONEROUND's ground, or in `injective.rs`) is the lane's to propose in one paragraph before building.
+
+## 2026-11-23: what landed, and what the quarter turn is (`embed/conic-symmetry`)
+
+**Measured first, on main `a497926d1`, the stored statements printed bit
+for bit.** A cut through the wall alone states its two section arcs on
+one anchor, one axis and one pair of semi-axes, with `u_ref`, the stored
+`v` and both phase components negated, every bit: an exact restatement a
+half turn on (three cuts, four placements each). The cut out through the
+top cap (this row's first finding) states them on one anchor and axis
+with the semi-axes exchanged and `u_ref` of the second the stored `v` of
+the first bit for bit, but the second's stored `v` is **one ulp off the
+first's `−u_ref` in all three components**:
+`(−0.6442176872376909, 2.7755575615628914e-17, 0.7648421872844884)`
+against `u_ref (0.644217687237691, −2.775557561562892e-17, −0.7648421872844885)`.
+The raising site is `Ellipse::quarter_turned_where`, which at `f64`
+takes `Frame::quarter_turned_renormalized`; `chord_arc` reaches it by
+seaming each arc near its own middle.
+
+**So the "What a fix needs" above and the unit section's rule are
+corrected here.** Negating an axis vector with its phase component is an
+exact symmetry of the statement. Exchanging the two axes is not one that
+any `f64` door states, and it is no identity of the formula `geom`
+evaluates: the position reads `v_ref` as `axis × u_ref`, and
+`axis × (axis × u_ref)` is `−u_ref` only where the stored axes are rigid
+to the bit. The quarter-turn pair is two statements a rounding apart,
+which by the unit's own rule state two curves. It is not admitted, and
+its cause is filed on the minting side:
+`work/conic/a-sections-two-arcs-seamed-a-quarter-turn-apart-are-two-statements-a-rounding-apart.md`.
+The title of this row names both cases; the half turn is closed by this
+unit and the quarter turn is that row's.
+
+**What landed.** `geom::Ellipse::restatements`: the four statements an
+ellipse's stored numbers reach by exact negation (itself; its seam a
+half turn on; run back; both). `one_stated_conic` reads two stored
+ellipses as one where one is a restatement of the other by
+`same_content`, with the stored `v` beside. The circle arm is untouched:
+`one_stated_plane`'s sign patterns of determinant +1 are the same four.
+`one_conic`'s lifted arm admits the same three turns where every lifted
+component is a point, and no quarter turn, so the two arms agree on the
+symmetries.
+
+**Measured, on main alone.** No verdict moves: the cone's image of a
+section arc is not read on main, so every split cone refuses at both
+scalars in every placement with the admission on or off (24 asks: three
+cuts, four placements, two scalars;
+`a_split_cone_refuses_on_a_pair_holding_its_wall`), on the two halves
+across a ruling or a plane against a half. Six cylinder cuts hold at
+`f64` either way (their arcs are held at the centre, a half turn apart).
+
+**Measured, on `embed/cone-image` `a56c9702c` with this unit's commit
+picked onto it** (a scratch tree, never pushed). At `f64`, seven cuts
+through the wall alone, each as built, turned, a hundred out and
+mirrored: `Embedded` in 28 of 28 asks, against 0 of 28 with the
+admission off (each then refusing on the cut cap across a section arc).
+The cap cut refuses on its cut cap in 4 of 4, with the admission on or
+off. That branch's rows pinned refusing flip
+(`a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap`,
+`a_needle_and_a_near_flat_cone_cut_read_as_any_cone`); its cap-cut row
+and its crossing row (a ball at the two-arc corner among its bodies,
+reading `Crosses`) pass unchanged; the rest of its suite file is green
+(90 of 92, the two flips). Through the at-rest gate
+(`embed/cone-image-measure` `445bec31a` with the same commit), **12 of
+the 24 cone/cone census tests pass**, the 12 that passed before main's
+anchored ellipse, against 1 of 24 on that branch without this unit. At
+`Interval` no verdict moves (28 of 28 refuse either way):
+`a-cut-cones-cap-arcs-are-enclosures-at-interval-so-it-refuses-where-f64-holds`.
+
