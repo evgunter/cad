@@ -26,8 +26,7 @@ use crate::shared::tol::{band, eps};
 use geom::{Surface, SurfaceKind};
 use geom_brep::Reach;
 use geom_brep::intersect::{
-    PlaneConeSection, SectionError, cone_cylinder_section, plane_cone_section, plane_torus_section,
-    route, route_pose,
+    PlaneConeSection, SectionError, cone_cylinder_section, plane_cone_section, route, route_pose,
 };
 use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
