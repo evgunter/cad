@@ -694,6 +694,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`is_certified().then_some`), so every bracket read there certifies by construction",
     ),
     ("crates/geom-core/src/test_support.rs", 2, 2, ""),
+    ("crates/geom/src/azimuth.rs", 3, 3, ""),
     (
         "crates/geom/src/curves/nurbs.rs",
         3,
@@ -771,10 +772,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        177,
-        79,
-        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (26), \
+        194,
+        96,
+        "the 96 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (26), the pose's four (17, below), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
@@ -811,7 +812,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          asking, which is `work/embed/one-plane-reads-a-brackets-ends-as-a-point-without-asking`. \
          `continues` reads its arcs' parameter spans outward (2), a parameter read, and its \
          directions' product at its lower end (1), which no ask covers: \
-         `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`",
+         `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`. \
+         The pose's four each read behind their own ask: `on_sphere` its residuals' ends \
+         against their rounding (2), only where they certify, and the radius's upper end and \
+         its square's (2), the scale those are read at; `pose_frame` a norm's low end (1), \
+         taken positive only where it certifies; `posed_cell` the box's `Z/r` (2), behind its \
+         ask and clamped to `[-1, 1]`, where every point of the sphere has it, and the placed \
+         rectangle's latitude and azimuth (4), each certified; and `posed_extent` each row's \
+         span outward (2), a parameter read, and the lift's signed area less or plus its \
+         margin at the end that decides its sign (2), granted only where the area certifies, \
+         and each piece's starting parameter (2), a parameter read, its point placed by \
+         `posed_cell`",
     ),
     (
         "crates/topo/src/props.rs",
