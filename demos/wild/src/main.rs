@@ -17,7 +17,7 @@
 //!     tessellate become cells ([`WILD_CELLS`], pinned); the ones that
 //!     refuse import ([`WILD_REFUSALS`]: `b123d_nema17_bracket`,
 //!     `SURFACE_CURVE` edge geometry, and `nist_ftc_09_asme1_rd`, a
-//!     tangent edge printed off its tangency) are pinned as typed
+//!     fillet whose tangency its file's band leaves undecided) are pinned as typed
 //!     failures.
 //!     **Drift in any direction fails this tool loudly**: a montage
 //!     whose cell set moved silently would detach the sheet from the
@@ -141,17 +141,15 @@ const WILD_CELLS: [Cell; 7] = [
 /// [`WILD_CELLS`] AND the attribution block in `demos/README.md`,
 /// per the audit.
 ///
-/// `nist_ftc_09_asme1_rd`'s fillets read tangent at the file's band and
-/// crossing at the run's; the import makes each tangency exact, and the
-/// edges its writer printed as crossing lines then lie off the tangency
-/// in the file's band, the file's ambiguity, at every ε
-/// (`work/importgate/a-tangent-edge-printed-as-a-crossing-line-refuses-at-the-build.md`).
+/// `nist_ftc_09_asme1_rd`'s cylinder `#5130` bites parallel planes `#5116`
+/// and `#5144` by 56.8 µm, in the band of the file's ε_in ≈ 34 µm: whether
+/// it is tangent is the file's ambiguity, refused at the snap at every ε.
 /// Its cell and its attribution return with it.
 const WILD_REFUSALS: [(&str, &str); 2] = [
     ("occ-oss/b123d_nema17_bracket.step", "SURFACE_CURVE"),
     (
         "nist/nist_ftc_09_asme1_rd.stp",
-        "(step_edge_on_description), in the band",
+        "(step_snap_relation) lies in the band",
     ),
 ];
 

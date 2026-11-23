@@ -462,7 +462,7 @@ class TestAPartWhosePieceFails(unittest.TestCase):
         self.assertEqual(
             bracket_piece, self.twin, "both documents mint from the zero chain"
         )
-        seat = f'InstantiatePart "bracket seat" ({tag(bracket_piece)})'
+        seat = f'"bracket seat" ({tag(bracket_piece)})'
         self.assertIn(f"the part's {seat} failed", text)
         self.assertIn(f"repair {seat}", text)
         self.assertNotIn("host twin", text)

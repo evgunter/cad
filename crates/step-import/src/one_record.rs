@@ -181,7 +181,7 @@ pub(crate) fn one_record(
         // sense restated so its material side is unchanged: its facing
         // read against the kept record's normal.
         for face in solid.faces.iter_mut().filter(|f| f.record == group.record) {
-            let facing = if face.sense { from_n } else { -from_n };
+            let facing = geom_brep::OutwardNormal::from_chart(from_n, face.sense).vec();
             face.sense = one_way(to_n, facing);
             face.record = to;
         }

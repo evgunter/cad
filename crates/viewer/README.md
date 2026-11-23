@@ -2526,8 +2526,8 @@ space, or its inputs'), and the mirror writes `body ∪ image`. An
 inserted part is a fresh `new_space()` and the instance into it by the
 identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A feature gesture — a fillet, a
-chamfer, a mirror, a sketch on a face, a split, a pattern fused or not,
-a combine — lands where the pick was seen. Picked on a copy, it reads that
+chamfer, a mirror, a split, a pattern fused or not, a combine — lands
+where the pick was seen. Picked on a copy, it reads that
 copy in the copy's space (`fillet(C)`) and takes over the `⊔` operands
 and the product slot that read it, writing no placement's source; the
 other copies of the body are untouched, and the Properties pane says
@@ -2574,8 +2574,9 @@ Every placement is a copy to the viewer, wherever its target stands
 one placed in its body's own space or in another construction's
 space, as Place's and a pattern's are, is a copy as one in the world
 is. The body a placement copies (`world::copy_source`, down its source) is
-what the placed badge, the re-point offer and the way to the original
-body read, and the placement editor's `on` side selects in the source
+what the re-point offer and the way to the original body read; the
+placed badge counts a body's readers at the source seat
+(`ReadIndex::placements_of`), and the placement editor's `on` side selects in the source
 the placement reads (`bracket.top`); a pick on a copy seats that copy.
 Projecting a pattern member writes
 nothing: a pick on a drawn member seats `family[k]`. The Transform tool
@@ -2763,8 +2764,8 @@ rustfmt cost below.
 **rustfmt does not reach inside the invocation**, so the variants and
 variant docs of every one are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
-records the experiment and
-`work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
+records the experiment, and a gate for it was weighed and declined
+(`work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`, closed).
 
 Two kinds of list stay hand-written, and each is a different answer
 rather than an exception:
@@ -3129,9 +3130,9 @@ wanted, or leave it named; do not reach for `#[allow]`.
 **A browser pass, if one is ever run, allows that one lint.** None is
 run today, and the feature axis is better off here than this one:
 doc-gate's pass 3 at least COMPILES the half it widens to, where
-wasm-only items get no doc build at all.
-`work/view/wasm-only-doc-comments-are-checked-by-nothing.md` owns that
-gap.
+wasm-only items get no doc build at all. A nightly browser pass was
+weighed and declined (`work/ciw/wasm-only-doc-comments-are-checked-by-nothing.md`,
+closed): the gap is accepted.
 
 **The population, dated and by name — with the instrument that takes
 it, which belongs HERE.** A reading whose command is not named cannot be

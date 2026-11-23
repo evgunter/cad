@@ -311,18 +311,9 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [[
     "pieces on a torus face",
 ]; 8];
 
-/// The steeper tilt, whose union `h ∪ c` [`STEEP_UNION_STOP`] pins.
+/// The steeper tilt, whose union `h ∪ c`
+/// [`the_steeper_tilts_union_stops_by_identity`] pins.
 const STEEP_TILT: f64 = 0.7;
-
-/// **The steeper tilt's union stops by identity** at both spins: its cap
-/// chord, a spiric in the rod's cap plane, reads off the rod's wall by
-/// degree (`topo::boolean::slit`'s spiric × quadric arm), so the slit
-/// pass reads no rider there; the union passes the result gate, the half
-/// donut's torus wall, spiric and chords alike, measured through the
-/// rotational lane, and stops at the crossings path's interior-loop
-/// guard on the torus wall × the rod's wall, whose section certificate
-/// refuses the pair: the two faces it names.
-const STEEP_UNION_STOP: (&str, &str) = ("FaceKey(3v1)", "FaceKey(4v1)");
 
 /// **The other spins, and the steeper tilts, refuse typed** on every
 /// op, each at its pinned door ([`OTHER_SPINS_STOPS`]): each wall germ
@@ -369,17 +360,26 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     assert!(off.is_empty(), "at ε {eps:e}:\n{}", off.join("\n"));
 }
 
-/// **The steeper tilt's union stops at its pin by identity**
-/// ([`STEEP_UNION_STOP`]) at both spins and at every ε row. Only that
-/// op is run at the two poses, so the identity is measured where the
-/// whole table is too costly ([`OTHER_SPINS_STOPS`] names it by word).
+/// **The steeper tilt's union stops by identity** at both spins and at
+/// every ε row: its cap chord, a spiric in the rod's cap plane, reads
+/// off the rod's wall by degree (`topo::boolean::slit`'s spiric ×
+/// quadric arm), so the slit pass reads no rider there; the union
+/// passes the result gate, the half donut's torus wall, spiric and
+/// chords alike, measured through the rotational lane, and stops at the
+/// crossings path's interior-loop guard on the torus wall × the rod's
+/// wall, whose section certificate refuses the pair. The two faces it
+/// names must resolve on their operands to that wall — the inner of the
+/// tube's two torus halves — and the rod's cylinder wall. Only that op is run at the two poses, so the identity
+/// is measured where the whole table is too costly
+/// ([`OTHER_SPINS_STOPS`] names it by word).
 #[test]
 fn the_steeper_tilts_union_stops_by_identity() {
     let h = half_donut();
     let eps = Tol::witness().eps();
     for spin in [0.0, FRAC_PI_2] {
         let at = format!("h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}");
-        let r = topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness());
+        let c = rod(STEEP_TILT, spin);
+        let r = topo::union(&h, &c, Tol::witness());
         let Err(BooleanError::CurvedPairUnsupported {
             op: Some(topo::BooleanOp::Union),
             site: topo::PairRefusalSite::InteriorLoopGuard,
@@ -392,11 +392,20 @@ fn the_steeper_tilts_union_stops_by_identity() {
         else {
             panic!("{at}: {}", outcome(&r));
         };
-        let (face, other_face) = (format!("{face:?}"), format!("{other_face:?}"));
         assert_eq!(
-            (face.as_str(), other_face.as_str()),
-            STEEP_UNION_STOP,
-            "{at}"
+            (kind_of(&h, *face), kind_of(&c, *other_face)),
+            (Some(SurfaceKind::Torus), Some(SurfaceKind::Cylinder)),
+            "{at}: the refusal's faces are not the donut's torus wall and the rod's wall"
+        );
+        // The half donut's tube is two torus faces, split at its two
+        // profile vertices; the one the rod crosses is the INNER half,
+        // which holds the inner equator (radius 1.5, the hole's side).
+        let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+        let inner_equator = Point3::new(0.0, 0.0, -1.5);
+        assert_eq!(
+            topo::curved_face_containment(&h, *face, inner_equator, band).ok(),
+            Some(Some(topo::FaceContainment::In)),
+            "{at}: the refusal's torus face is not the half donut's inner wall"
         );
     }
 }

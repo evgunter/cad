@@ -64,6 +64,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::say;
 use std::collections::BTreeSet;
 
 use pncad::document::{
@@ -240,24 +241,26 @@ pub enum BlendEvent {
 }
 
 impl Say for BlendEvent {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::OtherTarget { held, picked } => write!(
+            Self::OtherTarget { held, picked } => say!(
                 f,
-                "the held edges are on {}, so {} was not taken; cancel to start on another body",
+                "the held edges are on ",
                 Said(held, by),
-                Said(&PickedName::edge(picked), by)
+                ", so ",
+                Said(&PickedName::edge(picked), by),
+                " was not taken; cancel to start on another body"
             ),
             Self::NoEdgesOnTarget { target } => {
-                write!(f, "{} has no edges to select", Said(target, by))
+                say!(f, Said(target, by), " has no edges to select")
             }
             Self::EdgesUnnamed { refused } => {
-                write!(f, "the tool loaded no edges: {}", Said(refused, by))
+                say!(f, "the tool loaded no edges: ", Said(refused, by))
             }
-            Self::TargetHasNoValue { target, standing } => write!(
+            Self::TargetHasNoValue { target, standing } => say!(
                 f,
-                "{} has no edges to select: {}",
                 Said(target, by),
+                " has no edges to select: ",
                 Said(standing, by.about(target.node()))
             ),
             Self::TargetLost {
@@ -266,11 +269,13 @@ impl Say for BlendEvent {
                 edges,
             } => {
                 // The node is gone, so it is said as the tool kept it.
-                let kept: HeldNodes = [node.clone()].into_iter().collect();
-                write!(
+                let kept = HeldNodes::of_nodes(by.document(), [node.clone()]);
+                say!(
                     f,
-                    "{} is no longer in the document; the tool dropped all {edges} picked edges",
-                    Said(target, Speaker::held(&kept))
+                    Said(target, Speaker::held(&kept)),
+                    format_args!(
+                        " is no longer in the document; the tool dropped all {edges} picked edges"
+                    )
                 )
             }
             Self::EdgesLost {
@@ -278,18 +283,21 @@ impl Say for BlendEvent {
                 names: _,
                 picks,
                 kept,
-            } => write!(
+            } => say!(
                 f,
-                "an edit removed all or part of {picks} of the picked edges from {}; the tool \
-                 dropped what went and still holds {kept}",
-                Said(target, by)
+                format_args!("an edit removed all or part of {picks} of the picked edges from "),
+                Said(target, by),
+                format_args!(
+                    "; the tool \
+                 dropped what went and still holds {kept}"
+                )
             ),
             Self::Unindexed { picked, why } => {
-                write!(
+                say!(
                     f,
-                    "{} was not taken: without a pick index the tool cannot tell a whole edge \
-                     from one arc of a circle; ",
-                    Said(&PickedName::edge(picked), by)
+                    Said(&PickedName::edge(picked), by),
+                    " was not taken: without a pick index the tool cannot tell a whole edge \
+                     from one arc of a circle; "
                 )?;
                 match why {
                     NotIndexed::Building => {
@@ -307,7 +315,7 @@ impl Say for BlendEvent {
                 }
             }
             Self::RimUnanswered { fault } => {
-                write!(f, "the edge was not taken: {}", Said(fault, by))
+                say!(f, "the edge was not taken: ", Said(fault, by))
             }
         }
     }
@@ -316,7 +324,7 @@ impl Say for BlendEvent {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for BlendEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -549,8 +557,8 @@ impl BlendTool {
     /// about a split it answers both halves, about a pattern every
     /// instance. Loading that unnarrowed broke this tool's own
     /// one-target rule from the inside — the panel counted 24 edges
-    /// where the picture drew 12, and no `denotes_body` gate applies
-    /// here because that gate is the COMMIT door's.
+    /// where the picture drew 12, and no body-seat gate applies here
+    /// because that gate (`crate::session::admits`) is the COMMIT door's.
     ///
     /// So the door's answer is intersected with the names the index
     /// draws for `(node, body)` — the same narrowing a single
@@ -708,10 +716,12 @@ impl BlendTool {
     /// The membership test is the target NODE's edge names
     /// (`all_edges`), not the drawn body's: a name that survived on
     /// another body of a multi-body node is therefore not flagged
-    /// here. That gap cannot reach a document — the commit door admits
-    /// only single-body targets (`crate::combine::denotes_body`) — and
-    /// closing it would need the pick index, which the survival step
-    /// runs before this frame's is built.
+    /// here. The commit door admits one such target: a pattern, a
+    /// family the body gate takes as a body (`crate::session::admits`),
+    /// whose name table covers every member
+    /// (`work/chrome/blend-reconcile-says-the-commit-door-admits-only-single-body-targets.md`).
+    /// Closing the gap would need the pick index, which the survival
+    /// step runs before this frame's is built.
     ///
     /// The id-reuse hazard it does not cover is the one
     /// [`crate::seats`] states for every tool holding a
@@ -894,7 +904,9 @@ mod tests {
         assert!(
             said.contains(&refused.to_string())
                 && said.contains(
-                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(copy)).to_string()
+                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(copy))
+                        .sentence()
+                        .to_string()
                 ),
             "the index's own words, through its Display: {said}"
         );

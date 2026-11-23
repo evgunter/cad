@@ -960,9 +960,10 @@ pub fn decide_reported<T: Decide, A: MarginTerms>(
 /// units, never a convenience door.
 ///
 /// **Standing rule (the debt lane is tracked as issue #214): no new
-/// `decide_flagged` site ships without a ledger row in
-/// `docs/predicate-dimension-audit.md`.** Two assertions in
-/// `flagged_census.rs` carry it over `crates/*/src`. Fixtures
+/// `decide_flagged` site ships without citing a row that exists in
+/// `docs/predicate-dimension-audit.md`.** An assertion in
+/// `flagged_census.rs` carries it over `crates/*/src`; a new site under
+/// an existing row is not a red, so the row's argument has to cover it. Fixtures
 /// and demos are outside the scan and cite a prose reason rather than a
 /// row.
 ///
@@ -2175,6 +2176,14 @@ impl Real for Probe {
 
     fn sqrt(self) -> Self {
         Self(Real::sqrt(self.0))
+    }
+
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        Self(f64::difference_dot(
+            q.map(|x| x.0),
+            o.map(|x| x.0),
+            n.map(|x| x.0),
+        ))
     }
 
     fn abs(self) -> Self {
