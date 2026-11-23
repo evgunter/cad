@@ -139,11 +139,8 @@ fn next_fusion<T: Decide>(
         let Some(f) = body.face(face) else {
             continue;
         };
-        // A face with no outline has no corner; nor does a lone ring.
-        let Ok(area) = f.area_loops() else {
-            continue;
-        };
-        for (lp, _) in area.cycles() {
+        // A lone loop has no corner.
+        for (lp, _) in f.cycle_loops() {
             let loop_corners = crate::loop_points::loop_corners(lp);
             for group in loop_corners.groups().iter().filter(|g| g.pinches()) {
                 let at = group.corners();

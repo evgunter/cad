@@ -2506,10 +2506,12 @@ fn ray_passes_beside<T: Decide>(
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
     let geom::Line { origin: q, dir: d } = ray.line();
-    let f = body
-        .get_face(face)
-        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
-    let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
+    let area = body
+        .face(face)
+        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?
+        .area_loops()
+        .map_err(|no| RayFault::Fatal(no_outline(no)))?;
+    let (verts, covers) = crate::splitting::containment::loop_hull(area.outer())
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
     let m = m.normalize();
@@ -2530,7 +2532,7 @@ fn ray_passes_beside<T: Decide>(
         below = Some(below.map_or(b, |x| x.min(b)));
     }
     let (Some(above), Some(below)) = (above, below) else {
-        return Ok(true); // no vertex: the loop bounds no region
+        unreachable!("a cycle loop has a vertex")
     };
     Ok(decide(rows.beside(), Margin::of(above.max(below)), band)
         .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?

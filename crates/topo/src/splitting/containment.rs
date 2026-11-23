@@ -141,7 +141,7 @@ use geom_core::period::{Exact, Extent, Turn, TurnRow, TurnRows, TurnUndecided, W
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
+use crate::entity::{EdgeKey, EntityId, LoopKey};
 use crate::geometry::SurfaceKey;
 use crate::live::{CycleLoop, NoCycle};
 use crate::live::{linked, proven};
@@ -1512,18 +1512,10 @@ impl<T: Decide> ArcPieces<'_, T> {
 /// decision: every vertex, and each edge's [`step_cover`].
 #[allow(clippy::type_complexity)] // two lists, each named at its reader
 pub(crate) fn loop_hull<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
+    lp: CycleLoop<'_, T>,
 ) -> Result<(Vec<Point3<T>>, Vec<Cover<T>>), PointInLoopError> {
-    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { vertex } => {
-            let point = body.linked_vertex_point(vertex, EntityId::Loop(r#loop), "boundary");
-            return Ok((vec![point], Vec::new()));
-        }
-    };
-    let steps = cycle_steps(body, first);
+    let (body, r#loop) = (lp.body(), lp.key());
+    let steps = cycle_steps(body, lp.first());
     let mut covers = Vec::new();
     for step in &steps {
         covers.extend(step_cover(body, r#loop, step)?);
@@ -1743,7 +1735,7 @@ fn certify_plane<T: Decide>(
     let off_plane = |cause| PointInLoopError::OffPlane(OffPlane { r#loop, cause });
     let steps = cycle_steps(body, lp.first());
     let origin = steps.first().ok_or_else(corrupt)?.point;
-    let (_, reach) = loop_reach(body, r#loop)?;
+    let (_, reach) = loop_reach(lp)?;
     let unit = Margin::levered(normal.norm() - T::one(), reach);
     // One identity over every datum ([`read_identity`]): the normal is
     // unit, every point and axis of the loop's carriers lies on the
@@ -1899,13 +1891,13 @@ fn carrier_walk<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] — a loop that does not walk, an
-/// edge with no cover, or a poisoned extent.
+/// [`PointInLoopError::CorruptLoop`] — an edge with no cover, or a
+/// poisoned extent.
 pub(crate) fn loop_reach<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
+    lp: CycleLoop<'_, T>,
 ) -> Result<(Point3<T>, Lever<T>), PointInLoopError> {
-    let (verts, covers) = loop_hull(body, r#loop)?;
+    let r#loop = lp.key();
+    let (verts, covers) = loop_hull(lp)?;
     let anchor = *verts
         .first()
         .ok_or(PointInLoopError::CorruptLoop { r#loop })?;

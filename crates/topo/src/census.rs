@@ -4975,8 +4975,10 @@ fn boundary_crossings<T: Decide>(
             NAMES_ONLY_LIVE,
         )
     };
-    // A lone ring holds no edge to cross; a face with no outline has no
-    // boundary edge to read.
+    // A lone ring holds no edge to cross: an edge through its vertex is
+    // a vertex-edge contact, which pass 2 reads over every vertex
+    // ([`sweep_vertex_edge`]). A face with no outline has no boundary
+    // edge to read.
     let area = match face.area_loops() {
         Ok(area) => area,
         Err(no) => {

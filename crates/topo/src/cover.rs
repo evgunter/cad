@@ -18,7 +18,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
@@ -314,9 +314,9 @@ fn face_cover_in<T: Decide>(
     let f = body.proven_face(face);
     let surface = f.surface();
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    // A lone-vertex outer loop bounds nothing: a ruled face holds no
-    // hull of it.
-    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
+    // A face with no outline bounds no region: no hull of its boundary
+    // holds it, and its carrier's cover is the one that does.
+    let bounded = f.area_loops().is_ok();
     match surface {
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
             carrier
