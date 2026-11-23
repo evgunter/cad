@@ -981,7 +981,7 @@ fn range_budget(request: &RangeRequest) -> RangeBudget {
 /// The search for `request`, its witness built under `stop`, or the
 /// report that refuses it: stopped where `stop` was canceled, finished
 /// otherwise.
-fn start_range(request: &RangeRequest, stop: &Stop) -> Result<RangeSearch, RangeReport> {
+fn start_range(request: &RangeRequest, stop: &Stop) -> Result<RangeSearch, Box<RangeReport>> {
     RangeSearch::new(
         &request.doc,
         &request.field,
@@ -991,7 +991,7 @@ fn start_range(request: &RangeRequest, stop: &Stop) -> Result<RangeSearch, Range
         stop,
         request.tol,
     )
-    .map_err(|refusal| RangeReport {
+    .map_err(|refusal| Box::new(RangeReport {
         run: request.run,
         answer: Err(refusal),
         progress: if stop.cancel.is_canceled() {
@@ -999,7 +999,7 @@ fn start_range(request: &RangeRequest, stop: &Stop) -> Result<RangeSearch, Range
         } else {
             RangeProgress::Finished
         },
-    })
+    }))
 }
 
 /// One step of `search`, and the report it leaves.
@@ -1085,7 +1085,7 @@ impl RangeService for InlineRanger {
                     self.running = Some((request.run, search));
                     report
                 }
-                Err(report) => report,
+                Err(report) => *report,
             });
         }
         let (run, search) = self.running.as_mut()?;
@@ -1998,7 +1998,7 @@ mod threaded {
         let stop = pncad::document::Stop::canceled_by(cancel);
         let mut search = match start_range(&job.request, &stop) {
             Ok(search) => search,
-            Err(report) => return report,
+            Err(report) => return *report,
         };
         let run = job.request.run;
         loop {
