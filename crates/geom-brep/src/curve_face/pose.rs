@@ -694,11 +694,12 @@ pub(super) fn plane_conic<T: Decide>(
 /// convention first: a spiric outside its two-oval regime is no carrier
 /// the mint makes, a fault (`curve_face_pose_spiric_*`, read at no swing:
 /// the spiric's own data). Then whether the two planes are parallel, by
-/// their tilt `|û × n̂|` levered by the oval's reach `R + r`
+/// their tilt `|û × n̂|` levered by the radius of the span's cover ball
 /// (`curve_face_pose_plane_parallel`): parallel, the spiric's plane's
-/// height off the plane to within that levered tilt decides `Lies` or
-/// `Apart` (`curve_face_pose_plane_offset`); a tilt in its gap is `Apart`
-/// where that height clears the reach, and escalates otherwise. Past the
+/// height off the plane at that ball's centre, to within that levered
+/// tilt, decides `Lies` or `Apart` (`curve_face_pose_plane_offset`); a
+/// tilt in its gap is `Apart` where that height clears it, and escalates
+/// otherwise. Past the
 /// band, the planes meet in a line, and the span meets the plane where
 /// that line meets the oval: `Lies` is excluded, and the line is the
 /// method's ([`super::spiric_plane`]).
@@ -710,9 +711,8 @@ fn spiric_plane<T: Decide>(
     let (
         &geom::Curve3::Spiric {
             frame: spiric_frame,
-            major_radius,
-            minor_radius,
             offset,
+            ..
         },
         &geom::Surface::Plane {
             frame: plane_frame, ..
@@ -744,11 +744,12 @@ fn spiric_plane<T: Decide>(
     }
     let (center, u) = (spiric_frame.origin(), spiric_frame.u_ref());
     let (origin, n) = (plane_frame.origin(), plane_frame.axis());
-    let reach = major_radius + minor_radius;
-    let tilt = u.cross(n).norm() * reach;
-    // The spiric's plane's height off the plane at the torus's centre's
-    // foot on it: every point of the oval lies within `tilt` of it.
-    let height = (center + u * offset - origin).dot(n);
+    let Some((height, arm)) = span_in_plane(span, (center + u * offset, u), (origin, n)) else {
+        return Err(PoseRefusal::Fault(
+            "a spiric span in its convention with no cover",
+        ));
+    };
+    let tilt = u.cross(n).norm() * arm;
     let parallel = match decide("curve_face_pose_plane_parallel", Margin::of(tilt), band) {
         Ok(sign) => sign == Sign::Zero,
         Err(diag) => {
@@ -784,6 +785,27 @@ fn spiric_plane<T: Decide>(
             dir: u.cross(n).normalize(),
         },
     })))
+}
+
+/// **A planar span's height off a plane `(origin, n)`, and the radius it
+/// holds to**: the span's cover ball, its centre read onto the span's own
+/// plane `(through, u)`. Every point of the span lies in that plane within
+/// the ball's radius of the centre's foot there, so its height off the
+/// other plane is the foot's to within that radius times the planes' tilt.
+/// `None` where the span has no cover.
+fn span_in_plane<T: Decide>(
+    span: &Span<'_, T>,
+    (through, u): (Point3<T>, geom_core::Vec3<T>),
+    (origin, n): (Point3<T>, geom_core::Vec3<T>),
+) -> Option<(T, T)> {
+    let (t0, t1) = span.params();
+    let cover = span
+        .carrier()
+        .cover_over(geom::cover::ParamWindow::new(t0, t1))
+        .ok()?;
+    let (ball, radius) = cover.ball();
+    let at = ball - u * (ball - through).dot(u);
+    Some(((at - origin).dot(n), radius))
 }
 
 // -------------------------------------------------------------- line

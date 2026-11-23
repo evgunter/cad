@@ -1970,7 +1970,7 @@ pub(crate) fn loop_reach<T: Decide>(
 ///
 /// The raw [`Indeterminate`] of an in-band margin on any of its rows,
 /// which sets the ray aside ([`ray_walk`]).
-pub(crate) fn arc_crossings<T: Decide>(
+pub(in crate::splitting) fn arc_crossings<T: Decide>(
     face: SurfaceKey,
     (carrier, span): (&geom::Curve3<T>, (T, T)),
     on_carrier: bool,

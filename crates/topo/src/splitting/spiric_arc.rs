@@ -101,7 +101,7 @@ impl<T: Decide> SpiricArc<T> {
     /// # Errors
     ///
     /// An in-band margin, which sets the ray aside.
-    pub(crate) fn crossings(
+    pub(in crate::splitting) fn crossings(
         &self,
         face: SurfaceKey,
         on_carrier: bool,

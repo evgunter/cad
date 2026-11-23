@@ -177,7 +177,9 @@ pub(crate) trait PiecedArc<T: Decide> {
 
 /// **A pieced arc a ray's crossings are counted on, piece by piece**:
 /// a carrier with no closed-form ray intersection (a spline's).
-pub(crate) trait PiecedCrossing<T: Decide>: PiecedArc<T> {
+pub(in crate::splitting) trait PiecedCrossing<T: Decide>:
+    PiecedArc<T>
+{
     /// How many times `ray` crosses the piece, where the piece settles
     /// it: `None` halves it.
     fn cross(&self, piece: &Self::Piece, ray: Ray<T>, band: Band) -> Option<usize>;

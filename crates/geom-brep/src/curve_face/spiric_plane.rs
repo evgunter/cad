@@ -91,14 +91,18 @@ pub(super) fn spiric_plane_method<T: Decide>(
                 });
             }
         }
-        let (h, rho) = geom::Line {
-            origin: center,
-            dir: axis,
-        }
-        .height_and_distance(y);
-        out.push(geom::Azimuth::of(h, rho - major_radius).near(mid));
+        out.push(param_of(span, y, mid));
     }
     Ok(out)
+}
+
+/// The span's parameter at `y`, a point of its oval, within half a turn
+/// of `mid`: the carrier's own reading.
+fn param_of<T: Decide>(span: &Span<'_, T>, y: geom_core::Point3<T>, mid: T) -> T {
+    match span.carrier().param_near(y, mid) {
+        Some(t) => t,
+        None => unreachable!("a spiric carrier reads every point's parameter"),
+    }
 }
 
 #[cfg(test)]

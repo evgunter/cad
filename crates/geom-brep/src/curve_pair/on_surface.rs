@@ -1145,41 +1145,17 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     }
 
     /// **Where `y`, a point of the edge's curve, lies on its span**: its
-    /// parameter within half a turn of the span's middle (a circle's
-    /// angle, an ellipse's eccentric anomaly, a spiric's tube angle), read
-    /// against the span by its own reading
+    /// parameter within half a turn of the span's middle, the carrier's
+    /// own reading ([`Curve3::param_near`]), read against the span by its
+    /// own reading
     /// ([`super::Span::place_param`]); `None` past it.
     fn place(&self, y: Point3<T>, band: Band) -> Result<Option<OnSpan<T>>, MeetRefusal<T>> {
         let (t0, t1) = self.span;
         let mid = geom::mid_param(t0, t1);
-        let t = match *self.carrier {
-            Curve3::Circle(c) => {
-                let w = y - c.frame.origin();
-                Azimuth::of(w.dot(c.frame.v_ref()), w.dot(c.frame.u_ref())).near(mid)
-            }
-            Curve3::Ellipse(e) => {
-                let w = y - e.frame.origin();
-                Azimuth::of(
-                    w.dot(e.frame.v_ref()) / e.semi_v(),
-                    w.dot(e.frame.u_ref()) / e.semi_u(),
-                )
-                .near(mid)
-            }
-            Curve3::Spiric {
-                frame,
-                major_radius,
-                ..
-            } => {
-                let (h, rho) = geom::Line {
-                    origin: frame.origin(),
-                    dir: frame.axis(),
-                }
-                .height_and_distance(y);
-                Azimuth::of(h, rho - major_radius).near(mid)
-            }
-            Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
-                unreachable!("the table reads a curve across a planar edge's plane only")
-            }
+        let Some(t) = self.carrier.param_near(y, mid) else {
+            unreachable!(
+                "the table reads a curve across a circle's, an ellipse's or a spiric's plane"
+            )
         };
         Ok(
             match super::Span::new(self.carrier, self.span)
