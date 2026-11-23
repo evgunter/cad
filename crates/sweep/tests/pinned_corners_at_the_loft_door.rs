@@ -113,9 +113,13 @@ fn a_full_turns_pinned_vertex_builds() {
         (&ms[0], &ms[1]),
         256,
     );
-    let m = topo::mass_properties(&lofted.body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure;
+    let m = topo::mass_properties(
+        &lofted.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap()
+    .enclosure;
     assert!(
         (m.volume - want).abs() <= m.volume_pad + 1e-9 * want,
         "volume {} ± {}, ruled {want}",
@@ -176,10 +180,11 @@ fn a_joint_pinned_in_one_slab_only_refuses_at_degree_two_and_builds_at_one() {
     match loft_body::<f64>(&vec![dee(); 3], &ps, 2, tol) {
         Err(LoftError::PinnedCorner {
             loop_index: 0,
-            at: PinnedSite::Joint {
-                segment: 1,
-                joint: 0,
-            },
+            at:
+                PinnedSite::Joint {
+                    segment: 1,
+                    joint: 0,
+                },
             slab: 0,
             moving: 1,
         }) => {}

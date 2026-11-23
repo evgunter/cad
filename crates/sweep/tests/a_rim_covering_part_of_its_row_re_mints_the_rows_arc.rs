@@ -231,7 +231,11 @@ fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
     let Pcurve::IsoArc { breaks, .. } = &parent else {
         panic!("the rim's row is an IsoArc")
     };
-    assert_eq!(geom_brep::iso_arc_spans(breaks), 1, "the rim is one sub-arc");
+    assert_eq!(
+        geom_brep::iso_arc_spans(breaks),
+        1,
+        "the rim is one sub-arc"
+    );
     let mesh = mesh::tessellate(&body, 5e-2, tol()).expect("the split prism tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }

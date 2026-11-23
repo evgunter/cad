@@ -780,11 +780,7 @@ fn every_one_segment_circle_stack_builds_at_every_degree() {
         // the cylinder at every degree) is held at every ε; its pad is
         // read too, so the bracket says something.
         let want = PI * z[z.len() - 1];
-        close(
-            (m.enclosure.volume, m.enclosure.volume_pad),
-            want,
-            &what,
-        );
+        close((m.enclosure.volume, m.enclosure.volume_pad), want, &what);
         assert!(
             m.enclosure.volume_pad <= 1e-3 * want,
             "{what}: the bracket is {} wide around {want} ({:?})",
