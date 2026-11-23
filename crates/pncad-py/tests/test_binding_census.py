@@ -3529,6 +3529,7 @@ NOT_BOUND = {
     "Stackup": SHAPE,
     "StackupRefusal": SHAPE,
     "Unavailable": SHAPE,
+    "Unsettled": SHAPE,
     "WorstCase": SHAPE,
     "assertion_at": SHAPE,
     "drive": SHAPE,

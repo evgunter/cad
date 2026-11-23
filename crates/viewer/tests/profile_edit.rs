@@ -175,7 +175,7 @@ fn set(
     notation: Notation,
 ) {
     held[loop_][row] = held[loop_][row]
-        .written(step, &|_| None, notation, &|_| None)
+        .written(step, notation, &|_| None)
         .expect("finite");
 }
 
@@ -505,13 +505,13 @@ fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
     }
 }
 
-/// **A kept argument an expression drives is not written over.** The
-/// editor writes such an argument back as its expression, but the op
-/// is the API's too: a program that moves the driven argument refuses
-/// with the slot field's affordance, naming the slot; one that leaves
-/// it as it was lands, and the expression is still what drives it.
+/// **A kept argument an expression drives is written over only by a
+/// program that writes it anew.** A program that leaves it as it was
+/// lands with the expression still driving it; one that writes a number
+/// there lands with the number, as the slot field's typed number does
+/// (`SessionOp::SetSlot`), and one undo takes the number back.
 #[test]
-fn a_kept_driven_argument_is_not_written_over() {
+fn a_kept_driven_argument_is_written_over_only_when_written_anew() {
     let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let out = session.perform(SessionOp::DeclareVar {
@@ -530,53 +530,55 @@ fn a_kept_driven_argument_is_not_written_over() {
         text: "side".to_owned(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    let committed: Vec<LoopProgram<Formula>> = program(&session, profile)
-        .loops
-        .iter()
-        .map(LoopProgram::authored)
-        .collect();
-    let mut moved = committed.clone();
-    let mut probe = Node::Profile(ProfileProgram {
-        loops: moved,
-        ids: Vec::new(),
-        on: None,
-    });
-    *probe.expr_mut(driven).expect("the slot") = common::len(0.012);
-    let Node::Profile(ProfileProgram { loops, .. }) = probe else {
-        unreachable!("built as a profile")
+    let committed = |session: &DocSession| -> Vec<LoopProgram<Formula>> {
+        program(session, profile)
+            .loops
+            .iter()
+            .map(LoopProgram::authored)
+            .collect()
     };
-    moved = loops;
-    let before = session.committed_doc().clone();
-    let out = session.perform(edit_of(&session, profile, moved));
-    match out.refusal {
-        Some(Refusal::DrivenByExpression { node, slot, .. }) => {
-            assert_eq!((node, slot), (profile, driven));
-        }
-        other => panic!("a driven argument was written over: {other:?}"),
-    }
-    assert!(session.committed_doc().bit_eq(&before));
-    // The same program with another argument moved and the driven one
-    // left alone lands, still driven.
-    let mut probe = Node::Profile(ProfileProgram {
-        loops: committed,
-        ids: Vec::new(),
-        on: None,
-    });
+    let written = |loops: Vec<LoopProgram<Formula>>, slot: SlotId, value: f64| {
+        let mut probe = Node::Profile(ProfileProgram {
+            loops,
+            ids: Vec::new(),
+            on: None,
+        });
+        *probe.expr_mut(slot).expect("the slot") = common::len(value);
+        let Node::Profile(ProfileProgram { loops, .. }) = probe else {
+            unreachable!("built as a profile")
+        };
+        loops
+    };
+    // Another argument moved and the driven one left alone: it lands,
+    // still driven.
     let other = SlotId::Profile {
         loop_: 0,
         step: 1,
         arg: StepArg::TargetX,
     };
-    *probe.expr_mut(other).expect("the slot") = common::len(0.015);
-    let Node::Profile(ProfileProgram { loops, .. }) = probe else {
-        unreachable!("built as a profile")
-    };
+    let loops = written(committed(&session), other, 0.015);
     let out = session.perform(edit_of(&session, profile, loops));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     assert_eq!(
         committed_expr(&session, profile, driven).literal_value(),
         None,
         "the driven argument is still an expression"
+    );
+    // The driven one written anew: it lands, a literal.
+    let before = session.committed_doc().clone();
+    let loops = written(committed(&session), driven, 0.012);
+    let out = session.perform(edit_of(&session, profile, loops));
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert_eq!(
+        committed_expr(&session, profile, driven).literal_value(),
+        Some(0.012),
+        "the number written replaced the expression"
+    );
+    let out = session.perform(SessionOp::Undo);
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo takes the number back"
     );
 }
 
@@ -635,7 +637,7 @@ fn a_driven_argument_loads_as_its_expression() {
         "with no reading there is no number to view"
     );
     let back = corner
-        .written(view, &reading, Notation::CANONICAL, &|_| None)
+        .written(view, Notation::CANONICAL, &|_| None)
         .expect("finite");
     assert!(driven(&back), "written back, still driven");
     assert!(matches!(
