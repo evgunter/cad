@@ -945,6 +945,9 @@ fn subdivision<T: Decide>(
                     (reach - window * w).select_le_zero(window.max(least_slope), least_slope)
                 });
                 let arc = speed_hi * reach / lever;
+                geom::probe::log(format!(
+                    "slack-meter root {root:?} reach {reach:?} lever {lever:?} speed_hi {speed_hi:?} arc {arc:?}"
+                ));
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
                     Ok(Sign::Positive) | Err(_) => {
@@ -1007,6 +1010,10 @@ fn subdivision<T: Decide>(
         // reading of it: a looser bound reads it lower, so where it falls
         // says how good the bound is, not how near the carrier passes.
         if !definitely_as(rows.width(), speed_hi * (r - l)) {
+            geom::probe::log(format!(
+                "tangency piece [{l:?},{r:?}] f0 {:?}±{:?} f1 {:?}±{:?} f2 {:?} fourth {fourth_hi:?} clear {clear:?} slope {least_slope:?} bend {most_bend:?}",
+                f0.value, f0.error, f1.value, f1.error, f2.value
+            ));
             return Step::Stop(Unsettled::Tangency.into());
         }
         first_in_gap.set(None);
