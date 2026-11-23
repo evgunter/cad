@@ -178,10 +178,7 @@ fn window<'w, T: geom_core::Decide>(
         span_a: (T::from_f64(-1.0), T::from_f64(1.0)),
         b: kb,
         span_b: b,
-        swing: {
-            let (p, q) = ka.along(kb.axis());
-            (p.powi(2) + q.powi(2)).sqrt()
-        },
+        height: ka.height_along(ka.point_at(T::zero()), kb.axis()),
     }
 }
 

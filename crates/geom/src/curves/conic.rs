@@ -658,18 +658,34 @@ fn offset_crests<T: Real>(p: T, q: T, (c0, s0): (T, T)) -> (T, T) {
 const CREST_ROW: &str = "conic_harmonic_crest";
 
 /// **[`Height::roots`] about the centre**: `c₀ + p·cos θ + q·sin θ`,
-/// `c₀` already less the level, read from the extreme that has crossed
-/// zero the less (`2·asin(√r)` of its crossing `r` of the swing `2A`,
-/// clamped to a half turn), about the crest's angle.
+/// `c₀` already less the level, about the crest's angle ([`crest_roots`]).
 fn centred_roots<T: Decide>(c0: T, p: T, q: T) -> [T; 2] {
     let swing = (p.powi(2) + q.powi(2)).sqrt();
     let (lo, hi) = (c0 - swing, c0 + swing);
     let two = swing + swing;
-    let (cross_lo, cross_hi) = ((T::zero() - lo) / two, hi / two);
-    let past = |cross: T| T::from_f64(2.0) * cross.max(T::zero()).min(T::one()).sqrt().asin();
+    let at_hi = Azimuth::of(q, p).principal_as(CREST_ROW, geom_core::Band::least());
+    crest_roots(at_hi, ((T::zero() - lo) / two, hi / two))
+}
+
+/// **The angle from an extreme of a first harmonic `c₀ + A·cos ψ` to its
+/// roots**, where that extreme has crossed zero by `ratio` of the swing
+/// `2A` (`ratio ∈ [0, 1]`): `2·asin(√ratio)`, which reads the extreme to
+/// its own relative precision.
+pub fn arc_past<T: Real>(ratio: T) -> T {
+    T::from_f64(2.0) * ratio.sqrt().asin()
+}
+
+/// **A first harmonic's two roots about its crest at `at_hi`**,
+/// `[at_hi + ψ, at_hi − ψ]` (past the crest, then before it), `ψ` read
+/// from the extreme that has crossed zero the less ([`arc_past`] of its
+/// crossing, clamped to `[0, 1]`): `cross_lo` and `cross_hi` how far the
+/// trough and the crest have crossed zero over the swing, positive where
+/// they have. Where neither crosses, the extreme nearer zero, twice. The
+/// one home of the rule for every harmonic solved about its crest.
+pub fn crest_roots<T: Real>(at_hi: T, (cross_lo, cross_hi): (T, T)) -> [T; 2] {
+    let past = |cross: T| arc_past(cross.max(T::zero()).min(T::one()));
     let from_hi = past(cross_hi);
     let from_lo = T::pi() - past(cross_lo);
-    let at_hi = Azimuth::of(q, p).principal_as(CREST_ROW, geom_core::Band::least());
     let psi = (cross_hi - cross_lo).select_le_zero(from_hi, from_lo);
     [at_hi + psi, at_hi - psi]
 }
@@ -681,9 +697,9 @@ fn centred_roots<T: Decide>(c0: T, p: T, q: T) -> [T; 2] {
 /// `(h − 2P)·t² + 2Q·t + h = 0`; its roots are read as `w/(h − 2P)` and
 /// `h/w`, `w = −(Q + sign(Q)·√(Q² − (h − 2P)·h))`, which cancel nothing,
 /// each turned to `φ = 2·atan2(num, den)` without a division. Where the
-/// discriminant is negative the harmonic does not reach zero, and both
-/// are the extreme nearer it: the crest where `h` is below it, the
-/// trough where above.
+/// discriminant is not positive the harmonic does not cross zero (or
+/// touches it), and both are the extreme nearer it, read from the
+/// extremes' own values.
 fn anchored_roots<T: Decide>(h: T, p: T, q: T, (c0, s0): (T, T)) -> [T; 2] {
     let two = T::from_f64(2.0);
     let big_p = p * c0 + q * s0;
@@ -708,8 +724,15 @@ fn anchored_roots<T: Decide>(h: T, p: T, q: T, (c0, s0): (T, T)) -> [T; 2] {
     };
     let falls = slope(r1);
     let (falling, rising) = (falls.select_le_zero(r1, r2), falls.select_le_zero(r2, r1));
-    let at_hi = Azimuth::of(q, p).principal_as(CREST_ROW, geom_core::Band::least());
-    let nearer = h.select_le_zero(at_hi, at_hi + T::pi());
+    // Where it does not cross (a touch included), the extreme nearer
+    // zero, each read as an angle from the anchor: the crest at
+    // `φ = atan2(Q, P)`, the trough half a turn on. A tie in the
+    // extremes' magnitudes reads the crest.
+    let (trough, crest) = offset_crests(p, q, (c0, s0));
+    let (lo, hi) = (h + trough, h + crest);
+    let crest_at = theta0 + Azimuth::of(big_q, big_p).near(T::zero());
+    let trough_at = theta0 + Azimuth::of(T::zero() - big_q, T::zero() - big_p).near(T::zero());
+    let nearer = (hi.abs() - lo.abs()).select_le_zero(crest_at, trough_at);
     [
         disc.select_le_zero(nearer, falling),
         disc.select_le_zero(nearer, rising),
@@ -950,7 +973,8 @@ impl<T: Real> Conic<T> for Circle<T> {
 /// `h + p·(cos θ − cos θ₀) + q·(sin θ − sin θ₀)`, `h` the anchor's height,
 /// read through the evaluator's offsets, so beside the anchor every
 /// reading below holds at the arc's scale however far the centre lies.
-#[derive(Clone, Copy, Debug)]
+/// Opaque: its `Debug` names the type and no field.
+#[derive(Clone, Copy)]
 pub struct Height<T: Real> {
     /// The stored point's height.
     at: T,
@@ -958,6 +982,12 @@ pub struct Height<T: Real> {
     p: T,
     q: T,
     held: Held<T>,
+}
+
+impl<T: Real> core::fmt::Debug for Height<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Height").finish_non_exhaustive()
+    }
 }
 
 impl<T: Real> Height<T> {
@@ -1028,18 +1058,6 @@ impl<T: Real> Height<T> {
                 let (trough, crest) = offset_crests(self.p, self.q, phase);
                 (self.at + trough, self.at + crest)
             }
-        }
-    }
-
-    /// **The height's mean over a turn**: the centre's height, the stored
-    /// one about the centre, and about the anchor the anchor's less the
-    /// crest's and trough's mean offset, which is read at the swing's
-    /// scale.
-    #[must_use]
-    pub fn mean(&self) -> T {
-        match self.held {
-            Held::Centre => self.at,
-            Held::Arc { phase: (c0, s0) } => self.at - (self.p * c0 + self.q * s0),
         }
     }
 

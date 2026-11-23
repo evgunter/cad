@@ -66,7 +66,7 @@ use crate::rows::{SpiricReader, SpiricRegimeSites};
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, Ellipse, Height, MajorFrame};
+pub use conic::{Circle, Conic, Ellipse, Height, MajorFrame, arc_past, crest_roots};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;

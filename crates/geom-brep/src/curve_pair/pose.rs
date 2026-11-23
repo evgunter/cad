@@ -13,7 +13,8 @@
 //! - **The router** (two lines, and a line against a conic's plane):
 //!   where the pair can meet is the overlap of the two spans'
 //!   projections on the first line (for a conic, the line's span with
-//!   the conic's centre ± its larger semi-axis), length `L`, and the
+//!   the conic's whole extent along the line, [`Height::extremes`],
+//!   read from the point it stores), length `L`, and the
 //!   escalation `e` either side. The pair's offset there is the second
 //!   line's distance from the overlap's middle point on the first, or the
 //!   line's height above the conic's plane at that point. **The parallel
@@ -78,18 +79,20 @@
 //!   line's normal in the plane, is a first harmonic in the conic's angle
 //!   (below).
 //! - **Two conics.** Each conic's height above the other's plane is a
-//!   first harmonic `c₀ + A·cos(θ − φ)` in its own angle, `A` its swing.
-//!   **The parallel argument runs first, whatever the swing reads**, as
-//!   the router's does: where the height read with its swing as its
-//!   spread, `c₀ ∓ A`, decides one-signed for
+//!   first harmonic `c₀ + A·cos(θ − φ)` in its own angle, `A` its swing,
+//!   read through the conic from the point it stores ([`Height`]; the
+//!   other's plane read at a point of the first's span by the other,
+//!   `Over`). **The parallel argument runs first, whatever the swing
+//!   reads**, as the router's does: where the height's extremes,
+//!   `c₀ ∓ A` read with no cancellation, decide one-signed for
 //!   either conic (`curve_pair_pose_parallel`), that conic
 //!   lies wholly on one side of the other's plane, past the band, and the
 //!   pair is [`Pose::Apart`]. Only then are the two swings read
 //!   (`curve_pair_pose_swing`), both before either is acted on. One
 //!   read zero lies in a plane parallel to the other's, its height
 //!   constant to within that swing, and the screen has not cleared it:
-//!   the conics lie in one plane to within the slant `|c₀|` plus the
-//!   swing (the larger slant where both read zero), below. A slant in the
+//!   the conics lie in one plane to within the slant, its height's larger
+//!   magnitude over the turn (the larger slant where both read zero), below. A slant in the
 //!   gap is no meeting of its own: a height only bounds the distance from
 //!   below, so the arms in one plane read the pair and every candidate
 //!   they place is read on both spans, the slant included. Only where
@@ -99,7 +102,7 @@
 //!   roots are where it crosses that plane, places the candidates, each
 //!   the closest pair polished from one (below). **The conic read is the
 //!   one that crosses the other's plane the less obliquely**: the larger
-//!   `(A² − c₀²)/r²`, `r` its larger semi-axis, which is the squared
+//!   `(A² − c₀²)/r²` (read as `−lo·hi/r²`), `r` its larger semi-axis, which is the squared
 //!   sine of its crossing for a circle. That is a choice between two
 //!   sound readings, not a reading: it is taken off the log
 //!   (`curve_pair_pose_across`, `k_stats::choose`, ledger row
@@ -205,8 +208,9 @@
 //! in it.
 //!
 //! - **The stretch.** A meeting needs `|R| ≤ √(R² + H²) ≤ e`, the band's
-//!   escalation: the arcs of `|R| ≤ e`, `φ₁ ≤ |θ − θ_hi| ≤ φ₂` with
-//!   `cos φ₁ = (e − c₀)/A` and `cos φ₂ = (−e − c₀)/A`. Off them the pair
+//!   escalation: the arcs of `|R| ≤ e`, `φ₁ ≤ |θ − θ_hi| ≤ φ₂` about
+//!   `R`'s crest, their ends the roots of `R = ±e` ([`Height::roots`],
+//!   posed per placement). Off them the pair
 //!   is past the escalation. Each root, and each touch, lies on one of
 //!   them, its stretch, read alone. An arc of half a turn or more is not
 //!   read (`curve_pair_pose_level_arc`, a proof's inequality).
@@ -222,7 +226,7 @@
 //!   is read at the extreme: in the plane the residual between the
 //!   roots is no larger than at the extreme, so the run is one meeting,
 //!   and the touch keeps its angle's enclosure. Otherwise both roots are
-//!   read, `θ_hi ± φ₀` with `cos φ₀ = −c₀/A`: the zero set may part into
+//!   read ([`Height::roots`] at zero): the zero set may part into
 //!   two, one about each root, with the extreme between them past the
 //!   zero, and a slanted touch's roots are where `R` is zero and the
 //!   distance is the slant alone. Two roots read on one stretch are two
@@ -705,7 +709,7 @@ use crate::half_angle::{
     Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows, certified_subdivision_touching,
 };
 use crate::ladder::read_identity;
-use crate::roots::{Roots, Unsettled, arc_past};
+use crate::roots::{Roots, Unsettled};
 use geom::{Conic, Height};
 
 /// How two carriers read as one curve run: their parameters increase the
@@ -1821,11 +1825,10 @@ impl<T: Decide> Slant<T> {
         let side = pick(phi, (far_r, near_r), (near_f, far_f));
         let below = pick(T::zero() - (lo + self.e), (near_f, near_r), side);
         let (from, end) = pick(hi - self.e, (far_r, far_f), below);
+        // Read up `θ` within a turn. The residual is never within `e` all
+        // round: its swing was read definite past the escalation.
         let up = end - from;
         let width = up - tau * (up / tau).floor();
-        // Every point within `e`, read as a whole turn.
-        let all_round = (hi - self.e).max(T::zero() - (lo + self.e));
-        let width = all_round.select_le_zero(tau, width);
         let to = from + width;
         let half = T::pi();
         if geom_core::k_stats::prove(row::LEVEL_ARC, Margin::of(half - width)) != Ok(Sign::Positive)
@@ -1864,11 +1867,12 @@ enum Coplanar {
     Ellipses,
 }
 
-/// **A conic's height over another's plane**, read through both: the
-/// plane is stated at `o`, a point of the other conic's span, levelled by
-/// that point's own height over it ([`Conic::height_of`]), and the conic's
-/// height from `o` is [`Conic::height_along`]. Its `lo` and `hi` are over
-/// the plane.
+/// **A conic's height over another's plane**, read through both: from
+/// `o`, a point of the conic's own span, its height along the other's
+/// normal is [`Conic::height_along`], about its own stored point and small
+/// beside `o`; the other conic reads `o`'s height over its plane from the
+/// point it stores ([`Conic::height_of`]), and the two sum. Its `lo` and
+/// `hi` are over the plane.
 struct Over<T: geom_core::Real> {
     h: Height<T>,
     level: T,
@@ -1909,13 +1913,13 @@ fn conic_conic<T: Decide>(
         let (t0, t1) = s.params();
         k.point_at(geom::mid_param(t0, t1))
     };
-    let ha = Over::of(&ka, &kb, at_mid(b, &kb));
-    let hb = Over::of(&kb, &ka, at_mid(a, &ka));
+    let ha = Over::of(&ka, &kb, at_mid(a, &ka));
+    let hb = Over::of(&kb, &ka, at_mid(b, &kb));
     let sides = [&ha, &hb];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
     for h in sides {
-        if matches!(parallel_as((h.lo, h.hi), band), Ok(true)) {
+        if matches!(extremes_as(row::PARALLEL, (h.lo, h.hi), band), Ok(true)) {
             return Ok(Pose::Apart);
         }
     }
@@ -2012,8 +2016,7 @@ pub(super) fn one_curve<T: Decide>(
 /// **The one-curve reading's margin** (module docs): a bound on how far
 /// a point of either conic lies from the other, a tilt out of the plane
 /// included. Each conic is `c + L·x` over the unit circle's `x`, with
-/// `L = [a·û, b·v̂]`, `c` the mean of its points at `0` and `π`. For any
-/// orthogonal `Q`, pairing `c_e + L_e·x` with
+/// `L = [a·û, b·v̂]`. For any orthogonal `Q`, pairing `c_e + L_e·x` with
 /// `c_f + L_f·Q·x` pairs every point of each with a point of the other
 /// within `|c_e − c_f| + ‖L_e − L_f·Q‖` ([`frame_gap`]). The stored order
 /// and signs of the semi-axes change `L` by an orthogonal factor, which
@@ -2029,20 +2032,21 @@ pub(super) fn one_curve<T: Decide>(
 /// semi-axis magnitude, the computed
 /// semi-axis vectors are off by `√17·u·m` (`v̂ = n̂ × û` by `4u`), the
 /// computed `Q`'s columns are unit to within about `4.5u`, its
-/// products and the norms round by `4u·m` and `5u·g`, and each centre,
-/// two of its points' mean (the sine of `f64`'s `π` moving one by `u·m/2`),
-/// by `2.5u·m` past its coordinates' own rounding, which the admission
-/// rule covers: within `14.6u·(m_e + m_f) + 5u·g` of a gap the bound
-/// holds for, inside
+/// products and the norms round by `4u·m` and `5u·g`, and a centre
+/// derived from an anchor (`anchor − u·(a·cos θ₀) − v·(b·sin θ₀)`) by
+/// `1.5u·m` past its coordinates' own rounding, which the admission rule
+/// covers: within `15.1u·(m_e + m_f) + 5u·g` of a gap the bound holds
+/// for, inside
 /// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
 /// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
 /// is NaN: the reading escalates.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "two conics compared by their centres, a derived one charged at the semi-axes' scale with the frames' gap: owed the same-locus door (work/conic/two-conics-are-compared-through-three-doors.md)"
+)]
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
-    // Each centre read through its conic, the mean of two antipodal
-    // points.
-    let centre = |k: &dyn Conic<T>| k.point_at(T::zero()).mid(k.point_at(T::pi()));
-    let gap = (centre(e) - centre(f)).norm() + frame_gap(e, f).max(frame_gap(f, e));
+    let gap = (e.center() - f.center()).norm() + frame_gap(e, f).max(frame_gap(f, e));
     gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
@@ -2090,7 +2094,7 @@ fn transverse<T: Decide>(
         span_a: a.params(),
         b: kb,
         span_b: b,
-        swing: h.swing(),
+        height: h.h,
     };
     let joints: Vec<_> = known
         .iter()
@@ -2100,7 +2104,7 @@ fn transverse<T: Decide>(
         })
         .collect();
     let near = |theta: T| {
-        let arc = range.band_arc(theta, band);
+        let arc = band_arc(&h.h, h.level, theta, band);
         if window.holds_only((theta - arc, theta + arc), &joints, band) {
             return Ok(None);
         }
@@ -2163,34 +2167,26 @@ fn constant_as<T: Decide>(
     spread: T,
     band: Band,
 ) -> Result<bool, MeetFault> {
-    let (below, above) = crate::roots::spread_readings(row, value, spread, band)?;
-    match (below.sign, above.sign) {
-        (Sign::Positive, _) | (_, Sign::Negative) => Ok(true),
-        (Sign::Zero, Sign::Zero) => Ok(false),
-        _ => Err(MeetFault::Escalated(straddle(row, below, above, band))),
-    }
+    extremes_as(row, (value - spread, value + spread), band)
 }
 
-/// Whether a quantity whose least and greatest are read apart, `(lo,
-/// hi)`, is definitely clear of zero (`true`) or in the zero band all
-/// round (`false`), read under `curve_pair_pose_parallel`, as
-/// [`constant_as`] reads a value and its spread.
+/// [`constant_as`] for a quantity whose least and greatest are read
+/// apart, `(lo, hi)`, each decided under `row`.
 ///
 /// # Errors
 ///
 /// An end in the band's gap, or ends that straddle the band.
-fn parallel_as<T: Decide>((lo, hi): (T, T), band: Band) -> Result<bool, MeetFault> {
-    let read = |x: T| geom_core::k_stats::decide_reported(row::PARALLEL, Margin::of(x), band);
+fn extremes_as<T: Decide>(
+    row: &'static str,
+    (lo, hi): (T, T),
+    band: Band,
+) -> Result<bool, MeetFault> {
+    let read = |x: T| geom_core::k_stats::decide_reported(row, Margin::of(x), band);
     let (below, above) = (read(lo)?, read(hi)?);
     match (below.sign, above.sign) {
         (Sign::Positive, _) | (_, Sign::Negative) => Ok(true),
         (Sign::Zero, Sign::Zero) => Ok(false),
-        _ => Err(MeetFault::Escalated(straddle(
-            row::PARALLEL,
-            below,
-            above,
-            band,
-        ))),
+        _ => Err(MeetFault::Escalated(straddle(row, below, above, band))),
     }
 }
 
@@ -2402,17 +2398,17 @@ impl<T: Decide> Level<'_, T> {
         (gx.powi(2) + gy.powi(2)).sqrt()
     }
 
-    /// A bound on `|F⁗|` over every angle, read with no centre. Each of
-    /// `X` and `Y` is `x₀ + ρ·cos(θ − φ)`, so its derivatives are each at
-    /// most `ρ` and `X⁗ = X − x₀`: `|(X²)⁗| = 2|X·X⁗ + 4X′X‴ + 3X″²| ≤
-    /// 2ρ(|X| + 7ρ)`. Over `a`, `X` moves by at most `2ρ` from its value at
-    /// any one point, here `a(0)`, where `b` reads it from the point it
-    /// stores as its level's gradient `2X/A²` ([`Conic::level_at`]): so
-    /// each side is at most `|∂F/∂X|·ρ + 18ρ²/A²`. Raised past its
-    /// roundings ([`up`]): the gradient's nine (a dot product's five, the
-    /// unit offset's division and sum, its doubling and division), `ρ`'s
-    /// fourteen (two dot products, two squares, a sum, a root), the side's
-    /// five and the square's one, and the sum's one: 30, under 32.
+    /// A bound on `|F⁗|` over every angle. Each of `X` and `Y` is
+    /// `x₀ + ρ·cos(θ − φ)`, so `X²`'s first and second harmonics have
+    /// amplitudes `2|x₀|ρ` and `ρ²/2`, and `|(X²)⁗| ≤ 2|x₀|ρ + 8ρ²`. `x₀`,
+    /// `a`'s centre in `b`'s frame, is read with no centre: `X` at `a(0)`
+    /// from the point `b` stores ([`Conic::level_at`]'s gradient `2X/A²`)
+    /// plus `P″(0)·û_b`, `a(0)`'s offset from its centre negated, which
+    /// reads no position. A sum of non-negative terms, raised past its
+    /// roundings ([`up`]): `x₀`'s sixteen (the level's gradient nine, its
+    /// rescaling two, the second derivative's dot five), `ρ`'s fourteen
+    /// (two dot products, two squares, a sum, a root), each side's five
+    /// and the sum's one: 36.
     pub(super) fn fourth(&self) -> T {
         self.fourth
     }
@@ -2435,21 +2431,30 @@ pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &'k dyn Conic<T>
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.u_ref(), kb.v_ref());
     let (ua, va) = (ka.u_ref() * ka.semi_axes().0, ka.v_ref() * ka.semi_axes().1);
-    // `F`'s gradient at a point of `a`, read by `b` from the point it
-    // stores: `(2X/A², 2Y/B²)` there.
-    let (_, (gx, gy)) = kb.level_at(ka.point_at(T::zero()));
+    // `a`'s centre in `b`'s frame with no centre read: `b`'s coordinates
+    // of `a(0)`, read from the point `b` stores as its level's gradient
+    // `(2X/A², 2Y/B²)`, less `a(0)`'s offset from its own centre, which is
+    // `−P″(0)` and reads no position.
+    let p0 = ka.point_at(T::zero());
+    let (_, (gx, gy)) = kb.level_at(p0);
+    let ddp = ka.second_derivative_at(T::zero());
     let squares = (big_a.powi(2), big_b.powi(2));
-    let eighteen = T::from_f64(18.0);
-    let side = |axis: Vec3<T>, g: T, square: T| {
+    let half = T::from_f64(0.5);
+    let x0 = (
+        gx * squares.0 * half + ddp.dot(ub),
+        gy * squares.1 * half + ddp.dot(vb),
+    );
+    let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
+    let side = |axis: Vec3<T>, x0: T, square: T| {
         let rho = (ua.dot(axis).powi(2) + va.dot(axis).powi(2)).sqrt();
-        g.abs() * rho + eighteen * rho.powi(2) / square
+        (two * x0.abs() * rho + eight * rho.powi(2)) / square
     };
     Level {
         a: ka,
         b: kb,
         axes: (ub, vb),
         squares,
-        fourth: up::<32, _>(side(ub, gx, squares.0) + side(vb, gy, squares.1)),
+        fourth: up::<36, _>(side(ub, x0.0, squares.0) + side(vb, x0.1, squares.1)),
     }
 }
 
@@ -2517,32 +2522,24 @@ impl<T: Decide> Range<T> {
         match self.roots {
             RootsFrom::Along { h, level } => h.roots(level),
             RootsFrom::Crossings { cross_lo, cross_hi } => {
-                let past = |cross: T| arc_past(cross.max(T::zero()).min(T::one()));
-                let from_hi = past(cross_hi);
-                let from_lo = T::pi() - past(cross_lo);
-                let psi = (cross_hi - cross_lo).select_le_zero(from_hi, from_lo);
-                [self.at_hi + psi, self.at_hi - psi]
+                geom::crest_roots(self.at_hi, (cross_lo, cross_hi))
             }
         }
     }
+}
 
-    /// `ℓ` in radians (module docs, "Across planes"): how far from `theta`
-    /// the arc about it runs on which the harmonic, a metre residual,
-    /// stays within the band's escalation: the larger of `theta`'s angles
-    /// to the nearer root of each of `±e`, each read about the point the
-    /// conic stores.
-    fn band_arc(&self, theta: T, band: Band) -> T {
-        let e = T::from_f64(band.escalate());
-        let RootsFrom::Along { h, level } = self.roots else {
-            unreachable!("a band's arc is read along a conic")
-        };
-        let nearest = |at: T| {
-            let [falling, rising] = h.roots(at);
-            let apart = |r: T| (theta - r).reduce_periodic_centred(T::tau()).abs();
-            apart(falling).min(apart(rising))
-        };
-        nearest(level + e).max(nearest(level - e))
-    }
+/// `ℓ` in radians (module docs, "Across planes"): how far from `theta`
+/// the arc about it runs on which `h` less `level`, a metre residual,
+/// stays within the band's escalation: the larger of `theta`'s angles to
+/// the nearer root of each of `level ± e` ([`Height::roots`]).
+fn band_arc<T: Decide>(h: &Height<T>, level: T, theta: T, band: Band) -> T {
+    let e = T::from_f64(band.escalate());
+    let nearest = |at: T| {
+        let [falling, rising] = h.roots(at);
+        let apart = |r: T| (theta - r).reduce_periodic_centred(T::tau()).abs();
+        apart(falling).min(apart(rising))
+    };
+    nearest(level + e).max(nearest(level - e))
 }
 
 /// **Whether a coplanar touch's reported point is one point to its

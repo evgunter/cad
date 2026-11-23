@@ -345,16 +345,6 @@ const AXIAL_PAST: [(f64, u8, f64, f64); 8] = [
 /// pin red; mutants A and F1X do not.
 const JUNCTION_OPEN: [(f64, u8, f64, f64); 2] = [(0.7, 3, 3e-4, 0.3), (0.95, 3, 3e-4, 0.5)];
 
-/// The [`AXIAL`] poses whose cut is made at ε = 1e-12 and whose section
-/// pcurve then escalates `pcurve_map_residual`, margin in `(3.5e-12,
-/// 3.8e-12]`. Cause, as [`JUNCTION_OPEN`]'s: a frame squared at `f64`
-/// from stated directions (fork 274). None now: `(0.7, 2, 3e-5, 0.3)`,
-/// which did on the bits of a plane door that read a circle's roots by
-/// `acos` about its crest, refuses at its end as the other [`AXIAL`]
-/// poses do since the door reads them from the extreme that has crossed
-/// the less.
-const MAP_RESIDUAL: [(f64, u8, f64, f64); 0] = [];
-
 /// The cause an in-band end pin on an unresolved carrier states, then
 /// D4 ¶1 (i)'s last resort, and no lever.
 const UNRESOLVED: &str = "The section curve's own rounding over this edge is too coarse to read this miss as the model's.";
@@ -369,8 +359,7 @@ const WITHIN: &str = "The section curve's own rounding over this edge can accoun
 /// and each [`AXIAL_PAST`] pose with a definite end miss the carrier's
 /// rounding covers: each a kernel limitation, in exactly its words. The
 /// two [`JUNCTION_OPEN`] poses are cut there instead, and their result
-/// refuses on its junction, and a [`MAP_RESIDUAL`] pose's section
-/// pcurve escalates (the frame cost, PR 7131).
+/// refuses on its junction.
 #[test]
 fn a_section_ends_own_rounding_is_a_kernel_limitation() {
     let tol = Tol::witness();
@@ -386,24 +375,6 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
             continue;
         }
         let past = AXIAL_PAST.contains(&pose);
-        if MAP_RESIDUAL.contains(&pose) {
-            // A frame squared at f64 from stated directions (fork 274).
-            let pinned = matches!(
-                &got,
-                Err(SplitError::Pcurves(topo::PcurveMintError::Certify {
-                    error: geom_brep::PcurveCertifyError::Escalated { check: geom_brep::PcurveCheck::MapResidual, cause, .. },
-                    ..
-                })) if crate::common::frame_cost::escalated(cause, "pcurve_map_residual", (3.5e-12, 3.8e-12))
-            );
-            if !pinned {
-                wrong.push(format!(
-                    "{pose:?}: pinned to escalate pcurve_map_residual in (3.5e-12, 3.8e-12] at the \
-                     pcurve pass: {:?}",
-                    got.as_ref().err()
-                ));
-            }
-            continue;
-        }
         if JUNCTION_OPEN.contains(&pose) {
             // A frame squared at f64 from stated directions (fork 274).
             let pinned = matches!(

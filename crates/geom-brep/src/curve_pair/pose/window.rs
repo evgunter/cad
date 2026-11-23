@@ -116,13 +116,14 @@ use crate::piece::Taylor;
 const MAX_TURNS: usize = 64;
 
 /// What one window reads: the two conics, `a`'s span, `b`'s span,
-/// and the swing of `a`'s height above `b`'s plane.
+/// and `a`'s height along `b`'s axis ([`Conic::height_along`], read for
+/// its swing).
 pub(super) struct Window<'w, T: geom_core::Real> {
     pub(super) a: &'w dyn Conic<T>,
     pub(super) span_a: (T, T),
     pub(super) b: &'w dyn Conic<T>,
     pub(super) span_b: &'w Span<'w, T>,
-    pub(super) swing: T,
+    pub(super) height: geom::Height<T>,
 }
 
 /// A found meeting: its point and its parameter on `a`.
@@ -213,11 +214,11 @@ impl<T: Decide> Window<'_, T> {
         [self.b.height_of(p), slope, bend, T::zero() - slope]
     }
 
-    /// A bound on the height's fourth derivative, `(P − c)·n̂`, at every
-    /// angle: its swing `√(c₁² + s₁²)`, raised past its four roundings and
-    /// the twelve of `c₁` and `s₁` (`k.along`).
+    /// A bound on the height's fourth derivative, `(P − x)·n̂`, at every
+    /// angle: its swing, raised past its rounding (the swing's four and
+    /// the twelve of its parts, [`Conic::along`]).
     fn height_fourth(&self) -> T {
-        up::<16, _>(self.swing)
+        up::<16, _>(self.height.swing())
     }
 
     /// **How the piece `(l, r)` reads**, `away` whether `θ` increasing
@@ -694,10 +695,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            swing: {
-                let (p, q) = ka.along(kb.axis());
-                (p.powi(2) + q.powi(2)).sqrt()
-            },
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let j = Joint {
             point: a.eval(joint),
@@ -841,10 +839,7 @@ mod rows {
             span_a: (0.0, FRAC_PI_2),
             b: &kb,
             span_b: &span_b,
-            swing: {
-                let (p, q) = ka.along(kb.axis());
-                (p.powi(2) + q.powi(2)).sqrt()
-            },
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let level = super::super::level_on(&ka, &kb);
         let piece = (2.5e-5, 5e-5);
@@ -991,10 +986,7 @@ mod rows {
                     &b,
                     (-core::f64::consts::PI, core::f64::consts::PI),
                 ),
-                swing: {
-                    let (p, q) = ka.along(kb.axis());
-                    (p.powi(2) + q.powi(2)).sqrt()
-                },
+                height: ka.height_along(ka.point_at(0.0), kb.axis()),
             };
             let level = super::super::level_on(&ka, &kb);
             let past_zero = window
@@ -1041,10 +1033,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            swing: {
-                let (p, q) = ka.along(kb.axis());
-                (p.powi(2) + q.powi(2)).sqrt()
-            },
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
             let joint = Joint {
@@ -1197,10 +1186,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            swing: {
-                let (p, q) = ka.along(kb.axis());
-                (p.powi(2) + q.powi(2)).sqrt()
-            },
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let j = Joint {
             point: a.eval(0.0),
@@ -1262,10 +1248,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            swing: {
-                let (p, q) = ka.along(kb.axis());
-                (p.powi(2) + q.powi(2)).sqrt()
-            },
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
         let along = w.along_b(5e-6, 5e-6, &foot);
@@ -1324,10 +1307,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            swing: {
-                let (p, q) = ka.along(kb.axis());
-                (p.powi(2) + q.powi(2)).sqrt()
-            },
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let mut l = 400.0_f64;
         for _ in 0..64 {

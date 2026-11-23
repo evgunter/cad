@@ -8,7 +8,7 @@ crates/geom-brep/src/curve_face/conic_oracle/exact.rs 1
 crates/geom-brep/src/curve_face/conic_quadric.rs 1
 crates/geom-brep/src/curve_face/spline_face.rs 1
 crates/geom-brep/src/curve_pair/on_surface.rs 3
-crates/geom-brep/src/curve_pair/pose.rs 1
+crates/geom-brep/src/curve_pair/pose.rs 2
 crates/geom-brep/src/edge_nurbs.rs 1
 crates/geom-brep/src/implicit.rs 8
 crates/geom-brep/src/pair_section/gap.rs 2
