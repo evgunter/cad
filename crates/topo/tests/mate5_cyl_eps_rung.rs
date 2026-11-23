@@ -280,6 +280,35 @@ fn one_axis_tilt_two_levers_two_answers() {
     }
 }
 
+/// INVARIANT (the lever's pivot): the peg of
+/// [`one_axis_tilt_two_levers_two_answers`], both sheets moved a
+/// kilometre along `x̂`, still certifies through the tilt. The tilt is
+/// pinned at the descriptions' own origins, so its lever is the pair's
+/// reach from there, about 1.4 mm wherever the pair stands; read from
+/// the world origin it would be a kilometre, and the gate would refuse.
+#[test]
+fn a_far_peg_levers_its_tilt_from_its_own_origins() {
+    let eps = Tol::witness().eps();
+    let tilt = 40.0 * Tol::witness().k() * eps;
+    let far = Vec3::new(1e3, 0.0, 0.0);
+    let moved = |frame: CylFrame| CylFrame {
+        origin: frame.origin + far,
+        ..frame
+    };
+    let (a, fa) = wall_sheet(moved(CylFrame::canonical(1e-3)), 0.2, 1.4, 0.0, 1e-3);
+    let (b, fb) = wall_sheet(moved(CylFrame::tilted(1e-3, tilt)), 0.4, 1.2, 2e-4, 8e-4);
+    let got = glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band());
+    if fixture_minted_outside_inventory(&got) {
+        println!("far peg fixture minted outside the inventory at this ε — standing down");
+        return;
+    }
+    assert_eq!(
+        got.unwrap(),
+        ChartOverlap::PositiveArea,
+        "a peg a kilometre out absorbs the tilt as it does at the origin",
+    );
+}
+
 /// INVARIANT (three-outcome honesty at the gates): a radius
 /// disagreement definitely outside the band refuses typed
 /// (`CarrierTilt` — the carriers are definitely apart), and one
