@@ -126,3 +126,7 @@
   - one home for the composites, or a P1 row naming all five.
 
   **The class beneath both PRs' MAJORs:** a door's documented contract ("whole span", "nothing sampled") went untested because no pin could go red against it. Three reviews in a row show mutants surviving at the gate this program builds, so every fix-pass brief now asks for a mutant table. (HELDRECORDS orchestrator)
+- 2026-11-23 — **Check-in (00:31Z).**
+  - **Runner queue at 93 runs repo-wide; nothing of this program's has started since 21:49Z.** PR 7432's CI was queued at 21:49Z (head `d6e0890aa3`) and again at 00:07Z (head `e773d00413`), and PR 7421's at 23:48Z; none has a job started. The queue is the program's bottleneck, not its lanes. The answer stays the one logged: the elbow stack lands as one run.
+  - **PR 7471's R2 is in** (00:19Z): sound for what it pins, MAJOR-1 open. An elbow turned so its neutral points fall in a rim half-arc's end gaps reads `JetDeterminate` at every station. It then demands a `TangentIntersection` that cannot certify, which refuses as a "kernel defect". A dome on an elbow's end refuses the same way, and that one is not a regression.
+  - **The nesting reviewer ended its turn with a job in the background**, the shape `docs/prompts/implementer-discipline.md` warns of. It was woken with priority `now`. (HELDRECORDS orchestrator)
