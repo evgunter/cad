@@ -3977,9 +3977,12 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
 /// `f64` the plane built from either does. At `Interval` the small
 /// ball's centre is a bracket (its profile arc's centre rounds), and
 /// two meridians stored in one bracket need not lie in one plane for
-/// every member, so its plane lists its own meridian alone and its pole
-/// refuses `Departure` there. Red at `f64` if the meridians are stored
-/// in two planes, or if the corner is read as zero off the list.
+/// every member, so its plane lists its own meridian alone; the pole is
+/// read by the plane through it alone, each half-band presented against
+/// the pole, which vanishes there for every member, and holds. Red at
+/// `f64` if the meridians are stored in two planes, or if the corner is
+/// read as zero off the list; red at `Interval` while the departure arm
+/// reads no plane but those through the shared meridian.
 #[test]
 fn a_two_ball_union_holds_with_its_poles_read() {
     fn snowman<T: Scalar>() -> Body<T> {
@@ -4013,28 +4016,182 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         report.receipt
     );
     let twin = snowman::<Interval>();
-    let verdict = injective(&twin, None, BUDGET).verdict;
-    let BoundVerdict::Refused(EngineRefusal::Uncertified {
-        shared: SharedCell::Edge(edge),
-        arm: CertificateArm::Departure,
-        ..
-    }) = verdict
-    else {
-        panic!("the snowman at Interval refuses Departure on a meridian: {verdict:?}");
-    };
-    let curve = twin.get_edge(edge).expect("a live edge").curve;
-    let carrier = twin
-        .get_curve_geom(curve)
-        .and_then(|g| g.certified())
-        .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. })) = carrier else {
-        panic!("the refusing edge is a meridian circle: {carrier:?}");
-    };
-    let radius = conic_k.radius();
-    assert!(
-        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
-        "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+    let at_interval = injective(&twin, None, BUDGET);
+    assert_holds("the snowman at Interval", &at_interval, &twin);
+    println!(
+        "[snowman] f64 {:?} | Interval {:?}",
+        report.receipt, at_interval.receipt
     );
+}
+
+/// The frames an apex row is read in: the plain one, a rigid turn about
+/// a generic axis, and the plain one moved a hundred units off the
+/// origin.
+fn apex_frames() -> [(&'static str, SketchPlane<f64>); 3] {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let a = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14f64.sqrt());
+    let (c, s) = (0.7f64.cos(), 0.7f64.sin());
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let turn = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    let frame = |m: Mat3<f64>, d: Vec3<f64>| {
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::from_parts(m, d),
+            tol(),
+        ))
+    };
+    [
+        ("plain", SketchPlane::xy()),
+        ("turned", frame(turn, Vec3::new(0.0, 0.0, 0.0))),
+        (
+            "moved",
+            frame(Mat3::identity(), Vec3::new(64.0, -57.0, 52.0)),
+        ),
+    ]
+}
+
+/// Whether a revolve refused at the certification limit a wedge reaches
+/// at ε = 1e-12 with coordinates of a hundred and more: the analytic
+/// rung 3's kernel limit on its cone, the mapped source's check
+/// escalating, or a pcurve's envelope term escalating
+/// (`work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md`).
+/// Any other refusal is not.
+fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
+    use geom_brep::{
+        AnalyticRung3Refusal, CertCheck, CertifyError, PcurveCertifyError, PcurveCheck,
+    };
+    match e {
+        sweep::RevolveError::Op {
+            source: topo::EulerOpError::Certification { error },
+        } => matches!(
+            error,
+            CertifyError::AnalyticRung3(AnalyticRung3Refusal::KernelLimit { .. })
+                | CertifyError::Escalated {
+                    check: CertCheck::MappedSource,
+                    ..
+                }
+        ),
+        sweep::RevolveError::Pcurve(topo::PcurveMintError::Certify { error, .. }) => matches!(
+            error,
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::EnvelopeTerm(_),
+                ..
+            }
+        ),
+        _ => false,
+    }
+}
+
+/// **A cone wedge past a half turn is embedded at its apex**: a
+/// triangle with a leg on the axis, revolved by `θ` about `y`. Each
+/// wedge plane holds the axis, so its carrier holds a second ruling of
+/// the cone through the apex, half a turn from the one it shares, and
+/// past a half turn that ruling is on the cone face: no plane through
+/// the shared ruling parts the cone's cells about it from the wedge
+/// plane's at the apex. A plane through the apex does, each face read
+/// against the apex alone. `Embedded` at both scalars: the unit
+/// triangle in each of [`apex_frames`] and a thousand units off the
+/// origin, and a triangle a hundred times the size, a needle and a flat
+/// one in the plain frame; and revolved by `−θ`, the unit triangle in
+/// the plain frame. Red while the departure arm reads no plane but those
+/// through the shared ruling. Revolved by `−θ` in the other poses the
+/// wedge refuses, at one scalar or both
+/// (`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).
+#[test]
+fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
+    use geom_core::{Affine3, Mat3, Vec3};
+    use topo::clearance::Embedding;
+    fn wedge<T: Scalar>(
+        place: &SketchPlane<f64>,
+        legs: (f64, f64),
+        theta: f64,
+    ) -> Result<Body<T>, sweep::RevolveError> {
+        let (r, h) = legs;
+        let profile = Profile::new(
+            plane_at::<T>(place),
+            lifted(&[ProfileLoop::polygon(
+                [(0.0, 0.0), (r, 0.0), (0.0, h)].map(|(x, y)| Point2::new(x, y)),
+            )]),
+        )
+        .validate(tol())
+        .unwrap();
+        revolve(
+            &profile,
+            axis_y(),
+            Revolution::Partial(T::from_f64(theta)),
+            tol(),
+        )
+        .map(|b| b.body.into_body())
+    }
+    let far = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(Mat3::identity(), Vec3::new(640.0, -570.0, 520.0)),
+        tol(),
+    ));
+    let mut poses: Vec<(&str, SketchPlane<f64>, (f64, f64))> = apex_frames()
+        .into_iter()
+        .map(|(name, place)| (name, place, (1.0, 1.0)))
+        .collect();
+    poses.extend([
+        ("moved a thousand", far, (1.0, 1.0)),
+        ("a hundred times", SketchPlane::xy(), (100.0, 100.0)),
+        ("a needle", SketchPlane::xy(), (0.05, 1.0)),
+        ("flat", SketchPlane::xy(), (1.0, 0.05)),
+    ]);
+    let plain = poses[..1].to_vec();
+    for theta in [1.5 * core::f64::consts::PI + 0.01, 5.5] {
+        for (turn, poses) in [(theta, &poses), (-theta, &plain)] {
+            for (name, place, legs) in poses {
+                let what = format!("the {turn} wedge, {name}");
+                // At ε = 1e-12 the two poses at coordinates of a hundred and
+                // more refuse their certification at the build:
+                // work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md.
+                let built = |r: Result<topo::clearance::EmbeddingReport, sweep::RevolveError>,
+                             scalar: &str| match r {
+                    Ok(report) => Some(report),
+                    Err(e)
+                        if matches!(*name, "moved a thousand" | "a hundred times")
+                            && tol().eps() < 1e-11
+                            && at_the_build_limit(&e) =>
+                    {
+                        println!(
+                            "SKIPPED (ε = {:e}): {what} at {scalar} does not build: {e}",
+                            tol().eps()
+                        );
+                        None
+                    }
+                    Err(e) => panic!("{what} builds at {scalar}: {e}"),
+                };
+                let float = built(
+                    wedge::<f64>(place, *legs, turn)
+                        .map(|b| door(&b, DEFAULT_MAX_CELL_DEPTH, BUDGET)),
+                    "f64",
+                );
+                let twin = built(
+                    wedge::<Interval>(place, *legs, turn)
+                        .map(|b| door(&b, DEFAULT_MAX_CELL_DEPTH, BUDGET)),
+                    "Interval",
+                );
+                println!(
+                    "[apex wedge] {what}: f64 {:?} | Interval {:?}",
+                    float.as_ref().map(|t| (&t.verdict, t.receipt)),
+                    twin.as_ref().map(|t| (&t.verdict, t.receipt))
+                );
+                for (scalar, report) in [("f64", float.as_ref()), ("Interval", twin.as_ref())]
+                    .into_iter()
+                    .filter_map(|(scalar, r)| r.map(|r| (scalar, r)))
+                {
+                    assert_eq!(
+                        report.verdict,
+                        Embedding::Embedded,
+                        "{what} at {scalar} is embedded"
+                    );
+                }
+            }
+        }
+    }
 }
 
 // ------------------------------- the ask ends at its first finding
@@ -4420,4 +4577,383 @@ fn two_bricks_a_band_apart_refuse_as_a_sliver_and_end_the_ask() {
     );
     let r = report.receipt;
     assert!(r.refused == 1 && r.abandoned > 0, "{r:?}");
+}
+
+// ------------------------------------------------- a reflex corner
+
+/// **A rod notched across its rim**: the rod of radius `r` round the
+/// `z` axis over `z ∈ [0, r]` less the brick
+/// `[−0.3r, 0.3r] × [0.4r, 2r] × [0.5r, 2r]`, or its mirror image in
+/// `y = 0` (built so, not moved). The rod's wall keeps two reflex corners
+/// at the notch's floor, where a ruling (shared with a notch wall
+/// `x = ±0.3r`) meets an arc (shared with the floor `z = 0.5r`), and the
+/// wall has 270° about each.
+fn notched_rod_of<T: Scalar>(r: f64, mirrored: bool) -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished, prism_at};
+    let at = T::from_f64;
+    let rod = finished(
+        "the rod",
+        prism_at(
+            vec![
+                (Point2::new(at(-r), T::zero()), T::one()),
+                (Point2::new(at(r), T::zero()), T::one()),
+            ],
+            T::zero(),
+            at(r),
+            tol(),
+        ),
+        tol(),
+    );
+    let y = if mirrored {
+        (-2.0 * r, -0.4 * r)
+    } else {
+        (0.4 * r, 2.0 * r)
+    };
+    let notch = finished(
+        "the notch",
+        brick::<T>((-0.3 * r, 0.3 * r), y, (0.5 * r, 2.0 * r), tol()),
+        tol(),
+    );
+    built(topo::subtract(&rod, &notch, tol()))
+}
+
+/// The unit notched rod.
+fn notched_rod<T: Scalar>() -> topo::AtRestBody<T> {
+    notched_rod_of(1.0, false)
+}
+
+/// The verdict door's answer over every face of `body`.
+fn embedding_of<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::Embedding {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    topo::clearance::embedded(&side, band(), budgets).verdict
+}
+
+/// `body` moved by each of `poses` in turn and finished, or `None` where
+/// a move leaves a body the finish refuses only for one of two named
+/// reads of a thousand-metre placement at the tightest band, which it
+/// then says, loudly: the wall's volume at `props_cylinder_circle_off_axis`
+/// (`work/nearpoint/a-cylinder-wall-near-the-session-boxs-corner-does-not-finish-at-the-tightest-eps.md`),
+/// and, turned there too, its edges' and pcurves' incidence at
+/// `pcurve_line_chart_incident` and `pcurve_cylinder_chart_incident`
+/// (`work/onehome/a-body-moved-by-a-boxed-turn-refuses-its-edges-and-pcurves-at-first-order-in-the-box.md`).
+/// Any other refusal fails the row.
+fn posed<T: Scalar>(
+    mut body: topo::AtRestBody<T>,
+    poses: &[geom_core::Affine3<f64>],
+    what: &str,
+) -> Option<topo::AtRestBody<T>> {
+    for pose in poses {
+        let rigid = geom_core::test_support::rigid(&pose.map(T::from_f64), tol());
+        let moved = topo::transform_rigid(&body, &rigid).expect("the rod moves");
+        body = match <T as topo::AtRestPolicy>::finish(moved, tol()) {
+            Ok(b) => b,
+            Err(e)
+                if e.as_slice().iter().all(|f| {
+                    let kind = matches!(
+                        f,
+                        topo::ValidationError::VolumeUncomputable { .. }
+                            | topo::ValidationError::EdgeCertification { .. }
+                            | topo::ValidationError::Pcurve { .. }
+                    );
+                    let read = format!("{f:?}");
+                    let named: Vec<&str> = read
+                        .split("predicate: Some(\"")
+                        .skip(1)
+                        .filter_map(|r| r.split('"').next())
+                        .collect();
+                    kind && !named.is_empty()
+                        && named.iter().all(|p| {
+                            [
+                                "props_cylinder_circle_off_axis",
+                                "pcurve_line_chart_incident",
+                                "pcurve_cylinder_chart_incident",
+                            ]
+                            .contains(p)
+                        })
+                }) =>
+            {
+                println!(
+                    "SKIPPED at ε {:e}: the notched rod {what} does not finish: {e:?}",
+                    tol().eps()
+                );
+                return None;
+            }
+            Err(e) => panic!("the notched rod {what} does not finish: {e:?}"),
+        };
+    }
+    Some(body)
+}
+
+/// **A notched rod holds across its reflex corners in every pose and
+/// size**, at both scalars and through the verdict door: radius 1 as
+/// built, turned about a generic axis, a hundred units up and across its
+/// axis, a quarter turn about `x`, at the corner `(998, −998, 998)` of the
+/// session box and turned there; its mirror image as built and turned
+/// 2.3 rad about another axis; and radii 0.02 and 30. Each wall cell at a
+/// corner is read by the wall's own carrier against the notch's presented
+/// face, and that carrier's rate along a ruling is zero at every point:
+/// red if it is read from the box's enclosure of the radial unit, whose
+/// axial part grows with the cell's width over the radius and with its
+/// tilt (the pair refuses `Uncertified { Departure }` at a ruling at every
+/// depth), or if the radial term is not a unit (at a radius below 1 the
+/// rate is then too narrow, above 1 too wide).
+#[test]
+fn a_notched_rod_holds_across_its_reflex_corners_in_every_pose() {
+    use geom_core::{Affine3, Vec3};
+    use topo::clearance::Embedding;
+
+    let turn = || {
+        Affine3::rotation_about_axis(
+            Point3::new(0.3, -0.2, 0.1),
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            0.7,
+        )
+    };
+    let corner = Vec3::new(998.0, -998.0, 998.0);
+    let cases: Vec<(&str, f64, bool, Vec<Affine3<f64>>)> = vec![
+        ("as built", 1.0, false, vec![]),
+        ("turned", 1.0, false, vec![turn()]),
+        (
+            "a hundred units up its axis",
+            1.0,
+            false,
+            vec![Affine3::translation(Vec3::new(0.0, 0.0, 100.0))],
+        ),
+        (
+            "a hundred units across its axis",
+            1.0,
+            false,
+            vec![Affine3::translation(Vec3::new(100.0, -100.0, 0.0))],
+        ),
+        (
+            "a quarter turn about x",
+            1.0,
+            false,
+            vec![Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                core::f64::consts::FRAC_PI_2,
+            )],
+        ),
+        (
+            "at the session box's corner",
+            1.0,
+            false,
+            vec![Affine3::translation(corner)],
+        ),
+        (
+            "turned, at the session box's corner",
+            1.0,
+            false,
+            vec![
+                turn(),
+                Affine3::translation(-corner + Vec3::new(1.0, -1.0, 1.0)),
+            ],
+        ),
+        ("mirrored", 1.0, true, vec![]),
+        (
+            "mirrored and turned",
+            1.0,
+            true,
+            vec![Affine3::rotation_about_axis(
+                Point3::new(-0.4, 0.7, 0.2),
+                Vec3::new(6.0 / 7.0, -2.0 / 7.0, 3.0 / 7.0),
+                2.3,
+            )],
+        ),
+        ("of radius 0.02", 0.02, false, vec![]),
+        ("of radius 30", 30.0, false, vec![]),
+    ];
+    for (what, r, mirrored, poses) in cases {
+        let (Some(body), Some(twin)) = (
+            posed(notched_rod_of::<f64>(r, mirrored), &poses, what),
+            posed(notched_rod_of::<Interval>(r, mirrored), &poses, what),
+        ) else {
+            continue;
+        };
+        let (body, twin) = (body.into_body(), twin.into_body());
+        assert_eq!(
+            embedding_of(&body),
+            Embedding::Embedded,
+            "{what}: the verdict door"
+        );
+        assert_eq!(
+            embedding_of(&twin),
+            Embedding::Embedded,
+            "{what}: the verdict door at Interval"
+        );
+        holds_at_both(&format!("the notched rod {what}"), body, twin);
+    }
+}
+
+/// **A ball through the notched rod's wall beside a reflex corner reads
+/// `Violated`**: a ball of radius 0.05 grafted into the notched rod, its
+/// centre on the wall's carrier just below the corner at `x = 0.3`, so it
+/// crosses the wall where the ruling's line runs on past the corner
+/// through the wall's interior. The ball shares no cell with the wall, so
+/// this pins the distance arm's reading of a crossing near the corner,
+/// not the carrier arm's (its negative is
+/// `injective::rate_rows::a_plane_cell_crossing_a_cylinders_carrier_along_a_ruling_is_not_signed`):
+/// red if a crossing beside a reflex corner reads embedded.
+#[test]
+fn a_ball_through_the_wall_beside_a_reflex_corner_reads_violated() {
+    let mut body = notched_rod::<f64>().into_body();
+    let rho = 0.05;
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let (x, z) = (0.3_f64, 0.45);
+    let ball = topo::transform_rigid(
+        &revolved_about_y_at::<f64>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(x, (1.0 - x * x).sqrt(), z))
+            .expect("a translation"),
+    )
+    .expect("the ball moves");
+    topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+    let report = injective(&body, None, BUDGET);
+    assert!(
+        matches!(report.verdict, BoundVerdict::Violated(_)),
+        "{:?}",
+        report.verdict
+    );
+}
+
+// ------------------------------------------ two wedges at a vertex alone
+
+/// **A triangular prism standing on its corner**: its cap the triangle
+/// the origin and the edges `e1`, `e2` span, extruded `1` along
+/// `e1 × e2`, at `T`.
+fn corner_prism<T: Scalar>(e1: [f64; 3], e2: [f64; 3]) -> topo::AtRestBody<T> {
+    use geom_core::{RigidMotion, Vec3};
+    let (a, b) = (
+        Vec3::new(e1[0], e1[1], e1[2]),
+        Vec3::new(e2[0], e2[1], e2[2]),
+    );
+    let n = a.cross(b);
+    let n = n * (1.0 / n.dot(n).sqrt());
+    let u = a * (1.0 / a.dot(a).sqrt());
+    let v = n.cross(u);
+    let plane = SketchPlane::from_frame(RigidMotion::squared(Point3::origin(), n, u));
+    let at = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    sweep::test_support::finished(
+        "the corner prism",
+        sweep::test_support::prism_on(
+            plane_at::<T>(&plane),
+            vec![at(0.0, 0.0), at(a.dot(u), 0.0), at(b.dot(u), b.dot(v))],
+            T::one(),
+            tol(),
+        ),
+        tol(),
+    )
+}
+
+/// The block `(0, 4)² × (−1, 0)`, its top face's corner at the origin.
+fn floor_block<T: Scalar>() -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    finished(
+        "the block",
+        brick::<T>((0.0, 4.0), (0.0, 4.0), (-1.0, 0.0), tol()),
+        tol(),
+    )
+}
+
+/// **The deep keel** (`a_keel_tree_in_the_plane.rs`'s): the block
+/// `0..4 × 0..4 × 0..2` less a V-groove of half-width `0.3` from outside
+/// the face `x = 0` to `x = 2`, then a wider one, `0.5`, on to `x = 3`,
+/// both their floors on the line `y = 1`, `z = 1`; then moved by `m`.
+/// Where the floors meet at `(2, 1, 1)` each narrow flank shares that
+/// vertex alone with each wide one, every face there a convex quadrant.
+fn deep_keel<T: Scalar>(m: &geom_core::Affine3<f64>) -> Body<T> {
+    use crate::common::keel_tree::{deep, grooved};
+    let keel = sweep::test_support::finished("the keel", grooved(deep::<T>(tol()), tol()), tol());
+    moved(&keel, m).into_body()
+}
+
+/// **Two plane faces at a vertex they share alone hold where a plane
+/// parts their wedges** ([`deep_keel`]): at the keel's joint each narrow
+/// flank and each wide one are convex quadrants there, and the plane
+/// across the presentations' middles leaves them split to the depth
+/// floor, `Departure` at the vertex; the plane leaning furthest from
+/// all four edges parts them. Embedded at `f64` and at `Interval`, at
+/// the origin, turned `0.7` about `(1, 2, 3)` through `(0.3, −0.2, 0.1)`,
+/// and moved `(100, −100, 100)`. Red where the vertex-alone separator is
+/// taken from the rectangles' middles alone.
+#[test]
+fn a_deep_keels_joint_is_embedded_in_every_pose() {
+    use geom_core::{Affine3, Vec3};
+    let poses = [
+        ("at the origin", Affine3::identity()),
+        (
+            "turned",
+            Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(1.0, 2.0, 3.0),
+                0.7,
+            ),
+        ),
+        (
+            "a hundred out",
+            Affine3::translation(Vec3::new(100.0, -100.0, 100.0)),
+        ),
+    ];
+    for (what, m) in poses {
+        for (scalar, verdict) in [
+            (
+                "f64",
+                door(&deep_keel::<f64>(&m), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+            ),
+            (
+                "Interval",
+                door(&deep_keel::<Interval>(&m), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+            ),
+        ] {
+            assert!(
+                matches!(verdict, topo::clearance::Embedding::Embedded),
+                "the deep keel, {what}, at {scalar}: {verdict:?}"
+            );
+        }
+    }
+}
+
+/// **A roof folded down across the block's corner crosses it**: the
+/// [`corner_prism`] on `(1, 1, 1)` and `(1, 1, −1)`, whose cap holds the
+/// ray `(1, 1, 0)` of the block's top face, grafted beside
+/// [`floor_block`] as a solid of its own, so the cap runs through the
+/// top face along the diagonal from the corner. `Crosses` at `f64` and
+/// at `Interval`, never `Embedded`. The two solids share nothing in M,
+/// so the pair is decided by distance and the vertex-alone plane is not
+/// asked: the kernel builds no body whose faces cross while sharing a
+/// vertex, and that reading's crossing wedges are `injective`'s
+/// `two_plane_wedges_at_a_vertex_alone_certify_only_where_a_plane_parts_them`.
+/// So no change to the vertex-alone separator can redden this row: it
+/// goes red if two coincident vertices of two solids were read as one
+/// shared cell, or the crossing were certified apart by distance.
+#[test]
+fn a_roof_folded_across_a_blocks_corner_crosses_it() {
+    fn folded<T: Scalar>() -> Body<T> {
+        let mut body = floor_block::<T>().into_body();
+        let roof = corner_prism::<T>([1.0, 1.0, 1.0], [1.0, 1.0, -1.0]);
+        topo::graft_disjoint(&mut body, &roof).expect("the roof grafts");
+        body
+    }
+    for (scalar, verdict) in [
+        (
+            "f64",
+            door(&folded::<f64>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        ),
+        (
+            "Interval",
+            door(&folded::<Interval>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        ),
+    ] {
+        assert!(
+            matches!(verdict, topo::clearance::Embedding::Crosses(_)),
+            "the folded roof at {scalar}: {verdict:?}"
+        );
+    }
 }
