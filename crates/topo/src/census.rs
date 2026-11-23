@@ -7659,12 +7659,11 @@ impl Undecided {
             // Neither this nor `Unclaimable` is gated by distance: a
             // face with no sound reach bound is refused at ANY
             // separation, so moving the parts is no way through. A
-            // placeholder surface is also reported on its own, as the
-            // kernel defect it is (`UncertifiableSurface`).
+            // pending face is also reported on its own (`UncertifiableSurface`).
             Self::NoSoundReach => {
-                "one face has no extent the check can bound (a placeholder surface, or an \
-                 edge whose curve has no bounds), so no distance clears it. There is no way \
-                 through yet for this shape"
+                "one face has no extent the check can bound (a face with no surface yet, or \
+                 an edge whose curve has no bounds), so no distance clears it. There is no \
+                 way through yet for this shape"
             }
             Self::Unclaimable => {
                 "a face of one has no extent the check can bound, so where that part ends \

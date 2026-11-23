@@ -323,7 +323,7 @@ impl MergeKind {
         match self {
             Self::Plane => "planar",
             Self::Curved => "curved",
-            Self::Placeholder => "placeholder",
+            Self::Placeholder => "pending",
         }
     }
 }
@@ -1091,7 +1091,7 @@ impl MergeCoplanarError {
                 if [*kind, *other_kind].contains(&MergeKind::Placeholder) {
                     write!(
                         f,
-                        " (a placeholder describes no locus and is never one recipe surface \
+                        " (a pending face describes no locus and is never one recipe surface \
                          with a described face)"
                     )?;
                 }
@@ -1099,9 +1099,9 @@ impl MergeCoplanarError {
             }
             Self::PoisonedSurfaceDescription { face } => write!(
                 f,
-                "merge_coplanar_faces: face {face:?}'s surface is a Nurbs net carrying poison \
-                 in some channel — described geometry that cannot evaluate, which tier 3 \
-                 refuses at rest; attach a real description (Body::set_face_surface) before \
+                "merge_coplanar_faces: face {face:?}'s surface is a Nurbs net with a control \
+                 point that is not a finite number — geometry that cannot evaluate, which \
+                 tier 3 refuses at rest; attach a real description (Body::set_face_surface) before \
                  merging"
             ),
             Self::UnsupportedConfiguration { edge } => write!(
@@ -4690,7 +4690,7 @@ mod tests {
         let with_placeholder = split(MergeKind::Placeholder);
         assert!(
             with_placeholder.contains("(planar)")
-                && with_placeholder.contains("(placeholder)")
+                && with_placeholder.contains("(pending)")
                 && with_placeholder.contains("re-check the shared surface key")
                 && with_placeholder.contains("describes no locus"),
             "a split on a placeholder names both kinds and the placeholder's recourse: \
