@@ -673,7 +673,9 @@ pub enum ShellError<T: Real> {
     },
     /// The assembled result is not a finished body
     /// ([`crate::AtRestPolicy::finish`]), so it is discarded: every
-    /// finding, each read through its family.
+    /// finding, each read through its family. Also the cavity where
+    /// tier 3's local battery refuses it before it is inserted
+    /// ([`cavity_embedded`]).
     NotValid {
         /// The finish's findings.
         findings: crate::NotFinished,
@@ -1853,7 +1855,7 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
     moved_walls_cross(&cavity, &partition, thickness, band)?;
 
     // ---- Decide: the cavity is embedded. ----
-    cavity_embedded(&cavity, band)?;
+    cavity_embedded(&cavity, tol, band)?;
 
     // ---- The evidence: the construction's own decides, carried. ----
     //
@@ -4595,24 +4597,30 @@ const CAVITY_MAX_CELL_PAIRS: usize = 65_536;
 /// did not certify. It asks where [`CavityGate::at`] says it does. Faces
 /// of different solids are read too: their cavities are eroded apart,
 /// so a pair of them is never touching and is decided by distance.
+///
+/// The question takes tier 3's facts, and the cavity is not finished, so
+/// tier 3's local battery is run over it here ([`crate::geometric`]). A
+/// cavity the battery refuses is [`ShellError::NotValid`] with its
+/// findings: the assembled body holds these faces and would not finish.
 fn cavity_embedded<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     cavity: &Body<T>,
+    tol: Tol,
     band: Band,
 ) -> Result<(), ShellError<T>> {
-    use crate::clearance::{Budgets, Crossing, DEFAULT_MAX_CELL_DEPTH, Embedding, Side, embedded};
+    use crate::clearance::{Budgets, Crossing, DEFAULT_MAX_CELL_DEPTH, Embedding, embedded};
     match CavityGate::at::<T>() {
         CavityGate::Asks => {}
         CavityGate::WaitsOnTheEngineRows => return Ok(()),
     }
-    let side = Side {
-        body: cavity,
-        faces: cavity.faces().map(|(k, _)| k).collect(),
-    };
+    let geometric = crate::geometric(cavity, tol).map_err(|findings| ShellError::NotValid {
+        findings: crate::NotFinished::new(findings),
+    })?;
+    let faces = cavity.faces().map(|(k, _)| k).collect();
     let budgets = Budgets {
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
         max_cell_pairs: CAVITY_MAX_CELL_PAIRS,
     };
-    match embedded(&side, band, budgets).verdict {
+    match embedded(&geometric, faces, band, budgets).verdict {
         Embedding::Embedded => Ok(()),
         Embedding::Crosses(Crossing {
             faces: (face, other),

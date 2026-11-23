@@ -295,6 +295,132 @@ pub(crate) struct Boundary {
     /// curved face it holds by construction (validate's not-yet-checked
     /// list, #638).
     pub(crate) extent: Option<[(f64, f64); 2]>,
+    /// Tier 3's facts on the face ([`Facts`]). `None` where the boundary
+    /// was lifted with no verdict (a metric question's side, which
+    /// reaches no reading that asks one): a reading that asks then
+    /// decides nothing.
+    pub(crate) facts: Option<Facts>,
+}
+
+/// **Tier 3's facts on one face, as the question reads them**
+/// ([`crate::Tier3Facts`], crossed once where the face's window is
+/// built): its edges' classes, how far it runs from each of its edges
+/// and from each vertex it can share with another face alone, and its
+/// singular vertices. Read, never decided here.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Facts {
+    classes: BTreeMap<EdgeKey, crate::EdgeClass>,
+    edge_runs: BTreeMap<EdgeKey, Lever<Interval>>,
+    vertex_runs: BTreeMap<VertexKey, Lever<Interval>>,
+    singular: BTreeSet<VertexKey>,
+}
+
+impl Facts {
+    /// `face`'s facts off `kept`, each length crossed through `cross`
+    /// (a length that does not cross is not kept, so its reading decides
+    /// nothing), over the face's lifted `edges` and `vertices`.
+    ///
+    /// **A face whose whole boundary lies on one conic** runs from each
+    /// of its edges at least that conic's least radius
+    /// ([`geom_brep::spanned_conic_run`], whose argument is there): its
+    /// stations all lie on the conic, so tier 3's run from them is a
+    /// rounding. That the edges are one conic is [`one_conic`]'s
+    /// reading, of every edge against the first; at a box scalar it
+    /// admits only carriers stored as points, and a face it does not
+    /// admit keeps the run tier 3 read.
+    pub(crate) fn of<T: Real>(
+        kept: &crate::Tier3Facts<T>,
+        face: FaceKey,
+        edges: &[Rim],
+        vertices: &BTreeMap<VertexKey, Point3<Interval>>,
+        cross: impl Fn(T) -> Interval,
+    ) -> Self {
+        let lever = |run: Lever<T>| -> Option<Lever<Interval>> {
+            let run = run.crossed(&cross);
+            run.length().is_certified().then_some(run)
+        };
+        let spanned = match edges.split_first() {
+            Some((first, rest)) if rest.iter().all(|o| one_conic(first, o)) => first
+                .arc
+                .as_ref()
+                .and_then(|(carrier, _)| geom_brep::spanned_conic_run(carrier)),
+            _ => None,
+        };
+        Self {
+            classes: edges
+                .iter()
+                .filter_map(|e| Some((e.key, kept.class(e.key)?)))
+                .collect(),
+            edge_runs: edges
+                .iter()
+                .filter_map(|e| {
+                    let run = lever(kept.edge_run(face, e.key)?)?;
+                    Some((e.key, spanned.map_or(run, |least| run.max(least))))
+                })
+                .collect(),
+            vertex_runs: vertices
+                .keys()
+                .filter_map(|&v| Some((v, lever(kept.vertex_run(face, v)?)?)))
+                .collect(),
+            singular: kept.singular(face).iter().copied().collect(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Boundary {
+    /// **A fixture's boundary with the runs tier 3 would keep on it**:
+    /// the face's run from each of its edges and from each of its
+    /// vertices, through the door tier 3 reads them by
+    /// ([`geom_brep::BoundaryStations`]) over the fixture's own lifted
+    /// edges and vertices. No class and no singular vertex: a fixture
+    /// that reads one states it ([`Self::with_class`],
+    /// [`Self::with_singular`]).
+    pub(crate) fn with_runs(mut self) -> Self {
+        let stations = geom_brep::BoundaryStations::of_boundary(
+            self.edges.iter().filter_map(|e| {
+                let (carrier, span) = e.arc.as_ref()?;
+                Some((carrier, *span))
+            }),
+            self.vertices.values().copied(),
+        );
+        self.facts = Some(Facts {
+            classes: BTreeMap::new(),
+            edge_runs: self
+                .edges
+                .iter()
+                .filter_map(|e| {
+                    let (carrier, span) = e.arc.as_ref()?;
+                    Some((e.key, stations.run_from_edge(carrier, *span)))
+                })
+                .collect(),
+            vertex_runs: self
+                .vertices
+                .iter()
+                .map(|(&v, &at)| (v, stations.run_from_vertex(at)))
+                .collect(),
+            singular: BTreeSet::new(),
+        });
+        self
+    }
+
+    /// This fixture with `edge` classed as tier 3 would keep it.
+    pub(crate) fn with_class(mut self, edge: EdgeKey, class: crate::EdgeClass) -> Self {
+        self.facts
+            .get_or_insert_with(Facts::default)
+            .classes
+            .insert(edge, class);
+        self
+    }
+
+    /// This fixture with `vertex` a pole or apex of its chart.
+    pub(crate) fn with_singular(mut self, vertex: VertexKey) -> Self {
+        self.facts
+            .get_or_insert_with(Facts::default)
+            .singular
+            .insert(vertex);
+        self
+    }
 }
 
 impl Boundary {
@@ -6650,7 +6776,9 @@ mod presentation_rows {
             edges,
             vertices: BTreeMap::new(),
             extent: Some([(BETA, top), (0.0, 1.0)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     /// What a presentation came to, without its borrow.
@@ -6788,7 +6916,9 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([extent, (0.0, 1.0)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     /// **A face is never read as holding nothing in a cell it fills,
@@ -6856,7 +6986,9 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(1.0, 2.0), (0.0, 1.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         assert_eq!(
             chart_near(&s, &b, &all(4), &[0], ((1.2, 1.8), (0.0, 1.0))),
             Read::Local
@@ -6886,7 +7018,9 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(q, h), (0.0, 0.5)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         for v in [(0.2, 0.8), (0.5, 0.8), (1.0, 2.0)] {
             let read = chart_near(&s, &b, &all(4), &[3], ((q + 0.2, h - 0.2), v));
             assert_eq!(read, Read::Structural, "v ∈ {v:?}");
@@ -6921,7 +7055,9 @@ mod presentation_rows {
                 (vertex(9), origin()),
             ]),
             extent: Some([(1.0, 2.0), (-1.0, -0.5)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         let local = Local {
             edges: all(4),
             vertices: vec![vertex(9)],
@@ -6997,7 +7133,9 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(1.0, 2.0), (0.0, 1.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         for u in [(2.2, 2.8), (1.2, 1.8)] {
             let read = chart_near(&s, &b, &all(4), &[], (u, (0.2, 0.8)));
             assert_eq!(read, Read::Structural, "u ∈ {u:?}");
@@ -7086,7 +7224,9 @@ mod presentation_rows {
             edges: vec![rim(1, [3, 3], Axis::V, 1.0, (TURN, 1.0), (0.0, 1.0))],
             vertices: vertices.clone(),
             extent: Some([(0.0, TURN), (0.0, 1.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         assert_eq!(
             at(&wrapping, (-0.5, -0.1)),
             Read::Vacuous,
@@ -7106,7 +7246,9 @@ mod presentation_rows {
             ],
             vertices,
             extent: Some([(1.0, 2.0), (-1e-15, 1.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         assert!(
             matches!(at(&sector, (0.2, 0.8)), Read::Of(..)),
             "an extent an ulp below the apex: {:?}",
@@ -7139,7 +7281,9 @@ mod presentation_rows {
                 (vertex(9), origin()),
             ]),
             extent: Some([(0.0, TURN), (-1.0, 1.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         let local = Local {
             edges: all(1),
             vertices: vec![vertex(9)],
@@ -7183,7 +7327,9 @@ mod presentation_rows {
                 edges: Vec::new(),
                 vertices: BTreeMap::from([(vertex(3), Point3::new(iv0(1.0), iv0(0.0), iv0(z)))]),
                 extent: Some([(1.0, 2.0), (0.0, 0.0)]),
-            };
+                facts: None,
+            }
+            .with_runs();
             assert_eq!(
                 chart(&s, &b, &[], (1.2, 1.8), (-0.5, 0.5)),
                 Read::Structural,
@@ -7209,7 +7355,9 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(0.0, TURN), (0.5, 1.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         assert_eq!(
             chart(&s, &b, &all(2), (1.0, 2.0), (0.4, 1.1)),
             Read::Of((1.0, 2.0), (0.5, 1.0))
@@ -7242,7 +7390,9 @@ mod presentation_rows {
             edges: Vec::new(),
             vertices: BTreeMap::new(),
             extent: Some([(0.0, TURN), (0.0, 0.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         assert_eq!(
             chart(&s, &b, &[], (1.0, 2.0), (0.5, 1.0)),
             Read::Of((1.0, 2.0), (0.5, 1.0))
@@ -7265,7 +7415,9 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(0.0, 3.0), (0.0, 1.0)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     #[test]
@@ -7315,7 +7467,9 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(0.0, 3.0), (0.0, 1.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         assert_eq!(
             chart_near(&s, &b, &all(4), &[0], ((0.9, 1.1), (0.4, 0.6))),
             Read::Local,
@@ -7336,7 +7490,9 @@ mod presentation_rows {
             edges: Vec::new(),
             vertices: BTreeMap::new(),
             extent: Some([(-6.18, -0.05), (0.0, 1.0)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         assert_eq!(
             chart(&s, &b, &[], (11.98, 12.98), (0.3, 0.7)),
             Read::Local,
@@ -7431,7 +7587,9 @@ mod presentation_rows {
             edges,
             vertices: BTreeMap::new(),
             extent: Some([(1.0, 2.0), (0.0, 1.0)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     /// **A rectangle on the cylinder's chart**, `u ∈ [1, 2]`,
@@ -7754,7 +7912,9 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::new(),
             extent: None,
-        };
+            facts: None,
+        }
+        .with_runs();
         let local = Local {
             edges: vec![0],
             vertices: Vec::new(),
@@ -7816,11 +7976,15 @@ mod presentation_rows {
         let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
         // Forward: (0, 4) to the vertex at the origin to (4, 0), the
         // first quadrant on its left.
-        let corner = |forward: bool, sense: bool| Boundary {
-            sense,
-            edges: vec![line(y, 2, !forward), line(x, 3, forward)],
-            vertices: BTreeMap::new(),
-            extent: None,
+        let corner = |forward: bool, sense: bool| {
+            Boundary {
+                sense,
+                edges: vec![line(y, 2, !forward), line(x, 3, forward)],
+                vertices: BTreeMap::new(),
+                extent: None,
+                facts: None,
+            }
+            .with_runs()
         };
         let local = Local {
             edges: vec![0, 1],
@@ -7919,7 +8083,9 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::from([(vertex(1), origin())]),
             extent: None,
+            facts: None,
         }
+        .with_runs()
     }
 
     /// [`present_plane`] of a [`disk`] in the cell `(u, v)`, its rim
@@ -8124,7 +8290,9 @@ mod presentation_rows {
             edges: [arc, other].into_iter().chain(extra).collect(),
             vertices,
             extent: None,
+            facts: None,
         }
+        .with_runs()
     }
 
     /// [`present_plane`] of `b` in the cell `u × v`, its local edges
@@ -8345,7 +8513,9 @@ mod presentation_rows {
             edges: vec![upper, lower],
             vertices: BTreeMap::from([(vertex(1), p(1.0)), (vertex(2), p(-1.0))]),
             extent: None,
+            facts: None,
         }
+        .with_runs()
     }
 
     /// [`present_plane`] of `b` in the cell `u × v` about `(1, 0)`, both
@@ -9025,7 +9195,9 @@ mod presentation_rows {
                 (vertex(3), p(0.0, 0.0, 1.0)),
             ]),
             extent: Some([(0.0, q), (0.0, q)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         (s, b)
     }
 
@@ -9235,7 +9407,9 @@ mod presentation_rows {
             edges: [ruling, other].into_iter().chain(extra).collect(),
             vertices,
             extent: Some([(0.0, 1.0), (0.0, 1.0)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     /// [`present_chart`] of a [`ruling_corner`] in the cell `u × v`, the
@@ -9379,7 +9553,9 @@ mod presentation_rows {
                 (vertex(3), on_cyl(1.0 - 0.5 * du, 0.5)),
             ]),
             extent: Some([(0.0, 2.0), (0.0, 1.0)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     /// A cylinder piece of `b` in the cell `u × v`, its local edges the
@@ -9605,7 +9781,9 @@ mod presentation_rows {
                 ),
             ]),
             extent: Some([(0.0, 2.0), (-1.0, 1.0)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     /// **A parallel's corner at a vertex alone is its quadrant too**
@@ -9724,7 +9902,9 @@ mod presentation_rows {
                 (vertex(3), on_cyl(far.0, far.1)),
             ]),
             extent: Some([(0.0, 2.6), (0.0, 1.0)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     /// **A curve tangent to a rim at the corner is not read by the
@@ -9808,7 +9988,9 @@ mod presentation_rows {
                 (vertex(3), on_cyl(2.5, 0.5)),
             ]),
             extent: Some([(-1.6, 2.6), (-1.5, 0.6)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         assert_eq!(
             on_cylinder(&b, (-0.1, 1.0), (0.4, 0.62)),
             Read::Local,
@@ -9991,7 +10173,9 @@ mod presentation_rows {
                 (vertex(8), on_cyl(0.0, 0.3)),
             ]),
             extent: Some([(-0.5, 1.6), (-1.0, 0.3)]),
+            facts: None,
         }
+        .with_runs()
     }
 
     /// [`certify_pair`] of a face on [`floor`] in the cell `disc` and
@@ -10281,7 +10465,9 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::new(),
             extent: None,
+            facts: None,
         }
+        .with_runs()
     }
 
     /// **A second run of the curve in reach of the widened rectangle is
@@ -10357,7 +10543,9 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::from([(vertex(1), on(t0)), (vertex(2), on(t1))]),
             extent: None,
-        };
+            facts: None,
+        }
+        .with_runs();
         let strip = (-0.148, 0.05);
         let beside = chart_near(&cyl, &b, &[0], &[0], ((-0.05, 0.05), strip));
         assert!(matches!(beside, Read::Of(..)), "beside the arc: {beside:?}");
@@ -10694,27 +10882,31 @@ mod presentation_rows {
         let s = Interval::from_bounds(-w, w);
         let d = Vec3::new(iv0(1.0), s, iv0(0.0));
         let line = Curve3::line(origin(), d);
-        let face = |sense: bool| Boundary {
-            sense,
-            edges: vec![Rim {
-                stated: None,
-                key: edge(1),
-                arc: Some((line.clone(), (iv0(0.0), iv0(4.0)))),
-                ends: [vertex(1), vertex(2)],
-                uses: vec![Use {
-                    plus: true,
-                    image: None,
-                    iso: None,
-                    wall: None,
-                    harmonic: None,
+        let face = |sense: bool| {
+            Boundary {
+                sense,
+                edges: vec![Rim {
+                    stated: None,
+                    key: edge(1),
+                    arc: Some((line.clone(), (iv0(0.0), iv0(4.0)))),
+                    ends: [vertex(1), vertex(2)],
+                    uses: vec![Use {
+                        plus: true,
+                        image: None,
+                        iso: None,
+                        wall: None,
+                        harmonic: None,
+                    }],
                 }],
-            }],
-            vertices: BTreeMap::from([
-                (vertex(1), origin()),
-                (vertex(2), line.eval(iv0(4.0))),
-                (vertex(9), Point3::new(iv0(2.0), iv0(1.0), iv0(0.0))),
-            ]),
-            extent: None,
+                vertices: BTreeMap::from([
+                    (vertex(1), origin()),
+                    (vertex(2), line.eval(iv0(4.0))),
+                    (vertex(9), Point3::new(iv0(2.0), iv0(1.0), iv0(0.0))),
+                ]),
+                extent: None,
+                facts: None,
+            }
+            .with_runs()
         };
         let floor = Surface::Plane {
             frame: geom::Frame::new(
@@ -11222,7 +11414,9 @@ mod presentation_rows {
             edges: rims,
             vertices: points.iter().map(|&(n, p)| (vertex(n), p)).collect(),
             extent: None,
+            facts: None,
         }
+        .with_runs()
     }
 
     /// The face whose boundary is the whole spiric, closed at `t = 0`.
@@ -11855,7 +12049,9 @@ mod presentation_rows {
                 }],
                 vertices: BTreeMap::from([(vertex(1), p)]),
                 extent: None,
+                facts: None,
             }
+            .with_runs()
         }
 
         /// A cell beside the curve at `t = 1`, on the side `side` of it
@@ -12172,26 +12368,30 @@ mod presentation_rows {
                 Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
             ),
         };
-        let along = |end: Interval| Boundary {
-            sense: true,
-            edges: vec![Rim {
-                stated: None,
-                key: edge(1),
-                arc: Some((
-                    Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
-                    (iv0(0.0), end),
-                )),
-                ends: [vertex(1), vertex(2)],
-                uses: vec![Use {
-                    plus: true,
-                    image: None,
-                    iso: None,
-                    wall: None,
-                    harmonic: None,
+        let along = |end: Interval| {
+            Boundary {
+                sense: true,
+                edges: vec![Rim {
+                    stated: None,
+                    key: edge(1),
+                    arc: Some((
+                        Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                        (iv0(0.0), end),
+                    )),
+                    ends: [vertex(1), vertex(2)],
+                    uses: vec![Use {
+                        plus: true,
+                        image: None,
+                        iso: None,
+                        wall: None,
+                        harmonic: None,
+                    }],
                 }],
-            }],
-            vertices: BTreeMap::new(),
-            extent: None,
+                vertices: BTreeMap::new(),
+                extent: None,
+                facts: None,
+            }
+            .with_runs()
         };
         let local = Local {
             edges: vec![0],
@@ -12486,7 +12686,9 @@ mod presentation_rows {
                 (vertex(4), on_torus(1.0, top)),
             ]),
             extent: Some([(0.5, 1.0), (-half, top)]),
-        };
+            facts: None,
+        }
+        .with_runs();
         let local = Local {
             edges: vec![0, 1],
             vertices: vec![vertex(1)],
@@ -12652,7 +12854,9 @@ mod presentation_rows {
             edges: vec![segment(1, [1, 2], (0.0, 0.0), (1.0, 0.0))],
             vertices: BTreeMap::new(),
             extent: None,
-        };
+            facts: None,
+        }
+        .with_runs();
         b.vertices.insert(vertex(1), origin());
         b.vertices
             .insert(vertex(2), Point3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
@@ -12728,7 +12932,9 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: None,
-        };
+            facts: None,
+        }
+        .with_runs();
         corner.edges[0].uses[0].plus = false;
         corner.edges[1].uses[0].plus = false;
         corner.vertices.insert(vertex(1), origin());
@@ -13076,7 +13282,9 @@ mod margin_rows {
                 .map(|&(k, p)| (key(k), p3(p[0], p[1], p[2])))
                 .collect(),
             extent: None,
+            facts: None,
         }
+        .with_runs()
     }
 
     /// **The arm is the faces' reach, the least over what the pair is
@@ -13244,7 +13452,9 @@ mod margin_reach_rows {
             edges,
             vertices: vertices.iter().map(|&(k, p)| (key(k), p3(p))).collect(),
             extent: None,
+            facts: None,
         }
+        .with_runs()
     }
 
     fn piece<'a>(

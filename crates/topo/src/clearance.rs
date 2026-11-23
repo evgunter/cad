@@ -459,6 +459,24 @@ pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
 }
 
+impl<T: CertifiedBounds> Windows<'_, T> {
+    /// These windows with tier 3's facts on each face's boundary
+    /// ([`injective::Facts::of`]), each kept length crossed once, here,
+    /// through the lane's crossing ([`Interval::from_certified`]).
+    fn reading(mut self, kept: &crate::Tier3Facts<T>) -> Self {
+        for w in &mut self.of {
+            w.boundary.facts = Some(injective::Facts::of(
+                kept,
+                w.face,
+                &w.boundary.edges,
+                &w.boundary.vertices,
+                Interval::from_certified,
+            ));
+        }
+        self
+    }
+}
+
 #[cfg(any(test, feature = "test-support"))]
 impl<T: Real> Windows<'_, T> {
     /// **How many readings each spline chart's and spline edge's memo
@@ -4876,13 +4894,18 @@ pub struct EmbeddingReport {
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
 pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
-    side: &Side<'_, T>,
+    of: &crate::Geometric<'_, T>,
+    faces: Vec<FaceKey>,
     band: Band,
     budgets: Budgets,
 ) -> EmbeddingReport {
     let lane = ClearanceLane::<T>::certified();
-    let windows = match lane.windows(side, Which::First) {
-        Ok(windows) => windows,
+    let side = Side {
+        body: of.body(),
+        faces,
+    };
+    let windows = match lane.windows(&side, Which::First) {
+        Ok(windows) => windows.reading(of.facts()),
         Err(refusal) => {
             return EmbeddingReport {
                 verdict: Embedding::Refused(refusal),
@@ -5042,12 +5065,10 @@ mod wiring_rows {
         let tol = geom_core::Tol::witness();
         let cube: crate::Body<T> =
             crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let side = super::Side {
-            body: &cube,
-            faces: cube.faces().map(|(k, _)| k).collect(),
-        };
+        let geometric = crate::geometric(&cube, tol).expect("a brick passes tier 3");
         let report = super::embedded(
-            &side,
+            &geometric,
+            cube.faces().map(|(k, _)| k).collect(),
             geom_core::Band::linear(tol).expect("the witness tolerance has a band"),
             super::Budgets {
                 max_cell_depth: super::DEFAULT_MAX_CELL_DEPTH,

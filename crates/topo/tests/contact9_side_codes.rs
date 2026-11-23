@@ -370,12 +370,10 @@ fn the_sector_slivers_meet_is_read_at_its_faces_reach() {
     let point = move |u, v, w| at(e, u, v, w) + corner;
     let wedge = common::finished("wedge", common::mapped_cube(point, tol), tol);
     let meet = body_of(intersect(&block, &wedge, tol), "tilted wedge: ∩");
-    let side = topo::clearance::Side {
-        body: &meet,
-        faces: meet.faces().map(|(k, _)| k).collect(),
-    };
+    let geometric = topo::geometric(&meet, tol).expect("the ∩ passes tier 3's local battery");
     let report = topo::clearance::embedded(
-        &side,
+        &geometric,
+        meet.faces().map(|(k, _)| k).collect(),
         Band::linear(tol).unwrap(),
         topo::clearance::Budgets {
             max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
