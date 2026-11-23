@@ -887,7 +887,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      that lands on no pair, every pair read definitely, is consumed
      where one of its cells was removed, divided with its remainder
      removed, or moved, or where the op put its two cells in different
-     result bodies, each holding images of one cell alone: the touch is
+     result bodies, each holding images of one cell alone and each
+     reaching the cut by a decision the op made: the touch is
      then a meeting between two bodies, as a split's two sides meet
      across its plane, which no body's records state. It is stale
      otherwise; a cell the lineage does not cover
