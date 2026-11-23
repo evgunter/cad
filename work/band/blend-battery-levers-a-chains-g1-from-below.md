@@ -38,20 +38,13 @@ the sampled pairs where a reading acts on a definite nonzero sign, and
 correct the doc. Found by OFFSET's sweep for the class (the "shorter is
 safe" claim on a lever whose Zero is acted on).
 
-## Read again by `oneround/reach-from-the-read-point` (2026-11-23)
+## Read again, and the G1 converted, by `oneround/reach-from-the-read-point` (PR 7661)
 
-Still as above on `main` at `093205aa3`: `resolve_link` stores
-`extent_of`'s sampled diameter in `Link::arm_len`, and `chain_g1` reads
-`a.arm_len.min(b.arm_len)` at the shared vertex, where the two
-tangents are read, acting on its Zero (`cap_transverse` reads the same
-field at a vertex too). Two corrections to the fix named above:
-
-- The datum is read at a point, the shared vertex, so its arm is each
-  link's reach from that vertex, not its diameter: from above (the
-  Zero is acted on), the link's cover's far distance from the vertex
-  (`geom_brep::span_reach_bounds(..).above()`). `edge_extent_sup` is
-  sound but loose, the diameter bounding the reach.
-- A link meets a chain at both its ends, so `Link` would hold a reach
-  from each (or its region, read from the vertex at the junction).
-  That is a change to what the record stores, which this lane left;
-  `extent_of`'s caller comment and `Link::arm_len` are the sites.
+- **`chain_g1`'s arm is converted.** On `main` at `093205aa3`, `chain_turns` read `a.arm_len.min(b.arm_len)`, the sampled diameter from below, for a datum read at the shared vertex whose Zero is acted on.
+  - It now reads `junction_arm`: the nearer of the two links' reaches from the junction's point, each from above (`geom_brep::span_reach_bounds(..).above()`, the cover's far distance). This is sound, and as tight as the cover.
+  - The closed single link reads the same from its start vertex.
+  - Row: `blend::battery::junction_arm_rows`, a hook-shaped spline link whose farthest point from the junction falls between samples. It is red on the sampled diameter, on the samples' reach from below, and on the farther link.
+- **Left: `Link::arm_len` itself.** It still holds `extent_of`'s sampled diameter.
+  - `cap_transverse` reads it at a vertex and acts on both signs (Zero a circle, a definite sign an ellipse), so it is owed both bounds of the link's reach from that vertex.
+  - The ruled pair's co-ruling reads the same `extent`, and its direction was not read here.
+  - The tight answer is for `Link` to hold its region, or a reach from each end, which changes what the record stores.

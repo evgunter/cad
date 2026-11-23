@@ -92,14 +92,16 @@ The differential needs re-taking per caller, as PR 7294 did for the router.
 - (a) `replace_face`'s two hand-offs to `derive_edge`, then to `offset_derive::section_of` and `section_closed`: every pose reading there is of a datum with no point of its own, a datum of the whole span.
   - These are `plane_plane`'s `offset_section_planes_parallel` (the cross product of two normals), the cone's coaxial guards (the axes' tilt) and the torus's axis fork. Each claim is over the old edge's whole span, so out of class.
   - The spline lanes `plane_wall_section` / `pair_section` size a domain and a tube by it (PR 7628's ground).
-- (b) `sweep` `blend/battery.rs` `extent_of` is stored in `Link::arm_len` and read by `chain_g1` at the shared vertex, where its Zero is acted on (the junction accepted G1). It is the bound from below where the one from above is owed, and a diameter where the reach from the vertex is owed. It is a record: added to `work/band/blend-battery-levers-a-chains-g1-from-below.md`.
+- (b) `sweep` `blend/battery.rs` `extent_of` is stored in `Link::arm_len` and was read by `chain_g1` at the shared vertex, where its Zero is acted on (the junction accepted G1). It was the bound from below where the one from above is owed, and a diameter where the reach from the vertex is owed.
+  - `chain_turns` now reads each link's reach from the junction from above (`junction_arm`).
+  - `cap_transverse`'s read of the stored field is left, as a record (`work/band/blend-battery-levers-a-chains-g1-from-below.md`).
 - (c) The "region read from a pivot" list. Each pivot is the read point, except `boolean/trace.rs` `ray_crossings_to`. Its crossing sense, read at each crossing, was levered from the ray's start over the whole run, so `circle_crossings_to` and `circle_crossings` (a pivot-free arc or circle ball radius) are the same shape. `props/curved.rs` is geom-brep's.
 
-**Converted by this unit:** `line_cone_read`; `analytic_root` and its consumers' `Incident.extent`, whose analytic arm now carries the span; `IsoPiece::reach`; the three `trace.rs` crossing readers.
+**Converted by this unit:** `line_cone_read`; `chain_turns`' G1 arm (`junction_arm`); `analytic_root` and its consumers' `Incident.extent`, whose analytic arm now carries the span; `IsoPiece::reach`; the three `trace.rs` crossing readers.
 
 **Left, in class:**
 
-- The spline lanes' per-sample levers, where the read point is made inside the lane from one lever handed in. These are `certify.rs`'s residual × NURBS lane, `edge_nurbs.rs`'s tube, `boundary_section` (`plane_spline_root`, `level_row`), and `contact_verify`'s tangent schedule (from above, sound but loose).
+- The spline lanes' per-sample levers, filed as `work/oneround/spline-lanes-lever-their-per-sample-reads-at-the-spans-diameter.md`, where the read point is made inside the lane from one lever handed in. These are `certify.rs`'s residual × NURBS lane, `edge_nurbs.rs`'s tube, `boundary_section` (`plane_spline_root`, `level_row`), and `contact_verify`'s tangent schedule (from above, sound but loose).
 - Found by this unit's second sweep, on pivot-free region measures:
   - `curve_pair/pose.rs` `conic_conic`. `arm` is the larger of the two whole carriers' ball radii. It levers `polish::bound`'s basin at the polished pair, and only a Positive goes on. On a short arc the whole carrier's radius can pass the span's reach from the pair, so it is not a bound from below. The read point is made inside the polish.
   - `pair_section/spline_implicit.rs` `ray_at`. The end tangent's lead at a node, whose definite sign names the ray, is levered at `pose.ball().certified_diameter()`, a bound from above.
