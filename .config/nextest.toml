@@ -290,8 +290,26 @@ failure-output = "immediate-final"
 # run 45073621726):
 #    0.61 s  sweep::all pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab
 #    0.51 s  sweep::all pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune
+# The loft's collapsed-side walls, nine bodies meshed at three δ down to
+# 1e-3, a pinned wall's side against its unpinned twin's strut at three
+# δ, the lune's two sides at 1e-3, the v-degree-2 wall at two δ, the
+# wedge restated an ulp against itself at three δ, and the class's digest
+# at 1e-2 (a local run at the gate's build):
+#    6.03 s  mesh trimmed::collapsed_rows::every_collapsed_side_the_loft_builds_meshes_at_a_fine_chordal
+#    0.57 s  mesh trimmed::collapsed_rows::a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded
+#    0.95 s  mesh trimmed::collapsed_rows::a_lune_walks_both_its_collapsed_sides
+#    0.33 s  mesh trimmed::collapsed_rows::the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked
+#    0.37 s  mesh trimmed::collapsed_rows::a_vertex_in_a_sides_band_is_on_it_and_meshes_as_the_vertex_on_its_point
+#    2.53 s  mesh trimmed::collapsed_rows::the_class_meshes_to_one_digest_at_every_eps
+# The D9 goldens, which this change edits (two bodies with a collapsed side
+# join the corpus; 1.48 s and 1.58 s before, 1.91 s and 2.12 s after, the
+# same local run):
+#    1.91 s  mesh::all d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest
+#    2.12 s  mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
 default-filter = """
 not (
+  (binary_id(mesh::all) & (test(=d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest) | test(=d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads))) |
+  (binary_id(mesh) & (test(=trimmed::collapsed_rows::every_collapsed_side_the_loft_builds_meshes_at_a_fine_chordal) | test(=trimmed::collapsed_rows::a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded) | test(=trimmed::collapsed_rows::a_lune_walks_both_its_collapsed_sides) | test(=trimmed::collapsed_rows::the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked) | test(=trimmed::collapsed_rows::a_vertex_in_a_sides_band_is_on_it_and_meshes_as_the_vertex_on_its_point) | test(=trimmed::collapsed_rows::the_class_meshes_to_one_digest_at_every_eps))) |
   (binary_id(editor-core::all) & (test(=a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_across_the_corpus_quiets_its_row_part_0) | test(=a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_across_the_corpus_quiets_its_row_part_1) | test(=a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_across_the_corpus_quiets_its_row_part_2) | test(=a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_across_the_corpus_quiets_its_row_part_3) | test(=a_check_carries_the_assertion_that_quiets_it::the_laws_rosters_name_corpus_documents) | test(=a_check_carries_the_assertion_that_quiets_it::a_row_between_two_members_carries_no_assertion) | test(=a_check_carries_the_assertion_that_quiets_it::a_family_members_row_carries_the_assertion_that_reaches_its_index) | test(=a_check_carries_the_assertion_that_quiets_it::two_families_on_one_index_carry_the_assertion_over_both) | test(=a_check_carries_the_assertion_that_quiets_it::a_partly_resting_family_carries_no_assertion) | test(=atrest_operation_rows_quiet::a_splits_unnamed_tool_is_named_by_a_free_name) | test(=intent_s5_c_quietable::an_overlap_a_familys_copy_bounds_carries_the_familys_gap) | test(=atrest_operation_rows_quiet::a_split_by_a_repeated_tool_carries_its_claim) | test(=a_check_carries_the_assertion_that_quiets_it::the_law_holds_over_steps_stacks_and_unrelated_indices))) |
   (binary_id(editor-core::all) & test(=the_tours_die_with_two_pips_run_together_refuses_their_turned_seam::each_pip_moved_into_its_neighbour_refuses_at_the_unions_turned_seam)) |
   (binary_id(sweep::all) & (test(=the_nary_door_reads_a_re_charted_accumulation_through_its_shell::a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form) | test(=the_nary_door_reads_a_re_charted_accumulation_through_its_shell::a_verdict_on_a_turned_member_face_reaches_the_next_step))) |
