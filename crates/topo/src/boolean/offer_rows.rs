@@ -2830,8 +2830,20 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
     (
         "reduce.rs",
-        "junction_window",
+        "junction_end_window",
         "BooleanDecision::JunctionEndOrder",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "junction_end_window",
+        "BooleanDecision::JunctionEndSide",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "junction_window",
+        "BooleanDecision::JunctionEndOnRim",
         1,
     ),
     ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),

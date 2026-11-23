@@ -232,14 +232,16 @@ fn refusal<'j>(j: &'j Joined, what: &str) -> &'j topo::BooleanError {
 }
 
 /// A pose bent away passes the crossing layer and stops at the finish,
-/// on the seams' stand-in descriptions.
+/// on the seams' descriptions: a construction's stand-in left on them, or
+/// (off the neutral alignment) one the tangency lane does not certify.
 #[track_caller]
 fn stops_at_the_finish(j: &Joined, what: &str) {
     let e = refusal(j, what);
     let said = format!("{e:?}");
     assert!(
-        matches!(e, topo::BooleanError::ResultInvalid { .. }) && said.contains("ScaffoldAtRest"),
-        "{what}: past the crossing layer, at the finish's stand-in edges: {said}"
+        matches!(e, topo::BooleanError::ResultInvalid { .. }) && said.contains("ScaffoldAtRest")
+            || matches!(e, topo::BooleanError::EdgeUndescribed { .. }),
+        "{what}: past the crossing layer, at the finish's seam descriptions: {said}"
     );
 }
 

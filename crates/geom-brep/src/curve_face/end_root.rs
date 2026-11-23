@@ -74,9 +74,6 @@ pub struct EndWindow<T> {
     /// How far from the end, in metres along the carrier at most, the
     /// roots the dropped terms can move may lie.
     pub spread: T,
-    /// The dropped terms' charge at the spread, in metres: how far the
-    /// carrier may stand from the surface there.
-    pub charge: T,
 }
 
 /// Why the door read no window.
@@ -419,7 +416,6 @@ pub fn end_window<T: Decide>(
                     whole,
                     order: u32::try_from(m).unwrap_or(u32::MAX),
                     spread: hi * local.speed,
-                    charge: abs_terms(&charge, 0..m, hi) / g,
                 });
             }
             Ok(Sign::Zero) => {}
@@ -651,12 +647,6 @@ mod rows {
             (w.spread - hi).abs() <= 1e-6 * hi,
             "spread {} against {hi}",
             w.spread
-        );
-        assert!(
-            (w.charge - charge(hi) / g).abs() <= 1e-6 * charge(hi) / g,
-            "charge {} against {}",
-            w.charge,
-            charge(hi) / g
         );
     }
 

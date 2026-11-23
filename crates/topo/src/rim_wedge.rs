@@ -507,9 +507,23 @@ pub(crate) fn touch<T: Decide>(
 /// `lo = hi`, where the two faces' riding edges abut; and the sign A's
 /// riding half-edge runs it with against the rim's tangent. B's runs it
 /// the other way.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(crate) struct Touch<T: Real> {
     pieces: Vec<(T, T, geom_core::Sign)>,
+}
+
+impl<T: Real> Touch<T> {
+    /// A touch of these pieces, for the rows that read one.
+    #[cfg(test)]
+    pub(crate) fn of(pieces: Vec<(T, T, geom_core::Sign)>) -> Self {
+        Self { pieces }
+    }
+}
+
+impl<T: Real> Default for Touch<T> {
+    fn default() -> Self {
+        Self { pieces: Vec::new() }
+    }
 }
 
 impl<T: Decide> Touch<T> {

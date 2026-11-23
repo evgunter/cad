@@ -1328,7 +1328,7 @@ impl<T: Real> Glue<T> {
 /// **What the glue door decided of a pair it glued**, per class, which
 /// the declaration door records ([`verify_glued_contacts`]): a pair is
 /// decided once.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Glued<T: Real> {
     /// One carrier ([`carrier_pair::carrier_pair_decided`]): its
     /// orientation, never `Distinct` ([`GluedPair::one_carrier`]), and the
@@ -1350,7 +1350,7 @@ enum Glued<T: Real> {
 
 /// Where a glued pair's decision comes from: the glue door, or the fold
 /// step's given verdict. The class is the decision's.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Origin<T: Real> {
     /// The glue door decided it.
     Decided(Glued<T>),
@@ -1366,7 +1366,7 @@ enum Origin<T: Real> {
 /// operation decided, or one an n-ary union's fold step was given
 /// ([`GlueVerdict::decision`]). Its class is its decision's
 /// ([`Self::class`]).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct GluedPair<T: Real = f64> {
     /// The A-operand face.
     pub(crate) a: FaceKey,
@@ -1429,8 +1429,8 @@ impl<T: Real> GluedPair<T> {
 
     /// What the glue door decided; none for a given pair.
     fn decided(&self) -> Option<Glued<T>> {
-        match self.origin {
-            Origin::Decided(glued) => Some(glued),
+        match &self.origin {
+            Origin::Decided(glued) => Some(glued.clone()),
             _ => None,
         }
     }
@@ -3105,9 +3105,11 @@ pub enum BooleanError {
     /// **An edge of `operand` ends on a rim its face and `face` both end
     /// on, glued a smooth junction, and the end's touch with `face`'s
     /// carrier is not read**: the carrier and the surface have no lane
-    /// that factors the end's root (`geom_brep::curve_face::end_root`), or
+    /// that factors the end's root (`geom_brep::curve_face::end_root`),
     /// no window past it holds the root's order against the rest of the
-    /// span. The parts meet there by construction, so no move settles it.
+    /// span or the edge's side of the rim over it, or the edge is closed.
+    /// The parts meet there by construction; what a move can do is the
+    /// gap's sentence.
     ///
     /// A limit: the end's lane not built (row 2).
     JunctionEndUnread {
@@ -5538,8 +5540,20 @@ impl BooleanError {
                 f,
                 "an edge of the {} operand ends on a rim where its face and a face of the other \
                  join smoothly, and the Boolean cannot find a stretch past its end where the \
-                 edge clearly leaves the other face's surface. There is no way through this in \
-                 the kernel yet",
+                 edge clearly leaves the other face's surface. Turning the parts so the edge \
+                 leaves the rim more steeply, or ends farther from where the two faces curve \
+                 alike across it, may let it through",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::Closed,
+                ..
+            } => write!(
+                f,
+                "a closed edge of the {} operand runs through a rim where its face and a face of \
+                 the other join smoothly, and the Boolean cannot yet read past an end that is \
+                 both of its ends. There is no way through this in the kernel yet",
                 operand_word(*operand),
             ),
             Self::CurvedPierceUnsupported { operand, .. } => write!(
@@ -8138,9 +8152,12 @@ pub enum JunctionEndGap {
         /// The face's surface.
         surface: geom::SurfaceKind,
     },
-    /// No window past the end holds its root's order, or none ends
-    /// clear of the surface.
+    /// No window past the end holds its root's order, none ends clear of
+    /// the surface, or the edge does not hold its own face's side of the
+    /// rim over the window's spread.
     Window,
+    /// The edge is closed, both its ends at the one point on the rim.
+    Closed,
 }
 
 /// What the door's tangency check certified of a pair.
@@ -8165,7 +8182,7 @@ pub(crate) struct Tangency<T: Real> {
 /// kinds, which the cover reads, and the rim the junction was certified
 /// over, which its sector readers place their sites on
 /// ([`GluedPairs::junction_at`]).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(in crate::boolean) struct JunctionCert<T: Real> {
     /// The two carriers' kinds, A's first.
     pub(in crate::boolean) kinds: (geom::SurfaceKind, geom::SurfaceKind),
@@ -8409,7 +8426,7 @@ fn glued_face<T: Real>(
 /// **What the glue door glues of two distinct carriers**
 /// ([`verify_distinct`]): a tangency the table certified along its
 /// locus, or a junction on a rim both faces end on.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(in crate::boolean) enum DistinctGlue<T: Real> {
     /// C4's `Tangent`: the pair touches along the locus it was read on.
     Tangent(Tangency<T>),
@@ -8427,7 +8444,7 @@ pub(in crate::boolean) enum DistinctGlue<T: Real> {
 /// material, which its convex edge closes below π. What it owes is the
 /// rim's identity and that wedge, decided once over the whole rim; it
 /// claims no touch along a locus, and no reader of a tangency reads it.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(in crate::boolean) struct GluedJunction<T: Real> {
     /// The two carriers' kinds, A's first.
     pub(in crate::boolean) kinds: (geom::SurfaceKind, geom::SurfaceKind),
