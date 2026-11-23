@@ -1,0 +1,23 @@
+== run P: asks 40110, tests 580
+  per-ask totals {'calls': 28635252, 'crease_calls': 19988132, 'flips': 250043, 'crease_final': 297407, 'fold_diff': 4313}
+  item3 flips (cmut & !c7329): 253496 cell pairs, 1027 test/face pairs, 240 tests
+  far-side gap distribution {'>=1e-3': 114055, '<zero 1e-9': 1643, '<0 (reaches the other side)': 4994, '<1e-6': 79417, '<1e-3': 52633, '0': 6} no gap read 748
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=6/40 base=split arm=Some(2.6784705704491376) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=7/40 base=split arm=Some(2.6784705704491376) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=6/40 base=split arm=Some(2.6784705704491376) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=7/40 base=split arm=Some(2.6784705704491376) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=6/40 base=split arm=Some(2.6784705694424304) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=7/40 base=split arm=Some(2.6784705694424304) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=6/40 base=split arm=Some(2.6784705694424304) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=7/40 base=split arm=Some(2.6784705694424304) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=6/40 base=split arm=Some(2.6784705684357233) fold=Some(1.0)
+   gap=-7.959e+32 a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_ FaceKey(2v1)/FaceKey(8v3) edges=[EdgeKey(11v1)] depth=7/40 base=split arm=Some(2.6784705684357233) fold=Some(1.0)
+  WMF face pairs asked alone: 2394
+   (pr7329, mutant) verdict pairs {('Embedded', 'Embedded'): 2210, ('Refused', 'Refused'): 171, ('Refused', 'Embedded'): 13}
+  item4 crease cell pairs refused for good: 297886 (Counter({'split@budget': 294098, 'refuse': 3788})) in 447 tests
+  item4 sum test {'with bisector': 28114, 'with conic plane': 250, 'no plane read': 269522, 'both alone but same side': 19190, 'bis: sum clears, not both alone': 16}
+  item4 presentations (x|y) at those cell pairs [('local|local', 95184), ('structural|of:curve', 70835), ('structural|local', 39248), ('of:side|of:side', 25914), ('of:curve|structural', 22521), ('of:side|structural', 15022), ('local|of:side', 10043), ('structural|of:side', 5844)]
+  item4 flips among them (sign alone would certify) 279
+  item5 cell pairs whose verdict differs reach vs fold: 4313; c7329 cert & fold not: 4313; fold cert & 7329 not: 0; tests 61
+  item5 edges (test,edge key distinct) {'edges': 33809, 'differ>2x': 7869, 'class Crease': 28151, 'class Seam': 5461, 'class InBand': 192, 'class End': 5}
+  item5 edges with a differing cell verdict: 594; of them in differ>2x: 53

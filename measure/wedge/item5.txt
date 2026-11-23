@@ -1,0 +1,12 @@
+item5 edges per ask, distinct (test,key,kinds,reach,fold): 210058 {'within 2x': 175260, 'reach>2*fold': 33581, 'fold NaN': 1217}
+cell pairs whose verdict differs (all: 7329 certifies, fold does not): 4313 fold NaN: 4185 fold finite: 128
+ finite-fold rows by reach/fold: {'2-10x': 28, '<=2x': 11, '>100x': 10, '10-100x': 79} ; distinct edges: 27 of them >2x: 23
+    77 fillet_h5_hostless_rim_interval::the_hostless_rim_carves_at_the_certif [EdgeKey(16v1)] reach 1.795963437 fold 0.05
+    8 review_contact_edge_must_carry_r1_probes::r1_a_sphere_supported_rim_in [EdgeKey(2v5)] reach 3.35e-07 fold 6.3e-08
+    4 bisector_nodes::a_single_cap_just_past_the_band_builds_as_the_parting_ [EdgeKey(15v3)] reach 3.35832825 fold 1.0
+    4 bisector_nodes::a_single_cap_just_past_the_band_builds_as_the_parting_ [EdgeKey(28v1)] reach 1.854108455 fold 1.0
+    4 bisector_nodes::a_single_cap_just_past_the_band_builds_as_the_parting_ [EdgeKey(15v3)] reach 1.854108455 fold 1.0
+    2 pocket_wall_crossing_a_side_face::a_pocket_whose_wall_crosses_a_side_f [EdgeKey(5v1)] reach 1.399377565 fold 0.5
+    2 pocket_wall_crossing_a_side_face::a_pocket_whose_wall_crosses_a_side_f [EdgeKey(1v1)] reach 1.399377565 fold 0.5
+    2 pocket_wall_crossing_a_side_face::a_pocket_whose_wall_crosses_a_side_f [EdgeKey(5v1)] reach 2.236045617 fold 0.5
+ NaN-fold rows by test: [('pinned_corners_at_the_loft_door::an_elbow_builds_from_every_spelling', 2654), ('bool6r1_probes::the_straddle_set_builds_and_the_sampling_wall_refuses', 216), ('spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong', 156), ('a_swept_cusp_is_legal_at_rest::a_loft_whose_sections_disagree_passes_with_the_seam_unjudged_by_kind', 98)]

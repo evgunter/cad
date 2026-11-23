@@ -1,0 +1,39 @@
+negatives 1926 of which > -1e-8: 104  > -1e-3: 1010  < -1: 453
+ten smallest non-negative far-side gaps (M run):
+  -0.000e+00 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(11v3) [EdgeKey(16v1)] d=11/40 arm=1.79 fold=0.6 | pres=of:curve|local | pair alone: 7329=Embedded mut=Embedded
+  -0.000e+00 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(11v3) [EdgeKey(16v1)] d=11/40 arm=1.79 fold=0.6 | pres=of:curve|local | pair alone: 7329=Embedded mut=Embedded
+  -0.000e+00 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(11v3) [EdgeKey(16v1)] d=11/40 arm=1.79 fold=0.6 | pres=of:curve|of:curve | pair alone: 7329=Embedded mut=Embedded
+  -0.000e+00 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(11v3) [EdgeKey(16v1)] d=11/40 arm=1.79 fold=0.6 | pres=of:curve|local | pair alone: 7329=Embedded mut=Embedded
+  -0.000e+00 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(11v3) [EdgeKey(16v1)] d=11/40 arm=1.79 fold=0.6 | pres=of:curve|local | pair alone: 7329=Embedded mut=Embedded
+  -0.000e+00 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(11v3) [EdgeKey(16v1)] d=11/40 arm=1.79 fold=0.6 | pres=of:curve|of:curve | pair alone: 7329=Embedded mut=Embedded
+  1.474e-19 | reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_ | FaceKey(1v1)/FaceKey(3v1) [EdgeKey(7v1)] d=6/40 arm=0.00148 fold=0.00125 | pres=local|of:side | pair alone: 7329=Embedded mut=Embedded
+  1.474e-19 | reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_ | FaceKey(1v1)/FaceKey(3v1) [EdgeKey(7v1)] d=6/40 arm=0.00148 fold=0.00125 | pres=local|of:side | pair alone: 7329=Embedded mut=Embedded
+  1.474e-19 | reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_ | FaceKey(1v1)/FaceKey(3v1) [EdgeKey(7v1)] d=6/40 arm=0.00148 fold=0.00125 | pres=local|of:side | pair alone: 7329=Embedded mut=Embedded
+  1.474e-19 | reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_ | FaceKey(1v1)/FaceKey(3v1) [EdgeKey(7v1)] d=6/40 arm=0.00148 fold=0.00125 | pres=local|of:side | pair alone: 7329=Embedded mut=Embedded
+ten smallest |negative| (enclosure reaching the other side):
+  -7.607e-19 | reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_ | FaceKey(1v1)/FaceKey(3v1) [EdgeKey(7v1)] d=8/40 | pres=of:curve|of:side | alone 7329=Embedded mut=Embedded
+  -7.607e-19 | reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_ | FaceKey(1v1)/FaceKey(3v1) [EdgeKey(7v1)] d=8/40 | pres=local|of:side | alone 7329=Embedded mut=Embedded
+  -7.607e-19 | reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_ | FaceKey(1v1)/FaceKey(3v1) [EdgeKey(7v1)] d=8/40 | pres=of:curve|of:side | alone 7329=Embedded mut=Embedded
+  -7.607e-19 | reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_ | FaceKey(1v1)/FaceKey(3v1) [EdgeKey(7v1)] d=8/40 | pres=local|of:side | alone 7329=Embedded mut=Embedded
+  -4.337e-18 | a_plane_moved_to_a_cone_apex::a_cap_moved_off_a_needle_apex_refuses_the_ | FaceKey(2v1)/FaceKey(4v1) [EdgeKey(3v1)] d=0/40 | pres=local|of:side | alone 7329=Refused mut=Embedded
+  -6.939e-18 | a_plane_moved_to_a_cone_apex::a_cap_moved_off_a_needle_apex_refuses_the_ | FaceKey(1v1)/FaceKey(4v1) [EdgeKey(6v1)] d=0/40 | pres=local|of:side | alone 7329=Refused mut=Embedded
+  -1.457e-16 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(10v1) [EdgeKey(16v1)] d=11/40 | pres=of:curve|of:curve | alone 7329=Embedded mut=Embedded
+  -1.457e-16 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(10v1) [EdgeKey(16v1)] d=11/40 | pres=of:curve|of:curve | alone 7329=Embedded mut=Embedded
+  -1.457e-16 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(10v1) [EdgeKey(16v1)] d=11/40 | pres=of:curve|of:curve | alone 7329=Embedded mut=Embedded
+  -1.457e-16 | review_5956_r1_probes::r1_a_cone_on_a_cylinder | FaceKey(3v1)/FaceKey(10v1) [EdgeKey(16v1)] d=11/40 | pres=of:curve|of:curve | alone 7329=Embedded mut=Embedded
+flip face pairs (test,a,b): 1027 alone verdicts (7329,mutant): {('Embedded', 'Embedded'): 891, ('Refused', 'Refused'): 130, ('Refused', 'Embedded'): 6}
+   differ: germ_plane_torus_frame::a_band_pose_under_the_tubes_top_reaches_the_donuts_door FaceKey(4v1) FaceKey(8v3) | Refused(Budget(Pairs { max_cell_pairs: 65536 }))
+   differ: germ_plane_torus_frame::a_band_pose_under_the_tubes_top_reaches_the_donuts_door FaceKey(9v5) FaceKey(10v1) | Refused(Budget(Pairs { max_cell_pairs: 65536 }))
+   differ: a_plane_moved_to_a_cone_apex::a_cap_moved_off_a_needle_apex_refuses_the_hyperbol FaceKey(2v1) FaceKey(4v1) | Refused(Uncertified { a: FaceKey(2v1), b: FaceKey(4v1), shared: Edge(EdgeKey(3v1)), arm: Departure })
+   differ: a_plane_moved_to_a_cone_apex::a_cap_moved_off_a_needle_apex_refuses_the_hyperbol FaceKey(1v1) FaceKey(4v1) | Refused(Uncertified { a: FaceKey(1v1), b: FaceKey(4v1), shared: Edge(EdgeKey(6v1)), arm: Departure })
+   differ: bisector_nodes::a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary FaceKey(5v3) FaceKey(8v7) | Refused(Uncertified { a: FaceKey(5v3), b: FaceKey(8v7), shared: Edge(EdgeKey(21v1)), arm: Departure })
+   differ: bisector_nodes::a_seam_builds_from_twice_root_band_off_a_node FaceKey(3v1) FaceKey(9v3) | Refused(Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Edge(EdgeKey(31v1)), arm: Departure })
+tests whose top-level ask verdict sequence differs P vs M: 5
+   review_5956_r1_probes::r1_other_half_angles
+   a_plane_moved_to_a_cone_apex::a_cap_moved_off_a_frustum_wedge_apex_plans_its_wal
+   torus_region_probe::random_queries_read_the_truth
+   a_plane_moved_to_a_cone_apex::a_cap_moved_off_a_needle_apex_refuses_the_hyperbol
+   germ_plane_torus_chord::a_comb_across_a_torus_of_one_face_pair_builds_its_true_b
+M flip gap bins {'>=1e-3': 11044, '0..1e-9': 383, '<0': 1926, 'none': 162, '1e-6..1e-3': 3778, '1e-8..1e-6': 6}
+M flips by presentation [('of:side|of:side', 4681), ('of:side|local', 3938), ('local|of:side', 2541), ('of:side|of:curve', 1637), ('of:curve|of:curve', 1392), ('of:curve|local', 910)]
+M flips by base outcome Counter({'split': 17295, 'split@budget': 4})

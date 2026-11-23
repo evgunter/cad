@@ -1,0 +1,46 @@
+== run tP: asks 2067, tests 1
+  per-ask totals {'calls': 1909388, 'crease_calls': 696513, 'flips': 1595, 'crease_final': 58, 'fold_diff': 13580}
+  item3 flips (cmut & !c7329): 1595 cell pairs, 10 test/face pairs, 1 tests
+  far-side gap distribution {'<0 (reaches the other side)': 795, '>=1e-3': 800} no gap read 0
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+  WMF face pairs asked alone: 34
+   (pr7329, mutant) verdict pairs {('Embedded', 'Embedded'): 33, ('Refused', 'Refused'): 1}
+  item4 crease cell pairs refused for good: 58 (Counter({'refuse': 58})) in 1 tests
+  item4 sum test {'with bisector': 0, 'with conic plane': 0, 'no plane read': 58}
+  item4 presentations (x|y) at those cell pairs [('of:curve|structural', 32), ('structural|structural', 26)]
+  item4 flips among them (sign alone would certify) 0
+  item5 cell pairs whose verdict differs reach vs fold: 13580; c7329 cert & fold not: 13580; fold cert & 7329 not: 0; tests 1
+  item5 edges (test,edge key distinct) {'edges': 878, 'class Crease': 720, 'differ>2x': 189, 'class Seam': 158}
+  item5 edges with a differing cell verdict: 26; of them in differ>2x: 0
+== run tM: asks 2067, tests 1
+  per-ask totals {'calls': 1905080, 'crease_calls': 692205, 'flips': 110, 'crease_final': 58, 'fold_diff': 13580}
+  item3 flips (cmut & !c7329): 110 cell pairs, 10 test/face pairs, 1 tests
+  far-side gap distribution {'<0 (reaches the other side)': 46, '>=1e-3': 64} no gap read 0
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+   gap=-7.245e-01  FaceKey(10v1)/FaceKey(11v1) edges=[EdgeKey(23v1)] depth=7/40 base=split arm=Some(4.242640687119281) fold=Some(0.30000000000000004)
+  WMF face pairs asked alone: 34
+   (pr7329, mutant) verdict pairs {('Embedded', 'Embedded'): 33, ('Refused', 'Refused'): 1}
+  item4 crease cell pairs refused for good: 58 (Counter({'refuse': 58})) in 1 tests
+  item4 sum test {'with bisector': 0, 'with conic plane': 0, 'no plane read': 58}
+  item4 presentations (x|y) at those cell pairs [('of:curve|structural', 32), ('structural|structural', 26)]
+  item4 flips among them (sign alone would certify) 0
+  item5 cell pairs whose verdict differs reach vs fold: 13580; c7329 cert & fold not: 13580; fold cert & 7329 not: 0; tests 1
+  item5 edges (test,edge key distinct) {'edges': 878, 'class Crease': 720, 'differ>2x': 189, 'class Seam': 158}
+  item5 edges with a differing cell verdict: 26; of them in differ>2x: 0
