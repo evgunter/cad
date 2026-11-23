@@ -96,7 +96,7 @@ use std::collections::{BTreeMap, VecDeque};
 use geom::cover::{BoxAxes, Cover};
 use geom::{Curve3, Frame, Surface};
 use geom_core::k_stats::TestSite;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, RigidMotion, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, VertexKey};
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
@@ -1466,14 +1466,13 @@ fn circular_reach<T: Decide + Bounds>(
         dir: axis,
     });
     // A band of revolution about its own axis lies within `reach` of the
-    // circle through its spine point: that tube's cover.
-    let (lo, hi) = Cover::torus(
-        &Frame::new(center, a.get(), (circle - center).normalize()),
-        big,
-        reach,
-    )
-    .map(|c| c.box_in(&BoxAxes::World))
-    .ok_or_else(|| {
+    // circle through its spine point: that tube's cover, which reads the
+    // axis line alone, so any frame aimed along it places it.
+    let (lo, hi) = RigidMotion::aimed(center, a)
+        .ok()
+        .and_then(|aimed| Cover::torus(&Frame::of_motion(&aimed), big, reach))
+        .map(|c| c.box_in(&BoxAxes::World))
+        .ok_or_else(|| {
         disagrees(
             EntityId::Edge(link.edge),
             "a circular link's band is no finite tube about its axis",
@@ -2014,7 +2013,9 @@ fn mixed_corner_reach<T: Decide + Bounds>(
             // The region lies in the torus's convex hull, `ρ ≤ R + r`
             // about its axis and within `r` of its centre along it: its
             // box is that of the torus's cover.
-            let frame = Frame::new(q, axis.get(), (rests[0].1 - q).normalize());
+            let frame = surface.frame().ok_or_else(|| {
+                disagrees(EntityId::Vertex(v), "a mixed corner's fillet patch is not a torus")
+            })?;
             let (lo, hi) = Cover::torus(&frame, major, radius)
                 .map(|c| c.box_in(&BoxAxes::World))
                 .ok_or_else(|| {

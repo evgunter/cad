@@ -125,24 +125,7 @@ impl<T: Decide> AxisFrame<T> {
     ) -> Result<Self, RevolveError> {
         let dir = Self::sketch_direction(axis, band)?;
         let motion = plane.frame();
-        // The plane's frame turned onto the sketch radial `ê_r = (d.y,
-        // 0 − d.x)` ([`radial_of`]'s spelling, over the authored axis) has
-        // `u` the placed radial and `v` its left normal, the placed axis;
-        // the azimuthal frame keeps `u`, takes `w` that axis and `v = −w`
-        // of the plane, so `w = u × v` is the placed axis.
-        let Some(azimuth) = motion
-            .spun_toward(radial_of(axis.dir))
-            .with_signed_axes((0, false), (2, true))
-        else {
-            unreachable!("u and w are two axes")
-        };
-        Ok(Self::placed(
-            motion,
-            axis,
-            dir,
-            motion.turn(dir),
-            |origin3, _| geom::Frame::of_motion(&azimuth.with_origin(origin3)),
-        ))
+        Ok(Self::placed(motion, axis, dir, motion.turn(dir)))
     }
 
     /// [`Self::build`] over a placement the caller assembled, with the
@@ -163,9 +146,7 @@ impl<T: Decide> AxisFrame<T> {
         band: Band,
     ) -> Result<Self, RevolveError> {
         let dir = Self::sketch_direction(axis, band)?;
-        Ok(Self::placed(motion, axis, dir, turn_axis, |origin3, u3| {
-            geom::Frame::new(origin3, turn_axis.get(), u3)
-        }))
+        Ok(Self::placed(motion, axis, dir, turn_axis))
     }
 
     /// The sketch axis's direction, decided (the questions are
@@ -180,27 +161,35 @@ impl<T: Decide> AxisFrame<T> {
         })
     }
 
-    /// The frame from its decided parts.
-    /// `azimuth` mints the shared azimuthal frame from the placed axis
-    /// origin and radial `u3`.
+    /// The frame from its decided parts, its shared azimuthal frame the
+    /// placement turned onto the sketch radial, so both doors place it
+    /// one way.
     fn placed(
         motion: RigidMotion<T>,
         axis: &RevolveAxis<T>,
         dir: UnitVec3<T>,
         turn_axis: UnitVec3<T>,
-        azimuth: impl FnOnce(Point3<T>, Vec3<T>) -> geom::Frame<T>,
     ) -> Self {
         let place = motion.to_affine();
         let dir_sk = Vec2::new(dir.get().x, dir.get().y);
-        let e_r = radial_of(dir_sk);
         let origin3 = place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero()));
-        let u3 = place.linear * Vec3::new(e_r.x, e_r.y, T::zero());
+        // The placement turned onto the sketch radial `ê_r = (d.y,
+        // 0 − d.x)` ([`radial_of`]'s spelling, over the authored axis) has
+        // `u` the placed radial and `v` its left normal, the placed axis;
+        // the azimuthal frame keeps `u`, takes `w` that axis and `v = −w`
+        // of the plane, so `w = u × v` is the placed axis.
+        let Some(azimuth) = motion
+            .spun_toward(radial_of(axis.dir))
+            .with_signed_axes((0, false), (2, true))
+        else {
+            unreachable!("u and w are two axes")
+        };
         Self {
             origin_sk: axis.origin,
             dir_sk,
             place,
             motion,
-            azimuth: azimuth(origin3, u3),
+            azimuth: geom::Frame::of_motion(&azimuth.with_origin(origin3)),
             origin3,
             axis: turn_axis,
             reflected: false,
