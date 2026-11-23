@@ -154,3 +154,7 @@ Why now: `embed/wedge-measure`'s final count (`work/embed/log.md`, 23 Nov) puts 
 - `lift_probes::every_loop_of_a_door_built_curved_face…` on a torus body.
 
 **Found beside it:** `two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic` (a cap cut under a generic tilt refuses on its cut cap at f64) and `an-interval-cone-cut-refuses-at-its-caps-two-arcs-and-beside-its-rulings` (the cut cone is embedded at f64 and refuses at `Interval`).
+
+**Two sightings beside the 24** (same run):
+- `mesh::all lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes` (4.7 s) passes its cone body and now refuses on a TORUS body, plane against torus across a spiric: `Uncertified { a: 2v5, b: 3v1, shared: Edge(6v7) }`, `{ 3v1, 5v5, 6v7 }`, `{ 4v1, 8v5, 21v3 }`, the torus's row on each edge `pcurve=Spiric carrier=Spiric`; exits `beside_curve`'s unread corner (1,107) and unread edge (231), `zero_of` (1,959). A spiric image and a plane bounded by a spiric carrier are on this row's list; which of the two refuses first was not separated.
+- `mesh::all reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta` passes as a test with 72 asks `Embedded` and one `Budget { stop: Pairs { max_cell_pairs: 65536 }, a: 4v1, b: 7v3 }` (the gate log prints no kinds for it): a budget stop, the walk's (EMBEDWALK), not traced.

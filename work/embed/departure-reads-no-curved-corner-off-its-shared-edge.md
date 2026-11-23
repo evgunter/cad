@@ -995,3 +995,11 @@ asking on `embed/cone-image-measure` (`measure/cone-image/after-detail.txt`):
   `reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed`
   (280 exits at two-arc corners) and
   `reach_probes::a_cone_face_met_on_its_axis_meshes_at_every_delta` (126).
+
+Which row each is: the five vertex-alone corners are this row's first
+bullet AND `a-torus-or-cone-corner-at-a-vertex-alone-reads-no-quadrant`
+(the cone's quadrant reading is that row's fix); the two two-arc corners
+are this row's second bullet alone. Cheapest reproducers:
+`sweep::all a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families`
+(0.5 s) for the first, `sweep::all reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed`
+(20 s) for the second.

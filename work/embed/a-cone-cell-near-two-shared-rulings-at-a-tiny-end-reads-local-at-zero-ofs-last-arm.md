@@ -53,3 +53,11 @@ These four rows are unchanged by `embed/cone-image`
 4 tests of the census, valid bodies. Cheapest:
 `mesh::all winding_rows::the_cut_frustum_meshes_with_thin_triangles_resolved`
 (1.1 s).
+
+## 2026-11-23 — a fifth sighting once the section corner is read (`embed/cone-image`)
+
+`mesh::all reach_probes::a_needle_funnel_cut_at_its_apex_refuses_typed`
+(2.1 s) left the section-corner exit with `embed/cone-image` and now
+ends here: `Uncertified { a: 4v1, b: 6v1, shared: Edge(2v1), arm: Departure }`,
+1,739 `CVL zero_of` at the last arm and no curved exit left
+(`measure/cone-image/after-summary.txt` on `embed/cone-image-measure`).
