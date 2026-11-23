@@ -233,15 +233,11 @@ cases! {
         ball_beside_a_slab(1, -D);
 }
 
-/// The band every case's first raise runs at.
+/// The band every case's first raise runs at, at which
+/// `every_sphere_offer_passes_just_below_it` holds each quote to its
+/// margin's offer.
 fn design_band() -> Band {
-    Band::new(DESIGN_EPS, geom_core::tolerance::DEFAULT_K * DESIGN_EPS).unwrap()
-}
-
-/// Whether `got` is `want` to the precision a fixed pose's margin is
-/// computed to.
-fn near(got: f64, want: f64) -> bool {
-    (got - want).abs() <= 1e-4 * want.abs() + 1e-15
+    geom_core::test_support::default_k_band(DESIGN_EPS)
 }
 
 /// **Every sphere offer is true of its decision**, and the cases here
@@ -288,8 +284,15 @@ fn every_sphere_offer_passes_just_below_it() {
             .and_then(|(_, t)| t.split_whitespace().next())
             .and_then(|m| m.parse::<f64>().ok());
         let offered = test_utils::offer::offered_below(text);
-        if !quoted.is_none_or(|m| near(m, margin))
-            || !offered.is_some_and(|v| near(v, design_band().tolerance_deciding(margin)))
+        if !quoted.is_none_or(|m| test_utils::offer::near_margin(m, margin))
+            || !offered.is_some_and(|v| {
+                geom_core::test_support::is_offer_of_a_margin_within(
+                    design_band(),
+                    v,
+                    margin,
+                    test_utils::offer::margin_precision(margin),
+                )
+            })
         {
             false_offers.push(format!(
                 "{name}: quotes {quoted:?} and offers {offered:?}, computed margin {margin:e}: \

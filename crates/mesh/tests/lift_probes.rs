@@ -1801,17 +1801,15 @@ fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
         );
     }
     let want = [
-        ("common::cone (outer)", 0.0, -PI),
-        ("common::cone (outer)", 0.0, -PI),
-        ("the T1 cone (outer)", 0.0, -PI),
-        ("the T1 cone (outer)", 0.0, -PI),
-        ("the funnel (outer)", 0.0, PI),
-        ("the funnel (outer)", 0.0, PI),
+        // A full revolve's wall is one face reaching its apex or pole by
+        // one wrap edge: one whole turn there, where two half-bands took
+        // half a turn each.
+        ("common::cone (outer)", 0.0, -TAU),
+        ("the T1 cone (outer)", 0.0, -TAU),
+        ("the funnel (outer)", 0.0, TAU),
         ("common::cone_wedge(1, 1) (outer)", 0.0, -1.0),
-        ("common::ball (outer)", -FRAC_PI_2, PI),
-        ("common::ball (outer)", FRAC_PI_2, -PI),
-        ("common::ball (outer)", FRAC_PI_2, -PI),
-        ("common::ball (outer)", -FRAC_PI_2, PI),
+        ("common::ball (outer)", -FRAC_PI_2, TAU),
+        ("common::ball (outer)", FRAC_PI_2, -TAU),
         ("common::sphere_wedge(1) (outer)", FRAC_PI_2, -1.0),
         ("common::sphere_wedge(1) (outer)", -FRAC_PI_2, 1.0),
     ];

@@ -47,7 +47,7 @@ fn fnv(h: &mut u64, bytes: &[u8]) {
 
 /// The mesh's bytes (positions, then each patch's face and triangles), or
 /// the refusal's `Debug`.
-fn mesh_digest(body: &Body<f64>, delta: f64) -> u64 {
+pub(super) fn mesh_digest(body: &Body<f64>, delta: f64) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325;
     match mesh::tessellate(body, delta, Tol::witness()) {
         Ok(m) => {
@@ -271,6 +271,13 @@ fn a_section_tilted_within_the_band_meshes_to_its_pinned_bytes() {
 /// other decision the same in order and sign — and they were all a memo
 /// hit recorded, so a hit on those five now records nothing. The mesh is
 /// byte-identical on all nine bodies.
+///
+/// **One move, on the bodies a full revolve's curved wall makes.** The
+/// ball, the cone and the three balls less a slab are built with each
+/// curved wall one face reaching the axis by its wrap edge, where they
+/// were two half-bands: fewer faces and edges, so their K streams and
+/// bytes are re-pinned on that branch (PR 7414); every other row is
+/// main's unchanged.
 #[test]
 fn a_body_that_meshes_records_mains_k_stream() {
     const MAIN: [(&str, u64, u64, u64); 9] = [
@@ -288,15 +295,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball",
-            0x5aaf_8fe2_c8bd_5999,
+            0xd989_c8c2_2884_6a96,
             0xcbf2_9ce4_8422_2325,
-            0x8403_8e18_2870_7107,
+            0x82de_47f9_12c6_3b20,
         ),
         (
             "cone",
-            0x84b3_064b_95c6_8ad5,
+            0x1d69_ab23_9d29_0d1c,
             0xcbf2_9ce4_8422_2325,
-            0xee15_493c_99b8_730d,
+            0x66cc_0536_ee55_6c4c,
         ),
         (
             "donut",
@@ -306,9 +313,9 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball less a slab turned 0.3",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0xc7c8_23ba_ac8c_455f,
+            0x64f4_4265_6ecd_b1f0,
         ),
         (
             "pipe cut on a tilt",
@@ -318,15 +325,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0x8f44_f884_2b54_c898,
+            0xe74d_fd3b_9aee_4a4f,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0xbb9a_30df_a7b3_36b0,
+            0xda7f_9b6b_d4b3_4a4a,
         ),
     ];
     let corpus = k_corpus();
@@ -615,4 +622,58 @@ fn an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes() {
         0xac0a_86a0_1d7d_e5b0,
         "main's bytes"
     );
+}
+
+/// **A body whose ruled face has a split side records the walk's
+/// decisions.** Beside [`a_body_that_meshes_records_mains_k_stream`], on
+/// two bodies the route walks: a frustum wall turned a full turn (two cone
+/// faces), every line edge split at its middle, at δ 5e-2; the bored ball
+/// of `split_rulings` with its seam split at its middle, at δ 0.1, where
+/// the walk cuts. The walk adds one kind of decision to a run:
+/// **`chart_singularity_at_vertex`**, inside the route, once per singular
+/// point of the face's chart per vertex of its outer loop
+/// (`trimmed::walkable`, `chart_table::at_a_pole`). A cone has one, its
+/// apex, so the frustum's two faces of six vertices each add 12 of the
+/// run's 36 (the other 24 are the trimmed lane's own reads of its
+/// vertices, `trimmed::singular_vertices`); a cylinder has none, so the
+/// bore adds none. Its cuts record nothing: whether a face across can
+/// reach a side (`trimmed::may_make`) reads no band.
+///
+/// A memo hit records none of it: the route's decisions are spliced only
+/// where the lane runs. Each body's count, and its whole run's stream, are
+/// pinned.
+#[test]
+fn a_split_side_body_records_the_walks_decisions() {
+    use crate::split_rulings::{bored_ball, rulings, split_and_placed, turned};
+    let frustum = turned(
+        &[(1.0, 0.0), (3.0, 0.0), (2.0, 1.0), (1.5, 1.0)],
+        sweep::Revolution::Full,
+    );
+    let bore = bored_ball(1.0);
+    let rows = [
+        (
+            "a frustum wall",
+            &frustum,
+            5e-2,
+            36,
+            0xd351_00ba_acb8_3421_u64,
+        ),
+        ("the bored ball", &bore, 0.1, 0, 0xb042_5d70_935d_9752),
+    ];
+    for (name, body, delta, apex, stream) in rows {
+        let split = split_and_placed(body, &rulings(body), &[0.5]);
+        let bracket = Bracket::open();
+        let _ = mesh::tessellate(&split, delta, Tol::witness());
+        let recorded = bracket.finish();
+        let apexes = recorded
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == "chart_singularity_at_vertex")
+            .count();
+        assert_eq!(apexes, apex, "{name}: apex reads");
+        let got = k_digest(|| {
+            let _ = mesh::tessellate(&split, delta, Tol::witness());
+        });
+        assert_eq!(got, stream, "{name}: the run's K stream");
+    }
 }

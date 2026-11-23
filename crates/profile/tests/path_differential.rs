@@ -422,13 +422,16 @@ fn assert_validate_identically(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f6
         format!("{vd:?}"),
         "canonical validated forms"
     );
-    let units = |d: profile::SegmentDirections<f64>| match d {
-        profile::SegmentDirections::Line(d) => vec![d],
-        profile::SegmentDirections::Arc { start, end } => vec![start, end],
+    let units = |k: profile::SegmentKind<f64>| match k {
+        profile::SegmentKind::Line { director } => vec![director],
+        profile::SegmentKind::Arc {
+            radials: [start, end],
+            ..
+        } => vec![start, end],
     };
     for (la, lh) in va.loops().iter().zip(vh.loops()) {
         for (k, (sa, sh)) in la.segments().iter().zip(lh.segments()).enumerate() {
-            for (a, h) in units(sa.directions).into_iter().zip(units(sh.directions)) {
+            for (a, h) in units(sa.kind).into_iter().zip(units(sh.kind)) {
                 assert!(
                     (a - h).norm() < 1e-12,
                     "segment {k}'s directions: {a:?} vs {h:?}"
@@ -1358,7 +1361,7 @@ fn an_arc_carrier_arrival_refuses_carriers_that_never_meet() {
         .unwrap_err();
     assert!(
         matches!(
-            err,
+            err.refusal(),
             profile::PathError::NoCornerForFillet {
                 reason: profile::path::PathNoCornerReason::CarriersDoNotMeet,
                 ..

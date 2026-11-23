@@ -804,7 +804,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     };
 
     // ---- Mutation, on a clone. From here on every step is an Euler
-    // operator or a certified setter; refusals map to Op/Certify. ----
+    // operator or a certified setter; refusals map to Op/PcurveMint. ----
     // **The one snapshot.** Every face the surgery may NOT kill is a
     // face of the body it was handed, so the set is read once, here,
     // before the clone — not re-assembled per phase from whatever that
@@ -972,10 +972,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;
     }
-    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::Certify {
-        site: "pcurve re-mint after surgery",
-        source,
-    })?;
+    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::PcurveMint { source })?;
 
     body.close_already_checked();
     let mut body = blended;
@@ -1869,9 +1866,10 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   so the earlier carve leaves the later rim's plan nothing stale.
 ///   Identity is all that
 ///   moves: every decision stays the plan's (#935; the one-call result
-///   is pinned against the sequential composition, bit-equal on a
-///   shared WALL and to within a summation ulp on a shared PLANE —
-///   `blend_tworims::a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call`,
+///   is pinned against the sequential composition to within the
+///   integrator's summation order, on a shared WALL and on a shared
+///   PLANE —
+///   `blend_tworims::a_lantern_rim_pair_on_a_shared_wall_composes_in_one_call`,
 ///   `blend2_r2_probes::r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call`).
 /// - **A MIXED rim** carves beside a ladder or another mixed rim. Its
 ///   plan names the junction vertices and the rim arcs, which no other
@@ -2564,7 +2562,7 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
             (line.at(ta) - c).norm().max((line.at(tb) - c).norm()),
         )),
         Curve3::Ellipse(ref e) => {
-            let (d, major) = ((e.frame.origin() - c).norm(), geom::Conic::speed_hi(e));
+            let (d, major) = ((e.frame().origin() - c).norm(), geom::Conic::speed_hi(e));
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => carrier.as_circle().map(|k| k.arc_distance((ta, tb), c)),
@@ -2598,7 +2596,7 @@ pub(super) fn piece_along<T: Decide + Bounds>(
             Some((la.min(lb), la.max(lb)))
         }
         Curve3::Ellipse(ref e) => {
-            let f = e.frame;
+            let f = e.frame();
             let unit = geom::Circle::new(f, T::one());
             let (p, q) = geom::Conic::along(e, u);
             let lifted = f.u_ref() * p + f.v_ref() * q;
@@ -2670,7 +2668,7 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
     }
 
     fn arc_past(&self, t: T, q: Point3<T>) -> T {
-        self.frame.azimuth(q).near(t + T::pi()) - t
+        self.frame().azimuth(q).near(t + T::pi()) - t
     }
 
     /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
@@ -2692,8 +2690,8 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(ta) - c).norm(),
             (self.point_at(tb) - c).norm(),
         );
-        let (o, radius) = (self.frame.origin(), self.radius());
-        let axis = self.frame.axis_line();
+        let (o, radius) = (self.frame().origin(), self.radius());
+        let axis = self.frame().axis_line();
         let h = (axis.foot(c) - o).norm();
         let plane = axis.offset(c);
         let rho = plane.norm();
@@ -2731,9 +2729,9 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(ta) - c).dot(u),
             (self.point_at(tb) - c).dot(u),
         );
-        let (o, radius) = (self.frame.origin(), self.radius());
+        let (o, radius) = (self.frame().origin(), self.radius());
         let mid = (o - c).dot(u);
-        let plane = u - self.frame.axis() * u.dot(self.frame.axis());
+        let plane = u - self.frame().axis() * u.dot(self.frame().axis());
         let nu = plane.norm();
         let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
         if nu.lo() <= 0.0 {
@@ -3523,12 +3521,12 @@ impl<T: Decide + Bounds> StripLevel<T> {
             match body.get_surface(fd.surface) {
                 Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
                 Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
-                    let u = rim_circle.frame.axis();
+                    let u = rim_circle.frame().axis();
                     (
                         ci,
                         Some(u),
                         T::zero(),
-                        (rim_circle.frame.origin() - ci).dot(u),
+                        (rim_circle.frame().origin() - ci).dot(u),
                     )
                 }
                 Some(_) => {
@@ -3565,7 +3563,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 // as many equal pieces as keep each below it; a piece not
                 // read certainly below takes the whole circle.
                 Some(c) => {
-                    let o = c.frame.origin();
+                    let o = c.frame().origin();
                     for (ta, tb) in arc_pieces(t0, t1).unwrap_or_default() {
                         window.push(vec![
                             (o, rim_carrier.deriv(ta).normalize()),
@@ -3897,9 +3895,9 @@ impl<T: Decide + Bounds> StripLevel<T> {
         (o, u): (Point3<T>, Vec3<T>),
         band: Band,
     ) -> Vec<Clip<T>> {
-        let plane = u - c.frame.axis() * u.dot(c.frame.axis());
+        let plane = u - c.frame().axis() * u.dot(c.frame().axis());
         let reach = c.radius() * plane.norm();
-        let k = (c.frame.origin() - o).dot(u);
+        let k = (c.frame().origin() - o).dot(u);
         if windows.is_empty() || (k - reach).hi() >= 0.0 {
             return windows;
         }
@@ -3914,7 +3912,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
         let mut clipped = Vec::with_capacity(2 * windows.len());
         for clip in windows {
             let (lo, hi) = clip.window;
-            let phi = c.frame.azimuth(c.frame.origin() + plane).near(lo);
+            let phi = c.frame().azimuth(c.frame().origin() + plane).near(lo);
             let (c0, c1) = (phi - alpha, phi + alpha);
             #[allow(clippy::cast_possible_truncation)]
             let (first, last) = (
@@ -6366,10 +6364,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         },
         tol,
     )
-    // No split by refusal kind here any more: `EulerOpError` carries
-    // its own `Certification` arm, so the attachment gate's
-    // certification failure reaches the caller typed, inside the
-    // operator refusal that raised it.
+    // The attachment gate's certification failure reaches the caller
+    // typed, as the operator refusal's `DescriptionUncertified` arm.
     .map_err(|e| op("surgery contact edge", e))?;
     Ok(())
 }

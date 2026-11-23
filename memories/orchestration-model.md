@@ -168,6 +168,16 @@ Ev's standing instructions for implementation work:
   A render is `render.yml`'s own `render(<lane>)` commit, `[skip ci]` on
   a branch whose `[render]` commit is the green one. A commit that
   reaches code re-earns the gate.
+- **Merging is your judgement, and CI is a tool for it, not a ritual**
+  (Ev, 2026-11-22 and 2026-11-23). You can always merge when you think
+  that is right. A check still running, or still queued, is no reason
+  to wait where the risk is low. Examples: a straightforward conflict
+  with main, resolved; a head whose earlier hosted run was green and
+  has since gained only tests, text or a small reviewed change; a
+  reviewed PR whose jobs sit in an hours-long runner queue, once its
+  lane has run on that head what the gate would have, listed in the PR
+  body. Read the hosted run when it lands: a red in it that is the
+  PR's is a red main, and that lane fixes it first.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch, **LAST, after every review is delivered** (an experiment row

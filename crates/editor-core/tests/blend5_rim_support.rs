@@ -311,8 +311,12 @@ fn support_surface_key(body: &Body<f64>, e: EdgeKey) -> SurfaceKey {
 #[test]
 fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let doc = ProfileDoc::empty_derived("blend5_seam_split", Tol::witness());
-    // Both ends on the axis, so every wall is a pair of half-bands and
-    // every rim a pair of arcs (BLEND-1's lantern shape).
+    // Both ends on the axis (BLEND-1's lantern shape): every wall is one
+    // face and every rim one closed edge. The seam-split rim this row
+    // was written for (two arcs whose links disagree on slot order) has
+    // no revolve fixture now
+    // (`work/band/the-seam-split-rim-arms-have-no-native-fixture-once-a-full-revolve-is-one-band.md`);
+    // the host rule's planar preference is what it still discriminates.
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -379,8 +383,8 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     by_role.sort();
     assert_eq!(
         by_role.len(),
-        4,
-        "two arcs, one trimline per support each: {by_role:?}"
+        2,
+        "one closed rim, one trimline per support: {by_role:?}"
     );
     let hosts: Vec<SurfaceKey> = by_role
         .iter()
@@ -392,16 +396,8 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
         .filter(|(r, _)| *r == RimSupport::Mate)
         .map(|(_, k)| *k)
         .collect();
-    assert_eq!(hosts.len(), 2, "one host trim per arc: {by_role:?}");
-    assert_eq!(mates.len(), 2, "one mate trim per arc: {by_role:?}");
-    assert_eq!(
-        hosts[0], hosts[1],
-        "both arcs' HOST trims lie on one support surface: {by_role:?}"
-    );
-    assert_eq!(
-        mates[0], mates[1],
-        "both arcs' MATE trims lie on one support surface: {by_role:?}"
-    );
+    assert_eq!(hosts.len(), 1, "one host trim: {by_role:?}");
+    assert_eq!(mates.len(), 1, "one mate trim: {by_role:?}");
     assert_ne!(hosts[0], mates[0], "the two roles are two supports");
     // This rim HAS a planar support, so the host rule's third spelling
     // must prefer it — the half the slot re-test alone cannot give.

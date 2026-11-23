@@ -254,7 +254,9 @@ fn donut_torus_flips_refuse() {
 /// simply a different one.
 #[test]
 fn ball_half_flip_is_caught_at_the_shared_edge() {
-    let body = ball();
+    // The ball cut into two lunes: a full revolve's ball is one face.
+    let mut body = ball();
+    sweep::test_support::two_lunes(&mut body, Tol::witness());
     assert!(
         validate_geometric(&body, Tol::witness()).is_ok(),
         "honest ball green"

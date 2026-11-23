@@ -337,8 +337,9 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
     let body = body_of(&ev, shell);
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
-    // Outer: base, foot ×2, belly ×2; the rim; cavity: the same five.
-    assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
+    // Outer: base, foot, belly, each one face; the rim; cavity: the
+    // same three.
+    assert_eq!(body.faces().count(), 7, "3 outer + 1 rim + 3 cavity");
     let pot = d.doc.upstream(shell)[0];
     let table = ev.table_at(shell).expect("evaluated");
     let rim = shelled(
@@ -447,39 +448,6 @@ fn a_planar_void_designation_opens_and_its_rim_is_named_for_it() {
 // 3. The refusal families
 // ---------------------------------------------------------------
 
-/// The vessel's pot hollowed with `open` designated, standing nowhere:
-/// a shell the kernel refuses has no copy to place.
-fn unplaced_vessel(
-    open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>,
-) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = fixture::insert(
-        ProfileDoc::empty_derived("lib_g17_unplaced_vessel", Tol::witness()),
-        Node::Profile(editor_core::ProfileProgram {
-            loops: vec![vessel::meridian()],
-            ids: Vec::new(),
-            on: None,
-        }),
-    );
-    let (doc, pot) = fixture::insert(
-        doc,
-        fixture::revolve_about(
-            profile,
-            (0.0, 0.0),
-            fixture::along_y(),
-            fixture::ang(std::f64::consts::TAU),
-        ),
-    );
-    let open = open(&doc, pot);
-    fixture::insert(
-        doc,
-        Node::shell(
-            editor_core::Operand::output(pot, 0),
-            fixture::len(vessel::WALL),
-            open,
-        ),
-    )
-}
-
 /// The typed refusal a shell node produced at `f64`.
 fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
     let mut ev = evaluate::<f64>(
@@ -565,20 +533,42 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
          positive. Recourse: supply a positive thickness"
     );
 
-    // (d) half a chart: the belly is a sphere zone the revolve builds
-    // as two bands on one surface, and its piece names one of them, so
-    // the kernel's `OpenFaceChartPartial` names the band left behind.
-    let (doc, shell) = unplaced_vessel(|doc, pot| {
-        vec![
-            editor_core::band(pot, vessel::mouth(doc, pot)),
-            editor_core::band(pot, fixture::piece(doc, pot, 0, vessel::SEG_BELLY as usize)),
-        ]
-    });
+    // (d) half a chart: an extruded circle drawn as two arcs wears one
+    // cylinder on two lateral faces, and the designation names one of
+    // them, so the kernel's `OpenFaceChartPartial` names the face left
+    // behind. (A full revolve's wall is one face, the whole chart.)
+    let (doc, profile) = fixture::insert(
+        ProfileDoc::empty_derived("lib_g17_half_chart", Tol::witness()),
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 1.0).expect("a finite circle")],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, drum) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: fixture::len(1.0),
+        },
+    );
+    let wall = fixture::fname(
+        drum,
+        RoleSeg::Lateral(fixture::piece(&doc, drum, 0, 0).into()),
+    );
+    let (doc, shell) = fixture::insert(
+        doc,
+        Node::shell(
+            editor_core::Operand::output(drum, 0),
+            fixture::len(0.1),
+            vec![wall],
+        ),
+    );
     let e = refusal(&doc, shell);
     match &e {
         NodeErrorKind::Shell(inner) => match **inner {
             ShellError::OpenFaceChartPartial { .. } => {}
-            ref other => panic!("expected the half-chart gate on the belly, got {other:?}"),
+            ref other => panic!("expected the half-chart gate on the drum's wall, got {other:?}"),
         },
         other => panic!("expected the shell op's refusal, got {other:?}"),
     }
