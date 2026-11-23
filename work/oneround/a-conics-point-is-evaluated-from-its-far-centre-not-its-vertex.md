@@ -2,13 +2,14 @@
 id: a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex
 kind: issue
 title: A near-graze conic point is summed from its far centre, so its rounding is ~u·ρ; evaluated from the arc's vertex it is ~u·ρ·θ² and certifies the near-gap poses PR 6349 now refuses
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [6349, 6329]
 branch: oneround/anchored-conic
 parent: the-section-table-admits-a-curve-on-its-resolution
+closed: 2026-11-23
 ---
 
 From the delta review of PR 6349 (the conic frame unit), 2026-11-02.
@@ -166,3 +167,13 @@ from the vertex fixes only the chords of one carrier. The rows:
 
 **Not built.** The vertex chain was not landed: the stored form is
 what evaluates it, and it is a design question that leans on PR 7131.
+
+## Closed (2026-11-23, PR 7203)
+
+Answered by the placement family (Ev, PR 7258). A conic held on its
+arc is evaluated from its stored point and certifies the near-gap poses
+(40 of 40 in each of the four ellipse families at ρ = 1500); the cone's
+section is minted so. A conic built from a centre stays held at its
+centre and read from it, by decision: it refuses those poses typed and
+reads nothing wrong. The constructions that should hold their arc and
+do not yet are `a-construction-whose-centre-runs-off-still-stores-a-centre`.

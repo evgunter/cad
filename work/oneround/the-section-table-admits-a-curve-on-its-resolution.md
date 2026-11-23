@@ -2,14 +2,14 @@
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
 title: A conic is held about its centre or about a point of its arc, a family of two placements fixed by its construction
-status: dispatched
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: H
 branch: oneround/anchored-conic
 refs: [4812, 7194, 7258]
 pr: 7203
-design: true
+closed: 2026-11-23
 ---
 
 Part 2 of the design on
@@ -229,3 +229,30 @@ constructions whose centre runs off).
   phase to `([0, 1], [−1, 0])`, and the derived centre is then about a
   semi-axis wide, where an ellipse held at its centre keeps its centre
   exact through the same turn. Not probed.
+
+## Closed (2026-11-23, PR 7203)
+
+The design is decided (Ev, PR 7258: a conic is one of a family of two
+placements, fixed by its construction) and its first part is built: an
+ellipse is held at its centre or on its arc with its anchor's phase,
+privately in `crates/geom/src/curves/conic.rs`, and the cone's section
+holds its near vertex. A centre-held conic is unchanged to the bit.
+
+What is not built, each on its own row:
+
+- every reader that rebuilds or restates a conic from its centre goes
+  through the conic: `one-stored-form-waits-on-the-readers-of-a-conics-centre`;
+- the four constructions whose centre runs off and still store a
+  centre: `a-construction-whose-centre-runs-off-still-stores-a-centre`;
+- parameter zero at the stored point through a re-seam, and an anchor
+  at a general point of the arc:
+  `a-section-conic-is-anchored-at-a-general-point-of-its-arc`;
+- the resolution charge of an arc-held ellipse and its phase across an
+  `Interval` seam turn:
+  `an-arc-held-ellipse-is-charged-a-centre-held-ones-resolution-and-hulls-its-phase-across-an-interval-seam-turn`;
+- a sketch arc written by points:
+  `work/profile/a-sketch-arc-written-by-points-is-lowered-to-a-centre.md`;
+- the cone section's image built from its derived centre:
+  `work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`.
+
+How the unit went is `docs/model-compare-log/rows/PR-7203.md`.

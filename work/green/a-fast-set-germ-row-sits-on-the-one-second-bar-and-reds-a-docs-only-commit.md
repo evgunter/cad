@@ -64,3 +64,14 @@ The second run (44969619240, head `34a244086`) read the same row at
 1.347 s. PR 7120 moves it into the slow set with both times in
 `.config/nextest.toml`, as the gate's message prescribes, so its gate
 can conclude; making the row cheaper is its owner's.
+
+## Another sighting (2026-11-23, PR 7203, from the ONEROUND orchestrator)
+
+Run 45076908929: `test (kernel)`'s default-ε step went red on the bar
+alone, with no failing test: `sweep::all
+cert_m2r1_passes::m2r1_passes_interval` at 1.145 s against 1.0 s, an
+existing test the PR does not edit. The same step was green on the same
+code in run 45061549494. Timed locally, five runs each, alternating:
+the PR's head 2.936 s median, main at its merge base 2.885 s, inside a
+0.4 s spread. Hosted runners were queueing about an hour per stage that
+night. The PR merged with the red named.
