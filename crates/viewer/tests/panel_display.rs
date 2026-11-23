@@ -1361,13 +1361,19 @@ fn plate_reading_an_index(count: i64) -> (DocSession, RecipeNodeId) {
             name: VarName::new("k").expect("a name"),
             def: pncad::document::VarDecl::Index {
                 count: Formula::count(count),
-                within: None,
+                after: None,
             },
         },
         tol,
     )
     .expect("an index declares")
     .doc;
+    // The plate is the product, which a body reading `k` cannot be
+    // unless a binder yields it (D10 `[repetition]`); the row is the
+    // panel's, so the product is cleared first.
+    let doc = pncad::document::apply(&doc, &DocEdit::SetProduct { product: None }, tol)
+        .expect("the product clears")
+        .doc;
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: extrude,

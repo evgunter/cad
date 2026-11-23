@@ -464,7 +464,7 @@ fn a_piece_of_a_shown_union_is_hidden_by_its_toggle() {
     let (doc, union) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(a)),
                 BodyRead::plain(Operand::Node(b_beside)),
             ]),

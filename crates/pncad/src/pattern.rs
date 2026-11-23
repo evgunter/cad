@@ -1,11 +1,12 @@
 //! **Patterns are index variables** (D10 `[repetition]`): the programs
 //! a pattern writes, and the display-only reading of one back.
 //!
-//! A pattern is one placement whose values read an index `k = index(N)`:
-//! the placement is evaluated once per value of `k`, and its copy is a
-//! family of `N` members. The writers here author that program — the
-//! index's declaration and the placement — and nothing else; the
-//! document's doors decide it like any other edit. A row slides each
+//! A pattern is a binder around one placement whose values read its
+//! index `k`: the placement is evaluated once per value of `k`, and the
+//! binder yields its copy, a family of `N` members. The writers here
+//! author that program — the index's declaration, the placement and the
+//! yield ([`yields_edit`]) — and nothing else; the document's doors
+//! decide it like any other edit. A row slides each
 //! member `scalar(k)·pitch` along a target axis or a direction read
 //! off a body; a ring spins each member `scalar(k)·step` about an
 //! `Axis` mate's line or about an axis read in the target; a grid is two
@@ -37,8 +38,20 @@ pub fn index_decl(
         name,
         def: VarDecl::Index {
             count,
-            within: within.map(|w| Formula::named(w.clone(), Dimension::Count)),
+            after: within.map(|w| Formula::named(w.clone(), Dimension::Count)),
         },
+    }
+}
+
+/// **The edit naming what the binder `binder` yields** (D10
+/// `[repetition]`): its first index and the yields, whole and in order. A
+/// pattern writer yields its placement, so every reader outside the
+/// binder reads the copies as a family.
+#[must_use]
+pub fn yields_edit(binder: VarId, yields: &[VarId]) -> DocEdit<ProfileProgram> {
+    DocEdit::SetYields {
+        binder: binder.into(),
+        yields: yields.iter().map(|&y| y.into()).collect(),
     }
 }
 

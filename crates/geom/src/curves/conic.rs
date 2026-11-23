@@ -791,6 +791,32 @@ impl<T: Real> Ellipse<T> {
         }
     }
 
+    /// **The four statements of this ellipse's point set that its stored
+    /// numbers reach exactly**: itself; its seam a half turn on (`u_ref`
+    /// and an anchor's phase negated, `θ ↦ θ + π`); run back
+    /// ([`Self::reversed`], `θ ↦ −θ`); and both (`θ ↦ π − θ`). Each
+    /// negates stored numbers and rounds nothing, and the position
+    /// ([`Conic::point_at`]) of each is the others' at the parameter
+    /// named, as an identity in the stored numbers: `v_ref` is
+    /// `axis × u_ref`, which negates with either factor, and an anchor's
+    /// offsets `(cos θ − cos θ₀, sin θ − sin θ₀)` negate with the phase
+    /// component and the parameter's map together.
+    ///
+    /// A quarter turn is not among them. It would state `u_ref` as the
+    /// old `v_ref` and need `axis × (axis × u_ref)` to be `−u_ref`,
+    /// which holds of stored axes only where they are rigid to the bit;
+    /// [`Self::quarter_turned_where`] rounds, and its ellipse is another
+    /// statement a rounding from this one.
+    #[must_use]
+    pub fn restatements(&self) -> [Self; 4] {
+        let half = Self {
+            at: self.at.half_turned(),
+            held: self.held.with_phase(|(c0, s0)| (-c0, -s0)),
+            ..*self
+        };
+        [*self, half, self.reversed(), half.reversed()]
+    }
+
     /// **This ellipse at another scalar**: its placement as `frame`
     /// carries it, its semi-axes and an anchor's phase through `f`.
     pub fn map_scalar<U: Real>(
