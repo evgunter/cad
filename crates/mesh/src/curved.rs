@@ -344,6 +344,15 @@ pub(crate) fn tessellate_curved(
         meridian_interior,
     )?;
 
+    // PROBE: the correction's points, and the rounds it has run.
+    let mut extra: Vec<(f64, f64)> = Vec::new();
+    let mut cert_rounds = 0usize;
+    crate::cd_probe::note(|n| {
+        n.boundary = polygon.len();
+        n.family = format!("rect{}", if has_pole { "|singular" } else { "" });
+    });
+    let (interior, triangles, verdict) = loop {
+    crate::cd_probe::note(|n| n.passes += 1);
     // CDT: boundary entries (fixed walk order) + constraints + grid.
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
@@ -435,6 +444,18 @@ pub(crate) fn tessellate_curved(
             }
         }
     }
+    for &(u, v) in &extra {
+        let p = surface.eval(u, v);
+        #[allow(clippy::cast_possible_truncation)]
+        let id = PatchVertex::Local(interior.len() as u32);
+        let h = insert(&mut cdt, &mut meta, u, v, id, false)?;
+        if h.index() == meta.len() - 1 && meta[meta.len() - 1].2 == id {
+            interior.push(p);
+        }
+    }
+    crate::cd_probe::note(|n| n.points += meta.len());
+    let rule = crate::cd_probe::cfg().rule;
+    let mut refine: Vec<(f64, f64)> = Vec::new();
 
     // Emit: drop pole-degenerate triangles, certify the rest.
     let mut triangles = Vec::new();
@@ -457,9 +478,53 @@ pub(crate) fn tessellate_curved(
         let pole = [m[0].3, m[1].3, m[2].3];
         // A pole or apex entry has no azimuth (`crate::chart_table`).
         let (bound, scale) = row.cert(tri, uv, pole);
-        verdict.read(bound, tol.delta, scale, tol.eps);
+        if verdict.read(bound, tol.delta, scale, tol.eps) == cert::Verdict::Exceeded {
+            let free: Vec<usize> = (0..3)
+                .filter(|&k| !cdt.exists_constraint(vs[k].fix(), vs[(k + 1) % 3].fix()))
+                .collect();
+            let len = |k: usize| {
+                let (a, b) = (tri[k], tri[(k + 1) % 3]);
+                ((a.x - b.x).powi(2) + (a.y - b.y).powi(2) + (a.z - b.z).powi(2)).sqrt()
+            };
+            let widest = free.iter().copied().max_by(|&a, &b| len(a).total_cmp(&len(b)));
+            refine.push(match (rule, widest) {
+                (crate::cd_probe::Rule::Midpoint, Some(k)) => {
+                    let j = (k + 1) % 3;
+                    (
+                        f64::midpoint(uv[k][0], uv[j][0]),
+                        f64::midpoint(uv[k][1], uv[j][1]),
+                    )
+                }
+                _ => (
+                    (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
+                    (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
+                ),
+            });
+        }
         triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
     }
+    let probe = crate::cd_probe::cfg();
+    if cert_rounds == 0 {
+        crate::cd_probe::note(|n| n.over_first = refine.len());
+    }
+    crate::cd_probe::note(|n| n.worst = verdict.worst());
+    if probe.curved
+        && !refine.is_empty()
+        && !verdict.worst().is_nan()
+        && cert_rounds < probe.budget.unwrap_or(6)
+    {
+        let mut seen = std::collections::HashSet::new();
+        refine.retain(|&(u, v)| seen.insert((u.to_bits(), v.to_bits())));
+        crate::cd_probe::note(|n| {
+            n.added += refine.len();
+            n.cert_rounds += 1;
+        });
+        extra.extend(refine);
+        cert_rounds += 1;
+        continue;
+    }
+    break (interior, triangles, verdict);
+    };
 
     // D2 addendum row 5 (`DESIGN.md`: kernel bug detectable only by
     // re-derivation -> `debug_assert`). The pole-fan argument in the

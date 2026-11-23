@@ -433,7 +433,7 @@ pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
 /// route (`tessellate::Routes`).
 pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64 {
     if lane == Lane::Trimmed && surface.spline_chart().is_none() {
-        delta * UNPROVED_HEADROOM
+        delta * crate::cd_probe::factor(surface)
     } else {
         delta
     }
@@ -745,7 +745,19 @@ pub(crate) fn tessellate_trimmed(
     // shared-side and refinement points, each strictly inside a kept
     // triangle.
     let mut candidates = trimmed.lay(&lattice);
-    for attempt in 0..=last_attempt() {
+    crate::cd_probe::note(|n| {
+        n.boundary = polygon.points.len();
+        n.family = family_of(body, &polygon, &singular);
+    });
+    let (mut structural, mut cert_rounds) = (0usize, 0usize);
+    loop {
+        // Shared budget (today): one counter. Own budget: the fold and
+        // shared-side rebuilds count against `MAX_GRID_RETRIES`, the
+        // correction against its own.
+        let attempt = match crate::cd_probe::cfg().budget {
+            Some(_) => structural,
+            None => structural + cert_rounds,
+        };
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
         // that describe the mesh the face exits on, and every path out
@@ -755,12 +767,24 @@ pub(crate) fn tessellate_trimmed(
         measure = AttemptMeasure::fresh();
         match trimmed.attempt(
             attempt,
+            cert_rounds,
             &mut candidates,
             &mut dropped,
             &mut measure,
             &mut falsification,
         ) {
-            Ok(Next::Rebuild) => {}
+            Ok(Next::Rebuild(Cause::Certificate)) => {
+                cert_rounds += 1;
+                crate::cd_probe::note(|n| n.cert_rounds += 1);
+            }
+            Ok(Next::Rebuild(Cause::Fold)) => {
+                structural += 1;
+                crate::cd_probe::note(|n| n.fold_rounds += 1);
+            }
+            Ok(Next::Rebuild(Cause::SharedSide)) => {
+                structural += 1;
+                crate::cd_probe::note(|n| n.shared_rounds += 1);
+            }
             Ok(Next::Accept(patch)) => {
                 outcome = Some(Ok(patch));
                 break;
@@ -784,6 +808,7 @@ pub(crate) fn tessellate_trimmed(
     // the likeliest carrier of a violating sample there is. The other
     // columns describe the attempt the face exited on — for a refusal
     // that is the attempt that lost, which is the only mesh there was.
+    crate::cd_probe::note(|n| n.worst = measure.verdict.worst());
     if crate::budget::armed()
         && let (Some(stats), ChartRow::Spline { grid }) = (nurbs_stats, &row)
     {
@@ -875,9 +900,47 @@ impl AttemptMeasure {
 enum Next {
     /// Rebuild: a fold's lattice corners dropped, or a shared side's or a
     /// refinement's points appended.
-    Rebuild,
+    Rebuild(Cause),
     /// The attempt's patch, accepted.
     Accept(Patch),
+}
+
+/// Why an attempt asks for a rebuild.
+enum Cause {
+    Certificate,
+    Fold,
+    SharedSide,
+}
+
+/// The face's family for the probe's log: its rings, its boundary
+/// images' forms, and whether its loop passes a singular point.
+fn family_of(body: &Body<f64>, polygon: &TrimPolygon, singular: &HashSet<u32>) -> String {
+    let mut forms: Vec<&'static str> = Vec::new();
+    let mut seen: HashSet<EdgeKey> = HashSet::new();
+    for &ek in &polygon.edges {
+        if !seen.insert(ek) {
+            continue;
+        }
+        forms.push(match edge_carrier(body, ek) {
+            Ok(geom::Curve3::Line(..)) => "line",
+            Ok(geom::Curve3::Circle(..)) => "circle",
+            Ok(geom::Curve3::Ellipse(..)) => "ellipse",
+            Ok(_) => "other",
+            Err(_) => "?",
+        });
+    }
+    forms.sort_unstable();
+    forms.dedup();
+    format!(
+        "rings{}|{}{}",
+        polygon.ends.len() - 1,
+        forms.join("+"),
+        if polygon.points.iter().any(|p| singular.contains(&p.2)) {
+            "|singular"
+        } else {
+            ""
+        }
+    )
 }
 
 /// What every attempt on one face reads and none changes.
@@ -1044,12 +1107,17 @@ impl TrimmedFace<'_> {
     fn attempt(
         &self,
         attempt: usize,
+        cert_rounds: usize,
         candidates: &mut Vec<(f64, f64)>,
         dropped: &mut HashSet<usize>,
         measure: &mut AttemptMeasure,
         falsification: &mut Falsification,
     ) -> Result<Next, TessellateError> {
         let fk = self.fk;
+        crate::cd_probe::note(|n| {
+            n.passes += 1;
+            n.points += self.polygon.points.len() + candidates.len() - dropped.len();
+        });
         let mut at = self.insert_points(candidates, dropped)?;
         let crossings = self.constrain_boundary(&mut at)?;
         crate::region::require_a_region(fk, &crossings)?;
@@ -1091,7 +1159,7 @@ impl TrimmedFace<'_> {
                 return Err(TessellateError::UnclearedSharedSide { face: fk });
             }
             candidates.extend(shared_sides);
-            return Ok(Next::Rebuild);
+            return Ok(Next::Rebuild(Cause::SharedSide));
         }
         // THE WINDING CENSUS (every analytic arm): a triangle whose
         // normal points into the surface is folded over the chord beside
@@ -1107,7 +1175,7 @@ impl TrimmedFace<'_> {
                     return Err(TessellateError::FoldedTriangle { face: fk });
                 }
                 dropped.extend(grid);
-                return Ok(Next::Rebuild);
+                return Ok(Next::Rebuild(Cause::Fold));
             }
             _ => {}
         }
@@ -1122,9 +1190,24 @@ impl TrimmedFace<'_> {
         // centroids each re-admit the empty circle beside themselves).
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid).
-        if !refine.is_empty() && !measure.verdict.worst().is_nan() && attempt < last_attempt() {
+        let may_correct = match crate::cd_probe::cfg().budget {
+            Some(budget) => cert_rounds < budget,
+            None => attempt < last_attempt(),
+        };
+        if cert_rounds == 0 {
+            crate::cd_probe::note(|n| n.over_first = refine.len());
+        }
+        if !refine.is_empty() && !measure.verdict.worst().is_nan() && may_correct {
+            // One location queued twice (a side's midpoint, by both its
+            // triangles) enters once.
+            let mut seen: HashSet<(u64, u64)> = HashSet::new();
+            let refine: Vec<(f64, f64)> = refine
+                .into_iter()
+                .filter(|&(u, v)| seen.insert((u.to_bits(), v.to_bits())))
+                .collect();
+            crate::cd_probe::note(|n| n.added += refine.len());
             candidates.extend(refine);
-            return Ok(Next::Rebuild);
+            return Ok(Next::Rebuild(Cause::Certificate));
         }
         measure.verdict.refusal(fk, self.tol.delta)?;
         // D2 addendum row 5, the same re-derivation `curved`'s emit
@@ -1441,7 +1524,11 @@ impl TrimmedFace<'_> {
         // their UV centroid queued as a new candidate for the next
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let refine_lane = matches!(self.row, ChartRow::Spline { .. });
+        let rule = match (crate::cd_probe::cfg().rule, self.row) {
+            (crate::cd_probe::Rule::Off, ChartRow::Spline { .. }) => crate::cd_probe::Rule::Centroid,
+            (rule, _) => rule,
+        };
+        let refine_lane = rule != crate::cd_probe::Rule::Off;
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the shared-side test below.
@@ -1517,6 +1604,58 @@ impl TrimmedFace<'_> {
                 let uv = corners.map(|c| c.uv);
                 let apex = corners.map(|c| c.is_singular(self.singular));
                 move || Self::inside_point(plane, &uv, developed, apex)
+            };
+            // The midpoint rule's point: the middle, where the CDT runs,
+            // of the triangle's widest side (in 3-D) that is no
+            // constraint; the inside point where it has none.
+            let correction_point = {
+                let uv = corners.map(|c| c.uv);
+                let apex = corners.map(|c| c.is_singular(self.singular));
+                let ids = corners.map(|c| c.id);
+                let free: [bool; 3] = core::array::from_fn(|k| {
+                    let (a, b) = (vs[k].fix(), vs[(k + 1) % 3].fix());
+                    !cdt.exists_constraint(a, b)
+                });
+                let interior = &interior;
+                move || {
+                    if rule != crate::cd_probe::Rule::Midpoint {
+                        return Self::inside_point(plane, &uv, developed, apex);
+                    }
+                    let p = ids.map(|id| id.position(shared, interior));
+                    let len = |k: usize| {
+                        let (a, b) = (p[k], p[(k + 1) % 3]);
+                        ((a.x - b.x).powi(2) + (a.y - b.y).powi(2) + (a.z - b.z).powi(2)).sqrt()
+                    };
+                    let Some(k) = (0..3)
+                        .filter(|&k| free[k])
+                        .max_by(|&a, &b| len(a).total_cmp(&len(b)))
+                    else {
+                        return Self::inside_point(plane, &uv, developed, apex);
+                    };
+                    let j = (k + 1) % 3;
+                    match plane {
+                        CdtPlane::Lattice { .. } => (
+                            f64::midpoint(uv[k][0], uv[j][0]),
+                            f64::midpoint(uv[k][1], uv[j][1]),
+                        ),
+                        CdtPlane::Development { .. } => {
+                            // The side's middle in the development, read
+                            // back as the inside point is: a degenerate
+                            // triangle on the side, its third corner the
+                            // middle.
+                            let m = SpadePoint::new(
+                                f64::midpoint(developed[k].x, developed[j].x),
+                                f64::midpoint(developed[k].y, developed[j].y),
+                            );
+                            Self::inside_point(
+                                plane,
+                                &[uv[k], uv[j], if apex[k] { uv[j] } else { uv[k] }],
+                                [m, m, m],
+                                [apex[k], apex[j], apex[k] && apex[j]],
+                            )
+                        }
+                    }
+                }
             };
             let mut a_shared_side = false;
             for corners in core::iter::once(corners).chain(between) {
@@ -1686,7 +1825,7 @@ impl TrimmedFace<'_> {
                     }
                 }
                 if refine_lane && verdict == cert::Verdict::Exceeded {
-                    refine.push(inside_point());
+                    refine.push(correction_point());
                 }
                 triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
             }
