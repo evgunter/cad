@@ -6709,7 +6709,7 @@ fn curved_same_side_pairs<T: Decide>(
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
 ) -> CurvedSameSide {
-    let surface = |f: FaceKey| body.get_surface(body.get_face(f)?.surface).ok();
+    let surface = |f: FaceKey| body.face_surface(f).ok();
     let kind = |f: FaceKey| {
         surface(f)
             .filter(|s| geom_brep::carrier_eq::exact_curved(s))
