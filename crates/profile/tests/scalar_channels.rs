@@ -37,7 +37,7 @@ fn skeleton_f64(vp: &ValidatedProfile<f64>) -> Skeleton {
                             v.y.to_bits(),
                             match s.kind {
                                 SegmentKind::Arc { arc, .. } => arc.sweep.to_bits(),
-                                SegmentKind::Line => 0,
+                                SegmentKind::Line { .. } => 0,
                             },
                             kind_code(&s.kind),
                         )
@@ -63,7 +63,7 @@ fn skeleton_dual(vp: &ValidatedProfile<Dual64>) -> Skeleton {
                             v.y.value.to_bits(),
                             match s.kind {
                                 SegmentKind::Arc { arc, .. } => arc.sweep.value.to_bits(),
-                                SegmentKind::Line => 0,
+                                SegmentKind::Line { .. } => 0,
                             },
                             dual_kind_code(&s.kind),
                         )
@@ -84,14 +84,14 @@ fn turn_code(turn: Sign) -> i8 {
 
 fn kind_code(k: &SegmentKind<f64>) -> i8 {
     match k {
-        SegmentKind::Line => 0,
+        SegmentKind::Line { .. } => 0,
         SegmentKind::Arc { turn, .. } => turn_code(*turn),
     }
 }
 
 fn dual_kind_code(k: &SegmentKind<Dual64>) -> i8 {
     match k {
-        SegmentKind::Line => 0,
+        SegmentKind::Line { .. } => 0,
         SegmentKind::Arc { turn, .. } => turn_code(*turn),
     }
 }
