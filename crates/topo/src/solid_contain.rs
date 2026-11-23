@@ -3463,8 +3463,10 @@ fn carrier_roots<T: Decide>(
                     // centred on the line's closest approach to the apex
                     // and that long either side.
                     let line = ray.line();
-                    let (centre, half) =
-                        (line.param(cone.origin), region.reach() / line.dir.get().norm());
+                    let (centre, half) = (
+                        line.param(cone.origin),
+                        region.reach() / line.dir.get().norm(),
+                    );
                     let run = (centre - half, centre + half);
                     match cone_door(ray, ((cone, half_angle), face), run, band)? {
                         // Unordered: `A` may be negative, and the count
@@ -4164,7 +4166,12 @@ pub(crate) fn ray_crossings<T: Decide>(
                 // leaves undecided, or a `Zero` on a row below, grazes, as
                 // on the trimmable arm, since a tighter tolerance could
                 // decide it either way.
-                let Some(ts) = cone_door(ray, ((cone, half_angle), face), ball.run_on(&ray.line()), band)?
+                let Some(ts) = cone_door(
+                    ray,
+                    ((cone, half_angle), face),
+                    ball.run_on(&ray.line()),
+                    band,
+                )?
                 else {
                     continue;
                 };

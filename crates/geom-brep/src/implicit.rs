@@ -410,13 +410,12 @@ pub fn min_radius_of_curvature_toward<T: Real>(
         // the apple's outward where `ρ < R`. Zero on both sides is the
         // bound that holds on either sheet.
         (Surface::Spindle { .. }, _) => T::zero(),
-        (
-            Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. },
-            SurfaceSide::Inner,
-        ) => *radius,
-        (Surface::Cone { .. }, SurfaceSide::Inner) => s
-            .axis_line()
-            .map_or_else(poison, |axis| axis.distance(p)),
+        (Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. }, SurfaceSide::Inner) => {
+            *radius
+        }
+        (Surface::Cone { .. }, SurfaceSide::Inner) => {
+            s.axis_line().map_or_else(poison, |axis| axis.distance(p))
+        }
         (Surface::Torus { minor_radius, .. }, SurfaceSide::Inner) => *minor_radius,
         (Surface::Nurbs(_) | Surface::Approx(_), _) => poison(),
     }
