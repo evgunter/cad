@@ -1869,3 +1869,14 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - U4 merges the sweep's two lanes onto `cross`. U3's spec §7 makes local windows its prerequisite.
     - Specs are outside the model-compare population, so the lane runs on Opus, the default.
     - The spec states U4's own letter and tier for me to log before U4's draws.
+- 2026-11-23 13:15 — **U4 spec, PR 7565** (spec lane, head `a64057afc5`).
+  - Four stages:
+    - U4a, local windows (H, dual);
+    - U4b, the face reading and the curved lane onto `cross` (H, dual);
+    - U4c, the planar lane, `slit`, `factored_crossing` and `offer_rows` (M, single FULL);
+    - U4d, the spline arms (H, dual).
+  - **Fork:** how `cross`, generic over `T: Decide` and including the dual scalar, reaches the certified lane its spline arms need. It blocks U4d only.
+  - The lane opened the PR as `[ev]` before any designer had weighed the fork. I retitled it, and the `[ev]` comes back once the designers have reconciled.
+  - Designers dispatched concurrently per `docs/DESIGN-FORK-PROTOCOL.md`. Draws are on `analysis/design-fork/germ-u4-spline-lane`: two designers, labels A and B. The problem statement is at `~/.local/share/cad-work/germ-u4-fork/problem.md` and holds no candidate answers; the designers are told not to read the spec's fork section.
+  - The spec also finds consumers that U3's table missed, and two more cancelling formulas: `pose::arc`'s `acos(1 − z/bend)` and `plane_conic`'s `acos(−d₀/R)`.
+  - **U4a, dispatched now:** letter **H**, tier **dual**. It fixes the answer shape that U4b–U4d and U5 build on. Logged before its draw. It is stacked on `germ/u4-spec`; the spec's U4a–U4c stages are faithful elaborations of ratified C5.
