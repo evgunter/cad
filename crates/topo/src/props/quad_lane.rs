@@ -3168,7 +3168,7 @@ mod tests {
 /// rotational lane** ([`quad::rotational_material_sign`]), for a face no
 /// closed form reads: its loops' chart images (`loops`, the face walk's
 /// own) and, on the sphere, the poles among `held`, the face's wrap
-/// tips, each read against every loop that does not pass it.
+/// tips, unless a loop passes a pole (or its incidence is in band).
 ///
 /// # Errors
 ///
@@ -3184,24 +3184,21 @@ pub(super) fn material_sign<T: Decide + Bounds + CertifiedEnclosure>(
     let at = |a: Point3<T>, b: Point3<T>| {
         geom_brep::chart_singularity::vertex_at_singular_point(a, b, band)
     };
-    let reads: Vec<[bool; 2]> = match *surface {
-        Surface::Cylinder { .. } => vec![[false; 2]; loops.len()],
+    let poles = match *surface {
+        Surface::Cylinder { .. } => None,
         Surface::Sphere { frame, radius, .. } => {
             let up = frame.axis().normalize() * radius;
             let poles = [frame.origin() + up, frame.origin() - up];
-            // A pole the face holds, unread where its incidence is in band.
-            let holds = poles.map(|p| held.iter().any(|&h| at(h, p).unwrap_or(false)));
-            loops
-                .iter()
-                .map(|(edges, _)| {
-                    core::array::from_fn(|k| {
-                        holds[k]
-                            && edges
-                                .iter()
-                                .all(|e| at(e.traversal_start(), poles[k]) == Ok(false))
-                    })
-                })
-                .collect()
+            let clear = loops.iter().flat_map(|(edges, _)| edges).all(|e| {
+                poles
+                    .iter()
+                    .all(|&p| at(e.traversal_start(), p) == Ok(false))
+            });
+            let holds = |p| held.iter().map(|&h| at(h, p)).collect::<Result<Vec<_>, _>>();
+            match (clear, holds(poles[0]), holds(poles[1])) {
+                (true, Ok(n), Ok(s)) => Some([n.contains(&true), s.contains(&true)]),
+                _ => None,
+            }
         }
         _ => {
             return Err(PropsError::QuadratureUnsupported {
@@ -3211,5 +3208,5 @@ pub(super) fn material_sign<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     let face = rotational_face(body, surface, true, loops, None)?;
-    quad::rotational_material_sign::<T>(&face, &reads, band)
+    quad::rotational_material_sign::<T>(&face, poles, band)
 }

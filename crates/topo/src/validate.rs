@@ -1711,14 +1711,18 @@ pub enum ValidationError {
     /// in volume (executed truth table, M6-6 substrate — washer walls,
     /// cone laterals, torus bands all certified green before this arm),
     /// and on a sphere face bounded by circles the closed form's flux
-    /// refuses the same face (`PropsError::SenseContradicted`). A sphere
-    /// face trimmed by a chord measures through the rotational lane, which
-    /// reads the bit with no cross-check (a loop on a sphere bounds a face
-    /// on each side): under a flipped bit it certifies the complement,
-    /// and this arm exempts it (below); the flipped face then meets its
-    /// neighbours along a wedge of no angle, which check 4 refuses
-    /// ([`Self::LaminaWedge`]; `sweep/tests/verbs_cylsph_opening.rs`,
-    /// `a_flipped_chorded_sphere_face_is_refused_as_a_lamina`).
+    /// refuses the same face (`PropsError::SenseContradicted`). A
+    /// cylinder or sphere face trimmed by a curve no closed form parses
+    /// (a section of two surfaces) is read through the rotational lane's
+    /// Green form instead (`geom_brep::props::quad::rotational_material_sign`):
+    /// a cylinder wall's side off its signed chart area, a sphere face's
+    /// off the poles it holds as wrap tips, the datum of its side. The
+    /// lane's measurement of such a sphere face reads the bit with no
+    /// cross-check (a loop on a sphere bounds a face on each side), so
+    /// under a flipped bit it certifies the complement, and at every edge
+    /// the flipped face is a different legal wedge: this reading is what
+    /// refuses it (`sweep/tests/verbs_cylsph_opening.rs`,
+    /// `a_flipped_curved_face_of_the_transversal_union_is_refused`).
     ///
     /// The comparison is **combinatorial** — two exact ±1s, no
     /// comparand, no new margin: the derived side reuses the flux
@@ -1752,7 +1756,14 @@ pub enum ValidationError {
     ///   pole that is not its vertex, so its loop says nothing about
     ///   the bit; the chart-singularity arm refuses the face
     ///   ([`Self::ChartSingularityNotAVertex`]);
-    /// * conic-trimmed faces the quadrature lane owns, and NURBS.
+    /// * a sphere face whose trims no closed form parses and which holds
+    ///   no pole as a wrap tip off its loops: no datum says its side, and
+    ///   where its bit is flipped it describes the complement, which
+    ///   holds a pole that is no vertex of it or bounds another valid
+    ///   body (check 7 reads an inside-out one);
+    /// * a face the rotational lane does not read either (a torus face
+    ///   no closed form parses, a refusal or an escalation of the lane),
+    ///   conic-trimmed faces the quadrature lane owns, and NURBS.
     ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
     /// dimples) PASS: their traversals already place the material on
