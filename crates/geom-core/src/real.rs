@@ -500,6 +500,16 @@ pub trait Real:
         None
     }
 
+    /// The frame [`RigidMotion::squared`](crate::RigidMotion::squared)
+    /// squares from bracket directions `w` and `u`, enclosed tighter than
+    /// its plain evaluation where this scalar can; `None` (the default)
+    /// where it cannot.
+    #[must_use]
+    fn square_frame(w: [Self; 3], u: [Self; 3]) -> Option<[[Self; 3]; 3]> {
+        let _ = (w, u);
+        None
+    }
+
     /// **An enclosure of the unit direction a stated `v` names**,
     /// [`Real::enclose_rotation`]'s one-column case: the direction
     /// `v/|v|`, each component enclosed, where this scalar's value is a

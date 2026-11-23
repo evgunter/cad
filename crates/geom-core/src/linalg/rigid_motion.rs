@@ -1241,11 +1241,26 @@ impl<T: Real> RigidMotion<T> {
     /// frame ([`RigidMotion::map_scalar`], the read a stored frame takes),
     /// `origin` kept as given. Directions that are not points (a bracket,
     /// a value over the box) are a claim about the reals they enclose and
-    /// are squared at the scalar, as above.
+    /// are squared at the scalar, as above: where the scalar offers it
+    /// ([`Real::square_frame`]), by the centered form, the squaring of a
+    /// point of the box plus its derivatives over the box times the box's
+    /// reach from it, met with the plain evaluation. It encloses the frame
+    /// every point of the box squares to and is never wider than the
+    /// plain one; the plain one's dependency widens each step, about four
+    /// times over at the widths a bracket carries.
     #[must_use]
     pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
         if let Some(stated) = Self::squared_as_stated(w, u) {
             return Self { origin, ..stated };
+        }
+        if let Some([cu, cv, cw]) = T::square_frame([w.x, w.y, w.z], [u.x, u.y, u.z]) {
+            let axis = |[x, y, z]: [T; 3]| UnitVec3::by_construction(Vec3::new(x, y, z));
+            return Self {
+                origin,
+                u: axis(cu),
+                v: axis(cv),
+                w: axis(cw),
+            };
         }
         Self::squared_about(origin, UnitVec3::squared(w), u)
     }
@@ -2488,10 +2503,177 @@ mod tests {
         let wide = |v: Vec3<f64>| v.map(|x| Interval::from_bounds(x - 1e-9, x + 1e-9));
         let bracketed = RigidMotion::squared(origin, wide(w), wide(u));
         let schmidt = RigidMotion::squared_about(origin, UnitVec3::squared(wide(w)), wide(u));
-        assert_eq!(
-            bits(&bracketed),
-            bits(&schmidt),
-            "brackets: Gram–Schmidt at the scalar"
+        let (got, plain) = (entries(&bracketed), entries(&schmidt));
+        assert!(
+            got.iter()
+                .zip(plain)
+                .all(|(g, p)| p.lo() <= g.lo() && g.hi() <= p.hi()),
+            "brackets: squared at the scalar, inside the plain Gram–Schmidt"
+        );
+        assert!(
+            got.iter()
+                .zip(plain)
+                .any(|(g, p)| g.hi() - g.lo() < p.hi() - p.lo()),
+            "brackets: the centered form narrows the plain Gram–Schmidt"
+        );
+    }
+
+    /// A bracket box about `(w, u)`: each entry widened by its own
+    /// half-width `10^e`, `e` drawn in `[lo, hi]`.
+    fn bracket_box(
+        rng: &mut test_utils::fuzz::Rng,
+        c: Vec3<f64>,
+        lo: f64,
+        hi: f64,
+    ) -> Vec3<Interval> {
+        let mut at = |x: f64| {
+            let r = 10f64.powf(rng.range(lo, hi));
+            Interval::from_bounds(x - r, x + r)
+        };
+        Vec3::new(at(c.x), at(c.y), at(c.z))
+    }
+
+    /// Two directions a frame squares from: unit-ish, off parallel.
+    fn bracket_pair(rng: &mut test_utils::fuzz::Rng) -> (Vec3<f64>, Vec3<f64>) {
+        loop {
+            let mut v = || {
+                Vec3::new(
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                )
+            };
+            let (w, u) = (v(), v());
+            let (nw, nu) = (w.norm(), u.norm());
+            if nw > 0.3 && nu > 0.3 && (w.dot(u) / (nw * nu)).abs() < 0.9 {
+                return (w, u);
+            }
+        }
+    }
+
+    fn columns(f: &RigidMotion<Interval>) -> [Vec3<Interval>; 3] {
+        [f.u().get(), f.v().get(), f.w().get()]
+    }
+
+    fn entries(f: &RigidMotion<Interval>) -> [Interval; 9] {
+        let [a, b, c] = columns(f);
+        [a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]
+    }
+
+    /// **A bracket frame's squaring holds every point of its box**: over
+    /// bracket boxes of half-widths `10⁻¹⁶` to `10⁻²` about random
+    /// direction pairs, the frame [`RigidMotion::squared`] answers holds,
+    /// entry by entry, the plain squaring of each corner of the box and
+    /// of points inside it, each an enclosure of the exact frame that
+    /// point squares to, a few ulps wide. That enclosure is the oracle's
+    /// resolution, so each is held to within its own width: the exact
+    /// frame lies inside it, and the plain evaluation cannot place it
+    /// closer. The centered form's soundness is the mean value theorem;
+    /// this is its witness. Red where the derivative term is
+    /// dropped (the frame read off the midpoint alone). A counterexample
+    /// search, so the seed varies (logged; `CAD_FUZZ_SEED` replays it).
+    #[test]
+    fn a_bracket_frames_squaring_holds_every_point_of_its_box() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("rigid_motion::bracket_squaring::containment");
+        let origin = Point3::origin().map(Interval::from_f64);
+        for i in 0..fuzz::scaled(3_000) {
+            let (w, u) = bracket_pair(&mut rng);
+            let (bw, bu) = (
+                bracket_box(&mut rng, w, -16.0, -2.0),
+                bracket_box(&mut rng, u, -16.0, -2.0),
+            );
+            let frame = RigidMotion::squared(origin, bw, bu);
+            let got = entries(&frame);
+            let pick = |rng: &mut fuzz::Rng, b: Vec3<Interval>, k: usize, corner: bool| {
+                let mut at = |x: Interval, bit: usize| {
+                    if corner {
+                        if (k >> bit) & 1 == 0 { x.lo() } else { x.hi() }
+                    } else {
+                        rng.range(x.lo(), x.hi())
+                    }
+                };
+                let (x, y, z) = (at(b.x, 0), at(b.y, 1), at(b.z, 2));
+                Vec3::new(x, y, z).map(Interval::from_f64)
+            };
+            for k in 0..72 {
+                let corner = k < 64;
+                let (pw, pu) = (
+                    pick(&mut rng, bw, k, corner),
+                    pick(&mut rng, bu, k >> 3, corner),
+                );
+                let point = RigidMotion::squared_about(origin, UnitVec3::squared(pw), pu);
+                for (j, (g, e)) in got.iter().zip(entries(&point)).enumerate() {
+                    let slack = e.hi() - e.lo();
+                    assert!(
+                        g.lo() <= e.lo() + slack && e.hi() - slack <= g.hi(),
+                        "draw {i}, sample {k}, entry {j}: [{:e}, {:e}] does not hold [{:e}, {:e}]",
+                        g.lo(),
+                        g.hi(),
+                        e.lo(),
+                        e.hi()
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A bracket frame's squaring is never wider than the plain one,
+    /// and narrower where it counts**: over the same boxes, each entry of
+    /// [`RigidMotion::squared`] lies inside the plain Gram–Schmidt at
+    /// the scalar ([`RigidMotion::squared_about`] of `w` squared), and
+    /// over boxes of half-widths `10⁻¹²` to `10⁻⁶`, where a bracket
+    /// frame's width is its inputs' and not its rounding's, the median
+    /// ratio of the widest entry to the plain one's is at most
+    /// [`CENTERED_WIDTH_RATIO`]. Red where the meet with the plain
+    /// evaluation is dropped (wider than the plain on some box) and where
+    /// the centered form is dropped (ratio 1).
+    #[test]
+    fn a_bracket_frames_squaring_is_never_wider_than_the_plain_and_narrower_where_it_counts() {
+        use test_utils::fuzz;
+        const CENTERED_WIDTH_RATIO: f64 = 0.35;
+        let mut rng = fuzz::start("rigid_motion::bracket_squaring::width");
+        let origin = Point3::origin().map(Interval::from_f64);
+        let widest = |a: [Interval; 9]| a.iter().fold(0f64, |m, x| m.max(x.hi() - x.lo()));
+        let mut ratios = Vec::new();
+        for i in 0..fuzz::scaled(3_000) {
+            let (w, u) = bracket_pair(&mut rng);
+            let narrow = i % 2 == 0;
+            let (lo, hi) = if narrow { (-12.0, -6.0) } else { (-16.0, -2.0) };
+            let (bw, bu) = (
+                bracket_box(&mut rng, w, lo, hi),
+                bracket_box(&mut rng, u, lo, hi),
+            );
+            let got = entries(&RigidMotion::squared(origin, bw, bu));
+            let plain = entries(&RigidMotion::squared_about(
+                origin,
+                UnitVec3::squared(bw),
+                bu,
+            ));
+            for (j, (g, p)) in got.iter().zip(plain).enumerate() {
+                assert!(
+                    p.lo() <= g.lo() && g.hi() <= p.hi(),
+                    "draw {i}, entry {j}: [{:e}, {:e}] is not inside the plain [{:e}, {:e}]",
+                    g.lo(),
+                    g.hi(),
+                    p.lo(),
+                    p.hi()
+                );
+            }
+            if narrow {
+                ratios.push(widest(got) / widest(plain));
+            }
+        }
+        ratios.sort_by(f64::total_cmp);
+        let median = ratios[ratios.len() / 2];
+        println!(
+            "median width ratio {median:.3}, worst {:.3}, best {:.3}",
+            ratios[ratios.len() - 1],
+            ratios[0]
+        );
+        assert!(
+            median <= CENTERED_WIDTH_RATIO,
+            "median width ratio {median:.3} over {CENTERED_WIDTH_RATIO}"
         );
     }
 
@@ -4908,4 +5090,15 @@ mod least_turn_spelling_probe {
             "Dual<f64>"
         );
     }
+}
+
+/// The columns `[u, v, w]` [`RigidMotion::squared`] forms from `w` and
+/// `u` at any scalar, by the plain formula (`squared_about` of `w`
+/// squared): the centered enclosure's inner evaluation.
+pub(crate) fn squared_columns<T: Real>(w: [T; 3], u: [T; 3]) -> [[T; 3]; 3] {
+    let a = Vec3::new(w[0], w[1], w[2]).normalize();
+    let u = Vec3::new(u[0], u[1], u[2]);
+    let p = (u - a * a.dot(u)).normalize();
+    let v = a.cross(p);
+    [[p.x, p.y, p.z], [v.x, v.y, v.z], [a.x, a.y, a.z]]
 }

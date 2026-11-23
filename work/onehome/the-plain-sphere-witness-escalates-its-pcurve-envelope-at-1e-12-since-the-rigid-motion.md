@@ -2,10 +2,11 @@
 id: the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion
 kind: issue
 title: Main red at ε 1e-12: spheres_crossing_off_every_edge's plain witness escalates a pcurve envelope at Interval since PR 6717
-status: open
+status: closed
 opened: 2026-11-14
 priority: P2
 cost: M
+closed: 2026-11-23
 ---
 
 
@@ -48,3 +49,12 @@ rather than the band loosened, and the pin comes out.
 - 2026-11-17 — **The escalating check moved at PR 6988** (`onehome/least-turn-mint`, merge `034c11e24`; first parent `bf210d351` still stops on `EnvelopeTerm(Radius)`). The boolean's sphere re-cut (`topo::boolean::ops::apply_recuts`) now turns by `RigidMotion::least_turn` (Rodrigues where `a·b ≥ 0`), not `turned_between`'s quaternion, so the Interval re-charted sphere's coefficients and their widths moved. The union still refuses at `HalfEdgeKey(3v1)`, sample 0, `pcurve_envelope`, in the same band (zero 1e-12, escalate 1e-11), but on the aggregate `PcurveCheck::Envelope`, margin `hi` 3.50e-12 → 1.13e-12. Same finding; the pin's text follows it (GREEN's 11-17 PR). PR 6988 ran sweep and topo whole only at the default ε, so it did not see this. Deterministic: two runs at `034c11e24` give byte-identical messages, equal to main's. Reproduce: `CAD_TOLERANCE_EPS=1e-12 cargo nextest run --profile ci --ignore-default-filter -p sweep -E 'test(the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar)'`. "Done when" stands. (GREEN)
 
 **Since PR 7131 (GREEN U12, 2026-11-23).** The pinned stop moved, so the pin is red in nightly 44989234943. The row's `pcurve_envelope` escalation now comes from `check: EnvelopeTerm(Radius)` (hi 3.277e-12), where the pin names `check: Envelope`. Cause: bracket. F1X alone builds the union, and A or F1F alone leaves it red. The refusal is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (PR 7402's branch until it merges), with probe runs 45083192761 (green at `e4d679d37e`), 45083200534 (red at `9bc9d6517b`) and 45083184695 (mutants). GREEN pins nothing until Ev rules on that count.
+
+## Closed (2026-11-23)
+
+The bracket frame's squaring now takes its centered form
+(`geom_core::RigidMotion::squared`, through `Real::square_frame`): the
+squaring of a point of the box plus its derivatives over the box, met
+with the plain evaluation. At ε 1e-12 the plain witness's Interval union
+builds and its volumes bracket the oracle's, so its `pinned_red` pin is
+removed. Counted in `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted`.
