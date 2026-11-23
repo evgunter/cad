@@ -3051,7 +3051,7 @@ impl DocSession {
     ///
     /// **One parser.** `parse_formula` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
-    /// the one multiply is the parser's — so what arrives here is read
+    /// the unit's one door is the parser's — so what arrives here is read
     /// off the literal and never scaled again.
     ///
     /// **One action, therefore one undo.** The value and the notation
