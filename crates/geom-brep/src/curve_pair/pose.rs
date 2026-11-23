@@ -1606,7 +1606,7 @@ fn line_conic<T: Decide>(
     let den = u.get().dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
-    let c = geom::plane_offset(o, u.get(), k.frame().origin());
+    let c = (k.frame().origin() - o).dot(u.get());
     let ends_a = line_ends(a)?;
     // A conic's extent is no second span: its projection is read from the
     // line's origin, charged as the router's screens are. That anchor
@@ -1619,7 +1619,7 @@ fn line_conic<T: Decide>(
         geom_core::rounding_charge(ends(ends_a)),
     );
     let mid = o + u.get() * at.mid();
-    let height = geom::plane_offset(k.frame().origin(), n, mid);
+    let height = (mid - k.frame().origin()).dot(n);
     let (arm, over) = span_reaches(a, b, mid);
     match route(
         den,
@@ -1638,8 +1638,8 @@ fn line_conic<T: Decide>(
             // `h` the seed's own height above the plane: the seed, `o +
             // d̂·t` with `t = (c − o)·n̂ / d̂·n̂` in `f64`, is read where it
             // landed, a distance, rather than charged for its rounding.
-            let point = o + u.get() * (geom::plane_offset(o, n, k.frame().origin()) / den);
-            let height = geom::plane_offset(k.frame().origin(), n, point).abs();
+            let point = o + u.get() * ((k.frame().origin() - o).dot(n) / den);
+            let height = (point - k.frame().origin()).dot(n).abs();
             let polish = Polish {
                 span_a: a,
                 span_b: b,
@@ -1679,7 +1679,7 @@ fn line_conic<T: Decide>(
     let (hc, hs) = k.along(v);
     let level = Slant {
         r: (c0, cp, sp),
-        h: (geom::plane_offset(o, v, k.frame().origin()), hc, hs),
+        h: ((k.frame().origin() - o).dot(v), hc, hs),
         at: range.at_hi,
         swing,
         e,
