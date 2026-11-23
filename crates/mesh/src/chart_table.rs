@@ -621,9 +621,10 @@ impl<'a> AnalyticRow<'a> {
 /// their order: `true` where one is decided zero distance from `p`,
 /// `false` where every one is decided clear, the escalation where none
 /// is decided zero and one is in the band. The one read of a vertex on a
-/// singular point, which [`AnalyticRow::is_singular`] and
-/// [`at_a_pole`] both make.
-fn at_a_singular_point(
+/// singular point, which [`AnalyticRow::is_singular`], [`at_a_pole`] and
+/// the trimmed lane's read of a spline chart's collapsed sides
+/// (`trimmed::CollapsedSides`) make.
+pub(crate) fn at_a_singular_point(
     points: impl Iterator<Item = Point3<f64>>,
     p: Point3<f64>,
     band: Band,

@@ -82,6 +82,11 @@ fn the_class() -> Vec<(&'static str, Body<f64>)> {
     ]
 }
 
+/// The witness run's band.
+fn band() -> geom_core::predicate::Band {
+    geom_core::predicate::Band::linear(Tol::witness()).unwrap()
+}
+
 /// The faces of `body` with a collapsed side.
 fn collapsed(body: &Body<f64>) -> Vec<topo::FaceKey> {
     body.faces()
@@ -175,7 +180,7 @@ fn chord_pass(
 /// where its stored chart column is.
 #[test]
 fn a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded() {
-    let band = geom_core::predicate::Band::linear(Tol::witness()).unwrap();
+    let band = band();
     for delta in [1e-1, 1e-2, 1e-3] {
         let pinned = loft(4, &[Affine3::identity(), about_corner(0.5, 0.0)], 1);
         let (chords, shared, bounds) = chord_pass(&pinned, delta);
@@ -231,18 +236,41 @@ fn a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded() {
     }
 }
 
-/// **A side is a vertex's only where its stored point is the side's**: no
-/// band reads it, so a vertex an ulp off the side keeps its polygon's
-/// one-point shape, and the mesh stays a function of (body, δ).
+/// **A vertex is on a collapsed side where the band decides it there**,
+/// as every singular point is decided (`chart_table`'s
+/// `at_a_singular_point`): the side's own point and one an ulp off are
+/// on it, one past the band's escalation is off it, and one between is
+/// undecided, which `singular_vertices` refuses typed.
 #[test]
-fn a_collapsed_sides_vertex_is_its_stored_point_and_nothing_near_it() {
+fn a_collapsed_sides_vertex_is_decided_at_the_band() {
+    let band = band();
     let body = loft(4, &[Affine3::identity(), about_corner(0.5, 0.0)], 1);
     let fk = collapsed(&body)[0];
     let sides = CollapsedSides::of(body.face_surface(fk).unwrap());
     let p = sides.0[0].1;
-    assert!(sides.holds(p), "the side's own point");
-    let off = Point3::new(p.x.next_up(), p.y, p.z);
-    assert!(!sides.holds(off), "a point an ulp off the side's");
+    let along = |d: f64| Point3::new(p.x + d, p.y, p.z);
+    assert_eq!(sides.holds(p, band), Ok(true), "the side's own point");
+    assert_eq!(
+        sides.holds(Point3::new(p.x.next_up(), p.y, p.z), band),
+        Ok(true),
+        "a point an ulp off"
+    );
+    assert_eq!(
+        sides.holds(along(0.5 * band.zero()), band),
+        Ok(true),
+        "a point inside the band's zero"
+    );
+    assert_eq!(
+        sides.holds(along(2.0 * band.escalate()), band),
+        Ok(false),
+        "a point past its escalation"
+    );
+    assert!(
+        sides
+            .holds(along(0.5 * (band.zero() + band.escalate())), band)
+            .is_err(),
+        "a point between is undecided"
+    );
 }
 
 /// **A side is walked along its own axis, at that axis's step, by a
@@ -260,7 +288,7 @@ fn a_side_is_walked_along_its_axis_and_a_corner_is_not() {
         (side(ChartAxis::V, ChartEnd::High), q),
         (side(ChartAxis::U, ChartEnd::High), q),
     ]);
-    let walk = sides.walk(&shared, &singular, (0.25, 0.1));
+    let walk = sides.walk(&shared, &singular, (0.25, 0.1), band());
     assert_eq!(walk.steps.get(&0), Some(&(1, 0.1)), "a u side runs along v");
     assert_eq!(
         walk.steps.get(&1),
@@ -268,7 +296,7 @@ fn a_side_is_walked_along_its_axis_and_a_corner_is_not() {
         "a corner of two sides is not walked"
     );
     let sides = CollapsedSides(vec![(side(ChartAxis::V, ChartEnd::Low), q)]);
-    let walk = sides.walk(&shared, &singular, (0.25, 0.1));
+    let walk = sides.walk(&shared, &singular, (0.25, 0.1), band());
     assert_eq!(
         walk.steps.get(&1),
         Some(&(0, 0.25)),
@@ -349,7 +377,7 @@ fn the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked() {
 /// vertex's copies down its own column, ⌈1/h_v⌉ pieces on each.
 #[test]
 fn a_lune_walks_both_its_collapsed_sides() {
-    let band = geom_core::predicate::Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let body = loft(
         2,
         &[
@@ -412,44 +440,39 @@ fn a_lune_walks_both_its_collapsed_sides() {
     );
 }
 
-/// **A vertex in the band of a collapsed side but not its stored point**:
-/// the lift decides the vertex on the side at the band and turns the face
-/// there, while the polygon reads the side's point exactly and holds the
-/// vertex once, its side across the column, as at any vertex beside the
-/// side. That shape is sound and coarse: the wedge, its vertices restated
-/// an ulp up, meshes at δ = 0.1 and refuses `CertificateExceeded` at
-/// 10⁻², as every collapsed-side wall did before its side was walked. No
-/// door builds it: the loft writes a pinned corner as its section's
-/// point (`work/tesslane/a-collapsed-sides-vertex-a-hair-off-its-point-meshes-only-at-a-coarse-chordal.md`).
+/// **A vertex in the band of a collapsed side but not its stored point is
+/// on it**, as the lift decides it: the wedge, its vertex points restated
+/// an ulp up (no door builds one; an import could), keeps the vertex's
+/// copies down the collapsed column where the lift turns the face, and
+/// meshes at every δ the wedge does, triangle for triangle.
 #[test]
-fn a_vertex_in_a_sides_band_but_not_its_point_holds_one_copy_and_meshes_coarse() {
-    let band = geom_core::predicate::Band::linear(Tol::witness()).unwrap();
+fn a_vertex_in_a_sides_band_is_on_it_and_meshes_as_the_vertex_on_its_point() {
+    let band = band();
     let hinge = turn_about([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], 0.5);
-    let mut body = loft(4, &[Affine3::identity(), hinge], 1);
-    topo::test_support::restate_geometry(&mut body, |at, x| match at {
+    let on = loft(4, &[Affine3::identity(), hinge], 1);
+    let mut off = on.clone();
+    topo::test_support::restate_geometry(&mut off, |at, x| match at {
         topo::test_support::Stored::Point => x.next_up(),
         _ => x,
     });
-    let fk = collapsed(&body)[0];
-    let surface = body.face_surface(fk).unwrap();
+    let fk = collapsed(&off)[0];
+    let surface = off.face_surface(fk).unwrap();
     let sides = CollapsedSides::of(surface);
     let (_, side_point) = sides.0[0];
-    let (vertex, _) = body
+    let (vertex, gap) = off
         .vertex_points()
         .map(|(_, p)| (p, (p - side_point).norm()))
         .min_by(|a, b| a.1.total_cmp(&b.1))
         .unwrap();
     assert!(
-        geom_brep::chart_singularity::vertex_at_singular_point(vertex, side_point, band)
-            == Ok(true)
-            && !sides.holds(vertex),
-        "the vertex is in the side's band and not its point"
+        gap > 0.0 && sides.holds(vertex, band) == Ok(true),
+        "the vertex is {gap} off the side's point and decided on it"
     );
-    let (chords, shared, bounds) = chord_pass(&body, 1e-2);
-    let row = ChartRow::of(&body, fk, surface, &bounds).unwrap();
-    let lift = body.face_lift(fk, band).unwrap();
+    let (chords, shared, bounds) = chord_pass(&off, 1e-2);
+    let row = ChartRow::of(&off, fk, surface, &bounds).unwrap();
+    let lift = off.face_lift(fk, band).unwrap();
     let (singular, polygon) = super::face_polygon(
-        &body,
+        &off,
         fk,
         (surface, &row),
         &lift,
@@ -460,23 +483,83 @@ fn a_vertex_in_a_sides_band_but_not_its_point_holds_one_copy_and_meshes_coarse()
         None,
     )
     .unwrap();
-    assert!(singular.is_empty(), "no singular vertex read");
-    let id = (0..shared.len())
-        .find(|&i| geom_core::bit_identity::one_stored_point(&shared[i], &vertex))
-        .map(|i| u32::try_from(i).unwrap())
-        .unwrap();
-    assert_eq!(
-        polygon.points.iter().filter(|p| p.2 == id).count(),
-        1,
-        "the vertex held once"
-    );
-    crate::tessellate(&body, 0.1, Tol::witness())
-        .map(|m| crate::validate::check_mesh(&m).unwrap())
-        .unwrap_or_else(|e| panic!("δ = 0.1 meshes, got {e:?}"));
-    let fine = crate::tessellate(&body, 1e-2, Tol::witness());
+    assert_eq!(singular.len(), 1, "the vertex is read singular");
     assert!(
-        matches!(fine, Err(crate::TessellateError::CertificateExceeded { face, .. }) if face == fk || collapsed(&body).contains(&face)),
-        "δ = 10⁻² refuses typed at a collapsed-side wall, got {:?}",
-        fine.map(|m| m.patches.len())
+        polygon
+            .points
+            .iter()
+            .filter(|p| singular.contains(&p.2))
+            .count()
+            > 2,
+        "its side is walked"
+    );
+    let counts = |body: &Body<f64>, delta: f64| -> Vec<usize> {
+        let mesh = crate::tessellate(body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("δ = {delta}: meshes, got {e:?}"));
+        mesh.patches.iter().map(|p| p.triangles.len()).collect()
+    };
+    for delta in [1e-1, 1e-2, 1e-3] {
+        assert_eq!(
+            counts(&off, delta),
+            counts(&on, delta),
+            "δ = {delta}: the restated wedge meshes face for face as the wedge"
+        );
+    }
+}
+
+/// One FNV-1a step over `x`'s bytes.
+fn fnv(h: &mut u64, x: u64) {
+    for b in x.to_le_bytes() {
+        *h ^= u64::from(b);
+        *h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+}
+
+/// **The class's meshes are one byte stream at every ε.** The singular
+/// vertex a spline face walks its side through is decided at the band
+/// ([`CollapsedSides::holds`]), so ε could choose the polygon where a
+/// vertex sits inside the band at one ε and outside it at another. On
+/// every body the loft builds the vertex is the side's own point, decided
+/// on at any band, so the mesh is the same bytes at every ε: each body's
+/// FNV-1a over its positions' bits and its triangles at δ = 10⁻² is
+/// pinned, and the suite's ε rows (10⁻⁹, 10⁻⁶, 10⁻¹²) each re-derive it
+/// in their own process. The guard the classification owes on a vertex
+/// the band can flip is
+/// `work/tesslane/pole-identification-lets-eps-choose-between-two-meshes-of-a-cone-face.md`'s.
+#[test]
+fn the_class_meshes_to_one_digest_at_every_eps() {
+    let pinned: [u64; 9] = [
+        0x64da_6acc_06e7_1657,
+        0xae0a_c8ac_6b69_faa2,
+        0xd42d_7b0e_e0bd_87e2,
+        0xcfb1_f8f9_0dfb_b012,
+        0x7cae_777e_ef9e_68ce,
+        0x8367_7240_b74f_176b,
+        0xb069_2be6_2b6a_9a55,
+        0x519c_93fe_1c05_8ee4,
+        0xcb4d_3e8b_8647_42ef,
+    ];
+    let got: Vec<u64> = the_class()
+        .iter()
+        .map(|(what, body)| {
+            let mesh = crate::tessellate(body, 1e-2, Tol::witness())
+                .unwrap_or_else(|e| panic!("{what}: meshes, got {e:?}"));
+            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+            for p in &mesh.positions {
+                fnv(&mut h, p.x.to_bits());
+                fnv(&mut h, p.y.to_bits());
+                fnv(&mut h, p.z.to_bits());
+            }
+            for t in mesh.patches.iter().flat_map(|p| &p.triangles) {
+                for &i in t {
+                    fnv(&mut h, u64::from(i));
+                }
+            }
+            h
+        })
+        .collect();
+    assert_eq!(
+        got, pinned,
+        "the class's digests at δ = 1e-2, in `the_class` order: {got:#x?}"
     );
 }

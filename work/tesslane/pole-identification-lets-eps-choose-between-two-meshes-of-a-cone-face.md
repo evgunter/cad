@@ -22,3 +22,17 @@ Where the band DECIDES the vertex on the apex at one ε and off it at another (a
 ## What closing it takes
 
 A body that reaches it, pinned at two ε (a cone face with a side split within 10ε of its apex at the larger ε); then the guard the page names: a decision that does not move emitted coordinates when ε moves, or a refusal on the cells where it would.
+
+## A second reader (2026-11-23)
+
+The spline arm's collapsed sides are a second reader of this classification
+(`tesslane/collapsed-side`, PR 7517): `trimmed::CollapsedSides::holds` decides a
+loop vertex on a spline chart's collapsed side at the run's band, through the
+one read `chart_table::at_a_singular_point`, and the polygon walks the side
+through the vertex where it is decided on. It owes the same guard. On every
+body a door builds the vertex is the side's own stored point, decided on at
+any band, and `trimmed::collapsed_rows::the_class_meshes_to_one_digest_at_every_eps`
+pins the loft's class to one byte stream at ε 1e-9, 1e-6 and 1e-12. A vertex
+within the band of a side at one ε and outside it at another (an import could
+write one) would mesh with the side walked at the first and held once at the
+second.

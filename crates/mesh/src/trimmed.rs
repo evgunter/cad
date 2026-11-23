@@ -325,14 +325,16 @@ use std::collections::{HashMap, HashSet};
 use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
 use geom_core::period::Period;
-use geom_core::{Band, Point3};
+use geom_core::{Band, Indeterminate, Point3};
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::pcurves::{FaceLift, Lift};
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::chart_table::{Analytic, AnalyticRow, ChartRow, RowEnd, SingularPoint};
+use crate::chart_table::{
+    Analytic, AnalyticRow, ChartRow, RowEnd, SingularPoint, at_a_singular_point,
+};
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid};
 use crate::planar::{Pinches, Walk, shoelace2};
@@ -2510,9 +2512,9 @@ fn one_location_per_branch(
 /// **The face's singular vertices and its UV polygon** ([`tessellate_trimmed`]).
 ///
 /// The singular vertices are the loop's vertices that are the chart's
-/// singular points: on an analytic chart decided where the kernel decides
-/// it, at `band` (`chart_table`'s module docs); on a spline chart a
-/// collapsed side's own stored point ([`CollapsedSides`]). Each vertex's
+/// singular points, decided where the kernel decides them, at `band`
+/// (`chart_table`'s module docs): an analytic chart's poles and apexes,
+/// a spline chart's collapsed sides ([`CollapsedSides`]). Each vertex's
 /// mesh id is its edges' end chord id.
 ///
 /// The polygon: per half-edge, the pcurve evaluated at the shared chord
@@ -2539,7 +2541,7 @@ fn face_polygon(
             singular_vertices(body, fk, lift, chords, shared, |p| a.is_singular(p, band))?
         }
         ChartRow::Spline { .. } if !sides.is_empty() => {
-            singular_vertices(body, fk, lift, chords, shared, |p| Ok(sides.holds(p)))?
+            singular_vertices(body, fk, lift, chords, shared, |p| sides.holds(p, band))?
         }
         ChartRow::Analytic(_) | ChartRow::Spline { .. } => HashSet::new(),
     };
@@ -2548,6 +2550,7 @@ fn face_polygon(
             shared,
             &singular,
             row.steps(face_target(surface, Lane::Trimmed, delta)),
+            band,
         ),
         ChartRow::Analytic(_) | ChartRow::Spline { .. } => SideWalk::default(),
     };
@@ -2563,12 +2566,11 @@ fn face_polygon(
 /// **The loops' vertices that are the chart's singular points**, as mesh
 /// ids, a ring's as an outer loop's: each loop edge's end chord ids (the
 /// vertices' own points, bitwise, `crate::chords`), kept where
-/// `is_singular` decides the point is one. On an analytic chart that is
-/// [`AnalyticRow::is_singular`] at the run's band, the decision the
+/// `is_singular` decides the point is one: [`AnalyticRow::is_singular`]
+/// or [`CollapsedSides::holds`], each at the run's band, the decision the
 /// loop's lift takes to turn the face there (`chart_table`'s module
 /// docs), read on the same points, so the polygon's sides at a singular
-/// point are the lift's; on a spline chart it is
-/// [`CollapsedSides::holds`].
+/// point are the lift's.
 ///
 /// # Errors
 ///
@@ -3288,40 +3290,45 @@ impl CollapsedSides {
         self.0.is_empty()
     }
 
-    /// The sides whose point vertex position `p` is: its stored point is
-    /// the side's, by the identity the side itself is read with
-    /// (`geom_core::bit_identity::one_stored_point`). No band reads it,
-    /// so the mesh stays a function of (body, δ): a vertex a hair off a
-    /// collapsed side is a vertex beside it, and its polygon keeps it
-    /// once, as at any joint.
-    fn of_point(&self, p: Point3<f64>) -> impl Iterator<Item = geom_brep::ChartSide> + '_ {
-        self.0
-            .iter()
-            .filter(move |(_, q)| geom_core::bit_identity::one_stored_point(&p, q))
-            .map(|&(side, _)| side)
-    }
-
-    /// Whether `p` is a collapsed side's point ([`Self::of_point`]).
-    fn holds(&self, p: Point3<f64>) -> bool {
-        self.of_point(p).next().is_some()
+    /// Whether vertex position `p` is a collapsed side's point, decided at
+    /// `band` as every singular point is (`crate::chart_table`'s
+    /// `at_a_singular_point`): the classification topo's lift makes when it
+    /// turns the face there (`singular_at`), so the polygon keeps a copy
+    /// exactly where the lift turns.
+    fn holds(&self, p: Point3<f64>, band: Band) -> Result<bool, Indeterminate> {
+        at_a_singular_point(self.0.iter().map(|&(_, q)| q), p, band)
     }
 
     /// The walk along each side ([`SideWalk`]) at the face's chord steps
-    /// `(h_u, h_v)`: every `singular` vertex on exactly one side walks it
-    /// at the step of the axis the side runs along. A vertex on two sides
-    /// is their shared corner, and the loop's path between its copies
-    /// turns there; it keeps its two copies and no point between.
+    /// `(h_u, h_v)`: every `singular` vertex decided on exactly one side,
+    /// and clear of every other, walks it at the step of the axis the side
+    /// runs along. A vertex on two sides is their shared corner, and the
+    /// loop's path between its copies turns there; it keeps its two copies
+    /// and no point between, as does a vertex the band leaves undecided
+    /// against another side.
     fn walk(
         &self,
         shared: &[Point3<f64>],
         singular: &HashSet<u32>,
         (hu, hv): (f64, f64),
+        band: Band,
     ) -> SideWalk {
         let steps = singular
             .iter()
             .filter_map(|&id| {
                 let p = *shared.get(id as usize)?;
-                let mut on = self.of_point(p);
+                let reads: Vec<_> = self
+                    .0
+                    .iter()
+                    .map(|&(side, q)| (side, at_a_singular_point(core::iter::once(q), p, band)))
+                    .collect();
+                if reads.iter().any(|(_, r)| r.is_err()) {
+                    return None;
+                }
+                let mut on = reads
+                    .iter()
+                    .filter(|(_, r)| *r == Ok(true))
+                    .map(|&(side, _)| side);
                 match (on.next(), on.next()) {
                     (Some(side), None) => Some((
                         id,
