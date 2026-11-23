@@ -321,14 +321,21 @@ pub enum SingularMiss {
     /// an overlap or a cusp, a sector of no decided width.
     EdgesCoincide,
     /// The two edges leave the point on different sheets of the chart
-    /// that no element joins: a cone's two nappes, or a horn's cusp
-    /// reached from above by one and from below by the other. The face
-    /// crosses the point, and no one side of it is the face's.
+    /// that no element joins: a cone's two nappes. The face crosses the
+    /// point, and no one side of it is the face's.
     TwoNappes,
     /// An edge of the joint does not leave a cone's apex past the band,
-    /// or reaches a spindle sheet's apex at a `v` that decides zero, so
-    /// the nappe it lies on is not read.
+    /// so the nappe it lies on is not read.
     NoNappe,
+    /// The two edges reach a spindle sheet's apex from either side of it
+    /// in `v`: on a horn, one at the cusp's copy `v = −π` and the other at
+    /// `v = π`. The face crosses the cusp from one side to the other, and
+    /// no one side of it is the face's.
+    CuspCrossed,
+    /// An edge of the joint reaches a spindle sheet's apex at a `v` that
+    /// decides zero: the sheet's apexes lie on its centre's plane, so
+    /// which side of the apex the face lies on is not read.
+    CuspUnsided,
     /// An edge of the joint has no certified curve, so the faces' extent
     /// along it, the lever the angle at the point is metered at, is not
     /// read.
@@ -358,6 +365,13 @@ impl SingularMiss {
             Self::NoNappe => {
                 "Recourse: lengthen that edge past the tolerance, or merge its two ends"
             }
+            Self::CuspCrossed => {
+                "Recourse: divide the face at that point, so each piece reaches it from one side"
+            }
+            Self::CuspUnsided => {
+                "Recourse: describe the sheet so its apexes stand clear of its centre's plane by \
+                 more than the tolerance"
+            }
             Self::NoLever => {
                 "Recourse: describe that edge's curve before the face's boundary is minted"
             }
@@ -377,6 +391,11 @@ impl core::fmt::Display for SingularMiss {
             }
             Self::TwoNappes => "its two edges leave the point on different nappes",
             Self::NoNappe => "one of its edges does not leave the apex past the tolerance",
+            Self::CuspCrossed => "its two edges reach the sheet's apex from either side of it",
+            Self::CuspUnsided => {
+                "one of its edges reaches the sheet's apex at a latitude that reads neither side \
+                 of it"
+            }
             Self::NoLever => {
                 "one of its edges has no certified curve, and its angle at the point has no \
                  lever"
@@ -882,13 +901,8 @@ pub(super) fn walk_runs<T: AtRestPolicy>(
 pub(super) enum Singular {
     /// Definitely off the set, or the chart has none.
     Off,
-    /// On this singular point of an analytic chart: a sphere's pole or
-    /// a cone's apex.
-    On(geom_brep::chart_singularity::Singularity),
-    /// On an apex of a spindle sheet. On a horn its two apexes are one
-    /// cusp, so the point does not say which: a joint reads that off its
-    /// chart ends ([`apex_reached`]).
-    SheetApex,
+    /// On this singular point of an analytic chart.
+    On(AnalyticPoint),
     /// On these collapsed sides of a spline net, in
     /// [`geom_brep::ssi::boundary::SIDES`] order: two sides meet at a
     /// corner, and both may be the vertex's one point. Which one a joint
@@ -902,6 +916,23 @@ pub(super) enum Singular {
     Collapsed,
     /// Undecided at this width.
     Undecided(Indeterminate),
+}
+
+/// **Which singular point of an analytic chart a vertex is on**, as the
+/// point itself says it ([`singular_at`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum AnalyticPoint {
+    /// A sphere's pole along its axis.
+    North,
+    /// A sphere's pole against its axis.
+    South,
+    /// A cone's apex: which nappe a face is on is read off its edges
+    /// ([`apex_nappe`]).
+    ConeApex,
+    /// An apex of a spindle sheet. On a horn its two apexes are one cusp,
+    /// so the point does not say which: a joint reads that off its chart
+    /// ends ([`apex_side`]).
+    SpindleApexes,
 }
 
 /// **Whether a joint's vertex lies on the chart's singular set**,
@@ -935,10 +966,17 @@ pub(super) fn singular_at<T: Decide>(
     for (which, point) in singular_points(chart.surface()) {
         match (which, vertex_at_singular_point(vertex, point, band)) {
             (Singularity::Side(side), Ok(true)) => sides[side_index(side)] = true,
-            (Singularity::SheetApexUp | Singularity::SheetApexDown, Ok(true)) => {
-                return Singular::SheetApex;
+            (_, Ok(true)) => {
+                return Singular::On(match which {
+                    Singularity::North => AnalyticPoint::North,
+                    Singularity::South => AnalyticPoint::South,
+                    Singularity::Apex => AnalyticPoint::ConeApex,
+                    Singularity::SheetApexUp | Singularity::SheetApexDown => {
+                        AnalyticPoint::SpindleApexes
+                    }
+                    Singularity::Side(_) => unreachable!("matched by the arm above"),
+                });
             }
-            (_, Ok(true)) => return Singular::On(which),
             (_, Ok(false)) => {}
             (_, Err(cause)) => {
                 undecided.get_or_insert(cause);
@@ -1162,11 +1200,7 @@ enum AzimuthRule {
     /// The vertex is decided ON this singular point of an analytic
     /// chart: the element is the turn on the face's side
     /// ([`singular_turn`]).
-    OnSingularSet(geom_brep::chart_singularity::Singularity),
-    /// The vertex is decided on an apex of a spindle sheet: the same
-    /// turn, about the apex the joint's chart ends reach
-    /// ([`apex_reached`]).
-    OnSheetApex,
+    OnSingularSet(AnalyticPoint),
     /// The joint walks a spline net's collapsed sides ([`side_walked`]):
     /// each side is the one point, so the channel along it is free and
     /// the element is an ordinary one, any channel not freed deciding its
@@ -1209,7 +1243,6 @@ impl AzimuthRule {
             (true, Singular::Undecided(cause)) if spline => Self::SplineUndecided(cause),
             (false, _) | (true, Singular::Collapsed) => Self::Aperiodic,
             (true, Singular::On(which)) => Self::OnSingularSet(which),
-            (true, Singular::SheetApex) => Self::OnSheetApex,
             // A joint at a collapsed side's point that walks no side is an
             // ordinary one, its marks reading its integer.
             (true, Singular::Off | Singular::Sides(_)) => Self::Marks,
@@ -1266,34 +1299,17 @@ impl AzimuthRule {
 ///   else the sector has no decided width
 ///   ([`SingularMiss::EdgesCoincide`]).
 ///
-/// A cone's apex is on the face's side of one nappe only: which is read
-/// off each edge ([`apex_nappe`]). Which apex of a spindle sheet the
-/// joint is at, and so which side of it the face lies on, is read off its
-/// chart ends ([`apex_reached`]): a horn's two apexes are one cusp.
+/// Which side of the point the face lies on is [`face_above`]'s.
 fn singular_turn<T: Decide>(
     chart: DescribedChart<'_, T>,
-    which: geom_brep::chart_singularity::Singularity,
+    which: AnalyticPoint,
     image: &Pcurve<T>,
     entry_t: T,
     prev: geom_core::Point2<T>,
     sides: JointSides<'_, T>,
     band: Band,
 ) -> Result<(i32, bool), PinMiss> {
-    use geom_brep::chart_singularity::Singularity;
-    let above = match which {
-        Singularity::South | Singularity::SheetApexDown => true,
-        Singularity::North | Singularity::SheetApexUp => false,
-        Singularity::Apex => {
-            let arrived = apex_nappe(chart, sides.arrived, band)?;
-            if arrived != apex_nappe(chart, sides.leaving, band)? {
-                return Err(PinMiss::Singular(SingularMiss::TwoNappes));
-            }
-            arrived
-        }
-        Singularity::Side(_) => {
-            unreachable!("singular_turn: a collapsed side's joint is an ordinary one")
-        }
-    };
+    let above = face_above(chart, which, prev, image.eval(entry_t), sides, band)?;
     // The step of a face on the loop's left: it advances along a
     // latitude it lies above.
     let left = if above { 1 } else { -1 };
@@ -1342,48 +1358,78 @@ fn singular_turn<T: Decide>(
     }
 }
 
-/// **Which apex of a spindle sheet a joint reaches**: the copy of `v`
-/// its two chart ends hold, `prev` the arriving image's exit and `entry`
-/// the leaving image's entry. A sheet's images lie in its window
-/// `[−v*, v*]`, so an end at the apex along the axis
-/// ([`Singularity::SheetApexUp`]) reads `v = v*` and one at the apex
-/// against it `−v*`: the copy is the sign of the end's `v`, metred at
-/// the polar radius (`pcurve_sheet_apex_copy`), a margin of `r·v*`. On a
-/// horn the two apexes are one cusp, at `v = ±π` alike, and only the
-/// face's own ends say which side of it the face lies on; elsewhere they
-/// agree with the point.
+/// **Whether the face lies above the joint's singular point in `v`**:
+/// a sphere's south pole, a cone's apex under the nappe the face is on,
+/// a spindle sheet's apex against its axis. A pole says it by itself.
+/// A cone's apex and a sheet's apex do not: each side is read twice,
+/// once off the arriving half and once off the leaving one, and the two
+/// must agree, or the face crosses the point from one side to the other
+/// and no one side of it is the face's.
+/// - A cone's apex: the nappe each edge leaves on ([`apex_nappe`]); two
+///   refuse [`SingularMiss::TwoNappes`].
+/// - A spindle sheet's apex: the copy of `v` each chart end holds there
+///   ([`apex_side`]), `prev` the arriving image's exit and `entry` the
+///   leaving image's entry. On a horn the two apexes are one cusp, so
+///   only the face's own ends tell; elsewhere they agree with the point.
+///   Two refuse [`SingularMiss::CuspCrossed`].
+fn face_above<T: Decide>(
+    chart: DescribedChart<'_, T>,
+    which: AnalyticPoint,
+    prev: geom_core::Point2<T>,
+    entry: geom_core::Point2<T>,
+    sides: JointSides<'_, T>,
+    band: Band,
+) -> Result<bool, PinMiss> {
+    let agree = |arrived: bool, leaving: bool, crossed: SingularMiss| {
+        if arrived == leaving {
+            Ok(arrived)
+        } else {
+            Err(PinMiss::Singular(crossed))
+        }
+    };
+    match which {
+        AnalyticPoint::South => Ok(true),
+        AnalyticPoint::North => Ok(false),
+        AnalyticPoint::ConeApex => agree(
+            apex_nappe(chart, sides.arrived, band)?,
+            apex_nappe(chart, sides.leaving, band)?,
+            SingularMiss::TwoNappes,
+        ),
+        AnalyticPoint::SpindleApexes => agree(
+            apex_side(chart, prev, band)?,
+            apex_side(chart, entry, band)?,
+            SingularMiss::CuspCrossed,
+        ),
+    }
+}
+
+/// **Whether a chart end at a spindle sheet's apex lies above it in
+/// `v`**: the end is at the apex against the sheet's axis, `v = −v*`. A
+/// sheet's tube angle is named in `(−π, π]` ([`geom::azimuth::Window::Sheet`]),
+/// so its images lie in its window `[−v*, v*]` and an end at an apex
+/// reads `±v*`: the copy is the sign of the end's `v`, metred at the
+/// polar radius (`pcurve_sheet_apex_copy`), a margin of `r·v*`.
 ///
 /// # Errors
 ///
-/// [`SingularMiss::TwoNappes`] where the two ends reach different
-/// copies: the face crosses the cusp from one side to the other.
-/// [`SingularMiss::NoNappe`] where an end's `v` decides zero, and
+/// [`SingularMiss::CuspUnsided`] where the end's `v` decides zero, and
 /// [`PinMiss::Escalated`] where it is in band: a sheet whose apexes lie
-/// within the band of its centre's latitude.
-///
-/// [`Singularity::SheetApexUp`]: geom_brep::chart_singularity::Singularity::SheetApexUp
-fn apex_reached<T: Decide>(
+/// within the band of its centre's plane.
+fn apex_side<T: Decide>(
     chart: DescribedChart<'_, T>,
-    prev: geom_core::Point2<T>,
-    entry: geom_core::Point2<T>,
+    end: geom_core::Point2<T>,
     band: Band,
-) -> Result<geom_brep::chart_singularity::Singularity, PinMiss> {
-    use geom_brep::chart_singularity::Singularity;
-    let copy = |end: geom_core::Point2<T>| match decide(
+) -> Result<bool, PinMiss> {
+    match decide(
         "pcurve_sheet_apex_copy",
         Margin::metered_sup(end.y, v_meter(chart)),
         band,
     ) {
-        Ok(Sign::Positive) => Ok(Singularity::SheetApexUp),
-        Ok(Sign::Negative) => Ok(Singularity::SheetApexDown),
-        Ok(Sign::Zero) => Err(PinMiss::Singular(SingularMiss::NoNappe)),
+        Ok(Sign::Positive) => Ok(false),
+        Ok(Sign::Negative) => Ok(true),
+        Ok(Sign::Zero) => Err(PinMiss::Singular(SingularMiss::CuspUnsided)),
         Err(cause) => Err(PinMiss::Escalated(cause)),
-    };
-    let arrived = copy(prev)?;
-    if arrived != copy(entry)? {
-        return Err(PinMiss::Singular(SingularMiss::TwoNappes));
     }
-    Ok(arrived)
 }
 
 /// **Whether an image's first coordinate at a singular point is half a
@@ -1667,11 +1713,6 @@ fn decide_joint_by<T: Decide>(
         }
         // The turn's periods, and its twin bit as an odd step.
         (AzimuthRule::OnSingularSet(which), _) => {
-            let (periods, twin) = singular_turn(chart, which, image, entry_t, prev, sides, band)?;
-            periods * orbit.steps() + i32::from(twin)
-        }
-        (AzimuthRule::OnSheetApex, _) => {
-            let which = apex_reached(chart, prev, image.eval(entry_t), band)?;
             let (periods, twin) = singular_turn(chart, which, image, entry_t, prev, sides, band)?;
             periods * orbit.steps() + i32::from(twin)
         }

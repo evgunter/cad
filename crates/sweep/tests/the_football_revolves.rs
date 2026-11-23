@@ -876,3 +876,111 @@ fn a_horns_cusp_turns_on_the_faces_side_from_above_and_below() {
         );
     }
 }
+
+/// **A kill across a closed meridian through a horn's cusp has no turn.**
+/// The horn's circle in quarters revolved part way, its four sheet faces
+/// merged across their rims into one, which reaches the cusp from above
+/// and from below; its stored lift winds no period. A strut at the cusp,
+/// in the corner where the face leaves it downward, is described as the
+/// whole meridian at `u = 1`, cusp to cusp; a second strut at its far
+/// vertex as the meridian at `u = 1.5`. Killing the first strut crosses
+/// it whole, and its image runs from one copy of the cusp (`v = −π`) to
+/// the other (`v = π`): the face it leaves runs through the cusp from one
+/// side to the other, where no turn is the face's, so the kill refuses
+/// typed (`KillTurnUndecided`, no escalation) rather than writing a body
+/// whose loop does not close.
+#[test]
+fn a_kill_across_a_closed_meridian_through_a_horns_cusp_has_no_turn() {
+    use geom_core::Vec3;
+    use topo::construction::{Construct, MevSite, NewVertexSide};
+    let quarter = -(PI / 8.0).tan();
+    let tol = Tol::witness();
+    let mut body = revolve(
+        &validated(vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), quarter),
+            (Point2::new(1.0, 1.0), quarter),
+            (Point2::new(2.0, 0.0), quarter),
+            (Point2::new(1.0, -1.0), quarter),
+        ])]),
+        y_axis(),
+        Revolution::Partial(2.0),
+        tol,
+    )
+    .unwrap()
+    .body
+    .into_body();
+    let sheet =
+        |b: &topo::Body<f64>, f| matches!(b.face_surface(f), Some(geom::Surface::Spindle { .. }));
+    let face_of = |b: &topo::Body<f64>, he| {
+        b.get_loop(b.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    loop {
+        let rim = body.half_edges().find_map(|(he, h)| {
+            let e = body.get_edge(h.edge).unwrap();
+            let mate = if e.he_plus == he {
+                e.he_minus
+            } else {
+                e.he_plus
+            };
+            let (a, b) = (face_of(&body, he), face_of(&body, mate));
+            (a != b && sheet(&body, a) && sheet(&body, b)).then_some(he)
+        });
+        let Some(rim) = rim else { break };
+        body.kef(rim).unwrap();
+    }
+    let (face, _) = body.faces().find(|&(f, _)| sheet(&body, f)).unwrap();
+    let lift = body.loop_lift(body.get_face(face).unwrap().outer).unwrap();
+    assert!(
+        lift.closes_in_chart(),
+        "the merged sheet face's lift winds {:?}",
+        lift.winding()
+    );
+    // The corner where the loop leaves the cusp downward, at `v = −π`.
+    let leaves_down = lift
+        .rows()
+        .iter()
+        .find(|row| {
+            let (entry, _) = row.entry_exit_points();
+            (entry.y + PI).abs() < 1e-9
+        })
+        .unwrap()
+        .half_edge;
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let meridian = |phi: f64| {
+        let d = Vec3::new(phi.cos(), 0.0, -phi.sin());
+        let circle =
+            geom::Curve3::circle(geom_core::Point3::origin() + d, d.cross(y), 1.0, d * -1.0);
+        geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::TAU).unwrap()
+    };
+    let strut = body
+        .mev_null(
+            MevSite::Fan {
+                he1: leaves_down,
+                he2: leaves_down,
+            },
+            NewVertexSide::Above,
+        )
+        .unwrap();
+    body.set_edge_curve(strut.edge, meridian(1.0), tol).unwrap();
+    let back = body.get_edge(strut.edge).unwrap().he_minus;
+    let second = body
+        .mev_null(
+            MevSite::Fan {
+                he1: back,
+                he2: back,
+            },
+            NewVertexSide::Above,
+        )
+        .unwrap();
+    let got = body.kev_describing(strut.he_plus, &[(second.edge, meridian(1.5))], tol);
+    assert!(
+        matches!(
+            got,
+            Err(topo::EulerOpError::KillTurnUndecided { diag: None, .. })
+        ),
+        "{:?}",
+        got.map(|_| ())
+    );
+}
