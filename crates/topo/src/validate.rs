@@ -10437,14 +10437,9 @@ enum RingNestingVerdict {
 /// Does `ring` lie inside the region `outer` bounds, both loops of one
 /// planar face whose chart normal [`plane_chart_normal`] read as `normal`?
 ///
-/// The ring's VERTICES are the queries, in cycle order, and the walk
-/// takes the first definite verdict it reaches — `Out` reports, `In`
-/// accepts. That is what keeps an escalation at one vertex from
-/// refusing a ring another vertex has already placed inside, and it
-/// is why the witness reported is the FIRST vertex in cycle order
-/// that read outside rather than a distinguished one. An `OnBoundary`
-/// is the disjointness half's question, not this one, so it settles
-/// nothing here and the walk moves to the next vertex.
+/// The ring's VERTICES are the queries, in cycle order. An
+/// `OnBoundary` is the disjointness half's question, not this one, so
+/// it places nothing here.
 ///
 /// **One instrument, every class**:
 /// [`crate::splitting::containment::point_in_loop`], which reads each outer
@@ -10468,7 +10463,8 @@ enum RingNestingVerdict {
 /// vertex, and a ring no vertex of which was placed is
 /// [`RingNestingVerdict::Undecided`].
 ///
-/// **Every vertex of the ring is read** ([`crate::loop_side`]). A ring
+/// **Every vertex of the ring is read**
+/// ([`crate::loop_side::inside_at_every_vertex`]). A ring
 /// disjoint from the outer boundary is a connected curve in one
 /// component of the plane minus that boundary, so its vertices place
 /// alike, whatever curve joins them, arcs and whole circles included.
@@ -10483,9 +10479,11 @@ enum RingNestingVerdict {
 /// arm 1's, but arms 2, 3 and 5 have no locus or meeting point for that
 /// edge (check 9's banner lists the residue). So no vertex is taken for
 /// the rest: a ring whose vertices place on both sides crosses the
-/// outer loop and is [`RingNestingVerdict::Outside`] at a vertex placed
-/// outside, whichever the walk reads first. A crossing that places no
-/// vertex outside (an edge bowing out between inside vertices) is the
+/// outer loop and is [`RingNestingVerdict::Outside`] at the first vertex
+/// in cycle order placed outside; otherwise a vertex placed inside
+/// accepts, so an escalation at one vertex does not refuse a ring
+/// another vertex placed inside. A crossing that places no vertex
+/// outside (an edge bowing out between inside vertices) is the
 /// contact arms' alone.
 ///
 /// **Why a `Disc`-class ring gets no second instrument** — the one
