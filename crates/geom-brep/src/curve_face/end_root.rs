@@ -683,7 +683,10 @@ mod rows {
         let c = ruling(core::f64::consts::FRAC_PI_2 - 1e-4);
         let got = end_window(&c, (0.0, 2.0), SpanEnd::End, &bend(), b);
         assert!(
-            matches!(got, Err(EndRootRefusal::Spread(_) | EndRootRefusal::Window(_))),
+            matches!(
+                got,
+                Err(EndRootRefusal::Spread(_) | EndRootRefusal::Window(_))
+            ),
             "{got:?}"
         );
     }

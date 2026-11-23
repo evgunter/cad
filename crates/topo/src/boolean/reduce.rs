@@ -2152,7 +2152,12 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
         let Some((rim, touch)) = declared.junction_rim(x_is, parent, x_is.other(), face) else {
             continue;
         };
-        let in_band = |diag| refused(JunctionEndUnsettled::InBand(BooleanDecision::JunctionEndOnRim, diag));
+        let in_band = |diag| {
+            refused(JunctionEndUnsettled::InBand(
+                BooleanDecision::JunctionEndOnRim,
+                diag,
+            ))
+        };
         let Some(a_rides) = junction_end_held(rim, touch, p, band).map_err(in_band)? else {
             continue;
         };
@@ -2167,11 +2172,12 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
         Operand::A => a_rides,
         Operand::B => a_rides.flip(),
     };
-    let p_face = x.face(parent).ok_or(BooleanError::ClassificationInvariant {
-        what: "a junction's glued face does not resolve",
-    })?;
-    let normal =
-        geom_brep::implicit_outward_normal(p_face.surface(), p_face.sense(), p).vec();
+    let p_face = x
+        .face(parent)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "a junction's glued face does not resolve",
+        })?;
+    let normal = geom_brep::implicit_outward_normal(p_face.surface(), p_face.sense(), p).vec();
     let end = match geom_core::k_stats::prove(
         "junction_end_which",
         Margin::of((carrier.eval(t1) - p).norm() - (carrier.eval(t0) - p).norm()),
@@ -2332,7 +2338,12 @@ fn junction_end_window<T: Decide>(
     };
     let conormal = q.normal.cross(ridden);
     let departure = along.dot(conormal / conormal.norm());
-    match junction_side(departure, (bend_e, T::one() / q.rim.radius), window.spread, band) {
+    match junction_side(
+        departure,
+        (bend_e, T::one() / q.rim.radius),
+        window.spread,
+        band,
+    ) {
         Ok(Sign::Positive) => Ok(Some(window)),
         Ok(Sign::Zero | Sign::Negative) => Err(no_window),
         Err(diag) => Err(in_band(BooleanDecision::JunctionEndSide, diag)),
@@ -10150,7 +10161,9 @@ mod junction_end_rows {
     /// elbow's double root, its window certified.
     #[test]
     fn a_ruling_leaving_the_rim_into_its_own_face_holds_its_side() {
-        let w = elbow(Sign::Negative).expect("a window").expect("not lying on");
+        let w = elbow(Sign::Negative)
+            .expect("a window")
+            .expect("not lying on");
         assert_eq!(w.order, 2, "{w:?}");
     }
 
@@ -10161,7 +10174,12 @@ mod junction_end_rows {
     fn a_ruling_leaving_the_rim_into_the_other_side_holds_none() {
         let got = elbow(Sign::Positive);
         assert!(
-            matches!(got, Err(JunctionEndUnsettled::Gap(super::super::JunctionEndGap::Window))),
+            matches!(
+                got,
+                Err(JunctionEndUnsettled::Gap(
+                    super::super::JunctionEndGap::Window
+                ))
+            ),
             "{got:?}"
         );
     }
@@ -10200,7 +10218,12 @@ mod junction_end_rows {
             band(),
         );
         assert!(
-            matches!(got, Err(JunctionEndUnsettled::Gap(super::super::JunctionEndGap::Window))),
+            matches!(
+                got,
+                Err(JunctionEndUnsettled::Gap(
+                    super::super::JunctionEndGap::Window
+                ))
+            ),
             "{got:?}"
         );
     }
@@ -10217,7 +10240,12 @@ mod junction_end_rows {
         assert_eq!(steep.order, 2, "{steep:?}");
         let shallow = ice_cream(1e-3);
         assert!(
-            matches!(shallow, Err(JunctionEndUnsettled::Gap(super::super::JunctionEndGap::Window))),
+            matches!(
+                shallow,
+                Err(JunctionEndUnsettled::Gap(
+                    super::super::JunctionEndGap::Window
+                ))
+            ),
             "{shallow:?}"
         );
     }
@@ -10255,14 +10283,29 @@ mod junction_end_rows {
         let quarter =
             crate::rim_wedge::Touch::of(vec![(0.0, core::f64::consts::FRAC_PI_2, Sign::Negative)]);
         let at = |phi: f64| Point3::new(phi.cos(), phi.sin(), 0.0);
-        assert_eq!(junction_end_held(r, &quarter, at(0.5), b), Ok(Some(Sign::Negative)));
-        assert_eq!(junction_end_held(r, &quarter, at(0.0), b), Ok(Some(Sign::Negative)), "its start");
+        assert_eq!(
+            junction_end_held(r, &quarter, at(0.5), b),
+            Ok(Some(Sign::Negative))
+        );
+        assert_eq!(
+            junction_end_held(r, &quarter, at(0.0), b),
+            Ok(Some(Sign::Negative)),
+            "its start"
+        );
         assert_eq!(
             junction_end_held(r, &quarter, at(core::f64::consts::FRAC_PI_2), b),
             Ok(Some(Sign::Negative)),
             "its end"
         );
-        assert_eq!(junction_end_held(r, &quarter, at(2.0), b), Ok(None), "past it");
-        assert_eq!(junction_end_held(r, &quarter, at(-0.5), b), Ok(None), "before it");
+        assert_eq!(
+            junction_end_held(r, &quarter, at(2.0), b),
+            Ok(None),
+            "past it"
+        );
+        assert_eq!(
+            junction_end_held(r, &quarter, at(-0.5), b),
+            Ok(None),
+            "before it"
+        );
     }
 }

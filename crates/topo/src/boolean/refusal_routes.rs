@@ -1584,9 +1584,9 @@ impl BooleanDecision {
             Self::JunctionEndOnRim => Ending::Lever(
                 "build the edge so it ends exactly on the rim, or clearly away from it",
             ),
-            Self::JunctionEndSide => Ending::Lever(
-                "turn the parts so the edge leaves the rim more steeply",
-            ),
+            Self::JunctionEndSide => {
+                Ending::Lever("turn the parts so the edge leaves the rim more steeply")
+            }
             // The lead and the depth pass on different sets (a zero lead
             // is a ruling the lane does not answer), and the escalation
             // does not say which refused.
