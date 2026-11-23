@@ -2350,7 +2350,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    of the lantern at once. A seam meridian, an edge with the same
     //    sphere on both sides, is a smooth seam the fillet leaves as it
     //    is, so that request rolls every rim; the rim itself, asked for
-    //    by both of its half-arcs, rolls too. The scene
+    //    by name, rolls too. The scene
     //    now rolls it ([`roll_the_mouth`], r = [`FLOWER_MOUTH_ROLL`]),
     //    and what stays live is that the lantern the scene ships carries
     //    the band: one torus face, coaxial with the flower.

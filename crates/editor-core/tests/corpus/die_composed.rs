@@ -152,17 +152,15 @@ pub fn selection(
         node: pipped,
         path: vec![RoleSeg::From { read, of: f.into() }],
     };
-    for band in [RoleSeg::Band(lower.into())] {
-        let (x, y) = (
-            carried(from.read, cap_top.clone()),
-            carried(tool.read, ball_face(band)),
-        );
-        let (a, b) = if y < x { (y, x) } else { (x, y) };
-        out.push(at(RoleSeg::Seam {
-            a: a.into(),
-            b: b.into(),
-        }));
-    }
+    let (x, y) = (
+        carried(from.read, cap_top),
+        carried(tool.read, ball_face(RoleSeg::Band(lower.into()))),
+    );
+    let (a, b) = if y < x { (y, x) } else { (x, y) };
+    out.push(at(RoleSeg::Seam {
+        a: a.into(),
+        b: b.into(),
+    }));
     out
 }
 
