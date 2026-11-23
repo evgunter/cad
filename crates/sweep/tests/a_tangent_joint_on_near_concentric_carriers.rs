@@ -4,10 +4,12 @@
 //! arcs run within ε of each other past the joint; whether the joint is
 //! a legal EDGE is decided where it becomes one. The extrude reads its
 //! second-order arm there: walls whose curvatures differ by `d` ≈ 17ε
-//! part by `d·r²/2` ≈ 8.5ε at the unit arm, in band, and the join
-//! refuses `SliverJoin` naming the profile's joint, at a cusp and at a
-//! smooth joint alike; at 40ε and 100ε they part definitely and the
-//! body builds and passes tier 3. A joint at a crossing of such
+//! part by `d·r²/2` ≈ 8.5ε at the unit arm, in band, and at a cusp the
+//! join refuses `SliverJoin` naming the profile's joint; at a smooth
+//! joint (wedge π) the bend decides no wedge, so the in-band bend leaves
+//! only the strut's description under-determined and the body builds; at
+//! 40ε and 100ε the cusp's walls part definitely and the body builds and
+//! passes tier 3. A joint at a crossing of such
 //! carriers turns by `√(2gd)`, a definite corner at the unit arm, which
 //! the profile's joint pass reads as one and the extrude builds sharp.
 //! Every row runs at `f64` and at `Interval`.
@@ -70,14 +72,13 @@ fn up<T: Real>() -> Extrusion<T> {
     }
 }
 
-/// **Walls 17ε apart in curvature refuse their join, cusp or smooth.**
-/// `g = 0` is pinned at 1e-6 only, where the profile validates it (at
-/// the finer rows the stored radius rounds `g` into a chord the pair
-/// pass refuses).
+/// **Walls 17ε apart in curvature refuse their cusp.** `g = 0` is pinned
+/// at 1e-6 only, where the profile validates it (at the finer rows the
+/// stored radius rounds `g` into a chord the pair pass refuses).
 #[test]
 fn a_join_whose_walls_part_in_band_refuses_its_sliver() {
     let eps = Tol::witness().eps();
-    let mut rows = vec![(-0.5, -1.6, "cusp"), (-0.5, 1.6, "smooth")];
+    let mut rows = vec![(-0.5, -1.6, "cusp")];
     if format!("{eps:e}") == "1e-6" {
         rows.push((0.0, -1.6, "cusp, g = 0"));
     }
@@ -115,6 +116,23 @@ fn a_join_whose_walls_part_in_band_refuses_its_sliver() {
             margin / eps
         );
     }
+}
+
+/// **Walls 17ε apart in curvature build their smooth joint**: the walls
+/// lie on opposite sides of the strut, so an in-band bend leaves only the
+/// strut's description under-determined, and the body builds and passes
+/// tier 3, at `f64` and at `Interval`.
+#[test]
+fn a_smooth_join_whose_walls_part_in_band_builds() {
+    let eps = Tol::witness().eps();
+    let (v, lifted) = validated(&joint_loop(17.0 * eps, -0.5 * eps, 0.0, 2.0, 1.6));
+    let body = extrude(&v, up(), Tol::witness())
+        .unwrap_or_else(|e| panic!("the smooth joint builds, got {e:?}"))
+        .body;
+    topo::validate_geometric(&body, Tol::witness())
+        .unwrap_or_else(|e| panic!("and passes tier 3, got {e:?}"));
+    extrude(&lifted, up(), Tol::witness())
+        .unwrap_or_else(|e| panic!("at Interval: the smooth joint builds, got {e:?}"));
 }
 
 /// **Walls 40ε and 100ε apart in curvature build a legal cusp**, their

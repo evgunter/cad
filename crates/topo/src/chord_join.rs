@@ -4645,7 +4645,40 @@ fn along_edge_spec<T: Decide>(
         .get_face(face)
         .ok_or_else(|| corrupt_face(face))?
         .surface;
-    let copy = curve.restated_spec();
+    // Beside a spline (a description naming a spline wall, or a chord
+    // dividing a spline face) the mint certifies no pair or chart image
+    // the copy could restate: there a line or a circle is still minted as
+    // the join's scaffold, which the describe pass re-states at rest or
+    // tier 3 refuses
+    // (`work/heldrecords/a-chord-beside-a-spline-wall-is-minted-on-a-scaffold.md`).
+    let own = curve.restated_spec();
+    let spline = |k: geom_brep::SurfaceKey| {
+        body.get_surface(k)
+            .is_some_and(|s| !geom_brep::is_analytic(s))
+    };
+    let beside_spline = spline(surface)
+        || match &own.description {
+            geom_brep::EdgeDescriptionSpec::Intersection { pair, .. }
+            | geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
+                pair.keys().iter().any(|&k| spline(k))
+            }
+            geom_brep::EdgeDescriptionSpec::Chart { surface, .. } => spline(*surface),
+            _ => false,
+        };
+    let (t0, t1) = (own.param_start, own.param_end);
+    let copy = match &own.carrier {
+        geom::Curve3::Line(_) if beside_spline => {
+            EdgeCurveSpec::segment_of_line(own.carrier.clone(), t0, t1)
+        }
+        geom::Curve3::Circle(..) if beside_spline => {
+            EdgeCurveSpec::arc_of_circle(own.carrier.clone(), t0, t1)
+        }
+        _ => Some(own),
+    }
+    .ok_or(JoinError::SectionInvariant {
+        face,
+        what: "a segment edge's scaffold does not state",
+    })?;
     if forward {
         Ok(Some(EdgeCurveSpec {
             description: chord_description(&copy.description, face, Some(surface))?,

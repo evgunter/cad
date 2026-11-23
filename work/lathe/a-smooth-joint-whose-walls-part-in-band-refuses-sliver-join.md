@@ -2,7 +2,8 @@
 id: a-smooth-joint-whose-walls-part-in-band-refuses-sliver-join
 kind: issue
 title: A smooth (wedge-pi) profile joint whose walls' relative curvature is in band refuses SliverJoin at extrude
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-10-19
 priority: P3
 cost: M
@@ -42,3 +43,16 @@ and refusing is the conservative choice the rule makes today. Whose
 call: CARVE's, as the owner of extrude's join arm and the must-carry
 rule's sweep callers (SELECT's file holds the rule; PROPS is told of a
 must-carry wrapper change, per CARVE's `keep_out`).
+
+## 2026-11-23 — Closed by PR 7471 (HELDRECORDS)
+
+On the HELDRECORDS orchestrator's ruling for the elbow ("in band means
+a bend that is undecided, never a wedge that is undecided"),
+`geom_brep::dihedral::second_order_walk` reads on past a station whose
+bend is in band, and the must-carry rule answers `UnderDetermined`: no
+bound away from zero is certified, so no intrinsic tangency is demanded
+and the strut is described in the previous wall's chart. The smooth
+witness builds and passes tier 3 at `f64` and `Interval`
+(`a_smooth_join_whose_walls_part_in_band_builds`); the cusp on the same
+carriers still refuses `SliverJoin` on `tangent_second_order`, its
+bend deciding its wedge.
