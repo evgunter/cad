@@ -4161,3 +4161,204 @@ fn a_roof_folded_across_a_blocks_corner_crosses_it() {
         );
     }
 }
+
+// ------------------------------- a cone's section arcs, as its split states them
+
+/// A frustum's base radius, top radius and height, and a cut plane
+/// through `(0, q, 0)` whose normal is `y` tilted by `phi` toward the
+/// horizontal direction at azimuth `psi`, as `(q, phi, psi)`; the side
+/// the normal points to where the flag is set.
+type SplitCone = ((f64, f64, f64), (f64, f64, f64), bool);
+
+/// Cut through the wall alone, on dyadic sizes: the section's two arcs
+/// meet on the rulings at `±x`.
+const WALL_CUT: SplitCone = ((1.0, 0.5, 1.0), (0.5, 0.25, 0.0), true);
+/// The same on sizes that are no dyadic numbers, the tilt off the
+/// rulings.
+const WALL_CUT_OFF_GRID: SplitCone = ((0.7, 0.31, 0.9), (0.43, 0.3, 0.7), true);
+/// Cut out through the top cap, the side below: the two arcs each end
+/// on the top rim and meet at one vertex on a ruling.
+const CAP_CUT: SplitCone = ((0.7, 0.31, 0.9), (0.86, 0.3, 0.7), false);
+
+/// How a split cone is placed before it is asked.
+#[derive(Clone, Copy, Debug)]
+enum SplitPose {
+    AsBuilt,
+    /// Turned 0.7 about a generic axis off the origin.
+    Turned,
+    /// Moved a hundred units from the origin.
+    Out,
+    /// Mirrored across a generic plane: its rows are minted again.
+    Mirrored,
+}
+
+const SPLIT_POSES: [SplitPose; 4] = [
+    SplitPose::AsBuilt,
+    SplitPose::Turned,
+    SplitPose::Out,
+    SplitPose::Mirrored,
+];
+
+/// **A frustum split by a tilted plane, one side of it, placed**: the
+/// frustum revolved a full turn about `y` (its wall two half-cones
+/// meeting along the rulings at `±x`) and split.
+fn split_cone<T: Scalar>(
+    ((r0, r1, h), (q, phi, psi), above): SplitCone,
+    pose: SplitPose,
+) -> Body<T> {
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::finished;
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    let frustum = finished(
+        "the frustum",
+        revolved_about_y_at::<T>(
+            vec![p(0.0, 0.0), p(r0, 0.0), p(r1, h), p(0.0, h)],
+            Revolution::Full,
+            tol(),
+        ),
+        tol(),
+    );
+    let normal = Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, q, 0.0).map(T::from_f64),
+        normal: geom_core::UnitVec3::new(normal.map(T::from_f64), topo::POSE_UNIT_NORM, band())
+            .expect("a cut normal has a length"),
+    };
+    let result = split(&frustum, &plane, tol()).expect("the frustum splits");
+    let body = match if above { result.above } else { result.below } {
+        SplitPart::Body(b) => b,
+        SplitPart::Empty => panic!("the side carries material"),
+    };
+    match pose {
+        SplitPose::AsBuilt => body.into_body(),
+        SplitPose::Turned => moved(
+            &body,
+            &Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                0.7,
+            ),
+        )
+        .into_body(),
+        SplitPose::Out => {
+            moved(&body, &Affine3::translation(Vec3::new(60.0, -70.0, 40.0))).into_body()
+        }
+        SplitPose::Mirrored => {
+            let across = topo::Reflection::across(
+                Point3::new(0.2, 0.1, -0.3).map(T::from_f64),
+                Vec3::new(3.0 / 7.0, -6.0 / 7.0, 2.0 / 7.0).map(T::from_f64),
+                tol(),
+            )
+            .expect("a mirror plane");
+            topo::mirror_body(&body, &across, tol()).expect("the cut mirrors")
+        }
+    }
+}
+
+/// The stored ellipses of `body`'s edges.
+fn section_arcs(body: &Body<f64>) -> Vec<geom::Ellipse<f64>> {
+    body.edges()
+        .filter_map(
+            |(_, e)| match body.get_curve_geom(e.curve).unwrap().certified()?.carrier() {
+                geom::Curve3::Ellipse(e) => Some(*e),
+                _ => None,
+            },
+        )
+        .collect()
+}
+
+/// **A cone's split states its section's two arcs as one ellipse
+/// restated a half turn on, or as two a rounding apart.** Cut through
+/// the wall alone, the two arcs are stated on one anchor with `u_ref`
+/// and the phase negated: one of them is the other's half-turned
+/// restatement ([`geom::Ellipse::restatements`]) by content, exactly,
+/// in every placement, which is what the certificate reads as one conic
+/// (`injective`'s `one_stated_conic`). Cut out through a cap, the two
+/// are stated a quarter turn apart with the semi-axes exchanged, through
+/// a turn that rounds: no restatement of one is the other, and the
+/// certificate reads two. A reading of stored statements, so asked of
+/// the `f64` body alone: a body held as enclosures stores none. Red if
+/// the split states a wall cut's arcs any other way, or a cap cut's as
+/// restatements, either of which moves what the cap's corner reads.
+#[test]
+fn a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter() {
+    let restated = |a: &geom::Ellipse<f64>, b: &geom::Ellipse<f64>| {
+        a.restatements()
+            .map(|r| geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(*b)))
+    };
+    for pose in SPLIT_POSES {
+        for (what, cut) in [
+            ("on the grid", WALL_CUT),
+            ("off the grid", WALL_CUT_OFF_GRID),
+        ] {
+            let arcs = section_arcs(&split_cone::<f64>(cut, pose));
+            let [a, b] = arcs.as_slice() else {
+                panic!("{what} {pose:?}: two section arcs: {arcs:?}")
+            };
+            assert_eq!(
+                restated(a, b),
+                [false, true, false, false],
+                "{what} {pose:?}: a half turn on, and nothing else: {a:?} {b:?}"
+            );
+        }
+        let arcs = section_arcs(&split_cone::<f64>(CAP_CUT, pose));
+        let [a, b] = arcs.as_slice() else {
+            panic!("the cap cut {pose:?}: two section arcs: {arcs:?}")
+        };
+        assert_eq!(
+            restated(a, b),
+            [false; 4],
+            "the cap cut {pose:?}: no restatement: {a:?} {b:?}"
+        );
+        assert_eq!(
+            a.semi_axes(),
+            (b.semi_v(), b.semi_u()),
+            "the cap cut {pose:?}: the semi-axes exchanged"
+        );
+    }
+}
+
+/// **A split cone refuses on a pair that holds a half of its wall, at
+/// both scalars, in every placement.** A cone's own image of an edge
+/// that is no coordinate line of its chart is not read here (PR 7605,
+/// `embed/cone-image`, reads it), so the two halves refuse across a
+/// ruling, and a plane against a half across a section arc, whatever
+/// the cut cap's corner reads; the verdict door refuses `Departure` on
+/// the first. With that reading in the tree the wall cuts hold at `f64`,
+/// their caps' two arcs one conic, and the cap cut still refuses on its
+/// cut cap, its arcs two
+/// (`a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter`).
+#[test]
+fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
+    use topo::clearance::Embedding;
+    fn refuses<T: Scalar + geom_core::Certifies>(what: &str, body: &Body<T>) {
+        let verdict = door(body, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+        let Embedding::Refused(EngineRefusal::Uncertified { a, b, arm, .. }) = verdict else {
+            panic!("{what}: refuses uncertified: {verdict:?}")
+        };
+        assert_eq!(arm, CertificateArm::Departure, "{what}");
+        assert!(
+            [a, b]
+                .iter()
+                .any(|&f| matches!(surface(body, f), Surface::Cone { .. })),
+            "{what}: the refused pair holds a cone: {a:?} {b:?}"
+        );
+    }
+    for pose in SPLIT_POSES {
+        for (what, cut) in [
+            ("the wall cut on the grid", WALL_CUT),
+            ("the wall cut off the grid", WALL_CUT_OFF_GRID),
+            ("the cap cut", CAP_CUT),
+        ] {
+            refuses(
+                &format!("{what} {pose:?} at f64"),
+                &split_cone::<f64>(cut, pose),
+            );
+            refuses(
+                &format!("{what} {pose:?} at Interval"),
+                &split_cone::<Interval>(cut, pose),
+            );
+        }
+    }
+}
