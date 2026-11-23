@@ -9976,9 +9976,6 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
     crate::props::shell_role(body, shell, band, tol, T::quad_lane()).ok()
 }
 
-/// A face's world reach ([`face_reach`]): its low and high corners.
-type WorldReach<T> = (Point3<T>, Point3<T>);
-
 /// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
 /// pair `a`, `b` along a direction that turns with the pair: the axis
 /// between the two faces' anchors, either face's own normal where it
@@ -10000,15 +9997,14 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// gap does.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
-    (fa, ra): (FaceKey, WorldReach<T>),
-    (fb, rb): (FaceKey, WorldReach<T>),
+    (fa, fb): (FaceKey, FaceKey),
     proposed: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
     use crate::separating::{Item, apart_by, planar_axis};
-    let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
+    let mut axes: Vec<_> = [fa, fb]
         .into_iter()
-        .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
+        .filter_map(|f| planar_axis(body, f, band))
         .collect();
     axes.extend(proposed);
     apart_by(
@@ -10559,13 +10555,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     dirs
                 });
                 if !cleared
-                    && !backstop_apart(
-                        body,
-                        (a.face, (alo, ahi)),
-                        (b.face, (blo, bhi)),
-                        proposed.clone(),
-                        band,
-                    )
+                    && !backstop_apart(body, (a.face, b.face), proposed.clone(), band)
                     && !reads.as_ref().is_some_and(|(ra, rb)| {
                         depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
                     })

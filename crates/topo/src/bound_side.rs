@@ -105,6 +105,17 @@ pub(crate) enum BoundSupport<T: geom_core::Real> {
 }
 
 impl<T: geom_core::Real> BoundSupport<T> {
+    /// The circle of the edge behind the bound, where the bound is a
+    /// circular arc's departure; `None` for any other bound.
+    pub(crate) fn circle(self) -> Option<geom::Circle<T>> {
+        match self {
+            Self::Conic { arc: Some(arc), .. } => arc.circle(),
+            Self::Chord { .. } | Self::Extent(_) | Self::Conic { .. } | Self::Bisector { .. } => {
+                None
+            }
+        }
+    }
+
     /// The length the bound reaches from its base vertex, in metres:
     /// a line edge's chord (its far vertex's distance), a curved edge's
     /// extent, a bisector's arm.
@@ -352,6 +363,14 @@ enum ArcConic<T: geom_core::Real> {
 }
 
 impl<T: geom_core::Real> ConicArc<T> {
+    /// The circle the arc walks; `None` for an ellipse's.
+    pub(crate) fn circle(&self) -> Option<geom::Circle<T>> {
+        match self.conic {
+            ArcConic::Circle(circle) => Some(circle),
+            ArcConic::Ellipse(_) => None,
+        }
+    }
+
     /// The arc of `curve` its walk leaves the vertex along (`he_plus`
     /// walks `t₀ → t₁`): `None` for a carrier that is not a circle or
     /// an ellipse.

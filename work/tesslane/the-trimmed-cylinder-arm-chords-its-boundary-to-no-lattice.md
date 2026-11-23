@@ -55,3 +55,5 @@ hold it to the rule at its headroom like the sphere arm), answer
 `(h_u, +∞)` for it in `FaceLattice::of` and re-baseline what moves with
 that cause named. A tighter azimuth bound for the projected image
 (`|C′_xy|/ρ_min`) belongs with that change.
+
+- 2026-11-23 — **The trimmed cylinder arm lays no lattice now** (PR 7526, `chart_table::AnalyticRow::lattice_rows`), so the lattice this item measures the boundary against is gone: there is no `r·h_u` row and no lattice step for a boundary chord to span. What a `Projected` image's chord spanning several columns does now is put a triangle on the face's boundary points whose span round the axis the target does not bound; the certificate reads it, and one it refuses gets the lane's correction (a point inside it, the face triangulated again). Whether the chord rule should hold such an image to a column at all is this item's question still, read against the boundary-point triangulation rather than a lattice.
