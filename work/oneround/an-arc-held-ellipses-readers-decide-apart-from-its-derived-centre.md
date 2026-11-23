@@ -4,7 +4,7 @@ kind: unit
 title: Readers of an arc-held ellipse decide from its derived centre with no charge: curve_pair::meet misses, the plane door says Miss for the ellipse's own plane, on_carrier says Off inside the gap
 status: dispatched
 opened: 2026-11-23
-priority: P0
+priority: P1
 cost: H
 branch: oneround/conic-pair-readers
 parent: the-certified-lanes-harmonics-of-a-conic-are-formed-about-its-centre
@@ -81,9 +81,18 @@ Counts on the lane's branch near the anchor (within 1 km of arc), of 324 poses: 
 
 What PR 7203 changed is where the stored curve stands, not what `meet` answers. Before it the stored section itself stood off the true section by the centre's rounding (1e-10 m at 1e6, 3e-8 m at 1e8), so each miss was wrong of the cone and the plane but not provably wrong of the stored numbers. Since it the stored curve passes within 1e-15 m of the line, and the same answer is wrong of the stored numbers too. The readers outside `conic.rs` read a conic's centre and decide from it with no charge for its rounding at the semi-axes' scale; the row cut for them said they lose digits, not that an unmetered one certifies wrongly. **Class: a reader that decides from a datum rounded at a scale larger than the tolerance, with no charge for it, certifies what it cannot see.**
 
-## How far it reaches (as measured; not the whole of it)
+## How far it reaches: no built body, on main as it stands (measured 2026-11-23)
 
-Through the public door `curve_pair::meet` it is a wrong answer. Through the modelling doors probed so far no body is built on it: `topo::splitting::split` of a frustum toward the parabola builds sections up to `a` of 1.1e5 to 6.1e5 at ε 1e-9 (1.1e2 at 1e-12) and refuses beyond, on `VolumeUncomputable` and then on the edge certificate's `KernelLimit`, which stops the carrier at about the size where a reading from its centre would reach ε. That limit is not a re-read of anything `meet` answers; a door minting such an edge without it would have nothing behind it. **Not probed:** the boolean's own mint (`boolean::join` calls `plane_cone_section` too) and `factored_crossing`. The band stays P0 until that path is shown closed.
+Through the public door `curve_pair::meet`, the plane door and `Curve3::on_carrier` these are wrong answers. **No modelling door builds a body on a section large enough for any of them to go wrong**, by two measurement lanes (`analysis/oneround/conic-harmonic/sweep.md` on `oneround/conic-harmonic-probe`; `analysis/oneround/conic-suspects/task3.md` on `oneround/conic-suspects-probe`, `93d18a6ac`, on clean main `dc263f855`, f64):
+
+- **The largest cone-section semi-axis any door builds is 1.0e6 m at ε 1e-9 and 1.0e3 m at ε 1e-12**; the measured readers go wrong from 1e8 and 1e5, two decades above at both ε.
+- **The boolean's own mint is no wider than `split`'s**: `union`, `intersect`, `subtract` and `split` build and refuse at exactly the same sizes over 12 poses and 60 tilts (half-angles 0.46, 1.0, 1.3; as built and under a generic rigid motion).
+- **Every body built is right**: 832 bodies, each section within 4.8e-16 m of the operands' cone and 3.6e-16 m of the plane as its stored numbers state it, each boolean's volume within 8.1e-16 relative of the closed form, judged at 60 digits.
+- **What stops it is about the carrier, not the pose**: past the largest built size, `VolumeUncomputable` on `props_cone_ellipse_on_cone` (escalating, one or two tilts wide), then for every larger section the edge certificate's `KernelLimit`, whose bound is 5e-16 to 1e-15 times the semi-axis and so refuses any cone-section edge past about ε/6e-16 (1.7e6 m at 1e-9, 1.7e3 m at 1e-12). It runs on every minted edge, at `topo::finish` and at STEP adoption. A body cannot be made larger to dodge it: `finish` refuses anything past the session box.
+- **Four of the readers ARE asked about the section in every body that builds** (`plane_conic` through `height`; `Foot::on_carrier` through `clearance`; `solid_contain::curved_edges::passes`; `props::curved::require_cone_ellipse`), at sizes below where they go wrong; where `KernelLimit` refuses, the edge dies at its mint before any of them reads it.
+- **Not shown closed:** a hand-written STEP file with a larger `ELLIPSE` (files at semi-axes of 6e4 and up were refused on `SingularitySideUndecided`, not traced, which is not the carrier's limit); `factored_crossing` on a far section's edge inside a boolean.
+
+**So this is a wrong answer at the curve-level doors that reaches no built body today, kept so by one certificate's limit with two decades of margin, not by a re-read of any answer.** A change that loosens `KernelLimit`, or mints a cone-section edge without it, exposes four readers at once. **Re-banded from P0 to P1 on this measurement**: it is the readers' architecture (the band of the row it was cut from) guarding a latent wrong answer, not a verb broken on geometry a person can author. The fix unit goes on as dispatched.
 
 ## Two more of the class (2026-11-23, the lane's sweep; `origin/main` at `2130aa45f`, public API)
 
