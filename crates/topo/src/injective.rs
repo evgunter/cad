@@ -21425,11 +21425,12 @@ mod focal_rows {
 
     /// **Each corner reading on a cone metres its vertex at the far slant
     /// of the rectangle it reads.** The ruling's corner with the arc's
-    /// image `1e-7` rad off the ruling at the vertex, in a cell whose
-    /// slant runs from a thousandth of the corner's up past it: the gap
-    /// is `5e-8` m at the rectangle's far slant, two points, and `5e-11`
-    /// m at its near one, where [`on_vertex`] would grant them as one
-    /// (both asserted, the premise). Neither reading presents the cell:
+    /// image a hundred ε of azimuth off the ruling at the vertex, in a
+    /// cell whose slant runs from a thousandth of the corner's up past
+    /// it: the gap is 55 ε of length at the rectangle's far slant, two
+    /// points, and a twentieth of ε at its near one, where [`on_vertex`]
+    /// would grant them as one (both asserted, the premise; at the
+    /// default ε, `1e-7` rad, `5e-8` m and `5e-11` m). Neither reading presents the cell:
     /// the ruling's ([`present_line_corner`]) and, the arc shared, the
     /// arc's through the vertex ([`present_curved`], [`leaving`]); with no
     /// gap both do, in the same cell. Red, at the reading it is taken in,
@@ -21438,7 +21439,7 @@ mod focal_rows {
     #[test]
     fn a_cones_corner_at_a_gap_is_two_points_at_each_reading_of_a_tall_rectangle() {
         let s = cone();
-        let gap = 1e-7;
+        let gap = 100.0 * geom_core::Tol::witness().eps();
         let (closed, (cu, cv)) = gapped_corner(0.0, 2.0, 0.0);
         let (open, _) = gapped_corner(0.0, 2.0, gap);
         let (u, tall) = ((cu - 0.01, cu + 0.03), (cv * 1e-3, cv + 0.03));
