@@ -5706,6 +5706,37 @@ pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanEr
 }
 
 impl Operand {
+    /// Both operands, A then B: the order every per-operand pair
+    /// (`[_; 2]`) holds them in, so `Operand::BOTH[i]` is the operand at
+    /// place `i`.
+    pub const BOTH: [Self; 2] = [Self::A, Self::B];
+
+    /// This operand's place in a per-operand pair ([`Self::BOTH`]).
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+        }
+    }
+
+    /// This operand's position among a boolean's inputs, as a row's
+    /// [`crate::Backing::Carried`] cites it: [`Self::index`] as a `u32`.
+    #[must_use]
+    pub const fn input(self) -> u32 {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+        }
+    }
+
+    /// The operand at position `input` among a boolean's inputs
+    /// ([`Self::input`]'s inverse), where a boolean has one there.
+    #[must_use]
+    pub fn of_input(input: u32) -> Option<Self> {
+        Self::BOTH.into_iter().find(|o| o.input() == input)
+    }
+
     /// The other operand.
     pub fn other(self) -> Self {
         match self {
@@ -7070,8 +7101,9 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame, .. })
-                                if frame.axis().z.abs() > 0.9 && frame.origin().z > 0.1
+                            geom::Curve3::Circle(circle @ geom::Circle { .. })
+                                if circle.frame().axis().z.abs() > 0.9
+                                    && circle.frame().origin().z > 0.1
                         )
                 )
             })
@@ -8541,7 +8573,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if (frame.origin().z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(circle @ geom::Circle { .. }) if (circle.frame().origin().z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")
@@ -9273,9 +9305,10 @@ mod spline_face_rows {
                 panic!("a certified rim")
             };
             let carrier = curve.carrier().clone();
-            let Curve3::Ellipse(geom::Ellipse { frame, .. }) = carrier else {
+            let Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = carrier else {
                 panic!("an ellipse")
             };
+            let frame = the_ellipse.frame();
             let axis = frame.axis();
             for t in [0.4, 1.3, 2.9] {
                 let (p, d) = carrier.ders1(t);

@@ -78,7 +78,7 @@ fn check(body: &Body<f64>, expect: EulerCounts, h: i64) {
     assert_eq!(validate(body), Ok(()));
     let l = euler_counts(body);
     assert_eq!(l, expect);
-    assert_eq!(l.genus(), Ok(h));
+    assert_eq!(l.h(), Ok(h));
 }
 
 // ---------------------------------------------------------------------
@@ -485,7 +485,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
             s: 1
         }
     );
-    assert_eq!(l.genus(), Ok(1));
+    assert_eq!(l.h(), Ok(1));
 
     // Orientation, derived by hand (see review notes): the rim ring on
     // the front face walks H1→H3→H2 — CW viewed from OUTSIDE (−y),
@@ -552,7 +552,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         }
     );
     assert_eq!(l.v - l.e + l.f - l.r, -2);
-    assert_eq!(l.genus(), Ok(2));
+    assert_eq!(l.h(), Ok(2));
     assert_eq!(body.loops().count(), 17); // 13 outer + 4 rings
     assert_eq!(body.half_edges().count(), 66);
     assert_eq!(body.surfaces().count(), 1);
@@ -1260,7 +1260,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
             s: 1
         }
     );
-    assert_eq!(l.genus(), Ok(0));
+    assert_eq!(l.h(), Ok(0));
 
     // Join ring B into ring A: BothEmpty with a RING as the target —
     // the merged segment loop stays a ring of the face.
@@ -1335,7 +1335,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
             s: 1
         }
     );
-    assert_eq!(l.genus(), Ok(0));
+    assert_eq!(l.h(), Ok(0));
 }
 
 // ---------------------------------------------------------------------
