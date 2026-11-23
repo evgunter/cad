@@ -783,8 +783,8 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                let center = frame.origin();
+            geom::Curve3::Circle(circle) => {
+                let center = circle.frame().origin();
                 let radius = circle.radius();
                 rims += 1;
                 let (rho_c, h_c) = axial(center);
@@ -1214,8 +1214,8 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                let center = frame.origin();
+            geom::Curve3::Circle(circle) => {
+                let center = circle.frame().origin();
                 let radius = circle.radius();
                 rims += 1;
                 let (rho_c, h_c) = axial(center);
