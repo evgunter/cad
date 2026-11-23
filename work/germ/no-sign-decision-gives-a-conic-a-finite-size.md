@@ -66,3 +66,12 @@ site that mints one from a computed radius either re-reads finiteness
 by hand or panics. Whether the circle gets that door, with the error
 type and each layer's mapping it needs, is a design choice the lane
 reported to the orchestrator and did not make.
+
+## One sign left open beside it
+
+`geom_brep::pair_section::torus::Ring::parallel` is handed `p.x` by
+`crossing_parallels` and `tangent_parallel`: a point of
+`Circles::crossings`, or of the tangent foot, `R + û.x·a ∓ û.y·h`. In
+real numbers it is at least `R − r`, which the ring row holds past the
+band, but that is a different expression from the size stored, and no
+row decides the sum itself. No input that turns it negative was built.
