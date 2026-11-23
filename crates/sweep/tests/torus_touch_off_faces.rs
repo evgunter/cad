@@ -243,46 +243,142 @@ fn a_trimmed_ball_in_the_hole_touching_the_inner_equator_builds() {
     );
 }
 
-/// **A hub flush with the ring's top builds**: a rod of radius 1 along
-/// the axis, its top `y = 0.5` tangent to the torus along the whole top
-/// parallel `ρ = 2`, the maximum circle of the height, which its disc
-/// (`ρ ≤ 1`) does not reach. Mutant: an axis-normal plane's touch read
-/// off the meridian half-plane through its normal, which has no direction.
+/// A sleeve of inner radius `inner`, outer `2.8`, `y ∈ [lo, hi]`, about
+/// the donut's axis, over the turn `sweep` (radians) from `+x`.
+fn sleeve(inner: f64, (lo, hi): (f64, f64), sweep: Revolution<f64>) -> Body<f64> {
+    sweep::test_support::revolved_about_y(
+        vec![
+            (Point2::new(inner, lo), 0.0),
+            (Point2::new(2.8, lo), 0.0),
+            (Point2::new(2.8, hi), 0.0),
+            (Point2::new(inner, hi), 0.0),
+        ],
+        sweep,
+        Tol::witness(),
+    )
+}
+
+/// `b` moved by `turn` (an affine map that is rigid).
+fn moved(b: &Body<f64>, turn: &Affine3<f64>) -> Body<f64> {
+    topo::transform_rigid(b, &geom_core::test_support::rigid(turn, Tol::witness())).unwrap()
+}
+
+/// **A touch along a whole parallel keeps R-tan, its faces off it or
+/// not**: a hub flush with the ring's top (a rod of radius 1 along the
+/// axis, its top `y = 0.5` on the top parallel's plane), and a sleeve
+/// above the widest circle (its inner wall coaxial and tangent along the
+/// outer equator, `y ∈ [0.2, 1]`). The near band about a parallel is one
+/// annulus, but in a pose the band admits, the axis moved or tilted, the
+/// partner dips into the tube on one side only, and the edges that part
+/// the dip from a point read off the exact pose stand outside the solid,
+/// where the line × torus door is silent
+/// (`work/germ/the-line-torus-door-misses-silently-within-the-band.md`).
 #[test]
-fn a_hub_flush_with_the_rings_top_builds() {
-    let hub = rod_y(1.0, (0.0, 0.0), (-1.0, 0.5));
-    assert_every_op(
-        "hub",
-        &donut(1.0),
-        &hub,
-        (DONUT_VOLUME, PI * 1.5),
-        Pose::Apart,
+fn a_touch_along_a_parallel_refuses_off_its_face() {
+    let d = donut(1.0);
+    assert_every_op_refuses("hub", &d, &rod_y(1.0, (0.0, 0.0), (-1.0, 0.5)), tangent);
+    assert_every_op_refuses(
+        "sleeve",
+        &d,
+        &sleeve(2.5, (0.2, 1.0), Revolution::Full),
+        tangent,
     );
 }
 
-/// **A sleeve standing above the ring's widest circle builds**: a tube of
-/// radii `2.5` and `2.8`, `y ∈ [0.2, 1]`, its inner wall coaxial with the
-/// donut and tangent to it along the whole outer equator, the maximum
-/// circle of the distance from the axis, below the sleeve's face.
+/// **A parallel touch read off its exact pose would clear a real
+/// crossing; it refuses** (the review's probes). A sleeve sector over
+/// `[60°, 300°]` about the axis, its inner wall the outer equator's
+/// coaxial tangent, moved `e ∈ {0.2ε, 0.5ε}` along `+x` (into the tube
+/// on the sector's far side, off it beside the window about `+x`); and a
+/// D-pin in the hole, a rod of radius `1.5 − h` about `(−δ, ·, 0)` cut at
+/// `x ≥ −δ + 0.5`, against the inner equator at `(−1.5, 0, 0)` for
+/// `(h, δ)` of `(0.2ε, 0.2ε)`, `(0.4ε, 0.4ε)` and `(0.2ε, 0.6ε)` (a 0.4ε
+/// crossing along some 140° of the arc). Each was built across its
+/// crossing while a parallel touch cleared on the parallel's point at the
+/// torus frame's reference direction.
 #[test]
-fn a_sleeve_above_the_rings_widest_circle_builds() {
-    let sleeve = sweep::test_support::revolved_about_y(
-        vec![
-            (Point2::new(2.5, 0.2), 0.0),
-            (Point2::new(2.8, 0.2), 0.0),
-            (Point2::new(2.8, 1.0), 0.0),
-            (Point2::new(2.5, 1.0), 0.0),
-        ],
-        Revolution::Full,
-        Tol::witness(),
+fn a_parallel_touch_off_its_exact_pose_refuses() {
+    let eps = Tol::witness().eps();
+    let d = donut(1.0);
+    let sector = sleeve(2.5, (-1.0, 1.0), Revolution::Partial(2.0 * TAU / 3.0));
+    for e in [0.2 * eps, 0.5 * eps] {
+        let place = Affine3::translation(Vec3::new(e, 0.0, 0.0))
+            * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), PI / 3.0);
+        assert_every_op_refuses("sleeve sector", &d, &moved(&sector, &place), |_| true);
+    }
+    for (h, delta) in [(0.2, 0.2), (0.4, 0.4), (0.2, 0.6)] {
+        let (h, delta) = (h * eps, delta * eps);
+        let pin = built(
+            BooleanOp::Subtract,
+            &rod_y(1.5 - h, (-delta, 0.0), (-1.0, 1.0)),
+            &brick((-delta + 0.5, 3.0), (-2.0, 2.0), (-3.0, 3.0)),
+        )
+        .expect("the D-pin");
+        assert_every_op_refuses("D-pin", &d, &pin, |_| true);
+    }
+}
+
+/// Every op in both orders refuses, or builds bodies that validate at the
+/// volumes `(va, vb)` apart give: a crossing within the band, recorded,
+/// moves no volume the closed form sees.
+fn refuses_or_builds_apart(label: &str, a: &Body<f64>, b: &Body<f64>, (va, vb): (f64, f64)) {
+    for (op, x, y, want) in [
+        (BooleanOp::Union, a, b, va + vb),
+        (BooleanOp::Union, b, a, va + vb),
+        (BooleanOp::Subtract, a, b, va),
+        (BooleanOp::Subtract, b, a, vb),
+    ] {
+        if let Ok(result) = boolean(op, x, y) {
+            let body = result.body().expect("a body");
+            super::extent_scan_off_face_tangency::assert_body(
+                &format!("{label}: {op:?}"),
+                &body.body,
+                want,
+            );
+        }
+    }
+}
+
+/// **A point touch read off its pose clears no crossing**: each point arm
+/// moved `0.4ε` across, so the partner dips into the tube about its
+/// actual deepest point, its face cut through that dip on the far side of
+/// the deepest point, which it does not hold: a brick whose edge stands
+/// inside the cap, a ball trimmed through it, and a rod tilted by a turn
+/// the band admits whose end stands in it. Each pair has a crossing of
+/// the partner's face, which the sweep records or refuses: every op
+/// refuses or builds the volumes apart, never a body that misses the
+/// crossing's material.
+#[test]
+fn a_point_touch_off_its_exact_pose_clears_no_crossing() {
+    let eps = Tol::witness().eps();
+    let d = donut(1.0);
+    let dip = 0.4 * eps;
+    let cap = (2.0 * 0.4 * dip).sqrt();
+    let block = brick((0.3 * cap, 2.0), (-1.0, 1.0), (2.5 - dip, 3.5));
+    let vb = brick_volume((0.3 * cap, 2.0), (-1.0, 1.0), (2.5 - dip, 3.5));
+    refuses_or_builds_apart("brick", &d, &block, (DONUT_VOLUME, vb));
+    let ball_cut = built(
+        BooleanOp::Subtract,
+        &ball(0.5, Vec3::new(0.0, 0.0, 3.0 - dip)),
+        &brick((-2.0, 0.3 * cap), (-2.0, 2.0), (2.0, 4.0)),
+    )
+    .expect("the cut ball");
+    refuses_or_builds_apart(
+        "ball",
+        &d,
+        &ball_cut,
+        (DONUT_VOLUME, ball_volume(0.5) / 2.0 - PI * 0.25 * 0.3 * cap),
     );
-    let vs = PI * (2.8f64.powi(2) - 2.5f64.powi(2)) * 0.8;
-    assert_every_op(
-        "sleeve",
-        &donut(1.0),
-        &sleeve,
-        (DONUT_VOLUME, vs),
-        Pose::Apart,
+    let tilt = 0.4 * eps / 10.0;
+    let rod = moved(
+        &rod_y(0.5, (0.0, 3.0 - dip), (0.3 * cap, 2.0)),
+        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 3.0), Vec3::unit_z(), tilt),
+    );
+    refuses_or_builds_apart(
+        "tilted rod",
+        &d,
+        &rod,
+        (DONUT_VOLUME, PI * 0.25 * (2.0 - 0.3 * cap)),
     );
 }
 

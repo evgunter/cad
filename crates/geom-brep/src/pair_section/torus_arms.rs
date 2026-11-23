@@ -427,48 +427,69 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
     )
 }
 
-/// **The parallel wall's touch**: the wall's ruling the pinch names, on
-/// the torus's outer or inner equator in the plane of the two axes, where
-/// it stands at an extreme of the distance from the wall's axis.
+/// **The parallel wall's touch**, where its nearest ruling stands on the
+/// torus's outer equator or its farthest on the inner: an extreme of the
+/// distance from the wall's axis over the torus (its minimum beside the
+/// torus or in the hole, its maximum about it). The axis must miss the
+/// tube (`|e − R| > r`, decided across the `slack` the pose admitted):
+/// through it, the distance has two more critical points where it pierces
+/// the tube. The nearest ruling on the inner equator and the farthest on
+/// the outer stand at saddles, and are no touch.
 ///
-/// With the axis clear of the tube (`|e − R| > r`, decided across the
-/// `slack` the pose admitted), that distance is smooth on the torus and
-/// its critical points are the four equator points in that plane: the
-/// outer one beyond the axis the maximum, the inner one toward the axis
-/// (axis in the hole) or the outer one toward it (axis outside) the
-/// minimum, the other two saddles. So the wall's nearest ruling on the
-/// outer equator and its farthest on the inner are touches; its nearest
-/// on the inner equator and its farthest on the outer stand at saddles,
-/// and are not. An axis through the tube puts two more critical points
-/// where it pierces it, and is no touch.
+/// The point is read off the wall's own axis `wall`, not off the parallel
+/// reading, whose offset and direction stand at the pivot and drop the
+/// tilt the pose admitted: the core point `C` toward where `wall` crosses
+/// the torus's equatorial plane, and the point of the tube circle about
+/// `C` on its normal through `wall` (nearest it at a minimum, farthest at
+/// the maximum), which is critical across the tube exactly and around the
+/// axis to first order in the tilt.
 pub(super) fn parallel_cylinder_touch<T: Decide>(
     tan: Pinch,
-    (c, [big_r, r]): (Point3<T>, [T; 2]),
-    (e, slack, toward): (T, T, Vec3<T>),
-    rc: T,
+    (axis, [big_r, r]): (geom::Line<T>, [T; 2]),
+    (e, slack): (T, T),
+    (wall, rc): (geom::Line<T>, T),
     band: Band,
 ) -> Option<Point3<T>> {
-    if tan.undecided.is_some() {
+    if tan.undecided.is_some() || !(tan.name == WALL_NEAR_OUTER || tan.name == WALL_FAR_INNER) {
         return None;
     }
-    let rho = match tan.name {
-        WALL_NEAR_OUTER => e - rc,
-        WALL_FAR_INNER => e + rc,
-        _ => return None,
-    };
-    matches!(
-        signs_across(
-            [(
-                "section_torus_offset_wall_axis_off_tube",
-                "section_torus_offset_wall_axis_off_tube_floor",
-                (e - big_r).abs() - r,
-            )],
-            slack,
+    let off_tube = signs_across(
+        [(
+            "section_torus_offset_wall_axis_off_tube",
+            "section_torus_offset_wall_axis_off_tube_floor",
+            (e - big_r).abs() - r,
+        )],
+        slack,
+        band,
+    );
+    if !matches!(off_tube, Ok([true])) {
+        return None;
+    }
+    let geom::Line { origin: c, dir: a } = axis;
+    let (a, d) = (a.get(), wall.dir.get());
+    let crossing = wall.origin + d * ((c - wall.origin).dot(a) / d.dot(a));
+    let (perp, e_wall) = super::square_part(crossing - c, a);
+    let toward = perp / e_wall;
+    // Beside the torus or in the hole the touch is the minimum, on the
+    // core point toward the wall; about it, the maximum, opposite.
+    let about = tan.name == WALL_NEAR_OUTER
+        && sign_as(
+            "section_torus_offset_wall_touch_side",
+            Margin::of(rc - e_wall),
             band,
-        ),
-        Ok([true])
-    )
-    .then(|| c + toward * rho)
+        )? == Sign::Positive;
+    let core = if about {
+        c - toward * big_r
+    } else {
+        c + toward * big_r
+    };
+    let foot = wall.origin + d * ((core - wall.origin).dot(d) / d.dot(d));
+    let to_wall = (foot - core) / (foot - core).norm();
+    Some(if about {
+        core - to_wall * r
+    } else {
+        core + to_wall * r
+    })
 }
 
 // ---------------------------------------------------------------------

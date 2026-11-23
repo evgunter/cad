@@ -52,7 +52,7 @@ use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, Sq
 use super::torus_coincidence::{TorusCoincidence, TorusData, tori_coincide};
 use super::{
     ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection, SectionComponent,
-    SectionDecision, TouchLocus, ZeroVerdict, line_tilt, square_part,
+    SectionDecision, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
 use crate::intersect::{SectionError, SectionRadius};
@@ -345,7 +345,7 @@ impl<T: Real> Ring<T> {
     }
 
     /// The parallel of radius `rho` at height `z`.
-    pub(super) fn parallel(self, rho: T, z: T) -> Curve3<T> {
+    fn parallel(self, rho: T, z: T) -> Curve3<T> {
         Curve3::circle(
             self.center + self.axis.get() * z,
             self.axis.get(),
@@ -510,25 +510,23 @@ fn crossing_parallels<T: Real>(
         .collect()
 }
 
-/// The one component a tangent pose lists: a point or a parallel where
-/// the arm claims a touch there ([`TouchLocus`]), else a tangent loop.
+/// The one component a tangent pose lists: a point where the arm reads a
+/// touch there, else a tangent loop.
 pub(super) fn tangent_component<T: Real>(
-    locus: Option<TouchLocus<T>>,
+    touch: Option<Point3<T>>,
     winds: [bool; 2],
 ) -> SectionComponent<T> {
-    let tangent = || ClassCarrier::Unminted(super::NoCarrier::Tangent);
-    match locus {
-        Some(TouchLocus::Point(at)) => SectionComponent::closed_form(
-            ComponentShape::Point,
-            [false, false],
-            Some(at),
-            tangent(),
-        ),
-        parallel => SectionComponent {
-            locus: parallel,
-            ..SectionComponent::closed_form(ComponentShape::Loop, winds, None, tangent())
-        },
-    }
+    let (shape, winds) = if touch.is_some() {
+        (ComponentShape::Point, [false, false])
+    } else {
+        (ComponentShape::Loop, winds)
+    };
+    SectionComponent::closed_form(
+        shape,
+        winds,
+        touch,
+        ClassCarrier::Unminted(super::NoCarrier::Tangent),
+    )
 }
 
 /// An arm's loops, listed in (torus, partner) order, in the order asked.
@@ -781,10 +779,7 @@ pub(super) fn sphere_torus<T: Decide>(
                     let ca = (pose.center - ring.center).dot(ring.axis.get());
                     crossing_parallels(ring, (T::zero(), ca, pose.radius), winds)
                 }
-                Sign::Zero => vec![tangent_component(
-                    pose.tangent_parallel().map(TouchLocus::Parallel),
-                    winds,
-                )],
+                Sign::Zero => vec![tangent_component(None, winds)],
                 Sign::Negative => Vec::new(),
             }
         }
@@ -817,10 +812,7 @@ pub(super) fn sphere_torus<T: Decide>(
                         }
                         _ => None,
                     };
-                    vec![tangent_component(
-                        touch.map(TouchLocus::Point),
-                        order(torus_first, [false, false]),
-                    )]
+                    vec![tangent_component(touch, order(torus_first, [false, false]))]
                 }
             }
         }
@@ -1055,10 +1047,7 @@ pub(super) fn cylinder_torus<T: Decide>(
                             .collect(),
                     )
                 }
-                Sign::Zero => Components::Counted(vec![tangent_component(
-                    pose.tangent_parallel().map(TouchLocus::Parallel),
-                    winds,
-                )]),
+                Sign::Zero => Components::Counted(vec![tangent_component(None, winds)]),
                 Sign::Negative => Components::Counted(Vec::new()),
             }
         }
@@ -1077,16 +1066,18 @@ pub(super) fn cylinder_torus<T: Decide>(
                 rc,
                 band,
             ) {
-                Err(tan) => torus_arms::parallel_cylinder_touch(
-                    tan,
-                    (axis.origin, radii),
-                    (e, slack, toward),
-                    rc,
-                    band,
-                ),
+                Err(tan) => pose.cylinder.axis_line().and_then(|wall| {
+                    torus_arms::parallel_cylinder_touch(
+                        tan,
+                        (axis, radii),
+                        (e, slack),
+                        (wall, rc),
+                        band,
+                    )
+                }),
                 Ok(_) => None,
             };
-            tangent(touch.map(TouchLocus::Point))
+            tangent(touch)
         }
         (CtStance::Square(wall), TorusGap::Transverse) => {
             let parts = torus_arms::square_cylinder_arm(axis, radii, &wall, rc, band)
@@ -1276,37 +1267,6 @@ impl<T: Decide> TorusTorusPose<T> {
     }
 }
 
-impl<T: Decide> TorusTorusPose<T> {
-    /// **The parallel the coaxial tangency touches along**, where the pose
-    /// is coaxial, its tube row decided `Zero`, and the tube centres in a
-    /// meridian half-plane decided apart (`section_torus_coaxial_tube_offset`):
-    /// the contact point of the two tube circles there
-    /// ([`geom_core::CirclesAt::foot`], external and internal alike),
-    /// swept about the axis on the first torus. Centres within the band
-    /// of each other put every point of the tube circle on a normal
-    /// through the partner's core, no one parallel. `None` for every other
-    /// pose.
-    pub(crate) fn tangent_parallel(&self, band: Band) -> Option<Curve3<T>> {
-        let TtStance::Coaxial { tube, .. } = self.stance else {
-            return None;
-        };
-        if tube.0 != Sign::Zero {
-            return None;
-        }
-        let [r1, r2] = self.rings;
-        let z2 = (r2.center - r1.center).dot(r1.axis.get());
-        let (c1, c2) = (Point2::new(r1.big_r, T::zero()), Point2::new(r2.big_r, z2));
-        let d = (c2 - c1).norm();
-        if geom_core::k_stats::decide("section_torus_coaxial_tube_offset", Margin::of(d), band)
-            != Ok(Sign::Positive)
-        {
-            return None;
-        }
-        let p = Circles::new(d, r1.r, r2.r).at(c1, c2).foot();
-        Some(r1.parallel(p.x, p.y))
-    }
-}
-
 /// A coaxial tube row's floor row.
 fn floor_of(row: &'static str) -> &'static str {
     match row {
@@ -1354,10 +1314,7 @@ pub(super) fn torus_torus<T: Decide>(
                     let z2 = (r2.center - r1.center).dot(r1.axis.get());
                     Components::Counted(crossing_parallels(r1, (r2.big_r, z2, r2.r), [true, true]))
                 }
-                Sign::Zero => Components::Counted(vec![tangent_component(
-                    pose.tangent_parallel(band).map(TouchLocus::Parallel),
-                    [true, true],
-                )]),
+                Sign::Zero => Components::Counted(vec![tangent_component(None, [true, true])]),
                 Sign::Negative => Components::Counted(Vec::new()),
             }
         }

@@ -1379,7 +1379,6 @@ fn two_arcs_of_one_node_are_held_apart_outside_its_box() {
                 runs: Vec::new(),
             }))),
             cut_ends: None,
-            locus: None,
         }
     };
     let carried =

@@ -1,8 +1,13 @@
-//! **The root doors a touch at an extreme leans on (S′)**, read at the
-//! run's band: an edge standing within the band of the other carrier,
-//! on the side a touch's parting edge stands (the module docs, "A
-//! touch"), refuses or names its roots, and goes silent only on a
-//! clearance decided past the band. Each row reads one door the sweep
+//! **The root doors a point touch leans on (S′)**, read at the run's
+//! band: an edge standing within the band of the other carrier, on the
+//! side a touch's parting edge stands (the module docs, "A touch"),
+//! refuses or names its roots, and goes silent only on a clearance
+//! decided past the band. A torus point touch reads line × torus inside
+//! the solid (a plane's or a wall's straight edge), circle × torus (a
+//! partner's rim) and circle × plane, sphere and wall (a torus face's
+//! circles); the one-point touches of a sphere or a wall against a plane,
+//! a sphere or a wall read line × sphere and line × wall (the reduction's
+//! belly branch) and the circle doors. Each row reads one door the sweep
 //! reads an edge by (`reduce.rs` `wall_crossing`), at gaps of `ε/100`,
 //! `ε/2` and `2ε` from the other carrier, and, against vacuity, at
 //! `3Kε`, where every door answers a decided miss.
@@ -195,17 +200,38 @@ fn within_the_band_no_door_an_extreme_leans_on_goes_silent() {
 
 /// **The line × torus door goes silent within the band outside the
 /// solid** (`work/germ/the-line-torus-door-misses-silently-within-the-band.md`):
-/// a line along the torus's axis `ε/100` above the outer equator's top
-/// answers a certified miss, decided on the quartic's discriminant, not
-/// on a clearance. A touch at an extreme does not lean on that side; a
-/// touch at a saddle would, and its admission waits on this row turning
-/// red.
+/// a line along the torus's axis `ε/2` beside the outer equator, outside
+/// the tube, and one `ε/2` beside the inner equator, in the hole, each
+/// answer a certified miss, decided on the quartic's discriminant, not on
+/// a clearance. A touch at a point extreme does not lean on that side; a
+/// touch at a saddle or along a parallel would, and their admission waits
+/// on this row turning red.
 #[test]
 fn the_line_torus_door_misses_silently_outside_the_solid_within_the_band() {
     let eps = band().zero();
-    let above = Point3::new(0.0, 0.0, 2.5 + 0.01 * eps);
+    for (side, at) in [
+        ("the outer equator", Point3::new(0.0, 0.0, 2.5 + 0.5 * eps)),
+        ("the inner equator", Point3::new(0.0, 0.0, 1.5 - 0.5 * eps)),
+    ] {
+        assert_eq!(
+            line_read(at, Vec3::unit_y(), 1.0, &donut()),
+            Read::Silent,
+            "beside {side}"
+        );
+    }
+}
+
+/// **A segment inside the solid whose shallowest point stands 4ε–9ε deep
+/// reads as no event** (`work/germ/a-segment-just-inside-a-torus-reads-no-event.md`):
+/// a short segment `6ε` under the outer equator's top, in a generic
+/// direction, answers two certified roots past its span. A touch at a
+/// point extreme needs the door to see edges within `2ε` only.
+#[test]
+fn a_segment_just_inside_the_torus_past_2_eps_reads_no_event() {
+    let eps = band().zero();
+    let at = Point3::new(0.0, 0.0, 2.5 - 6.0 * eps);
     assert_eq!(
-        line_read(above, Vec3::unit_y(), 1.0, &donut()),
+        line_read(at, Vec3::new(1.0, 0.6, 0.0), 0.01 * eps.sqrt(), &donut()),
         Read::Silent
     );
 }

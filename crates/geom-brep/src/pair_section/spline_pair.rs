@@ -269,7 +269,6 @@ fn listed(
             pad: witness.map_or(0.0, |(_, pad)| pad),
             carrier: ClassCarrier::Unminted(super::NoCarrier::SplinePairWhole),
             cut_ends: None,
-            locus: super::point_locus(shape, witness.map(|(q, _)| q)),
         });
     }
     components.extend(reading.regions.iter().map(|region| {
@@ -284,7 +283,6 @@ fn listed(
             pad: 0.0,
             carrier: ClassCarrier::Unminted(super::NoCarrier::RowRegion),
             cut_ends: None,
-            locus: None,
         }
     }));
     Ok(pose.section(Components::Counted(components)))

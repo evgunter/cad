@@ -133,9 +133,9 @@
 //!   grazing or running along a side of the wall's rectangle (on two
 //!   spline faces, one no shared row or corner handed in covers, or a
 //!   handed-in row the walls are tangent along at a point).
-//!   A margin decided `Zero` where the section value names the locus of
-//!   a touch is a touch instead (below), and refuses R-tan only when it
-//!   is not certified out of either face.
+//!   A margin decided `Zero` where the carriers touch at one point is a
+//!   touch instead (below), and refuses R-tan only when it is not
+//!   certified out of either face.
 //! - **R-order**: a crossing of the carriers the closed form cannot
 //!   place on either side of a line it reads the section by. On the
 //!   square wall, a fold or a strip crossing within the band of the
@@ -154,99 +154,85 @@
 //!
 //! # A touch
 //!
-//! A margin decided `Zero` on an arm that names where the carriers meet
-//! in the exact pose, its **locus**, and claims the tangency's **near
-//! band** `W` one piece is a touch ([`geom_brep::TouchLocus`]). `W` is
-//! the set of points of either carrier where the other stands within the
-//! decided margin `m` (the zero band and the slack the arm's reading
-//! carries, at most `2ε`), in every pose the margin admits; the claim is
-//! that it is connected and holds the locus and every component of the
-//! section. In C1's terms the locus is a point touch's point or a curve
-//! touch's parallel.
+//! A margin decided `Zero` on an arm that reads the carriers meeting at
+//! one point `at` in the exact pose, C1's point touch, is a touch where
+//! the arm also claims its **near band** `W` one piece: the points of
+//! either carrier where the other stands within the decided margin `m`
+//! (the zero band and the slack the arm's reading carries, at most
+//! `2ε`), in every pose the margin admits, form one connected region
+//! holding `at` and every component of the section.
 //!
-//! - **At one point**: sphere × plane, sphere × sphere (outside one
-//!   another, or inside with their centres decided apart), sphere ×
-//!   cylinder at its nearest ruling with the girdle decided (the ball
-//!   clear of the axis), and skew cylinders outside one another, where
-//!   `W` is a small disc about the point.
-//! - **On a torus**, at an extreme of the partner's **level function**,
-//!   the partner read over the torus: a plane's height, the distance from
-//!   a sphere's centre or a wall's axis or a coaxial partner's core, a
-//!   coaxial cone's generator in each meridian half-plane. On the arms
-//!   the section value reads in closed form (a plane; a sphere centred
-//!   off the core; a wall parallel to the axis whose axis misses the
-//!   tube; a coaxial wall, sphere, torus, or cone whose other nappe is
-//!   decided clear of the torus) that function has only the critical
-//!   points every function on a torus must have: one minimum, one maximum
-//!   and two saddles, or a minimum circle and a maximum circle. Its band
-//!   about the minimum or the maximum is then one piece in every pose the
-//!   margin admits, whatever its other critical values do (each
-//!   component of the band holds a local extreme or spans it, and the
-//!   function has no local extreme but those two): a disc about a point,
-//!   an annulus about a circle. That holds on the tube's inner half as on
-//!   its outer, and along a whole parallel.
+//! - Sphere × plane, sphere × sphere (outside one another, or inside with
+//!   their centres decided apart), sphere × cylinder at its nearest
+//!   ruling with the girdle decided (the ball clear of the axis), and
+//!   skew cylinders outside one another: `W` is a small disc.
+//! - A torus against a plane, a sphere centred off its core, or a wall
+//!   parallel to its axis whose axis misses the tube, at a point extreme
+//!   of the partner's **level function** over the torus (the plane's
+//!   height, the distance from the sphere's centre or the wall's axis),
+//!   on the tube's outer half or its inner. On these arms the function
+//!   has only the critical points every function on a torus must have,
+//!   one minimum, one maximum and two saddles, and its band about either
+//!   extreme is one disc in every pose the margin admits whatever its
+//!   other critical values do: each component of the band holds a local
+//!   extreme or spans the band, and there are no local extremes but those
+//!   two.
 //!
-//! At a saddle of the level function the band is a strip about a figure
-//! eight, C1's crossing touch with its contact off the faces, which this
-//! certificate does not read: it refuses R-tan. So do a sphere centred on
-//! the core (a meridian of minima, no point or parallel), a wall whose
-//! axis pierces the tube (two more critical points, where it does), a
-//! coaxial cone whose other nappe crosses the torus (a second sheet's
-//! band beside the touch's), a margin left undecided, a marched or
-//! general pose, and every other pinch, where components meet or one
-//! becomes two.
+//! A tangency at a saddle (C1's crossing touch), along a whole parallel
+//! (a coaxial partner, a plane normal to the axis) or a meridian (a
+//! sphere centred on the core), against a wall through the tube, with a
+//! margin left undecided, or on a marched or general pose refuses R-tan,
+//! as does every other pinch, where components meet or one becomes two.
 //!
 //! **The argument is L1 over `W`.** On a pair with no event, the touch
-//! clears when `at`, one point of the locus (a parallel's at the torus
-//! frame's own reference direction), places `Out` of either face. Were
-//! a component `γ` of the section inside `int F ∩ int G`, the set `P` of
-//! the points of `W` that lie in `F` and over `G` (their foot on `G`'s
-//! carrier in `G`) would hold `γ` and not `at`, so, `W` being connected,
-//! `P` would have a relative boundary point in `W`. There an edge of `F`
-//! stands over `G`, or one of `G` over `F`, within `m` of the other
-//! carrier: an edge the sweep records or refuses (S′, below), and the
-//! pair would carry an event. So with no event `P` is empty. Where the
-//! locus is smaller than `at`'s rounding, `at` stands outside it by no
-//! more than that rounding, where the carriers still stand within the
-//! band. A pair with an event refuses R-tan at a touch, since the
+//! clears when `at` places `Out` of either face. Were a component `γ` of
+//! the section inside `int F ∩ int G`, the set `P` of the points of `W`
+//! that lie in `F` and over `G` would hold `γ` and not `at`, so, `W`
+//! being connected, `P` would have a relative boundary point in `W`.
+//! There an edge of `F` stands over `G`, or one of `G` over `F`, within
+//! `m` of the other carrier: an edge the sweep records or refuses (S′,
+//! below), and the pair would carry an event. So with no event `P` is
+//! empty. A pair with an event refuses R-tan at a touch, since the
 //! argument needs the pair's own silence.
 //!
-//! **Where that edge stands.** At an extreme the carriers stand nearly
-//! parallel across `W`, so the edge stands within about `m` of the other
-//! carrier. The whole torus lies on one side of the partner's level set
-//! there, and so does the solid wherever the partner can carry a
-//! straight edge (a plane, a wall, a cone): the level is linear in each
-//! meridian half-plane, or the distance from a line the solid does not
-//! reach, so its range over the solid is its range over the surface. In
-//! a pose the margin admits where the carriers cross, `P`'s boundary is
-//! where the partner reaches past the torus's surface, so a straight
-//! edge there stands inside the solid, within `m` of the surface. Every
-//! other edge either carrier holds near the touch is a circle (a torus
-//! face's parallels and meridians, a sphere's or a wall's rims), read on
-//! either side, or a curve no root lane reads, which refuses unless it is
-//! placed off the face.
+//! **`at` is the actual pose's deepest point**, never one read off the
+//! exact pose a reading idealises: the plane's foot and the sphere's
+//! nearest or farthest point are read off the partner as it stands, and
+//! the parallel wall's off its own axis, not the parallel reading's
+//! pivot. In a pose where the carriers cross, the section bounds the cap
+//! of the torus the partner reaches past, which holds `at`, so `P`'s
+//! boundary lies in that cap, where the partner stands inside the torus
+//! solid (a plane's height and a distance from a line the solid does not
+//! reach take their range over the solid on its surface). An edge there
+//! is a straight edge of the partner inside the solid, or a circle (a
+//! torus face's parallel or meridian, a sphere's or a wall's rim), within
+//! `m` of the other carrier. Read off an idealised pose instead, `at` can
+//! stand outside the cap, where the partner's edges stand outside the
+//! solid, which S′ does not cover.
 //!
 //! # Premises, each at its site
 //!
-//! - **S′**, the sweep at a touch: every edge standing within the
-//!   touch's margin `m ≤ 2ε` of the other carrier, over the other face,
-//!   on the side "A touch" places it, is recorded or refused. S covers
-//!   the edges that meet the other face; a touch reads the ones that come
-//!   near it. Each door the sweep reads such an edge by
-//!   (`reduce.rs` `wall_crossing`) answers a tangency, escalates, or names
-//!   a root within `2ε` of the carrier, and goes silent only on a
-//!   clearance decided past `Kε`: line × wall and line × sphere (the
-//!   reduction's belly branch, its miss a discriminant decided as a
-//!   depth in metres), conic × plane, sphere, wall and torus on either
-//!   side, and line × torus inside the solid
-//!   (`section_cert_touch_doors_rows`). Line × torus is silent within the
-//!   band outside the solid
+//! - **S′**, the sweep at a touch: every edge within the touch's margin
+//!   `m ≤ 2ε` of the other carrier, over the other face, on the side "A
+//!   touch" places it, is recorded or refused. S covers the edges that
+//!   meet the other face; a touch reads the ones that come near it. The
+//!   doors the sweep reads such an edge by (`reduce.rs` `wall_crossing`)
+//!   answer a tangency, escalate, or name a root within `2ε` of the
+//!   carrier, and go silent only on a clearance decided past `Kε`: at a
+//!   torus point touch, line × torus inside the solid (a plane's or a
+//!   wall's straight edge), circle × torus on either side, and circle ×
+//!   plane, sphere and wall (a torus face's circles); at the one-point
+//!   touches of a sphere or a wall against a plane, a sphere or a wall,
+//!   line × wall and line × sphere (the reduction's belly branch, its
+//!   miss a discriminant decided as a depth in metres) and the circle
+//!   doors (`section_cert_touch_doors_rows`). Line × torus is silent
+//!   within the band outside the solid
 //!   (`work/germ/the-line-torus-door-misses-silently-within-the-band.md`),
-//!   the side a touch at a saddle, whose carriers cross along its lobes,
-//!   would lean on at about `2m`; inside the solid, a segment whose
-//!   shallowest point stands 4ε–9ε deep reads as no event
+//!   the side a touch at a saddle or along a parallel leans on; and a
+//!   segment inside the solid whose shallowest point stands 4ε–9ε deep
+//!   reads as no event
 //!   (`work/germ/a-segment-just-inside-a-torus-reads-no-event.md`), past
-//!   the `2ε` a touch at an extreme needs.
+//!   the `2ε` a point touch needs.
 //! - **S**, sweep completeness. It holds with the conic × plane lane
 //!   (`reduce.rs` `sweep_direction`) examining every root, not only the
 //!   first, and giving a conic that lies in the face's plane the line
@@ -540,9 +526,9 @@ pub(crate) enum Section<T: Real> {
     /// either side of a line it reads the section by: R-order, naming the
     /// predicate.
     Unordered(&'static str),
-    /// A classification margin decided `Zero` where the section value
-    /// names the touch's locus and claims its near band one piece (module
-    /// docs, "A touch").
+    /// A classification margin decided `Zero` where the carriers touch
+    /// at one point and the arm claims the near band about it one piece
+    /// (module docs, "A touch").
     Touch(Touch<T>),
     /// No arm for the kind pair or the pose: R-reach.
     Intractable,
@@ -554,16 +540,15 @@ pub(crate) enum Section<T: Real> {
     Unmarched,
 }
 
-/// **A touch of two carriers**: a margin decided `Zero` on an arm that
-/// names where they meet in the exact pose (a point, or a parallel of a
-/// torus) and claims the near band about it one piece (module docs, "A
-/// touch").
+/// **A touch of two carriers**: a margin decided `Zero` on an arm whose
+/// tangent pose meets in one point, the near band about it one piece
+/// (module docs, "A touch").
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Touch<T: Real> {
     /// The margin decided `Zero`.
     pub name: &'static str,
-    /// One point of the locus, on both carriers within the margin: a
-    /// parallel's at the torus frame's own reference direction.
+    /// The touch: the actual pose's deepest point, on both carriers
+    /// within the margin. Each arm says which point it reads.
     pub at: Point3<T>,
     /// Whether it is two cones' touch at their common apex, which
     /// [`certify_section_pair`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
@@ -717,18 +702,12 @@ impl<T: Real> From<Pinch> for Section<T> {
     }
 }
 
-/// A [`Touch`] at `at()` when the pinch `p` is one of `names` decided
-/// `Zero`, the readings whose near band is one piece about it; R-tan
-/// otherwise.
-fn touch<T: Real>(p: Pinch, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
-    if p.undecided.is_none() && names.contains(&p.name) {
-        Section::Touch(Touch {
-            name: p.name,
-            at: at(),
-            apex: false,
-        })
-    } else {
-        p.into()
+impl<T: Real> Section<T> {
+    /// **A touch**, the one way the arms build one: the margin decided
+    /// `Zero` that names it, its point, and whether it is two cones'
+    /// common apex ([`Touch`]).
+    fn touch(name: &'static str, at: Point3<T>, apex: bool) -> Self {
+        Section::Touch(Touch { name, at, apex })
     }
 }
 
@@ -981,43 +960,24 @@ fn cone_torus<T: crate::props::AtRestPolicy>(
     // line reaches.
     let (s, co) = half_angle.sin_cos();
     let z = (ring.center() - frame.origin()).dot(frame.axis().normalize());
-    let rows = [
-        (
-            "section_torus_coaxial_cone_near",
-            "section_torus_coaxial_cone_near_floor",
-            r - (big_r * co - z * s).abs(),
-        ),
-        (
-            "section_torus_coaxial_cone_far",
-            "section_torus_coaxial_cone_far_floor",
-            r - (big_r * co + z * s).abs(),
-        ),
-    ];
-    match signs_across(rows, slack, band) {
+    match signs_across(
+        [
+            (
+                "section_torus_coaxial_cone_near",
+                "section_torus_coaxial_cone_near_floor",
+                r - (big_r * co - z * s).abs(),
+            ),
+            (
+                "section_torus_coaxial_cone_far",
+                "section_torus_coaxial_cone_far_floor",
+                r - (big_r * co + z * s).abs(),
+            ),
+        ],
+        slack,
+        band,
+    ) {
         Ok([false, false]) => none(),
         Ok(_) => essential_pair(true, true),
-        // A nappe tangent to the tube along a parallel, a circle of the
-        // extremes of its generator's distance in each meridian
-        // half-plane, is a touch there, with the other nappe decided
-        // clear of the torus: one nappe crossing it would put a band of
-        // the cone's other sheet beside the touch's.
-        Err(tan) if tan.undecided.is_none() && tan.index < 2 => {
-            let other_misses = matches!(
-                signs_across([rows[1 - tan.index]], slack, band),
-                Ok([false])
-            );
-            match pose
-                .tangent_parallel(tan.index == 1)
-                .filter(|_| other_misses)
-            {
-                Some(parallel) => Section::Touch(Touch {
-                    name: tan.name,
-                    at: geom_brep::TouchLocus::Parallel(parallel).at(),
-                    apex: false,
-                }),
-                None => tan.into(),
-            }
-        }
         Err(tan) => tan.into(),
     }
 }
@@ -1044,48 +1004,35 @@ fn torus_plane<T: Decide>(
     // plane's offset from T_σ's centre and `(σR + d·s, d·n_a)` its foot.
     let offset = |sigma: T| h - sigma * s * big_r;
     match plane_cut(big_r, r, h, s, band) {
-        // Tangent to T_σ. The plane's height `n·(x − c)` has only the
-        // forced critical points over the torus: on a plane normal to the
-        // axis its top and bottom parallels, which geom-brep's reading
-        // names, and otherwise `±(sR + r)`, the extremes on the tube's
-        // outer half, and `±(sR − r)`, the saddles on its inner. So the
-        // foot is an extreme where `σ·d` is positive, `|d|` being `r`
-        // there, and a saddle, no touch, where it is negative. `Π` is read
-        // only past the axis-normal reading: its direction is `n`'s part
-        // square to the axis over `s`.
+        // Tangent to T_σ at the foot, the plane's own deepest point on the
+        // tube circle. Off a plane normal to the axis (geom-brep's reading
+        // decides the tilt definite before `Π`'s direction, `n`'s part
+        // square to the axis over `s`, is read), the height `n·(x − c)`
+        // has the forced critical points alone: `±(sR + r)`, its extremes
+        // on the tube's outer half, and `±(sR − r)`, its saddles on the
+        // inner. So the foot is a touch where `σ·d` is positive, `|d|`
+        // being `r` there; a saddle, a plane normal to the axis (tangent
+        // along a parallel) and an undecided tilt are not.
         PlaneCut::Pinch(tan)
             if tan.undecided.is_none() && (tan.name == NEAR || tan.name == FAR) =>
         {
-            let at = match axis_normal() {
-                Ok(None) => {
-                    let sigma = if tan.name == NEAR {
-                        T::one()
-                    } else {
-                        -T::one()
-                    };
-                    let d = offset(sigma);
-                    (sign_as(
-                        "section_torus_plane_touch_extreme",
-                        Margin::of(sigma * d),
-                        band,
-                    ) == Some(Sign::Positive))
-                    .then(|| in_pi(sigma * big_r + d * s, d * na))
-                }
-                Ok(Some(geom_brep::PlaneTorusSection::TangentCircle(parallel))) => {
-                    Some(geom_brep::TouchLocus::Parallel(parallel).at())
-                }
-                Ok(Some(_)) | Err(_) => None,
+            let sigma = if tan.name == NEAR {
+                T::one()
+            } else {
+                -T::one()
             };
-            at.map_or_else(
-                || tan.into(),
-                |at| {
-                    Section::Touch(Touch {
-                        name: tan.name,
-                        at,
-                        apex: false,
-                    })
-                },
-            )
+            let d = offset(sigma);
+            let extreme = matches!(axis_normal(), Ok(None))
+                && sign_as(
+                    "section_torus_plane_touch_extreme",
+                    Margin::of(sigma * d),
+                    band,
+                ) == Some(Sign::Positive);
+            if extreme {
+                Section::touch(tan.name, in_pi(sigma * big_r + d * s, d * na), false)
+            } else {
+                tan.into()
+            }
         }
         PlaneCut::Pinch(tan) => tan.into(),
         PlaneCut::AroundAxis | PlaneCut::AroundTube => essential_pair(true, false),
@@ -1278,10 +1225,8 @@ fn cone_pair<T: Decide>(
                     band,
                 ) {
                     Ok(_) => essential_pair(true, true),
-                    Err(tan) => match touch(tan, &["section_cone_coaxial_apexes"], || apex) {
-                        Section::Touch(t) => Section::Touch(Touch { apex: true, ..t }),
-                        other => other,
-                    },
+                    Err(tan) if tan.undecided.is_none() => Section::touch(tan.name, apex, true),
+                    Err(tan) => tan.into(),
                 },
                 AxisPose::Parallel { .. } => {
                     let other = Cone::new(apex2, d, half_angle2, u_ref2);
@@ -1512,11 +1457,7 @@ fn cone_cone<T: Decide>(
             }
         }
         if lines == 0 {
-            return Section::Touch(Touch {
-                name: COMMON,
-                at: one.apex,
-                apex: true,
-            });
+            return Section::touch(COMMON, one.apex, true);
         }
         let c = Component::closed_form(true, [false, false], None);
         return Section::Components {
@@ -1906,9 +1847,9 @@ pub(super) fn of_pair_section<T: Decide>(
     // A tangency the section still crosses is read through its
     // components: a node whose arcs all have carriers, and a tangent
     // ruling the region cuts, an unbounded component W1 clears however it
-    // touches. Any other tangency is R-tan, or a touch where the value
-    // claims its near band one piece: the pinch among them, whose node
-    // the value does not list while its lobes mint no carrier.
+    // touches. Any other tangency is R-tan, or a touch at one point: the
+    // pinch among them, whose node the value does not list while its
+    // lobes mint no carrier.
     let pinched = matches!(
         section.pose(),
         geom_brep::PairPose::CylinderCylinder(pose) if pose.pinched()
@@ -1923,16 +1864,10 @@ pub(super) fn of_pair_section<T: Decide>(
         && components.iter().all(|c| ends(c).cut);
     if let (Some(zero), false) = (section.tangency(), crossed || unbounded) {
         return match components.as_slice() {
-            [c] => c.locus.as_ref().map_or_else(
-                || Section::Tangent(zero.decision.name()),
-                |locus| {
-                    Section::Touch(Touch {
-                        name: zero.decision.name(),
-                        at: locus.at(),
-                        apex: false,
-                    })
-                },
-            ),
+            [c] if c.shape == ComponentShape::Point => match c.witness {
+                Some(at) => Section::touch(zero.decision.name(), at, false),
+                None => Section::Tangent(zero.decision.name()),
+            },
             _ => Section::Tangent(zero.decision.name()),
         };
     }

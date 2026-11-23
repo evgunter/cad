@@ -1271,7 +1271,6 @@ pub(super) fn loop_free(
             pad: witness.map_or(0.0, |(_, pad)| pad),
             carrier: ClassCarrier::Unminted(super::NoCarrier::Touch),
             cut_ends: None,
-            locus: witness.map(|(q, _)| super::TouchLocus::Point(q)),
         });
         verdicts.push(super::ZeroVerdict {
             decision: super::SectionDecision::Tangency(CRITICAL),
@@ -1482,7 +1481,6 @@ fn listed(
             winds: [false, false],
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
-            locus: super::point_locus(shape, witness.map(|(q, _)| q)),
             carrier,
             cut_ends: None,
         });
@@ -1494,7 +1492,6 @@ fn listed(
         pad: 0.0,
         carrier: ClassCarrier::Unminted(super::NoCarrier::WallRegion),
         cut_ends: None,
-        locus: None,
     }));
     for (c, &witness) in decided.iter().zip(witnesses) {
         if c.kind == sweep::Kind::Touch {
@@ -1505,7 +1502,6 @@ fn listed(
                 pad: witness.map_or(0.0, |(_, pad)| pad),
                 carrier: ClassCarrier::Unminted(super::NoCarrier::Touch),
                 cut_ends: None,
-                locus: witness.map(|(q, _)| super::TouchLocus::Point(q)),
             });
         }
     }

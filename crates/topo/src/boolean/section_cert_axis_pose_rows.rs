@@ -155,7 +155,7 @@ fn a_split_pose_refuses_on_the_offset() {
 /// coaxial with a slack of `0.6`: a row `K + 1` bands past the flip is
 /// served, and agrees with the closed form; `K + 0.55` straddles on the
 /// floor (half the swing would serve it); `0.3` is a tangency on the far
-/// row, decided `Zero`: a touch along the tube's parallel.
+/// row.
 #[test]
 fn inside_the_band_the_coaxial_reading_serves_across() {
     let row = "section_torus_coaxial_tube_reach";
@@ -178,11 +178,7 @@ fn inside_the_band_the_coaxial_reading_serves_across() {
         let (s, _) = tori(0.4, 0.4, side * (k() + 0.55), band());
         assert_eq!(tangent(&s), format!("{row}_floor"), "straddles");
         let (s, _) = tori(0.4, 0.4, side * 0.3, band());
-        assert_eq!(
-            super::section_cert_rows::touch(&s).name,
-            row,
-            "a touch along the parallel"
-        );
+        assert_eq!(tangent(&s), row, "tangent");
     }
 }
 
