@@ -11804,6 +11804,41 @@ mod presentation_rows {
         );
     }
 
+    /// **Two ellipses mirrored across their common tangent are two**
+    /// ([`one_stated_conic`]): an ellipse held on its arc at phase
+    /// `(0, 1)`, and the statement with its axis, its `u_ref` and both
+    /// phase components all negated, which keeps `v` and puts the centre
+    /// on the other side of the anchor. The two share the anchor and
+    /// their tangent there and nothing else, so a corner of one arc of
+    /// each is a tangent corner of two conics. Beside it the first is one
+    /// with each of its three restatements. Red if the frame's axes and
+    /// the phase are admitted sign by sign.
+    #[test]
+    fn two_ellipses_mirrored_across_their_tangent_at_one_anchor_are_two() {
+        let one = |a: geom::Ellipse<f64>, b: geom::Ellipse<f64>| {
+            one_conic(
+                &ellipse_rim(a, (0.0, 1.0), [1, 2]),
+                &ellipse_rim(b, (0.0, 1.0), [1, 2]),
+            )
+        };
+        let e = generic_arc_held().reversed();
+        let mirrored = e.reversed().mapped(geom::Frame::half_turned);
+        let (m, n) = (e.frame().motion(), mirrored.frame().motion());
+        assert!(
+            n.w().get().equals_exactly(-m.w().get())
+                && n.u().get().equals_exactly(-m.u().get())
+                && n.v().get().equals_exactly(m.v().get()),
+            "the axis and u_ref negated, v kept: {e:?} {mirrored:?}"
+        );
+        let apart = (e.frame().origin() - mirrored.frame().origin()).norm();
+        assert!(apart > 0.5, "the centres lie apart: {apart}");
+        assert!(!one(e, mirrored), "mirrored across the tangent");
+        let [_, half, back, both] = e.restatements();
+        for (what, r) in [("a half turn on", half), ("run back", back), ("both", both)] {
+            assert!(one(e, r), "{what}");
+        }
+    }
+
     /// **An ellipse held at its centre is one with each exact
     /// restatement of itself** ([`one_stated_conic`]), in a frame whose
     /// lift is no point, so the stored reading alone can say so; with its

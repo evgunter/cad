@@ -1276,6 +1276,87 @@ mod tests {
         assert!(inexact > 500, "the square rounds at {inexact} of 600");
     }
 
+    /// **An ellipse's restatements are the four exact ones, of the
+    /// sixteen sign patterns on its statement** ([`Ellipse::restatements`]).
+    /// An ellipse held on its arc at a phase with neither component zero,
+    /// restated with each of the axis, `u_ref` and the two phase
+    /// components kept or negated (sixteen patterns; the stored `v` is
+    /// `axis × u_ref`'s, so the frame has no other): exactly the four of
+    /// the group are a restatement by content, and those four alone keep
+    /// the centre, so every other pattern states another ellipse. All
+    /// negated at once (the axis, `u_ref` and both phase components) is
+    /// not one of them: it is the mirror image across the tangent at the
+    /// anchor. Each restatement's point at the parameter its identity
+    /// names is the ellipse's own: bit for bit run back, where `−θ` is
+    /// exact, and to the parameter's rounding through a half turn, where
+    /// `θ + π` is not. Red if a pattern outside the group is a
+    /// restatement, or one inside is not.
+    #[test]
+    fn an_ellipses_restatements_are_the_four_exact_ones_of_its_sign_patterns() {
+        use super::Conic;
+        use core::f64::consts::PI;
+        let (anchor, n, u) = (
+            Point3::new(0.3, -1.1, 2.9),
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            Vec3::new(0.6, -0.8, 0.1),
+        );
+        let stated = |[sn, su, pc, ps]: [f64; 4]| super::Ellipse {
+            at: crate::Frame::new(anchor, n * sn, u * su),
+            held: super::Held::Arc {
+                phase: (0.6 * pc, 0.8 * ps),
+            },
+            semi_u: 0.75,
+            semi_v: 0.4,
+        };
+        let e = stated([1.0; 4]);
+        let group = [
+            [1.0, 1.0, 1.0, 1.0],
+            [1.0, -1.0, -1.0, -1.0],
+            [-1.0, 1.0, 1.0, -1.0],
+            [-1.0, -1.0, -1.0, 1.0],
+        ];
+        let signs = [1.0, -1.0];
+        let mut restated = Vec::new();
+        for sn in signs {
+            for su in signs {
+                for pc in signs {
+                    for ps in signs {
+                        let pattern = [sn, su, pc, ps];
+                        let other = stated(pattern);
+                        let is = e
+                            .restatements()
+                            .iter()
+                            .any(|r| Curve3::Ellipse(*r).same_content(&Curve3::Ellipse(other)));
+                        let moved = (Conic::center(&other) - Conic::center(&e)).norm();
+                        assert_eq!(is, group.contains(&pattern), "{pattern:?}");
+                        assert!(
+                            if is { moved < 1e-15 } else { moved > 0.1 },
+                            "{pattern:?}: the centre moves by {moved:e}"
+                        );
+                        if is {
+                            restated.push(pattern);
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(restated.len(), 4, "{restated:?}");
+        let [_, half, back, both] = e.restatements();
+        for theta in [-2.9, -0.7, 0.0, 0.3, 1.1, 2.4, 5.0] {
+            let p = Conic::point_at(&e, theta);
+            assert!(
+                p.equals_exactly(Conic::point_at(&back, -theta)),
+                "run back at {theta}"
+            );
+            for (what, q) in [
+                ("a half turn on", Conic::point_at(&half, theta - PI)),
+                ("both", Conic::point_at(&both, PI - theta)),
+            ] {
+                assert!((p - q).norm() < 1e-14, "{what} at {theta}: {p:?} {q:?}");
+            }
+        }
+    }
+
     /// **An ellipse held on its arc reads from its anchor.** As minted
     /// its point at `θ = 0` is the anchor bit for bit, its centre is the
     /// anchor less the semi-axis along the seam, and round the turn it
