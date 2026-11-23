@@ -2709,6 +2709,14 @@ impl<'f> Poses<'f> {
             set: std::cell::OnceCell::new(),
         }
     }
+
+    /// A store that offers no pose: its set is empty before any cell asks,
+    /// so `face` is never read and [`present`] reads the stored chart only.
+    pub(crate) fn none(face: &'f FacePoses) -> Self {
+        let set = std::cell::OnceCell::new();
+        let _ = set.set(PoseSet::default());
+        Self { face, set }
+    }
 }
 
 /// **A sphere face's poses, built once per ask** ([`present_posed`]): one
@@ -6723,8 +6731,9 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
 ///
 /// A face is presented through [`present`], so a sphere face the stored
 /// chart leaves unread is presented in the pose of one of its circles
-/// ([`present_posed`]), from that face's poses (`faces`), wherever a
-/// separator above reads it presented.
+/// ([`present_posed`]), from that face's poses (`faces`), wherever
+/// separators 1 to 3 read it presented. Separator 4 re-presents each face
+/// against the shared vertex on its stored chart only.
 ///
 /// A pair none of them parts is a [`cusp`] or splits.
 fn departure(
@@ -6867,9 +6876,15 @@ fn departure(
             edges: Vec::new(),
             vertices: vec![v],
         };
+        // The faces are re-presented against `v` on their stored charts
+        // only, never in a pose: no review has read a posed presentation
+        // re-presented against `{v}`
+        // (`work/embed/the-one-shared-vertex-arm-reads-no-posed-presentation`).
+        let unposed = FacePoses::default();
+        let (nx, ny) = (Poses::none(&unposed), Poses::none(&unposed));
         let (rx, ry) = (
-            present(x, &[], &alone.vertices, band, &sx),
-            present(y, &[], &alone.vertices, band, &sy),
+            present(x, &[], &alone.vertices, band, &nx),
+            present(y, &[], &alone.vertices, band, &ny),
         );
         if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
             && planes_through(x, &alone, rx, ry)
