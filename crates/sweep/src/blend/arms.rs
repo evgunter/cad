@@ -190,9 +190,9 @@ impl<T: Real> BallSection<T> {
 pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match trim {
         Curve3::Line(line) => Some(line.foot(p)),
-        Curve3::Circle(c) => Some(
-            c.frame().origin() + perp_unit(p - c.frame().origin(), c.axis_unit()) * c.radius(),
-        ),
+        Curve3::Circle(c) => {
+            Some(c.frame().origin() + perp_unit(p - c.frame().origin(), c.axis_unit()) * c.radius())
+        }
         _ => None,
     }
 }
