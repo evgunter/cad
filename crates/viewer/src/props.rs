@@ -153,7 +153,7 @@ pub use pncad::quantity::Rounding;
 /// are written through it.
 ///
 /// The figure is the exact number of the unit that `metres` is, rounded
-/// at one figure ([`quantity::UnitDef::decimal`]). [`Rounding::Up`]
+/// at one figure ([`UnitDef::decimal`]). [`Rounding::Up`]
 /// holds exactly: the figure is the least whose length, read back in
 /// metres, is at least `metres`, so a measure already round to within
 /// float noise stays as it is and none comes out below.
@@ -563,7 +563,7 @@ pub fn shown_text_toward(unit: Option<UnitDef>, canonical: f64, toward: f64) -> 
     // unit's door (a number of the unit past the float format, `1e309`
     // in millimetres, reads back too).
     let reads_back = |value: f64| {
-        quantity::Decimal::parse(&crate::readout::computed_number(value, unit))
+        pncad::quantity::Decimal::parse(&crate::readout::computed_number(value, unit))
             .map(|number| unit.canonical(&number))
             .filter(|back| back.is_finite())
     };
