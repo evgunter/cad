@@ -856,7 +856,7 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
         .iter()
         .flat_map(|&source| crate::take_over::sources_reading(doc, source).into_keys())
         .collect();
-    handed_sources.extend(doc.placements().into_iter().filter(|&placement| {
+    handed_sources.extend(doc.copies().into_iter().filter(|&placement| {
         !dead.contains_key(&placement)
             && doc
                 .copied_read(placement)

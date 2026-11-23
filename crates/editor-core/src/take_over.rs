@@ -425,7 +425,7 @@ fn rebinds_of(
 /// source read reaches it down plain reads of sources ([`sources_reading`]).
 fn copies_reading(doc: &Doc<ProfileProgram>, source: VarId) -> Vec<RecipeNodeId> {
     let sources = sources_reading(doc, source);
-    doc.placements()
+    doc.copies()
         .into_iter()
         .filter(|&placement| {
             doc.copied_read(placement)

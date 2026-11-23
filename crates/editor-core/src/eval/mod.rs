@@ -1155,10 +1155,10 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
-    /// A [`crate::Node::Datum`]'s frame: its target's axes moved by the value's
-    /// motion ([`NodeValue::motion`]), the identity where it has none. Not
-    /// body-denoting.
-    Datum,
+    /// A [`crate::Node::Datum`]'s frame, in its target's coordinates: the
+    /// target's axes moved by the motion its bundle solved to
+    /// ([`NodeValue::motion`]). Not body-denoting.
+    Datum(geom_core::RigidMotion<T>),
     /// **A family of anything but bodies** (D10 `[repetition]`):
     /// profiles, measures, splits, assertions, a family of families. Its
     /// members are the value's ([`NodeValue::members`]); it has no
@@ -1327,7 +1327,7 @@ impl<T: topo::AtRestPolicy + Decide> ValuePayload<T> {
             Self::Measure { .. } => family::MEASURE,
             Self::Assertion(_) => family::ASSERTION,
             Self::Family => family::FAMILY,
-            Self::Datum => family::DATUM,
+            Self::Datum(_) => family::DATUM,
         }
     }
 }

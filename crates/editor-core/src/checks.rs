@@ -1267,7 +1267,7 @@ impl<T: topo::AtRestPolicy + Decide> Subject<'_, T> {
 /// nothing — the evaluation is read, never rebuilt (DS3 by
 /// construction).
 ///
-/// Subjects are the body-denoting outputs of `doc.placements()`, each
+/// Subjects are the body-denoting outputs of `doc.copies()`, each
 /// checked per `(placement, output_ix)`. For the connectedness check, the
 /// component count of a subject is its number of definitely-`Outer`
 /// shells ([`topo::classify_shells`]) — an internal void is boundary,
@@ -1338,7 +1338,7 @@ pub fn run_checks<
 /// [`Subject::Product`] must have been gathered from that same
 /// document. Both go through [`crate::ident::mispaired`], the one
 /// predicate that spells the comparison, before any resident runs —
-/// because a resident reading `doc.placements()` against a foreign `ev`
+/// because a resident reading `doc.copies()` against a foreign `ev`
 /// finds a value for every placement and reports about the wrong geometry.
 ///
 /// # Errors
@@ -1754,7 +1754,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + topo::C
     // Entries not yet consumed by a subject; whatever remains after
     // the walk is stale (an expectation with no subject).
     let mut unconsumed = cfg.expected_components.clone();
-    for placement in doc.placements() {
+    for placement in doc.copies() {
         let value = ev.usable(placement).map_err(ChecksError::Placement)?;
         let Some(sources) = product::sources_of(value) else {
             continue;

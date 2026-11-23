@@ -342,8 +342,8 @@ fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             })
         }
         // A datum's frame: its target's axes where its bundle placed them.
-        (ValuePayload::Datum, Some(Node::Datum { .. })) if port == 0 => Ok(Posed {
-            value: PoseValue::Frame(value.motion.unwrap_or_else(RigidMotion::identity)),
+        (ValuePayload::Datum(frame), Some(Node::Datum { .. })) if port == 0 => Ok(Posed {
+            value: PoseValue::Frame(*frame),
             frame: Frame::Own,
         }),
         // A read the door would have refused, in a document built past

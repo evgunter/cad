@@ -1430,14 +1430,14 @@ impl Doc {
             .collect()
     }
 
-    /// **The placements**, in document order: every `Place` and
-    /// `InstantiatePart` node — the nodes whose copies a bundle of
-    /// constraints places, into the world or another space
-    /// (`Doc.space`). Which body is the product is the product slot's
-    /// (`Doc.set_product`), never derived from these.
+    /// **The placements**, in document order: every node that holds a
+    /// bundle of constraints — each `Place` and `InstantiatePart`, whose
+    /// copies it places, and each datum, whose frame it places — into the
+    /// world or another space (`Doc.space`). Which body is the product is
+    /// the product slot's (`Doc.set_product`), never derived from these.
     ///
-    /// Written through `place` and `Node.instantiate_part`, and through
-    /// nothing else: no edit places as a side effect.
+    /// Written through `place`, `Node.instantiate_part` and `Node.datum`,
+    /// and through nothing else: no edit places as a side effect.
     fn placements(&self) -> Vec<NodeId> {
         self.inner.placements().into_iter().map(NodeId).collect()
     }
@@ -1470,24 +1470,22 @@ impl Doc {
                 },
             ));
         };
-        match node.authored(&self.inner) {
-            d::Node::Place { constraints, .. } | d::Node::InstantiatePart { constraints, .. } => {
-                constraints
-                    .into_iter()
-                    .map(|c| {
-                        let at = super::mate::MateRef(d::MateRef::new(placement.0, c.id));
-                        let held = match c.kind {
-                            d::ConstraintKind::Mate(mate) => {
-                                Py::new(py, super::mate::Mate(mate))?.into_any()
-                            }
-                            d::ConstraintKind::Value(value) => {
-                                Py::new(py, super::mate::MateValue(value))?.into_any()
-                            }
-                        };
-                        Ok((at, held))
-                    })
-                    .collect()
-            }
+        match node.authored(&self.inner).bundle().map(<[_]>::to_vec) {
+            Some(constraints) => constraints
+                .into_iter()
+                .map(|c| {
+                    let at = super::mate::MateRef(d::MateRef::new(placement.0, c.id));
+                    let held = match c.kind {
+                        d::ConstraintKind::Mate(mate) => {
+                            Py::new(py, super::mate::Mate(mate))?.into_any()
+                        }
+                        d::ConstraintKind::Value(value) => {
+                            Py::new(py, super::mate::MateValue(value))?.into_any()
+                        }
+                    };
+                    Ok((at, held))
+                })
+                .collect(),
             _ => Err(edit_err(
                 py,
                 &d::EditError::ConstraintOnNonPlacement {
@@ -1847,7 +1845,7 @@ impl Doc {
             };
             if let Some(other) = self
                 .inner
-                .placements()
+                .copies()
                 .into_iter()
                 .find(|&placement| reads(placement) && !named.contains(&placement))
             {

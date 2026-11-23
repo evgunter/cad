@@ -1172,7 +1172,7 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
-        | ValuePayload::Datum
+        | ValuePayload::Datum(_)
         | ValuePayload::Instances(_) => None,
     }
 }

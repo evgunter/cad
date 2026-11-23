@@ -120,19 +120,16 @@ enum Seat<T: geom_core::Real> {
 /// either side of a mate moves no spin.
 #[must_use]
 pub fn flipped<P>(doc: &crate::doc::Doc<P>, pose: crate::pose::RoleRead<crate::VarId>) -> bool {
-    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    use crate::pose::PoseDef;
     let mut odd = false;
-    let mut at = match pose.role {
-        None | Some(PoseRole::Normal | PoseRole::Direction) => pose.read,
-        Some(_) => return false,
-    };
+    if !pose.keeps_sense() {
+        return false;
+    }
+    let mut at = pose.read;
     while let Some(def) = doc.var(at).and_then(|v| v.def().pose()) {
         odd ^= matches!(def, PoseDef::Flip { .. });
         match def.kept() {
-            Some(RoleRead {
-                read,
-                role: None | Some(PoseRole::Normal | PoseRole::Direction),
-            }) => at = *read,
+            Some(kept) if kept.keeps_sense() => at = kept.read,
             _ => break,
         }
     }
@@ -262,11 +259,8 @@ pub fn side_flipped<P>(
     doc: &crate::doc::Doc<P>,
     side: &crate::pose::RoleRead<crate::Operand>,
 ) -> bool {
-    use crate::pose::{PoseDef, PoseRole};
-    if !matches!(
-        side.role,
-        None | Some(PoseRole::Normal | PoseRole::Direction)
-    ) {
+    use crate::pose::PoseDef;
+    if !side.keeps_sense() {
         return false;
     }
     match &side.read {

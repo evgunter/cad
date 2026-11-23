@@ -1160,13 +1160,26 @@ impl<P> Doc<P> {
             .collect()
     }
 
-    /// **The placements** (D10), in document order: every `Place` and
-    /// every instance, the nodes whose copies the product is made of
-    /// wherever their space reaches the world.
+    /// **The placements** (D10 `[placement.datums]`: a placement's
+    /// source is a body or nothing), in document order: every node that
+    /// holds a bundle ([`Node::bundle`]) — each `Place`, each instance
+    /// and each datum.
     pub fn placements(&self) -> Vec<RecipeNodeId> {
         self.nodes
             .iter()
-            .filter(|(_, node)| matches!(node, Node::Place { .. } | Node::InstantiatePart { .. }))
+            .filter(|(_, node)| node.bundle().is_some())
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
+    /// **The placements that make a copy** ([`Node::makes_a_copy`]), in
+    /// document order: every `Place` and every instance, the nodes whose
+    /// copies the product is made of wherever their space reaches the
+    /// world. A datum places a bare frame and is none of them.
+    pub fn copies(&self) -> Vec<RecipeNodeId> {
+        self.nodes
+            .iter()
+            .filter(|(_, node)| node.makes_a_copy())
             .map(|(&id, _)| id)
             .collect()
     }
@@ -3848,10 +3861,8 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
         // than recursing.
         self.memo.insert(id, None);
         let space = match self.doc.nodes.get(&id)? {
-            // A datum's frame is in its target, as a copy is.
-            Node::Place { target, .. }
-            | Node::InstantiatePart { target, .. }
-            | Node::Datum { target, .. } => Some(*target),
+            // A copy, or a datum's frame, is in its placement's target.
+            node if let Some(&target) = node.placement_target() => Some(target),
             // A `new_space()` defines a space and builds no body.
             Node::Space => None,
             Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
@@ -3937,21 +3948,8 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
             [a, b, ..] => Some((*a, *b)),
             _ => None,
         };
-        match node {
-            Node::Place {
-                target,
-                constraints,
-                source: _,
-            } => self.targets_fault(*target, constraints),
-            Node::InstantiatePart {
-                target,
-                constraints,
-                ..
-            }
-            | Node::Datum {
-                target,
-                constraints,
-            } => self.targets_fault(*target, constraints),
+        match (node.placement_target(), node.bundle()) {
+            (Some(&target), Some(constraints)) => self.targets_fault(target, constraints),
             _ => {
                 let reads = self.reached_all(node.operand_rows().into_iter().map(|(_, var)| var));
                 two(&reads)

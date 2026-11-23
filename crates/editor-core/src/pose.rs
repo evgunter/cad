@@ -525,7 +525,7 @@ impl<R> RoleRead<R> {
         }
     }
 
-    /// This read in another form, its role kept.
+    /// This read in another form by an infallible `f`, its role kept.
     #[must_use]
     pub fn map<R2>(&self, f: impl FnOnce(&R) -> R2) -> RoleRead<R2> {
         RoleRead {
@@ -553,6 +553,22 @@ impl<R> RoleRead<R> {
     pub fn admits(&self, admits: crate::SlotKind) -> crate::SlotKind {
         self.role
             .map_or(admits, |role| crate::SlotKind::Is(role.of()))
+    }
+}
+
+impl<R> RoleRead<R> {
+    /// **Whether this read keeps its pose's sense**: plainly, or through
+    /// a role that is the pose's own direction (a plane's normal, an
+    /// axis's direction), so a flip of the pose flips what is read. A
+    /// frame's axis or coordinate plane is a pose of its own, whose sense
+    /// no flip beneath it reaches. The one rule [`crate::mate::flipped`],
+    /// [`crate::mate::side_flipped`] and the mate's equated poses read.
+    #[must_use]
+    pub fn keeps_sense(&self) -> bool {
+        matches!(
+            self.role,
+            None | Some(PoseRole::Normal | PoseRole::Direction)
+        )
     }
 }
 
