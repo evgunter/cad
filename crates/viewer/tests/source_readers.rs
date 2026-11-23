@@ -58,8 +58,8 @@ fn refused_and_not_offered(
 }
 
 /// A plain copy `c` of `body` and a pattern of `c`: re-pointing `c`'s
-/// source onto a family `row` would make the pattern repeat a family,
-/// which the door refuses, so the offer has no row for it.
+/// source onto a family `row` would read a family where one body is
+/// read, which is refused, so the offer has no row for it.
 #[test]
 fn the_offer_has_no_row_the_door_refuses() {
     let tol = Tol::witness();
@@ -76,7 +76,12 @@ fn the_offer_has_no_row_the_door_refuses() {
     let source = doc.copied_read(c).expect("a source");
     let body_var = doc.through_sources(source).read;
     let refused = refused_and_not_offered(&mut session, body_var, source, row);
-    assert!(matches!(refused, Refusal::Edit(_)), "{refused:?}");
+    // A family is no one body, so the body gate refuses the re-point
+    // before the door would (D10 `[repetition]`).
+    assert!(
+        matches!(refused, Refusal::WrongNodeKind { .. } | Refusal::Edit(_)),
+        "{refused:?}"
+    );
 }
 
 /// **A family of two indices of `body`**, `i` and `j` within it, each
@@ -94,7 +99,7 @@ fn grid_of(
                     name: VarName::from_static(name),
                     def: VarDecl::Index {
                         count: Formula::count(2),
-                        within: within.map(|w| Formula::var(w, Dimension::Count)),
+                        after: within.map(|w| Formula::var(w, Dimension::Count)),
                     },
                 },
                 tol,
@@ -182,7 +187,7 @@ fn the_offer_has_no_row_that_strands_a_pick() {
         viewer::test_support::inserted(&doc, common::world_place(Operand::Node(plate)), tol);
     let space = VarId::WORLD;
     let spelled = |reads: &[RecipeNodeId]| {
-        Bodies::Spelled(
+        Bodies::spelled(
             reads
                 .iter()
                 .map(|&read| Operand::Node(read).into())

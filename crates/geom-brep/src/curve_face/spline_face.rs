@@ -293,6 +293,10 @@ enum Path<'a, T: CertifiedBounds> {
 }
 
 impl<'a, T: CertifiedBounds> Path<'a, T> {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(carrier: &'a SpanCarrier<'a, T>) -> Option<Self> {
         let (sheet, carrier) = (carrier.sheet.as_ref(), carrier.curve);
         let p = |p: Point3<T>| [p.x, p.y, p.z].map(Interval::from_certified);
@@ -300,7 +304,7 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
         let path = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => Self::Line {
                 o: p(origin),
-                d: v(dir),
+                d: v(dir.get()),
             },
             Curve3::Circle(_) | Curve3::Ellipse(_) => {
                 let lifted = carrier.map_scalar(Interval::from_certified);

@@ -1497,7 +1497,7 @@ fn conic_or_line_on<T: Decide + crate::props::AtRestPolicy>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             torus_between(
                 &points,
                 geom::Line {
@@ -4259,7 +4259,10 @@ mod parting_order_rows {
     /// and orders.
     #[test]
     fn a_parting_order_is_read_at_the_inf_and_one_point_at_the_sup() {
-        let line = geom::Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.6, 0.8));
+        let line = geom::Curve3::line(
+            Point3::new(1.0, 2.0, 3.0),
+            geom::stated_direction(Vec3::new(0.0, 0.6, 0.8)),
+        );
         assert!(read(&line, 1e-6).unwrap());
         assert!(!read(&line, -1e-6).unwrap());
         assert!(is_one_point(&read(&line, 1e-10)));

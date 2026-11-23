@@ -718,7 +718,7 @@ nothing it does not already prove. For `Pcurve::Harmonic` (both sides
 in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
 is unrepresentable) that spelling is the carrier's incidence with the
 chart (centre on the axis, radius, orientation, axial line, per chart
-arm, and the chart frame's own unit and orthogonality defects) plus the
+arm, and the chart frame's rounding, `Frame::rounding`) plus the
 stored image's fidelity to the image `certify` re-derives from the
 carrier, metered through the chart's stretch; the shared schedule is
 then the closed-form tables' cross-check, run on the point lane (the
@@ -1110,7 +1110,11 @@ in ℝ³, say (`pair_section::winds`); a point is read on a carried loop within 
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
-its one reading. A spline wall against a plane, cylinder, sphere or
+its one reading. That foot is the site's orthogonal foot on the
+carrier within the band's zero, its along-residual decided zero
+(`CarriedComponent::reads`), or the end of an open component the site
+stands past, never a witness the padded band reads on: a reading that
+cannot decide it escalates. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
 rim ends as the reading fitted and certified it, its pad the chart
 tube's windows imaged on the wall by its chart speeds. A pair traced
@@ -1336,8 +1340,10 @@ It reads the count again on the two lines of the spiric's plane that
 stand the band's escalation above and below the cutting plane, and
 refuses as a tangency where either differs: an oval with one extreme of
 its height within the band of the cutting plane, a near miss or a shallow
-dip. An oval wholly within the band on one side of the cutting plane
-keeps a count of none on all three lines and reads as a miss.
+dip. The oval is convex, so where the count is none on all three lines
+it lies wholly on one side of each, and one of its points read across
+the line says whether it lies within the band on one side of the
+cutting plane; there it refuses too.
 A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached

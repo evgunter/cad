@@ -72,7 +72,7 @@ fn frame(c: [f64; 3], a: [f64; 3], u: [f64; 3]) -> geom::Frame<f64> {
 fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
     Curve3::Line(geom::Line {
         origin: pt(o),
-        dir: v3(d),
+        dir: geom::stated_direction(v3(d)),
     })
 }
 
@@ -213,7 +213,7 @@ fn a_value_carrying_a_derivative_is_no_answer() {
     let line = |o: Point3<Dual64>| {
         Curve3::Line(geom::Line {
             origin: o,
-            dir: Vec3::new(constant(1.0), constant(0.0), constant(0.0)),
+            dir: geom_core::UnitVec3::exact_x(),
         })
     };
     let still = line(at(O));

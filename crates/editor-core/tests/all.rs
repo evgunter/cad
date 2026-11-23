@@ -113,6 +113,8 @@ mod band_planar_cut_off_names;
 mod band_planar_mitre_names;
 #[path = "band_run_wall_names.rs"]
 mod band_run_wall_names;
+#[path = "binder_split_halves.rs"]
+mod binder_split_halves;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -311,6 +313,8 @@ mod rv_matehead_probes;
 
 #[path = "a_boxed_rectangle_certifies_over_its_box.rs"]
 mod a_boxed_rectangle_certifies_over_its_box;
+#[path = "a_pipe_unions_with_its_elbow.rs"]
+mod a_pipe_unions_with_its_elbow;
 #[path = "a_taken_slab_over_a_box_is_never_refused_as_a_flip.rs"]
 mod a_taken_slab_over_a_box_is_never_refused_as_a_flip;
 #[path = "gui1_pick.rs"]
@@ -645,6 +649,8 @@ mod r2_m10_6_probes_interval;
 mod r2_m10_di_probes;
 #[path = "rev_fix_xsplit_unreachable.rs"]
 mod rev_fix_xsplit_unreachable;
+#[path = "review_binders_b.rs"]
+mod review_binders_b;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
@@ -816,6 +822,10 @@ mod a_keel_ring_names_its_two_edges;
 mod a_mate_on_a_full_turn_bore_names;
 #[path = "a_mirror_is_a_construction.rs"]
 mod a_mirror_is_a_construction;
+#[path = "a_subtract_cuts_by_every_tool.rs"]
+mod a_subtract_cuts_by_every_tool;
+#[path = "a_subtract_of_tools_meeting_on_a_rim.rs"]
+mod a_subtract_of_tools_meeting_on_a_rim;
 #[path = "datum_review_a.rs"]
 mod datum_review_a;
 #[path = "decide_1_self_dot_interval.rs"]
@@ -934,10 +944,18 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "review_binders_a.rs"]
+mod review_binders_a;
 #[path = "review_datum_b.rs"]
 mod review_datum_b;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
+#[path = "review_subtract_bodies.rs"]
+mod review_subtract_bodies;
+#[path = "review_subtract_bodies_a.rs"]
+mod review_subtract_bodies_a;
+#[path = "review_subtract_delta.rs"]
+mod review_subtract_delta;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
 #[path = "source_readers.rs"]
@@ -952,3 +970,8 @@ mod union_member_orders_decide_alike;
 mod value_chart_sweeps;
 #[path = "vessel_cavity_interval.rs"]
 mod vessel_cavity_interval;
+
+#[path = "review_binders_delta.rs"]
+mod review_binders_delta;
+#[path = "review_delta_dump.rs"]
+mod review_delta_dump;

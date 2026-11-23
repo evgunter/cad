@@ -56,7 +56,7 @@ fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
     let rows: [Row<'_>; 7] = [
         (
             "a cylinder ruling",
-            Curve3::line(Point3::new(1.0, 0.0, 0.0), z),
+            Curve3::line(Point3::new(1.0, 0.0, 0.0), geom::stated_direction(z)),
             &cylinder,
             (0.0, 1.0),
             (0.3, 2.5),
@@ -72,7 +72,10 @@ fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
         ),
         (
             "a cone generator",
-            geom::pole_form::cone_generator(geom::Line { origin: o, dir: z }, PI / 6.0, x),
+            geom::pole_form::cone_generator(
+                geom_core::RigidMotion::squared_about(o, geom::stated_direction(z), x),
+                PI / 6.0,
+            ),
             &cone,
             (0.0, 1.0),
             (0.4, 1.7),
