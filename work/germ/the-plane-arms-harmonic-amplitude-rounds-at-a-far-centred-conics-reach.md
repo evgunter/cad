@@ -94,3 +94,7 @@ reading 0 wrong at 1e5 and 1e6, with no charge.
   - **Measured locally**, `--profile ci`, default ε, interleaved, four runs each: main median 2.34 s, this head 2.69 s. Replacing the exact path with the plain formula reads 2.45 s, so the exact path is the whole added cost.
   - **The fix keeps exactness wherever it decides.** A double-double reading answers first, on its own error bound against the terms' magnitudes. The exact expansions answer only where the belly cancels below that bound, and their terms are compressed before they multiply. The new head reads a median of 2.30 s, main's time.
   - **The filter is witnessed:** a draw at the data's own rounding, pinned from the proptest's own failure under the always-accepting mutant.
+- 2026-11-23, merge with main after PR 7436 (HELDRECORDS) replaced `line_clears_conic` with `edges_clear`, read through `curve_pair::meet`.
+  - **The row is ported:** `splitting::section_loops::far_clear_rows::a_segment_clears_a_far_centred_conic_only_where_it_is_clear`, on a segment in the plane `z = 0` exactly beside a centre-held far ellipse.
+  - **Why the plane is exact:** a segment built off the stored plane stands apart from it in 3D at `u·far`, which the in-plane belly cannot judge.
+  - **Result:** it reads 0 wrong clears past the zero-band touch placement (CONIC's row), and M3 reds it.
