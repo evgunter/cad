@@ -8639,7 +8639,13 @@ fn chord_segment(
         b.z.lo() - a.z.lo(),
     );
     let len = d.norm();
-    let unit = (d * (1.0 / len)).map(|x| Interval::from_bounds(x, x));
+    // The unit chord as an enclosure, the components over the enclosed
+    // length: it holds the true unit, so `checked` keeps it whatever
+    // `1/len` rounds to, where the point `d·(1/len)` an ulp short of
+    // unit is refuted and poisons the line.
+    let chord = d.map(|x| Interval::from_bounds(x, x));
+    let length = chord.norm();
+    let unit = chord.map(|x| x / length);
     (
         Curve3::line(a, UnitVec3::checked(unit)),
         (
