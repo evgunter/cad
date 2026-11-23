@@ -77,3 +77,96 @@ ONEROUND).
 
 Tier: dual (the verdict's shape is broad and hard to change later).
 Letter H.
+
+
+## Design as built (lane `embed/verdict-read`, 2026-11-23)
+
+Approved by the EMBED orchestrator on 2026-11-22 with the rulings
+marked **R**.
+
+**The definition (R).** A face's run from what it shares is the
+supremum, over the face, of the distance from the shared locus (a
+shared edge's whole carrier line or circle; a shared vertex). The
+pair's extent is the lesser run. Every reading built is a lower bound
+of that, never more; each bound is argued at its site
+(`geom_brep::BoundaryStations`, `geom_brep::spanned_curve_run`).
+
+**What tier 3 keeps** (`topo::Tier3Facts`, `crates/topo/src/rest_facts.rs`):
+- per edge, its class as check 4's fold read it: `EdgeClass::Crease`
+  with its turn, `Seam`, `End` with its end. An edge check 4 exempts
+  by kind (beside a spline face) has none. A lamina, a mixed edge and
+  an in-band reading refuse at tier 3, so the type cannot hold them;
+- per face, its run from each edge of its boundary (check 2, which
+  reads every certified edge before check 4's exemption) and from each
+  vertex more than three edges meet at (the only vertices two faces
+  share with no edge on them);
+- per face, each pole or apex check 6 placed on a vertex, by key.
+
+The spec's item 1 says "the pair's extent" per edge. Each face's run is
+kept instead and the lesser taken where the two are read: the spanned
+bound below is read on the question's side and needs each face's own.
+
+`AtRestBody` holds the facts beside its sign certificate and carries
+them through an isometry. `topo::geometric(&Body, tol)` runs tier 2,
+the session box and tier 3's local battery (check 7 not made) and
+hands back the same bundle for a body that is not finished (PR 6893:
+"a caller holding an unfinished body runs the local battery to get the
+value").
+
+**How the question receives it.**
+`topo::clearance::embedded(&Geometric, faces, band, budgets)`. The
+facts are crossed once, where each face's window is built
+(`injective::Facts::of`), and the readings take them from the lifted
+boundary. `Side::windows_of(&Geometric, faces, which)` is the same
+windows for a caller that drives the sweep itself; a touching pair
+whose windows carry no facts refuses typed (`Unsupported`, "read with
+no tier-3 verdict").
+
+**The run, exactly.** The face's stations are each boundary edge's two
+ends and its middle, and each lone vertex: points of its boundary.
+- line edge: the station's perpendicular distance from the whole line;
+- circular edge: its distance from the whole circle;
+- any other carrier (an ellipse, a spiric, a spline): the nearest the
+  station stands to the edge's own span, covered in 64 pieces. Here
+  the locus is the edge's arc, so a run along the edge past an end
+  still counts: more than the definition, stated at the door;
+- shared vertex: the station's distance from it.
+- **the spanned bound (R, 8a)**: a face whose whole boundary is one
+  loop on one closed planar curve with a centre (a circle, an ellipse,
+  a spiric oval) spans it, so it meets the line through the centre
+  square to the curve's plane, and runs at least as far from the curve
+  as that line stands from it. One edge is one curve; several edges
+  are one conic by `injective::one_conic` and no second equality. The
+  run from the edge's middle reads a disc at its diameter, past its
+  true run, and is no lower bound.
+
+Every distance is a cover's reading (`Cover::range_about`,
+`Cover::distance_range`); the door takes carriers and spans and places
+the stations itself.
+
+**The class decides which separators run.**
+
+| class | other face's carrier | plane through the edge, conic's own plane | edge graph | second order |
+|---|---|---|---|---|
+| crease | runs; the side proved must be the verdict's turn, else `TurnContradicted` | runs | runs | never |
+| seam | barred | runs | runs | never |
+| end | barred | barred | barred | refused `SecondOrder` at once |
+| none | as before | as before | as before | the engine's own `cusp` reading, kept only here |
+
+A plane or the graph parts the faces of a wedge θ and of 2π − θ alike,
+so it carries no turn: turn agreement is checked in the carrier arm
+only. An apex is read by the verdict's key.
+
+**The reading (R, 8b).** Each face's own side of the separator is the
+sign of its sine's enclosure, through `Margin::sign_of` under
+`Band::enclosure_sign`, with no band held against it. The banded
+quantity is the two faces' sines summed, times `inf|∇ψ| / sup|∇ψ|`
+(one for a plane and for a carrier, whose ψ is a distance; the graph's
+`|m − t·γ′|` over its slopes), levered at the extent, at
+`self_intersection_departure`. A face with no zero side is read by
+ψ over it, a distance, at the band. Under the carrier arm the
+separator's own face brings no sine.
+
+**The shell's cavity (R, 8c)** runs the local battery on its moved
+clone to ask; a refusal there is `ShellError::NotValid`. This retires
+with EMBEDGATE's lane C.
