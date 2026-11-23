@@ -156,3 +156,15 @@ A second draw on the next run: `CAD_FUZZ_SEED=0xb5c0e6c80ba9b4dc`, draw
 reproduces with main's `conic.rs`. Over twelve fixed seeds the row reds
 on none, with either `conic.rs`: the rate is low and the PR does not
 move it.
+
+## 2026-11-23 — the plain row too, two seeds, reproduced on main (ONEROUND, PR 7221)
+
+The sibling row without the touch, `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance`,
+reds at ε = 1e-12 the same way: one `Recedes` reading on a pair of circles of radius 550 to 600 contradicted by the dense distance.
+
+- Seed `0x7a797c5d224361de`: "draw 16 f64: Recedes on (-6.450266237113439e-10, -6.414448355365588e-10) ring None", a circle of radius 555.67 against `b (134.196…, 134.196…)`.
+- Seed `0x9e4e8974246bf757`: "draw 54 f64: Recedes on (8.334309359444234e-10, 8.349085180644984e-10) ring None", a circle of radius 596.49 against `b (54.349…, 19.914…)`.
+
+Both red on main `c76360d3d4` (run here, `CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=<seed> CAD_FUZZ_EFFORT=1 cargo nextest run -p geom-brep -E 'test(=curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance)'`), and the first reds on PR 7221's head `6862af6efe` with the draw, the interval and every number identical to main's, so the PR's conversion of the rounded pairs in `window.rs` moved nothing in it.
+
+**How it arrives:** the row is in the slow set, so a PR runs it only when its diff edits `window/oracle.rs`'s file set, and then at a seed the run draws. PR 7221's hosted run 45088390543 drew the first seed and went red in `test (kernel)` on it; its earlier run on the same code passed that step on another seed. Until this is fixed, any PR that edits `curve_pair/pose/window/` may red by the draw. Pin these two seeds beside the others at the fix.
