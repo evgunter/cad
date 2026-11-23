@@ -8373,13 +8373,18 @@ mod presentation_rows {
             None,
             "a plane that does not list the side's edge"
         );
-        let on_edge = present(&[0, 1]);
-        assert!(matches!(on_edge.zero, Zero::Side(..) | Zero::Corner(..)));
-        assert_eq!(
-            sign(Some(&on(true)), Some(&on_edge)),
-            None,
-            "against a partner whose zero lies on edges"
-        );
+        let mut sides = 0;
+        for edges in [&[0usize][..], &[1], &[0, 1]] {
+            let on_edges = present(edges);
+            assert!(matches!(on_edges.zero, Zero::Side(..) | Zero::Corner(..)));
+            sides += usize::from(matches!(on_edges.zero, Zero::Side(..)));
+            assert_eq!(
+                sign(Some(&on(true)), Some(&on_edges)),
+                None,
+                "against a partner whose zero lies on edges {edges:?}"
+            );
+        }
+        assert!(sides > 0, "a partner presenting one side is among them");
     }
 
     /// **Two walls of [`cylinder`] glued across its circle at height 1**,
