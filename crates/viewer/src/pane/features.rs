@@ -515,10 +515,14 @@ impl ViewerBehavior<'_> {
             });
         }
         match clicks.offered.take() {
-            Some(crate::widgets::Taken::Op(op)) => self.ops.push(op),
+            Some(crate::widgets::Taken::Op(op)) => self.offered.push(op),
             Some(crate::widgets::Taken::Lead(lead)) => {
-                self.drafts
-                    .take_lead(lead, self.tools, self.session.committed_doc());
+                if let Some(notice) =
+                    self.drafts
+                        .take_lead(lead, self.tools, self.session.committed_doc())
+                {
+                    self.notices.push(notice);
+                }
             }
             None => {}
         }

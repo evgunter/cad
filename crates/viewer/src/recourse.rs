@@ -2,24 +2,26 @@
 //! its recourse names that this viewer can take (DESIGN
 //! `[one-way.places]`, "A refusal's recourse"): [`offers`].
 //!
-//! Each offer is one of two kinds, or words:
-//! - a [`Commit`], one click and one undo, its op filled from what the
-//!   failure carries as data;
-//! - a [`Lead`], which opens the form that act is authored in,
-//!   pre-filled with what the failure determines and leaving the rest
-//!   to the person;
-//! - an act the failure types that no door of this viewer takes, said
-//!   in plain words with no control ([`Unoffered`]), covering only its
-//!   own clause.
+//! A failure's acts come in three kinds:
+//! - an [`Offer`] drawn beside it: a [`Commit`] (one click, one undo, its
+//!   op filled from what the failure carries as data), a [`Lead`] (opens
+//!   the form that act is authored in, pre-filled with what the failure
+//!   determines, the rest left to the person), or an act it types that
+//!   no door of this viewer takes, said in plain words with no control
+//!   ([`Unoffered`]), covering only its own clause;
+//! - a [`Heard`] lead, taken as the refusal that makes it is heard: the
+//!   form opens at once, so it is never in a drawn list.
 //!
 //! **Staleness.** An offer is drawn when what it was read from
 //! describes what its op acts on. A document-editing offer is read off
-//! a landed run only through [`Current`], which the session hands out
-//! only while that run is the committed document's
-//! ([`crate::session::DocSession::current`]); a refusal's offers answer
-//! the batch that was refused, and are read off the refusal wherever
-//! it is held; re-evaluating is always current. No offer carries a
-//! generation to its door: each door keeps its own check.
+//! a landed run only through a [`Ran`], which only [`Current`] hands
+//! out, and only while that run is the committed document's
+//! ([`crate::session::DocSession::current`]); words answer the failure
+//! and are read off any run ([`node_words`]); a refusal's acts answer
+//! the batch that was refused; re-evaluating is always current. No
+//! offer carries a generation to its door: each door keeps its own
+//! check, and an offer taken in a frame an earlier op of which moved the
+//! document is dropped (`ViewerApp::perform_batch`).
 //!
 //! Every match below is exhaustive, so a failure kind added to the
 //! kernel or the session fails to compile here until it is answered; a
@@ -31,14 +33,16 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 use pncad::document::{
-    CheckEvidence, CheckFinding, NodeErrorClass, NodeErrorKind, OpposedPair, ParseError,
-    ProductError, ProductErrorKind, Speaker, VarName,
+    CarriedAssertion, CheckEvidence, CheckFinding, LeverRefusal, MateFault, NodeErrorKind,
+    OpposedPair, ParseError, PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault,
+    Speaker, VarName,
 };
 use pncad::workspace::WorkspaceError;
 
+use crate::parts::PartFiles;
 use crate::session::{Current, Refusal, SaveChoice, SessionOp};
 
-/// **One act a failure offers.**
+/// **One act drawn beside a failure.**
 #[derive(Debug, Clone, PartialEq)]
 pub enum Offer {
     /// One click, one undo.
@@ -58,8 +62,8 @@ pub struct Commit {
     pub op: SessionOp,
 }
 
-/// **A form an offer opens**, with what the failure determines filled
-/// in.
+/// **A form a drawn offer opens**, with what the failure determines
+/// filled in.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lead {
     /// The assertion tool, a `Gap` bounded from above, its two seats
@@ -72,6 +76,22 @@ pub enum Lead {
         /// The control's label.
         label: String,
     },
+    /// The placement editor on a placement whose bundle the mate solve
+    /// refused, overconstrained or leaving a freedom unwritten: the
+    /// edit its recourse names (strike a constraint, write a freedom)
+    /// is the editor's.
+    EditPlacement {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// The control's label.
+        label: String,
+    },
+}
+
+/// **A form a refusal opens as it is heard**, filled with what the
+/// refusal determines.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Heard {
     /// The add-variable form, its name the one a refused expression
     /// read; the variable's dimension is the person's, since the
     /// expression's context does not determine it.
@@ -85,7 +105,7 @@ pub enum Lead {
     /// offered.
     HoldTarget {
         /// The copy's placement.
-        placement: pncad::document::RecipeNodeId,
+        placement: RecipeNodeId,
         /// The target the door was asked for.
         target: crate::session::PlaceTarget,
     },
@@ -125,21 +145,29 @@ impl Offer {
     pub fn label(&self) -> Option<&str> {
         match self {
             Self::Commit(commit) => Some(&commit.label),
-            Self::Lead(Lead::AssertGap { label, .. }) => Some(label),
-            Self::Lead(Lead::CreateVariable { .. } | Lead::HoldTarget { .. })
-            | Self::Unoffered(_) => None,
+            Self::Lead(Lead::AssertGap { label, .. } | Lead::EditPlacement { label, .. }) => {
+                Some(label)
+            }
+            Self::Unoffered(_) => None,
         }
     }
+}
 
-    /// **Whether this offer is the assertion a finding carries**, so
-    /// the finding is said without it beside the control
-    /// ([`CheckFinding::said_beside_its_assertion`]).
-    pub fn authors_the_findings_assertion(&self) -> bool {
-        match self {
-            Self::Commit(commit) => matches!(commit.op, SessionOp::AssertQuieting { .. }),
-            Self::Lead(Lead::AssertGap { .. }) => true,
-            Self::Lead(Lead::CreateVariable { .. } | Lead::HoldTarget { .. })
-            | Self::Unoffered(_) => false,
+/// **What a failure offers**: the acts drawn beside it, and the leads
+/// taken as it is heard.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Offers {
+    /// Drawn beside the failure.
+    pub drawn: Vec<Offer>,
+    /// Taken as the failure is heard.
+    pub heard: Vec<Heard>,
+}
+
+impl Offers {
+    fn drawn(drawn: Vec<Offer>) -> Self {
+        Self {
+            drawn,
+            heard: Vec::new(),
         }
     }
 }
@@ -147,24 +175,56 @@ impl Offer {
 /// **A failure the viewer can be asked what it offers.**
 #[derive(Clone, Copy)]
 pub enum Failure<'a> {
-    /// A failure the landed run reports, read off it while it is the
-    /// committed document's run.
-    Run(Current<'a>, Ran<'a>),
+    /// A failure the landed run reports, while it is the committed
+    /// document's run.
+    Run(Ran<'a>),
     /// A batch the session refused.
     Refused(&'a Refusal),
     /// The run was cancelled and the picture shows an older document.
     Canceled,
 }
 
-/// **What a landed run reports failing.**
+/// **A failure a current run reports**, as only [`Current`] hands one
+/// out ([`Current::finding`], [`Current::product`], [`Current::node`]):
+/// what it was read from is the run whose document its offers act on.
 #[derive(Clone, Copy)]
-pub enum Ran<'a> {
-    /// A check's finding, of the run's report.
+pub struct Ran<'a> {
+    current: Current<'a>,
+    what: What<'a>,
+}
+
+/// What a [`Ran`] is.
+#[derive(Clone, Copy)]
+enum What<'a> {
     Finding(&'a CheckFinding),
-    /// The gather's refusal.
     Product(&'a ProductError),
-    /// A node's own failure.
     Node(&'a NodeErrorKind),
+}
+
+impl<'a> Ran<'a> {
+    /// `finding`, of `current`'s report.
+    pub(crate) fn finding(current: Current<'a>, finding: &'a CheckFinding) -> Self {
+        Self {
+            current,
+            what: What::Finding(finding),
+        }
+    }
+
+    /// `fault`, `current`'s gather refusal.
+    pub(crate) fn product(current: Current<'a>, fault: &'a ProductError) -> Self {
+        Self {
+            current,
+            what: What::Product(fault),
+        }
+    }
+
+    /// A node's own failure `kind`, in `current`'s evaluation.
+    pub(crate) fn node(current: Current<'a>, kind: &'a NodeErrorKind) -> Self {
+        Self {
+            current,
+            what: What::Node(kind),
+        }
+    }
 }
 
 /// The label of the control that adds a body to the product.
@@ -179,77 +239,72 @@ pub const ACCEPT_UPDATED_VERSION: &str = "Accept updated version";
 /// The label of the control that re-evaluates after a cancel.
 pub const REEVALUATE: &str = "Re-evaluate";
 
+/// The label of the control that opens a refused bundle's placement
+/// editor.
+pub const EDIT_THE_PLACEMENT: &str = "Edit the placement";
+
 /// **The offers `failure` makes**, in the order its recourse names them.
-pub fn offers(failure: Failure<'_>) -> Vec<Offer> {
+pub fn offers(failure: Failure<'_>) -> Offers {
     match failure {
-        Failure::Run(current, Ran::Finding(finding)) => finding_offers(current, finding),
-        Failure::Run(current, Ran::Product(fault)) => product_offers(current, fault),
-        Failure::Run(current, Ran::Node(kind)) => node_offers(kind, current.files()),
+        Failure::Run(Ran { current, what }) => Offers::drawn(match what {
+            What::Finding(finding) => finding_offers(current, finding),
+            What::Product(fault) => product_offers(current, fault),
+            What::Node(kind) => node_offers(kind, current.files()),
+        }),
         Failure::Refused(refusal) => refusal_offers(refusal),
         // A cancel stops the run of the document as it stands, so the
         // same document re-evaluates whatever it is now.
-        Failure::Canceled => vec![Offer::commit(REEVALUATE.to_owned(), SessionOp::Reevaluate)],
+        Failure::Canceled => Offers::drawn(vec![Offer::commit(REEVALUATE, SessionOp::Reevaluate)]),
     }
 }
 
-/// A check finding's offers. A quiet finding offers nothing: an
-/// assertion already says it.
+/// A check finding's offers: the assertion it carries
+/// ([`CheckFinding::carried_assertion`], the one source of whether it
+/// offers one), and an unused body's product door.
 fn finding_offers(current: Current<'_>, finding: &CheckFinding) -> Vec<Offer> {
-    if finding.quiet.is_some() {
-        return Vec::new();
-    }
     let doc = current.doc();
     let by = Speaker::of(doc);
-    match &finding.evidence {
-        // The assertion the kernel minted by the rule that quiets the
-        // row, authored as it is: never seats built from the finding's
-        // cell names, which are keyed by the `⊔` that gathered them.
-        CheckEvidence::UnprovenCoincidence { quieting, .. } => quieting
-            .iter()
-            .map(|quieting| {
-                Offer::commit(
-                    format!("Assert {}", quieting.said(by)),
-                    SessionOp::AssertQuieting {
-                        quieting: quieting.clone(),
-                    },
-                )
-            })
-            .collect(),
-        CheckEvidence::Interference { finding } => finding
-            .quieting
-            .iter()
-            .map(|pair| {
-                Offer::Lead(Lead::AssertGap {
-                    label: format!("Assert a negative Gap between {}…", pair.said(by)),
-                    pair: Box::new(pair.clone()),
-                })
-            })
-            .collect(),
-        // The body is offered to the product where the finding's node
-        // draws one ([`crate::world::body_read`], the door's own test).
+    // The assertion the kernel minted by the rule that quiets the row,
+    // authored as it is: never seats built from the finding's cell
+    // names, which are keyed by the `⊔` that gathered them.
+    let assertion = finding.carried_assertion().map(|carried| match carried {
+        CarriedAssertion::Claim(quieting) => Offer::commit(
+            format!("Assert {}", quieting.said(by)),
+            SessionOp::AssertQuieting {
+                quieting: quieting.clone(),
+            },
+        ),
+        CarriedAssertion::Pair(pair) => Offer::Lead(Lead::AssertGap {
+            label: format!("Assert a negative Gap between {}…", pair.said(by)),
+            pair: Box::new(pair.clone()),
+        }),
+    });
+    // The body is offered to the product where the finding's node draws
+    // one ([`crate::world::body_read`], the door's own test).
+    let product = match &finding.evidence {
         CheckEvidence::Unused { .. } => crate::frame::finding_node(finding, doc)
             .filter(|&node| crate::world::body_read(doc, node, None).is_some())
             .map(|node| {
                 Offer::commit(
-                    ADD_TO_THE_PRODUCT.to_owned(),
+                    ADD_TO_THE_PRODUCT,
                     SessionOp::AddToProduct { node, body: None },
                 )
-            })
-            .into_iter()
-            .collect(),
-        // A part's finding is answered in the part's document.
-        CheckEvidence::CarriedInterference { .. } | CheckEvidence::CarriedCoincidence { .. } => {
-            Vec::new()
-        }
-        // Each names an edit no one door makes: the geometry, the
-        // expectation, or a kernel capability.
+            }),
+        // Each names an edit no one door makes (the geometry, the
+        // expectation, a kernel capability), is answered in a part's
+        // document, or is the assertion above.
         CheckEvidence::Connectedness { .. }
         | CheckEvidence::Escalated { .. }
         | CheckEvidence::Unsupported { .. }
         | CheckEvidence::NotAtRest { .. }
         | CheckEvidence::StaleExpectation { .. }
-        | CheckEvidence::AtRest { .. } => Vec::new(),
-    }
+        | CheckEvidence::UnprovenCoincidence { .. }
+        | CheckEvidence::Interference { .. }
+        | CheckEvidence::CarriedInterference { .. }
+        | CheckEvidence::CarriedCoincidence { .. }
+        | CheckEvidence::AtRest { .. } => None,
+    };
+    assertion.into_iter().chain(product).collect()
 }
 
 /// **A product fault's offers** (D10 `[operations]`): for a slot that
@@ -308,131 +363,192 @@ fn product_offers(current: Current<'_>, fault: &ProductError) -> Vec<Offer> {
     }
 }
 
-/// **A node's own failure's offers**, by its class: the accept a part
-/// whose pin no longer holds offers, and the tolerance, which no door
-/// here edits.
-fn node_offers(kind: &NodeErrorKind, files: &crate::parts::PartFiles) -> Vec<Offer> {
-    use NodeErrorClass as C;
-    match kind.class() {
-        C::PartPinMismatch => {
-            let NodeErrorKind::Part { doc_ref, .. } = kind else {
-                unreachable!("a part's pin mismatch is its Part arm")
-            };
-            vec![Offer::commit(
-                format!(
-                    "{ACCEPT_UPDATED_VERSION} of {}, at every instance of it",
-                    files.name(doc_ref.id)
-                ),
-                SessionOp::AcceptPartVersion { id: doc_ref.id },
-            )]
-        }
-        // The part records another ε: its recourse is the tolerance's
-        // edit.
-        C::PartEpsilonSeam => vec![Offer::Unoffered(Unoffered::Tolerance)],
+/// **What a node's own failure's recourse names**, as acts: one
+/// exhaustive match over the failure itself.
+enum NodeAct {
+    /// Nothing this viewer offers.
+    None,
+    /// Accept the updated version of the part `doc_ref` pins.
+    Accept(pncad::document::DocumentId),
+    /// The placement editor on the placement, for its bundle.
+    EditPlacement(RecipeNodeId),
+    /// An act with no door here.
+    Unoffered(Unoffered),
+}
+
+/// **The act `kind`'s recourse names.**
+fn node_act(kind: &NodeErrorKind) -> NodeAct {
+    use NodeErrorKind as K;
+    match kind {
+        K::Part { doc_ref, fault } => match fault {
+            PartFault::Unresolved { fault, .. } => match fault {
+                ResolveFault::PinMismatch => NodeAct::Accept(doc_ref.id),
+                // The part records another ε: its recourse is the
+                // tolerance's edit.
+                ResolveFault::EpsilonSeam => NodeAct::Unoffered(Unoffered::Tolerance),
+                // The part's file cannot be read here.
+                ResolveFault::Unresolved => NodeAct::None,
+            },
+            // The reference resolved, or was never tried: the pin is not
+            // what failed. A part whose product fails on a mismatch of
+            // its OWN references is repaired in that part, not here.
+            PartFault::NoResolver
+            | PartFault::PartProductFailed { .. }
+            | PartFault::PartProductPoisoned { .. }
+            | PartFault::PartProductFailureUnrecorded { .. }
+            | PartFault::PartProduct { .. }
+            | PartFault::ReferenceCycle { .. }
+            | PartFault::DepthExceeded
+            | PartFault::NotEntered => NodeAct::None,
+        },
+        K::Mate(fault) => match &**fault {
+            // Strike a constraint, or write the freedoms left: the
+            // placement editor's edits.
+            MateFault::Overconstrained { placement, .. }
+            | MateFault::Unpinned { placement, .. } => NodeAct::EditPlacement(*placement),
+            // The parts are smaller than the tolerance can see: commit a
+            // finer one.
+            MateFault::Unleverable { refusal, .. } => match &**refusal {
+                LeverRefusal::BelowZeroBand { .. } => NodeAct::Unoffered(Unoffered::Tolerance),
+                LeverRefusal::Reach { .. }
+                | LeverRefusal::Shape { .. }
+                | LeverRefusal::OutOfRange { .. } => NodeAct::None,
+            },
+            MateFault::PosesOfAnotherDocument { .. }
+            | MateFault::NotOnTheCopy { .. }
+            | MateFault::KindsDiffer { .. }
+            | MateFault::NoChart { .. }
+            | MateFault::Backwards { .. }
+            | MateFault::Unoriented { .. }
+            | MateFault::SideUnevaluated { .. }
+            | MateFault::ReadUnevaluated { .. } => NodeAct::None,
+        },
+        // The document's recorded ε is not the process's: its repair is
+        // replaying it in a process whose ε matches, the tolerance's act.
+        K::ToleranceConflict { .. } => NodeAct::Unoffered(Unoffered::Tolerance),
         // Each names the geometry, an input, a kernel capability or
-        // another document's node, which no one door here makes. The
-        // tolerance conflict names no act at all.
-        C::Expr
-        | C::Profile
-        | C::ProfileReplay
-        | C::ProfileLaneReplay
-        | C::Trace
-        | C::Extrude
-        | C::Revolve
-        | C::Tube
-        | C::Split
-        | C::ContactCarry
-        | C::Fillet
-        | C::Chamfer
-        | C::Boolean
-        | C::Transform
-        | C::Mirror
-        | C::Motion
-        | C::Skin
-        | C::Loft
-        | C::CurvedSolidFrontier
-        | C::MissingInput
-        | C::UnresolvedRead
-        | C::SelectResolve
-        | C::ToleranceConflict
-        | C::ParamBox
-        | C::Seed
-        | C::RecordRefused
-        | C::RecordMispaired
-        | C::WrongOperand
-        | C::EmptyOperand
-        | C::EmptyMember
-        | C::NotFinished
-        | C::UnfinishedLeaf
-        | C::EmptyHalf
-        | C::HalfOfAFamily
-        | C::MemberOutOfRange
-        | C::MemberRefused
-        | C::IndicesUnrelated
-        | C::IndexCount
-        | C::IndexCountOutOfRange
-        | C::NoSuchPiece
-        | C::PieceShape
-        | C::DegenerateDirection
-        | C::NonFiniteDirection
-        | C::UnderflowedDirection
-        | C::Band
-        | C::MissingSlot
-        | C::Escalated
-        | C::PoseRead
-        | C::PoseDegenerate
-        | C::PoseScalar
-        | C::CountOutOfRange
-        | C::UnschedulableCycle
-        | C::Naming
-        | C::UnionFoldStep
-        | C::Shell
-        | C::ShellLaneUnsupported
-        | C::WitnessBifurcation
-        | C::PartNoResolver
-        | C::PartUnresolved
-        | C::PartProductFailed
-        | C::PartProductPoisoned
-        | C::PartProductFailureUnrecorded
-        | C::PartProduct
-        | C::PartReferenceCycle
-        | C::PartDepthExceeded
-        | C::PartNotEntered
-        | C::MatePosesOfAnotherDocument
-        | C::MateOverconstrained
-        | C::MateUnpinned
-        | C::MateNotOnTheCopy
-        | C::MateUnleverable
-        | C::MateKindsDiffer
-        | C::MateSideUnevaluated
-        | C::MateNoChart
-        | C::MateBackwards
-        | C::MateUnoriented
-        | C::SpaceMismatch
-        | C::CrossingUnverified
-        | C::MeasureRefUnreadable
-        | C::MeasureNonFinite
-        | C::MeasureNotParallel
-        | C::MeasureUnsupported
-        | C::PayloadExpr
-        | C::AssertionDimension => Vec::new(),
+        // another document's node, which no one door here makes.
+        K::Expr { .. }
+        | K::Profile { .. }
+        | K::ProfileReplay { .. }
+        | K::ProfileLaneReplay { .. }
+        | K::Trace { .. }
+        | K::Extrude { .. }
+        | K::Revolve { .. }
+        | K::Tube { .. }
+        | K::Split { .. }
+        | K::ContactCarry { .. }
+        | K::Blend { .. }
+        | K::Boolean { .. }
+        | K::Transform { .. }
+        | K::Mirror { .. }
+        | K::Motion { .. }
+        | K::Skin { .. }
+        | K::Loft { .. }
+        | K::CurvedSolidFrontier { .. }
+        | K::MissingInput { .. }
+        | K::UnresolvedRead { .. }
+        | K::SelectResolve { .. }
+        | K::ParamBox { .. }
+        | K::Seed { .. }
+        | K::RecordRefused { .. }
+        | K::RecordMispaired { .. }
+        | K::WrongOperand { .. }
+        | K::EmptyOperand { .. }
+        | K::EmptyMember { .. }
+        | K::NotFinished { .. }
+        | K::UnfinishedLeaf { .. }
+        | K::EmptyHalf { .. }
+        | K::HalfOfAFamily { .. }
+        | K::MemberOutOfRange { .. }
+        | K::MemberRefused { .. }
+        | K::IndicesUnrelated { .. }
+        | K::IndexCount { .. }
+        | K::IndexCountOutOfRange { .. }
+        | K::NoSuchPiece { .. }
+        | K::PieceShape { .. }
+        | K::DegenerateDirection { .. }
+        | K::NonFiniteDirection { .. }
+        | K::UnderflowedDirection { .. }
+        | K::Band { .. }
+        | K::MissingSlot { .. }
+        | K::Escalated { .. }
+        | K::MeasureEscalated { .. }
+        | K::PlacementAxisEscalated { .. }
+        | K::PoseDirectionEscalated { .. }
+        | K::PoseRead { .. }
+        | K::PoseDegenerate { .. }
+        | K::PoseScalar { .. }
+        | K::CountOutOfRange { .. }
+        | K::UnschedulableCycle { .. }
+        | K::Naming { .. }
+        | K::UnionFoldStep { .. }
+        | K::Shell { .. }
+        | K::ShellLaneUnsupported { .. }
+        | K::WitnessBifurcation { .. }
+        | K::SpaceMismatch { .. }
+        | K::CrossingUnverified { .. }
+        | K::MeasureRefUnreadable { .. }
+        | K::MeasureNonFinite { .. }
+        | K::MeasureNotParallel { .. }
+        | K::MeasureUnsupported { .. }
+        | K::PayloadExpr { .. }
+        | K::AssertionDimension { .. } => NodeAct::None,
     }
 }
 
-/// **A refused batch's offers**: the variable an expression named and
-/// no document declares, the two saves a save that would give the
-/// document a second file in one folder offers, and the placement
-/// editor a door's held target change opens.
-fn refusal_offers(refusal: &Refusal) -> Vec<Offer> {
+/// **A node's own failure's offers**: the accept a part whose pin no
+/// longer holds offers, the placement editor a refused bundle's
+/// recourse names, and the words for an act no door here takes;
+/// `files` names a part by its file.
+fn node_offers(kind: &NodeErrorKind, files: &PartFiles) -> Vec<Offer> {
+    match node_act(kind) {
+        NodeAct::None => Vec::new(),
+        NodeAct::Accept(part) => vec![Offer::commit(
+            format!(
+                "{ACCEPT_UPDATED_VERSION} of {}, at every instance of it",
+                files.name(part)
+            ),
+            SessionOp::AcceptPartVersion { id: part },
+        )],
+        NodeAct::EditPlacement(placement) => vec![Offer::Lead(Lead::EditPlacement {
+            placement,
+            label: EDIT_THE_PLACEMENT.to_owned(),
+        })],
+        NodeAct::Unoffered(act) => vec![Offer::Unoffered(act)],
+    }
+}
+
+/// **The words a node's own failure says of an act no door here
+/// takes**: they answer the failure, not the document's state, so they
+/// are read off any run that reports it.
+pub fn node_words(kind: &NodeErrorKind) -> Vec<Unoffered> {
+    match node_act(kind) {
+        NodeAct::Unoffered(act) => vec![act],
+        NodeAct::None | NodeAct::Accept(_) | NodeAct::EditPlacement(_) => Vec::new(),
+    }
+}
+
+/// **A refused batch's offers**: the two saves a save that would give
+/// the document a second file in one folder offers, drawn; the variable
+/// an expression named and no document declares, and the placement
+/// editor a door's held target change opens, heard.
+fn refusal_offers(refusal: &Refusal) -> Offers {
     match refusal {
-        Refusal::Parse(error) => parse_offers(error),
-        Refusal::Workspace(error) => workspace_offers(error),
+        Refusal::Parse(error) => Offers {
+            drawn: Vec::new(),
+            heard: parse_heard(error),
+        },
+        Refusal::Workspace(error) => Offers::drawn(workspace_offers(error)),
         Refusal::TargetHeld {
             placement, target, ..
-        } => vec![Offer::Lead(Lead::HoldTarget {
-            placement: *placement,
-            target: target.clone(),
-        })],
+        } => Offers {
+            drawn: Vec::new(),
+            heard: vec![Heard::HoldTarget {
+                placement: *placement,
+                target: target.clone(),
+            }],
+        },
         Refusal::DrivenByExpression { .. }
         | Refusal::NoSuchSlot { .. }
         | Refusal::NoSuchVariable(_)
@@ -468,21 +584,22 @@ fn refusal_offers(refusal: &Refusal) -> Vec<Offer> {
         | Refusal::Draft(_)
         | Refusal::PlacementFails { .. }
         | Refusal::StrandedPick { .. }
-        | Refusal::InTheProduct { .. } => Vec::new(),
+        | Refusal::InTheProduct { .. }
+        | Refusal::ClaimHeld { .. } => Offers::default(),
     }
 }
 
-/// **The variable a parse refusal offers to create.** The parse door's
-/// unknown-variable refusal is deliberate typo-safety — text naming an
-/// undeclared variable never creates one — so the offer is a lead, the
-/// form with the name filled. The parse error carries the identifier as
-/// text the lexer read, so the name constructor admits it; its answer
-/// is folded rather than trusted.
-fn parse_offers(error: &ParseError) -> Vec<Offer> {
+/// **The variable a parse refusal opens the add-variable form on.** The
+/// parse door's unknown-variable refusal is deliberate typo-safety —
+/// text naming an undeclared variable never creates one — so the act is
+/// a lead, the form with the name filled. The parse error carries the
+/// identifier as text the lexer read, so the name constructor admits
+/// it; its answer is folded rather than trusted.
+fn parse_heard(error: &ParseError) -> Vec<Heard> {
     match error {
         ParseError::UnknownParam { name, .. } => VarName::new(name.as_str())
             .ok()
-            .map(|name| Offer::Lead(Lead::CreateVariable { name }))
+            .map(|name| Heard::CreateVariable { name })
             .into_iter()
             .collect(),
         ParseError::UnexpectedChar { .. }
@@ -661,5 +778,116 @@ mod tests {
             }
         }
         assert!(seen.iter().all(|&s| s), "arms with no witness: {seen:?}");
+    }
+
+    /// **What every node failure class offers, pinned per class** — the
+    /// kernel's census of one witness per class
+    /// (`editor_core::test_support::node_error_witnesses`) run through
+    /// [`node_offers`]: the pin mismatch commits the accept, the ε seam
+    /// and the tolerance conflict say the tolerance's words, an
+    /// overconstrained or unpinned bundle leads to its placement editor,
+    /// and every other class offers nothing. A lever below the zero band
+    /// is the tolerance too; the census's lever witness (an unread
+    /// reach) offers nothing.
+    ///
+    /// Red if any class offers other than this table says, including a
+    /// class added to the kernel and not answered here.
+    #[test]
+    // The census's last arm is the table's "every other class": a class
+    // added to the kernel lands there and is held to offering nothing.
+    #[allow(clippy::wildcard_enum_match_arm)]
+    fn every_node_failure_class_offers_what_its_recourse_names() {
+        use pncad::document::NodeErrorClass as C;
+        let files = PartFiles::Unscanned;
+        let mut seen = 0;
+        for (class, kind) in editor_core::test_support::node_error_witnesses() {
+            let made = node_offers(&kind, &files);
+            match class {
+                C::PartPinMismatch => assert!(
+                    matches!(&made[..], [Offer::Commit(commit)]
+                        if matches!(commit.op, SessionOp::AcceptPartVersion { .. })),
+                    "{class:?}: the accept: {made:?}"
+                ),
+                C::PartEpsilonSeam | C::ToleranceConflict => assert_eq!(
+                    made,
+                    [Offer::Unoffered(Unoffered::Tolerance)],
+                    "{class:?}: the tolerance's words"
+                ),
+                C::MateOverconstrained | C::MateUnpinned => assert!(
+                    matches!(&made[..], [Offer::Lead(Lead::EditPlacement { label, .. })]
+                        if label == EDIT_THE_PLACEMENT),
+                    "{class:?}: the placement editor: {made:?}"
+                ),
+                C::MateUnleverable => {
+                    assert!(made.is_empty(), "{class:?}: an unread reach: {made:?}");
+                    let NodeErrorKind::Mate(fault) = &kind else {
+                        panic!("a mate's witness is a mate fault")
+                    };
+                    let MateFault::Unleverable { mate, .. } = &**fault else {
+                        panic!("the lever's witness is unleverable")
+                    };
+                    let below = NodeErrorKind::Mate(Box::new(MateFault::Unleverable {
+                        mate: *mate,
+                        refusal: Box::new(LeverRefusal::BelowZeroBand {
+                            arm: 1.0e-12,
+                            zero: 1.0e-9,
+                        }),
+                    }));
+                    assert_eq!(
+                        node_offers(&below, &files),
+                        [Offer::Unoffered(Unoffered::Tolerance)],
+                        "a lever below the zero band: the tolerance's words"
+                    );
+                }
+                _ => assert!(made.is_empty(), "{class:?} offers nothing: {made:?}"),
+            }
+            assert_eq!(
+                node_words(&kind),
+                made.iter()
+                    .filter_map(|offer| match offer {
+                        Offer::Unoffered(act) => Some(*act),
+                        Offer::Commit(_) | Offer::Lead(_) => None,
+                    })
+                    .collect::<Vec<_>>(),
+                "{class:?}: the words are the offers' words"
+            );
+            seen += 1;
+        }
+        assert!(seen > 80, "the census is every class: {seen}");
+    }
+
+    /// **The parse door's only offer is the unknown name's**: every other
+    /// parse error opens nothing. Red if, say, an unknown function were
+    /// read as a variable to create.
+    #[test]
+    fn only_an_unknown_name_opens_the_add_variable_form() {
+        use crate::session::Refusal;
+        let doc = pncad::document::Doc::<pncad::document::ProfileProgram>::empty_derived(
+            "parse",
+            pncad::geom_core::Tol::witness(),
+        );
+        let heard = |text: &str| {
+            let refused = crate::session::parse_text(&doc, text)
+                .err()
+                .unwrap_or_else(|| panic!("{text:?} does not parse"));
+            offers(Failure::Refused(&Refusal::from(refused)))
+        };
+        assert_eq!(
+            heard("margin * 2").heard,
+            [Heard::CreateVariable {
+                name: VarName::from_static("margin")
+            }]
+        );
+        let frob = crate::session::parse_text(&doc, "frob(1)").err();
+        assert!(
+            matches!(
+                frob.as_ref().map(|r| &*r.0),
+                Some(ParseError::UnknownFunction { .. })
+            ),
+            "the premise: an unknown function: {frob:?}"
+        );
+        for text in ["frob(1)", "1 +", "1 2", "2 ^^ 3", "1 parsec"] {
+            assert_eq!(heard(text), Offers::default(), "{text:?} opens nothing");
+        }
     }
 }

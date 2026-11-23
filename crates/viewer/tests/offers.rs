@@ -176,20 +176,24 @@ fn a_coincidences_commit_is_the_kernels_assertion_one_undo_and_quiets_it() {
 fn a_coincidence_drawn_with_its_commit_is_not_said_twice() {
     let tol = Tol::witness();
     let mut session = blocks(tol, SIDE);
-    let report = session.checks().expect("checked").clone();
-    let (landed, _) = session.landed_pair().expect("landed");
-    let landed = landed.clone();
-    fn row(
-        report: &pncad::document::ChecksReport,
-        landed: &Doc<ProfileProgram>,
-        session: &DocSession,
-    ) -> viewer::frame::CheckRow {
-        viewer::frame::check_rows(report, landed, session.current())
-            .into_iter()
-            .find(|row| row.sentence.to_string().contains("rests on one carrier against"))
-            .expect("the walls' contact has a row")
+    // The session's own report and landed document: a clone of the
+    // report is another value, and `Current` offers on its own only.
+    fn row(session: &DocSession) -> viewer::frame::CheckRow {
+        let (landed, _) = session.landed_pair().expect("landed");
+        viewer::frame::check_rows(
+            session.checks().expect("checked"),
+            landed,
+            session.current(),
+        )
+        .into_iter()
+        .find(|row| {
+            row.sentence
+                .to_string()
+                .contains("rests on one carrier against")
+        })
+        .expect("the walls' contact has a row")
     }
-    let drawn = row(&report, &landed, &session);
+    let drawn = row(&session);
     let [Offer::Commit(commit)] = &drawn.offers[..] else {
         panic!("the contact offers its claim: {:?}", drawn.offers)
     };
@@ -207,7 +211,7 @@ fn a_coincidence_drawn_with_its_commit_is_not_said_twice() {
     let again = session.perform(SessionOp::Reevaluate);
     assert!(again.refusal.is_none(), "{:?}", again.refusal);
     assert!(session.current().is_none(), "the run is outstanding");
-    let words = row(&report, &landed, &session);
+    let words = row(&session);
     assert!(words.offers.is_empty(), "an outstanding run offers nothing");
     assert!(
         words.sentence.to_string().contains("assert Gap("),
@@ -268,7 +272,7 @@ fn a_stale_run_offers_no_document_editing_op() {
         rows.iter().all(|row| row.offers.is_empty()),
         "the Checks rows draw no control"
     );
-    let [Offer::Commit(again)] = &offers(Failure::Canceled)[..] else {
+    let [Offer::Commit(again)] = &offers(Failure::Canceled).drawn[..] else {
         panic!("a cancel offers re-evaluating")
     };
     assert_eq!(
@@ -367,5 +371,165 @@ fn an_interferences_lead_seats_its_pair_and_the_persons_bound_quiets_it() {
             .iter()
             .any(|f| is_interference(f) && f.quiet == Some(made)),
         "the person's Gap quiets the overlap"
+    );
+}
+
+/// **The same Commit taken twice authors one assertion**: the door's own
+/// check (`DocSession`'s `AssertQuieting` arm, `Quieting::held_in`)
+/// refuses the second, naming the assertion that already says it, and
+/// records nothing; one undo then takes back the one.
+///
+/// Red if the second take authors a second assertion, or refuses
+/// anything but `ClaimHeld` naming the first.
+#[test]
+fn the_same_commit_taken_twice_authors_one_assertion() {
+    let tol = Tol::witness();
+    let mut session = blocks(tol, SIDE);
+    let commit = offered(&session)
+        .into_iter()
+        .find_map(|(_, offers)| match offers.into_iter().next()? {
+            Offer::Commit(commit) => Some(commit.op),
+            Offer::Lead(_) | Offer::Unoffered(_) => None,
+        })
+        .expect("the walls' contact commits its claim");
+    let steps = session.history().len();
+    let first = session.perform(commit.clone());
+    assert!(first.refusal.is_none(), "{:?}", first.refusal);
+    let made = first.made.expect("an assertion");
+    for when in ["before its run lands", "after"] {
+        let again = session.perform(commit.clone());
+        assert!(
+            matches!(&again.refusal,
+                Some(viewer::Refusal::ClaimHeld { assertion }) if assertion.id() == made),
+            "{when}: the second take names the first: {:?}",
+            again.refusal
+        );
+        assert!(again.committed.is_empty(), "{when}: and records nothing");
+        session.pump();
+    }
+    assert_eq!(session.history().len(), steps + 1, "one assertion");
+}
+
+/// **A gesture's scratch preview offers nothing**: once the preview's
+/// own run has landed the session is not busy, but that run is of a
+/// document the history does not hold, so no finding offers an op.
+///
+/// Red if `DocSession::current` reads only the generations.
+#[test]
+fn a_previews_run_offers_no_document_editing_op() {
+    let tol = Tol::witness();
+    let mut session = blocks(tol, SIDE);
+    let extrude = session
+        .committed_doc()
+        .ids()
+        .into_iter()
+        .find(|&id| matches!(session.committed_doc().node(id), Some(Node::Extrude { .. })))
+        .expect("a block");
+    let slot = pncad::document::SlotId::Distance;
+    for op in [
+        SessionOp::BeginGesture {
+            node: extrude,
+            slot,
+        },
+        SessionOp::PreviewGesture {
+            node: extrude,
+            slot,
+            value: 0.012,
+        },
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    session.pump();
+    assert!(!session.busy(), "the premise: the preview's run landed");
+    assert!(
+        session.current().is_none(),
+        "a preview's run is not current"
+    );
+    assert_eq!(
+        finding_offers(session.current()),
+        None,
+        "and nothing offers"
+    );
+}
+
+/// **The interference row says its Gap once**: drawn with its Lead, the
+/// sentence's recourse leaves the "assert a negative Gap" clause out and
+/// keeps the other acts; with the run outstanding there is no control
+/// and the clause is said.
+///
+/// Red if the interference row prints the act its Lead draws.
+#[test]
+fn an_interference_drawn_with_its_lead_is_not_said_twice() {
+    let tol = Tol::witness();
+    let mut session = blocks(tol, SIDE - 0.002);
+    let row = |session: &DocSession| {
+        let (landed, _) = session.landed_pair().expect("landed");
+        viewer::frame::check_rows(
+            session.checks().expect("checked"),
+            landed,
+            session.current(),
+        )
+        .into_iter()
+        .find(|row| row.sentence.to_string().contains(" overlap"))
+        .expect("the overlap has a row")
+    };
+    let clause = "assert a negative Gap between";
+    let others = "Recourse: move the two apart";
+    let drawn = row(&session);
+    assert!(
+        matches!(&drawn.offers[..], [Offer::Lead(Lead::AssertGap { .. })]),
+        "{:?}",
+        drawn.offers
+    );
+    let said = drawn.sentence.to_string();
+    assert!(!said.contains(clause) && said.contains(others), "{said}");
+    let again = session.perform(SessionOp::Reevaluate);
+    assert!(again.refusal.is_none(), "{:?}", again.refusal);
+    let words = row(&session);
+    assert!(words.offers.is_empty());
+    let said = words.sentence.to_string();
+    assert!(said.contains(clause) && said.contains(others), "{said}");
+}
+
+/// **An unused node offers the product door only where it draws a
+/// body**: an unused profile draws none and offers nothing; the unused
+/// extrude made from it offers **Add to the product** on itself.
+///
+/// Red if the door is offered on a node the door would refuse.
+#[test]
+fn an_unused_node_offers_the_product_door_only_where_it_draws_a_body() {
+    let tol = Tol::witness();
+    let mut session = blocks(tol, 3.0 * SIDE);
+    let profile = session.perform(SessionOp::AddProfile {
+        loops: vec![
+            pncad::document::LoopProgram::circle(-0.05, 0.0, 0.005).expect("a finite circle"),
+        ],
+    });
+    assert!(profile.refusal.is_none(), "{:?}", profile.refusal);
+    let profile = profile.made.expect("a profile");
+    session.pump();
+    let unused_of = |session: &DocSession, node: RecipeNodeId| {
+        offered(session)
+            .into_iter()
+            .find(|(f, _)| {
+                matches!(f.evidence, CheckEvidence::Unused { .. })
+                    && f.subject == pncad::document::FindingSubject::Node(node)
+            })
+            .map(|(_, offers)| offers)
+            .unwrap_or_else(|| panic!("{node:?} is reported unused"))
+    };
+    assert_eq!(unused_of(&session, profile), [], "a profile draws no body");
+    let extrude = session.perform(SessionOp::AddExtrude {
+        profile,
+        distance: len(0.01),
+    });
+    assert!(extrude.refusal.is_none(), "{:?}", extrude.refusal);
+    let extrude = extrude.made.expect("an extrude");
+    session.pump();
+    assert!(
+        matches!(&unused_of(&session, extrude)[..], [Offer::Commit(commit)]
+            if commit.op == SessionOp::AddToProduct { node: extrude, body: None }),
+        "the extrude draws its body and offers the door"
     );
 }

@@ -368,12 +368,12 @@ fn held_in_editor(
         "held, naming the copy and the target: {refusal:?}"
     );
     assert_eq!(session.history().len(), states, "nothing is recorded");
-    let leads = viewer::recourse::offers(viewer::recourse::Failure::Refused(&refusal));
+    let leads = viewer::recourse::offers(viewer::recourse::Failure::Refused(&refusal)).heard;
     let [
-        viewer::recourse::Offer::Lead(viewer::recourse::Lead::HoldTarget {
+        viewer::recourse::Heard::HoldTarget {
             placement: led,
             target: held,
-        }),
+        },
     ] = &leads[..]
     else {
         panic!("the held change leads to the editor: {leads:?}")

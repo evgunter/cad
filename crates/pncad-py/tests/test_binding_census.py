@@ -593,6 +593,10 @@ BOUND_AS = {
     # coincidence's claim is `Quieting`, authored as one action by
     # `Doc.assert_quieting`.
     "OpposedPair": "InterferenceFinding.quieting",
+    # Which of the two a loud finding carries: `CheckEvidence.quieting`
+    # or `InterferenceFinding.quieting`, each `None` where it carries
+    # none.
+    "CarriedAssertion": ("CheckEvidence.quieting", "InterferenceFinding.quieting"),
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.

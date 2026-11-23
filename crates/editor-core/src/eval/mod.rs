@@ -21,7 +21,7 @@
 
 mod anchor;
 mod carry;
-mod class;
+pub(crate) mod class;
 mod counters;
 mod framed;
 pub mod measure;

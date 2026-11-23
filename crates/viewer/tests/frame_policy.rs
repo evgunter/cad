@@ -3329,12 +3329,13 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     }
     assert_eq!(
         refusal_offers(refusal.as_ref()),
-        [viewer::recourse::Offer::Lead(
-            viewer::recourse::Lead::CreateVariable {
+        viewer::recourse::Offers {
+            drawn: Vec::new(),
+            heard: vec![viewer::recourse::Heard::CreateVariable {
                 name: VarName::from_static("margin")
-            }
-        )],
-        "the offer is the lead to create the undeclared name"
+            }],
+        },
+        "the offer is the heard lead to create the undeclared name"
     );
     assert_eq!(
         frame::retype_draft(&batch, refusal.as_ref()),
@@ -3356,7 +3357,10 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         }
     }
     assert!(refusal.is_some(), "the malformed text refuses");
-    assert_eq!(refusal_offers(refusal.as_ref()), []);
+    assert_eq!(
+        refusal_offers(refusal.as_ref()),
+        viewer::recourse::Offers::default()
+    );
     assert!(frame::retype_draft(&batch, refusal.as_ref()).is_some());
 
     // And a clean batch offers and restores nothing.
@@ -3372,13 +3376,16 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         }
     }
     assert!(refusal.is_none(), "{refusal:?}");
-    assert_eq!(refusal_offers(refusal.as_ref()), []);
+    assert_eq!(
+        refusal_offers(refusal.as_ref()),
+        viewer::recourse::Offers::default()
+    );
     assert_eq!(frame::retype_draft(&batch, refusal.as_ref()), None);
 }
 
 /// The offers a refused batch makes, or none for a clean one.
-fn refusal_offers(refusal: Option<&Refusal>) -> Vec<viewer::recourse::Offer> {
-    refusal.map_or_else(Vec::new, |refused| {
+fn refusal_offers(refusal: Option<&Refusal>) -> viewer::recourse::Offers {
+    refusal.map_or_else(viewer::recourse::Offers::default, |refused| {
         viewer::recourse::offers(viewer::recourse::Failure::Refused(refused))
     })
 }

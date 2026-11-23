@@ -346,9 +346,12 @@ fn by_verb(verb: BlendKind, fillet: NodeErrorClass, chamfer: NodeErrorClass) -> 
     }
 }
 
-#[cfg(test)]
+/// **One witness of every class** — the census both this crate's own
+/// row and a consumer's census of its answers per class walk
+/// (`test_support::node_error_witnesses`).
+#[cfg(any(test, feature = "test-support"))]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod witnesses {
     use super::{NodeErrorClass as C, NodeErrorKind as K};
     use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
@@ -819,7 +822,7 @@ mod tests {
             C::MateUnoriented => mate(crate::MateFault::Unoriented { mate: m(9) }),
             C::SpaceMismatch => K::SpaceMismatch {
                 a: crate::VarId::WORLD,
-                b: crate::VarId::new(0, test_utils::refusal::tagged(6)),
+                b: crate::VarId::new(0, 6),
             },
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),
@@ -871,6 +874,11 @@ mod tests {
     /// mis-projected arm or a split that reads the wrong value. Two
     /// classes cannot share a witness's projection, so the pairing is a
     /// bijection over [`ALL`].
+    /// Every class, each with its witness.
+    pub(crate) fn all() -> Vec<(C, K)> {
+        ALL.iter().map(|&class| (class, witness(class))).collect()
+    }
+
     #[test]
     fn each_class_has_an_arm_and_each_arm_projects_to_its_own_class() {
         for &class in ALL {

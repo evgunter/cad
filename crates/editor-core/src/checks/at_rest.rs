@@ -997,6 +997,50 @@ fn holding_measures<'a, P, T: Decide + topo::AtRestPolicy>(
         .flatten()
 }
 
+/// **The assertion in `doc` that already says `claim`**, verdict
+/// aside: a `Claim::Value` relating a measure of `claim`'s verb to zero
+/// by its relation, whose two references read, in order, as
+/// `claim`'s ([`reference`]). `None` where none does.
+pub(crate) fn asserted<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    claim: &Quieting,
+) -> Option<RecipeNodeId> {
+    use crate::measure::MeasureVerb as M;
+    doc.ids().into_iter().find(|&id| {
+        let Some(Node::Assertion(crate::measure::Claim::Value {
+            value,
+            relation,
+            bound,
+        })) = doc.node(id)
+        else {
+            return false;
+        };
+        let Some((measure, 0)) = doc.var(*value).and_then(|v| v.def().output()) else {
+            return false;
+        };
+        let (verb, a, b) = match doc.node(measure) {
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Gap { outer, inner },
+            }) => (M::Gap, *outer, *inner),
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Distance { a, b },
+            }) => (M::Distance, *a, *b),
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Angle { a, b },
+            }) => (M::Angle, *a, *b),
+            _ => return false,
+        };
+        let [ra, rb] = claim.references();
+        verb == claim.measure()
+            && *relation == Quieting::RELATION
+            && doc.var(*bound).is_some_and(
+                |var| matches!(var.def(), crate::var::VarDef::Defined(zero) if zero.is_zero()),
+            )
+            && reference(doc, a).contains(ra)
+            && reference(doc, b).contains(rb)
+    })
+}
+
 /// **The name a selection holds, as the member at `at` reads it**: the
 /// selection's own name where its body reaches no index of `at`, else
 /// that name wrapped in the `Member` segment its family's table puts
@@ -1331,7 +1375,11 @@ fn written_pair<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
             key: EntityKey::Face(face),
         })?;
         let name = keyed_by(name, read).unwrap_or(name);
-        Some(QuietingRef::entity(read, written_name(doc, read, name), None))
+        Some(QuietingRef::entity(
+            read,
+            written_name(doc, read, name),
+            None,
+        ))
     };
     let references = [written(outer)?, written(inner)?];
     let members: Vec<_> = members_of::<P, f64>(doc, &references)?

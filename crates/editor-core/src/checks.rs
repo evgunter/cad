@@ -928,7 +928,46 @@ impl crate::spoken::Say for CheckFinding {
     }
 }
 
+/// **The assertion a loud finding carries** ([`CheckFinding::carried_assertion`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarriedAssertion<'a> {
+    /// An unproven coincidence's claim, authored whole.
+    Claim(&'a quieting::Quieting),
+    /// An interference's opposed pair, a `Gap` over which, its bound
+    /// the author's, quiets it.
+    Pair(&'a quieting::OpposedPair),
+}
+
 impl CheckFinding {
+    /// **The assertion this finding carries**, the one source of
+    /// whether it offers one: a loud unproven coincidence's claim or a
+    /// loud interference's pair. `None` for a quiet finding (an
+    /// assertion already says it), for one that carries none, and for a
+    /// part's carried finding, which is answered in the part.
+    #[must_use]
+    pub fn carried_assertion(&self) -> Option<CarriedAssertion<'_>> {
+        if self.quiet.is_some() {
+            return None;
+        }
+        match &self.evidence {
+            CheckEvidence::UnprovenCoincidence { quieting, .. } => {
+                quieting.as_ref().map(CarriedAssertion::Claim)
+            }
+            CheckEvidence::Interference { finding } => {
+                finding.quieting.as_ref().map(CarriedAssertion::Pair)
+            }
+            CheckEvidence::Connectedness { .. }
+            | CheckEvidence::Escalated { .. }
+            | CheckEvidence::Unsupported { .. }
+            | CheckEvidence::NotAtRest { .. }
+            | CheckEvidence::StaleExpectation { .. }
+            | CheckEvidence::CarriedInterference { .. }
+            | CheckEvidence::CarriedCoincidence { .. }
+            | CheckEvidence::AtRest { .. }
+            | CheckEvidence::Unused { .. } => None,
+        }
+    }
+
     /// **The finding's sentence beside a control that authors the
     /// assertion it carries**, said by `by`: its recourse names every
     /// act but that assertion, which the control is
@@ -966,17 +1005,13 @@ impl crate::finding::Finding for BesideItsAssertion<'_> {
 
     fn recourse(&self) -> crate::Sentence {
         let SaidFinding(finding, by) = self.0;
-        match &finding.evidence {
-            _ if finding.quiet.is_some() => self.0.recourse(),
-            CheckEvidence::UnprovenCoincidence {
-                recourse,
-                quieting: Some(_),
-                ..
-            } => recourse.words_beside_its_claim(by),
-            CheckEvidence::Interference { finding } if finding.quieting.is_some() => {
-                interference_recourse(None, by)
-            }
-            _ => self.0.recourse(),
+        match (finding.carried_assertion(), &finding.evidence) {
+            (
+                Some(CarriedAssertion::Claim(_)),
+                CheckEvidence::UnprovenCoincidence { recourse, .. },
+            ) => recourse.words_beside_its_claim(by),
+            (Some(CarriedAssertion::Pair(_)), _) => interference_recourse(None, by),
+            (Some(CarriedAssertion::Claim(_)) | None, _) => self.0.recourse(),
         }
     }
 }

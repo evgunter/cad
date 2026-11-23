@@ -536,6 +536,11 @@ pub struct ViewerApp {
     /// them, dismisses it, or a later save, open or new document answers
     /// it.
     standing_save: Option<Refusal>,
+    /// **The document-editing offers taken this frame** (a finding's,
+    /// the product fault's, a tree row's): performed after the frame's
+    /// other ops, and only while the document is still the one they were
+    /// read off ([`ViewerApp::perform_batch`]'s batch rule).
+    offered: Vec<SessionOp>,
     /// Where the theme choice is remembered. Held rather than
     /// rediscovered per save: the path is an environment read, and a
     /// viewer whose config directory moved mid-session would be
@@ -1052,6 +1057,7 @@ impl ViewerApp {
             notices: Vec::new(),
             chooser: platform::chooser_backend(),
             standing_save: None,
+            offered: Vec::new(),
             store,
             keys_pref: saved.keys,
             last_dir: saved.last_dir,
@@ -1448,6 +1454,24 @@ impl ViewerApp {
         true
     }
 
+    /// **Which document the session commits to, as a key**: its identity
+    /// and where its history stands. Two keys differ when any op
+    /// committed, stepped the history or replaced the document.
+    fn document_key(
+        &self,
+    ) -> (
+        pncad::document::DocumentId,
+        crate::history::HistoryId,
+        usize,
+    ) {
+        let history = self.session.history();
+        (
+            self.session.committed_doc().id(),
+            history.current(),
+            history.len(),
+        )
+    }
+
     /// Perform one frame's whole batch of operations, keeping the
     /// refusal worth showing.
     ///
@@ -1477,7 +1501,9 @@ impl ViewerApp {
             frame::tool_status(self.line_tool, open),
         );
         self.line_tool = open;
-        if ops.is_empty() && notices.is_empty() && !self.drafts.has_dropped() {
+        let offered = core::mem::take(&mut self.offered);
+        if ops.is_empty() && offered.is_empty() && notices.is_empty() && !self.drafts.has_dropped()
+        {
             return;
         }
         // **An undo after a profile edit this frame formed takes that
@@ -1503,13 +1529,29 @@ impl ViewerApp {
                 ops.remove(at);
             }
         }
+        // **The batch rule**: an offer was read off the document as the
+        // frame drew it, so it runs after the frame's other ops and only
+        // while none of them has moved the document; one that has is
+        // dropped, said, and offered again once the new document's run
+        // lands.
+        let first_offer = ops.len();
+        ops.extend(offered);
+        let drawn_over = self.document_key();
         let mut refusal: Option<Refusal> = None;
         // The VERDICTS are `frame`'s, computed from the ops and the
         // refusal; this loop only performs and collects (`frame`'s
         // module docs).
         let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
         let mut answered_save_choice = false;
-        for op in ops {
+        for (i, op) in ops.into_iter().enumerate() {
+            if i >= first_offer && self.document_key() != drawn_over {
+                notices.push(frame::Message::new(
+                    frame::Subject::Document,
+                    OFFER_OUTRUN,
+                    frame::Retold::Never,
+                ));
+                continue;
+            }
             // Undo takes back a pending profile draft first, and says
             // so; the next undo steps the history.
             if matches!(op, SessionOp::Undo)
@@ -1561,13 +1603,11 @@ impl ViewerApp {
             // change held over the copy's own constraints opens the
             // placement editor holding it, and an expression's unknown
             // name opens the add-variable form on it.
-            for offer in outcome.refusal.iter().flat_map(|refused| {
-                crate::recourse::offers(crate::recourse::Failure::Refused(refused))
+            for heard in outcome.refusal.iter().flat_map(|refused| {
+                crate::recourse::offers(crate::recourse::Failure::Refused(refused)).heard
             }) {
-                if let crate::recourse::Offer::Lead(lead) = offer {
-                    self.drafts
-                        .take_lead(lead, &mut self.tools, self.session.committed_doc());
-                }
+                self.drafts
+                    .take_heard(heard, &mut self.tools, self.session.committed_doc());
             }
             // The placement editor opens on the placement a Place made,
             // and settles the draft whose change landed or was refused.
@@ -1629,9 +1669,6 @@ impl ViewerApp {
                 .map(crate::drafts::Dropped::notice),
         );
         let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
-        let offered = refusal.as_ref().map_or_else(Vec::new, |refused| {
-            crate::recourse::offers(crate::recourse::Failure::Refused(refused))
-        });
         let verdict = frame::frame_status(
             &notices,
             &performed,
@@ -1666,10 +1703,11 @@ impl ViewerApp {
         // replacement that LANDED answers it; any other refusal leaves
         // the standing one where it is. Its leads were taken as each
         // op's refusal was heard.
-        if offered
-            .iter()
-            .any(|offer| matches!(offer, crate::recourse::Offer::Commit(_)))
-        {
+        if matches!(
+            &refusal,
+            Some(Refusal::Workspace(error))
+                if matches!(**error, pncad::workspace::WorkspaceError::SaveWouldDuplicateId { .. })
+        ) {
             self.standing_save = refusal;
         } else if answered_save_choice {
             self.standing_save = None;
@@ -1930,10 +1968,14 @@ impl ViewerApp {
                 }
             });
         match taken {
-            Some(crate::widgets::Taken::Op(op)) => ops.push(op),
+            Some(crate::widgets::Taken::Op(op)) => self.offered.push(op),
             Some(crate::widgets::Taken::Lead(lead)) => {
-                self.drafts
-                    .take_lead(lead, &mut self.tools, self.session.committed_doc());
+                if let Some(notice) =
+                    self.drafts
+                        .take_lead(lead, &mut self.tools, self.session.committed_doc())
+                {
+                    self.notices.push(notice);
+                }
             }
             None => {}
         }
@@ -2110,7 +2152,8 @@ impl ViewerApp {
             }
             if let Some(refused) = &self.standing_save {
                 ui.separator();
-                let offers = crate::recourse::offers(crate::recourse::Failure::Refused(refused));
+                let offers =
+                    crate::recourse::offers(crate::recourse::Failure::Refused(refused)).drawn;
                 if let Some(crate::widgets::Taken::Op(op)) =
                     crate::widgets::offer_controls(ui, &offers, &self.theme)
                 {
@@ -2223,7 +2266,7 @@ impl ViewerApp {
                     // Two clauses in a wrapping row, so a sentence:
                     // `widgets::message`.
                     crate::widgets::message(ui, CANCELED_LINE);
-                    let offers = crate::recourse::offers(crate::recourse::Failure::Canceled);
+                    let offers = crate::recourse::offers(crate::recourse::Failure::Canceled).drawn;
                     if let Some(crate::widgets::Taken::Op(op)) =
                         crate::widgets::offer_controls(ui, &offers, &self.theme)
                     {
@@ -2309,17 +2352,12 @@ impl ViewerApp {
             // The product's recourse, as the action it names: the one
             // door, on each body drawn outside the product, read off the
             // run only while it is the committed document's.
-            if let Some(current) = self.session.current()
-                && let Some(fault) = current.product_fault()
-            {
-                let offers = crate::recourse::offers(crate::recourse::Failure::Run(
-                    current,
-                    crate::recourse::Ran::Product(fault),
-                ));
+            if let Some(ran) = self.session.current().and_then(|current| current.product()) {
+                let offers = crate::recourse::offers(crate::recourse::Failure::Run(ran)).drawn;
                 if let Some(crate::widgets::Taken::Op(op)) =
                     crate::widgets::offer_controls(ui, &offers, &self.theme)
                 {
-                    ops.push(op);
+                    self.offered.push(op);
                 }
             }
             // The display budget's: shown while the δ on screen is
@@ -2591,6 +2629,7 @@ impl eframe::App for ViewerApp {
                     id_answer: &self.id_answer,
                     id_log: &mut self.id_log,
                     ops: &mut ops,
+                    offered: &mut self.offered,
                     delta_request: &mut delta_request,
                     features_content_height: &mut features_content_height,
                     split_dragged: &mut split_dragged,
@@ -2802,6 +2841,9 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) id_answer: &'a IdChannel,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,
+    /// The document-editing offers the panes' controls took this frame
+    /// ([`ViewerApp`]'s `offered`).
+    pub(crate) offered: &'a mut Vec<SessionOp>,
     /// A δ the View pane's field committed this frame. The pane holds
     /// a borrow of the app, not the app, so it hands the δ back for
     /// [`ViewerApp::set_delta`] to apply.
@@ -2896,6 +2938,10 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         UiResponse::None
     }
 }
+
+/// What the line says of an offer an earlier op in its frame outran.
+pub(crate) const OFFER_OUTRUN: &str = "an offer was not taken: the document changed in the same \
+     frame, so it is offered again over the new document once it is checked";
 
 /// **Whether `op`, landing, answers a standing save choice**: a
 /// save or a fork, and every door that puts another document under the
@@ -4222,7 +4268,7 @@ mod tests {
             app.standing_save
                 .iter()
                 .flat_map(|refused| {
-                    crate::recourse::offers(crate::recourse::Failure::Refused(refused))
+                    crate::recourse::offers(crate::recourse::Failure::Refused(refused)).drawn
                 })
                 .collect()
         };
@@ -4482,7 +4528,7 @@ mod properties_pane_tests {
     use eframe::egui;
     use pncad::document::{Axis3, Node, RecipeNodeId, SlotId};
 
-    use super::{DocumentDerived, ViewerApp};
+    use super::{DocumentDerived, OFFER_OUTRUN, ViewerApp};
     use crate::session::{Selection, SessionOp};
 
     /// The window every whole-app row here is drawn in unless it needs
@@ -8120,6 +8166,49 @@ mod properties_pane_tests {
             added(&closed),
             Vec::<String>::new(),
             "the button closes it: {closed:?}"
+        );
+    }
+
+    /// **An offer an earlier op of its frame outran is dropped, said**
+    /// (the batch rule, `ViewerApp::perform_batch`). The unused revolve's
+    /// product door is taken in the frame an undo is queued in: the undo
+    /// moves the document first, so the offer, read off the document
+    /// before it, is not performed, and the line says so. Taken alone, in
+    /// a frame nothing else moves the document in, it is performed.
+    ///
+    /// Red if an offer runs over a document it was not read off, or is
+    /// dropped silently, or a frame with no other edit drops it.
+    #[test]
+    fn an_offer_an_earlier_op_of_its_frame_outran_is_dropped_and_said() {
+        let (mut driven, revolve) = with_revolve(|_| vec![SessionOp::Select(Selection::None)]);
+        let add = SessionOp::AddToProduct {
+            node: revolve,
+            body: None,
+        };
+        let before = product_of(&driven);
+        let steps = driven.app.session.history().len();
+        driven.app.offered.push(add.clone());
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        assert_eq!(
+            driven.app.session.history().len(),
+            steps,
+            "the undo stepped, and nothing was committed after it"
+        );
+        let said = driven.app.status.as_ref().map(|m| m.text().to_owned());
+        assert!(
+            said.as_deref()
+                .is_some_and(|said| said.contains(OFFER_OUTRUN)),
+            "the dropped offer is said: {said:?}"
+        );
+        driven.app.perform_batch(vec![SessionOp::Redo]);
+        driven.quiet();
+        assert_eq!(product_of(&driven), before, "the product as it was");
+        driven.app.offered.push(add);
+        driven.app.perform_batch(Vec::new());
+        assert_ne!(
+            product_of(&driven),
+            before,
+            "alone in its frame, the offer is taken"
         );
     }
 
@@ -14783,8 +14872,8 @@ mod lead_tests {
     /// another measure or relation; or if the form opens elsewhere.
     #[test]
     fn a_lead_opens_its_form_filled_with_what_the_failure_determines() {
-        use crate::combine::{AssertionMeasure, AssertionTool, BoundChoice};
-        use crate::recourse::{Failure, Lead, Offer, Ran, offers};
+        use crate::combine::{AssertionMeasure, BoundChoice};
+        use crate::recourse::{Failure, Lead, Offer, offers};
         use crate::test_support::{CLEARANCE_SIDE as SIDE, inserted, len, placed, rectangle};
         use pncad::document::{Doc, Node, ProfileProgram};
         use pncad::geom_core::Tol;
@@ -14807,11 +14896,8 @@ mod lead_tests {
         session.pump();
         let current = session.current().expect("landed");
         let leads: Vec<Lead> = current
-            .checks()
-            .expect("checked")
-            .findings
-            .iter()
-            .flat_map(|finding| offers(Failure::Run(current, Ran::Finding(finding))))
+            .findings()
+            .flat_map(|ran| offers(Failure::Run(ran)).drawn)
             .filter_map(|offer| match offer {
                 Offer::Lead(lead) => Some(lead),
                 Offer::Commit(_) | Offer::Unoffered(_) => None,
@@ -14823,11 +14909,30 @@ mod lead_tests {
 
         let (mut drafts, mut tools) =
             (crate::drafts::Drafts::default(), crate::tools::Tools::new());
-        drafts.take_lead(lead.clone(), &mut tools, session.committed_doc());
         assert_eq!(
-            tools.assertion(),
-            Some(&AssertionTool::led(pair)),
-            "the assertion tool opens on the pair"
+            drafts.take_lead(lead.clone(), &mut tools, session.committed_doc()),
+            None
+        );
+        // The seats, read back through the tool's one commit: the pair's
+        // own references, outer then inner.
+        let bound = len(-0.001);
+        let claim = crate::session::AssertedClaim::Value {
+            measure: pncad::document::MeasureVerb::Gap,
+            relation: pncad::document::AssertionRelation::AtMost,
+            bound: bound.clone(),
+        };
+        let [outer, inner] = pair.references.clone();
+        assert_eq!(
+            tools
+                .assertion()
+                .expect("the lead opens the assertion tool")
+                .op(claim.clone()),
+            Ok(crate::session::SessionOp::AddAssertion {
+                a: crate::session::AssertedSeat::Minted(outer),
+                b: crate::session::AssertedSeat::Minted(inner),
+                claim,
+            }),
+            "the tool is seated with the pair, outer then inner"
         );
         assert_eq!(
             (drafts.assertion_measure, drafts.assertion_bound),
@@ -14836,8 +14941,8 @@ mod lead_tests {
         );
 
         let name = pncad::document::VarName::from_static("margin");
-        drafts.take_lead(
-            Lead::CreateVariable { name: name.clone() },
+        drafts.take_heard(
+            crate::recourse::Heard::CreateVariable { name: name.clone() },
             &mut tools,
             session.committed_doc(),
         );

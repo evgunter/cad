@@ -245,7 +245,7 @@ use crate::matetool::MateToolEvent;
 use crate::pickcache::{IndexSeam, NotIndexed};
 use crate::pickindex::{EdgeNamesRefused, PickError, PickIndex, PickIndexError, UndrawnBody};
 use crate::prefs::{StoreError, Unusable};
-use crate::recourse::{Failure, Ran};
+use crate::recourse::Failure;
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
@@ -2602,13 +2602,14 @@ pub fn check_rows(
         .findings
         .iter()
         .map(|finding| {
-            let offers = current.map_or_else(Vec::new, |current| {
-                crate::recourse::offers(Failure::Run(current, Ran::Finding(finding)))
+            // Read off `current` only where the finding is its own.
+            let ran = current.and_then(|current| current.finding(finding));
+            let offers = ran.map_or_else(Vec::new, |ran| {
+                crate::recourse::offers(Failure::Run(ran)).drawn
             });
-            let sentence = if offers
-                .iter()
-                .any(crate::recourse::Offer::authors_the_findings_assertion)
-            {
+            // Where the carried assertion is drawn as its control, the
+            // sentence leaves that act out.
+            let sentence = if ran.is_some() && finding.carried_assertion().is_some() {
                 finding.said_beside_its_assertion(by)
             } else {
                 Said(finding, by).sentence()

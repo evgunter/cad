@@ -117,15 +117,11 @@ impl ViewerBehavior<'_> {
             None => {}
         }
         // A refusal's lead is taken as it is heard.
-        for offer in news
-            .refused
-            .iter()
-            .flat_map(|refused| crate::recourse::offers(crate::recourse::Failure::Refused(refused)))
-        {
-            if let crate::recourse::Offer::Lead(lead) = offer {
-                self.drafts
-                    .take_lead(lead, self.tools, self.session.committed_doc());
-            }
+        for heard in news.refused.iter().flat_map(|refused| {
+            crate::recourse::offers(crate::recourse::Failure::Refused(refused)).heard
+        }) {
+            self.drafts
+                .take_heard(heard, self.tools, self.session.committed_doc());
         }
         true
     }

@@ -596,6 +596,13 @@ pub enum Refusal {
         /// The copy's placement.
         copy: SpokenNode,
     },
+    /// A finding's assertion asked of a document that already holds an
+    /// assertion saying it ([`super::SessionOp::AssertQuieting`]):
+    /// authoring it again would write a second one.
+    ClaimHeld {
+        /// The assertion that says it.
+        assertion: SpokenNode,
+    },
 }
 
 impl Refusal {
@@ -657,6 +664,9 @@ impl Refusal {
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
             Self::InTheProduct { copy } => Self::InTheProduct { copy: again(copy) },
+            Self::ClaimHeld { assertion } => Self::ClaimHeld {
+                assertion: again(assertion),
+            },
             Self::StrandedPick { copy, pick } => Self::StrandedPick {
                 copy: again(copy),
                 pick: pick.respoken(doc),
@@ -748,7 +758,8 @@ impl Refusal {
             | Self::Draft(_)
             | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
-            | Self::InTheProduct { .. } => None,
+            | Self::InTheProduct { .. }
+            | Self::ClaimHeld { .. } => None,
         }
     }
 
@@ -802,6 +813,7 @@ impl Refusal {
             | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
             | Self::InTheProduct { .. }
+            | Self::ClaimHeld { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
@@ -1339,6 +1351,9 @@ impl Refusal {
                  leave it naming a piece its copy no longer holds"
             ),
             Self::InTheProduct { copy } => say!(out, node(copy), " is in the product already"),
+            Self::ClaimHeld { assertion } => {
+                say!(out, node(assertion), " says this already")
+            }
         };
     }
 }

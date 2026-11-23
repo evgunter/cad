@@ -181,6 +181,15 @@ impl Quieting {
     /// The relation the claim holds its measure to its bound by.
     pub const RELATION: AssertionRelation = AssertionRelation::Equal;
 
+    /// **The assertion in `doc` that already says this claim**, its
+    /// verdict aside: the measure of this verb over the two references,
+    /// in order, related to zero. `None` where no assertion does, which
+    /// is when authoring [`Self::edits`] adds one.
+    #[must_use]
+    pub fn held_in<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> Option<crate::RecipeNodeId> {
+        super::at_rest::asserted(doc, self)
+    }
+
     /// The measure over its references, each as an author writes it
     /// ([`QuietingRef::operand`]).
     #[must_use]

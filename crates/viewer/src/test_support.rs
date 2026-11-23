@@ -1070,14 +1070,12 @@ fn valued(
 pub fn product_commits(
     current: Option<crate::session::Current<'_>>,
 ) -> Vec<crate::recourse::Commit> {
-    use crate::recourse::{Failure, Offer, Ran, offers};
-    let Some(current) = current else {
+    use crate::recourse::{Failure, Offer, offers};
+    let Some(ran) = current.and_then(crate::session::Current::product) else {
         return Vec::new();
     };
-    let Some(fault) = current.product_fault() else {
-        return Vec::new();
-    };
-    offers(Failure::Run(current, Ran::Product(fault)))
+    offers(Failure::Run(ran))
+        .drawn
         .into_iter()
         .map(|offer| match offer {
             Offer::Commit(commit) => *commit,
@@ -1086,30 +1084,30 @@ pub fn product_commits(
         .collect()
 }
 
-/// **What each of `current`'s check findings offers**, in report
+/// **What each of `current`'s check findings offers**, drawn, in report
 /// order: a session's run while it is the committed document's
 /// (`DocSession::current`); `None` with no current run, or nothing
 /// checked.
 pub fn finding_offers(
     current: Option<crate::session::Current<'_>>,
 ) -> Option<Vec<Vec<crate::recourse::Offer>>> {
-    use crate::recourse::{Failure, Ran, offers};
+    use crate::recourse::{Failure, offers};
     let current = current?;
+    current.checks()?;
     Some(
         current
-            .checks()?
-            .findings
-            .iter()
-            .map(|finding| offers(Failure::Run(current, Ran::Finding(finding))))
+            .findings()
+            .map(|ran| offers(Failure::Run(ran)).drawn)
             .collect(),
     )
 }
 
 /// **The commits a refused batch offers** ([`crate::recourse::offers`]),
-/// in order; a lead or words among them is the test's failure.
+/// drawn, in order; a lead or words among them is the test's failure.
 pub fn refusal_commits(refusal: &crate::session::Refusal) -> Vec<crate::recourse::Commit> {
     use crate::recourse::{Failure, Offer, offers};
     offers(Failure::Refused(refusal))
+        .drawn
         .into_iter()
         .map(|offer| match offer {
             Offer::Commit(commit) => *commit,

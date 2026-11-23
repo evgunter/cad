@@ -1497,27 +1497,54 @@ impl Drafts {
         core::mem::take(&mut self.dropped)
     }
 
-    /// **Take a failure's lead** ([`crate::recourse::Lead`]): open the
-    /// form its act is authored in, filled with what the failure
-    /// determines. The interference's pair opens the assertion tool on
-    /// a `Gap` bounded from above, its seats the pair's faces; the
-    /// bound's value stays the person's. A variable to create opens the
-    /// add-variable form on its name. A held target change opens the
-    /// placement editor holding it, over `doc`, the committed document.
+    /// **Take a drawn lead** ([`crate::recourse::Lead`]): open the form
+    /// its act is authored in, filled with what the failure determines,
+    /// over `doc`, the committed document. The interference's pair opens
+    /// the assertion tool on a `Gap` bounded from above, its seats the
+    /// pair's faces; the bound's value stays the person's. A refused
+    /// bundle opens its placement editor. Answers the editor's refusal,
+    /// for the line, where it cannot open.
+    #[must_use = "an editor that did not open says why"]
     pub(crate) fn take_lead(
         &mut self,
         lead: crate::recourse::Lead,
         tools: &mut crate::tools::Tools,
         doc: &Doc<ProfileProgram>,
-    ) {
+    ) -> Option<crate::frame::Message> {
         match lead {
             crate::recourse::Lead::AssertGap { pair, .. } => {
                 tools.open_assertion(crate::combine::AssertionTool::led(&pair));
                 self.assertion_measure = AssertionMeasure::Gap;
                 self.assertion_bound = BoundChoice::AtMost;
+                None
             }
-            crate::recourse::Lead::CreateVariable { name } => self.offer_variable(name),
-            crate::recourse::Lead::HoldTarget { placement, target } => {
+            crate::recourse::Lead::EditPlacement { placement, .. } => {
+                match crate::matetool::MateTool::edit(doc, placement) {
+                    Ok(tool) => {
+                        tools.open_mate(tool);
+                        None
+                    }
+                    Err(error) => Some(crate::frame::tool_news(
+                        &crate::tools::ToolKind::Mate.refuses(&error),
+                    )),
+                }
+            }
+        }
+    }
+
+    /// **Take a refusal's heard lead** ([`crate::recourse::Heard`]), as
+    /// the refusal is heard: a variable to create opens the add-variable
+    /// form on its name; a held target change opens the placement
+    /// editor holding it, over `doc`, the committed document.
+    pub(crate) fn take_heard(
+        &mut self,
+        heard: crate::recourse::Heard,
+        tools: &mut crate::tools::Tools,
+        doc: &Doc<ProfileProgram>,
+    ) {
+        match heard {
+            crate::recourse::Heard::CreateVariable { name } => self.offer_variable(name),
+            crate::recourse::Heard::HoldTarget { placement, target } => {
                 tools.hold_target(placement, target, doc);
             }
         }

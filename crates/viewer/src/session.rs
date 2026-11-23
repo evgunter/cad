@@ -788,19 +788,47 @@ impl<'a> Current<'a> {
         self.run.checks.as_ref()
     }
 
-    /// Why the run's product does not gather ([`DocSession::product_fault`]).
-    pub fn product_fault(self) -> Option<&'a ProductError> {
-        self.run.gather.as_ref().err()
+    /// **`finding`, as a failure this run reports**
+    /// ([`crate::recourse::Ran`]): `None` unless it is one of this run's
+    /// own findings, the value itself and not an equal one from another
+    /// run's report.
+    pub fn finding(
+        self,
+        finding: &pncad::document::CheckFinding,
+    ) -> Option<crate::recourse::Ran<'a>> {
+        let own = self
+            .checks()?
+            .findings
+            .iter()
+            .find(|own| core::ptr::eq(*own, finding))?;
+        Some(crate::recourse::Ran::finding(self, own))
+    }
+
+    /// Every finding of this run's report, as failures it reports.
+    pub fn findings(self) -> impl Iterator<Item = crate::recourse::Ran<'a>> {
+        self.checks()
+            .into_iter()
+            .flat_map(|report| report.findings.iter())
+            .map(move |finding| crate::recourse::Ran::finding(self, finding))
+    }
+
+    /// **The run's gather refusal, as a failure it reports**: `None`
+    /// where the product gathers.
+    pub fn product(self) -> Option<crate::recourse::Ran<'a>> {
+        let fault = self.run.gather.as_ref().err()?;
+        Some(crate::recourse::Ran::product(self, fault))
+    }
+
+    /// **The node `id`'s own failure, as a failure this run reports**:
+    /// `None` where the node did not fail itself (`tree::own_error`).
+    pub fn node(self, id: RecipeNodeId) -> Option<crate::recourse::Ran<'a>> {
+        let error = tree::own_error(id, &self.run.evaluation)?;
+        Some(crate::recourse::Ran::node(self, &error.kind))
     }
 
     /// The part files the run's resolver could name ([`PartFiles`]).
     pub fn files(self) -> &'a PartFiles {
         &self.run.files
-    }
-
-    /// The run's evaluation.
-    pub fn evaluation(self) -> &'a Evaluation<f64> {
-        &self.run.evaluation
     }
 }
 
@@ -1729,8 +1757,11 @@ impl DocSession {
 
     /// **The landed run, while it is the committed document's**
     /// ([`Current`]): `None` while a run of a newer document is
-    /// outstanding, a gesture's preview is shown, or nothing has landed.
+    /// outstanding, a gesture's scratch preview is shown, or nothing has
+    /// landed.
     pub fn current(&self) -> Option<Current<'_>> {
+        // A gesture's preview is a scratch document the history does not
+        // hold, and a run of it describes no committed document.
         if self.busy() || self.derived.scratch.is_some() {
             return None;
         }
@@ -1867,15 +1898,21 @@ impl DocSession {
                 // An offer acts on the COMMITTED document, so it is read
                 // only off a run of that document: one read off an older
                 // run could be the edit that run is still answering.
-                if let Some(current) = self.current() {
-                    for row in &mut rows {
-                        if let Some(error) = tree::own_error(row.id, current.evaluation()) {
-                            row.offers = crate::recourse::offers(crate::recourse::Failure::Run(
-                                current,
-                                crate::recourse::Ran::Node(&error.kind),
-                            ));
+                // Words answer the failure, not the document, so they are
+                // read off any run.
+                let current = self.current();
+                for row in &mut rows {
+                    row.offers = match current.and_then(|current| current.node(row.id)) {
+                        Some(ran) => {
+                            crate::recourse::offers(crate::recourse::Failure::Run(ran)).drawn
                         }
-                    }
+                        None => tree::own_error(row.id, &run.evaluation)
+                            .map(|error| crate::recourse::node_words(&error.kind))
+                            .into_iter()
+                            .flatten()
+                            .map(crate::recourse::Offer::Unoffered)
+                            .collect(),
+                    };
                 }
                 rows
             }
@@ -2514,7 +2551,7 @@ impl DocSession {
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddAssertion { a, b, claim } => self.add_assertion(a, b, claim),
-            SessionOp::AssertQuieting { quieting } => Ok(creating(move |run| quieting.record(run))),
+            SessionOp::AssertQuieting { quieting } => self.assert_quieting(quieting),
             SessionOp::Place { body, target, name } => self.place(body, target, name),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
@@ -4023,6 +4060,23 @@ impl DocSession {
                 })
             }
         })
+    }
+
+    /// **Author a finding's assertion** ([`SessionOp::AssertQuieting`]):
+    /// the kernel's own edits for it (`Quieting::record`), one action.
+    /// **Its own check**: a document that already holds an assertion
+    /// saying the claim (`Quieting::held_in`) refuses
+    /// [`Refusal::ClaimHeld`], so the same offer taken twice authors one
+    /// assertion. A read the claim names that the document no longer
+    /// holds is the insert door's to refuse, in its own words.
+    fn assert_quieting(&self, quieting: pncad::document::Quieting) -> Result<Creating, Refusal> {
+        let doc = self.committed_doc();
+        if let Some(held) = quieting.held_in(doc) {
+            return Err(Refusal::ClaimHeld {
+                assertion: doc.spoken(held),
+            });
+        }
+        Ok(creating(move |run| quieting.record(run)))
     }
 
     /// Insert one pattern of an existing body, fused or not

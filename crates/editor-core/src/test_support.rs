@@ -1792,3 +1792,11 @@ mod tests {
         );
     }
 }
+
+/// **One witness of every [`crate::NodeErrorClass`]**, each with its
+/// class: the census a consumer that answers each class walks, so a
+/// class it answers wrongly, or one added to the kernel, reds there.
+#[must_use]
+pub fn node_error_witnesses() -> Vec<(crate::NodeErrorClass, crate::NodeErrorKind)> {
+    crate::eval::class::witnesses::all()
+}
