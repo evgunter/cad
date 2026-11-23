@@ -7,10 +7,8 @@
 //! and none of them a claim about today's tree: the i128-era whole-box
 //! replays reported `frozen: 0` on the bracket, because the `Decide`
 //! impl's DECISION PATH never asks the form of a margin the numeric
-//! channel has already proved non-zero (the contradiction CHECK at
-//! that site builds it anyway — in every profile this workspace
-//! builds, as an assertion at an exact witness and as the dispute
-//! count at an inexact one — and `frozen` counts it, whoever asked);
+//! channel has already proved non-zero (nothing in a build asks it;
+//! the test instrument `sym::contradiction` does, after one);
 //! and M10-8 measured the case a whole-box replay
 //! cannot see — at a document's NOMINAL, where every identity margin is
 //! near zero and every form is built, the plate froze 1,056 forms, R2's

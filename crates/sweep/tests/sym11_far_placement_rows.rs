@@ -33,7 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::linalg::RigidMotion;
-use geom_core::sym::contradiction::{self, Event, Report};
+use geom_core::sym::contradiction::{self, Report};
 use geom_core::sym::revalue::record;
 use geom_core::sym::with_session_rules;
 use geom_core::{Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymRules, Tol, Vec2};
@@ -139,9 +139,9 @@ const BODIES: [&str; 3] = ["stadium", "washer", "triangle"];
 /// [`outcome`] names it.
 struct Lane {
     bodies: [&'static str; 3],
-    /// The algebra's contradictions the instrument reports over the
-    /// session that built all three (`Event::Rounded` at the point
-    /// lanes, `Event::Enclosure` at the certified one). Not read for
+    /// The contradictions the instrument reports over the session that
+    /// built all three, every event counted (`Rounded` at the point
+    /// lanes, `Enclosure` or `Registration` at either). Not read for
     /// the bare lift, which has no session.
     disputes: u64,
 }
@@ -315,14 +315,16 @@ struct Built {
 }
 
 impl Built {
-    /// The algebra's contradictions (`Event::Registration` apart, which
-    /// [`Lane::disputes`] does not count).
-    fn disputes(&self) -> u64 {
-        self.report
-            .contradictions
-            .iter()
-            .filter(|c| c.event != Event::Registration)
-            .count() as u64
+    /// Every contradiction the instrument reports over the session, after
+    /// asserting that it asked: definite decisions it could read, none on
+    /// a node the session does not hold.
+    fn disputes(&self, name: &str, d: f64) -> u64 {
+        assert!(
+            self.report.checked > 0 && self.report.absent == 0,
+            "[{name}] d={d:e}: the instrument must have asked something it could read: {:?}",
+            self.report
+        );
+        self.report.contradictions.len() as u64
     }
 }
 
@@ -427,7 +429,7 @@ fn sym11_the_far_placement_is_a_rounded_contradiction_at_sym_f64() {
             d,
             &cell(d).inexact,
             &built.outcomes,
-            built.disputes(),
+            built.disputes("Sym<f64>", d),
         );
     }
 }
@@ -458,7 +460,7 @@ fn sym11_the_far_placement_is_a_rounded_contradiction_at_sym_probe() {
             d,
             &cell(d).inexact,
             &built.outcomes,
-            built.disputes(),
+            built.disputes("Sym<Probe>", d),
         );
     }
 }
@@ -495,7 +497,7 @@ fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
             d,
             &cell(d).exact,
             &built.outcomes,
-            built.disputes(),
+            built.disputes("Sym<Interval>", d),
         );
     }
 }

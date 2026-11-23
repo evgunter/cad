@@ -231,8 +231,11 @@ pub enum Witness {
     /// enclosure that excludes zero proves the margin is not zero.
     /// There is no slack in either test and no scale at which the
     /// answer is the arithmetic giving up, so a disagreement with a
-    /// form is a defect in one of the two channels and this codebase
-    /// fails loud on it.
+    /// form is a defect in one of the two channels: a proven zero whose
+    /// enclosure excludes zero fails a `debug_assert!` where the tier
+    /// returns it (`sym::discharge_checked`), and a zero the tier would
+    /// prove under a definite sign, which the decision does not ask, is
+    /// the test instrument's report (`sym::contradiction`).
     Exact,
     /// **A comparison here is a MEASUREMENT of one rounded number.**
     /// `f64` and [`crate::Probe`] evaluate at a point: at a far

@@ -324,13 +324,8 @@ fn eps_row(eps: f64) -> usize {
 /// `Plain/Assertion` 2572 → 2554, `Early/Assertion` 3001 → 2878), with
 /// their digests; `Early/Decision` does not move.
 ///
-/// **Moved when a definite numeric sign stopped asking the tier
-/// anything**: the two `Assertion` lines go (the check that walked every
-/// definite margin's forms is a test instrument), and the decision's own
-/// walks build the forms of the nodes they share with those margins,
-/// which the check had built first: `Plain/Decision` 7727 → 7924 forms
-/// and `Early/Decision` 38 → 94 over the same calls, with their digests,
-/// at every ε row.
+/// **No `Assertion` line**: a definite numeric sign asks the tier
+/// nothing, so every walk on the slab is a decision's.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 936 forms 7924 frozen 0 digest a107014cdebb696cbf0b7ccb2044bfe7\n\
@@ -487,15 +482,6 @@ const PLATE_MAX_TERMS: usize = 38;
 ///
 /// The pinned lines are main's reading; each move of them, with its
 /// cause, is recorded on the work row that re-pinned it.
-///
-/// **Then moved when a definite numeric sign stopped asking the tier
-/// anything**: the two `Assertion` lines go, and so does `Door/Decision`,
-/// which was the registry's check of the same definite margins
-/// (`door_zero`, charged to the decision because it ran before the
-/// check set its origin); the decision's own walks build the forms of
-/// the nodes they share with those margins, which the check had built
-/// first: `Plain/Decision` 33086 → 34792 forms and `Early/Decision`
-/// 22928 → 24376 over the same calls, frozen unmoved, with their digests.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 979 forms 34792 frozen 36 digest a134bbb8fa2f7ee0a663446807bcd027\n\
      Early/Decision calls 308 forms 24376 frozen 0 digest 2a05938d108107e7807fdf7599ab66f3";

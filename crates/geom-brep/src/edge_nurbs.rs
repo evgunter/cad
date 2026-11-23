@@ -3803,7 +3803,7 @@ mod tests {
     /// discharges, passes limb 2** at `Sym<Interval>`: the margin's
     /// number is the bound `[floor, upper]`, not its expression's value,
     /// so the tier's zero is returned beside an enclosure that excludes
-    /// 0 and the enclosure check in `Sym::sign_within` leaves it out
+    /// 0 and the check on a proven zero (`sym::discharge_checked`) leaves it out
     /// (`Decide::free_identity`). Red if that check stops reading the
     /// margin's DAG for its free parameter (it panics here).
     #[test]
