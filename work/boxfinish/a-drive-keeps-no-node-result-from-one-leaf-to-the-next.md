@@ -57,3 +57,24 @@ After `a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`.
   table (`sym_drive_memo::a_value_built_in_one_leaf_means_the_same_in_another`).
   With `DriveConfig::plain_memo` off the table serves nothing, so the
   store has to be off with it or keep its own table.
+
+**A question this unit settles (from the session-state unit's fix
+pass).** A leaf resolves a symbolic id by its PRESENCE in the drive's
+table: an id is its content's hash, so once any leaf of the drive has
+minted that content inside a session, a leaf handed the same content
+from outside every session reads it as known, and before that as an
+unknown of its own (unpublished, unpooled, never a proof). Both
+answers are sound and the second is the stronger: an order dependence
+between leaves, reached only by a value from outside every session
+(`geom-core`'s `a_drives_table_and_what_is_outside_it::an_outside_value_resolves_once_a_leaf_has_minted_its_content`
+pins it as it stands). Whether a leaf should resolve an id by presence,
+or only by reachability from what the drive served it, is this unit's
+to decide.
+
+**Also from that fix pass:** a part's run is a scope of its own and is
+counted once per replay (`Evaluation::parts_sym`), so a part built in
+each of N leaves is N results in the drive's total unless the store
+serves it; a family's value carries its members' records; the
+product's gather is on the product (`Product::sym`); a prior is read
+only under the table it was built under (`eval::prior_under_this_table`),
+which is the door a served result comes through.

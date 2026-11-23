@@ -4,6 +4,8 @@ kind: issue
 title: A leaf rebuilds and drops its early forms in every replay: the per-replay teardown M9 measured is the early memo's, not the expression table's
 status: open
 opened: 2026-11-23
+design: true
+priority: P2
 ---
 
 

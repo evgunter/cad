@@ -22,8 +22,15 @@ to a node's inputs, and the retry ladder's per-replay cap
 
 Measured (M9): 23.0 s of the tour's 177.6 s of leaf time is the
 session's per-replay teardown (publishing the leaf's forms to the
-drive's memo, the `frozen` column, dropping the tables), which a
-drive-scoped table pays once. Untested by any measurement: a drive in
+drive's memo, the `frozen` column, dropping the tables). **A
+drive-scoped table does not pay it once**, as this row first said:
+measured by the unit, the teardown is the leaf's early memo, which
+stays per leaf, and moving the table, the plain forms and the atom
+records to the drive changed neither the wall time nor the teardown
+(the section below, and
+`a-leaf-rebuilds-and-drops-its-early-forms-though-most-read-no-bracket`).
+The unit makes a node's answer its own; it does not make the drive
+faster. Untested by any measurement: a drive in
 which the retry ladder runs or an identity is registered.
 
 **Sequenced after the decide path's unit** (SYM's row, in flight on
