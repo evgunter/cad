@@ -1142,8 +1142,17 @@ fn one_vertex_sense<T: Decide>(
     };
     let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
     let (outer_curve, ring_curve) = (curve_of(outer)?, curve_of(ring)?);
-    let arm =
-        geom_brep::ExtentBall::of_covered(outer_curve.0.carrier().cover().as_ref().ok()).lever();
+    // The lever is the outer half's own span's extent, the span it consumes.
+    let (t0, t1) = outer_curve.0.params();
+    let arm = geom_brep::ExtentBall::of_covered(
+        outer_curve
+            .0
+            .carrier()
+            .cover_over(geom::cover::ParamWindow::new(t0, t1))
+            .as_ref()
+            .ok(),
+    )
+    .lever();
     let margin = geom_core::Margin::levered(leaving(outer_curve).dot(leaving(ring_curve)), arm);
     match crate::validate::decide("bool_zip_one_vertex_sense", margin, band) {
         Ok(geom_core::Sign::Negative) => Ok(()),

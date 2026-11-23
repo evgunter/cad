@@ -46,6 +46,9 @@ crates/geom-brep/src/ssi/march.rs 1
 crates/geom-brep/src/ssi/refine.rs 1
 # attach: unvouched reads every edge: NOT A SEARCH.
 crates/topo/src/attach.rs 1
+# interior_cuts: cut_ins' cut_in over every refusing pair, each pair's
+# sphere faces all cut or none: NOT A SEARCH.
+crates/topo/src/boolean/ops/interior_cuts.rs 1
 # contain: boundary_pre_pass's per-loop place_off: WHICH (its doc says so).
 crates/topo/src/contain.rs 1
 # edge_join: joinable's regularity read over the two surfaces: HAND-ROLLED
