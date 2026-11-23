@@ -43,7 +43,7 @@
 //!    difference past undecided ground is seen.
 //! 3. The approach is halved and both halves are replayed, which moves
 //!    the difference nearer.
-//! 4. Neither end is halved more than [`STALL_LEVELS`] times past the
+//! 4. Neither end is halved more than [`STALL_LEVELS`](crate::range::STALL_LEVELS) times past the
 //!    deepest interval whose replay last moved it (the proof's end for
 //!    the frontier, the difference for the approach). Halvings that
 //!    decide nothing at four successive widths are in ground undecided
@@ -55,7 +55,7 @@
 //!    sit many halvings down, and halves to [`RangeBudget::max_depth`].
 //! 5. While a side has no difference proven and its frontier is
 //!    settled (at its floor, or stalled), the undecided intervals past
-//!    the frontier are halved, widest first, down to [`STALL_LEVELS`]
+//!    the frontier are halved, widest first, down to [`STALL_LEVELS`](crate::range::STALL_LEVELS)
 //!    halvings of the side: a difference past undecided ground is looked
 //!    for down to a sixteenth of the side's width. That is how a
 //!    boundary the frontier's far halves only touch (one sitting on a
@@ -71,7 +71,7 @@
 //! Across the two sides the next work is the one on the WIDER interval,
 //! then the one nearer the current value, then the low side's. The two
 //! sides refine level by level together, and neither starves the
-//! other. The search has [`Step::Finished`] when neither side has work
+//! other. The search has [`Step::Finished`](crate::range::Step::Finished) when neither side has work
 //! left, or the replay cap is spent.
 //!
 //! The far half is replayed and not skipped, because that is the only
