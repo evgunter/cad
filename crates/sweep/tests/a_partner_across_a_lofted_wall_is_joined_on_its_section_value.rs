@@ -7,8 +7,8 @@
 //! join, at the inside/outside test no spline face can be crossed by, or
 //! at the at-rest certificate of the chord the join mints: a plane's arc
 //! across a curved wall stops at the plane × spline lane's own image.
-//! Neither is the join's. Two arcs of one pair closer than the pads their
-//! points are read within carry neither, by name. A brick wholly inside
+//! Neither is the join's. Two arcs of one pair a rung apart are each
+//! read in their own cells, and joined. A brick wholly inside
 //! a wall's face meets it in a closed loop, a ring of the wall the join
 //! walls off as an island; a slab round the prism meets its walls in a
 //! closed loop on each of its own big faces, a ring of a plane.
@@ -30,6 +30,36 @@ fn chord_certificate(e: &BooleanError) -> Option<&geom_brep::CertifyError> {
     match join.error() {
         JoinError::Euler(EulerOpError::Certification { error }) => Some(error),
         _ => None,
+    }
+}
+
+/// Whether the run passed the join's lanes and stopped where a ball
+/// across a spline wall does: at the inside/outside test, which no
+/// spline face can be crossed by, or, at `ε = 1e-12`, at the chord's
+/// certificate, the lane's image of the arc missing its foot path.
+fn stops_past_the_join(refusal: &BooleanError, t: Tol) -> bool {
+    match chord_certificate(refusal) {
+        Some(
+            geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                limb: geom_brep::SsiLimb::ImageMiss,
+                ..
+            })
+            | geom_brep::CertifyError::Escalated {
+                check: geom_brep::CertCheck::PlaneNurbsHullValue,
+                ..
+            },
+        ) => t.eps() == 1e-12,
+        Some(_) => false,
+        None => {
+            t.eps() != 1e-12
+                && matches!(
+                    refusal,
+                    BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
+                        kind: geom::SurfaceKind::Nurbs,
+                        ..
+                    })
+                )
+        }
     }
 }
 
@@ -65,29 +95,7 @@ fn a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest() {
         );
         let refusal =
             topo::union(&prism, &ball, t).expect_err("no ray crosses the prism's spline walls");
-        let read = match chord_certificate(&refusal) {
-            Some(
-                geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                    limb: geom_brep::SsiLimb::ImageMiss,
-                    ..
-                })
-                | geom_brep::CertifyError::Escalated {
-                    check: geom_brep::CertCheck::PlaneNurbsHullValue,
-                    ..
-                },
-            ) => t.eps() == 1e-12,
-            Some(_) => false,
-            None => {
-                t.eps() != 1e-12
-                    && matches!(
-                        refusal,
-                        BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                            kind: geom::SurfaceKind::Nurbs,
-                            ..
-                        })
-                    )
-            }
-        };
+        let read = stops_past_the_join(&refusal, t);
         assert!(
             read,
             "{what}: the chord certifies at rest and the join completes, the inside/outside \
@@ -96,18 +104,22 @@ fn a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest() {
     }
 }
 
-/// **A ball across two close arcs of a lofted wall refuses by name**:
+/// **A ball across two close arcs of a lofted wall is joined on both**:
 /// on the prism whose sections stand `0.2` apart, the ball of radius
-/// `0.21` about `(0.3, 0.95, 0.2)` cuts a wall in two rim arcs closer
-/// than the pads their points are read within, so a site on either would
-/// read on both. The carry refuses `PadsMeet`, and the germ
-/// `GermSectionUnbuilt` naming the wall and the ball, in union, subtract
-/// and swapped union.
+/// `0.21` about `(0.3, 0.95, 0.2)` cuts a wall in two rim arcs about a
+/// rung apart. The carry reads each arc's sites in its own cells, which
+/// the ball's form clears between the arcs, so both are carried and the
+/// join completes on them, in union, subtract and swapped union. Each
+/// run stops past the join as one arc's does: at the inside/outside
+/// test, or at `ε = 1e-12` at the chord's certificate
+/// (`stops_past_the_join`).
 ///
 /// Red against: a carry that holds no two arcs apart, where a site on
-/// one arc read on both and the run aborted `JoinDesync`.
+/// one arc read on both and the run aborted `JoinDesync`; a pad read
+/// off the windows' whole images, where the carry refused the two arcs
+/// `PadsMeet` (`GermSectionUnbuilt`).
 #[test]
-fn a_ball_across_two_close_arcs_of_a_lofted_wall_refuses_by_name() {
+fn a_ball_across_two_close_arcs_of_a_lofted_wall_is_joined_on_both() {
     let t = Tol::witness();
     let prism = finished(
         "the shallow prism",
@@ -124,28 +136,11 @@ fn a_ball_across_two_close_arcs_of_a_lofted_wall_refuses_by_name() {
         ("prism ∖ ball", topo::subtract(&prism, &ball, t)),
         ("ball ∪ prism", topo::union(&ball, &prism, t)),
     ] {
-        eprintln!("DISCOVER {what}: {}", match &run { Ok(_) => "OK".to_owned(), Err(e) => format!("{e:?}").chars().take(400).collect() });
-        let refusal = run.expect_err("two arcs within their pads carry neither");
-        if true { continue; }
-        let BooleanError::GermSectionUnbuilt {
-            a_kind,
-            b_kind,
-            why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::PadsMeet { pads, gap }),
-            ..
-        } = &refusal
-        else {
-            panic!("{what}: the carry refuses the two arcs by name: {refusal:?}");
-        };
-        let mut kinds = [*a_kind, *b_kind];
-        kinds.sort_by_key(|k| format!("{k:?}"));
-        assert_eq!(
-            kinds,
-            [geom::SurfaceKind::Nurbs, geom::SurfaceKind::Sphere],
-            "{what}: the germ names the wall and the ball"
-        );
+        let refusal = run.expect_err("no ray crosses the prism's spline walls");
         assert!(
-            *gap <= pads[0] + pads[1],
-            "{what}: the arcs stand {gap} apart, within the pads {pads:?}"
+            stops_past_the_join(&refusal, t),
+            "{what}: both arcs are carried and the join completes, the run stopping past it: \
+             {refusal:?}"
         );
     }
 }
