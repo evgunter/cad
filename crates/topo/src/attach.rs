@@ -66,13 +66,13 @@
 //! keys, and a setter call is part of the history.
 
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, VertexKey};
-use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
+use crate::euler::{EdgeSubject, EulerOpError, FaceSurface, ParentSide, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Arg, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
@@ -350,9 +350,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
-            error: CertifyError::Band(e),
-        })?;
+        let band = Band::linear(tol).map_err(EulerOpError::Band)?;
         let faces = self.plan_recharts(&charts)?;
         let slots = moved_slots(&faces);
         let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| slots.get(f).copied();
@@ -380,7 +378,9 @@ impl<T: Decide> Body<T> {
             }
             let sides = self.sides(edge, moved);
             if !sides.coherent_after(Named::of_spec(&spec.description), Spelling::Listed) {
-                return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
+                return Err(EulerOpError::DescriptionNotAdjacent {
+                    edge: EdgeSubject::Keyed(edge),
+                });
             }
             let (p_start, p_end) = self.edge_endpoints(edge);
             let reach = wedges.reach(
@@ -402,9 +402,8 @@ impl<T: Decide> Body<T> {
                     .and_then(geom_brep::EdgeCurve::locus_certificate)
                     .as_slice(),
             )
-            .map_err(|error| EulerOpError::RechartFalsifies {
-                door: RechartDoor::SetFaceSurfacesDescribing,
-                edge,
+            .map_err(|error| EulerOpError::DescriptionUncertified {
+                edge: EdgeSubject::Keyed(edge),
                 error,
             })?;
             written.push((edge, sides, curve));
@@ -893,9 +892,9 @@ impl<T: Decide> Body<T> {
     /// adjacency-coherent once the move lands, a key the moving face
     /// wears now standing for `onto`
     /// ([`EulerOpError::DescriptionNotAdjacent`]); and, `tol` building
-    /// a band ([`EulerOpError::Certification`]), it certifies on the
-    /// edge's own carrier and interval at its endpoints
-    /// ([`EulerOpError::RechartFalsifies`]). A kill re-describes; it
+    /// a band ([`EulerOpError::Band`]), it certifies on the edge's own
+    /// carrier and interval at its endpoints
+    /// ([`EulerOpError::DescriptionUncertified`]). A kill re-describes; it
     /// does not move a carrier, so the stored carrier, interval and
     /// pcurve rows stand. Then no unlisted edge is stranded
     /// ([`EulerOpError::RechartUndescribed`], every one named, in
@@ -921,11 +920,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let band = || {
-            Band::linear(tol).map_err(|e| EulerOpError::Certification {
-                error: CertifyError::Band(e),
-            })
-        };
+        let band = || Band::linear(tol).map_err(EulerOpError::Band);
         let landing = self.landing_on(old, onto);
         let moved = |he, l, f| moves(he, l, f).then_some(landing.after);
         let mut written: Written<T> = Written::with_capacity(redescriptions.len());
@@ -941,7 +936,9 @@ impl<T: Decide> Body<T> {
             let spec = self.restatement(edge, description.clone(), Arg("redescriptions"))?;
             let sides = self.sides(edge, moved);
             if !sides.coherent_after(Named::of_spec(description), Spelling::Listed) {
-                return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
+                return Err(EulerOpError::DescriptionNotAdjacent {
+                    edge: EdgeSubject::Keyed(edge),
+                });
             }
             let (p_start, p_end) = self.edge_endpoints(edge);
             let resolve = |k: SurfaceKey| self.slot_surface(&[], sides.repoint(k)).cloned();
@@ -968,7 +965,10 @@ impl<T: Decide> Body<T> {
                 None,
                 kept.as_slice(),
             )
-            .map_err(|error| EulerOpError::RechartFalsifies { door, edge, error })?;
+            .map_err(|error| EulerOpError::DescriptionUncertified {
+                edge: EdgeSubject::Keyed(edge),
+                error,
+            })?;
             written.push((edge, sides, curve));
         }
         let keeps = landing.after == Slot::Kept(old) || refusals_lifted();
@@ -1325,8 +1325,17 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let faces = crate::edge_faces(self, edge);
-        let certified =
-            self.certify_edge_spec(origin, Some(edge), None, curve, p_start, p_end, faces, tol)?;
+        let certified = self.certify_edge_spec(
+            origin,
+            EdgeSubject::Keyed(edge),
+            Some(edge),
+            None,
+            curve,
+            p_start,
+            p_end,
+            faces,
+            tol,
+        )?;
         let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----
@@ -1344,9 +1353,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
-            error: CertifyError::Band(e),
-        })?;
+        let band = Band::linear(tol).map_err(EulerOpError::Band)?;
         let data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
         let sides = crate::readback::edge_sides_of(self, edge, data);
         let (s_plus, s_minus) = sides.surfaces();
@@ -1545,8 +1552,8 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// What `rewired` raises; [`EulerOpError::Certification`] where
-    /// `tol` builds no band; [`EulerOpError::PcurveMint`] naming the face a half-edge of which
+    /// What `rewired` raises; [`EulerOpError::Band`] where `tol` builds
+    /// no band; [`EulerOpError::PcurveMint`] naming the face a half-edge of which
     /// did not resolve.
     pub(crate) fn description_rows(
         &self,
@@ -1690,7 +1697,11 @@ impl<T: Decide> Body<T> {
     ) -> Result<(), EulerOpError> {
         let data = proven(&self.edges, edge, EntityId::Edge);
         let (plus, minus) = crate::readback::edge_sides_of(self, edge, data).surfaces();
-        require_description_adjacent(Some(edge), description, [plus, minus].map(Slot::Kept))
+        require_description_adjacent(
+            EdgeSubject::Keyed(edge),
+            description,
+            [plus, minus].map(Slot::Kept),
+        )
     }
 
     /// Whether `edge`'s STORED description is adjacency-coherent with
@@ -1719,15 +1730,14 @@ impl<T: Decide> Body<T> {
 /// caller's description ([`Body::mef`](crate::construction::Construct::mef)): the write gate's surface-only
 /// reading ([`Named::adjacent_by_surfaces`]), not the at-rest one.
 /// `faces` are the surfaces the edge's two faces wear, `he_plus`'s
-/// first; `edge` is the edge the refusal names, `None` for the one a
-/// minting door mints. Pure.
+/// first; `edge` is the edge the refusal names. Pure.
 ///
 /// # Errors
 ///
 /// [`EulerOpError::DescriptionNotAdjacent`] when the description names
 /// surfaces that are not `faces`.
 pub(crate) fn require_description_adjacent<T: Real>(
-    edge: Option<EdgeKey>,
+    edge: EdgeSubject,
     description: &geom_brep::EdgeDescriptionSpec<T>,
     faces: [Slot; 2],
 ) -> Result<(), EulerOpError> {
@@ -2606,7 +2616,7 @@ mod tests {
             .set_face_surfaces_describing(shifted, &specs, tol())
             .unwrap_err();
         assert!(
-            matches!(err, EulerOpError::RechartFalsifies { edge, .. } if edge == named[0]),
+            matches!(err, EulerOpError::DescriptionUncertified { edge: crate::EdgeSubject::Keyed(edge), .. } if edge == named[0]),
             "{err:?}"
         );
         assert_eq!(deep_snapshot(&body), before, "body changed on Err");
@@ -3265,7 +3275,7 @@ mod tests {
                 .set_face_surfaces_describing(vec![chart], &specs_of(&body, face), tol())
                 .unwrap_err();
             assert!(
-                matches!(err, EulerOpError::RechartFalsifies { .. }),
+                matches!(err, EulerOpError::DescriptionUncertified { .. }),
                 "one chart alone: {err:?}"
             );
         }
@@ -3422,7 +3432,9 @@ mod tests {
         let far_pair = vec![(edge, far_pair)];
         assert_err_deep_unchanged(
             &mut body,
-            &EulerOpError::DescriptionNotAdjacent { edge: Some(edge) },
+            &EulerOpError::DescriptionNotAdjacent {
+                edge: crate::EdgeSubject::Keyed(edge),
+            },
             |b| refuses(b, vec![chart()], &far_pair),
         );
 
@@ -3668,7 +3680,9 @@ mod tests {
             key: cap,
             sense: true,
         };
-        let refused = EulerOpError::DescriptionNotAdjacent { edge: None };
+        let refused = EulerOpError::DescriptionNotAdjacent {
+            edge: crate::EdgeSubject::Minted,
+        };
 
         let mut minted = body.clone();
         let made = minted
@@ -3678,7 +3692,7 @@ mod tests {
         assert_err_deep_unchanged(
             &mut minted,
             &EulerOpError::DescriptionNotAdjacent {
-                edge: Some(made.edge),
+                edge: crate::EdgeSubject::Keyed(made.edge),
             },
             |b| {
                 b.set_edge_curve(made.edge, rim(cyl2, cap), tol())
@@ -4494,7 +4508,9 @@ mod tests {
         });
         assert_eq!(
             apart,
-            EulerOpError::DescriptionNotAdjacent { edge: Some(e0) },
+            EulerOpError::DescriptionNotAdjacent {
+                edge: crate::EdgeSubject::Keyed(e0)
+            },
             "kef_describing, not adjacent"
         );
 
@@ -4550,7 +4566,7 @@ mod tests {
 
     /// **A describing kill refuses a listed spec that does not
     /// certify**: a cap edge listed as an image in the front face's
-    /// chart, which it does not lie in, is `RechartFalsifies` naming
+    /// chart, which it does not lie in, is `DescriptionUncertified` naming
     /// that edge, and the door writes nothing.
     #[test]
     fn a_describing_kill_refuses_a_listed_spec_that_does_not_certify() {
@@ -4569,9 +4585,8 @@ mod tests {
         assert!(
             matches!(
                 err,
-                EulerOpError::RechartFalsifies {
-                    door: RechartDoor::KefDescribing,
-                    edge,
+                EulerOpError::DescriptionUncertified {
+                    edge: crate::EdgeSubject::Keyed(edge),
                     ..
                 } if edge == moved
             ),

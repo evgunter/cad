@@ -7091,8 +7091,9 @@ mod declaration_order_rows {
                     Some(crate::null::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame, .. })
-                                if frame.axis().z.abs() > 0.9 && frame.origin().z > 0.1
+                            geom::Curve3::Circle(circle @ geom::Circle { .. })
+                                if circle.frame().axis().z.abs() > 0.9
+                                    && circle.frame().origin().z > 0.1
                         )
                 )
             })
@@ -8561,7 +8562,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if (frame.origin().z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(circle @ geom::Circle { .. }) if (circle.frame().origin().z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")
@@ -9289,9 +9290,10 @@ mod spline_face_rows {
                 panic!("a certified rim")
             };
             let carrier = curve.carrier().clone();
-            let Curve3::Ellipse(geom::Ellipse { frame, .. }) = carrier else {
+            let Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = carrier else {
                 panic!("an ellipse")
             };
+            let frame = the_ellipse.frame();
             let axis = frame.axis();
             for t in [0.4, 1.3, 2.9] {
                 let (p, d) = carrier.ders1(t);

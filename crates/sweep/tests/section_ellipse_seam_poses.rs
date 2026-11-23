@@ -243,11 +243,12 @@ fn a_near_axial_sections_readback_u_ref_is_its_major_direction() {
     for body in [res.above.body(), res.below.body()].into_iter().flatten() {
         for view in body.edge_views() {
             let edge = view.key();
-            let Some(&geom::Curve3::Ellipse(geom::Ellipse { frame, .. })) =
+            let Some(&geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. })) =
                 view.certified().map(|c| c.carrier())
             else {
                 continue;
             };
+            let frame = the_ellipse.frame();
             let u_ref = frame.u_ref();
             if u_ref.z.abs() < 0.5 {
                 seamed_across += 1;
