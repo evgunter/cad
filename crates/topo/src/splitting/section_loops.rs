@@ -433,7 +433,7 @@ fn edges_clear<T: Decide>(
         || matches!(
             geom_brep::curve_pair::meet(&Span::new(c, s), &Span::new(d, t), band),
             Ok(met) if met.points.is_empty() && met.shared.is_none()
-        ) || true // MUTATION C: span reading always clear
+        )
 }
 
 /// The conic's whole carrier lies definitely on one side of the line
