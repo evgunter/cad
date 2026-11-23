@@ -225,27 +225,27 @@ fn least_on<T: Decide>(
     greatest([Some(near)].into_iter())
 }
 
-/// **Whether the faces `a`, `b`, read as `ra`, `rb` ([`face_read`]),
-/// are apart in some depth** either proposes (module docs).
+/// **Whether the faces `a` of `x` and `b` of `y`, read as `ra`, `rb`
+/// ([`face_read`]) in one frame, are apart in some depth** either
+/// proposes (module docs).
 ///
 /// # Panics
 ///
 /// As [`face_read`].
 pub(super) fn apart_in_depth<T: Decide>(
-    body: &Body<T>,
-    (a, ra): (FaceKey, &Read<T>),
-    (b, rb): (FaceKey, &Read<T>),
+    (x, a, ra): (&Body<T>, FaceKey, &Read<T>),
+    (y, b, rb): (&Body<T>, FaceKey, &Read<T>),
     band: Band,
 ) -> bool {
     ra.depths.iter().chain(&rb.depths).any(|proposed| {
         // A least bound costs a point placement, so it is read only
         // against a greatest the other face has.
-        let below = |lo: (FaceKey, &Read<T>), hi: &Read<T>| {
+        let below = |(body, lo, read): (&Body<T>, FaceKey, &Read<T>), hi: &Read<T>| {
             greatest_on(hi, proposed).is_some_and(|hi| {
-                least_on(body, lo.0, lo.1, proposed, band).is_some_and(|lo| clears(hi, lo, band))
+                least_on(body, lo, read, proposed, band).is_some_and(|lo| clears(hi, lo, band))
             })
         };
-        below((b, rb), ra) || below((a, ra), rb)
+        below((y, b, rb), ra) || below((x, a, ra), rb)
     })
 }
 
@@ -575,12 +575,12 @@ mod tests {
         let body = Body::<f64>::new();
         let f = FaceKey::default();
         assert!(
-            apart_in_depth(&body, (f, &inner), (f, &outer), band()),
+            apart_in_depth((&body, f, &inner), (&body, f, &outer), band()),
             "nested tubes 0.05 apart"
         );
         let touching = face(0.4);
         assert!(
-            !apart_in_depth(&body, (f, &inner), (f, &touching), band()),
+            !apart_in_depth((&body, f, &inner), (&body, f, &touching), band()),
             "one tube against itself touches"
         );
     }
@@ -616,7 +616,7 @@ mod tests {
         assert_eq!(ra.cover.range_about(&axis), (1.0, 1.0), "the inner wall");
         assert_eq!(rb.cover.range_about(&axis), (1.05, 1.05), "the outer wall");
         assert!(
-            apart_in_depth(&body, (a, &ra), (b, &rb), band()),
+            apart_in_depth((&body, a, &ra), (&body, b, &rb), band()),
             "walls 0.05 apart"
         );
     }
