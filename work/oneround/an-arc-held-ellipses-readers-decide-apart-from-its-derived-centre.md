@@ -68,9 +68,22 @@ Counts on the lane's branch near the anchor (within 1 km of arc), of 324 poses: 
 
 ## What it is
 
-PR 7203 made the cone's section an ellipse held on its arc; the readers outside `conic.rs` still read its derived centre, which is rounded at the semi-axes' scale. The row cut for those readers said they lose digits; it did not say that an unmetered one answers wrongly. **Class: a reader that decides from a derived datum without a charge for the datum's own rounding certifies what it cannot see.** The measurement lane is sweeping the other 62 functions the gate pins for the same shape; each further wrong answer is added here or gets its own row.
+**Not a regression of PR 7203: the same verdicts, miss for miss, on the tree before it** (measured 2026-11-23 by the same lane on `194131e40`, the first parent of `2b9cd8b24c`, with the section held at its centre and the line built through the point where a cone generator meets the plane, judged against the cone and the plane themselves at 60 digits):
 
-Whether main before PR 7203 answered these poses rightly is being measured; the line there has to be built through the true section point, not through `point_at`.
+| `a` | ε 1e-9, before and after | ε 1e-12, before and after |
+|---|---|---|
+| 1e4 | 3 meet | 2 meet and 1 escalates before; 3 meet after |
+| 1e5 | 3 meet | 3 escalate |
+| 1e6 | 3 meet | **3 miss** |
+| 1e7 | 2 meet, 1 escalates | **3 miss** |
+| 1e8 | 3 escalate | **3 miss** |
+| 4.8e8 (1e-9) / 1e9 (1e-12) | **3 miss** | **3 miss** |
+
+What PR 7203 changed is where the stored curve stands, not what `meet` answers. Before it the stored section itself stood off the true section by the centre's rounding (1e-10 m at 1e6, 3e-8 m at 1e8), so each miss was wrong of the cone and the plane but not provably wrong of the stored numbers. Since it the stored curve passes within 1e-15 m of the line, and the same answer is wrong of the stored numbers too. The readers outside `conic.rs` read a conic's centre and decide from it with no charge for its rounding at the semi-axes' scale; the row cut for them said they lose digits, not that an unmetered one certifies wrongly. **Class: a reader that decides from a datum rounded at a scale larger than the tolerance, with no charge for it, certifies what it cannot see.**
+
+## How far it reaches (as measured; not the whole of it)
+
+Through the public door `curve_pair::meet` it is a wrong answer. Through the modelling doors probed so far no body is built on it: `topo::splitting::split` of a frustum toward the parabola builds sections up to `a` of 1.1e5 to 6.1e5 at ε 1e-9 (1.1e2 at 1e-12) and refuses beyond, on `VolumeUncomputable` and then on the edge certificate's `KernelLimit`, which stops the carrier at about the size where a reading from its centre would reach ε. That limit is not a re-read of anything `meet` answers; a door minting such an edge without it would have nothing behind it. **Not probed:** the boolean's own mint (`boolean::join` calls `plane_cone_section` too) and `factored_crossing`. The band stays P0 until that path is shown closed.
 
 ## The unit
 
