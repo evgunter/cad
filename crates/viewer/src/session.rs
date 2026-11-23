@@ -6508,8 +6508,8 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         // Copies bodies this document already holds; its constraints
         // relate copies some other node put in the document.
         Node::Place { .. } => false,
-        // Where copies stand; it puts nothing in.
-        Node::World | Node::Space => false,
+        // Where copies stand, or a frame there; it puts nothing in.
+        Node::World | Node::Space | Node::Datum { .. } => false,
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }

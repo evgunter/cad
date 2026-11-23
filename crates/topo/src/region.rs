@@ -32,7 +32,6 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3}
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
-use crate::live::BoundaryMember;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
@@ -462,8 +461,9 @@ impl<T: Decide> RegionEdge<T> {
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve,
-/// an outer loop with no cycle, or a surface boundary that does not walk.
+/// [`PointInSolidError::CorruptFace`] for a key that does not resolve or
+/// a surface boundary that does not walk; a face with no outline as
+/// [`crate::NoOutline`] reads it ([`crate::solid_contain::no_outline`]).
 ///
 /// # Panics
 ///
@@ -477,16 +477,10 @@ pub(crate) fn boundary<T: Decide>(
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.face(face).ok_or_else(corrupt)?;
+    let area = f.area_loops().map_err(crate::solid_contain::no_outline)?;
     let mut null = Vec::new();
-    for (_, members, role) in f.boundary_by_loop() {
-        for member in members {
-            // A lone ring vertex bounds no area; an outer loop must.
-            if role.is_outer() && matches!(member, BoundaryMember::Isolated { .. }) {
-                return Err(corrupt());
-            }
-            let BoundaryMember::Edge { edge, .. } = member else {
-                continue;
-            };
+    for (lp, _) in area.cycles() {
+        for crate::live::EdgeMember { edge, .. } in lp.edges() {
             let edge_key = edge.key();
             let Some(curve) = edge.certified() else {
                 if crate::null::is_placeholder(body, edge_key) {

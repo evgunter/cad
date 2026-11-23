@@ -1104,7 +1104,7 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     )
     .expect("and inlines back with its head");
     let host = fixture::constraint(&back.doc, mate);
-    let [side] = fixture::face_reads(&back.doc, host.to)[..] else {
+    let [side] = fixture::face_reads(&back.doc, host.to.read)[..] else {
         panic!("the host target reads one face: {host:?}");
     };
     let head = fixture::side_head(&back.doc, side);
@@ -1121,7 +1121,7 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     );
     let flat = fixture::round_trip::flat(&back);
     let host = fixture::constraint(&flat, mate);
-    let [side] = fixture::face_reads(&flat, host.to)[..] else {
+    let [side] = fixture::face_reads(&flat, host.to.read)[..] else {
         panic!("the flattened target reads one face: {host:?}");
     };
     let head = fixture::side_head(&flat, side);
