@@ -806,9 +806,9 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 // it mints (VARIABLES VR4): the digest feeds every node id, and one more
 // minted variable per placement moves the ids after it.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x49aa_a7be_d3c8_eae9),
-    (1e-6, 0xcb88_5110_3f96_3ea8),
-    (1e-12, 0x34c6_123b_5cf3_4184),
+    (1e-9, 0xefea_d738_3df4_cbf9),
+    (1e-6, 0xb3e9_ad45_e6cc_f8b5),
+    (1e-12, 0x2399_44f1_363c_d196),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

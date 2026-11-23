@@ -1636,7 +1636,10 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
         SlotId::Operand(seat) | SlotId::Index { seat, .. } => seat,
         _ => return None,
     };
-    let rank = doc.var_reach(body.read).chain().map_or(0, <[VarId]>::len);
+    // A family's rank is its binder's (D10 `[repetition]`).
+    let rank = doc
+        .yielding(doc.through_sources(body.read).read)
+        .map_or(0, |binder| doc.binder_indices(binder).len());
     if body.at.len() != rank {
         return Some(crate::var::SelectionFault::Input(Box::new(
             crate::node::InputFault::IndexRank {
@@ -9345,7 +9348,36 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 WrittenDef::Free(value) => write_free(new, id, &spoken, value)?,
                 WrittenDef::Defined(_) | WrittenDef::Index(_) | WrittenDef::Source(_) => {
                     check_var_def(&spoken, &def)?;
+                    // A binder's first index declared after another index
+                    // joins that index's binder, which yields what it
+                    // yielded (D10 `[repetition]`).
+                    let carried: Vec<VarId> = match (doc.var(id).map(Var::def), &def) {
+                        (Some(VarDef::Index(held)), WrittenDef::Index(written))
+                            if written.after().is_some() =>
+                        {
+                            match &held.seat {
+                                crate::IndexSeat::Binder { yields } => yields.clone(),
+                                crate::IndexSeat::After(_) => Vec::new(),
+                            }
+                        }
+                        _ => Vec::new(),
+                    };
                     new.vars.insert(id, Var::written(def));
+                    if !carried.is_empty()
+                        && let Some(binder) = new.binder_of(id)
+                        && let Some(VarDef::Index(index)) = new.var(binder).map(Var::def)
+                    {
+                        let mut index = index.clone();
+                        if let crate::IndexSeat::Binder { yields } = &mut index.seat {
+                            for y in carried {
+                                if !yields.contains(&y) {
+                                    yields.push(y);
+                                }
+                            }
+                        }
+                        new.vars
+                            .insert(binder, Var::written(WrittenDef::Index(index)));
+                    }
                     check_definition(new, id)?;
                     EditRecord {
                         minted: None,

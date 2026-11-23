@@ -853,6 +853,17 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         }],
     );
     let family = ids[0];
+    // The index's binder yields the row (D10 `[repetition]`).
+    let doc = doc
+        .apply(
+            &Edit::SetYields {
+                binder: k.into(),
+                yields: vec![doc.output(family, 0).unwrap().into()],
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
     let pattern = |at: Formula| Edit::InsertNode {
         node: Box::new(Node::place(
             BodyRead::indexed(family, vec![at]),

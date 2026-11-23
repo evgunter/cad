@@ -194,9 +194,19 @@ fn row_on(
     count: i64,
     within: Option<VarId>,
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
-    use editor_core::{Coord, Dimension, TargetAxis};
     let name = fixture::fresh_index_name(&doc);
     let (doc, k) = fixture::index_of(doc, &name, Formula::count(count), within);
+    row_over(doc, input, (dir, spacing), k)
+}
+
+/// [`row_on`] over the index `k` the document already declares.
+fn row_over(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    (dir, spacing): ([f64; 3], f64),
+    k: VarId,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    use editor_core::{Coord, Dimension, TargetAxis};
     let next = Formula::count_to_scalar(
         Formula::add(Formula::var(k, Dimension::Count), Formula::count(1)).unwrap(),
     )
@@ -1283,9 +1293,12 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, i, inner) = row_on(doc, base, ([1.0, 0.0, 0.0], 5.0), 3, None);
+    // One binder `{i, j}` (D10 `[repetition]`): `j` is declared before
+    // the placement between the patterns reads a member of it.
+    let (doc, j) = fixture::index_of(doc, "j_outer", Formula::count(2), Some(i));
     let spin = std::f64::consts::FRAC_PI_2;
     let (doc, t) = place_moved(doc, inner, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], spin, &opts);
-    let (doc, j, outer) = row_on(doc, t, ([0.0, 1.0, 0.0], 20.0), 2, Some(i));
+    let (doc, _, outer) = row_over(doc, t, ([0.0, 1.0, 0.0], 20.0), j);
     let nest = |n: StableName| in_member(outer, vec![(i, 1), (j, 1)], n);
     let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);

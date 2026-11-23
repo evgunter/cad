@@ -229,10 +229,10 @@ fn a_mate_sides_index_is_a_written_count() {
 }
 
 /// **D10's per-copy reading, `gap(c[k], c[(k + 1) mod N])`**: a measure
-/// evaluated once per member, between a vertex of member `k` (the
-/// family read plainly) and the same vertex of member `(k + 1) mod 3`
-/// (the selection's own index), is 2, 2 and 4. Red if the second read
-/// is not the next member, or the index does not wrap.
+/// evaluated once per member, between a vertex of member `k` and the same
+/// vertex of member `(k + 1) mod 3`, each a member read written at its
+/// index, is 2, 2 and 4. Red if the second read is not the next member,
+/// or the index does not wrap.
 #[test]
 fn a_per_copy_selection_reads_the_next_member() {
     let (doc, cube, k, xs) = family("select-next");
@@ -248,7 +248,10 @@ fn a_per_copy_selection_reads_the_next_member() {
     let measured = editor_core::measure(
         &doc,
         &[MeasurePrimitive::Distance {
-            a: Operand::select(Operand::Node(xs), vec![vertex.clone()]),
+            a: Operand::select(
+                BodyRead::indexed(xs, vec![Formula::var(k, Dimension::Count)]),
+                vec![vertex.clone()],
+            ),
             b: Operand::select(BodyRead::indexed(xs, vec![next]), vec![vertex]),
         }],
         Tol::witness(),

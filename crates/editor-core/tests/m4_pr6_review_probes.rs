@@ -404,6 +404,15 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     )
     .unwrap();
+    // SetYields: the index's binder yields the row (D10 `[repetition]`).
+    let row_copy = doc.output(row, 0).expect("the row's copy");
+    push(
+        &mut doc,
+        DocEdit::SetYields {
+            binder: k.into(),
+            yields: vec![row_copy.into()],
+        },
+    );
     let pat = push(
         &mut doc,
         DocEdit::InsertNode {
