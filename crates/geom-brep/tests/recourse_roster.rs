@@ -558,6 +558,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurve_cache/closed_bound.rs: two_ovals: name", LOOP_ROWS),
     ("pcurve_cache/closed_bound.rs: unit_winding: name", FORWARDS),
     (
+        "pcurve_cache/closed_image_rows.rs: a_needle_cone_section_passes_with_its_own_beta: &plane",
+        CARRIER_CALL,
+    ),
+    (
         "pcurve_cache/envelope_lemma_fuzz.rs: cone_section: &plane",
         CARRIER_CALL,
     ),
