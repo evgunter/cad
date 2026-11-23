@@ -10225,7 +10225,7 @@ pub(crate) fn answered_in_band(
 ///
 /// Arm 1 clears a pair ONLY on a definitely-positive separation margin
 /// (`census_backstop_gap` — metre coordinate differences — then the
-/// turned directions of [`backstop_apart`], then a gap in depth about
+/// turned directions of [`faces_apart`], then a gap in depth about
 /// an axis, a centre or a circle, `census_backstop_depth_gap`, for the
 /// nested walls no direction separates: [`depth_gap`], then two planar
 /// faces apart where each meets the other's plane, edge gaps and
