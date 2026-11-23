@@ -924,6 +924,8 @@ mod intent_vars_2_table;
 mod intent_vars_3_readers;
 #[path = "member_read_key.rs"]
 mod member_read_key;
+#[path = "review_member_read_key.rs"]
+mod review_member_read_key;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
