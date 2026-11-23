@@ -22,12 +22,12 @@
 //! the glue door's tangency ([`tangency_reading`]) claims neither. Both
 //! read the second-order margin `κ_rel` as the glue door does: it must
 //! be definite (jet-determinate), and in band, or exactly zero at an
-//! isolated point, it escalates. Both are tangencies along a locus
-//! through the faces' interiors. Two faces that both end on one rim are
-//! a junction, not a tangency, and never reach this table: the glue door
-//! decides the rim's identity and its wedge, as tier 3 decides the edge
-//! it becomes, and a G1 tube chain's neutral meridian points are no
-//! question there.
+//! isolated point, it escalates. A rim the glue door glues a junction
+//! (the routing's π seam, opposite departures, both operands' rim edges
+//! convex) never reaches this table: the door decides the rim's identity
+//! and its wedge, as tier 3 decides the edge it becomes, and a G1 tube
+//! chain's neutral meridian points are no question there. Any other rim
+//! both faces end on is read here along its whole turn, as a tangency.
 //!
 //! **The Tangent lane reuses the jet machinery, it does not restate
 //! it.** `tangent_jet`, `tangent_certificate_lane`,
@@ -261,10 +261,13 @@ pub fn tangent_locus_relation<T: Decide>(
 /// the whole locus, and the crescent between the sheets may be void or
 /// shared.
 ///
-/// The glue door asks it along a tangent line through both faces'
-/// interiors; a rim both faces end on is a junction it never reads. The
-/// touch is read at every sample of the locus, the residual every
-/// carrier owes however its pair decided its tangency.
+/// The touch is read at every sample of the held locus, the residual
+/// every carrier owes however its pair decided its tangency: a pair's
+/// pose decides whether the surfaces are tangent and where
+/// (`geom_brep::pair_section::gap`), not that the held rim stands within
+/// ε of both all the way round, so a rim of a pair its pose decides
+/// tangent can still escalate here. A rim the glue door glued a
+/// junction is never read here.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn tangency_reading<T: Decide>(
     s1: &geom::Surface<T>,

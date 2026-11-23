@@ -31,7 +31,7 @@ use geom_core::{Band, Bounds, Decide};
 use super::section_table::SectionTable;
 use super::{
     BooleanError, DeclarationRead, Glue, GluedPair, Operand, PairUnread, TangencyFailure,
-    carrier_pair_decided, glued_tangency,
+    carrier_pair_decided, verify_distinct,
 };
 use crate::body::Body;
 use crate::boxes;
@@ -170,9 +170,8 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
                 found.push(None);
             }
             Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
-            | Err(PairUnread::OutsideInventory) => found.push(
-                tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency)),
-            ),
+            | Err(PairUnread::OutsideInventory) => found
+                .push(distinct(a, fa, b, fb, band)?.map(|glue| GluedPair::distinct(fa, fb, glue))),
             // In band, or unread: left to the stage that meets the pair
             // (module doc).
             Ok(Err(_)) | Err(PairUnread::Extent(_)) => {}
@@ -242,21 +241,25 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     Ok(Cow::Owned(out))
 }
 
-/// **What the glue door glues of `fa` and `fb` as `Tangent`**
-/// ([`glued_tangency`]), asked only of a pair it has a locus for: a
+/// **What the glue door glues of `fa` and `fb` on distinct carriers**
+/// ([`verify_distinct`]), asked only of a pair it has a locus for: a
 /// plane and a cylinder or two cylinders, tangent along a line the
-/// witness lane certifies through both faces' interiors, or two faces
-/// that both end on one circle. The second is a junction: the rim's
-/// identity and the wedge the routing reads, the smooth seam the zip
-/// builds, and nothing sampled along it.
+/// witness lane certifies through both faces' interiors (`Tangent`), or
+/// two faces that both end on one circle. The second is a `Junction`
+/// where the routing reads the π seam with the faces leaving on opposite
+/// sides and each operand's own rim edge is convex: the rim's identity
+/// and its wedge, the smooth seam the zip builds, with no touch claimed
+/// along it. A rim that is not one is read as before: the table along
+/// its turn, and the routing after a touch, a π seam whose operands'
+/// edges are not both convex gluing as `Tangent`.
 ///
-/// A verdict that the pair is not tangent, a rim that is a corner all
-/// round, a pair outside the lane and a junction the routing places
-/// outside what the zip builds are no tangency (`None`). A refusal no
-/// reading of the pair settles (an in-band margin, an undecidable rim
-/// identity, a rim that is not one wedge, an unreadable face) is the
-/// operation's: a pair the lane has a locus for never reaches a later
-/// stage unglued on a reading the door could not take (C8).
+/// A verdict that the pair is not tangent, a pair outside the lane and a
+/// junction the routing places outside what the zip builds are no glue
+/// (`None`). A refusal no reading of the pair settles (an in-band
+/// margin, an undecidable rim identity, a rim that is not one wedge, an
+/// unreadable face) is the operation's: a pair the lane has a locus for
+/// never reaches a later stage unglued on a reading the door could not
+/// take (C8).
 ///
 /// # Errors
 ///
@@ -265,13 +268,13 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
 /// # Panics
 ///
 /// Where `fa` or `fb`, faces the glue door enumerated, does not resolve.
-fn tangency<T: Decide>(
+fn distinct<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Option<super::Tangency<T>>, BooleanError> {
+) -> Result<Option<super::DistinctGlue<T>>, BooleanError> {
     let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
@@ -280,8 +283,8 @@ fn tangency<T: Decide>(
     {
         return Ok(None);
     }
-    match glued_tangency(a, fa, b, fb, read, band) {
-        Ok(tangency) => Ok(Some(tangency)),
+    match verify_distinct(a, fa, b, fb, read, band) {
+        Ok(glue) => Ok(Some(glue)),
         Err(TangencyFailure::Refused(e)) => Err(e),
         Err(
             TangencyFailure::NotTangent | TangencyFailure::Unsupported | TangencyFailure::Unrouted,

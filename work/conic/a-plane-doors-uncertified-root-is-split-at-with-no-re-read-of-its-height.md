@@ -25,3 +25,7 @@ Its callers act on the root without re-reading it:
 `ring_path::plane_roots` (uncertified roots up to 2.6e-7 m off at 1e6) has one caller, `path_parity`: each root is read in or out of the arc's span and flips a parity; no point is built. Whether a parity can flip on a root that far off was not probed (the operand is the same far-section body, buildable only to about 6e5).
 
 Closes with the certified-lane row's conversion of these readers to the stored point, or sooner with a re-read of the root's height where the edge is split.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.

@@ -95,3 +95,7 @@ box is simply the stored point
 PR 7131's reading of a stored frame bears on the first: if the true
 frame is the polar factor of the stored entries, the exact sum of the
 stored entries is no longer the true vertex at the far scale.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.

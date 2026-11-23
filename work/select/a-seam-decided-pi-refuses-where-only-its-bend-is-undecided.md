@@ -48,3 +48,10 @@ is undecided: margin 1.2e-9"), though the seam's wedge is π. It is
 pinned as
 `an_elbow_whose_neutral_point_sits_in_band_of_a_station_refuses_on_its_bend`.
 At 2ε (nearer) and 10³ε (farther) the same elbow unions.
+
+No fixture reaches it yet: the elbow lane nudged the bend's axis by
+2ε and 10³ε about the cap's normal
+(`an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction`)
+and the rim routed π at each, so no routing station landed near a
+neutral point; where the routing's stations fall on that rim was not
+traced. The finding stands on the code above.

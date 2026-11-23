@@ -966,6 +966,100 @@ pub(super) fn tangent_lump<T: Decide>(
     }
 }
 
+/// **A declared-`Junction` sector's lump**: which side of the other
+/// operand's material the sector's face lies on, at a site on the rim the
+/// junction was certified over (`super::Junction`).
+///
+/// **Out, by the certificate, at every site on the rim.** The door glued
+/// the pair a junction only where its two faces both end on the rim, the
+/// outward normals aligned at every station round it (the routing's π
+/// wedge), the faces leaving it on opposite sides wherever they meet,
+/// abutting points included (`rim_wedge::departures`), and each
+/// operand's own edges on the rim convex creases all along them
+/// (`rim_wedge::rim_edges_convex`). So in the plane normal to the rim at
+/// the site, the sector's face leaves along the reverse of the other
+/// face's direction, and the other operand's material there lies in the
+/// wedge between the other face and its neighbour across the convex
+/// edge, below π: the reverse direction is outside it, and so is every
+/// direction of the sector's interior, which lies on the face's side of
+/// the shared tangent plane's rim line. Nothing of the carriers' bend is
+/// read: a junction claims no touch along the rim, so no second-order
+/// descent applies (`tangent_lump` reads one only along a line).
+///
+/// A site the reader cannot place on that rim (one off it, or a
+/// junction whose record carries no circle) is outside what the
+/// certificate states, refused as the frontier it is
+/// ([`BooleanError::CurvedBooleanUnsupported`] on the sector's face); a
+/// placement in band is the rim's coincidence.
+pub(super) fn junction_lump<T: Decide>(
+    rim: Option<crate::rim_wedge::Rim<T>>,
+    p: geom_core::Point3<T>,
+    on_side: Operand,
+    sector_face: FaceKey,
+    sector_kind: geom::SurfaceKind,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let unplaced = || BooleanError::CurvedBooleanUnsupported {
+        operand: on_side,
+        face: sector_face,
+        kind: sector_kind,
+    };
+    let rim = rim.ok_or_else(unplaced)?;
+    if crate::rim_wedge::on_rim(rim, p, band)
+        .map_err(|diag| BooleanError::coincidence(Coincide::Rim, read, diag))?
+    {
+        Ok(SideCode::Out)
+    } else {
+        Err(unplaced())
+    }
+}
+
+/// **A declared-`Junction` sector bound's side** at a v-v site on the
+/// rim: `On` where the bound rides the rim (its direction along the rim's
+/// tangent there, the edge both sectors share), `Out` elsewhere, on the
+/// certificate [`junction_lump`] states: every direction of the sector
+/// off the rim leaves into the face's side of the rim, outside the other
+/// operand's material. The bound's sine against the rim's tangent is
+/// decided at the bound's own reach, the first-order code's lever, under
+/// `junction_bound_rides_rim`; in band it is the rim's coincidence.
+///
+/// # Errors
+///
+/// As [`junction_lump`] for a site it cannot place; the bound's in-band
+/// reading.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn junction_bound_side<T: Decide>(
+    rim: Option<crate::rim_wedge::Rim<T>>,
+    p: geom_core::Point3<T>,
+    (d, reached): (Vec3<T>, Lever<T>),
+    on_side: Operand,
+    sector_face: FaceKey,
+    sector_kind: geom::SurfaceKind,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let out = junction_lump(rim, p, on_side, sector_face, sector_kind, read, band)?;
+    // Placed on the rim, so the rim is there.
+    let Some(rim) = rim else {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a junction site placed on no rim",
+        });
+    };
+    let tangent = rim.axis.cross(p - rim.center).normalize();
+    let sine = d.normalize().cross(tangent).norm();
+    match crate::validate::decide(
+        "junction_bound_rides_rim",
+        Margin::levered(sine, reached),
+        band,
+    )
+    .map_err(|diag| BooleanError::coincidence(Coincide::Rim, read, diag))?
+    {
+        Sign::Zero => Ok(SideCode::On),
+        Sign::Positive | Sign::Negative => Ok(out),
+    }
+}
+
 /// **The per-direction second-order side** of a declared-`Tangent`
 /// sector pair: which side of the OTHER face's material does the
 /// sector's carrier lie on along direction `d` from the tie point —

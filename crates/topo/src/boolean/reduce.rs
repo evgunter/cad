@@ -2093,21 +2093,21 @@ fn edge_covers<T: crate::props::AtRestPolicy>(
 }
 
 /// **The window past an end of `edge` that lies on a junction's rim**:
-/// where a parent face of `edge` and `face` were glued as a smooth
-/// junction on a rim (both end on it), and the end at `p` lies on that
-/// rim, the end's root on `face`'s carrier is the junction's, and the
-/// end-root door ([`geom_brep::curve_face::end_root`]) factors it and
-/// certifies the window past it. The edge leaves the rim into its own
-/// face, which the routing read leaving it on the side away from
-/// `face`, so the window's neighbourhood of the end is the end's own
-/// incidence; the rest of the span is the root doors'. `None` where no
-/// such junction holds the end, or the carrier lies on the surface.
+/// where a parent face `P` of `edge` and `face` were glued a junction on a
+/// rim (both end on it, leaving it on opposite sides), and the end at `p`
+/// is decided on that rim inside the stretch the junction was glued over,
+/// the end's root on `face`'s carrier is the junction's, and
+/// [`junction_end_window`] reads the window past it. `None` where no such
+/// junction holds the end, or the carrier lies on the surface.
+///
+/// The end of `[t0, t1]` `p` is at is decided here once, and returned with
+/// the window.
 ///
 /// # Errors
 ///
 /// [`BooleanError::JunctionEndUnread`] where the door has no lane or no
-/// window; [`BooleanError::CurvedPierceEscalated`]
-/// ([`BooleanDecision::JunctionEndOrder`]) where a reading is in band.
+/// window, or the edge is closed; [`BooleanError::CurvedPierceEscalated`]
+/// where a reading is in band.
 #[allow(clippy::too_many_arguments)]
 fn junction_window<T: Decide + crate::props::AtRestPolicy>(
     (x, x_is, edge_key, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
@@ -2118,93 +2118,268 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
     p: Point3<T>,
     declared: &super::GluedPairs<T>,
     band: Band,
-) -> Result<Option<geom_brep::curve_face::end_root::EndWindow<T>>, BooleanError> {
-    use geom_brep::curve_face::end_root::{EndRootRefusal, SpanEnd, end_window};
-    let escalated = |diag| BooleanError::CurvedPierceEscalated {
-        operand: x_is,
-        face,
-        edge: edge_key,
-        decision: BooleanDecision::JunctionEndOrder,
-        diag,
+) -> Result<
+    Option<(
+        geom_brep::curve_face::end_root::SpanEnd,
+        geom_brep::curve_face::end_root::EndWindow<T>,
+    )>,
+    BooleanError,
+> {
+    use geom_brep::curve_face::end_root::SpanEnd;
+    let refused = |why| match why {
+        JunctionEndUnsettled::Gap(gap) => BooleanError::JunctionEndUnread {
+            operand: x_is,
+            face,
+            edge: edge_key,
+            gap,
+        },
+        JunctionEndUnsettled::InBand(decision, diag) => BooleanError::CurvedPierceEscalated {
+            operand: x_is,
+            face,
+            edge: edge_key,
+            decision,
+            diag,
+        },
     };
-    let unread = |gap| BooleanError::JunctionEndUnread {
-        operand: x_is,
-        face,
-        edge: edge_key,
-        gap,
-    };
-    let rims = [
+    let mut held = None;
+    for parent in [
         x.face_of_half_edge(edge.he_plus),
         x.face_of_half_edge(edge.he_minus),
     ]
     .into_iter()
     .flatten()
-    .filter_map(|parent| declared.junction_rim(x_is, parent, x_is.other(), face));
-    let mut on_rim = false;
-    for rim in rims {
-        let w = p - rim.center;
-        let height = w.dot(rim.axis);
-        let radial = (w - rim.axis * height).norm() - rim.radius;
-        let off = (radial.powi(2) + height.powi(2)).sqrt();
-        match geom_core::k_stats::decide("junction_end_on_rim", Margin::of(off), band) {
-            Ok(Sign::Zero) => {
-                on_rim = true;
-                break;
-            }
-            Ok(_) => {}
-            Err(diag) => return Err(escalated(diag)),
-        }
+    {
+        let Some((rim, touch)) = declared.junction_rim(x_is, parent, x_is.other(), face) else {
+            continue;
+        };
+        let in_band = |diag| {
+            refused(JunctionEndUnsettled::InBand(
+                BooleanDecision::JunctionEndOnRim,
+                diag,
+            ))
+        };
+        let Some(a_rides) = junction_end_held(rim, touch, p, band).map_err(in_band)? else {
+            continue;
+        };
+        held = Some((parent, rim, a_rides));
+        break;
     }
-    if !on_rim {
+    let Some((parent, rim, a_rides)) = held else {
         return Ok(None);
-    }
+    };
+    // The touch records A's riding half-edge; B's runs it the other way.
+    let rides = match x_is {
+        Operand::A => a_rides,
+        Operand::B => a_rides.flip(),
+    };
+    let p_face = x
+        .face(parent)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "a junction's glued face does not resolve",
+        })?;
+    let normal = geom_brep::implicit_outward_normal(p_face.surface(), p_face.sense(), p).vec();
     let end = match geom_core::k_stats::prove(
         "junction_end_which",
         Margin::of((carrier.eval(t1) - p).norm() - (carrier.eval(t0) - p).norm()),
     ) {
         Ok(Sign::Positive) => SpanEnd::Start,
         Ok(Sign::Negative) => SpanEnd::End,
-        Ok(Sign::Zero) | Err(_) => return Err(unread(super::JunctionEndGap::Window)),
+        // Both ends at one point: a closed edge, whose window would run
+        // from either end.
+        Ok(Sign::Zero) | Err(_) => {
+            return Err(refused(JunctionEndUnsettled::Gap(
+                super::JunctionEndGap::Closed,
+            )));
+        }
     };
-    match end_window(carrier, (t0, t1), end, surface, band) {
-        Ok(window) => Ok(Some(window)),
-        Err(EndRootRefusal::LiesOn) => Ok(None),
-        Err(EndRootRefusal::NoLane) => Err(unread(super::JunctionEndGap::NoLane {
-            curve: carrier.kind(),
-            surface: surface.kind(),
-        })),
+    let question = JunctionEnd {
+        carrier,
+        span: (t0, t1),
+        end,
+        p,
+        surface,
+        rim,
+        normal,
+        rides,
+    };
+    Ok(junction_end_window(&question, band)
+        .map_err(refused)?
+        .map(|window| (end, window)))
+}
+
+/// **Whether `p` lies on a junction's rim, inside the stretch it was
+/// glued over** (`junction_end_on_rim`, then the touch's own reading):
+/// the sign A's riding half-edge runs the rim with there, or `None` where
+/// `p` is decided off the rim or outside the touch.
+///
+/// # Errors
+///
+/// The first reading in band.
+fn junction_end_held<T: Decide>(
+    rim: crate::rim_wedge::Rim<T>,
+    touch: &crate::rim_wedge::Touch<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<Sign>, geom_core::Indeterminate> {
+    let w = p - rim.center;
+    let height = w.dot(rim.axis);
+    let radial = (w - rim.axis * height).norm() - rim.radius;
+    let off = (radial.powi(2) + height.powi(2)).sqrt();
+    match geom_core::k_stats::decide("junction_end_on_rim", Margin::of(off), band)? {
+        Sign::Zero => touch.holds(rim, p, band),
+        Sign::Positive | Sign::Negative => Ok(None),
+    }
+}
+
+/// An edge's end on a junction's rim, as [`junction_end_window`] reads
+/// it: the edge's carrier and span, which end of it `p` is, the other
+/// face's surface, the rim, the outward normal of the edge's own face
+/// `P` at `p`, and the sign `P`'s riding half-edge runs the rim with.
+struct JunctionEnd<'a, T: geom_core::Real> {
+    carrier: &'a geom::Curve3<T>,
+    span: (T, T),
+    end: geom_brep::curve_face::end_root::SpanEnd,
+    p: Point3<T>,
+    surface: &'a geom::Surface<T>,
+    rim: crate::rim_wedge::Rim<T>,
+    normal: Vec3<T>,
+    rides: Sign,
+}
+
+/// Why a junction's end read no window.
+#[derive(Debug)]
+enum JunctionEndUnsettled {
+    /// What the reading does not cover ([`super::JunctionEndGap`]).
+    Gap(super::JunctionEndGap),
+    /// A reading in band, and the decision it escalates as.
+    InBand(BooleanDecision, geom_core::Indeterminate),
+}
+
+/// **The window past a junction's end, and the side its spread lies
+/// on.** The end-root door ([`geom_brep::curve_face::end_root`]) factors
+/// the end's root and certifies the window past it; its roots inside the
+/// spread, within `σ` of the end along the edge, are not.
+///
+/// **The side.** `P`'s face lies on one side of the rim, `face` on the
+/// other (the junction's departures). So a root of the spread at `s` is
+/// off `face` once the edge stands off the rim on `P`'s side beyond the
+/// band. The edge leaves the rim with the
+/// signed departure `d`, its unit tangent's component along `P`'s inward
+/// conormal `ν = n_P × t_P` (the face's interior lies left of its riding
+/// half-edge `t_P` about its outward normal `n_P`). Over arc length `s`
+/// its component along `ν` is at least `d·s·(1 − (κ_e·s)²/6)` (a line's
+/// `d·s`; a circle of curvature `κ_e` gives `d·sin(κ_e·s)/κ_e`), less its
+/// own bend `κ_e·s²/2` toward `ν`'s negative and the rim's `s²/(2R)` away
+/// from its tangent. So the margin (`junction_end_side`)
+///
+/// `g(σ) = d·σ·(1 − (κ_e·σ)²/6) − (κ_e + 1/R)·σ²/2`
+///
+/// decided Positive is the side held at the spread's end. `g` is concave
+/// in `σ` and zero at the end, so it stays above the band over `[σ*, σ]`,
+/// `σ*` where `g` meets the band's width `ε`.
+///
+/// **Below `σ*`** a root of the spread stands within the band of the
+/// rim, which is `face`'s boundary: band-coincident with that boundary,
+/// at most `σ*` along the edge from the vertex, and not necessarily at the
+/// vertex. It is the touch the vertex's placement on `face` already
+/// records (`vertex_on_curved_face`), and the band reads no crossing of
+/// `face` there. `σ* ≈ ε/d` grows as the departure falls, which is why a
+/// near-tangent end refuses rather than claim more.
+///
+/// # Errors
+///
+/// [`JunctionEndUnsettled`]: no lane for the kinds, no window or a side
+/// not held ([`super::JunctionEndGap::Window`]), or a reading in band.
+fn junction_end_window<T: Decide>(
+    q: &JunctionEnd<'_, T>,
+    band: Band,
+) -> Result<Option<geom_brep::curve_face::end_root::EndWindow<T>>, JunctionEndUnsettled> {
+    use geom_brep::curve_face::end_root::{EndRootRefusal, SpanEnd, end_window};
+    let in_band = |decision, diag| JunctionEndUnsettled::InBand(decision, diag);
+    let no_window = JunctionEndUnsettled::Gap(super::JunctionEndGap::Window);
+    let no_lane = || {
+        JunctionEndUnsettled::Gap(super::JunctionEndGap::NoLane {
+            curve: q.carrier.kind(),
+            surface: q.surface.kind(),
+        })
+    };
+    // The kinds whose curvature the side reads; the door reads no other.
+    let bend_e = match q.carrier {
+        geom::Curve3::Line(_) | geom::Curve3::Circle(_) => {
+            geom::carrier_speed::curvature_hi(q.carrier)
+        }
+        _ => return Err(no_lane()),
+    };
+    let window = match end_window(q.carrier, q.span, q.end, q.surface, band) {
+        Ok(window) => window,
+        Err(EndRootRefusal::LiesOn) => return Ok(None),
+        Err(EndRootRefusal::NoLane) => return Err(no_lane()),
         Err(
             EndRootRefusal::Order(diag)
             | EndRootRefusal::Spread(Some(diag))
             | EndRootRefusal::Window(Some(diag)),
-        ) => Err(escalated(diag)),
+        ) => return Err(in_band(BooleanDecision::JunctionEndOrder, diag)),
         Err(EndRootRefusal::Spread(None) | EndRootRefusal::Window(None)) => {
-            Err(unread(super::JunctionEndGap::Window))
+            return Err(no_window);
         }
+    };
+    let (t_end, toward) = match q.end {
+        SpanEnd::Start => (q.span.0, T::one()),
+        SpanEnd::End => (q.span.1, -T::one()),
+    };
+    let (_, d) = q.carrier.ders1(t_end);
+    let along = (d * toward).normalize();
+    let rim_tangent = q.rim.axis.cross(q.p - q.rim.center);
+    let ridden = match q.rides {
+        Sign::Positive => rim_tangent.normalize(),
+        Sign::Negative => -rim_tangent.normalize(),
+        // A ride along no direction names no side.
+        Sign::Zero => return Err(no_window),
+    };
+    let conormal = q.normal.cross(ridden);
+    let departure = along.dot(conormal.normalize());
+    match junction_side(
+        departure,
+        (bend_e, T::one() / q.rim.radius),
+        window.spread,
+        band,
+    ) {
+        Ok(Sign::Positive) => Ok(Some(window)),
+        Ok(Sign::Zero | Sign::Negative) => Err(no_window),
+        Err(diag) => Err(in_band(BooleanDecision::JunctionEndSide, diag)),
     }
 }
 
-/// The rest of `[t0, t1]` past a junction end's window, which ends at
-/// `at`: the span from `at` to the end away from `p`.
-fn past_the_window<T: Decide>(
-    carrier: &geom::Curve3<T>,
+/// [`junction_end_window`]'s side margin `g(σ)` (`junction_end_side`),
+/// in metres: the signed `departure`'s lead over the spread, less the
+/// edge's and the rim's bends over it.
+///
+/// # Errors
+///
+/// The margin's in-band reading.
+fn junction_side<T: Decide>(
+    departure: T,
+    (bend_e, bend_rim): (T, T),
+    spread: T,
+    band: Band,
+) -> Result<Sign, geom_core::Indeterminate> {
+    let half = T::from_f64(0.5);
+    let sixth = T::from_f64(1.0 / 6.0);
+    let lead = departure * spread * (T::one() - (bend_e * spread).powi(2) * sixth);
+    let bent = (bend_e + bend_rim) * spread.powi(2) * half;
+    geom_core::k_stats::decide("junction_end_side", Margin::of(lead - bent), band)
+}
+
+/// The rest of `[t0, t1]` past the window at `end`, which ends at `at`.
+fn past_the_window<T: geom_core::Real>(
     (t0, t1): (T, T),
-    p: Point3<T>,
+    end: geom_brep::curve_face::end_root::SpanEnd,
     at: T,
 ) -> (T, T) {
-    if nearer_start(carrier, (t0, t1), p) {
-        (at, t1)
-    } else {
-        (t0, at)
+    match end {
+        geom_brep::curve_face::end_root::SpanEnd::Start => (at, t1),
+        geom_brep::curve_face::end_root::SpanEnd::End => (t0, at),
     }
-}
-
-/// Whether `p` lies at the start of `[t0, t1]` rather than its end.
-fn nearer_start<T: Decide>(carrier: &geom::Curve3<T>, (t0, t1): (T, T), p: Point3<T>) -> bool {
-    geom_core::k_stats::prove(
-        "junction_end_which",
-        Margin::of((carrier.eval(t1) - p).norm() - (carrier.eval(t0) - p).norm()),
-    ) == Ok(Sign::Positive)
 }
 
 /// The curved-face sweep arm: endpoint sides come from the linearized
@@ -2954,10 +3129,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 declared,
                 band,
             )?;
-            match match window {
-                Some(w) if w.whole => SpanVerdict::NoInterior,
-                Some(w) => {
-                    let (a, b) = past_the_window(curve.carrier(), (t0, t1), on, w.at);
+            let verdict = match window {
+                Some((_, w)) if w.whole => SpanVerdict::NoInterior,
+                Some((end, w)) => {
+                    let (a, b) = past_the_window((t0, t1), end, w.at);
                     match wall_crossing(
                         y,
                         face,
@@ -2985,7 +3160,8 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     band,
                     &escalate,
                 )?,
-            } {
+            };
+            match verdict {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -3096,14 +3272,11 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             };
             let (wu, wv) = (window(pu)?, window(pv)?);
             let mut span = (t0, t1);
-            for (w, p) in [(wu, pu), (wv, pv)] {
-                if let Some(w) = w {
-                    span = if nearer_start(curve.carrier(), (t0, t1), p) {
-                        (w.at, span.1)
-                    } else {
-                        (span.0, w.at)
-                    };
-                }
+            for (end, w) in [wu, wv].into_iter().flatten() {
+                span = match end {
+                    geom_brep::curve_face::end_root::SpanEnd::Start => (w.at, span.1),
+                    geom_brep::curve_face::end_root::SpanEnd::End => (span.0, w.at),
+                };
             }
             let crossed = |(a, b): (T, T)| {
                 wall_crossing(
@@ -3119,17 +3292,21 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 )
             };
             let windowed = wu.is_some() || wv.is_some();
+            // Two windows that meet or overlap leave no stretch between.
             let empty = windowed
-                && geom_core::k_stats::prove("junction_end_which", Margin::of(span.1 - span.0))
-                    != Ok(Sign::Positive);
-            match if empty {
+                && geom_core::k_stats::prove(
+                    "junction_end_windows_apart",
+                    Margin::of(span.1 - span.0),
+                ) != Ok(Sign::Positive);
+            let verdict = if empty {
                 SpanVerdict::NoInterior
             } else {
                 match crossed(span)? {
                     SpanVerdict::Miss if windowed => SpanVerdict::NoInterior,
                     verdict => verdict,
                 }
-            } {
+            };
+            match verdict {
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, m1, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, m2, contacts, band, tol)?;
@@ -6835,6 +7012,7 @@ mod declaration_order_rows {
                 )
             }),
             GlueClass::Continuation => unreachable!("a continuation is no contact"),
+            GlueClass::Junction => unreachable!("a line witness is no rim junction"),
         }
     }
 
@@ -9873,6 +10051,258 @@ mod vertex_refusal_tests {
                 BooleanError::VertexNearConeAxis { operand: Operand::B, face: f, .. } if f == face
             ),
             "{got:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod junction_end_rows {
+    //! [`junction_end_window`] and [`junction_end_held`] on two junctions:
+    //! the elbow's (a pipe `x² + y² = 1` to `z = 2`, the bend about the
+    //! line `x = 3, z = 2` with `R = 3`, `r = 1`), whose rulings leave the
+    //! rim square to it, and an ice-cream cone's (a unit sphere below its
+    //! latitude `z = ½`, the cone tangent to it there above), where a small
+    //! circle of the sphere can leave the rim at any angle `β`.
+    use super::*;
+    use geom_brep::curve_face::end_root::SpanEnd;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn rim(center: Point3<f64>, radius: f64) -> crate::rim_wedge::Rim<f64> {
+        crate::rim_wedge::Rim {
+            center,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// The pipe's ruling `x = 1` up to the rim, against the bend, its face
+    /// the pipe (outward normal `+x`), whose riding half-edge runs the rim
+    /// with `rides`.
+    fn elbow(rides: Sign) -> Result<Option<EndWindow<f64>>, JunctionEndUnsettled> {
+        let ruling = geom::Curve3::Line(geom::Line {
+            origin: Point3::new(1.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        });
+        let bend = geom::Surface::Torus {
+            frame: geom::Frame::new(
+                Point3::new(3.0, 0.0, 2.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        };
+        junction_end_window(
+            &JunctionEnd {
+                carrier: &ruling,
+                span: (0.0, 2.0),
+                end: SpanEnd::End,
+                p: Point3::new(1.0, 0.0, 2.0),
+                surface: &bend,
+                rim: rim(Point3::new(0.0, 0.0, 2.0), 1.0),
+                normal: Vec3::new(1.0, 0.0, 0.0),
+                rides,
+            },
+            band(),
+        )
+    }
+
+    use geom_brep::curve_face::end_root::EndWindow;
+
+    const H: f64 = 0.5;
+
+    /// The small circle of the unit sphere through the rim point
+    /// `(ρ, 0, ½)` leaving it at `beta` from the rim's tangent toward the
+    /// sphere's side, against the cone, its face the sphere (whose riding
+    /// half-edge runs the rim backward), over a quarter of a radian.
+    fn ice_cream(beta: f64) -> Result<Option<EndWindow<f64>>, JunctionEndUnsettled> {
+        let rho = (1.0 - H * H).sqrt();
+        let p = Point3::new(rho, 0.0, H);
+        let n = Vec3::new(rho, 0.0, H);
+        let conormal = Vec3::new(H, 0.0, -rho);
+        let d = Vec3::new(0.0, 1.0, 0.0) * beta.cos() + conormal * beta.sin();
+        let m = d.cross(n).normalize();
+        let center = Point3::new(0.0, 0.0, 0.0) + m * m.dot(p - Point3::new(0.0, 0.0, 0.0));
+        let radius = (p - center).norm();
+        let u = (p - center) / radius;
+        let normal = if m.cross(u).dot(d) > 0.0 { m } else { -m };
+        let circle = geom::Curve3::circle(center, normal, radius, u);
+        // The cone tangent to the sphere along the latitude: its apex on
+        // the axis at `1/h`, opening down.
+        let apex = 1.0 / H;
+        let cone = geom::Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, apex),
+                Vec3::new(0.0, 0.0, -1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            half_angle: (rho / (apex - H)).atan(),
+        };
+        junction_end_window(
+            &JunctionEnd {
+                carrier: &circle,
+                span: (0.0, 0.25),
+                end: SpanEnd::Start,
+                p,
+                surface: &cone,
+                rim: rim(Point3::new(0.0, 0.0, H), rho),
+                normal: n,
+                rides: Sign::Negative,
+            },
+            band(),
+        )
+    }
+
+    /// **A ruling leaving the rim square to it holds its side**: the
+    /// elbow's double root, its window certified.
+    #[test]
+    fn a_ruling_leaving_the_rim_into_its_own_face_holds_its_side() {
+        let w = elbow(Sign::Negative)
+            .expect("a window")
+            .expect("not lying on");
+        assert_eq!(w.order, 2, "{w:?}");
+    }
+
+    /// **The departure is signed.** The same ruling, its face's riding
+    /// half-edge read the other way round the rim, leaves the rim into the
+    /// other face's side: no side is held, whatever the departure's size.
+    #[test]
+    fn a_ruling_leaving_the_rim_into_the_other_side_holds_none() {
+        let got = elbow(Sign::Positive);
+        assert!(
+            matches!(
+                got,
+                Err(JunctionEndUnsettled::Gap(
+                    super::super::JunctionEndGap::Window
+                ))
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// **The rim's bend is charged.** The ruling read against a rim a
+    /// tenth of its own spread in radius, through its end (the rim's data,
+    /// not its faces'): over the spread that rim turns away from its
+    /// tangent by more than the ruling departs from it.
+    #[test]
+    fn a_rim_tighter_than_the_spread_holds_no_side() {
+        let ruling = geom::Curve3::Line(geom::Line {
+            origin: Point3::new(1.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        });
+        let bend = geom::Surface::Torus {
+            frame: geom::Frame::new(
+                Point3::new(3.0, 0.0, 2.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        };
+        let spread = elbow(Sign::Negative).unwrap().unwrap().spread;
+        let tight = 0.1 * spread;
+        let got = junction_end_window(
+            &JunctionEnd {
+                carrier: &ruling,
+                span: (0.0, 2.0),
+                end: SpanEnd::End,
+                p: Point3::new(1.0, 0.0, 2.0),
+                surface: &bend,
+                rim: rim(Point3::new(1.0 - tight, 0.0, 2.0), tight),
+                normal: Vec3::new(1.0, 0.0, 0.0),
+                rides: Sign::Negative,
+            },
+            band(),
+        );
+        assert!(
+            matches!(
+                got,
+                Err(JunctionEndUnsettled::Gap(
+                    super::super::JunctionEndGap::Window
+                ))
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// **A small circle of the sphere holds its side leaving the rim at a
+    /// right angle and refuses at a shallow one.** Both carriers turn about the rim's
+    /// axis, so their relative curvature across it falls as `sin²β` and
+    /// the window refuses before the side does: the side check is what
+    /// [`a_ruling_leaving_the_rim_into_the_other_side_holds_none`] and
+    /// [`a_rim_tighter_than_the_spread_holds_no_side`] pin.
+    #[test]
+    fn a_small_circle_leaving_the_rim_steeply_holds_its_side_and_shallowly_refuses() {
+        let steep = ice_cream(core::f64::consts::FRAC_PI_2)
+            .expect("a window")
+            .expect("not lying on");
+        assert_eq!(steep.order, 2, "{steep:?}");
+        let shallow = ice_cream(1e-3);
+        assert!(shallow.is_err(), "a shallow departure: {shallow:?}");
+    }
+
+    /// **The end is decided on the rim before anything is read**: on it,
+    /// off it by a millimetre, and off it within the band's escalation.
+    #[test]
+    fn an_end_is_read_only_on_the_rim() {
+        let b = band();
+        let r = rim(Point3::new(0.0, 0.0, 2.0), 1.0);
+        let all = crate::rim_wedge::Touch::of(vec![(0.0, core::f64::consts::TAU, Sign::Positive)]);
+        assert_eq!(
+            junction_end_held(r, &all, Point3::new(1.0, 0.0, 2.0), b),
+            Ok(Some(Sign::Positive)),
+            "on the rim"
+        );
+        assert_eq!(
+            junction_end_held(r, &all, Point3::new(1.0, 0.0, 2.001), b),
+            Ok(None),
+            "a millimetre above it"
+        );
+        let mid = 0.5 * (b.zero() + b.escalate());
+        assert!(
+            junction_end_held(r, &all, Point3::new(1.0 + mid, 0.0, 2.0), b).is_err(),
+            "in band"
+        );
+    }
+
+    /// **The end is read only inside the stretch the junction was glued
+    /// over**: a quarter of the rim, closed at its ends.
+    #[test]
+    fn an_end_is_read_only_inside_the_glued_stretch() {
+        let b = band();
+        let r = rim(Point3::new(0.0, 0.0, 0.0), 1.0);
+        let quarter =
+            crate::rim_wedge::Touch::of(vec![(0.0, core::f64::consts::FRAC_PI_2, Sign::Negative)]);
+        let at = |phi: f64| Point3::new(phi.cos(), phi.sin(), 0.0);
+        assert_eq!(
+            junction_end_held(r, &quarter, at(0.5), b),
+            Ok(Some(Sign::Negative))
+        );
+        assert_eq!(
+            junction_end_held(r, &quarter, at(0.0), b),
+            Ok(Some(Sign::Negative)),
+            "its start"
+        );
+        assert_eq!(
+            junction_end_held(r, &quarter, at(core::f64::consts::FRAC_PI_2), b),
+            Ok(Some(Sign::Negative)),
+            "its end"
+        );
+        assert_eq!(
+            junction_end_held(r, &quarter, at(2.0), b),
+            Ok(None),
+            "past it"
+        );
+        assert_eq!(
+            junction_end_held(r, &quarter, at(-0.5), b),
+            Ok(None),
+            "before it"
         );
     }
 }

@@ -21,7 +21,7 @@ crates/topo/src/boolean/insert.rs held_cut 1 row t4-ports-unpinned-for-a-kept-re
 crates/topo/src/boolean/insert.rs unheld_walk 1 pin a_walk_off_the_run_answers_past_a_nesting_in_band_never_past_a_fault
 crates/topo/src/boolean/overlap.rs any_corner_meets 1 pin a_corner_that_meets_answers_past_one_in_band
 crates/topo/src/region.rs on_boundary 1 pin an_edge_holding_the_point_answers_past_one_in_band
-crates/topo/src/rim_wedge.rs departures 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/rim_wedge.rs touch 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/rim_wedge.rs rim_exists 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs any_holds 1 pin a_conjunction_answers_past_a_margin_and_never_past_a_fault
 crates/topo/src/boolean/sectors.rs crescent 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer

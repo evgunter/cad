@@ -25,3 +25,7 @@ moved here from the unit's row when it closed.
   phase to `([0, 1], [−1, 0])`, and the derived centre is then about a
   semi-axis wide, where an ellipse held at its centre keeps its centre
   exact through the same turn. Not probed.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.

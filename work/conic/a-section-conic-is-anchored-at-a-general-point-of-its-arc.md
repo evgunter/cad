@@ -180,3 +180,7 @@ what remains for this row after it.
 From the three designers' agreed answer on what a reader of a conic's position asks the conic (`analysis/design-fork/conic-reader-interface`; with Ev as an `[ev]` PR once the kernel measurement is in). Reading the seam direction is pairing it with the parameter, since θ = 0 lies along it, and moving parameter zero to the anchor changes what `u_ref` means. The end state is that `Conic` keeps `axis`, and the principal frame is asked as `major_frame()` / `section_frame()`, whose answer states the parameter at its vertex; a read that wants an in-plane basis with no parameter gets a frame with no seam meaning.
 
 **Remove or rename them; never re-document them under the same name**: the rename is the compile-time census of every pairing, and a re-documentation leaves every hand-written pairing compiling and wrong. If a readers unit removes them first (the pairing reads are the same sites those units convert), this section is discharged there.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.

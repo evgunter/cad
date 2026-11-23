@@ -9,10 +9,12 @@
 //!   two faces leave it on opposite sides ([`departures`]): the
 //!   composed material is smooth through it, and the rim is a SEAM of
 //!   one composite wall, whatever its bend. Between two operands the
-//!   boolean glues the junction on the rim's identity and this wedge
-//!   alone, nothing read along the rim of the two carriers' second
-//!   order, and the seam is read on the result; inside one body it is
-//!   structural.
+//!   boolean glues it a `Junction` where each operand's own rim edge is
+//!   also a convex crease ([`rim_edges_convex`]): the rim's identity,
+//!   this wedge (whose fold reads `second_order_walk` at each station,
+//!   so an in-band bend still stops it), the departures and those edges,
+//!   no touch read along the rim. The seam is read on the result; inside
+//!   one body it is structural.
 //! - **a corner all round** — no junction to glue: the crossing lanes
 //!   meet the two faces as any corner.
 //! - **normals agree, same departure** — the two faces leave the rim on
@@ -20,7 +22,9 @@
 //!   cusp the normals alone cannot tell from the seam. The material
 //!   table answers [`RimRouting::Seam`] for it, since it reads only the
 //!   two sheets' normals and jets; [`departures`] is what tells the two
-//!   apart, and the glue door (`route_rim`) asks it after the table.
+//!   apart, and the glue door asks it in the junction's test
+//!   (`junction_of`), and again in `route_rim` after the table for a rim
+//!   that is no junction.
 //! - **wedge 0 or 2π** — the normals oppose across the rim. A pair
 //!   reaching this routing has no tangent-locus arm for its two
 //!   surface kinds, which is what its refusal names.
@@ -369,9 +373,27 @@ pub(crate) fn departures<T: Decide>(
     locus: Locus<T>,
     band: Band,
 ) -> Result<Departure, RimUnread> {
+    touch(a, fa, b, fb, locus, band).map(|(departure, _)| departure)
+}
+
+/// [`departures`], with the touch it was read over: each stretch (or
+/// point) of the locus both faces end on, and the way A rides it.
+///
+/// # Errors
+///
+/// As [`departures`].
+pub(crate) fn touch<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    locus: Locus<T>,
+    band: Band,
+) -> Result<(Departure, Touch<T>), RimUnread> {
+    let mut held = Touch { pieces: Vec::new() };
     let (Some(ra), Some(rb)) = (reach_as(a, fa, locus, band)?, reach_as(b, fb, locus, band)?)
     else {
-        return Ok(Departure::EdgeKindUnread);
+        return Ok((Departure::EdgeKindUnread, held));
     };
     let tau = geom::conic_period::<T>().length();
     let mut cuts: Vec<T> = ra.cuts.iter().chain(&rb.cuts).copied().collect();
@@ -425,13 +447,18 @@ pub(crate) fn departures<T: Decide>(
         }
         touched = true;
         match (ca, cb) {
-            (Cover::Unread, _) | (_, Cover::Unread) => return Ok(Departure::EdgeKindUnread),
+            (Cover::Unread, _) | (_, Cover::Unread) => {
+                return Ok((Departure::EdgeKindUnread, held));
+            }
             (Cover::RidesBothWays, _) | (_, Cover::RidesBothWays) => {
-                return Ok(Departure::Mixed);
+                return Ok((Departure::Mixed, held));
             }
             (Cover::Rides(x), Cover::Rides(y)) if x == y => same = true,
-            (Cover::Rides(_), Cover::Rides(_)) => opposite = true,
-            _ => return Ok(Departure::NoEdge),
+            (Cover::Rides(x), Cover::Rides(_)) => {
+                opposite = true;
+                held.pieces.push((s0, s1, x));
+            }
+            _ => return Ok((Departure::NoEdge, held)),
         }
     }
     if !touched {
@@ -449,28 +476,90 @@ pub(crate) fn departures<T: Decide>(
                 let abut = climb(Answering::Any, [(ahi, blo), (alo, bhi)], |(x, y)| {
                     let gap = (locus_point(locus, x) - locus_point(locus, y)).norm();
                     Rung::decide("seam_cover_abut", Margin::of(gap), band, |d| {
-                        (d.sign == geom_core::Sign::Zero).then_some(())
+                        (d.sign == geom_core::Sign::Zero).then_some(x)
                     })
                 })
-                .into_reading()?
-                .is_some();
-                if abut {
+                .into_reading()?;
+                if let Some(at) = abut {
                     touched = true;
                     if sa == sb {
                         same = true;
                     } else {
                         opposite = true;
+                        held.pieces.push((at, at, sa));
                     }
                 }
             }
         }
     }
-    Ok(match (touched, opposite, same) {
+    let departure = match (touched, opposite, same) {
         (false, _, _) => Departure::Untouched,
         (true, true, true) => Departure::Mixed,
         (true, true, false) => Departure::Opposite,
         (true, false, _) => Departure::Same,
-    })
+    };
+    Ok((departure, held))
+}
+
+/// **Where two faces leaving a rim on opposite sides touch along it**
+/// ([`touch`]): each stretch, `lo ≤ hi` on the rim's own angle with `lo`
+/// in `[0, τ)` (a stretch across the seam runs past `τ`), or a point,
+/// `lo = hi`, where the two faces' riding edges abut; and the sign A's
+/// riding half-edge runs it with against the rim's tangent. B's runs it
+/// the other way.
+#[derive(Clone, Debug)]
+pub(crate) struct Touch<T: Real> {
+    pieces: Vec<(T, T, geom_core::Sign)>,
+}
+
+impl<T: Real> Touch<T> {
+    /// A touch of these pieces, for the rows that read one.
+    #[cfg(test)]
+    pub(crate) fn of(pieces: Vec<(T, T, geom_core::Sign)>) -> Self {
+        Self { pieces }
+    }
+}
+
+impl<T: Real> Default for Touch<T> {
+    fn default() -> Self {
+        Self { pieces: Vec::new() }
+    }
+}
+
+impl<T: Decide> Touch<T> {
+    /// **Whether `p`, a point decided on `rim`, lies on the touch**, a
+    /// closed stretch or point of it (`junction_end_in_extent`, metered
+    /// along the rim): the sign A rides it with there, or `None` where no
+    /// piece holds it, or two that do are ridden opposite ways.
+    ///
+    /// # Errors
+    ///
+    /// The first in-band reading of whether a piece holds it.
+    pub(crate) fn holds(
+        &self,
+        rim: Rim<T>,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Option<geom_core::Sign>, Indeterminate> {
+        let tau = geom::conic_period::<T>().length();
+        let at = locus_param(Locus::Rim(rim), p);
+        let meter = |m: T| {
+            crate::validate::decide("junction_end_in_extent", Margin::of(m * rim.radius), band)
+        };
+        let mut sign = None;
+        for &(lo, hi, rides) in &self.pieces {
+            let past = at - lo - tau * ((at - lo) / tau).floor();
+            let within = !matches!(meter(hi - lo - past)?, geom_core::Sign::Negative)
+                || matches!(meter(tau - past)?, geom_core::Sign::Zero);
+            if within {
+                match sign {
+                    Some(s) if s != rides => return Ok(None),
+                    _ => sign = Some(rides),
+                }
+            }
+        }
+        Ok(sign)
+    }
 }
 
 /// Sort locus parameters ascending by decided differences (metered in
@@ -767,6 +856,21 @@ fn curve_sense<T: Decide>(
     }
 }
 
+/// Whether `p` lies on `rim`: the locus test the departures read
+/// placements by ([`on_locus`]), for a junction's reader that must know
+/// its site is on the rim the junction was certified over.
+///
+/// # Errors
+///
+/// The distance's [`Indeterminate`] in band.
+pub(crate) fn on_rim<T: Decide>(
+    rim: Rim<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    on_locus(Locus::Rim(rim), p, band)
+}
+
 /// Whether `p` lies on the locus.
 fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
     let off = match locus {
@@ -1038,24 +1142,74 @@ pub(crate) fn face_boundary_arcs<T: Real>(
 fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
     face_boundary_arcs(body, face)
         .into_iter()
-        .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle(circle) => {
-                let (center, axis, u_ref) = (
-                    circle.frame().origin(),
-                    circle.frame().axis(),
-                    circle.frame().u_ref(),
-                );
-                let radius = circle.radius();
-                Some(Rim {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                })
-            }
-            _ => None,
-        })
+        .filter_map(|(_, c)| rim_of(c.carrier()))
         .collect()
+}
+
+/// A circle carrier as a [`Rim`]; none for any other carrier.
+fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
+    match *carrier {
+        geom::Curve3::Circle(circle) => Some(Rim {
+            center: circle.frame().origin(),
+            axis: circle.frame().axis(),
+            radius: circle.radius(),
+            u_ref: circle.frame().u_ref(),
+        }),
+        _ => None,
+    }
+}
+
+/// **Whether every edge `face` has on `rim` is a convex crease of
+/// `face`'s own body**: the operand's material wedge there below π
+/// ([`geom_brep::Convexity::Convex`], decided at every station of the
+/// edge's own fold, [`crate::edge_wedge()`], under
+/// [`geom_brep::DIHEDRAL_SIGN`]). The junction's certificate that a face
+/// leaving the rim along this face's backward direction lies outside
+/// this operand's material (`boolean::junction_of`).
+///
+/// `false` where the face has no edge on the rim, where an edge's circle
+/// is not decided the rim or not decided another, where an edge on the
+/// rim carries no certified curve, and where its wedge is anything but a
+/// convex crease all along it: a concave or smooth edge, a mixed one, one
+/// in band. It answers only "certified convex"; every other reading is
+/// the door's to read as it would without the junction.
+pub(crate) fn rim_edges_convex<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    rim: Rim<T>,
+    band: Band,
+) -> bool {
+    let Some(f) = body.face(face) else {
+        return false;
+    };
+    let mut on_rim = 0usize;
+    for member in f.boundary() {
+        let crate::live::BoundaryMember::Edge { ek, edge, .. } = member else {
+            continue;
+        };
+        let Some(curve) = body.edge_curve_linked(ek, edge).certified() else {
+            return false;
+        };
+        let Some(circle) = rim_of(curve.carrier()) else {
+            continue;
+        };
+        match same_circle(circle, rim, band) {
+            Ok(Some(_)) => {}
+            Ok(None) => continue,
+            Err(_) => return false,
+        }
+        on_rim += 1;
+        if !matches!(
+            crate::edge_wedge(body, ek, band),
+            Some(geom_brep::WedgeVerdict::Crease {
+                convexity: geom_brep::Convexity::Convex,
+                ..
+            })
+        ) {
+            return false;
+        }
+    }
+    on_rim > 0
 }
 
 /// The rim's schedule: the certification schedule's sample count, as

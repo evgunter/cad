@@ -386,3 +386,32 @@ junction's two faces where it lies.
 - **Pinned:** R1's converse arc, R2's end-gap rows and dome in
   `dihedral::bend_rows`; R2's end-gap poses (δ = 1.15, 1.18, ±1.21,
   hollow and rod) unioning at the closed form.
+
+## 2026-11-23 — Fix pass on the end-root door (PR 7463's two reviews)
+
+- **`whole` past a quarter turn.** A circle's window starts from a
+  quarter turn at most, so it is the whole span only where the run is the
+  span's own and unhalved; a longer arc's rest goes to `wall_crossing`.
+- **The side, decided here** (`reduce::junction_end_window`,
+  `junction_end_side`). The end is read only on the stretch of the rim
+  the junction was glued over (`rim_wedge::Touch`, carried on the
+  junction's certificate). The departure is signed along the edge's own
+  face's inward conormal. The margin is literal for a circle, and carries
+  no charge: the charge sits under the band's escalation, so it moved no
+  decided sign. Roots nearer the end than where the margin clears the
+  band are band-coincident with the other face's boundary, not
+  necessarily the vertex.
+- **For every junction the door reads, the rim is a line of curvature of
+  both carriers**, so the relative curvature across it falls as `sin²β`
+  with the departure angle. The end-root window then refuses before the
+  side check can (measured on a sphere's small circle leaving a
+  cone–sphere rim). The side check bites on a departure of the wrong sign
+  and on a rim tighter than the spread, and those are its pins.
+- **End to end, near a neutral point**: order 4 on it, `JunctionEndOrder`
+  in band, and a belt of `JunctionEndUnread { Window }` from about 2e-7
+  to 2e-4 rad, filed as
+  `the-junction-end-window-refuses-in-a-belt-around-a-neutral-point.md`.
+- **Not built**: a G1 tube chain whose segment arc past 90° comes back
+  through the other torus. Two coplanar rings tangent at the junction
+  meet again only after one tube curls through the other's volume, and a
+  second root off the face reads the same either way at union level.

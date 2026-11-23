@@ -84,3 +84,7 @@ and has to be carried.
 Nothing: neither site evaluates a conic point. Each needs its own
 re-posing about the vertex, and the vertex has to be exact (or
 stored); a plain `c + u·a` still rounds at `u·far`.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.

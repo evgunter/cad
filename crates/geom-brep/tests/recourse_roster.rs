@@ -73,6 +73,12 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("TANGENT_SECOND_ORDER"),
     NameCarrier::Const("MATERIAL_CUSP_SIDE"),
     NameCarrier::Const("TANGENT_TUBE_MARGIN"),
+    // The end-root door's questions (`curve_face/end_root.rs`).
+    NameCarrier::Const("END_ROOT_ORDER"),
+    NameCarrier::Const("END_ROOT_RUN"),
+    NameCarrier::Const("END_ROOT_TAIL"),
+    NameCarrier::Const("END_ROOT_SPREAD"),
+    NameCarrier::Const("END_ROOT_WINDOW_CLEAR"),
     // The carrier ladder's data names, and each kind's reach row with
     // its straddle row (`carrier_eq.rs`).
     NameCarrier::Const("CARRIER_CONE_APEX"),

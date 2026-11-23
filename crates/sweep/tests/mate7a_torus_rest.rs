@@ -308,14 +308,25 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
 /// exactly zero) are no question there; an edge of one segment ending on
 /// that rim tangent to the other's wall has that end's root factored
 /// (`geom_brep::curve_face::end_root`); and the seam is described where
-/// it rests, its bend under-determined. The union is one solid at the
-/// two segments' Pappus volumes' sum, sound at tier 3 and 3′, in both
-/// orders.
+/// it rests, its bend under-determined. The two walls on the meridian
+/// glue a junction (the routing's π seam with the walls leaving on
+/// opposite sides, each segment's own rim edge a convex crease), and the
+/// union is one solid at the two segments' Pappus volumes' sum, sound at
+/// tier 3 and 3′, in both orders.
 #[test]
 fn the_g1_tube_chain_is_one_bent_tube() {
     let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
         return;
     };
+    let walls: Vec<_> = topo::boolean::rim_door(&a, &b, Tol::witness())
+        .into_iter()
+        .filter(|(kinds, _)| *kinds == (geom::SurfaceKind::Torus, geom::SurfaceKind::Torus))
+        .map(|(_, door)| door)
+        .collect();
+    assert!(
+        !walls.is_empty() && walls.iter().all(|d| *d == topo::boolean::RimDoor::Junction),
+        "the two walls on the meridian glue a junction: {walls:?}"
+    );
     let tube = core::f64::consts::PI * TUBE * TUBE;
     let want = tube * RING * TURN.to_radians() + tube * 1.1 * 170.0_f64.to_radians();
     for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {

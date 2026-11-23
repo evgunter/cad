@@ -146,3 +146,7 @@ anchored, against 6.1e-10, 5.3e-6, 1.2e-1 and 12 m centre-stored.
 The anchored section changes nothing this row asks for: the cover reads
 a centre. Re-posing the `Arc` piece about the stored anchor, as above,
 is this row's.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.

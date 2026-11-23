@@ -2216,7 +2216,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::UnderflowedSectorChord
         | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
-        | BooleanErrorKind::RimJunctionUnsettled
         | BooleanErrorKind::HeldPierceUnbuilt
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
@@ -2592,7 +2591,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CutRingWinding",
         1,
     ),
-    ("glue.rs", "tangency", "Coincide::Rim", 1),
+    ("glue.rs", "distinct", "Coincide::Rim", 1),
     ("insert.rs", "beside_order", "Coincide::Sectors", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
@@ -2737,10 +2736,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::TangentLocus",
         1,
     ),
-    ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
-    ("mod.rs", "verify_tangency", "LeverArm::TangentLocus", 1),
-    ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
-    ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
+    ("mod.rs", "verify_distinct", "Coincide::Contact", 1),
+    ("mod.rs", "verify_distinct", "LeverArm::TangentLocus", 1),
+    ("mod.rs", "verify_distinct", "Coincide::Rim", 1),
+    ("mod.rs", "verify_distinct", "Coincide::TangentLocus", 1),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 1),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
@@ -2839,8 +2838,20 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
     (
         "reduce.rs",
-        "junction_window",
+        "junction_end_window",
         "BooleanDecision::JunctionEndOrder",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "junction_end_window",
+        "BooleanDecision::JunctionEndSide",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "junction_window",
+        "BooleanDecision::JunctionEndOnRim",
         1,
     ),
     ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
@@ -2981,6 +2992,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "read_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
     ("sectors.rs", "first_order_overlap", "Coincide::Sectors", 1),
+    ("sectors.rs", "junction_bound_side", "Coincide::Rim", 1),
+    ("sectors.rs", "junction_lump", "Coincide::Rim", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (
@@ -3044,7 +3057,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "vtxfac.rs",
         "read_vertex_on_face",
         "Coincide::TangentSide",
-        1,
+        2,
     ),
     (
         "vtxfac.rs",

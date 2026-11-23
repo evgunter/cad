@@ -64,3 +64,7 @@ If `recognize_curve`'s circle is held on its arc, two things on its path are owe
 - **`MappedSource::RevolvedPoint::eval` sums from the far axis.** It is `q + R·(p − q)` with `q` the axis origin, so its points round at `u·r` whatever supplies the axis (about 1e-10 m at `r` = 1e6, by one designer's arithmetic, not measured). A revolved point is a point of the arc and an axis, which is already the arc-held shape: evaluated as `p + (R − I)·(p − q)`, the axis origin enters at the arc's scale. `crates/geom-brep` `mapped.rs`; not traced into the pcurve derivations that consume the description class.
 
 The mint is accepted on the centre datum's caller list holding only reporters of a format that is centre-form by its own definition (the STEP writer, a sketch arc written back) and mints of a new entity's datum (a blend surface about a rim's axis, a section loop's turning axis).
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
