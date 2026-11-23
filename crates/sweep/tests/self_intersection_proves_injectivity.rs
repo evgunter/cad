@@ -7161,3 +7161,23 @@ fn review_probe_whole_body_class() {
     let twin = cone_cut::<Interval>(ON_GRID, (0.5, 0.25, 0.0), true).into_body();
     println!("[rp] whole wall cut on grid at Interval: {}", door_class(&twin));
 }
+
+/// REVIEW PROBE (claim 3, the other nappe): the widening frustum's cut
+/// (its apex below, the slant of the other sign), a ball through the
+/// wall beside the section; never `Embedded`, and the halves alone
+/// printed.
+#[test]
+fn review_probe_ball_on_the_other_nappe() {
+    let shape = RP_SHAPES[4].1;
+    let cut = (0.4, 0.3, 0.7);
+    for above in [true, false] {
+        let body = cone_cut::<f64>(shape, cut, above).into_body();
+        println!("[rp] nappe halves above {above}: {}", door_over(&body, cone_faces(&body)));
+        for theta in [0.7, 0.7 + core::f64::consts::PI, 0.02] {
+            let y = on_section(shape, cut, theta).y + if above { 0.03 } else { -0.03 };
+            let f = rp_ball_class::<f64>(shape, cut, above, rp_on_wall(shape, theta, y), 0.01);
+            println!("[rp] nappe ball above {above} theta {theta}: {f}");
+            assert_ne!(f, "Embedded");
+        }
+    }
+}

@@ -4697,6 +4697,11 @@ fn present_curved<'a>(
             }
             Err(e) => return Err(e),
         };
+        let above = if matches!(piece.surface, Surface::Cone { .. }) && mutant("side_flip_curve") {
+            !above
+        } else {
+            above
+        };
         // A run through the vertex: the part of it on the shared cell is
         // the curve's, or the straight edge's it gives way to.
         let running = through.as_ref().zip(run).and_then(|(th, share)| {
@@ -6014,6 +6019,11 @@ fn present_line_corner<'a>(
     let (held, moving) = (iso.held, iso.held.other());
     let line = placed(surface, iso, sheet, held.of(cell)).ok_or(Unpresented::Structural)?;
     let sigma = face_side(ue, iso, b.orientation()).ok_or(Unpresented::Local)?;
+    let sigma = if matches!(surface, Surface::Cone { .. }) && mutant("side_flip_line") {
+        -sigma
+    } else {
+        sigma
+    };
     let [i0, i1] = ue.image.ok_or(Unpresented::Local)?;
     let (mlo, mhi) = moving.of(cell);
     let vm = iso.moving(if e.ends[0] == c.vertex { i0 } else { i1 });
