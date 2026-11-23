@@ -235,33 +235,10 @@ fn both_witnesses_build_under_every_boolean() {
 /// roots' phase is the first-harmonic door's degenerate case. The phase
 /// is read within half a turn of the span's middle
 /// (`geom::Azimuth::near`), so an enclosure of it stays as narrow as its
-/// inputs and each op builds, its volume bracketing the oracle's.
+/// inputs and each op builds, its volume bracketing the oracle's. At
+/// ε 1e-12 the ops [`PLAIN_FRAME_COST`] names refuse instead.
 #[test]
 fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
-    // Pinned at ε 1e-12: a ∪ b and a ∖ b build, and b ∖ a refuses its
-    // seam crossing, the jet's `tangent_second_order` escalating, margin
-    // in (1.3e-12, 1.45e-12] (measured 1.380e-12). Cause: the frame cost,
-    // the balls' frames built at Interval from bracket inputs (fork 274,
-    // `geom_core::test_support::at_the_frame_cost_band`); mutant F1X
-    // builds every op, and turns this pin red. The pcurve envelope
-    // `work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`
-    // names is not reached.
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the plain witness",
-        &[
-            "Interval b ∖ a: wanted a body",
-            "Escalated { decision: SeamJet",
-            "hi: 1.3",
-            "predicate: Some(\"tangent_second_order\")",
-        ],
-        the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row,
-    );
-}
-
-/// The row [`the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar`] runs, under its pin.
-fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row() {
     use crate::common::interval::iv;
     use geom_core::Bounds;
     let tol = Tol::witness();
@@ -280,6 +257,23 @@ fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row() {
         ("b ∖ a", topo::subtract(&b, &a, tol), vb - l),
         ("a ∩ b", topo::intersect(&a, &b, tol), l),
     ] {
+        if crate::common::frame_cost::at_the_least_band() && PLAIN_FRAME_COST.contains(&op) {
+            assert!(
+                matches!(
+                    &out,
+                    Err(BooleanError::Escalated { decision: topo::BooleanDecision::SeamJet, diag })
+                        if crate::common::frame_cost::escalated(
+                            diag,
+                            "tangent_second_order",
+                            (1.3e-12, 1.45e-12),
+                        )
+                ),
+                "Interval {op}: pinned to escalate its seam jet, tangent_second_order in \
+                 (1.3e-12, 1.45e-12], at ε 1e-12: {:?}",
+                out.as_ref().map(|_| "a result")
+            );
+            continue;
+        }
         let Ok(BooleanResult::Body(out)) = &out else {
             panic!(
                 "Interval {op}: wanted a body, got {:?}",
@@ -302,6 +296,17 @@ fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row() {
         );
     }
 }
+
+/// The ops of [`the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar`]
+/// that refuse at ε 1e-12 (`crate::common::frame_cost::at_the_least_band`):
+/// the seam crossing's jet escalates `tangent_second_order` with its
+/// margin in `(1.3e-12, 1.45e-12]` (measured 1.380e-12). Cause: bracket,
+/// the balls' frames built at `Interval` from bracket inputs (fork 274);
+/// mutant F1X (PR 7131's body) builds every op, and turns this pin red.
+/// The pcurve envelope
+/// `work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`
+/// names is not reached at 1e-12, with the mutant or without it.
+const PLAIN_FRAME_COST: [&str; 1] = ["b ∖ a"];
 
 /// The small ball's radius, from a pebble to one larger than the unit
 /// ball, against its centre's height across the whole crossing range

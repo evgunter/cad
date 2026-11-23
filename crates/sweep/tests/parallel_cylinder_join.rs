@@ -472,18 +472,10 @@ fn tipped_rod_refuses_as_pinned(r: f64, c: f64, half: f64, theta: f64) -> bool {
     if !(crate::common::frame_cost::at_the_least_band() && TIPPED_ROD_FRAME_COST.contains(&half)) {
         return false;
     }
-    let got = try_tipped(r, c, half, theta).map(|_| ());
-    assert!(
-        matches!(
-            &got,
-            Err(findings) if crate::common::frame_cost::volume_escalates(
-                findings.as_slice(),
-                "props_cylinder_circle_off_axis",
-                (1.15e-12, 1.25e-12),
-            )
-        ),
-        "the rod r {r} at {c}, half-length {half}, tipped {theta:e}: pinned to refuse its own \
-         finish, props_cylinder_circle_off_axis in (1.15e-12, 1.25e-12], at ε 1e-12: {got:?}"
+    crate::common::frame_cost::assert_rod_refuses_its_finish(
+        &format!("the rod r {r} at {c}, half-length {half}, tipped {theta:e}"),
+        &try_tipped(r, c, half, theta).map(|_| ()),
+        (1.15e-12, 1.25e-12),
     );
     true
 }

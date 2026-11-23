@@ -294,19 +294,10 @@ fn the_off_face_touches_build_at_every_scale() {
                 && ROD_FRAME_COST.contains(&l)
                 && label.ends_with("rod")
             {
-                // A stored frame read as its polar enclosure (decision 1).
-                let got = topo::finish(b.clone(), Tol::witness()).map(|_| ());
-                assert!(
-                    matches!(
-                        &got,
-                        Err(findings) if crate::common::frame_cost::volume_escalates(
-                            findings.as_slice(),
-                            "props_cylinder_circle_off_axis",
-                            (1.5e-12, 1.65e-12),
-                        )
-                    ),
-                    "{label}: the rod pinned to refuse its own finish, \
-                     props_cylinder_circle_off_axis in (1.5e-12, 1.65e-12], at ε 1e-12: {got:?}"
+                crate::common::frame_cost::assert_rod_refuses_its_finish(
+                    &label,
+                    &topo::finish(b.clone(), Tol::witness()).map(|_| ()),
+                    (1.5e-12, 1.65e-12),
                 );
                 test_utils::vacuity::stood_down(
                     &format!("{label} at ε {eps:e}"),
