@@ -1868,7 +1868,9 @@ fn spline_crossings<T: Decide>(
         let sine = dp.cross(da).norm() / (dp.norm() * da.norm());
         // A crossing is a definite sign read at the meeting: its lever is
         // the piece's reach from there, from below (a piece met at its
-        // middle reaches half its chord).
+        // middle reaches half its chord). No row holds the arc's: no pose
+        // tried reaches this reading against a circle piece with a lever
+        // that decides apart (`crossing_reach_rows`' module doc).
         let (t0, t1) = params;
         let length = crate::cover::piece_reach_bounds(
             &curve,
