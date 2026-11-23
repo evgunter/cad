@@ -289,6 +289,9 @@
 //! [`MAX_CORRECTION_ROUNDS`]. Lattice nodes are a fixed, (v, u)-sorted
 //! list computed once, before the loop; a fold drops a node by its index,
 //! and the shared-side and correction arms append, so indices only grow.
+//! A cylinder face lays no lattice node, so a fold there drops only a point
+//! one of those arms inserted, and a fold with none of its corners such a
+//! point refuses typed ([`TessellateError::FoldedTriangle`]).
 //! An attempt's interior positions belong to that attempt: the patch
 //! this lane returns is the ACCEPTED attempt's, and a retried attempt's
 //! points are dropped with it.
@@ -624,14 +627,21 @@ pub(crate) fn tessellate_trimmed(
             // pass bounded this face's boundary UV steps by (`arm_steps`),
             // and the lattice the row lays from them.
             let (hu, hv) = a.lattice_steps(arm_steps(a, tol.delta));
-            let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
+            let columns = ceil_count(u1 - u0, hu)?;
+            // The pole-side rule thins the columns a lattice lays beside a
+            // singular point; a cylinder has none, so it keeps `columns`,
+            // and lays no row ([`AnalyticRow::lattice_rows`]): its column
+            // count is read by the metric below and by nothing else.
+            let nu = pole_side_columns(&polygon, &singular, (u0, u1), columns)?;
             let rows = a.lattice_rows((v0, v1), (hu, hv))?;
             (
                 lattice_candidates((u0, u1), (v0, v1), nu, &rows),
                 None,
                 // The cone's CDT runs in its development and reads no
                 // metric; every other arm's rows are uniform, one fewer
-                // than their gaps.
+                // than their gaps, and a cylinder's none, so its one gap is
+                // the window's height ([`AnalyticRow::trimmed_metric`] says what
+                // that plane is for).
                 match a.development() {
                     Some(_) => 1.0,
                     None => a.trimmed_metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
@@ -1591,14 +1601,14 @@ impl TrimmedFace<'_> {
                 // census after this loop, which re-derives the fan about each
                 // walked side's vertex. The INGREDIENT
                 // half — a repeated id with a single interior column between
-                // the entries — is checked at the cylinder arm's `nu`, kept
-                // off at a singular point by `pole_side_columns`, and this
-                // emit pass also runs for
-                // NURBS, where there is no `nu`: the candidates come from
-                // the cell grid rather than a uniform division, so the
-                // "single interior column" has no analogue to test. That
-                // arm's ingredient check is therefore still an ARGUMENT
-                // and not a check.
+                // the entries — cannot arise on the cylinder, which lays no
+                // lattice node (`chart_table::AnalyticRow::lattice_rows`), is
+                // kept off at a singular point by `pole_side_columns`, and
+                // this emit pass also runs for NURBS, where there is no
+                // uniform column count: the candidates come from the cell
+                // grid, so the "single interior column" has no analogue to
+                // test. That arm's ingredient check is therefore still an
+                // ARGUMENT and not a check.
                 //
                 // ITS EMISSION IS NOT (issue 897). The census after this
                 // loop re-derives the CONCLUSION over the emitted patch,
@@ -4093,11 +4103,13 @@ pub(crate) mod tests {
     /// Whether any mesh id appears at two DIFFERENT UV locations in the
     /// trim polygon — the second ingredient of #678's non-manifold fan
     /// (`curved::pole_columns` carries the argument; the first ingredient
-    /// is a single interior column between them).
+    /// is a single interior column between them, which no lattice node
+    /// of this lane's cylinder can make, since it lays none).
     ///
     /// The rule for "different" is spade's and is stated once, at
-    /// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
-    /// function is that set's emptiness, which the rows below read.
+    /// `crate::cdt::ids_at_two_uvs`, which both lanes' censuses call; this
+    /// is that set's emptiness, for the rows here that hold the rule's two
+    /// edges (an ulp apart reads apart, `-0.0` against `0.0` does not).
     fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
         !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
     }
@@ -5635,7 +5647,10 @@ pub(crate) mod tests {
     /// the face refuses typed; with the budget as shipped it meshes. At
     /// δ `5·10⁻²` and `2·10⁻²`: finer, at `5·10⁻³`, the face's first
     /// attempt on its boundary points keeps no such side. Set on a
-    /// one-thread pool's worker, which runs the faces.
+    /// one-thread pool's worker, which runs the faces. A lane that asked
+    /// for a rebuild on its last attempt instead of refusing would not
+    /// fail this row's assertion but `tessellate_trimmed`'s `unreachable!`
+    /// ("the last attempt accepts or refuses"), a panic on the same cells.
     #[test]
     fn a_shared_side_the_budget_leaves_refuses_typed() {
         use geom_core::Tol;

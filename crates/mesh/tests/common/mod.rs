@@ -12,6 +12,10 @@
 /// on, shared with `curved`'s in-crate rows (its own header says how).
 pub mod witness_bodies;
 
+/// Pipe walls the chart lane meshes with no lattice node, and the count
+/// such a face holds.
+pub mod rowless;
+
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2};

@@ -1,305 +1,164 @@
 //! **The chart lane lays no rows on a cylinder face**
-//! (`chart_table::AnalyticRow::lattice_rows`): a pipe wall notched or
-//! holed, or cut by a tilted plane, is triangulated on its boundary
-//! points alone, each triangle held by its certificate. Each row pins a
-//! relation to a reference meshed in the same run: the plain wall of the
-//! same pipe on the rectangle lane at the same δ.
+//! (`chart_table::AnalyticRow::lattice_rows`): a pipe wall notched,
+//! holed or cut on a tilt is triangulated on its boundary points, and a
+//! triangle whose certificate refuses gets a point inside it and the face
+//! is triangulated again (`trimmed`, "The retry loop").
+//!
+//! **What such a face holds, exactly.** A constrained triangulation of a
+//! polygon with `n` vertices, `h` holes and `p` points inside it has
+//! `T = n − 2 + 2h + 2p` triangles: it is a connected planar graph with
+//! `V = n + p` vertices, `n` boundary edges, every inner face a triangle
+//! and `h + 1` outer ones, so `E = (3T + n)/2` and `V − E + (T + 1 + h)
+//! = 2`. On this lane `n` is the trim polygon's points, each traversal of
+//! an edge its chord points but the last (a seam the loop walks twice
+//! counts twice, as the polygon holds two copies of it at two azimuths);
+//! no triangle with two copies of one vertex is dropped on a cylinder,
+//! which has no singular point; and `p` is every point the lane inserted:
+//! with no lattice, the shared-side cure's points and the correction's
+//! ([`common::rowless::count`]). So `p = 0` is "no rows and nothing
+//! refused", and each point the correction adds costs two triangles.
+//! The count does not cover a pinch, or a vertex a loop meets again on
+//! one branch: that is one vertex of the triangulation counted twice in
+//! `n`. No body of these rows has one.
+//!
+//! What the counts come to against the plain wall of the same pipe on
+//! the rectangle lane at the lane's target (half of δ) is measured, not
+//! held: a notched wall 0.88–1.06 times, a wall with a hole 1.24–1.38, a
+//! bar of half-width 0.6 or 0.9 of the radius through it 1.48–1.63 and
+//! 1.76–1.88, a comb of six notches 1.30 at δ 10⁻², and a wall cut on a
+//! tilt `φ` about `(1 + cos^{−3/2} φ)/2` (1.00 to 5.35 for `φ` 0.05 to
+//! 1.35): the count follows the boundary's points, and those follow the
+//! boundary's length round the axis.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::SurfaceKind;
-use geom_core::{Affine3, Point3, Vec3};
-use sweep::test_support::{brick, finished};
-use topo::{AtRestBody, Body};
+use topo::Body;
 
-use crate::reach_probes::{geometry, op_of, posed, rod, tol};
+use crate::common::rowless::{Count, count, tilted, two_holes, walls};
+use crate::reach_probes::{geometry, geometry_but_the_volume, tol};
 use crate::split_rulings::{rulings, split_and_placed};
 
-/// The pipe every row cuts: radius 1 over `z ∈ (−2, 2)`.
-const PIPE: (f64, f64, f64) = (1.0, -2.0, 4.0);
-
-/// The triangles `mesh` holds on `body`'s cylinder faces.
-fn cylinder_triangles(body: &Body<f64>, mesh: &mesh::Mesh) -> usize {
-    mesh.patches
-        .iter()
-        .filter(|p| body.face_surface(p.face).unwrap().kind() == SurfaceKind::Cylinder)
-        .map(|p| p.triangles.len())
-        .sum()
+/// `body` at `delta` meshes, passes `check_mesh` and is the body's
+/// ([`geometry`]); each cylinder face's [`Count`].
+fn counts(what: &str, body: &Body<f64>, delta: f64) -> Vec<Count> {
+    counts_reading(what, body, delta, true)
 }
 
-/// The points `mesh`'s cylinder faces hold inside them: on a face that
-/// lays no lattice node, the points the lane added (the correction's of
-/// a triangle read over δ, a shared side's), each of which adds two
-/// triangles to a triangulation of the boundary points alone.
-fn added_points(body: &Body<f64>, mesh: &mesh::Mesh) -> usize {
-    let boundary: std::collections::HashSet<u32> = mesh
-        .boundaries
-        .iter()
-        .flat_map(|b| b.points.iter().copied())
-        .collect();
-    mesh.patches
-        .iter()
-        .filter(|p| body.face_surface(p.face).unwrap().kind() == SurfaceKind::Cylinder)
-        .flat_map(|p| p.triangles.iter().flatten().copied())
-        .filter(|i| !boundary.contains(i))
-        .collect::<std::collections::HashSet<u32>>()
-        .len()
-}
-
-/// `body` at `delta`: it meshes, `check_mesh` and the body's geometry
-/// hold ([`geometry`]), and its cylinder faces' triangles and added
-/// points ([`added_points`]).
-fn meshed_cylinder_faces(what: &str, body: &Body<f64>, delta: f64) -> (usize, usize) {
+/// [`counts`], reading the volume only where `volume` (a body whose
+/// line edges are split is not finished, and its mass properties are not
+/// read: [`geometry_but_the_volume`]).
+fn counts_reading(what: &str, body: &Body<f64>, delta: f64, volume: bool) -> Vec<Count> {
     let mesh = mesh::tessellate(body, delta, tol())
         .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: meshes, got {e:?}"));
     mesh::validate::check_mesh(&mesh)
         .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: check_mesh, got {e:?}"));
-    geometry(body, &mesh, delta).unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e}"));
-    (cylinder_triangles(body, &mesh), added_points(body, &mesh))
-}
-
-/// `body` at `delta`: it meshes, `check_mesh` and the body's geometry
-/// hold ([`geometry`]), and its cylinder faces' triangles.
-fn meshed_cylinder_triangles(what: &str, body: &Body<f64>, delta: f64) -> usize {
-    let mesh = mesh::tessellate(body, delta, tol())
-        .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: meshes, got {e:?}"));
-    mesh::validate::check_mesh(&mesh)
-        .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: check_mesh, got {e:?}"));
-    geometry(body, &mesh, delta).unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e}"));
-    cylinder_triangles(body, &mesh)
-}
-
-/// A bar `x × (−w, w) × z` turned `turn` about the pipe's axis.
-fn bar(x: (f64, f64), w: f64, z: (f64, f64), turn: f64) -> AtRestBody<f64> {
-    posed(
-        "the bar",
-        brick(x, (-w, w), z, tol()),
-        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn),
-    )
-}
-
-/// The notched and holed walls of a pipe of radius `r` over
-/// `z ∈ (z0, z0 + h)`, each named: a notch down from the top rim across
-/// the chart's seam and beside it, a narrow and a wide one, two notches,
-/// and a bar through (a notch across the seam and a hole).
-fn walls(r: f64, z0: f64, h: f64) -> Vec<(String, Body<f64>)> {
-    let pipe = finished("the pipe", rod(r, z0, h), tol());
-    let top = z0 + h;
-    let notch = |w: f64, depth: f64, turn: f64| {
-        bar(
-            (0.0, 1.1 * r),
-            w * r,
-            (top - depth * h, top + 0.5 * h),
-            turn,
-        )
-    };
-    let mut out: Vec<(String, Body<f64>)> = [
-        ("a notch across the seam", notch(0.3, 0.5, 0.0)),
-        ("a notch beside the seam", notch(0.3, 0.5, 1.0)),
-        ("a narrow deep notch", notch(0.1, 0.875, 1.0)),
-        ("a wide shallow notch", notch(0.6, 0.125, 1.0)),
-    ]
-    .into_iter()
-    .map(|(what, b)| (what.to_owned(), op_of(&pipe, &b, "A ∖ B")))
-    .collect();
-    let two = topo::union(&notch(0.3, 0.5, 1.0), &notch(0.3, 0.5, 2.5), tol()).unwrap();
-    let two = finished("two bars", Body::clone(&two.body().unwrap().body), tol());
-    out.push(("two notches".to_owned(), op_of(&pipe, &two, "A ∖ B")));
-    let through = bar(
-        (-1.1 * r, 1.1 * r),
-        0.3 * r,
-        (z0 + 0.4 * h, z0 + 0.6 * h),
-        0.0,
-    );
-    out.push(("a bar through".to_owned(), op_of(&pipe, &through, "A ∖ B")));
-    out
-}
-
-/// FNV-1a over a mesh's positions' bits, its patches' faces and
-/// triangles, and its boundary polylines.
-fn digest(mesh: &mesh::Mesh) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut eat = |x: u64| {
-        for b in x.to_le_bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0100_0000_01b3);
-        }
-    };
-    for p in &mesh.positions {
-        eat(p.x.to_bits());
-        eat(p.y.to_bits());
-        eat(p.z.to_bits());
+    if volume {
+        geometry(body, &mesh, delta)
+    } else {
+        geometry_but_the_volume(body, &mesh, delta)
     }
-    for patch in &mesh.patches {
-        for t in &patch.triangles {
-            for &i in t {
-                eat(u64::from(i));
-            }
-        }
-    }
-    for b in &mesh.boundaries {
-        for &i in &b.points {
-            eat(u64::from(i));
-        }
-    }
-    h
+    .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e}"));
+    mesh.patches
+        .iter()
+        .filter(|p| body.face_surface(p.face).unwrap().kind() == SurfaceKind::Cylinder)
+        .map(|p| count(body, &mesh, p.face))
+        .collect()
 }
 
-/// The pipe of radius `r` over `z ∈ (z0, z0 + h)` below a plane through
-/// its middle tilted `tilt` about `y`.
-fn tilted(r: f64, z0: f64, h: f64, tilt: f64) -> Body<f64> {
-    let pipe = finished("the pipe", rod(r, z0, h), tol());
-    let below = posed(
-        "the half space",
-        brick(
-            (-3.0 * r, 3.0 * r),
-            (-3.0 * r, 3.0 * r),
-            (z0 - h, z0 + 0.5 * h),
-            tol(),
-        ),
-        Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, z0 + 0.5 * h),
-            Vec3::new(0.0, 1.0, 0.0),
-            tilt,
-        ),
-    );
-    op_of(&pipe, &below, "A ∩ B")
-}
-
-/// The plain wall's triangles at δ: the rectangle lane's, which lays one
-/// column strip per sagitta step.
-fn reference(delta: f64) -> usize {
-    let (r, z0, h) = PIPE;
-    meshed_cylinder_triangles("the plain pipe", &rod(r, z0, h), delta)
-}
-
-/// **A notched or holed wall takes the plain wall's triangles, and a
-/// hole's span twice, and two for each point the lane added.** Each wall
-/// of [`walls`] at δ `10⁻²` and `10⁻³` meshes, is the body's, and holds at
-/// most 1.15 times the plain wall's triangles at δ, or 1.5 times with a
-/// hole, plus two per added point ([`added_points`]): its pieces are
-/// strips between two rows of boundary points, a hole's span is two
-/// strips, and a point inside a triangulation adds two triangles
-/// (measured 1.014–1.146 and 1.278–1.500; a notch's own boundary points
-/// are a larger share of the coarser δ's strips). Laid rows made 4 to 220
-/// times.
-#[test]
-fn a_notched_or_holed_wall_takes_its_strips_triangles() {
-    let (r, z0, h) = PIPE;
-    for delta in [1e-2, 1e-3] {
-        let reference = reference(delta);
-        for (what, body) in walls(r, z0, h) {
-            let (n, p) = meshed_cylinder_faces(&what, &body, delta);
-            let share = if what == "a bar through" { 1.5 } else { 1.15 };
-            #[allow(clippy::cast_precision_loss)]
-            let ratio = (n - 2 * p) as f64 / reference as f64;
-            assert!(
-                ratio <= share,
-                "{what}, δ = {delta:e}: {n} triangles on its walls less two for each of its {p} \
-                 added points, {ratio:.3} times the plain wall's {reference}, past {share}"
-            );
-        }
-    }
-}
-
-/// **A wall cut by a plane tilted `φ` takes the plain wall's triangles
-/// over `cos φ`.** The tilted rim is an ellipse whose chart image is a
-/// sinusoid (no iso line), chorded at the lane's step along its length,
-/// which is the rim's over `cos φ` at most; the wall is one strip between
-/// it and the plain rim. At δ `10⁻²` and `10⁻³`, `φ` 0.05, 0.3 and 0.8
-/// (measured 1.000, 1.03–1.04 and 1.36–1.375 against 1.001, 1.047 and
-/// 1.435).
-#[test]
-fn a_wall_cut_on_a_tilt_takes_the_plain_walls_triangles_over_its_cosine() {
-    let (r, z0, h) = PIPE;
-    for delta in [1e-2, 1e-3] {
-        let reference = reference(delta);
-        for tilt in [0.05f64, 0.3, 0.8] {
-            let n = meshed_cylinder_triangles("the tilted wall", &tilted(r, z0, h, tilt), delta);
-            #[allow(clippy::cast_precision_loss)]
-            let ratio = n as f64 / reference as f64;
-            assert!(
-                ratio <= 1.0 / tilt.cos(),
-                "a wall cut on a tilt {tilt}, δ = {delta:e}: {n} triangles, {ratio:.3} times the \
-                 plain wall's {reference}, past 1/cos φ = {:.3}",
-                1.0 / tilt.cos()
-            );
-        }
-    }
-}
-
-/// **A notched wall with every line edge split takes one triangle more
-/// per split point at most.** Each wall of [`walls`] with each of its
-/// body's line edges split at its middle, placed obliquely
-/// (`split_rulings::split_and_placed`): its cylinder faces hold no fewer
-/// triangles than the unsplit wall's and at most one more per edge split,
-/// at δ `10⁻²` (measured: six more where six split points lie on the
-/// wall's rulings, twelve where twelve do).
-#[test]
-fn a_notched_wall_with_split_rulings_takes_a_triangle_per_point() {
-    let (r, z0, h) = PIPE;
-    let delta = 1e-2;
-    for (what, body) in walls(r, z0, h) {
-        let n = meshed_cylinder_triangles(&what, &body, delta);
-        let lines = rulings(&body);
-        let split = split_and_placed(&body, &lines, &[0.5]);
-        let mesh = mesh::tessellate(&split, delta, tol())
-            .unwrap_or_else(|e| panic!("{what}, split: meshes, got {e:?}"));
-        mesh::validate::check_mesh(&mesh)
-            .unwrap_or_else(|e| panic!("{what}, split: check_mesh, got {e:?}"));
-        mesh::validate::check_winding(&mesh)
-            .unwrap_or_else(|e| panic!("{what}, split: winding, got {e:?}"));
-        let ns = cylinder_triangles(&split, &mesh);
+/// Each count is Euler's, and `inserted` holds of its `p`.
+fn holds(what: &str, delta: f64, counts: &[Count], inserted: impl Fn(usize) -> bool) {
+    assert!(!counts.is_empty(), "{what}: a cylinder face");
+    for c in counts {
+        assert_eq!(
+            c.triangles,
+            c.euler(),
+            "{what}, δ = {delta:e}: {c:?} is no triangulation of its points"
+        );
         assert!(
-            n <= ns && ns <= n + lines.len(),
-            "{what}: split {ns} triangles against {n} unsplit, {} edges split",
-            lines.len()
+            inserted(c.p),
+            "{what}, δ = {delta:e}: {c:?} inserted {} points",
+            c.p
         );
     }
 }
 
-/// **The mesh is a function of the body and δ.** A notched wall, a holed
-/// one and one cut on a tilt at δ `10⁻²`, digested (positions' bits,
-/// triangles, boundaries), are the same bytes at every ε the suite runs
-/// (1e-9, 1e-6 and 1e-12 read, as below): nothing the chart lane does on
-/// a cylinder face reads ε.
+/// **A notched, holed or tilted wall is its boundary points and nothing
+/// else.** The walls of `common::rowless::walls` (notches across and
+/// beside the seam, narrow, wide, two, a comb of six; bars through of
+/// half-width 0.3, 0.6 and 0.9 of the radius) and the wall cut on a tilt
+/// of 0.05, 0.3, 0.8, 1.25 and 1.35, at δ 10⁻¹, 10⁻² and 10⁻³: every
+/// cylinder face holds `n − 2 + 2h` triangles, no point inserted.
 #[test]
-fn a_rowless_cylinder_face_meshes_the_same_bytes_at_every_eps() {
-    let (r, z0, h) = PIPE;
-    let walls = walls(r, z0, h);
-    let named = |what: &str| &walls.iter().find(|(w, _)| w == what).unwrap().1;
-    for (what, body, want) in [
-        (
-            "a notch across the seam",
-            named("a notch across the seam"),
-            0x3ac0_c520_f657_680au64,
-        ),
-        (
-            "a bar through",
-            named("a bar through"),
-            0xb423_1541_1c6f_89bf,
-        ),
-        (
-            "a wall cut on a tilt 0.3",
-            &tilted(r, z0, h, 0.3),
-            0xd675_df37_7f26_6dd7,
-        ),
-    ] {
-        let got = digest(&mesh::tessellate(body, 1e-2, tol()).unwrap());
-        assert_eq!(got, want, "{what}: the mesh's digest {got:#018x}");
+fn a_cut_wall_is_its_boundary_points_alone() {
+    for delta in [1e-1, 1e-2, 1e-3] {
+        for (what, body) in walls() {
+            holds(what, delta, &counts(what, &body, delta), |p| p == 0);
+        }
+        for tilt in [0.05, 0.3, 0.8, 1.25, 1.35] {
+            let what = format!("a wall cut on a tilt {tilt}");
+            holds(&what, delta, &counts(&what, &tilted(tilt), delta), |p| {
+                p == 0
+            });
+        }
     }
 }
 
-/// The distinct mesh points on face `fk`'s loops.
-pub(super) fn boundary_points(body: &Body<f64>, mesh: &mesh::Mesh, fk: topo::FaceKey) -> usize {
-    let mut ids = std::collections::HashSet::new();
-    for (lk, _, _) in body.face(fk).unwrap().loops() {
-        let (_, half_edges) = topo::props::loop_edges(body, lk).unwrap();
-        for hek in half_edges {
-            let edge = body.get_half_edge(hek).unwrap().edge;
-            let line = mesh.boundaries.iter().find(|b| b.edge == edge).unwrap();
-            ids.extend(line.points.iter().copied());
-        }
+/// **A split ruling is a boundary point more.** Each wall of
+/// `common::rowless::walls` with each of its body's line edges split at
+/// its middle, placed obliquely (`split_rulings::split_and_placed`), at
+/// δ 10⁻²: every cylinder face is still its boundary points alone, the
+/// split points among them.
+#[test]
+fn a_notched_wall_with_split_rulings_is_its_boundary_points_alone() {
+    let delta = 1e-2;
+    for (what, body) in walls() {
+        let split = split_and_placed(&body, &rulings(&body), &[0.5]);
+        holds(
+            what,
+            delta,
+            &counts_reading(what, &split, delta, false),
+            |p| p == 0,
+        );
     }
-    ids.len()
+}
+
+/// **Two small holes a column and a half apart mesh by the correction,
+/// at two triangles a point.** `common::rowless::two_holes`: with no
+/// point between the holes, the triangulation of the boundary points
+/// joins their facing corners across the gap, a side wider than the
+/// target's columns, and its certificate refuses; the lane puts a point
+/// inside each refused triangle and triangulates again. The cells are
+/// those that refuse with the correction off, at three scales, and the
+/// two of the first probe that refuse on the lane's former rows (`r =
+/// 10`, δ 0.1), which mesh here at the first attempt. Main refuses cells
+/// of the class at `r = 10`: those 2 of the first probe, and 10 of 108 of
+/// a second that PR 7526's review ran (gap 1.5 to 1.6, two and three
+/// holes). Measured: one round, four points, on every
+/// refusing cell, after which the worst certificate reads 0.48·δ to
+/// 0.49·δ. Every cell builds and meshes at every ε the suite runs.
+#[test]
+fn two_holes_across_a_column_and_a_half_mesh_by_the_correction() {
+    for (r, delta, h, gap, inserted) in [
+        (1.0, 1e-2, 1.0, 1.5, 4),
+        (1.0, 1e-2, 1.0, 1.6, 4),
+        (1.0, 1e-2, 1.9, 1.5, 4),
+        (1.0, 1e-3, 1.33, 1.5, 4),
+        (1.0, 1e-3, 1.33, 1.6, 4),
+        (1e-3, 1e-5, 1e-3, 1.5, 4),
+        (1e-3, 1e-5, 1e-3, 1.6, 4),
+        (1e-3, 1e-5, 1.9e-3, 1.5, 4),
+        (10.0, 0.1, 10.0, 1.5, 0),
+        (10.0, 0.1, 13.3, 1.5, 0),
+    ] {
+        let what = format!("two holes, r {r}, h {h}, gap {gap}");
+        let body = two_holes(r, h, gap, delta);
+        let counts = counts(&what, &body, delta);
+        let total: usize = counts.iter().map(|c| c.p).sum();
+        holds(&what, delta, &counts, |_| true);
+        assert_eq!(
+            total, inserted,
+            "{what}, δ = {delta:e}: the correction's points"
+        );
+    }
 }

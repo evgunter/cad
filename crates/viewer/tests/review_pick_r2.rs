@@ -87,22 +87,31 @@ struct Tally {
 /// their first edits, moved: grazes 147,955 → 147,952, refused
 /// candidates 17,532 → 16,824, rays with a refusal 8,358 → 8,244.
 ///
-/// RE-PINNED when the chart lane's cylinder arm stopped laying lattice
-/// rows (`mesh`'s `chart_table::AnalyticRow::lattice_rows`): the corpus's
-/// chart-lane cylinder faces mesh on their boundary points alone, so
-/// fewer rays land and fewer near-degenerate candidates reach the
-/// determinant. Against its merge base, which reads (451,512, 147,850,
-/// 16,596, 8,142) there: rays 451,512 → 424,728, grazes
-/// 147,850 → 138,718, refused candidates 16,596 → 11,004, rays with a
-/// refusal 8,142 → 5,130. `genuine_refused` stays empty.
+/// RE-PINNED when the curved lane's CDT came to run in the lattice
+/// metric (`tesslane/one-slit-band`): grazes 147,850 → 147,844, three in
+/// `tube_arc` after its first edit and three in `hollow_tube_elbow`
+/// open, whose torus patches take other diagonals. The 147,856 →
+/// 147,850 before it is main's, not this change's
+/// (`work/green/main-red-the-viewers-pick-tally-reads-six-grazes-short-of-its-pin.md`).
+///
+/// RE-PINNED again when the chart lane's cylinder arm stopped laying
+/// lattice rows (`mesh`'s `chart_table::AnalyticRow::lattice_rows`): the
+/// corpus's chart-lane cylinder faces are triangulated on their boundary
+/// points, with fewer vertices, and a ray is aimed at each subsampled
+/// vertex, so fewer rays are AIMED and fewer near-degenerate candidates
+/// reach the determinant. Measured on this tree and on its merged main
+/// beside it, which reads its own pin there: rays 451,512 → 424,728,
+/// grazes 147,844 → 138,712, refused candidates 16,596 → 11,004, rays
+/// with a refusal 8,142 → 5,130. `genuine_refused` stays empty.
 ///
 /// RE-PINNED when every chart-lane face came to size at δ, its
 /// certificate adding a point where a triangle reads over δ (`mesh`'s
 /// `[mesh.sizing]`), and the rims those faces share were chorded at δ:
-/// coarser chart-lane faces and their neighbours land fewer rays.
-/// Measured on main with the chart lane's rowless cylinder merged under
-/// it: rays 422,568, grazes 137,416, refused candidates 10,236, rays with
-/// a refusal 4,818. `genuine_refused` stays empty.
+/// coarser chart-lane faces and their neighbours hold fewer vertices, so
+/// fewer rays are aimed. Against the tree it merged, which reads
+/// (424,728, 138,712, 11,004, 5,130): rays → 422,568, grazes → 137,416,
+/// refused candidates → 10,236, rays with a refusal → 4,818.
+/// `genuine_refused` stays empty.
 const PINNED: (usize, usize, usize, usize) = (422_568, 137_416, 10_236, 4_818);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
