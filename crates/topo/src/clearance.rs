@@ -24,7 +24,8 @@
 //! face, the cells' and stations' point-in-face decisions run at `T`
 //! ([`crate::cell_region`]); a window that IS its face (an iso-bounded
 //! NURBS patch) asks neither door, since every cell and station of it
-//! is on the face.
+//! is on the face. Two faces' depths are read at `T` too, off their
+//! covers (`parted_in_depth`).
 //!
 //! # Two questions, one subdivision
 //!
@@ -48,8 +49,17 @@
 //! never folded into `refused`, which would be a claim that it was
 //! tried. A candidate the verifier does not confirm is
 //! [`EngineRefusal::WitnessUnverified`] (or, for an upper bound the box
-//! decides in part only, [`EngineRefusal::BoxDependent`]), and the
-//! sweep goes on.
+//! decides in part only, [`EngineRefusal::BoxDependent`]).
+//!
+//! **What a refusal does to the walk is the question's.** The
+//! injectivity question ends at its first FINDING, a verified crossing
+//! or a refusal, and reports that one: the refusal names the two faces
+//! of the cell pair it was made on, and the rest of the frontier is
+//! abandoned as it is at a crossing. A metric bound keeps the first
+//! refusal of each bound and reads on, so a definite violation still
+//! outranks a pair met earlier that the band or a budget stopped.
+//! Which finding is first is fixed by the walk's order
+//! ([`Sweep::run`]).
 //!
 //! # The one place a verdict is loose, stated at the door
 //!
@@ -87,8 +97,11 @@
 //! [`SELF_INTERSECTION_GAP`] (`d`, the separation a cell pair that does
 //! not touch in M must classify strictly positive) on the cells' boxes,
 //! and, where the box margin is indeterminate, [`CLEARANCE_SUPPORT_GAP`]
-//! on the gap between the cells' supports along one direction, which
-//! only discharges. Under the injectivity question a TOUCHING pair is
+//! on the gap between the cells' supports along one direction, and at a
+//! face pair's root [`CLEARANCE_DEPTH_GAP`] on the gap between the two
+//! faces' depths about an axis, a centre or a core circle
+//! (`parted_in_depth`): two lower bounds of the separation, which only
+//! discharge. Under the injectivity question a TOUCHING pair is
 //! decided instead by a local certificate ([`crate::injective`]), at
 //! that module's own sites. The
 //! cell and station verdicts the sweep asks for decide on
@@ -127,11 +140,13 @@ use crate::FaceContainment;
 use crate::cell_region::{
     Ball, BoundaryStop, CellRegion, cell_region_lifted, centre, lift_boundary, station_region,
 };
+use crate::census::depth_gap;
 use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
 use crate::live::{BoundaryMember, FaceView};
+use crate::validate::definitely_positive;
 use lift::{Lift, certified_lift};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -163,6 +178,16 @@ pub const SELF_INTERSECTION_GAP: &str = "self_intersection_gap";
 /// either bound: the comparand bounds the separation from below only,
 /// so a `Zero` here is no coincidence and no violation.
 pub const CLEARANCE_SUPPORT_GAP: &str = "clearance_support_gap";
+
+/// The funnel site name of the depth comparison — a lower bound on the
+/// separation between two faces, read off their depths about one site
+/// (the gap of [`crate::census::depth_gap`], less its pads), minus the
+/// requested clearance (`0` for the strict question), in metres against
+/// the linear band. Read as [`CLEARANCE_SUPPORT_GAP`] is: only a
+/// [`Sign::Positive`], which discharges the pair's root under either
+/// bound. Its own name, so the faces' depth margins and the cells'
+/// support margins are two populations.
+pub const CLEARANCE_DEPTH_GAP: &str = "clearance_depth_gap";
 
 /// How deep ONE cell pair may be subdivided before the engine refuses
 /// the rest of its subtree rather than refining it further.
@@ -510,9 +535,22 @@ pub enum EngineRefusal {
     Sliver {
         /// The funnel site that could not decide.
         predicate: &'static str,
+        /// The pair's face on the first side.
+        a: FaceKey,
+        /// Its face on the second side.
+        b: FaceKey,
     },
-    /// A budget was exhausted, typed and named.
-    Budget(CellBudget),
+    /// A budget was exhausted, typed and named, on a cell pair of two
+    /// faces: the pair whose split it refused, or the first pair of a
+    /// level it could not start.
+    Budget {
+        /// Which bound stopped the subdivision.
+        stop: CellBudget,
+        /// The pair's face on the first side.
+        a: FaceKey,
+        /// Its face on the second side.
+        b: FaceKey,
+    },
     /// A face whose carrier the engine does not read (E7: refuse
     /// typed, never downgrade to sampling): no admitted window, or, for
     /// the injectivity question, no kind that makes it injective.
@@ -586,9 +624,8 @@ pub enum EngineRefusal {
     /// A cell pair the interval pass classified as a definite violation
     /// of a lower bound, or as within an upper one, whose witness the
     /// caller's verifier did not confirm. The engine
-    /// reports what the verifier returned, verbatim, and goes on with
-    /// the sweep; whether the arm can fire is the verifier's property,
-    /// stated at the verifier.
+    /// reports what the verifier returned, verbatim; whether the arm can
+    /// fire is the verifier's property, stated at the verifier.
     ///
     /// Its own arm, and never a violation: a witness is a claim about a
     /// concrete configuration, and one the independent recomputation
@@ -597,6 +634,10 @@ pub enum EngineRefusal {
     WitnessUnverified {
         /// What the verifier could not confirm.
         what: String,
+        /// The pair's face on the first side.
+        a: FaceKey,
+        /// Its face on the second side.
+        b: FaceKey,
     },
     /// **An upper bound the box decides only in part.** The closest
     /// pair of the cells' stations, its separation enclosed over every
@@ -624,14 +665,16 @@ impl EngineRefusal {
     /// different evidence do not serialize alike.
     pub fn payload(&self) -> String {
         match self {
-            Self::Sliver { predicate } => (*predicate).to_owned(),
-            Self::Budget(k) => format!("{k:?}"),
+            Self::Sliver { predicate, a, b } => format!("{predicate} first={a:?} second={b:?}"),
+            Self::Budget { stop, a, b } => format!("{stop:?} first={a:?} second={b:?}"),
             Self::Unsupported {
                 carrier,
                 face,
                 side,
             } => format!("{carrier} {}={face:?}", side.name()),
-            Self::WitnessUnverified { what } => what.clone(),
+            Self::WitnessUnverified { what, a, b } => {
+                format!("first={a:?} second={b:?} {what}")
+            }
             Self::BoxDependent { a, b, separation } => {
                 format!(
                     "first={a:?} second={b:?} [{}, {}]",
@@ -659,7 +702,7 @@ impl EngineRefusal {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Sliver { .. } => "sliver",
-            Self::Budget(_) => "budget",
+            Self::Budget { .. } => "budget",
             Self::Unsupported { .. } => "unsupported",
             Self::WitnessUnverified { .. } => "witness_unverified",
             Self::BoxDependent { .. } => "box_dependent",
@@ -686,25 +729,52 @@ impl EngineRefusal {
     ) -> core::fmt::Result {
         let [first, second] = sides;
         match self {
-            Self::Sliver { predicate } => write!(
-                f,
-                "the separation sits wholly inside {predicate}'s ambiguity band, so no \
-                 refinement can decide it"
-            ),
-            Self::Budget(CellBudget::Depth { max_cell_depth }) => write!(
-                f,
-                "a cell pair was split {max_cell_depth} times, the depth budget, and is still \
-                 undecided"
-            ),
-            Self::Budget(CellBudget::Pairs { max_cell_pairs }) => write!(
-                f,
-                "the query examined {max_cell_pairs} cell pairs, its budget, with pairs still \
-                 undecided"
-            ),
-            Self::Budget(CellBudget::Resolution) => f.write_str(
-                "a cell pair could not be bisected: its midpoint lands on an endpoint, so the \
-                 f64 grid itself is the bound",
-            ),
+            Self::Sliver { predicate, a, b } => {
+                write!(f, "the separation of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " sits wholly inside {predicate}'s ambiguity band, so no refinement can \
+                     decide it"
+                )
+            }
+            Self::Budget { stop, a, b } => {
+                let pair = |f: &mut W| -> core::fmt::Result {
+                    write!(f, "face {a:?} of ")?;
+                    first(f)?;
+                    write!(f, " and face {b:?} of ")?;
+                    second(f)
+                };
+                match stop {
+                    CellBudget::Depth { max_cell_depth } => {
+                        f.write_str("a cell pair of ")?;
+                        pair(f)?;
+                        write!(
+                            f,
+                            " was split {max_cell_depth} times, the depth budget, and is still \
+                             undecided"
+                        )
+                    }
+                    CellBudget::Pairs { max_cell_pairs } => {
+                        write!(
+                            f,
+                            "the query examined {max_cell_pairs} cell pairs, its budget, with \
+                             pairs still undecided, the first of them of "
+                        )?;
+                        pair(f)
+                    }
+                    CellBudget::Resolution => {
+                        f.write_str("a cell pair of ")?;
+                        pair(f)?;
+                        f.write_str(
+                            " could not be bisected: its midpoint lands on an endpoint, so the \
+                             f64 grid itself is the bound",
+                        )
+                    }
+                }
+            }
             Self::Unsupported {
                 carrier,
                 face,
@@ -717,11 +787,17 @@ impl EngineRefusal {
                 side.of(sides)(f)?;
                 write!(f, ": it is {carrier}")
             }
-            Self::WitnessUnverified { what } => write!(
-                f,
-                "a pair the interval pass found below the lower bound or within the upper one \
-                 was not confirmed by the verifier: {what}"
-            ),
+            Self::WitnessUnverified { what, a, b } => {
+                write!(f, "a pair of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " the interval pass found below the lower bound or within the upper one was \
+                     not confirmed by the verifier: {what}"
+                )
+            }
             Self::PoisonEnclosure { a, b } => {
                 write!(f, "the enclosure between face {a:?} of ")?;
                 first(f)?;
@@ -968,8 +1044,10 @@ pub fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
 ///
 /// **`abandoned` is what the walk did not examine, spelled rather than
 /// hidden.** Calling it `refused` would claim it was tried. The bound
-/// sweep abandons the frontier it held when it stops at a verified
-/// violation, and a pair that only an upper bound still wanted once
+/// sweep abandons the frontier it held when it stops, at a verified
+/// violation or, for the injectivity question, at its first refusal;
+/// a level that does not fit its pair budget, which it never starts;
+/// and a pair that only an upper bound still wanted once
 /// that bound is proved, so a bound query that runs to completion with
 /// no upper bound has `abandoned == 0`. [`min_separation`] abandons a level that does not
 /// fit its pair budget and prices it into the bracket, so a completed
@@ -1016,7 +1094,8 @@ pub struct CellReceipt {
     /// ([`CertificateArm::ByKind`]), one per face, never subdivided.
     pub by_kind: usize,
     /// Cell pairs the walk never classified: what it still held when the
-    /// sweep verified a violation and stopped, and under
+    /// sweep stopped at its finding, a level that did not fit the pair
+    /// budget, and under
     /// [`min_separation`] a level that did not fit the pair budget, each
     /// pair priced into the bracket's `lo` unexamined.
     pub abandoned: usize,
@@ -1208,7 +1287,10 @@ pub struct BoundReport<W> {
 ///
 /// A lower bound's violation outranks everything: a pair closer than
 /// the lower bound is closer than any upper one too. A refusal outranks
-/// a holding answer, which is never presented over an unknown.
+/// a holding answer, which is never presented over an unknown. For a
+/// metric bound that ranking is over the whole walk; the injectivity
+/// question ends at its first finding, so its violation is one met
+/// before any refusal ([`Sweep::run`]).
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundVerdict<W> {
     /// A bound with no upper end holds over both carrier windows minus
@@ -1492,7 +1574,8 @@ impl Sweep {
     /// two violations at the same depth are still separated by the
     /// candidate order, which is the order of the sides' faces.
     ///
-    /// **It stops at the first VERIFIED violation.** `verify` is asked,
+    /// **It stops at the first VERIFIED violation, and the injectivity
+    /// question at its first refusal too.** `verify` is asked,
     /// in that shallowest-first order, about every cell pair the funnel
     /// classifies violating, and about an indeterminate pair that does
     /// not touch, at the root and at the depth floor; its first `Ok` is
@@ -1500,6 +1583,25 @@ impl Sweep {
     /// [`EngineRefusal::WitnessUnverified`] carrying its prose. A
     /// touching pair is never offered: its two cells share a point of M,
     /// and a pair of coincident stations there is no violation.
+    ///
+    /// **The order that makes a finding the first** is the same for a
+    /// refusal as for a violation: the faces injective by kind, each
+    /// against itself, in the order of the side's faces; then the
+    /// frontier, a level at a time, the candidates in ascending order of
+    /// their two faces' places in the sides, a split's children in its
+    /// cut's order. It reads no address and no hash, so one body asked
+    /// twice in one order of its faces reports one finding.
+    ///
+    /// **Whether a body passes is the shape's; which finding a body that
+    /// does not pass is told is the walk's.** A cell's enclosure is a box
+    /// on the frame's axes, so the level at which a pair is decided or
+    /// refused moves with the pose, and the candidates' order is the
+    /// caller's order of faces, which is the body's order of
+    /// construction. A body that crosses itself and also holds a place
+    /// the engine cannot read is therefore told the crossing in one pose
+    /// or order and the refusal in another, and never that it holds.
+    /// A metric bound keeps its first refusal and reads on to the end
+    /// of the frontier, where only a verified violation outranks it.
     ///
     /// **Its readings are its report's, not the caller's log** (audit
     /// row F41): every decision the walk and `verify` take runs in
@@ -1575,6 +1677,12 @@ impl Sweep {
                 sweep: self,
                 injective,
                 shared: &shared,
+                at_refusal: if injective {
+                    AtRefusal::End
+                } else {
+                    AtRefusal::ReadOn
+                },
+                faces: WindowFaces::of(wa, wb),
                 region: RegionMemo::at(self.band),
                 locals: LocalMemo::default(),
                 across: BTreeMap::new(),
@@ -1593,6 +1701,8 @@ impl Sweep {
             };
 
             let mut frontier: Vec<Task> = Vec::with_capacity(candidates.len());
+            // The candidate the sweep ended on, before any walk.
+            let mut ended_at = None;
             for (k, &(i, j)) in candidates.iter().enumerate() {
                 let (Some(x), Some(y), Some(&a), Some(&b), Some(sh)) = (
                     wa.get(i),
@@ -1634,20 +1744,21 @@ impl Sweep {
                     let sliver = |r: &Reading| match r {
                         Reading::Undecided(source) => Some(EngineRefusal::Sliver {
                             predicate: source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
+                            a: x.face,
+                            b: y.face,
                         }),
                         _ => None,
                     };
                     if let Some(r) = readings.below.as_ref().and_then(sliver) {
-                        q.lower_refusal.get_or_insert(r);
+                        q.keep_below(r);
                     }
                     if let Some(r) = readings.above.as_ref().and_then(sliver) {
                         q.upper_refusal.get_or_insert(r);
                     }
                     match q.settle(&readings, &at) {
-                        ControlFlow::Break(()) => {
-                            receipt.violated += 1;
-                            receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
-                            frontier.clear();
+                        ControlFlow::Break(bucket) => {
+                            bucket.count(&mut receipt);
+                            ended_at = Some(k);
                             break;
                         }
                         ControlFlow::Continue(Bucket::Discharged)
@@ -1660,8 +1771,7 @@ impl Sweep {
                         ControlFlow::Continue(bucket) => bucket.count(&mut receipt),
                     }
                     if q.answered() {
-                        receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
-                        frontier.clear();
+                        ended_at = Some(k);
                         break;
                     }
                     continue;
@@ -1676,7 +1786,10 @@ impl Sweep {
                         }
                         Err(r) => {
                             receipt.refused += 1;
-                            q.lower_refusal.get_or_insert(r);
+                            if q.refuse_below(r).is_break() {
+                                ended_at = Some(k);
+                                break;
+                            }
                         }
                     }
                     continue;
@@ -1695,6 +1808,10 @@ impl Sweep {
                 });
             }
 
+            if let Some(k) = ended_at {
+                receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
+                frontier.clear();
+            }
             let (receipt, deepest) = walk(self.budgets, receipt, frontier, wa, wb, &mut q);
             let Bound {
                 region,
@@ -1861,19 +1978,63 @@ fn walk<T: Real, Q: Question<T>>(
     (w.receipt, deepest)
 }
 
+/// **What a refusal of the lower bound does to the walk.**
+///
+/// A refusal is a finding. Whether the walk ends at one is the
+/// question's policy, apart from what kind of question it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AtRefusal {
+    /// The walk ends at its first finding, a refusal as a verified
+    /// violation, and that is the verdict: the injectivity question's.
+    /// What it would read on is the rest of a proof the refusal has
+    /// already denied.
+    End,
+    /// The first refusal is kept and the walk reads on: a metric bound's.
+    /// Its report is a requirement's, and a definite violation elsewhere
+    /// outranks a pair the band or a budget stopped.
+    ReadOn,
+}
+
+/// **Each side's window faces, by window index**: what a cell pair the
+/// walk never examined is named by.
+struct WindowFaces(Vec<FaceKey>, Vec<FaceKey>);
+
+impl WindowFaces {
+    fn of<T: Real>(wa: &[Window<'_, T>], wb: &[Window<'_, T>]) -> Self {
+        Self(
+            wa.iter().map(|w| w.face).collect(),
+            wb.iter().map(|w| w.face).collect(),
+        )
+    }
+
+    /// The two faces of `task`'s windows.
+    fn of_task(&self, task: &Task) -> (FaceKey, FaceKey) {
+        match (self.0.get(task.i), self.1.get(task.j)) {
+            (Some(&a), Some(&b)) => (a, b),
+            _ => unreachable!("a task's windows are the walk's"),
+        }
+    }
+}
+
 /// **The bound question, per cell pair**: what [`Sweep::run`] carries
 /// across its walk.
 struct Bound<'q, W, F> {
     sweep: &'q Sweep,
+    /// Whether the question is injectivity: the strict bound over one
+    /// body. Every other question is metric.
     injective: bool,
     /// What each candidate's two faces share, in M, by candidate.
     shared: &'q [Shared],
+    /// What a refusal of the lower bound does to the walk.
+    at_refusal: AtRefusal,
+    /// What a level that does not fit is named by.
+    faces: WindowFaces,
     region: RegionMemo,
     locals: LocalMemo,
     across: BTreeMap<(FaceKey, FaceKey), usize>,
     cornered: usize,
     widths: DischargeWidths,
-    /// The lower bound's first refusal (the strict question's too).
+    /// The lower bound's first refusal ([`Self::keep_below`]).
     lower_refusal: Option<EngineRefusal>,
     /// The upper bound's first refusal.
     upper_refusal: Option<EngineRefusal>,
@@ -1980,7 +2141,25 @@ impl<W, F> Bound<'_, W, F> {
             // did not evaluate. Its own class.
             Some(EngineRefusal::PoisonEnclosure { a, b })
         } else {
-            sliver(source).map(|predicate| EngineRefusal::Sliver { predicate })
+            sliver(source).map(|predicate| EngineRefusal::Sliver { predicate, a, b })
+        }
+    }
+
+    /// The lower bound's refusal, kept where it is the first.
+    fn keep_below(&mut self, refusal: EngineRefusal) {
+        self.lower_refusal.get_or_insert(refusal);
+    }
+
+    /// **A refusal of the lower bound on a cell pair the walk examined**:
+    /// kept, and `Break` where the question ends at it ([`AtRefusal`]).
+    /// The policy is read here and nowhere else. The pair's count is its
+    /// site's: a split the walk refused has counted it, and every other
+    /// site lands it in its [`Bucket`].
+    fn refuse_below(&mut self, refusal: EngineRefusal) -> ControlFlow<()> {
+        self.keep_below(refusal);
+        match self.at_refusal {
+            AtRefusal::End => ControlFlow::Break(()),
+            AtRefusal::ReadOn => ControlFlow::Continue(()),
         }
     }
 
@@ -2015,17 +2194,24 @@ impl<W, F> Bound<'_, W, F> {
                 b: at.y.face,
                 separation,
             },
-            None => EngineRefusal::WitnessUnverified { what },
+            None => EngineRefusal::WitnessUnverified {
+                what,
+                a: at.x.face,
+                b: at.y.face,
+            },
         }
     }
 
     /// **The definite readings, settled**: a pair below the lower bound
     /// is offered as a violation, one within the upper bound as its
-    /// proof. `Break` when the violation is verified, which ends the
-    /// sweep; otherwise which of the two the interval pass classified.
-    /// A candidate the verifier declines is
-    /// [`EngineRefusal::WitnessUnverified`] for its question.
-    fn settle<T>(&mut self, r: &Readings, at: &Offer<'_, '_, T>) -> ControlFlow<(), Bucket>
+    /// proof. A candidate the verifier declines is
+    /// [`EngineRefusal::WitnessUnverified`] for its question. `Break`
+    /// where the sweep ends on the pair, with the bucket it lands in:
+    /// violated where the violation is verified, refused where the
+    /// verifier declined it and the question ends at a refusal
+    /// ([`Self::refuse_below`]). Otherwise which of the two the interval
+    /// pass classified.
+    fn settle<T>(&mut self, r: &Readings, at: &Offer<'_, '_, T>) -> ControlFlow<Bucket, Bucket>
     where
         T: Real,
         F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
@@ -2035,11 +2221,17 @@ impl<W, F> Bound<'_, W, F> {
             match self.offer(at, self.below()) {
                 Ok(w) => {
                     self.violation = Some(w);
-                    return ControlFlow::Break(());
+                    return ControlFlow::Break(Bucket::Violated);
                 }
                 Err(what) => {
-                    self.lower_refusal
-                        .get_or_insert(EngineRefusal::WitnessUnverified { what });
+                    let refusal = EngineRefusal::WitnessUnverified {
+                        what,
+                        a: at.x.face,
+                        b: at.y.face,
+                    };
+                    if self.refuse_below(refusal).is_break() {
+                        return ControlFlow::Break(Bucket::Refused);
+                    }
                 }
             }
             bucket = Bucket::Violated;
@@ -2225,7 +2417,7 @@ where
                     }
                     Outcome::Refuse(r) => {
                         walk.receipt.refused += 1;
-                        self.lower_refusal.get_or_insert(r);
+                        return self.refuse_below(r);
                     }
                     Outcome::Cusp { .. } => {
                         unreachable!("read as a split or a refusal above")
@@ -2250,14 +2442,18 @@ where
                             })
                         };
                         if let Err(stop) = split {
-                            self.lower_refusal.get_or_insert(match stop {
+                            return self.refuse_below(match stop {
                                 CellBudget::Depth { .. } => EngineRefusal::Uncertified {
                                     a: x.face,
                                     b: y.face,
                                     shared,
                                     arm,
                                 },
-                                other => EngineRefusal::Budget(other),
+                                stop => EngineRefusal::Budget {
+                                    stop,
+                                    a: x.face,
+                                    b: y.face,
+                                },
                             });
                         }
                     }
@@ -2276,10 +2472,18 @@ where
             return ControlFlow::Continue(());
         }
         let mut r = self.read(pending, separation(&pair.a.enc, &pair.b.enc));
-        // **Apart along a direction.** Where the boxes leave a reading
-        // indeterminate, the cells' supports may still put the pair
-        // clear of that bound.
-        let support = |c: Interval| separated_by_support(pair, x, y, c, band);
+        // **Parted in depth, or apart along a direction.** Where the
+        // boxes leave a reading indeterminate, the cells' supports may
+        // still put the pair clear of that bound, and so may the two
+        // faces' depths. Those are a fact of the faces, the same at
+        // every cell, so they are read once: at the pair's root, the
+        // two windows whole, which is the one pair of a candidate no
+        // split has made (`depth` counts the splits above a pair).
+        let root = pair.depth == 0;
+        let support = |c: Interval| {
+            (root && parted_in_depth(x, y, c, band, Interval::from_certified))
+                || separated_by_support(pair, x, y, c, band)
+        };
         if let (Some(Reading::Undecided(source)), Some(lo)) = (&r.below, bound.lower())
             && !source.margin.is_invalid()
             && along.unwrap_or_else(|| support(lo))
@@ -2302,10 +2506,11 @@ where
             meeting: None,
         };
         // Verified HERE, not after the sweep: a verified violation ends
-        // the query, and an unverified one must not.
+        // the query, and an unverified one ends only the question that
+        // ends at a refusal.
         let mut bucket = match self.settle(&r, &at) {
-            ControlFlow::Break(()) => {
-                walk.receipt.violated += 1;
+            ControlFlow::Break(bucket) => {
+                bucket.count(&mut walk.receipt);
                 return ControlFlow::Break(());
             }
             ControlFlow::Continue(bucket) => bucket,
@@ -2356,8 +2561,11 @@ where
             }
             match Self::terminal(source, x.face, y.face) {
                 Some(refusal) => {
-                    self.lower_refusal.get_or_insert(refusal);
                     bucket = Bucket::Refused;
+                    if self.refuse_below(refusal).is_break() {
+                        bucket.count(&mut walk.receipt);
+                        return ControlFlow::Break(());
+                    }
                 }
                 None => split.below = true,
             }
@@ -2414,32 +2622,49 @@ where
         };
         if let Err(stop) = walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
         {
-            let refusal = EngineRefusal::Budget(stop);
-            if split.below {
-                self.lower_refusal.get_or_insert(refusal.clone());
-            }
+            let refusal = EngineRefusal::Budget {
+                stop,
+                a: x.face,
+                b: y.face,
+            };
             if split.above {
-                self.upper_refusal.get_or_insert(refusal);
+                self.upper_refusal.get_or_insert(refusal.clone());
+            }
+            if split.below {
+                return self.refuse_below(refusal);
             }
         }
         ControlFlow::Continue(())
     }
 
-    /// **The bound sweep REFUSES a level that does not fit**: its answer
-    /// is a verdict over every cell pair, and these are pairs it could
-    /// not classify, so the verdict refuses for them, under each bound
-    /// they were still examined for ([`CellBudget::Pairs`]).
+    /// **A level that does not fit refuses the verdict and is counted
+    /// abandoned**: the answer is a verdict over every cell pair, and
+    /// these are pairs nobody examined, so each bound they were still
+    /// open for refuses ([`CellBudget::Pairs`]), naming the first of
+    /// them, and none is counted refused, which would say it was tried.
+    /// The walk ends here whatever the question's policy.
     fn overflow(&mut self, receipt: &mut CellReceipt, frontier: Vec<Task>) {
-        receipt.refused += frontier.len();
-        let refusal = EngineRefusal::Budget(CellBudget::Pairs {
-            max_cell_pairs: self.sweep.budgets.max_cell_pairs,
-        });
-        if frontier.iter().any(|t| t.open.below) {
-            self.lower_refusal.get_or_insert(refusal.clone());
+        let refusal = |task: &Task| {
+            let (a, b) = self.faces.of_task(task);
+            EngineRefusal::Budget {
+                stop: CellBudget::Pairs {
+                    max_cell_pairs: self.sweep.budgets.max_cell_pairs,
+                },
+                a,
+                b,
+            }
+        };
+        let below = frontier.iter().find(|t| t.open.below).map(refusal);
+        let above = frontier.iter().find(|t| t.open.above).map(refusal);
+        if let Some(refusal) = below {
+            self.keep_below(refusal);
         }
-        if frontier.iter().any(|t| t.open.above) && self.within.is_none() {
+        if let Some(refusal) = above
+            && self.within.is_none()
+        {
             self.upper_refusal.get_or_insert(refusal);
         }
+        receipt.abandoned += frontier.len();
     }
 }
 
@@ -2988,10 +3213,7 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
             floor: f64::INFINITY,
             poison: None,
             region: RegionMemo::at(band),
-            faces: (
-                wa.iter().map(|w| w.face).collect(),
-                wb.iter().map(|w| w.face).collect(),
-            ),
+            faces: WindowFaces::of(&wa, &wb),
         };
         for (i, j, _) in &roots {
             if let (Some(x), Some(y), Some(&ca), Some(&cb)) =
@@ -3116,9 +3338,8 @@ struct Bracket {
     floor: f64,
     poison: Option<MinSeparationRefusal>,
     region: RegionMemo,
-    /// Each side's window faces, by window index: what a poisoned
-    /// abandoned pair is named by.
-    faces: (Vec<FaceKey>, Vec<FaceKey>),
+    /// What a poisoned abandoned pair is named by.
+    faces: WindowFaces,
 }
 
 impl Bracket {
@@ -3235,10 +3456,7 @@ impl<T: Decide + CertifiedBounds> Question<T> for Bracket {
         for task in frontier {
             let sep = separation(&task.pair.a.enc, &task.pair.b.enc);
             if poisoned(sep) {
-                let (Some(&a), Some(&b)) = (self.faces.0.get(task.i), self.faces.1.get(task.j))
-                else {
-                    unreachable!("a task's windows are the bracket's");
-                };
+                let (a, b) = self.faces.of_task(&task);
                 self.poison
                     .get_or_insert(MinSeparationRefusal::PoisonEnclosure { a, b });
             }
@@ -4306,6 +4524,48 @@ fn separated_by_support<T: Real>(
             Ok(Sign::Positive)
         )
     })
+}
+
+/// **Whether two faces' depths part them by more than `c`**: a gap
+/// between the two faces' depths about an axis, a centre or a core
+/// circle one of them proposes ([`depth_gap::gaps_in_depth`]: nested
+/// walls, a tube inside a tube, a pair no direction separates), minus
+/// `c`, definitely positive at [`CLEARANCE_DEPTH_GAP`] (audit row F17).
+/// Such a gap bounds the separation of the two faces from below, so it
+/// clears a lower bound and an upper one alike; it bounds nothing from
+/// above, and no other sign is read.
+///
+/// The depths are read off the faces' covers at the lane scalar, as
+/// the cells' regions are, with no rounding charged
+/// (`[simple.conditioned]`), and each gap is less the pads
+/// [`depth_gap`] takes off it: a tolerance for each face's placement
+/// misread within the band and its boundary's vertices within ε of it,
+/// taken as the census takes it and not derived again for this reader.
+/// `lift` crosses a gap to the bracket it is compared in; a gap that
+/// does not certify clears nothing, since the funnel refuses its
+/// margin. It is the caller's, which holds the certification bound
+/// this function does not name, and the unit row passes one that
+/// refuses.
+fn parted_in_depth<T: Decide>(
+    x: &Window<'_, T>,
+    y: &Window<'_, T>,
+    c: Interval,
+    band: Band,
+    lift: impl Fn(T) -> Interval,
+) -> bool {
+    // [`depth_gap::gaps_in_depth`]'s precondition: a side read through
+    // a motion has its faces' covers in another frame than the
+    // question's, so it is not asked, and its pairs are read by their
+    // cells.
+    if x.own.is_some() || y.own.is_some() {
+        return false;
+    }
+    let read = |w: &Window<'_, T>| depth_gap::face_read(w.body, w.face, band);
+    let (Some(rx), Some(ry)) = (read(x), read(y)) else {
+        return false;
+    };
+    depth_gap::gaps_in_depth((x.body, x.face, &rx), (y.body, y.face, &ry), band)
+        .any(|gap| definitely_positive(CLEARANCE_DEPTH_GAP, lift(gap) - c, band))
 }
 
 /// **What a cell's support along a direction is read off**: the
@@ -5975,7 +6235,7 @@ mod trv_rows {
             floor: f64::INFINITY,
             poison: None,
             region: RegionMemo::at(Band::linear(Tol::witness()).unwrap()),
-            faces: (vec![wa.face], vec![wb.face]),
+            faces: super::WindowFaces(vec![wa.face], vec![wb.face]),
         }
     }
 
@@ -6326,6 +6586,440 @@ mod support_rows {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
+mod depth_rows {
+    use geom_core::{Band, Interval, Real, Tol};
+
+    use super::{
+        BoundVerdict, Budgets, Cell, CellPair, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
+        Which, Window, parted_in_depth, separated_by_support, window_of,
+    };
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+    use crate::{Body, FaceKey};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// Two cylinder wall sheets in one body, over one azimuth span and
+    /// height, sharing nothing.
+    fn walls(a: CylFrame, b: CylFrame) -> (Body<f64>, FaceKey, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let mut wall =
+            |frame| cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), Tol::witness());
+        let (fa, fb) = (wall(a), wall(b));
+        (body, fa, fb)
+    }
+
+    /// The injectivity question over the two walls, with a verifier
+    /// that confirms nothing.
+    fn injective(body: &Body<f64>, faces: [FaceKey; 2]) -> super::BoundReport<()> {
+        let side = Side {
+            body,
+            faces: faces.to_vec(),
+        };
+        let windows = side.windows(Which::First).expect("each wall has a window");
+        let sweep = Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 128,
+            },
+        };
+        sweep.run(&windows, &windows, true, |_| Err("no witness".to_owned()))
+    }
+
+    /// **Two walls a thin gap apart that share nothing are apart at
+    /// their root, off the band only, and two that cross are not.**
+    /// Coaxial cylinder sheets of radius 1 and 1.001: the pair is apart
+    /// in the axis's depth against a bound of zero and of half the gap,
+    /// and not against one within the band of the gap, though the
+    /// supports along a direction separate the two sheets at no bound.
+    /// The injectivity question holds without a split. Three sheets are
+    /// not apart in depth: one a gap inside the band away, one whose
+    /// gap is past the census's pads by less than the band, and a unit
+    /// sheet about an axis 0.1 off the first's, which crosses it at
+    /// mid-span. Of the first and the last the question does not hold.
+    /// Red where the root's depth gap is not asked (the pair then spends
+    /// the row's 128 pairs), where the gap is read by its sign rather
+    /// than against the band, where a margin of zero is read as parting,
+    /// where the bound is not taken off it, or where a gap that does not
+    /// certify parts the pair.
+    #[test]
+    fn walls_a_thin_gap_apart_are_apart_at_their_root_and_only_off_the_band() {
+        let band = band();
+        let in_band = 0.5 * (band.zero() + band.escalate());
+        let at = Interval::from_f64;
+        let apart = |wa: &Window<'_, f64>, wb: &Window<'_, f64>, c: f64| {
+            parted_in_depth(wa, wb, at(c), band, Interval::from_certified)
+        };
+        // The gap the reading takes its bound off, as `depth_gap`
+        // computes it: the walls' radii apart, less both faces' pads.
+        // Written out here so that a change to the pad reds this row,
+        // which is the certificate's guard on a number it does not own.
+        let pads = 2.0 * crate::boxes::sweep_pad(band);
+        let padded_gap = 1.001 - 1.0 - pads;
+        let read = |b: CylFrame| {
+            let (body, fa, fb) = walls(CylFrame::canonical(1.0), b);
+            let window = |f| window_of(&body, f, Which::First, None).expect("a wall has a window");
+            let (wa, wb) = (window(fa), window(fb));
+            let pair = CellPair {
+                a: Cell::of(&wa),
+                b: Cell::of(&wb),
+                depth: 0,
+                fresh: false,
+            };
+            (
+                [0.0, 5e-4, 1e-3 - in_band, padded_gap].map(|c| apart(&wa, &wb, c)),
+                separated_by_support(pair, &wa, &wb, at(0.0), band),
+                injective(&body, [fa, fb]),
+                parted_in_depth(&wa, &wb, at(0.0), band, crate::test_support_fixtures::trv),
+            )
+        };
+
+        let (parted, along, report, uncertified) = read(CylFrame::canonical(1.001));
+        assert_eq!(
+            parted,
+            [true, true, false, false],
+            "a gap of 0.001, against 0, 0.0005, the gap less half the band, and the padded gap \
+             itself, a margin of zero"
+        );
+        assert!(
+            !uncertified,
+            "a gap whose crossing does not certify parts nothing"
+        );
+        assert!(
+            !along,
+            "the supports along a direction do not separate the whole sheets"
+        );
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "the walls hold: {:?}",
+            report.verdict
+        );
+        assert_eq!(
+            report.receipt.splits, 0,
+            "at their roots: {:?}",
+            report.receipt
+        );
+
+        let past_the_pads = pads + in_band;
+        for (what, other, never_holds) in [
+            (
+                "a gap in the band",
+                CylFrame::canonical(1.0 + in_band),
+                true,
+            ),
+            (
+                "a gap past the pads by less than the band",
+                CylFrame::canonical(1.0 + past_the_pads),
+                false,
+            ),
+            (
+                "a wall that crosses",
+                CylFrame {
+                    origin: geom_core::Point3::new(0.0718, -0.0696, 0.0),
+                    ..CylFrame::canonical(1.0)
+                },
+                true,
+            ),
+        ] {
+            let (parted, _, report, _) = read(other);
+            assert_eq!(parted, [false; 4], "{what}: not apart in depth");
+            assert!(
+                !(never_holds && matches!(report.verdict, BoundVerdict::Holds)),
+                "{what}: the question does not hold: {:?}",
+                report.verdict
+            );
+        }
+    }
+
+    /// **No wall pair is parted in depth past its sampled distance.**
+    /// 600 pairs of trimmed cylinder wall sheets, each in its own body:
+    /// coaxial a thin or a wide gap apart, the axis nudged off or
+    /// tilted, or in general position. No pair is parted by more than
+    /// the least distance between 49 × 13 points of each, and none is
+    /// parted at all with two of those points within the pads. The
+    /// draws are one fixed stream: the row is the review's probe of PR
+    /// 7119 kept as it was run, and its floor (over 300 pairs drawn,
+    /// over 50 parted) says the stream still reaches the reading.
+    #[test]
+    fn no_wall_pair_is_parted_in_depth_past_its_sampled_distance() {
+        use geom_core::{Point3, Vec3};
+        struct Lcg(u64);
+        impl Lcg {
+            fn next(&mut self) -> f64 {
+                self.0 = self
+                    .0
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+            }
+            fn sym(&mut self) -> f64 {
+                2.0 * self.next() - 1.0
+            }
+            fn unit(&mut self) -> Vec3<f64> {
+                loop {
+                    let v = Vec3::new(self.sym(), self.sym(), self.sym());
+                    let n = v.norm();
+                    if n > 0.2 && n < 1.0 {
+                        return v * (1.0 / n);
+                    }
+                }
+            }
+        }
+        let band = band();
+        let at = Interval::from_f64;
+        let mut rng = Lcg(0x7119);
+        let (mut parted, mut crossing_near, mut draws) = (0usize, 0usize, 0usize);
+        for i in 0..600 {
+            let axis = rng.unit();
+            let u_ref = axis.cross(rng.unit()).normalize();
+            let origin = Point3::new(0.0, 0.0, 0.0);
+            let ra = 0.3 + 1.5 * rng.next();
+            let fa = CylFrame {
+                origin,
+                axis,
+                radius: ra,
+                u_ref,
+            };
+            // The second wall: coaxial a thin or wide gap away, the axis
+            // nudged off or tilted, or a wall in general position.
+            let kind = i % 4;
+            let gap = match i % 3 {
+                0 => 1e-3 * rng.next(),
+                1 => 0.2 * rng.next(),
+                _ => 1e-7 * rng.next(),
+            };
+            let fb = match kind {
+                0 => CylFrame {
+                    radius: ra + gap,
+                    ..fa
+                },
+                1 => CylFrame {
+                    origin: origin + u_ref * (gap * 1.5 * rng.sym()) + axis * rng.sym(),
+                    radius: ra + gap,
+                    u_ref: (u_ref + axis.cross(u_ref) * rng.sym()).normalize(),
+                    ..fa
+                },
+                2 => {
+                    let tilt = (axis + u_ref * (0.01 * rng.sym())).normalize();
+                    CylFrame {
+                        origin,
+                        axis: tilt,
+                        radius: ra + gap,
+                        u_ref: tilt.cross(axis.cross(u_ref)).normalize(),
+                    }
+                }
+                _ => {
+                    let ax = rng.unit();
+                    CylFrame {
+                        origin: origin + rng.unit() * (2.0 * rng.next()),
+                        axis: ax,
+                        radius: 0.3 + 1.5 * rng.next(),
+                        u_ref: ax.cross(rng.unit()).normalize(),
+                    }
+                }
+            };
+            let span = |rng: &mut Lcg| {
+                let u0 = 0.1 + 2.0 * rng.next();
+                let v0 = rng.sym();
+                (
+                    (u0, u0 + 0.3 + 3.0 * rng.next()),
+                    (v0, v0 + 0.2 + 1.5 * rng.next()),
+                )
+            };
+            let (sa, sb) = (span(&mut rng), span(&mut rng));
+            let build = |frame: CylFrame, (us, vs): ((f64, f64), (f64, f64))| {
+                std::panic::catch_unwind(|| {
+                    let mut body = Body::<f64>::new();
+                    let f = cyl_wall_sheet(&mut body, frame, us, vs, Tol::witness());
+                    (body, f)
+                })
+                .ok()
+            };
+            let (Some((ba, ka)), Some((bb, kb))) = (build(fa, sa), build(fb, sb)) else {
+                continue;
+            };
+            let (Ok(wa), Ok(wb)) = (
+                window_of(&ba, ka, Which::First, None),
+                window_of(&bb, kb, Which::Second, None),
+            ) else {
+                continue;
+            };
+            draws += 1;
+            let sample = |f: &CylFrame, (us, vs): ((f64, f64), (f64, f64))| -> Vec<Point3<f64>> {
+                let n = 48;
+                let m = 12;
+                (0..=n)
+                    .flat_map(|a| {
+                        (0..=m).map(move |b| {
+                            f.at::<f64>(
+                                us.0 + (us.1 - us.0) * (a as f64) / (n as f64),
+                                vs.0 + (vs.1 - vs.0) * (b as f64) / (m as f64),
+                            )
+                        })
+                    })
+                    .collect()
+            };
+            let (pa, pb) = (sample(&fa, sa), sample(&fb, sb));
+            let least = pa
+                .iter()
+                .flat_map(|p| pb.iter().map(move |q| (*p - *q).norm()))
+                .fold(f64::INFINITY, f64::min);
+            let apart = |c: f64| {
+                parted_in_depth(&wa, &wb, at(c), band, Interval::from_certified)
+                    || parted_in_depth(&wb, &wa, at(c), band, Interval::from_certified)
+            };
+            let zero = apart(0.0);
+            parted += usize::from(zero);
+            crossing_near += usize::from(least < 1e-2);
+            assert!(
+                !apart(least),
+                "draw {i} kind {kind}: read apart by more than the sampled least distance {least:e}\n{fa:?} {sa:?}\n{fb:?} {sb:?}"
+            );
+            assert!(
+                !(zero && least < 2.0 * crate::boxes::sweep_pad(band)),
+                "draw {i} kind {kind}: read apart with a sampled pair {least:e} apart"
+            );
+        }
+        println!("draws {draws}, read apart {parted}, sampled within 1e-2: {crossing_near}");
+        assert!(
+            draws > 300 && parted > 50,
+            "the probe draws and parts pairs"
+        );
+    }
+
+    /// **Each face's depths are read in its own body, under a metric
+    /// bound as under the strict one.** The two walls in two bodies,
+    /// the second after walls of its own body's that the first body has
+    /// no face for: the pair is parted in depth, either way round, and
+    /// the two-body sweep answers at the root, `≥ 0.0005` holding and
+    /// `≤ 0.0005` exceeded with no split. Red where one body reads both
+    /// faces, or where a metric bound is not asked the depth gap (each
+    /// then spends the row's 128 pairs).
+    #[test]
+    fn walls_in_two_bodies_are_each_read_in_their_own_under_either_bound() {
+        let (inner, fa, _) = walls(CylFrame::canonical(1.0), CylFrame::canonical(3.0));
+        let (outer, fb) = {
+            let mut body = Body::<f64>::new();
+            let mut wall = |r| {
+                cyl_wall_sheet(
+                    &mut body,
+                    CylFrame::canonical(r),
+                    (0.2, 1.4),
+                    (0.0, 1.0),
+                    Tol::witness(),
+                )
+            };
+            let faces = [wall(5.0), wall(7.0), wall(1.001)];
+            (body, faces[2])
+        };
+        assert!(
+            inner.faces().all(|(k, _)| k != fb),
+            "the first body has no face of the second wall's key"
+        );
+        let wa = window_of(&inner, fa, Which::First, None).expect("a wall has a window");
+        let wb = window_of(&outer, fb, Which::Second, None).expect("a wall has a window");
+        let at = Interval::from_f64;
+        for (x, y) in [(&wa, &wb), (&wb, &wa)] {
+            assert!(
+                parted_in_depth(x, y, at(0.0), band(), Interval::from_certified),
+                "walls 0.001 apart, each in its own body"
+            );
+        }
+        let side = |body, face| Side {
+            body,
+            faces: vec![face],
+        };
+        let (a, b) = (side(&inner, fa), side(&outer, fb));
+        let xa = a.windows(Which::First).expect("a wall has a window");
+        let xb = b.windows(Which::Second).expect("a wall has a window");
+        for (bound, holds) in [
+            (ClearanceBound::AtLeast(at(5e-4)), true),
+            (ClearanceBound::AtMost(at(5e-4)), false),
+        ] {
+            let sweep = Sweep {
+                bound,
+                band: band(),
+                budgets: Budgets {
+                    max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                    max_cell_pairs: 128,
+                },
+            };
+            let report: super::BoundReport<()> =
+                sweep.run(&xa, &xb, false, |_| Err("no witness".to_owned()));
+            assert_eq!(
+                (
+                    matches!(report.verdict, BoundVerdict::Holds),
+                    matches!(report.verdict, BoundVerdict::Exceeded),
+                    report.receipt.splits
+                ),
+                (holds, !holds, 0),
+                "{bound:?} answers at the root: {:?} {:?}",
+                report.verdict,
+                report.receipt
+            );
+        }
+    }
+
+    /// **A side read through a motion is not asked its depths.** Two
+    /// coaxial walls of radius 1 and 1.001, each in its own body: in one
+    /// frame they are parted in depth. With the second read through a
+    /// shift of 0.5 across the axis the two cross, and they are not
+    /// parted, either way round, nor are they with the shift's inverse
+    /// on the first. Red where a placed window's cover is read in its
+    /// body's frame against the other's in the question's: the crossing
+    /// walls then read 0.001 apart.
+    #[test]
+    fn walls_read_through_a_motion_are_not_parted_in_depth() {
+        let wall = |r| {
+            let mut body = Body::<f64>::new();
+            let f = cyl_wall_sheet(
+                &mut body,
+                CylFrame::canonical(r),
+                (0.2, 1.4),
+                (0.0, 1.0),
+                Tol::witness(),
+            );
+            (body, f)
+        };
+        let ((inner, fa), (outer, fb)) = (wall(1.0), wall(1.001));
+        let shift = |x: f64| {
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(x, 0.0, 0.0))
+                .expect("a finite shift")
+        };
+        let parted = |a: Option<f64>, b: Option<f64>| {
+            let (ma, mb) = (a.map(shift), b.map(shift));
+            let wa = window_of(&inner, fa, Which::First, ma.as_ref()).expect("a wall's window");
+            let wb = window_of(&outer, fb, Which::Second, mb.as_ref()).expect("a wall's window");
+            let at = |x: &Window<'_, f64>, y: &Window<'_, f64>| {
+                parted_in_depth(
+                    x,
+                    y,
+                    Interval::from_f64(0.0),
+                    band(),
+                    Interval::from_certified,
+                )
+            };
+            (at(&wa, &wb), at(&wb, &wa))
+        };
+        assert_eq!(parted(None, None), (true, true), "in one frame");
+        assert_eq!(
+            parted(None, Some(0.5)),
+            (false, false),
+            "the second shifted"
+        );
+        assert_eq!(
+            parted(Some(-0.5), None),
+            (false, false),
+            "the first shifted"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod seated_windows {
     use geom_core::{Band, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 
@@ -6489,5 +7183,237 @@ mod seated_windows {
                 report.receipt
             );
         }
+    }
+}
+
+/// **The stop at two sites no built body reaches**, driven at the
+/// engine: a face its kind does not make injective, and a witness the
+/// verifier declines.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod first_finding_rows {
+    use std::collections::BTreeMap;
+    use std::ops::ControlFlow;
+
+    use super::{
+        AtRefusal, Bound, BoundVerdict, Bucket, Budgets, Candidate, Cell, CellPair, CellReceipt,
+        ClearanceBound, DischargeWidths, EngineRefusal, LocalMemo, Offer, Open, Question, Reading,
+        Readings, RegionMemo, Shared, Side, Sweep, Task, Walk, Which, WindowFaces, Windows,
+    };
+    use crate::Body;
+    use geom::Surface;
+    use geom_core::{Band, Interval, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn brick() -> Body<Interval> {
+        crate::test_support_fixtures::brick::<Interval>(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            Tol::witness(),
+        )
+    }
+
+    fn windows(body: &Body<Interval>) -> Windows<'_, Interval> {
+        Side {
+            body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        }
+        .windows(Which::First)
+        .unwrap()
+    }
+
+    fn strict() -> Sweep {
+        Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: super::DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 65_536,
+            },
+        }
+    }
+
+    /// **A face its kind does not make injective ends the ask where it
+    /// is met.** A brick's second window is given a torus whose tube is
+    /// as wide as its ring. The first face is discharged by its kind, the
+    /// second refuses, and every other candidate is abandoned unread. Red
+    /// where the site keeps its refusal and reads on: nothing is
+    /// abandoned.
+    #[test]
+    fn a_face_refused_by_its_kind_ends_the_ask_before_the_walk() {
+        let body = brick();
+        let mut w = windows(&body);
+        let p = |x: f64| Interval::from_bounds(x, x);
+        w.of[1].surface = Surface::Torus {
+            frame: geom::Frame::new(
+                Point3::new(p(0.0), p(0.0), p(0.0)),
+                Vec3::new(p(0.0), p(0.0), p(1.0)),
+                Vec3::new(p(1.0), p(0.0), p(0.0)),
+            ),
+            major_radius: p(1.0),
+            minor_radius: p(1.0),
+        };
+        let face = w.of[1].face;
+        let report = strict().run(&w, &w, true, |_| Err::<(), _>("unasked".to_owned()));
+        assert!(
+            matches!(
+                &report.verdict,
+                BoundVerdict::Refused(EngineRefusal::TorusNotRing { face: f, .. }) if *f == face
+            ),
+            "{:?}",
+            report.verdict
+        );
+        let r = report.receipt;
+        assert!(r.holds(), "{r:?}");
+        assert_eq!(
+            (r.discharged, r.by_kind, r.refused, r.splits),
+            (1, 1, 1, 0),
+            "one face by its kind, then the refusal: {r:?}"
+        );
+        assert_eq!(r.abandoned, r.candidates - 2, "the rest unread: {r:?}");
+    }
+
+    /// **A witness the verifier declines is a refusal on its two faces,
+    /// and ends the question that ends at one.** A pair the interval pass
+    /// classed violating, offered to a verifier that declines: under
+    /// [`AtRefusal::End`] the sweep ends with the pair counted refused;
+    /// under [`AtRefusal::ReadOn`] it goes on, the pair counted as the
+    /// interval pass classed it. Red where the site reads on under `End`,
+    /// or lands the pair it ends on among the violated.
+    #[test]
+    fn a_declined_witness_names_its_faces_and_ends_the_question_that_ends_at_a_refusal() {
+        let body = brick();
+        let w = windows(&body);
+        let (x, y) = (&w.of[0], &w.of[1]);
+        let sweep = strict();
+        for (at_refusal, flow) in [
+            (AtRefusal::End, ControlFlow::Break(Bucket::Refused)),
+            (AtRefusal::ReadOn, ControlFlow::Continue(Bucket::Violated)),
+        ] {
+            let mut q = Bound {
+                sweep: &sweep,
+                injective: true,
+                shared: &[],
+                at_refusal,
+                faces: WindowFaces::of(&w.of, &w.of),
+                region: RegionMemo::at(band()),
+                locals: LocalMemo::default(),
+                across: BTreeMap::new(),
+                cornered: 0,
+                widths: DischargeWidths::empty(),
+                lower_refusal: None,
+                upper_refusal: None,
+                violation: None,
+                within: None,
+                box_dependent: core::cell::Cell::new(None),
+                verify: |_: Candidate<'_, '_, Interval>| Err::<(), _>("declined".to_owned()),
+            };
+            let offer = Offer {
+                x,
+                ca: Cell::of(x),
+                ia: 0,
+                y,
+                cb: Cell::of(y),
+                ib: 1,
+                meeting: None,
+            };
+            let readings = Readings {
+                below: Some(Reading::Answers),
+                above: None,
+            };
+            assert_eq!(q.settle(&readings, &offer), flow, "{at_refusal:?}");
+            assert_eq!(
+                q.lower_refusal,
+                Some(EngineRefusal::WitnessUnverified {
+                    what: "declined".to_owned(),
+                    a: x.face,
+                    b: y.face,
+                }),
+                "{at_refusal:?}"
+            );
+        }
+    }
+
+    /// **A pair the walk ends on for a declined witness is counted
+    /// refused, once.** Two faces of a brick that share nothing, their
+    /// cells' enclosures set to one point, so the interval pass classes
+    /// the pair at zero and offers it; the verifier declines. Through the
+    /// question's own `pair`: the walk breaks, and the receipt reads one
+    /// refused and none violated. Red where the pair is counted among
+    /// the violated.
+    #[test]
+    fn a_pair_ended_on_for_a_declined_witness_is_counted_refused() {
+        let body = brick();
+        let w = windows(&body);
+        let (i, j) = (0..w.of.len())
+            .flat_map(|i| (i + 1..w.of.len()).map(move |j| (i, j)))
+            .find(|&(i, j)| Shared::of(&w.of[i].boundary, &w.of[j].boundary, false).is_empty())
+            .expect("a brick has opposite faces");
+        let (x, y) = (&w.of[i], &w.of[j]);
+        let at = Interval::from_bounds(0.5, 0.5);
+        let point = |mut c: Cell| {
+            c.enc = Point3::new(at, at, at);
+            c
+        };
+        let sweep = strict();
+        let shared = [Shared::default()];
+        let mut q = Bound {
+            sweep: &sweep,
+            injective: true,
+            shared: &shared,
+            at_refusal: AtRefusal::End,
+            faces: WindowFaces::of(&w.of, &w.of),
+            region: RegionMemo::at(band()),
+            locals: LocalMemo::default(),
+            across: BTreeMap::new(),
+            cornered: 0,
+            widths: DischargeWidths::empty(),
+            lower_refusal: None,
+            upper_refusal: None,
+            violation: None,
+            within: None,
+            box_dependent: core::cell::Cell::new(None),
+            verify: |_: Candidate<'_, '_, Interval>| Err::<(), _>("declined".to_owned()),
+        };
+        let mut walk = Walk {
+            budgets: sweep.budgets,
+            receipt: CellReceipt {
+                candidates: 1,
+                ..CellReceipt::default()
+            },
+            left: 0,
+            next: Vec::new(),
+        };
+        let task = Task {
+            k: 0,
+            i,
+            j,
+            pair: CellPair {
+                a: point(Cell::of(x)),
+                b: point(Cell::of(y)),
+                depth: 0,
+                fresh: true,
+            },
+            open: Open {
+                below: true,
+                above: false,
+            },
+        };
+        assert!(q.pair(&mut walk, task, x, y).is_break(), "the walk ends");
+        assert!(
+            matches!(
+                q.lower_refusal,
+                Some(EngineRefusal::WitnessUnverified { a, b, .. }) if a == x.face && b == y.face
+            ),
+            "{:?}",
+            q.lower_refusal
+        );
+        let r = walk.receipt;
+        assert_eq!((r.refused, r.violated), (1, 0), "{r:?}");
+        assert!(r.holds(), "{r:?}");
     }
 }
