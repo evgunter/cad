@@ -173,7 +173,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     // Split the union.
@@ -248,7 +248,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![ext.into(), ext2_in.into()]),
+            members: editor_core::Bodies::spelled(vec![ext.into(), ext2_in.into()]),
         },
     );
     let ev = run(&doc);

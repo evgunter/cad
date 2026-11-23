@@ -69,7 +69,7 @@ fn put(doc: ProfileDoc, node: editor_core::AuthoredNode) -> (ProfileDoc, RecipeN
 }
 
 fn spelled(reads: &[RecipeNodeId]) -> Bodies<BodyRead<editor_core::Formula>> {
-    Bodies::Spelled(reads.iter().map(|&r| r.into()).collect())
+    Bodies::spelled(reads.iter().map(|&r| r.into()).collect())
 }
 
 fn set_product(doc: &ProfileDoc, product: Option<Operand>) -> ProfileDoc {
@@ -353,7 +353,7 @@ fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
             tool,
         },
     );
-    let halves = Bodies::Spelled(
+    let halves = Bodies::spelled(
         [SplitHalf::Above, SplitHalf::Below]
             .map(|h| BodyRead::plain(Operand::Var(doc.output(split, h.port()).unwrap())))
             .to_vec(),
@@ -786,7 +786,7 @@ fn an_instance_defines_one_body_of_its_parts_product() {
     let bolt_var = match part.node(three) {
         Some(Node::Assemble {
             members: Bodies::Spelled(reads),
-        }) => reads[1].read,
+        }) => reads[1].read().read,
         other => panic!("the `⊔`, not {other:?}"),
     };
     let mut store = fixture::resolver::PartStore::default();

@@ -8357,6 +8357,8 @@ pub(crate) fn tier3_local_checks_marked<
         };
         for (point, _) in singular_points(surface) {
             match point {
+                // A horn's cusp is both apexes, one per copy of `v`, and
+                // each copy is unshown: two findings at one point.
                 Singularity::SheetApexUp | Singularity::SheetApexDown => {
                     errors.push(ValidationError::SheetApexReached { face, point });
                 }
