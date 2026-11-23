@@ -27,3 +27,13 @@ The fix could digest point bits and curve parameters directly instead of
 their `Debug` text, or keep `Debug` and state the cost where the doc
 says geometry enters. Either way, the choice belongs to whoever owns the
 fixture.
+
+The same pin caught a real value move later. PR 7411 (`3547fe5764`)
+changed `plane_offset` to a `Dot2` read. That moved 102 of the 2061
+chunks: 96 certificate `max_residual` readings, 2 vertex bits and 12
+plane–plane line chunks. Every move was toward the exact value. PR
+7597 re-pinned it to `0xfe07_0805_06b3_9e32`, with the evidence on
+`main-red-the-kite-moats-digest-moved-in-value-at-pr-7411`. Telling
+the two kinds of move apart took a chunk dump and a Python replay
+against exact fractions. Any fix should keep the value channel and
+shed only the spelling channel.
