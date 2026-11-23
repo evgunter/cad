@@ -18427,3 +18427,625 @@ mod margin_reach_rows {
         );
     }
 }
+
+/// **A cone's chart reads a section ellipse's focal image**: the image's
+/// enclosures against the stored row's own evaluator, the guards on what
+/// builds one and where a cone's chart is read, and the cells beside a
+/// section arc and at the corners it makes with a ruling and a rim.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod focal_rows {
+    use super::*;
+    use geom_brep::{FocalImage, Pcurve};
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+    fn p2((u, v): (f64, f64)) -> Point2<Interval> {
+        Point2::new(iv0(u), iv0(v))
+    }
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+    fn vertex(n: u64) -> VertexKey {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+    fn edge(n: u64) -> EdgeKey {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+    fn origin() -> Point3<Interval> {
+        Point3::new(iv0(0.0), iv0(0.0), iv0(0.0))
+    }
+
+    const ALPHA: f64 = 0.5;
+
+    /// The cone of half-angle [`ALPHA`] about `z`, its apex the origin.
+    fn cone() -> Surface<Interval> {
+        Surface::Cone {
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(ALPHA),
+        }
+    }
+
+    /// The cone's point at the chart point `(u, v)`.
+    fn on_cone(u: f64, v: f64) -> Point3<Interval> {
+        let (s, c) = ALPHA.sin_cos();
+        Point3::new(iv0(v * s * u.cos()), iv0(v * s * u.sin()), iv0(v * c))
+    }
+
+    /// **The section of [`cone`] by the plane `n·p = 1`**, `n` the axis
+    /// tilted `0.3` toward the azimuth `u0`, as its stored row: the
+    /// ellipse's vertex nearer the axis is at `u0`, where `E = 0`.
+    fn section(u0: f64, with: bool) -> FocalImage<f64> {
+        let (a, b) = (ALPHA.cos() * 0.3f64.cos(), ALPHA.sin() * 0.3f64.sin());
+        let e = b / a;
+        let v0 = 1.0 / (a * (1.0 - e * e));
+        FocalImage {
+            u0,
+            t0: 0.0,
+            v0,
+            va: -e * v0,
+            vb: 0.0,
+            vl: 0.0,
+            beta: e / (1.0 + (1.0 - e * e).sqrt()),
+            sense: if with { 1.0 } else { -1.0 },
+        }
+    }
+
+    /// The row's chart point at `t`, by the stored row's own evaluator.
+    fn stored(image: &FocalImage<f64>, t: f64) -> (f64, f64) {
+        let q = Pcurve::FocalSection(*image).eval(t);
+        (q.x, q.y)
+    }
+
+    /// The row's parameter where its azimuth is `u0 ± nu`.
+    fn anomaly_of(image: &FocalImage<f64>, nu: f64) -> f64 {
+        let b = image.beta;
+        2.0 * (((1.0 - b) / (1.0 + b)) * (nu / 2.0).tan()).atan()
+    }
+
+    /// The image lifted, each number widened by `w`.
+    fn lifted(image: &FocalImage<f64>, w: f64) -> FocalImage<Interval> {
+        let x = |v: f64| Interval::from_bounds(v - w, v + w);
+        FocalImage {
+            u0: x(image.u0),
+            t0: iv0(image.t0),
+            v0: x(image.v0),
+            va: x(image.va),
+            vb: x(image.vb),
+            vl: iv0(image.vl),
+            beta: x(image.beta),
+            sense: iv0(image.sense),
+        }
+    }
+
+    fn focal(image: &FocalImage<f64>) -> Focal {
+        Focal::of(&lifted(image, 0.0)).expect("the section's image builds")
+    }
+
+    /// **The enclosures hold the stored row, member by member, at any
+    /// width of the parameter**, and at a point image are no wider than
+    /// the row's own advance. Each of `β`, `u0` and the second channel is
+    /// widened by `1e-3`, wider than the pieces read (`1e-4` and a
+    /// quarter turn), so the two end evaluations of a narrow piece
+    /// overlap. Read for both senses, a `β` of either sign, and
+    /// `β = 1 − 1e-9`. Red if the azimuth's hull takes the wrong end of
+    /// an end evaluation, drops the sense, or the rate misses the
+    /// derivative.
+    #[test]
+    fn a_focal_images_enclosures_hold_its_stored_row_member_by_member() {
+        let near_parabolic = FocalImage {
+            beta: 1.0 - 1e-9,
+            ..section(0.4, true)
+        };
+        let reversed = FocalImage {
+            beta: -section(0.0, true).beta,
+            ..section(2.0, false)
+        };
+        for (what, image, w) in [
+            ("with the frame", section(0.4, true), 1e-3),
+            ("against the frame", section(5.9, false), 1e-3),
+            ("a negative β against the frame", reversed, 1e-3),
+            ("a point image", section(0.4, true), 0.0),
+            ("near-parabolic", near_parabolic, 0.0),
+        ] {
+            let f = Focal::of(&lifted(&image, w)).expect("builds");
+            let members: Vec<FocalImage<f64>> = [-1.0, 0.0, 1.0]
+                .into_iter()
+                .flat_map(|sb| {
+                    [-1.0, 1.0].into_iter().map(move |su| FocalImage {
+                        beta: image.beta + sb * w,
+                        u0: image.u0 + su * w,
+                        v0: image.v0 + su * w,
+                        va: image.va - sb * w,
+                        ..image
+                    })
+                })
+                .collect();
+            for (t0, width) in [
+                (-2.9, 1e-4),
+                (-0.3, 1e-4),
+                (0.0, 1.5),
+                (1.1, 1e-4),
+                (2.0, 7.0),
+            ] {
+                let t = Interval::from_bounds(t0, t0 + width);
+                let (u, v) = (f.on(Axis::U, t), f.on(Axis::V, t));
+                let (ru, rv) = (f.rate(Axis::U, t), f.rate(Axis::V, t));
+                assert!(u.is_certified() && ru.is_certified(), "{what}: bounded");
+                for m in &members {
+                    for k in 0..=8 {
+                        let s = t0 + width * f64::from(k) / 8.0;
+                        let (su, sv) = stored(m, s);
+                        assert!(
+                            u.lo() <= su && su <= u.hi() && v.lo() <= sv && sv <= v.hi(),
+                            "{what}: the row's point at {s} is held: {su} in {u:?}, {sv} in {v:?}"
+                        );
+                        let h = 1e-6;
+                        let (a, b) = (stored(m, s - h), stored(m, s + h));
+                        let (du, dv) = ((b.0 - a.0) / (2.0 * h), (b.1 - a.1) / (2.0 * h));
+                        let slack = |d: f64| 1e-4 * (1.0 + d.abs());
+                        assert!(
+                            (t0..=t0 + width).contains(&(s - h)) && (s + h) <= t0 + width
+                                || (ru.lo() - slack(du) <= du && du <= ru.hi() + slack(du)),
+                            "{what}: the azimuth's rate at {s}: {du} in {ru:?}"
+                        );
+                        if (t0 + h..=t0 + width - h).contains(&s) {
+                            assert!(
+                                ru.lo() - slack(du) <= du && du <= ru.hi() + slack(du),
+                                "{what}: the azimuth's rate at {s}: {du} in {ru:?}"
+                            );
+                            assert!(
+                                rv.lo() - slack(dv) <= dv && dv <= rv.hi() + slack(dv),
+                                "{what}: the slant's rate at {s}: {dv} in {rv:?}"
+                            );
+                        }
+                    }
+                }
+                if w == 0.0 {
+                    let (a, b) = (stored(&image, t0).0, stored(&image, t0 + width).0);
+                    assert!(
+                        u.hi() - u.lo() <= (b - a).abs() + 1e-9 * (1.0 + a.abs()),
+                        "{what}: the azimuth over {width} is its two ends' hull: {u:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A focal image builds only where its azimuth is monotone for
+    /// every member**: a `β` whose enclosure touches `±1`, or a sense
+    /// that is not exactly `±1`, builds none; `β = 1 − 1e-9` builds. Red
+    /// if [`Focal::of`] admits a bracket that holds a parabola's `β`.
+    #[test]
+    fn a_focal_image_builds_only_with_its_kepler_parameter_strictly_inside_one() {
+        let image = section(0.4, true);
+        let with = |beta: Interval, sense: Interval| {
+            Focal::of(&FocalImage {
+                beta,
+                sense,
+                ..lifted(&image, 0.0)
+            })
+            .is_some()
+        };
+        let one = iv0(1.0);
+        assert!(with(iv0(1.0 - 1e-9), one), "near-parabolic builds");
+        assert!(with(iv0(-(1.0 - 1e-9)), iv0(-1.0)), "and against the frame");
+        for (what, beta) in [
+            ("a bracket reaching 1", Interval::from_bounds(0.9, 1.0)),
+            ("a bracket past 1", Interval::from_bounds(0.9, 1.1)),
+            ("the point 1", iv0(1.0)),
+            ("a bracket reaching −1", Interval::from_bounds(-1.0, -0.9)),
+            ("an unbounded β", whole_line()),
+        ] {
+            assert!(!with(beta, one), "{what} builds no image");
+        }
+        for (what, sense) in [
+            ("a sense of ½", iv0(0.5)),
+            ("a sense of 0", iv0(0.0)),
+            (
+                "a bracket about 1",
+                Interval::from_bounds(1.0 - 1e-12, 1.0 + 1e-12),
+            ),
+        ] {
+            assert!(!with(iv0(image.beta), sense), "{what} builds no image");
+        }
+    }
+
+    /// **One period of the parameter winds the azimuth one turn, by the
+    /// image's sense, and returns the slant**: [`ChartCurve::wind`]
+    /// against the stored row's own advance over a period. Red if the
+    /// turn count a closed section is continued by is not the row's.
+    #[test]
+    fn a_closed_sections_period_winds_its_azimuth_once_by_its_sense() {
+        for with in [true, false] {
+            let image = section(1.3, with);
+            let c = ChartCurve::Focal(focal(&image));
+            let (a, b) = (stored(&image, -1.0), stored(&image, -1.0 + TURN));
+            let turns = ((b.0 - a.0) / TURN).round();
+            assert!((b.0 - a.0 - turns * TURN).abs() < 1e-12 && (b.1 - a.1).abs() < 1e-12);
+            #[allow(clippy::cast_possible_truncation)]
+            let turns = turns as i64;
+            assert_eq!(turns, if with { 1 } else { -1 });
+            assert_eq!(c.wind(Axis::U), Some(turns), "the azimuth's turns");
+            assert_eq!(c.wind(Axis::V), Some(0), "the slant returns");
+        }
+        let drifting = Focal::of(&FocalImage {
+            vl: iv0(1.0),
+            ..lifted(&section(1.3, true), 0.0)
+        })
+        .unwrap();
+        assert_eq!(
+            ChartCurve::Focal(drifting).wind(Axis::V),
+            None,
+            "a slant that does not return is not continued"
+        );
+    }
+
+    /// A cone face's edge of one use whose chart image is `image` over
+    /// `t`, from vertex `ends[0]` to `ends[1]`; its carrier a stand-in
+    /// out of every cell's reach, as the cylinder rows' is.
+    fn section_rim(n: u64, ends: [u64; 2], image: &FocalImage<f64>, t: (f64, f64)) -> Rim {
+        Rim {
+            stated: None,
+            key: edge(n),
+            arc: Some((
+                Curve3::line(
+                    Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
+                (iv0(t.0), iv0(t.1)),
+            )),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                curve: Some(ChartCurve::Focal(focal(image))),
+            }],
+        }
+    }
+
+    /// A coordinate-line edge of [`cone`] its loop runs from the chart
+    /// point `a` (vertex `ends[0]`) to `b`: a ruling where `held` is `U`,
+    /// a rim's arc where it is `V`. Its carrier runs toward the greater
+    /// moving coordinate, so the loop runs it forward only where `b`'s is.
+    fn line_rim(n: u64, ends: [u64; 2], held: Axis, a: (f64, f64), b: (f64, f64)) -> Rim {
+        let (s, c) = ALPHA.sin_cos();
+        let plus = match held {
+            Axis::U => b.1 > a.1,
+            Axis::V => b.0 > a.0,
+        };
+        let (lo, hi, ends) = if plus {
+            (a, b, ends)
+        } else {
+            (b, a, [ends[1], ends[0]])
+        };
+        let (carrier, span) = match held {
+            Axis::U => (
+                Curve3::line(
+                    on_cone(lo.0, lo.1),
+                    Vec3::new(iv0(s * lo.0.cos()), iv0(s * lo.0.sin()), iv0(c)),
+                ),
+                (iv0(0.0), iv0(hi.1 - lo.1)),
+            ),
+            Axis::V => (
+                Curve3::circle(
+                    Point3::new(iv0(0.0), iv0(0.0), iv0(lo.1 * c)),
+                    Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                    iv0(lo.1 * s),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
+                (iv0(lo.0), iv0(hi.0)),
+            ),
+        };
+        Rim {
+            stated: None,
+            key: edge(n),
+            arc: Some((carrier, span)),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: Some([p2(lo), p2(hi)]),
+                iso: Some(Iso {
+                    held,
+                    at: iv0(match held {
+                        Axis::U => a.0,
+                        Axis::V => a.1,
+                    }),
+                    full: false,
+                }),
+                curve: None,
+            }],
+        }
+    }
+
+    /// **A corner of a cone face where a ruling meets a section arc**, at
+    /// the section's point of azimuth `1`: the ruling `u = 1` (edge 0)
+    /// runs down the wall to the vertex 1, and the arc (edge 1) leaves it
+    /// toward `nu_far`, an azimuth past the section's near vertex. With
+    /// `nu_far > 1` the face is at `u > 1`, beyond the arc from the apex,
+    /// and the corner is convex; with `nu_far < 1` the arc leaves into the
+    /// ruling's other side.
+    fn ruling_corner(u0: f64, nu_far: f64) -> (Boundary, (f64, f64)) {
+        let image = section(u0, true);
+        let (ta, tb) = (anomaly_of(&image, 1.0), anomaly_of(&image, nu_far));
+        let (corner, far) = (stored(&image, ta), stored(&image, tb));
+        let top = (corner.0, corner.1 + 1.0);
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                line_rim(10, [2, 1], Axis::U, top, corner),
+                section_rim(11, [1, 3], &image, (ta, tb)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), on_cone(corner.0, corner.1)),
+                (vertex(2), on_cone(top.0, top.1)),
+                (vertex(3), on_cone(far.0, far.1)),
+            ]),
+            extent: Some([(corner.0, corner.0 + 1.5), (corner.1 - 0.2, corner.1 + 1.0)]),
+            outer: None,
+        };
+        (b, corner)
+    }
+
+    /// [`present_chart`] of `b` in the cell `u × v`, edges `near` shared,
+    /// with the corner's vertex 1 near where `at_vertex`.
+    fn on_wall(
+        b: &Boundary,
+        near: &[usize],
+        at_vertex: bool,
+        u: (f64, f64),
+        v: (f64, f64),
+    ) -> Read {
+        let s = cone();
+        let local = Local {
+            edges: (0..b.edges.len()).collect(),
+            vertices: if at_vertex {
+                vec![vertex(1)]
+            } else {
+                Vec::new()
+            },
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: b,
+            u,
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let vertices = if at_vertex {
+            vec![vertex(1)]
+        } else {
+            Vec::new()
+        };
+        match present_chart(&piece, near, &vertices, band()) {
+            Ok(Presentation::Vacuous) => Read::Vacuous,
+            Ok(Presentation::Of(q)) => Read::Of(matches!(q.zero, Zero::Curve(..)), q.corner),
+            Err(Unpresented::Local) => Read::Local,
+            Err(Unpresented::Structural) => Read::Structural,
+            Err(Unpresented::Collapsed(_)) => Read::Collapsed,
+        }
+    }
+
+    /// What a presentation came to: for one presented, whether its zero
+    /// is a curve and whether it was read through a corner.
+    #[derive(Debug, PartialEq)]
+    enum Read {
+        Vacuous,
+        Of(bool, bool),
+        Local,
+        Structural,
+        Collapsed,
+    }
+
+    /// **A ruling's corner with a section arc on a cone is read by the
+    /// ruling where the arc leaves into the face** ([`reading`]'s line
+    /// arm, [`present_line_corner`]), in the stored sheet and with the
+    /// corner a turn on; a reflex corner is read by none. Red where a
+    /// cone has no line reading (the corner is `Structural`: two halves
+    /// of a cut cone refuse at depth 0), or if [`leaves_line`] admits a
+    /// decided `Negative`.
+    #[test]
+    fn a_rulings_corner_with_a_section_arc_on_a_cone_is_read_by_the_ruling() {
+        for u0 in [0.0, TURN - 1.0 - 1e-3, -TURN] {
+            let (convex, (cu, cv)) = ruling_corner(u0, 2.0);
+            let cell = ((cu - 0.01, cu + 0.03), (cv - 0.02, cv + 0.03));
+            assert_eq!(
+                on_wall(&convex, &[0], true, cell.0, cell.1),
+                Read::Of(false, true),
+                "the convex corner at u0 = {u0} is presented by the ruling"
+            );
+            let (reflex, _) = ruling_corner(u0, 0.4);
+            let mut reflex = reflex;
+            reflex.extent = Some([(cu - 1.5, cu), (cv - 0.3, cv + 1.0)]);
+            assert_eq!(
+                on_wall(&reflex, &[0], true, cell.0, cell.1),
+                Read::Structural,
+                "the reflex corner at u0 = {u0} is read by none"
+            );
+        }
+    }
+
+    /// **The same corner with the section arc shared is read by the arc,
+    /// through the vertex** ([`Reading::Curve`], [`present_curved`]), and
+    /// a cell beside the arc alone by the arc's graph. Red where a focal
+    /// image is no curve [`present_curved`] reads on a cone.
+    #[test]
+    fn a_cone_cell_beside_a_section_arc_is_presented_by_the_arcs_graph() {
+        let (b, (cu, cv)) = ruling_corner(0.0, 2.0);
+        let cell = ((cu - 0.01, cu + 0.03), (cv - 0.02, cv + 0.03));
+        assert_eq!(
+            on_wall(&b, &[1], true, cell.0, cell.1),
+            Read::Of(true, true),
+            "the corner, the arc shared"
+        );
+        let image = section(0.0, true);
+        let (mu, mv) = stored(&image, anomaly_of(&image, 1.5));
+        let mut alone = b.clone();
+        alone.vertices.remove(&vertex(1));
+        let got = {
+            let s = cone();
+            let local = Local {
+                edges: vec![1],
+                vertices: Vec::new(),
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: &b,
+                u: (mu - 0.02, mu + 0.02),
+                v: (mv - 0.02, mv + 0.02),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            matches!(
+                present_chart(&piece, &[1], &[], band()),
+                Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Curve(..)) && !q.corner
+            )
+        };
+        assert!(got, "a cell beside the arc alone is presented by its graph");
+    }
+
+    /// **A rim's corner with a section arc is read by the rim**: the rim
+    /// `v = c` through the section's point of azimuth `1` runs from the
+    /// vertex toward the section's near vertex, the face between it and
+    /// the arc. Red where the line reading takes a ruling only.
+    #[test]
+    fn a_rims_corner_with_a_section_arc_on_a_cone_is_read_by_the_rim() {
+        let image = section(0.0, true);
+        let (ta, tb) = (anomaly_of(&image, 0.3), anomaly_of(&image, 1.0));
+        let (far, corner) = (stored(&image, ta), stored(&image, tb));
+        let end = (0.3, corner.1);
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                line_rim(10, [1, 2], Axis::V, corner, end),
+                section_rim(11, [3, 1], &image, (ta, tb)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), on_cone(corner.0, corner.1)),
+                (vertex(2), on_cone(end.0, end.1)),
+                (vertex(3), on_cone(far.0, far.1)),
+            ]),
+            extent: Some([(0.3, corner.0), (far.1, corner.1)]),
+            outer: None,
+        };
+        let cell = (
+            (corner.0 - 0.03, corner.0 + 0.01),
+            (corner.1 - 0.01, corner.1 + 0.005),
+        );
+        assert_eq!(
+            on_wall(&b, &[0], true, cell.0, cell.1),
+            Read::Of(false, true),
+            "the corner is presented by the rim"
+        );
+    }
+
+    /// **No reading reads a rectangle of a cone's chart that holds the
+    /// apex or is a turn wide** ([`cone_regular`]): the ruling's corner in
+    /// a cell that runs down through `v = 0`, where every azimuth is one
+    /// point and the cell's far side of the ruling is no other place, is
+    /// left to a smaller cell; the same cell clear of the apex is
+    /// presented. Red, presented, with the guard off: the fixture has no
+    /// apex vertex for [`only`] to refuse.
+    #[test]
+    fn a_cone_rectangle_holding_its_apex_is_read_by_no_curved_reading() {
+        let (b, (cu, cv)) = ruling_corner(0.0, 2.0);
+        let u = (cu - 0.01, cu + 0.03);
+        assert_eq!(
+            on_wall(&b, &[0], true, u, (0.05, cv + 0.03)),
+            Read::Of(false, true),
+            "clear of the apex"
+        );
+        for (what, v) in [
+            ("through the apex", (-0.05, cv + 0.03)),
+            ("down to the apex", (0.0, cv + 0.03)),
+        ] {
+            assert_eq!(on_wall(&b, &[0], true, u, v), Read::Local, "{what}");
+            assert_eq!(
+                on_wall(&b, &[1], true, u, v),
+                Read::Local,
+                "{what}, the arc shared"
+            );
+        }
+        let s = cone();
+        assert!(cone_regular(&s, (0.0, 6.0), (0.5, 1.0)));
+        assert!(!cone_regular(&s, (0.0, TURN), (0.5, 1.0)), "a turn wide");
+        assert!(
+            !cone_regular(&s, (0.0, 1.0), (-1.0, 1.0)),
+            "across the apex"
+        );
+        assert!(
+            cone_regular(&s, (0.0, 1.0), (-1.0, -0.5)),
+            "the other nappe"
+        );
+    }
+
+    /// **A corner's two edges a gap apart in azimuth are one point only
+    /// where the gap is within the band at the rectangle's FAR slant**:
+    /// on a cone a chart length along `u` is `|v|·sin α` metres, so over
+    /// `v ∈ [1e-10, 1]` a gap of `1e-3` rad is `4.8e-4` m at the far end
+    /// and `4.8e-14` m at the near one. [`on_vertex`] is handed the
+    /// chart's speed bound over the rectangle ([`speeds`]), an upper
+    /// bound, and reads two points. Red if the speed is taken at the near
+    /// end, where the vertex concession would read them as one.
+    #[test]
+    fn a_cones_corner_gap_is_metred_at_the_rectangles_far_slant() {
+        let s = cone();
+        let (x, y) = ((1.0, 1.001), (1e-10, 1.0));
+        let speed = speeds(&s, x, y);
+        assert!(
+            speed[0] >= ALPHA.sin() && speed[1] >= 1.0,
+            "an upper bound over the rectangle: {speed:?}"
+        );
+        let at = |u: f64| [iv0(u), iv0(0.5)];
+        assert!(
+            !on_vertex(at(1.0), at(1.001), speed, band()),
+            "a gap of 4.8e-4 m at the far slant is two points"
+        );
+        assert!(
+            on_vertex(at(1.0), at(1.0 + 1e-13), speed, band()),
+            "a gap within the band at the far slant is one"
+        );
+    }
+
+    /// **A focal image on a torus (a Villarceau circle) is read by no
+    /// curve reading**: it has no form [`present_curved`] reads, and its
+    /// edge is no curve a corner is read by. Admitting it is a decision
+    /// (`work/embed/curved-presentation-reads-plane-and-cylinder-images-only.md`).
+    #[test]
+    fn a_villarceau_row_on_a_torus_is_still_unread() {
+        let torus = Surface::Torus {
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            major_radius: iv0(2.0),
+            minor_radius: iv0(0.5),
+        };
+        let image = FocalImage {
+            va: 0.0,
+            vl: 1.0,
+            ..section(0.0, true)
+        };
+        let curve = ChartCurve::Focal(focal(&image));
+        assert!(Form::of(&torus, curve).is_none(), "no form on a torus");
+        assert!(
+            Form::of(&cone(), curve).is_some(),
+            "the same image on a cone"
+        );
+        let rim = section_rim(11, [1, 3], &image, (0.0, 1.0));
+        assert!(is_curved(&torus, &rim) && !reads_curve(&torus, &rim));
+        assert!(reads_curve(&cone(), &rim));
+    }
+}
