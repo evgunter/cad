@@ -5137,7 +5137,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 105] = [
+const NOT_CARRIED: [&str; 102] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5248,13 +5248,6 @@ const NOT_CARRIED: [&str; 105] = [
     // runs for a caller drawing a face's trace in a frame's plane.
     "traced_faces",
     "trace_marks",
-    // The fused "sketch on this face" act: profile, extrude, placement
-    // and union in one gesture, which the viewer alone still writes. A
-    // consumer draws on a face through `draw_on_face` (carried) and
-    // extrudes and combines with the ordinary acts after it (DM1).
-    "SketchOutcome",
-    "SketchedOnFace",
-    "sketch_on_face",
 ];
 
 /// Every name a `pub use` statement of `src` introduces, restricted

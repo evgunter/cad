@@ -515,20 +515,18 @@ fn a_frame_turned_in_radians_asks_for_the_axis_read_off_the_face() {
 
 /// **A boss on a box mated flat onto the cylinder's top cap is tangent
 /// for every tilt** (DESIGN `[placement]`: "or a face mated flat onto
-/// that cap"): the cylinder tilted by a free `a` at `0.2`, a thin box
-/// placed on its top cap by the plane mate a sketch on a face writes, and
-/// a boss drawn on the box's top tracing the wall, run down past the box
-/// along the wall.
+/// that cap"): the cylinder tilted by a free `a` at `0.2`, a thin box's
+/// copy rested on its top cap (DM1: a body on a face is a placement, its
+/// start cap's plane on the cap's), and a boss drawn on the box's top
+/// tracing the wall, run down past the box along the wall.
 #[test]
 fn a_boss_on_a_box_mated_flat_onto_the_cap_is_tangent_for_every_tilt() {
     let (doc, a) = with_angle("a", 0.2);
     let (doc, block) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
     let (doc, cylinder) = turned_cylinder(doc, block, a, ([0.0, 0.0], 0.0));
-    let placed = editor_core::sketch_on_face(
-        &doc,
-        BodyRead::plain(Operand::output(cylinder, 0)),
-        cap_of(&eval(&doc), cylinder, CapEnd::End),
-        ProfileProgram {
+    let (doc, outline) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::polygon_expr([
                 [len(-1.5), len(-1.5)],
                 [len(1.5), len(-1.5)],
@@ -537,23 +535,21 @@ fn a_boss_on_a_box_mated_flat_onto_the_cap_is_tangent_for_every_tilt() {
             ])],
             ids: Vec::new(),
             on: None,
-        },
-        len(0.2),
-        fixture::ang(0.0),
-        None,
-        &EvalOptions::default(),
-        &CancelToken::new(),
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the box is placed on the cap: {e}"));
-    let box_top = cap(placed.sketched.extrude, CapEnd::End);
-    let (doc, boss) = boss_tracing(
-        placed.doc,
-        (placed.sketched.placement, box_top),
-        cylinder,
-        unslid(),
-        -0.8,
+        }),
     );
+    let (doc, plate) = extruded_by(doc, outline, 0.2);
+    let (doc, placement) = fixture::stood_in(doc, plate, cylinder);
+    let top = cap_of(&eval(&doc), cylinder, CapEnd::End);
+    let (doc, _) = fixture::constrain_at(
+        doc,
+        placement,
+        fixture::rest(
+            pick(Operand::Node(plate), cap(plate, CapEnd::Start)),
+            pick(Operand::output(cylinder, 0), top),
+        ),
+    );
+    let box_top = cap(plate, CapEnd::End);
+    let (doc, boss) = boss_tracing(doc, (placement, box_top), cylinder, unslid(), -0.8);
     // Pinned red: the replay does not see the heading through the
     // placement (`work/doctail/the-tangency-prover-does-not-see-through-a-placement.md`).
     test_utils::pinned_red::row(
