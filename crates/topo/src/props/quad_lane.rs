@@ -2337,7 +2337,7 @@ mod tests {
             for (key, _) in body.faces() {
                 let face = body.proven_face(key);
                 let surface = face.surface();
-                let loops = flat_loops(body, face.record()).unwrap();
+                let loops = flat_loops(face).unwrap();
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
@@ -2510,11 +2510,11 @@ mod tests {
                 let centre = corner_of(lane, run);
                 let face = body.proven_face(run.face);
                 let surface = face.surface();
-                let loops = face_loops(&body, face.record()).unwrap();
+                let loops = face_loops(face).unwrap();
                 let (c, _) = super::super::closed_form(
                     surface,
                     &loops,
-                    &crate::props::face_tips(&body, face.record()).unwrap(),
+                    &crate::props::face_tips(face).unwrap(),
                     face.sense(),
                     band,
                     centre,
@@ -2524,13 +2524,7 @@ mod tests {
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon
-                    + match vertex_rings(
-                        &body,
-                        surface,
-                        &flat_loops(&body, face.record()).unwrap(),
-                        lane,
-                    )
-                    .unwrap()
+                    + match vertex_rings(&body, surface, &flat_loops(face).unwrap(), lane).unwrap()
                     {
                         Some(rings) => {
                             let &geom::Surface::Plane { frame, .. } = surface else {

@@ -241,10 +241,7 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
                 unreachable!("matched above")
             };
             assert_eq!(node, &doc.spoken(extrude), "the refused node");
-            let said = format!(
-                "Extrude \"base \\\"plate\\\"\" ({})",
-                tag(extrude.0.digest())
-            );
+            let said = format!("\"base \\\"plate\\\"\" ({})", tag(extrude.0.digest()));
             let sentence = PersistError::Snapshot(error.clone()).to_string();
             assert!(
                 sentence.contains(&format!("{said}'s profile reads")),
@@ -308,29 +305,35 @@ fn split_and_inline_carry_labels_and_the_new_instance_has_none() {
 /// kind, quoted label and tag; kind and tag once cleared; `node` and
 /// the tag once the node is gone.
 #[test]
-fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
+fn the_spoken_node_says_label_and_tag_as_the_document_holds_them() {
     let doc = ProfileDoc::empty_derived("node-labels-spoken", Tol::witness());
     let (doc, [_, extrude]) = block(doc, 0.0);
     let labelled = set_label(doc.clone(), extrude, Some("base plate"));
     let t = tag(extrude.0.digest());
     assert_eq!(
-        labelled.spoken(extrude).to_string(),
-        format!("Extrude \"base plate\" ({t})")
+        editor_core::test_support::node_text(&labelled.spoken(extrude)),
+        format!("\"base plate\" ({t})")
     );
     assert_eq!(labelled.spoken(extrude).label(), Some(&label("base plate")));
-    assert_eq!(doc.spoken(extrude).to_string(), format!("Extrude {t}"));
+    assert_eq!(
+        editor_core::test_support::node_text(&doc.spoken(extrude)),
+        format!("Extrude {t}")
+    );
     let quoted = set_label(doc.clone(), extrude, Some(r#"Bolt "M6" \ 2"#));
     assert_eq!(
-        quoted.spoken(extrude).to_string(),
-        format!(r#"Extrude "Bolt \"M6\" \\ 2" ({t})"#),
+        editor_core::test_support::node_text(&quoted.spoken(extrude)),
+        format!(r#""Bolt \"M6\" \\ 2" ({t})"#),
         "a quote and a backslash in the label are escaped"
     );
     let (gone, _) = step(labelled, DocEdit::DeleteNode { id: extrude });
-    assert_eq!(gone.spoken(extrude).to_string(), format!("node {t}"));
+    assert_eq!(
+        editor_core::test_support::node_text(&gone.spoken(extrude)),
+        format!("node {t}")
+    );
 }
 
 /// **An edit refusal speaks each node it names at the raise**, from the
-/// document the door holds: kind, label and tag for a held node. The
+/// document the door holds: label and tag for a held node (its kind and tag with no label). The
 /// typed field keeps the id a caller matches on.
 #[test]
 fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
@@ -357,7 +360,7 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
     assert!(
         wrong
             .to_string()
-            .starts_with(&format!("Extrude \"base plate\" ({e})'s profile reads")),
+            .starts_with(&format!("\"base plate\" ({e})'s profile reads")),
         "{wrong}"
     );
 }
@@ -408,7 +411,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
             .next(),
         Some(
             format!(
-                "Shell \"mount\" ({}) selects the side wall over loop 0 step 1 of Extrude \
+                "\"mount\" ({}) selects the side wall over loop 0 step 1 of \
                  \"base plate\" ({})",
                 tag(carrier.0.digest()),
                 tag(victim.0.digest())
@@ -442,7 +445,7 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "the side wall over loop 0 step 1 of Extrude \"base plate\" ({})",
+            "the side wall over loop 0 step 1 of \"base plate\" ({})",
             tag(extrude.0.digest())
         )),
         "{refused}"
@@ -480,10 +483,10 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
     assert_eq!(
         text,
         format!(
-            "split: the cut severs the edge from Extrude \"base plate\" ({e})'s profile to its input \
-             Profile \"sketch\" ({p}). The consumer is kept and the input is cut, but a cut \
-             must be closed under inputs and consumers. Recourse: add Extrude \"base plate\" \
-             ({e}) to the cut, or leave Profile \"sketch\" ({p}) out of it",
+            "split: the cut severs the edge from \"base plate\" ({e})'s profile to its input \
+             \"sketch\" ({p}). The consumer is kept and the input is cut, but a cut \
+             must be closed under inputs and consumers. Recourse: add \"base plate\" \
+             ({e}) to the cut, or leave \"sketch\" ({p}) out of it",
             e = tag(extrude.0.digest()),
             p = tag(profile.0.digest())
         )
@@ -523,7 +526,7 @@ fn a_split_forward_reference_speaks_from_the_document_being_split() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "the side wall over loop 0 step 1 of Extrude \"late block\" ({})",
+            "the side wall over loop 0 step 1 of \"late block\" ({})",
             tag(c.0.digest())
         )),
         "{refused}"
@@ -562,7 +565,7 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "the side wall over loop 0 step 1 of Extrude \"late block\" ({})",
+            "the side wall over loop 0 step 1 of \"late block\" ({})",
             tag(c.0.digest())
         )),
         "{refused}"
@@ -674,7 +677,7 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     assert!(
         refused
             .to_string()
-            .contains(&format!("Extrude \"bracket\" ({})", tag(body.0.digest()))),
+            .contains(&format!("\"bracket\" ({})", tag(body.0.digest()))),
         "{refused}"
     );
 }
@@ -697,7 +700,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
     let e = tag(extrude.0.digest());
-    let plate = format!("Extrude \"base plate\" ({e})");
+    let plate = format!("\"base plate\" ({e})");
 
     let unknown_slot = derive(
         &doc,
@@ -731,7 +734,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     assert!(
         not_a_measure.to_string().starts_with(&format!(
             "{} is not a scalar variable",
-            doc.spoken_var(body)
+            editor_core::test_support::var_text(&doc.spoken_var(body))
         )),
         "{not_a_measure}"
     );
@@ -823,7 +826,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         histogram.render(&doc)
     );
     let renamed = set_label(doc, extrude, Some("lid"));
-    let lid = format!("Extrude \"lid\" ({e})");
+    let lid = format!("\"lid\" ({e})");
     assert!(mc.render(&renamed).contains(&format!("  {lid}: mean")));
     assert!(histogram.render(&renamed).contains(&lid));
     for (golden, full) in [
@@ -912,7 +915,8 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_placements() {
     assert!(interference.quiet.is_none(), "{interference:?}");
     let spoken = report.spoken(&doc);
     assert!(
-        spoken.contains("Place \"base\"") && !spoken.contains(&format!("placement {b}")),
+        spoken.to_string().contains("\"base\" (")
+            && !spoken.to_string().contains(&format!("placement {b}")),
         "no placement is left at its bare tag: {spoken}"
     );
     let bare = report.to_string();
@@ -924,9 +928,9 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_placements() {
     let refusal = enforce_checks(&report, &strict).expect_err("connectedness is at Error");
     let spoken = refusal.spoken(&doc);
     assert!(
-        spoken.contains(&format!(
-            "check connectedness: Place \"base\" ({b}) output 0:"
-        )),
+        spoken
+            .to_string()
+            .contains(&format!("check connectedness: \"base\" ({b}) output 0:")),
         "the refusal speaks its placement from the document: {spoken}"
     );
     assert!(
@@ -1023,8 +1027,8 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         "{pick}"
     );
     assert!(
-        pick.spoken(&doc).starts_with(&format!(
-            "pick: Profile \"sketch plane\" ({f})'s value is not body-denoting"
+        pick.spoken(&doc).to_string().starts_with(&format!(
+            "pick: \"sketch plane\" ({f})'s value is not body-denoting"
         )),
         "{}",
         pick.spoken(&doc)
@@ -1032,7 +1036,8 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let renamed = set_label(doc.clone(), sketch, Some("top plane"));
     assert!(
         pick.spoken(&renamed)
-            .starts_with(&format!("pick: Profile \"top plane\" ({f})'s")),
+            .to_string()
+            .starts_with(&format!("pick: \"top plane\" ({f})'s")),
         "a refusal raised before a rename speaks the label as it stands: {}",
         pick.spoken(&renamed)
     );
@@ -1055,7 +1060,8 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     assert!(
         refusal
             .spoken(&doc, &ev)
-            .contains(&format!("Extrude \"base plate\" ({e})")),
+            .to_string()
+            .contains(&format!("\"base plate\" ({e})")),
         "{}",
         refusal.spoken(&doc, &ev)
     );
@@ -1067,8 +1073,8 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     assert_eq!(
         poisoned.spoken(&doc),
         format!(
-            "Extrude \"base plate\" ({e}) is poisoned by the failure at Profile \"sketch \
-             plane\" ({f}), so it has no value — the repair is upstream, at Profile \
+            "\"base plate\" ({e}) is poisoned by the failure at \"sketch \
+             plane\" ({f}), so it has no value — the repair is upstream, at \
              \"sketch plane\" ({f})"
         )
     );
@@ -1083,7 +1089,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         .into_iter()
         .next()
         .expect("the extrude names its faces");
-    let plate = format!("Extrude \"base plate\" ({e})");
+    let plate = format!("\"base plate\" ({e})");
 
     // Each held node is said as the document holds it, through every
     // refusal that forwards a standing or a name.
@@ -1119,7 +1125,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         last_good: None,
     };
     assert!(
-        vanished.spoken(&doc, &ev).starts_with(&format!(
+        vanished.spoken(&doc, &ev).to_string().starts_with(&format!(
             "the end cap of {plate} no longer resolves in this evaluation: a structural \
              parameter changed on the derivation path: slot {} of {plate}",
             SlotId::Stations.label()
@@ -1166,7 +1172,7 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     let (doc, [_, body]) = block(doc, 0.0);
     let doc = set_label(doc, body, Some("base plate"));
     let t = tag(body.0.digest());
-    let spoken = format!("Extrude \"base plate\" ({t})");
+    let spoken = format!("\"base plate\" ({t})");
 
     // A pose refusal names the placement it is about once.
     let placement = PoseRefusal::OtherSpace {
@@ -1175,11 +1181,14 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     };
     let said = spoken_by(&placement, &doc);
     assert!(
-        said.starts_with(&format!("{spoken} places its copy into "))
-            && said.ends_with("not the world, so it has no world pose"),
+        said.to_string()
+            .starts_with(&format!("{spoken} places its copy into "))
+            && said
+                .to_string()
+                .ends_with("not the world, so it has no world pose"),
         "{said}"
     );
-    assert_eq!(said.matches(&t).count(), 1, "{said}");
+    assert_eq!(said.to_string().matches(&t).count(), 1, "{said}");
 
     // A mate fault recorded against a placement names the placement
     // once, by its noun where it has one and as `this node` where it has
@@ -1196,9 +1205,9 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
         })));
     let line = fixed_twice.line_at(body, Speaker::of(&doc));
     assert!(
-        line.starts_with(&format!(
+        line.to_string().starts_with(&format!(
             "{spoken} failed: the mate solve refused: this node's each of constraints "
-        )) && line.matches(&t).count() == 1,
+        )) && line.to_string().matches(&t).count() == 1,
         "{line}"
     );
     let off_the_copy = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::NotOnTheCopy {
@@ -1206,9 +1215,11 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     })));
     let line = off_the_copy.line_at(body, Speaker::TAG);
     assert!(
-        line.starts_with(&format!("node {t} failed:"))
-            && line.contains("constraint #8 of this node's `on` pose reads geometry other than")
-            && line.matches(&t).count() == 1,
+        line.to_string().starts_with(&format!("node {t} failed:"))
+            && line
+                .to_string()
+                .contains("constraint #8 of this node's `on` pose reads geometry other than")
+            && line.to_string().matches(&t).count() == 1,
         "{line}"
     );
 }
@@ -1263,7 +1274,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
 
     let said = kind.respoken(&later).to_string();
     assert!(
-        said.starts_with(&format!("Extrude \"slab\" ({e})'s profile reads ")),
+        said.starts_with(&format!("\"slab\" ({e})'s profile reads ")),
         "a node arm says its node's new label: {said}"
     );
     assert_eq!(
@@ -1282,7 +1293,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     let (deleted, _) = step(later.clone(), DocEdit::DeleteNode { id: extrude });
     let said = kind.respoken(&deleted).to_string();
     assert!(
-        said.starts_with(&format!("Extrude \"base plate\" ({e})'s profile reads ")),
+        said.starts_with(&format!("\"base plate\" ({e})'s profile reads ")),
         "a node deleted since is said as the door said it: {said}"
     );
 

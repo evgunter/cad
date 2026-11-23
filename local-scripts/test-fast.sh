@@ -4,7 +4,7 @@
 # with debug-assertions and overflow-checks still ON (fail-loud
 # postconditions keep their teeth).
 #
-# opt-2 -> opt-1 ON 2026-08-25, following ci.yml's two archive jobs. This
+# opt-2 -> opt-1 ON 2026-08-25, following ci.yml's test job. This
 # script's contract is "reproduce the hosted configuration locally", so it
 # tracks that setting rather than holding an opinion of its own. It is also
 # the better trade for what this script is FOR: a three-arm sweep that day
@@ -22,14 +22,14 @@
 # wall — so the tests added since are less compute-bound than the ones
 # that motivated it. Quoting 15x today overstates the win by ~3.5x.
 #
-# This IS the CI configuration for the two nextest-archive jobs. It was
-# opt-2 from #449 (2026-08-12), which reversed the #52/#53 "opt 2 is
-# net-slower on CI" verdict once its premises expired — #179/#387 took the
-# workspace from 261 test binaries to 14, and test execution grew to ~79%
-# of run wall; hosted result: critical path 1065s -> 840s, billed ~137 ->
-# ~72 min. It became opt-1 on 2026-08-25, when the same arithmetic was
-# finally applied to the level nobody had measured. Full write-ups:
-# docs/GENERICS-BUILD-COST.md and docs/perf-data/opt-level/.
+# This mirrors ci.yml's `test` job (opt-1, the per-PR gate), not
+# nightly.yml's `full-suite` (opt-2). The CI level was opt-2 from #449
+# (2026-08-12), which reversed the #52/#53 "opt 2 is net-slower on CI"
+# verdict once its premises expired — #179/#387 took the workspace from
+# 261 test binaries to 14, and test execution grew to ~79% of run wall;
+# hosted critical path 1065s -> 840s. It became opt-1 on 2026-08-25, when
+# the same arithmetic was applied to the level nobody had measured. Full
+# write-ups: docs/GENERICS-BUILD-COST.md and docs/perf-data/opt-level/.
 #
 # THE TIMINGS ABOVE ARE opt-0 -> opt-2 READINGS and are left as taken.
 #

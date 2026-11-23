@@ -412,10 +412,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
     if proven(&body.half_edges, first.half, EntityId::HalfEdge).parent_loop != outer {
         return None;
     }
-    let curve = |e: crate::entity::EdgeKey| {
-        body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
-            .certified()
-    };
+    let curve = |e: crate::entity::EdgeKey| body.proven_edge(e).certified();
     let (m, tau) =
         crate::solid_contain::along_half(body, first.half, 1.0 - geom_core::GOLDEN_SECTION)?;
     let half = T::from_f64(0.5);
@@ -919,14 +916,10 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
     let mut out = Vec::new();
     for (face, _) in body.faces() {
         for fe in body.proven_face(face).edges() {
-            let Some(edge) = body.edges.get(fe.edge) else {
-                continue;
-            };
-            let Some(curve) = body
-                .curves
-                .get(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
+            let edge =
+                body.linked_edge(fe.edge, crate::entity::EntityId::HalfEdge(fe.half), "edge");
+            // Null scaffolding has no carrier to aim along.
+            let Some(curve) = edge.certified() else {
                 continue;
             };
             let (t0, t1) = curve.params();
@@ -934,7 +927,7 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
                 let t = t0 + (t1 - t0) * x;
                 let point = curve.carrier().eval(t);
                 let mut tau = curve.carrier().deriv(t).normalize();
-                if edge.he_minus == fe.half {
+                if edge.record().he_minus == fe.half {
                     tau = tau * -1.0;
                 }
                 let Ok(Some(normal)) =

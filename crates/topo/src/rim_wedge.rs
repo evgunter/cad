@@ -1020,11 +1020,11 @@ pub(crate) fn face_boundary_arcs<T: Real>(
         return out;
     };
     for member in f.boundary() {
-        let crate::live::BoundaryMember::Edge { he, ek, edge, .. } = member else {
+        let crate::live::BoundaryMember::Edge { he, edge, .. } = member else {
             continue;
         };
-        if let Some(c) = body.edge_curve_linked(ek, edge).certified() {
-            out.push((edge.he_plus == he, c));
+        if let Some(c) = edge.certified() {
+            out.push((edge.record().he_plus == he, c));
         }
     }
     out
@@ -1895,15 +1895,14 @@ mod unplaced_rows {
     use crate::test_support_fixtures::prism_z;
     use geom_core::{Tol, Vec3};
 
-    /// **A face whose containment door refuses a piece's midpoint on no
-    /// margin is named by its side of the pair, with the door's refusal
-    /// whole.** Two unit blocks' tops share the plane `z = 0`; one top
-    /// carries a ring that is a lone vertex, which bounds no region
-    /// (`ContainError::EmptyLoop`). The line `y = 0.25` across both tops
-    /// leaves one touch piece, and that top's door refuses its midpoint,
-    /// as the first face of the pair or the second.
+    /// **A lone-vertex ring leaves a face's piece read**: two unit
+    /// blocks' tops share the plane `z = 0`, and one top carries a ring
+    /// that is a lone vertex, which bounds no area. The line `y = 0.25`
+    /// across both tops reads as it does across two plain tops, as the
+    /// first face of the pair or the second. Red where that top's door
+    /// refused the piece's midpoint as a lone loop.
     #[test]
-    fn a_face_whose_door_refuses_a_piece_is_named_by_its_side() {
+    fn a_lone_ring_leaves_a_faces_piece_read() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let unit = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
@@ -1942,15 +1941,20 @@ mod unplaced_rows {
                 departures(&plain.body, plain.top_face, &ringed.body, top, locus, band),
             ),
         ] {
+            let bare = departures(
+                &plain.body,
+                plain.top_face,
+                &plain.body,
+                plain.top_face,
+                locus,
+                band,
+            );
             assert!(
                 matches!(
-                    got,
-                    Err(RimUnread::Unplaced {
-                        side: at,
-                        why: Unplaced::Door(ContainError::EmptyLoop(_)),
-                    }) if at == side
+                    (&got, &bare),
+                    (Ok(Departure::NoEdge), Ok(Departure::NoEdge))
                 ),
-                "the ringed top on the {side:?} side: {got:?}"
+                "the ringed top on the {side:?} side reads as the plain one: {got:?}, {bare:?}"
             );
         }
     }

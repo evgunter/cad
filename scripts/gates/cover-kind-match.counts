@@ -80,14 +80,12 @@ whole 1 crates/topo/src/boolean/join.rs
 arm 6 crates/topo/src/boolean/ops.rs
 arm 7 crates/topo/src/boolean/reduce.rs
 arm 1 crates/topo/src/rim_wedge.rs
-arm 10 crates/topo/src/boolean/section_cert.rs
+arm 6 crates/topo/src/boolean/section_cert.rs
 arm 2 crates/topo/src/boolean/sectors.rs
 arm 2 crates/topo/src/boolean/slit.rs
-ball 1 crates/topo/src/boolean/slit.rs
 arm 6 crates/topo/src/solid_contain.rs
 whole 2 crates/topo/src/solid_contain.rs
 arm 2 crates/topo/src/sphere_region.rs
-arm 1 crates/topo/src/torus_region.rs
 arm 1 crates/topo/src/boolean/trace.rs
 whole 1 crates/topo/src/boolean/trace.rs
 whole 1 crates/topo/src/boxes.rs

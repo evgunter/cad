@@ -9,8 +9,6 @@ crates/geom-brep/src/curve_face/pose.rs 1
 crates/geom-brep/src/curve_pair/pose.rs 3
 crates/geom-brep/src/dihedral.rs 2
 crates/geom-brep/src/intersect.rs 5
-crates/geom-brep/src/pcurve_cache.rs 5
-crates/geom-brep/src/props/curved.rs 1
 crates/geom-brep/src/sector_shape.rs 1
 crates/geom-brep/src/ssi/boundary.rs 1
 crates/geom-brep/src/ssi/certify.rs 2
@@ -29,7 +27,6 @@ crates/topo/src/census.rs 1
 crates/topo/src/chart_region.rs 2
 crates/topo/src/chord_join.rs 1
 crates/topo/src/offset_axial.rs 1
-crates/topo/src/pcurves/decision.rs 1
 crates/topo/src/rim_wedge.rs 1
 crates/topo/src/ring_path.rs 2
 crates/topo/src/validate.rs 1

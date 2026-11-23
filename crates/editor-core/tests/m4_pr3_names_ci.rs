@@ -1,7 +1,7 @@
 //! M4 PR 3 naming tests, part 3 (spec D5): the N4 CI invariant — the
 //! name table is a function of (recipe structure, structural params,
-//! predicate verdict vector) ONLY. Golden die table digest (joins the
-//! replay-identity family), continuous-parameter motion without flips
+//! predicate verdict vector) ONLY. The die's tables replay identically
+//! and its names-only digest is golden, continuous-parameter motion without flips
 //! leaves every table identical, and memo reuse transfers tables
 //! bit-identically.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -23,17 +23,11 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 /// FNV-1a 64 over the tables' deterministic Debug encoding: node ids
-/// in order, each table's rows in name order. Arena keys are included
-/// deliberately — same recipe + same verdicts ⇒ same kill history ⇒
-/// same keys (D9); a digest drift is a replay-identity break.
+/// in order, each table's rows in name order, arena keys included —
+/// same recipe + same verdicts ⇒ same kill history ⇒ same keys (D9).
 fn digest(ev: &Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |s: &str| {
-        for b in s.bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
+    let mut h = crate::fixture::digest::Fnv::new();
+    let mut feed = |s: &str| h.feed(s.as_bytes());
     for id in &ev.order {
         feed(&format!("#{id:?}"));
         for t in crate::fixture::tables(ev, *id) {
@@ -42,54 +36,34 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
             }
         }
     }
-    h
+    h.finish()
 }
 
-/// Names-only companion digest (review R11): entry keys excluded —
-/// only node ids, names, and entry shape (unique vs tie width). A
-/// drift HERE is a naming-semantics change; a drift in the full
-/// digest alone is an allocation/replay change. Triage reads both.
+/// Names-only digest (review R11): each name with its node ids spelled
+/// by their place and its entry's shape (`fixture::digest::name_shapes`)
+/// — no arena key, no mint id. It moves only where what the names SAY
+/// moves: the role vocabulary, the entry shapes, the recipe's structure.
 fn digest_names(ev: &Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |s: &str| {
-        for b in s.bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
-    for id in &ev.order {
-        feed(&format!("#{id:?}"));
-        for t in crate::fixture::tables(ev, *id) {
-            for (n, e) in t.iter() {
-                let shape = match e {
-                    editor_core::Entry::Unique(r) => format!("u{}", r.body),
-                    editor_core::Entry::Tied(c) => format!("t{}", c.len()),
-                };
-                feed(&format!("{n:?}={shape};"));
-            }
+    let mut h = crate::fixture::digest::Fnv::new();
+    for (place, id) in ev.order.iter().enumerate() {
+        h.feed(format!("@node{place}").as_bytes());
+        for row in crate::fixture::digest::name_shapes(ev, *id) {
+            h.feed(row.as_bytes());
+            h.feed(b";");
         }
     }
-    h
+    h.finish()
 }
 
-/// The pinned die digest (update ONLY on a ratified naming change —
-/// this is the replay-identity family's naming member).
-///
-/// The digest feeds each name's `Debug` encoding, so TWO independent
-/// things move it: what the names SAY (the role vocabulary's
-/// spelling) and which node ids they carry (a `StableName` holds the
-/// id of the node that minted it, so any authoring change that
-/// renumbers nodes moves every row). The companion below tells the
-/// two apart only in part — it drops the entry keys, not the ids — and
-/// `m10_p_fence`'s ids-masked row pins the geometry beneath both.
-const DIE_TABLE_DIGEST: u64 = 0x9490_b377_0779_8e5c;
+/// The pinned names-only die digest ([`digest_names`]); update only on a
+/// ratified naming change.
+const DIE_NAMES_DIGEST: u64 = 0xb543_5c1d_c3e1_8fac;
 
-/// The pinned names-only die digest (R11 companion; see
-/// [`digest_names`]): it moves with [`DIE_TABLE_DIGEST`] wherever a
-/// name's wording or an id it spells moves, and not where an entry key
-/// alone does.
-const DIE_NAMES_DIGEST: u64 = 0x8872_ee97_46c7_980c;
-
+/// **The die's tables are a function of its recipe and verdicts, and
+/// its names are the ratified ones.** Two fresh evaluations of the die
+/// give byte-identical tables, arena keys and ids included (D9: same
+/// recipe + same verdicts ⇒ same kill history ⇒ same keys), and what
+/// the names say is [`DIE_NAMES_DIGEST`].
 #[test]
 fn die_name_tables_are_golden() {
     let d = die();
@@ -100,9 +74,8 @@ fn die_name_tables_are_golden() {
     }
     assert_eq!(
         digest(&ev),
-        DIE_TABLE_DIGEST,
-        "die name-table digest drifted: got {:#018x}",
-        digest(&ev)
+        digest(&run(&d.doc)),
+        "two evaluations of the die named its entities differently: a replay-identity break"
     );
     assert_eq!(
         digest_names(&ev),

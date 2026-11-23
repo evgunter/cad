@@ -223,7 +223,7 @@ impl Recording<'_, ProfileProgram> {
                 });
             }
             let was = self.doc().through_sources(source).read;
-            let copies = copies_reading(self.doc(), source);
+            let copies = self.doc().plain_copies_of(source);
             self.apply(DocEdit::DefineVar {
                 var: source.into(),
                 def: crate::VarDecl::Source(crate::BodyRead::plain(result.clone())),
@@ -419,19 +419,6 @@ fn rebinds_of(
         moved,
         unchecked,
     }
-}
-
-/// **The placements reading `source`**, in document order: each whose
-/// source read reaches it down plain reads of sources ([`sources_reading`]).
-fn copies_reading(doc: &Doc<ProfileProgram>, source: VarId) -> Vec<RecipeNodeId> {
-    let sources = sources_reading(doc, source);
-    doc.placements()
-        .into_iter()
-        .filter(|&placement| {
-            doc.copied_read(placement)
-                .is_some_and(|read| sources.contains_key(&read))
-        })
-        .collect()
 }
 
 /// **`source` and every source reading it**, at any depth down plain

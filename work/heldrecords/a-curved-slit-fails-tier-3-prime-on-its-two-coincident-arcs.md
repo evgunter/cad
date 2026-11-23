@@ -2,10 +2,11 @@
 id: a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs
 kind: issue
 title: A curved keel's slit or ring fails tier 3′: its two coincident arcs sit on two curve entries and no record backs the overlap
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: M
+branch: heldrecords/split-on
 ---
 
 

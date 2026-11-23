@@ -2292,7 +2292,7 @@ fn coplanar_ellipses<T: Decide>(
     // Read exact, as the window reads it: the level divides by the squared
     // semi-axes, which the admission rule does not cover, and is owed a
     // re-posing as a length
-    // (`work/oneround/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
+    // (`work/conic/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
     let jet = |theta: T| level.jet_at(theta).map(geom_core::Rounded::exact);
     let local = Local {
         at: &jet,
@@ -2318,7 +2318,7 @@ fn coplanar_ellipses<T: Decide>(
 /// local form drops the far centre's share, but not the thin pair's: its
 /// terms still divide by `A²` and `B²`, so its rounding as a length grows
 /// with `b`'s aspect, which the admission rule does not cover
-/// (`work/oneround/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
+/// (`work/conic/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
 /// A reading over a piece takes the jet at its middle and
 /// [`Level::fourth`] for Taylor's remainder, a bound that needs no
 /// precision.

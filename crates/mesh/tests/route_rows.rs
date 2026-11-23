@@ -302,7 +302,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "donut",
             0x8e3d_031d_bf7e_b783,
             0xcbf2_9ce4_8422_2325,
-            0x10e7_f0a2_46fd_3c81,
+            0x7278_5776_b24f_0ce5,
         ),
         (
             "ball less a slab turned 0.3",

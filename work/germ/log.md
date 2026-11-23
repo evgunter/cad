@@ -1747,3 +1747,109 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - Waiting on CI, which is queued (95 runs repo-wide).
   - **P0 owed by GERM found on main**: BOXFINISH bisected `work/green/main-red-eleven-...-after-c390e1f9` and found that U3b (PR 7299) moved six editor-core default-set rows: `cut_cylinder`'s split vertex is now placed at `cross`'s root. I did not see this sooner. A lane is dispatched to judge the move with numbers and re-pin GERM's six; SECTCONE owns the other five. Tier: the orchestrator's read (a re-pin with a measured judgement), so no model-compare draw.
   - Closed `main-red-recourse-roster-misses-intersect-rs-closed-form-shown-and-shown`: PR 7217 fixed it, but the row was left open.
+- 2026-11-23 — **Closed `main-red-axis-normal-snap-refuses-nist-ftc-09`** (`germ/nist-snap-main-red`). `nist_ftc_09`'s refusal at `#5130` is a tangent pair, not an axis-normal one: cylinder `#5130` bites plane `#5116` by 56.8 µm, in the (33.8 µm, 338 µm) band. PR 7171's fix pass made the snap refuse it, and the build refuses the same gap at `#5118`. The pins moved from `#4950` to `#5130`, a refusal-class change by D7.
+- 2026-11-23 02:30 — **P0 re-pin merged** (PR 7500, `194131e40b`).
+  - Measured judgement: across the whole corpus dump at f64, U3b moved one point, `cut_cylinder`'s x = −0.5 seam vertex z, by 1 ulp. It went from `…115`, 0.58 ulp below the exact crossing, to `…116`, the correctly rounded value. No outcome, count or verdict moved.
+  - GERM's six rows are re-pinned. SECTCONE's five are untouched, and the green row stays open for them.
+  - The bisect missed that U3b also moved the Interval fence row: both seam z intervals narrowed and still hold the exact crossing. That is recorded on the green row for whoever re-pins it.
+  - Merged over CI queued about 95 minutes, under Ev's 2026-11-22 rule that low-risk changes may merge over a running CI: the change is test pins only, run locally at three ε, and fixes a main red.
+- 2026-11-23 02:30 — **Friction: runner queue.** PR 7411's fix-pass head `ea6e47e9f3` sat queued from about 00:40 to past 02:14. 88–95 runs were queued repo-wide throughout.
+- 2026-11-23 06:00 — **Friction: a conflicting PR runs no CI, silently.**
+  - PR 7411's fix-pass head `2fee1eda6e`, pushed at 04:10, and PR 7431's `3ff2099ac1` got no workflow runs at all.
+  - ONEROUND's `oneround/anchored-conic` had landed and conflicted with both, in `on_surface.rs` and `ring_path.rs`. Nothing told the lanes or me; I found it at 05:12 by asking for `mergeable`.
+  - About 60 minutes lost on top of the runner queue, which held at about 100 runs.
+  - Both lanes merged main and pushed: PR 7411 at `3abf8640d7`, PR 7431 at `f5d7ed9762`. Their CI is queued.
+  - Remedy for this orchestrator: check `mergeable` at every check-in, not only the check runs.
+- 2026-11-23 06:50 — **Dispatched `main-red-axis-normal-snap-refuses-nist-ftc-09`** (P1 E; owed by GERM since PR 7171 brought in `c25c174105`; it also skips the nightly render lanes). Letter M, tier single FULL: the fix changes what an import refuses in the band, so its correctness has to be shown, not just read. The implementer draw is byte 172, recorded on `analysis/model-compare/germ-2026-11-22`. The tier and letter were set in the same step as the draw, not logged here first; noted against rule 2.
+- 2026-11-23 07:40 — **Held `conic-constructions-from-computed-sizes-unaudited` (P1/H) until ONEROUND's PR 7510 lands.**
+  - PR 7510 (`oneround/conic-readers`, "conic readers (first part) … the centre-frame doors gated") is migrating how conic sites read their geometry. It follows the anchored-conic change already on main.
+  - A sweep of about 240 `Circle::new` / `Ellipse::new` sites would conflict with it file by file, and would have to be redone against the gated doors.
+  - The constructors on main still take a raw size, so the audit is still owed.
+  - The alternative was to dispatch now and merge through the conflicts. I did not, because the gated doors may themselves settle some sites' sign dispositions.
+  - Re-weigh at each check-in.
+- 2026-11-23 08:00 — **The nist snap main red is fixed in PR 7538** (head `453dbbcc11`, frozen).
+  - The cause is PR 7171's fix pass `2cc97f1ce7` (refuse an in-band pair of every kind), not `c25c174105` as the row said.
+  - At #5130, a fillet cylinder bites its plane by 56.8 µm, a tangent pair in the file's band, so the import refuses at the snap. Before, the first refusal was `MissInBand` at #4950.
+  - The rows are re-pinned to the new refusal class, under D7.
+  - Coverage lost: a printed crossing line read off a snapped tangency no longer has a witness in the tree. That is noted on the IMPORTGATE row.
+  - Reviewer draw: byte 9 (single FULL), recorded on the analysis branch. The review is dispatched with an arm-free brief.
+  - Not ours: `payload-rung-sweep.py --check` is red on clean main since PR 7458, already on BOXFINISH's log. It will red this PR's lint.
+- 2026-11-23 08:30 — **PR 7431 review.**
+  - The head `f5d7ed9762` is frozen by the orchestrator. The lane had not declared it, but CI has run and the body is complete.
+  - The reviewer arm was drawn and recorded on the analysis branch.
+  - A single FULL review is dispatched with an arm-free brief.
+  - The ring-path consumer is answered by the PR: the `ArcLoop` copy is filed as `the-ring-paths-arcloop-copies-the-co-surface-arms-edge-section`.
+  - The head's lint is red only on main's `payload-rung-sweep` (`NodeErrorClass`, since PR 7458).
+- 2026-11-23 09:00 — **PR 7538 review adjudicated: APPROVE-WITH-FIXES.**
+  - Every claim held under execution: the bisect at `ab72f72623` / `2cc97f1ce7`, the exact gap −5.6845e-5 m in band, D7 with no fork, both mutants red, and the slow set 486/486 at three ε.
+  - The fix pass is sent back to the lane. It covers:
+    - a synthetic witness for the lost #4950 case, which the reviewer demonstrated in the snapped-tangency fixture;
+    - a stale citation on the importgate nist row;
+    - a vacuous assertion;
+    - a row name that says more than it asserts;
+    - an unguarded "five snaps" measurement;
+    - stale prose;
+    - a row title that blames the wrong commit;
+    - the "sixth fillet" wording.
+  - Class, to be filed on importgate's slate: a moved corpus refusal needs 3–4 hand edits (the gap and the class are spelled in tier_gate, snap and two `WILD_REFUSALS` tables).
+  - **Friction / hazard (class):** worktrees that share one `CARGO_TARGET_DIR` reuse each other's artifacts when the sources' mtimes predate the last build. A mutant "passed" in 0.12 s without compiling. Lanes use their own target dirs, as the briefs already say; a reviewer running mutants must also confirm the `Compiling <crate> (<its path>)` line.
+- 2026-11-23 09:10 — **PR 7411 (far-frame) merged** (`3547fe5764`). Every job was green except lint, which was red only on main's `payload-rung-sweep` (`NodeErrorClass`, since PR 7458). The row is closed and the session archived. Its P1 follow-up, `the-plane-arms-harmonic-amplitude-rounds-at-a-far-centred-conics-reach`, is now dispatchable.
+- 2026-11-23 09:15 — **Next dispatch: `the-plane-arms-harmonic-amplitude-rounds-at-a-far-centred-conics-reach`** (P1 M). Letter **M**, tier **single FULL**: a re-pose of a cancelling formula, whose conditioning has to be shown against an exact oracle, not read off the code. Logged before its draw. The sibling it names (an anchored ellipse's derived-centre frame) sits on ONEROUND's anchored-conic ground and PR 7510, so the lane coordinates through the row and does not widen `Ellipse::stored`'s visibility without saying so.
+- 2026-11-23 09:40 — **PR 7538 fix pass delivered** at `a1b5259cd0`. Every must-do and style item from the adjudication is done. The synthetic witness row `a_tangent_edge_printed_as_a_crossing_line_is_read_off_its_ruling` reds under its mutant. The importgate class row `a-corpus-refusal-that-moves-needs-four-hand-edits` is filed. The step-import slow set ran 487/487 at three ε. The PR was conflicted on GitHub but merged with main cleanly by the orchestrator, giving `174293bb3e`. It merges on green, apart from main's `payload-rung-sweep` red.
+- 2026-11-23 09:50 — **Friction: API 529 overloads.** The harmonic-belly lane (Opus) and the PR 7431 review (Fable) were both cut off mid-task. I resumed both. The Fable review was overloaded again on the first resume, so its retry waits for the next check-in.
+- 2026-11-23 09:57 — **PR 7431 lane confirms the frozen head `f5d7ed9762`.** Its CI reds are all main's:
+  - `recourse_roster` in geom-brep and topo, reproduced on a main worktree;
+  - `payload-rung-sweep`.
+  - Owed at merge: extend its filed row `the-ring-paths-arcloop-copies-the-co-surface-arms-edge-section` with `ring_path::plane_roots`. Since PR 7411, it reads `cross` directly with no `same_record` and spells its own direction, so it should route through `on_surface::direction` via `OnSurface::meet`. This makes C5's ratified sentence ("through the co-surface arm") true.
+- 2026-11-23 10:30 — **PR 7431 review adjudicated: NOT-MERGEABLE-AS-IS** (single FULL, drawn arm).
+  - **MAJOR, demonstrated: the spiric × plane door's `P ∩ Q` line loses digits.** It is formed as `(…)/(1 − k²)` and cancels at a small tilt (about 1e-16/θ², beyond the intrinsic 1/θ). It answers `Isolated` with meetings 1.4e-8 off at θ = 1e-4 and 6.2 mm off at θ = 1e-7, with no refusal. 522 of 3546 near-parallel probe answers are wrong at default ε, and one root count is wrong.
+  - **Minors:**
+    - a sub-ε miss reads as a definite "no meeting";
+    - an in-band regime margin hits `unreachable!` on literal-built data;
+    - four rows cannot fail, plus the fuzz abandon ceiling.
+  - **Held under execution:** the direction table and `same_record`, `meet`'s placement (4447 cases per ε, 0 wrong), and the fuzz at fresh seeds.
+  - The fix pass is sent to the lane. It must re-pose the line with a proved bound and escalate where the bound cannot decide, plus a near-parallel row that reds on the old formula.
+  - **NOTE for Ev's eye, a row the lane files:** Parallel × Villarceau reads `Touch` at the latitude cos v = −r/R, where the two cross transversally. C5's "both planes touch" premise for that fixed row fails there; it is conservative today.
+  - Reds outside the diff are routed to their owners' rows.
+  - Once the fix pass lands, the same reviewer confirms the MAJOR's fix on the new head. This is a confirmation, not a second review arm.
+- 2026-11-23 10:40 — **Harmonic-belly unit delivered: PR 7553**, head `6669ee5617`, frozen.
+  - The far-centred conic graze row read 78/596/478 wrong at far 1e4/1e5/1e6 on main. It now reads 0, with no charge, over three seeds.
+  - New `Real::harmonic_belly` with an exact-expansion numerator and a proved 9u bound relative to the belly.
+  - The sweep fixes four more readers. A line-graze row was added for the mutant that survived.
+  - The anchored-ellipse sibling is filed (P2), not fixed: Ev's PR 7523 keeps the anchor opaque.
+  - The reviewer arm was drawn and recorded on the analysis branch. A single FULL review is dispatched with an arm-free brief.
+- 2026-11-23 — (DOCTAIL orchestrator) Filed `main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411` on GREEN: ten `revalue_corpus` rows red on main since PR 7411 (`germ/plane-pose-far-frame`), bisected by DOCTAIL's 7396 lane. GERM's change.
+- 2026-11-23 11:00 — **PR 7538 (nist snap) merged** (`1e2d5e0677`). The model-compare row `docs/model-compare-log/rows/PR-7538.md` is the last commit before a merge-with-main.
+  - Main's merge conflicted only in `.config/nextest.toml`. I kept main's new `recourse_roster` slow-set row and the PR's renamed nist row.
+  - Merged over a queued CI, under Ev's 2026-11-22 rule for low-risk merges:
+    - the change is step-import tests and docs, a const's visibility, and a removed test-only function;
+    - the implementer and the reviewer each ran the slow set locally at three ε, plus fmt, clippy and the gates;
+    - it fixes a main red that skips the nightly render lanes.
+  - The queue held 113 runs, and no CI job had run on any head of this branch.
+- 2026-11-23 11:20 — **PR 7553 review adjudicated: NOT-MERGEABLE-AS-IS** (single FULL, drawn arm). Every finding is TAKEN.
+  - **MAJOR, demonstrated:** `B` was read from `Frame::v_ref()`, which is rounded on every read. Grazes at general angles therefore still read 6/40/121 wrong at far 1e4/1e5/1e6 against a stored-terms oracle. The rows only grazed near the u-vertex, and their oracles read `v_ref` too.
+  - **Class, logged:** an oracle that mirrors the implementation shares its blind spot. Oracles must be computed from stored data independently.
+  - **Ruling (mine):** `belly` moves onto the conic in geom's `conic.rs`. As written it was a new reader of `Conic::frame()` outside `conic.rs`, which runs against Ev's PR 7523 ratification ("no code outside `conic.rs` takes a conic's centre or frame"). The door is to stay consistent with ONEROUND's PR 7510 gating. The alternative, keeping it in `curve_pair::pose`, was rejected because the ratified direction retires exactly that.
+  - **Minors:**
+    - rows for the swept readers, since two mutants survived;
+    - a note on CONIC's nested-clearance row;
+    - fold the sibling row into ONEROUND's dispatched unit;
+    - the range fallback;
+    - the estimate proof;
+    - the order pin.
+  - Filed via the lane: `trace.rs:521`'s cylinder `|d| − radius`.
+- 2026-11-23 11:40 — **PR 7431 fix pass delivered**, frozen at `7f72931e9d` with main merged.
+  - **MAJOR:** P ∩ Q is now read in the spiric's own plane (1/s conditioning instead of 1/s²). A near-parallel row over θ = 1e-2…3e-8 reads 0 wrong and reds on the old formula.
+  - **Minors:**
+    - in-band re-read refuses as Tangency;
+    - typed `InBand{SpiricRegime}` in place of the `unreachable!`;
+    - each surviving mutant is now witnessed, or its code is dropped.
+  - **Rows filed:**
+    - `germ/a-parallel-leg-near-cos-v-minus-r-over-r-reads-touch-against-a-villarceau-edge` (P2, for Ev's eye);
+    - `export/step-imports-one-record-folds-the-sense-bit-by-hand`.
+  - The same reviewer (the drawn arm) is confirming its findings on the new head, as a confirmation of its own findings, not a second review.
+- 2026-11-23 — (GREEN, U14 `green/held-reds`) **PR 7411 (`plane-pose-far-frame`, `3547fe5764`) moved `editor-core` `split_pinch_keeps::the_kite_moats_subtract_names_its_edges_where_its_result_stands`'s evaluation digest in value** (to `0xfe07_0805_06b3_9e32`): certificate residuals and last-ulp plane–plane line origins, directions and ends, each toward the rounded-exact value. Bisected by chunk dump on hosted CI; held by GREEN's `main-red-the-kite-moats-digest-moved-in-value-at-pr-7411` (P0), which wants a reader of 7411 to confirm the new reading before it is re-pinned.
+- 2026-11-23 — (CIW orchestrator) Filed `main-red-spiric-arc-interval-fuzz-fails-at-1e-6-on-seed-0x139cdf42d954efca` (P1): seen on PR 7501's gate, which does not touch spiric_arc.
+- 2026-11-23 — **U4 spec written** (`docs/GERM-CROSSING-U4-SPEC.md`, read on main `739ffae37c`): U4a local windows (H, dual), U4b the face reading and the curved lane onto `cross` (H, dual), U4c the planar lane, `slit`, `factored_crossing`, `offer_rows` (M, single FULL), U4d the spline arms (H, dual), which waits on one fork for Ev (how `cross` reaches the certified lane at a dual).
+- 2026-11-23 — **Spiric × plane near-miss guard reads a height off the cutting plane** (`germ/spiric-near-miss-off-q`). The reread moves `L` by `escalate/s` across itself in the spiric's plane, `s` the pose's tilt sine. The new row `a_leaned_plane_missing_the_oval_by_less_than_the_band_refuses` has in-band gaps deciding on main in 0, 12, 24, 24 of 32 at `s` = 1, 0.2, 0.05, 0.01, and in none with the change. The row `a-spiric-plane-near-miss-shift-is-measured-in-the-ovals-plane-not-off-the-cutting-plane` carries the progress note and stays open for review.
+- 2026-11-23 — **PR 7571 fix pass** (`germ/spiric-near-miss-off-q`). The spiric × plane guard's texts are narrowed to one extreme in the band, and the residual (an oval wholly inside the band on one side reads as a miss) is filed as `a-spiric-oval-wholly-inside-the-band-on-one-side-of-the-cutting-plane-reads-as-a-miss`. The row leans down to the parallel rung's edge and reads the inner-equator point; a shift capped at `s = 0.01` now reds it.

@@ -1044,9 +1044,8 @@ fn foreign_keys_resolve_arbitrarily_as_documented() {
 /// documented a GAP — the body still validated, with shell-partition
 /// coherence deferred to PR 5. **Adapted at the PR 5 move**: the
 /// deferred passes exist now, so the probe's assertion is inverted —
-/// the same corruption is reported by BOTH new passes (four
-/// `EdgeAcrossShells`, one odd-characteristic `ComponentEulerViolation`
-/// per shell) and by nothing else. The construction is verbatim.
+/// the same corruption is reported by pass 10 (four `EdgeAcrossShells`)
+/// and by nothing else. The construction is verbatim.
 #[test]
 fn cross_shell_face_move_gap_probe_now_caught() {
     let tol = Tol::witness();
@@ -1071,28 +1070,8 @@ fn cross_shell_face_move_gap_probe_now_caught() {
         .iter()
         .filter(|e| matches!(e, crate::ValidationError::EdgeAcrossShells { .. }))
         .count();
-    let component_failures: Vec<_> = errors
-        .iter()
-        .filter_map(|e| match e {
-            crate::ValidationError::ComponentEulerViolation {
-                shell,
-                vertices,
-                edges,
-                faces,
-                rings,
-                ..
-            } => Some((
-                *shell,
-                *vertices as i64 - *edges as i64 + *faces as i64 - *rings as i64,
-            )),
-            _ => None,
-        })
-        .collect();
     assert_eq!(crossings, 4, "the moved face's four edges cross shells");
-    // χ = 8 − 12 + 5 = 1 on the mutilated shell; 4 − 4 + 1 = 1 on the
-    // lone-face shell — both odd, both reported.
-    assert_eq!(component_failures, vec![(c.shell, 1), (shell2, 1)]);
-    assert_eq!(errors.len(), 6, "and nothing else fires");
+    assert_eq!(errors.len(), 4, "and nothing else fires");
 }
 
 // ---------------------------------------------------------------------

@@ -11,6 +11,7 @@
 //! (`product::gather_sources`), and the part's own reading of its census
 //! ([`super::reading`]) crosses instead.
 
+use crate::say;
 use std::sync::Arc;
 
 use super::{AtRestEvidence, InterferenceFinding};
@@ -50,26 +51,33 @@ pub struct Route {
     /// labels"). Empty when `through` instantiates `of` directly; one
     /// entry per intervening sub-assembly, so a row three documents
     /// down names its whole route.
-    pub via: Vec<crate::spoken::SpokenNode>,
+    pub via: Vec<RouteHop>,
+}
+
+/// **One instance a route passes through below its own document**: the
+/// node as its document says it, and that document, whose id space the
+/// node's id is in — so a sentence mentions it there, never in the
+/// document reading the route.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RouteHop {
+    /// The instantiating node, as its document holds it.
+    pub node: crate::spoken::SpokenNode,
+    /// The document holding it.
+    pub document: crate::ident::DocumentId,
 }
 
 // The route as an author reads it: the instance in this document, said
 // by the speaker, then each instance below it, as its own document
 // holds it.
 impl crate::spoken::Say for Route {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "document {} through {}",
-            self.of,
+            format_args!("document {} through ", self.of),
             by.node_as(self.through, "instance")
         )?;
         for hop in &self.via {
-            write!(f, " → {}", hop.as_noun("instance"))?;
+            say!(f, " → ", hop.node.as_noun("instance", Some(hop.document)))?;
         }
         Ok(())
     }
@@ -79,7 +87,7 @@ impl crate::spoken::Say for Route {
 /// tag.
 impl core::fmt::Display for Route {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -96,7 +104,7 @@ pub(crate) struct PartRow<B> {
     /// The instances between the part and `of`, nearest first, each as
     /// its document holds it ([`Route::via`]): empty for the part's own
     /// row.
-    via: Vec<crate::spoken::SpokenNode>,
+    via: Vec<RouteHop>,
     /// The row itself, in `of`'s ids.
     body: B,
     /// `body`'s nodes, as `of` holds them.
@@ -142,9 +150,12 @@ impl<B> PartRow<B> {
     pub(crate) fn below<P>(doc: &Doc<P>, route: Route, body: B, held: Arc<HeldNodes>) -> Self {
         Self {
             of: route.of,
-            via: core::iter::once(doc.spoken(route.through))
-                .chain(route.via)
-                .collect(),
+            via: core::iter::once(RouteHop {
+                node: doc.spoken(route.through),
+                document: doc.id(),
+            })
+            .chain(route.via)
+            .collect(),
             body,
             held,
         }
@@ -311,15 +322,11 @@ pub struct CarriedAtRestFinding {
 // One carried finding as an author reads it: which document, and what
 // its census found, as the part says it.
 impl crate::spoken::Say for CarriedAtRestFinding {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "{} reports what its own census could not look at: {}",
             crate::spoken::Said(&self.route, by),
+            " reports what its own census could not look at: ",
             crate::spoken::Said(&self.finding, crate::spoken::Speaker::held(&self.held))
         )
     }
@@ -329,7 +336,7 @@ impl crate::spoken::Say for CarriedAtRestFinding {
 /// by its tag.
 impl core::fmt::Display for CarriedAtRestFinding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -385,11 +392,7 @@ pub(crate) struct Pinned<F> {
 
 // Said as the finding is: the pin names no node.
 impl<F: crate::spoken::Say> crate::spoken::Say for Pinned<F> {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         self.finding.say(f, by)
     }
 }

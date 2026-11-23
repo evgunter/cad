@@ -82,6 +82,9 @@ pub struct Landed {
     /// **The clip rect it was painted under**: a row's part outside it
     /// is not on screen.
     pub clip: egui::Rect,
+    /// The galley itself, for where inside it a run landed
+    /// ([`Self::at`]).
+    pub galley: std::sync::Arc<egui::Galley>,
 }
 
 impl Landed {
@@ -90,6 +93,27 @@ impl Landed {
     pub fn visible(&self) -> Option<egui::Rect> {
         let shown = self.allocated.intersect(self.clip);
         (shown.width() > 0.0 && shown.height() > 0.0).then_some(shown)
+    }
+
+    /// **The centre of the first character of the first `run` in its
+    /// text**, on screen: where a pointer clicks a run drawn inside a
+    /// longer galley, such as a mention inside a sentence. `None` when
+    /// the text does not hold `run`.
+    #[must_use]
+    pub fn at(&self, run: &str) -> Option<egui::Pos2> {
+        let byte = self.text.find(run)?;
+        Some(self.char_centre(self.text[..byte].chars().count()))
+    }
+
+    /// The centre of the box of the character at `index`, counted in
+    /// characters from the text's start, on screen.
+    #[must_use]
+    pub fn char_centre(&self, index: usize) -> egui::Pos2 {
+        let from = self.galley.pos_from_cursor(egui::text::CCursor::new(index));
+        let to = self
+            .galley
+            .pos_from_cursor(egui::text::CCursor::new(index + 1));
+        self.allocated.min + egui::vec2((from.min.x + to.min.x) / 2.0, from.center().y)
     }
 }
 
@@ -125,6 +149,7 @@ pub fn landed_in(shapes: &[egui::epaint::ClippedShape]) -> Vec<Landed> {
                     .collect(),
                 ink: ink(text),
                 clip,
+                galley: std::sync::Arc::clone(&text.galley),
             }),
             egui::Shape::Vec(inner) => {
                 for shape in inner {

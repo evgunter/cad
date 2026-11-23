@@ -1094,12 +1094,12 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // solid torus and its genus is 1. The solid twin over the same
     // stations is genus 0.
     assert_eq!(
-        euler_counts(&twisted_tube).genus(),
+        euler_counts(&twisted_tube).h(),
         Ok(1),
         "a capped tube is a solid torus"
     );
     assert_eq!(
-        euler_counts(&twisted_solid).genus(),
+        euler_counts(&twisted_solid).h(),
         Ok(0),
         "…and the hole is what makes it one"
     );

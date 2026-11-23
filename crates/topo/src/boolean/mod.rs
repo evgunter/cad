@@ -236,9 +236,9 @@ pub use edge_join::{
 pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
 pub use nary::{
-    Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
-    NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep, NaryTaken, nary_boolean,
-    nary_boolean_apart, nary_placed,
+    Apart, FaceDescent, FaceSource, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement,
+    NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep, NaryTaken,
+    nary_boolean, nary_boolean_apart, nary_placed,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use ops::refused_face_kind;
@@ -493,7 +493,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_side"
         | "point_in_arc_loop_advance"
         | "point_in_arc_loop_arm"
-        | "point_in_arc_loop_reach"
         | "point_in_arc_loop_conic_span"
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_advance"
@@ -501,9 +500,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spiric_clear"
         | "point_in_arc_loop_spiric_on"
         | "point_in_arc_loop_spiric_leaf"
-        | "point_in_arc_loop_spiric_side"
-        | "point_in_arc_loop_spiric_turn"
-        | "point_in_arc_loop_spiric_advance"
         | "point_in_arc_loop_spline_end"
         | "point_in_arc_loop_spline_clear"
         | "point_in_arc_loop_spline_on"
@@ -843,7 +839,7 @@ impl Mints {
     /// The division list's refusal where `split`'s child is not one the
     /// split minted: an earlier split names it.
     pub(crate) fn push(&mut self, split: EdgeSplit) -> Result<(), crate::lineage::RowRefusal> {
-        let side = usize::from(split.operand == Operand::B);
+        let side = split.operand.index();
         self.divisions[side].push((split.child, split.parent))?;
         self.vertices[side].push((split.vertex, split.by));
         Ok(())
@@ -855,7 +851,7 @@ impl Mints {
         operand: Operand,
     ) -> impl Iterator<Item = (crate::entity::EdgeKey, VertexKey, crate::entity::EdgeKey)> + '_
     {
-        let side = usize::from(operand == Operand::B);
+        let side = operand.index();
         debug_assert_eq!(
             self.divisions[side].rows().len(),
             self.vertices[side].len(),
@@ -876,17 +872,17 @@ impl Mints {
         operand: Operand,
         edge: crate::entity::EdgeKey,
     ) -> crate::entity::EdgeKey {
-        self.divisions[usize::from(operand == Operand::B)].root(edge)
+        self.divisions[operand.index()].root(edge)
     }
 
     /// Records `v`, minted inside face `face` of `operand`'s clone.
     pub(crate) fn push_in_face(&mut self, operand: Operand, v: VertexKey, face: FaceKey) {
-        self.in_faces[usize::from(operand == Operand::B)].push((v, face));
+        self.in_faces[operand.index()].push((v, face));
     }
 
     /// The face of `operand`'s clone `v` was minted inside, where it was.
     pub(crate) fn minted_in(&self, operand: Operand, v: VertexKey) -> Option<FaceKey> {
-        self.in_faces[usize::from(operand == Operand::B)]
+        self.in_faces[operand.index()]
             .iter()
             .find(|&&(w, _)| w == v)
             .map(|&(_, face)| face)
@@ -906,7 +902,7 @@ impl Mints {
     /// The cell of the other operand's clone whose crossing minted `v`
     /// on an edge of `operand`'s, where a split minted it.
     pub(crate) fn minted_by(&self, operand: Operand, v: VertexKey) -> Option<Cell> {
-        self.vertices[usize::from(operand == Operand::B)]
+        self.vertices[operand.index()]
             .iter()
             .find(|&&(w, _)| w == v)
             .map(|&(_, by)| by)
@@ -927,7 +923,7 @@ impl Mints {
     /// Where `operand`'s splits stand now: [`Self::pieces_since`] reads
     /// the splits made after it.
     pub(crate) fn mark(&self, operand: Operand) -> SplitMark {
-        SplitMark(self.vertices[usize::from(operand == Operand::B)].len())
+        SplitMark(self.vertices[operand.index()].len())
     }
 
     /// [`Self::pieces`] of `edge` as it stood at `mark`: the pieces the
@@ -1310,7 +1306,7 @@ impl<T: Real> Glue<T> {
             let mut held = slot
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            held[usize::from(operand == Operand::B)] = Some(clone());
+            held[operand.index()] = Some(clone());
         }
     }
 }
@@ -1562,7 +1558,7 @@ impl<T: crate::props::AtRestPolicy> Default for GluedPairs<T> {
 /// by the operand whose face it is.
 pub(crate) fn unreadable_extent(face: geom_brep::PairSide) -> BooleanError {
     BooleanError::InvalidInput {
-        operand: face.of([Operand::A, Operand::B]),
+        operand: face.of(Operand::BOTH),
         what: "a glued face's consumed extent cannot be read (its box has no claim to make, \
                or its boundary cannot be walked)",
     }
@@ -2193,13 +2189,11 @@ fn tangent_struts<T: Real>(
     body: &Body<T>,
 ) -> Vec<(FaceKey, geom::SurfaceKind, FaceKey, geom::SurfaceKind)> {
     let mut out = Vec::new();
-    for (ek, edge) in body.edges() {
+    for view in body.edge_views() {
+        let (ek, edge) = (view.key(), view.record());
         let sides = crate::readback::edge_sides_of(body, ek, edge);
         let (f1, f2) = sides.faces();
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = view.certified() else {
             continue;
         };
         if matches!(
@@ -6893,7 +6887,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     rereads.get(&(operand, c.vertex)).copied(),
                     planes.get(&(operand, c.vertex)).copied(),
                     charts.get(&(operand, c.vertex, c.face)).copied(),
-                    &tips[usize::from(operand == Operand::B)],
+                    &tips[operand.index()],
                     band,
                     second,
                 ) {
@@ -7576,7 +7570,7 @@ impl<T: Real> Default for NullEdges<T> {
     fn default() -> Self {
         Self {
             records: Vec::new(),
-            copies: [Operand::A, Operand::B].map(|operand| {
+            copies: Operand::BOTH.map(|operand| {
                 crate::lineage::NullEdgeCopies::new(crate::lineage::LineageRows::NullEdgeCopies(
                     operand,
                 ))
@@ -7597,7 +7591,7 @@ impl<T: Real> NullEdges<T> {
         minted: impl IntoIterator<Item = BoolNullEdgeRecord<T>>,
     ) -> Result<(), BooleanError> {
         for r in minted {
-            let copies = &mut self.copies[usize::from(r.operand == Operand::B)];
+            let copies = &mut self.copies[r.operand.index()];
             for end in [r.attr.below_end, r.attr.above_end] {
                 if end != r.at_vertex {
                     copies.push((end, r.at_vertex))?;
