@@ -7829,6 +7829,7 @@ fn states_a_point(relation: crate::Relation, first: Cell) -> bool {
         | Relation::CommonFoot
         | Relation::Tangent { .. }
         | Relation::SurfaceTangent
+        | Relation::RimJunction
         | Relation::Coaxial
         | Relation::SameRadius
         | Relation::AxesMeet

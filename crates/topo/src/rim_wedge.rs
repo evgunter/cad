@@ -8,15 +8,23 @@
 //! - **wedge π** — the outward normals agree across the rim and the
 //!   two faces leave it on opposite sides ([`departures`]): the
 //!   composed material is smooth through it, and the rim is a SEAM of
-//!   one composite wall. Between two operands the boolean glues the
-//!   faces' tangency (C4) and the seam is read on the result; inside
+//!   one composite wall, whatever its bend. Between two operands the
+//!   boolean glues it a `Junction` where each operand's own rim edge is
+//!   also a convex crease ([`rim_edges_convex`]): the rim's identity,
+//!   this wedge (whose fold reads `second_order_walk` at each station,
+//!   so an in-band bend still stops it), the departures and those edges,
+//!   no touch read along the rim. The seam is read on the result; inside
 //!   one body it is structural.
+//! - **a corner all round** — no junction to glue: the crossing lanes
+//!   meet the two faces as any corner.
 //! - **normals agree, same departure** — the two faces leave the rim on
 //!   ONE side (a bowl hanging in a tube's mouth): a nested touch, a
 //!   cusp the normals alone cannot tell from the seam. The material
 //!   table answers [`RimRouting::Seam`] for it, since it reads only the
 //!   two sheets' normals and jets; [`departures`] is what tells the two
-//!   apart, and the glue door (`route_rim`) asks it after the table.
+//!   apart, and the glue door asks it in the junction's test
+//!   (`junction_of`), and again in `route_rim` after the table for a rim
+//!   that is no junction.
 //! - **wedge 0 or 2π** — the normals oppose across the rim. A pair
 //!   reaching this routing has no tangent-locus arm for its two
 //!   surface kinds, which is what its refusal names.
@@ -771,6 +779,40 @@ fn curve_sense<T: Decide>(
     }
 }
 
+/// Whether `p` lies on `rim`: the locus test the departures read
+/// placements by ([`on_locus`]), for a junction's reader that must know
+/// its site is on the rim the junction was certified over.
+///
+/// # Errors
+///
+/// The distance's [`Indeterminate`] in band.
+pub(crate) fn on_rim<T: Decide>(
+    rim: Rim<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    on_locus(Locus::Rim(rim), p, band)
+}
+
+/// Whether `circle` is `rim`, decided on the identity ladder the rim
+/// itself was found by ([`same_circle`]): the junction's reader asks it
+/// of the edge behind a sector bound, which rides the rim only where it
+/// IS the rim's edge.
+///
+/// # Errors
+///
+/// The identity's [`Indeterminate`] in band.
+pub(crate) fn circle_is_rim<T: Decide>(
+    circle: geom::Circle<T>,
+    rim: Rim<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let Some(of) = rim_of(&geom::Curve3::Circle(circle)) else {
+        return Ok(false);
+    };
+    Ok(same_circle(of, rim, band)?.is_some())
+}
+
 /// Whether `p` lies on the locus.
 fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
     let off = match locus {
@@ -1046,24 +1088,75 @@ pub(crate) fn face_boundary_arcs<T: Real>(
 fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
     face_boundary_arcs(body, face)
         .into_iter()
-        .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle(circle) => {
-                let (center, axis, u_ref) = (
-                    circle.frame().origin(),
-                    circle.frame().axis_unit(),
-                    circle.frame().u_ref(),
-                );
-                let radius = circle.radius();
-                Some(Rim {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                })
-            }
-            _ => None,
-        })
+        .filter_map(|(_, c)| rim_of(c.carrier()))
         .collect()
+}
+
+/// A circle carrier as a [`Rim`]; none for any other carrier.
+fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
+    match *carrier {
+        geom::Curve3::Circle(circle) => Some(Rim {
+            center: circle.frame().origin(),
+            axis: circle.frame().axis_unit(),
+            radius: circle.radius(),
+            u_ref: circle.frame().u_ref(),
+        }),
+        _ => None,
+    }
+}
+
+/// **Whether every edge `face` has on `rim` is a convex crease of
+/// `face`'s own body**: the operand's material wedge there below π
+/// ([`geom_brep::Convexity::Convex`], decided at every station of the
+/// edge's own fold, [`crate::edge_wedge()`], under
+/// [`geom_brep::DIHEDRAL_SIGN`]). The junction's certificate that a face
+/// leaving the rim along this face's backward direction lies outside
+/// this operand's material (`boolean::junction_of`).
+///
+/// `false` where the face has no edge on the rim, where an edge's circle
+/// is not decided the rim or not decided another, where an edge on the
+/// rim carries no certified curve, and where its wedge is anything but a
+/// convex crease all along it: a concave or smooth edge, a mixed one, one
+/// in band. It answers only "certified convex"; every other reading is
+/// the door's to read as it would without the junction.
+pub(crate) fn rim_edges_convex<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    rim: Rim<T>,
+    band: Band,
+) -> bool {
+    let Some(f) = body.face(face) else {
+        return false;
+    };
+    let mut on_rim = 0usize;
+    for member in f.boundary() {
+        let crate::live::BoundaryMember::Edge { edge, .. } = member else {
+            continue;
+        };
+        let ek = edge.key();
+        let Some(curve) = edge.certified() else {
+            return false;
+        };
+        let Some(circle) = rim_of(curve.carrier()) else {
+            continue;
+        };
+        match same_circle(circle, rim, band) {
+            Ok(Some(_)) => {}
+            Ok(None) => continue,
+            Err(_) => return false,
+        }
+        on_rim += 1;
+        if !matches!(
+            crate::edge_wedge(body, ek, band),
+            Some(geom_brep::WedgeVerdict::Crease {
+                convexity: geom_brep::Convexity::Convex,
+                ..
+            })
+        ) {
+            return false;
+        }
+    }
+    on_rim > 0
 }
 
 /// The rim's schedule: the certification schedule's sample count, as
