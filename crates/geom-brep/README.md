@@ -1194,7 +1194,7 @@ on `(D²)′` shrunk by its own rounding before anything divides it, so a
 slope within its rounding of zero reads no sign however small `D` is,
 and what is left, over the most `D` reaches, bounds the sine of the
 crossing, levered by the core radius. Where the core crosses a torus
-partner's axis `D` has a kink, and no cell holding one clears on its
+or a cone partner's axis `D` has a kink, and no cell holding one clears on its
 slope: a tangency on a kink always escalates, unless it is the least
 distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap
 the symmetric poses (coaxial, parallel, square) count their components
@@ -1202,11 +1202,11 @@ in closed form, the coaxial ones as circles and the rest the general
 rung's, marched by `carry` over a ball that holds the whole section
 (`PairPose::ball`: the sphere, else the torus's `|x − c| ≤ R + r`, the
 smaller of two tori's), every branch closing inside it; a general
-sphere × torus pose is the sphere arm's, marched; a general cylinder or
-torus pose has no closed-form count of its components, and its
+sphere × torus pose is the sphere arm's, marched; a general cylinder,
+cone or torus pose has no closed-form count of its components, and its
 components are the march's (`Components::Marched`), which the general
-rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches
-past a transverse gap. `implemented` covers the whole operation.
+rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`,
+`ssi::cone_torus_ssi`) marches past a transverse gap. `implemented` covers the whole operation.
 The conic pairs' poses are their closed-form doors' (`PlaneSpherePose`,
 `SphereSpherePose`, `PlaneCylinderPose`): each circle or tilted ellipse
 is one loop whose carrier is the whole closed curve, plane×cylinder's
@@ -1224,8 +1224,7 @@ clearance; and an apex on the partner is divided out of the rulings'
 quadratic, its node's arcs ending at it. Two cones through one apex,
 and two on parallel axes of one aperture, are not built here. Its
 components are the general rung's, and carrying them refuses typed,
-since no march carries them: the certificate has no cone arm at the
-march's search (C2), and the pair has no march door. A crossing
+since no march carries them: the pair has no march door. A crossing
 tangency is a node, its arcs one node-joined set.
 A cone off a torus's axis (`ConeTorusPose`) reads its apex
 against the torus before its gap, the apex's residual there a
@@ -1235,6 +1234,8 @@ neither is marched, since the ℝ³ march ends no branch at a node, and
 the pair's value refuses them as not built. Past a clear apex the gap
 is the sweep, its transverse components the march's
 (`ssi::cone_torus_ssi`); a parallel axis is that general pose too. A
+gap undecided beside an apex within a sixty-fourth of the tube radius
+of the torus escalates as the apex's question, the near-node's. A
 coaxial cone is `cone_torus_section`'s closed form, which the value
 reads elsewhere. A cone against a sphere refuses.
 

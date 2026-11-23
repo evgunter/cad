@@ -1,7 +1,7 @@
 ---
-id: a-cone-against-a-parallel-axis-torus-has-no-section-arm
+id: a-cone-against-a-parallel-axis-torus-has-no-closed-form-count
 kind: issue
-title: A cone whose axis is parallel to a torus's and apart refuses on reach: the parallel-tori arm's mirror construction has no cone sibling
+title: A cone whose axis is parallel to a torus's is marched, not counted: the parallel-tori arm's mirror construction has no cone sibling
 status: open
 opened: 2026-10-27
 priority: P3
@@ -40,3 +40,5 @@ the march's (`Components::Marched`, `ssi::cone_torus_ssi`), and
 longer refuses R-reach. What this row still names is a closed-form
 count by the parallel-tori mirror construction, which would spare the
 march; nothing refuses for want of it.
+
+Renamed 2026-11-22 from `a-cone-against-a-parallel-axis-torus-has-no-section-arm` (PR 7395's review): the pose no longer refuses, so the old title was false.

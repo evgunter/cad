@@ -1606,6 +1606,9 @@ pub fn spline_pair_section<T: Decide>(
 /// rows are handed in) by the reader that asks it ([`builds`]). Nor is a
 /// cone against a cylinder or a cone: classified, but carried by no march
 /// yet ([`uncarried`]), so no reader that carries what it reads asks it.
+/// A cone against a torus is among them, though its coaxial pose is read
+/// elsewhere ([`ConeTorusPose`]), so a reader of a served pair still
+/// meets `Elsewhere` there.
 #[must_use]
 pub fn serves(a: SurfaceKind, b: SurfaceKind) -> bool {
     match arm(a, b) {
@@ -1618,8 +1621,9 @@ pub fn serves(a: SurfaceKind, b: SurfaceKind) -> bool {
         | Arm::PlaneSphere
         | Arm::SphereSphere
         | Arm::PlaneCylinder => true,
-        // A cone pair is classified but not carried, and no table reads it
-        // until its march exists ([`uncarried`]).
+        // A cone against a cylinder or a cone is classified but not
+        // carried, and no table reads it until its march exists
+        // ([`uncarried`]); a cone against a torus is marched.
         Arm::ConeRuled | Arm::SplineImplicit | Arm::SplinePair | Arm::Elsewhere => false,
     }
 }

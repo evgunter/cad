@@ -391,6 +391,20 @@ mod review_probes {
         );
     }
 
+    /// **The lantern's caps arrive whole** — the shape the F7 rule
+    /// used to call a defect, gone at its source.
+    ///
+    /// The lantern has two PLANAR caps that touch the axis, the LIP
+    /// disk and the THROAT disk. A full revolve used to cut each at its
+    /// two seam meridians into two half-faces on one plane key, which
+    /// `merge_coplanar_faces` then repaired; it now sweeps a planar
+    /// wall whole (BAND, "one wall per run"), so neither cap carries a
+    /// same-key adjacency. Its CURVED walls (two cones, one sphere
+    /// zone) are still cut at the seam, and the row tells the two
+    /// apart — no planar pair, six curved — so a change that stopped
+    /// doing so fails here rather than silently. The body as built is
+    /// tier 2 and tier 3 clean (the delta review's MIN-1 asked for
+    /// both real validators, not the tier 1 one).
     #[test]
     fn the_lanterns_caps_arrive_whole() {
         let tol = Tol::witness();

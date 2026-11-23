@@ -3441,8 +3441,8 @@ fn coaxial_cone_torus<T: Decide>(
             Sign::Positive | Sign::Negative => {
                 return Err(SectionError::RoutesToGeneralRung {
                     pair: "cone×torus",
-                    why: "a torus off the cone's axis cuts a curve of degree eight, which the \
-                          general rung marches (ssi::cone_torus_ssi)",
+                    why: "a torus off the cone's axis cuts a curve of degree eight, which has \
+                          no closed form",
                 });
             }
         }

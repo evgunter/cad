@@ -102,12 +102,15 @@ fn gap(pose: &ConeTorusPose<f64>) -> TorusGap<f64> {
 /// the generator point `x` at slant `3` in the `xz` half-plane, its
 /// outward normal `n`; the torus `R = 2`, `r = 1/2` whose core passes
 /// through `x + (r + lift)·n`, square there to `n` and to `y`, its centre
-/// `R` back along `n`.
-fn tangent_fixture(lift: f64) -> (Surface<f64>, Surface<f64>, Point3<f64>, Vec3<f64>) {
+/// `R` back along `n`. `lower` mirrors it through `z = 0`, onto the
+/// lower nappe, where the sweep's other branch (`ρ cos α + h sin α`)
+/// reads it.
+fn tangent_fixture(lift: f64, lower: bool) -> (Surface<f64>, Surface<f64>, Point3<f64>, Vec3<f64>) {
     let alpha = FRAC_PI_6;
     let (s, c) = alpha.sin_cos();
-    let x = p(3.0 * s, 0.0, 3.0 * c);
-    let n = Vec3::new(c, 0.0, -s);
+    let m = if lower { -1.0 } else { 1.0 };
+    let x = p(3.0 * s, 0.0, m * 3.0 * c);
+    let n = Vec3::new(c, 0.0, -m * s);
     let (big, small) = (2.0, 0.5);
     let core = x + n * (small + lift);
     let center = core - n * big;
@@ -120,14 +123,21 @@ fn tangent_fixture(lift: f64) -> (Surface<f64>, Surface<f64>, Point3<f64>, Vec3<
     )
 }
 
-/// **A torus built tangent to the cone reads `Zero` on its gap**, in
-/// either order, and the door refuses it as the pair's tangency before
+/// **A torus built tangent to the cone reads `Zero` on its gap**, on
+/// either nappe (so on each of the sweep's two branches) and in either
+/// order, and the door refuses it as the pair's tangency before
 /// any rung; lifted off along the normal it reads transverse. The
 /// oracle checks the contact itself: both residuals vanish at `x` and
 /// the torus's normal there is the cone's, reversed.
 #[test]
 fn a_torus_built_tangent_to_the_cone_reads_its_gap_zero() {
-    let (k, t, x, n) = tangent_fixture(0.0);
+    for lower in [false, true] {
+        tangent_row(lower);
+    }
+}
+
+fn tangent_row(lower: bool) {
+    let (k, t, x, n) = tangent_fixture(0.0, lower);
     assert!(
         torus_distance(&t, x).abs() < 1e-14 && cone_elevation(&k, x).abs() < 1e-14,
         "the oracle: the contact point lies on both"
@@ -135,7 +145,7 @@ fn a_torus_built_tangent_to_the_cone_reads_its_gap_zero() {
     for pose in [decided(&k, &t), decided(&t, &k)] {
         assert!(
             matches!(gap(&pose), TorusGap::Tangent { .. }),
-            "the tangent torus reads its gap Zero: {:?}",
+            "the tangent torus (lower nappe: {lower}) reads its gap Zero: {:?}",
             pose.stance()
         );
         assert!(pose.tangency().is_some(), "the pose names its tangency");
@@ -152,7 +162,7 @@ fn a_torus_built_tangent_to_the_cone_reads_its_gap_zero() {
         ),
         "the door refuses the tangency before any rung: {got:?}"
     );
-    let (k, t, _, _) = tangent_fixture(0.05);
+    let (k, t, _, _) = tangent_fixture(0.05, lower);
     assert!(
         (torus_distance(&t, x) - 0.05).abs() < 1e-14 && cone_elevation(&k, x + n * 0.5) > 0.0,
         "the oracle: the lifted torus stands its lift off the contact"
@@ -196,9 +206,16 @@ fn sign_changes_about_apex(k: &Surface<f64>, t: &Surface<f64>, slant: f64) -> [u
 fn an_apex_on_the_torus_reads_node_or_touch_as_the_torus_crosses_it() {
     let t = torus(Point3::origin(), Vec3::unit_z(), 2.0, 1.0);
     let apex = p(3.0, 0.0, 0.0);
+    // `|d·n|` for a cone axis in the `xz` plane `q` along the normal
+    // `x̂`: the form's threshold is `sin α = 1/2`, so rows just either
+    // side of it pin the threshold (`cos α` there would read both a
+    // node).
+    let tilted = |q: f64| Vec3::new(q, 0.0, (1.0 - q * q).sqrt());
     for (name, axis, node) in [
         ("node", Vec3::unit_z(), true),
         ("touch", Vec3::unit_x(), false),
+        ("node just inside sin α", tilted(0.45), true),
+        ("touch just past sin α", tilted(0.55), false),
     ] {
         let k = cone(apex, axis, FRAC_PI_6);
         let changes = sign_changes_about_apex(&k, &t, 1e-3);
@@ -229,6 +246,98 @@ fn an_apex_on_the_torus_reads_node_or_touch_as_the_torus_crosses_it() {
             "{name}: the door does not march it: {got:?}"
         );
     }
+}
+
+/// **A ruling in the torus's tangent plane at the apex refuses**, as
+/// contact of higher order (C5's node clause: a degenerate form refuses),
+/// never as a tangency: the pose refuses `ApexRuling`, the section value
+/// refuses it as not built, the C5 gate does not serve it, and the door
+/// does not march it. The cone's axis makes `|d·n| = sin α` with the
+/// torus's normal at the apex.
+#[test]
+fn a_ruling_in_the_tangent_plane_at_the_apex_refuses() {
+    let t = torus(Point3::origin(), Vec3::unit_z(), 2.0, 1.0);
+    let (s, c) = FRAC_PI_6.sin_cos();
+    let k = cone(p(3.0, 0.0, 0.0), Vec3::new(s, 0.0, c), FRAC_PI_6);
+    let pose = ConeTorusPose::decide(&k, &t, band()).expect("a cone and a torus");
+    assert!(
+        matches!(pose, Err(geom_brep::ConeTorusRefusal::ApexRuling { .. })),
+        "the pose refuses the ruling: {pose:?}"
+    );
+    let section = geom_brep::pair_section(&k, &t, None, None::<geom_core::NoLane>, band());
+    assert!(
+        matches!(section, Err(SectionError::RoutesToGeneralRung { .. })),
+        "the section refuses it as not built: {section:?}"
+    );
+    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_covered(t.cover().as_ref().ok()));
+    let gate = geom_brep::intersect::route_pose(&k, &t, &reach, band());
+    assert!(
+        matches!(&gate, Ok(r) if !r.implemented),
+        "the gate does not serve it: {gate:?}"
+    );
+    let domain = geom_brep::ssi::SsiDomain {
+        center: Point3::origin(),
+        half_extent: 3.5,
+        extent: 7.0,
+        floor_scale: 1.0,
+    };
+    let got = ssi::cone_torus_ssi(&k, &t, domain, band());
+    assert!(
+        matches!(got, Err(SsiError::UnsupportedCertificate { .. })),
+        "the door does not march it: {got:?}"
+    );
+}
+
+/// The torus `R = 2`, `r = 1` about `z` at `(0, 0, 2)`, and a cone at
+/// the origin whose axis is tilted `tilt` off `z` and whose apex stands
+/// `e` off the torus's axis along `x`.
+fn near_coaxial(tilt: f64, e: f64) -> (Surface<f64>, Surface<f64>) {
+    (
+        cone(p(e, 0.0, 0.0), Vec3::new(tilt, 0.0, 1.0), FRAC_PI_4),
+        torus(p(0.0, 0.0, 2.0), Vec3::unit_z(), 2.0, 1.0),
+    )
+}
+
+/// **The axis is read over the torus's ball, the tilt and the offset in
+/// the band.** A tilt that reads `Zero` at the lever over the torus's
+/// ball (`2(R + r)` from a pivot at its centre) and no offset is the
+/// coaxial pose, its slack the swing that tilt moves the cone by across
+/// the ball, nonzero; the turn of the coaxial arm's own reading (the
+/// torus centre's station along the axis from the pivot, times `sin²`)
+/// adds to it. With an offset in the band beside that swing the pose is
+/// undecided on the axis. Red where the tilt or the swing is dropped,
+/// or read at another lever.
+#[test]
+fn a_tilt_and_an_offset_in_the_band_read_the_axis_pose() {
+    let zero = band().zero();
+    let lever = 2.0 * 3.0;
+    let tilt = 0.4 * zero / lever;
+    let (k, t) = near_coaxial(tilt, 0.0);
+    match decided(&k, &t).stance() {
+        KtStance::Coaxial { slack } => assert!(
+            slack > 0.0 && slack < zero,
+            "the coaxial slack is the tilt's swing, in the band: {slack:e}"
+        ),
+        other => panic!("a tilt in the band reads coaxial: {other:?}"),
+    }
+    let (k, t) = near_coaxial(tilt, 0.9 * zero);
+    let got = ConeTorusPose::decide(&k, &t, band()).expect("a cone and a torus");
+    assert!(
+        matches!(
+            got,
+            Err(geom_brep::ConeTorusRefusal::Undecided {
+                question: geom_brep::KtQuestion::Axis,
+                ..
+            })
+        ),
+        "an offset in the band beside the swing is undecided on the axis: {got:?}"
+    );
+    // Well past the band the same tilt is a general pose, marched.
+    let (k, t) = near_coaxial(1e3 * zero, 0.0);
+    assert!(
+        matches!(decided(&k, &t).stance(), KtStance::Apart(_)),
+        "a tilt past the band is the general pose"
+    );
 }
 
 /// **A coaxial cone is the closed form's**: the section value reads it
@@ -263,14 +372,79 @@ fn worst(out: &geom_brep::SsiOutcome, k: &Surface<f64>, t: &Surface<f64>) -> [f6
     worst
 }
 
+/// **The traced oracle's count**: the components of the double cone's
+/// zero set on the torus `R`, `r` about `y` at the origin, read on its
+/// own chart `(φ, θ)` (the core angle in the `xz` plane, the tube angle)
+/// as the connected runs of grid cells whose corners' elevations change
+/// sign, the chart's two periods joined. It reads no pose and no march.
+fn zero_set_components(k: &Surface<f64>, big: f64, small: f64) -> usize {
+    let (n, m) = (720usize, 360usize);
+    let g = |i: usize, j: usize| {
+        let (phi, theta) = (
+            TAU * (i % n) as f64 / n as f64,
+            TAU * (j % m) as f64 / m as f64,
+        );
+        let rho = big + small * theta.cos();
+        cone_elevation(k, p(rho * phi.cos(), small * theta.sin(), rho * phi.sin())) > 0.0
+    };
+    let signs: Vec<Vec<bool>> = (0..=n)
+        .map(|i| (0..=m).map(|j| g(i, j)).collect())
+        .collect();
+    let crossed = |i: usize, j: usize| {
+        let c = [
+            signs[i][j],
+            signs[i + 1][j],
+            signs[i][j + 1],
+            signs[i + 1][j + 1],
+        ];
+        c.iter().any(|&b| b) && c.iter().any(|&b| !b)
+    };
+    let mut parent: Vec<usize> = (0..n * m).collect();
+    fn find(parent: &mut [usize], x: usize) -> usize {
+        let mut r = x;
+        while parent[r] != r {
+            r = parent[r];
+        }
+        let mut y = x;
+        while parent[y] != r {
+            let next = parent[y];
+            parent[y] = r;
+            y = next;
+        }
+        r
+    }
+    let cells: Vec<bool> = (0..n * m).map(|c| crossed(c / m, c % m)).collect();
+    for c in 0..n * m {
+        if !cells[c] {
+            continue;
+        }
+        let (i, j) = (c / m, c % m);
+        for (di, dj) in [(1, 0), (0, 1), (1, 1), (1, m - 1)] {
+            let d = ((i + di) % n) * m + (j + dj) % m;
+            if cells[d] {
+                let (a, b) = (find(&mut parent, c), find(&mut parent, d));
+                parent[a] = b;
+            }
+        }
+    }
+    let mut roots: Vec<usize> = (0..n * m)
+        .filter(|&c| cells[c])
+        .map(|c| find(&mut parent, c))
+        .collect();
+    roots.sort_unstable();
+    roots.dedup();
+    roots.len()
+}
+
 /// **The meridian triangle's cone crosses its torus, marched and
 /// certified.** The torus `R = 2`, `r = 1` about `y`; the cone of the
 /// triangle's edge from `(1, 0)` to `(1/2, 1/2)` revolved about the line
 /// through `(2, 0, 0)` along `z`: apex `(2, 0, 1)`, `α = 45°`, its rim
 /// circle the torus's meridian circle at `(2, 0, 0)`. The pose is apart
 /// and transverse, the section marched; every branch certifies, its
-/// samples on both surfaces by the oracle's forms, and one of them is
-/// that meridian circle.
+/// samples on both surfaces by the oracle's forms, their count the
+/// traced oracle's ([`zero_set_components`]), and one of them is that
+/// meridian circle.
 #[test]
 fn the_meridian_triangles_cone_crosses_its_torus_certified() {
     let t = torus(Point3::origin(), Vec3::unit_y(), 2.0, 1.0);
@@ -294,7 +468,12 @@ fn the_meridian_triangles_cone_crosses_its_torus_certified() {
             out.branches.len(),
             out.exhaustiveness.examined
         );
-        assert!(!out.branches.is_empty(), "the cone crosses the torus");
+        let traced = zero_set_components(&k, 2.0, 1.0);
+        assert_eq!(
+            out.branches.len(),
+            traced,
+            "the march finds every component the traced oracle does"
+        );
         let [wk, wt] = worst(&out, &k, &t);
         assert!(
             wk <= band().zero() && wt <= band().zero(),

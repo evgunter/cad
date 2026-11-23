@@ -93,7 +93,7 @@ use geom_core::{Bounds as _, Interval, Point3, Vec3};
 pub(crate) type Piece = (Box3, Vec3<f64>, (f64, f64));
 
 /// **A loop's turns about one surface's channels**: about its axis
-/// (cylinder and torus) and about its core circle (torus); zero on a
+/// (cylinder, cone and torus) and about its core circle (torus); zero on a
 /// channel the surface does not have.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Winding {

@@ -231,7 +231,9 @@ pub enum Gap<T: Real> {
 /// `2R·|w|`; `G″ = 2(|Πp′|² + Πw·Πp″)` the same with `|p″| = R`. A
 /// circle's branch adds `2R₂` times the rounding of `ρ′` and `ρ″`, whose
 /// quotients by `ρ` grow as the core nears the circle's axis: at a kink
-/// no slope reads at all.
+/// no slope reads at all. A cone's branch reads `g = ρ cos α ∓ h sin α`,
+/// charged `cos α` times `ρ`'s and `sin α` times `h`'s, and carries `g`'s
+/// rounding into `G = g²` by the product rule.
 #[derive(Clone, Copy)]
 struct Reading<T: Real> {
     d: Rounded<T>,
@@ -496,7 +498,9 @@ impl<T: Decide> Sweep<'_, T> {
     /// hold a kink. With `|p′| = |p″| = |p‴| = R` and `p′·p″ = 0`,
     /// `⟨Πw, Πw⟩‴ = 2(3⟨Πp′, Πp″⟩ + ⟨Πw, Πp‴⟩)` is at most
     /// `2R(3R + |Πw|)`, and for the circle `ρ‴`, from `ρ = √S`, at most
-    /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`.
+    /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`. For the
+    /// cone, `G‴ = 2(3g′g″ + g·g‴)` with `|g′| ≤ R`, `|g″| ≤ cos α·(2R²/ρ
+    /// + R) + sin α·R` and `|g‴| ≤ cos α·ρ‴ + sin α·R`.
     fn third(&self, r: Reading<T>, reach: T) -> Option<T> {
         let big = self.core.circle.radius();
         let (two, three) = (T::from_f64(2.0), T::from_f64(3.0));
