@@ -988,9 +988,7 @@ pub(super) fn line_cone_read<T: Decide>(
     let foot = line.param_within(apex, (lo, hi));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let [a2, b2, c2] = centred.coeffs;
-    // Unsourced lever: a length read off the parameter run, not the
-    // run's end points; the end points' distance rounds differently.
-    let length = geom_core::Lever::unsourced(dir.norm() * (hi - lo));
+    let length = crate::edge_extent_inf(&geom::Curve3::Line(line), lo, hi);
     let lead = || {
         decide(
             "curve_face_pose_cone_lead",
@@ -1341,9 +1339,9 @@ fn first_harmonic<T: Decide>(
     }
     // Each extreme read as the interval its noise spans: ends that
     // disagree read zero, and the zero end is kept for a refusal.
-    let extreme = |Rounded { value, error }: Rounded<T>| {
+    let extreme = |read: Rounded<T>| {
         let (below, above) =
-            crate::roots::spread_readings("curve_face_pose_extreme", value, error, band)
+            crate::roots::spread_readings("curve_face_pose_extreme", read.value, read.error, band)
                 .map_err(PoseRefusal::in_band(PoseRung::Extreme))?;
         Ok::<_, PoseRefusal>(if below.sign == above.sign {
             (below.sign, below)

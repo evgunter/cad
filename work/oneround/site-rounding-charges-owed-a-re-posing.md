@@ -55,6 +55,11 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_brep::curve_face::conic_quadric`, `ellipse_torus`, `circle_torus`,
   `reduce` (harmonic rungs): `rounding_charge(h.terms) / h.per`, a
   harmonic residual's noise over its per-metre rate.
+- `geom_brep::curve_face::pose` (the first-harmonic lane, moved there
+  from `conic_quadric`): `fn conic_quadric`'s circle × sphere extremes
+  charged the frame's defect (`lo`/`hi.with_charge(h.frame_error)`),
+  and `lane`'s first-harmonic extremes, each within the harmonics'
+  noise plus the second harmonic's amplitude (`extreme`).
 - `geom_brep::pair_section::gap` (`e_r1`, `e_r2` over `rho`) and
   `pair_section::ruling` (`tilt`).
 
