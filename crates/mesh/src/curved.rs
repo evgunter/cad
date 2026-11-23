@@ -506,9 +506,8 @@ pub(crate) fn tessellate_curved(
         // A pole or apex entry has no azimuth (`crate::chart_table`).
         let (bound, scale) = row.cert(tri, uv, pole);
         verdict.read(bound, tol.delta, scale, tol.eps);
-        let wound = crate::join::Wound(flip);
-        book.note(triangles.len(), wound.of(ids), wound.of(uv), wound.of(pole));
-        triangles.push(wound.of(ids));
+        let wound = crate::tessellate::Wound(flip);
+        book.push(&mut triangles, wound.of(ids), wound.of(uv), wound.of(pole));
     }
 
     // D2 addendum row 5 (`DESIGN.md`: kernel bug detectable only by
@@ -551,7 +550,7 @@ pub(crate) fn tessellate_curved(
     // already paid for the pole half, and it buys the case a
     // mechanical check.
     // This lane reads no fold.
-    let splits = book.splits(false, &triangles);
+    let splits = book.splits(&triangles);
     let patch = Patch {
         interior,
         triangles,

@@ -594,52 +594,44 @@ pub(crate) enum Placement<'m> {
 }
 
 impl Placement<'_> {
-    /// Each side of this face's triangles between two shared ids, in
-    /// mesh ids (`crate::join::census`), once per triangle that has it.
-    pub(crate) fn shared_sides(&self, mut each: impl FnMut(crate::join::Side)) {
+    /// **Each triangle's corners as shared mesh ids**, `None` for a point
+    /// of the patch's own (`crate::join::census`).
+    pub(crate) fn corners(&self, mut each: impl FnMut([Option<u32>; 3])) {
         match self {
             Self::Lane(patch) => {
                 for t in &patch.triangles {
-                    for q in 0..3 {
-                        if let (PatchVertex::Shared(a), PatchVertex::Shared(b)) =
-                            (t[q], t[(q + 1) % 3])
-                        {
-                            each(crate::join::side(a, b));
-                        }
-                    }
+                    each(t.map(PatchVertex::shared));
                 }
             }
             Self::Memo { stored, boundary } => {
                 for t in &stored.triangles {
-                    for q in 0..3 {
-                        if let (StoredVertex::Boundary(a), StoredVertex::Boundary(b)) =
-                            (t[q], t[(q + 1) % 3])
-                        {
-                            each(crate::join::side(
-                                boundary[a as usize],
-                                boundary[b as usize],
-                            ));
-                        }
-                    }
+                    each(t.map(|v| match v {
+                        StoredVertex::Boundary(i) => Some(boundary[i as usize]),
+                        StoredVertex::Local(_) => None,
+                    }));
                 }
             }
         }
     }
 
-    /// How this face splits a side the join finds it has inside.
-    pub(crate) fn splits(&self) -> crate::join::Splits {
-        match self {
-            Self::Lane(patch) => patch.splits.clone(),
-            Self::Memo { stored, .. } => stored.splits.clone(),
-        }
-    }
-
     /// This face's triangles, as mesh ids, with its interior points
-    /// appended to `positions` — the one allocation either arm makes.
-    pub(crate) fn place(self, positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+    /// appended to `positions` — the one allocation either arm makes —
+    /// and, where `split`, its notes for the join's split: moved out of a
+    /// lane's patch, copied out of a memo entry, which keeps its own.
+    pub(crate) fn place(
+        self,
+        positions: &mut Vec<Point3<f64>>,
+        split: bool,
+    ) -> (Vec<[u32; 3]>, Option<crate::join::Splits>) {
         match self {
-            Self::Lane(patch) => patch.place(positions),
-            Self::Memo { stored, boundary } => stored.place(&boundary, positions),
+            Self::Lane(mut patch) => {
+                let splits = split.then(|| core::mem::take(&mut patch.splits));
+                (patch.place(positions), splits)
+            }
+            Self::Memo { stored, boundary } => (
+                stored.place(&boundary, positions),
+                split.then(|| stored.splits.clone()),
+            ),
         }
     }
 }
@@ -1643,7 +1635,7 @@ mod tests {
     fn a_stored_patch_is_placed_against_the_new_boundary_ids() {
         let patch = Patch {
             interior: vec![p(0.5)],
-            splits: crate::join::Splits::Midpoint,
+            splits: crate::join::Splits::default(),
             triangles: vec![
                 [
                     PatchVertex::Shared(10),
@@ -1691,7 +1683,7 @@ mod tests {
             b"a".to_vec(),
             StoredPatch {
                 interior: Vec::new(),
-                splits: crate::join::Splits::Midpoint,
+                splits: crate::join::Splits::default(),
                 triangles: Vec::new(),
             },
         );
@@ -1718,7 +1710,7 @@ mod tests {
                     key: b"b".to_vec(),
                     stored: Some(StoredPatch {
                         interior: Vec::new(),
-                        splits: crate::join::Splits::Midpoint,
+                        splits: crate::join::Splits::default(),
                         triangles: Vec::new(),
                     }),
                 },

@@ -54,6 +54,14 @@ impl PatchVertex {
         }
     }
 
+    /// This corner's shared id, `None` for a point of the patch's own.
+    pub(crate) const fn shared(self) -> Option<u32> {
+        match self {
+            Self::Shared(id) => Some(id),
+            Self::Local(_) => None,
+        }
+    }
+
     /// This corner's mesh id once the patch's interior begins at
     /// `base`.
     fn rebase(self, base: u32) -> u32 {
@@ -61,6 +69,18 @@ impl PatchVertex {
             Self::Shared(id) => id,
             Self::Local(i) => base + i,
         }
+    }
+}
+
+/// A triangle's corners as the patch holds them: reversed where the
+/// lane flips its chart's counter-clockwise order. The curved and trimmed
+/// lanes both emit through it.
+#[derive(Clone, Copy)]
+pub(crate) struct Wound(pub(crate) bool);
+
+impl Wound {
+    pub(crate) fn of<T: Copy>(self, c: [T; 3]) -> [T; 3] {
+        if self.0 { [c[0], c[2], c[1]] } else { c }
     }
 }
 
@@ -882,17 +902,18 @@ fn tessellate_impl(
     // passes are independent — one writes the mesh arena, the other the
     // memo's counters and entries — so splitting them changes nothing
     // either produces, and both walk the faces in arena order.
-    // THE CENSUS of the sides two patches both have inside (`crate::join`),
-    // on shared ids, over every patch the lanes or the memo answered: what
-    // each face splits where it joins the mesh, below.
+    // THE CENSUS of the sides the patches split where they join
+    // (`crate::join::census`), on shared ids, over every patch the lanes or
+    // the memo answered: what each face splits where it joins the mesh,
+    // below.
     let splitting = {
-        let faces: Vec<(FaceKey, Vec<crate::join::Side>)> = work
+        let faces: Vec<(FaceKey, Vec<[Option<u32>; 3]>)> = work
             .iter()
             .filter_map(|w| {
                 let placement = w.place.as_ref().ok()?;
-                let mut sides = Vec::new();
-                placement.shared_sides(|s| sides.push(s));
-                Some((w.face, sides))
+                let mut corners = Vec::new();
+                placement.corners(|t| corners.push(t));
+                Some((w.face, corners))
             })
             .collect();
         let mut carried = Vec::new();
@@ -905,7 +926,7 @@ fn tessellate_impl(
                 );
             };
             for w in b.points.windows(2) {
-                carried.push((crate::join::side(w[0], w[1]), holders));
+                carried.push((crate::walk::edge_key(w[0], w[1]), holders));
             }
         }
         crate::join::census(&faces, &carried)
@@ -940,12 +961,11 @@ fn tessellate_impl(
             // the mesh. A face with a triangle f64 cannot wind refuses.
             Ok(placement) => {
                 let sides = splitting.get(&face.face);
-                let splits = sides.map(|_| placement.splits());
-                let mut triangles = placement.place(&mut positions);
-                // THE SPLIT: each side the census found this patch has
-                // inside, at the point of the face's own surface over its
-                // chart midpoint, every piece held as the lane holds its
-                // triangles (`crate::join::split`).
+                let (mut triangles, splits) = placement.place(&mut positions, sides.is_some());
+                // THE SPLIT: each side the census found this patch splits,
+                // at the foot on the face's own surface of the side's
+                // straight midpoint, every piece held as a triangle of its
+                // face is (`crate::join::split`).
                 if let (Some(sides), Some(splits)) = (sides, &splits) {
                     if let Err(error) = crate::join::split(
                         face.face,
@@ -1119,7 +1139,7 @@ fn side_uses<'a>(
 /// as an interior edge, or one patch uses it past its own two.
 fn overused_side(uses: &HashMap<(u32, u32), (usize, usize)>) -> Option<((u32, u32), usize)> {
     uses.iter()
-        .filter(|&(_, &(chords, n))| n > 2 * chords.max(1))
+        .filter(|&(_, &(chords, n))| crate::join::overused(n, chords))
         .map(|(&side, &(_, n))| (side, n))
         .min()
 }
@@ -1346,7 +1366,7 @@ mod patch_tests {
 
         let first = Patch {
             interior: vec![p(100.0), p(101.0)],
-            splits: crate::join::Splits::Midpoint,
+            splits: crate::join::Splits::default(),
             triangles: vec![
                 [
                     PatchVertex::Shared(3),
@@ -1370,7 +1390,7 @@ mod patch_tests {
 
         let second = Patch {
             interior: vec![p(200.0)],
-            splits: crate::join::Splits::Midpoint,
+            splits: crate::join::Splits::default(),
             triangles: vec![[
                 PatchVertex::Local(0),
                 PatchVertex::Shared(1),
@@ -1392,7 +1412,7 @@ mod patch_tests {
         let mut positions: Vec<Point3<f64>> = (0..4).map(|i| p(f64::from(i))).collect();
         let patch = Patch {
             interior: Vec::new(),
-            splits: crate::join::Splits::Midpoint,
+            splits: crate::join::Splits::default(),
             triangles: vec![[
                 PatchVertex::Shared(0),
                 PatchVertex::Shared(2),
@@ -1412,7 +1432,7 @@ mod patch_tests {
         let shared: Vec<Point3<f64>> = (0..3).map(|i| p(f64::from(i))).collect();
         let patch = Patch {
             interior: vec![p(9.0), p(10.0)],
-            splits: crate::join::Splits::Midpoint,
+            splits: crate::join::Splits::default(),
             triangles: vec![[
                 PatchVertex::Shared(2),
                 PatchVertex::Local(0),

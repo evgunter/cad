@@ -249,7 +249,7 @@ pub(crate) fn tessellate_planar(
     Ok(Patch {
         interior: Vec::new(),
         triangles: triangulate_chart(fk, &loops, &polygons)?,
-        splits: crate::join::Splits::Midpoint,
+        splits: crate::join::Splits::default(),
     })
 }
 

@@ -1300,17 +1300,19 @@ fn bored_ball_of(r: f64, sign: f64) -> Body<f64> {
 }
 
 /// **A walked face whose neighbour holds both of its rims makes no edge
-/// of four triangles, and gains a point only where the neighbour makes the
-/// same side.** A ball of radius 1.05 bored by a coaxial cylinder of radius
-/// 1 ([`bored_ball`]), its bore's seam split at its middle and at five
-/// points, placed obliquely, with a sphere face round the bore and with a
-/// torus face. The neighbour holds every point of both rims, and where it
-/// lays no point between them (δ past the shell's thickness, 0.05) its own
-/// triangles join the rims as the walk does; each such side is split in
-/// both patches where they join (`mesh::join`). Each cell pins the points
-/// the bore's patch gained there ([`holds_the_relation`]): 13 to 20 a cell
-/// at δ 3 to 0.3 (and 17 at δ 0.1 for sign −1), none at δ 0.04, where the
-/// neighbour lays a row between the rims and makes no rim-to-rim side. A
+/// of four triangles, and gains a point only where the join splits a side
+/// it has inside.** A ball of radius 1.05 bored by a coaxial cylinder of
+/// radius 1 ([`bored_ball`]), its bore's seam split at its middle and at
+/// five points, placed obliquely, with a sphere face round the bore and
+/// with a torus face. The neighbour holds every point of both rims, and
+/// where it lays no point between them (δ past the shell's thickness, 0.05)
+/// its own triangles join the rims as the walk does; each side both make is
+/// split in both patches where they join, and so is each side of a
+/// triangle whose corners are all rim points where both faces lay such a
+/// triangle (`mesh::join`'s census). Each cell pins the points the bore's
+/// patch gained there ([`holds_the_relation`]): 15 to 25 a cell at δ 3 to
+/// 0.3 (and 21 at δ 0.1 for sign −1), none at δ 0.04, where the neighbour
+/// lays a row between the rims and no triangle of rim points alone. A
 /// second, thicker ball (radius 1.3, a shell of 0.3) gains none at any δ:
 /// its neighbour never makes the bore's sides. Every cell passes
 /// `check_mesh` and is the body's
@@ -1322,9 +1324,9 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
     // The points the bore's patch gains where the patches join, per (ball's
     // radius, sign, δ), the same for either split.
     let cuts = |r: f64, sign: f64, delta: f64| match (r == 1.05, sign > 0.0, delta) {
-        (true, _, 3.0 | 1.0) | (true, false, 0.3) => 13,
-        (true, true, 0.3) => 20,
-        (true, false, 0.1) => 17,
+        (true, _, 3.0 | 1.0) | (true, false, 0.3) => 15,
+        (true, true, 0.3) => 25,
+        (true, false, 0.1) => 21,
         _ => 0,
     };
     let mut cells = 0usize;
@@ -1692,7 +1694,7 @@ fn a_thin_d_prism_split_on_every_line_edge_refuses_as_its_split_caps_do() {
 /// no ε moves it.** DESIGN `[tolerance.chordal]`: an ε flip never moves
 /// emitted coordinates with δ held fixed. The bored ball of sign +1
 /// ([`bored_ball`]), its seam split at its middle, placed obliquely, at δ
-/// 0.3, where its bore's patch gains 20 points, and at 0.04, where it gains
+/// 0.3, where its bore's patch gains 25 points, and at 0.04, where it gains
 /// none: the census reads shared ids and the split the face's chart and
 /// certificate, and the mesh's bytes are the same pinned digest at ε
 /// `10⁻⁹`, `10⁻⁶` and `10⁻¹²` alike.
@@ -1706,7 +1708,7 @@ fn the_join_splits_the_same_at_every_eps() {
     let split = split_and_placed(&body, &[seam], &[0.5]);
     let solid = split_and_placed(&body, &[], &[]);
     for (delta, cuts, digest) in [
-        (0.3, 20, 0x215f_b7d8_f2d0_5ba7_u64),
+        (0.3, 25, 0x3d77_e08a_d06d_ff71_u64),
         (0.04, 0, 0x882f_0997_46ad_3e90),
     ] {
         let what = "the ball bored with sign 1, its seam split at [0.5]";

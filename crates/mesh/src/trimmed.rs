@@ -1120,7 +1120,7 @@ impl TrimmedFace<'_> {
         // its fan's edges are used twice at most — so on every other face
         // the set is empty and the census returns on one branch.
         // The spline arm reads no fold (`Self::outward`).
-        let splits = book.splits(matches!(self.row, ChartRow::Analytic(_)), &triangles);
+        let splits = book.splits(&triangles);
         let patch = Patch {
             interior,
             triangles,
@@ -1524,11 +1524,6 @@ impl TrimmedFace<'_> {
                 ];
                 // Wound as emitted below: reversed under `flip`.
                 let wound = if flip { [tri[0], tri[2], tri[1]] } else { tri };
-                let centroid = Point3::new(
-                    (tri[0].x + tri[1].x + tri[2].x) / 3.0,
-                    (tri[0].y + tri[1].y + tri[2].y) / 3.0,
-                    (tri[0].z + tri[1].z + tri[2].z) / 3.0,
-                );
                 // A triangle f64 cannot wind refuses the face at once
                 // (`validate::resolved_normal`, `[mesh.winding]`): its normal
                 // is noise, so it is neither outward nor a fold, and no retry
@@ -1544,10 +1539,10 @@ impl TrimmedFace<'_> {
                 })?;
                 // Folded unless wound outward: a zero dot, or NaN where
                 // `outward` is poison, is a fold.
-                if self.outward(centroid).is_some_and(|n| {
-                    let wound_outward = normal.dot(n.vec()) > 0.0;
-                    !wound_outward
-                }) {
+                if self
+                    .outward(crate::validate::centroid(tri))
+                    .is_some_and(|n| crate::validate::wound_against(normal, n.vec()))
+                {
                     a_fold = true;
                 }
                 let (bound, scale) = self.row.cert(tri, uv, singular);
@@ -1626,14 +1621,13 @@ impl TrimmedFace<'_> {
                 if refine_lane && verdict == cert::Verdict::Exceeded {
                     refine.push(inside_point());
                 }
-                let wound = crate::join::Wound(flip);
-                book.note(
-                    triangles.len(),
+                let wound = crate::tessellate::Wound(flip);
+                book.push(
+                    &mut triangles,
                     wound.of(ids),
                     wound.of(uv),
                     wound.of(singular),
                 );
-                triangles.push(wound.of(ids));
             }
             if a_fold {
                 folds.push(inside_point());
@@ -3737,17 +3731,11 @@ fn walk_face(
                 unresolved: Box::new(unresolved),
             }
         })?;
-        let centroid = Point3::new(
-            (tri[0].x + tri[1].x + tri[2].x) / 3.0,
-            (tri[0].y + tri[1].y + tri[2].y) / 3.0,
-            (tri[0].z + tri[1].z + tri[2].z) / 3.0,
-        );
         // Folded unless wound outward: a zero dot is a fold.
-        if normal
-            .dot(row.outward(sense, centroid).vec())
-            .partial_cmp(&0.0)
-            != Some(core::cmp::Ordering::Greater)
-        {
+        if crate::validate::wound_against(
+            normal,
+            row.outward(sense, crate::validate::centroid(tri)).vec(),
+        ) {
             return Err(TessellateError::FoldedTriangle { face: fk });
         }
         // Which corners are the apex: an apex corner's chart `u` is a copy's
@@ -3758,11 +3746,10 @@ fn walk_face(
         // point is never the apex.
         let (bound, scale) = row.cert(tri, c.map(|c| c.1), c.map(|c| c.2));
         verdict.read(bound, tol.delta, scale, tol.eps);
-        book.note(triangles.len(), ids, c.map(|c| c.1), c.map(|c| c.2));
-        triangles.push(ids);
+        book.push(&mut triangles, ids, c.map(|c| c.1), c.map(|c| c.2));
     }
     verdict.refusal(fk, tol.delta)?;
-    let splits = book.splits(true, &triangles);
+    let splits = book.splits(&triangles);
     Ok(Patch {
         interior,
         triangles,
