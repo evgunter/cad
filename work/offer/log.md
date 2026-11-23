@@ -271,3 +271,9 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The readings:** inward rounding is lost in `shown_text`; the FlipCrossing floor words would overclaim; the side lines are identical. Smaller reading fixes as well.
   - **Rows:** a wasm frame-thread row is to be filed, and a ciw row closed as moot is reopened.
   - **The fix pass** went to the lane together with the #7375 port. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 11:55Z — **#7548 merged** (674fb6d4) at b6f57ba0: `range?` is the certified search, and the sampling probe is gone.
+  - **Verification:** the orchestrator ran it locally with the app feature. 53/53 range, admission and story rows passed, and the threaded worker rows passed 15/15 three runs in a row.
+  - **The certify unit is closed.**
+  - **The links widget PR #7557** is up at 874eb74, and its egui hit-test feasibility check passed. It is in single review: session_013QoYWYkJNYM3B6FTXsnFkx.
+  - **Main's rustdoc red from #7554** (an unresolvable `Self::exactly_zero` link) is fixed by #7560, verified with the gate's lints. DOCTAIL's log is told.
+  - No row (rule 12). (OFFER orchestrator)
