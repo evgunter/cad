@@ -3505,8 +3505,14 @@ impl<T: Decide> CarriedComponent<T> {
     /// farthest a witness stands from its foot. A seed and no verdict:
     /// [`Self::foot_along`] certifies what it returns, and `t` itself
     /// where it cannot read. It frees a foot the tube piece's run clamped,
-    /// and one the carrier's polish left short of the foot.
+    /// and one the carrier's polish left short of the foot. A closed form
+    /// (no pad) keeps its witness: its foot is found on the exact carrier,
+    /// in closed form or by that carrier's own polish, and a further step
+    /// would only move it by roundings.
     fn polished(&self, p: Point3<T>, t: T, band: Band) -> T {
+        if self.pad == 0.0 {
+            return t;
+        }
         let value = |x: T| x.point_value();
         let Some(t0) = value(t) else {
             return t;
