@@ -110,3 +110,16 @@ extremes (points and parallels), with the elliptic margin and, where
 the arm decides perfectness, the gap margin gone; saddle tangencies
 keep R-tan. Admitting them is
 `torus-saddle-touches-are-read-by-their-near-band`, parked on the door.
+
+## Scope narrowed again: point extremes only (2026-11-23)
+
+PR 7611's dual review found that a PARALLEL touch read off the exact pose
+is unsound. The near band stays connected there, but `at` taken at the
+torus's `u_ref` can stand on the gap side of a crossing, and the edges
+parting the crossing from it are straight rulings outside the solid,
+where line × torus is silent. The design's "on a parallel any point gives
+the same verdict" holds only in the exact pose. What S′'s side argument
+needs is `at` at the deepest point of the ACTUAL pose. So this unit admits
+strict point extremes, with `at` read from the actual pose on every arm.
+Parallels wait on the line × torus door with the saddles:
+`torus-parallel-touches-wait-on-the-line-torus-door`.
