@@ -1223,17 +1223,18 @@ mod tests {
     /// would hand its verdict an uncompleted body. This row refuses one,
     /// in every crate's `src/` (the trait is public).
     #[test]
+    #[allow(clippy::expect_used)] // a guard's failure mechanism
     fn no_at_rest_policy_impl_writes_its_own_finish_or_leaf() {
         let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR")).join("crates");
         let mut found = Vec::new();
         let mut impls = 0;
-        for krate in std::fs::read_dir(&root).unwrap() {
-            let src = krate.unwrap().path().join("src");
+        for krate in std::fs::read_dir(&root).expect("the crates directory") {
+            let src = krate.expect("a crate entry").path().join("src");
             if !src.is_dir() {
                 continue;
             }
             for file in test_utils::source::rust_sources(&src) {
-                let text = std::fs::read_to_string(&file).unwrap();
+                let text = std::fs::read_to_string(&file).expect("a readable source file");
                 let code = test_utils::source::code_only(&text);
                 let (here, n) = overrides(&code);
                 impls += n;

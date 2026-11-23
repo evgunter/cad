@@ -11,10 +11,10 @@ fn tol() -> Tol {
 }
 
 fn face_half_edges(body: &Body<f64>, face: FaceKey) -> Vec<Vec<HalfEdgeKey>> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
-        .filter_map(|lp| match body.get_loop(lp).unwrap().boundary {
+    body.face(face)
+        .unwrap()
+        .loops()
+        .filter_map(|(_, l, _)| match l.boundary {
             LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             _ => None,
         })
@@ -346,10 +346,9 @@ fn p1c_rows_over_a_moved_support_are_refused() {
             let r = topo::test_support::validate_completed(&moved, t);
             println!(
                 "{name} gap={gap}: planted {planted}, finish -> {}",
-                if r.is_ok() {
-                    "OK (LAUNDERED?)".to_string()
-                } else {
-                    format!("{} findings", r.as_ref().unwrap_err().len())
+                match &r {
+                    Ok(()) => "OK (LAUNDERED?)".to_string(),
+                    Err(findings) => format!("{} findings", findings.len()),
                 }
             );
             assert!(planted > 0, "{name}: nothing transplanted");

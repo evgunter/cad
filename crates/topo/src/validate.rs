@@ -4108,6 +4108,12 @@ fn incidence_ending(read: geom_brep::IncidenceRead) -> (&'static str, Cow<'stati
     )
 }
 
+/// Whether `at` is the at-rest door, whose ending a pcurve finding takes
+/// from the table ([`classify_pcurve`]).
+fn read_at_rest(at: geom_brep::recourse::ReadAt) -> bool {
+    at == geom_brep::recourse::ReadAt::Run(Reading::AtRest)
+}
+
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
@@ -5043,9 +5049,7 @@ impl ValidationError {
                 // (iv)) — the finding ends by its own ending there; a
                 // torn arm, which has none, by the table's.
                 let recourse = match at {
-                    Some(at) if at != geom_brep::recourse::ReadAt::Run(Reading::AtRest) => {
-                        finding.ending(at).map_or(at_rest, Cow::Owned)
-                    }
+                    Some(at) if !read_at_rest(at) => finding.ending(at).map_or(at_rest, Cow::Owned),
                     _ => at_rest,
                 };
                 write!(
