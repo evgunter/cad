@@ -410,8 +410,12 @@ fn full_wire_revolve_names_one_band_and_whole_rims() {
             "rim {v}"
         );
         assert!(
-            t.lookup(&meridian_vertex(MeridianEnd::Seam, rev, pv(&doc, rev, 0, v)))
-                .is_some(),
+            t.lookup(&meridian_vertex(
+                MeridianEnd::Seam,
+                rev,
+                pv(&doc, rev, 0, v)
+            ))
+            .is_some(),
             "rim {v}'s meridian vertex"
         );
     }

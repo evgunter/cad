@@ -77,8 +77,9 @@ fn hits_station_radius(body: &Body<f64>, y: f64, r: f64, win: f64) -> Vec<EdgeKe
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match *c.carrier() {
-                Curve3::Circle(circle @ geom::Circle { frame, .. })
-                    if (frame.origin().y - y).abs() < win && (circle.radius() - r).abs() < win =>
+                Curve3::Circle(circle)
+                    if (circle.frame().origin().y - y).abs() < win
+                        && (circle.radius() - r).abs() < win =>
                 {
                     Some(k)
                 }
@@ -162,7 +163,7 @@ fn the_lily_lanterns_rims_are_at_their_analytic_radii_to_1e_9() {
     for (r, _) in lily_rims() {
         assert_eq!(
             seeds_radius_only(&lant, r, 1e-9).len(),
-            2,
+            1,
             "radius {r} selects at 1e-9"
         );
     }

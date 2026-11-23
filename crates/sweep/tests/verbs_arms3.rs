@@ -47,9 +47,9 @@ use geom::Surface;
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
+use sweep::blend::BlendArm;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendArm, BlendError};
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, SurfaceKey, VertexKey, validate_geometric};
 
@@ -285,25 +285,20 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
 // The seam vertex.
 // ------------------------------------------------------------------
 
-/// The lantern's mouth rim (sphere meets cone at radius `0.8`), as the
-/// two arcs a chart seam split it into, and one of the two vertices
-/// where they meet.
+/// The lantern's mouth rim (sphere meets cone at radius `0.8`), one
+/// closed edge, and its vertex, where the walls' seams meet it.
 fn mouth(body: &Body<f64>) -> (Vec<EdgeKey>, VertexKey) {
     let arcs = rim_arcs_at(body, 0.8, 0.6);
-    assert_eq!(arcs.len(), 1, "the seam splits the mouth rim into one closed edge");
+    assert_eq!(arcs.len(), 1, "the mouth rim is one closed edge");
     let e = body.get_edge(arcs[0]).unwrap();
     (arcs.clone(), body.get_half_edge(e.he_plus).unwrap().start)
 }
 
-/// **The vertex a chain stopping at a seam actually meets** — its
-/// structure, asserted before the refusal that names it.
-///
-/// Four incident edges: the two rim arcs, which carry ONE support pair
-/// between them (the rim arrives and leaves on the same two surfaces),
-/// and two seam meridians, each with one surface on BOTH sides. That
-/// second fact is the dihedral-zero one, and it is structural: a
-/// co-surface edge cannot have a wedge, whatever a normal sampled there
-/// would say. Each seam meridian says so in its own right too, a smooth
+/// **The mouth rim's vertex**: the rim, one closed edge, and the two
+/// walls' seam meridians, each with one face on BOTH sides. That second
+/// fact is the dihedral-zero one, and it is structural: an edge with one
+/// face on both sides cannot have a wedge, whatever a normal sampled
+/// there would say. Each seam says so in its own right too, a smooth
 /// seam at margin exactly zero that the blend leaves as it is.
 #[test]
 fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
@@ -311,63 +306,19 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     let (arcs, vertex) = mouth(&body);
     let mut edges = body.edges_of_vertex(vertex).unwrap();
     edges.sort_unstable();
-    assert_eq!(edges.len(), 4, "the seam vertex is valence four");
+    assert_eq!(edges.len(), 3, "the rim and two seams");
     let (seams, rim): (Vec<EdgeKey>, Vec<EdgeKey>) = edges.iter().partition(|k| {
         let (a, b) = supports(&body, **k);
         a == b
     });
     assert_eq!(seams.len(), 2, "two co-surface seam meridians");
-    assert_eq!(rim.len(), 2, "two rim arcs");
-    assert_eq!(
-        supports(&body, rim[0]),
-        supports(&body, rim[1]),
-        "the rim arrives and leaves on ONE support pair — the surface is smooth through \
-         the vertex"
-    );
-    assert_eq!(rim, arcs, "and those two arcs are the mouth rim's own");
-    // The dihedral along a co-surface seam is zero, and the kernel says
-    // so on its own metered predicate.
+    assert_eq!(rim, arcs, "and the mouth rim");
     for seam in seams {
         let margin = sweep::test_support::smooth_reading(&body, seam, 0.02, tol());
         assert_eq!(
             margin, None,
             "a co-surface seam is read by identity, no margin read"
         );
-    }
-}
-
-/// **The refusal, and what it now says.** A chain that stops at a seam
-/// vertex is refused as `UnbuiltEnd::Seam` — naming NO end rule,
-/// because none would help — and its recourse is the one that names the
-/// request that describes what the caller wants.
-#[test]
-fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
-    let body = lantern();
-    let (arcs, _) = mouth(&body);
-    match fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &arcs[..1],
-        0.02,
-        tol(),
-    )
-    .map_err(|r| r.error)
-    {
-        Err(e @ BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. })) => {
-            let text = e.render(geom_brep::recourse::Reading::Build);
-            assert!(
-                text.contains(sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE),
-                "the seam recourse is the one appended: {text}"
-            );
-            assert!(
-                !text.contains(sweep::blend::FILLET3_CORNER_RECOURSE),
-                "the corner recourse names a door that would not help here: {text}"
-            );
-            assert!(
-                !text.contains("run-out"),
-                "no run-out is named at a vertex no run-out addresses: {text}"
-            );
-        }
-        other => panic!("a chain stopping at a seam vertex refuses its seam tag, got {other:?}"),
     }
 }
 

@@ -20,10 +20,10 @@ use sweep::{Revolution, revolve};
 /// one only to name the face of an empty patch
 /// (`MeshError::EmptyPatch`), and nothing else about a patch's face.
 fn two_face_keys() -> [topo::FaceKey; 2] {
-    let body = ball();
+    let body = cone();
     let mut faces = body.faces().map(|(fk, _)| fk);
     let (a, b) = (faces.next().unwrap(), faces.next().unwrap());
-    assert_ne!(a, b, "the ball's two half-caps are distinct faces");
+    assert_ne!(a, b, "the cone's wall and base are distinct faces");
     [a, b]
 }
 

@@ -290,6 +290,11 @@ fn the_stored_lift_bounds_the_faces_own_region_through_its_poles() {
             "the ball",
             ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
         ),
+        ("the two lunes", {
+            let mut b = ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
+            crate::seam_region_common::two_lunes(&mut b, tol());
+            b
+        }),
         ("the narrow wedge", wedge(0.7)),
         ("the wide wedge", wedge(4.0)),
     ];
@@ -302,8 +307,15 @@ fn the_stored_lift_bounds_the_faces_own_region_through_its_poles() {
             let Some((area, at_pole)) = region_area(body, face) else {
                 continue;
             };
+            // The one-face ball's chain is its seam out and back: the
+            // chart's whole rectangle, the whole sphere.
+            let whole = *name == "the ball";
             assert!(
-                area > 0.0 && area < 4.0 * PI,
+                if whole {
+                    (area - 4.0 * PI).abs() < 1e-12
+                } else {
+                    area > 0.0 && area < 4.0 * PI
+                },
                 "{name}, face {face:?}: the chain bounds an area of {area}, not a region of \
                  the sphere on the face's side"
             );

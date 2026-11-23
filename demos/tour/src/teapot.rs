@@ -295,8 +295,8 @@ use pncad::prelude::{
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
-    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, edge_name,
-    face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
+    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, edge_name, face_carrier_kind,
+    face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, BooleanError};
@@ -1206,7 +1206,7 @@ fn rim_circle(
                 .expect("a rim carries a certified curve");
             match *c.carrier() {
                 Curve3::Circle(circle) => {
-                    let (center, radius) = (circle.frame.origin(), circle.radius());
+                    let (center, radius) = (circle.frame().origin(), circle.radius());
                     assert!(
                         center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
                         "a latitude rim's circle is centred ON the axis: got {center:?}"
@@ -1630,11 +1630,12 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, tol: Tol) -> bool {
         };
         return matches!(
             join.error(),
-            JoinError::Euler(EulerOpError::Certification {
+            JoinError::Euler(EulerOpError::DescriptionUncertified {
                 error: CertifyError::Escalated {
                     check: CertCheck::PlaneNurbsHullValue,
                     ..
                 },
+                ..
             })
         );
     }

@@ -2,11 +2,13 @@
 id: a-line-tangent-to-an-arc-at-their-vertex-is-read-by-no-corner-presentation
 kind: issue
 title: A plane face's corner where a line continues its shared arc tangentially is read by no corner presentation, so every fillet band whose rim arc meets its straight foot at a tangent joint refuses Departure at the joint
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P0
 cost: M
 refs: [departure-reads-no-curved-corner-off-its-shared-edge]
+pr: 7320
+branch: embed/tangent-corner
 ---
 
 

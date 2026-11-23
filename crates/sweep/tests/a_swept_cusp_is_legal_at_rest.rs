@@ -191,18 +191,17 @@ fn a_cusp_revolve_is_legal_partial_and_full() {
     }
 }
 
-/// The full revolve of an axis-touching profile sweeps two π-bands, so
-/// its one cusp joint is two cusp rims — one per band — and both are
-/// legal.
+/// The full revolve of an axis-touching profile sweeps each wall as one
+/// band, so its one cusp joint is one closed cusp rim, and it is legal.
 #[test]
-fn a_revolve_wire_case_cusp_is_legal_on_both_bands() {
+fn a_revolve_wire_case_cusp_is_legal_on_its_one_rim() {
     let profile = validated(vec![sphere_cone_on_axis()]);
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let built = revolve(&profile, axis, Revolution::Full, Tol::witness()).unwrap();
-    tangent_marks_at_the_cusp(&built.body, on_the_rim, 2);
+    tangent_marks_at_the_cusp(&built.body, on_the_rim, 1);
 }
 
 /// **Not a validation of the cusp.** Loft walls are NURBS, whose edges
@@ -224,7 +223,7 @@ fn a_cusp_loft_passes_with_its_nurbs_seam_unjudged_by_kind() {
     );
     let marks = topo::contact_marks(&built.body, Tol::witness()).expect("valid");
     assert_eq!(
-        marks.get(built.seam_edges[0][2][0]),
+        marks.get(built.seam_edges[0][2][0].unwrap()),
         Some(&ContactMark::Unmarked),
         "the cusp seam is unjudged by kind"
     );
@@ -322,7 +321,7 @@ fn a_loft_whose_sections_disagree_passes_with_the_seam_unjudged_by_kind() {
         );
         let marks = topo::contact_marks(&built.body, Tol::witness()).expect("valid");
         assert_eq!(
-            marks.get(built.seam_edges[0][j][0]),
+            marks.get(built.seam_edges[0][j][0].unwrap()),
             Some(&ContactMark::Unmarked)
         );
     }

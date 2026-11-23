@@ -292,13 +292,15 @@ pub fn cert_sphere(center: Point3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
 /// whole number of turns apart to `10⁻⁸` rad the sag (of order `10⁻³²` of
 /// the radius) is read 87 % short, and across a hundred turns the loss
 /// passes the verdict's allowance. So the chord term holds to its own
-/// rounding for `|Δu|` up to a turn less a few `10⁻⁸`, and the lanes keep
-/// a side under that: the curved lane's sides span one column step, and
-/// a trimmed face's sides join points of one chart box, which is within
-/// a turn (a loop that winds about the axis refuses at the domain door,
-/// `TessellateError::DomainUnread`, and a seam walked twice refuses
-/// `SeamTwice`), so a side that near a whole turn would have to join
-/// that box's two ends. Whether the axis term enters is the
+/// rounding for `|Δu|` up to a turn less a few `10⁻⁸`. Within those
+/// `10⁻⁸` of one turn the shortfall is that 87 % of a sag of order
+/// `10⁻³²` of the radius, under the verdict's allowance, which only a
+/// hundred turns' loss passes; so the bound holds to the allowance up to
+/// one turn. The lanes keep a side within that: the curved lane's sides span one column step, and a trimmed
+/// face's sides join points of one chart box, which is at most a turn
+/// wide (a loop that winds about the axis refuses at the domain door,
+/// `TessellateError::DomainUnread`; a seam walked both ways spans one
+/// turn exactly). Whether the axis term enters is the
 /// signs of the `Sᵢ`; where one is within rounding of zero the axis is
 /// within rounding of a side, whose `D` is `A`'s limit there.
 ///
@@ -571,6 +573,84 @@ pub(crate) fn verdict(bound: f64, delta: f64, scale: f64, eps: Eps) -> Verdict {
         Verdict::Certified
     } else {
         Verdict::Unresolved { allowance }
+    }
+}
+
+/// **A face's certificate verdict, over its triangles**: the worst bound
+/// (a NaN kept once met, [`worse`]: what a refusal reports is what
+/// refused), whether some triangle's bound is [`Verdict::Exceeded`] at its
+/// own rounding magnitude, and the largest allowance an
+/// [`Verdict::Unresolved`] triangle would have had to absorb. An exceeded
+/// triangle outranks an unresolved one. The one reading of a face's
+/// triangles every lane makes (the rectangle lane, the trimmed lane's CDT
+/// arms, its walk), kept per triangle rather than read off the worst
+/// bound: [`verdict`] reads each bound at its own magnitude.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FaceVerdict {
+    worst: f64,
+    exceeded: bool,
+    unresolved: Option<f64>,
+}
+
+impl FaceVerdict {
+    /// No triangle read yet.
+    pub(crate) fn new() -> Self {
+        Self {
+            worst: 0.0,
+            exceeded: false,
+            unresolved: None,
+        }
+    }
+
+    /// Reads one triangle's `bound`, computed at magnitude `scale`, at
+    /// `delta`: its [`verdict`], which this face's verdict takes in.
+    pub(crate) fn read(&mut self, bound: f64, delta: f64, scale: f64, eps: Eps) -> Verdict {
+        let verdict = verdict(bound, delta, scale, eps);
+        match verdict {
+            Verdict::Certified => {}
+            Verdict::Exceeded => self.exceeded = true,
+            Verdict::Unresolved { allowance } => {
+                self.unresolved =
+                    Some(self.unresolved.map_or(allowance, |a: f64| a.max(allowance)));
+            }
+        }
+        self.worst = worse(self.worst, bound);
+        verdict
+    }
+
+    /// The worst bound read.
+    pub(crate) fn worst(&self) -> f64 {
+        self.worst
+    }
+
+    /// The face's refusal, if it has one: `CertificateExceeded` where a
+    /// triangle exceeded `delta`, else `RoundingUnresolved` where one could
+    /// not be resolved.
+    ///
+    /// # Errors
+    ///
+    /// Those two.
+    pub(crate) fn refusal(
+        &self,
+        face: topo::FaceKey,
+        delta: f64,
+    ) -> Result<(), crate::types::TessellateError> {
+        if self.exceeded {
+            return Err(crate::types::TessellateError::CertificateExceeded {
+                face,
+                bound: self.worst,
+                requested: delta,
+            });
+        }
+        if let Some(allowance) = self.unresolved {
+            return Err(crate::types::TessellateError::RoundingUnresolved {
+                face,
+                bound: self.worst,
+                requested: delta,
+                allowance,
+            });
+        }
+        Ok(())
     }
 }
 

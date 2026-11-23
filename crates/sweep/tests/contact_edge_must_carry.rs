@@ -363,8 +363,10 @@ fn plane_sphere_rim(body: &Body<f64>) -> Vec<EdgeKey> {
 /// silently stops carving cannot empty the census. A blend ends with
 /// the join (`docs/DESIGN.md`, maximal edges), so two contact edges on
 /// one carrier meeting at a foot nothing else reaches are one (158
-/// before the join).
-const CORPUS_CONTACT_EDGES: usize = 147;
+/// before the join), and a full revolve's wall is one face, so a blend
+/// on its rim carries one contact edge per support where it carried one
+/// per half-band (147 before).
+const CORPUS_CONTACT_EDGES: usize = 136;
 
 // ---------------------------------------------------------------
 // The near-osculating family: a rod with a flat, at any radius.

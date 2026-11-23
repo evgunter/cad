@@ -1,7 +1,7 @@
 //! The notation a person reads and writes in: one length unit and one
 //! angle unit.
 
-use crate::units::{AngleUnit, LengthUnit, M, PI, RAD, UnitDef, UnitQuantity};
+use crate::units::{AngleUnit, LengthUnit, M, ONE, PI, RAD, UnitDef, UnitQuantity};
 
 /// **A notation**: the length unit and the angle unit a number is read
 /// and written in by one person. A value somebody wrote remembers its
@@ -32,6 +32,18 @@ impl Notation {
         length: M,
         angle: RAD,
     };
+
+    /// The unit this notation writes `quantity` in — [`Self::with`]'s
+    /// reading half: the dimensionless row for a bare scalar, which no
+    /// notation chooses.
+    #[must_use]
+    pub const fn unit_of(self, quantity: UnitQuantity) -> UnitDef {
+        match quantity {
+            UnitQuantity::Length => self.length.def(),
+            UnitQuantity::Angle => self.angle.def(),
+            UnitQuantity::Scalar => ONE.def(),
+        }
+    }
 
     /// This notation with `unit` in the place of its own quantity's
     /// unit; the dimensionless row changes nothing.

@@ -154,7 +154,7 @@ fn a_rim_in_the_caps_chart_is_restated_as_the_section_with_the_minted_wall() {
 /// A declaration riding the image does not change what the door
 /// stores: the rule's reading, the section, whose description carries
 /// no declaration. The declaration is the rim's own revolve trajectory:
-/// the profile's top corner turned half a revolution about `y`.
+/// the profile's top corner turned a whole revolution about `y`.
 #[test]
 fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
     let (mut body, wall, rim, cap) =
@@ -165,7 +165,7 @@ fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
                 origin: Point3::new(0.0, 0.0, 0.0),
                 dir: Vec3::new(0.0, 1.0, 0.0),
             },
-            angle: std::f64::consts::PI,
+            angle: std::f64::consts::TAU,
         })));
     let minted = offset_the_wall(&mut body, wall);
     validate_geometric(&body, Tol::witness()).expect("the offset drum is tier-3 valid");
@@ -518,7 +518,7 @@ fn offset_planes_by(
 /// carrier translates rigidly with its one plane, which is re-minted
 /// with the same in-plane frame, so the stored image is still exact —
 /// and a spline carrier has no image to derive afresh, so deriving it
-/// refuses `RechartFalsifies { Unimplemented }`. The top split by a
+/// refuses `DescriptionUncertified { Unimplemented }`. The top split by a
 /// straight and by a bowed spline chord; every chart at zero, then the
 /// top alone moved by 1/64.
 #[test]

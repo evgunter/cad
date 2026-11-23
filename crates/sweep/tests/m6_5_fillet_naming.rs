@@ -183,10 +183,10 @@ fn the_records_have_the_shape_the_surgery_built() {
     assert_eq!(rec.feet.len(), 24, "three feet per corner");
     assert_eq!(rec.bands.len(), 1);
     assert_eq!(rec.bands[0].1.len(), 1, "the rim chain is one closed edge");
-    assert_eq!(rec.rim_feet.len(), 2);
-    assert_eq!(rec.rim_trims.len(), 4, "two per side");
-    assert_eq!(rec.meridian_splits.len(), 2);
-    assert_eq!(rec.meridian_remnants.len(), 2);
+    assert_eq!(rec.rim_feet.len(), 1);
+    assert_eq!(rec.rim_trims.len(), 2, "one per side");
+    assert_eq!(rec.meridian_splits.len(), 1);
+    assert_eq!(rec.meridian_remnants.len(), 1);
     assert_eq!(rec.slits.len(), 1, "one slit per band");
     assert_eq!(
         rec.slits[0].2, rec.bands[0].1,

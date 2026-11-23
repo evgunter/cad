@@ -46,3 +46,12 @@ operands of `two_trimmed_spheres_build` refuse `SeamTwice` on their own.
 ## Ground
 
 `crates/mesh/src/trimmed.rs`: tesslane and tesslie. Claimed by LATHE.
+
+## Evidence (LATHE one-site lane, 2026-11-23)
+
+Once a one-site loop on both operands' wrap edges joins
+(`lathe/one-site-wrap-edges`), `sweep`
+`tilted_sphere_pair::a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name`
+builds `A ∪ B` (validated, its volume to the lens closed form) and then
+refuses here, `SphereTrimShape { cause: SeamTwice }` at δ 0.01. The join
+is pinned on its own by `the_pair_swallowing_a_pole_joins_under_every_op`.

@@ -1,20 +1,17 @@
-//! **Where `UnbuiltEnd::Seam` fires with ONE co-surface seam, and where it
-//! does not.** A full revolve sweeps a planar wall whole, so a latitude
-//! rim between that disc and a curved wall split at its seam has one
-//! seam meridian at each crossing, not two. The one-seam reading of
-//! `battery::is_seam_vertex` admits that site — and only where the rim
-//! CLOSES, because its recourse promises `rim_of` lists the rim whole.
-//! One arc of an OPEN run of cocircular arcs beside a whole face (a
-//! D's round side, extruded, cut at its station with a ruling across
-//! its one cylinder wall) has the same orbit at its station and must
-//! not be told to request a rim that does not exist.
+//! **Where `UnbuiltEnd::Seam` does not fire with ONE co-surface seam.**
+//! The one-seam reading of `battery::is_seam_vertex` admits a site only
+//! where the rim CLOSES, because its recourse promises `rim_of` lists
+//! the rim whole. One arc of an OPEN run of cocircular arcs beside a
+//! whole face (a D's round side, extruded, cut at its station with a
+//! ruling across its one cylinder wall) has a closed rim's orbit at its
+//! station and must not be told to request a rim that does not exist.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{lantern, prism, rim_arcs_at};
+use sweep::test_support::prism;
 use topo::EdgeKey;
 use topo::construction::Construct;
 
@@ -22,32 +19,6 @@ use crate::common::stations::station_vertices;
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-/// The lantern's base rim (plane disc × unit sphere at radius 1,
-/// station 0): the disc is whole, the sphere zone two half-bands, so
-/// each crossing has ONE seam. One arc of it refuses `UnbuiltEnd::Seam`, and
-/// the rim the recourse names is there — two arcs, closing.
-#[test]
-fn one_arc_of_a_whole_disc_rim_refuses_seam_vertex() {
-    let body = lantern(tol());
-    let arcs = rim_arcs_at(&body, 1.0, 0.0);
-    assert_eq!(
-        arcs.len(),
-        1,
-        "the disc's rim is one closed edge, split by the zone's seam"
-    );
-    match fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &arcs[..1],
-        0.05,
-        tol(),
-    )
-    .map_err(|r| r.error)
-    {
-        Err(BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. })) => {}
-        other => panic!("one arc of a closed rim refuses its seam tag, got {other:?}"),
-    }
 }
 
 /// A D: the straight side on `x = 0`, the round side two CCW quarter
@@ -129,7 +100,7 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
             let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
                 return false;
             };
-            matches!(c.carrier(), geom::Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z.abs() < 1e-12)
+            matches!(c.carrier(), geom::Curve3::Circle(the_conic @ geom::Circle { .. }) if the_conic.frame().origin().z.abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();

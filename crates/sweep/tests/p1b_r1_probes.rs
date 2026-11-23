@@ -23,7 +23,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 use topo::construction::Construct;
 
-use crate::common::shell_operands::{tube, vessel};
+use crate::common::shell_operands::{disc_drum, tube, vessel};
 use geom::Surface;
 use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
@@ -425,13 +425,15 @@ fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
 /// silently in either direction.
 #[test]
 fn offsets_preserve_the_authority_census() {
-    // Cap offset: rigid translation. The vessel's declared edge is its
-    // wall's angle-π meridian, which the cap's move re-anchors.
+    // Cap offset: rigid translation. The vessel declares nothing (its
+    // wall's one meridian is the chart's derived seam, and the planar
+    // door refuses to redraw a declared cap arc), so the row holds that
+    // no derived edge turns declared across the move.
     let mut body = vessel(0.5, 0.4);
     let before = authority_census(&body);
     assert!(
-        before.iter().any(|(_, d)| *d),
-        "the vessel must carry declared edges for this row to mean anything"
+        before.iter().all(|(_, d)| !*d),
+        "the vessel declares nothing"
     );
     let cap = plane_face_at(&body, 0.4);
     topo::replace_face_offset(&mut body, cap, 0.05, Tol::witness()).expect("the cap offsets");
@@ -536,19 +538,20 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..
-                }
+                },
+                ..
             }
         ),
         "(a) the meter names it, on a chart image over a cylinder: {err:?}"
     );
 
-    // (b) Give the vessel's declared meridian, a chart image on its
+    // (b) Give the disc drum's declared strut, a chart image on its
     // wall, a rotation-family declaration off its carrier.
-    let mut body = vessel(0.5, 0.4);
+    let mut body = disc_drum(0.5, 0.4);
     let seam = body
         .edges()
         .find(|(_, e)| {
@@ -559,7 +562,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
                 })
         })
         .map(|(k, _)| k)
-        .expect("the vessel's declared meridian");
+        .expect("the drum's declared strut");
     let curve = body
         .get_edge(seam)
         .and_then(|e| body.get_curve_geom(e.curve))
@@ -596,11 +599,12 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..
-                }
+                },
+                ..
             }
         ),
         "(b) the meter names it, on a rotation-family payload over a line: {err:?}"
@@ -703,11 +707,12 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..
-                }
+                },
+                ..
             }
         ),
         "and it is refused BY THE REINSTATED METER, named — not by some \

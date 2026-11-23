@@ -220,7 +220,7 @@ fn a_polar_cap_sizes_its_azimuth_at_its_widest_latitude() {
     )
     .unwrap()
     .body;
-    for (delta, pinned) in [(0.01, 100), (0.002, 506)] {
+    for (delta, pinned) in [(0.01, 100), (0.002, 495)] {
         let mesh = check_mesh_acceptance(&body, delta, None);
         let tris: usize = mesh
             .patches

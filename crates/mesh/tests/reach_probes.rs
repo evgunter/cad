@@ -201,9 +201,29 @@ pub(super) fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Resul
 }
 
 /// [`geometry`], with the volume read off `solid` ([`got_enclosing`]).
-fn geometry_enclosing(
+pub(super) fn geometry_enclosing(
     body: &Body<f64>,
     solid: &Body<f64>,
+    mesh: &mesh::Mesh,
+    delta: f64,
+) -> Result<(), String> {
+    geometry_reading(body, Some(solid), mesh, delta)
+}
+
+/// [`geometry`] but the volume: for a body whose mass properties are not
+/// read at this ε (outside the session box, or escalating).
+pub(super) fn geometry_but_the_volume(
+    body: &Body<f64>,
+    mesh: &mesh::Mesh,
+    delta: f64,
+) -> Result<(), String> {
+    geometry_reading(body, None, mesh, delta)
+}
+
+/// [`geometry`], reading the volume off `solid` where one is given.
+fn geometry_reading(
+    body: &Body<f64>,
+    solid: Option<&Body<f64>>,
     mesh: &mesh::Mesh,
     delta: f64,
 ) -> Result<(), String> {
@@ -214,9 +234,10 @@ fn geometry_enclosing(
             e.triangle
         )
     })?;
-    if !body
-        .faces()
-        .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
+    if let Some(solid) = solid
+        && !body
+            .faces()
+            .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
     {
         let at_rest = sweep::test_support::at_rest(solid, tol());
         let props = topo::test_support::pinned_volume("the meshed body", &at_rest, tol());
@@ -649,11 +670,11 @@ fn a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row() {
 /// **A cone face through its apex meshes on the cone row.** The funnel
 /// (apex at the origin, rim of radius 1 at `y = 1`) split by the tilted
 /// plane of [`a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row`]:
-/// below the cut each half face's loop runs up one ruling from the apex,
-/// along the section ellipse, and down the other ruling back to it, so its
-/// polygon meets the apex row at two azimuths and keeps the apex there
-/// twice (`crate::chart_table`'s singular-row rule). Both halves mesh at
-/// every δ, and the mesh is the body's ([`geometry`]).
+/// below the cut the one cone face's loop runs up its seam ruling from
+/// the apex, round the section ellipse, and down the same ruling back to
+/// it, so its polygon meets the apex row at the seam's azimuth a whole
+/// turn apart (`crate::chart_table`'s singular-row rule). Both halves
+/// mesh at every δ, and the mesh is the body's ([`geometry`]).
 #[test]
 fn a_cone_face_through_its_apex_meshes_on_the_cone_row() {
     let plane = topo::test_support::split_plane(
@@ -681,20 +702,22 @@ fn a_cone_face_through_its_apex_meshes_on_the_cone_row() {
             .iter()
             .filter(|l| !l.contains(&CurveKind::Circle))
             .count();
+        // The wall is one face, its seam ruling walked out and back: to
+        // the apex below the cut, to the rim above it.
         assert!(
-            loops.len() == 2
+            loops.len() == 1
                 && loops.iter().all(|l| {
                     l.contains(&CurveKind::Ellipse)
                         && l.iter().filter(|c| **c == CurveKind::Line).count() == rulings
                 })
-                && apex_loops == if side == "below" { 2 } else { 0 },
-            "{what}: two half faces, each an ellipse and two rulings, through the apex \
+                && apex_loops == if side == "below" { 1 } else { 0 },
+            "{what}: one face, an ellipse and its seam ruling both ways, through the apex \
              below the cut and to the rim above it: {loops:?}"
         );
         assert_eq!(
             nappes(half),
-            vec![1.0; 2],
-            "{what}: both faces on the v > 0 nappe"
+            vec![1.0],
+            "{what}: the face on the v > 0 nappe"
         );
         assert_at_every(&what, half, &[2e-2, 1.5e-2, 5e-3, 1e-3, 2e-4], &Got::Meshed);
     }
@@ -2010,9 +2033,9 @@ fn a_ringless_cone_face_near_its_apex_meshes_sound() {
 /// wall about that edge (both unions, cone ∖ box) the cone face is half
 /// the cone, apex to rim, each side ruling split where the box meets it.
 /// A straight side holding a point sends the face to the trimmed lane
-/// (`walk::splits_a_straight_side`), whose CDT runs in the cone's
-/// development, where three points of one ruling are collinear and no
-/// triangle takes them. The rectangle lane triangulated its chart, where
+/// (`walk::splits_a_straight_side`), which walks it (`tessellate::Lane::Walked`):
+/// its triangles join its rim to the apex in order of angle, and no
+/// triangle takes three points of one ruling. The rectangle lane triangulated its chart, where
 /// the apex is a row and a ruling a column, and fanned the apex down the
 /// column beside the split side into triangles of no area, which the
 /// join refuses (`crates/mesh/README.md` `[mesh.winding]`).

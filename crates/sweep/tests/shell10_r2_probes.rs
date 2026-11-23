@@ -165,7 +165,7 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     assert!((volume(&hollow.body) - want1).abs() < 1e-9);
 
     // The vessel top's void twin, named through the record; the whole
-    // chart it wears (a full revolve's cap is two half-discs).
+    // chart it wears (a full revolve's cap is one disc).
     let ceiling = hollow
         .naming
         .inner_of(top[0])
@@ -369,7 +369,8 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
 /// carries none.
 #[test]
 fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() {
-    let mut b = vessel(1.0, 2.0);
+    // The disc drum: two wall faces on one cylinder, parted by struts.
+    let mut b = crate::common::shell_operands::disc_drum(1.0, 2.0);
     topo::mint_pcurves(&mut b, tol()).expect("mints");
     assert_eq!(dead_rows(&b), 0);
     let total = b.pcurves().count();

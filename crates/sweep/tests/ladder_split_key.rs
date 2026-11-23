@@ -212,11 +212,7 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>) {
 #[test]
 fn the_pip_rims_meridians_run_rim_to_pole_and_the_carve_is_naming_total() {
     let (source, rim) = pipped_die();
-    assert_eq!(
-        rim.len(),
-        1,
-        "the pip rim is one closed edge"
-    );
+    assert_eq!(rim.len(), 1, "the pip rim is one closed edge");
     let keeps = rim_side_keeps_the_source_key(&source, &rim);
     assert_eq!(
         keeps,

@@ -2,10 +2,12 @@
 id: a-hostless-rims-one-call-and-neck-first-sequence-differ-by-an-ulp
 kind: issue
 title: On the one-band lantern the hostless neck and the shoulder carved in one call and carved neck-first sequentially differ by one ulp of volume
-status: open
+status: closed
 opened: 2026-11-23
 priority: P2
 cost: M
+closed: 2026-11-23
+pr: 7414
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 ---
 
@@ -35,3 +37,22 @@ claim is re-ruled.
 ## Ground
 
 `crates/sweep/src/blend/` (`surgery.rs`, the annulus rim plan): band.
+
+## Disposition
+
+Not a defect. The pins guarded bit-identity of the one-call and
+sequential volumes, but nothing promises it: `docs/KERNEL-VERBS.md`
+states the one-call result is pinned against the sequential composition
+"bit-equal where measured so and one integrator summation ulp off where
+not", and the sibling row
+(`review_fillet_h5_r1_probes`, the boss's hostless rim beside the ladder)
+already pins cells equal and volume to the summation order. The two
+compositions are one construction; the order the faces' flux terms are
+summed in is incidental (`memories/output-stability-as-justification.md`).
+On PR 7414 the three pins (`fillet_h5_hostless_rim::a_hostless_rim_composes_with_a_shared_wall_neighbour`,
+`blend_tworims::a_lantern_rim_pair_on_a_shared_wall_composes_in_one_call`,
+`blend_tworims::three_chained_shared_wall_rims_carve_in_one_call`) are
+re-pinned to cells equal (where the row read cells) and volume within
+`4·ε` relative, with the reason in-file.
+
+- 2026-11-23 — closed by the LATHE one-band lane on PR 7414: re-pinned to what is promised.

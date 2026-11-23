@@ -291,9 +291,9 @@ fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
 /// the crossing layer's circle × sphere lane now decides the ball's
 /// meridians against the zone's sphere face (wholly inside it — no
 /// crossing), so the subtract builds a cap face carrying a pip ring
-/// inside its revolution-wall outer cycle. The mixed ladder + annulus
-/// fence that face could feed is rowed by
-/// `ring_clearance_forms::the_bosss_two_rims_refuse_together_and_compose_sequentially`.
+/// inside its revolution-wall outer cycle. A face carrying both a ring
+/// rim and an outer-cycle rim is rowed by
+/// `ring_clearance_forms::the_bosss_two_rims_carve_together_and_compose_sequentially`.
 #[test]
 fn r2_p5_the_pip_on_a_revolve_cap_builds() {
     use topo::boolean::subtract;

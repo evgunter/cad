@@ -9,8 +9,8 @@
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
 use crate::seam_region_common::{
-    assert_refused, flipped, seam_siblings, sphere_faces, sphere_of, split_at_meridian, unencoded,
-    v,
+    assert_refused, flipped, seam_siblings, sphere_faces, sphere_of, split_at_meridian, two_lunes,
+    unencoded, v,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Tol, Vec3};
@@ -144,8 +144,13 @@ fn lens(r1: f64, r2: f64, d: f64) -> f64 {
 }
 
 fn build(p: &Pair, tol: Tol) -> (Body<f64>, f64) {
-    let a = finished("a", ball_poled(1.0, v([0.0; 3]), v(p.pole_a), tol), tol);
-    let b = finished("b", ball_poled(p.rb, v(p.off), v(p.pole_b), tol), tol);
+    let lunes = |r, c, pole| {
+        let mut ball = ball_poled(r, c, pole, tol);
+        two_lunes(&mut ball, tol);
+        ball
+    };
+    let a = finished("a", lunes(1.0, v([0.0; 3]), v(p.pole_a)), tol);
+    let b = finished("b", lunes(p.rb, v(p.off), v(p.pole_b)), tol);
     let d = v(p.off).norm();
     let shared = lens(1.0, p.rb, d);
     let ball = |r: f64| 4.0 / 3.0 * PI * r.powi(3);
@@ -213,11 +218,9 @@ fn a_flip_of_one_seam_sibling_is_named_by_the_regions_side() {
 #[test]
 fn a_holed_region_reads_its_side_by_its_area() {
     let tol = Tol::witness();
-    let ball = finished(
-        "ball",
-        ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol),
-        tol,
-    );
+    let mut ball = ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol);
+    two_lunes(&mut ball, tol);
+    let ball = finished("ball", ball, tol);
     let slab = finished(
         "slab",
         brick::<f64>((-0.5, 0.5), (-2.0, 2.0), (-2.0, 2.0), tol),
@@ -287,19 +290,13 @@ fn split_along_a_meridian(
     let mut seam = None;
     let mut inside = None;
     for e in &edges {
-        let Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_12,
-                ..
-            },
-        ) = e.carrier
-        else {
+        let Curve3::Circle(circle) = e.carrier else {
             continue;
         };
         let (c, n, u_ref) = (
-            carrier_frame_12.origin(),
-            carrier_frame_12.axis(),
-            carrier_frame_12.u_ref(),
+            circle.frame().origin(),
+            circle.frame().axis(),
+            circle.frame().u_ref(),
         );
         let r = circle.radius();
         if near(c, center) && (r - radius).abs() < 1e-9 && n.dot(pole).abs() < 1e-9 {

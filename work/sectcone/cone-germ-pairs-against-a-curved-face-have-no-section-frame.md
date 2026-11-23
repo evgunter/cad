@@ -86,3 +86,16 @@ Two notes from the designers:
 - The touch case is classification only, so it can build before the metres enclosure.
 
 Witnesses are on SPLITDOOR's B3 row (`a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`). That row waits on this one for its follow-on: the pierce germ and the gate. (SPLITDOOR orchestrator)
+
+## Evidence: a coaxial cone against a sphere (LATHE, 2026-11-23)
+
+Measured on `main` `ea1aca811` (LATHE one-site lane's
+review fix pass, PR 7476): a full revolve about `y` of the triangle
+`(0, −0.3)`, `(1.2, −0.3)`, `(0, 1.5)` (a cone, apex `y = 1.5`) against
+the unit ball at the origin refuses every op (∪ both orders, ∩, ∖ both
+orders) `GermFrameUnsupported { a_kind: Cone, b_kind: Sphere }`, before
+the join, at `join.rs` `conic_section_frame_at`'s `FrameError::NoArm`:
+`geom_brep::pair_section::serves` names no cone pair, and no frame arm
+reads cone × sphere. The pair is coaxial, so its section is two circles
+about the shared axis, the shape a frame reads. PR 7476's review met the
+same refusal on LATHE's one-band stack, so it is not a one-band regression.

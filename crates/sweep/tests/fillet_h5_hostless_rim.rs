@@ -173,7 +173,11 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
 
         for v in rim_vertices(body, &arcs) {
             let inc = body.edges_of_vertex(v).unwrap();
-            assert_eq!(inc.len(), 2, "{name}: the rim's vertex holds the rim and one seam");
+            assert_eq!(
+                inc.len(),
+                2,
+                "{name}: the rim's vertex holds the rim and one seam"
+            );
             let seams: Vec<EdgeKey> = inc.iter().copied().filter(|e| !arcs.contains(e)).collect();
             assert_eq!(seams.len(), 1, "{name}: one seam meets a crossing");
             assert!(
@@ -553,11 +557,22 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
             seq.enclosure.volume_pad, 0.0,
             "closed-form faces only, order {order:?}"
         );
+        // The same construction either way; the order its faces' terms
+        // are summed in is not part of it, so the volume agrees to the
+        // summation order, and the cells agree exactly.
         assert_eq!(
-            one.enclosure.volume.to_bits(),
-            seq.enclosure.volume.to_bits(),
-            "the one-call result IS the sequential composition, bit for bit \
+            topo::readback::euler_counts(&one_call.body),
+            topo::readback::euler_counts(&body),
+            "the one-call result IS the sequential composition, cell for cell \
              (order {order:?})"
+        );
+        assert!(
+            (one.enclosure.volume - seq.enclosure.volume).abs()
+                <= 4.0 * f64::EPSILON * one.enclosure.volume.abs(),
+            "the one-call volume is the sequential one to the summation order \
+             (order {order:?}): {} vs {}",
+            one.enclosure.volume,
+            seq.enclosure.volume
         );
     }
 }

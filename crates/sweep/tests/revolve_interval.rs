@@ -68,7 +68,8 @@ fn interval_ball_builds_tier_valid() {
     )
     .unwrap();
     assert_tiers(&t.body);
-    assert_eq!(t.body.faces().count(), 2);
+    // The ball: one sphere face.
+    assert_eq!(t.body.faces().count(), 1);
 }
 
 #[test]
@@ -82,8 +83,8 @@ fn interval_cone_builds_tier_valid() {
     )
     .unwrap();
     assert_tiers(&t.body);
-    // The cone's two bands and one whole base disc.
-    assert_eq!(t.body.faces().count(), 3);
+    // The cone's one face and one whole base disc.
+    assert_eq!(t.body.faces().count(), 2);
 }
 
 #[test]

@@ -265,10 +265,10 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
             "{label}: the rim's two semicircles: {rims:?}"
         );
         for k in rims {
-            let geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = carrier_of(&body, k)
-            else {
+            let geom::Curve3::Circle(conic_k) = carrier_of(&body, k) else {
                 panic!("{label}: the rim is a circle");
             };
+            let frame = conic_k.frame();
             let center = frame.origin();
             let radius = conic_k.radius();
             assert!(
@@ -433,17 +433,11 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
         (5.0 * escalate, Expect::Builds((4, 8, 6, 1))),
         ((R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
         (-(R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
-        (
-            (2000.0 * R * escalate).sqrt(),
-            Expect::Builds((4, 8, 6, 1)),
-        ),
+        ((2000.0 * R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
     ] {
         let deg = (apart / R).to_degrees();
         let hemi = turned(&hemisphere, deg);
-        for (order, x, y, tube_is) in [
-            ("tube ∪ cap", &tube, &hemi, topo::Operand::A),
-            ("cap ∪ tube", &hemi, &tube, topo::Operand::B),
-        ] {
+        for (order, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
             let label = format!("turned {deg}°, {order}");
             let r = topo::union(x, y, tol);
             match expect {
@@ -730,10 +724,8 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
     let rim_radius = |b: &Body<f64>| -> Vec<f64> {
         b.edges()
             .filter_map(|(e, _)| match carrier_of(b, e) {
-                geom::Curve3::Circle(circle @ geom::Circle { frame, .. })
-                    if (frame.origin().z - H).abs() < 1e-9 =>
-                {
-                    let _ = frame.origin();
+                geom::Curve3::Circle(circle) if (circle.frame().origin().z - H).abs() < 1e-9 => {
+                    let _ = circle.frame().origin();
                     Some(circle.radius())
                 }
                 _ => None,

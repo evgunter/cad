@@ -230,7 +230,8 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x0319_7db7_bec3_d32f),
         ("corner_table", 0x7da6_d69a_c91e_7f29),
-        ("cut_cylinder", 0xe5a6_6d83_0fff_478c),
+        // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
+        ("cut_cylinder", 0xed03_1d8e_bcfb_2ed4),
         ("boss_union", 0x9242_6dc9_578f_e111),
         ("kitchen_sink", 0x4080_aff5_e382_f53d),
     ];
@@ -369,14 +370,14 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
         4,
         "the chain replays to four segments, one of them the on-axis leg"
     );
-    // A full revolution splits each CURVED wall at its seam and builds
-    // the plane disc whole, so the three segments that mint a wall are
-    // five faces; a degenerate wall from the on-axis edge would be more.
+    // A full revolution builds each wall as one face, so the three
+    // segments that mint a wall are three faces; a degenerate wall from
+    // the on-axis edge would be more.
     let body = body_of(&ev, solid);
     assert_eq!(
         topo::query::all_faces(&body).len(),
-        5,
-        "three of the four segments minted a wall, each curved one split at the seam"
+        3,
+        "three of the four segments minted a wall, one face each"
     );
     let mut tori = 0;
     for face in topo::query::all_faces(&body) {

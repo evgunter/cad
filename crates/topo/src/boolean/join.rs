@@ -927,32 +927,10 @@ fn germ_site<T: crate::props::AtRestPolicy>(
 /// one site holds both of its germs, one each way round it, on one pair
 /// record. The loop is one segment, from that site round the whole loop
 /// back to it ([`crate::chord_join`]'s self-loop chord): its two ends are
-/// the record's two slots. Two shapes close at one site
-/// ([`closes_at_its_site`]):
-///
-/// - **a transverse section of a one-face closed wall** that crosses the
-///   wall's wrap edge (both its halves bound that face) once, piercing
-///   a face of the partner there, or meeting a vertex of its boundary,
-///   where the loop only touches that boundary (a wall tangent to a
-///   hole's along the wrap edge);
-/// - **a closed edge lying in the partner** (a one-segment circle or
-///   ellipse, both of whose ends are its one vertex): the loop is that
-///   edge, and the
-///   site is its vertex. The partner holds it inside a face, whose
-///   interior the site pierces; inside a planar
-///   face whose boundary passes through the site, where the loop only
-///   touches that boundary (two rims tangent at their vertices); on a
-///   one-face closed wall's wrap edge; or along a closed edge of its own
-///   through the same site.
-///
-/// Read from the records [`matched_records`]' quiescence left. Every
-/// other [`one_site`] record is left for the
-/// [`JoinError::SingleSiteSectionLoop`] refusal: a pierce or a boundary
-/// vertex of a face the joiner sides no closed loop in
-/// (`crate::chord_join::reads_loop_side`), a site on both operands' wrap
-/// edges, a site where a pierce meets an edge of another face, a closed
-/// edge meeting one in a curved face, and a closed edge on a carrier the
-/// joiner does not copy whole (`crate::chord_join::copies_closed_edge`).
+/// the record's two slots. Which records close at one site, and which
+/// are left for the [`JoinError::SingleSiteSectionLoop`] refusal, is
+/// [`closes_at_its_site`]'s table, stated there alone; this reads the
+/// records [`matched_records`]' quiescence left.
 ///
 /// A record is read on its section's frame where the pair has one, and
 /// otherwise on the component of its carried section both germs stand
@@ -1088,28 +1066,44 @@ fn one_site_segments<T: crate::props::AtRestPolicy>(
 }
 
 /// **Whether a one-site record's loop closes at its site**
-/// ([`one_site_segments`]), read from what the site is in the germ's cell
-/// on each operand ([`site_cell`]): a wrap edge or a closed circle or
-/// ellipse against a pierce of a face, or a wrap edge against a vertex of
-/// its boundary, where the face is one the chord joiner sides a closed
-/// loop in ([`crate::chord_join::reads_loop_side`]); a closed circle or
-/// ellipse against a vertex on the boundary of a planar face it stands on
-/// from the other side ([`stands_on`]), against a wrap edge, or against
-/// another closed circle or ellipse. Against a wrap edge the closed
-/// edge's side copies it whole and the wall's side runs from the site
-/// round the wall back to it, as a transverse section's does, whatever
-/// the wall's kind: that holds for a loop that winds round the wall,
-/// crossing its wrap edge at the site. A loop that only touches the wrap
-/// edge there, winding round nothing, never reaches this table: the
-/// crossing layer escalates the tangent touch first. At a boundary
-/// vertex the germ's cell is the face, so
-/// the loop leaves the vertex into the face and returns to it; the joiner
-/// mints it in that face as one chord from the vertex round to itself,
-/// dividing the face (`crate::chord_join::ChordJoiner`'s null strut). A
-/// closed edge of any other carrier has no copy, and its loop is refused.
-/// A pierce is joined in its face as a ring of its own
-/// ([`crate::chord_join::ChordJoiner`]'s lone ring), sided by
-/// [`crate::chord_join::loop_holds_outer`].
+/// ([`one_site_segments`]): the one statement of which one-site loops
+/// the join builds. Read from what the site is in the germ's cell on
+/// each operand ([`site_cell`]); [`SiteCell::Wrap`] is a site every real
+/// edge at which has both its halves on the cell's face, a wrap edge (or
+/// its tip). The loop closes as one self-loop chord per operand
+/// (`crate::chord_join`):
+///
+/// - **a wrap edge against a pierce** of a face the chord joiner sides a
+///   closed loop in ([`crate::chord_join::reads_loop_side`]), or against
+///   a vertex of such a face's boundary: a transverse section of a
+///   one-face closed wall crossing its wrap edge once, the wall's side
+///   running from the site round the wall back to it; the pierce is
+///   joined as a ring of its face ([`crate::chord_join::ChordJoiner`]'s
+///   lone ring, sided by [`crate::chord_join::loop_holds_outer`]), and at
+///   a boundary vertex, where the germ's cell is the face, as one chord
+///   from the vertex round to itself dividing the face (its null strut);
+/// - **a wrap edge against a wrap edge**: each operand's side runs from
+///   the site round its own wall, as above (two coaxial revolved walls
+///   carry their wrap edges in one half-plane, so their section circle
+///   meets both at one site);
+/// - **a closed circle or ellipse** (a one-segment edge, both of whose
+///   ends are the site) that the joiner copies whole
+///   (`crate::chord_join::copies_closed_edge`), the loop being that
+///   edge: against a pierce of a face the joiner sides a loop in; against
+///   a vertex on the boundary of a planar face it stands on from the
+///   other side ([`stands_on`]); against a wrap edge, whose wall's side
+///   runs round as above; or against another such closed edge.
+///
+/// Every other pair is left for the refusal: a pierce or a boundary
+/// vertex of a face the joiner sides no loop in, a pierce meeting an
+/// edge of another face, a closed edge meeting one in a curved face, and
+/// a closed edge on a carrier the joiner does not copy.
+///
+/// A wall's side running round from its wrap edge rests on the loop
+/// winding round the wall, crossing the wrap edge at the site, whatever
+/// the wall's kind. A loop that only touches the wrap edge there,
+/// winding round nothing, never reaches this table: the crossing layer
+/// escalates the tangent touch first.
 fn closes_at_its_site<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
@@ -1130,9 +1124,10 @@ fn closes_at_its_site<T: crate::props::AtRestPolicy>(
         (SiteCell::Wrap, SiteCell::Other(f)) => reads(&red.b, f),
         (SiteCell::Pierce(f), SiteCell::Wrap | SiteCell::Closed(Some(_))) => reads(&red.a, f),
         (SiteCell::Other(f), SiteCell::Wrap) => reads(&red.a, f),
-        (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
-        (SiteCell::Closed(Some(_)), SiteCell::Wrap) => true,
-        (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
+        (
+            SiteCell::Wrap | SiteCell::Closed(Some(_)),
+            SiteCell::Wrap | SiteCell::Closed(Some(_)),
+        ) => true,
         (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
             planar(&red.b, f) && stands_on(red, (Operand::A, e), f, band)?
         }
@@ -1538,9 +1533,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => &gb,
                 Operand::B => &ga,
             };
-            let (geom::Curve3::Circle(geom::Circle { frame, .. })
-            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. })) = along.carrier
-            else {
+            let Some(frame) = along.carrier.conic().map(geom::Conic::frame) else {
                 return Err(no_arm());
             };
             let (center, axis) = (frame.origin(), frame.axis());
@@ -2874,10 +2867,9 @@ fn germ_section_loops<T: crate::props::AtRestPolicy>(
     if let Some(along) = along_edge_conic((a, b), germ)? {
         return match along.carrier {
             geom::Curve3::Line(_) => Ok(None),
-            geom::Curve3::Circle(geom::Circle { frame, .. })
-            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                Ok(Some(SectionLoops::conic(frame.axis_line())))
-            }
+            ref conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => Ok(conic
+                .frame()
+                .map(|frame| SectionLoops::conic(frame.axis_line()))),
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 Err(BooleanError::EdgeCarrierUnsupported {
                     operand: along.on,
@@ -4018,6 +4010,11 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
                     what: "a cylinder pair's pose read past its cylinder reading",
                 });
             }
+            P::ConeCylinder(_) | P::ConeCone(_) => {
+                return Err(BooleanError::JoinDesync {
+                    what: "the section table holds a cone pair, which its glue door never reads",
+                });
+            }
         },
     })
 }
@@ -4217,15 +4214,14 @@ pub(super) fn pk_section<T: Decide>(
     };
     match geom_brep::plane_cone_section(plane, cone, reach, band) {
         Ok(
-            geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse(geom::Ellipse {
-                frame,
-                ..
-            }))
-            | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle(geom::Circle {
-                frame,
-                ..
-            })),
-        ) => Ok(PkSection::Loop(frame.axis_line())),
+            geom_brep::PlaneConeSection::TiltedEllipse(conic @ geom::Curve3::Ellipse(_))
+            | geom_brep::PlaneConeSection::AxisNormalCircle(conic @ geom::Curve3::Circle(_)),
+        ) => {
+            let frame = conic
+                .frame()
+                .unwrap_or_else(|| unreachable!("a circle and an ellipse have a frame"));
+            Ok(PkSection::Loop(frame.axis_line()))
+        }
         Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, l2 }) => {
             let geom::Surface::Cone {
                 frame: carrier_frame,
@@ -4328,10 +4324,13 @@ fn pt_germ_frame<T: Decide>(
     let (c, a) = (torus_frame.origin(), torus_frame.axis());
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
-        geom::Curve3::Circle(geom::Circle { frame, .. }) => Ok(SectionLoop {
-            axis: frame.axis_line(),
-            ball: None,
-        }),
+        geom::Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
+            Ok(SectionLoop {
+                axis: frame.axis_line(),
+                ball: None,
+            })
+        }
         _ => Err(carried()),
     };
     let section = geom_brep::plane_torus_section(plane, torus, lever, band);
@@ -6929,19 +6928,13 @@ mod frame_dispatch_tests {
             for sign in [1.0_f64, -1.0] {
                 let pinch = p + n * (sign * r);
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
-                    let geom::Curve3::Ellipse(
-                        conic_k @ geom::Ellipse {
-                            frame: carrier_frame_4,
-                            ..
-                        },
-                    ) = *e
-                    else {
+                    let geom::Curve3::Ellipse(conic_k) = *e else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
                     let (center, axis, u_ref) = (
-                        carrier_frame_4.origin(),
-                        carrier_frame_4.axis(),
-                        carrier_frame_4.u_ref(),
+                        conic_k.frame().origin(),
+                        conic_k.frame().axis(),
+                        conic_k.frame().u_ref(),
                     );
                     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The eccentric anomaly of the pinch point, read
@@ -7919,8 +7912,7 @@ mod apex_plane_rows {
         let up = Vec3::new(0.0, 1.0, 0.0);
         let tilted = |t: f64| Vec3::new(t.sin(), t.cos(), 0.0);
         let g = Vec3::new(0.0, -(0.5f64.cos()), 0.5f64.sin());
-        // Unsourced lever: a fixture's unit ball about the apex, no extent to read it off.
-        let reach = geom_brep::ExtentBall::unsourced(Point3::origin(), 1.0);
+        let reach = geom_brep::ExtentBall::fixture(Point3::origin(), 1.0);
         let (fa, fb) = (FaceKey::default(), FaceKey::default());
         let (one, near, nearer) = (cone(up), cone(tilted(1e-3)), cone(tilted(2e-8)));
         assert!(cone_apex_plane((fa, &one), (fb, &near), g, reach, band).is_ok());
