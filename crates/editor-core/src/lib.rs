@@ -145,9 +145,9 @@ pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
     ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
     EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, FamilyResult, Framed, Held,
-    NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop, Stopped,
-    ValuePayload, Whole, evaluate, traced_faces,
+    NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding,
+    NodeValue, PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop,
+    Stopped, ValuePayload, Whole, evaluate, traced_faces,
 };
 pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;
