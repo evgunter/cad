@@ -538,7 +538,11 @@ pub struct StableName {
 // that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Speaker::TAG.name(self).fmt(f)
+        write!(
+            f,
+            "{}",
+            crate::sentence!(crate::spoken::Speaker::TAG.name(self))
+        )
     }
 }
 

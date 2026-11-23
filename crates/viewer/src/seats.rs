@@ -373,11 +373,19 @@ pub enum SeatEvent {
     },
 }
 
+/// Each node as the seat kept it, mentioned in the speaker's document.
+impl pncad::document::Say for SeatEvent {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::PickLost { seat, node } => pick_gone(f, seat.name(), by.mention(node)),
+        }
+    }
+}
+
+/// Its sentence, each node as the seat kept it.
 impl core::fmt::Display for SeatEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::PickLost { seat, node } => pick_gone(f, seat.name(), node),
-        }
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -387,13 +395,15 @@ impl core::fmt::Display for SeatEvent {
 /// (`crate::combine::PlaneEvent`); a held FACE that stops resolving is
 /// said by `crate::matetool::pick_lost`.
 pub(crate) fn pick_gone(
-    f: &mut core::fmt::Formatter<'_>,
+    f: &mut editor_core::Sentence,
     role: &str,
-    held: impl core::fmt::Display,
+    held: impl pncad::document::Put,
 ) -> core::fmt::Result {
-    write!(
+    pncad::document::say!(
         f,
-        "the {role} pick ({held}) is no longer in the document; the tool dropped it"
+        format_args!("the {role} pick ("),
+        held,
+        ") is no longer in the document; the tool dropped it"
     )
 }
 
@@ -607,8 +617,8 @@ pub(crate) fn member_said(at: &[i64]) -> String {
 /// or still waits for. A family read whole is "every member" where the
 /// seat takes them all at once ([`Seat::takes_every`]).
 pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port, seat: Seat) -> String {
-    let held: HeldNodes = [kept.clone()].into_iter().collect();
-    let node_said = by.or_held(&held).node(kept.id()).to_string();
+    let held = HeldNodes::of_nodes(by.document(), [kept.clone()]);
+    let node_said = pncad::document::sentence!(by.or_held(&held).node(kept.id())).to_string();
     let member = match &port.members {
         Members::One(at) => member_said(at),
         Members::Every if seat.takes_every() => ", every member".to_owned(),

@@ -150,7 +150,9 @@ fn longest(doc: &ProfileDoc, ev: &Evaluation<f64>, trims: &[Trim]) -> Vec<(usize
                     Entry::Tied(c) => c.iter().any(|e| e.body == body),
                 })
                 .fold((0, 0), |(words, bytes), (name, _)| {
-                    let w = speaker.name(name).to_string().split_whitespace().count();
+                    let w = editor_core::test_support::text(speaker.name(name))
+                        .split_whitespace()
+                        .count();
                     let b = serde_json::to_string(name)
                         .expect("a name serializes")
                         .len();

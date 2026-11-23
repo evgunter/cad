@@ -41,7 +41,7 @@ impl ViewerBehavior<'_> {
     /// **Each argument's field is its slot's field** ([`HeldArgs`]):
     /// the slot row's field over the argument as the draft holds it,
     /// and for a kept step the slot row's own doors beside it — the
-    /// unit, the range probe, the name — so the node has no second set
+    /// unit, `range?`, the name — so the node has no second set
     /// of rows for its arguments. An argument an expression drives is
     /// held as that expression, its number the reading, locked; text
     /// typed into any field is an expression the draft holds.
@@ -429,7 +429,10 @@ pub(crate) fn edit_door_ui(
                 .push(frame::tool_news(&FormKind::EditProfile.refuses(&fault))),
         }
     }
-    ui.label(format!("profile {}", landed.spoken(node)));
+    ui.label(format!(
+        "profile {}",
+        crate::tree::spelled(&landed.spoken(node))
+    ));
     let loops = edit.loops().len();
     let views = edit.steps(landed, tol);
     let mut rows = Vec::new();
@@ -2187,8 +2190,11 @@ mod tests {
             .spoken_name(&wall)
             .steps_respoken(session.committed_doc());
         assert!(
-            name.to_string().contains("the profile step "),
-            "a removed step is said by its tag: {name}"
+            (pncad::document::Said(&name, pncad::document::Speaker::TAG).sentence())
+                .to_string()
+                .contains("the profile step "),
+            "a removed step is said by its tag: {name}",
+            name = pncad::document::Said(&name, pncad::document::Speaker::TAG).sentence()
         );
         let Some(Node::Shell { open: face, .. }) = before.node(carrier) else {
             panic!("the carrier is a shell")
@@ -2898,12 +2904,12 @@ mod tests {
 
     /// **The doors beside a held field judge what they act on**: the
     /// committed slot. The draft holds a formula over a committed
-    /// literal; the range probe beside it acts on the committed slot,
-    /// which the session probes, so the row it is judged on is the
-    /// committed literal's — offered, not refused as driven.
+    /// literal; the `range?` beside it acts on the committed slot,
+    /// so the row it is judged on is the committed literal's — offered,
+    /// not refused.
     #[test]
     fn the_doors_beside_a_held_formula_judge_the_committed_slot() {
-        use crate::session::{BoundsTarget, SessionOp};
+        use crate::session::{RangeTarget, SessionOp};
         use pncad::document::StepArg;
 
         let (mut session, profile) = square_session();
@@ -2940,16 +2946,15 @@ mod tests {
             !row.driver.is_driven(),
             "the doors read the committed literal, not the held formula: {row:?}"
         );
+        let target = RangeTarget::Slot {
+            node: profile,
+            slot: row.slot,
+        };
         assert!(
-            crate::app::ViewerBehavior::probe_refusal(profile, row, Notation::CANONICAL).is_none(),
-            "so the probe is offered"
+            session.range_refusal(&target).is_none(),
+            "so `range?` is offered"
         );
-        let out = session.perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Slot {
-                node: profile,
-                slot: row.slot,
-            },
-        });
+        let out = session.perform(SessionOp::ProveRange { target });
         assert!(
             out.refusal.is_none(),
             "and the session takes it: {:?}",
