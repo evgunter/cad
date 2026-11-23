@@ -162,6 +162,9 @@ failure-output = "immediate-final"
 #    0.57 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side (PR 6958's hosted run)
 # and a slab under a taker driven over eight box widths, taken and not:
 #   14.36 s  editor-core::all a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip
+# A holed slab replayed twice at `Sym<Interval>`, each in a session
+# under the tier's profile (PR 7470, the hosted runner):
+#    0.69 s  editor-core::all a_symbolic_nodes_key_is_its_expression_and_its_number::a_nodes_values_with_no_expression_keep_their_names_whatever_was_minted_before
 # A slab cutting a cap off a pole strut's sphere, as slow on main as on
 # PR 6988's branch (medians of six local runs 1.22 s on the merge base
 # `dbb21b4a`, 1.14 s on the branch; 1.036 s on the hosted runner):
@@ -512,7 +515,8 @@ not (
   (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk)) |
   (binary_id(sweep::all) & test(=snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds)) |
   (binary_id(sweep::all) & test(=split_through_a_ruling::a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly)) |
-  (binary_id(step-import::all) & test(=an_edge_is_read_on_its_description_whatever_recognition_says::a_straight_rim_recognition_declines_is_carried_on_its_column))
+  (binary_id(step-import::all) & test(=an_edge_is_read_on_its_description_whatever_recognition_says::a_straight_rim_recognition_declines_is_carried_on_its_column)) |
+  (binary_id(editor-core::all) & test(=a_symbolic_nodes_key_is_its_expression_and_its_number::a_nodes_values_with_no_expression_keep_their_names_whatever_was_minted_before))
 )
 """
 
