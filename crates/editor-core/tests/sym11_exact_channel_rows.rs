@@ -51,12 +51,16 @@ use crate::m10_9_pins_interval::measured_studies;
 /// once both rows close. `frozen` against `checks_expanded` is also the
 /// coverage of the dispute zero: a check over a frozen form cannot
 /// dispute.
+///
+/// The floors fell, and the pad's ceiling, when validation stopped
+/// reading an adjacent line pair's shared vertex (PROFILE, `dbc608ffba`):
+/// decisions no longer asked, not decisions answered differently.
 const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
-    ("two_hole_plate", None, 979, 36),
+    ("two_hole_plate", None, 955, 36),
     ("r1_annulus", None, 511, 36),
     ("r2_link", None, 786, 2600),
-    ("r2_filleted_bracket", None, 1367, 57),
-    ("r2_rounded_pad", None, 1483, 1967),
+    ("r2_filleted_bracket", None, 1337, 57),
+    ("r2_rounded_pad", None, 1471, 1963),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
