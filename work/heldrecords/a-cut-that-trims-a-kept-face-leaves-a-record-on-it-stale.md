@@ -4,7 +4,7 @@ kind: issue
 title: A cut that trims a face under a recorded touch keeps the face's key, lands the record unread, and the gate refuses the result stale
 status: open
 opened: 2026-11-22
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -43,3 +43,9 @@ one rule for a record a carry finds stale.
 **Pinned** as refusals in both tests' tables (`REFUSING`; `STALE` in
 `a_vertex_read_again_classes_every_edge.rs`), ten cells. They come
 out of the tables with the fix.
+
+**Why P0** (EMBED orchestrator, 2026-11-23; HELDRECORDS may re-band
+it). A valid cut that builds on main refuses on PR 7124's head. Main
+ships the false record, so the refusal is the better of the two
+answers, but it is a body that stops building, and nothing but this
+row's fix brings it back.

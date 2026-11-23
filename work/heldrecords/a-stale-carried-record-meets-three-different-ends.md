@@ -31,3 +31,17 @@ caller hands records beside the operand (`boolean_op_with`,
 `BooleanInputs`) or in a test fixture. One rule is owed: a record a
 carry reads and finds stale either refuses at every door or is retired
 at every door, and the Boolean's silent drop is the odd one.
+
+**A possible fourth end** (PR 7124's fix pass, 2026-11-23; seen, not
+chased, no row pins it). In
+`crates/sweep/tests/a_carried_record_no_reading_covers.rs`,
+`a_record_an_op_divides_is_read_and_found_stale`, with the operand
+`plate ∪ rod` (`rested()`) holding the union's own records beside the
+planted one rather than the planted one alone, the op that divides the
+cell answered a carry refusal `Unread { record: 2, cells: [Edge, Face] }`
+on one of the union's own records, not `Stale` on the planted one. The
+fixture was changed to hold the planted record alone
+(`topo::test_support::unconfirmed::holding`) and the row is green that
+way. Owed here: whether `Unread` on a record whose cell the op divides
+is a fourth end of the same stale record, or a true record the divided
+carry has no reading for (a different hole, with its own row).
