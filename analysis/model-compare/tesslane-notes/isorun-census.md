@@ -1,0 +1,7 @@
+ISO-RUN-DENSITY: census finished (measured, with the route-logging probe; mesh + sweep + step-import, 4,848 tests).
+- The class (no rectangle, every loop on iso lines, cylinder or sphere): only in the mesh suite. 7 tests: 106 cylinder routings and 45 sphere routings. **sweep: 0. step-import: 0.**
+- The holed sibling (a ring, every loop iso): mesh 18 cylinder, 2 cone, 2 torus routings; sweep 4 cylinder routings; step-import 0.
+- Chart-lane cylinder faces of any kind (what the rows rule now touches): sweep 1,368 routings, mesh 504, step-import 0. So the rule's reach is mostly sweep's tilted- and section-bounded walls, not the class. That is why the sweep digest diff against base is the one still to read; it is running.
+- The census run had 7 failures, on a tree whose only change is the route log: bisector_nodes::the_near_node_poses_at_the_witness_band (the one rows-off sweep failure, so it is pre-existing here), step-import snap nist09s, wild_refusals, tier_gate corpus, sweep offer_rows sphere, section_end_poses, germ_tilted_rod. None of them is this unit's. This branch's base is PR 7096's head, not main.
+- The tour is not censused (a separate root and build). I will run it in the pre-push list's demos step if you want it; otherwise it stays unmeasured, and the report will say so.
+Pre-push so far on 648782c40b: fmt clean, scripts/run-gates.sh clean, clippy -p mesh --all-targets --all-features -D warnings clean, rustdoc for mesh (the gate's flags) clean. Running: mesh whole at the three ε on this head, then base sweep for the diff.

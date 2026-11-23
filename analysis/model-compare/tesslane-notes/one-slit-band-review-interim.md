@@ -1,0 +1,11 @@
+INTERIM — reviewer, PR 7498 @ 2152cd3463 (full report to follow).
+
+Verdict so far: APPROVE-WITH-FIXES, leaning; one MAJOR (by inspection plus measured geometry, not yet reached by a real body).
+
+MAJOR (BY-INSPECTION, mechanism DEMONSTRATED synthetically): the curved lane takes `AnalyticRow::metric`'s SPHERE arm, `2^round(log2(1/cos(mid-lat)))`. That value is the chart's own metric, written for the trimmed lane (chart_table.rs:453-464 says "The metric the trimmed lane's triangulation runs in", and the sphere's is "the chart's own at the box's mid latitude"). It is not the lattice's spacing. The curved lane's sphere lattice is already within √2 in RAW UV (sizing.rs `sphere_grid_steps`, SPHERE_CELL_ASPECT), and that bound exists for a raw-UV Delaunay lemma (sizing.rs:522-532). Measured on my zone/cap bodies: k reaches 8, 16 and 32 on curved sphere faces. 132 of 343 curved sphere faces with rows now triangulate on cells more than 2.8× taller than wide in CDT space; in raw UV, 0 did. A synthetic spade CDT (lattice plus side chord points off the rows) fans 2–6 columns once the CDT-space aspect drops below about 0.35. With the residual aspect in [1/√2, √2] it never passes max(1 col, the side chord's own row length). So for spheres, the change re-creates the very defect it cures. The module doc's "In the metric a is within √2 of one" is false for spheres. I have not found a real body with an off-row sphere meridian point (180 zone/cap cases plus split arcs, full and partial revolves: identical worst certificates raw vs head).
+
+Held so far: torus sweep (720 cases: holes 0.05/0.3/0.9, r 5e-4..1e-2, corner turns π/2, π/3, 2π/3, 0.3, 1.2, full and partial revolves 2.0/0.5, δ 3e-3..1e-4). Head: 0 refusals, worst cert 0.99 δ, sampled ≤ 0.927 δ. Raw: 32 CertificateExceeded, up to 281 δ. Partial revolves (no slit at all) are in the class too, and only quarter turns triggered it. Re-pins confirmed: with the metric reverted, d9 donut reads 10814893347bbbdd and 7628fd943b85d278, and route_rows reads 0x10e7f0a246fd3c81, i.e. exactly the old constants.
+
+CI: the frozen head has only "change filter" queued and "prime the build cache" skipped. No test job has run on it.
+
+Continuing: per-patch digest differential over the mesh suite, mutants (1/k, u-always), ε 1e-6/1e-12, viewer tally, PROFILE witness.
