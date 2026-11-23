@@ -406,7 +406,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
 
 /// **A corner chart's refusal at `vertex`**: its frame is minted over
 /// the three feet, which are dependent exactly where the support
-/// normals are, so it is [`BlendDecision::CornerIndependence`]'s
+/// normals are, so it is [`super::BlendDecision::CornerIndependence`]'s
 /// refusal — in band its escalation, definite the dependent-normals end.
 pub(super) fn corner_frame_refused(
     vertex: VertexKey,
