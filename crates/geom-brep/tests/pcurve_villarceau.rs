@@ -860,19 +860,13 @@ fn a_tilt_just_past_the_band_takes_the_general_lane() {
         unreachable!()
     };
     let (tc, axis) = (frame.origin(), frame.axis());
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: circle_frame,
-            ..
-        },
-    ) = villarceau(0.4, 1.0, 1.0, 0.0)
-    else {
+    let Curve3::Circle(conic_k) = villarceau(0.4, 1.0, 1.0, 0.0) else {
         unreachable!()
     };
     let (center, n, u_ref) = (
-        circle_frame.origin(),
-        circle_frame.axis(),
-        circle_frame.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let d = {
         let w = center - tc;
