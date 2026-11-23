@@ -572,7 +572,7 @@ fn the_mc_report_is_deterministic_and_labeled() {
         .iter()
         .map(|m| m.node)
         .chain(a.assertions.iter().map(|x| x.node))
-        .map(|n| doc.spoken(n).to_string())
+        .map(|n| editor_core::test_support::node_text(&doc.spoken(n)))
         .collect();
     assert!(!nodes.is_empty(), "the report estimates at least one node");
     for node in &nodes {

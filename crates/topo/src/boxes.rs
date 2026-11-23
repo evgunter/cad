@@ -4353,7 +4353,11 @@ pub(crate) mod sphere_rect_rows {
             // exactly when the rim runs about `+ẑ` and the tip is above
             // it, or about `−ẑ` and below: set from the stored traversal,
             // not from the side reader these rows test.
-            let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
+            let (outer, _) = crate::props::loop_edges(
+                body.cycle_loop(body.faces[north].outer)
+                    .expect("a cycle loop"),
+            )
+            .unwrap();
             let base = outer
                 .iter()
                 .find(|e| matches!(e.carrier, Curve3::Circle(circle_2 @ geom::Circle { .. }) if circle_2.frame().axis().dot(z) > 0.5))

@@ -1694,11 +1694,11 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
                 // Same-loop partners after si, then every segment of
                 // later loops (deterministic order, first error wins).
                 for sj in (si + 1)..loop_segs[li].len() {
-                    judge_pair(loops_in, &loop_segs, (li, si), (li, sj), band)?;
+                    judge_pair(&loop_segs, (li, si), (li, sj), band)?;
                 }
                 for lj in (li + 1)..loops_in.len() {
                     for sj in 0..loop_segs[lj].len() {
-                        judge_pair(loops_in, &loop_segs, (li, si), (lj, sj), band)?;
+                        judge_pair(&loop_segs, (li, si), (lj, sj), band)?;
                     }
                 }
             }
@@ -2140,11 +2140,23 @@ fn seg_refusal<T: Real>(
     }
 }
 
+/// The ends of segments `si < sj` of one `n`-segment loop that are a
+/// vertex they share: consecutive mod `n`, and both vertices for a
+/// two-vertex loop's pair.
+fn shared_ends(n: usize, si: usize, sj: usize) -> &'static [seg::SharedEnds] {
+    use seg::SharedEnds::{EndToStart, StartToEnd};
+    match (sj == si + 1, si == 0 && sj == n - 1) {
+        (true, true) => &[EndToStart, StartToEnd],
+        (true, false) => &[EndToStart],
+        (false, true) => &[StartToEnd],
+        (false, false) => &[],
+    }
+}
+
 /// Judges one segment pair: classifies contacts and applies the
 /// adjacency discount (adjacent segments may touch exactly at their
 /// shared vertex/vertices; everything else is an error).
-pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
-    loops: &[L],
+pub(crate) fn judge_pair<T: Decide>(
     loop_segs: &[Vec<Seg<T>>],
     (li, si): (usize, usize),
     (lj, sj): (usize, usize),
@@ -2160,22 +2172,14 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
     };
     let site = EscalationSite::SegmentPair(first, second);
 
-    // The legal shared vertices of an adjacent pair (same loop,
-    // consecutive mod n). A 2-vertex loop's two segments are adjacent
-    // at both vertices.
-    let mut shared: Vec<Point2<T>> = Vec::new();
-    if li == lj {
-        let n = loop_segs[li].len();
-        if sj == si + 1 {
-            shared.push(loops[li].borrow().vertices[(si + 1) % n]);
-        }
-        if si == 0 && sj == n - 1 {
-            shared.push(loops[li].borrow().vertices[0]);
-        }
-    }
-
-    let shared_end = match shared[..] {
-        [v] => Some(v),
+    let ends = if li == lj {
+        shared_ends(loop_segs[li].len(), si, sj)
+    } else {
+        &[]
+    };
+    let shared: Vec<Point2<T>> = ends.iter().map(|e| e.point(&loop_segs[li][si])).collect();
+    let shared_end = match ends {
+        [e] => Some(*e),
         _ => None,
     };
     let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], shared_end, band)
@@ -2202,6 +2206,7 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
             CKind::Tangency => {
                 return Err(ProfileError::TangentialContact { first, second });
             }
+            CKind::SharedVertex => {}
             CKind::Touch => {
                 let mut discounted = false;
                 for &v in &shared {

@@ -90,8 +90,8 @@
 //! instead of `{}`, is still not reached.
 //!
 //! This is a real loss and it is the price of the mechanism, not an
-//! oversight — tracked as
-//! `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md`.
+//! oversight; a gate for it was weighed and declined
+//! (`work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`, closed).
 //!
 //! # What the macro cannot express
 //!

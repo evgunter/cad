@@ -69,6 +69,8 @@ mod a_check_carries_the_assertion_that_quiets_it;
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
+#[path = "a_pipes_end_loops_revolve_into_an_elbow.rs"]
+mod a_pipes_end_loops_revolve_into_an_elbow;
 #[path = "a_turned_discs_union_refuses_on_the_widened_copy.rs"]
 mod a_turned_discs_union_refuses_on_the_widened_copy;
 #[path = "aligned_overlap_quiets.rs"]
@@ -307,6 +309,8 @@ mod takeover_door;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "a_boxed_rectangle_certifies_over_its_box.rs"]
+mod a_boxed_rectangle_certifies_over_its_box;
 #[path = "a_taken_slab_over_a_box_is_never_refused_as_a_flip.rs"]
 mod a_taken_slab_over_a_box_is_never_refused_as_a_flip;
 #[path = "gui1_pick.rs"]

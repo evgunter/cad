@@ -4,8 +4,8 @@ kind: issue
 title: the source-scanning censuses hand-parse Rust and fail loud, so an ordinary-but-unusual signature reds another program's test with a byte offset for a message
 status: open
 opened: 2026-09-04
-priority: P3
-cost: D
+priority: P4
+cost: E
 ---
 
 
@@ -256,3 +256,8 @@ message change. `crates/editor-core/tests/` and `crates/geom-core/tests/`
 are both on this slate's glob, so nothing here needs routing.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Real fix-cycle mechanism, but on the record only 09-04 (PR 1765) and 09-11 (PR 2344);
+the one census misread since 10-22 (raw-door census, green/log.md:408, 11-15) is a different
+bug. Not frequent enough to promote. Disposition 1 (a panic message naming the rule) is
+nearly free and would shorten each such cycle; payoff is CI-red cost, so P4.

@@ -324,7 +324,7 @@ fn the_resident_reports_the_tips() {
     assert_eq!(unused[0].subject, editor_core::FindingSubject::Node(spare));
     let spoken = report.spoken(&doc);
     assert!(
-        spoken.contains(
+        spoken.to_string().contains(
             "check unused: depth: used by nothing: not the product, not an assertion, and \
              nothing reads it — Recourse: use it, or delete it"
         ),
@@ -506,7 +506,9 @@ fn a_folded_named_output_is_said_and_not_lost() {
     .unwrap();
     let spoken = report.spoken(&doc);
     assert!(
-        spoken.contains("used by nothing, its outputs named top, offcut with it: not the product"),
+        spoken
+            .to_string()
+            .contains("used by nothing, its outputs named top, offcut with it: not the product"),
         "{spoken}"
     );
     let doc = placed(doc, Operand::output(split, 0));
