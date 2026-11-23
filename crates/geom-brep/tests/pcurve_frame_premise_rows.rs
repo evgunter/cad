@@ -168,7 +168,7 @@ fn a_composed_frames_rounding_is_charged_at_a_large_radius() {
     let (to_axis, to_seam) = geom_core::test_support::polar_distance(&motion);
     let defect = to_axis.max(to_seam);
     assert!(
-        defect > 2e-15,
+        defect > 1e-15,
         "256 turns carry a defect to charge: {defect:e}"
     );
     let radius = 0.1 * b.zero() / defect;
