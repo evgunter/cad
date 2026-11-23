@@ -710,6 +710,10 @@ pub fn reflex_edge_and_floor_leg(body: &Body<f64>, (x, y): (f64, f64)) -> [EdgeK
 /// The `1e-9` and the sole [`Bounds`] bound are [`rim_arcs_at`]'s, for
 /// its reasons.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
     let near = |x: T, want: f64| (x.lo() - want).abs() < 1e-9 && (x.hi() - want).abs() < 1e-9;
     body.edges()
@@ -2064,6 +2068,10 @@ pub fn z_rim(body: &Body<f64>, r: f64, z0: f64, off_axis: bool) -> Vec<EdgeKey> 
 /// Every edge whose stored carrier is a circle that `pick` accepts
 /// (centre, radius, axis), in key order — the seed scan [`z_rim`] and
 /// [`circle_arcs_at_z`] share.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn circle_arcs_where(
     body: &Body<f64>,
     pick: impl Fn(Point3<f64>, f64, Vec3<f64>) -> bool,
@@ -2075,7 +2083,7 @@ fn circle_arcs_where(
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
                 Some(geom::Curve3::Circle(c))
-                    if pick(c.frame().origin(), c.radius(), c.frame().axis())
+                    if pick(c.frame().origin(), c.radius(), c.axis())
             )
         })
         .map(|(k, _)| k)
