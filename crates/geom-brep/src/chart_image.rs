@@ -44,6 +44,30 @@ pub fn without_reversals<E: Clone>(cycle: &[E], back: impl Fn(&E, &E) -> bool) -
     kept
 }
 
+/// **The traversals of a loop that walk an edge the loop also walks
+/// back**: a seam or wrap edge the face lies on both sides of, read off
+/// the props flattening's own identities ([`LoopEdge`]): another member
+/// carries the same [`crate::props::CarrierId`], runs the other way, and
+/// joins the same two vertex tags swapped. Pieces of one edge share a
+/// carrier and a parametrisation that partitions it, so no two distinct
+/// pieces join the same two vertices in the same direction. A loop
+/// built without a body carries no identity, and none of its members is
+/// read as walked back. Such an edge bounds nothing on the surface: the
+/// face's surface boundary drops it (DESIGN `[topology.tiers]`).
+#[must_use]
+pub fn walked_both_ways<T: Real>(lp: &[LoopEdge<T>]) -> Vec<bool> {
+    lp.iter()
+        .map(|e| {
+            e.carrier_id.is_some()
+                && lp.iter().any(|f| {
+                    f.carrier_id == e.carrier_id
+                        && f.forward != e.forward
+                        && (f.start, f.end) == (e.end, e.start)
+                })
+        })
+        .collect()
+}
+
 /// **Whether a loop's chart image bounds area** (module docs): it is not
 /// empty. A reader leaves every other loop out.
 #[must_use]

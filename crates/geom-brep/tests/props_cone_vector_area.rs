@@ -630,6 +630,55 @@ fn a_seamed_wall_with_a_split_rim_measures_exactly() {
     );
 }
 
+/// **A hole whose corner lies on the seam is passed twice there, and
+/// measures**: the full wall `[0, 2π] × [1, 2]`, its seam a generator
+/// at `u = 0` from the low rim to `(0, 1.5)`, walked up and back, and
+/// the window `[2π − 1, 2π] × [1.5, 1.8]` reached from the seam's top,
+/// its side on `u = 2π` the next generator up. The loop passes the
+/// seam's top twice with no turn between, once on each side of the
+/// cut. With the seam's two traversals one edge (one `CarrierId`) the
+/// surface boundary passes it once and the face measures; stated
+/// without that identity the two passages read as a pinch.
+#[test]
+fn a_hole_cornered_on_the_seam_measures_where_the_seam_is_one_edge() {
+    let (lo, mid, hi) = (1.0, 1.5, 1.8);
+    let (v, p, q, r, s, t) = (0, 1, 2, 3, 4, 5);
+    let seam = |id: Option<u64>, a: f64, b: f64, x: u32, y: u32| {
+        let mut e = generator(0.0, a, b, x, y);
+        e.carrier_id = id.map(geom_brep::props::CarrierId::minted);
+        e
+    };
+    let outer = |id| {
+        vec![
+            rim(lo, 0.0, TAU, v, v),
+            seam(id, lo, mid, v, p),
+            rim(mid, TAU, TAU - 1.0, p, s),
+            generator(TAU - 1.0, mid, hi, s, r),
+            rim(hi, TAU - 1.0, TAU, r, q),
+            generator(0.0, hi, mid, q, p),
+            seam(id, mid, lo, p, v),
+        ]
+    };
+    let top = vec![rim(2.0, TAU, 0.0, t, t)];
+    let (flux_ccw, area) = oracle(&[
+        ((0.0, TAU), (1.0, 2.0), 1.0),
+        ((TAU - 1.0, TAU), (mid, hi), -1.0),
+    ]);
+    let (flux, got) = measure(&[outer(Some(7)), top.clone()], true)
+        .unwrap_or_else(|e| panic!("the seam as one edge: refused {e:?}"));
+    assert!(
+        (got - area).abs() <= 1e-12 * area && (flux - flux_ccw).abs() <= 1e-12 * area,
+        "the seam as one edge: area {got:e} flux {flux:e} against {area:e} {flux_ccw:e}"
+    );
+    refuses(
+        "the seam's traversals stated as two edges",
+        &[outer(None), top],
+        &PropsError::ConeLoop {
+            what: "props_cone_loop_vertex",
+        },
+    );
+}
+
 /// **Holes that cover more than the outer loop refuse as such**, not
 /// as a ring wound with the face: two holes each wound against the wall
 /// `[0, 3] × [1, 2]` but overlapping, their areas summing past it, turn
