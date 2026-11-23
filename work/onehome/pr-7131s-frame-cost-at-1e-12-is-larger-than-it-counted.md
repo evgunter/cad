@@ -52,7 +52,7 @@ Nightly 44989234943 (main `4d3402ecb1`'s kernel) against the 11-21 nightly 44870
 - editor-core `union_fold_face_face_touch::a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line`: it now stops at back 300 (`props_cylinder_circle_off_axis`, hi 1.195e-12), before the back-900 stop it pins (NEARPOINT's row).
 
 **`f64` squaring: F1F alone turns the row green (2 rows)**
-- sweep `section_ellipse_seam_poses::planes_through_the_axis_nearly_along_it_split`: the at-rest pose table moved at θ 1e-6. Four poses at φ 0.4 and 2.5 now refuse `URef Tilt`, and two at φ 3.9 that refused `URef Length` now pass (RESTFRONT's frame-check row).
+- sweep `section_ellipse_seam_poses::planes_through_the_axis_nearly_along_it_split`: measured as 14 poses moved by F1F squaring, then **retired on merge**: ONEHOME's check-1 change (`onehome/check1-frame-half`) removed tier 3's frame check, so every through-axis pose builds at 1e-12 and the table is empty.
 - geom-brep `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance`, seed `0x4071461b4c688a45`: draw 7, at `f64`, reads `Recedes` where the dense distance contradicts it. This is **a contradicted reading, not a refusal**. It is filed on CPAIR (`a-window-reading-at-f64-is-contradicted-by-the-dense-distance-since-7131s-squaring`).
 
 **Not frame cost, but 7131's:** step-export `committed_fixtures_are_byte_golden`, red at every ε. 7131's merge committed `composed_die.step` from an earlier head, with 12 `DIRECTION` x components at `0.0`. The final head emits main's `-0.0`. PR 7361 (`b31e3986d6`) has since restored the 13 `-0.0` lines.

@@ -295,87 +295,103 @@ fn review_6020_boolean_seam_poses() {
     }
 }
 
-/// **A half holding two planar faces on each other refuses at the
-/// point**: the counterbore split through its floor's rim `P`, leaning
-/// in by 0.05, under either normal and at either azimuth. Each half
-/// carries, on the cut plane, a face whose interior holds `P` and a face
-/// of the other sense cornered there, the two holding a common area
-/// (`work/heldrecords/a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses.md`).
-/// Tier 3′ refuses `P` `Degenerate`, as it refuses two planar faces on
-/// each other wherever the link meets them, and reads no point there a
-/// crossing. A pose the split refuses typed (at a coarser band) has no
-/// half to read, and stands down saying so; every pose refusing is red.
-/// Red where `P` passes unread.
+/// **A plane touching a counterbore's floor rim at the bore splits into
+/// halves tier 3′ passes with no records.** The plane through the floor's
+/// rim point `P` at the bore, leaning 0.05 and 0.2 toward the axis and
+/// away from it, at azimuths 0 and 0.3, under both normals. The floor's
+/// trace is a chord of the counterbore's circle touching the bore at `P`,
+/// so the cut's hole is the counterbore's arc closed by that chord (and,
+/// leaning in, the bore's ellipse through `P`): it nests as a ring of the
+/// cylinder's ellipse, and each half carries one cut face. Each half
+/// passes tiers 1, 3 and 3′ and holds the polar quadrature's volume.
+///
+/// At ε 1e-6 alone, the pose leaning 0.05 in at azimuth 0.3 refuses
+/// instead, under both normals: `SliverSector` on `enters_material`
+/// with its point margin inside its escalation band, a sector at the
+/// bore rim about 1e-5 wide that the 1e-6 band does not resolve. Every
+/// pose builds at every other ε, and any other refusal is red.
 #[test]
-fn a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point() {
+fn a_plane_touching_a_counterbores_floor_rim_splits_at_tier_three_prime() {
     let y = Vec3::new(0.0, 1.0, 0.0);
-    let t = 0.05f64;
-    let mut built = 0usize;
-    let at = |w: &str| -> Point3<f64> {
-        let c: Vec<f64> = w
-            .trim_matches(|c| c == '(' || c == ')')
-            .split(", ")
-            .map(|x| x.parse().expect("a coordinate"))
-            .collect();
-        Point3::new(c[0], c[1], c[2])
-    };
-    for az in [0.0f64, 0.3] {
-        let d = Vec3::new(az.cos(), 0.0, az.sin());
-        let p = Point3::new(0.3 * d.x, 0.6, 0.3 * d.z);
-        for s in [1.0, -1.0] {
-            let n = (y * t.cos() - d * t.sin()) * s;
-            let plane: SplitPlane<f64> = topo::test_support::split_plane(p, n, tol());
-            let res = match split(
-                &sweep::test_support::finished("the operand", revolved(&COUNTERBORE), tol()),
-                &plane,
-                tol(),
-            ) {
-                Ok(res) => res,
-                // Coarser bands refuse the pose typed (a bisector side in
-                // band at 1e-6): no half to read.
-                Err(e) => {
-                    test_utils::vacuity::stood_down(
-                        &format!("a{az} s{s}"),
-                        &format!(
-                            "the split refuses this pose at this ε ({e:?}): no half of it is read"
+    let mut refused = Vec::new();
+    for t in [0.05f64, 0.2] {
+        for az in [0.0f64, 0.3] {
+            let d = Vec3::new(az.cos(), 0.0, az.sin());
+            let p = Point3::new(0.3 * d.x, 0.6, 0.3 * d.z);
+            for (lean, l) in [("in", -1.0), ("out", 1.0)] {
+                for s in [1.0, -1.0] {
+                    let label = format!("t{t} a{az} {lean} s{s}");
+                    let n = (y * t.cos() + d * (l * t.sin())) * s;
+                    let plane: SplitPlane<f64> = topo::test_support::split_plane(p, n, tol());
+                    let res = split(
+                        &sweep::test_support::finished(
+                            "the operand",
+                            revolved(&COUNTERBORE),
+                            tol(),
                         ),
-                    );
-                    continue;
-                }
-            };
-            built += 1;
-            for (side, part) in [("below", res.below), ("above", res.above)] {
-                let SplitPart::Body(half) = part else {
-                    panic!("a{az} s{s} {side}: a half");
-                };
-                let h = half.into_body();
-                let errors =
-                    topo::validate_pseudomanifold(&h, &topo::ContactRecords::default(), tol())
-                        .expect_err("the half's touches are unrecorded");
-                let mut at_p = false;
-                for e in &errors {
-                    match e {
-                        topo::ValidationError::BoundaryCrossesItselfUndecided {
-                            witness,
-                            why,
-                            ..
-                        } => {
-                            assert_eq!(
-                                *why,
-                                topo::TouchUnread::Degenerate,
-                                "a{az} s{s} {side} at {witness}"
-                            );
-                            at_p |= (at(witness) - p).norm() < 1e-9;
-                        }
-                        topo::ValidationError::BoundaryCrossesItself { witness, .. } => {
-                            panic!("a{az} s{s} {side}: a crossing at {witness}")
-                        }
-                        _ => {}
+                        &plane,
+                        tol(),
+                    )
+                    .map_err(|e| {
+                        let in_band = match &e {
+                            topo::splitting::SplitError::Reduce(
+                                topo::splitting::SplitReduceError::SliverSector {
+                                    reading: topo::splitting::SectorReading::Escalated(diag),
+                                    ..
+                                },
+                            ) => {
+                                // A point margin escalates only inside its band.
+                                diag.predicate == Some("enters_material")
+                                    && diag.margin.kind() == geom_core::MarginKind::Value
+                                    && diag.margin.rejected_sign().is_none()
+                            }
+                            _ => false,
+                        };
+                        assert!(
+                            in_band && tol().eps() == 1e-6,
+                            "{label}: the split refuses: {e:?}"
+                        );
+                        refused.push(label.clone());
+                    });
+                    let Ok(res) = res else { continue };
+                    let want = quadrature(true, p, n);
+                    for ((side, part), w) in [("below", res.below), ("above", res.above)]
+                        .into_iter()
+                        .zip(want)
+                    {
+                        let SplitPart::Body(half) = part else {
+                            panic!("{label} {side}: no half");
+                        };
+                        let h = half.into_body();
+                        assert_eq!(topo::validate(&h), Ok(()), "{label} {side}: tier 1");
+                        assert_eq!(
+                            topo::validate_geometric(&h, tol()),
+                            Ok(()),
+                            "{label} {side}: tier 3"
+                        );
+                        assert_eq!(
+                            topo::validate_pseudomanifold(
+                                &h,
+                                &topo::ContactRecords::default(),
+                                tol()
+                            ),
+                            Ok(()),
+                            "{label} {side}: tier 3′"
+                        );
+                        let (v, _) = volume(&h);
+                        assert!(
+                            (v - w).abs() < 2e-4,
+                            "{label} {side}: volume {v}, quadrature {w}"
+                        );
                     }
                 }
-                assert!(at_p, "a{az} s{s} {side}: P refuses: {errors:?}");
             }
         }
     }
-    assert!(built > 0, "every pose refuses at this ε: no half is read");
+    assert!(
+        refused
+            .iter()
+            .all(|l| l == "t0.05 a0.3 in s1" || l == "t0.05 a0.3 in s-1"),
+        "a pose other than the sliver's refuses in band: {refused:?}"
+    );
 }
