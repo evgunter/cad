@@ -186,6 +186,7 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
 
 **Dispatch, letters and tiers** (logged before any draw):
 - 1 is letter H, tier DUAL. It is a certified-interval soundness claim: the proven interval must be proven. It also sets a second refinement order beside E6's.
+- 2026-11-22 — (OFFER implementer) `a-check-offers-no-way-to-add-the-assertion-it-asks-for` is in review as PR #7362 on `offer/a-check-carries-the-assertion-that-quiets-it`. The coincidence finding carries `Quieting` (minted by `at_rest::quieting` from the reading `quiet_row` matches against), the interference finding its `OpposedPair`, and the recourse is worded from each. Family rows were investigated first: a row with one member cell is minted as the assertion reaching the index, and `quiet_row` now matches it by member; a row between two members carries none. Two rows filed from the sweep, on MSOLVE and ATREST.
 - 2026-11-22 — **Dispatched** `the-certified-range-refines-away-from-the-current-value` on `offer/the-certified-range-refines-toward-the-current-value`, as cloud session `session_013QoYWUSe878mMdYJzyx7Hd`. (OFFER orchestrator)
 - 2026-11-22 — **A class two reviews found independently: a drift guard whose oracle copies the rule it guards.** In #7336, `names` in `tests/controls_guide.rs` re-spells `Held::met_by`. In #7346, the test helper `stranded` re-spells the viewer's `Holder`, which itself re-spells editor-core's `pub(crate) NameCarrier`. Such a test agrees with itself when the rule changes, and it cannot see mutations that move both copies in the same direction. Both fix passes now call the one home. **Standing note for this program's briefs:** a test that pins a rule calls the rule's home, or derives its expectation from a different fact. It never carries a second copy of the rule. (OFFER orchestrator, at adjudication)
 - 2026-11-22 — **Merged #7336** (`the-viewer-has-no-guide-to-its-controls`). The review found 0 MAJOR. The fix pass took every MINOR. Its one deviation, the wheel's modifiers decided outside the table, is filed. Model-compare row: `docs/model-compare-log/rows/PR-7336.md`. (OFFER orchestrator)
@@ -238,3 +239,30 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **Merge:** a9e35b6 now conflicts with main in `drive.rs`, so the lane is merging main and folding in F1, F2, F3 and a wording nit.
   - **The order is final: #7375 lands first.** The #7356 lane then merges main and ports its naming sites and `Related` onto the mention type. (OFFER orchestrator)
 - 2026-11-23 06:30Z — **#7356 merged** (a6853f06) at c28488d. Its substantive jobs (lint, test (app), viewer wasm) were green; only the `gate ok` aggregator was still queued behind the backlog. **Ev (06:2xZ): with CI queuing this bad, a PR that touches only docs, comments or work items merges on a local `work.py lint`; and the orchestrator may skip CI on any PR after whatever local tests make it comfortable.** The two relations units are closed. The order flipped one last time: #7375's lane folds the #7356 port into the main merge it is already doing, and is told it may verify locally. No model-comparison row (rule 12). (OFFER orchestrator)
+- 2026-11-23 07:55Z — **Main's binding census was red because of #7356** (`OperandRead`/`ReadIndex` unlisted; the Python suite was skipped again). It is fixed by #7536, merged on local verification: both are listed as `gap: B-READS`, and PYDOOR owns `python-cannot-ask-what-a-node-reads-or-what-reads-it` (P3). **#7369's fix pass reported.** The new schedule cuts two_sided from 5000 replays to 122, and the false cost text is fixed. The orchestrator's local spot-check found the plate row's red, which main's drive causes (BOXFINISH P1, filed by the lane), surfacing as a **proven difference at the nominal with empty evidence**. That is a false certified claim, so the PR went back: an unexplained refusal is `Unproven`, never `Different`. (OFFER orchestrator)
+- 2026-11-23 08:40Z — **#7362 merged** (0ffe8560) at c2d54783, after a dual review, a fix pass, a verifier and a second fix pass.
+  - **Verification:** local runs, per Ev's ruling. The law file, the atrest and intent rows and the quieting rows passed 34/34 at 679e8880 and on the merged tree. The orchestrator merged main and resolved the `.config/nextest.toml` slow-set conflict as a union; `nextest list --profile ci` parses it. The lane's runs: the default set 3086/3086, and the Python suite 58 against a fresh wheel.
+  - **The unit:** `a-check-offers-…` is closed, and the offers unit `a-refusal-offers-…` is unparked. It is dispatched after #7375 lands, since both touch the viewer's refusal sites.
+  - **#7375:** it merges main and ports #7362's sentence code. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 08:55Z — **#7369 merged** (b7d21475) at 3b0a426b.
+  - **The fix:** an unexplained flip is now `Unproven::FlipUnfounded`, never a difference, and a named flip at the nominal fails loud.
+  - **Verification:** the orchestrator ran the range rows locally, slow set included: 40/41.
+  - **The one red** is the plate row. It now reads "not decided", and BOXFINISH's P1 `a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-curved-leaf-certifies` (filed by this PR) holds it. **On main, curved geometry does not certify until BOXFINISH fixes it.**
+  - **Another main red** the lane saw while verifying (not OFFER's): `crates/topo/tests/a_seamless_pipe_cut_by_an_oblique_plane_measures.rs:291` names `EulerOpError::Certification`, which no longer exists. Already fixed on main by 4e69ac1c85.
+  - **The kernel-search unit is closed.** The certify viewer unit `certify-affordance-on-the-bounds-panel` was dispatched on Opus to session_013QoYWWPVut6F6V6YRHYsXA, branch `offer/range-is-the-certified-search`, and verifies locally. It is tier H, so it gets two reviewers at review. No row: it was dispatched during the outage (rule 12). (OFFER orchestrator)
+- 2026-11-23 09:46Z — **The certify viewer PR #7548 is up** at 32dabb52. The lane verified it locally:
+  - viewer: 1145 tests; with the app feature, 1619 (3 GPU rows without an adapter);
+  - clippy, rustdoc and the gates are clean.
+  It deletes the sampling probe and closes 6 rows as moot. Filed: `doctail/range-admission-says-a-defined-variable-is-absent` (P3). **Dual review** on Opus, identical briefs (ledger `dual-7548.md`): R1 is session_013QoYWXnpAAetr7tXBK7y6C and R2 is session_013QoYWY55CUnRocu2DivJR2. Claim 1 is staleness, since a reading drawn against the wrong document is the worst failure. No row (rule 12). #7375 is merging main once more (the #7369 conflicts in drive.rs and range.rs). (OFFER orchestrator)
+- 2026-11-23 10:25Z — **#7375 merged** (c76443d5) at 32e24d11. The orchestrator's local check passed 88/88:
+  - the quieting law file with its corpus deals, both `spells_a_mention_into` law rows and the review probe;
+  - the range rows except the plate (BOXFINISH P1);
+  - the carried route and `name_words_corpus`;
+  - the census, 12/12.
+  The spelling unit is closed.
+
+  **Two viewer units were dispatched in parallel on Opus** (no row, rule 12):
+  - **The links widget** `a-node-name-…` (M): session_013QoYWTzTX98kUXvBufbC6R, branch `offer/a-mention-is-a-link`. egui hit-test feasibility comes first.
+  - **The offers function** `a-refusal-offers-…` (H, so dual review later): session_013QoYWVYtwnKMKDTDPKPUBS, branch `offer/one-offers-function`. Its Commit is filled only from the kernel `Quieting`.
+
+  The widget owns how a message is held and drawn; the offers lane owns the controls. Whichever lands second ports. #7548's lane was told #7375 landed and ports in its fix pass. (OFFER orchestrator)

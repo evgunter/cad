@@ -2,22 +2,22 @@
 //! have quieted it** (spec §4 "Severity and the refusing path"; CHECKS
 //! DS6; D10 `[assertions.quiet]`).
 //!
-//! `InterferenceFinding::quietable` asks the quieting rule itself: a
-//! finding is quietable exactly when some holding `Gap ≤ −δ` over a pair
-//! of its bounding faces (one of each copy, either role order) would
-//! quiet it, and `enforce_checks` at `Error` refuses exactly the loud
-//! quietable ones. Each row authors every such candidate in turn and
-//! holds the finding to both.
+//! `InterferenceFinding::quieting` asks the quieting rule itself: a
+//! finding carries a pair exactly when some holding `Gap ≤ −δ` over a
+//! pair of its bounding faces (one of each copy, either role order)
+//! would quiet it, the pair it carries is one that does, and
+//! `enforce_checks` at `Error` refuses exactly the loud findings that
+//! carry one. Each row authors every such candidate in turn and holds
+//! the finding to all three.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
 use crate::fixture::{ang, in_world, insert, len, len2, place, scl, slid, square};
 use editor_core::{
-    AssertionRelation, AssertionVerdict, Bodies, ChecksConfig, FaceSite, Formula, Frame,
-    InterferenceFinding, LoopProgram, MeasurePrimitive, Node, Overlap, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Severity, SitedRef, ValuePayload,
-    enforce_checks,
+    AssertionRelation, Bodies, ChecksConfig, FaceSite, Formula, Frame, InterferenceFinding,
+    LoopProgram, MeasurePrimitive, Node, Overlap, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, Severity, SitedRef, enforce_checks,
 };
 use geom_core::Tol;
 
@@ -80,13 +80,22 @@ fn with_gap(doc: &ProfileDoc, outer: &FaceSite, inner: &FaceSite) -> (ProfileDoc
         doc.operation_of(var)
             .expect("a copy is a placement's output")
     };
+    gap_over(
+        doc,
+        [
+            SitedRef::new(node(outer.copy.var), outer.face.clone()).into(),
+            SitedRef::new(node(inner.copy.var), inner.face.clone()).into(),
+        ],
+    )
+}
+
+/// `Gap(outer, inner) ≤ −1e-5` over two operands: the document after
+/// it, and the assertion.
+fn gap_over(doc: &ProfileDoc, refs: [editor_core::Operand; 2]) -> (ProfileDoc, RecipeNodeId) {
     let (d, measure) = crate::fixture::measure_node(
         doc,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
-        vec![
-            SitedRef::new(node(outer.copy.var), outer.face.clone()),
-            SitedRef::new(node(inner.copy.var), inner.face.clone()),
-        ],
+        refs.to_vec(),
     );
     let value = crate::fixture::value_of(&d, measure);
     insert(
@@ -99,11 +108,16 @@ fn with_gap(doc: &ProfileDoc, outer: &FaceSite, inner: &FaceSite) -> (ProfileDoc
     )
 }
 
-/// **The rule `quietable` states, held on `doc`**: for each of its
-/// interference findings, whether some holding `Gap ≤ −1e-5` over a pair
-/// of its bounding faces (one of each copy, both role orders) quiets it
-/// is exactly `quietable`; and `Error` refuses exactly when a loud
-/// quietable finding is present. Answers each finding's `quietable`.
+/// **The rule `quieting` states, held on `doc`**: for each of its
+/// interference findings, whether some `Gap ≤ −1e-5` over a pair of its
+/// bounding faces (one of each copy, both role orders), written in the
+/// rule's language (each face by the name its copy holds it by, and a
+/// family member's also by the name its member wraps, so the assertion
+/// reaches the index) and holding at every member, quiets it is exactly
+/// whether it carries a pair (completeness, and soundness); a
+/// `Gap ≤ −1e-5` over the references it carries holds at every member
+/// and quiets it; and `Error` refuses exactly when a loud finding
+/// carrying a pair is present. Answers whether each finding carries one.
 fn holds_the_rule(label: &str, doc: &ProfileDoc) -> Vec<bool> {
     let found = findings(doc);
     assert!(!found.is_empty(), "{label}: the premise, an overlap");
@@ -111,42 +125,157 @@ fn holds_the_rule(label: &str, doc: &ProfileDoc) -> Vec<bool> {
     for finding in &found {
         let Overlap::Bounded { faces } = &finding.overlap else {
             assert!(
-                !finding.quietable,
+                finding.quieting.is_none(),
                 "{label}: an unlocalized overlap: {finding:?}"
             );
             quietable.push(false);
             continue;
         };
+        let quiets_by = |(d, assertion): (ProfileDoc, RecipeNodeId)| {
+            let run = corpus::eval::<f64>(&d);
+            crate::a_check_carries_the_assertion_that_quiets_it::verdicts(&run, assertion)
+                .iter()
+                .all(|&holds| holds)
+                && findings(&d).iter().any(|f| {
+                    f.a == finding.a
+                        && f.b == finding.b
+                        && matches!(&f.overlap, Overlap::Bounded { faces: held } if held == faces)
+                        && f.quiet == Some(assertion)
+                })
+        };
+        // A face as its copy's read is written: by the name the copy
+        // holds it by, and, for a family's member, by the name the
+        // member wraps too.
+        let written = |site: &FaceSite| {
+            let mut names = vec![site.face.clone()];
+            if let [editor_core::RoleSeg::Member { of, .. }] = site.face.path.as_slice() {
+                names.push((**of).clone());
+            }
+            names
+                .into_iter()
+                .map(|name| editor_core::Operand::Select {
+                    body: Box::new(editor_core::BodyRead::plain(editor_core::Operand::Var(
+                        site.copy.var,
+                    ))),
+                    names: vec![name],
+                })
+                .collect::<Vec<_>>()
+        };
         let mut quieted = false;
         for x in faces.iter().filter(|s| s.copy == finding.a) {
             for y in faces.iter().filter(|s| s.copy == finding.b) {
                 for (outer, inner) in [(x, y), (y, x)] {
-                    let (d, assertion) = with_gap(doc, outer, inner);
-                    let run = corpus::eval::<f64>(&d);
-                    let holds = matches!(
-                        run.value(assertion).map(|v| &v.payload),
-                        Some(ValuePayload::Assertion(AssertionVerdict::Holds { .. }))
-                    );
-                    quieted |= holds
-                        && findings(&d).iter().any(|f| {
-                            matches!(&f.overlap, Overlap::Bounded { faces: held } if held == faces)
-                                && f.quiet == Some(assertion)
-                        });
+                    quieted |= quiets_by(with_gap(doc, outer, inner));
+                    for o in written(outer) {
+                        for i in written(inner) {
+                            quieted |= quiets_by(gap_over(doc, [o.clone(), i]));
+                        }
+                    }
                 }
             }
         }
+        if let Some(pair) = &finding.quieting {
+            assert!(
+                faces.contains(&pair.outer) && faces.contains(&pair.inner),
+                "{label}: the pair is two of the bounding faces: {finding:?}"
+            );
+            let [outer, inner] = &pair.references;
+            assert!(
+                quiets_by(gap_over(doc, [outer.operand(), inner.operand()])),
+                "{label}: a Gap over the carried references quiets it: {finding:?}"
+            );
+        }
         assert_eq!(
-            finding.quietable, quieted,
-            "{label}: quietable is whether an assertion quiets it: {finding:?}"
+            finding.quieting.is_some(),
+            quieted,
+            "{label}: a pair is carried exactly where an assertion quiets it: {finding:?}"
         );
         quietable.push(quieted);
     }
     assert_eq!(
         refused_at_error(doc),
-        found.iter().any(|f| f.quietable && f.is_loud()),
-        "{label}: Error refuses exactly a loud quietable finding"
+        found.iter().any(|f| f.quieting.is_some() && f.is_loud()),
+        "{label}: Error refuses exactly a loud finding that carries a pair"
     );
+    recourse_is_rendered_from_the_pair(label, doc);
     quietable
+}
+
+/// **An interference finding's recourse is rendered from the pair it
+/// carries**: a loud finding carrying a pair offers the negative `Gap`
+/// over it, by its two faces' names; one carrying none names moving and
+/// combining alone; a quiet one offers nothing.
+fn recourse_is_rendered_from_the_pair(label: &str, doc: &ProfileDoc) {
+    let by = editor_core::Speaker::of(doc);
+    for found in &report(doc).findings {
+        let editor_core::CheckEvidence::Interference { finding } = &found.evidence else {
+            continue;
+        };
+        let said = editor_core::Said(found, by).sentence().to_string();
+        let ending = match (&finding.quieting, found.quiet) {
+            (_, Some(_)) => {
+                assert!(
+                    !said.contains("Recourse"),
+                    "{label}: a quiet finding offers nothing: {said}"
+                );
+                continue;
+            }
+            (Some(pair), None) => format!(
+                " — Recourse: move the two apart, combine them with a boolean if they are one \
+                 body, or, for a fit meant to interfere, assert a negative Gap between {}",
+                pair.said(by)
+            ),
+            (None, None) => {
+                " — Recourse: move the two apart, or combine them with a boolean if they are one \
+                 body"
+                    .to_owned()
+            }
+        };
+        assert!(
+            said.ends_with(&ending),
+            "{label}: the recourse is {ending:?}: {said}"
+        );
+    }
+}
+
+/// **An overlap a family's copy bounds carries the family's `Gap`, and
+/// one between two members of a family carries none.** Fins sunk into
+/// their base overlap it, each member against the one base, and caps
+/// sunk into their fins overlap them, the member at `k` of each family:
+/// a `Gap` over the face each member names (the fins' foot and the
+/// base's top; the caps' foot and the fins' top), each written off its
+/// family read plainly, reaches the index, holds at every member, and
+/// quiets each member's overlap, so each finding carries it and refuses
+/// at `Error` while loud. Fins closer than their width overlap each
+/// other, two members of one family, which no assertion the rule reads
+/// separates: no pair, no refusal.
+///
+/// *Breaks if* a finding carries a pair the rule does not take as
+/// written, or carries none where a family `Gap` would quiet it, so
+/// that `Error` passes an overlap the document could say.
+#[test]
+fn an_overlap_a_familys_copy_bounds_carries_the_familys_gap() {
+    use crate::a_check_carries_the_assertion_that_quiets_it::{family, fins_at};
+    let sunk = fins_at(3, 0.75, (0.9, 0.0)).0;
+    let capped = {
+        let (doc, k, _) = fins_at(3, 0.75, (1.0, 0.0));
+        let (doc, cap) = crate::blocks::block(doc, (0.25, 0.5), (0.5, 1.5), 0.5);
+        family(doc, cap, k, 0.75, (2.15, 0.0)).0
+    };
+    let touching = fins_at(3, 0.2, (1.0, 0.0)).0;
+    for (label, doc, carries) in [
+        ("fins sunk into their base", sunk, true),
+        ("caps sunk into their fins", capped, true),
+        ("fins overlapping each other", touching, false),
+    ] {
+        let doc = editor_core::test_support::assemble_world_copies(doc, Tol::witness());
+        let quietable = holds_the_rule(label, &doc);
+        assert!(
+            quietable.iter().all(|&q| q == carries),
+            "{label}: every finding carries a pair: {carries}: {quietable:?}"
+        );
+        assert_eq!(refused_at_error(&doc), carries, "{label}: Error refuses");
+    }
 }
 
 /// **A pin bottoming through a blind bore is quietable, and refuses at
@@ -373,7 +502,10 @@ fn a_tilted_press_fit_is_quiet_and_its_axes_are_decided_in_band() {
         let [loud] = findings(&doc)
             .try_into()
             .unwrap_or_else(|f: Vec<_>| panic!("{pose_name}: one finding: {f:?}"));
-        assert!(loud.is_loud() && loud.quietable, "{pose_name}: {loud:?}");
+        assert!(
+            loud.is_loud() && loud.quieting.is_some(),
+            "{pose_name}: {loud:?}"
+        );
         for (why, outer, inner, quiets) in [
             ("bore first", (p, bore.clone()), (q, wall.clone()), true),
             ("pin first", (q, wall.clone()), (p, bore.clone()), true),

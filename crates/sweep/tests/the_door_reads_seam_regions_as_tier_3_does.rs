@@ -586,7 +586,8 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
 /// `MassPropsError::Corrupt`, and six removals panic in the walk's own
 /// face resolution (`live.rs`, a shell's or a face's record naming a
 /// removed key) before any seam is read — as they did before the seam
-/// pass — so the row admits those six and no other.
+/// pass — so the row admits those six and no other. Each edge's curve
+/// removed in turn refuses `MassPropsError::Corrupt`, never a panic.
 #[test]
 fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     use topo::EntityId;
@@ -657,6 +658,29 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
                 "a removed loop refuses Corrupt, never panics: {l}"
             );
         }
+    }
+    // A removed curve: every edge naming it still stands, so the raw
+    // door's walk resolves the edge and refuses its curve typed.
+    let curves: Vec<_> = b.edges().map(|(_, e)| e.curve).collect();
+    for curve in curves {
+        let c = b.with_curve_removed_for_tests(curve).unwrap();
+        assert!(
+            topo::finish(c.clone(), tol).is_err(),
+            "{curve:?}: the body with it removed finishes"
+        );
+        let door = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body whose edge names a removed curve, which tier 1 refuses, and whether the door panics on it.
+            topo::test_support::measure_unvalidated(
+                &c,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+        }));
+        assert!(
+            matches!(door, Ok(Err(topo::MassPropsError::Corrupt { .. }))),
+            "{curve:?}: a removed curve refuses Corrupt at the raw door, never panics: {:?}",
+            door.as_ref().map(|r| r.as_ref().map(|_| ()))
+        );
     }
 }
 

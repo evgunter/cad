@@ -44,7 +44,7 @@
 //! set: a PR runs it only when the PR names it, and the nightly runs it
 //! every night. A PR that adds a name or a site without touching this
 //! file meets it at the nightly, not at its own gate
-//! (`work/ciw/tree-wide-source-censuses-in-the-slow-set-run-on-no-pr-that-moves-a-site.md`).
+//! (`work/ciw/a-stored-data-change-runs-none-of-the-slow-rows-that-read-it.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

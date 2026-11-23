@@ -1958,11 +1958,8 @@ fn walls_inside<T: Decide>(
     let desync = || BooleanError::JoinDesync {
         what: "an edge lying in a face does not resolve",
     };
-    let edge = body.get_edge(e).ok_or_else(desync)?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .and_then(|c| c.certified())
-        .ok_or_else(desync)?;
+    let edge = body.edge(e).ok_or_else(desync)?;
+    let curve = edge.certified().ok_or_else(desync)?;
     let (t0, t1) = curve.params();
     let mid = curve.mid_point();
     let tangent = curve.carrier().deriv(geom::mid_param(t0, t1)).normalize();
@@ -2022,9 +2019,12 @@ fn walls_inside<T: Decide>(
             == super::sectors::FaceShape::Plane;
     let mut inside = [false; 2];
     let mut flat = [false; 2];
-    for (k, (he, dir)) in [(edge.he_plus, tangent), (edge.he_minus, -tangent)]
-        .into_iter()
-        .enumerate()
+    for (k, (he, dir)) in [
+        (edge.record().he_plus, tangent),
+        (edge.record().he_minus, -tangent),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let wall = body.face_of_half_edge(he).ok_or_else(desync)?;
         let normal = normal_at(wall)?;
@@ -2256,12 +2256,9 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     let desync = || BooleanError::JoinDesync {
         what: "an edge lying in a face does not resolve",
     };
-    let data = body.get_edge(edge).ok_or_else(desync)?;
-    let h = data.he_plus;
-    let curve = body
-        .get_curve_geom(data.curve)
-        .and_then(|c| c.certified())
-        .cloned();
+    let data = body.edge(edge).ok_or_else(desync)?;
+    let h = data.record().he_plus;
+    let curve = data.certified().cloned();
     let (start, end) = crate::query::edge_ends(body, edge);
     let wall = body.face_of_half_edge(h).ok_or_else(desync)?;
     let surfaces = [face, wall].map(|f| body.get_face(f).map(|d| d.surface));
@@ -2794,10 +2791,7 @@ struct Resting {
 
 /// An edge's certified carrier and its span.
 fn span_of<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(geom::Curve3<T>, (T, T))> {
-    let curve = body
-        .get_edge(e)
-        .and_then(|d| body.get_curve_geom(d.curve))
-        .and_then(|c| c.certified())?;
+    let curve = body.edge(e).and_then(crate::live::EdgeView::certified)?;
     Some((curve.carrier().clone(), curve.params()))
 }
 
