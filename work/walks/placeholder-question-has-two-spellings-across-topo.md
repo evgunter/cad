@@ -5,7 +5,8 @@ title: The placeholder question is asked through two doors across topo: NetState
 status: open
 opened: 2026-09-14
 priority: P1
-cost: E
+cost: M
+design: true
 ---
 
 
@@ -66,3 +67,7 @@ Sweep: `is_placeholder()` and `NetState::Placeholder` over `crates/`,
 which cannot match a site composing `net::is_placeholder` or
 `net::any_poison` directly (`geom`'s own `net.rs`, the implementation,
 is excluded).
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Still live; about 27 production `is_placeholder()` sites now against the row's ~20 (new: clearance, props/quad_lane, ring_path spline_wall and sector_face, geom-brep dihedral_side, mesh chart_table, step-export writer, step-import build; gone from pcurves, props top level, pcurve_cache, mesh trimmed, step-import adopt). The described-net row the `!is_placeholder()`-as-described sites deferred to is closed, so those sites (geom-brep certify.rs, step-import build.rs, geom's `matches!` guards) have no other owner. Re-priced M; weighed as fork F2.
