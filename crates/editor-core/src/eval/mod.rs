@@ -186,7 +186,7 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// Which symbolic expression table this evaluation's values were
     /// built under ([`geom_core::sym::table`]); `None` outside a
     /// symbolic session. A prior is read only under the table it was
-    /// built under ([`prior_under_this_table`]).
+    /// built under (`prior_under_this_table`).
     sym_table: Option<u64>,
     parts: parts::Carried<T>,
     /// The resolver this run crossed the document seam with: what a
@@ -3021,7 +3021,7 @@ pub(crate) mod leaf {
     /// the expression table it was built under
     /// (`geom_core::sym::table`): a prior built under the same drive's
     /// table would be read, and one built under another is not
-    /// ([`prior_under_this_table`]). No caller hands a symbolic leaf a
+    /// (`eval::prior_under_this_table`). No caller hands a symbolic leaf a
     /// prior of its own drive yet; a leaf with none costs evaluation
     /// time and claims nothing false.
     pub(crate) enum LeafPrior {

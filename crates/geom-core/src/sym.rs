@@ -1016,7 +1016,6 @@
 use core::cell::RefCell;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::predicate::{Band, Decide, Decided, Indeterminate, Sign};
@@ -2433,7 +2432,7 @@ struct Session {
     /// both at once — so a `sin_cos` pair minted from one node folded
     /// TWICE before this memo (R2's Q7). Keyed by the argument form's
     /// digest, per session like every other memo here.
-    trig_closed: IndetMap<Vec<(SymRules, u64, Option<Rc<trig::Closed>>)>>,
+    trig_closed: IndetMap<Vec<trig::Held>>,
     /// **The per-node reduction's answers, by input form**
     /// ([`reduce_per_node`]): each bucket, under the input's digest,
     /// holds the forms reduced with that digest, compared WHOLE, beside

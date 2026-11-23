@@ -370,23 +370,33 @@ pub(super) struct Closed {
     den: Poly,
 }
 
+/// The closed forms of one argument as held in the session's memo:
+/// under the rules and the ring bound they were built under, a refusal
+/// included.
+pub(super) struct Held {
+    rules: super::SymRules,
+    bits: u64,
+    forms: Option<Rc<Closed>>,
+}
+
 fn closed_forms(arg: &Form, sess: &mut Session) -> Option<Rc<Closed>> {
     // Keyed by the rules and the ring bound beside the argument, as
     // `Session::reductions` is: a retry attempt builds under its own,
     // and a refusal is kept.
     let (key, rules, bits) = (arg.digest(), sess.rules, super::rational::coeff_bound());
-    if let Some((_, _, hit)) = sess
+    if let Some(held) = sess
         .trig_closed
         .get(&key)
-        .and_then(|held| held.iter().find(|(r, b, _)| *r == rules && *b == bits))
+        .and_then(|held| held.iter().find(|h| h.rules == rules && h.bits == bits))
     {
-        return hit.clone();
+        return held.forms.clone();
     }
     let built = build_closed_forms(arg, sess).map(Rc::new);
-    sess.trig_closed
-        .entry(key)
-        .or_default()
-        .push((rules, bits, built.clone()));
+    sess.trig_closed.entry(key).or_default().push(Held {
+        rules,
+        bits,
+        forms: built.clone(),
+    });
     built
 }
 
