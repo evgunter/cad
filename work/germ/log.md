@@ -1901,3 +1901,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The sibling is closed as a duplicate into ONEROUND's unit.
   - The far-radius cylinder issue is filed (P2).
   - The same reviewer is confirming on the new head.
+- 2026-11-23 14:20 — **Near-miss unit delivered: PR 7571** (head `16a2c76127`). In-band gaps that decided, per 32 at s = 1 / 0.2 / 0.05 / 0.01, went from 0/12/24/24 to 0/0/0/0. The shift is `escalate/s`, so the lines are `P ∩ (Q ± escalate·n̂)`. Both mutants red. Its CI reds are not its own: two sweep rows on the 1 s bar, a viewer slow-set entry, and `payload-rung-sweep`. The reviewer arm was drawn and recorded on the analysis branch, and a single FULL review is dispatched with an arm-free brief.
