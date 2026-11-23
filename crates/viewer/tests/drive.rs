@@ -48,7 +48,7 @@ mod driven {
         driver.settle().expect("settles");
         let rows = driver.session().tree_rows();
         assert_eq!(rows.len(), before + 1, "one node per New profile");
-        let added = rows.last().expect("a row").spoken.to_string();
+        let added = viewer::tree::spelled(&rows.last().expect("a row").spoken);
         assert!(
             added.contains("Profile 2"),
             "the new row is the profile the insert named: {added}"
@@ -71,7 +71,7 @@ mod driven {
     ///
     /// Over the slow-set bar, but `app`-gated, which the slow-set name
     /// check cannot see
-    /// (`work/ciw/an-app-feature-only-test-cannot-be-listed-in-the-slow-set.md`).
+    /// (`work/green/the-slow-set-name-check-cannot-see-app-feature-tests.md`).
     #[test]
     fn a_failed_revolve_does_not_hide_the_sphere_revolved_after_it() {
         let mut driver = started("drive-partial-picture");
@@ -106,7 +106,7 @@ mod driven {
             let row = driver
                 .screen()
                 .iter()
-                .filter(|landed| landed.text.starts_with("Profile 1 "))
+                .filter(|landed| landed.text.starts_with("\"Profile 1\" ("))
                 .find_map(|landed| landed.visible().map(|rect| rect.center()))
                 .expect("the profile's tree row is on screen");
             driver
@@ -120,7 +120,9 @@ mod driven {
             let profile = selected(&driver);
             let button = format!(
                 "Revolve {}",
-                pncad::document::Speaker::of(driver.session().doc()).node(profile)
+                pncad::document::sentence!(
+                    pncad::document::Speaker::of(driver.session().doc()).node(profile)
+                )
             );
             driver.click(&button, 0).expect("the profile is revolved");
             driver.settle().expect("settles");
@@ -165,11 +167,11 @@ mod driven {
         let rows = driver.session().tree_rows();
         let said: Vec<String> = rows
             .iter()
-            .map(|row| format!("{} {:?}", row.spoken, row.status))
+            .map(|row| format!("{} {:?}", viewer::tree::spelled(&row.spoken), row.status))
             .collect();
         let row = |label: &str| {
             rows.iter()
-                .find(|row| row.spoken.to_string().contains(&format!("\"{label}\"")))
+                .find(|row| viewer::tree::spelled(&row.spoken).contains(&format!("\"{label}\"")))
                 .unwrap_or_else(|| panic!("a {label} row: {said:#?}"))
         };
         assert!(

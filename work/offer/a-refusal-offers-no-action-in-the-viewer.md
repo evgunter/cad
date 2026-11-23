@@ -2,11 +2,11 @@
 id: a-refusal-offers-no-action-in-the-viewer
 kind: issue
 title: viewer: a kernel refusal is shown as prose with no action the viewer can take on it
-status: parked
+status: dispatched
 opened: 2026-09-17
 priority: P1
 cost: H
-blocked_on: [a-check-offers-no-way-to-add-the-assertion-it-asks-for]
+branch: offer/one-offers-function
 ---
 
 **Ev reported this** (in chat, 2026-09-17), from the same failed union

@@ -3778,9 +3778,8 @@ impl<T: Decide> Body<T> {
             _ => None,
         };
         let own = edge
-            .and_then(|edge| self.edges.get(edge))
-            .and_then(|data| self.get_curve_geom(data.curve))
-            .and_then(|curve| curve.certified())
+            .and_then(|edge| self.edge(edge))
+            .and_then(crate::live::EdgeView::certified)
             .and_then(geom_brep::EdgeCurve::locus_certificate);
         let kept: Vec<_> = kept.into_iter().chain(own).collect();
         crate::policy_lane::certify_stated(
@@ -3894,11 +3893,12 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         run: &[HalfEdgeKey],
     ) -> Result<Option<&EdgeCurve<T>>, EulerOpError> {
-        let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        match self.edge_curve_linked(edge, edge_data) {
+        let edge_data = self.proven_edge(edge);
+        match edge_data.curve() {
             crate::null::CurveGeom::Certified(curve) => Ok(Some(curve)),
             crate::null::CurveGeom::NullScaffold(_)
-                if run.contains(&edge_data.he_plus) && run.contains(&edge_data.he_minus) =>
+                if run.contains(&edge_data.record().he_plus)
+                    && run.contains(&edge_data.record().he_minus) =>
             {
                 Ok(None)
             }
