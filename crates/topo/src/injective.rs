@@ -123,8 +123,8 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a plane face's convexity in a cell: how far one
 /// line edge, at its far end or over the cell's reach, stands on another's
 /// face side, metres. Each reading is a distance from a line along its
-/// unit normal: a corner's far end from the other edge, a cap's line from
-/// the base it caps, the base's points from the cap.
+/// unit normal: a corner's far end from the other edge, or the points of
+/// the base a strip's end caps from the cap.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
 /// The funnel site of a vertex at a collapse of its face's chart, a
 /// cone's apex or a sphere's pole: its distance from that point, metres.
@@ -2462,18 +2462,18 @@ fn present_plane<'a>(
     // carrier separates them, and a thin face's partner reads at its own
     // end, so no measured body asks a strip's middle of both faces.
     //
-    // **The cap**: `f`, a line across the face from the frame's base line
-    // `o + x·a` (face side `n`), over the reach `x`: the highest its line
-    // stands in the frame's `y` over the reach, where it stands on the
-    // base's face side there and the base on its own. Each lean is a
-    // distance in metres (the cap's rise over the base along `n`; the
-    // base's points along `f`'s face normal), read at
-    // `SELF_INTERSECTION_CORNER` as a corner's lean is, and each is
-    // linear in `x`, read in the base's own frame, so a face turned in its
-    // chart reads no more slack than one along its axes.
+    // **The cap**: `f`, the end's other neighbour, a line across the face
+    // from the frame's base line `o + x·a`, through the frame's `(0, 1)`,
+    // its corner with `e2`: the highest its line stands in the frame's `y`
+    // over the reach `x`, where the base stands on its face side there.
+    // That lean is a distance in metres (the base's points along `f`'s
+    // face normal), read at `SELF_INTERSECTION_CORNER` as a corner's lean
+    // is, and linear in `x`, read in the base's own frame, so a face
+    // turned in its chart reads no more slack than one along its axes.
+    // The cap's line, at height 1 at `x = 0` and kept off the base's line
+    // over the reach by that lean, stands above the base there too.
     let capped = |f: usize,
                   (o, a, bv): (Point2<Interval>, [Interval; 2], [Interval; 2]),
-                  n: [Interval; 2],
                   x: Interval|
      -> Result<f64, Unpresented> {
         let ((pf, _), (qf, _)) = segment(f)?;
@@ -2485,9 +2485,7 @@ fn present_plane<'a>(
         let h = y0 + (y1 - y0) / run * (x - x0);
         let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
         let base = lean(nf, [o.x - pf.x, o.y - pf.y]) + x * lean(nf, a);
-        if !(positive(h * lean(n, bv), SELF_INTERSECTION_CORNER)
-            && positive(base, SELF_INTERSECTION_CORNER))
-        {
+        if !positive(base, SELF_INTERSECTION_CORNER) {
             return Err(Unpresented::Local);
         }
         Ok(h.hi())
@@ -2616,7 +2614,7 @@ fn present_plane<'a>(
                     return Err(Unpresented::Local);
                 }
                 let reach = iv((0.0, x.hi().max(0.0)));
-                Some(capped(f, (o, a, bv), n1, reach)?)
+                Some(capped(f, (o, a, bv), reach)?)
             }
         };
         if x.hi() <= 0.0 || y.hi() <= 0.0 {
