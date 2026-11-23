@@ -2,12 +2,13 @@
 id: the-certified-range-refines-away-from-the-current-value
 kind: unit
 title: the certified range halves its whole seed level by level, so it spends its budget away from the value it answers about, and stop discards it
-status: review
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: H
 pr: 7369
 branch: offer/the-certified-range-refines-toward-the-current-value
+closed: 2026-11-23
 ---
 
 The kernel half of the decided certify design (Ev, #7340). The spec is the `## Design` section of `work/offer/certify-affordance-on-the-bounds-panel.md`, kernel part, together with its `## Decided` section.
