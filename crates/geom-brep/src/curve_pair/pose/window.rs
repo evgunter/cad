@@ -1349,4 +1349,82 @@ mod rows {
             );
         }
     }
+
+    /// **The window's jets are their functions' derivatives, and their
+    /// fourth-derivative bounds hold.** `a` a 2 × 1 ellipse tilted across
+    /// the plane of `b`, `b` an arc-held 3 × 1.5 ellipse and, beside it,
+    /// the same locus held at its centre: at seven angles of `a` the
+    /// height's and the level's jets match their central differences to
+    /// `1e-6` of their scale, and the fourth derivatives, by differences,
+    /// lie within [`Window::height_fourth`] and [`super::Level::fourth`].
+    /// Red where a jet's term carries the wrong sign or a fourth bound is
+    /// dropped.
+    #[test]
+    fn the_windows_jets_are_derivatives_and_their_fourth_bounds_hold() {
+        let a = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.4, -0.3, 0.2),
+                Vec3::new(0.3, 0.2, 0.9).normalize(),
+                Vec3::new(1.0, -0.4, 0.0).normalize(),
+            ),
+            2.0,
+            1.0,
+        ));
+        let anchored = geom::Ellipse::anchored(
+            Point3::new(3.1, 0.2, -0.1),
+            Vec3::new(0.1, -0.2, 1.0).normalize(),
+            Vec3::new(1.0, 0.3, 0.0).normalize(),
+            3.0,
+            1.5,
+        );
+        let centred = geom::Ellipse::new(geom::Conic::frame(&anchored), 3.0, 1.5);
+        let ka = a.conic().unwrap();
+        for b in [Curve3::Ellipse(anchored), Curve3::Ellipse(centred)] {
+            let kb = b.conic().unwrap();
+            let span = crate::curve_pair::Span::new(&b, (-1.0, 1.0));
+            let w = Window {
+                a: &ka,
+                span_a: (-1.0, 1.0),
+                b: &kb,
+                span_b: &span,
+                height: ka.height_along(ka.point_at(0.0), kb.axis()),
+            };
+            let level = super::level_on(&ka, &kb);
+            let h = |t: f64| kb.height_of(ka.point_at(t));
+            let f = |t: f64| kb.level_at(ka.point_at(t)).0;
+            let d = 1e-3;
+            let diffs = |g: &dyn Fn(f64) -> f64, t: f64| {
+                let (m2, m1, p1, p2) = (g(t - 2.0 * d), g(t - d), g(t + d), g(t + 2.0 * d));
+                let g0 = g(t);
+                [
+                    g0,
+                    (p1 - m1) / (2.0 * d),
+                    (p1 - 2.0 * g0 + m1) / d.powi(2),
+                    (p2 - 2.0 * p1 + 2.0 * m1 - m2) / (2.0 * d.powi(3)),
+                    (p2 - 4.0 * p1 + 6.0 * g0 - 4.0 * m1 + m2) / d.powi(4),
+                ]
+            };
+            for t in [-2.9, -1.7, -0.6, 0.0, 0.8, 1.9, 3.0] {
+                for (what, jet, by, fourth) in [
+                    ("height", w.height_jet(t), diffs(&h, t), w.height_fourth()),
+                    ("level", level.jet_at(t), diffs(&f, t), level.fourth()),
+                ] {
+                    let scale = by.iter().fold(1.0_f64, |m, x| m.max(x.abs()));
+                    for k in 0..4 {
+                        assert!(
+                            (jet[k] - by[k]).abs() <= 1e-5 * scale,
+                            "{b:?} θ {t}: the {what} jet's term {k} {:e} against {:e}",
+                            jet[k],
+                            by[k]
+                        );
+                    }
+                    assert!(
+                        by[4].abs() <= fourth * (1.0 + 1e-3) + 1e-3 * scale,
+                        "{b:?} θ {t}: the {what}'s fourth derivative {:e} past its bound {fourth:e}",
+                        by[4]
+                    );
+                }
+            }
+        }
+    }
 }

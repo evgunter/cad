@@ -110,10 +110,19 @@
 //!   point: `|dP/dθ|² = semi_u²sin²θ + semi_v²cos²θ` varies between the
 //!   two semi-axes.
 //! - **A unit frame, by its type.** The frame is a `RigidMotion`, its
-//!   axes unit and square by the mint that made it, so nothing that reads
-//!   a conic normalizes it: the sizes are the lengths every speed and
-//!   curvature bound is stated at, and the frame's axes carry no length
-//!   of their own to rescale them by.
+//!   axes unit and square to the rounding of the mint that made it, so
+//!   nothing that reads a conic normalizes it: the sizes are the lengths
+//!   every speed and curvature bound is stated at, and the frame's axes
+//!   carry no length of their own to rescale them by. Square only to that
+//!   rounding: a stored seam stands up to a few units of roundoff off
+//!   square to its axis (6.8e-17 on a flat cone's section), and the curve
+//!   the stored numbers state then leaves the plane through its stored
+//!   point normal to its axis by `a·|u_ref·axis|·(1 − cos θ)` from the seam
+//!   (8.3e-9 m at `θ = 0.5` on a semi-axis of 1e9).
+//!   [`Conic::height_of`], [`Conic::along`] and every [`Height`] reading
+//!   take the frame as square, so they read that plane and not the stated
+//!   curve's departure from it
+//!   (`work/onecopy/a-conics-harmonic-takes-its-stored-seam-as-square-to-its-axis.md`).
 //! - **Non-negative sizes.** A radius and both semi-axes are lengths,
 //!   in metres, and a negative one is unrepresentable: the fields are
 //!   private and the constructors ([`Circle::new`], [`Ellipse::new`])
@@ -323,7 +332,8 @@ pub trait Conic<T: Real>: core::fmt::Debug {
 
     /// **The conic's height along `n` from `o`**, `(P(θ) − o)·n`, a first
     /// harmonic in `θ` stated from the point the conic stores ([`Height`]).
-    /// `n` need not be unit.
+    /// `n` need not be unit. Its parts are [`Self::along`]'s, read with the
+    /// frame taken as square ("A unit frame, by its type").
     fn height_along(&self, o: Point3<T>, n: Vec3<T>) -> Height<T>;
 
     /// **The cover of the arc over `window`**, stated from the point
@@ -338,12 +348,16 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// point the conic stores: its centre, or the anchor of an ellipse held
     /// on its arc, which lies in the plane as stored. Read at `p`'s own
     /// distance from that point, so a point beside the anchor reads at
-    /// the arc's scale however far the centre lies.
+    /// the arc's scale however far the centre lies; a point formed far
+    /// from it carries its coordinates' rounding, and the dot rounds at
+    /// `u·|p − x|`. The plane is the one normal to the stored axis: the
+    /// frame is taken as square ("A unit frame, by its type").
     fn height_of(&self, p: Point3<T>) -> T {
         (p - self.frame().origin()).dot(self.axis())
     }
 
-    /// **The conic's level at the foreign point `p`**, with its
+    /// **The conic's level at the foreign point `p`** (the frame taken as
+    /// square, "A unit frame, by its type"), with its
     /// gradient: `F = X²/a² + Y²/b² − 1`, `(X, Y)` the in-plane
     /// components of `p` from the centre along `(u_ref, v_ref)` and
     /// `(a, b)` the stored semi-axes, and `(∂F/∂X, ∂F/∂Y) = (2X/a², 2Y/b²)`.

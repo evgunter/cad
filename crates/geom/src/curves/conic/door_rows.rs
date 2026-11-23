@@ -187,7 +187,11 @@ fn the_height_along_a_direction_is_read_about_the_stored_point() {
             );
             let got = e.height_along(o, n).at(theta0 + phi);
             // A quarter turn from the seam the parameter itself carries
-            // the turn, and holds to the semi-axis's rounding.
+            // the turn: `θ₀ + φ` rounds at `u·|θ₀|` radians, so a point
+            // beside the anchor holds to `2u·A·|θ₀|` metres, the semi-axis's
+            // rounding and not its own. That is what this tolerance admits
+            // (3.5e-7 m at `A = 1e9`): the re-seamed ellipse is read to the
+            // general anchor's unit, not to the arc's scale.
             let turned = 2.0 * f64::EPSILON * A * theta0.abs();
             assert!(
                 (got - want).abs() <= 1e-14 + turned,
@@ -315,6 +319,63 @@ fn an_arc_held_touchs_roots_at_interval() {
                 "φ {phi:e} lift {by:+e}: about the anchor {:?}, about the centre {:?}",
                 show(anchored),
                 show(centred)
+            );
+        }
+    }
+}
+
+/// **At an exact touch at the anchor the roots are the anchor.** Along
+/// `−u_ref` from the anchor the height is `a·(1 − cos θ) ≥ 0`, touching
+/// zero at `θ = 0` alone; along `+u_ref` it is its negation. Both roots
+/// are `0` (modulo a turn) at `f64`, where a tie broken toward the crest
+/// reads `π`, the antipode, `2a` away; at `Interval` each enclosure holds
+/// the anchor; the centre-held twin of the same locus reads the anchor.
+#[test]
+fn an_exact_touch_at_the_anchor_reads_the_anchor() {
+    let wrap = |t: f64| {
+        (t + core::f64::consts::PI).rem_euclid(core::f64::consts::TAU) - core::f64::consts::PI
+    };
+    for e in [
+        far(),
+        Ellipse::anchored(
+            Point3::new(0.3, -0.2, 0.1),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            5.0,
+            3.0,
+        ),
+    ] {
+        let (s, _) = stored(&e);
+        let ei = Curve3::Ellipse(e).map_scalar(Interval::from_f64);
+        let ki = ei.conic().unwrap();
+        let centred = Ellipse::new(Conic::frame(&e), e.semi_axes().0, e.semi_axes().1);
+        let at_vertex = centred.point_at(0.0);
+        for sign in [-1.0, 1.0] {
+            let n = e.u_ref() * sign;
+            let roots = e.height_along(s, n).roots(0.0);
+            assert!(
+                roots.iter().all(|r| wrap(*r).abs() <= 1e-12),
+                "{e:?} along {sign}·u: roots {roots:?}, want the anchor"
+            );
+            let roots_i = ki
+                .height_along(lift(s), lift_v(n))
+                .roots(Interval::from_f64(0.0));
+            // At `Interval` each root's enclosure holds the anchor: where
+            // the touch is exact the second root is `0/0` and its enclosure
+            // is the turn, sound and wide.
+            assert!(
+                roots_i
+                    .iter()
+                    .all(|r| r.hi() - r.lo() >= core::f64::consts::TAU - 1e-9
+                        || (r.lo() <= 1e-12 && -1e-12 <= r.hi())
+                        || (r.lo() <= core::f64::consts::TAU + 1e-12
+                            && core::f64::consts::TAU - 1e-12 <= r.hi())),
+                "{e:?} along {sign}·u at Interval: {roots_i:?}"
+            );
+            let twin = centred.height_along(at_vertex, n).roots(0.0);
+            assert!(
+                twin.iter().all(|r| wrap(*r).abs() <= 1e-6),
+                "{e:?} along {sign}·u, held at its centre: {twin:?}"
             );
         }
     }

@@ -53,3 +53,7 @@ mint (then `along` is right and the squaring door is what to hold), or
 `along` reads the harmonic of the stored directions as they are. Which
 is `work/onehome/a-stored-frame-reads-as-two-curves-a-rounding-of-the-size-apart.md`'s
 question as much as this one's.
+
+## A pose where it decides (2026-11-23, review of PR 7543)
+
+The review of `oneround/conic-pair-readers` (`analysis/oneround/conic-pair-readers/review-report.md` on `oneround/conic-pair-readers-review`, M2; probe `review/probe_far.rs`) found it decide a wrong answer through `curve_pair::meet`. On the arc-held ladder's fat section at `a` = 1e9 (`plane_cone_section`'s numbers, anchor near (1.3, −0.7, 0.4)), the stored seam stands 6.8e-17 off square to the stored axis, so the curve the stored numbers state leaves the plane through its anchor normal to its axis by `a·|u_ref·axis|·(1 − cos θ)`: 8.3e-9 m at θ = 0.5, 1.35e-7 m at the antipode. A line square to the arc at θ = 0.5, lifted 1e-8 m off that plane, stands 7.89e-9 m over it at 60 digits while the stated curve stands 8.27e-9 m over it: the true gap is 3.8e-10 m. At ε 1e-9 `meet` answers `Ok`, no meeting; `Conic::height_of` of the line's `f64` point reads 1.49e-8, and the log ends on `curve_pair_pose_level_arc` and `curve_carrier_piece_clear_by`. The pose stands 1.2e5 m from the stored point, past the session box (1e3 m). PR 7543's doors (`Conic::height_of`, `Conic::level_at`, `Height`) take the frame as square and say so in their docs.
