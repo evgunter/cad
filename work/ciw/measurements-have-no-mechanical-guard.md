@@ -5,7 +5,7 @@ title: Measurements have no mechanical guard — the size_of pin from PR 646 is 
 status: open
 opened: 2026-08-19
 refs: [613, 614, 646, 667, 681]
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -683,3 +683,5 @@ charter (`work/unread/plan.md`). Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Not about latency. The `crates/*/src` sweep is done (rows 1-9 and sections 3a-3e). What is left (#681's surfaces) is checking that prose claims carry their guard, or the reason they have none.

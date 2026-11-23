@@ -26,3 +26,7 @@ What is known of when: on 2026-11-10 at main `57161586` the two `Sym` lines read
 Reproduce: `cargo nextest run -p sweep -E 'test(the_walk_matches_the_serial_golden_at_one_thread)'`, and with `CAD_TOLERANCE_EPS=1e-6` and `1e-12`.
 
 - 2026-11-17 — the two `Sym` lines moved again, `frozen` alone (14 → 16 and 12 → 16, every ε), at SECTARMS' PR 7028 (bisected): re-pinned at main's reading, the account owed on `work/sectarms/check-6s-spline-loop-winding-froze-more-sym-nodes-in-the-thread-count-golden`. (GREEN)
+
+## The golden is gone; the question stands (CIW, 2026-11-23)
+
+PR 7501 deletes the thread-count goldens. `mass_props_are_thread_count_invariant` now compares the 1- and 4-thread walks with a serial walk run beside them. This row's question still stands without a golden: which 29 decisions the two `Sym` `validate_geometric` receipts added, and why their `frozen` rose. No pin witnesses those numbers now. The serial comparison sees a width-dependent move, the dispute-coverage guard sees the checks going blind, and nothing sees a cross-tree move of these receipts.

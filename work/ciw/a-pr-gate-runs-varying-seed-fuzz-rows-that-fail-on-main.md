@@ -4,7 +4,7 @@ kind: issue
 title: The PR gate runs varying-seed fuzz rows whose failure rate on main is above zero, so a PR reds on seeds independent of its diff
 status: open
 opened: 2026-11-21
-priority: P3
+priority: P2
 cost: M
 ---
 
@@ -35,3 +35,12 @@ A rule, decided here: either a varying-seed row with a known open defect
 runs at a fixed seed in the PR gate (and varies in the nightly), or the
 gate tells the lane which open row a failing seed belongs to. A lane should
 not have to re-derive "inherited" for every push.
+
+- 2026-11-22 — **Re-banded P3 → P2 by CIW triage.** - Filed 11-21. GERM's U3a (PR 7226) spent about 2 h of one fix pass on
+seed reds, and U1b (PR 7184), the P0 lane (PR 7183) and U2 hit the
+same torn-body seed.
+- Earlier: onecopy's `main-red-the-circle-lane-coefficient-charge-row-fails-on-some-seeds`
+(11-09, "on main and every PR's ci").
+- The fix (a fixed seed per PR, varying seeds in the nightly) removes
+work and adds no cost.
+- Not this family's mechanism.

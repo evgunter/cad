@@ -4,7 +4,7 @@ kind: issue
 title: With the sliver refused, the filleted drum at Interval refuses across the circle its fillet band shares with its top plane: its pairs split on a rate enclosure that straddles zero
 status: open
 opened: 2026-11-17
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -197,3 +197,7 @@ against band cell `u ∈ (1.17503, 1.17810)`, `v ∈ (π/2, 1.57693)`;
 The foot parallel, the band against the wall, is tangent too and was
 closed by the same sliver (221 closures); the top circle refuses first,
 so what the wall's seam reads without it is not measured.
+
+## 2026-11-23: re-banded P0 (EMBED orchestrator)
+
+With PR 7329 in the second landing branch, three valid bodies in three units refuse here at `Interval` and hold at f64: this row's drum (its `Interval` half pinned refusing by PR 7329), PR 7320's rounded plate (its plane against a torus patch across their arc; `a_support_face_c1_through_a_vertex_at_interval`) and PR 7322's three-arc filleted disc (top plane against the band across the top circle; its lane's probe decides whether it belongs here or on the cell-side row). Each lane appends its trace below when its unit lands. None of the three changes this row lists is built.

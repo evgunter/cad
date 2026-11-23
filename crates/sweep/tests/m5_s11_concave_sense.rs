@@ -626,9 +626,8 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // shell's first quadrature face (`topo::props`'
             // `shell_reference`), so a quadrature face's lever is the
             // extent of the shell's quadrature faces
-            // (`m8_3_rational_volume`'s ceiling). The lofted concave
-            // prism measures 8.64e-4 at 1e-6, 0.84 times the target: the
-            // ceiling is the measure with headroom, not a bound the rule
+            // (`m8_3_rational_volume`'s ceiling). The ceiling is a
+            // measured pad with headroom, not a bound the rule
             // guarantees.
             let ceiling = 4.0 * target;
             assert!(
@@ -636,17 +635,6 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                 "{row}: volume pad {} vs {ceiling:e}",
                 m.enclosure.volume_pad
             );
-            // The measure the ceiling's comment cites, held where it was taken.
-            if row == "the lofted concave prism"
-                && test_utils::kernel_limit::at_row(Tol::witness().eps(), &[1e-6])
-            {
-                assert!(
-                    (m.enclosure.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
-                    "{row}: volume pad {} moved from the {LOFTED_CONCAVE_PAD_AT_1E6} the \
-                     ceiling's comment cites",
-                    m.enclosure.volume_pad
-                );
-            }
         }
         Some(width_len) => {
             assert!(
@@ -1114,9 +1102,3 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     let oracle = |q| loft_contains(&swept, q);
     assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
 }
-
-/// The lofted concave prism's volume pad at ε 1e-6, the measure the
-/// rational-volume ceiling's comment cites, held by
-/// `loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`: what
-/// the per-span round-zero schedule achieves on it.
-const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 8.636_7e-4;

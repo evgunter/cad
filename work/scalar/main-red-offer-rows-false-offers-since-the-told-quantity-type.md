@@ -63,6 +63,21 @@ One unit for this row and `work/green/main-red-three-source-censuses-red-since-t
 
 - 2026-11-22 — **`a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt` is still red on main** (EMBED, lane strip): on main `9bc9d6517`, under CI's build (`--profile ci`, test crates at opt-0, the rest at opt-1), with the same offer of 2.999e-11 against the text's "below 3e-11 m" at `a_corner_reads_only_its_own_sectors.rs:122`.
 
+## Red at every ε row (GREEN U9, 2026-11-22)
+
+(GREEN, `green/held-reds`) Two lanes cited this test to GREEN's closed
+`main-red-two-offered-tolerances-fail-just-below-their-margin`; this row
+holds it. The nightly of main `1942290ead` (run 44989234943) has it red
+at the default ε, 1e-6 and 1e-12 with one message
+(`offer_rows.rs:2044`, `lever_arm_sector_side_in_the_zero_band: offers
+Some(3.535e-11), its margin gives Some(3.535533905932738e-11)`,
+`conic_bend_short_of_the_band` and `tangent_side_in_band` 5.499e-10
+against 5.5e-10, …), so PR 7267's fix is owed at every ε row.
+
+On current main (`5ea1ac0a70`, hosted, throwaway run 45051677551, the
+row out of the slow set) it is still red at all three ε, with the same
+message.
+
 ## 2026-11-22: closed (SCALAR, PR 7267)
 
 The rows were wrong, not the text. Every quoted offer is the told rule's offered bound of the kernel's own margin: four figures, cut to the side that works. The rows held the quote to the raw `|m|/K` at 1e-4 or 1e-6, a spelling the rule no longer makes.

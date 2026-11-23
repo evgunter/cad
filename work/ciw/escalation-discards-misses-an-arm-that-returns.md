@@ -4,7 +4,7 @@ kind: issue
 title: "escalation-discards.sh misses an arm that returns on an escalation: `Err(_) => return …`"
 status: open
 opened: 2026-11-14
-priority: P2
+priority: P3
 ---
 
 
@@ -22,3 +22,6 @@ It does not name an arm whose body RETURNS: `Err(_) => return Ok(false)` or `=> 
 - Then sweep for it, and record each hit's disposition in `escalation-discards.counts`.
 
 Moved from GUARD to CIW on 2026-11-20, by `git mv`, when GUARD merged into CIW: GUARD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P2 → P3 by CIW triage.** A gate blind spot (an `Err(_) => return …` arm). One instance, PR 6949 (2026-11-14), caught in review. Not about latency.
+Widening a grep pattern costs nothing measurable.

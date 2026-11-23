@@ -244,7 +244,7 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
                 .route
                 .via
                 .iter()
-                .map(editor_core::SpokenNode::id)
+                .map(|hop| hop.node.id())
                 .collect::<Vec<_>>()
         ),
         (outer, part.id(), vec![inner]),
@@ -348,7 +348,7 @@ fn an_in_band_pair_two_documents_down_is_reported_once_as_the_parts() {
             f.route
                 .via
                 .iter()
-                .map(editor_core::SpokenNode::id)
+                .map(|hop| hop.node.id())
                 .collect::<Vec<_>>()
         ) == (outer, part.id(), vec![inner])),
         "each by the route through the sub-assembly"
