@@ -149,20 +149,22 @@ impl<T: Real> core::fmt::Display for CornerVerdict<T> {
     }
 }
 
-/// A spline root's answer: the parameter, or where the carrier stops
-/// short of the surface.
+/// A spline root's answer at the lane's scalar `T`: the parameter, or
+/// where the carrier stops short of the surface. The lane's one
+/// constructor is at `f64` ([`SectionLane::f64`]), so the root is the
+/// solver's own number, and no scalar without a lane holds one.
 #[derive(Clone, Copy, Debug)]
-pub enum SplineRoot {
+pub enum SplineRoot<T> {
     /// The surface meets the carrier at this parameter.
-    At(f64),
+    At(T),
     /// No root on the carrier's domain. `near_gap` is the distance from
     /// the carrier's end nearer the seed to the surface, and `near` is
     /// whether that end is the closer of the two to it — the surface
     /// lies past the near end — or the far end is, the move having
     /// passed through the whole edge.
     Short {
-        /// The near end's parameter.
-        end: f64,
+        /// The near end's parameter: the carrier's own end knot.
+        end: T,
         /// The near end's distance to the surface, in metres.
         near_gap: f64,
         /// The near end is closer to the surface than the far end.
@@ -193,7 +195,7 @@ pub struct SectionLane<T: geom_core::Certifies> {
         T,
         geom_core::Lever<T>,
         Band,
-    ) -> Result<SplineRoot, CornerVerdict<T>>,
+    ) -> Result<SplineRoot<T>, CornerVerdict<T>>,
     pair: for<'w, 's> fn(
         Wall<'w, 's, T>,
         Wall<'w, 's, T>,
@@ -350,7 +352,7 @@ pub trait SectionLaneOf<T: Real>:
         seed: T,
         extent: geom_core::Lever<T>,
         band: Band,
-    ) -> Result<SplineRoot, CornerVerdict<T>>;
+    ) -> Result<SplineRoot<T>, CornerVerdict<T>>;
 }
 
 impl<T: geom_core::Certifies> SectionLaneOf<T> for SectionLane<T> {
@@ -387,7 +389,7 @@ impl<T: geom_core::Certifies> SectionLaneOf<T> for SectionLane<T> {
         seed: T,
         extent: geom_core::Lever<T>,
         band: Band,
-    ) -> Result<SplineRoot, CornerVerdict<T>> {
+    ) -> Result<SplineRoot<T>, CornerVerdict<T>> {
         (self.root)(plane, carrier, seed, extent, band)
     }
 }
@@ -426,7 +428,7 @@ impl<T: Real> SectionLaneOf<T> for geom_core::NoLane {
         _seed: T,
         _extent: geom_core::Lever<T>,
         _band: Band,
-    ) -> Result<SplineRoot, CornerVerdict<T>> {
+    ) -> Result<SplineRoot<T>, CornerVerdict<T>> {
         match self {}
     }
 }
@@ -1519,7 +1521,7 @@ fn plane_spline_root(
     seed: f64,
     extent: geom_core::Lever<f64>,
     band: Band,
-) -> Result<SplineRoot, CornerVerdict<f64>> {
+) -> Result<SplineRoot<f64>, CornerVerdict<f64>> {
     let Surface::Plane { frame, .. } = *plane else {
         return Err(CornerVerdict::Unsupported {
             what: "a moved surface's root along a spline edge is solved for a plane only",

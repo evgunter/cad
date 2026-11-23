@@ -53,6 +53,7 @@
 
 use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Step, bisect};
+use geom_core::solved::{Unadmitted, admit};
 use geom_core::k_stats::decide;
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
 use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
@@ -297,7 +298,8 @@ pub fn crossings<T: geom_core::Certifies>(
         return Err(read(end_value(&piece, false)).refused());
     }
     let creases = creases(net, (a, b), &cross)?;
-    settle(net, params, band, &creases, meetings, &residual)
+    let on = |t: T| Margin::of(crate::implicit_residual(surface, net.eval(t)));
+    settle(net, params, band, &creases, meetings, &on)
 }
 
 /// [`framed_form`]'s answer: the points' coordinates in the chart frame,
@@ -736,15 +738,16 @@ fn knot_crossing(
 }
 
 /// The meetings found, each placed in metres: against the creases, then
-/// on the surface, then against the span's ends and the crossing before
-/// it.
+/// on the surface (`on`, the surface's residual at a parameter, through
+/// the solved-value door), then against the span's ends and the crossing
+/// before it.
 fn settle<T: geom_core::Certifies>(
     net: &NurbsCurve3<T>,
     (t0, t1): (T, T),
     band: Band,
     creases: &[f64],
     meetings: Vec<Meeting>,
-    residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
+    on: &impl Fn(T) -> Margin<T>,
 ) -> Result<Vec<T>, CompositeRefusal> {
     let apart_as =
         |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
@@ -768,12 +771,12 @@ fn settle<T: geom_core::Certifies>(
         }
         // Definitely off at the located crossing: the residual's step
         // between two adjacent scalars is past the band.
-        if residual(t)? != Sign::Zero {
-            return Err(Unsettled::Meter {
-                row: "spline_composite_root_on",
-            }
-            .into());
-        }
+        let (at, ()) = admit("spline_composite_root_on", t, band, |at| (on(at), ())).map_err(
+            |refused| match refused {
+                Unadmitted::Off { row, .. } => Unsettled::Meter { row }.into(),
+                Unadmitted::Undecided(diag) => CompositeRefusal::Escalated(diag),
+            },
+        )?;
         let mut at_end = false;
         for end in ends {
             at_end |= !apart_as("spline_composite_root_at_end", p, end)?;
@@ -786,7 +789,7 @@ fn settle<T: geom_core::Certifies>(
         {
             return Err(Unsettled::Tangency.into());
         }
-        roots.push((T::from_computed(t), p));
+        roots.push((at, p));
     }
     Ok(roots.into_iter().map(|(t, _)| t).collect())
 }

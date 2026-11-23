@@ -33,6 +33,7 @@ pub mod readable;
 pub mod real;
 pub mod rows;
 pub mod running;
+pub mod solved;
 pub mod spline;
 pub mod structure;
 pub mod sym;

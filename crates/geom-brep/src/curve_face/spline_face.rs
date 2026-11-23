@@ -88,6 +88,7 @@ use geom::{Curve3, NurbsSurface};
 use geom_core::bisect::{Step, bisect};
 use geom_core::interval::dot;
 use geom_core::k_stats::decide;
+use geom_core::solved::{Unadmitted, admit};
 use geom_core::spline::Knots;
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
@@ -137,9 +138,12 @@ impl From<Unsettled> for SplineFaceRefusal {
 /// span, the chart point it meets, and the carrier's point there.
 #[derive(Clone, Copy, Debug)]
 pub struct ChartMeeting<T: Real> {
-    /// The parameter on the span.
+    /// The parameter on the span, admitted by its point reading on the
+    /// chart ([`geom_core::solved::admit`]).
     pub t: T,
-    /// The chart point, `(u, v)`.
+    /// The chart point, `(u, v)`: the place the meeting was read at, an
+    /// `f64` beside the stored `t` (`geom-core` README, DL5.2: a place
+    /// is never a `T`).
     pub uv: (f64, f64),
     /// The carrier's point at `t`.
     pub point: Point3<T>,
@@ -1139,16 +1143,17 @@ pub fn settle<T: geom_core::Certifies>(
             continue;
         }
         let [tm, um, vm] = root.mid();
-        let point = carrier.eval(T::from_computed(tm));
         let foot = chart.eval_at(um, vm);
         // Definitely off at the located meeting: the enclosure's point
         // is not resolved to the band.
-        if gap_as("spline_face_root_on", point, foot)? != Sign::Zero {
-            return Err(Unsettled::Meter {
-                row: "spline_face_root_on",
-            }
-            .into());
-        }
+        let (t, point) = admit("spline_face_root_on", tm, band, |t| {
+            let point = carrier.eval(t);
+            (Margin::of((point - foot).norm()), point)
+        })
+        .map_err(|refused| match refused {
+            Unadmitted::Off { row, .. } => Unsettled::Meter { row }.into(),
+            Unadmitted::Undecided(diag) => SplineFaceRefusal::Escalated(diag),
+        })?;
         let mut at_end = false;
         for end in ends {
             at_end |= gap_as("spline_face_root_at_end", point, end)? == Sign::Zero;
@@ -1170,7 +1175,7 @@ pub fn settle<T: geom_core::Certifies>(
             return Err(Unsettled::Tangency.into());
         }
         out.push(ChartMeeting {
-            t: T::from_computed(tm),
+            t,
             uv: (um, vm),
             point,
         });
