@@ -2548,6 +2548,14 @@ struct Session {
     /// against one the ring's guards refused
     /// ([`form::Refusal::Ring`]).
     budget_frozen: IdSet,
+    /// Times the retry ladder's growth guard withheld an attempt (read
+    /// by the contradiction instrument's report).
+    #[cfg(feature = "sym-revalue-testing")]
+    withheld: u64,
+    /// Whether the contradiction instrument has walked this session: a
+    /// decision after it would read the instrument's forms.
+    #[cfg(feature = "sym-revalue-testing")]
+    instrumented: bool,
 }
 
 /// One memoized per-node reduction ([`Session::reductions`]).
@@ -2665,6 +2673,10 @@ impl Session {
             plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
             budget_frozen: IdSet::default(),
+            #[cfg(feature = "sym-revalue-testing")]
+            withheld: 0,
+            #[cfg(feature = "sym-revalue-testing")]
+            instrumented: false,
         }
     }
 
@@ -2709,6 +2721,26 @@ impl Session {
                 continue;
             }
             if let Some(node) = self.nodes.get(&id) {
+                stack.extend(node.kids().iter().copied());
+            }
+        }
+        false
+    }
+
+    /// **Whether a node under `from` in this table has an op `hit`
+    /// answers**, unaliased: the one walk the opaque-atom reading and the
+    /// free-identity exception ask.
+    fn reaches_op(&self, from: SymId, mut hit: impl FnMut(SymOp) -> bool) -> bool {
+        let mut seen: IdSet = IdSet::default();
+        let mut stack = vec![from];
+        while let Some(id) = stack.pop() {
+            if seen.insert(id, ()).is_some() {
+                continue;
+            }
+            if let Some(node) = self.nodes.get(&id) {
+                if hit(node.op) {
+                    return true;
+                }
                 stack.extend(node.kids().iter().copied());
             }
         }
@@ -4368,12 +4400,62 @@ mod rung {
     }
 }
 
-/// **The identity test as a reader of a deferred Zero asks it**: whether
-/// the tier proves this node's expression zero, every rung asked and the
-/// RETRY LADDER offered ([`SymRetry`]), and the ATTEMPT that answered —
-/// `0` for the first, `k` for the `k`th rung of the ladder.
-fn discharge_retried(id: SymId) -> Option<u8> {
-    discharge_in(id, Path::Decision).map(|(_, attempt)| attempt)
+/// **The identity test whose `Zero` leaves the tier**, and the check on
+/// it: the rung and the attempt that proved `id` zero, every rung asked
+/// and the RETRY LADDER offered ([`SymRetry`]). Every proven `Zero` the
+/// tier hands out passes here: a decision's ([`Decide::sign_within`])
+/// and a deferring session's reader's (`deferred::discharge`), so the
+/// check below is on each of them.
+///
+/// **At an exact witness the zero lies in `enclosure`**, the certified
+/// enclosure of the margin's number (`Decide::enclosure_probe`, read
+/// where the decision was taken). The number is the interval evaluation
+/// of the DAG the form was taken from, op by op, outward-rounded. A form
+/// that is zero makes that DAG's value 0 at every admissible point of the
+/// box, and every leaf (`Param`, `Opaque`, `Hull`, `Lit`) stands for a
+/// point of its own interval, so by inclusion isotonicity the enclosure
+/// holds 0. The decision read ([`signed`]) takes an arm only on a
+/// certified one-sided enclosure over the parameter brackets, which is
+/// the arm the value channel's own `min` / `max` / `select` contains. An
+/// enclosure that excludes 0 is then an algebra, enclosure or registrant
+/// defect (DESIGN [failure.taxonomy] row 5). Every exact witness reads an
+/// enclosure (`Interval`, and `Dual<Interval>` through its value), so a
+/// missing one is a defect too. At an inexact witness the number is one
+/// rounded reading and there is nothing to check.
+///
+/// **The one exception is a margin whose number is a measured bound**:
+/// [`Decide::free_identity`]'s. It is recognised on the failing path only,
+/// by a [`SymOp::Free`] in the node's DAG, which is the door's mark and
+/// not an exact one: a margin built FROM a free identity's result (the
+/// identity plus another term) is exempt too, and an identity whose
+/// closure never calls `free` is not. Neither is reached by the door's one
+/// caller (`geom_brep::edge_nurbs::limb2_enclosure_as`, which decides the
+/// door's margin as returned and always mints the variable); both are
+/// pinned (`sym_contradiction_instrument_rows`).
+fn discharge_checked(id: SymId, enclosure: Option<(f64, f64)>) -> Option<(Rung, u8)> {
+    let (rung, attempt) = discharge_in(id, Path::Decision)?;
+    let exact = SESSION.with(|s| {
+        s.borrow()
+            .as_ref()
+            .is_some_and(|s| s.witness == Some(crate::Witness::Exact))
+    });
+    if exact {
+        debug_assert!(
+            enclosure.is_some(),
+            "`{}`: the symbolic tier proved this margin zero at the {rung:?} rung (attempt \
+             {attempt}) at an exact witness that reads no enclosure",
+            crate::k_stats::current_predicate(),
+        );
+        if let Some((lo, hi)) = enclosure {
+            debug_assert!(
+                (lo <= 0.0 && 0.0 <= hi) || reaches(id, |op| op == SymOp::Free),
+                "`{}`: the symbolic tier proved this margin zero at the {rung:?} rung \
+                 (attempt {attempt}) and its certified enclosure [{lo:e}, {hi:e}] excludes 0",
+                crate::k_stats::current_predicate(),
+            );
+        }
+    }
+    Some((rung, attempt))
 }
 
 /// **Which question the identity test answers**, and so which rungs it
@@ -4389,36 +4471,16 @@ enum Path {
     /// (`sym::contradiction`, test-only): every attempt, and no door, because a
     /// registered zero under a definite sign is the instrument's own
     /// event.
-    #[cfg_attr(
-        not(feature = "sym-revalue-testing"),
-        expect(dead_code, reason = "asked by the test instrument alone")
-    )]
+    #[cfg(feature = "sym-revalue-testing")]
     Algebra,
 }
 
-/// **Whether `id`'s DAG reaches a [`SymOp::Free`] node** — a margin
-/// built by [`Decide::free_identity`], whose number is a measured bound
-/// and not its expression's value. `false` outside a session.
-fn reaches_free(id: SymId) -> bool {
+/// [`Session::reaches_op`] in the installed session; `false` outside one.
+fn reaches(id: SymId, hit: impl FnMut(SymOp) -> bool) -> bool {
     SESSION.with(|s| {
-        let slot = s.borrow();
-        let Some(sess) = slot.as_ref() else {
-            return false;
-        };
-        let mut stack = vec![id];
-        let mut seen = std::collections::HashSet::new();
-        while let Some(at) = stack.pop() {
-            let Some(node) = sess.nodes.get(&at) else {
-                continue;
-            };
-            if node.op == SymOp::Free {
-                return true;
-            }
-            if seen.insert(at) {
-                stack.extend(node.kids().iter().copied());
-            }
-        }
-        false
+        s.borrow()
+            .as_ref()
+            .is_some_and(|sess| sess.reaches_op(id, hit))
     })
 }
 
@@ -4444,22 +4506,8 @@ fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
         if opaque.is_empty() {
             return Some(false);
         }
-        let reaches_opaque = |sess: &Session, from: SymId| {
-            let mut stack = vec![from];
-            let mut seen = std::collections::HashSet::new();
-            while let Some(at) = stack.pop() {
-                let Some(node) = sess.nodes.get(&at) else {
-                    continue;
-                };
-                if node.op == SymOp::Opaque {
-                    return true;
-                }
-                if seen.insert(at) {
-                    stack.extend(node.kids().iter().copied());
-                }
-            }
-            false
-        };
+        let reaches_opaque =
+            |sess: &Session, from: SymId| sess.reaches_op(from, |op| op == SymOp::Opaque);
         let early = early_form(sess, id);
         if early.poisoned {
             return Some(reaches_opaque(sess, id));
@@ -4562,6 +4610,10 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
             .get(k)
             .is_some_and(|m| m.len() >= sess.retry.max_forms)
         {
+            #[cfg(feature = "sym-revalue-testing")]
+            {
+                sess.withheld += 1;
+            }
             continue;
         }
         if let Some(rung) = rungs(sess, id, &plain, attempt, (rules, bits), path) {
@@ -5396,7 +5448,7 @@ impl<T: Decide> Sym<T> {
         let mark = crate::k_stats::sink_mark();
         note_witness(T::WITNESS);
         let numeric = self.value.sign_within(band);
-        if let Some(deferred) = deferred::defer(self.node, numeric) {
+        if let Some(deferred) = deferred::defer(self.node, numeric, self.value.enclosure_probe()) {
             count_decision(false);
             return deferred;
         }
@@ -5415,38 +5467,10 @@ impl<T: Decide> Sym<T> {
         let answered = if domain_violation {
             None
         } else {
-            discharge_in(self.node, Path::Decision)
+            discharge_checked(self.node, self.value.enclosure_probe())
         };
         count_decision(answered.is_some());
-        if let Some((rung, attempt)) = answered {
-            // **A zero the tier returns lies in its own enclosure.** The
-            // number is the interval evaluation of the DAG the form was
-            // taken from, op by op, outward-rounded. A form that is zero
-            // makes that DAG's value 0 at every admissible point of the
-            // box, and every leaf (`Param`, `Opaque`, `Hull`, `Lit`)
-            // stands for a point of its own interval, so by inclusion
-            // isotonicity the enclosure holds 0. The decision read
-            // ([`signed`]) takes an arm only on a certified one-sided
-            // enclosure over the parameter brackets, which is the arm
-            // the value channel's own `min` / `max` / `select` contains.
-            // An enclosure that excludes 0 is then an algebra, enclosure
-            // or registrant defect (DESIGN [failure.taxonomy] row 5).
-            // `Decide::free_identity` is the one door whose number is a
-            // measured bound and not its expression's value, recognised
-            // here, on the failing path only, by a `SymOp::Free` in the
-            // node's DAG. At an inexact witness the number is one
-            // rounded reading and there is nothing to check.
-            if matches!(T::WITNESS, crate::Witness::Exact)
-                && let Some((lo, hi)) = self.value.enclosure_probe()
-            {
-                debug_assert!(
-                    (lo <= 0.0 && 0.0 <= hi) || reaches_free(self.node),
-                    "`{}`: the symbolic tier proved this margin zero at the {rung:?} rung \
-                     (attempt {attempt}) and its certified enclosure [{lo:e}, {hi:e}] \
-                     excludes 0",
-                    crate::k_stats::current_predicate(),
-                );
-            }
+        if answered.is_some() {
             #[cfg(feature = "probe")]
             crate::k_stats::retag_at(mark, crate::k_stats::SampleOutcome::Symbolic);
             report::record(&numeric, true, None, self.value.enclosure_probe());

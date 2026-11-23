@@ -15,26 +15,49 @@
 //! **Installed by the test that wants it**: [`check`](crate::sym::contradiction::check) walks only the
 //! decisions it is handed, inside the session that took them (the nodes
 //! live in that session's table), so a test build that compiles this
-//! feature pays nothing in a row that does not call it. The walks it
-//! asks leave the session's receipt as they found it.
+//! feature pays nothing in a row that does not call it. It is asked
+//! LAST: its walks leave the session's receipt as they found it but not
+//! its memos, so a decision after it in the same session is refused
+//! (a `debug_assert!` at the recorder's hook).
 //!
 //! A [`Decide::free_identity`](crate::Decide::free_identity) margin is
 //! left out: its number is a measured bound, not its expression's value,
-//! so a definite sign beside a zero form is the door working.
+//! so a definite sign beside a zero form is the door working. It is
+//! recognised as the tier's enclosure check recognises it (a `SymOp::Free`
+//! in the DAG), with the same two imprecisions.
+//!
+//! **What a report with no contradiction speaks for nothing about**:
+//!
+//! - a decision whose walk FROZE before it could reach zero (a budget, the
+//!   ring's guards, a poisoned form): it is `checked`, and silent;
+//! - an `absent` decision, whose node this session does not hold. Only the
+//!   root is looked up: a margin minted in the session over operands
+//!   minted before it is `checked`, its operands read as unknowns, so it
+//!   is a frozen walk of the first kind;
+//! - a decision a [`super::aside`] discarded, which the record no longer
+//!   holds;
+//! - a retry attempt the cap withheld ([`Report::withheld`]);
+//! - and what no test hands it. The corpus lane (`editor-core`'s
+//!   `contradiction_corpus`) asks the five measured documents over their
+//!   analyzed boxes and the slab's drives leaf by leaf; the measured
+//!   documents' drives, the rest of the corpus and `Sym<f64>` over the
+//!   corpus are asked by nothing
+//!   (`work/sym/the-contradiction-instrument-asks-no-corpus-drive-and-no-point-lane.md`).
 
 use super::revalue::Decision;
-use super::{Path, Rung, SESSION, SymId, ladder, reaches_free};
+use super::{Path, Rung, SESSION, SymId, SymOp, ladder, reaches};
 use crate::predicate::Sign;
 
 /// **The most forms a retry attempt's memos may hold while the
-/// instrument asks**, below the session's own cap: a definite margin is
+/// instrument asks** (`SymRetry::max_forms` for its walks), below the
+/// session's own growth guard: a definite margin is
 /// rarely an identity and its forms are the large ones, so the retry
 /// memos of a document's whole definite population outgrow memory at
 /// the session's cap (R2's pad past 12 GB). An attempt whose memos are
 /// at it is not offered (`ladder`'s growth guard), which costs the
 /// instrument cancellations it would have found on the attempts' later
 /// margins, never a report it should not make.
-const RETRY_FORMS: usize = 20_000;
+const INSTRUMENT_RETRY_FORMS: usize = 20_000;
 
 /// **What contradicted what.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,6 +106,10 @@ pub struct Report {
     /// Definite decisions whose node this session's table does not hold
     /// (taken in another session): nothing can be asked of them here.
     pub absent: usize,
+    /// Times a retry attempt was not offered because its memo was at
+    /// the cap ([`INSTRUMENT_RETRY_FORMS`]): each is a question the
+    /// report does not speak for.
+    pub withheld: u64,
     /// Every decision the tier would have answered `Zero`.
     pub contradictions: Vec<Contradiction>,
 }
@@ -104,7 +131,9 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
         }
         let counts = sess.counts;
         let cap = sess.retry.max_forms;
-        sess.retry.max_forms = cap.min(RETRY_FORMS);
+        sess.retry.max_forms = cap.min(INSTRUMENT_RETRY_FORMS);
+        let withheld = sess.withheld;
+        sess.instrumented = true;
         let exact = matches!(sess.witness, Some(crate::Witness::Exact));
         let door = sess.rules.registered && sess.rules.early;
         let mut report = Report::default();
@@ -151,15 +180,18 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
         }
         sess.counts = counts;
         sess.retry.max_forms = cap;
+        report.withheld = sess.withheld - withheld;
         Some(report)
     });
     #[cfg(feature = "sym-profile-testing")]
     super::profile::set_origin(origin);
     let mut report = report?;
-    // Read after the session borrow is released: `reaches_free` takes
+    // Read after the session borrow is released: `reaches` takes
     // its own.
     let before = report.contradictions.len();
-    report.contradictions.retain(|c| !reaches_free(c.node));
+    report
+        .contradictions
+        .retain(|c| !reaches(c.node, |op| op == SymOp::Free));
     report.free = before - report.contradictions.len();
     Some(report)
 }
