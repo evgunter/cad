@@ -372,6 +372,149 @@ mod tests {
         }
     }
 
+    /// Whether `carrier`'s point at `t` stands within `bound` metres of
+    /// both `surfaces`, exactly.
+    fn stands(carrier: &Curve3<f64>, t: f64, surfaces: [&Surface<f64>; 2], bound: f64) -> bool {
+        let p = carrier.eval(t);
+        surfaces.into_iter().all(|s| {
+            let (q, rate) = residual(s, p);
+            q.within(-bound * rate, bound * rate)
+        })
+    }
+
+    /// The parameter at which `carrier` passes nearest the origin, by
+    /// three passes of 4096 samples, each a 64th the width of the last.
+    fn nearest_the_origin(carrier: &Curve3<f64>) -> (f64, f64) {
+        let (mut mid, mut half) = (0.0, core::f64::consts::PI);
+        let mut best = (f64::INFINITY, 0.0);
+        for _ in 0..3 {
+            for k in 0..=4096 {
+                let t = mid + half * (f64::from(k) / 2048.0 - 1.0);
+                let d = (carrier.eval(t) - Point3::origin()).norm();
+                if d < best.0 {
+                    best = (d, t);
+                }
+            }
+            (mid, half) = (best.1, half / 64.0);
+        }
+        best
+    }
+
+    /// **A far-centred cone section stands on both its surfaces at its
+    /// arc's own scale; a far-centred cylinder section at its
+    /// semi-axis's.** Random planes a part in `1e3` to `1e7` short of a
+    /// cone's parabola, and `1e-3` to `1e-6` off a cylinder's axis and
+    /// off it: each ellipse whose centre lies past the box with a part
+    /// inside it, read at 17 points over ±80 m of arc about the point
+    /// nearest the origin, against the exact residual of each surface.
+    ///
+    /// The cone's is held on its arc at its near vertex
+    /// ([`geom::Ellipse::anchored`]), and every point stands within
+    /// `4u` of its own distance from the origin (and a metre), whatever
+    /// the semi-axis, up to `1e6` here. The cylinder's is held at its
+    /// centre, `r/θ` away along the axis, and stands within `4u` of its
+    /// semi-axis: its in-box arc lies about half a radian from any
+    /// vertex, so no vertex anchors it
+    /// (`work/oneround/a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`).
+    /// Red if the cone's vertex is read as its centre less its
+    /// semi-axis.
+    #[test]
+    fn a_far_centred_section_stands_at_the_scale_its_form_is_stored_at() {
+        let mut rng = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            (rng >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let u = f64::EPSILON * 0.5;
+        // Per semi-axis decade: how many carriers were read.
+        let mut read = std::collections::BTreeMap::<(&str, i32), usize>::new();
+        let mut check = |kind: &'static str, c: &Curve3<f64>, surfaces: [&Surface<f64>; 2]| {
+            let conic = c.conic().unwrap();
+            let a = conic.speed_hi();
+            if (conic.center() - Point3::origin()).norm() < 1e3 {
+                return;
+            }
+            let (near, t0) = nearest_the_origin(c);
+            if near > 500.0 {
+                return;
+            }
+            *read.entry((kind, a.log10().floor() as i32)).or_default() += 1;
+            for k in -8..=8 {
+                let t = t0 + f64::from(k) * 10.0 / a;
+                let p = c.eval(t);
+                let scale = if c.data().named(geom::CurveDatum::Anchor).is_some() {
+                    1.0 + (p - Point3::origin()).norm()
+                } else {
+                    a
+                };
+                assert!(
+                    stands(c, t, surfaces, 4.0 * u * scale),
+                    "{kind}, semi-axis {a:e}: the point at {t:e} is past 4u of {scale:e} \
+                     off a surface it was cut from: {c:?}"
+                );
+            }
+        };
+        let reach = |at| Reach::Measured { at, lever: 1.0 };
+        let axis = Vec3::new(1.0, 2.0, 2.0).normalize();
+        let origin = Point3::new(0.3, -0.2, 0.1);
+        let cyl = Surface::Cylinder {
+            frame: geom::Frame::new(origin, axis, Vec3::new(2.0, -1.0, 0.0)),
+            radius: 1.7,
+        };
+        for tilt in [1e-3, 1e-4, 1e-5, 1e-6] {
+            for _ in 0..12 {
+                let side = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
+                let side = (side - axis * side.dot(axis)).normalize();
+                let n = (side + axis * (tilt * (0.5 + next()))).normalize();
+                let cut = plane(origin + side * (1.7 * (next() - 0.5)), n);
+                let got = plane_cylinder_section(&cut, &cyl, &reach(Point3::origin()), band());
+                if let Ok(PlaneCylinderSection::TiltedEllipse(c)) = got {
+                    assert!(c.data().named(geom::CurveDatum::Anchor).is_none(), "{c:?}");
+                    check("cylinder", &c, [&cut, &cyl]);
+                }
+            }
+        }
+        let half = 0.4_f64;
+        let axis = Vec3::new(0.1, -0.2, -1.0).normalize();
+        let apex = Point3::new(0.2, 0.1, 2.0);
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(apex, axis, Vec3::new(1.0, 0.0, 0.1)),
+            half_angle: half,
+        };
+        let parabolic = core::f64::consts::FRAC_PI_2 - half;
+        for off in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7] {
+            for _ in 0..12 {
+                let side = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
+                let side = (side - axis * side.dot(axis)).normalize();
+                let tilt = parabolic * (1.0 - off * (0.5 + next()));
+                let n = axis * tilt.cos() + side * tilt.sin();
+                let at = apex + axis * (1.0 + next());
+                let cut = plane(at, n);
+                if let Ok(PlaneConeSection::TiltedEllipse(c)) =
+                    plane_cone_section(&cut, &cone, &reach(at), band())
+                {
+                    assert!(c.data().named(geom::CurveDatum::Anchor).is_some(), "{c:?}");
+                    check("cone", &c, [&cut, &cone]);
+                }
+            }
+        }
+        // Each kind is read at every decade of semi-axis the row names.
+        for decade in 3..=6 {
+            assert!(
+                read.get(&("cone", decade)).is_some_and(|&n| n >= 6),
+                "cone sections at 1e{decade}: {read:?}"
+            );
+        }
+        for decade in 4..=6 {
+            assert!(
+                read.get(&("cylinder", decade)).is_some_and(|&n| n >= 6),
+                "cylinder sections at 1e{decade}: {read:?}"
+            );
+        }
+    }
+
     /// **The resolution is the same wherever the part sits.** A carrier
     /// moved across the model reads the same bound, and a far centre is
     /// charged its distance from the arc.

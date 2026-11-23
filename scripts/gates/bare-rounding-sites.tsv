@@ -22,7 +22,7 @@ crates/editor-core/tests/review_gui1_r1.rs	test	1	oracle
 crates/editor-core/tests/review_m4_pr2.rs	test	2	oracle
 crates/geom-brep/src/carrier_net.rs	test	1	oracle
 crates/geom-brep/src/carrier_resolution.rs	prod	1	far-centre
-crates/geom-brep/src/carrier_resolution.rs	test	1	oracle
+crates/geom-brep/src/carrier_resolution.rs	test	2	oracle
 crates/geom-brep/src/chart_singularity.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/circle_roots.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/circle_roots.rs	test	2	oracle
@@ -44,8 +44,8 @@ crates/geom-brep/src/extent.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	test	1	oracle
 crates/geom-brep/src/half_angle.rs	prod	1	re-pose
 crates/geom-brep/src/half_angle.rs	test	8	oracle
-crates/geom-brep/src/implicit.rs	prod	71	re-pose,far-centre
-crates/geom-brep/src/implicit.rs	test	4	oracle
+crates/geom-brep/src/implicit.rs	prod	67	re-pose,far-centre
+crates/geom-brep/src/implicit.rs	test	5	oracle
 crates/geom-brep/src/intersect.rs	prod	8	re-pose
 crates/geom-brep/src/intersect.rs	test	1	oracle
 crates/geom-brep/src/pair_section/cones.rs	prod	1	re-pose
@@ -115,7 +115,8 @@ crates/geom-brep/tests/tori_coincide.rs	test	1	oracle
 crates/geom-brep/tests/torus_doors_ssi.rs	test	1	oracle
 crates/geom/src/cover/tests.rs	test	4	oracle
 crates/geom/src/curves.rs	test	3	oracle
-crates/geom/src/curves/conic.rs	prod	7	far-centre
+crates/geom/src/curves/conic.rs	prod	14	far-centre
+crates/geom/src/curves/conic.rs	test	9	oracle
 crates/geom/src/curves/fit.rs	test	1	oracle
 crates/geom/src/frame.rs	prod	4	re-pose
 crates/geom/src/surfaces/nurbs.rs	test	1	oracle
@@ -200,6 +201,7 @@ crates/sweep/tests/spiric_rim.rs	test	1	oracle
 crates/sweep/tests/split_through_a_ruling.rs	test	2	oracle
 crates/sweep/tests/the_football_revolves.rs	test	1	oracle
 crates/sweep/tests/torax_axial.rs	test	1	oracle
+crates/sweep/tests/volume_premises_door_bodies.rs	test	1	oracle
 crates/sweep/tests/vrev_acceptance_set.rs	test	1	oracle
 crates/topo/src/contain.rs	test	1	oracle
 crates/topo/src/boolean/fan.rs	prod	1	pose
