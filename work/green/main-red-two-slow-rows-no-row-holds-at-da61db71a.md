@@ -26,7 +26,11 @@ Found by DOCTAIL's `main-red-the-identity-turns-decisions-moved-the-m10-slow-row
   - The entry came in with OFFER's `f712510c37` (PR 7548).
   - This is the class CIW's closed `an-app-feature-only-test-cannot-be-listed-in-the-slow-set` names. Either drop the entry, so the row runs in the viewer app-feature job's fast set, or have the name check list `--features app`.
 
-Neither of the first two was bisected.
+- **Two editor-core slow rows, red at the default ε, 1e-6 and 1e-12 on main as of `02ce465b18`.** Both are green on `da61db71a`. Seen on PR 7549's local evidence run; neither file reads from that PR's edits.
+  - `corpus_finish_count::the_corpus_runs_its_pinned_count_of_finishes` (`corpus_finish_count.rs`, the assertion near :42): "the corpus ran 398 finishes, pinned 390".
+  - `m10_p_lift::at_sym_a_fixed_box_is_the_build` (`m10_p_lift.rs`, the assertion near :585): "a margin of the held run moved with a parameter symbol: a Fixed axis bound one", left 702.
+
+Neither of the first two was bisected, and neither are these.
 
 **Also seen, on a row GREEN already holds:** `sweep` `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` is red on `fa42c60`, on `ccabcfb` and on `da61db71a` alike. But its β 0.5, spin 0.5 refusal reads differently:
 - `Euler(RebasedCarrier { edge: EdgeKey(15v1), error: PeriodicView(Span { … }) })` on `fa42c60` and `ccabcfb`;
