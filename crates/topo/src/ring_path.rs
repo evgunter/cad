@@ -264,7 +264,7 @@ impl<T: Decide> Quadric<T> {
                     return Ok(Vec::new());
                 }
                 let arc = CircleArc {
-                    circle: geom::Circle::new(geom::Frame::new(centre, axis, a), radius),
+                    circle: geom::Circle::new(great_circle(centre, axis, a), radius),
                     span: (T::zero(), sine.atan2(a.dot(b))),
                 };
                 Ok(vec![Path {
@@ -520,6 +520,16 @@ impl<T: Real> Path<T> {
         self.reach = next.reach;
         self
     }
+}
+
+/// **A great circle's frame** on the axis `axis`, the direction of
+/// `a × b`, whose sine the path decided positive, levered over the arc
+/// (`split_ring_path_span`), and `a`, one end's direction from the
+/// centre: the frame they state ([`geom_core::RigidMotion::squared`]),
+/// its stated-point read at an enclosure scalar kept. The decision is
+/// the path's own, so nothing is decided again here.
+fn great_circle<T: Real>(centre: Point3<T>, axis: Vec3<T>, a: Vec3<T>) -> geom::Frame<T> {
+    geom::Frame::of_motion(&geom_core::RigidMotion::squared(centre, axis, a))
 }
 
 /// The arc of the circle centred `centre` about the unit `axis`, of

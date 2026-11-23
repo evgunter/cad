@@ -7196,6 +7196,16 @@ impl Recharts {
     }
 }
 
+/// **The sphere cut's meridian plane** on its normal `k`, which the
+/// cut decided a direction (`bool_sphere_cut_meridian`), and `h` square
+/// to it: the frame they state ([`geom_core::RigidMotion::squared`]),
+/// whose stated-point read at an enclosure scalar a mint at the scalar
+/// would widen. The decision is the cut's own, so nothing is decided
+/// again here.
+fn meridian_plane<T: Real>(center: Point3<T>, k: Vec3<T>, h: Vec3<T>) -> geom::Frame<T> {
+    geom::Frame::of_motion(&geom_core::RigidMotion::squared(center, k, h))
+}
+
 /// Applies the scan's cut-ins ([`SphereCutIn`]): each face is cut along
 /// the meridian half-plane of its sphere's chart that holds the section
 /// circle's centre direction.
@@ -7260,30 +7270,17 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // Re-read once, not a minimum (`scripts/gates/argmin-folds.tsv`,
         // recompute): a foot on the axis takes the circle's own point
         // instead, and no two candidates are compared.
-        // The meridian plane's normal is decided a direction where it is
-        // minted ([`geom_core::UnitVec3::new`]): a normal decided zero takes
-        // the fallback, and one in the band escalates.
-        let meridian =
-            |d: Vec3<T>| geom_core::UnitVec3::new(toward(d), "bool_sphere_cut_meridian", band);
-        let k_unit = match meridian(cut.foot - cut.center) {
-            Err(geom_core::UnitVec3Error::Degenerate) => {
-                meridian(cut.foot + cut.u_ref * cut.rho - cut.center)
+        let mut k = toward(cut.foot - cut.center);
+        if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+            k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
+            if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+                return Err(refuse_at(
+                    cut.face,
+                    "the section circle has no meridian of the face's chart",
+                ));
             }
-            read => read,
         }
-        .map_err(|refusal| match refusal {
-            geom_core::UnitVec3Error::Escalated(diag) => esc(diag),
-            geom_core::UnitVec3Error::Degenerate => refuse_at(
-                cut.face,
-                "the section circle has no meridian of the face's chart",
-            ),
-            geom_core::UnitVec3Error::NonFiniteLength
-            | geom_core::UnitVec3Error::UnderflowedLength => refuse_at(
-                cut.face,
-                "the section circle's meridian normal is not a finite direction",
-            ),
-        })?;
-        let k = k_unit.get();
+        let k = k.normalize();
         let h = k.cross(axis);
         // The cut's half-meridian, a curve on the face's sphere: its chart
         // framed on `h`, its meridian at azimuth `0`. A boundary arc lies
@@ -7685,10 +7682,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let span = w.dot(u_arc.cross(to_hi)).abs().atan2(u_arc.dot(to_hi));
         let carrier = geom::Curve3::circle(cut.center, w, r, u_arc);
         let plane = body.add_surface(geom::Surface::Plane {
-            // On the decided normal `k` and `h` square to it, the frame
-            // they state ([`geom_core::RigidMotion::squared`], its
-            // stated-point read at an enclosure scalar kept).
-            frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared(cut.center, k, h)),
+            frame: meridian_plane(cut.center, k, h),
         });
         let created = body.mef(
             crate::euler::MefSite::Chords {

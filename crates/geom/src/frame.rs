@@ -230,6 +230,15 @@ impl<T: Real> Frame<T> {
         self.with_origin(self.origin() + by)
     }
 
+    /// **The image under an improper isometry `map`**, kept right-handed
+    /// by reversing its `negated` axis ([`RigidMotion::reflected_by`]):
+    /// which one is the carrier kind's rule for its image (module docs),
+    /// stated where the map is applied.
+    #[must_use]
+    pub fn reflected(&self, map: &geom_core::Affine3<T>, negated: geom_core::Negated) -> Self {
+        Self::of_motion(&self.motion.reflected_by(map, negated))
+    }
+
     /// **The image under a rigid motion**: the origin moved, every axis
     /// turned by the motion's linear part ([`RigidMotion::carried_by`]).
     #[must_use]
