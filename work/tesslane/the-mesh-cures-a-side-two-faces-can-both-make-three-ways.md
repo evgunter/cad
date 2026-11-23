@@ -8,7 +8,7 @@ priority: P1
 cost: H
 ---
 
-Filed at the closing of unit 4c (PR 7096) as a design question, weighed by three designers over four rounds (2026-11-22 and 23), and put to Ev as an `[ev]` pull request. This file is the unit that answer specifies.
+Filed at the closing of unit 4c (PR 7096) as a design question, weighed by three designers over four rounds (2026-11-22 and 23), and decided by Ev on PR 7485 (2026-11-23: "allowing zero volume sounds annoying; this plan sounds good"). This file is the unit that answer specifies.
 
 ## The defect
 
