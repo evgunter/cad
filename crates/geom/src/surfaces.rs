@@ -999,7 +999,7 @@ impl<T: Real> Surface<T> {
     ///   the same plane, and a `u_ref` off `⊥ normal` tilts the chart
     ///   by an amount that grows with distance from `origin`, which no
     ///   datum bounds), and a spline's datum is its net
-    ///   ([`NurbsSurface::net_state`]). The `Cone`'s frame is not
+    ///   ([`NurbsSurface::is_finite`]). The `Cone`'s frame is not
     ///   margined either, for the same reason as the plane's tilt: it
     ///   moves the half-angle, a deviation that grows along the slant.
     ///
