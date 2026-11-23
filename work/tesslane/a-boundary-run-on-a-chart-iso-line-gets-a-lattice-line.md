@@ -74,3 +74,23 @@ A curved face with no ring whose outer loop's every edge lies on an iso line of 
 - Which rule the mesh applies to a side two faces can both make (`the-mesh-cures-a-side-two-faces-can-both-make-three-ways`, with designers). Stage 1 says whether any cure makes such a side on a class face and stops there.
 
 **Pre-push for stage 2**, on the pushed head: fmt, `scripts/run-gates.sh`, the doc gate, clippy for the workspace (all features), the viewer with `--features app` and `pncad-py`; `mesh` whole with the default profile (slow set included) at the three ε; `test_binding_census` against a wheel if a public type moved; the three `tools` roots; `sweep`'s meshing modules; the viewer's slow-set rows pinned on mesh output (`display_budget`, `review_pick_r2`); a test costing 0.5 s or more goes in the slow set with its measured time.
+
+### Stage 1's result and the ruling (2026-11-23)
+
+Measured by the implementer over 210 cylinder-wall and 60 sphere-face cells (δ 0.1 to 0.001; ε 1e-9, 1e-6 and 1e-12, identical in every column; axis and oblique placements, identical), against the rectangle lane's own count summed over the iso-rectangles the face divides into (`r_dec`):
+
+| cure | cylinder cells meshing | cylinder triangles / r_dec (min / median / max) | sphere cells meshing | sphere ratio |
+|---|---|---|---|---|
+| today (headroom, uniform lattice) | 210 | 1.2 / 22 / 223 | 60 | 1.65 / 1.96 / 4.4 |
+| sized at δ | 192 | 1.0 / 11 / 115 | 60 | 0.75 / 0.95 / 3.0 |
+| sized at δ, no rows, no refinement | 194 | 1.00 / 1.02 / 1.17 | 60 | as above |
+| 1a: δ, no rows, refinement at the centroid | 210 | 1.00 / 1.02 / 1.40 | 60 | 0.75 / 0.95 / 3.0 |
+| 1b: δ, no rows, refinement splitting the widest side | 210 | 1.00 / 1.02 / 1.20 | 60 | 0.75 / 0.95 / 3.0 |
+| 2: 1a with the iso lines through the corners held | 210 | as 1a | 60 | 0.83 / 0.98 / 3.2 |
+| 4: a lattice line through every run, at δ, rows kept | 210 | 1.5 / 13 / 120 | 60 | 0.86 / 0.99 / 1.02 |
+
+One refinement round clears every refusing cell. The neighbours across the class faces' rims lose 2.7% of their triangles and none gains one. The class is thin in the suites: seven `mesh` tests reach it, and the census of `sweep`, `step-import` and the tour is not finished. Only cylinder walls and sphere faces reach it. The route's `Trim::Read` is wider than the class (a wall cut by a tilted section reaches it too), and a holed wall (`Trim::Structural`) behaves as the class does.
+
+**Ruled: cure 1b, keyed to the class.** The class is one fact of the route, decided once: every loop image lies on an iso line, the face is no rectangle, the chart is a cylinder or a sphere, the holed sibling included. Such a face lays no rows on a cylinder and refines where a certificate refuses (the midpoint of the widest side that is no constraint, the centroid where there is none), under a named termination constant. Nothing in it reads ε.
+
+**Not ruled here: sizing the class at δ.** `[mesh.sizing]` keeps `UNPROVED_HEADROOM` on a lane without its theorem and says the cure is the theorem; a refinement step standing where the theorem stands changes what that clause decides. It goes to designers and then to Ev as its own `[ev]` pull request with this table. The unit builds the δ target at one named site and does not merge before Ev answers; on a no, that site returns to the headroom. The implementer measures first what the cure earns with the headroom kept.
