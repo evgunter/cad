@@ -26,3 +26,21 @@ minted from a counter
 Closing it would take a root name that no other thread can mint (a
 process-wide count costs the name its determinism; a refusal to mint
 under no scope costs every direct kernel caller a scope).
+
+**What the node-key PR closes and leaves** (PR 7470), against
+`an-opaque-minted-before-a-session-shares-a-name-with-the-sessions-first`:
+
+- Closed: a value minted under no scope before a session and one
+  minted under no scope inside it. A session's root scope has a name of
+  its own (`sym::mint`'s `SESSION_ROOT`), pinned by `geom-core`'s
+  `a_value_minted_before_a_session_and_the_sessions_first_do_not_cancel`.
+- Left: two threads' root names outside any session (above); two
+  sessions' root names, when a root-scope value of one session is
+  carried into another (each session's root counts from zero); and one
+  opened scope's names outside a session against the same scope's
+  inside one, when a value built by an evaluation under no session is
+  carried into a session that evaluates the same node. No caller of
+  any of the three is known. A name unique across sessions would cost
+  the root's names their determinism, and decisions are taken over
+  root-scope values (the reads after an evaluation: 53,065 such mints
+  over `editor-core`'s suite).

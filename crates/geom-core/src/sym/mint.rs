@@ -23,8 +23,10 @@
 //! **Inside one session a name is minted once.** A scope's count is
 //! kept by the session while the scope is closed, so a scope opened a
 //! second time (a node evaluated twice in one session, a scope entered
-//! from inside itself) continues where it stopped. The root scope's
-//! count starts at zero with the session and is the session's alone.
+//! from inside itself) continues where it stopped. A session's root
+//! scope is its own, counting from zero: not the thread's root, so a
+//! value minted under no scope before the session and the session's
+//! first share no name.
 //!
 //! **Across two sessions a name is minted once each**, and may hold two
 //! numbers: a node whose inputs differ between two replays mints
@@ -61,9 +63,14 @@ use core::marker::PhantomData;
 
 use super::{Hash128, SESSION};
 
-/// The root scope's name: the empty child slot's bits, which
-/// [`Hash128::finish`] never answers, so no opened scope has it.
+/// The thread's root scope outside a session: the empty child slot's
+/// bits, which [`Hash128::finish`] never answers, so no opened scope
+/// has it.
 const ROOT: u128 = 0;
+
+/// A session's root scope: a fixed name of its own, so a mint under no
+/// scope inside a session is never named as one outside it is.
+const SESSION_ROOT: u128 = 0x5345_5353_494f_4e5f_524f_4f54_5f5f_5f5f;
 
 thread_local! {
     /// The scope open on this thread and the ordinal its next mint
@@ -153,7 +160,7 @@ pub(super) struct SessionRoot((u128, u64));
 impl SessionRoot {
     /// Opens the session's own root scope, counting from zero.
     pub(super) fn open() -> Self {
-        Self(OPEN.replace((ROOT, 0)))
+        Self(OPEN.replace((SESSION_ROOT, 0)))
     }
 }
 

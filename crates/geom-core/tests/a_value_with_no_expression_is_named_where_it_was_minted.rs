@@ -135,6 +135,29 @@ fn two_scopes_mints_from_two_sessions_do_not_cancel() {
     assert_eq!(counts.symbolic, 0);
 }
 
+/// A value minted under no scope before a session and the session's
+/// first such value are two unknowns: the session's root scope is not
+/// the thread's.
+///
+/// Mutant: a session whose root scope is the thread's own gives both
+/// the root's first name on a thread that has minted nothing else, and
+/// the row runs on a thread of its own so that it has not; their
+/// difference is then a proven `Zero`.
+#[test]
+fn a_value_minted_before_a_session_and_the_sessions_first_do_not_cancel() {
+    let on_a_fresh_thread = std::thread::spawn(|| {
+        let before = mint(1.0);
+        session(|| {
+            let inside = mint(2.0);
+            (before.node() == inside.node(), sign_of(before - inside))
+        })
+    });
+    let ((same_name, sign), counts) = on_a_fresh_thread.join().unwrap();
+    assert!(!same_name, "two mints, two names");
+    assert_eq!(sign, Ok(Sign::Negative), "the numbers decide");
+    assert_eq!(counts.symbolic, 0, "no identity was there to prove");
+}
+
 /// A detached map names each unit's mints by the unit's index under the
 /// caller's scope, so the names are the same in two runs and under any
 /// schedule, and two units' names differ.
