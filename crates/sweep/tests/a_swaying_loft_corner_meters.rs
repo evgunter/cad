@@ -44,10 +44,11 @@ fn min_speed_ceiling(c: &geom::NurbsCurve3<f64>) -> f64 {
 }
 
 /// The family the meter used to refuse: `a ≥ 0.75` at v-degree 2, and
-/// `a = 0.5` at v-degree 3. At both scalars each body builds and
-/// certifies (the build runs certification), validates and is closed,
-/// and each corner's meter is positive and under its speed — at the
-/// interval scalar, its certified floor.
+/// `a = 0.5` at v-degree 3. Each body builds and certifies (the build
+/// runs certification), validates and is closed, and each corner's
+/// meter is positive and under its speed — at the interval scalar, its
+/// certified floor. At the interval scalar that is the v-degree 3 body;
+/// the v-degree 2 ones refuse there at the carrier's door, pinned.
 #[test]
 fn a_swaying_loft_builds_closed() {
     for (v_degree, a) in [(2, 0.75), (2, 1.0), (2, 1.5), (2, 2.0), (3, 0.5)] {
@@ -60,11 +61,33 @@ fn a_swaying_loft_builds_closed() {
             &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             v_degree,
             Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{at}: at the interval scalar: {e:?}"));
+        );
         let f64_meters = corner_meters(&lofted.body, &at, |c| c.speed_lower_bound().get());
-        let interval_meters =
-            corner_meters(&lofted_i.body, &at, |c| c.speed_lower_bound().get().lo());
+        // Four sections at v-degree 2 put a chord-length parameter in
+        // the walls' knots, an enclosure at `Interval` that no carrier
+        // holds yet
+        // (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
+        // Pinned, so the row goes red when that lands: once the loft
+        // builds, read its corner meters as the v-degree 3 row does.
+        let interval_meters = if v_degree == 2 {
+            match lofted_i {
+                Err(sweep::LoftError::Skin(sweep::SkinError::Structure(e)))
+                    if matches!(
+                        e.refusal(),
+                        geom_core::spline::SplineError::CarrierKnotNotAPoint { .. }
+                    ) => {}
+                other => panic!(
+                    "{at}: at the interval scalar the loft refuses its interior knot at the \
+                     carrier's door; once it builds, read its meters here: {:?}",
+                    other.map(|_| ())
+                ),
+            }
+            Vec::new()
+        } else {
+            let lofted_i =
+                lofted_i.unwrap_or_else(|e| panic!("{at}: at the interval scalar: {e:?}"));
+            corner_meters(&lofted_i.body, &at, |c| c.speed_lower_bound().get().lo())
+        };
         for (scalar, meters) in [("f64", f64_meters), ("interval", interval_meters)] {
             for (m, reference) in meters {
                 assert!(

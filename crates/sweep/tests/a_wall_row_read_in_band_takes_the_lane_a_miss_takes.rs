@@ -2,8 +2,10 @@
 //! takes** (D3: a lane choice records nothing, and in band takes the
 //! lane definite takes).
 //!
-//! The fixture is the loft of a profile with one semicircular edge, at
-//! `f64` and at `Interval`: its arc wall a rational-quadratic spline
+//! The fixture is the `f64` loft of a profile with one semicircular
+//! edge, its carriers held as points at `f64` and at `Interval`
+//! (`common::semicircle_wall`; at `Interval` it is not the loft built
+//! there): its arc wall a rational-quadratic spline
 //! chart whose seams are described as `IsoLine` images on the
 //! neighbouring walls and whose rims are its `IsoArc` rows. The wall is
 //! re-charted in place onto its surface moved by a distance inside the
