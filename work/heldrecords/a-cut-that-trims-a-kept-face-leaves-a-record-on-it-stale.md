@@ -49,3 +49,34 @@ it). A valid cut that builds on main refuses on PR 7124's head. Main
 ships the false record, so the refusal is the better of the two
 answers, but it is a body that stops building, and nothing but this
 row's fix brings it back.
+
+**The bounded fix was tried and stopped** (PR 7124, 2026-11-23, on
+the orchestrator's ruling: read the record with the divided-cell
+machinery, stop if it needs more). Traced on "under the lying
+pyramid's ray", `y − x`:
+
+- The top is not trimmed by any division the lineage records. The
+  cutter's apex meets the top at the recorded vertex's point, and the
+  finish's zip puts that apex on the top's boundary: on the result a
+  second vertex sits on the recorded vertex's point, and the top's
+  boundary passes through it. `Descendants::fragments` has no row for
+  the top (its own text: the zip's divisions are in no row of it), so
+  `operand_fate` answers `Kept` and "The shape" above is wrong to call
+  it a carved region: the record is false because the touch is now on
+  the face's boundary, where the true record is the vertex pair.
+- Stating the top as divided (one piece, remainder removed) wherever a
+  row of the reduction's own names it makes the carry read the pair,
+  as asked. `RecordConfirm::meets` then answers that the vertex and the
+  top **meet**, on the body the carry reads, and the record lands
+  again; the gate's `census::confirm_only` reads the same pair stale
+  on the body it is handed. So the divided-cell reading and the gate's
+  reading disagree on a vertex at a boundary vertex of the face (or
+  the body changes between the carry and the gate; not separated).
+- The record also re-enters beside the carry: the vertex groups in
+  `carry_rows` place each carried vertex-on-face row again through
+  `place_found`, by lineage, unread.
+
+Owed, and past the bound: one answer for a vertex on a face's boundary
+vertex in both readings; and the zip's seam cells stated in the
+lineage of the face they land on, so that a record there is read, and
+re-lands as the vertex pair or is retired. The ten cells stay pinned.
