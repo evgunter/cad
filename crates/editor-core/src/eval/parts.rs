@@ -73,6 +73,8 @@
 //! the depth check, so a loop that closes at [`MAX_DEPTH`] is still
 //! named as a loop.
 
+use crate::say;
+use crate::sentence;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -414,7 +416,7 @@ impl PartFault {
     /// The sentence, each of the part's nodes said by `by`: the fault's
     /// [`speaker`](Self::speaker), or the part itself while
     /// [`product_fault`] records them.
-    fn say_by(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say_by(&self, f: &mut crate::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             // Raised only at an API door, each of which takes a
             // resolver; the viewer always carries one of its own.
@@ -438,40 +440,39 @@ impl PartFault {
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
-            Self::PartProductFailed { node, .. } => {
-                let node = by.node(*node);
-                write!(
-                    f,
-                    "the part's {node} failed, so the part has no body. {}",
-                    InThePart(format_args!("repair {node}")),
-                )
-            }
-            Self::PartProductPoisoned { node, through, .. } => {
-                let through = by.node(*through);
-                write!(
-                    f,
-                    "the part's {through} failed and poisoned {}, which its product reads, so \
-                     the part has no body. {}",
+            Self::PartProductFailed { node, .. } => say!(
+                f,
+                "the part's ",
+                by.node(*node),
+                " failed, so the part has no body. ",
+                InThePart(sentence!("repair ", by.node(*node)))
+            ),
+            Self::PartProductPoisoned { node, through, .. } => say!(
+                f,
+                "the part's ",
+                by.node(*through),
+                " failed and poisoned ",
+                by.node(*node),
+                ", which its product reads, so the part has no body. ",
+                InThePart(sentence!("repair ", by.node(*through)))
+            ),
+            Self::PartProductFailureUnrecorded { node, .. } => say!(
+                f,
+                "the part's product names its ",
+                by.node(*node),
+                " as failed and the part's evaluation holds no failure there; the two \
+                 disagree, so this is a kernel bug. ",
+                InThePart(sentence!(
+                    "see ",
                     by.node(*node),
-                    InThePart(format_args!("repair {through}")),
-                )
-            }
-            Self::PartProductFailureUnrecorded { node, .. } => {
-                let node = by.node(*node);
-                write!(
-                    f,
-                    "the part's product names its {node} as failed and the part's evaluation \
-                     holds no failure there; the two disagree, so this is a kernel bug. {}",
-                    InThePart(format_args!(
-                        "see {node} as it evaluates, then report it with the part's file"
-                    )),
-                )
-            }
+                    " as it evaluates, then report it with the part's file"
+                ))
+            ),
             Self::PartProduct { refusal, .. } => {
-                write!(
+                say!(
                     f,
-                    "the part has no product: {}",
-                    refusal.error().bare_said(by)
+                    "the part has no product: ",
+                    crate::Said(&refusal.error().bare_said(by), by)
                 )?;
                 match product_recourse(refusal.kind()) {
                     ProductRecourse::KernelDefect => {
@@ -512,10 +513,19 @@ impl PartFault {
     }
 }
 
+/// The fault, each of the part's nodes as the pinned part holds it and
+/// mentioned in the part: its ids are numbered there, so the speaker of
+/// the sentence it is written into is not asked.
+impl Say for PartFault {
+    fn say(&self, f: &mut crate::Sentence, _: Speaker<'_>) -> core::fmt::Result {
+        self.say_by(f, self.speaker())
+    }
+}
+
 /// The fault, each of the part's nodes as the pinned part holds it.
 impl core::fmt::Display for PartFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say_by(f, self.speaker())
+        crate::spoken::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -526,14 +536,14 @@ impl core::fmt::Display for PartFault {
 struct InPart<'a>(&'a PartFault);
 
 impl Say for InPart<'_> {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         self.0.say_by(f, by)?;
         let levels =
             super::CarriedChain::from_first(self.0.carried(), super::CarriedIn::ThisDocument);
         for level in
             levels.take_while(|level| matches!(level.document, super::CarriedIn::ThisDocument))
         {
-            write!(f, "\n{}", level.refusal.line_at(level.node, by))?;
+            say!(f, "\n", level.refusal.line_at(level.node, by))?;
         }
         Ok(())
     }
@@ -543,13 +553,9 @@ impl Say for InPart<'_> {
 /// and act there.
 struct InThePart<A>(A);
 
-impl<A: core::fmt::Display> core::fmt::Display for InThePart<A> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            Recourse(format_args!("open the part and {}", self.0))
-        )
+impl<A: crate::Put> crate::Put for InThePart<A> {
+    fn put(self, out: &mut crate::Sentence) {
+        crate::Put::put(Recourse(sentence!("open the part and ", self.0)), out);
     }
 }
 
@@ -1164,7 +1170,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             reading: seam,
             carried_interference,
             carried_at_rest,
-        } = crate::checks::at_rest::whole_reading(&product, tol);
+        } = crate::checks::at_rest::whole_reading(doc, &product, tol);
         Ok(PartValue {
             interference: Arc::new(
                 seam.interference

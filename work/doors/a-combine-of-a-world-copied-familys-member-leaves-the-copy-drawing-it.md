@@ -24,3 +24,5 @@ Found by the REFS unit `viewer-boolean-tool-cannot-pick-a-read` (PR 6593) and it
 - Something else.
 
 **Done when** the ruling lands, `Port::at_seat`'s `is_seen` condition goes, and the pinned row becomes a member read whose picture draws the result once and every other member where it stood.
+
+**A copy of one piece (a pick) is the same hazard, narrower** (OFFER, PR 7356). A placement `Y` whose source picks piece `k` of a placement `X` copies no body of `X` (`Doc::placements_of`, `Doc::placements_of_var`), so `world::is_seen(X)` stays false and a seat may read one member of `X`. A member read of `k` itself then leaves `Y` drawing `k` beside the result, as a whole copy would; members `j ≠ k` are not drawn by `Y`. Row: `lands_unplaced::a_copy_of_one_piece_reads_the_placement_and_copies_none_of_it`. The ruling this row waits for should say what a member read does to a pick of that member too.

@@ -1,26 +1,27 @@
-"""The face a sketch is placed on, and the two facts it is read from
+"""The face a sketch is drawn on, and the two facts it is read from
 (LIB-B-FACE-FRAME).
 
 Three doors close this census family, and they are one story rather
 than three: `Evaluation.face_carrier_kind` asks a named face what KIND
 of surface carries it, `Pose.sense` carries the face's orientation
 sense beside the chart axis the frame doors already answered with, and
-`Doc.sketch_on_face` turns a face NAME plus a spin angle into a sketch
-standing on that face — "sketch on this face", the thing a user reaches
-for before anything else.
+`Doc.draw_on_face` turns a face NAME into a profile drawn on that
+face's chart — "sketch on this face", the thing a user reaches for
+before anything else — which an extrude by a signed depth and a
+combine make a boss or a pocket.
 
-WHAT MAKES IT READ, and what the rows below check. The placement's
-mate stores the face's name and the spin, and nothing else: where the
-face lies is READ off the upstream body at every evaluation. So the
-plate's own thickness decides where the sketch lands
+WHAT MAKES IT READ, and what the rows below check. The profile's chart
+stores the face's name, its orientation, spin and slides, and nothing
+else: where the face lies is READ off the upstream body at every
+evaluation. So the plate's own thickness decides where the sketch lands
 (`test_the_sketch_lands_wherever_the_face_it_names_is`), the body is a
 read the document reports when it is deleted out from under the sketch
 (`test_the_body_is_a_read`), and a face name that stops denoting fails
-the placement typed instead of quietly keeping nine stale numbers. A
+the chart typed instead of quietly keeping nine stale numbers. A
 transcribed frame could do none of those.
 
 NOTHING HERE READS INSIDE A NAME. Every face name is a materializer's
-opaque text handed straight back to the gesture, which is the whole
+opaque text handed straight back to the door, which is the whole
 point: the alphabet does not change between selecting a face and
 sketching on it.
 
@@ -31,6 +32,8 @@ shows the dependence by building two plates rather than by moving one.
 """
 
 import math
+import shutil
+import tempfile
 import unittest
 
 from pncad import (
@@ -53,11 +56,13 @@ from pncad import (
     Start,
     SurfaceKind,
     TubeWindow,
+    Workspace,
     evaluate,
     m,
     rad,
     solve_document,
 )
+import bench_scene
 from measuring import pinned
 
 SQUARE = [
@@ -245,15 +250,20 @@ def positions(ev, node):
     return [tuple(c.meters for c in ev.vertex_position(node, v)) for v in ev.all_vertices(node)]
 
 
+def volume(ev, node):
+    """`node`'s body's volume, pinned."""
+    return pinned(ev.value(node).body()).volume
+
+
 class TestSketchOnAFace(unittest.TestCase):
-    """`Doc.sketch_on_face`: "sketch on this face" — a profile drawn on
-    its own plane, extruded up its own z, the copy placed against the
-    named face of the body and fused with it, as one action.
+    """`Doc.draw_on_face`: "sketch on this face" — a profile drawn on
+    the named face's chart, in the face's body's space, then an ordinary
+    extrude by a signed depth and a combine with the body.
 
     Every number below is an oracle against where the face SITS, read
     off the evaluation: the boss starts on the face and grows along its
     outward normal, its origin over the face body's own, turned by the
-    spin about that normal."""
+    spin about that normal and moved by the slides."""
 
     def setUp(self):
         self.doc = Doc()
@@ -261,35 +271,72 @@ class TestSketchOnAFace(unittest.TestCase):
         ev = evaluate(self.doc)
         self.top = top_face(ev, self.plate, 0.2)
 
-    def test_a_sketch_on_the_face_extrudes_out_of_the_plate(self):
+    def test_a_boss_on_the_face_extrudes_out_of_the_plate(self):
         """The scene-scale row, authored the way a user would: select
-        the top face, sketch on it, extrude. The boss starts at the
+        the top face, draw on it, extrude, unite. The boss starts at the
         plate's top and grows away from the material — which is what
         the outward normal buys — and its footprint is the sketch's
         coordinates over the plate's own origin, unturned at zero
         spin."""
-        sketched = self.doc.sketch_on_face(self.plate, self.top, PAD, 0.3 * m)
+        profile = self.doc.draw_on_face(self.plate, self.top, PAD)
+        boss = self.doc.insert(Node.extrude(profile, 0.3 * m))
+        union = self.doc.insert(Node.union([self.plate, boss]))
         ev = evaluate(self.doc)
-        boss = positions(ev, sketched.placement)
+        at = positions(ev, boss)
         for axis, (lo, hi) in enumerate(((-0.3, 0.3), (-0.3, 0.3), (0.2, 0.5))):
             with self.subTest(axis=axis):
-                self.assertAlmostEqual(min(p[axis] for p in boss), lo, delta=1e-12)
-                self.assertAlmostEqual(max(p[axis] for p in boss), hi, delta=1e-12)
+                self.assertAlmostEqual(min(p[axis] for p in at), lo, delta=1e-12)
+                self.assertAlmostEqual(max(p[axis] for p in at), hi, delta=1e-12)
         # The union holds the plate and the boss: 1 x 1 x 0.2 and
         # 0.6 x 0.6 x 0.3.
-        volume = pinned(ev.value(sketched.union).body()).volume
-        self.assertAlmostEqual(volume, 0.2 + 0.108, delta=1e-12)
+        self.assertAlmostEqual(volume(ev, union), 0.2 + 0.108, delta=1e-12)
+        self.assertEqual(self.doc.space(boss), self.doc.space(self.plate), "nothing is placed")
 
-    def test_the_four_nodes_are_one_recorded_action(self):
-        """The gesture inserts a profile, its extrude, the placement and
-        the union, and answers each one's id."""
+    def test_a_pocket_is_the_same_sketch_extruded_back_and_subtracted(self):
+        """A `-` depth runs into the material, from the face down, and
+        the slides move the pad across the face: slid by `(0.5, 0.5)`
+        the pad sits inside the top, so the pocket takes
+        `0.6 x 0.6 x 0.1` out of the plate."""
+        profile = self.doc.draw_on_face(self.plate, self.top, PAD, slides=(0.5 * m, 0.5 * m))
+        tool = self.doc.insert(Node.extrude(profile, -0.1 * m))
+        pocket = self.doc.insert(Node.subtract(self.plate, tool))
+        ev = evaluate(self.doc)
+        at = positions(ev, tool)
+        for axis, (lo, hi) in enumerate(((0.2, 0.8), (0.2, 0.8), (0.1, 0.2))):
+            with self.subTest(axis=axis):
+                self.assertAlmostEqual(min(p[axis] for p in at), lo, delta=1e-12)
+                self.assertAlmostEqual(max(p[axis] for p in at), hi, delta=1e-12)
+        self.assertAlmostEqual(volume(ev, pocket), 0.2 - 0.036, delta=1e-12)
+
+    def test_a_boss_and_a_pocket_on_the_bottom_face(self):
+        """On the bottom face the chart's `z` is the space's `-z`: a `+`
+        depth stands below the plate and unites, a `-` depth runs up
+        into it and subtracts. Slid `(0.5, 0.5)` the pad sits inside the
+        bottom, so each moves `0.6 x 0.6 x 0.1` of material."""
+        ev = evaluate(self.doc)
+        (bottom,) = [f for f in ev.all_faces(self.plate) if outward(ev, self.plate, f) == (0.0, 0.0, -1.0)]
+        profile = self.doc.draw_on_face(self.plate, bottom, PAD, slides=(0.5 * m, 0.5 * m))
+        boss = self.doc.insert(Node.extrude(profile, 0.1 * m))
+        tool = self.doc.insert(Node.extrude(profile, -0.1 * m))
+        union = self.doc.insert(Node.union([self.plate, boss]))
+        pocket = self.doc.insert(Node.subtract(self.plate, tool))
+        ev = evaluate(self.doc)
+        for node, (lo, hi) in ((boss, (-0.1, 0.0)), (tool, (0.0, 0.1))):
+            with self.subTest(node=node):
+                zs = [p[2] for p in positions(ev, node)]
+                self.assertAlmostEqual(min(zs), lo, delta=1e-12)
+                self.assertAlmostEqual(max(zs), hi, delta=1e-12)
+        self.assertAlmostEqual(volume(ev, union), 0.2 + 0.036, delta=1e-12)
+        self.assertAlmostEqual(volume(ev, pocket), 0.2 - 0.036, delta=1e-12)
+
+    def test_the_door_inserts_one_labelled_profile(self):
+        """The door inserts the profile and nothing else, as one action
+        with its label."""
         before = self.doc.node_count
-        sketched = self.doc.sketch_on_face(self.plate, self.top, PAD, 0.3 * m)
-        self.assertEqual(self.doc.node_count, before + 4)
-        self.assertEqual(
-            [self.doc.node_kind(n) for n in (sketched.profile, sketched.extrude, sketched.placement, sketched.union)],
-            ["profile", "extrude", "place", "union"],
-        )
+        profile = self.doc.draw_on_face(self.plate, self.top, PAD, label="boss")
+        self.assertEqual(self.doc.node_count, before + 1)
+        self.assertEqual(self.doc.node_kind(profile), "profile")
+        self.assertEqual(self.doc.label(profile), "boss")
 
     def test_the_spin_turns_the_sketch_about_the_outward_normal(self):
         """The arithmetic, checked rather than eyeballed: a corner the
@@ -297,13 +344,11 @@ class TestSketchOnAFace(unittest.TestCase):
         spin)`, right-handed about the face's outward normal."""
         theta = math.pi / 6
         arm = loop([(0, 0), (0.4, 0), (0.4, 0.1), (0, 0.1)])
-        sketched = self.doc.sketch_on_face(
-            self.plate, self.top, arm, 0.3 * m, Formula.angle_in(theta, rad)
-        )
-        ev = evaluate(self.doc)
+        profile = self.doc.draw_on_face(self.plate, self.top, arm, spin=Formula.angle_in(theta, rad))
+        boss = self.doc.insert(Node.extrude(profile, 0.3 * m))
         want = (0.4 * math.cos(theta), 0.4 * math.sin(theta), 0.2)
         near = [
-            p for p in positions(ev, sketched.placement) if max(abs(a - b) for a, b in zip(p, want, strict=True)) < 1e-12
+            p for p in positions(evaluate(self.doc), boss) if max(abs(a - b) for a, b in zip(p, want, strict=True)) < 1e-12
         ]
         self.assertEqual(len(near), 1, "the sketch's (0.4, 0) corner, turned by the spin")
 
@@ -316,20 +361,20 @@ class TestSketchOnAFace(unittest.TestCase):
                 doc = Doc()
                 node = plate(doc, thickness * m)
                 face = top_face(evaluate(doc), node, thickness)
-                sketched = doc.sketch_on_face(node, face, PAD, 0.3 * m)
-                zs = [p[2] for p in positions(evaluate(doc), sketched.placement)]
+                boss = doc.insert(Node.extrude(doc.draw_on_face(node, face, PAD), 0.3 * m))
+                zs = [p[2] for p in positions(evaluate(doc), boss)]
                 self.assertAlmostEqual(min(zs), thickness, delta=1e-12)
 
     def test_the_body_is_a_read(self):
         """The face is read off the body, so deleting the body out from
-        under the sketch is accepted and reported, naming the placement
-        whose mate reads it, which refuses until re-pointed."""
-        sketched = self.doc.sketch_on_face(self.plate, self.top, PAD, 0.3 * m)
+        under the sketch is accepted and reported, naming the profile
+        whose chart reads it, which refuses until re-pointed."""
+        profile = self.doc.draw_on_face(self.plate, self.top, PAD)
         self.doc.apply(DocEdit.delete_node(self.plate))
         stranded = [m.node for m in self.doc.last_maintenance if m.variant == "stranded_read"]
-        self.assertIn(sketched.placement, stranded)
+        self.assertIn(profile, stranded)
         with self.assertRaises(EvaluationError):
-            evaluate(self.doc).value(sketched.placement)
+            evaluate(self.doc).value(profile)
 
 
 # A pad with no symmetry: a turn or a mirror of it is another set of
@@ -340,15 +385,32 @@ AXES = {"+x": (1.0, 0.0, 0.0), "-x": (-1.0, 0.0, 0.0), "+y": (0.0, 1.0, 0.0),
         "-y": (0.0, -1.0, 0.0), "+z": (0.0, 0.0, 1.0), "-z": (0.0, 0.0, -1.0)}
 
 
+def nearest(normal):
+    """The orientation nearest a face whose outward normal is `normal`:
+    `z` on the normal, and no orientation putting it there has a greater
+    trace, a tie keeping the space's `+x`."""
+    (z,) = [w for w, v in AXES.items() if v == normal]
+    rivals = [Orientation(x, z) for x in AXES if x[1] != z[1]]
+
+    def trace(o):
+        return AXES[o.x][0] + AXES[o.y][1] + AXES[o.z][2]
+
+    best = max(trace(o) for o in rivals)
+    tied = [o for o in rivals if trace(o) == best]
+    if len(tied) == 1:
+        return tied[0]
+    (kept,) = [o for o in tied if o.x == "+x"]
+    return kept
+
+
 class TestSketchOnEveryFace(unittest.TestCase):
     """A sketch on each of the plate's six faces, the orientation left
-    to the gesture: the one nearest where the copy stands, the profile's
-    `z` along the face's outward normal. So the least turn is the
-    identity, the boss's own axes are the orientation's, its origin
-    stands on the face over the plate's own, and it grows 0.3 along the
-    outward normal, whichever face it is, the bottom included. An
-    orientation written backwards still refuses, naming the one to
-    write."""
+    to the door: the one nearest the face, the chart's `z` along the
+    face's outward normal. So the least turn is the identity, the
+    chart's axes are the orientation's, its origin stands on the face
+    over the plate's own, and a `+0.3` extrude grows along the outward
+    normal, whichever face it is, the bottom included. An orientation
+    written backwards refuses, naming the one to write."""
 
     def faces(self):
         doc = Doc()
@@ -357,33 +419,23 @@ class TestSketchOnEveryFace(unittest.TestCase):
         return doc, node, {outward(ev, node, f): f for f in ev.all_faces(node)}
 
     def test_the_boss_stands_on_every_face_turned_by_the_nearest_orientation(self):
-        """Breaks if the gesture writes the slide the face's plane fixes
-        (a side face refuses `slides_do_not_span`), leaves the bottom to a
-        refusal, or places the boss anywhere but on the face: its corners
-        are the skewed pad's, turned by the orientation the placement
-        carries and set on the face over the plate's origin."""
+        """Breaks if the door draws anywhere but on the face, or stands
+        the chart's axes anywhere but where the nearest orientation puts
+        them: the boss's corners are the skewed pad's, turned by that
+        orientation and set on the face over the plate's origin. Off the
+        bottom face the identity, carried by the least turn, draws this
+        same chart, so only the bottom face tells the nearest
+        orientation from the identity: there the identity is backwards
+        and refuses."""
         _, _, faces = self.faces()
         self.assertEqual(len(faces), 6, "a plate has six faces, one per outward normal")
         for normal in faces:
             with self.subTest(normal=normal):
                 doc, node, by_normal = self.faces()
-                sketched = doc.sketch_on_face(node, by_normal[normal], SKEW, 0.3 * m)
-                self.assertIsNone(solve_document(doc).fault(sketched.placement))
-                (orient,) = [c.orient for _, c in doc.bundle(sketched.placement) if isinstance(c, Mate)]
+                profile = doc.draw_on_face(node, by_normal[normal], SKEW)
+                boss = doc.insert(Node.extrude(profile, 0.3 * m))
+                orient = nearest(normal)
                 cols = [AXES[orient.x], AXES[orient.y], AXES[orient.z]]
-                self.assertEqual(cols[2], normal, "the profile's z looks out of the face")
-                # The nearest: no orientation putting z on the normal has
-                # a greater trace, and a tie keeps the author's `+x`.
-                trace = cols[0][0] + cols[1][1] + cols[2][2]
-                rivals = [
-                    Orientation(x, orient.z)
-                    for x in AXES
-                    if x[1] != orient.z[1]
-                ]
-                best = max(AXES[o.x][0] + AXES[o.y][1] + AXES[o.z][2] for o in rivals)
-                self.assertEqual(trace, best, f"{orient} is the nearest")
-                if sum(AXES[o.x][0] + AXES[o.y][1] + AXES[o.z][2] == best for o in rivals) > 1:
-                    self.assertEqual(orient.x, "+x", "a tie keeps the author's x")
                 k = max(range(3), key=lambda i: abs(normal[i]))
                 face_at = (0.2 if k == 2 else 1.0) if normal[k] > 0 else 0.0
                 at = tuple(face_at if i == k else 0.0 for i in range(3))
@@ -393,36 +445,98 @@ class TestSketchOnEveryFace(unittest.TestCase):
                     for u, v in corners
                     for h in (0.0, 0.3)
                 )
-                got = sorted(positions(evaluate(doc), sketched.placement))
+                got = sorted(positions(evaluate(doc), boss))
                 self.assertEqual(len(got), len(want))
                 for g, w in zip(got, want, strict=True):
                     for a, b in zip(g, w, strict=True):
                         self.assertAlmostEqual(a, b, delta=1e-12)
 
+    def test_each_slide_moves_the_sketch_along_its_own_axis(self):
+        """The slides run along the space's axes other than the one the
+        face looks along, in `x`, `y`, `z` order: on the top face the
+        first moves the boss along `x` and the second along `y`, on the
+        `+x` face the first along `y` and the second along `z`. Breaks if
+        the two are swapped, or one value stands for both."""
+
+        def lows(normal, slides):
+            doc, node, by_normal = self.faces()
+            profile = doc.draw_on_face(node, by_normal[normal], SKEW, slides=slides)
+            boss = doc.insert(Node.extrude(profile, 0.3 * m))
+            at = positions(evaluate(doc), boss)
+            return [min(p[i] for p in at) for i in range(3)]
+
+        cases = {(0.0, 0.0, 1.0): (0, 1), (1.0, 0.0, 0.0): (1, 2)}
+        for normal, axes in cases.items():
+            unslid = lows(normal, None)
+            for which, slides in enumerate(((0.5 * m, 0 * m), (0 * m, 0.5 * m))):
+                with self.subTest(normal=normal, slide=which):
+                    moved = [b - a for a, b in zip(unslid, lows(normal, slides), strict=True)]
+                    want = [0.5 if i == axes[which] else 0.0 for i in range(3)]
+                    for got, w in zip(moved, want, strict=True):
+                        self.assertAlmostEqual(got, w, delta=1e-12)
+
     def test_an_orientation_written_backwards_refuses_naming_the_one_to_write(self):
         """Breaks if the identity written on the bottom face is answered
         by a half turn about an arbitrary axis, or the refusal names an
-        orientation that does not place the boss under the plate."""
+        orientation that does not stand the boss under the plate."""
         doc, node, faces = self.faces()
-        bottom = faces[(0.0, 0.0, -1.0)]
-        sketched = doc.sketch_on_face(node, bottom, SKEW, 0.3 * m, orient=Orientation.identity())
-        fault = solve_document(doc).fault(sketched.placement)
-        self.assertIsNotNone(fault)
-        self.assertEqual(fault.variant, "mate_backwards")
-        self.assertEqual(fault.orient, Orientation.identity())
-        write = fault.write
+        profile = doc.draw_on_face(node, faces[(0.0, 0.0, -1.0)], SKEW, orient=Orientation.identity())
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(profile)
+        refused = caught.exception
+        self.assertEqual((refused.kind, refused.inner_kind), ("pose_degenerate", "face_chart_backwards"))
+        write = nearest((0.0, 0.0, -1.0))
+        self.assertIn(f"Recourse: write the orientation x: {write.x}, z: {write.z}", str(refused))
         doc, node, faces = self.faces()
-        sketched = doc.sketch_on_face(node, faces[(0.0, 0.0, -1.0)], SKEW, 0.3 * m, orient=write)
-        zs = [p[2] for p in positions(evaluate(doc), sketched.placement)]
+        profile = doc.draw_on_face(node, faces[(0.0, 0.0, -1.0)], SKEW, orient=write)
+        boss = doc.insert(Node.extrude(profile, 0.3 * m))
+        zs = [p[2] for p in positions(evaluate(doc), boss)]
         self.assertAlmostEqual(max(zs), 0.0, delta=1e-12)
         self.assertAlmostEqual(min(zs), -0.3, delta=1e-12)
+
+
+class TestSketchOnAnInstancesFace(unittest.TestCase):
+    """The orientation `orient=None` writes is read off the face as the
+    document evaluates under `resolver=`: an instance's copy has faces
+    only where its part resolves."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.ws = Workspace(self.dir)
+        (_, ref), _ = bench_scene.parts(self.ws)
+        self.doc = Doc()
+        self.post = self.doc.insert(Node.instantiate_part(ref, self.doc.world))
+        self.bottom = bench_scene.face_facing(self.ws, self.doc, self.post, (0.0, 0.0, -1.0))
+
+    def drawn(self, resolver):
+        profile = self.doc.draw_on_face(self.post, self.bottom, PAD, resolver=resolver)
+        boss = self.doc.insert(Node.extrude(profile, 0.1 * m))
+        return profile, boss
+
+    def test_under_the_workspace_the_boss_stands_below_the_post(self):
+        _, boss = self.drawn(self.ws)
+        zs = [p[2] for p in positions(evaluate(self.doc, resolver=self.ws), boss)]
+        self.assertAlmostEqual(min(zs), -0.1, delta=1e-12)
+        self.assertAlmostEqual(max(zs), 0.0, delta=1e-12)
+
+    def test_without_it_the_face_reads_no_orientation_and_the_identity_is_backwards(self):
+        """Breaks if `resolver=` stops reaching the door's evaluation:
+        the nearest orientation reads off nothing, and the identity it
+        falls to is backwards on the bottom face."""
+        profile, _ = self.drawn(None)
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(self.doc, resolver=self.ws).value(profile)
+        refused = caught.exception
+        self.assertEqual((refused.kind, refused.inner_kind), ("pose_degenerate", "face_chart_backwards"))
 
 
 class TestARestSpinsOneWay(unittest.TestCase):
     """A unit plate rests on a floor plate at slides `(3, 4)` and a
     spin of 0.5, its contact spelled twice: the flip on the floor's
     plane (as the viewer's mate tool and `Mate`'s docs write a rest), and
-    the flip on the copy's bottom (as `sketch_on_face` writes it). The
+    the flip on the copy's bottom (as a body placed on a face writes it,
+    DM1). The
     one spin turns about the target's own direction whatever side
     carries the flip, so both stand the copy at one place, turned
     counter-clockwise seen from `+z`."""
@@ -541,11 +655,11 @@ class TestSketchOnAFaceRefuses(unittest.TestCase):
     def test_an_edge_name_refuses_at_the_door_and_nothing_lands(self):
         """An edge name is refused as the seat's kind: what a name
         denotes is its own kind, so the door that reads it asks. The
-        gesture is one action, so nothing of it lands."""
+        door is one action, so nothing of it lands."""
         edge = self.ev.all_edges(self.plate)[0]
         before = self.doc.node_count
         with self.assertRaises(EditError) as caught:
-            self.doc.sketch_on_face(self.plate, edge, PAD, 0.3 * m)
+            self.doc.draw_on_face(self.plate, edge, PAD)
         refused = caught.exception
         self.assertEqual(refused.variant, "selection_name_kind")
         self.assertEqual(refused.found_kind, EntityKind.Edge)
@@ -554,42 +668,47 @@ class TestSketchOnAFaceRefuses(unittest.TestCase):
         self.assertEqual(self.doc.node_count, before)
 
     def test_a_curved_carrier_refuses_at_evaluate(self):
-        """A sketch rests on a plane: a face read as a plane refuses a
+        """A chart stands on a plane: a face read as a plane refuses a
         curved carrier, and `Evaluation.face_carrier_kind` is the door
-        that answers the same question BEFORE the sketch is placed."""
+        that answers the same question BEFORE the sketch is drawn."""
         torus = ring(self.doc)
         ev = evaluate(self.doc)
         face = ev.all_faces(torus)[0]
-        sketched = self.doc.sketch_on_face(torus, face, PAD, 0.3 * m)
-        self.assertIsNotNone(self.kind_of(sketched.placement).kind)
+        profile = self.doc.draw_on_face(torus, face, PAD)
+        err = self.kind_of(profile)
+        self.assertEqual((err.kind, err.inner_kind), ("pose_read", "not_planar"))
         self.assertIs(ev.face_carrier_kind(torus, face), SurfaceKind.Torus)
 
-    def test_a_name_that_does_not_denote_here_refuses_the_mate(self):
+    def test_a_name_that_does_not_denote_here_refuses_the_chart(self):
         """The N5 failure mode, and the evidence that the face is READ:
-        a transcribed frame could not fail this way. The plane read off
-        a name the body does not hold does not evaluate, so the
-        placement's mate refuses naming that side; the repair is a
-        rebind, not an edit of nine numbers."""
+        a transcribed frame could not fail this way. A name the body
+        does not hold does not resolve, so the profile's chart refuses;
+        the repair is a rebind, not an edit of nine numbers."""
         second = plate(self.doc, 0.2 * m)
-        sketched = self.doc.sketch_on_face(second, self.top, PAD, 0.3 * m)
-        err = self.kind_of(sketched.placement)
-        self.assertEqual(err.kind, "mate_side_unevaluated")
-        self.assertIn("`to` pose did not evaluate", str(err))
+        profile = self.doc.draw_on_face(second, self.top, PAD)
+        err = self.kind_of(profile)
+        self.assertEqual(err.kind, "select_resolve")
+        self.assertIn("Recourse: rebind it", str(err))
 
-    def test_a_failed_placement_poisons_the_union_above_it(self):
-        """One node out: the union over a copy that cannot be placed is
-        poisoned rather than fused at a fabricated pose, and `through`
-        names the placement."""
+    def test_a_failed_chart_poisons_the_extrude_above_it(self):
+        """One node out: the extrude of a profile whose chart cannot be
+        read is poisoned rather than swept at a fabricated frame, and
+        `through` names the profile."""
         second = plate(self.doc, 0.2 * m)
-        sketched = self.doc.sketch_on_face(second, self.top, PAD, 0.3 * m)
-        err = self.kind_of(sketched.union)
+        profile = self.doc.draw_on_face(second, self.top, PAD)
+        boss = self.doc.insert(Node.extrude(profile, 0.3 * m))
+        err = self.kind_of(boss)
         self.assertEqual(err.reason, "poisoned")
-        self.assertEqual(err.through, sketched.placement)
-        self.assertEqual(err.kind, "mate_side_unevaluated")
+        self.assertEqual(err.through, profile)
+        self.assertEqual(err.kind, "select_resolve")
 
     def test_text_that_is_no_name_at_all_is_a_boundary_refusal(self):
         with self.assertRaises(ValueError):
-            self.doc.sketch_on_face(self.plate, "the top one", PAD, 0.3 * m)
+            self.doc.draw_on_face(self.plate, "the top one", PAD)
+
+    def test_a_slide_of_the_wrong_dimension_is_named_by_its_place(self):
+        with self.assertRaisesRegex(ValueError, r"the slide at slides\[1\] reads a length, not an angle"):
+            self.doc.draw_on_face(self.plate, self.top, PAD, slides=(0 * m, 1 * rad))
 
 
 if __name__ == "__main__":

@@ -2,10 +2,11 @@
 id: a-fast-set-test-two-percent-under-the-one-second-bar-reds-prs-that-do-not-touch-it
 kind: issue
 title: A fast-set test two percent from the 1.0 s bar reds a PR that does not touch it
-status: open
+status: closed
 opened: 2026-11-20
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -31,3 +32,7 @@ Either the test into the slow set (it costs about a second on a hosted runner, t
 - **2026-11-23, PR 7203, run 45076908929**: `cert_m2r1_passes::m2r1_passes_interval`, 1.145 s against 1.0 s, on GREEN's row `a-fast-set-germ-row-sits-on-the-one-second-bar-and-reds-a-docs-only-commit`.
 
 Three units of one program met this bar on other programs' tests in one day, each after waiting over two hours for the runner that read it.
+
+## Closed
+
+2026-11-22, CIW triage (stale). Duplicates GREEN's P1 `work/green/the-one-second-bar-reds-prs-off-their-path-several-times-a-day.md` (opened 2026-11-22: five PRs redded by the 1.0 s bar in one evening). GREEN's row covers the class and the remedy. Also overlaps GREEN's P2 `a-fast-set-germ-row-sits-on-the-one-second-bar-and-reds-a-docs-only-commit` (four sightings). The row's test (`the_valley_between_two_touching_tubes_fills`) is still in the fast set: only a sibling, `the_lune_fillets_place_every_lattice_point`, is in `.config/nextest.toml:483`. The 2026-11-23 sightings above, including the `mod tests` keying defect in `--new-since`, are carried to GREEN's row (`work/green/log.md`, 2026-11-23).

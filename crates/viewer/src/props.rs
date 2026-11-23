@@ -645,7 +645,7 @@ impl MemberFault {
     }
 
     fn slot_fault(self, doc: &Doc<ProfileProgram>) -> SlotFault {
-        let said = spoken_by(&self.clone().node_error(), doc);
+        let said = spoken_by(&self.clone().node_error(), doc).to_string();
         SlotFault::Members {
             fault: Box::new(self),
             said,
@@ -726,7 +726,7 @@ impl MemberValues {
 
     /// The indices, as a sentence names them.
     fn indices(&self) -> String {
-        let names: Vec<String> = self.over.iter().map(SpokenVar::to_string).collect();
+        let names: Vec<String> = self.over.iter().map(crate::tree::spelled_var).collect();
         names.join(", ")
     }
 
@@ -736,7 +736,9 @@ impl MemberValues {
             .over
             .iter()
             .zip(at)
-            .map(|(index, value)| format!("{index} = {value}"))
+            .map(|(index, value)| {
+                format!("{index} = {value}", index = crate::tree::spelled_var(index))
+            })
             .collect();
         at.join(", ")
     }
@@ -1395,7 +1397,7 @@ pub fn source_rows(doc: &Doc<ProfileProgram>) -> Vec<SourceRow> {
                 var,
                 label: doc.spoken_var(var),
                 body: doc.spoken_var(body.read),
-                copies: crate::world::placements_of_var(doc, var).len(),
+                copies: doc.placements_of_var(var).len(),
             })
         })
         .collect()
@@ -1574,7 +1576,7 @@ pub struct Offered {
     /// The variable accepting the offer makes the slot read.
     pub var: VarId,
     /// How the offer names it: its name, or for an anonymous variable
-    /// the slot that reads it (`the depth of Extrude "base"`), as VR2
+    /// the slot that reads it (`the depth of "base" (3fa9c1d2a0b1)`), as VR2
     /// says an unnamed variable reads; its tag where no slot reads it.
     pub label: String,
 }
@@ -1677,10 +1679,10 @@ pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
             Some(format!(
                 "the {} of {}",
                 doc.node(node)?.slot_label(slot),
-                doc.spoken(node)
+                crate::tree::spelled(&doc.spoken(node))
             ))
         })
-        .unwrap_or_else(|| doc.spoken_var(var).to_string())
+        .unwrap_or_else(|| crate::tree::spelled_var(&doc.spoken_var(var)))
 }
 
 /// The `FreeVar` a dimension, a value and a NOTATION mint — the
@@ -2044,14 +2046,16 @@ impl core::fmt::Display for SlotUnitFault {
                 write!(
                     f,
                     "{node} carries no expression in its {} slot",
-                    slot.label()
+                    slot.label(),
+                    node = crate::tree::spelled(node)
                 )
             }
             Self::NotALiteral { node, slot } => write!(
                 f,
                 "the {} slot on {node} is computed, so it has no written unit to change — set \
                  an expression to change what it says",
-                slot.label()
+                slot.label(),
+                node = crate::tree::spelled(node)
             ),
             Self::Dimension { slot, source } => {
                 write!(
