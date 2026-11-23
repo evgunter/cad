@@ -8286,11 +8286,14 @@ fn glued_face<T: Real>(
 ///    is not tangent. Elsewhere, the rim circle the two faces both end
 ///    on: a junction, whose interiors do not meet there, decided by the
 ///    rim's identity and routed by its wedge ([`route_rim`]) before
-///    anything is read along it, and owing nothing more. With neither
-///    the pair is [`TangencyFailure::Unsupported`].
+///    anything is read along it, and owing nothing more. A rim with a
+///    spline face, whose wedge the routing does not read, is read by the
+///    table along its whole turn instead: a corner is no tangency, a
+///    touch is refused ([`BooleanError::TangencyUnsupported`]). With
+///    neither locus the pair is [`TangencyFailure::Unsupported`].
 /// 2. **The tangency table** ([`contact_verify::tangency_reading`])
-///    along the line over the pair's honest extent: the touch, the
-///    witness on both surfaces, first-order parallelism, one pair of
+///    along the line, or the spline-faced rim, over the pair's honest
+///    extent: the touch, the witness on both surfaces, first-order parallelism, one pair of
 ///    sides along the locus and a definite second-order margin. Which
 ///    way the outward normals point, and whether the crescent between the
 ///    sheets is void or shared, are claimed nowhere: the lump, the
@@ -8311,62 +8314,82 @@ fn verify_tangency<T: Decide>(
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
     let kinds = (sa.kind(), sb.kind());
     // 1. The witness locus.
-    let line = match tangent_line((a, fa, &sa), (b, fb, &sb), band).map_err(Refused)? {
-        Ok(line) => line,
-        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
-            return Err(Refused(BooleanError::coincidence(
-                Coincide::TangentLocus,
-                read,
-                diag,
-            )));
-        }
-        Err(geom_brep::TangentLocusError::NotTangent { .. }) => return Err(NotTangent),
-        Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
-            // An UNDECIDABLE rim identity escalates typed rather than
-            // reading as "no rim here": only the second means the
-            // geometry was examined and cleared.
-            let (rim, identity) = crate::rim_wedge::shared_rim(a, fa, b, fb, band)
-                .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
-                .ok_or(Unsupported)?;
-            // Both faces end on the rim: a junction, whose interiors do
-            // not meet there. Its identity and its wedge are what it owes,
-            // as the edge it becomes owes tier 3; that each face's edge
-            // lies on its carrier is the operand's own certificate, so
-            // nothing is sampled along the rim.
-            route_rim(a, fa, b, fb, rim, read, band)?;
-            return Ok(Tangency {
-                kinds,
-                locus: crate::rim_wedge::Locus::Rim(rim),
-                margin: identity,
-                line: None,
-                overlap: None,
-            });
-        }
-    };
-    let (carrier, t0, t1, located, overlap) = (
-        line.carrier,
-        line.span.0,
-        line.span.1,
-        line.gap,
-        line.overlap,
-    );
-    // The tangent line runs along a cylinder's stored axis
-    // (`geom_brep::tangent_locus`: the parallel pair's or the ruled
-    // pair's), nonzero at rest by tier 3's check 1, so it normalizes with
-    // no decision.
-    let locus = match carrier {
-        geom::Curve3::Line(geom::Line { origin, dir }) => {
-            crate::rim_wedge::Locus::Line(geom::Line {
-                origin,
-                dir: dir.normalize(),
-            })
-        }
-        _ => {
-            return Err(Refused(BooleanError::ClassificationInvariant {
-                what: "the glue door: a tangent line's carrier is not a line",
-            }));
-        }
-    };
+    let (carrier, t0, t1, locus, located, overlap) =
+        match tangent_line((a, fa, &sa), (b, fb, &sb), band).map_err(Refused)? {
+            Ok(line) => {
+                // The tangent line runs along a cylinder's stored axis
+                // (`geom_brep::tangent_locus`: the parallel pair's or the
+                // ruled pair's), nonzero at rest by tier 3's check 1, so it
+                // normalizes with no decision.
+                let locus = match line.carrier {
+                    geom::Curve3::Line(geom::Line { origin, dir }) => {
+                        crate::rim_wedge::Locus::Line(geom::Line {
+                            origin,
+                            dir: dir.normalize(),
+                        })
+                    }
+                    _ => {
+                        return Err(Refused(BooleanError::ClassificationInvariant {
+                            what: "the glue door: a tangent line's carrier is not a line",
+                        }));
+                    }
+                };
+                (
+                    line.carrier,
+                    line.span.0,
+                    line.span.1,
+                    locus,
+                    line.gap,
+                    Some(line.overlap),
+                )
+            }
+            Err(geom_brep::TangentLocusError::Escalated(diag)) => {
+                return Err(Refused(BooleanError::coincidence(
+                    Coincide::TangentLocus,
+                    read,
+                    diag,
+                )));
+            }
+            Err(geom_brep::TangentLocusError::NotTangent { .. }) => return Err(NotTangent),
+            Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
+                // An UNDECIDABLE rim identity escalates typed rather than
+                // reading as "no rim here": only the second means the
+                // geometry was examined and cleared.
+                let (rim, identity) = crate::rim_wedge::shared_rim(a, fa, b, fb, band)
+                    .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
+                    .ok_or(Unsupported)?;
+                // Both faces end on the rim: a junction, whose interiors do
+                // not meet there. Its identity and its wedge are what it owes,
+                // as the edge it becomes owes tier 3; that each face's edge
+                // lies on its carrier is the operand's own certificate, so
+                // nothing is sampled along the rim.
+                if sa.spline_chart().is_none() && sb.spline_chart().is_none() {
+                    route_rim(a, fa, b, fb, rim, read, band)?;
+                    return Ok(Tangency {
+                        kinds,
+                        locus: crate::rim_wedge::Locus::Rim(rim),
+                        margin: identity,
+                        line: None,
+                        overlap: None,
+                    });
+                }
+                // A spline face the routing reads no wedge of
+                // (`RimRouting::SplineFace`): the table along the whole rim
+                // says whether the pair touches there at all. A corner is no
+                // tangency, the crossing lanes'; a touch is a junction no arm
+                // acts on, refused below.
+                (
+                    geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref),
+                    T::zero(),
+                    // The rim's whole turn, its circle's period, read where
+                    // rim_wedge reads it.
+                    geom::conic_period::<T>().length(),
+                    crate::rim_wedge::Locus::Rim(rim),
+                    identity,
+                    None,
+                )
+            }
+        };
     // 2. The tangency table along the witness.
     use crate::contact::{TangentVerdict, Uncertified};
     let margin = match contact_verify::tangency_reading(
@@ -8406,12 +8429,17 @@ fn verify_tangency<T: Decide>(
             return Err(Unsupported);
         }
     };
+    // A spline-faced rim that touches: the junction's wedge is unread on
+    // a fit, and no arm acts on it.
+    if let crate::rim_wedge::Locus::Rim(_) = locus {
+        return Err(Refused(BooleanError::TangencyUnsupported));
+    }
     Ok(Tangency {
         kinds,
         locus,
         margin,
         line: carrier.as_line(),
-        overlap: Some(overlap),
+        overlap,
     })
 }
 
@@ -8523,8 +8551,10 @@ fn route_rim<T: Decide>(
             junction: RimJunction::Lamina,
         })),
         // Stations disagreeing on a material verdict, which no edit is
-        // known to reach, or a spline face the routing reads no wedge of:
-        // an arm that acts on the junction is not built.
+        // known to reach, or a spline face the routing reads no wedge of
+        // (the door reads a spline-faced rim by its table and routes only
+        // a touch, refused there the same): an arm that acts on the
+        // junction is not built.
         crate::rim_wedge::RimRouting::Mixed(_) | crate::rim_wedge::RimRouting::SplineFace => {
             Err(Refused(BooleanError::TangencyUnsupported))
         }
