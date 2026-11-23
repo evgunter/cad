@@ -278,3 +278,67 @@ pub(super) fn boundary_points(body: &Body<f64>, mesh: &mesh::Mesh, fk: topo::Fac
     }
     ids.len()
 }
+
+/// **Two small holes a column and a half apart mesh, by the
+/// certificate's correction.** The pipe of radius `r` over
+/// `z ∈ (−h/2, h/2)` less two thin radial stubs at mid-height, cut one
+/// after the other, `gap` columns of free wall between them, centred half
+/// a column off a rim chord point (a column is the rim's chord step at
+/// the lane's target, read off the plain pipe). With no node between the
+/// holes, the triangulation of the boundary points joins the holes'
+/// facing corners across the gap, a side wider than the target's
+/// columns: its certificate refuses, and the lane puts a point inside
+/// the triangle and triangulates again (`trimmed`, "The retry loop").
+/// The cells are those that refuse with the correction off, and the two
+/// that refuse on the lane's rows (`r = 10`, δ 0.1), which the class
+/// has with or without them. Each meshes, is the body's, and holds at
+/// most 1.4 times the plain wall's triangles at the lane's target, as a
+/// holed wall does ([`a_notched_or_holed_wall_takes_its_strips_triangles`]).
+#[test]
+fn two_holes_across_a_column_and_a_half_mesh_by_the_correction() {
+    for (r, delta, h, gap) in [
+        (1.0, 1e-2, 1.0, 1.5),
+        (1.0, 1e-2, 1.0, 1.6),
+        (1.0, 1e-2, 1.9, 1.5),
+        (1.0, 1e-3, 1.33, 1.5),
+        (1.0, 1e-3, 1.33, 1.6),
+        (1e-3, 1e-5, 1e-3, 1.5),
+        (1e-3, 1e-5, 1e-3, 1.6),
+        (1e-3, 1e-5, 1.9e-3, 1.5),
+        (10.0, 0.1, 10.0, 1.5),
+        (10.0, 0.1, 13.3, 1.5),
+    ] {
+        let what = format!("r {r}, δ {delta:e}, h {h}, gap {gap}");
+        let plain = rod(r, -0.5 * h, h);
+        let n = mesh::tessellate(&plain, delta * TARGET_SHARE, tol())
+            .unwrap()
+            .boundaries
+            .iter()
+            .map(|b| b.points.len())
+            .max()
+            .unwrap()
+            - 1;
+        #[allow(clippy::cast_precision_loss)]
+        let column = core::f64::consts::PI / n as f64;
+        let w = 0.04 * column * r;
+        let (c, half, d) = (9.5 * column, 0.5 * gap * column + w / r, 0.02 * h);
+        let stub = |turn: f64| {
+            posed(
+                "a stub",
+                brick((0.5 * r, 1.1 * r), (-w, w), (-d, d), tol()),
+                Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn),
+            )
+        };
+        let pipe = finished("the pipe", rod(r, -0.5 * h, h), tol());
+        let one = finished("one hole", op_of(&pipe, &stub(c - half), "A ∖ B"), tol());
+        let two = op_of(&one, &stub(c + half), "A ∖ B");
+        let reference = meshed_cylinder_triangles("the plain pipe", &plain, delta * TARGET_SHARE);
+        let got = meshed_cylinder_triangles(&what, &two, delta);
+        #[allow(clippy::cast_precision_loss)]
+        let ratio = got as f64 / reference as f64;
+        assert!(
+            ratio <= 1.4,
+            "{what}: {got} triangles, {ratio:.3} times the plain wall's {reference}"
+        );
+    }
+}

@@ -289,9 +289,14 @@
 //! shared-side and refinement arms append, so indices only grow.
 //!
 //! The same loop carries TESS-SPAN's second arm, **certificate-driven
-//! refinement**: after the emit pass, any NURBS triangle whose
-//! certificate exceeds δ — one that would otherwise refuse — queues
-//! its UV centroid as a new candidate and the attempt rebuilds. This
+//! refinement**: after the emit pass, any NURBS or cylinder triangle
+//! whose certificate exceeds δ — one that would otherwise refuse —
+//! queues its UV centroid as a new candidate and the attempt rebuilds.
+//! The cylinder lays no lattice
+//! (`chart_table::AnalyticRow::lattice_rows`), so a triangle on its
+//! boundary points can span more columns than the target allows; it is
+//! that face's only way to a triangle the certificate refuses, and one
+//! round has cleared every such face measured. This
 //! is deliberately a LAST-RESORT backstop, not the sliver cure: in a
 //! lattice that is anisotropic in the CDT's own coordinates, a
 //! centroid is one more off-lattice point and re-admits the empty
@@ -332,7 +337,7 @@ use topo::pcurves::{FaceLift, Lift};
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::chart_table::{AnalyticRow, ChartRow, RowEnd, SingularPoint};
+use crate::chart_table::{Analytic, AnalyticRow, ChartRow, RowEnd, SingularPoint};
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid};
 use crate::planar::{Pinches, Walk, shoelace2};
@@ -1434,12 +1439,14 @@ impl TrimmedFace<'_> {
             None
         };
         let mut triangles = Vec::new();
-        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
-        // triangles certifying above the per-face sizing target get
-        // their UV centroid queued as a new candidate for the next
-        // round.
+        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): a NURBS or a
+        // cylinder triangle certifying above δ gets its centroid queued as
+        // a new candidate for the next round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let refine_lane = matches!(self.row, ChartRow::Spline { .. });
+        let refine_lane = match self.row {
+            ChartRow::Spline { .. } => true,
+            ChartRow::Analytic(a) => matches!(a.kind(), Analytic::Cylinder { .. }),
+        };
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the shared-side test below.
