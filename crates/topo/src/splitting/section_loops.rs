@@ -421,7 +421,7 @@ fn arc_clears<T: Decide>(
 ) -> bool {
     let middle = |c: &dyn Conic<T>, (a, b): (T, T)| {
         let m = geom::mid_param(a, b);
-        let reach = geom_core::bisect::reach(SupSpeed::new(c.speed_over((a, b))), (a, b)) * T::zero(); // MUTATION B
+        let reach = geom_core::bisect::reach(SupSpeed::new(c.speed_over((a, b))), (a, b));
         (m, c.point_at(m), reach)
     };
     let (clear, meets) = match other {
