@@ -35,6 +35,7 @@
 //! This layer adds only the name resolution and the typed refusals
 //! that go with it.
 
+use crate::say;
 use geom::SurfaceKind;
 use geom_core::Decide;
 use topo::readback::{self, Pose, ReadbackError};
@@ -132,14 +133,10 @@ pub enum InterrogateError {
 // `Readback` arms forward their payload's own words. Kinds render
 // through `EntityKind::noun`, never `Debug`.
 impl crate::spoken::Say for InterrogateError {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         use crate::sentence::Recourse;
         match self {
-            Self::Standing(standing) => write!(f, "{}", crate::spoken::Said(standing, by)),
+            Self::Standing(standing) => say!(f, crate::spoken::Said(standing, by)),
             Self::NoSuchName => write!(
                 f,
                 "nothing in this node answers to that name — the selection is stale (an \
@@ -181,11 +178,13 @@ impl crate::spoken::Say for InterrogateError {
                  value does not have — the emission and the value disagree. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::SeveralOutputs { node } => write!(
+            Self::SeveralOutputs { node } => say!(
                 f,
-                "{} defines several outputs, each with names of its own. {}",
                 by.node(*node),
-                Recourse("read one by its output (a split's half by its port)")
+                format_args!(
+                    " defines several outputs, each with names of its own. {}",
+                    Recourse("read one by its output (a split's half by its port)")
+                )
             ),
             Self::Readback(error) => write!(f, "{error}"),
         }
@@ -195,7 +194,7 @@ impl crate::spoken::Say for InterrogateError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for InterrogateError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -204,7 +203,7 @@ impl InterrogateError {
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
     /// reads an evaluation alone, so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -765,6 +764,7 @@ pub(crate) fn output_body<T: topo::AtRestPolicy + Decide>(
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::Assertion(_)
+        | ValuePayload::Datum(_)
         | ValuePayload::Family => none(payload.kind_name()),
     }
 }

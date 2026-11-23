@@ -588,6 +588,15 @@ BOUND_AS = {
     "CopyRef": ("InterferenceFinding.a", "InterferenceFinding.a_member"),
     "Overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "Unlocalized": "InterferenceFinding.unlocalized",
+    # What a finding's assertion recourse determines. An interference's
+    # pair of faces is a tuple of the finding's own `FaceSite`s; a
+    # coincidence's claim is `Quieting`, authored as one action by
+    # `Doc.assert_quieting`.
+    "OpposedPair": "InterferenceFinding.quieting",
+    # Which of the two a loud finding carries: `CheckEvidence.quieting`
+    # or `InterferenceFinding.quieting`, each `None` where it carries
+    # none.
+    "CarriedAssertion": ("CheckEvidence.quieting", "InterferenceFinding.quieting"),
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.
@@ -1496,6 +1505,33 @@ BOUND_AS = {
     # the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
+    # --- the certified range's doors and the two enums its answer
+    # reads as words. The search itself, its field, its seed and its
+    # answer types cross name for name (`src/py/range.rs`).
+    #
+    # `admit` and `Step` are the kernel module's own short names, which
+    # only read beside `range::`; Python has no such prefix, so the
+    # door says what it admits and a step's outcome is the word
+    # `RangeSearch.step` returns.
+    "admit": "admit_range",
+    "Step": "RangeSearch.step",
+    # The search's budget crosses as `RangeSearch`'s two keywords,
+    # `max_depth` and `max_replays`, with the leaf dials the kernel's
+    # defaults; `max_depth`'s default is `RangeBudget::for_seed`.
+    "RangeBudget": "RangeSearch",
+    # Why a side is undecided crosses as the word on `NotDecided.reason`,
+    # with `replays` and `width` its two payloads.
+    "Unproven": "NotDecided.reason",
+    # The schedule's one constant is a fact about the search's cost, read
+    # in the module docs; nothing a caller passes or reads names it.
+    "STALL_LEVELS": "RangeSearch",
+    # How a side ends: `SideEnd::Seed` is `reached_seed_end`, and
+    # `SideEnd::Different` is the `ProvenDifferent` on `different`. A
+    # side that has not ended has neither, which is `end() == None`.
+    "SideEnd": "RangeSide.reached_seed_end",
+    # What a proven difference is, as the word on `kind`; the node a
+    # standing change names rides on `ProvenDifferent.node`.
+    "DifferenceKind": "ProvenDifferent.kind",
 }
 
 # The family tags a NOT_BOUND entry may carry. A `gap:` entry names the
@@ -2392,6 +2428,23 @@ NOT_BOUND = {
     # A space as a refusal speaks it: the world, its name, or the node
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
+    # A sentence as a value: its words and mentions, and the pieces a
+    # door writes it from. Python reads a
+    # refusal's sentence as the message text, each mention spelled; a
+    # mention's node rides as the payload's `NodeId`.
+    "Mention": SHAPE,
+    "Mentioned": SHAPE,
+    "Put": SHAPE,
+    "Run": SHAPE,
+    "SaidName": SHAPE,
+    "SaidNode": SHAPE,
+    "SaidVar": SHAPE,
+    "Sentence": SHAPE,
+    "say": SHAPE,
+    "sentence": SHAPE,
+    "display_said": SHAPE,
+    "node_text": SHAPE,
+    "var_text": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     # The names a deciding predicate's decisions are recorded under:
     # each `Settle` constructor fixes its own, which its docstring
@@ -2727,6 +2780,8 @@ NOT_BOUND = {
     # document a carried finding is spoken over (`CarriedCoincidence.finding`).
     "PinnedDoc": INTERIOR,
     "Route": INTERIOR,
+    # One hop of a `Route`: the instance and the document holding it.
+    "RouteHop": INTERIOR,
     # The answers of `Doc::expr_reach` and `Doc::member_envs` (D10
     # `[repetition]`), the reads a reader that evaluates an expression
     # itself makes. Python evaluates through `evaluate`, which makes both
@@ -3119,6 +3174,14 @@ NOT_BOUND = {
     # answered this moves with it, because a caller replaying draws in
     # Python would then need exactly this reduction to compare.
     "summarize": INTERIOR,
+    # **The document a range search replays**, and the door that
+    # derives it: the input with the field's variable widened to the
+    # seed and every other spread cleared. The search derives it for
+    # itself, and the two things a caller reads off it are on the
+    # answer — `CertifiedRange.nominal` and `CertifiedRange.pinned`,
+    # the spreads the derivation cleared.
+    "DerivedRange": INTERIOR,
+    "derive": INTERIOR,
     # **The gathered-product doors, one family, and they are what the
     # binding CALLS.** `Product` is the document's product with
     # everything the gather knows about it, `product_recorded` is the
@@ -3457,9 +3520,19 @@ NOT_BOUND = {
     # disposition is argued here rather than inferred.
     #
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
-    # shape: a Python surface that evaluates at a certified scalar. On
-    # that day these are doors a caller can reach and every one of them
-    # owes a spelling or a `gap:`.
+    # shape: a Python surface that HOLDS a certified evaluation — a
+    # box, a leaf, a report. On that day these are doors a caller can
+    # reach and every one of them owes a spelling or a `gap:`.
+    #
+    # THE CERTIFIED RANGE IS NOT THAT DAY, and it is bound
+    # (`RangeSearch`, `src/py/range.rs`). It evaluates at the certified
+    # scalar INSIDE the kernel and answers in plain numbers, so nothing
+    # below crosses with it as a value. Four of these names lend it
+    # words and stay this row's: `DriveConfig`'s two budget counts are
+    # the `max_depth=` and `max_replays=` keywords, `RefusalReason` and
+    # `BudgetKind` are the words on `NotDecided.reason` and
+    # `NotDecided.budget`, and `DriveRefusal` is the word on
+    # `RangeRefusal.variant` for a nominal that does not build.
     #
     # A witness's parameter point is the same: offsets per variable
     # over a box, carried only by a decided clearance, which an `f64`
@@ -3818,6 +3891,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
+    "MateFault::NotTheDatumsOwn": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::Backwards": "MateFault.variant",
@@ -4157,6 +4231,20 @@ MEMBERS_BOUND_AS = {
     "McRefusal::NoSamples": "McRefusal.variant",
     "McRefusal::NominalDoesNotBuild": "McRefusal.variant",
     "McRefusal::Stopped": "McRefusal.variant",
+    # A range request's refusals, each the word on `variant` with its
+    # payload on the attributes the class lists. `Drive` carries the
+    # driver's refusal and answers in the driver's word.
+    "RangeRefusal::SeedNotABracket": "RangeRefusal.variant",
+    "RangeRefusal::NotAContinuousParam": "RangeRefusal.variant",
+    "RangeRefusal::UnknownNode": "RangeRefusal.variant",
+    "RangeRefusal::UnknownSlot": "RangeRefusal.variant",
+    "RangeRefusal::StructuralSlot": "RangeRefusal.variant",
+    "RangeRefusal::SlotIsDefined": "RangeRefusal.variant",
+    "RangeRefusal::Derivation": "RangeRefusal.variant",
+    "RangeRefusal::SeedIsNotTheAnalyzedAxis": "RangeRefusal.variant",
+    "RangeRefusal::MoreThanOneAxisVaries": "RangeRefusal.variant",
+    "RangeRefusal::EvaluationOfAnotherDocument": "RangeRefusal.variant",
+    "RangeRefusal::Drive": "RangeRefusal.variant",
     # --- an arm or a field that crosses as a DOOR ------------------
     # An analyzed axis's DIMENSION, which is the parameter's own — the
     # field is `dim` in the kernel and the reader is `dimension`, the

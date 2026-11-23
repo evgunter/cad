@@ -334,11 +334,15 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the uniqueness \
-                   tube's cone arm; the coaxial pose has a closed form \
-                   (cone_torus_section), which this dispatch does not route to",
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR and fitted, with the full \
+                   three-limb certificate and in-op exhaustiveness \
+                   (geom_brep::ssi::cone_torus_ssi), the torus read through its \
+                   quartic and the cone as the double cone through its elevation, past \
+                   the pose's critical gap; the coaxial pose is the closed form's \
+                   (cone_torus_section), and a cone whose apex lies on the torus is \
+                   classified, a node or a touch, and not marched; a torus outside its \
+                   ring convention is refused as a shape",
         },
         // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
         // torus read through its quartic. ----
@@ -567,7 +571,7 @@ pub fn route_pose<T: Decide>(
         (Torus, Plane) => plane_torus_section(b, a, extent(), band).map(drop),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
-        (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) => {
+        (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) | (Cone, Torus) | (Torus, Cone) => {
             crate::pair_section(a, b, None, None::<geom_core::NoLane>, band).map(drop)
         }
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
@@ -593,8 +597,8 @@ pub fn route_pose<T: Decide>(
         | (Nurbs | Approx, Nurbs | Approx) => Ok(()),
         // Unimplemented at the kind level: `route`'s answer stands.
         (Cylinder, Nurbs)
-        | (Torus, Cone | Nurbs)
-        | (Cone, Cone | Sphere | Torus | Nurbs)
+        | (Torus, Nurbs)
+        | (Cone, Cone | Sphere | Nurbs)
         | (Sphere, Cone | Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus)
         | (Approx, Cylinder | Cone | Sphere | Torus)
@@ -3437,8 +3441,8 @@ fn coaxial_cone_torus<T: Decide>(
             Sign::Positive | Sign::Negative => {
                 return Err(SectionError::RoutesToGeneralRung {
                     pair: "cone×torus",
-                    why: "a torus off the cone's axis cuts a curve of degree eight, and the \
-                          pair's general-rung arm has not retired",
+                    why: "a torus off the cone's axis cuts a curve of degree eight, which has \
+                          no closed form",
                 });
             }
         }
