@@ -103,6 +103,7 @@ fn wall_by<T: Lane>(lofted: &Lofted<T>, score: impl Fn(Point3<f64>) -> f64) -> F
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .max_by(|&a, &b| score(centre(&lofted.body, a)).total_cmp(&score(centre(&lofted.body, b))))
         .expect("a loft has walls")

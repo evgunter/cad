@@ -4,6 +4,8 @@ kind: issue
 title: The Probe lane's content and naming keys split from f64's on every corpus document (m4_pr8_k_probe's differential, which aborts scripts/k_probe_sweep.sh); pinned 2026-10-28
 status: open
 opened: 2026-10-28
+priority: P3
+cost: M
 ---
 
 

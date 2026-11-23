@@ -115,7 +115,7 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::{ProjectiveScalar, ProjectiveSplit, SplineError};
 use geom_core::{Affine3, Band, BandError, Decide, Indeterminate, Point2, Point3, Real, Tol};
 use profile::{CanonicalStructure, SketchPlane, ValidatedProfile};
-use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
+use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, PcurveMintError, ShellKey, SolidKey};
 
 use crate::skin::{
@@ -157,20 +157,27 @@ pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
     /// `LoftGeometry.walls[l][j]` between its joints; at v-degree 1
     /// through `k ≥ 3` sections it has one per slab,
     /// `side_faces[l][j][q][s]` spanning sections `s` and `s + 1`.
-    pub side_faces: Vec<Vec<Vec<Vec<FaceKey>>>>,
+    /// `None` where the segment is pinned at both ends and is the same
+    /// curve in both sections of the slab: it has no wall there, and the
+    /// walls beside it share its edge.
+    pub side_faces: Vec<Vec<Vec<Vec<Option<FaceKey>>>>>,
     /// Wall–wall seam edges at the profile's vertices,
     /// `[loop][vertex][slab]`: `seams[l][j][s]` is the strut at vertex
     /// `j` across slab `s` — the `u = 0` boundary iso of segment `j`'s
     /// first sub-arc wall in slab `s` (and the `u = 1` of segment
     /// `j − 1 mod n`'s last). Struts of adjacent slabs meet at an
     /// interior section's vertex, and the edges of that section's ring
-    /// are the rims between adjacent slabs' walls.
-    pub seam_edges: Vec<Vec<Vec<EdgeKey>>>,
+    /// are the rims between adjacent slabs' walls. `None` where the
+    /// corner is pinned in the slab: one vertex in both sections, with
+    /// no strut.
+    pub seam_edges: Vec<Vec<Vec<Option<EdgeKey>>>>,
     /// The seams inside a segment, `[loop][segment][joint][slab]`:
     /// `joints[l][j][q][s]` is the smooth seam between segment `j`'s
     /// sub-arc walls `q` and `q + 1` across slab `s`, the `u = 0`
-    /// boundary iso of wall `q + 1`. Empty for a segment of one wall.
-    pub joint_edges: Vec<Vec<Vec<Vec<EdgeKey>>>>,
+    /// boundary iso of wall `q + 1`. Empty for a segment of one wall;
+    /// `None` where the segment is held flat in the slab, its joints
+    /// one point in both sections.
+    pub joint_edges: Vec<Vec<Vec<Vec<Option<EdgeKey>>>>>,
     /// **The v-parameter each input section sits at** —
     /// [`LoftGeometry::section_params`](crate::skin::LoftGeometry::section_params) carried out to the caller
     /// (`[0] = 0`, `[k − 1] = 1`) instead of dropped with the
@@ -345,25 +352,6 @@ pub enum LoftError {
         slab: usize,
         /// The first slab it moves in.
         moving: usize,
-    },
-    /// A corner is pinned throughout the span its wall covers (every
-    /// slab at v-degree 2 or more, or its slab at v-degree 1, which a
-    /// two-section wedge is), which is a legal body: the corner is one
-    /// vertex, and each wall beside it has a collapsed boundary column
-    /// there, a chart singularity. The kernel does not build it yet:
-    /// a face's loop walk resets a joint only on a sphere's pole or a
-    /// cone's apex (`geom_brep::chart_singularity::singular_points`),
-    /// and reads a spline chart's joint by its chart-space gap
-    /// (`topo` `pcurves/decision.rs`, `decide_joint`), which a collapsed column
-    /// is (`work/charttail/a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint.md`).
-    /// A limit of the kernel, not a fault in the sections.
-    PinnedCornerUnsupported {
-        /// The loop, in canonical order (the outer first).
-        loop_index: usize,
-        /// The corner, or the segment hinged on two pinned corners.
-        at: PinnedSite,
-        /// The first slab that pins it — the pair [`SlabPair`] names.
-        slab: usize,
     },
     /// Whether a corner is the same world point in a slab's two
     /// sections escalated (`loft_corner_pinned`).
@@ -618,19 +606,6 @@ impl LoftError {
                  v-degree 1",
                 SlabPair(*slab),
                 SlabPair(*moving),
-                far = SlabPair(*slab).far()
-            ),
-            Self::PinnedCornerUnsupported {
-                loop_index,
-                at,
-                slab,
-            } => write!(
-                f,
-                "loft {} hold {at} of loop {loop_index} at one point; that is a legal body, \
-                 but the wall beside it collapses there to a chart singularity, which the \
-                 kernel does not build on a spline wall yet (a kernel limit, not an input \
-                 fault). Recourse: move it apart between sections {slab} and {far}",
-                SlabPair(*slab),
                 far = SlabPair(*slab).far()
             ),
             Self::CornerEscalated {
@@ -973,7 +948,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
             .iter()
             .map(|lp| strip_points(lp, |p| *p))
             .collect();
-        stacking::stacking_door(
+        let pinned = stacking::stacking_door(
             self.places,
             &canonical,
             &strips,
@@ -981,13 +956,20 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
             band,
             self.tol,
         )?;
-        let geometry = skin_validated(canonical, self.places, self.v_degree, self.params)
-            .map_err(LoftError::Skin)?;
+        let geometry = skin_validated(
+            canonical,
+            self.places,
+            self.v_degree,
+            self.params,
+            &|l, j, s| pinned.at(l, j, s),
+        )
+        .map_err(LoftError::Skin)?;
         assemble(
             self.places,
             &geometry.walls,
             &geometry.canonical,
             geometry.section_params,
+            &pinned,
             self.tol,
         )
     }
@@ -1075,9 +1057,16 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .iter()
             .map(|lp| strip_points(lp, |p| p.map(T::from_computed)))
             .collect();
-        stacking::stacking_door(places, &lifted, &strips, self.v_degree, band, self.tol)?;
-        let geometry = skin_validated(canonical, channel_places, self.v_degree, self.params)
-            .map_err(LoftError::Skin)?;
+        let pinned =
+            stacking::stacking_door(places, &lifted, &strips, self.v_degree, band, self.tol)?;
+        let geometry = skin_validated(
+            canonical,
+            channel_places,
+            self.v_degree,
+            self.params,
+            &|l, j, s| pinned.at(l, j, s),
+        )
+        .map_err(LoftError::Skin)?;
         let walls = geometry
             .walls
             .iter()
@@ -1088,7 +1077,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .iter()
             .map(|u| T::from_computed(*u))
             .collect();
-        assemble(places, &walls, &lifted, params, self.tol)
+        assemble(places, &walls, &lifted, params, &pinned, self.tol)
     }
 }
 
@@ -1351,6 +1340,40 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
     Ok(())
 }
 
+/// **A hinge's edge at rest**, between the two caps that hold it: the
+/// description its wedge demands ([`topo::edge_wedge_description`]), as
+/// extrude's cap rims rest. The wedge is the caps' dihedral about the
+/// hinge, the angle the stack turns about it, so one in band is the
+/// stack's step escalating ([`LoftError::StackingEscalated`]); the door
+/// has read that step for every slab already, so no hinge built at rest
+/// reaches it.
+fn hinge_at_rest<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    band: Band,
+    tol: Tol,
+) -> Result<(), LoftError> {
+    let demanded = topo::edge_wedge_description(body, edge, band).unwrap_or_else(|| {
+        unreachable!("hinge {edge:?} was minted by this loft with a certified carrier")
+    });
+    match demanded {
+        Ok(geom_brep::MustCarryDescription::Intrinsic(description)) => {
+            body.restate_stored_edge(edge, description, tol)?;
+        }
+        Ok(geom_brep::MustCarryDescription::Conventional) => body.describe_at_rest(edge, tol)?,
+        Err(geom_brep::WedgeRefusal::InBand(escalation)) => {
+            return Err(LoftError::StackingEscalated {
+                slab: 0,
+                source: escalation.diag(),
+            });
+        }
+        Err(geom_brep::WedgeRefusal::Mixed(mixed)) => unreachable!(
+            "a hinge is a line between two planes, whose dihedral is one at every station: {mixed}"
+        ),
+    }
+    Ok(())
+}
+
 /// Assembles the loft BODY from its skinned geometry (module docs),
 /// over sections the stacking door has already accepted.
 ///
@@ -1362,6 +1385,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     walls_t: &[Vec<Arc<NurbsSurface<T>>>],
     canonical: &[ValidatedProfile<T>],
     section_params: Vec<T>,
+    door: &stacking::Pinned,
     tol: Tol,
 ) -> Result<Lofted<T, Body<T>>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
@@ -1394,6 +1418,22 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     }
     let slabs = walls.first().and_then(|lp| lp.first()).map_or(1, Vec::len);
     let at = |b: usize| if slabs == 1 { b * (k - 1) } else { b };
+    // The door's classes over each body slab's sections: a wall through
+    // every section is one slab over all of them, where the door has
+    // refused a corner or segment pinned in some and not others.
+    let over = |s: usize| if slabs == 1 { 0..k - 1 } else { s..s + 1 };
+    // The door classes the profile's corners and segments; a piece is
+    // its segment's. A piece's start is pinned where it is its segment's
+    // corner and the door pinned that, or where it is a joint inside a
+    // segment held flat, whose joints coincide as its curve does.
+    let flat = |li: usize, q: usize, s: usize| {
+        let (j, _) = owner[li][q];
+        door.flat_through(li, j, over(s))
+    };
+    let pinned_at = |li: usize, q: usize, s: usize| match owner[li][q] {
+        (j, 0) => door.at_through(li, j, over(s)),
+        (j, _) => door.flat_through(li, j, over(s)),
+    };
 
     // ---- Traversals and world points, per section, per loop, per
     // piece ([`segment_pieces`]). ----
@@ -1556,20 +1596,30 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // the next slab's base; the last slab's are the top cap's. Struts
     // are SCAFFOLDING lines here (mev_line) and upgrade to the seam
     // class in phase 6, once their walls' keys exist. ----
-    let mut side_faces: Vec<Vec<Vec<FaceKey>>> = Vec::with_capacity(bloops.len());
-    let mut seam_edges: Vec<Vec<Vec<EdgeKey>>> = Vec::with_capacity(bloops.len());
+    let mut side_faces: Vec<Vec<Vec<Option<FaceKey>>>> = Vec::with_capacity(bloops.len());
+    let mut seam_edges: Vec<Vec<Vec<Option<EdgeKey>>>> = Vec::with_capacity(bloops.len());
     // Each interior section's rims, with the loop, segment and slab of
     // the wall below them.
     let mut section_rims: Vec<(EdgeKey, usize, usize, usize)> = Vec::new();
     for (li, base) in bases.iter().enumerate() {
         let n = base.len();
         let mut base = base.clone();
-        let mut faces: Vec<Vec<FaceKey>> = vec![Vec::with_capacity(slabs); n];
-        let mut seams: Vec<Vec<EdgeKey>> = vec![Vec::with_capacity(slabs); n];
+        let mut faces: Vec<Vec<Option<FaceKey>>> = vec![Vec::with_capacity(slabs); n];
+        let mut seams: Vec<Vec<Option<EdgeKey>>> = vec![Vec::with_capacity(slabs); n];
         for s in 0..slabs {
             let far = &q_at[at(s + 1)][li];
-            let mut struts: Vec<MevCreated> = Vec::with_capacity(n);
+            // A corner the door pinned in this slab is one vertex in
+            // both sections, so it gets no strut, and the half of the
+            // seed face's loop that leaves its top is its rim's: `top[j]`
+            // is that half for every corner, moved on as each wall's far
+            // rim takes its place.
+            let mut top: Vec<topo::HalfEdgeKey> = Vec::with_capacity(n);
             for j in 0..n {
+                if pinned_at(li, j, s) {
+                    seams[j].push(None);
+                    top.push(base[j]);
+                    continue;
+                }
                 let m = body.mev_line(
                     MevSite::Fan {
                         he1: base[j],
@@ -1578,33 +1628,35 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     far[j],
                     tol,
                 )?;
-                struts.push(m);
+                seams[j].push(Some(m.edge));
+                top.push(m.he_minus);
             }
-            let mut first_top = None;
             for j in 0..n {
-                let he2 = match (j + 1 < n, first_top) {
-                    (true, _) => struts[j + 1].he_minus,
-                    (false, Some(top)) => top,
-                    (false, None) => struts[j].he_minus,
-                };
+                // A segment pinned at both ends and the same curve in
+                // both sections is the edge both hold: no wall, and its
+                // rim stays the next slab's base.
+                if flat(li, j, s) {
+                    faces[j].push(None);
+                    continue;
+                }
                 let mef = body.mef(
                     MefSite::Chords {
-                        he1: struts[j].he_minus,
-                        he2,
+                        he1: top[j],
+                        he2: top[(j + 1) % n],
                     },
                     rim_spec(at(s + 1), li, j, far[j]),
                     wall_surface(li, j, s),
                     tol,
                 )?;
-                if j == 0 {
-                    first_top = Some(mef.he_plus);
-                }
-                faces[j].push(mef.face);
-                seams[j].push(struts[j].edge);
+                faces[j].push(Some(mef.face));
                 // The far rim's plus half stays in the seed face, from
-                // the far end of strut `j`: the next slab's base.
+                // the top of corner `j`: the next slab's base.
                 base[j] = mef.he_plus;
-                if s + 1 < slabs {
+                top[j] = mef.he_plus;
+                // A rim every slab above holds flat is the top cap's,
+                // which states it at rest; any other far rim below the top
+                // is an interior section's.
+                if !(s + 1..slabs).all(|t| flat(li, j, t)) {
                     section_rims.push((mef.edge, li, j, s));
                 }
             }
@@ -1628,6 +1680,18 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // its own rim, so the rim cannot name it at mint time).
     describe_face_rim_at_rest(&mut body, bottom_face, tol)?;
     describe_face_rim_at_rest(&mut body, top_face, tol)?;
+    // A segment held flat through every slab is a hinge: the edge both
+    // caps hold, between two planes, so it rests as their wedge demands.
+    for (li, base) in bases.iter().enumerate() {
+        for (j, &he) in base.iter().enumerate() {
+            if (0..slabs).all(|s| flat(li, j, s)) {
+                let Some(edge) = body.get_half_edge(he).map(|h| h.edge) else {
+                    unreachable!("a cap rim's half-edge is live until the assembly ends")
+                };
+                hinge_at_rest(&mut body, edge, band, tol)?;
+            }
+        }
+    }
 
     // ---- Phase 6: strut upgrades to the seam class — the wall keys
     // now exist, so each strut re-describes as its slab wall's `u = 0`
@@ -1639,7 +1703,16 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         let n = seams.len();
         for j in 0..n {
             for s in 0..slabs {
-                let wall_key = face_surface_key(&body, side_faces[li][j][s]);
+                // A pinned corner has no strut to describe.
+                let Some(strut) = seams[j][s] else {
+                    continue;
+                };
+                let Some(wall) = side_faces[li][j][s] else {
+                    unreachable!(
+                        "a corner with a strut is not pinned, so the segment it starts has a wall"
+                    )
+                };
+                let wall_key = face_surface_key(&body, wall);
                 let carrier = geom_brep::boundary_iso_u(walls[li][j][s].as_ref(), false)
                     .map_err(|source| LoftError::SeamStructure { source })?;
                 let spec = EdgeCurveSpec {
@@ -1655,12 +1728,15 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     param_start: T::zero(),
                     param_end: T::one(),
                 };
-                body.set_edge_curve(seams[j][s], spec, tol)?;
+                body.set_edge_curve(strut, spec, tol)?;
             }
         }
     }
     for &(rim, li, j, s) in &section_rims {
-        let chart = face_surface_key(&body, side_faces[li][j][s]);
+        let Some(wall) = side_faces[li][j][s] else {
+            unreachable!("an interior section's rim is laid by the mef of the wall below it")
+        };
+        let chart = face_surface_key(&body, wall);
         describe_section_rim(
             &mut body,
             rim,
@@ -1681,9 +1757,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // segment they cut. A segment's first piece starts at its profile
     // vertex, whose strut is a seam; the struts at its later pieces are
     // its sub-arc joints. ----
-    let mut by_segment: Vec<Vec<Vec<Vec<FaceKey>>>> = Vec::with_capacity(owner.len());
-    let mut vertex_seams: Vec<Vec<Vec<EdgeKey>>> = Vec::with_capacity(owner.len());
-    let mut joint_edges: Vec<Vec<Vec<Vec<EdgeKey>>>> = Vec::with_capacity(owner.len());
+    let mut by_segment: Vec<Vec<Vec<Vec<Option<FaceKey>>>>> = Vec::with_capacity(owner.len());
+    let mut vertex_seams: Vec<Vec<Vec<Option<EdgeKey>>>> = Vec::with_capacity(owner.len());
+    let mut joint_edges: Vec<Vec<Vec<Vec<Option<EdgeKey>>>>> = Vec::with_capacity(owner.len());
     for (li, pieces) in owner.iter().enumerate() {
         let segments = cuts[li].len();
         let (mut faces, mut seams, mut joints) = (

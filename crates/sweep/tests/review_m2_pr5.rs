@@ -841,9 +841,10 @@ fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
         assert_eq!(witness.z.to_bits(), mid.z.to_bits());
         // And it is the start point's antipode, not the start point.
         let start = c.carrier().eval(t0);
-        let Curve3::Circle(geom::Circle { frame, .. }) = c.carrier().clone() else {
+        let Curve3::Circle(the_circle @ geom::Circle { .. }) = c.carrier().clone() else {
             panic!("rim carrier")
         };
+        let frame = the_circle.frame();
         let center = frame.origin();
         assert!(
             witness.distance(start) > 1.0,

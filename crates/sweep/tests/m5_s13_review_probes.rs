@@ -333,19 +333,13 @@ fn probe_plane_sphere_section_dense_residual() {
     else {
         panic!("expected a circle");
     };
-    let geom::Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame_3,
-            ..
-        },
-    ) = circ
-    else {
+    let geom::Curve3::Circle(conic_k) = circ else {
         panic!("non-circle carrier");
     };
     let (cc, ca, cu) = (
-        carrier_frame_3.origin(),
-        carrier_frame_3.axis(),
-        carrier_frame_3.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let cr = conic_k.radius();
     assert!(

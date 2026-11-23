@@ -178,10 +178,10 @@ use pncad::workspace::WorkspaceError;
 /// name no refusal can ever carry.
 pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err.kind() {
-        PathErrorKind::JunctionTangent => "junction_tangent",
+        PathErrorKind::JunctionTurnWithinTolerance => "junction_turn_within_tolerance",
         PathErrorKind::JunctionCusp => "junction_cusp",
         PathErrorKind::CuspDoublesBackOverLeg => "cusp_doubles_back_over_leg",
-        PathErrorKind::SeamTangent => "seam_tangent",
+        PathErrorKind::SeamTurnWithinTolerance => "seam_turn_within_tolerance",
         PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
@@ -1690,7 +1690,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::StackingEscalated { .. } => "stacking_escalated",
         LoftError::NotFinished { .. } => "not_finished",
         LoftError::PinnedCorner { .. } => "pinned_corner",
-        LoftError::PinnedCornerUnsupported { .. } => "pinned_corner_unsupported",
         LoftError::CornerEscalated { .. } => "corner_escalated",
         LoftError::SectionsTouch { .. } => "sections_touch",
         LoftError::ClearanceUndecided { .. } => "clearance_undecided",
@@ -2271,6 +2270,7 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::ChartSingularityVertex { .. } => "chart_singularity_vertex",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+        NormalizationKind::CollapsedSideMadeOne { .. } => "collapsed_side_made_one",
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
