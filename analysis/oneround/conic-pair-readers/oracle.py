@@ -17,7 +17,11 @@ meeting is wrong.
 
 Usage: oracle.py ladder-eps<eps>.jsonl  -> prints the table, writes .judged.json
 """
-import json, re, sys, collections
+
+import json
+import re
+import sys
+import collections
 from fractions import Fraction
 from mpmath import mp, mpf, sqrt, cos, sin, findroot
 
@@ -34,19 +38,23 @@ def V(v):
 
 
 def dot(a, b):
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=False))
 
 
 def cross(a, b):
-    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+    return [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
 
 
 def sub(a, b):
-    return [x - y for x, y in zip(a, b)]
+    return [x - y for x, y in zip(a, b, strict=False)]
 
 
 def add(a, b):
-    return [x + y for x, y in zip(a, b)]
+    return [x + y for x, y in zip(a, b, strict=False)]
 
 
 def scale(a, s):
@@ -66,10 +74,16 @@ class Ellipse:
 
     def at(self, t):
         ku, kv = cos(t) - self.kc, sin(t) - self.ks
-        return [s + self.a * u * ku + self.b * v * kv for s, u, v in zip(self.S, self.u, self.v)]
+        return [
+            s + self.a * u * ku + self.b * v * kv
+            for s, u, v in zip(self.S, self.u, self.v, strict=False)
+        ]
 
     def d(self, t):
-        return [-self.a * u * sin(t) + self.b * v * cos(t) for u, v in zip(self.u, self.v)]
+        return [
+            -self.a * u * sin(t) + self.b * v * cos(t)
+            for u, v in zip(self.u, self.v, strict=False)
+        ]
 
 
 def closest(f, df, g, dg, t0, s0, scale_t):
@@ -90,7 +104,9 @@ def refusing_row(fault):
     `predicate`, else the fault itself (`Unsettled(Tangency)`)."""
     if fault is None:
         return None
-    m = re.search(r'row: "([^"]+)"', fault) or re.search(r'predicate: Some\("([^"]+)"\)', fault)
+    m = re.search(r'row: "([^"]+)"', fault) or re.search(
+        r'predicate: Some\("([^"]+)"\)', fault
+    )
     return m.group(1) if m else fault
 
 
@@ -101,17 +117,29 @@ def judge(r):
     sp = norm(e.d(theta))
     if r["door"] == "line":
         lo, ld = V(r["lo"]), V(r["ld"])
-        f = lambda s: add(lo, scale(ld, s))
-        df = lambda s: ld
+
+        def f(s):
+            return add(lo, scale(ld, s))
+
+        def df(s):
+            return ld
+
         # seed: the line's foot of the target
         s0 = dot(sub(e.at(theta), lo), ld) / dot(ld, ld)
-        t, s, gap = closest(e.at, e.d, f, df, theta, s0, sp)
+        t, _s, gap = closest(e.at, e.d, f, df, theta, s0, sp)
     else:
         c, m, cu = V(r["c"]), V(r["m"]), V(r["cu"])
         cv = cross(m, cu)
-        g = lambda s: [x + u * cos(s) + v * sin(s) for x, u, v in zip(c, cu, cv)]
-        dg = lambda s: [-u * sin(s) + v * cos(s) for u, v in zip(cu, cv)]
-        t, s, gap = closest(e.at, e.d, g, dg, theta, 0, sp)
+
+        def g(s):
+            return [
+                x + u * cos(s) + v * sin(s) for x, u, v in zip(c, cu, cv, strict=False)
+            ]
+
+        def dg(s):
+            return [-u * sin(s) + v * cos(s) for u, v in zip(cu, cv, strict=False)]
+
+        t, _s, gap = closest(e.at, e.d, g, dg, theta, 0, sp)
     gap = float(gap)
     truth = "meets" if gap <= zero else ("apart" if gap > esc else "between")
     pts = r["points"]
@@ -121,17 +149,41 @@ def judge(r):
         said = "meets"
     else:
         said = "apart"
-    wrong = (said == "apart" and truth == "meets") or (said == "meets" and truth == "apart")
+    wrong = (said == "apart" and truth == "meets") or (
+        said == "meets" and truth == "apart"
+    )
     off = []
     for p in pts:
         tk = F(p["tb"] if r["door"] == "line" else p["ta"])
         off.append(float(norm(sub(e.at(tk), e.at(t)))))
     if said == "meets" and truth != "apart" and off and min(off) > esc:
         wrong = True
-    return {**{k: r[k] for k in ("door", "lane", "fat", "target", "case", "place", "theta", "gamma", "shift", "kind")},
-            "fault": r.get("fault"), "row": refusing_row(r.get("fault")),
-            "in_box": r.get("in_box"), "seam_at_anchor": r["phase"] == [1.0, 0.0],
-            "gap": gap, "truth": truth, "said": said, "wrong": wrong, "off": off}
+    return {
+        **{
+            k: r[k]
+            for k in (
+                "door",
+                "lane",
+                "fat",
+                "target",
+                "case",
+                "place",
+                "theta",
+                "gamma",
+                "shift",
+                "kind",
+            )
+        },
+        "fault": r.get("fault"),
+        "row": refusing_row(r.get("fault")),
+        "in_box": r.get("in_box"),
+        "seam_at_anchor": r["phase"] == [1.0, 0.0],
+        "gap": gap,
+        "truth": truth,
+        "said": said,
+        "wrong": wrong,
+        "off": off,
+    }
 
 
 def main(path):
@@ -139,7 +191,11 @@ def main(path):
     json.dump(out, open(path.replace(".jsonl", ".judged.json"), "w"), indent=0)
     table = collections.Counter()
     for j in out:
-        verdict = ("WRONG" if j["wrong"] else "right") if j["said"] != "refused" else "refused:" + j["row"]
+        verdict = (
+            ("WRONG" if j["wrong"] else "right")
+            if j["said"] != "refused"
+            else "refused:" + j["row"]
+        )
         table[(j["door"], j["lane"], j["truth"], verdict)] += 1
     for k in sorted(table):
         print(*k, table[k], sep="\t")
