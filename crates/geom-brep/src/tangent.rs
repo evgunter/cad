@@ -243,7 +243,7 @@ pub(crate) fn tangent_step_bounds<T: Real>(
         return None;
     }
     if let Curve3::Circle(circle) = carrier {
-        let f = circle.frame;
+        let f = circle.frame();
         return circle_span_bounds(
             s1,
             s2,

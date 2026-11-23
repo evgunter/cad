@@ -25,10 +25,11 @@
 #  - an extent widened, scaled or measured by the caller's number:
 #    `ExtentBall::of_cover_within`, `lever_from_point_and_plane` (its
 #    normal is the caller's, unit or not), `Reach::of_face`, a
-#    `Reach::Measured` or `Reach::Face` literal, and geom-brep's
-#    crate-private `lever_from_within`, `of_crossing_cylinders`,
-#    `hinge_lever`, `turn_lever`, `ruled_lever`, `generator_lever`:
-#    home, geom-brep's `extent.rs`.
+#    `Reach::Measured` or `Reach::Face` literal, geom-brep's
+#    crate-private `of_crossing_cylinders` (two axis lines and two
+#    radii) and `generator_lever` (an axis line and a half-angle),
+#    and the extent home's own `hinge_lever` and `turn_lever`: home,
+#    geom-brep's `extent.rs`.
 #
 # `Lever`'s own field is private to its module, so no gate holds it.
 # `lever-sources.sh` holds the doors that name no source at all
@@ -55,12 +56,17 @@
 #    point and hands it to its pinned site is callable from any file,
 #    unpinned (the row lists the ones that exist);
 #  - geometry built by hand: `Surface`, `Frame` and `Curve3` have
-#    public fields, and a conic and `geom::cover::Cover` public
-#    constructors, so a caller's length reaches every reading
-#    constructor through a carrier, a span or a cover it made;
-#  - a caller's point: `lever_from(p)` reads from any pivot, and the
-#    curvature home's `curvature_lever_arm(cone, p)` and
-#    `parallel_curvature_arm(s, p)` read `p`'s distance from an axis;
+#    public fields, a conic and `geom::cover::Cover` public
+#    constructors, and geom-brep's `PlaneCylinder` pose (which
+#    `Reach::ruled_pivot_lever` reads) crate-public ones, so a caller's
+#    length reaches every reading constructor through a carrier, a
+#    span, a cover or a pose it made;
+#  - a caller's point: `lever_from(p)` and `lever_from_either(p, q)`
+#    read from any pivot, the curvature home's
+#    `curvature_lever_arm(cone, p)` and `parallel_curvature_arm(s, p)`
+#    read `p`'s distance from an axis, and its
+#    `chart_curvature_arm(lane, chart, p, reach)` reads a chart at any
+#    point;
 #  - a door called through a macro's expansion, or as `Self::door(…)`
 #    in a trait impl for `geom_brep::Reach` in another crate (impls of
 #    `Lever` and `ExtentBall`, and renames or aliases of the three

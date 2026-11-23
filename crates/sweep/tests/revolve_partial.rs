@@ -123,31 +123,21 @@ fn half_revolve_axis_edge_stays_conventional() {
     let RevolvedKind::Partial {
         start_meridians,
         start_cap,
-        end_cap,
-        coplanar_caps,
         ..
     } = &t.kind
     else {
         panic!("partial revolve");
     };
-    let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
-    assert_eq!(
-        key(start_cap),
-        key(end_cap),
-        "the coplanar caps wear one record"
-    );
-    assert_declared_image_in(&t.body, start_meridians[0][3], key(start_cap));
-    let row = coplanar_caps.expect("the caps' coincidence is recorded");
-    let mut cells = row.cells.map(|c| match c {
-        topo::RowCell::Result {
-            cell: topo::Cell::Face(f),
-        } => Some(f),
-        _ => None,
-    });
-    cells.sort();
-    let mut caps = [Some(*start_cap), Some(*end_cap)];
-    caps.sort();
-    assert_eq!(cells, caps, "the row names the two caps: {row:?}");
+    let quarter = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_half_turn_caps(&t, &start_cap_record(&quarter));
+    let key = t.body.get_face(*start_cap).unwrap().surface;
+    assert_declared_image_in(&t.body, start_meridians[0][3], key);
     assert!(signed_volume(&t.body) > 0.0);
 }
 
