@@ -820,7 +820,7 @@ fn co_surface<T: Decide>(
 ) -> Result<CoSurface<T>, AcrossRefusal<T>> {
     let read = crate::curve_face::cross(span, plane, band).map_err(AcrossRefusal::Windows)?;
     Ok(match read.pose {
-        Pose::Lies => CoSurface::InPlane,
+        Pose::Lies(_) => CoSurface::InPlane,
         Pose::Tangent(_) => CoSurface::Touch,
         Pose::Apart | Pose::Isolated(_) | Pose::Through(_) => CoSurface::Roots(read.meetings),
     })

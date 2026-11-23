@@ -3036,7 +3036,8 @@ impl Coincidence {
     /// `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
     /// `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`,
     /// `split_on`, `battery_turn`, `battery_joint`, `battery_support_axis`,
-    /// `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or `smooth_join`.
+    /// `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest`, `smooth_join` or
+    /// `arc_on_face`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

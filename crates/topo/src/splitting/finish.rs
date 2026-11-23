@@ -177,10 +177,10 @@ mod raw {
                 above,
                 below,
                 naming,
-                coincidences: rows.0,
+                coincidences: rows.rows,
                 mints: super::Mints {
                     coincident,
-                    on_lines: rows.2,
+                    on_lines: rows.on_lines,
                 },
             }
         }
@@ -318,24 +318,13 @@ impl<'a, T: Real> Sides<'a, T> {
     ) -> Result<SplitContacts, FinishDesync> {
         let mut out = SplitContacts::default();
         for (side, body) in self.listed() {
-            let segment = |e: EdgeKey| {
-                let data = body.get_edge(e)?;
-                let point = |he| {
-                    let v = body.get_half_edge(he)?.start;
-                    body.get_vertex(v).map(|d| d.point)
-                };
-                Some(crate::census::segment_key([
-                    point(data.he_plus)?,
-                    point(data.he_minus)?,
-                ]))
-            };
             for pair in crate::census::shared_segments(body) {
                 let [a, b] = pair.edges;
-                let Some(line) = segment(a).and_then(|k| on_lines.iter().find(|l| l.segment == k))
-                else {
+                let key = crate::census::edge_segment_key(body, a);
+                let Some(line) = on_lines.iter().find(|l| l.segment == key) else {
                     continue;
                 };
-                let row = super::edge_on_row(rows, line.edge, line.margin);
+                let row = super::split_on_row(rows, Cell::Edge(line.edge), line.margin);
                 let contact = crate::Contact::new(body, Cell::Edge(a), Cell::Edge(b))
                     .map_err(|_| FinishDesync::CoincidentUnheld { edges: [a, b] })?;
                 let list = match side {

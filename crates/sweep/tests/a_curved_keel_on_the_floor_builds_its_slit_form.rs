@@ -22,7 +22,8 @@ fn tol() -> Tol {
 
 /// **Each turn builds at its closed form and passes tier 3′ on its
 /// records**: tiers 1, 3 and 3′, and one edge–edge record of the two
-/// arcs, citing the operation's own decisions. The volume is the slab's,
+/// arcs, citing the parting's row of the arc lying in the floor
+/// (`DecisionSite::ArcOnFace`). The volume is the slab's,
 /// `0.75 π (3² − 0.5²)`, less the V's triangle in the slab (area 0.2,
 /// centroid at radius 2) over the turn it holds inside the slab's: all
 /// 150° turned 60°, 130° turned −20°. *Breaks if* the parting ships the
@@ -66,12 +67,24 @@ fn a_curved_keel_on_the_floor_builds_its_slit_form() {
             "{what}: tier 3′ on {:?}",
             r.contacts()
         );
-        let pairs: Vec<_> = r.contacts().edge_edge().collect();
-        assert_eq!(
-            pairs.len(),
-            1,
-            "{what}: the arcs' record, {:?}",
-            r.contacts()
+        let pairs: Vec<_> = r
+            .contacts()
+            .rows()
+            .iter()
+            .filter(|c| matches!(c.kind(), topo::ContactKind::EdgeEdge(..)))
+            .collect();
+        let [pair] = pairs.as_slice() else {
+            panic!("{what}: the arcs' record, {:?}", r.contacts());
+        };
+        // The record cites the parting's reading of the arc in the floor,
+        // which covers its interior, not its ends' placements.
+        assert!(
+            pair.cites.iter().any(|b| matches!(
+                b,
+                topo::Backing::Decided(k)
+                    if r.coincidences[k as usize].site == topo::DecisionSite::ArcOnFace
+            )),
+            "{what}: {pair:?} cites no row of the arc on the floor"
         );
         let volume = 0.75 * PI * (9.0 - 0.25) - 0.2 * 2.0 * inside.to_radians();
         let got = topo::test_support::pinned_volume(

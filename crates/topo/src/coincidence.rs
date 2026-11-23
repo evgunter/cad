@@ -219,6 +219,11 @@ pub enum DecisionSite {
     /// rest (two copies, two imported instances) decided one, or two
     /// placed faces decided one carrier, opposed.
     CensusAtRest,
+    /// A boolean's parting of an arc of its result lying in a plane face
+    /// of it: the arc's carrier read in the face's plane over its span
+    /// (the curve × face pose's `Lies`), cells of the result
+    /// ([`RowCell::Result`]). The parting's two coincident edges cite it.
+    ArcOnFace,
     /// A sweep's join decided smooth by the dihedral read across it,
     /// between two faces whose carriers that makes one (a half
     /// revolve's two caps across its axis edge,

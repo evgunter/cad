@@ -4680,6 +4680,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "decision_site_tag",
         values: &[
+            "arc_on_face",
             "battery_joint",
             "battery_support_axis",
             "battery_turn",

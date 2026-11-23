@@ -342,3 +342,34 @@ fn a_round_keel_in_the_plane_reads_the_side_it_is_read_from_row() {
         }
     }
 }
+
+/// **The curved ring's walls side holds its arcs' record and passes 3′ on
+/// it**, in the fast set: the V turned 60°, its tip on `y = 1`, split by
+/// that plane, normal `+y`. The split's gate reads the side at tier 3
+/// with its records confirmed, so a split that stops recording the arcs
+/// still builds; this row reads the record and tier 3′. Red on a split
+/// that mints the ring's arcs unrecorded.
+#[test]
+fn the_curved_rings_side_holds_its_arcs_record() {
+    let body = finished("the body", keeled(0.0, 60.0), tol());
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        tol(),
+    );
+    let cut = topo::split(&body, &plane, tol()).unwrap();
+    let topo::SplitPart::Body(walls) = &cut.above else {
+        panic!("the walls lie above");
+    };
+    assert_eq!(
+        walls.records().edge_edge().count(),
+        1,
+        "the ring's two arcs are one edge–edge record: {:?}",
+        walls.records()
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(walls, walls.records(), tol()),
+        Ok(()),
+        "the walls side at tier 3′ on its records"
+    );
+}

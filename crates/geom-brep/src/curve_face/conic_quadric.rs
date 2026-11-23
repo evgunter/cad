@@ -301,7 +301,7 @@ pub fn conic_quadric_roots<T: Decide>(
         DoorRefusal::Invariant(what) => ConicQuadricRefusal::Invariant(what),
     };
     Ok(match pose {
-        Pose::Lies => Ok(CircleRoots::On(OnCarrier)),
+        Pose::Lies(_) => Ok(CircleRoots::On(OnCarrier)),
         Pose::Apart => Ok(CircleRoots::Miss),
         Pose::Tangent(_) => Err(Unsettled::Tangency),
         Pose::Through(apex) => through_the_apex(&span, surface, apex, band).map(|found| {

@@ -3067,6 +3067,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CensusAtRest => "census_at_rest",
         S::ProfileJunction => "profile_junction",
         S::SmoothJoin => "smooth_join",
+        S::ArcOnFace => "arc_on_face",
     }
 }
 

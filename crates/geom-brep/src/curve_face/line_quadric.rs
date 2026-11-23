@@ -123,7 +123,7 @@ pub fn line_quadric_roots<T: Decide>(
         }
     };
     Ok(Some(match pose {
-        Pose::Lies => Ok(CircleRoots::On(crate::roots::OnCarrier)),
+        Pose::Lies(_) => Ok(CircleRoots::On(crate::roots::OnCarrier)),
         Pose::Apart => Ok(CircleRoots::Miss),
         Pose::Tangent(_) => Err(Unsettled::Tangency),
         Pose::Through(apex) => Ok(Roots::<T, 2>::all([apex.at, apex.at]).widen()),
@@ -816,7 +816,7 @@ pub fn line_cone_roots<T: Decide>(
     use super::pose::{ConeRead, PoseRefusal, PoseRung};
     match super::pose::line_cone_read(line, (cone, half_angle), (t0, t1), band) {
         // A ruling, or a line parallel to one: the quadratic degenerates.
-        Ok(ConeRead::Lies | ConeRead::Parallel) => Ok(Err(Unsettled::Degenerate)),
+        Ok(ConeRead::Lies(_) | ConeRead::Parallel) => Ok(Err(Unsettled::Degenerate)),
         Ok(ConeRead::Through { at, .. }) => Ok(Ok(ConeRoots::Apex(at))),
         Ok(ConeRead::Apart) => Ok(Ok(ConeRoots::Miss)),
         Ok(ConeRead::Graze { .. }) => Ok(Err(Unsettled::Tangency)),

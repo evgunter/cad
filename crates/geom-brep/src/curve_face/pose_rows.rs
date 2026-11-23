@@ -89,7 +89,7 @@ fn read(
 fn class(c: &Curve3<f64>, s: &geom::Surface<f64>) -> String {
     match read(c, s) {
         Ok(found) => match found.pose {
-            Pose::Lies => "Lies".into(),
+            Pose::Lies(_) => "Lies".into(),
             Pose::Apart => "Apart".into(),
             Pose::Tangent(_) => "Tangent".into(),
             Pose::Through(_) => "Through".into(),
@@ -519,7 +519,7 @@ fn a_line_off_a_narrow_cones_generator_does_not_lie_on_it() {
     for alpha in [0.01f64, 1.56] {
         let g = line([0.0; 3], [alpha.sin(), 0.0, alpha.cos()]);
         let got = pose(&Span::new(&g, (0.0, 1.0)), &cone_of(alpha), band());
-        assert!(matches!(got, Ok(Pose::Lies)), "α {alpha}: {got:?}");
+        assert!(matches!(got, Ok(Pose::Lies(_))), "α {alpha}: {got:?}");
     }
 }
 

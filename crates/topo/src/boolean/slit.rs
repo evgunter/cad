@@ -50,13 +50,12 @@
 //! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
-//! built, an arc no record puts on the face would leave two coincident
-//! arcs with no decision to cite, and a curved face would carry a slit or
-//! a ring, and a zero-area ring there is not measured
-//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Unbacked`],
-//! [`EdgeInFaceGap::CurvedFace`]). An arc's two coincident edges are
-//! recorded, an edge–edge record citing the records that put the arc or
-//! its ends on the face. The reading
+//! built, and a curved face would carry a slit or a ring, and a
+//! zero-area ring there is not measured
+//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::CurvedFace`]). An arc's
+//! two coincident edges are recorded, an edge–edge record citing the
+//! parting's own row of the arc lying in the face ([`arc_on_face`]). The
+//! reading
 //! ([`holding`]) finds an edge whose carrier lies on the face's surface,
 //! a line on a plane, cylinder or cone and a circle or an ellipse on a
 //! plane, a quadric or a torus, where an edge-on-face record names the
@@ -180,10 +179,6 @@ pub enum EdgeInFaceGap {
     /// (D1's doubled cusp), whose reading on a line of coincident edges
     /// is not built.
     Tangent,
-    /// The edge is an arc, and no record of the operation names it or
-    /// either of its ends on the face: the parting's two coincident arcs
-    /// would have no decision to cite.
-    Unbacked,
     /// The face is no plane: the parting would leave a slit or a
     /// zero-area ring in a curved face. A slit meshes (the trimmed lane
     /// takes a face that passes one point at two vertices); a zero-area
@@ -301,10 +296,6 @@ impl EdgeInFaceGap {
                  edges would bound a cusp, which the reading of a line of coincident edges does \
                  not cover"
             }
-            Self::Unbacked => {
-                "the edge is an arc that no record of the operation puts on the face, so the two \
-                 coincident arcs parting it would leave have no decision to cite"
-            }
             Self::CurvedFace => {
                 "the face is curved, and a zero-area ring in a curved face is not measured \
                  (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`)"
@@ -406,6 +397,7 @@ pub(super) struct Parted {
 pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     contacts: &ContactRecords,
+    rows: &mut Vec<crate::Coincidence>,
     band: Band,
     tol: Tol,
 ) -> Result<(Vec<Parted>, ContactRecords), BooleanError> {
@@ -515,25 +507,23 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 _ => return Err(refused(EdgeInFaceGap::Shared)),
             }
         }
-        // An arc's two coincident edges are recorded, citing what put the
-        // arc or its ends on the face. Two lines between shared point keys
-        // are one segment by structure.
-        let backing = (!crate::census::edge_is_line(body, edge))
-            .then(|| {
-                Cites::of(
-                    records
-                        .rows()
-                        .iter()
-                        .filter(|r| {
-                            [Cell::Edge(edge), Cell::Vertex(start), Cell::Vertex(end)]
-                                .into_iter()
-                                .any(|c| r.record.cells() == [c, Cell::Face(face)])
-                        })
-                        .flat_map(|r| r.cites.iter()),
-                )
-                .ok_or_else(|| refused(EdgeInFaceGap::Unbacked))
-            })
-            .transpose()?;
+        // An arc's two coincident edges are recorded, citing the decision
+        // that put the arc on the face: the parting's own row of it
+        // ([`arc_on_face`]), with an edge-on-face record of the arc where
+        // one names it. Two lines between shared point keys are one
+        // segment by structure.
+        let backing = if crate::census::edge_is_line(body, edge) {
+            None
+        } else {
+            let row = arc_on_face(body, edge, face, rows, band)?;
+            Some(
+                records
+                    .rows()
+                    .iter()
+                    .filter(|r| r.record.cells() == [Cell::Edge(edge), Cell::Face(face)])
+                    .fold(Cites::decided(row), |all, r| all.union(&r.cites)),
+            )
+        };
         let p = part(body, edge, face, &joined, tol)?;
         if let Some(cites) = backing {
             coincident.push((p.parted.kept, p.parted.minted, cites));
@@ -2266,6 +2256,49 @@ struct Parting {
     parted: Parted,
 }
 
+/// **The row of arc `edge` lying in plane face `face`** of the result,
+/// added to `rows`, the operation's own: the parting reads the arc's
+/// carrier on the face's plane over its span, the curve × face pose's
+/// `Lies`, at that reading's margin, and that reading covers the arc's
+/// interior, which its ends' placements do not. Its index.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the pose does not read the arc
+/// lying in the plane: [`holding`] placed it there by the same pose
+/// ([`carrier_on_surface`]), so a parting never asks of an arc it did
+/// not place.
+fn arc_on_face<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    face: FaceKey,
+    rows: &mut Vec<crate::Coincidence>,
+    band: Band,
+) -> Result<u32, BooleanError> {
+    let unplaced = || BooleanError::JoinDesync {
+        what: "an arc the parting placed on a plane face does not read lying in its plane",
+    };
+    let (carrier, params) = span_of(body, edge).ok_or_else(unplaced)?;
+    let surface = body.proven_face(face).surface();
+    let Ok(geom_brep::curve_face::Crossings {
+        pose: geom_brep::curve_face::Pose::Lies(margin),
+        ..
+    }) = geom_brep::curve_face::cross(&Span::new(&carrier, params), surface, band)
+    else {
+        return Err(unplaced());
+    };
+    let cell = |cell| crate::RowCell::Result { cell };
+    rows.push(crate::Coincidence {
+        cells: [cell(Cell::Edge(edge)), cell(Cell::Face(face))],
+        more: [None; 3],
+        relation: crate::Relation::OnCarrier,
+        site: crate::DecisionSite::ArcOnFace,
+        margin,
+        discharge: crate::Discharge::of(margin),
+    });
+    Ok(super::reduce::index(rows.len() - 1))
+}
+
 /// **Parts edge `edge` lying in face `face`**, joining each end of
 /// `joined` to the vertex of `face`'s loops paired with it, as
 /// `(end, vertex)` ([`part_riders`], module docs for the sequence).
@@ -3255,7 +3288,13 @@ mod spline_rider {
             found.iter().map(|(e, _)| e).collect::<Vec<_>>()
         );
         as_spline(&mut body, keel);
-        let got = part_riders(&mut body, &contacts, band(), Tol::witness());
+        let got = part_riders(
+            &mut body,
+            &contacts,
+            &mut Vec::new(),
+            band(),
+            Tol::witness(),
+        );
         assert!(
             matches!(
                 got,
@@ -3308,7 +3347,13 @@ mod spline_rider {
         let (p, q) = crate::readback::edge_sides(&body, top).unwrap().faces();
         let roof = if p == wall { q } else { p };
         as_spline(&mut body, keel);
-        let got = part_riders(&mut body, &contacts, band(), Tol::witness());
+        let got = part_riders(
+            &mut body,
+            &contacts,
+            &mut Vec::new(),
+            band(),
+            Tol::witness(),
+        );
         assert!(
             matches!(
                 got,
@@ -3455,7 +3500,13 @@ mod spline_rider {
             "on its line the keel is a rider in the U face"
         );
         as_spline(&mut body, keel);
-        let got = part_riders(&mut body, &contacts, band(), Tol::witness());
+        let got = part_riders(
+            &mut body,
+            &contacts,
+            &mut Vec::new(),
+            band(),
+            Tol::witness(),
+        );
         assert!(
             matches!(
                 got,

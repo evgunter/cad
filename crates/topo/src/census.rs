@@ -2584,6 +2584,21 @@ pub(crate) fn segment_key(ends: [PointKey; 2]) -> [PointKey; 2] {
     if p <= q { [p, q] } else { [q, p] }
 }
 
+/// **Edge `e`'s segment key** ([`segment_key`]): its two ends' point keys,
+/// the lesser first.
+///
+/// # Panics
+///
+/// Where `e`, a half of it or an end does not resolve: a torn body.
+pub(crate) fn edge_segment_key<T: Real>(body: &Body<T>, e: EdgeKey) -> [PointKey; 2] {
+    let edge = crate::live::proven(&body.edges, e, crate::entity::EntityId::Edge);
+    segment_key([edge.he_plus, edge.he_minus].map(|he| {
+        let start =
+            crate::live::proven(&body.half_edges, he, crate::entity::EntityId::HalfEdge).start;
+        crate::live::proven(&body.vertices, start, crate::entity::EntityId::Vertex).point
+    }))
+}
+
 /// **Every pair of line edges `body` holds on one segment by structure**:
 /// two distinct line edges whose ends lie on the same two point keys
 /// ([`Bound::Shared`] at both bounds of [`ee_collinear_lane`]), which

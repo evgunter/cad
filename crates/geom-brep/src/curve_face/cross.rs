@@ -157,7 +157,7 @@ pub fn cross<T: Decide>(
     let pose = super::pose::pose(span, surface, band).map_err(|why| whole(CrossWhy::Pose(why)))?;
     let method = |fault: MeetFault| whole(CrossWhy::Method { door, fault });
     let roots: Vec<T> = match pose {
-        Pose::Lies | Pose::Apart => {
+        Pose::Lies(_) | Pose::Apart => {
             return Ok(Crossings {
                 pose,
                 meetings: Vec::new(),

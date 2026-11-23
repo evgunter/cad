@@ -1329,7 +1329,8 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )?;
     coincidences.extend(join_rows(&class_zeros, &ledger, views, [a, b]));
     share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
-    let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
+    let (parted, contacts) =
+        super::slit::part_riders(&mut body, &contacts, &mut coincidences, band, tol)?;
     if !parted.is_empty() {
         crate::pcurves::mint_pcurves(&mut body, tol)
             .map_err(|source| BooleanError::Pcurves { source })?;
@@ -8087,7 +8088,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 [a_pristine, b_pristine],
             ));
             share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
-            let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
+            let (parted, contacts) =
+                super::slit::part_riders(&mut body, &contacts, &mut coincidences, band, tol)?;
             if !parted.is_empty() {
                 crate::pcurves::mint_pcurves(&mut body, tol)
                     .map_err(|source| BooleanError::Pcurves { source })?;
