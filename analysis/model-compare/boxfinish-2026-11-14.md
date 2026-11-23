@@ -181,3 +181,5 @@ The account's Fable limit was exhausted from about 23:35 UTC on 2026-11-15 until
 
 - 2026-11-23 00:32 UTC — implementer arm, unit `a-family-members-read-of-another-member-is-served-from-a-prior-that-read-its-old-body` (branch `boxfinish/member-read-key` from main; letter M, single FULL; tier logged in the unit file on `boxfinish/orchestrator` first): byte 119 → Fable.
   - member-read-key implementer: session_013QoYWUbShiEaZtB19Lf1KP, configured claude-fable-5-2 (byte 119), dispatched 00:28 UTC 2026-11-23 on `boxfinish/member-read-key` at main `f1ca5d1b11`. Brief: `probe/briefs/member-read-key.md` on `boxfinish/briefs` at `4474529fef`. (The draw entry above says 00:32; it was taken at 00:27.)
+
+- 2026-11-23 00:54 UTC: ray-readings unit, PR 7480, frozen head `ca0678e5f0a` (letter M, dual tier sequential): FIRST reviewer draw: byte 208 → Opus. The implementer's interim note arrived 00:52 (PR open, hosted CI queued); the PR body with its differential on the merged head serves as the account. Its implementation phase spans both outages. The second review, if the first raises a MAJOR, is by the other model on the fix pass's head.
