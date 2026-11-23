@@ -13915,6 +13915,15 @@ mod margin_reach_rows {
     /// `class` on both faces, near it alone: the pair's outcome. Both
     /// faces run at least 1 from the edge, so the extent is 1.
     fn fold_classed(phi: f64, class: Option<crate::EdgeClass>) -> Outcome {
+        fold_read(phi, class, true)
+    }
+
+    /// [`fold_classed`], the folded face's cell holding the shared edge
+    /// in its reach (`folded_near`) or not: with no edge in its reach it
+    /// is presented with no zero side, so no plane through the edge
+    /// signs it, and only the floor's part, read against the folded
+    /// face's carrier, can.
+    fn fold_read(phi: f64, class: Option<crate::EdgeClass>, folded_near: bool) -> Outcome {
         let o = [0.0; 3];
         let classed = |b: Boundary| match class {
             Some(class) => b.with_class(key(1), class),
@@ -13947,12 +13956,65 @@ mod margin_reach_rows {
             vertices: Vec::new(),
         };
         let cell = ((0.4, 0.6), (0.0, 0.1));
+        let away = Local::default();
         certify_pair(
             &piece(1, &sx, &x, &here, cell),
-            &piece(2, &sy, &y, &here, cell),
+            &piece(2, &sy, &y, if folded_near { &here } else { &away }, cell),
             &near,
             band(),
         )
+    }
+
+    /// **Across a seam the other face's carrier is no separator.** The
+    /// fold at half a radian with the folded face's cell presented with
+    /// no zero side, so that only the carrier arm can sign the pair:
+    /// under a crease, or no class, it certifies; under a seam class the
+    /// arm is barred and the pair splits. Red if the carrier arm runs
+    /// whatever the class.
+    #[test]
+    fn the_carrier_arm_is_barred_across_a_seam() {
+        use crate::EdgeClass as C;
+        for class in [None, Some(C::Crease(geom_brep::Convexity::Convex))] {
+            assert!(
+                matches!(fold_read(0.5, class, false), Outcome::Certified { .. }),
+                "{class:?}: {:?}",
+                fold_read(0.5, class, false)
+            );
+        }
+        assert!(
+            matches!(fold_read(0.5, Some(C::Seam), false), Outcome::Split { .. }),
+            "a seam: {:?}",
+            fold_read(0.5, Some(C::Seam), false)
+        );
+    }
+
+    /// **A graph separator's `ψ` is worth its least gradient over its
+    /// greatest.** With slopes in `[0, 1]` its gradient `m − t·γ′` runs
+    /// from length 1 to `√2`, so a difference in `ψ` is worth `1/√2` of
+    /// itself in metres; a plane's and a carrier's is worth all of it.
+    /// Red if the graph's sum is banded as a distance's.
+    #[test]
+    fn a_graphs_sum_is_scaled_by_its_gradients_range() {
+        let graph = Psi::Graph {
+            m: v3([0.0, 1.0, 0.0]),
+            t: v3([1.0, 0.0, 0.0]),
+            slope: Interval::from_bounds(0.0, 1.0),
+            piece: (0.0, 1.0),
+        };
+        let worth = graph.lipschitz();
+        assert!(
+            (worth.hi() - core::f64::consts::FRAC_1_SQRT_2).abs() < 1e-12 && worth.lo() > 0.7,
+            "{worth:?}"
+        );
+        let plane = Psi::Linear {
+            n: v3([0.0, 0.0, 3.0]),
+            q: p3([0.0; 3]),
+        };
+        assert!(exactly(plane.lipschitz(), 1.0), "a plane");
+        let unit = Some(fixture_lever(iv0(1.0)));
+        let sine = iv0(1.2 * band().escalate());
+        assert!(parts([sine], plane.lipschitz(), unit, band()), "a plane");
+        assert!(!parts([sine], worth, unit, band()), "the graph");
     }
 
     /// **The class tier 3 kept decides which arguments run.** One fold,
