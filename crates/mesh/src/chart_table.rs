@@ -8,11 +8,11 @@
 //!   extent. The chord pass's one rule (`chords::tighten`) holds every
 //!   boundary chord to one step;
 //! - on an analytic chart, the **lattice** a lane lays from those steps
-//!   ([`AnalyticRow::lattice_steps`]: rows every `lever·h_u` on a ruled
-//!   chart, square in 3-D at the face's widest radius; periodic steps
-//!   capped at `sizing::MAX_ANGULAR_STEP`), the rows the trimmed lane
-//!   lays over a face's `v` window ([`AnalyticRow::lattice_rows`]: that
-//!   step's, or on the cone graded to the row's own radius) and the
+//!   ([`AnalyticRow::lattice_steps`]: rows every `ρ_max·h_u` on a cone,
+//!   square in 3-D at the face's widest radius; periodic steps capped at
+//!   `sizing::MAX_ANGULAR_STEP`), the rows the trimmed lane lays over a
+//!   face's `v` window ([`AnalyticRow::lattice_rows`]: that step's, on the
+//!   cone graded to the row's own radius, and none on the cylinder) and the
 //!   plane the trimmed
 //!   lane's triangulation runs in: the chart in its **metric**
 //!   ([`AnalyticRow::trimmed_metric`]; the curved lane's is the lattice's
@@ -354,10 +354,11 @@ impl<'a> AnalyticRow<'a> {
     }
 
     /// The steps a lane's lattice lays from the cell steps `(hu, hv)`
-    /// ([`Self::steps`]): on a ruled chart, rows every `lever·hu` metres,
-    /// square in 3-D at the face's widest radius (the cylinder's radius,
-    /// the cone's largest), which shape the triangulation and move no
-    /// bound; on a torus and a spindle sheet both periodic steps capped at
+    /// ([`Self::steps`]): on a cone, rows every `ρ_max·hu` metres, square
+    /// in 3-D at the face's largest radius, which shape the triangulation
+    /// and move no bound; on a cylinder none (the steps as they are, `hv`
+    /// unbounded: [`Self::lattice_rows`] lays no row there); on a torus
+    /// and a spindle sheet both periodic steps capped at
     /// `sizing::MAX_ANGULAR_STEP`; on a sphere the steps as they are, both
     /// capped already.
     ///
@@ -367,9 +368,8 @@ impl<'a> AnalyticRow<'a> {
     /// lays none on a face it walks (`crate::ruled_walk`).
     pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
         match self.kind() {
-            Analytic::Cylinder { radius: lever } | Analytic::Cone { rho_max: lever, .. } => {
-                (hu, lever * hu)
-            }
+            Analytic::Cylinder { .. } => (hu, hv),
+            Analytic::Cone { rho_max: lever, .. } => (hu, lever * hu),
             Analytic::Torus { .. } | Analytic::Spindle { .. } => (cap_angular(hu), cap_angular(hv)),
             Analytic::Sphere { .. } => (hu, hv),
         }
@@ -379,7 +379,27 @@ impl<'a> AnalyticRow<'a> {
     /// `v` window `(v0, v1)`**, from the lattice steps `(hu, hv)`
     /// ([`Self::lattice_steps`]), ascending.
     ///
-    /// Every chart but the cone: uniform, `⌈(v1 − v0)/hv⌉` gaps.
+    /// **The cylinder: none.** Argued: every line `u = const` is straight
+    /// on the surface, so a triangle's deviation is set by its span round
+    /// the axis (`cert::cert_cylinder`), which a row does not shorten,
+    /// while rows multiply the triangles. With no row there is no lattice
+    /// node, the lane triangulates the face's boundary points, and nothing
+    /// bounds a triangle's span but where those points lie: a triangle
+    /// joining two boundary features across free wall can be wider than
+    /// the target's column, its certificate refuses, and the lane's
+    /// correction (`trimmed::TrimmedFace::attempt`) puts a point inside it
+    /// and triangulates again; `mesh`'s
+    /// `rowless_cylinders::two_holes_across_a_column_and_a_half_mesh_by_the_correction`
+    /// holds that. Measured, debug, against the rows this replaced: over
+    /// the `mesh` suite (ε 10⁻⁹, 10⁻⁶ and 10⁻¹²) and `sweep`'s meshing
+    /// modules (the default ε) no cylinder face newly refuses, and 1,751
+    /// faces fall from 3.2 million triangles to 0.2 million; on notched
+    /// and holed pipe walls a face takes 1.0 to 1.5 times the rectangle
+    /// lane's triangles over the iso-rectangles it divides into, where the
+    /// rows made 1.2 to 223 times.
+    ///
+    /// The sphere, the torus and the spindle sheet: uniform,
+    /// `⌈(v1 − v0)/hv⌉` gaps.
     ///
     /// **The cone: uniform in `√|v|`**, in `⌈2·(√v₁ − √v₀)·√v_w/hv⌉`
     /// gaps, `v_w = hv/(hu·sin α)` the slant the row step was laid at (the
@@ -441,10 +461,8 @@ impl<'a> AnalyticRow<'a> {
                     .filter(|v| v.abs() > certified)
                     .collect())
             }
-            Analytic::Cylinder { .. }
-            | Analytic::Sphere { .. }
-            | Analytic::Torus { .. }
-            | Analytic::Spindle { .. } => {
+            Analytic::Cylinder { .. } => Ok(Vec::new()),
+            Analytic::Sphere { .. } | Analytic::Torus { .. } | Analytic::Spindle { .. } => {
                 let n = ceil_count(v1 - v0, hv)?;
                 Ok((1..n).map(|j| lerp(v0, v1, j, n)).collect())
             }
@@ -455,10 +473,13 @@ impl<'a> AnalyticRow<'a> {
     /// (`nurbs_cert::lattice_metric`) of the realized cells of a uniform
     /// lattice of `nu × nv` cells over the chart box `(u0, u1) × (v0, v1)`,
     /// `(Δu/nu)/(Δv/nv)` to the nearest power of two, on every chart. A
-    /// ruled lattice square in 3-D is a strip of aspect about `1/lever` in
+    /// cone's lattice square in 3-D is a strip of aspect about `1/ρ_max` in
     /// the chart, a torus's is `√(r/(R + r))`, and a sphere's is within
     /// `2√2` of one (`sizing::sphere_grid_steps`). The curved lane's CDT
-    /// runs in it.
+    /// runs in it. A cylinder lays no row, so the trimmed lane reads this
+    /// at `nv = 1` and its aspect is the column step over the window's
+    /// whole height ([`Self::trimmed_metric`] says what that plane is
+    /// for).
     pub(crate) fn cell_metric(
         &self,
         (u0, u1): (f64, f64),
@@ -479,6 +500,34 @@ impl<'a> AnalyticRow<'a> {
     /// face's interior points in its circumcircle and the CDT does not
     /// make it, which leaves the join fewer sides two faces both make
     /// (`crate::join`).
+    ///
+    /// **On a cylinder** the lane lays no row ([`Self::lattice_rows`]), so
+    /// it reads this at `nv = 1`: the aspect is the column step over the
+    /// window's whole height, points enter the triangulation at `(u/k, v)`,
+    /// a column the height of the window reads as a square cell, and a
+    /// triangle across one column from rim to rim is as well shaped there
+    /// as any — so the triangulation prefers strips joining the two rims a
+    /// column at a time, which is the shape whose span round the axis the
+    /// target bounds. `k` is rounded to a power of two, so the plane
+    /// changes in steps of two as the window's height grows.
+    ///
+    /// **Measured against the two alternatives** (debug, the correction
+    /// on, the fuzz seed pinned; `mesh`, `sweep`'s meshing modules, and
+    /// 900 two-hole cells over gap 1.0 to 3.0 columns): the cylinder's own
+    /// development, `k = 1/r`, which is an isometry, and the metric this
+    /// lane read when it laid rows, whose rows were square in 3-D and
+    /// whose `k` is therefore `1/r` too up to the rounding. They are one
+    /// alternative, and both lose. The cells are `r = 1` at δ/r 10⁻¹, 10⁻²
+    /// and 10⁻³ and `r = 10⁻³` and `10` at δ/r 10⁻², 180 each, and this
+    /// plane meshes all 900 with 0 or 4 points inserted. Under either
+    /// alternative the 180 at δ 10⁻³ refuse `CertificateExceeded` with the
+    /// correction's budget spent (2.7·δ to 27.6·δ); the 540 at δ/r 10⁻²
+    /// mesh with 47 to 177 points more, and the 180 at δ/r 10⁻¹ with 0 to
+    /// 33 more; 16 `mesh` rows and 16 `sweep` rows are red. There a
+    /// column is `1/r` of the window's height in the CDT's own
+    /// coordinates, the face reads as a tall strip, and the triangulation
+    /// prefers triangles spanning several columns — the shape whose span
+    /// round the axis nothing bounds.
     pub(crate) fn trimmed_metric(
         &self,
         (u0, u1): (f64, f64),
@@ -577,9 +626,15 @@ impl<'a> AnalyticRow<'a> {
     }
 
     /// **Whether the trimmed lane's arm on this chart chords its boundary
-    /// to its lattice** (`chords::tighten`): every arm's but the
-    /// cylinder's, which chords at its target alone
+    /// to its lattice** (`chords::tighten`): whether the chord pass bounds
+    /// a boundary edge's chart steps by the arm's steps ([`Self::steps`]),
+    /// so its points fall no farther apart than the lattice's. Every arm's
+    /// but the cylinder's, whose boundary is chorded at its target alone
     /// (`work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`).
+    /// This is not [`Self::lattice_rows`]' "no row": it decides the
+    /// boundary's points, not the interior's, held while the cylinder still
+    /// laid rows, and is read by the chord pass, which runs before any
+    /// window is known.
     pub(crate) fn chorded_to_lattice(&self) -> bool {
         match self.kind() {
             Analytic::Cylinder { .. } => false,
@@ -957,7 +1012,8 @@ mod tests {
         let row = AnalyticRow::new(&cylinder, f64::NAN).unwrap();
         assert_eq!(
             row.lattice_rows((1.0, 2.0), (0.1, 0.3)).unwrap(),
-            vec![1.25, 1.5, 1.75]
+            Vec::<f64>::new(),
+            "a cylinder lays no row"
         );
     }
 

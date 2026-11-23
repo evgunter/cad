@@ -814,12 +814,8 @@ impl TessellateError {
                          chart's period"
                     }
                     R::OuterEmpty => {
-                        "its outer loop is one vertex with no edge while the face holds \
-                         rings, so there is no region to place them in"
-                    }
-                    R::RingEmpty { .. } => {
-                        "a ring of it is one vertex with no edge, which bounds no region \
-                         and has no place in the chart; remove the lone vertex"
+                        "its outer loop is one vertex with no edge, so the face has no \
+                         outline and bounds no region to mesh"
                     }
                     R::NoShift { .. } => {
                         "no whole number of the chart's periods moves a ring of it inside \

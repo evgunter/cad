@@ -485,8 +485,8 @@ fn a_slide_value_sets_its_translation_with_no_width() {
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
         mates: vec![editor_core::Mate {
-            on: fixture::plane(head(start)),
-            to: fixture::flip(top),
+            on: fixture::plane(head(start)).into(),
+            to: fixture::flip(top).into(),
             orient: editor_core::Orientation::IDENTITY,
         }],
         values: vec![

@@ -447,7 +447,8 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
         if !matches!(surface, geom::Surface::Sphere { .. }) {
             continue;
         }
-        let (outer, _) = topo::props::loop_edges(&body, f.outer).expect("the loop");
+        let (outer, _) = topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+            .expect("the loop");
         if geom_brep::props::boundary_material_sign(surface, &outer, band)
             == Ok(geom_brep::props::MaterialSign::Unencoded)
         {

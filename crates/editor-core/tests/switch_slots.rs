@@ -539,6 +539,7 @@ test_utils::f6_variants! {
         Assemble,
         Intersect,
         Place,
+        Datum,
         World,
         Space,
         InstantiatePart,
@@ -687,13 +688,13 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             tool: nid(2).into(),
         },
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+            members: editor_core::Bodies::spelled(vec![nid(1).into(), nid(2).into()]),
         },
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+            members: editor_core::Bodies::spelled(vec![nid(1).into(), nid(2).into()]),
         },
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+            members: editor_core::Bodies::spelled(vec![nid(1).into(), nid(2).into()]),
         },
         // The identity bundle: no constraint, so no slot.
         Node::Place {
@@ -707,6 +708,11 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             source: nid(1).into(),
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![slide_z(1, 2.0), spin_z(2, 0.25)],
+        },
+        // A datum on the world's axes: a slide slot under its id.
+        Node::Datum {
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
+            constraints: vec![slide_z(1, 2.0)],
         },
         // The world: no slot at all.
         Node::World,

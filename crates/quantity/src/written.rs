@@ -3,7 +3,7 @@
 //!
 //! [`Length`] and [`Angle`] are canonical-units data with a closed
 //! arithmetic (D6): `25.0 * MM` is `Length(0.025)`, and the `MM` is
-//! gone the instant the multiply happens. That erasure is correct for
+//! gone the instant the number is read in it. That erasure is correct for
 //! everything downstream of the boundary — the kernel only ever sees
 //! metres and radians — and wrong for exactly one thing: recording
 //! what a person TYPED, so a document can be read back the way it was
@@ -44,8 +44,8 @@
 //! ```
 //! use quantity::{M, MM, WrittenLength};
 //!
-//! // Written in millimetres: the multiply happens at the door, and
-//! // the notation survives it.
+//! // Written in millimetres: the number is read in the unit at the
+//! // door, and the notation survives it.
 //! let thickness = WrittenLength::in_unit(25.0, MM);
 //! assert_eq!(thickness.meters(), 0.025);
 //! assert_eq!(thickness.unit(), MM);
@@ -84,9 +84,9 @@ pub struct WrittenAngle {
 }
 
 impl WrittenLength {
-    /// `value` written in `unit` — the inverse of [`Length::in_unit`],
-    /// and the one door here that MULTIPLIES. The factor applied is the
-    /// table's, because a [`LengthUnit`] is a table row.
+    /// `value` written in `unit`: `value * unit`, the number read as its
+    /// shortest decimal and that decimal of the unit rounded once
+    /// ([`crate::UnitDef::canonical_of_float`]).
     ///
     /// This is the library authoring spelling:
     /// `WrittenLength::in_unit(25.0, MM)` is `25.0 * MM` that remembers
@@ -99,8 +99,7 @@ impl WrittenLength {
     }
 
     /// Canonical meters, written in meters — the plain spelling, and
-    /// the same value as `in_unit(meters, M)` without the multiply by
-    /// one. Named for [`Length::from_meters`], whose job it is doing.
+    /// the same value as `in_unit(meters, M)`. Named for [`Length::from_meters`], whose job it is doing.
     pub const fn from_meters(meters: f64) -> Self {
         Self {
             canonical: Length::from_meters(meters),
@@ -109,8 +108,8 @@ impl WrittenLength {
     }
 
     /// An ALREADY-canonical value that remembers `unit` as its
-    /// notation — no multiply, because the caller's arithmetic has
-    /// happened.
+    /// notation — not read in the unit, because the caller's arithmetic
+    /// has happened.
     ///
     /// This is the shape a form has: a draft field holds canonical
     /// meters whatever unit is on screen (the picker re-writes the
@@ -143,8 +142,7 @@ impl WrittenLength {
 }
 
 impl WrittenAngle {
-    /// `value` written in `unit` — [`WrittenLength::in_unit`]'s mirror,
-    /// and the one door here that multiplies.
+    /// `value` written in `unit` — [`WrittenLength::in_unit`]'s mirror.
     pub fn in_unit(value: f64, unit: AngleUnit) -> Self {
         Self {
             canonical: value * unit,

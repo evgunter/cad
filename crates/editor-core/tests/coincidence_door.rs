@@ -130,7 +130,7 @@ fn a_glued_rest_and_its_corners_are_unproven_rows_named_by_their_operands() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
+            members: editor_core::Bodies::spelled(vec![base.into(), plate.into()]),
         },
     );
     let ev = run(&doc);
@@ -588,7 +588,7 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
     let (doc, sheared) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![y.into(), x.into()]),
+            members: editor_core::Bodies::spelled(vec![y.into(), x.into()]),
         },
     );
     let ev = run(&doc);
@@ -864,7 +864,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![above_read.into(), below_read.into()]),
+            members: editor_core::Bodies::spelled(vec![above_read.into(), below_read.into()]),
         },
     );
     let ev = run(&doc);
@@ -970,7 +970,7 @@ fn a_split_on_a_faces_plane_lays_its_crossings_on_that_face() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![upper.into(), slab.into()]),
+            members: editor_core::Bodies::spelled(vec![upper.into(), slab.into()]),
         },
     );
     let ev = run(&doc);
@@ -1040,7 +1040,7 @@ fn a_corner_the_tool_passes_through_is_not_on_it_by_construction() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![upper.into(), slab.into()]),
+            members: editor_core::Bodies::spelled(vec![upper.into(), slab.into()]),
         },
     );
     let ev = run(&doc);
@@ -1110,7 +1110,7 @@ fn a_placed_halfs_crossings_are_not_on_the_unplaced_face_by_construction() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![moved.into(), slab.into()]),
+            members: editor_core::Bodies::spelled(vec![moved.into(), slab.into()]),
         },
     );
     let ev = run(&doc);
@@ -1178,7 +1178,7 @@ fn an_arc_crossed_twice_reunites_by_construction() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
+            members: editor_core::Bodies::spelled(vec![above.into(), below.into()]),
         },
     );
     let ev = run(&doc);
@@ -1230,7 +1230,7 @@ fn a_section_edge_lies_on_the_wall_it_runs_across() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
+            members: editor_core::Bodies::spelled(vec![above.into(), below.into()]),
         },
     );
     let ev = run(&doc);
@@ -1298,7 +1298,7 @@ fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId
         }
     } else {
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         }
     };
     let (doc, node) = insert(doc, boolean);
@@ -2383,7 +2383,7 @@ fn ring_pinch(dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, blocks) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![p1.into(), p2.into()]),
+            members: editor_core::Bodies::spelled(vec![p1.into(), p2.into()]),
         },
     );
     (doc, plate, blocks)
@@ -2433,7 +2433,7 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     let (doc, common) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), blocks.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), blocks.into()]),
         },
     );
     // The slab: the quadrilateral (0.5, 0), (2.5, 2), (4, 2), (4, 0) in
@@ -2462,7 +2462,7 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     let (doc, cut) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![common.into(), slab.into()]),
+            members: editor_core::Bodies::spelled(vec![common.into(), slab.into()]),
         },
     );
     let ev = run(&doc);
@@ -3524,8 +3524,8 @@ fn measure_the_stage6_axis_identities() {
                         side,
                     };
                     let (Some(on), Some(to)) = (
-                        axis_of(side(editor_core::MateSide::On), mate.on),
-                        axis_of(side(editor_core::MateSide::To), mate.to),
+                        axis_of(side(editor_core::MateSide::On), mate.on.read),
+                        axis_of(side(editor_core::MateSide::To), mate.to.read),
                     ) else {
                         continue;
                     };
@@ -3636,7 +3636,7 @@ fn an_instanced_shaft_mated_onto_a_revolves_axis_is_coaxial_by_construction() {
         ],
     );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
+        members: editor_core::Bodies::spelled(vec![
             editor_core::BodyRead::plain(housing.body()),
             editor_core::BodyRead::plain(Operand::output(instance, 0)),
         ]),
@@ -3855,7 +3855,7 @@ fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
         };
         let collar_copy = placed_in(&mut r, &housing.body(), collar.body(), collar_placed);
         let union = r.insert(Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 editor_core::BodyRead::plain(housing.body()),
                 editor_core::BodyRead::plain(Operand::output(collar_copy, 0)),
                 editor_core::BodyRead::plain(Operand::output(shaft_copy, 0)),
@@ -4024,7 +4024,7 @@ fn a_refused_bundle_states_nothing() {
         },
     );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
+        members: editor_core::Bodies::spelled(vec![
             editor_core::BodyRead::plain(housing.body()),
             editor_core::BodyRead::plain(Operand::output(shaft_copy, 0)),
         ]),
@@ -4257,7 +4257,7 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                                 line_on(center, Some(axis))
                             }
                             Curve3::Line(geom::Line { origin, dir }) => {
-                                line_on(*origin, Some(*dir))
+                                line_on(*origin, Some(dir.get()))
                             }
                             other => {
                                 panic!("{}: an edge read about the axis on {other:?}", cd.name)
@@ -4371,7 +4371,7 @@ fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
         },
     );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
+        members: editor_core::Bodies::spelled(vec![
             editor_core::BodyRead::plain(Operand::output(housing_copy, 0)),
             editor_core::BodyRead::plain(Operand::output(shaft_copy, 0)),
         ]),

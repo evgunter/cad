@@ -14,9 +14,10 @@ name: CI
 on:
   # `ready_for_review` is needed because drafts run nothing: undrafting pushes
   # no commit, so without it a draft marked ready would carry only its skipped
-  # run.
+  # run. `closed` runs no job: its run exists only to take the PR's
+  # concurrency group and cancel the run a merged or closed PR left queued.
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
   push:
     branches: [main]
   workflow_dispatch:
@@ -32,12 +33,14 @@ on:
         required: false
         default: ""
 
+# A PR's runs are keyed by its number, not `github.ref`: on a merge's
+# `closed` event `github.ref` is the base branch, which would cancel that
+# branch's push run instead of the PR's.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.ref }}
   cancel-in-progress: true
 
 env:
-  SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   MATURIN_VERSION: "1.14.1"
   TY_VERSION: "0.0.39"
@@ -48,7 +51,7 @@ jobs:
   filter:
     name: change filter
     runs-on: ubuntu-latest
-    if: github.event_name != 'push'
+    if: github.event_name != 'push' && github.event.action != 'closed'
     permissions:
       contents: read
       pull-requests: read
@@ -315,6 +318,9 @@ jobs:
         run: cargo fmt --all --check && (cd benches && cargo fmt --all --check)
       - name: clippy (--all-features)
         if: needs.filter.outputs.run_build == 'true'
+        # An explicit shell runs the block with `pipefail`, so a cargo
+        # that dies in the census's pipe reds the step.
+        shell: bash
         env:
           TIER: ${{ needs.filter.outputs.tier }}
           SCOPE: ${{ needs.filter.outputs.test_scope }}
@@ -322,13 +328,24 @@ jobs:
         run: |
           # viewer's `app` feature is the eframe/wgpu graph; the viewer job
           # lints it when the diff seeds viewer, pncad or bvh.
+          # `--force-warn clippy::disallowed_methods` reports every use of
+          # a door `clippy.toml` lists, whatever attribute sits over it,
+          # as a warning that `-D warnings` does not raise. The second
+          # invocation takes the same arguments, so it replays the first's
+          # diagnostics from cargo's cache, as JSON, and
+          # scripts/conic_centre_census.py holds the production reads of
+          # the crates this run checked at their pins
+          # (scripts/gates/conic-centre-reads.sh holds this wiring).
           if [ "$TIER" = all ]; then
-            cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
+            SCOPE="--workspace --exclude viewer"
           else
             [ "$TOOLKIT" = true ] || SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
-            # shellcheck disable=SC2086 # SCOPE is a list of -p flags
-            cargo clippy $SCOPE --all-targets --all-features -- -D warnings
           fi
+          # shellcheck disable=SC2086 # SCOPE is a list of -p flags
+          cargo clippy $SCOPE --all-targets --all-features -- -D warnings --force-warn clippy::disallowed_methods
+          # shellcheck disable=SC2086
+          cargo clippy $SCOPE --all-targets --all-features --message-format=json -- -D warnings --force-warn clippy::disallowed_methods \
+            | python3 scripts/conic_centre_census.py --check
       - name: rustdoc (the doc gate's workspace pass)
         if: needs.filter.outputs.run_build == 'true'
         # clippy is blind to rustdoc's lints, so without this a PR that
@@ -641,7 +658,7 @@ jobs:
           cargo test -p mesh --features budget
 
   step-import:
-    name: step import (freecad)
+    name: step export fixtures (freecad)
     runs-on: ubuntu-latest
     needs: filter
     if: needs.filter.outputs.run_step_export == 'true'
@@ -794,7 +811,7 @@ jobs:
   # The one check to read: green when every job that ran passed.
   gate-ok:
     name: gate ok
-    if: always() && !cancelled() && github.event_name != 'push'
+    if: always() && !cancelled() && github.event_name != 'push' && github.event.action != 'closed'
     needs: [filter, lint, test, viewer, python, topo-release, mesh-budget, step-import, demos, tools, interval]
     runs-on: ubuntu-latest
     steps:

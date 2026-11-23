@@ -160,12 +160,6 @@ impl DisplayTolerance {
     /// remember whether its δ was typed or chosen by the triangle
     /// budget, so it is told as the latter.
     ///
-    /// [`DisplayTolerance::new`] refuses a δ whose millimetre value is
-    /// not an `f64`, and millimetres are the finest length row
-    /// ([`MM_PER_METRE`]), so every length unit can say a δ; the
-    /// [`crate::props::no_reading`] arm is the conversion's own
-    /// refusal, kept rather than unwrapped.
-    ///
     /// **No δ renders as `0.000`**: the grid has no floor
     /// (`no_delta_renders_as_a_number_a_delta_cannot_be`). It is a
     /// render and never a commit path: the number a δ moves to is the
@@ -173,7 +167,6 @@ impl DisplayTolerance {
     pub fn render_in(self, unit: LengthUnit) -> String {
         let unit = unit.def();
         crate::readout::computed_number(self.0, unit)
-            .unwrap_or_else(|| crate::props::no_reading(unit))
     }
 
     /// This tolerance scaled by `factor` — the coarsen/refine step the

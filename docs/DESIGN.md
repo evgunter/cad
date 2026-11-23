@@ -930,8 +930,12 @@ tiers".
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
-  body's verdict: every finding but the session box is a fact of the
-  shape up to isometry. The embedding certificate is one fact per pair
+  body's verdict: whether it passes, and every finding but the session
+  box and the embedding question's, is a fact of the shape up to
+  isometry. A body that does not pass the embedding question is told
+  the first finding the question meets; which one that is, among
+  several, is a fact of the walk and not of the shape. The embedding
+  certificate is one fact per pair
   of faces, of the two faces and the cells they share: a finish
   carries the fact of a pair it finds unchanged in a finished operand,
   by comparing the faces itself, and asks the rest. The gate's fixed
@@ -1771,8 +1775,8 @@ them only through the freedoms its mates leave.
 nothing. With nothing, it is a **datum**: what it places is a bare
 frame, its one output, and the rules of spaces, bundles and values
 hold of it as written.
-Its mates' near sides are that frame's own roles (its xy plane, its z
-axis, its origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
+Its mates' near sides are that frame's own roles (its frame, xy plane, z
+axis or origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
 as a finer pose is read off any frame ([variables.poses]). An offset
 from a face is the mate's far side slid along its normal, as for a
 body ([placement.mates]); a datum has no number of its own beyond its

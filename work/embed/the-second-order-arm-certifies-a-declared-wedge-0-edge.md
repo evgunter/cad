@@ -94,3 +94,14 @@ not counted here: `review_r1_tier_gate_probes::r1_a_wedge_in_band_only_at_its_ap
 (in band by its own construction) and
 `spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth`
 (untraced).
+
+## Tangent ruling contacts between two cylinders in the census (EMBED lane `embed/iso-end`, 2026-11-22)
+
+In these 4 the partner cylinder is presented and the carrier arm is tried. The partner's rate across its side straddles zero (`departs=None`) because the two cylinders are tangent along the shared ruling, a second-order contact no first-order arm reads.
+
+Measured on `embed/iso-end-measure2` (`origin/embed/gate-measure` @ `ebb2e6f8e` plus `embed/iso-end`'s diff), where each refusal is the same pair, test by test, as on the trace run that named the exits (`embed/iso-end-measure` @ `030c75763`, `CV_TRACE`).
+
+- `editor-core::all emit_curved_rim_chord::a_post_across_the_piece_of_a_notched_circle_through_0_unites`
+- `sweep::all parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings`
+- `sweep::all parallel_cylinder_join::the_walls_join_along_their_carried_rulings`
+- `sweep::all a_ruling_through_a_box_corner_edge::a_wall_through_a_box_edge_builds_every_op_but_the_ring`

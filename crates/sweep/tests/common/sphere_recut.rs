@@ -1,12 +1,9 @@
 //! **The certified sphere-recut fixture**: the 3 x 3 x 0.8 plate, the
 //! unit ball that pokes into it without crossing it, and the enclosure
 //! width the subtract's arc chain is measured to escalate on at
-//! `T = Interval`. Two suites run that subtract —
-//! `m5_s12_curved_ops_interval`'s construction row and
-//! `review_arceval_r1_probes`'s E2 — and both rows say they use the
-//! same plate, the same ball and the same constant. Hosting the three
-//! here is what makes that so rather than saying it, and it keeps
-//! neither suite the owner of the other's fixture. Body authoring plus
+//! `T = Interval`. `m5_s12_curved_ops_interval`'s construction row
+//! runs that subtract and pins the constant; other suites cite the
+//! constant by this name rather than restating it. Body authoring plus
 //! the one measurement taken of that exact pair, so it routes here
 //! (the module's routing rule).
 //!
@@ -27,7 +24,7 @@
 //!   kernel. [`RECUT_MAPPED_ENCLOSURE_HI`] and its companions are the
 //!   opposite — measurements OF the kernel — and they come to a shared
 //!   home under that module's rule for spellings only because each has
-//!   one spelling: both rows read them, and neither restates them.
+//!   one spelling: every row that reads them reads them here.
 
 use geom_core::{Interval, Tol};
 use topo::Body;

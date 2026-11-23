@@ -1291,7 +1291,9 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
                     && surface.kind() == SurfaceKind::Sphere
                     && geom_brep::props::require_iso_rectangle(
                         surface,
-                        &topo::props::loop_edges(&cut, f.outer).expect("a loop").0,
+                        &topo::props::loop_edges(cut.cycle_loop(f.outer).expect("a cycle loop"))
+                            .expect("a loop")
+                            .0,
                         band,
                     ) == Err(geom_brep::props::PropsError::NotIsoRectangle {
                         what: "props_rim_level",
@@ -2158,8 +2160,25 @@ fn a_ball_less_a_half_space_under_its_pole_meshes_manifold() {
 /// each cylinder face of the result is bounded by arcs of the two rods'
 /// intersection curve, and the face across each arc joins its points
 /// freely at a coarse δ. With the cylinder arm reading the ear alone each
-/// cell here meshed with an edge of four triangles; now the
-/// join splits, in each face that has it inside, every side two patches both make, and every side of a triangle all of whose corners are points two faces share where both lay such a triangle (`mesh::join`).
+/// cell here meshed with an edge of four triangles; now the join splits,
+/// in each face that has it inside, every side two patches both make, and
+/// every side of a triangle all of whose corners are points two faces
+/// share where both lay such a triangle (`mesh::join`).
+///
+/// **What this row holds, and what it does not.** Each cylinder face is
+/// held to `n − 2 + 2h + 2p` triangles (`common::rowless::Count`), `p`
+/// read off the patch. The equality is true of any triangulation of the
+/// face's points, whatever inserted them — rows laid again pass it too —
+/// so it holds that the patch is a triangulation of its points, and
+/// neither that the face lays no row nor what the join's split costs.
+/// "No rows" is held by the rowless rows (`rowless_cylinders`): `p = 0`
+/// on the walls, `p = 4` on the two-hole cells.
+///
+/// **Before the join split them**, the trimmed lane's shared-side cure put
+/// a point inside nearly every triangle of the first triangulation here
+/// (measured on the first pair: 86 triangles at δ 0.5, 182 at 0.1, 408 at
+/// 0.02, up to 2.2 times what the face took when it laid rows); that cure
+/// retired with `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`.
 #[test]
 fn crossing_rods_mesh_manifold() {
     for (r, r2, theta, op, deltas) in [
@@ -2186,11 +2205,22 @@ fn crossing_rods_mesh_manifold() {
             Ok(Some(body)) => {
                 let body = &body.body;
                 assert_eq!(got(body, 0.1), Got::Meshed, "{what}, δ = 0.1");
-                for &delta in deltas.iter().filter(|&&d| d != 0.1) {
+                for &delta in deltas {
                     let mesh = mesh::tessellate(body, delta, tol())
                         .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: meshes, got {e:?}"));
                     mesh::validate::check_mesh(&mesh)
                         .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e:?}"));
+                    for patch in &mesh.patches {
+                        if kind_of(body, patch.face) != SurfaceKind::Cylinder {
+                            continue;
+                        }
+                        let c = crate::common::rowless::count(body, &mesh, patch.face);
+                        assert_eq!(
+                            c.triangles,
+                            c.euler(),
+                            "{what}, δ = {delta:e}: {c:?} is no triangulation of its points"
+                        );
+                    }
                 }
             }
             // Off the default ε the boolean may not build the pair.

@@ -6088,7 +6088,7 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
         let geom::Surface::Cone { frame, .. } = *view.surface() else {
             continue;
         };
-        let (apex, axis) = (frame.origin(), frame.axis());
+        let (apex, axis) = (frame.origin(), frame.axis_unit());
         for (_, members, _) in view.boundary_by_loop() {
             let mut starts = BTreeSet::new();
             for member in members {
@@ -6756,6 +6756,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// centre line, its axis the unit centre line from `x` toward `y`, and
 /// a unit `u_ref` across it. A closed group's escape aligns its
 /// re-chart on that axis; a trimmed group's face takes the cut.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn sphere_pair_cut<T: Decide>(
     (operand, holder): (Operand, FaceKey),
     x: &geom::Surface<T>,
@@ -6776,11 +6780,7 @@ fn sphere_pair_cut<T: Decide>(
     let center = carrier_frame.origin();
     match geom_brep::sphere_sphere_section(x, y, band) {
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(circle))) => {
-            let (foot, normal, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (foot, normal, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let rho = circle.radius();
             Ok(SphereCutIn {
                 operand,
@@ -6809,6 +6809,10 @@ fn sphere_pair_cut<T: Decide>(
 /// operand `x` (on `x_is`) is. Both groups of a pair read the same
 /// direction, and it is a function of the operands, never of the
 /// computing axes (D10 `[placement.frame]`).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn pair_seam<T: Decide>(
     x_is: Operand,
     x: &geom::Surface<T>,
@@ -7401,14 +7405,17 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             split: Option<(EdgeKey, T, bool, T)>,
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
-        for (_, members, _) in view.boundary_by_loop() {
-            for member in members {
-                let BoundaryMember::Edge {
-                    half: hd, edge: ed, ..
-                } = member
-                else {
-                    return Err(refuse("the sphere face carries a lone-vertex loop"));
-                };
+        // A lone vertex on the meridian would be a hit no arc reads.
+        let lone = || refuse("the sphere face carries a lone-vertex loop");
+        let area = view.area_loops().map_err(|_| lone())?;
+        if !area.lone_rings().is_empty() {
+            return Err(lone());
+        }
+        for (lp, _) in area.cycles() {
+            for crate::live::EdgeMember {
+                half: hd, edge: ed, ..
+            } in lp.edges()
+            {
                 let edge = ed.key();
                 let Some(curve) = ed.certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
@@ -7425,6 +7432,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                          its roots are not certified",
                     )
                 };
+                // The canonical reading of a co-surface pair is
+                // `OnSurface::meet`. The cut-in reads the edge across the
+                // meridian's plane by `across`, which the direction table
+                // reads the same way, and decides the section itself,
+                // because a root at a pole lies on every half-meridian:
+                // the pole is read before the section, where `meet`
+                // decides the section first.
                 let roots = match geom_brep::curve_pair::on_surface::OnSurface::edge(
                     view.record().surface,
                     carrier,
@@ -7452,8 +7466,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                             .find_map(|w| w.why.diag())
                             .map_or_else(uncertified, esc));
                     }
-                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::NoPlane) => {
-                        unreachable!("the cut-in reads its arcs across the meridian's plane")
+                    Err(
+                        geom_brep::curve_pair::on_surface::AcrossRefusal::NoPlane
+                        | geom_brep::curve_pair::on_surface::AcrossRefusal::AgainstTheTable,
+                    ) => {
+                        unreachable!(
+                            "the table reads a circle edge across a sphere meridian's plane"
+                        )
                     }
                     // Every piece inherits the cut face's record (the
                     // `mef` below): a piece on another is a fault here.
@@ -7619,11 +7638,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The two ends' half-edges in the face's one loop.
         let view = body.proven_face(face);
         let mut ends = [None, None];
-        for (lk, members, _) in view.boundary_by_loop() {
-            for member in members {
-                let BoundaryMember::Edge { he, half, .. } = member else {
-                    continue;
-                };
+        for (lp, _) in view.cycle_loops() {
+            let lk = lp.key();
+            for crate::live::EdgeMember { he, half, .. } in lp.edges() {
                 let start = half.start;
                 for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {
                     if start == v {
@@ -7816,6 +7833,7 @@ fn states_a_point(relation: crate::Relation, first: Cell) -> bool {
         | Relation::CommonFoot
         | Relation::Tangent { .. }
         | Relation::SurfaceTangent
+        | Relation::RimJunction
         | Relation::Coaxial
         | Relation::SameRadius
         | Relation::AxesMeet
@@ -9905,7 +9923,10 @@ mod tests {
             ),
             radius: 1.0,
         };
-        let ruling = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let ruling = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
+        );
         (floor, cylinder, ruling)
     }
 
@@ -10403,7 +10424,10 @@ mod tests {
             crate::entity::FaceKey::default(),
             crate::geometry::SurfaceKey::default(),
         );
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let line = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        );
         let circle = geom::Curve3::circle(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
@@ -11035,11 +11059,11 @@ mod found_on_a_divided_face {
         );
     }
 
-    /// A piece the census cannot read (a lone-vertex ring, which bounds
-    /// no region) may hold the rest: the placement refuses, naming the
-    /// pair. Red when an unread piece is read as not holding.
+    /// A lone-vertex ring bounds no area and is a point of its piece's
+    /// boundary, so the piece is read past it and holds the rest. Red
+    /// where the face door refused the whole piece as a lone loop.
     #[test]
-    fn an_unreadable_piece_refuses() {
+    fn a_lone_ring_leaves_its_piece_read() {
         let tol = Tol::witness();
         let (mut body, top, other) = divided();
         let (x, y) = if holds(&body, other, 1.5, 0.5) {
@@ -11065,19 +11089,14 @@ mod found_on_a_divided_face {
             .unwrap();
         body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let v = lone(&mut body, x, y, 1.0);
-        match carried(&body, v, top, vec![(other, top)]) {
-            Err(BooleanError::CarryRefused {
-                refusal: crate::CarryRefusal::Unread { cells, .. },
-                ..
-            }) => {
-                assert_eq!(
-                    cells,
-                    [Cell::Vertex(v), Cell::Face(other)],
-                    "the refusal names the unread piece"
-                );
-            }
-            got => panic!("{got:?}"),
-        }
+        let got = carried(&body, v, top, vec![(other, top)]);
+        assert!(
+            matches!(
+                got.as_deref(),
+                Ok([ContactKind::VertexFace(held, piece)]) if *held == v && *piece == other
+            ),
+            "the piece holds the vertex: {got:?}"
+        );
     }
 
     /// A vertex a later stage took, as the join takes one: the record's

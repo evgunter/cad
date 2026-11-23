@@ -62,15 +62,21 @@ fn infinite_delta_is_refused() {
 }
 
 #[test]
-fn nurbs_surface_is_refused() {
+fn an_mvfs_seed_face_is_refused() {
     // The mvfs seed face carries `Surface::Nurbs` (the honest
-    // no-description placeholder) — tessellation refuses it typed.
+    // no-description placeholder) and its outer loop is one vertex: a
+    // face with no outline, which the domain door refuses typed before
+    // the placeholder surface is read.
     let mut body = topo::Body::<f64>::new();
-    body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+    let seed = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap();
     match tessellate(&body, 0.1, Tol::witness()) {
-        Err(TessellateError::UnsupportedSurface { .. }) => {}
-        other => panic!("expected UnsupportedSurface, got {:?}", other.map(|_| ())),
+        Err(TessellateError::DomainUnread { face, cause }) => assert!(
+            face == seed.face && *cause == topo::pcurves::RingPlacementError::OuterEmpty,
+            "{face:?} {cause:?}"
+        ),
+        other => panic!("expected DomainUnread, got {:?}", other.map(|_| ())),
     }
 }
 
@@ -603,11 +609,6 @@ fn each_domain_unread_cause_has_its_own_sentence_and_word() {
             "ring_open",
             "a ring of it does not close",
         ),
-        (
-            R::RingEmpty { ring },
-            "ring_empty",
-            "a ring of it is one vertex",
-        ),
         (R::OuterEmpty, "outer_empty", "its outer loop is one vertex"),
         (R::NoShift { ring }, "no_shift", "no whole number"),
         (R::Shifts { ring }, "shifts", "more than one whole number"),
@@ -638,16 +639,15 @@ fn each_domain_unread_cause_has_its_own_sentence_and_word() {
         R::OuterOpen { .. } => 1,
         R::RingOpen { .. } => 2,
         R::OuterEmpty => 3,
-        R::RingEmpty { .. } => 4,
-        R::NoShift { .. } => 5,
-        R::Shifts { .. } => 6,
-        R::Copies { .. } => 7,
-        R::Undecided { .. } => 8,
-        R::SplineTrimUnread { .. } => 9,
+        R::NoShift { .. } => 4,
+        R::Shifts { .. } => 5,
+        R::Copies { .. } => 6,
+        R::Undecided { .. } => 7,
+        R::SplineTrimUnread { .. } => 8,
     };
     let mut numbered: Vec<usize> = cases.iter().map(|(c, _, _)| variant(c)).collect();
     numbered.sort_unstable();
-    assert_eq!(numbered, (0..10).collect::<Vec<_>>(), "one case per cause");
+    assert_eq!(numbered, (0..9).collect::<Vec<_>>(), "one case per cause");
     let mut sentences = Vec::new();
     for (cause, word, says) in cases {
         let text = TessellateError::DomainUnread {

@@ -230,8 +230,13 @@ impl Say for ProductError {
 impl Staged for ProductError {
     const STAGE: &'static str = "product";
 
-    fn fmt_labelled(&self, f: &mut crate::Sentence, labels: Labels) -> core::fmt::Result {
-        self.fmt_said(f, labels, Speaker::TAG)
+    fn say_labelled(
+        &self,
+        f: &mut crate::Sentence,
+        labels: Labels,
+        by: Speaker<'_>,
+    ) -> core::fmt::Result {
+        self.fmt_said(f, labels, by)
     }
 }
 
@@ -578,6 +583,7 @@ pub(crate) fn sources_of<T: topo::AtRestPolicy + Decide>(
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::Assertion(_)
+        | ValuePayload::Datum(_)
         | ValuePayload::Family => None,
     }
 }

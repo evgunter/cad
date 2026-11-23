@@ -1,6 +1,8 @@
 //! Test vocabulary over this crate's types, for the suites downstream.
 
-use crate::{Affine3, Band, Decide, ErrorTextReading, MarginDiag, RigidMotion, Tol, Told};
+use crate::{
+    Affine3, Band, Decide, ErrorTextReading, Indeterminate, MarginDiag, RigidMotion, Tol, Told,
+};
 
 /// The upper end of a reporting margin: the point margin, or the
 /// enclosure's upper end; `NaN` for a poisoned reading, which no bound
@@ -42,6 +44,15 @@ pub fn upper(margin: MarginDiag) -> f64 {
 #[must_use]
 pub fn at_the_frame_cost_band(tol: Tol) -> bool {
     tol.eps() <= 1e-12
+}
+
+/// **Whether `cause` escalated `predicate` with its margin's upper end in
+/// `(lo, hi]`**: the window a frame-cost row
+/// ([`at_the_frame_cost_band`]) pins its refusal to.
+#[must_use]
+pub fn escalated(cause: &Indeterminate, predicate: &str, (lo, hi): (f64, f64)) -> bool {
+    let m = upper(cause.margin);
+    cause.predicate == Some(predicate) && m > lo && m <= hi
 }
 
 /// The lower end of a reporting margin: the point margin, or the
@@ -117,58 +128,6 @@ pub fn is_offer_of_a_margin_within(band: Band, offered: f64, margin: f64, slack:
     let rule = band.offer_deciding(lo).is_none_or(|y| y <= offered)
         && band.offer_deciding(hi).is_some_and(|y| offered <= y);
     independent && rule
-}
-
-#[cfg(test)]
-#[allow(clippy::expect_used)]
-mod offer_tests {
-    use super::{Band, is_offer_of_a_margin_within};
-
-    /// **The offer check answers false on a quote the margin does not
-    /// make**, and true on the one the rule makes. A margin of 5.5e-9 at
-    /// the design band (ε 1e-9, K 10) offers 5.5e-10; one of 5.756955e-10
-    /// offers 5.756e-11.
-    #[test]
-    fn the_offer_check_refuses_a_quote_the_margin_does_not_make() {
-        let band = Band::new(1e-9, 1e-8).expect("the design band");
-        let at = |v: f64, m: f64| is_offer_of_a_margin_within(band, v, m, 0.0);
-        // The rule's own offer passes at every scale the suites raise at:
-        // a quote equal to the rule's answer, so only the bound by |m|/K
-        // can refuse it.
-        for m in [
-            3.0000000000031634e-10,
-            9.999999999999951e-11,
-            5.5e-9,
-            1.234567e-7,
-            4.2e-6,
-        ] {
-            let offered = band.offer_deciding(m).expect("an offer above the floor");
-            assert!(at(offered, m), "the rule's offer {offered:e} for {m:e}");
-        }
-        assert!(at(5.5e-10, 5.5e-9), "the told offer of 5.5e-9");
-        assert!(
-            at(5.756e-11, 5.756955e-10),
-            "the told offer of 5.756955e-10"
-        );
-        assert!(!at(5.757e-11, 5.756955e-10), "rounded up, above |m|/K");
-        assert!(!at(5.75e-11, 5.756955e-10), "a figure dropped");
-        assert!(!at(5.756e-12, 5.756955e-10), "a tenth");
-        assert!(!at(5.756e-10, 5.756955e-10), "ten times");
-        assert!(
-            !at(5.7565e-11, 5.756955e-10),
-            "off the grid, between two points"
-        );
-        // A margin known to a slack accepts either grid point it straddles.
-        let straddle = 1.1e-12 * 3e-10;
-        assert!(is_offer_of_a_margin_within(band, 3e-11, 3e-10, straddle));
-        assert!(is_offer_of_a_margin_within(
-            band, 2.999e-11, 3e-10, straddle
-        ));
-        assert!(
-            !is_offer_of_a_margin_within(band, 2.998e-11, 3e-10, straddle),
-            "a step below both"
-        );
-    }
 }
 
 /// The tolerance a refusal's sentence offers to tighten below, where it
@@ -482,5 +441,99 @@ pub mod twins {
             }
             .decisive_pairs(Pairing::Rank, |m| m < 1.5);
         }
+    }
+}
+
+/// **How far a motion's `f64` axes are from their polar factor**, the
+/// rotation [`RigidMotion::rounding`] bounds the distance to, read
+/// independently of that bound: `(‖w − Rẑ‖, ‖u − Rx̂‖)`. The Gram defect
+/// `G = MᵀM − I` of the stored columns `M = [u v w]` is read exactly
+/// ([`crate::exact::Expansion`]) and rounded once per entry. Then
+/// `(M − R)eⱼ = R·S·eⱼ` with `S = (I + G)^½ − I`, summed as its series
+/// `G/2 − G²/8 + G³/16`. Each answer is within a few ulps of its own
+/// size, the series' remainder `5‖G‖⁴/128` below that wherever
+/// `‖G‖ ≤ 10⁻⁶`. A frame farther from rigid panics: the series is no
+/// oracle there.
+#[must_use]
+pub fn polar_distance(m: &RigidMotion<f64>) -> (f64, f64) {
+    use crate::exact::Expansion;
+    let columns = [m.u().get(), m.v().get(), m.w().get()];
+    let gram = |i: usize, j: usize| {
+        let (x, y) = (columns[i], columns[j]);
+        let mut e = Expansion::product(x.x, y.x);
+        e.add_expansion(&Expansion::product(x.y, y.y));
+        e.add_expansion(&Expansion::product(x.z, y.z));
+        if i == j {
+            e.add(-1.0);
+        }
+        e.components().iter().sum::<f64>()
+    };
+    let g: [[f64; 3]; 3] = core::array::from_fn(|i| core::array::from_fn(|j| gram(i, j)));
+    let norm = g.iter().flatten().map(|x| x.powi(2)).sum::<f64>().sqrt();
+    assert!(
+        norm <= 1e-6,
+        "polar_distance: ‖G‖ = {norm:e}, past the series oracle's reach"
+    );
+    let product = |a: &[[f64; 3]; 3], b: &[[f64; 3]; 3]| -> [[f64; 3]; 3] {
+        core::array::from_fn(|i| core::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
+    };
+    let g2 = product(&g, &g);
+    let g3 = product(&g2, &g);
+    let s: [[f64; 3]; 3] = core::array::from_fn(|i| {
+        core::array::from_fn(|j| g[i][j] / 2.0 - g2[i][j] / 8.0 + g3[i][j] / 16.0)
+    });
+    let column = |j: usize| (0..3).map(|i| s[i][j].powi(2)).sum::<f64>().sqrt();
+    (column(2), column(0))
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod offer_tests {
+    use super::{Band, is_offer_of_a_margin_within};
+
+    /// **The offer check answers false on a quote the margin does not
+    /// make**, and true on the one the rule makes. A margin of 5.5e-9 at
+    /// the design band (ε 1e-9, K 10) offers 5.5e-10; one of 5.756955e-10
+    /// offers 5.756e-11.
+    #[test]
+    fn the_offer_check_refuses_a_quote_the_margin_does_not_make() {
+        let band = Band::new(1e-9, 1e-8).expect("the design band");
+        let at = |v: f64, m: f64| is_offer_of_a_margin_within(band, v, m, 0.0);
+        // The rule's own offer passes at every scale the suites raise at:
+        // a quote equal to the rule's answer, so only the bound by |m|/K
+        // can refuse it.
+        for m in [
+            3.0000000000031634e-10,
+            9.999999999999951e-11,
+            5.5e-9,
+            1.234567e-7,
+            4.2e-6,
+        ] {
+            let offered = band.offer_deciding(m).expect("an offer above the floor");
+            assert!(at(offered, m), "the rule's offer {offered:e} for {m:e}");
+        }
+        assert!(at(5.5e-10, 5.5e-9), "the told offer of 5.5e-9");
+        assert!(
+            at(5.756e-11, 5.756955e-10),
+            "the told offer of 5.756955e-10"
+        );
+        assert!(!at(5.757e-11, 5.756955e-10), "rounded up, above |m|/K");
+        assert!(!at(5.75e-11, 5.756955e-10), "a figure dropped");
+        assert!(!at(5.756e-12, 5.756955e-10), "a tenth");
+        assert!(!at(5.756e-10, 5.756955e-10), "ten times");
+        assert!(
+            !at(5.7565e-11, 5.756955e-10),
+            "off the grid, between two points"
+        );
+        // A margin known to a slack accepts either grid point it straddles.
+        let straddle = 1.1e-12 * 3e-10;
+        assert!(is_offer_of_a_margin_within(band, 3e-11, 3e-10, straddle));
+        assert!(is_offer_of_a_margin_within(
+            band, 2.999e-11, 3e-10, straddle
+        ));
+        assert!(
+            !is_offer_of_a_margin_within(band, 2.998e-11, 3e-10, straddle),
+            "a step below both"
+        );
     }
 }

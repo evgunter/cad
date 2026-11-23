@@ -45,13 +45,14 @@ use crate::chart_groups::ChartGroups;
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use geom_brep::ladder::read_identity;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Vec3};
+use geom_core::UnitVec3;
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3};
 
 use crate::rim_wedge::Rim;
 use crate::solid_contain::PointInSolidError;
 
 /// The distance of `c` from the axis line `(origin, axis)`.
-pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>) -> T {
+pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: UnitVec3<T>, c: Point3<T>) -> T {
     geom::Line { origin, dir: axis }.distance(c)
 }
 
@@ -65,6 +66,10 @@ pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>
 /// name, because the names are its door's rows: [`WrapRims`]
 /// (`bool_wrap_rim`) and the sphere trim's latitude-rim class
 /// (`bool_sphere_iso_rim`).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn coaxial_margins<T: Decide>(
     axis: geom::Line<T>,
     circle: &geom::Circle<T>,
@@ -72,7 +77,7 @@ pub(super) fn coaxial_margins<T: Decide>(
     let geom::Line { origin, dir: axis } = axis;
     [
         Margin::levered(
-            circle.frame().axis().cross(axis).norm(),
+            circle.axis().cross(axis.get()).norm(),
             geom_brep::circle_curvature_arm(circle),
         ),
         Margin::of(off_axis(origin, axis, circle.frame().origin())),
@@ -219,6 +224,10 @@ pub(super) fn scope_members<'c, T: Decide>(
 /// # Panics
 ///
 /// As [`unmated_boundary`], on a torn hop past a resolved member.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn wrap_rims_within<T: Decide>(
     body: &Body<T>,
     members: &[FaceKey],
@@ -246,9 +255,9 @@ pub(super) fn wrap_rims_within<T: Decide>(
             .into_iter()
             .map(|(_, circle)| Rim {
                 center: circle.frame().origin(),
-                axis: circle.frame().axis(),
+                axis: circle.axis_unit(),
                 radius: circle.radius(),
-                u_ref: circle.frame().u_ref(),
+                u_ref: circle.u_ref(),
             })
             .collect(),
     ))
@@ -289,7 +298,7 @@ mod wrap_rims_holds_rows {
         let rims = WrapRims {
             axis: geom::Line {
                 origin: Point3::origin(),
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             },
         };
         let rim = |center: Point3<f64>| {

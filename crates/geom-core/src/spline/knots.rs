@@ -261,15 +261,20 @@ impl core::fmt::Display for SplineError {
                 "{fact}. Recourse: supply those breakpoints from inputs narrow enough that the \
                  step clears zero"
             ),
+            // Valid and unbuilt ([failure.taxonomy] row 2): a carrier at
+            // an enclosure scalar may hold such a value (C6), and its
+            // readers do not take one yet.
             SplineError::CarrierKnotNotAPoint { .. } => write!(
                 f,
-                "{fact}. Recourse: supply the carrier built at a point scalar (`f64`) and \
-                 lifted, so its breakpoints stay the numbers it was built on"
+                "{fact}. Nothing is wrong with the breakpoint: a curve or surface holding \
+                 an enclosure breakpoint is not built yet. {}",
+                crate::NOT_YET_ENDING
             ),
             SplineError::CarrierWeightNotAPoint { .. } => write!(
                 f,
-                "{fact}. Recourse: supply the carrier built at a point scalar (`f64`) and \
-                 lifted, so its weights stay the numbers it was built on"
+                "{fact}. Nothing is wrong with the weight: a curve or surface holding an \
+                 enclosure weight is not built yet. {}",
+                crate::NOT_YET_ENDING
             ),
             SplineError::WeightSignUndecided { .. } => write!(
                 f,
@@ -2474,7 +2479,9 @@ mod tests {
         ]
     }
 
-    /// Every `SplineError` rendering names a repair — and
+    /// Every `SplineError` rendering names a repair, or, where the
+    /// input is valid and the kernel does not build it yet (a carrier
+    /// over an enclosure knot or weight), ends as unbuilt — and
     /// `KnotVectorInvalid`, which renders its carrier whole and
     /// contributes four words of its own, is asserted TRANSITIVELY: at
     /// every payload, not at one chosen because it happens to carry a
@@ -2569,6 +2576,21 @@ mod tests {
                         );
                         check(&msg);
                     }
+                }
+                // Valid and unbuilt: no repair to name, and the one
+                // ending that says so.
+                SplineError::CarrierKnotNotAPoint { .. }
+                | SplineError::CarrierWeightNotAPoint { .. } => {
+                    let msg = arm.to_string();
+                    assert_eq!(
+                        test_utils::refusal::recourse_markers(&msg),
+                        1,
+                        "not exactly one ending: {msg}"
+                    );
+                    assert!(
+                        msg.ends_with(crate::NOT_YET_ENDING) && !msg.contains("Recourse:"),
+                        "an unbuilt carrier ends as unbuilt and offers no repair: {msg}"
+                    );
                 }
                 _ => check(&arm.to_string()),
             }

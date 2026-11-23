@@ -312,6 +312,7 @@
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // The tessellation budget meter's kernel half (issue #320). Public in
 // both configurations, because its measurement types are the CONTRACT
 // with the consumer half (`tools/tess-meter`), which reads them

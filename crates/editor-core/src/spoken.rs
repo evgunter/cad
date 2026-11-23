@@ -61,7 +61,7 @@ use core::fmt;
 pub mod sentence;
 
 use sentence::Readers;
-pub use sentence::{Mention, Mentioned, Put, Run, SaidName, SaidNode, SaidVar, Sentence};
+pub use sentence::{Lines, Mention, Mentioned, Put, Run, SaidName, SaidNode, SaidVar, Sentence};
 
 use crate::DocumentId;
 use crate::doc::Doc;
@@ -1411,7 +1411,7 @@ impl<'a> Speaker<'a> {
 
     /// The node `id` as this speaker's document holds it, its subject
     /// or not.
-    fn spoken(self, id: RecipeNodeId) -> SpokenNode {
+    pub(crate) fn spoken(self, id: RecipeNodeId) -> SpokenNode {
         let said = match self.doc {
             None => SpokenNode::absent(id),
             Some(doc) => doc.speak(id),
@@ -1710,6 +1710,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
+        Node::Datum { .. } => "Datum",
         Node::World => "World",
         Node::Space => "Space",
         Node::Union { .. } => "Union",
@@ -1861,6 +1862,84 @@ mod tests {
             said(Speaker::of(&empty).or_held(&kept), stranger),
             format!("node {}", test_utils::refusal::tag(stranger.0.digest())),
             "neither holds it: its tag"
+        );
+    }
+
+    /// **A line of a report holds no break**: [`super::Lines::new`]
+    /// refuses one, so a report's lines are the lines its text reads.
+    #[test]
+    #[should_panic(expected = "a line of a report holds a line break")]
+    fn a_report_line_that_holds_a_break_is_refused() {
+        let _ = super::Lines::new(vec![crate::Sentence::from("one\ntwo")]);
+    }
+
+    /// **A report's lines keep their mentions**: a sentence split at its
+    /// breaks is a line per break, each mention on the line it was
+    /// written on, still stamped with its document; the lines' text is
+    /// the sentence's, and written back into a sentence they are it
+    /// again.
+    #[test]
+    fn a_sentences_lines_keep_each_mention_on_its_line_and_its_text() {
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("spoken-lines", tol);
+        let doc = doc
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Box::new(crate::node::Node::Tube {
+                        major_radius: test_support::len(1.0),
+                        window: crate::node::TubeWindow::Full,
+                        minor_radius: test_support::len(0.25),
+                    }),
+                    fresh: Vec::new(),
+                },
+                tol,
+            )
+            .expect("the tube inserts")
+            .doc;
+        let id = *doc.ids().last().expect("the inserted tube");
+        let by = Speaker::of(&doc);
+        let said = crate::sentence!(
+            "head\n\n  ",
+            by.node(id),
+            " fails\nlast ",
+            by.node(id),
+            "\n"
+        );
+        let lines = said.lines();
+        let text: Vec<String> = lines.iter().map(ToString::to_string).collect();
+        let t = test_utils::refusal::tag(id.0.digest());
+        assert_eq!(
+            text,
+            [
+                "head".to_owned(),
+                String::new(),
+                format!("  Tube {t} fails"),
+                format!("last Tube {t}")
+            ],
+            "one line per break, the empty one kept and none after the last break"
+        );
+        let on: Vec<usize> = lines.iter().map(|line| line.mentions().count()).collect();
+        assert_eq!(
+            on,
+            [0, 0, 1, 1],
+            "each mention on the line it was written on"
+        );
+        assert!(
+            lines
+                .iter()
+                .flat_map(|line| line.mentions())
+                .all(|m| m.document() == Some(doc.id())),
+            "still in the speaker's document"
+        );
+        assert_eq!(
+            lines.to_string(),
+            said.to_string(),
+            "the lines' text is the sentence's"
+        );
+        assert_eq!(
+            crate::sentence!(&lines),
+            said,
+            "and written back, the sentence itself"
         );
     }
 

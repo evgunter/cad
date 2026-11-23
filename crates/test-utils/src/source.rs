@@ -2473,7 +2473,8 @@ pub fn after_visibility(item: &str) -> &str {
 /// The byte ranges of the test-only items in a blanked view: those
 /// under `#[cfg(test)]` or `#[cfg(any(test, …))]` (a test-support
 /// feature beside `test`).
-fn cfg_test_extents(bare: &str) -> Vec<std::ops::Range<usize>> {
+#[must_use]
+pub fn cfg_test_extents(bare: &str) -> Vec<std::ops::Range<usize>> {
     const ATTR: &str = "#[cfg(";
     let mut out = Vec::new();
     let mut at = 0usize;

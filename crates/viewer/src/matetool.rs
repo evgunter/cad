@@ -111,6 +111,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::pose::RoleRead;
 use pncad::document::say;
 use pncad::document::{
     Constraint, ConstraintId, ConstraintKind, Dimension, Doc, Evaluation, Formula, Mate, MateRef,
@@ -181,7 +182,13 @@ partial_mirror! {
 /// named by the verdict ([`MateToolError::KindDoesNotRead`]).
 #[must_use]
 pub fn pick_kinds(kind: VarKind) -> PickKinds {
-    let read: Vec<PickedKind> = reads(kind).into_iter().filter_map(PickedKind::of).collect();
+    // A datum picked whole serves every kind its frame has a role of.
+    let datum = datum_role(kind).map(|_| PickedKind::Datum);
+    let read: Vec<PickedKind> = reads(kind)
+        .into_iter()
+        .filter_map(PickedKind::of)
+        .chain(datum)
+        .collect();
     PickKinds::ALL
         .into_iter()
         .filter(|rule| read.iter().all(|&picked| rule.admits(picked)))
@@ -433,6 +440,62 @@ fn toggled(side: Operand) -> Operand {
     }
 }
 
+/// **A datum's own side of a mate of `kind`** (D10 `[placement.datums]`):
+/// its frame's xy plane, z axis or origin, or the frame itself; `None`
+/// for a direction, which its frame offers no role of.
+fn datum_side(datum: RecipeNodeId, kind: VarKind) -> Option<RoleRead<Operand>> {
+    let own = Operand::Output {
+        node: datum,
+        port: 0,
+    };
+    Some(RoleRead {
+        read: own,
+        role: datum_role(kind)?,
+    })
+}
+
+/// **The role of a datum's frame a mate of `kind` reads** — the one map
+/// from a row's kind to a datum's side: a plane its xy plane, an axis
+/// its z axis, a point its origin, a frame the frame itself (`Some(None)`);
+/// `None` for a direction, which its frame offers no role of.
+fn datum_role(kind: VarKind) -> Option<Option<pose::PoseRole>> {
+    match kind {
+        VarKind::Plane => Some(Some(pose::PoseRole::Xy)),
+        VarKind::Axis => Some(Some(pose::PoseRole::Z)),
+        VarKind::Point => Some(Some(pose::PoseRole::Origin)),
+        VarKind::Frame => Some(None),
+        _ => None,
+    }
+}
+
+/// **A datum's side of a mate of `kind`, as the editor's line says it**:
+/// the role's own words ([`pose::PoseRole::label`]), or its frame.
+fn datum_side_said(kind: VarKind) -> String {
+    match datum_role(kind) {
+        Some(Some(role)) => format!("the datum's {}", role.label()),
+        Some(None) => "the datum's frame".to_owned(),
+        None => "no role of the datum's".to_owned(),
+    }
+}
+
+/// [`toggled`] of a side read through a role: the pose read through it,
+/// flipped, and a flip of one taken off. A point read through its role
+/// (a frame's origin) has no sense to turn, so it is kept as it is:
+/// a flip of a point is no pose.
+fn toggled_read(side: RoleRead<Operand>) -> RoleRead<Operand> {
+    match side.role {
+        Some(role) if role.kind() == VarKind::Point => side,
+        Some(_) => RoleRead::plain(Operand::Pose(Box::new(pose::PoseDef::Flip { pose: side }))),
+        None => match side.read {
+            Operand::Pose(def) => match *def {
+                pose::PoseDef::Flip { pose } if pose.role.is_some() => pose,
+                other => RoleRead::plain(toggled(Operand::Pose(Box::new(other)))),
+            },
+            other => RoleRead::plain(toggled(other)),
+        },
+    }
+}
+
 /// **The role a mate of `kind`'s far side is slid along by its
 /// offset**: a plane's normal, a frame's `z`; `None` for a kind whose
 /// far side no slide along its own direction moves in a way its
@@ -472,6 +535,82 @@ pub fn offset_side(side: Operand, role: pose::PoseRole, by: Formula) -> Operand 
         }
     }
     wrap(side_offset(&side, role).0, role, by)
+}
+
+/// **[`offset_side`] of a side read through a role**: a plain side as
+/// [`offset_side`] stands it off; a frame's coordinate plane slid along
+/// the frame's own axis normal to it ([`pose::PoseRole::normal_axis`]),
+/// whatever sense it is read in, as a face stands off along its outward
+/// normal — so a flip of one is taken off, the plane slid, and the flip
+/// put back; any other role is kept, since no slide along it is an
+/// offset. The inverse is [`read_offset`].
+fn offset_read(side: RoleRead<Operand>, role: pose::PoseRole, by: Formula) -> RoleRead<Operand> {
+    match side.role {
+        Some(plane) => match plane.normal_axis() {
+            Some(axis) => RoleRead::plain(Operand::Pose(Box::new(pose::PoseDef::Slide {
+                along: RoleRead::through(side.read.clone(), axis),
+                pose: side,
+                by,
+            }))),
+            None => side,
+        },
+        None => match side.read {
+            Operand::Pose(def) => match *def {
+                pose::PoseDef::Flip { pose } if pose.role.is_some() => {
+                    toggled_read(offset_read(pose, role, by))
+                }
+                other => RoleRead::plain(offset_side(Operand::Pose(Box::new(other)), role, by)),
+            },
+            other => RoleRead::plain(offset_side(other, role, by)),
+        },
+    }
+}
+
+/// **`side` with the editor's offset taken off, and the offset**: the
+/// inverse of [`offset_read`]. A frame's coordinate plane slid along its
+/// own normal axis, under a plain flip or none, is the editor's; any
+/// other side is read by [`side_offset`]. `side` is read as written.
+#[must_use]
+pub fn read_offset(
+    side: &RoleRead<Operand>,
+    role: pose::PoseRole,
+) -> (RoleRead<Operand>, Option<Formula>) {
+    if side.role.is_some() {
+        return (side.clone(), None);
+    }
+    let (flipped, inner) = match &side.read {
+        Operand::Pose(def) => match &**def {
+            pose::PoseDef::Flip {
+                pose: pose::RoleRead { read, role: None },
+            } => (true, read),
+            _ => (false, &side.read),
+        },
+        other => (false, other),
+    };
+    if let Operand::Pose(def) = inner
+        && let pose::PoseDef::Slide {
+            pose:
+                plane @ pose::RoleRead {
+                    read: frame,
+                    role: Some(of),
+                },
+            along:
+                pose::RoleRead {
+                    read: along,
+                    role: Some(axis),
+                },
+            by,
+        } = &**def
+        && role == pose::PoseRole::Normal
+        && of.normal_axis() == Some(*axis)
+        && along == frame
+    {
+        let plane = plane.clone();
+        let plane = if flipped { toggled_read(plane) } else { plane };
+        return (plane, Some(by.clone()));
+    }
+    let (unslid, by) = side_offset(&side.read, role);
+    (RoleRead::plain(unslid), by)
 }
 
 /// `pose` slid `by` along the outward `role` of the pose it is read off.
@@ -665,47 +804,136 @@ impl MateSeat {
     }
 }
 
-/// **One side of a mate row**: the side as the bundle wrote it, while
-/// no seat of it has been picked again, and the picks its seats hold.
+/// **A `to` with the editor's offset taken off, and that offset**
+/// ([`read_offset`]).
+type Unslid = (RoleRead<Operand>, Option<Formula>);
+
+/// **One side of a mate row**: what it holds, one thing at a time — the
+/// side as the bundle wrote it, while no seat of it has been picked
+/// again; the picks its seats hold; or a datum picked whole. Every
+/// reader matches on it, so a way of holding a side added here is one
+/// every reader is made to answer.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct MateSideDraft {
-    /// The side as loaded from the bundle, in its loaded sense.
-    written: Option<Operand>,
-    /// A `to` as loaded, as written ([`written_side`]) with its offset
-    /// taken off ([`side_offset`]), and that offset: what the side is
-    /// written over once its offset changes.
-    unslid: Option<(Operand, Option<Formula>)>,
-    /// The one seat's pick, or a frame's axis pick.
-    first: Option<HeldPick<MatePick>>,
-    /// A frame's point pick.
-    point: Option<HeldPick<MatePick>>,
+pub enum MateSideDraft {
+    /// Nothing held yet.
+    #[default]
+    Empty,
+    /// **The side as loaded from the bundle**, in its loaded sense.
+    Written {
+        /// The side as written.
+        read: RoleRead<Operand>,
+        /// A `to` as loaded, as written ([`written_side`]) with its
+        /// offset taken off ([`read_offset`]), and that offset: what the
+        /// side is written over once its offset changes.
+        unslid: Option<Unslid>,
+    },
+    /// **The picks its seats hold**.
+    Picked {
+        /// The one seat's pick, or a frame's axis pick.
+        first: Option<HeldPick<MatePick>>,
+        /// A frame's point pick.
+        point: Option<HeldPick<MatePick>>,
+    },
+    /// **A datum picked whole**, as it was said when picked: the side
+    /// reads its frame through the role of the row's kind
+    /// ([`datum_side`]).
+    Datum(RecipeNodeId, SpokenNode),
 }
 
 impl MateSideDraft {
+    /// The datum the side reads, where a datum was picked whole.
+    #[must_use]
+    pub fn datum(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Datum(datum, _) => Some(*datum),
+            Self::Empty | Self::Written { .. } | Self::Picked { .. } => None,
+        }
+    }
+
     /// The pick a seat holds.
     #[must_use]
     pub fn pick(&self, seat: MateSeat) -> Option<&HeldPick<MatePick>> {
-        match seat {
-            MateSeat::One | MateSeat::Axis => self.first.as_ref(),
-            MateSeat::Point => self.point.as_ref(),
+        match (self, seat) {
+            (Self::Picked { first, .. }, MateSeat::One | MateSeat::Axis) => first.as_ref(),
+            (Self::Picked { point, .. }, MateSeat::Point) => point.as_ref(),
+            (Self::Empty | Self::Written { .. } | Self::Datum(..), _) => None,
         }
     }
 
     /// Whether the side is as the bundle wrote it.
     #[must_use]
     pub fn is_written(&self) -> bool {
-        self.written.is_some()
+        matches!(self, Self::Written { .. })
     }
 
+    /// The side as the bundle wrote it, and it unslid, where it is.
+    fn written(&self) -> Option<(&RoleRead<Operand>, Option<&Unslid>)> {
+        match self {
+            Self::Written { read, unslid } => Some((read, unslid.as_ref())),
+            Self::Empty | Self::Picked { .. } | Self::Datum(..) => None,
+        }
+    }
+
+    /// A seat's pick, to fill: the side becomes one of picks, whatever it
+    /// held, keeping the picks it already held.
     fn seat_mut(&mut self, seat: MateSeat) -> &mut Option<HeldPick<MatePick>> {
-        match seat {
-            MateSeat::One | MateSeat::Axis => &mut self.first,
-            MateSeat::Point => &mut self.point,
+        if !matches!(self, Self::Picked { .. }) {
+            *self = Self::Picked {
+                first: None,
+                point: None,
+            };
+        }
+        match (self, seat) {
+            (Self::Picked { first, .. }, MateSeat::One | MateSeat::Axis) => first,
+            (Self::Picked { point, .. }, MateSeat::Point) => point,
+            _ => unreachable!("the side was just made one of picks"),
         }
     }
 
     fn picks(&self) -> impl Iterator<Item = &HeldPick<MatePick>> {
-        self.first.iter().chain(self.point.iter())
+        let (first, point) = match self {
+            Self::Picked { first, point } => (first.as_ref(), point.as_ref()),
+            Self::Empty | Self::Written { .. } | Self::Datum(..) => (None, None),
+        };
+        first.into_iter().chain(point)
+    }
+
+    fn picks_mut(&mut self) -> impl Iterator<Item = &mut HeldPick<MatePick>> {
+        let (first, point) = match self {
+            Self::Picked { first, point } => (first.as_mut(), point.as_mut()),
+            Self::Empty | Self::Written { .. } | Self::Datum(..) => (None, None),
+        };
+        first.into_iter().chain(point)
+    }
+
+    /// **The nodes the side reads, as they were said when held**: each
+    /// pick's node, or the datum picked whole — what a deletion of one is
+    /// said gone by.
+    fn held_nodes(&self) -> Vec<(RecipeNodeId, SpokenNode)> {
+        match self {
+            Self::Picked { .. } => self
+                .picks()
+                .map(|held| (held.pick().node(), held.said().spoken(held.pick().node())))
+                .collect(),
+            Self::Datum(datum, said) => vec![(*datum, said.clone())],
+            Self::Empty | Self::Written { .. } => Vec::new(),
+        }
+    }
+
+    /// **The space the side reads**: as written, the body its first pick
+    /// reads (`read` the side's pick read), or the space the datum's
+    /// frame is in; `None` while it holds nothing.
+    fn space(
+        &self,
+        doc: &Doc<ProfileProgram>,
+        read: impl FnOnce(&MatePick) -> Option<Operand>,
+    ) -> Option<VarId> {
+        match self {
+            Self::Written { read: written, .. } => doc.operand_space(&written.read),
+            Self::Picked { .. } => doc.operand_space(&read(self.picks().next()?.pick())?),
+            Self::Datum(datum, _) => doc.node_space(*datum),
+            Self::Empty => None,
+        }
     }
 }
 
@@ -736,11 +964,11 @@ struct LoadedMate {
 
 impl MateRow {
     /// A fresh row of `kind`, at its default sense, no seat picked.
-    fn fresh(kind: VarKind) -> Self {
+    fn fresh(kind: VarKind, datum: bool) -> Self {
         Self {
             kind,
             unread: false,
-            flip: opens_turned(kind),
+            flip: !datum && opens_turned(kind),
             on: MateSideDraft::default(),
             to: MateSideDraft::default(),
             offset: None,
@@ -757,16 +985,20 @@ impl MateRow {
         loaded: Option<ConstraintId>,
         mate: &Mate<Formula>,
     ) -> Self {
-        let read = editor_core::mate::pin::operand_kind(doc, &mate.on);
+        let read = editor_core::mate::pin::side_kind(doc, &mate.on);
         let flip = editor_core::mate::side_flipped(doc, &mate.to)
             != editor_core::mate::side_flipped(doc, &mate.on);
-        let written = |side: &Operand| MateSideDraft {
-            written: Some(side.clone()),
-            ..MateSideDraft::default()
+        let written = |side: &RoleRead<Operand>| MateSideDraft::Written {
+            read: side.clone(),
+            unslid: None,
         };
-        let unslid = read
-            .and_then(offset_role)
-            .map(|role| side_offset(&written_side(doc, &mate.to), role));
+        let unslid = read.and_then(offset_role).map(|role| {
+            let to = RoleRead {
+                read: written_side(doc, &mate.to.read),
+                role: mate.to.role,
+            };
+            read_offset(&to, role)
+        });
         let offset = unslid.as_ref().and_then(|(_, by)| by.clone());
         Self {
             // A kind that does not resolve is said, never guessed: the
@@ -776,9 +1008,9 @@ impl MateRow {
             unread: read.is_none(),
             flip,
             on: written(&mate.on),
-            to: MateSideDraft {
+            to: MateSideDraft::Written {
+                read: mate.to.clone(),
                 unslid,
-                ..written(&mate.to)
             },
             offset,
             struck: false,
@@ -834,14 +1066,9 @@ impl MateRow {
     /// body its first held pick reads; `None` while no seat is held.
     #[must_use]
     pub fn to_space(&self, doc: &Doc<ProfileProgram>, ev: &Evaluation<f64>) -> Option<VarId> {
-        match &self.to.written {
-            Some(written) => doc.operand_space(written),
-            None => {
-                let pick = self.to.picks().next()?;
-                let (_, read) = to_read(doc, Some(ev), pick.pick())?;
-                doc.operand_space(&read)
-            }
-        }
+        self.to.space(doc, |pick| {
+            to_read(doc, Some(ev), pick).map(|(_, read)| read)
+        })
     }
 
     fn side_mut(&mut self, side: MateSide) -> &mut MateSideDraft {
@@ -937,6 +1164,22 @@ struct PlaceDraft {
     /// back at once on every other answer of the offer.
     held_back: Option<SetAside>,
     offer: Offer,
+    /// Whether the door is a datum's: its rows' `on` is its own frame,
+    /// and a fresh row opens flush, its frame's `z` along the far side's
+    /// sense rather than turned to face it.
+    datum: bool,
+}
+
+impl PlaceDraft {
+    /// **The row a pick fills**: the active one, or a fresh row of
+    /// `kind` where the draft holds none yet.
+    fn active_row(&mut self, kind: VarKind) -> &mut MateRow {
+        if self.rows.is_empty() {
+            self.rows.push(MateRow::fresh(kind, self.datum));
+            self.active = 0;
+        }
+        &mut self.rows[self.active]
+    }
 }
 
 impl PlaceDraft {
@@ -1010,6 +1253,8 @@ impl PartialEq for Held {
 #[derive(Debug, Clone, PartialEq)]
 enum Change {
     Pick(MatePick),
+    /// A datum picked whole: the active row's far side.
+    PickDatum(RecipeNodeId, SpokenNode),
     AddMate(VarKind),
     AddWritten(Mate<Formula>),
     ChooseKind(usize, VarKind),
@@ -1159,6 +1404,12 @@ pub enum MateToolError {
         /// The row, 0-based.
         row: usize,
     },
+    /// A datum's mate of a kind its frame offers no role of (a
+    /// direction).
+    DatumKind {
+        /// The row, 0-based.
+        row: usize,
+    },
 }
 
 impl core::fmt::Display for MateToolError {
@@ -1238,6 +1489,12 @@ impl core::fmt::Display for MateToolError {
                 "mate {}'s kind does not resolve; strike it out or pick it again",
                 row + 1
             ),
+            Self::DatumKind { row } => write!(
+                f,
+                "mate {} is a direction, and a datum's mate reads its plane, its axis, its \
+                 origin or its frame",
+                row + 1
+            ),
         }
     }
 }
@@ -1268,7 +1525,8 @@ impl MateToolError {
             | Self::KindNotOffered { .. }
             | Self::NoSense { .. }
             | Self::Unwritable { .. }
-            | Self::KindUnread { .. }) => unspoken,
+            | Self::KindUnread { .. }
+            | Self::DatumKind { .. }) => unspoken,
         }
     }
 }
@@ -1489,6 +1747,8 @@ struct DraftInputs {
     typed: Vec<(Coord, Formula)>,
     target: PlaceTarget,
     struck_values: Vec<ConstraintId>,
+    /// Whether the door is a datum's: its near sides are its own.
+    datum: bool,
 }
 
 /// **A target as the editor's first row says it**: the space by
@@ -1576,7 +1836,9 @@ fn door_on(
                 node: doc.spoken(node),
             });
         }
-        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => return edit(node),
+        Some(placement) if placement.bundle().is_some() => {
+            return edit(node);
+        }
         Some(Node::Split { .. }) if gated && body.is_none() => {
             return refused(MateToolEvent::HalfUnchosen {
                 split: doc.spoken(node),
@@ -1588,12 +1850,7 @@ fn door_on(
     if let Some(instance) = name
         .and_then(|name| member_of(doc, &SitedRef::new(node, name.clone())))
         .map(|member| member.instance)
-        .filter(|&at| {
-            matches!(
-                doc.node(at),
-                Some(Node::Place { .. } | Node::InstantiatePart { .. })
-            )
-        })
+        .filter(|&at| doc.node(at).is_some_and(Node::makes_a_copy))
     {
         return edit(instance);
     }
@@ -1691,7 +1948,7 @@ fn to_read(
 ) -> Option<(SitedRef, Operand)> {
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     let read = match doc.node(pick.node()) {
-        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
+        Some(copy) if copy.makes_a_copy() => {
             picked_read(doc, ev, Operand::Node(pick.node()), pick)?
         }
         _ => crate::session::pick_read(doc, ev, pick)?,
@@ -1717,9 +1974,7 @@ fn picked_read(
 /// reading a named variable or an expression is the person's, and no
 /// snap writes over it.
 fn written_constant(doc: &Doc<ProfileProgram>, placement: RecipeNodeId, id: ConstraintId) -> bool {
-    let Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) =
-        doc.node(placement)
-    else {
+    let Some(constraints) = doc.node(placement).and_then(Node::bundle) else {
         return false;
     };
     constraints
@@ -1992,7 +2247,7 @@ impl MateTool {
     ///
     /// [`MateToolError::NotAPlacement`] for a node that is none.
     pub fn edit(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Result<Self, MateToolError> {
-        let Some(Node::Place { .. } | Node::InstantiatePart { .. }) = doc.node(placement) else {
+        let Some(_) = doc.node(placement).and_then(Node::bundle) else {
             return Err(MateToolError::NotAPlacement {
                 node: doc.spoken(placement),
             });
@@ -2026,6 +2281,7 @@ impl MateTool {
                 struck_values: Vec::new(),
                 held_back: None,
                 offer: Offer::Quiet,
+                datum: doc.node(placement).is_some_and(Node::is_datum),
             }),
             ..Self::new()
         }
@@ -2240,7 +2496,9 @@ impl MateTool {
     #[must_use]
     pub fn active_picks(&self) -> [Option<&HeldPick<MatePick>>; 2] {
         match self.rows().get(self.active()) {
-            Some(row) => [MateSide::On, MateSide::To].map(|side| row.side(side).first.as_ref()),
+            Some(row) => {
+                [MateSide::On, MateSide::To].map(|side| row.side(side).pick(MateSeat::One))
+            }
             None => [None, None],
         }
     }
@@ -2438,8 +2696,29 @@ impl MateTool {
         None
     }
 
-    /// Whether `pick` is on the draft's copy.
+    /// **A datum picked whole** (D10 `[placement.datums]`, in the tree or
+    /// on its drawing): the open draft's active row reads it on its far
+    /// side, through the role of the row's kind — its xy plane for a
+    /// plane mate, its z axis for an axis, its origin for a point, its
+    /// frame for a frame. With no draft open it opens nothing: a datum
+    /// is placed by its own editor. The datum being edited is no far
+    /// side of its own.
+    pub fn pick_datum(&mut self, doc: &Doc<ProfileProgram>, datum: RecipeNodeId) {
+        if self.draft.is_none() || !doc.node(datum).is_some_and(Node::is_datum) {
+            return;
+        }
+        self.make(Some(doc), Change::PickDatum(datum, doc.spoken(datum)));
+    }
+
+    /// Whether `pick` is on the draft's copy. A datum has no copy: its
+    /// `on` is its own frame, so every pick is a far side.
     fn is_on_copy(&self, doc: &Doc<ProfileProgram>, pick: &MatePick) -> bool {
+        if self
+            .door()
+            .is_some_and(|door| doc.node(door.placement).is_some_and(Node::is_datum))
+        {
+            return false;
+        }
         let Ok(opens) = door_picked(doc, pick, Purpose::Siding) else {
             return false;
         };
@@ -2534,20 +2813,20 @@ impl MateTool {
                 let (Some(doc), Some(side)) = (doc, side) else {
                     return false;
                 };
-                if draft.rows.is_empty() {
-                    draft.rows.push(MateRow::fresh(kind));
-                    draft.active = 0;
-                }
-                let row = &mut draft.rows[draft.active];
+                let row = draft.active_row(kind);
                 let seat = MateSeat::filled_by(row.kind, pick.entity());
                 let held = HeldPick::new(doc, pick);
                 let drafted = row.side_mut(side);
-                drafted.written = None;
-                drafted.unslid = None;
                 *drafted.seat_mut(seat) = Some(held);
             }
+            Change::PickDatum(datum, said) => {
+                if draft.door.placement == datum {
+                    return false;
+                }
+                *draft.active_row(kind).side_mut(MateSide::To) = MateSideDraft::Datum(datum, said);
+            }
             Change::AddMate(kind) => {
-                draft.rows.push(MateRow::fresh(kind));
+                draft.rows.push(MateRow::fresh(kind, draft.datum));
                 draft.active = draft.rows.len() - 1;
             }
             Change::AddWritten(mate) => {
@@ -2564,11 +2843,14 @@ impl MateTool {
                 if row.kind == kind {
                     return false;
                 }
-                let mut fresh = MateRow::fresh(kind);
+                let mut fresh = MateRow::fresh(kind, draft.datum);
                 for side in [MateSide::On, MateSide::To] {
                     for pick in row.side(side).picks() {
                         let seat = MateSeat::filled_by(kind, pick.pick().entity());
                         *fresh.side_mut(side).seat_mut(seat) = Some(pick.clone());
+                    }
+                    if let MateSideDraft::Datum(..) = row.side(side) {
+                        *fresh.side_mut(side) = row.side(side).clone();
                     }
                 }
                 fresh.loaded = row.loaded;
@@ -2961,7 +3243,7 @@ impl MateTool {
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         for row in self.draft.iter_mut().flat_map(|d| d.rows.iter_mut()) {
             for side in [&mut row.on, &mut row.to] {
-                for held in [&mut side.first, &mut side.point].into_iter().flatten() {
+                for held in side.picks_mut() {
                     *held = held.respoken(doc);
                 }
             }
@@ -2975,8 +3257,7 @@ impl MateTool {
             .iter_mut()
             .flat_map(|draft| draft.rows.iter_mut())
             .flat_map(|row| [&mut row.on, &mut row.to])
-            .flat_map(|side| [&mut side.first, &mut side.point])
-            .filter_map(|seat| seat.as_mut())
+            .flat_map(MateSideDraft::picks_mut)
             .map(|pick| crate::session::select::Held::One(pick))
             .collect()
     }
@@ -2992,6 +3273,14 @@ impl MateTool {
         let mut roles = Vec::new();
         for side in [MateSide::On, MateSide::To] {
             let drafted = mate.side(side);
+            if let MateSideDraft::Datum(_, said) = drafted {
+                roles.push((side.name().to_owned(), Some(crate::tree::spelled(said))));
+                continue;
+            }
+            if side == MateSide::On && self.draft.as_ref().is_some_and(|d| d.datum) {
+                roles.push((side.name().to_owned(), Some(datum_side_said(mate.kind))));
+                continue;
+            }
             for &seat in MateSeat::of(mate.kind) {
                 let role = match seat.name() {
                     Some(word) => format!("{} {word}", side.name()),
@@ -3120,29 +3409,62 @@ impl MateTool {
     fn row_mate(
         doc: &Doc<ProfileProgram>,
         ev: &Evaluation<f64>,
-        at: usize,
-        row: &MateRow,
+        (at, row): (usize, &MateRow),
+        placement: RecipeNodeId,
+        datum: bool,
     ) -> Result<ProposedMate, MateToolError> {
-        let sided = |side: MateSide| -> Result<(Operand, Vec<SitedRef>), MateToolError> {
+        let sided = |side: MateSide| -> Result<(RoleRead<Operand>, Vec<SitedRef>), MateToolError> {
             let drafted = row.side(side);
-            if let Some(written) = &drafted.written {
+            if let Some((written, unslid)) = drafted.written() {
                 // A `to` whose offset changed is written over: its side
                 // with the loaded offset taken off, the new one put on.
-                let (written, restood) = match &drafted.unslid {
-                    Some((unslid, loaded)) if *loaded != row.offset => (unslid, true),
-                    _ => (written, false),
+                let (written, restood) = match unslid {
+                    Some((unslid, loaded)) if *loaded != row.offset => (unslid.clone(), true),
+                    _ => (written.clone(), false),
+                };
+                // The offset first, along the side's own outward
+                // direction, then its sense.
+                let read = match (restood, &row.offset, offset_role(row.kind)) {
+                    (true, Some(by), Some(role)) => offset_read(written, role, by.clone()),
+                    _ => written,
                 };
                 let read = match (side, row.loaded) {
-                    (MateSide::To, Some(loaded)) if loaded.flip != row.flip => {
-                        toggled(written.clone())
-                    }
-                    _ => written.clone(),
-                };
-                let read = match (restood, &row.offset, offset_role(row.kind)) {
-                    (true, Some(by), Some(role)) => offset_side(read, role, by.clone()),
+                    (MateSide::To, Some(loaded)) if loaded.flip != row.flip => toggled_read(read),
                     _ => read,
                 };
                 return Ok((read, Vec::new()));
+            }
+            if let Some(datum) = drafted.datum() {
+                if doc.node(datum).is_none() {
+                    let gone = drafted.held_nodes();
+                    return Err(MateToolError::PickGone {
+                        side,
+                        node: gone
+                            .into_iter()
+                            .next()
+                            .map_or_else(|| doc.spoken(datum), |(_, said)| said),
+                    });
+                }
+                let read =
+                    datum_side(datum, row.kind).ok_or(MateToolError::DatumKind { row: at })?;
+                // The offset first, along the datum's own normal axis,
+                // then the sense: the offset runs out of the datum
+                // whatever sense the row reads it in.
+                let read = match (side, &row.offset, offset_role(row.kind)) {
+                    (MateSide::To, Some(by), Some(role)) => offset_read(read, role, by.clone()),
+                    _ => read,
+                };
+                let read = if side == MateSide::To && row.flip {
+                    toggled_read(read)
+                } else {
+                    read
+                };
+                return Ok((read, Vec::new()));
+            }
+            if side == MateSide::On && datum {
+                return datum_side(placement, row.kind)
+                    .map(|own| (own, Vec::new()))
+                    .ok_or(MateToolError::DatumKind { row: at });
             }
             let flip = side == MateSide::To && row.flip;
             let mut reads = Vec::new();
@@ -3197,7 +3519,7 @@ impl MateTool {
                 (MateSide::To, Some(by), Some(role)) => offset_side(pose, role, by.clone()),
                 _ => pose,
             };
-            Ok((pose, sites))
+            Ok((RoleRead::plain(pose), sites))
         };
         let (on, on_sites) = sided(MateSide::On)?;
         let (to, to_sites) = sided(MateSide::To)?;
@@ -3231,6 +3553,7 @@ impl MateTool {
                 struck_values,
                 held_back: _,
                 offer: _,
+                datum,
             } = draft;
             DraftInputs {
                 door: door.clone(),
@@ -3238,6 +3561,7 @@ impl MateTool {
                 typed: typed.clone(),
                 target: target.clone(),
                 struck_values: struck_values.clone(),
+                datum: *datum,
             }
         }))
     }
@@ -3270,7 +3594,7 @@ impl MateTool {
         }
         let mut mates = live
             .iter()
-            .map(|&(at, row)| Self::row_mate(doc, ev, at, row))
+            .map(|&(at, row)| Self::row_mate(doc, ev, (at, row), draft.door.placement, draft.datum))
             .collect::<Result<Vec<_>, _>>()?;
         // A loaded value struck for reading another space is no longer
         // loaded: its freedom is measured afresh.
@@ -3291,7 +3615,7 @@ impl MateTool {
             .position(|(_, row)| fixes_one_direction(row.kind));
         let base_chart = base.iter().find_map(|c| {
             let mate = c.mate()?;
-            editor_core::mate::pin::operand_kind(doc, &mate.on)
+            editor_core::mate::pin::side_kind(doc, &mate.on)
                 .filter(|&kind| fixes_one_direction(kind))
                 .map(|_| c.id)
         });
@@ -3482,5 +3806,84 @@ impl MateTool {
             target: draft.target.clone(),
             bundle,
         })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod toggled_read_tests {
+    use super::*;
+
+    fn own() -> Operand {
+        Operand::Output {
+            node: RecipeNodeId::WORLD,
+            port: 0,
+        }
+    }
+
+    /// A datum's origin has no sense: toggling it keeps it, rather than
+    /// writing a flip of a point.
+    #[test]
+    fn a_points_role_read_is_not_flipped() {
+        let origin = RoleRead::through(own(), pose::PoseRole::Origin);
+        assert_eq!(toggled_read(origin.clone()), origin);
+    }
+
+    use crate::test_support::len;
+
+    /// A body's frame row, flipped, offset, re-read and offset again: the
+    /// second offset replaces the first, never stacks, and the slide runs
+    /// along the frame's own `z` (review A, 7535: `offset_read`'s frame
+    /// arm once caught a body frame's restood side).
+    #[test]
+    fn a_body_frames_offset_re_edited_does_not_stack() {
+        let through = Operand::Pose(Box::new(pose::PoseDef::Through {
+            axis: RoleRead::plain(own()),
+            point: RoleRead::plain(own()),
+        }));
+        let side = RoleRead::plain(turned(through.clone()));
+        let role = offset_role(VarKind::Frame).expect("a frame takes an offset");
+        let once = offset_read(side.clone(), role, len(0.005));
+        assert_eq!(read_offset(&once, role), (side.clone(), Some(len(0.005))));
+        let (base, _) = read_offset(&once, role);
+        let twice = offset_read(base, role, len(0.002));
+        assert_eq!(read_offset(&twice, role), (side, Some(len(0.002))));
+        assert_eq!(
+            face_pose(&twice.read),
+            &through,
+            "one slide, under the flip"
+        );
+    }
+
+    /// A datum's xy plane, flipped and offset, reads back as the flipped
+    /// plane and its offset; the slide is along the datum's own `z`.
+    #[test]
+    fn a_flipped_datum_planes_offset_reads_back() {
+        let xy = RoleRead::through(own(), pose::PoseRole::Xy);
+        let role = offset_role(VarKind::Plane).expect("a plane takes an offset");
+        let offset = toggled_read(offset_read(xy.clone(), role, len(0.005)));
+        assert_eq!(
+            read_offset(&offset, role),
+            (toggled_read(xy), Some(len(0.005)))
+        );
+        let flipped_first = offset_read(
+            toggled_read(RoleRead::through(own(), pose::PoseRole::Xy)),
+            role,
+            len(0.005),
+        );
+        assert_eq!(
+            flipped_first, offset,
+            "flipped then offset is offset then flipped"
+        );
+    }
+
+    /// A plane read through its role is flipped, and toggled back is the
+    /// read it was.
+    #[test]
+    fn a_planes_role_read_toggles_and_back() {
+        let xy = RoleRead::through(own(), pose::PoseRole::Xy);
+        let flipped = toggled_read(xy.clone());
+        assert_ne!(flipped, xy);
+        assert_eq!(toggled_read(flipped), xy);
     }
 }
