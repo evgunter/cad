@@ -113,7 +113,7 @@
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid, Frame, SpiricInvalid, SquareFrame, SurfaceKind};
 use geom_core::{
-    Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Rounded, Sign, Vec3,
+    Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Rounded, Sign, UnitVec3, Vec3,
 };
 
 use geom_core::k_stats::{decide_across, decide_across_reported};
@@ -334,11 +334,15 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the uniqueness \
-                   tube's cone arm; the coaxial pose has a closed form \
-                   (cone_torus_section), which this dispatch does not route to",
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR and fitted, with the full \
+                   three-limb certificate and in-op exhaustiveness \
+                   (geom_brep::ssi::cone_torus_ssi), the torus read through its \
+                   quartic and the cone as the double cone through its elevation, past \
+                   the pose's critical gap; the coaxial pose is the closed form's \
+                   (cone_torus_section), and a cone whose apex lies on the torus is \
+                   classified, a node or a touch, and not marched; a torus outside its \
+                   ring convention is refused as a shape",
         },
         // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
         // torus read through its quartic. ----
@@ -567,7 +571,7 @@ pub fn route_pose<T: Decide>(
         (Torus, Plane) => plane_torus_section(b, a, extent(), band).map(drop),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
-        (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) => {
+        (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) | (Cone, Torus) | (Torus, Cone) => {
             crate::pair_section(a, b, None, None::<geom_core::NoLane>, band).map(drop)
         }
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
@@ -593,8 +597,8 @@ pub fn route_pose<T: Decide>(
         | (Nurbs | Approx, Nurbs | Approx) => Ok(()),
         // Unimplemented at the kind level: `route`'s answer stands.
         (Cylinder, Nurbs)
-        | (Torus, Cone | Nurbs)
-        | (Cone, Cone | Sphere | Torus | Nurbs)
+        | (Torus, Nurbs)
+        | (Cone, Cone | Sphere | Nurbs)
         | (Sphere, Cone | Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus)
         | (Approx, Cylinder | Cone | Sphere | Torus)
@@ -1138,11 +1142,11 @@ pub(crate) fn plane_cylinder_classified<T: Decide>(
     }
     let PlaneCylinder { q, n, o, a, r } = pc;
     // Bounded cut: rim circle vs tilted ellipse.
-    let c = a.dot(n);
-    let sin_vec = a.cross(n);
+    let c = a.get().dot(n);
+    let sin_vec = a.get().cross(n);
     let sin_norm = sin_vec.norm();
     let t_star = (q - o).dot(n) / c;
-    let center = o + a * t_star;
+    let center = o + a.get() * t_star;
     let section = if closed_form_shown(
         "pc_rim_alignment",
         Margin::levered(sin_norm, crate::uniform_curvature_arm(cylinder)),
@@ -1150,7 +1154,7 @@ pub(crate) fn plane_cylinder_classified<T: Decide>(
     )
     .map_err(SectionError::Escalated)?
     {
-        PlaneCylinderSection::Rim(Curve3::circle(center, a, r, cyl_u))
+        PlaneCylinderSection::Rim(Curve3::circle(center, a.get(), r, cyl_u))
     } else {
         let u_major = tilted_section_major(n, sin_vec);
         let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
@@ -1254,7 +1258,7 @@ pub(crate) fn ruled_section<T: Decide>(
             // foot ± w·half, foot the axis' plane projection.
             let foot = o - n * gap_signed;
             let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
-            let w = a.cross(n).normalize();
+            let w = a.get().cross(n).normalize();
             RuledSection::ParallelLines {
                 l1: Curve3::line(foot + w * half, a),
                 l2: Curve3::line(foot - w * half, a),
@@ -1325,7 +1329,7 @@ pub(crate) struct PlaneCylinder<T: Real> {
     pub(crate) q: Point3<T>,
     pub(crate) n: Vec3<T>,
     pub(crate) o: Point3<T>,
-    pub(crate) a: Vec3<T>,
+    pub(crate) a: UnitVec3<T>,
     pub(crate) r: T,
 }
 
@@ -1349,7 +1353,7 @@ fn plane_cylinder_data<T: Real>(
     };
     let (o, a, u_ref) = (
         carrier_frame.origin(),
-        carrier_frame.axis(),
+        carrier_frame.axis_unit(),
         carrier_frame.u_ref(),
     );
     Ok((PlaneCylinder { q, n, o, a, r }, u_ref))
@@ -1838,7 +1842,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             node: Some(CcNode::Bisector { radii, meet }),
             ..
         } => {
-            let [e1, e2] = bisector_ellipses(foot, (a1, a2), pose.radii()[0], band)?;
+            let [e1, e2] = bisector_ellipses(foot, (a1.get(), a2.get()), pose.radii()[0], band)?;
             let nodes = pose.nodes();
             Ok(EqualCylinderSection::TwoEllipses {
                 e1,
@@ -1892,7 +1896,7 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
     decide_reported(
         "cc_axes_parallel",
         Margin::levered(
-            line1.dir.cross(line2.dir).norm(),
+            line1.dir.get().cross(line2.dir.get()).norm(),
             reach.lever_between(line1, line2),
         ),
         band,
@@ -1943,8 +1947,8 @@ fn separation_range<T: Real>(
     geom::Line { origin: o, dir: b }: geom::Line<T>,
     lever: T,
 ) -> (T, T) {
-    let off = |v: Vec3<T>| v - b * v.dot(b);
-    let (u, tau) = (off(p - o), off(a));
+    let off = |v: Vec3<T>| v - b.get() * v.dot(b.get());
+    let (u, tau) = (off(p - o), off(a.get()));
     let dmax = (u + tau * lever).norm().max((u - tau * lever).norm());
     let at = (T::zero() - u.dot(tau)) / tau.dot(tau).max(T::from_f64(f64::MIN_POSITIVE));
     let dmin = (u + tau * at.max(T::zero() - lever).min(lever)).norm();
@@ -1990,7 +1994,7 @@ pub fn cylinder_axes_coplanar_reported<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     let (foot1, foot2) = axes_feet(reach, line1, line2);
     let w = foot2 - foot1;
-    let cross = line1.dir.cross(line2.dir);
+    let cross = line1.dir.get().cross(line2.dir.get());
     decide_reported(
         "cc_axes_coplanar",
         Margin::of(w.dot(cross) / cross.norm()),
@@ -2039,7 +2043,7 @@ pub fn parallel_axes_at<T: Real>(
     let w = foot2 - foot1;
     ParallelAxes {
         foot1,
-        d_vec: w - line1.dir * w.dot(line1.dir),
+        d_vec: w - line1.dir.get() * w.dot(line1.dir.get()),
         d: line2.distance(foot1).max(line1.distance(foot2)),
     }
 }
@@ -2169,9 +2173,12 @@ impl<T: Real> ApexFan<T> {
     /// with no decision (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`):
     /// [`PlaneConeSection::ApexLinePair`]'s and
     /// [`PlaneConeSection::ApexTangentLine`]'s readers rely on it.
-    fn ruling(&self, phi: T) -> Vec3<T> {
+    fn ruling(&self, phi: T) -> UnitVec3<T> {
         let (s, c) = phi.sin_cos();
-        self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a
+        // Over the squared frame's `a`, `u` (Gram–Schmidt in interval
+        // arithmetic) and `v = a × u`, weighted by one angle's sine and
+        // cosine: an enclosure of a unit vector by that construction.
+        UnitVec3::checked(self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a)
     }
 }
 
@@ -2197,7 +2204,7 @@ pub fn plane_cone_apex_extrema<T: Real>(
     };
     let fan = ApexFan::of(&cone.frame()?, half_angle);
     let phi = fan.azimuth(normal);
-    Some([fan.ruling(phi), fan.ruling(phi + T::pi())])
+    Some([fan.ruling(phi).get(), fan.ruling(phi + T::pi()).get()])
 }
 
 /// **The directions in a plane through a cone's apex that read its
@@ -2582,7 +2589,9 @@ pub fn plane_cone_section<T: Decide>(
     let arm = geom::cover::Cover::circle(geom::cover::Core {
         axis: geom::Line {
             origin: apex + a * t,
-            dir: a,
+            // The square frame's axis, `a/|a|`: a normalization, so in
+            // interval arithmetic it encloses the unit axis.
+            dir: UnitVec3::checked(a),
         },
         radius: rim_r,
     })
@@ -2754,7 +2763,8 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
     } = reach.generator_lever(
         geom::Line {
             origin: apex,
-            dir: a,
+            // `Frame::square`'s axis, a normalization: checked.
+            dir: UnitVec3::checked(a),
         },
         half_angle,
     );
@@ -2834,9 +2844,9 @@ pub enum PlaneTorusSection<T: Real> {
     /// `h = (q − c)·a`): TWO concentric circles — radii
     /// `R ± √((r−|h|)(r+|h|))`, common centre `c + a·h` on the axis,
     /// carrier axis the torus axis, `u_ref` the torus's own seam
-    /// direction as stored: ⊥ the axis only to the torus's at-rest
-    /// frame margin (`Surface::representability_margins`, a tilt under
-    /// `ε/(R + r)`), so the circles stand within `ε` of their plane.
+    /// direction as stored: ⊥ the axis by the torus's [`geom::Frame`],
+    /// rigid by its type to its rounding (`Frame::rounding`), so the
+    /// circles stand in their plane to that rounding at `R + r`.
     /// Zero-residual-by-construction against both implicit forms in ℝ.
     ConcentricCircles {
         /// The outer circle, radius `R + √(r² − h²)`.
@@ -3266,7 +3276,9 @@ fn coaxial_cone_sphere<T: Decide>(
     }
     let axis = geom::Line {
         origin: apex,
-        dir: a,
+        // The square frame's axis, `a/|a|`: a normalization, so in
+        // interval arithmetic it encloses the unit axis.
+        dir: UnitVec3::checked(a),
     };
     match decide("kos_coaxial", Margin::of(axis.distance(center)), band)
         .map_err(SectionError::Escalated)?
@@ -3417,7 +3429,9 @@ fn coaxial_cone_torus<T: Decide>(
     }
     let cone_axis = geom::Line {
         origin: apex,
-        dir: a,
+        // The square frame's axis, `a/|a|`: a normalization, so in
+        // interval arithmetic it encloses the unit axis.
+        dir: UnitVec3::checked(a),
     };
     let off_axis = [
         decide("kot_coaxial", Margin::of(cone_axis.distance(center)), band),
@@ -3433,8 +3447,8 @@ fn coaxial_cone_torus<T: Decide>(
             Sign::Positive | Sign::Negative => {
                 return Err(SectionError::RoutesToGeneralRung {
                     pair: "cone×torus",
-                    why: "a torus off the cone's axis cuts a curve of degree eight, and the \
-                          pair's general-rung arm has not retired",
+                    why: "a torus off the cone's axis cuts a curve of degree eight, which has \
+                          no closed form",
                 });
             }
         }
@@ -3620,7 +3634,7 @@ pub fn cone_cylinder_section<T: Decide>(
             expected: "cone×cylinder (cylinder second)",
         });
     };
-    let (o, b) = (frame.origin(), frame.axis());
+    let (o, b) = (frame.origin(), frame.axis_unit());
 
     let (sin_a, cos_a) = half_angle.sin_cos();
     match decide("coc_cylinder_radius", Margin::of(big_r), band).map_err(|diag| {
@@ -3686,7 +3700,7 @@ pub fn cone_cylinder_section<T: Decide>(
 
     match decide(
         "coc_axes_parallel",
-        Margin::levered(a.cross(b).norm(), above),
+        Margin::levered(a.cross(b.get()).norm(), above),
         band,
     )
     .map_err(SectionError::Escalated)?
@@ -3716,13 +3730,15 @@ pub fn cone_cylinder_section<T: Decide>(
     let (cone_axis, cylinder_axis) = (
         geom::Line {
             origin: apex,
-            dir: a,
+            // The square frame's axis, `a/|a|`: a normalization, so in
+            // interval arithmetic it encloses the unit axis.
+            dir: UnitVec3::checked(a),
         },
         geom::Line { origin: o, dir: b },
     );
     let d = cylinder_axis.distance(apex);
     let (near, far) = separation_range(cone_axis, cylinder_axis, above.length());
-    let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
+    let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b.get()).norm().powi(2);
     match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)
         .map_err(SectionError::Escalated)?
     {

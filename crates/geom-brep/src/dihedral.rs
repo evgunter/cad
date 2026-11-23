@@ -2858,7 +2858,10 @@ mod tests {
         };
         let along = |dir| geom::Curve3::line(Point3::origin(), dir);
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
-        let (x_axis, y_axis) = (along(Vec3::unit_x()), along(Vec3::unit_y()));
+        let (x_axis, y_axis) = (
+            along(geom_core::UnitVec3::exact_x()),
+            along(geom_core::UnitVec3::exact_y()),
+        );
 
         let coplanar = plane(Vec3::unit_z(), Vec3::unit_y());
         assert_eq!(
@@ -2897,7 +2900,7 @@ mod tests {
         let ruling = Vec3::new(sin, 0.0, cos);
         let tangent = plane(Vec3::new(cos, 0.0, -sin), ruling);
         let len = (2.0 * (band().zero() * band().escalate()).sqrt() / 0.01).sqrt();
-        let generator = along(ruling);
+        let generator = along(geom::stated_direction(ruling));
         let bend = ask(&cone, &tangent, &generator, (100.0, 100.0 + len));
         assert!(
             bend.starts_with("Err(Escalated(Bend, ") && bend.contains("tangent_second_order"),
@@ -2964,7 +2967,7 @@ mod tests {
         };
         let ruling = Vec3::new(s, 0.0, c);
         let tangent = plane(Vec3::new(c, 0.0, -s), ruling);
-        let carrier = geom::Curve3::line(Point3::origin(), ruling);
+        let carrier = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::checked(ruling));
         assert!(
             !crate::tangent_certificate_lane(&carrier, &cone, &tangent),
             "the witness is out of lane"
@@ -3051,7 +3054,7 @@ mod tests {
         };
         let axis = geom::Curve3::line(
             Point3::new(f(0.0), f(0.0), f(0.0)),
-            Vec3::new(f(0.0), f(1.0), f(0.0)),
+            geom_core::UnitVec3::exact_y(),
         );
         second_order_walk(
             &cylinder(1.0),
@@ -3793,7 +3796,7 @@ mod tests {
             )
             .unwrap(),
         ));
-        let edge = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
+        let edge = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let ask = |a: (crate::SurfaceKey, &Surface<f64>), b| {
             reask_chart([a, b], &edge, (0.0, 1.0), fixture_lever(1.0), band).unwrap()
         };
