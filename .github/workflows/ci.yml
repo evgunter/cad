@@ -540,13 +540,16 @@ jobs:
       - name: clippy (viewer app feature)
         run: cargo clippy -p viewer --features app --all-targets -- -D warnings
       - name: install a software Vulkan adapter (lavapipe)
+        if: '!cancelled()'
         timeout-minutes: 8
         run: exec scripts/apt-install.sh --no-install-recommends mesa-vulkan-drivers vulkan-tools
       - name: install cargo-nextest (pinned, official prebuilt)
+        if: '!cancelled()'
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: viewer app-feature rows (chrome + gpu pipeline smoke)
+        if: '!cancelled()'
         run: cargo nextest run --profile ci -p viewer --features app
       # The `ci` profile leaves the slow set out, and the test job's slow-set
       # step builds viewer without `app`, so a slow test under `app::` runs

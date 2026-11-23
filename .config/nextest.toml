@@ -331,9 +331,6 @@ failure-output = "immediate-final"
 # same local run):
 #    1.91 s  mesh::all d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest
 #    2.12 s  mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
-# A fast-set test that read past the 1 s backstop on PR 7599's gate (run
-# 45250355510, `test (kernel)`, default eps), so it reds PRs off its path:
-#    1.008 s  sweep::all shell8_r2_probes::r2_three_solids_on_one_sphere_chart_open_additively
 # The arc-held cover's three seeded sweeps (6,000, 3,000 and 4,000
 # ellipses and windows each, against points of the stored curve):
 #    3.2 s  geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64

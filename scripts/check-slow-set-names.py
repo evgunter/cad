@@ -183,6 +183,34 @@ def selftest() -> int:
     assert check(pairs, plain, complete=False, members={"a"}, elsewhere=frozenset({"b"})) == 1, (
         "--elsewhere does not excuse a package that is no member"
     )
+    # The same through `run`, the wiring CI calls: a flag dropped between
+    # the argument and `check` (the slow set's or an override's) reds here.
+    raw = (
+        '[profile.ci]\ndefault-filter = """' + text + '"""\n'
+        '[[profile.ci.overrides]]\nfilter = "(binary_id(b) & test(=n::z))"\n'
+    )
+
+    def listed(s: dict[str, set[str]]) -> dict:
+        return {"rust-suites": {b: {"testcases": {n: {} for n in ns}} for b, ns in s.items()}}
+
+    assert run(["--complete"], raw, listed(plain)) == 1, "run: featured test dead under --complete"
+    assert run(["--complete", "--elsewhere", "b"], raw, listed(plain)) == 0, (
+        "run: --elsewhere reaches the slow set and the override under --complete"
+    )
+    assert run(["--elsewhere", "b", "--complete"], raw, listed(half)) == 0, (
+        "run: --elsewhere before --complete keeps --complete"
+    )
+    assert run(["--complete"], raw, listed(half)) == 1, "run: --complete is read"
+    assert run(["--members", "a,b", "--elsewhere", "b"], raw, listed({"b": {"n::q"}})) == 0, (
+        "run: --elsewhere reaches --members' check"
+    )
+    assert run(["--members", "a,b"], raw, listed({"b": {"n::q"}})) == 1, "run: --members is read"
+    for argv in (["--elsewhere", "--complete"], ["--members", "--complete"], ["--elsewhere"]):
+        try:
+            run(argv, raw, listed(live))
+        except SystemExit:
+            continue
+        raise AssertionError(f"run took a flag or nothing as a package list: {argv}")
     try:
         entries(text.replace("test(=m::x)", "test(=m::x )"))
     except SystemExit:
@@ -193,23 +221,25 @@ def selftest() -> int:
     return 0
 
 
-def main(argv: list[str]) -> int:
-    if "--selftest" in argv:
-        return selftest()
-    members = None
-    if "--members" in argv:
-        i = argv.index("--members")
-        if i + 1 >= len(argv) or not argv[i + 1]:
-            die("--members takes a comma-separated package list")
-        members = set(argv[i + 1].split(","))
-        argv = argv[:i] + argv[i + 2 :]
-    elsewhere: frozenset[str] = frozenset()
-    if "--elsewhere" in argv:
-        i = argv.index("--elsewhere")
-        if i + 1 >= len(argv) or not argv[i + 1]:
-            die("--elsewhere takes a comma-separated package list")
-        elsewhere = frozenset(argv[i + 1].split(","))
-        argv = argv[:i] + argv[i + 2 :]
+def _list_arg(argv: list[str], flag: str) -> tuple[set[str] | None, list[str]]:
+    """`flag`'s comma-separated value and `argv` without the pair. A value
+    that is itself a flag is refused: `--elsewhere --complete` would
+    otherwise read `--complete` as a package and drop it as a mode."""
+    if flag not in argv:
+        return None, argv
+    i = argv.index(flag)
+    if i + 1 >= len(argv) or not argv[i + 1] or argv[i + 1].startswith("--"):
+        die(f"{flag} takes a comma-separated package list")
+    return set(argv[i + 1].split(",")), argv[:i] + argv[i + 2 :]
+
+
+def run(argv: list[str], raw: str, listing: dict) -> int:
+    """The check over the nextest config text `raw` and a parsed listing,
+    with `argv`'s flags: `main` minus its two reads, so the selftest drives
+    the same wiring CI does."""
+    members, argv = _list_arg(argv, "--members")
+    named, argv = _list_arg(argv, "--elsewhere")
+    elsewhere = frozenset(named or ())
     if "--complete" in argv and members is not None:
         die(
             "--complete and --members are mutually exclusive: a complete listing "
@@ -222,16 +252,10 @@ def main(argv: list[str]) -> int:
         )
     complete = "--complete" in argv
     try:
-        with open(CONFIG, encoding="utf-8") as fh:
-            raw = fh.read()
         text = ci_filter(raw)
         overrides = tomllib.loads(raw)["profile"]["ci"].get("overrides", [])
-    except (OSError, SlowSetError, tomllib.TOMLDecodeError) as exc:
+    except (SlowSetError, tomllib.TOMLDecodeError) as exc:
         die(f"{CONFIG}: {exc}")
-    try:
-        listing = json.load(sys.stdin)
-    except json.JSONDecodeError as exc:
-        die(f"stdin is not a JSON listing ({exc})")
     suites = suites_of(listing)
     rc = check(entries(text), suites, complete, members, elsewhere=elsewhere)
     # A `ci` override names its tests the same way, so a renamed one is as
@@ -243,6 +267,21 @@ def main(argv: list[str]) -> int:
             f"ci override {i}", elsewhere,
         )
     return rc
+
+
+def main(argv: list[str]) -> int:
+    if "--selftest" in argv:
+        return selftest()
+    try:
+        with open(CONFIG, encoding="utf-8") as fh:
+            raw = fh.read()
+    except OSError as exc:
+        die(f"{CONFIG}: {exc}")
+    try:
+        listing = json.load(sys.stdin)
+    except json.JSONDecodeError as exc:
+        die(f"stdin is not a JSON listing ({exc})")
+    return run(argv, raw, listing)
 
 
 if __name__ == "__main__":
