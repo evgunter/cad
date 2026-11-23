@@ -1,0 +1,8 @@
+=== MUT=U1
+     Summary [ 173.965s] 103 tests run: 103 passed (2 slow), 3553 skipped
+=== MUT=U2
+        FAIL [   0.369s] editor-core::all m10_sym_profile_interval::the_forms_the_slabs_walks_build_are_pinned_per_eps_row
+        FAIL [   0.918s] editor-core::all m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned
+     Summary [ 185.134s] 103 tests run: 101 passed (2 slow), 2 failed, 3553 skipped
+=== MUT=U11
+     Summary [ 186.905s] 103 tests run: 103 passed (2 slow), 3553 skipped

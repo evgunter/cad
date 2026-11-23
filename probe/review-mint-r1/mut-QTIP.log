@@ -1,0 +1,36 @@
+        SKIP [         ] editor-core eval::measure::tests::a_cell_with_no_link_refuses_naming_the_reading_cell
+        SKIP [         ] editor-core::all a_mirror_is_a_construction::two_mirrors_across_one_plane_are_two_links
+        SKIP [         ] editor-core::all decide_3_split_rows_interval::decide_3_the_links_carrier_on_surface_2_rendered
+        SKIP [         ] editor-core::all decide_3_split_rows_interval::decide_3_which_dial_moves_the_links_split
+        SKIP [         ] editor-core::all gap_reads_vertex_and_edge_cells::real_bodies::real_reflex_strut_and_its_saddle_vertex_read_by_their_links
+        SKIP [         ] editor-core::all intent_dprime2_mates_read_geometry::removing_a_chain_link_writes_zero_in_its_place
+        SKIP [         ] editor-core::all lib_g16_blend_messages::the_fillets_selection_refusal_is_byte_frozen_and_the_op_row_prefix_pinned
+        SKIP [         ] editor-core::all m10_9_r2_probes_interval::r2_evidence_r1_bracket_frozen_moves_with_the_door
+        SKIP [         ] editor-core::all m10_9_r2_probes_interval::r2_link_end_to_end_with_and_without_the_door
+        SKIP [         ] editor-core::all m4_pr6_golden::golden_bytes_are_frozen
+        SKIP [         ] editor-core::all takeover_door::the_door_evaluates_again_only_for_a_link_it_could_not_answer
+        FAIL [   3.904s] editor-core::all m10_9_pins_interval::m10_9_the_pad_at_both_rule_f_dials
+       pad rule F shut eps=1e-9 (2.9s): SymCounts { symbolic: 1467, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1673, checks_frozen: 0, numeric: 1709, retried: 0, frozen: 1267 } -> None
+       pad shipped     eps=1e-9 (0.9s): SymCounts { symbolic: 1467, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1673, checks_frozen: 0, numeric: 1709, retried: 0, frozen: 1267 } -> None
+    thread 'm10_9_pins_interval::m10_9_the_pad_at_both_rule_f_dials' (27344) panicked at crates/editor-core/tests/m10_9_pins_interval.rs:984:5:
+      left: (1467, 1709, 1267)
+     right: (1467, 1709, 130)
+        FAIL [   6.883s] editor-core::all sym11_exact_channel_rows::sym11_the_exact_channel_never_contradicts_past_the_ceiling
+       two_hole_plate at eps=1e-9, ceiling + δ: SymCounts { symbolic: 975, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1047, checks_frozen: 0, numeric: 1047, retried: 0, frozen: 36 } -> None
+       r1_annulus at eps=1e-9, ceiling + δ: SymCounts { symbolic: 511, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 548, checks_frozen: 0, numeric: 548, retried: 0, frozen: 36 } -> None
+       r2_link at eps=1e-9, ceiling + δ: SymCounts { symbolic: 785, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 735, checks_frozen: 156, numeric: 943, retried: 0, frozen: 2600 } -> None
+       r2_filleted_bracket at eps=1e-9, ceiling + δ: SymCounts { symbolic: 1359, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1495, checks_frozen: 16, numeric: 1545, retried: 0, frozen: 57 } -> None
+       r2_rounded_pad at eps=1e-9, ceiling + δ: SymCounts { symbolic: 1467, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1673, checks_frozen: 0, numeric: 1709, retried: 0, frozen: 1267 } -> None
+    thread 'sym11_exact_channel_rows::sym11_the_exact_channel_never_contradicts_past_the_ceiling' (27345) panicked at crates/editor-core/tests/sym11_exact_channel_rows.rs:248:5:
+    at eps=1e-9, past the ceiling (a receipt is [symbolic, numeric, frozen]). This row is the measurement SYM-11 argued the dispute column's zero from, so a number that moved is a decision that moved and is a finding, not a table to refresh:
+    r2_link: [785, 943, 2600], stored [785, 943, 1987]
+        FAIL [   8.521s] editor-core::all m10_9_pins_interval::m10_9_what_the_registry_buys
+       r2_link at eps=1e-9: shipped SymCounts { symbolic: 785, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 735, checks_frozen: 156, numeric: 943, retried: 0, frozen: 2600 } -> None
+       r2_link at eps=1e-9: door shut SymCounts { symbolic: 695, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 657, checks_frozen: 105, numeric: 843, retried: 0, frozen: 877 } -> Some("node 20:f805b7df9b711552 — the extrude op refused: an Euler operation refused: geometry attachment gate: the analytic Intersection's rung-3 certificate refused — limb 2 (control-hul
+       r2_filleted_bracket at eps=1e-9: shipped SymCounts { symbolic: 1353, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1493, checks_frozen: 14, numeric: 1540, retried: 0, frozen: 57 } -> None
+       r2_filleted_bracket at eps=1e-9: door shut SymCounts { symbolic: 1283, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1493, checks_frozen: 14, numeric: 1610, retried: 0, frozen: 57 } -> None
+       r2_rounded_pad at eps=1e-9: shipped SymCounts { symbolic: 1467, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1673, checks_frozen: 0, numeric: 1709, retried: 0, frozen: 1267 } -> None
+       r2_rounded_pad at eps=1e-9: door shut SymCounts { symbolic: 1467, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1673, checks_frozen: 0, numeric: 1709, retried: 0, frozen: 1267 } -> None
+    thread 'm10_9_pins_interval::m10_9_what_the_registry_buys' (27343) panicked at crates/editor-core/tests/m10_9_pins_interval.rs:806:5:
+    at eps=1e-9, what the registry buys moved: ["r2_link: door shut (695, 843) refusing at Some(\"another predicate\"), stored (725, 1003) refusing at None: Some(\"node 20:f805b7df9b711552 — the extrude op refused: an Euler operation refused: geometry attachment gate: the analytic Intersection's rung-3 certificate refused — limb 2 (control-hull sup-norm bound) against the cylinder is undecided over this input: en
+     Summary [   8.533s] 3 tests run: 0 passed, 3 failed, 3653 skipped

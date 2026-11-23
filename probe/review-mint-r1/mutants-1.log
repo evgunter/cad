@@ -1,0 +1,57 @@
+=== MUT=
+     Summary [   0.110s] 31 tests run: 31 passed, 1986 skipped
+=== MUT=M1
+        FAIL [   0.115s] profile::all recorded_directions::the_slabs_side_is_proved_in_every_session_and_never_escalates
+        FAIL [   0.121s] profile::all review_mint_r1::probe_the_mint_takes_two_branches_by_ask_history
+        FAIL [   0.133s] profile::all recorded_directions::an_identity_that_rounds_mints_its_axis_at_every_valuation
+        FAIL [   0.177s] profile::all recorded_directions::the_axis_is_signed_by_one_reading_and_an_undecided_sign_refuses
+        FAIL [   0.188s] profile::all recorded_directions::a_hop_along_an_axis_mints_its_director_with_no_width
+     Summary [   0.324s] 31 tests run: 26 passed, 5 failed, 1986 skipped
+=== MUT=M3
+        FAIL [   0.109s] profile::all recorded_directions::the_axis_is_signed_by_one_reading_and_an_undecided_sign_refuses
+     Summary [   0.163s] 31 tests run: 30 passed, 1 failed, 1986 skipped
+=== MUT=T1
+        FAIL [   0.117s] geom-core sym::tests::the_structural_question_does_not_read_the_registry
+        FAIL [   0.156s] geom-core sym::question::tests::the_answer_does_not_read_the_sessions_dials
+        FAIL [   0.159s] geom-core sym::question::tests::asking_leaves_the_session_and_the_log_as_they_were
+     Summary [   0.232s] 31 tests run: 28 passed, 3 failed, 1986 skipped
+=== MUT=T2
+        FAIL [   0.102s] profile::all review_mint_r1::probe_an_earlier_ask_fixes_the_answer_of_a_node_recorded_afterwards
+        FAIL [   0.112s] geom-core sym::question::tests::asking_leaves_the_session_and_the_log_as_they_were
+        FAIL [   0.119s] profile::all review_mint_r1::probe_the_mint_takes_two_branches_by_ask_history
+        FAIL [   0.122s] profile::all recorded_directions::the_axis_is_signed_by_one_reading_and_an_undecided_sign_refuses
+        FAIL [   0.130s] geom-core sym::question::tests::a_symbolic_dual_is_asked_and_no_session_proves_nothing
+        FAIL [   0.141s] profile::all recorded_directions::a_hop_along_an_axis_mints_its_director_with_no_width
+        FAIL [   0.141s] profile::all recorded_directions::an_identity_that_rounds_mints_its_axis_at_every_valuation
+        FAIL [   0.142s] geom-core sym::question::tests::the_answer_does_not_read_the_sessions_dials
+        FAIL [   0.163s] profile::all recorded_directions::the_slabs_side_is_proved_in_every_session_and_never_escalates
+        FAIL [   0.170s] profile::all recorded_directions::a_value_coincident_hop_takes_one_branch_at_every_valuation
+        FAIL [   0.193s] profile::all recorded_directions::a_max_in_a_corner_is_no_identity_the_mint_proves
+        FAIL [   0.217s] geom-core sym::question::tests::an_identity_over_a_box_is_proved_in_both_sessions
+        FAIL [   0.224s] geom-core sym::question::tests::an_identity_that_rounds_is_proved_at_every_valuation
+     Summary [   0.613s] 31 tests run: 18 passed, 13 failed, 1986 skipped
+=== MUT=T3
+        FAIL [   0.125s] profile::all review_mint_r1::probe_the_mint_takes_two_branches_by_ask_history
+        FAIL [   0.127s] profile::all review_mint_r1::probe_an_earlier_ask_fixes_the_answer_of_a_node_recorded_afterwards
+        FAIL [   0.130s] profile::all recorded_directions::a_max_in_a_corner_is_no_identity_the_mint_proves
+        FAIL [   0.131s] profile::all recorded_directions::a_hop_along_an_axis_mints_its_director_with_no_width
+        FAIL [   0.138s] profile::all recorded_directions::a_value_coincident_hop_takes_one_branch_at_every_valuation
+        FAIL [   0.141s] geom-core sym::tests::the_structural_question_does_not_read_the_registry
+        FAIL [   0.143s] profile::all recorded_directions::the_slabs_side_is_proved_in_every_session_and_never_escalates
+        FAIL [   0.155s] geom-core sym::question::tests::asking_leaves_the_session_and_the_log_as_they_were
+        FAIL [   0.164s] geom-core sym::question::tests::the_answer_does_not_read_the_sessions_dials
+        FAIL [   0.186s] geom-core sym::question::tests::a_symbolic_dual_is_asked_and_no_session_proves_nothing
+        FAIL [   0.186s] profile::all recorded_directions::the_axis_is_signed_by_one_reading_and_an_undecided_sign_refuses
+        FAIL [   0.193s] geom-core sym::question::tests::nothing_that_reads_a_value_is_proved
+        FAIL [   0.198s] profile::all recorded_directions::an_identity_that_rounds_mints_its_axis_at_every_valuation
+     Summary [   0.629s] 31 tests run: 18 passed, 13 failed, 1986 skipped
+=== MUT=U1
+     Summary [   0.130s] 31 tests run: 31 passed, 1986 skipped
+=== MUT=U2
+     Summary [   0.150s] 31 tests run: 31 passed, 1986 skipped
+=== MUT=U12
+     Summary [   0.124s] 31 tests run: 31 passed, 1986 skipped
+=== MUT=U10
+     Summary [   0.120s] 31 tests run: 31 passed, 1986 skipped
+=== MUT=U11
+     Summary [   0.122s] 31 tests run: 31 passed, 1986 skipped

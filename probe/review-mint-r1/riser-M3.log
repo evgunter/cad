@@ -1,0 +1,70 @@
+  leaf [-0.050000, -0.048828] Budget
+  leaf [-0.048828, -0.047656] Budget
+  leaf [-0.047656, -0.046484] Budget
+  leaf [-0.046484, -0.045312] Budget
+  leaf [-0.045312, -0.044141] Budget
+  leaf [-0.044141, -0.042969] Budget
+  leaf [-0.042969, -0.041797] Budget
+  leaf [-0.041797, -0.040625] Budget
+  leaf [-0.040625, -0.039453] Budget
+  leaf [-0.039453, -0.038281] Budget
+  leaf [-0.038281, -0.037109] Budget
+  leaf [-0.037109, -0.035938] Budget
+  leaf [-0.035938, -0.033594] Budget
+  leaf [-0.033594, -0.031250] Budget
+  leaf [-0.031250, -0.028906] Budget
+  leaf [-0.028906, -0.026562] Budget
+  leaf [-0.026562, -0.024219] Budget
+  leaf [-0.024219, -0.021875] Budget
+  leaf [-0.021875, -0.019531] Budget
+  leaf [-0.019531, -0.017187] Budget
+  leaf [-0.017187, -0.014844] Budget
+  leaf [-0.014844, -0.012500] Budget
+  leaf [-0.012500, -0.010156] Budget
+  leaf [-0.010156, -0.007812] Budget
+  leaf [-0.007812, -0.005469] Budget
+  leaf [-0.005469, -0.003125] Budget
+  leaf [-0.003125, -0.000781] Budget
+  leaf [-0.000781, +0.001563] Budget
+  leaf [+0.001563, +0.003906] Budget
+  leaf [+0.003906, +0.006250] Budget
+  leaf [+0.006250, +0.008594] Budget
+  leaf [+0.008594, +0.010938] Budget
+  leaf [+0.010938, +0.013281] Budget
+  leaf [+0.013281, +0.015625] Budget
+  leaf [+0.015625, +0.017969] Budget
+  leaf [+0.017969, +0.020313] Budget
+  leaf [+0.020313, +0.022656] Budget
+  leaf [+0.022656, +0.025000] Budget
+  leaf [+0.025000, +0.027344] Budget
+  leaf [+0.027344, +0.029688] Budget
+  leaf [+0.029688, +0.032031] Budget
+  leaf [+0.032031, +0.034375] certified
+  leaf [+0.034375, +0.036719] certified
+  leaf [+0.036719, +0.039062] certified
+  leaf [+0.039062, +0.041406] certified
+  leaf [+0.041406, +0.043750] certified
+  leaf [+0.043750, +0.048438] certified
+  leaf [+0.048438, +0.053125] certified
+  leaf [+0.053125, +0.057812] certified
+  leaf [+0.057812, +0.062500] certified
+  leaf [+0.062500, +0.071875] certified
+  leaf [+0.071875, +0.081250] certified
+  leaf [+0.081250, +0.100000] certified
+  leaf [+0.100000, +0.137500] certified
+  leaf [+0.137500, +0.175000] certified
+  leaf [+0.175000, +0.250000] certified
+  leaf [+0.250000, +0.400000] certified
+  leaf [+0.400000, +0.475000] certified
+  leaf [+0.475000, +0.493750] certified
+  leaf [+0.493750, +0.498437] certified
+  leaf [+0.498437, +0.500781] Budget
+  leaf [+0.500781, +0.503125] FlipCrossing
+  leaf [+0.503125, +0.512500] FlipCrossing
+  leaf [+0.512500, +0.550000] FlipCrossing
+  reason: FlipCrossing { flipped: FlipEvidence { verdicts: FlipSet { nodes: {RecipeNodeId(MintId { ordinal: 9, digest: 11834865951521845932 }): NodeVerdictDelta { old_status: Ok, new_status: Ok, flip: Some(VerdictFlip { predicate: "segment_gap", from: Positive, to: Negative }) }} }, structure: [] } }
+  reason: FlipCrossing { flipped: FlipEvidence { verdicts: FlipSet { nodes: {RecipeNodeId(MintId { ordinal: 9, digest: 11834865951521845932 }): NodeVerdictDelta { old_status: Ok, new_status: Ok, flip: Some(VerdictFlip { predicate: "segment_gap", from: Positive, to: Negative }) }} }, structure: [] } }
+  reason: Budget(Leaves { max_leaves: 64 })
+riser(0.25, 0.3) at 64 leaves: certified 19 (lowest height 3.203125000000001e-2); refused by class (count, lowest, highest height): {"Budget": (42, -0.04999999999999999, 0.50078125), "FlipCrossing": (3, 0.50078125, 0.55)}; holds true
+riser(0.25, 0.3) at 4096 leaves: certified 232 (lowest height 3.0090332031250666e-3); refused by class (count, lowest, highest height): {"Budget": (3858, -0.04999999999999999, 0.5000122070312499), "FlipCrossing": (6, 0.5000122070312499, 0.55)}; holds true
+        PASS [   7.616s] editor-core::all m10_3_driver_interval::review_probe_what_the_drive_says_about_the_riser

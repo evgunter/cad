@@ -1,0 +1,14 @@
+=== MUT=
+     Summary [ 175.725s] 103 tests run: 103 passed (2 slow), 3553 skipped
+=== MUT=U10
+        FAIL [   0.283s] editor-core::all m10_3_driver_interval::a_box_inside_the_witness_chamber_certifies_whole
+        FAIL [   0.304s] editor-core::all m10_3_driver_interval::an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect
+        FAIL [   0.308s] editor-core::all m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+        FAIL [   0.406s] editor-core::all m10_3_driver_interval::a_macroscopic_box_certifies_at_the_shipped_depth_budget
+        FAIL [   0.528s] editor-core::all m10_3_driver_interval::cert4r1_the_driver_widening_scales_with_the_box_not_with_a_period
+        FAIL [   9.071s] editor-core::all m10_3_driver_interval::the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it
+        FAIL [   9.280s] editor-core::all m10_3_driver_interval::a_band_parameter_certifies_normally_and_prices_nothing
+        FAIL [   9.557s] editor-core::all m10_3_driver_interval::a_planted_flip_refuses_flip_crossing_and_names_what_flipped
+        FAIL [  10.628s] editor-core::all m10_3_driver_interval::containment_does_not_fire_while_a_boundary_leaf_certifies
+        FAIL [  40.052s] editor-core::all sym_9_retry_interval::sym_9_the_drive_writes_the_ladders_receipt
+     Summary [ 165.817s] 103 tests run: 93 passed (2 slow), 10 failed, 3553 skipped

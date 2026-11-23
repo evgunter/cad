@@ -1,0 +1,137 @@
+diff --git a/crates/geom-core/src/lib.rs b/crates/geom-core/src/lib.rs
+index bd44c64a1..919c6f45b 100644
+--- a/crates/geom-core/src/lib.rs
++++ b/crates/geom-core/src/lib.rs
+@@ -103,3 +103,11 @@ pub use tolerance::{
+     ToleranceReport,
+ };
+ pub use value_view::{OverScalar, ValueView};
++
++/// REVIEW MUTANT SWITCH (never merged).
++#[doc(hidden)]
++#[must_use]
++pub fn review_mut() -> &'static str {
++    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
++    M.get_or_init(|| std::env::var("REVIEW_MUT").unwrap_or_default())
++}
+diff --git a/crates/geom-core/src/sym/question.rs b/crates/geom-core/src/sym/question.rs
+index 774ccfb14..1da599341 100644
+--- a/crates/geom-core/src/sym/question.rs
++++ b/crates/geom-core/src/sym/question.rs
+@@ -43,6 +43,13 @@ impl crate::real::expression_seal::Sealed for SymId {}
+ impl crate::real::Expression for SymId {
+     /// `None` outside a session: there is no graph to read.
+     fn proves_zero(self) -> Option<ProvedZero> {
++        let m = crate::review_mut();
++        if m == "T3" {
++            return Some(ProvedZero::by_the_tier());
++        }
++        if m == "T1" {
++            return super::discharge_retried(self).map(|_| ProvedZero::by_the_tier());
++        }
+         SESSION.with(|s| {
+             let mut slot = s.borrow_mut();
+             let mut ask = Ask::open(slot.as_mut()?);
+@@ -65,8 +72,23 @@ impl<'s> Ask<'s> {
+         let mut own = installed
+             .question
+             .take()
+-            .unwrap_or_else(|| Box::new(Session::new(BUDGET, RULES, RETRY, None)));
+-        own.lend_nodes(installed);
++            .unwrap_or_else(|| {
++                let m = crate::review_mut();
++                let budget = if m == "U1" {
++                    SymBudget {
++                        max_terms: 4096,
++                        max_degree: 128,
++                    }
++                } else {
++                    BUDGET
++                };
++                let retry = if m == "U2" { SymRetry::none() } else { RETRY };
++                let rules = if m == "U12" { SymRules::shipped() } else { RULES };
++                Box::new(Session::new(budget, rules, retry, None))
++            });
++        if crate::review_mut() != "T2" {
++            own.lend_nodes(installed);
++        }
+         Self {
+             installed,
+             own,
+@@ -78,7 +100,9 @@ impl<'s> Ask<'s> {
+ 
+ impl Drop for Ask<'_> {
+     fn drop(&mut self) {
+-        self.own.lend_nodes(self.installed);
++        if crate::review_mut() != "T2" {
++            self.own.lend_nodes(self.installed);
++        }
+         // The state goes back to its slot; the empty box left here is
+         // dropped with the ask.
+         let own = core::mem::replace(
+diff --git a/crates/profile/src/path.rs b/crates/profile/src/path.rs
+index 0f7d928c5..26b80fa94 100644
+--- a/crates/profile/src/path.rs
++++ b/crates/profile/src/path.rs
+@@ -6325,7 +6325,12 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
+         self.core.push_line(p)?;
+         self.core.direct_leaving(self.core.verts.len() - 2, gamma);
+         let arm = (p - head).norm_squared().sqrt();
+-        Ok(in_state(self.core, leg_end_tip(p, gamma, arm)))
++        let tip_dir = if geom_core::review_mut() == "QTIP" {
++            chord_director(d)
++        } else {
++            gamma
++        };
++        Ok(in_state(self.core, leg_end_tip(p, tip_dir, arm)))
+     }
+ 
+     /// The sharp straight seam. `seam` is what the TARGET said
+diff --git a/crates/profile/src/seg.rs b/crates/profile/src/seg.rs
+index 58287f5a7..c5f57b47e 100644
+--- a/crates/profile/src/seg.rs
++++ b/crates/profile/src/seg.rs
+@@ -797,19 +797,38 @@ fn check_direction<T: Decide>(
+ /// [`AxisUnsigned`] where the sign reading escalates: the direction is
+ /// along an axis and which way is undecided over the box.
+ fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Result<Vec2<T>, AxisUnsigned<T>> {
+-    let proved_zero = |c: T| c.expression().filter(|e| e.proves_zero().is_some());
+-    let signed = |zero: T::Expression, other: T| {
+-        let read = geom_core::k_stats::unlogged("F43", || axis_sign(other, Band::least()));
++    let m = geom_core::review_mut();
++    let proved_zero = |c: T| {
++        c.expression()
++            .filter(|e| (m != "M1" || geom_core::is_exact_zero(c)) && e.proves_zero().is_some())
++    };
++    let signed = |zero: T::Expression, zero_value: T, other: T| {
++        if m == "A" {
++            // The base's second reading: the proved component, as a
++            // decision (a proved Zero counts `symbolic`).
++            let _ = geom_core::k_stats::unlogged("F43", || axis_sign(zero_value, Band::least()));
++        }
++        let band = if m == "U11" {
++            Band::linear(geom_core::Tol::witness()).unwrap_or(Band::least())
++        } else {
++            Band::least()
++        };
++        let read = if m == "U10" {
++            axis_sign(other, band)
++        } else {
++            geom_core::k_stats::unlogged("F43", || axis_sign(other, band))
++        };
+         match read {
+             Ok(Sign::Positive) => Ok(Some(T::one())),
+             Ok(Sign::Negative) => Ok(Some(-T::one())),
+             Ok(Sign::Zero) => Ok(None),
++            Err(_) if m == "M3" => Ok(None),
+             Err(source) => Err(AxisUnsigned { zero, source }),
+         }
+     };
+     let axis = match (proved_zero(w.x), proved_zero(w.y)) {
+-        (Some(zero), None) => signed(zero, w.y)?.map(|s| Vec2::new(T::zero(), s)),
+-        (None, Some(zero)) => signed(zero, w.x)?.map(|s| Vec2::new(s, T::zero())),
++        (Some(zero), None) => signed(zero, w.x, w.y)?.map(|s| Vec2::new(T::zero(), s)),
++        (None, Some(zero)) => signed(zero, w.y, w.x)?.map(|s| Vec2::new(s, T::zero())),
+         (None, None) | (Some(_), Some(_)) => None,
+     };
+     Ok(axis.unwrap_or(quotient))

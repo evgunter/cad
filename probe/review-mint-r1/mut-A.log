@@ -1,0 +1,20 @@
+        PASS [   0.112s] editor-core::all m10_9_pins_interval::m10_9_the_door_is_inert_on_straight_geometry
+        FAIL [   0.516s] editor-core::all m10_8_pins_interval::m10_8_the_shipped_set_is_inert_on_straight_geometry
+      left: "decisions symbolic=460 numeric=504 frozen=0"
+     right: "decisions symbolic=456 numeric=504 frozen=0"
+        PASS [   0.172s] editor-core::all m10_9_pins_interval::m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity
+        PASS [   0.009s] editor-core::all m10_9_pins_interval::m10_9_the_shipped_set_carries_the_door
+        PASS [   1.934s] editor-core::all m10_8_pins_interval::m10_8_the_a0_set_is_a0_alone
+        PASS [   1.253s] editor-core::all m10_9_pins_interval::m10_9_the_value_channel_is_untouched_on_a_certifying_box
+        FAIL [   0.492s] editor-core::all m10_bulge_interval::m10_bulge_the_bosss_split_at_the_nominal
+    segment_boss: these moved at the nominal (symbolic/numeric); if a rule took them, re-pin and say which: ["segment_direction_axis [0, 1] -> [1, 1]"]; and these decided but the pinned table does not list them: []
+        FAIL [   0.651s] editor-core::all m10_bulge_interval::m10_bulge_the_d_tabs_literal_split_at_the_nominal
+    d_tab (bulge a literal): these moved at the nominal (symbolic/numeric); if a rule took them, re-pin and say which: ["segment_direction_axis [0, 3] -> [3, 3]"]; and these decided but the pinned table does not list them: []
+        FAIL [   1.247s] editor-core::all m10_bulge_interval::m10_bulge_the_d_tabs_parameter_split_at_the_nominal
+    d_tab (bulge a parameter): these moved at the nominal (symbolic/numeric); if a rule took them, re-pin and say which: ["segment_direction_axis [0, 3] -> [3, 3]"]; and these decided but the pinned table does not list them: []
+        FAIL [   4.947s] editor-core::all m10_9_pins_interval::m10_9_the_pad_at_both_rule_f_dials
+      left: (1483, 1709, 130)
+     right: (1467, 1709, 130)
+        FAIL [   8.554s] editor-core::all m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document
+        FAIL [   8.632s] editor-core::all m10_9_pins_interval::m10_9_what_the_registry_buys
+     Summary [  10.574s] 12 tests run: 5 passed, 7 failed, 3644 skipped

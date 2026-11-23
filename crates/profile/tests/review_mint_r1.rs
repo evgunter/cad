@@ -268,7 +268,6 @@ fn probe_a_filleted_hops_director_is_its_stored_segments_direction() {
         }
         let r = 0.05 + 0.3 * next();
         let t = tol();
-        let p = |k: usize| Point2::new(pts[k].0, pts[k].1);
         let at = |i: usize, f: f64| {
             let j = (i + 1) % 4;
             Point2::new(
@@ -372,4 +371,100 @@ fn directors<T: Decide + Bounds>(
             SegmentDirections::Arc { .. } => panic!("lines"),
         })
         .collect()
+}
+
+/// The filleted quadrilateral of the trim probe, at any scalar.
+fn filleted<T: profile::ArcCarrierScalar>(
+    pts: [(f64, f64); 4],
+    r: f64,
+) -> Result<ConstructedLoop<T>, PathError<T>> {
+    let t = tol();
+    let at = |i: usize, f: f64| {
+        let j = (i + 1) % 4;
+        Point2::new(
+            T::from_f64(pts[i].0 + f * (pts[j].0 - pts[i].0)),
+            T::from_f64(pts[i].1 + f * (pts[j].1 - pts[i].1)),
+        )
+    };
+    Ok(Open
+        .at(at(0, 0.0))
+        .line_to(at(0, 0.7), t)?
+        .fillet(T::from_f64(r), t)?
+        .at(at(1, 0.6), t)?
+        .line_to(at(1, 0.7), t)?
+        .fillet(T::from_f64(r), t)?
+        .at(at(2, 0.6), t)?
+        .line_to(at(2, 0.7), t)?
+        .fillet(T::from_f64(r), t)?
+        .at(at(3, 0.6), t)?
+        .line_to(Start, t)?
+        .loop_)
+}
+
+/// **Claim 9, the reader the body names and does not attack**: a
+/// symbolic run's `f64` value channel against the `f64` run of the same
+/// verbs. `value_channel` mints a line's direction from the STORED
+/// ends where the symbolic run's director is not a point; the `f64`
+/// run records the verb's director, from the AUTHORED chord. Where a
+/// fillet moved the hop's start those are two computations.
+#[test]
+fn probe_the_value_channel_of_a_symbolic_run_against_the_f64_run() {
+    let mut state = 0x2545_f491_4f6c_dd1d_u64;
+    let mut next = || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let (mut lines, mut differ, mut worst) = (0, 0, 0.0_f64);
+    let mut first = None;
+    for case in 0..30 {
+        let (a, b, c, d) = (
+            2.0 + 2.0 * next(),
+            2.0 + 2.0 * next(),
+            0.5 * next(),
+            0.5 * next(),
+        );
+        let pts = [(c, -d), (a, d), (a - c, b), (-d, b - c)];
+        let r = 0.05 + 0.3 * next();
+        let Ok(plain) = filleted::<f64>(pts, r) else {
+            continue;
+        };
+        let plain = ConstructedProfile::new(SketchPlane::xy(), vec![plain])
+            .validate(tol())
+            .expect("f64 validates");
+        let channel = eager(|| {
+            let lp = filleted::<Sym<f64>>(pts, r).ok()?;
+            let vp = ConstructedProfile::new(SketchPlane::xy(), vec![lp])
+                .validate(tol())
+                .ok()?;
+            vp.value_channel().ok()
+        });
+        let Some(channel) = channel else {
+            continue;
+        };
+        for (k, (p, q)) in plain.loops()[0]
+            .segments()
+            .iter()
+            .zip(channel.loops()[0].segments())
+            .enumerate()
+        {
+            if let (SegmentDirections::Line(dp), SegmentDirections::Line(dq)) =
+                (p.directions, q.directions)
+            {
+                lines += 1;
+                if [dp.x.to_bits(), dp.y.to_bits()] != [dq.x.to_bits(), dq.y.to_bits()] {
+                    differ += 1;
+                    worst = worst.max((dp - dq).norm());
+                    first.get_or_insert((case, k, dp, dq));
+                }
+            }
+        }
+    }
+    eprintln!(
+        "{lines} line directions compared; {differ} differ in bits between the f64 run and the \
+         symbolic run's value channel; worst {worst:e}; first: {first:?}"
+    );
+    assert!(lines > 100, "the probe compared something");
+    assert_eq!(differ, 0, "FINDING if red: two f64 forms of one document");
 }

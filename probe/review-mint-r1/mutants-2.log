@@ -1,0 +1,10 @@
+=== MUT=U10
+        FAIL [   0.777s] geom-core::all bounds_census::every_sole_bracket_bound_door_is_in_the_roster
+        FAIL [   1.340s] geom-core::all certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned
+        FAIL [   1.499s] geom-core::all sym_rule_f_rows::the_copysign_mint_sites_the_tree_holds_are_these
+     Summary [  20.648s] 1991 tests run: 1988 passed, 3 failed, 26 skipped
+=== MUT=U11
+        FAIL [   1.014s] geom-core::all bounds_census::every_sole_bracket_bound_door_is_in_the_roster
+        FAIL [   1.238s] geom-core::all sym_rule_f_rows::the_copysign_mint_sites_the_tree_holds_are_these
+        FAIL [   1.304s] geom-core::all certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned
+     Summary [  21.630s] 1991 tests run: 1988 passed, 3 failed, 26 skipped

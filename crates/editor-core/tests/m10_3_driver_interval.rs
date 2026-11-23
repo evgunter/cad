@@ -1030,6 +1030,72 @@ fn an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect() {
     );
 }
 
+/// REVIEW PROBE (review-mint r1): what the drive says about every leaf
+/// of the riser, by class and mass, at several budgets.
+#[test]
+fn review_probe_what_the_drive_says_about_the_riser() {
+    for (nominal, half, leaves) in [(0.25, 0.3, 64), (0.25, 0.3, 4096)] {
+        let doc = riser(nominal, half);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let v = drive(
+            &doc,
+            &analyzed,
+            &config(leaves),
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("the nominal builds");
+        let height = doc.var_named("height").expect("declared");
+        let mut classes = std::collections::BTreeMap::<String, (usize, f64, f64)>::new();
+        for l in v.refused() {
+            let (lo, hi) = l.box_.get(height).expect("varies").span();
+            let e = classes.entry(format!("{:?}", l.reason.class())).or_insert((
+                0,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+            ));
+            e.0 += 1;
+            e.1 = e.1.min(nominal + lo);
+            e.2 = e.2.max(nominal + hi);
+        }
+        if leaves == 64 {
+            let mut all: Vec<(f64, f64, String)> = v
+                .refused()
+                .iter()
+                .map(|l| {
+                    let (lo, hi) = l.box_.get(height).expect("varies").span();
+                    (
+                        nominal + lo,
+                        nominal + hi,
+                        format!("{:?}", l.reason.class()),
+                    )
+                })
+                .chain(v.certified().iter().map(|l| {
+                    let (lo, hi) = l.box_.get(height).expect("varies").span();
+                    (nominal + lo, nominal + hi, "certified".to_owned())
+                }))
+                .collect();
+            all.sort_by(|a, b| a.0.total_cmp(&b.0));
+            for (lo, hi, class) in &all {
+                eprintln!("  leaf [{lo:+.6}, {hi:+.6}] {class}");
+            }
+            for l in v.refused().iter().take(3) {
+                eprintln!("  reason: {:.300}", format!("{:?}", l.reason));
+            }
+        }
+        let cert_lo = v
+            .certified()
+            .iter()
+            .map(|l| nominal + l.box_.get(height).expect("varies").span().0)
+            .fold(f64::INFINITY, f64::min);
+        eprintln!(
+            "riser({nominal}, {half}) at {leaves} leaves: certified {} (lowest height {cert_lo:e}); refused by class (count, lowest, highest height): {classes:?}; holds {}",
+            v.certified().len(),
+            v.receipt().holds()
+        );
+    }
+}
+
 /// A box wholly inside the witness chamber certifies whole — the
 /// near-flip control for the row above, and the reason the row above is
 /// about a flip rather than about a wide box.
