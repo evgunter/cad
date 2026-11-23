@@ -183,6 +183,8 @@ mod refusal_concision_edits;
 mod review_6302;
 #[path = "review_bundle_r1.rs"]
 mod review_bundle_r1;
+#[path = "review_denotes_body.rs"]
+mod review_denotes_body;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]

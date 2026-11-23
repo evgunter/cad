@@ -23,3 +23,13 @@ No construction mints an arc-held circle today, so each of these reads a stored 
 - step-import: `adopt.rs` `mapped_self_description`°; `normalize.rs` `mint_band`°, `seam_vertex_on_loop`°, `wall_inversion`°
 - sweep: `blend/arms.rs` `chamfer_setback_point`°, `frustum_rim_side`°; `blend/battery.rs` `frustum_arm`°, `curved_arm`°; `blend/reach.rs` `circular_reach`°; `blend/surgery.rs` `arc_past`°, `arc_distance`°, `arc_along`°, `of`°, `arc_within`°; `test_support.rs` `arcs_at`°, `circle_arcs_where`°
 - topo: `boolean/join.rs` `pt_germ_frame`°; `chart_iso.rs` `traversal_kind`°; `contain.rs` `loop_circle`°; `region.rs` `swept`°, `arc`°, `heading`°; `solid_contain.rs` `wall_crosses_by_turn`°; `surface_group.rs` `coaxial_margins`°; `test_support_fixtures.rs` `arc_cap`°; `validate.rs` `ring_outer_meeting`°, `locus_gap`°
+
+## Decided (Ev, PR 7523, 2026-11-23): `Centre`, a datum no decision reads
+
+The centre is a wrapped value that cannot be added to a vector, stored on a centre-held conic and derived (rounded at the semi-axes' scale) on an arc-held one; asking for it never panics. It has two doors, `axis_line()` and one coordinate door, each gated with a reason per caller, and its callers are a closed list: reporters into a format that is centre-form by its own definition (the STEP writer, a sketch arc written back) and mints of a new entity's datum (a blend surface about a rim's axis, a section loop's turning axis). A classification of the 79 circle readers by an agent told nothing of the designers' positions (39 decide, 22 construct, 12 evaluate) is on `analysis/design-fork/conic-reader-interface` (`circle-reads-classified.md`): the readers that decide go through the polynomial or the point-against-conic readings, not through `Centre`.
+
+- **The STEP writer** states an arc-held ellipse about its derived centre, so the exported curve stands off the kernel's by the centre's rounding. That is the format's limit: it is documented at the writer, not designed around.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
