@@ -501,5 +501,5 @@ mod r2_sense_e2e;
 
 #[path = "route_rows.rs"]
 mod route_rows;
-#[path = "zz_probe_band.rs"]
-mod zz_probe_band;
+#[path = "the_one_slit_band.rs"]
+mod the_one_slit_band;

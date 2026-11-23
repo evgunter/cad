@@ -1808,16 +1808,9 @@ fn faces_across(
 /// `(u, v)` as the CDT sees it on `plane`, `singular` where the point
 /// is a copy of the chart's singular vertex.
 ///
-/// - **The chart** ([`CdtPlane::Lattice`]): floored
-///   ([`crate::cdt::spade_point`]), then in the lattice metric, `(u/k,
-///   v)` times a uniform power of two (module docs, "The lattice
-///   metric", on what that scale does and does not leave unchanged).
-///   The axis that GROWS is scaled, `v` by `k` when `k > 1` and `u` by
-///   `1/k` when `k < 1`: a power of two of at least one, which rounds
-///   nothing and cannot carry a value spade accepts into the floor's
-///   band, so the scale is injective on floored points and two chart
-///   points are one CDT vertex exactly when
-///   [`crate::cdt::ids_at_two_uvs`] reads them as one location.
+/// - **The chart** ([`CdtPlane::Lattice`]): in the lattice metric
+///   ([`crate::cdt::lattice_point`]; module docs, "The lattice metric",
+///   on what that scale does and does not leave unchanged).
 /// - **The cone's development** ([`CdtPlane::Development`], module
 ///   docs, "The development"): every copy of the apex at the origin, any
 ///   other point at [`developed`], then floored. The development rounds,
@@ -1828,14 +1821,7 @@ fn faces_across(
 /// orientation and every certificate read UV.
 fn cdt_point(plane: CdtPlane, u: f64, v: f64, singular: bool) -> SpadePoint<f64> {
     match plane {
-        CdtPlane::Lattice { metric } => {
-            let p = crate::cdt::spade_point(u, v);
-            if metric > 1.0 {
-                SpadePoint::new(p.x, p.y * metric)
-            } else {
-                SpadePoint::new(p.x / metric, p.y)
-            }
-        }
+        CdtPlane::Lattice { metric } => crate::cdt::lattice_point(u, v, metric),
         CdtPlane::Development { .. } if singular => crate::cdt::spade_point(0.0, 0.0),
         CdtPlane::Development { sin_alpha, nappe } => {
             let (x, y) = developed(sin_alpha, nappe, u, v);

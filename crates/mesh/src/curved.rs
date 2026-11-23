@@ -1,5 +1,5 @@
 //! Curved-face tessellation: UV-rectangle domain from the boundary
-//! walk, interior grid sampling, CDT in parameter space, pole-fan
+//! walk, interior grid sampling, CDT in the lattice metric, pole-fan
 //! collapse, per-triangle certificates.
 //!
 //! This lane's domain contract is the swept UV rectangle: the boundary
@@ -155,8 +155,30 @@
 //! face's widest latitude; torus —
 //! `(hu, hv)` = [`crate::sizing::torus_grid_steps`], one step per chart
 //! direction from the doubly-curved chord bound that function derives.
-//! The chord pass's one rule ([`crate::chords`]) puts every rim and
-//! meridian on the same steps.
+//! The chord pass's one rule ([`crate::chords`]) chords every rim and
+//! meridian at most those steps apart.
+//!
+//! # The lattice metric
+//!
+//! The CDT runs where the lattice is near square: each point enters at
+//! [`crate::cdt::lattice_point`] under the face's lattice metric
+//! ([`crate::chart_table::AnalyticRow::metric`]), the trimmed lane's
+//! one spelling (`crate::trimmed`, "The lattice metric"). Delaunay is
+//! not stretch-invariant. A chord point the grid did not place (a
+//! meridian's, between two rows; a rim's, between two columns) has, in
+//! raw UV, an empty circle `√(t(1 − t))·a` cells wide across the
+//! lattice's long axis, `t` the point's fraction of its cell and `a`
+//! the cell's aspect: a thin torus band's lattice is `a ≈ √(R/r)`
+//! times taller than wide, and its meridian points joined rim points
+//! four columns away, seven times past δ. In the metric `a` is within
+//! `√2` of one and the circle under a cell wide.
+//!
+//! **What is measured and not proved.** The theorem above bounds a
+//! lattice half cell; a triangle beside an off-lattice chord point has
+//! no containment bound, and the certificate is what holds it. Over the
+//! one-slit fillet bands of `tests/the_one_slit_band.rs` such a triangle
+//! reaches at most one column and one and a half rows
+//! (`work/tesslane/the-curved-lanes-triangles-beside-an-off-lattice-chord-point-have-no-containment-bound.md`).
 
 use std::collections::HashMap;
 
@@ -344,6 +366,8 @@ pub(crate) fn tessellate_curved(
         meridian_interior,
     )?;
 
+    // The CDT runs in the lattice metric (module docs, "The lattice
+    // metric"); `meta`, the grid and every certificate read UV.
     let metric = row.metric((u0, u1), (v0, v1), (nu, nv));
     // CDT: boundary entries (fixed walk order) + constraints + grid.
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
@@ -359,10 +383,8 @@ pub(crate) fn tessellate_curved(
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
         // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
         // floored point.
-        let p = crate::cdt::spade_point(u, v);
-        let p = if metric > 1.0 { SpadePoint::new(p.x, p.y * metric) } else { SpadePoint::new(p.x / metric, p.y) };
         let h = cdt
-            .insert(p)
+            .insert(crate::cdt::lattice_point(u, v, metric))
             .map_err(|_| TessellateError::Triangulation { face: fk })?;
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
