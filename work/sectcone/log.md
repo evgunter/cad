@@ -42,3 +42,4 @@
   - the app slow-set name check that can't see `app`-feature tests, tracked in `work/green/the-slow-set-name-check-cannot-see-app-feature-tests`.
 
   fmt and clippy were skipped on CI behind the failing gates step, and are clean locally on geom-brep. U2 un-parks.
+- 2026-11-23 — `the-section-value-claims-a-cone-pairs-winding-on-the-partner` is closed (PR 7455; the merge note rides 7455's branch). U2 is dispatched again to the same lane, on its kept local branch `sectcone/section-cert-cone-pairs`, with the seam facts in its spec. **PR 7408** is through its fix pass: the bend is decided explicitly, a Newton polish runs before the certificate, and the past-end and curved rows are in. It waits on its app job before merging.

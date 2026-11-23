@@ -2,13 +2,19 @@
 id: the-section-value-claims-a-cone-pairs-winding-on-the-partner
 kind: unit
 title: The section value claims a cone pair's winding on the partner: cone_ruled reads each loop's turning about the cylinder or second cone, so topo's classes survive the move onto the value
-status: dispatched
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: M
 parent: cone-germ-pairs-against-a-curved-face-have-no-section-frame
 branch: sectcone/cone-partner-winding
+closed: 2026-11-23
+pr: 7455
 ---
+
+## Closed (2026-11-23, PR 7455)
+
+`cone_ruled` claims a loop's winding about the partner (a cylinder or second cone). It reads each loop's turning about the partner's axis from the cone sweep's own cells: the loop is homotopic to the polygon through its pieces' joints, each piece's hull is decided clear of the axis, and each chord turn is decided within `TRUSTED_TURN`. A read that doesn't settle claims nothing and records why (`ConeRuledPose::unclaimed_windings`). A missing claim is weaker, never wrong, so it never refuses the section (orchestrator's ruling, log 2026-11-22). Rows assert topo's classes both ways round. Dual Opus review: both APPROVE-WITH-FIXES, no MAJOR. Follow-ups are filed as `the-partner-winding-lever-is-spelled-twice`.
 
 
 **Review tier: dual** (two Opus reviewers). New certified code in geom-brep. Difficulty letter: M.

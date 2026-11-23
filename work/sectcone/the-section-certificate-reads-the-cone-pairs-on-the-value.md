@@ -2,12 +2,11 @@
 id: the-section-certificate-reads-the-cone-pairs-on-the-value
 kind: unit
 title: Topo's section certificate and table read cone × oblique cylinder and cone × cone on the section value; the duplicate ruling sweep in section_cert/ruling.rs retires
-status: parked
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: H
 branch: sectcone/section-cert-cone-pairs
-blocked_on: [the-section-value-claims-a-cone-pairs-winding-on-the-partner]
 parent: cone-germ-pairs-against-a-curved-face-have-no-section-frame
 ---
 
