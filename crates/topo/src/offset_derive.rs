@@ -1193,6 +1193,15 @@ pub(crate) fn analytic_root<T: Decide>(
     Ok(Ok(t))
 }
 
+/// **The farthest a wall stands from `at`, from above**: its control
+/// net's hull's far distance ([`geom::cover::Cover::net`]), which holds
+/// the wall. Poison for a net with a non-finite point, which the SSI
+/// domain's check refuses.
+fn net_reach_from(wall: &NurbsSurface<f64>, at: Point3<f64>) -> f64 {
+    geom::cover::Cover::net(wall.control().to_vec())
+        .map_or(f64::NAN, |net| net.distance_range(&geom::cover::Site::Point(at)).1)
+}
+
 /// Newton's fixed step count on an analytic root: quadratic from a seed
 /// one offset away, so far more than the digits need.
 const NEWTON_STEPS: usize = 24;
@@ -1223,18 +1232,12 @@ fn plane_wall_section<'w, 's>(
         Some(Ok(row)) => row,
         Some(Err(v)) => return Ok(Err(v)),
         None => {
-            // The window holds the wall: the plane's chart reaches every
-            // control point of it from the plane's origin.
-            let half = wall
-                .control()
-                .iter()
-                .map(|p| p.distance(origin))
-                .fold(0.0, f64::max)
-                * 2.0
-                + extent.length();
+            // The window holds the wall: the section lies in the wall's
+            // control net's hull, which stands within its far distance of
+            // the plane's origin.
             let domain = SsiDomain {
                 center: origin,
-                half_extent: half,
+                half_extent: net_reach_from(wall, origin),
                 extent: extent.length(),
                 floor_scale: 1.0,
             };
@@ -1332,11 +1335,12 @@ fn pair_section<'w, 's>(
 ) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
     let mid = old.mid_point(t0, t1);
     let tangent = old.deriv(geom::mid_param(t0, t1));
-    // The rectangles bound the search; the window a plane would need
-    // is the extent about the middle, and bounds nothing here.
+    // The rectangles bound the search; the slab, which bounds nothing
+    // here, holds the section: it lies in both walls' control nets'
+    // hulls.
     let domain = SsiDomain {
         center: mid,
-        half_extent: extent.length(),
+        half_extent: net_reach_from(a.net, mid).min(net_reach_from(b.net, mid)),
         extent: extent.length(),
         floor_scale: 1.0,
     };

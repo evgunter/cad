@@ -394,8 +394,24 @@ pub(crate) fn face_reach_from<T: Decide>(
     at: Point3<T>,
     band: Band,
 ) -> Result<geom_core::Lever<T>, FaceUncovered> {
+    face_ball_about(body, face, at, band).map(geom_brep::ExtentBall::lever)
+}
+
+/// **The ball about `at` holding `face`**: out to its cover's far
+/// distance from `at` ([`face_cover`], [`Cover::distance_range`]), the
+/// region [`face_reach_from`] levers at.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_ball_about<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    band: Band,
+) -> Result<geom_brep::ExtentBall<T>, FaceUncovered> {
     let cover = face_cover(body, face, band)?;
-    Ok(geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever())
+    Ok(geom_brep::ExtentBall::of_cover_from(Some(&cover), at))
 }
 
 /// **How far `face` reaches from `at` along `axis`**: bounds `(lo, hi)`

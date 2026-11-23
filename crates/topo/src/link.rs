@@ -2577,8 +2577,13 @@ impl<T: Decide> Link<T> {
             );
         let ball = wedges()
             .map(|&(a, b)| to_segment(p, (a, b)))
-            .chain(sectors.iter().filter_map(|s| s.face.clear))
-            .fold(reach.length(), |r, l| r.min(l));
+            .reduce(T::min)
+            .map_or_else(T::zero, |near| {
+                sectors
+                    .iter()
+                    .filter_map(|s| s.face.clear)
+                    .fold(near, T::min)
+            });
         let (sectors, faces) = sectors.into_iter().map(|s| (s.sector, s.face)).unzip();
         Ok(Self {
             cone: Cone::of(p, sectors)?,

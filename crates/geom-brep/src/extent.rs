@@ -241,6 +241,24 @@ impl<T: Real> ExtentBall<T> {
         (pivot - self.center).norm() + self.radius
     }
 
+    /// **How far `q` stands outside the ball**: its distance from the
+    /// centre less the radius, negative inside. A definite positive
+    /// reading puts `q` off every point the ball holds.
+    #[must_use]
+    pub fn stand_off(self, q: Point3<T>) -> T {
+        (q - self.center).norm() - self.radius
+    }
+
+    /// **The run of `line`'s parameter that can reach the ball**:
+    /// centred on the line's closest approach to the centre, the radius
+    /// over `|dir|` either side. No point of the line off the run stands
+    /// in the ball.
+    #[must_use]
+    pub fn run_on(self, line: &Line<T>) -> (T, T) {
+        let (centre, half) = (line.param(self.center), self.radius / line.dir.get().norm());
+        (centre - half, centre + half)
+    }
+
     /// **The farthest the ball reaches from either of two pivots**: the
     /// larger of its reaches from `p` and from `q`. A reading whose
     /// position datum is the two pivots' separation (two cones' apexes;
