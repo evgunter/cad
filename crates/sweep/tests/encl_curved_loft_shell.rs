@@ -182,6 +182,7 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
         corners += 1;
     }
     assert_eq!(corners, 4, "four seams meet the moved cap");
+    let moved = topo::test_support::completed(moved, Tol::witness()).expect("the rows complete");
     let rows = moved
         .pcurves()
         .filter(|(he, _)| {
@@ -546,6 +547,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
         }
     }
     assert_eq!(rims, 2, "each wall meets the moved cap along one rim");
+    let alone = topo::test_support::completed(alone, Tol::witness()).expect("the rows complete");
     let rows = alone
         .pcurves()
         .filter(|(he, _)| {
@@ -1133,7 +1135,7 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
                 );
             }
         }
-        let refusals = topo::validate_geometric(&body, Tol::witness())
+        let refusals = topo::test_support::validate_completed(&body, Tol::witness())
             .expect_err("the fitted cap's quadrature is not built");
         assert!(
             matches!(
@@ -1274,7 +1276,7 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
                 "eps {eps:e}, d = {d}: a corner at {p:?} is {gap:e} off the box's sides"
             );
         }
-        let refusals = topo::validate_geometric(&body, Tol::witness())
+        let refusals = topo::test_support::validate_completed(&body, Tol::witness())
             .expect_err("the fitted cap's quadrature is not built");
         assert!(
             matches!(
