@@ -1628,7 +1628,7 @@ pub(crate) fn loop_polygon(
 }
 
 /// **Edge `ek`'s certified curve, every miss typed**: the one mesh read
-/// of an edge's curve. [`crate::tessellate`] takes a body it does not
+/// of an edge's curve. [`crate::tessellate()`] takes a body it does not
 /// re-validate and refuses a dangling key typed, so the curve is read
 /// raw through [`Body::get_curve_geom`] rather than through
 /// [`topo::EdgeView`], whose curve link panics:
