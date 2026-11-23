@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/cover.rs b/crates/geom/src/cover.rs
+index 2e2452beb..537f8a8c6 100644
+--- a/crates/geom/src/cover.rs
++++ b/crates/geom/src/cover.rs
+@@ -1499,7 +1499,7 @@ impl<T: Real> Arc<T> {
+             .into_iter()
+             .fold(None, |range: Option<(T, T)>, s0| {
+                 let s1 = s0 + quarter;
+-                let bulge = -ellipse.second_derivative_at(s0 + half) * shift;
++                let bulge = -ellipse.second_derivative_at(s0 + half) * shift * T::from_f64(0.5);
+                 let (x0, x1) = (point(s0), point(s1));
+                 let near = (segment_range(x0, x1, site).0 - bulge.norm()).max(T::zero());
+                 let far = [x0, x0 + bulge, x1, x1 + bulge]

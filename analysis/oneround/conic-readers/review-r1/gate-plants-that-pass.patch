@@ -1,0 +1,40 @@
+diff --git a/crates/geom-brep/src/extent.rs b/crates/geom-brep/src/extent.rs
+index 9761c468b..077afad67 100644
+--- a/crates/geom-brep/src/extent.rs
++++ b/crates/geom-brep/src/extent.rs
+@@ -1952,3 +1952,35 @@ mod tests {
+         }
+     }
+ }
++
++/// Review plant 1: a group allow, which names no lint the gate greps.
++#[allow(clippy::style)]
++pub fn review_plant_group_allow(c: &geom::Circle<f64>) -> geom_core::Point3<f64> {
++    c.frame().origin()
++}
++
++/// Review plant 2: the stored frame through `placed`'s closure.
++pub fn review_plant_placed(c: &geom::Circle<f64>) -> geom_core::Point3<f64> {
++    let mut o = geom_core::Point3::origin();
++    let _ = c.placed(|at| {
++        o = at.origin();
++        *at
++    });
++    o
++}
++
++/// Review plant 2b: an ellipse's stored point (centre OR anchor) through `mapped`.
++pub fn review_plant_mapped(e: &geom::Ellipse<f64>) -> geom_core::Point3<f64> {
++    let mut o = geom_core::Point3::origin();
++    let _ = e.mapped(|at| {
++        o = at.origin();
++        *at
++    });
++    o
++}
++
++/// Review plant 5: the centre restated from readings on no list.
++pub fn review_plant_restated(e: &geom::Ellipse<f64>) -> geom_core::Point3<f64> {
++    use geom::Conic;
++    e.point_at(0.0) + e.second_derivative_at(0.0)
++}

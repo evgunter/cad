@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index bfbd9aca1..7ada00bba 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -593,7 +593,7 @@ fn offset_extent<T: Real>(window: &ArcWindow<T>, p: T, q: T, phase: (T, T)) -> (
+     let amp = (p.powi(2) + q.powi(2)).sqrt();
+     let k = p * c0 + q * s0;
+     let ratio = (p * s0 - q * c0).powi(2) / (amp + k.abs()).max(T::from_f64(f64::MIN_POSITIVE));
+-    let crest = k.select_le_zero(amp - k, ratio);
++    let crest = amp - k;
+     let trough = -(-k).select_le_zero(amp + k, ratio);
+     let hi = window.crest_outside(p, q).select_le_zero(crest, r0.max(r1));
+     let lo = window

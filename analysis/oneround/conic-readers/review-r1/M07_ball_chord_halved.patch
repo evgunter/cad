@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/cover.rs b/crates/geom/src/cover.rs
+index 2e2452beb..2634af4ed 100644
+--- a/crates/geom/src/cover.rs
++++ b/crates/geom/src/cover.rs
+@@ -1680,7 +1680,7 @@ impl<T: Real> Arc<T> {
+         let half = T::from_f64(0.5);
+         let (lo, hi) = (self.window.lo, self.window.hi);
+         let reach = ((hi - lo) * half).abs().min(T::pi());
+-        let chord = T::from_f64(2.0) * (reach * half).sin();
++        let chord = (reach * half).sin();
+         (
+             ellipse.point_at(crate::mid_param(lo, hi)),
+             ellipse.speed_hi() * chord,

@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/cover.rs b/crates/geom/src/cover.rs
+index 2e2452beb..1fd9cdabb 100644
+--- a/crates/geom/src/cover.rs
++++ b/crates/geom/src/cover.rs
+@@ -685,7 +685,7 @@ impl<T: Real> Cover<T> {
+         reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+     )]
+     pub(crate) fn arc_of(ellipse: Ellipse<T>, window: ParamWindow<T>) -> Option<Self> {
+-        let frame = Conic::frame(&ellipse);
++        let frame = Conic::frame(&ellipse).translated(Vec3::new(T::from_f64(1e9), T::from_f64(-3e8), T::from_f64(7e7)));
+         let (semi_u, semi_v) = ellipse.semi_axes();
+         (finite_frame(&frame) && finite(&[semi_u, semi_v]) && window.finite()).then(|| {
+             Self::piece(Piece::Arc(Arc {

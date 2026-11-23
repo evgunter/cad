@@ -1,0 +1,12 @@
+diff --git a/crates/geom/src/cover.rs b/crates/geom/src/cover.rs
+index 2e2452beb..4353d6041 100644
+--- a/crates/geom/src/cover.rs
++++ b/crates/geom/src/cover.rs
+@@ -1493,7 +1493,6 @@ impl<T: Real> Arc<T> {
+             lo,
+             lo + quarter,
+             lo + quarter + quarter,
+-            lo + quarter + quarter + quarter,
+         ];
+         starts
+             .into_iter()

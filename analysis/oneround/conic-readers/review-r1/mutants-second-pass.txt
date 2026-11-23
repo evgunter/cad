@@ -1,0 +1,5 @@
+M06_near_without_bulge: ['Summary [  51.559s] 654 tests run: 651 passed, 3 failed, 7 skipped'] FAILS=['geom cover::tests::review_probes::probe_f64_arc_held_cover_holds_sampled_points', 'geom cover::tests::review_probes::probe_interval_arc_held_cover_holds_sampled_points', 'geom cover::tests::review_probes::probe_interval_support_along_the_own_axis_is_of_the_arcs_size']
+M12_ref_forward_extent_dropped: ['Summary [  63.569s] 654 tests run: 653 passed, 1 failed, 7 skipped'] FAILS=['geom cover::tests::review_probes::probe_interval_support_along_the_own_axis_is_of_the_arcs_size']
+M14_trough_sign: ['Summary [  64.696s] 654 tests run: 652 passed, 2 failed, 7 skipped'] FAILS=['geom cover::tests::review_probes::probe_arc_held_extent_holds_both_ends', 'geom cover::tests::review_probes::probe_interval_support_along_the_own_axis_is_of_the_arcs_size']
+M15_crest_cancelling_form: ['Summary [  64.359s] 654 tests run: 654 passed, 7 skipped'] FAILS=[]
+ALLDONE

@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index bfbd9aca1..75fd37148 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1166,7 +1166,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     }
+ 
+     fn v_ref(&self) -> Vec3<T> {
+-        self.at.v_ref()
++        -self.at.v_ref()
+     }
+ 
+     fn semi_axes(&self) -> (T, T) {
