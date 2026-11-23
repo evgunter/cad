@@ -802,7 +802,6 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::SetBundle { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
-        | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -2718,12 +2717,7 @@ pub fn repoint_button(
     tol: pncad::geom_core::Tol,
 ) -> RepointButton {
     let by = Speaker::of(doc);
-    let said = repointed(
-        by,
-        doc,
-        source,
-        &crate::world::placements_of_var(doc, source),
-    );
+    let said = repointed(by, doc, source, &doc.placements_of_var(source));
     let Some(node) = onto else {
         return RepointButton {
             label: repoint_label(&said.named, "the selected body"),
@@ -3434,7 +3428,7 @@ mod tests {
                     residual: Box::new(residual),
                     recourse: editor_core::coincide::Recourse::Assert,
                     restated: Vec::new(),
-                    quietable: false,
+                    quieting: None,
                 },
                 quiet: None,
             }],

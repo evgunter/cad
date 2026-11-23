@@ -177,6 +177,8 @@ class Tree:
         hits = []
         pat = re.compile(rf"(?<![A-Za-z0-9_])(\.)?{name}\s*(?:::<[^()]*>)?\(")
         for path, text in self.files.items():
+            if name not in text:
+                continue
             for m in pat.finditer(text):
                 if text[max(0, m.start() - 3) : m.start()] == "fn ":
                     continue

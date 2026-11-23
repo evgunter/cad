@@ -956,6 +956,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::ShellLaneUnsupported => "shell_lane_unsupported",
         // A read of a split's half with no material (DOCM-2).
         C::EmptyHalf => "empty_half",
+        // A read of a half of a split whose target is a family.
+        C::HalfOfAFamily => "half_of_a_family",
         C::WitnessBifurcation => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -1074,6 +1076,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
+        NodeErrorKind::HalfOfAFamily { .. } => None,
         NodeErrorKind::MemberOutOfRange { .. } => None,
         // The member's own refusal crosses in the message.
         NodeErrorKind::MemberRefused { .. } => None,
@@ -3242,7 +3245,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
         ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
         ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",
-        ValidationError::ComponentEulerViolation { .. } => "component_euler_violation",
         ValidationError::MissingProvenance { .. } => "missing_provenance",
         ValidationError::LeakedProvenance { .. } => "leaked_provenance",
         ValidationError::ScaffoldingEmptyLoop { .. } => "scaffolding_empty_loop",
