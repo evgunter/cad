@@ -498,6 +498,8 @@ pub(crate) fn tessellate_curved(
             corrections += 1;
             continue;
         }
+        #[cfg(test)]
+        crate::trimmed::note_corrections(corrections);
         break (interior, triangles, verdict);
     };
 
@@ -1171,6 +1173,14 @@ fn grid_counts(
     has_pole: bool,
     meridian_interior: usize,
 ) -> Result<(usize, usize), TessellateError> {
+    // A row's coarser first guess (`tests::STEP_SCALE`, test-only).
+    #[cfg(test)]
+    let steps = {
+        let scale = tests::STEP_SCALE.with(std::cell::Cell::get);
+        let (hu, hv) = row.steps(delta);
+        (hu * scale, hv * scale)
+    };
+    #[cfg(not(test))]
     let steps = row.steps(delta);
     let (hu, hv) = steps;
     // The lattice the row lays: rows every `lever·hu` on a ruled chart,
@@ -1249,6 +1259,78 @@ mod tests {
     use sweep::ExtrudeSide;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::construction::Construct;
+
+    thread_local! {
+        /// Scales the grid's steps, for the row that needs a first guess
+        /// too coarse (`super::grid_counts`). `cfg(test)` only.
+        pub(crate) static STEP_SCALE: std::cell::Cell<f64> =
+            const { std::cell::Cell::new(1.0) };
+    }
+
+    /// **The rectangle lane's grid is a first guess, and the certificate
+    /// decides** (`crates/mesh/README.md` `[mesh.sizing]`). A sphere
+    /// band (a partial revolve of the unit ball, its walk pole to pole)
+    /// at `δ = 10⁻²` and `10⁻³`, its grid's steps doubled
+    /// (`STEP_SCALE`, test-only), so the grid's cells deviate by about
+    /// four times δ:
+    ///
+    /// - with no correction round (`trimmed::MAX_CORRECTION_ROUNDS`
+    ///   overridden to zero) the face refuses `CertificateExceeded`;
+    /// - with the shipped budget each triangle read over δ adds a point,
+    ///   the body meshes and checks within at least one round and at most
+    ///   the budget, and no triangle over δ is returned on either path;
+    /// - at the lane's own steps no round is run.
+    ///
+    /// The face map runs on rayon, so the switches are set inside a
+    /// one-thread pool, on the worker that runs the faces.
+    #[test]
+    fn an_over_delta_grid_is_corrected_and_refuses_typed_without_the_correction() {
+        use crate::trimmed::test_seams::{corrections_used, set_correction_rounds};
+        let body = sphere_band(1.0);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("a one-thread pool");
+        let run = |scale: f64, budget: Option<usize>, delta: f64| {
+            pool.install(|| {
+                STEP_SCALE.with(|s| s.set(scale));
+                set_correction_rounds(budget);
+                let mesh = crate::tessellate(&body, delta, Tol::witness());
+                let rounds = corrections_used();
+                STEP_SCALE.with(|s| s.set(1.0));
+                set_correction_rounds(None);
+                (mesh, rounds)
+            })
+        };
+        for delta in [1e-2, 1e-3] {
+            let (uncorrected, _) = run(2.0, Some(0), delta);
+            assert!(
+                matches!(
+                    uncorrected,
+                    Err(TessellateError::CertificateExceeded { bound, requested, .. })
+                        if bound > requested
+                ),
+                "δ {delta:e}, steps doubled, no correction round: refuses typed, got {:?}",
+                uncorrected.map(|m| m.patches.len())
+            );
+            let (corrected, rounds) = run(2.0, None, delta);
+            let mesh = corrected.unwrap_or_else(|e| {
+                panic!("δ {delta:e}, steps doubled: the correction meshes the band, got {e:?}")
+            });
+            crate::validate::check_mesh(&mesh).expect("and the mesh checks");
+            assert!(
+                (1..=crate::trimmed::MAX_CORRECTION_ROUNDS).contains(&rounds),
+                "δ {delta:e}, steps doubled: {rounds} rounds, of a budget of {}",
+                crate::trimmed::MAX_CORRECTION_ROUNDS
+            );
+            let (sized, rounds) = run(1.0, None, delta);
+            sized.unwrap_or_else(|e| panic!("δ {delta:e}: at the lane's steps, {e:?}"));
+            assert_eq!(
+                rounds, 0,
+                "δ {delta:e}: at the lane's steps no round is run"
+            );
+        }
+    }
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         Profile::new(SketchPlane::xy(), loops)

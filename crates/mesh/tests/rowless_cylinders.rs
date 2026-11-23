@@ -3,8 +3,7 @@
 //! holed, or cut by a tilted plane, is triangulated on its boundary
 //! points alone, each triangle held by its certificate. Each row pins a
 //! relation to a reference meshed in the same run: the plain wall of the
-//! same pipe on the rectangle lane at the chart lane's target, half of δ
-//! (`trimmed::UNPROVED_HEADROOM`, [`TARGET_SHARE`]).
+//! same pipe on the rectangle lane at the same δ.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -16,14 +15,6 @@ use topo::{AtRestBody, Body};
 use crate::reach_probes::{geometry, op_of, posed, rod, tol};
 use crate::split_rulings::{rulings, split_and_placed};
 
-/// **The share of δ the chart lane sizes a cylinder face at**
-/// (`trimmed::face_target`, `trimmed::UNPROVED_HEADROOM`), and so the δ
-/// the reference wall is meshed at: the rectangle lane's strips at the
-/// chart lane's own target, so that each relation reads the rows alone
-/// and not the target. The target is not this row's subject; where it
-/// moves, this share moves with it and the relations stand.
-const TARGET_SHARE: f64 = 0.5;
-
 /// The pipe every row cuts: radius 1 over `z ∈ (−2, 2)`.
 const PIPE: (f64, f64, f64) = (1.0, -2.0, 4.0);
 
@@ -34,6 +25,37 @@ fn cylinder_triangles(body: &Body<f64>, mesh: &mesh::Mesh) -> usize {
         .filter(|p| body.face_surface(p.face).unwrap().kind() == SurfaceKind::Cylinder)
         .map(|p| p.triangles.len())
         .sum()
+}
+
+/// The points `mesh`'s cylinder faces hold inside them: on a face that
+/// lays no lattice node, the points the lane added (the correction's of
+/// a triangle read over δ, a shared side's), each of which adds two
+/// triangles to a triangulation of the boundary points alone.
+fn added_points(body: &Body<f64>, mesh: &mesh::Mesh) -> usize {
+    let boundary: std::collections::HashSet<u32> = mesh
+        .boundaries
+        .iter()
+        .flat_map(|b| b.points.iter().copied())
+        .collect();
+    mesh.patches
+        .iter()
+        .filter(|p| body.face_surface(p.face).unwrap().kind() == SurfaceKind::Cylinder)
+        .flat_map(|p| p.triangles.iter().flatten().copied())
+        .filter(|i| !boundary.contains(i))
+        .collect::<std::collections::HashSet<u32>>()
+        .len()
+}
+
+/// `body` at `delta`: it meshes, `check_mesh` and the body's geometry
+/// hold ([`geometry`]), and its cylinder faces' triangles and added
+/// points ([`added_points`]).
+fn meshed_cylinder_faces(what: &str, body: &Body<f64>, delta: f64) -> (usize, usize) {
+    let mesh = mesh::tessellate(body, delta, tol())
+        .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: meshes, got {e:?}"));
+    mesh::validate::check_mesh(&mesh)
+        .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: check_mesh, got {e:?}"));
+    geometry(body, &mesh, delta).unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e}"));
+    (cylinder_triangles(body, &mesh), added_points(body, &mesh))
 }
 
 /// `body` at `delta`: it meshes, `check_mesh` and the body's geometry
@@ -144,19 +166,22 @@ fn tilted(r: f64, z0: f64, h: f64, tilt: f64) -> Body<f64> {
     op_of(&pipe, &below, "A ∩ B")
 }
 
-/// The plain wall's triangles at the chart lane's target: the
-/// rectangle lane's, which lays one column strip per sagitta step.
+/// The plain wall's triangles at δ: the rectangle lane's, which lays one
+/// column strip per sagitta step.
 fn reference(delta: f64) -> usize {
     let (r, z0, h) = PIPE;
-    meshed_cylinder_triangles("the plain pipe", &rod(r, z0, h), delta * TARGET_SHARE)
+    meshed_cylinder_triangles("the plain pipe", &rod(r, z0, h), delta)
 }
 
 /// **A notched or holed wall takes the plain wall's triangles, and a
-/// hole's span twice.** Each wall of [`walls`] at δ `10⁻²` and `10⁻³`
-/// meshes, is the body's, and holds at most 1.1 times the plain wall's
-/// triangles at the lane's target, or 1.4 times with a hole: its pieces
-/// are strips between two rows of boundary points, and a hole's span is
-/// two strips (measured 0.875–1.062 and 1.24–1.375). Laid rows made 4 to 220
+/// hole's span twice, and two for each point the lane added.** Each wall
+/// of [`walls`] at δ `10⁻²` and `10⁻³` meshes, is the body's, and holds at
+/// most 1.15 times the plain wall's triangles at δ, or 1.5 times with a
+/// hole, plus two per added point ([`added_points`]): its pieces are
+/// strips between two rows of boundary points, a hole's span is two
+/// strips, and a point inside a triangulation adds two triangles
+/// (measured 1.014–1.146 and 1.278–1.500; a notch's own boundary points
+/// are a larger share of the coarser δ's strips). Laid rows made 4 to 220
 /// times.
 #[test]
 fn a_notched_or_holed_wall_takes_its_strips_triangles() {
@@ -164,14 +189,14 @@ fn a_notched_or_holed_wall_takes_its_strips_triangles() {
     for delta in [1e-2, 1e-3] {
         let reference = reference(delta);
         for (what, body) in walls(r, z0, h) {
-            let n = meshed_cylinder_triangles(&what, &body, delta);
-            let share = if what == "a bar through" { 1.4 } else { 1.1 };
+            let (n, p) = meshed_cylinder_faces(&what, &body, delta);
+            let share = if what == "a bar through" { 1.5 } else { 1.15 };
             #[allow(clippy::cast_precision_loss)]
-            let ratio = n as f64 / reference as f64;
+            let ratio = (n - 2 * p) as f64 / reference as f64;
             assert!(
                 ratio <= share,
-                "{what}, δ = {delta:e}: {n} triangles on its walls, {ratio:.3} times the plain \
-                 wall's {reference} at the lane's target, past {share}"
+                "{what}, δ = {delta:e}: {n} triangles on its walls less two for each of its {p} \
+                 added points, {ratio:.3} times the plain wall's {reference}, past {share}"
             );
         }
     }
@@ -247,17 +272,17 @@ fn a_rowless_cylinder_face_meshes_the_same_bytes_at_every_eps() {
         (
             "a notch across the seam",
             named("a notch across the seam"),
-            0xafb1_7b20_d96d_aab5u64,
+            0x3ac0_c520_f657_680au64,
         ),
         (
             "a bar through",
             named("a bar through"),
-            0xa2e2_4aa6_9d8c_0247,
+            0xb423_1541_1c6f_89bf,
         ),
         (
             "a wall cut on a tilt 0.3",
             &tilted(r, z0, h, 0.3),
-            0x3958_884a_9d9e_9a15,
+            0xd675_df37_7f26_6dd7,
         ),
     ] {
         let got = digest(&mesh::tessellate(body, 1e-2, tol()).unwrap());

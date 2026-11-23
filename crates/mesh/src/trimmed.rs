@@ -382,6 +382,22 @@ pub(crate) fn note_corrections(rounds: usize) {
     tests::CORRECTIONS_USED.with(|used| used.set(used.get().max(rounds)));
 }
 
+/// The correction's test switches, for the rectangle lane's rows
+/// (`curved::tests`): the budget's override and the rounds counter.
+#[cfg(test)]
+pub(crate) mod test_seams {
+    /// Sets the correction's budget (`None`: the shipped one).
+    pub(crate) fn set_correction_rounds(budget: Option<usize>) {
+        super::tests::CORRECTION_ROUNDS.with(|b| b.set(budget));
+        super::tests::CORRECTIONS_USED.with(|u| u.set(0));
+    }
+
+    /// The most rounds a face on this thread ran since the last set.
+    pub(crate) fn corrections_used() -> usize {
+        super::tests::CORRECTIONS_USED.with(std::cell::Cell::get)
+    }
+}
+
 /// The retry loop's last structural attempt: [`MAX_GRID_RETRIES`], or
 /// under `cfg(test)` an override a row sets to reach an exhaustion
 /// refusal through the real call path (`tests::LAST_ATTEMPT`).
