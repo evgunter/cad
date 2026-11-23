@@ -152,7 +152,8 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
         // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
         ("cut_cylinder", 0xce1e_6b75_f9c5_1b5f_u64),
         ("part_select", 0x1379_2943_a0d4_92f1),
-        ("kitchen_sink", 0x1092_b623_2d28_9617),
+        // Re-cut: PR 7411's `plane_offset` reads `difference_dot`, which moves edge certificates' stored residuals by rounding (points held).
+        ("kitchen_sink", 0x381d_27db_f166_bf65),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

@@ -237,7 +237,8 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         // Holds PR 7354's move unjudged; SECTCONE owes the judgement
         // (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
         ("boss_union", 0xa548_d710_f65a_ca7d),
-        ("kitchen_sink", 0x1092_b623_2d28_9617),
+        // Re-cut: PR 7411's `plane_offset` reads `difference_dot`, which moves edge certificates' stored residuals by rounding (points held).
+        ("kitchen_sink", 0x381d_27db_f166_bf65),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

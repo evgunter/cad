@@ -192,7 +192,8 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("die_fillet", 0xdb9c_3332_871e_5df1_u64),
-        ("die_chamfer", 0x1231_28cb_7280_ffb9),
+        // Re-cut: PR 7411's `plane_offset` reads `difference_dot`, which moves edge certificates' stored residuals by rounding (points held).
+        ("die_chamfer", 0x68d5_6e7a_33e8_3011),
     ] {
         let doc = corpus::documents()
             .into_iter()
