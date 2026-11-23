@@ -39,8 +39,16 @@ pub fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> 
 
 /// `a ∖ b`, finished.
 pub fn less(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
-    let cut = topo::subtract(a, b, tol()).unwrap();
-    finished("the cut", Body::clone(&cut.body().unwrap().body), tol())
+    try_less(a, b).unwrap_or_else(|e| panic!("a ∖ b builds: {e}"))
+}
+
+/// [`less`], with the boolean's refusal as text: a cut whose decision
+/// lands in the run's band refuses, so at an ε the caller does not choose
+/// there may be no body to mesh.
+pub fn try_less(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Result<AtRestBody<f64>, String> {
+    let cut = topo::subtract(a, b, tol()).map_err(|e| format!("{e:?}"))?;
+    let body = cut.body().ok_or_else(|| "the empty result".to_owned())?;
+    Ok(finished("the cut", Body::clone(&body.body), tol()))
 }
 
 /// `a ∩ b`, finished.
@@ -145,11 +153,11 @@ pub fn tilted(tilt: f64) -> Body<f64> {
 /// column off a rim chord point (9.5 columns round). A column is the
 /// rim's chord step on a chart-lane wall at `delta`: read off a pipe with
 /// one such hole meshed at `delta`, so the lane's own target sets it.
-pub fn two_holes(r: f64, h: f64, gap: f64, delta: f64) -> Body<f64> {
+pub fn two_holes(r: f64, h: f64, gap: f64, delta: f64) -> Result<Body<f64>, String> {
     let d = 0.02 * h;
     let stub = |w: f64, turn: f64| bar((0.5 * r, 1.1 * r), w, (-d, d), turn);
-    let probe = Body::clone(&less(&pipe(r, -0.5 * h, h), &stub(0.01 * r, 1.0)));
-    let rims = mesh::tessellate(&probe, delta, tol()).unwrap();
+    let probe = try_less(&pipe(r, -0.5 * h, h), &stub(0.01 * r, 1.0))?;
+    let rims = mesh::tessellate(&probe, delta, tol()).map_err(|e| format!("{e:?}"))?;
     let n = rims
         .boundaries
         .iter()
@@ -161,8 +169,9 @@ pub fn two_holes(r: f64, h: f64, gap: f64, delta: f64) -> Body<f64> {
     let column = core::f64::consts::PI / n as f64;
     let w = 0.04 * column * r;
     let (c, half) = (9.5 * column, 0.5 * gap * column + w / r);
-    let one = less(&pipe(r, -0.5 * h, h), &stub(w, c - half));
-    Body::clone(&less(&one, &stub(w, c + half)))
+    let one = try_less(&pipe(r, -0.5 * h, h), &stub(w, c - half))?;
+    let two = try_less(&one, &stub(w, c + half))?;
+    Ok(Body::clone(&two))
 }
 
 /// **What a face triangulated on its boundary points and `p` inserted
