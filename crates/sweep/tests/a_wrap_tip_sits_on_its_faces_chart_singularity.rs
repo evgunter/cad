@@ -512,7 +512,9 @@ fn side_about(
     held: &[Point3<f64>],
 ) -> geom_brep::props::MaterialSign {
     let f = body.get_face(face).unwrap();
-    let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
+    let image = topo::props::chart_image_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+        .unwrap()
+        .0;
     let mut surface = body.face_surface(face).unwrap().clone();
     if let (
         Some(turned),

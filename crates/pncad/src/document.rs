@@ -515,7 +515,7 @@ pub use editor_core::{
 // over two `QuietingRef`s, `= 0`, with the edits that author it), and
 // the `OpposedPair` of faces an interference's quieting `Gap` is
 // written over.
-pub use editor_core::{OpposedPair, Quieting, QuietingRef};
+pub use editor_core::{CarriedAssertion, OpposedPair, Quieting, QuietingRef};
 
 // Split, inline and flatten: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new

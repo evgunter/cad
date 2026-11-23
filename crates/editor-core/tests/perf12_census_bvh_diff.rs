@@ -24,10 +24,10 @@
 //! line, a NURBS-walled loft with a brick flush on its cap, and an
 //! L-shaped face with an edge that crosses its box through the notch
 //! (a candidate the box keeps and the exact predicate rejects). The
-//! corpus rows run every registered document, and one fin row runs the
-//! heat sink at 10 fins — the 40- and 160-fin bodies' order pin rides
-//! on the goldens (`perf12_census_goldens`), which run them at every ε
-//! row. A planted row shows the comparator can go red.
+//! corpus rows run every registered document, and the fin rows run the
+//! heat sink at 10, 40 and 160 fins, the finding's three measured sizes
+//! (`work/perf/assemble-aggregate-census-is-quadratic-in-solids.md`). A
+//! planted row shows the comparator can go red.
 //!
 //! The comparators (restriction of the examined sequence, lost accepted
 //! pairs, the sweep roster) are [`SweepPairs`]'s and [`CensusTrace`]'s
@@ -348,6 +348,15 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
 fn the_ten_fin_heat_sink_is_bit_equal_superset_and_ordered() {
     let pruned = pin("heat_sink@10", &heatsink_at(10));
     assert!(pruned > 0, "eleven solids prune");
+}
+
+/// The heat sink at 40 and 160 fins, where the filter prunes the most.
+#[test]
+fn the_forty_and_hundred_sixty_fin_heat_sinks_are_bit_equal_superset_and_ordered() {
+    for fins in [40, 160] {
+        let pruned = pin(&format!("heat_sink@{fins}"), &heatsink_at(fins));
+        assert!(pruned > 0, "{fins} fins prune");
+    }
 }
 
 /// The comparator can go red: one face box planted empty, and the

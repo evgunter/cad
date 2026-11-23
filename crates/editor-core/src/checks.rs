@@ -928,6 +928,94 @@ impl crate::spoken::Say for CheckFinding {
     }
 }
 
+/// **The assertion a loud finding carries** ([`CheckFinding::carried_assertion`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarriedAssertion<'a> {
+    /// An unproven coincidence's claim, authored whole.
+    Claim(&'a quieting::Quieting),
+    /// An interference's opposed pair, a `Gap` over which, its bound
+    /// the author's, quiets it.
+    Pair(&'a quieting::OpposedPair),
+}
+
+impl CheckFinding {
+    /// **The assertion this finding carries**, the one source of
+    /// whether it offers one: a loud unproven coincidence's claim or a
+    /// loud interference's pair. `None` for a quiet finding (an
+    /// assertion already says it), for one that carries none, and for a
+    /// part's carried finding, which is answered in the part.
+    #[must_use]
+    pub fn carried_assertion(&self) -> Option<CarriedAssertion<'_>> {
+        if self.quiet.is_some() {
+            return None;
+        }
+        match &self.evidence {
+            CheckEvidence::UnprovenCoincidence { quieting, .. } => {
+                quieting.as_ref().map(CarriedAssertion::Claim)
+            }
+            CheckEvidence::Interference { finding } => {
+                finding.quieting.as_ref().map(CarriedAssertion::Pair)
+            }
+            CheckEvidence::Connectedness { .. }
+            | CheckEvidence::Escalated { .. }
+            | CheckEvidence::Unsupported { .. }
+            | CheckEvidence::NotAtRest { .. }
+            | CheckEvidence::StaleExpectation { .. }
+            | CheckEvidence::CarriedInterference { .. }
+            | CheckEvidence::CarriedCoincidence { .. }
+            | CheckEvidence::AtRest { .. }
+            | CheckEvidence::Unused { .. } => None,
+        }
+    }
+
+    /// **The finding's sentence beside a control that authors the
+    /// assertion it carries**, said by `by`: its recourse names every
+    /// act but that assertion, which the control is
+    /// ([`CheckEvidence::UnprovenCoincidence`]'s `quieting`,
+    /// [`at_rest::InterferenceFinding::quieting`]). A finding that
+    /// carries none is said whole.
+    #[must_use]
+    pub fn said_beside_its_assertion(&self, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
+        crate::spoken::Said(&Beside(self), by).sentence()
+    }
+}
+
+/// A finding to be said beside the control that authors its
+/// assertion ([`CheckFinding::said_beside_its_assertion`]).
+struct Beside<'a>(&'a CheckFinding);
+
+impl crate::spoken::Say for Beside<'_> {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+        crate::finding::compose(f, &BesideItsAssertion(SaidFinding(self.0, by)))
+    }
+}
+
+/// A finding said with its recourse less the assertion a control
+/// beside it authors.
+struct BesideItsAssertion<'a>(SaidFinding<'a>);
+
+impl crate::finding::Finding for BesideItsAssertion<'_> {
+    fn subject(&self, f: &mut crate::Sentence) -> fmt::Result {
+        self.0.subject(f)
+    }
+
+    fn story(&self, f: &mut crate::Sentence) -> fmt::Result {
+        self.0.story(f)
+    }
+
+    fn recourse(&self) -> crate::Sentence {
+        let SaidFinding(finding, by) = self.0;
+        match (finding.carried_assertion(), &finding.evidence) {
+            (
+                Some(CarriedAssertion::Claim(_)),
+                CheckEvidence::UnprovenCoincidence { recourse, .. },
+            ) => recourse.words_beside_its_claim(by),
+            (Some(CarriedAssertion::Pair(_)), _) => interference_recourse(None, by),
+            (Some(CarriedAssertion::Claim(_)) | None, _) => self.0.recourse(),
+        }
+    }
+}
+
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1320,7 +1408,7 @@ impl<T: topo::AtRestPolicy + Decide> Subject<'_, T> {
 /// nothing — the evaluation is read, never rebuilt (DS3 by
 /// construction).
 ///
-/// Subjects are the body-denoting outputs of `doc.placements()`, each
+/// Subjects are the body-denoting outputs of `doc.copies()`, each
 /// checked per `(placement, output_ix)`. For the connectedness check, the
 /// component count of a subject is its number of definitely-`Outer`
 /// shells ([`topo::classify_shells`]) — an internal void is boundary,
@@ -1391,7 +1479,7 @@ pub fn run_checks<
 /// [`Subject::Product`] must have been gathered from that same
 /// document. Both go through [`crate::ident::mispaired`], the one
 /// predicate that spells the comparison, before any resident runs —
-/// because a resident reading `doc.placements()` against a foreign `ev`
+/// because a resident reading `doc.copies()` against a foreign `ev`
 /// finds a value for every placement and reports about the wrong geometry.
 ///
 /// # Errors
@@ -1807,7 +1895,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + topo::C
     // Entries not yet consumed by a subject; whatever remains after
     // the walk is stale (an expectation with no subject).
     let mut unconsumed = cfg.expected_components.clone();
-    for placement in doc.placements() {
+    for placement in doc.copies() {
         let value = ev.usable(placement).map_err(ChecksError::Placement)?;
         let Some(sources) = product::sources_of(value) else {
             continue;

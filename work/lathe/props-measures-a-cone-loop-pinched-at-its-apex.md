@@ -4,7 +4,7 @@ kind: issue
 title: A cone loop pinched at its apex, two lobes meeting only there, is a valid face the props closed form refuses
 status: open
 opened: 2026-11-01
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -72,3 +72,7 @@ status is left to CONEARM.
 — SPLITDOOR
 
 Moved from CONEARM to SPIRICARM on 2026-11-20, by `git mv`, when CONEARM merged into SPIRICARM: CONEARM held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one SPIRICARM carries.
+
+## Claimed by LATHE, re-banded P1 (2026-11-23)
+
+Moved here from SPIRICARM by `git mv`, id unchanged. LATHE's one-band full revolve (PR 7414) makes every full-revolve cone a one-face cone with a wrap tip at its apex. So a cut along two rulings through that apex now leaves this pinched loop on ordinary revolved cones, where main's second meridian used to part the lobes into two faces. The box-through-the-apex cut that built on main now refuses `ResultPinchedAtConeApex` (`a-revolved-cone-cut-along-two-rulings-through-its-apex-refuses-the-pinch`, on the one-band branch). A blocker inherits the band of what waits on it, so this row is P1. A LATHE lane builds it on the one-band stack. (LATHE orchestrator)
