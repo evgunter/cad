@@ -2464,6 +2464,9 @@ struct Session {
     /// against one the ring's guards refused
     /// ([`form::Refusal::Ring`]).
     budget_frozen: IdSet,
+    /// Which table this session's nodes are in ([`table`]): the
+    /// drive's, or one of its own.
+    table: u64,
     /// **The nodes whose plain form rests on an id no table names**: a
     /// value minted outside every session on this table, and every node
     /// whose form was built over one. Such a form is this leaf's
@@ -2829,6 +2832,7 @@ impl Session {
         // A leaf of a drive starts with the caches an earlier leaf
         // left (`memo`'s header): entries of the drive's table.
         let warm = memo.as_ref().map(|m| m.warm()).unwrap_or_default();
+        let table = memo.as_ref().map_or_else(memo::table_token, |m| m.token());
         Self {
             budget,
             rules,
@@ -2851,6 +2855,7 @@ impl Session {
             deferred: None,
             budget_frozen: IdSet::default(),
             unknown: IdSet::default(),
+            table,
             #[cfg(feature = "sym-revalue-testing")]
             withheld: 0,
             #[cfg(feature = "sym-revalue-testing")]
@@ -3241,6 +3246,17 @@ pub fn session_counts() -> Option<SymCounts> {
 #[must_use]
 pub fn decisions_are_thread_portable() -> bool {
     !session_installed() && !report::active()
+}
+
+/// **Which expression table the installed session's nodes are in**: a
+/// token for the drive's table, the same in every leaf of the drive,
+/// or for the session's own where no drive installed one; `None`
+/// outside a session. A value built under one table means nothing
+/// under another, so whatever hands a value from one session to
+/// another compares these.
+#[must_use]
+pub fn table() -> Option<u64> {
+    SESSION.with(|s| s.borrow().as_ref().map(|s| s.table))
 }
 
 /// **Whether a symbolic session is installed on this thread** — the one

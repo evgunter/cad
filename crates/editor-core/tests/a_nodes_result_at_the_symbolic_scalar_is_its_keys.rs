@@ -247,3 +247,264 @@ fn a_drive_is_the_same_on_one_thread_or_many_and_with_the_table_or_without() {
         }
     }
 }
+
+// ----- every decision of a leaf is on a record a reader receives -----
+
+/// The whole of a leaf's receipt as the evaluation carries it: its
+/// nodes' records and its parts' runs'.
+fn carried(ev: &Evaluation<Sym<Interval>>) -> (SymCounts, usize) {
+    let mut sum = SymCounts::default();
+    let mut registrations = 0;
+    for id in &ev.order {
+        let record = match ev.result(*id) {
+            Some(NodeResult::Ok(v)) => &v.sym,
+            Some(NodeResult::Failed(e)) => &e.sym,
+            Some(NodeResult::Poisoned { .. }) | None => continue,
+        };
+        sum.absorb(record.counts());
+        registrations += record.registrations();
+    }
+    for part in &ev.parts_sym {
+        sum.absorb(part.counts());
+    }
+    (sum, registrations)
+}
+
+fn one_leaf(
+    doc: &ProfileDoc,
+    resolver: Option<Arc<dyn editor_core::PartResolver>>,
+    prior: Option<&Evaluation<Sym<Interval>>>,
+    table: &Arc<DriveMemo>,
+    tol: Tol,
+) -> (Evaluation<Sym<Interval>>, SymCounts) {
+    let root = ParamBox::of(&analyzed_box(doc, &AnalysisPolicy::default()));
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(root)),
+        resolver,
+        ..EvalOptions::default()
+    };
+    let (ev, session) = with_session_memo_retry(
+        budget(),
+        SymRules::shipped(),
+        SymRetry::kept_atom(),
+        table,
+        || evaluate(doc, prior, &CancelToken::new(), &opts, tol),
+    );
+    (
+        ev,
+        SymCounts {
+            frozen: 0,
+            ..session
+        },
+    )
+}
+
+fn table() -> Arc<DriveMemo> {
+    Arc::new(DriveMemo::new(budget(), SymRules::shipped()))
+}
+
+/// **A family's value carries its members' records.** The plate with a
+/// row of three copies of its first hole: the family's record holds
+/// what its three members registered and decided, and the leaf's
+/// receipt is the sum over its nodes.
+///
+/// Mutant: a family value built with an empty record leaves the
+/// receipt short by the members' decisions and the family with no
+/// identity.
+#[test]
+fn a_familys_value_carries_its_members_records() {
+    let tol = Tol::witness();
+    let p = crate::m10_7_plate::plate_with_holes(5.0e-5, 1.0e-5, tol);
+    let (doc, _k, row) = crate::fixture::row(
+        p.doc,
+        p.holes[0],
+        ("k", 3),
+        editor_core::TargetAxis::Y,
+        5.0e-3,
+    );
+    let (ev, session) = one_leaf(&doc, None, None, &table(), tol);
+    let Some(NodeResult::Ok(family)) = ev.result(row) else {
+        panic!("the row builds");
+    };
+    let members = family.members.as_ref().expect("the row is a family");
+    let of_members: usize = members
+        .members
+        .iter()
+        .map(|(_, member)| member.sym.registrations())
+        .sum();
+    assert!(of_members > 0, "the members registered");
+    assert_eq!(
+        family.sym.registrations(),
+        of_members,
+        "the family's record holds its members' identities"
+    );
+    assert_eq!(session, carried(&ev).0, "the receipt is the sum");
+}
+
+#[derive(Debug)]
+struct OneDoc(ProfileDoc);
+
+impl editor_core::PartResolver for OneDoc {
+    fn resolve(
+        &self,
+        _doc_ref: &editor_core::DocRef,
+        _tol: Tol,
+    ) -> Result<ProfileDoc, editor_core::ResolveFailure> {
+        Ok(self.0.clone())
+    }
+}
+
+/// A cylinder: a circle of radius 1 extruded 1, placed in the world.
+fn cylinder(label: &str, tol: Tol) -> ProfileDoc {
+    use editor_core::{LoopProgram, Node, ProfileProgram};
+    let doc = ProfileDoc::empty(editor_core::DocumentId::derive(label), tol);
+    let (doc, profile) = crate::fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Circle {
+                centre: [crate::fixture::len(0.0), crate::fixture::len(0.0)],
+                radius: crate::fixture::len(1.0),
+            }],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, body) = crate::fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: crate::fixture::len(1.0),
+        },
+    );
+    crate::fixture::place(doc, body).0
+}
+
+/// The cylinder instanced once, in a document named `assembly`.
+fn instancing(part: &ProfileDoc, assembly: &str, tol: Tol) -> (ProfileDoc, editor_core::RecipeNodeId) {
+    let pin = editor_core::content_pin(part, tol).expect("the pin computes");
+    let doc_ref = editor_core::DocRef {
+        id: part.id(),
+        pin,
+    };
+    let doc = ProfileDoc::empty(editor_core::DocumentId::derive(assembly), tol);
+    let (doc, instance) = crate::fixture::insert(doc, crate::fixture::mated_instance(doc_ref));
+    (crate::fixture::assemble_world_copies(doc), instance)
+}
+
+/// **A part's run is counted once, as the part's, and its identities
+/// reach the node that instantiates it.** The cylinder as a part: the
+/// leaf's receipt is its nodes' records and its parts', and the
+/// instance node's record holds the identities the part's extrude
+/// registered.
+///
+/// Mutant: a part's run in no scope of its own leaves its decisions at
+/// the root, on no record; an instance node that does not gather the
+/// row's record carries no identity.
+#[test]
+fn a_parts_run_is_the_parts_and_its_identities_reach_its_instance() {
+    let tol = Tol::witness();
+    let part = cylinder("session-state-part", tol);
+    let (own, own_session) = one_leaf(&part, None, None, &table(), tol);
+    let (own_sum, own_registrations) = carried(&own);
+    assert_eq!(own_session, own_sum, "as its own document");
+    assert!(own_registrations > 0, "the cylinder's extrude registers");
+
+    let (doc, instance) = instancing(&part, "session-state-assembly", tol);
+    let (ev, session) = one_leaf(&doc, Some(Arc::new(OneDoc(part))), None, &table(), tol);
+    assert_eq!(ev.parts_sym.len(), 1, "one part run");
+    assert!(ev.parts_sym[0].counts().decisions() > 0, "the part decided");
+    let Some(NodeResult::Ok(placed)) = ev.result(instance) else {
+        panic!("the instance builds");
+    };
+    assert_eq!(
+        placed.sym.registrations(),
+        ev.parts_sym[0].registrations(),
+        "the instance node's record holds the part's identities"
+    );
+    assert_eq!(session, carried(&ev).0, "the receipt is nodes and parts");
+}
+
+/// **A part's run is a function of the part**: instanced from two
+/// documents, in leaves of two drives, the part's record is the same,
+/// whatever the instancing document is.
+///
+/// Mutant: a part's scope opened over the registry of the scope it was
+/// entered from reads what the instancing document registered.
+#[test]
+fn a_parts_run_is_the_same_in_two_instancing_documents() {
+    let tol = Tol::witness();
+    let part = cylinder("session-state-part", tol);
+    let record_in = |assembly: &str| {
+        let (doc, _) = instancing(&part, assembly, tol);
+        let (ev, _) = one_leaf(&doc, Some(Arc::new(OneDoc(part.clone()))), None, &table(), tol);
+        ev.parts_sym[0].counts()
+    };
+    assert_eq!(record_in("session-state-first"), record_in("session-state-second"));
+}
+
+/// **The product's gather is the product's.** The gather runs after
+/// the nodes; what it decides is on the product, and the session's
+/// counts are the nodes', the parts' and the product's.
+///
+/// Mutant: a gather in no scope of its own decides at the root, and
+/// the product's record is empty.
+#[test]
+fn the_products_gather_is_on_the_product() {
+    let tol = Tol::witness();
+    let part = cylinder("session-state-part", tol);
+    let (doc, _) = instancing(&part, "session-state-product", tol);
+    let root = ParamBox::of(&analyzed_box(&doc, &AnalysisPolicy::default()));
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(root)),
+        resolver: Some(Arc::new(OneDoc(part))),
+        ..EvalOptions::default()
+    };
+    let ((ev, product), session) = with_session_memo_retry(
+        budget(),
+        SymRules::shipped(),
+        SymRetry::kept_atom(),
+        &table(),
+        || {
+            let ev: Evaluation<Sym<Interval>> =
+                evaluate(&doc, None, &CancelToken::new(), &opts, tol);
+            let product = editor_core::product::product_recorded(&doc, &ev, tol);
+            (ev, product)
+        },
+    );
+    let product = product.expect("the product gathers");
+    assert!(product.sym.counts().decisions() > 0, "the gather decided");
+    let mut sum = carried(&ev).0;
+    sum.absorb(product.sym.counts());
+    assert_eq!(
+        SymCounts {
+            frozen: 0,
+            ..session
+        },
+        sum,
+        "nodes, parts and the product"
+    );
+}
+
+/// **A prior built under another table is not read.** The plate's root
+/// leaf evaluated in a session on no drive's table, then handed as the
+/// prior to a leaf on a drive's table: nothing is reused, and the leaf
+/// decides what it decides with no prior.
+///
+/// Mutant: a prior read whatever table built it hands the leaf values
+/// whose nodes its table does not hold; every node is reused and the
+/// leaf decides nothing.
+#[test]
+fn a_prior_built_under_another_table_is_not_read() {
+    let tol = Tol::witness();
+    let doc = registering(tol);
+    let (prior, alone) = one_leaf(&doc, None, None, &table(), tol);
+    let (ev, session) = one_leaf(&doc, None, Some(&prior), &table(), tol);
+    assert_eq!(ev.reused, 0, "nothing of the foreign prior is reused");
+    assert_eq!(session, alone, "the leaf decides as it does with no prior");
+    // Another leaf of the SAME table is another session, and its prior
+    // is read.
+    let shared = table();
+    let (first, _) = one_leaf(&doc, None, None, &shared, tol);
+    let (second, _) = one_leaf(&doc, None, Some(&first), &shared, tol);
+    assert!(second.reused > 0, "a prior of the same drive's table is read");
+}

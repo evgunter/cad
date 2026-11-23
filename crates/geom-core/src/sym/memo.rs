@@ -88,6 +88,17 @@ pub struct DriveMemo {
     inner: RwLock<Inner>,
     /// The caches of the leaves that are done, for the next ones.
     warm: Mutex<Vec<Warm>>,
+    /// Which table this is ([`table_token`]).
+    token: u64,
+}
+
+/// A token no other table of the process has: what a value built under
+/// a table is told from one built under another by (`super::table`).
+/// Monotone and process-wide, it identifies a table and is read as
+/// nothing else.
+pub(super) fn table_token() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 #[derive(Default)]
@@ -141,6 +152,7 @@ impl DriveMemo {
             serves_forms: true,
             inner: RwLock::new(Inner::default()),
             warm: Mutex::new(Vec::new()),
+            token: table_token(),
         }
     }
 
@@ -154,6 +166,11 @@ impl DriveMemo {
             serves_forms: false,
             ..Self::new(budget, rules)
         }
+    }
+
+    /// This table's token.
+    pub(super) fn token(&self) -> u64 {
+        self.token
     }
 
     /// Whether a leaf under `budget` and `rules` may consult this
@@ -388,6 +405,7 @@ impl core::fmt::Debug for DriveMemo {
             serves_forms,
             inner,
             warm: _,
+            token: _,
         } = self;
         f.debug_struct("DriveMemo")
             .field("serves_forms", serves_forms)

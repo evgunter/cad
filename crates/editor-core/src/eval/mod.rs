@@ -183,6 +183,11 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// A replay's receipt is its nodes' records, these, and its
     /// product's ([`crate::product::Product::sym`]).
     pub parts_sym: Vec<Arc<geom_core::sym::NodeRecord>>,
+    /// Which symbolic expression table this evaluation's values were
+    /// built under ([`geom_core::sym::table`]); `None` outside a
+    /// symbolic session. A prior is read only under the table it was
+    /// built under ([`prior_under_this_table`]).
+    sym_table: Option<u64>,
     parts: parts::Carried<T>,
     /// The resolver this run crossed the document seam with: what a
     /// replay of the same document at another scalar resolves its parts
@@ -1082,6 +1087,7 @@ impl Evaluation<f64> {
             sourced: Arc::default(),
             spaces: Arc::default(),
             parts_sym: Vec::new(),
+        sym_table: geom_core::sym::table(),
         parts: parts::Carried::none(),
             resolver: None,
         }
@@ -4433,6 +4439,7 @@ where
     // even built — which is what makes the per-node lookup below
     // (`prior.and_then(|p| p.nodes.get(&id))`) a lookup that cannot
     // reach a foreign node, rather than a check repeated per node.
+    let prior = prior.filter(|p| prior_under_this_table(p));
     let (prior, prior_refused) =
         match prior.and_then(|p| crate::ident::mispaired(doc.id(), p.document).map(|m| (p, m))) {
             Some((_, refused)) => (None, Some(refused)),
@@ -4806,6 +4813,7 @@ where
         sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
         parts_sym: entry.built,
+        sym_table: geom_core::sym::table(),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -5045,6 +5053,7 @@ where
         sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
         parts_sym: Vec::new(),
+        sym_table: geom_core::sym::table(),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -5264,6 +5273,17 @@ fn node_mints(
         )
         .collect();
     inside.child(&words)
+}
+
+/// **Whether `prior`'s values mean here what they meant where they were
+/// built**: inside a symbolic session, only a prior built under the
+/// same expression table (another leaf of the same drive is another
+/// session and the same table). A value built under another table, or
+/// under none, names nodes this table does not hold, and a result
+/// reused from it would be read as unknowns. Such a prior is not read:
+/// the evaluation builds as it does with none.
+fn prior_under_this_table<T: topo::AtRestPolicy + Decide>(prior: &Evaluation<T>) -> bool {
+    geom_core::sym::table().is_none_or(|table| prior.sym_table == Some(table))
 }
 
 /// **What the nodes upstream of `id` left in the symbolic session**

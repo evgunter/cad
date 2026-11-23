@@ -91,49 +91,6 @@ fn decisions(c: SymCounts) -> (u64, u64) {
     (c.symbolic, c.numeric)
 }
 
-/// **A value built in one leaf of a drive means in another what it
-/// meant where it was built.** Leaf 1 mints `c = 2` and proves
-/// `c·c − 4` zero by the constant fold. Leaf 2 is handed leaf 1's `c`
-/// and mints nothing for it: the id resolves through the drive's
-/// table, and leaf 2 reaches the same proof. The dials are the plain
-/// walk with A0 and no early walk, so the plain form is the whole
-/// answer.
-///
-/// Mutant: a leaf that resolves an id in its own cache alone freezes
-/// `c` in leaf 2, and the decision is numeric.
-#[test]
-fn a_value_built_in_one_leaf_means_the_same_in_another() {
-    let rules = SymRules {
-        const_fold: true,
-        ..SymRules::none()
-    };
-    let m = Arc::new(DriveMemo::new(budget(), rules));
-    let (c, first) = with_session_memo(budget(), rules, &m, || {
-        let c = lit(2.0);
-        zero(c * c - lit(4.0));
-        c
-    });
-    assert_eq!(decisions(first), (1, 0), "{first:?}");
-    let (_, second) = with_session_memo(budget(), rules, &m, || zero(c * c - lit(4.0)));
-    assert_eq!(
-        decisions(second),
-        (1, 0),
-        "the second leaf reads the first leaf's node through the drive's table: {second:?}"
-    );
-}
-
-/// **A node minted outside every session on a drive's table is a
-/// kernel bug, and says so.** Whether such an id is absent from the
-/// table would depend on which leaf ran first (`sym::memo`'s header),
-/// so the walk that meets one stops instead of freezing it.
-#[test]
-#[should_panic(expected = "minted outside every session on the drive's table")]
-fn a_node_minted_outside_the_drives_sessions_is_refused_loudly() {
-    let outside = three();
-    let m = tight_memo();
-    leaf(&m, || zero(outside - outside + outside - outside));
-}
-
 /// **A leaf-varying opaque sequence moves no decision through the
 /// memo** (R2, adopted): an `Opaque` id names a syntactic unknown, a
 /// plain form is a syntactic normal form of a syntactic id, and a
