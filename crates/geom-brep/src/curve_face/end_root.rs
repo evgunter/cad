@@ -66,7 +66,8 @@ pub struct EndWindow<T> {
     /// The carrier parameter at the window's far end, inside the span or
     /// at its other end.
     pub at: T,
-    /// The window is the whole span: no root of it but the end's.
+    /// The window reaches the span's other end (`at` is it): no root of
+    /// the span but the end's.
     pub whole: bool,
     /// The order of the end's root.
     pub order: u32,
@@ -98,12 +99,18 @@ pub enum EndRootRefusal {
 pub const END_ROOT_ORDER: &str = "curve_face_end_root_order";
 /// The spread's predicate.
 pub const END_ROOT_SPREAD: &str = "curve_face_end_root_spread";
-/// The window's far end.
+/// Whether a circle's span is at most the quarter turn its window
+/// starts from; anything short of proven reads as longer.
+pub const END_ROOT_RUN: &str = "curve_face_end_root_run";
+/// The window's tail: the terms past the order at most half its term.
+pub const END_ROOT_TAIL: &str = "curve_face_end_root_tail";
+/// The window's far end, off the surface.
 pub const END_ROOT_WINDOW_CLEAR: &str = "curve_face_end_root_window_clear";
-/// The halvings a window is tried at.
-const WINDOW_HALVINGS: u32 = 48;
-/// The bisection steps the spread is bracketed by.
-const SPREAD_STEPS: u32 = 64;
+/// The halvings each of the door's three searches takes at most (the
+/// window against its tail, the window's far end, the spread's
+/// bisection): a double's mantissa, past which a halving moves the
+/// window's length by less than the start's own rounding.
+const HALVINGS: u32 = 52;
 
 type Poly<T> = Vec<T>;
 
@@ -151,13 +158,15 @@ fn pow<T: Real>(s: T, j: usize) -> T {
 }
 
 /// The carrier from the end: its homogeneous point `X/W` as polynomials
-/// in the local parameter, the local length the window starts from, the
-/// local parameter's top speed in metres, and the map back to the
-/// carrier's parameter.
+/// in the local parameter, the local length the window starts from,
+/// whether that run reaches the span's far end, the local parameter's
+/// top speed in metres, and the map back to the carrier's parameter.
 struct Local<T: Real> {
     x: [Poly<T>; 3],
     w: Poly<T>,
     run: T,
+    covers: bool,
+    t_far: T,
     speed: T,
     kind: LocalKind,
     t_end: T,
@@ -193,6 +202,8 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
                 x: [vec![p.x, d.x], vec![p.y, d.y], vec![p.z, d.z]],
                 w: vec![T::one()],
                 run: span,
+                covers: true,
+                t_far,
                 speed: line.dir.norm(),
                 kind: LocalKind::Line,
                 t_end,
@@ -206,9 +217,14 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
             let u = (p - c) / r;
             let v = d * (toward / r);
             // A quarter turn at most: the window lives near the end, and
-            // the half angle stays at most one.
+            // the half angle stays at most one. A longer span is not
+            // covered: the rest of it is the root doors'.
             let quarter = T::from_f64(core::f64::consts::FRAC_PI_2);
-            let turned = span.min(quarter);
+            let covers = matches!(
+                geom_core::k_stats::prove(END_ROOT_RUN, Margin::sign_of(quarter - span)),
+                Ok(Sign::Positive | Sign::Zero)
+            );
+            let turned = if covers { span } else { quarter };
             let two = T::from_f64(2.0);
             let w = vec![T::one(), T::zero(), T::one()];
             let coord = |ci: T, ui: T, vi: T| vec![ci + r * ui, two * r * vi, ci - r * ui];
@@ -220,6 +236,8 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
                 ],
                 w,
                 run: (turned / two).tan(),
+                covers,
+                t_far,
                 speed: two * r,
                 kind: LocalKind::HalfAngle,
                 t_end,
@@ -342,35 +360,40 @@ pub fn end_window<T: Decide>(
     let lead = n[m].abs() * T::from_f64(0.5);
     // The window: the terms past `m` at most half the `m`-th.
     let mut s_w = run;
+    let mut unhalved = true;
     let mut held = false;
-    let mut halved = false;
-    for _ in 0..WINDOW_HALVINGS {
+    for _ in 0..HALVINGS {
         let tail = (m + 1..n.len()).fold(T::zero(), |acc, j| acc + n[j].abs() * pow(s_w, j - m));
-        if geom_core::k_stats::prove(END_ROOT_WINDOW_CLEAR, Margin::sign_of(lead - tail))
+        if geom_core::k_stats::prove(END_ROOT_TAIL, Margin::sign_of(lead - tail))
             == Ok(Sign::Positive)
         {
             held = true;
             break;
         }
         s_w = s_w * T::from_f64(0.5);
-        halved = true;
+        unhalved = false;
     }
     if !held {
         return Err(EndRootRefusal::Window(None));
     }
-    // The charge below the order, against the order's term: positive
-    // past the spread, increasing in `s`. The window is halved further
-    // until its far end stands off the surface, the spread inside it.
+    // The charge below the order against the order's term. Its sign
+    // changes once, from negative to positive: `excess(s) = s^m·(lead −
+    // Σ_{j<m} charge_j·s^{j−m})` and every `s^{j−m}` falls as `s` grows.
+    // So positive at `s` is positive past it, which the spread's
+    // bisection below reads. The window is halved further until its far
+    // end stands off the surface, the spread inside it.
     let excess = |s: T| lead * pow(s, m) - abs_terms(&charge, 0..m, s);
-    let mut whole = !halved;
     let mut in_band = None;
-    for _ in 0..WINDOW_HALVINGS {
+    for _ in 0..HALVINGS {
         if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(s_w)))
             != Ok(Sign::Positive)
         {
             return Err(EndRootRefusal::Spread(None));
         }
-        let at = local.param(s_w);
+        // The window is the whole span exactly when its run is the span's
+        // own, unhalved: its far end is then the span's other end.
+        let whole = unhalved && local.covers;
+        let at = if whole { local.t_far } else { local.param(s_w) };
         let far: Point3<T> = carrier.eval(at);
         match decide(
             END_ROOT_WINDOW_CLEAR,
@@ -381,7 +404,7 @@ pub fn end_window<T: Decide>(
                 // The spread, bracketed from above: the least `s` the
                 // excess is proven positive at.
                 let (mut lo, mut hi) = (T::zero(), s_w);
-                for _ in 0..SPREAD_STEPS {
+                for _ in 0..HALVINGS {
                     let mid = (lo + hi) * T::from_f64(0.5);
                     if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(mid)))
                         == Ok(Sign::Positive)
@@ -407,7 +430,7 @@ pub fn end_window<T: Decide>(
             }
         }
         s_w = s_w * T::from_f64(0.5);
-        whole = false;
+        unhalved = false;
     }
     Err(EndRootRefusal::Window(in_band))
 }
@@ -544,6 +567,133 @@ mod rows {
         .expect("a window past the rim end");
         assert_eq!(w.order, 2);
         assert!(w.at > 0.0, "past the end: {}", w.at);
+    }
+
+    /// **A circle past a quarter turn is not read whole.** The arc
+    /// leaves the pipe's rim point `(1, 0, 2)` tangent to the wall and
+    /// meets the wall again at `φ = acos(−1/3)`, past a quarter turn and
+    /// inside its span: the window stops short of the span's end, so that
+    /// root is the root doors' to find.
+    #[test]
+    fn an_arc_past_a_quarter_turn_is_not_read_whole() {
+        let arc = Curve3::circle(
+            Point3::new(-0.5, 0.0, 2.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            1.5,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let second = (-1.0_f64 / 3.0).acos();
+        let w = end_window(&arc, (0.0, 2.2), SpanEnd::Start, &pipe(), band())
+            .expect("a window past the end");
+        assert!(!w.whole, "a span with a second root at {second}: {w:?}");
+        assert!(w.at < second, "the window keeps {second} out: {w:?}");
+    }
+
+    /// The same inside the wall: a circle of radius 1.4 tangent to it
+    /// along a ruling crosses it again at `acos(−0.6/1.4)`, inside a span
+    /// of 2.5.
+    #[test]
+    fn an_arc_inside_the_wall_past_a_quarter_turn_is_not_read_whole() {
+        let rho = 1.4;
+        let arc = Curve3::circle(
+            Point3::new(1.0 - rho, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            rho,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let cross = ((rho - 2.0) / rho).acos();
+        let w = end_window(&arc, (0.0, 2.5), SpanEnd::Start, &pipe(), band())
+            .expect("a window past the end");
+        assert!(
+            !w.whole && w.at < cross,
+            "the arc crosses the wall at {cross}: {w:?}"
+        );
+    }
+
+    /// **The order walk decides `c₁`**: an edge crossing the wall square
+    /// at its end is a simple root, never stepped past.
+    #[test]
+    fn a_transverse_end_is_a_simple_root() {
+        let line = Curve3::Line(geom::Line {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        });
+        let w = end_window(&line, (0.0, 1.0), SpanEnd::End, &pipe(), band())
+            .expect("a window past the end");
+        assert_eq!(w.order, 1, "{w:?}");
+    }
+
+    /// **The spread is where the order's half term meets the charge**,
+    /// each dropped coefficient charged at the zero band's width at its
+    /// own power over the run, `c₀` at the width itself: at the neutral
+    /// point (order 4, `c₁…c₃` decided Zero) the spread `σ` solves
+    /// `|c₄|·σ⁴/2 = ε·g·Σ_{j<4} (σ/L)^j`, `L = 2` the span. The
+    /// coefficients are the door's own; the charges are this row's.
+    #[test]
+    fn the_spread_meets_the_charge_at_each_dropped_power() {
+        let b = band();
+        let c = ruling(core::f64::consts::FRAC_PI_2);
+        let w = end_window(&c, (0.0, 2.0), SpanEnd::End, &bend(), b).expect("a window");
+        assert_eq!(w.order, 4);
+        let local = local(&c, (0.0, 2.0), SpanEnd::End).unwrap();
+        let (n, g) = composite(&bend(), &local).unwrap();
+        let charge = |s: f64| b.zero() * g * (0..4).map(|j| (s / 2.0).powi(j)).sum::<f64>();
+        let (mut lo, mut hi) = (0.0_f64, 2.0_f64);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if 0.5 * n[4].abs() * mid.powi(4) > charge(mid) {
+                hi = mid;
+            } else {
+                lo = mid;
+            }
+        }
+        assert!(
+            (w.spread - hi).abs() <= 1e-6 * hi,
+            "spread {} against {hi}",
+            w.spread
+        );
+        assert!(
+            (w.charge - charge(hi) / g).abs() <= 1e-6 * charge(hi) / g,
+            "charge {} against {}",
+            w.charge,
+            charge(hi) / g
+        );
+    }
+
+    /// **A decided but tiny `c₂` refuses on its spread.** Just off the
+    /// neutral point the quartic tail shrinks the window to about
+    /// `√(3δ)`, where the zero band's charge on `c₀` outruns `c₂·s²`.
+    #[test]
+    fn a_tiny_decided_quadratic_term_refuses_on_its_spread() {
+        let b = band();
+        let delta = 6.0 * b.escalate();
+        let got = end_window(
+            &ruling(core::f64::consts::FRAC_PI_2 - delta),
+            (0.0, 2.0),
+            SpanEnd::End,
+            &bend(),
+            b,
+        );
+        assert!(
+            matches!(got, Err(EndRootRefusal::Spread(_))),
+            "δ = {delta}: {got:?}"
+        );
+    }
+
+    /// **The window's far end stands off the surface.** At `δ = 1e-4`
+    /// off the neutral point the quartic tail halves the window until its
+    /// far end lies about `3e-9` off the bend, in band; the door does not
+    /// hand that end to the root doors as the rest of the span's start,
+    /// and no nearer window holds its spread.
+    #[test]
+    fn a_window_whose_far_end_reads_in_band_is_not_returned() {
+        let b = band();
+        let c = ruling(core::f64::consts::FRAC_PI_2 - 1e-4);
+        let got = end_window(&c, (0.0, 2.0), SpanEnd::End, &bend(), b);
+        assert!(
+            matches!(got, Err(EndRootRefusal::Spread(_) | EndRootRefusal::Window(_))),
+            "{got:?}"
+        );
     }
 
     /// A carrier the door has no lane for.

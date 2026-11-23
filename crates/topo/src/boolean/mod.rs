@@ -2196,10 +2196,10 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
         f1: FaceKey,
         o2: Operand,
         f2: FaceKey,
-    ) -> Option<crate::rim_wedge::Rim<T>> {
+    ) -> Option<(crate::rim_wedge::Rim<T>, &crate::rim_wedge::Touch<T>)> {
         Self::key(o1, f1, o2, f2)
             .and_then(|k| self.verified.junction.get(&k))
-            .and_then(|cert| cert.rim)
+            .and_then(|cert| Some((cert.rim?, &cert.touch)))
     }
 
     /// The coincidence the (operand-tagged) face pair is declared under,
@@ -7882,6 +7882,7 @@ fn verify_glued_contacts<T: Decide>(
                     JunctionCert {
                         kinds: junction.kinds,
                         rim: Some(junction.rim),
+                        touch: junction.touch,
                     },
                 );
             }
@@ -8004,6 +8005,7 @@ fn given_verdicts<T: Decide>(
                     JunctionCert {
                         kinds: (kind(a, fa), kind(b, fb)),
                         rim,
+                        touch: crate::rim_wedge::Touch::default(),
                     },
                 );
             }
@@ -8170,6 +8172,9 @@ pub(in crate::boolean) struct JunctionCert<T: Real> {
     /// The rim, or none for a given junction whose record carries no
     /// circle.
     pub(in crate::boolean) rim: Option<crate::rim_wedge::Rim<T>>,
+    /// Where along the rim the junction was glued
+    /// ([`crate::rim_wedge::Touch`]); empty for a given junction.
+    pub(in crate::boolean) touch: crate::rim_wedge::Touch<T>,
 }
 
 /// What [`GluedPairs`] keeps of a glued tangency: its carriers' kinds
@@ -8428,6 +8433,8 @@ pub(in crate::boolean) struct GluedJunction<T: Real> {
     pub(in crate::boolean) kinds: (geom::SurfaceKind, geom::SurfaceKind),
     /// The circle both faces end on.
     pub(in crate::boolean) rim: crate::rim_wedge::Rim<T>,
+    /// Where along it they both end, leaving it on opposite sides.
+    pub(in crate::boolean) touch: crate::rim_wedge::Touch<T>,
     /// The rim's identity margin ([`crate::rim_wedge::shared_rim`]), the
     /// decision the record carries.
     pub(in crate::boolean) margin: MarginDiag,
@@ -8694,15 +8701,20 @@ fn junction_of<T: Decide>(
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
     let routing = crate::rim_wedge::classify_shared_rim(sa, sense_a, sb, sense_b, rim, reach, band);
-    let departure =
-        || crate::rim_wedge::departures(a, fa, b, fb, crate::rim_wedge::Locus::Rim(rim), band);
-    (matches!(routing, Ok(crate::rim_wedge::RimRouting::Seam))
-        && matches!(departure(), Ok(crate::rim_wedge::Departure::Opposite))
-        && crate::rim_wedge::rim_edges_convex(a, fa, rim, band)
+    if !matches!(routing, Ok(crate::rim_wedge::RimRouting::Seam)) {
+        return None;
+    }
+    let Ok((crate::rim_wedge::Departure::Opposite, touch)) =
+        crate::rim_wedge::touch(a, fa, b, fb, crate::rim_wedge::Locus::Rim(rim), band)
+    else {
+        return None;
+    };
+    (crate::rim_wedge::rim_edges_convex(a, fa, rim, band)
         && crate::rim_wedge::rim_edges_convex(b, fb, rim, band))
     .then_some(GluedJunction {
         kinds: (sa.kind(), sb.kind()),
         rim,
+        touch,
         margin,
     })
 }

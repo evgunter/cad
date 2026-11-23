@@ -373,9 +373,27 @@ pub(crate) fn departures<T: Decide>(
     locus: Locus<T>,
     band: Band,
 ) -> Result<Departure, RimUnread> {
+    touch(a, fa, b, fb, locus, band).map(|(departure, _)| departure)
+}
+
+/// [`departures`], with the touch it was read over: each stretch (or
+/// point) of the locus both faces end on, and the way A rides it.
+///
+/// # Errors
+///
+/// As [`departures`].
+pub(crate) fn touch<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    locus: Locus<T>,
+    band: Band,
+) -> Result<(Departure, Touch<T>), RimUnread> {
+    let mut held = Touch { pieces: Vec::new() };
     let (Some(ra), Some(rb)) = (reach_as(a, fa, locus, band)?, reach_as(b, fb, locus, band)?)
     else {
-        return Ok(Departure::EdgeKindUnread);
+        return Ok((Departure::EdgeKindUnread, held));
     };
     let tau = geom::conic_period::<T>().length();
     let mut cuts: Vec<T> = ra.cuts.iter().chain(&rb.cuts).copied().collect();
@@ -429,13 +447,18 @@ pub(crate) fn departures<T: Decide>(
         }
         touched = true;
         match (ca, cb) {
-            (Cover::Unread, _) | (_, Cover::Unread) => return Ok(Departure::EdgeKindUnread),
+            (Cover::Unread, _) | (_, Cover::Unread) => {
+                return Ok((Departure::EdgeKindUnread, held));
+            }
             (Cover::RidesBothWays, _) | (_, Cover::RidesBothWays) => {
-                return Ok(Departure::Mixed);
+                return Ok((Departure::Mixed, held));
             }
             (Cover::Rides(x), Cover::Rides(y)) if x == y => same = true,
-            (Cover::Rides(_), Cover::Rides(_)) => opposite = true,
-            _ => return Ok(Departure::NoEdge),
+            (Cover::Rides(x), Cover::Rides(_)) => {
+                opposite = true;
+                held.pieces.push((s0, s1, x));
+            }
+            _ => return Ok((Departure::NoEdge, held)),
         }
     }
     if !touched {
@@ -453,28 +476,76 @@ pub(crate) fn departures<T: Decide>(
                 let abut = climb(Answering::Any, [(ahi, blo), (alo, bhi)], |(x, y)| {
                     let gap = (locus_point(locus, x) - locus_point(locus, y)).norm();
                     Rung::decide("seam_cover_abut", Margin::of(gap), band, |d| {
-                        (d.sign == geom_core::Sign::Zero).then_some(())
+                        (d.sign == geom_core::Sign::Zero).then_some(x)
                     })
                 })
-                .into_reading()?
-                .is_some();
-                if abut {
+                .into_reading()?;
+                if let Some(at) = abut {
                     touched = true;
                     if sa == sb {
                         same = true;
                     } else {
                         opposite = true;
+                        held.pieces.push((at, at, sa));
                     }
                 }
             }
         }
     }
-    Ok(match (touched, opposite, same) {
+    let departure = match (touched, opposite, same) {
         (false, _, _) => Departure::Untouched,
         (true, true, true) => Departure::Mixed,
         (true, true, false) => Departure::Opposite,
         (true, false, _) => Departure::Same,
-    })
+    };
+    Ok((departure, held))
+}
+
+/// **Where two faces leaving a rim on opposite sides touch along it**
+/// ([`touch`]): each stretch, `lo ≤ hi` on the rim's own angle with `lo`
+/// in `[0, τ)` (a stretch across the seam runs past `τ`), or a point,
+/// `lo = hi`, where the two faces' riding edges abut; and the sign A's
+/// riding half-edge runs it with against the rim's tangent. B's runs it
+/// the other way.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Touch<T: Real> {
+    pieces: Vec<(T, T, geom_core::Sign)>,
+}
+
+impl<T: Decide> Touch<T> {
+    /// **Whether `p`, a point decided on `rim`, lies on the touch**, a
+    /// closed stretch or point of it (`junction_end_in_extent`, metered
+    /// along the rim): the sign A rides it with there, or `None` where no
+    /// piece holds it, or two that do are ridden opposite ways.
+    ///
+    /// # Errors
+    ///
+    /// The first in-band reading of whether a piece holds it.
+    pub(crate) fn holds(
+        &self,
+        rim: Rim<T>,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Option<geom_core::Sign>, Indeterminate> {
+        let tau = geom::conic_period::<T>().length();
+        let at = locus_param(Locus::Rim(rim), p);
+        let decide = |m: T| {
+            crate::validate::decide("junction_end_in_extent", Margin::of(m * rim.radius), band)
+        };
+        let mut sign = None;
+        for &(lo, hi, rides) in &self.pieces {
+            let past = at - lo - tau * ((at - lo) / tau).floor();
+            let within = !matches!(decide(hi - lo - past)?, geom_core::Sign::Negative)
+                || matches!(decide(tau - past)?, geom_core::Sign::Zero);
+            if within {
+                match sign {
+                    Some(s) if s != rides => return Ok(None),
+                    _ => sign = Some(rides),
+                }
+            }
+        }
+        Ok(sign)
+    }
 }
 
 /// Sort locus parameters ascending by decided differences (metered in
