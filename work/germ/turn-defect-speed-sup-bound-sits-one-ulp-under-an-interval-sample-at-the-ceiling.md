@@ -2,7 +2,8 @@
 id: turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling
 kind: issue
 title: turn_defect_speed_hi's sup bound sits below an Interval sample of the speed at the ceiling, by 1 ulp at 1e-6 and about 11 ulps at 1e-12: an enclosure that does not enclose, found by r2_turn_probes' varying-seed fuzz
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-10-29
 priority: P2
 cost: M
@@ -103,3 +104,24 @@ gap 1.33e-3). The excess is about 7 ulps. This reproduces on
 `origin/main` `818092d44a`
 (`CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom -E 'test(/turn_defect_speeds_bound_the_speed_on_the_true_defect/)'`),
 so the PR did not cause it.
+
+## Fixed
+
+The bound was sound; the sample's far end was the one past the speed.
+At 60 digits (`mpmath`) on each case's stored data (`x = TAU − gap`
+rounded as the row forms it, the true defect `x − 2π`, the true speed
+at `t0 + i/64` of it), every sup sits 0.03 to 8.1 ulps above the true
+speed and the inf 4.6 ulps below it, while the `speed_enclosure`
+sample's far end reaches 7.4 to 12.3 ulps past the true speed. Neither
+bound nor sample fails to enclose: the row compared the bound against
+the sample's far end, which is the formula's rounding, and a bound that
+reads a semi-axis exactly cannot clear that.
+
+`|C′|² = a²·sin²t + b²·cos²t` weighs `a²` and `b²` by weights that sum
+to one, so the speed lies between the semi-axes at every `t`, and
+`speed_enclosure` is now held to them (the intersection of two
+enclosures, no slack). `turn_defect_speed_hi` and `turn_defect_speed_lo`
+are unchanged. The nine cases this row lists, and the current draws of
+its seeds, are pinned in
+`r2_turn_probes::turn_defect_speeds_bound_the_speed_where_it_meets_a_semi_axis`;
+all nine are red with the enclosure unheld.
