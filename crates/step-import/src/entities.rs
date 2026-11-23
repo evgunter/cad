@@ -29,7 +29,7 @@ use crate::parse::{Instance, Record, StepFile, Value};
 use crate::recognize;
 use crate::recognize_curve;
 use crate::signed_zero;
-use crate::units::{self, UnitKind};
+use crate::units::{self, Scale, UnitKind};
 use crate::{
     CurvePromotion, FaceCensus, NormalizationKind, STEP_LINE_DIRECTION_UNIT,
     STEP_PLACEMENT_IDENTITY, StructureNormalization,
@@ -321,16 +321,16 @@ pub(crate) struct EdgeSpec {
 pub(crate) struct Resolver<'a> {
     file: &'a StepFile,
     /// The file's SI length factor into kernel meters (M7-2 Leg A):
-    /// 1.0 for the kernel's own dialect, 1e-3 for FreeCAD's
-    /// millimeters. EVERY length the resolver reads passes through
-    /// [`Resolver::as_length`].
-    length_scale: f64,
+    /// 1 for the kernel's own dialect, 1/1000 for FreeCAD's
+    /// millimeters, held exactly. EVERY length the resolver reads
+    /// passes through [`Resolver::as_length`].
+    length_scale: Scale,
     /// The file's angle factor into kernel radians (M7-4 Leg B): 1.0
     /// for a radian context, the file's own declared π/180 for the
     /// wild's dominant `CONVERSION_BASED_UNIT('DEGREE', …)`. Only one
     /// slot in the subset states an angle — a `CONICAL_SURFACE`'s
     /// `semi_angle` — and it passes through [`Resolver::as_angle`].
-    angle_scale: f64,
+    angle_scale: Scale,
     /// ε_in in kernel metres (the file's declared uncertainty, scaled
     /// with every other length) and the band the file is read at: the
     /// one interpretation budget, spent by every reading that decides
@@ -498,10 +498,10 @@ impl<'a> Resolver<'a> {
         expected: &'static str,
     ) -> Result<f64, StepImportError> {
         let raw = as_real(id, value, expected)?;
-        // Multiplication by an exact power of ten is one correctly
-        // rounded operation; the unprefixed case multiplies by 1.0 and
-        // moves no bits at all (the own-corpus identity is untouched).
-        Ok(raw * self.length_scale)
+        // The number's decimal times the exact factor, rounded once; the
+        // unprefixed case moves no bits at all (the own-corpus identity
+        // is untouched).
+        Ok(self.length_scale.apply(raw))
     }
 
     /// One stated angle into kernel radians. A radian context
@@ -514,7 +514,7 @@ impl<'a> Resolver<'a> {
         value: &Value,
         expected: &'static str,
     ) -> Result<f64, StepImportError> {
-        Ok(as_real(id, value, expected)? * self.angle_scale)
+        Ok(self.angle_scale.apply(as_real(id, value, expected)?))
     }
 
     /// A fresh entity id for minted topology (module docs).
@@ -2604,7 +2604,7 @@ fn length_factor(
     r: &Resolver<'_>,
     id: u64,
     records: &[Record],
-) -> Result<Option<f64>, StepImportError> {
+) -> Result<Option<Scale>, StepImportError> {
     if !records.iter().any(|(kw, _)| kw == "LENGTH_UNIT") {
         return Ok(None);
     }
@@ -2852,12 +2852,12 @@ struct ContentRoots {
 }
 
 /// The scales and uncertainty one file states.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct UnitContext {
     /// Meters per file length unit.
-    pub(crate) length_scale: f64,
+    pub(crate) length_scale: Scale,
     /// Radians per file angle unit.
-    pub(crate) angle_scale: f64,
+    pub(crate) angle_scale: Scale,
     /// The declared uncertainty in kernel meters, when the governing
     /// contexts declare one. `None` is not yet an error: a file with
     /// no geometry to import should say *that*, not complain about a
@@ -2895,11 +2895,11 @@ fn resolve_units_and_uncertainty(
     // different length units would leave every coordinate's meaning
     // ambiguous, so a second, distinct factor refuses typed rather
     // than letting the first one win silently.
-    let mut length_scale: Option<(u64, f64)> = None;
-    let mut note_scale = |id: u64, factor: f64| -> Result<(), StepImportError> {
-        match length_scale {
+    let mut length_scale: Option<(u64, Scale)> = None;
+    let mut note_scale = |id: u64, factor: Scale| -> Result<(), StepImportError> {
+        match &length_scale {
             None => length_scale = Some((id, factor)),
-            Some((_, prev)) if prev.to_bits() == factor.to_bits() => {}
+            Some((_, prev)) if *prev == factor => {}
             Some(_) => {
                 return Err(StepImportError::UnsupportedUnit {
                     id,
@@ -2913,11 +2913,11 @@ fn resolve_units_and_uncertainty(
     };
     // The file's ONE angle scale, by the same argument: a semi_angle
     // read in the wrong angular unit is a different cone.
-    let mut angle_scale: Option<(u64, f64)> = None;
-    let mut note_angle = |id: u64, factor: f64| -> Result<(), StepImportError> {
-        match angle_scale {
+    let mut angle_scale: Option<(u64, Scale)> = None;
+    let mut note_angle = |id: u64, factor: Scale| -> Result<(), StepImportError> {
+        match &angle_scale {
             None => angle_scale = Some((id, factor)),
-            Some((_, prev)) if prev.to_bits() == factor.to_bits() => {}
+            Some((_, prev)) if *prev == factor => {}
             Some(_) => {
                 return Err(StepImportError::UnsupportedUnit {
                     id,
@@ -2962,10 +2962,10 @@ fn resolve_units_and_uncertainty(
                     for entry in as_list(id, list, expected)? {
                         let uid = as_ref(id, entry, expected)?;
                         let (raw, factor, unit_id) = r.uncertainty_value(id, uid)?;
-                        note_scale(unit_id, factor)?;
                         // Into kernel meters with every other length
                         // (D7's ε_in rule unchanged; 1.E-07 mm → 1e-10 m).
-                        let value = raw * factor;
+                        let value = factor.apply(raw);
+                        note_scale(unit_id, factor)?;
                         // A coincidence distance is a length no less
                         // than zero; a declaration that is negative or
                         // not finite is no budget any band reads.
@@ -3010,8 +3010,8 @@ fn resolve_units_and_uncertainty(
         }
     }
     Ok(UnitContext {
-        length_scale: length_scale.map_or(1.0, |(_, f)| f),
-        angle_scale: angle_scale.map_or(1.0, |(_, f)| f),
+        length_scale: length_scale.map_or_else(Scale::one, |(_, f)| f),
+        angle_scale: angle_scale.map_or_else(Scale::one, |(_, f)| f),
         uncertainty_m: uncertainty,
     })
 }
@@ -3023,7 +3023,7 @@ impl<'a> Resolver<'a> {
     /// meters, the unit's entity id)` — the caller scales, so ε_in
     /// lands in kernel meters like every other length, and a foreign
     /// unit can never silently rescale it.
-    fn uncertainty_value(&self, from: u64, id: u64) -> Result<(f64, f64, u64), StepImportError> {
+    fn uncertainty_value(&self, from: u64, id: u64) -> Result<(f64, Scale, u64), StepImportError> {
         let args = self.simple(from, id, "UNCERTAINTY_MEASURE_WITH_UNIT")?;
         let expected = "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(value), #unit, \
                         name, description)";
@@ -3544,8 +3544,8 @@ fn resolve_shape(
 fn unit_pass_resolver(file: &StepFile, tol: geom_core::Tol) -> Resolver<'_> {
     Resolver {
         file,
-        length_scale: 1.0,
-        angle_scale: 1.0,
+        length_scale: Scale::one(),
+        angle_scale: Scale::one(),
         budget: interpret::FileBand::unread(),
         tol,
         next_id: std::cell::Cell::new(0),

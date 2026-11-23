@@ -278,7 +278,7 @@ pub(crate) enum Refused {
 /// reported.
 pub(crate) fn read<T: serde::de::DeserializeOwned>(
     body: &str,
-) -> (Result<T, Refused>, Option<DimensionError>) {
+) -> (Result<T, Refused>, Option<super::refusal::Recorded>) {
     let mut kept = BTreeSet::new();
     let mut pruned: Option<Pruned> = None;
     loop {

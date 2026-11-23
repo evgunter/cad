@@ -310,7 +310,7 @@ fn a_re_target_admits_and_reports_a_stranded_reader() {
     let (mut session, reader) = with(
         &session,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(c1)),
                 BodyRead::plain(Operand::Node(c2)),
             ]),

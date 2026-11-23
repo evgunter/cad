@@ -134,7 +134,7 @@ fn a_body_and_its_mirror_across_its_own_face_union_to_one_solid() {
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 Operand::output(plate, 0).into(),
                 Operand::output(mirror, 0).into(),
             ]),
@@ -167,7 +167,7 @@ fn a_mirrors_image_and_a_union_it_leads_are_in_the_sources_space() {
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::output(mirror, 0).into(),
                 Operand::output(plate, 0).into(),
             ]),
@@ -342,7 +342,7 @@ fn a_body_and_its_mirror_side_by_side_name_every_entity_apart() {
     let (doc, both) = fixture::insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 Operand::output(plate, 0).into(),
                 Operand::output(mirror, 0).into(),
             ]),
@@ -441,7 +441,7 @@ fn symmetric(
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 Operand::output(source, 0).into(),
                 Operand::output(mirror, 0).into(),
             ]),
@@ -744,7 +744,7 @@ fn the_symmetric_plate_corpus_documents_seam_is_its_face_read_twice() {
     else {
         panic!("the union")
     };
-    let plate = doc.operation_of(members[0].read).expect("the plate");
+    let plate = doc.operation_of(members[0].read().read).expect("the plate");
     let t = 0.5;
     let wall_corners = [
         [0.0, 0.0, 0.0],

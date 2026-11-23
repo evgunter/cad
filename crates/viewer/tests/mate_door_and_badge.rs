@@ -148,7 +148,7 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
     doc = crate::fixture::insert(
         doc,
         pncad::document::Node::Assemble {
-            members: pncad::document::Bodies::Spelled(three),
+            members: pncad::document::Bodies::spelled(three),
         },
     )
     .0;
