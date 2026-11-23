@@ -110,6 +110,20 @@ served `classify_dihedral` in `census::link_fuzz` and
 `census::pierce_fuzz::tilted`, which draw their bodies from a fresh seed on
 each run.
 
+On sweep at 1e-9:
+- **test outcomes changed: 0 of 3,825**;
+- refused: 80 in both runs;
+- straddles: 30 in both;
+- moves against the middle: 37 in both.
+
+The design run made 650 fewer verdicts of 5.58 M, all served:
+- `sphere_face_flips_are_refused` draws its flips from a fresh seed;
+- `the_door_reads_seam_regions_as_tier_3_does` and unnamed threads have no
+  inverted reads, so the rule never acted there. The recorder's maps are
+  thread-local and `props.rs:3069` runs a rayon pool, so its count varies
+  between runs of the same semantics: 12,179, 12,742 and 12,512 in three
+  runs.
+
 ## The `Dual` lane's NaN derivative
 
 `gram_top` (`crates/geom/src/cover.rs:482-485`) takes `sqrt(0)` on every
