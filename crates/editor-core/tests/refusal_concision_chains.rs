@@ -996,7 +996,7 @@ mod kernel {
             Band, ConeCornerEscalated, ConeCornerUnread, WedgeEscalated, Undescribed,
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
-            NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
+            UnplacedHole, NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, EdgeJoin, Merge,
         ];
     }
@@ -2908,6 +2908,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 face,
                 diag: Some(diag()),
             },
+        ),
+        (
+            "UnplacedHole(outline)",
+            F::UnplacedHole(topo::splitting::UnplacedHole {
+                hole: face,
+                beside: None,
+            }),
+        ),
+        (
+            "UnplacedHole(beside)",
+            F::UnplacedHole(topo::splitting::UnplacedHole {
+                hole: face,
+                beside: Some(face),
+            }),
         ),
         (
             "NestingContradiction",
