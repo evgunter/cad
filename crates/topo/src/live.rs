@@ -274,6 +274,25 @@ pub(crate) fn dangling_link(
     )
 }
 
+/// The miss of a surface a certified record names (an edge's
+/// description, a chart image): certification refuses a pending key, so
+/// either miss is a torn body (D2 row 4), and the panic names which.
+#[track_caller]
+pub(crate) fn described_link(
+    holder: impl core::fmt::Display,
+    link: &str,
+    key: crate::geometry::SurfaceKey,
+    miss: SurfaceMiss,
+) -> ! {
+    match miss {
+        SurfaceMiss::Stale => dangling_link(holder, link, GeomRef::Surface(key)),
+        SurfaceMiss::Pending => unreachable!(
+            "{holder}'s {link} names {key:?}, which is pending: certification refuses a \
+             pending key"
+        ),
+    }
+}
+
 /// [`Link`]: `holder`'s field `link`.
 pub(crate) const fn link(holder: EntityId, link: &'static str) -> Link {
     Link { holder, link }

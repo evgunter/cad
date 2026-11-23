@@ -2012,6 +2012,10 @@ fn walls_inside<T: Decide>(
         Err(crate::face_normal::FootNormalError::NoFoot { .. }) => {
             return Err(refused(EdgeInFaceGap::NoNormal));
         }
+        Err(crate::face_normal::FootNormalError::Pending) => unreachable!(
+            "{f:?} is pending in a boolean operand: operands are finished bodies, and tier 3 \
+             refuses a pending face at rest"
+        ),
     };
     let floor_flat =
         super::sectors::FaceShape::of_face(body, f, "a face an edge lies in lost its carrier")?

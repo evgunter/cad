@@ -127,8 +127,8 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// supports); the module docs list the in-crate callers.
 ///
 /// `None` for a non-planar face (the caller falls through to its own
-/// curved arms, or has none), and for a face key that no longer
-/// resolves.
+/// curved arms, or has none), for a face with no surface yet, and for a
+/// face key that no longer resolves.
 ///
 /// # Panics
 ///
@@ -152,8 +152,9 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// a material side off the sign (`side_code`, a containment ray's
 /// `d·n̂`) are why the fold is here.
 ///
-/// `None` for a face that is not a plane, and for a `face` key that
-/// does not resolve: a public door hands this its own caller's key.
+/// `None` for a face that is not a plane, for a face with no surface
+/// yet, and for a `face` key that does not resolve: a public door hands
+/// this its own caller's key.
 ///
 /// # Panics
 ///
@@ -194,8 +195,9 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// material side whatever the kind.
 ///
 /// `None` for a carrier with no closed description here (a spindle, a
-/// NURBS patch, a fitted stand-in), and for a `face` key that does not
-/// resolve: a public door hands this its own caller's key.
+/// NURBS patch, a fitted stand-in), for a face with no surface yet, and
+/// for a `face` key that does not resolve: a public door hands this its
+/// own caller's key.
 ///
 /// # Panics
 ///
@@ -565,8 +567,8 @@ fn ring_half(
 ///
 /// [`NormalAtError`] — an in-band margin, a torus outside the ring
 /// convention, a point definitely off the surface, or a cone's apex. A
-/// face key that
-/// no longer resolves is `Ok(None)`.
+/// face key that no longer resolves, a spline face and a face with no
+/// surface yet are `Ok(None)`.
 ///
 /// # Panics
 ///
@@ -580,7 +582,8 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     let Some(f) = body.face(face) else {
         return Ok(None);
     };
-    // A pending face has no arm at a point, as a spline chart has none.
+    // A pending face has no arm at a point, as a spline chart has none:
+    // a caller whose refusal names the cause reads the slot apart.
     let Ok(surface) = f.surface() else {
         return Ok(None);
     };
@@ -711,7 +714,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => Ok(()),
         Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
     };
-    let surface = f.surface().map_err(|_| FootNormalError::Unread)?;
+    let surface = f.surface().map_err(|_| FootNormalError::Pending)?;
     match *surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
@@ -775,6 +778,8 @@ pub(crate) enum FootNormalError {
     },
     /// The carrier is one this door reads no foot on.
     Unread,
+    /// The face has no surface yet ([`crate::SurfaceMiss::Pending`]).
+    Pending,
 }
 
 /// A spline face's OUTWARD normal **at the chart point `uv` a point

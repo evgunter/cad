@@ -103,11 +103,9 @@ pub(super) fn spline_face_placement<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
-    let view = body.proven_face(face);
-    // A pending face has no trim to read.
-    let Ok(linked) = view.surface() else {
-        return Ok((CurvedPlacement::Trim(None), None));
-    };
+    // Reached on a face the caller read as a spline chart (the curved
+    // door) or a finished body's (the boolean's slit).
+    let linked = body.proven_face(face).expect_described();
     let Some(chart) = linked.spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
@@ -150,11 +148,8 @@ pub(super) fn spline_chart_placement<T: Decide>(
     (u, v): (f64, f64),
     band: Band,
 ) -> Result<Option<FaceContainment>, ContainError> {
-    let view = body.proven_face(face);
-    // A pending face has no trim to read.
-    let Ok(linked) = view.surface() else {
-        return Ok(None);
-    };
+    // Reached on a boolean operand's spline face: a finished body.
+    let linked = body.proven_face(face).expect_described();
     let Some(chart) = linked.spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
@@ -218,10 +213,6 @@ fn read_capped<T: Decide>(
     band: Band,
     caps: Caps,
 ) -> Reading {
-    let view = body.proven_face(face);
-    if view.surface().is_err() {
-        return Reading::Unsettled(None);
-    }
     let on_chart = chart.value_view();
     let Some(cells) = bezier_cells(&on_chart) else {
         return Reading::Unsettled(None);

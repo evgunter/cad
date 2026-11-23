@@ -2912,7 +2912,7 @@ fn plan_edge<'s, T: Decide>(
     let neighbour_section = |other: SurfaceKey| -> Result<(), ReplaceFaceError<T>> {
         let other_surface = body
             .get_surface(other)
-            .unwrap_or_else(|miss| described_link(edge, other, miss));
+            .unwrap_or_else(|miss| crate::live::described_link(EntityId::Edge(edge), "description", other, miss));
         let other_kind = other_surface.kind();
         let kind = new_surface.kind();
         if !geom_brep::intersect::route(kind, other_kind).implemented {
@@ -3030,7 +3030,7 @@ fn plan_edge<'s, T: Decide>(
             neighbour_section(other)?;
             let held = body
                 .get_surface(other)
-                .unwrap_or_else(|miss| described_link(edge, other, miss));
+                .unwrap_or_else(|miss| crate::live::described_link(EntityId::Edge(edge), "description", other, miss));
             crate::offset_restate::re_ask_on_pair(
                 edge,
                 [(old_key, new_surface), (other, held)],
@@ -3120,7 +3120,7 @@ fn plan_edge<'s, T: Decide>(
             neighbour_section(c.surface)?;
             let held = body
                 .get_surface(c.surface)
-                .unwrap_or_else(|miss| described_link(edge, c.surface, miss));
+                .unwrap_or_else(|miss| crate::live::described_link(EntityId::Edge(edge), "description", c.surface, miss));
             crate::offset_restate::re_ask_on_pair(
                 edge,
                 [(old_key, new_surface), (c.surface, held)],
@@ -3182,21 +3182,6 @@ fn held_surface<T: Real>(
             };
             Err(ReplaceFaceError::PlaceholderSurface { face })
         }
-    }
-}
-
-/// The miss of a surface an edge's certified description names: a
-/// certified description names described surfaces only, so either miss
-/// is a torn body (D2 row 4).
-fn described_link(edge: EdgeKey, key: SurfaceKey, miss: SurfaceMiss) -> ! {
-    match miss {
-        SurfaceMiss::Stale => {
-            dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(key))
-        }
-        SurfaceMiss::Pending => unreachable!(
-            "{edge:?}'s description names {key:?}, which is pending: certification refuses \
-             a pending key"
-        ),
     }
 }
 
@@ -4134,7 +4119,7 @@ fn plan_reanchors<T: Decide>(
                 let [ka, kb] = pair.keys();
                 let surface = |k| {
                     body.get_surface(k)
-                        .unwrap_or_else(|miss| described_link(edge, k, miss))
+                        .unwrap_or_else(|miss| crate::live::described_link(EntityId::Edge(edge), "description", k, miss))
                 };
                 crate::offset_restate::re_ask_on_pair(
                     edge,

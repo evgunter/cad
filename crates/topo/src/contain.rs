@@ -952,10 +952,9 @@ fn curved_interior_placement<T: Decide>(
     cut: Option<&[usize]>,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
     let view = body.proven_face(face);
-    // A pending face has no trim to read.
-    let Ok(surface) = view.surface() else {
-        return Ok((CurvedPlacement::Trim(None), None));
-    };
+    let surface = view.surface().map_err(|_| {
+        ContainError::Curved(crate::solid_contain::PointInSolidError::PendingFace { face })
+    })?;
     let analytic = match *surface {
         geom::Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());

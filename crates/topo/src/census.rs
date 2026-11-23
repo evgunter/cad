@@ -9756,6 +9756,7 @@ fn foot_normal<T: Decide>(
             Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
         }
         Err(FootNormalError::Unread) => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+        Err(FootNormalError::Pending) => Err(TouchUnread::PendingFace),
     }
 }
 
