@@ -7479,6 +7479,49 @@ fn tube_corners<T: Real>(tube: &[([f64; 3], [f64; 3])]) -> Vec<[Point3<T>; 8]> {
         .collect()
 }
 
+/// **The side every point of `points` takes**, read by `read`: `Zero`
+/// where two decide different sides, or where `points` is empty. Every
+/// point is needed, so the first reading that refuses is the answer's.
+fn common_side<T: Real, E>(
+    points: &[Point3<T>],
+    mut read: impl FnMut(Point3<T>) -> Result<Sign, E>,
+) -> Result<Sign, E> {
+    let Some((&first, rest)) = points.split_first() else {
+        return Ok(Sign::Zero);
+    };
+    let first = read(first)?;
+    for &q in rest {
+        if read(q)? != first {
+            return Ok(Sign::Zero);
+        }
+    }
+    Ok(first)
+}
+
+/// **Whether some piece of a tube lies wholly on `side`**, each corner
+/// read by `read`: a search over the pieces through the ladder
+/// ([`geom_core::ladder::climb`]), a piece whose corner `read` does not
+/// decide kept, and refused only where no piece answers.
+///
+/// # Errors
+///
+/// The kept reading, where no piece answers and one was undecided.
+fn some_piece_wholly<T: Real>(
+    pieces: &[[Point3<T>; 8]],
+    side: Sign,
+    read: impl Fn(Point3<T>) -> Result<Sign, Indeterminate>,
+) -> Result<bool, Indeterminate> {
+    use geom_core::ladder::{Answering, Rung, climb};
+    let piece = |corners: &[Point3<T>; 8]| match common_side(corners, &read) {
+        Ok(s) if s == side => Rung::Answers(()),
+        Ok(_) => Rung::Passes,
+        Err(diag) => Rung::InBand(diag),
+    };
+    climb(Answering::First, pieces, piece)
+        .into_reading()
+        .map(|answer| answer.is_some())
+}
+
 /// Applies the scan's cut-ins ([`SphereCutIn`]): each face is cut along
 /// the meridian half-plane of its sphere's chart that holds the section
 /// circle's centre direction.
@@ -7547,9 +7590,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
         let toward = |d: Vec3<T>| axis.cross(d);
-        // Re-read once, not a minimum (`scripts/gates/argmin-folds.tsv`,
-        // recompute): a foot on the axis takes the circle's own point
-        // instead, and no two candidates are compared.
+        // Re-read once, not a minimum: a foot on the axis takes the
+        // circle's own point instead, and no two candidates are compared.
         let mut k = match cut.section {
             CutSection::Circle { foot, .. } => toward(foot - cut.center),
             CutSection::Loop { toward: d, .. } => toward(d),
@@ -7616,35 +7658,24 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 // The tube in the half-plane holds the loop there, off the
                 // poles; a piece wholly on each side of the meridian's
                 // plane puts a point of the loop on that side.
-                let side_of =
-                    |by: Vec3<T>, q: &[Point3<T>; 8], name| -> Result<Sign, BooleanError> {
-                        let mut signs = q
-                            .iter()
-                            .map(|&q| sign_as(name, Margin::of(by.dot(q - cut.center))));
-                        let first = signs.next().transpose()?.unwrap_or(Sign::Zero);
-                        for sign in signs {
-                            if sign? != first {
-                                return Ok(Sign::Zero);
-                            }
-                        }
-                        Ok(first)
-                    };
-                let (mut above, mut below) = (false, false);
-                for q in &tube_corners(tube) {
-                    if side_of(h, q, "bool_sphere_cut_loop_half")? != Sign::Positive {
+                let pieces = tube_corners(tube);
+                let along = |by: Vec3<T>, name| {
+                    move |q: Point3<T>| decide(name, Margin::of(by.dot(q - cut.center)), band)
+                };
+                let half = along(h, "bool_sphere_cut_loop_half");
+                for q in &pieces {
+                    if common_side(q, |q| half(q).map_err(esc))? != Sign::Positive {
                         return Err(refuse_at(
                             cut.face,
                             "the section loop is not certified inside one half of a meridian \
                              plane of the face's chart",
                         ));
                     }
-                    match side_of(k, q, "bool_sphere_cut_loop_side")? {
-                        Sign::Positive => above = true,
-                        Sign::Negative => below = true,
-                        Sign::Zero => {}
-                    }
                 }
-                if !(above && below) {
+                let side = along(k, "bool_sphere_cut_loop_side");
+                if !(some_piece_wholly(&pieces, Sign::Positive, side).map_err(esc)?
+                    && some_piece_wholly(&pieces, Sign::Negative, side).map_err(esc)?)
+                {
                     return Err(refuse_at(
                         cut.face,
                         "the section loop is not certified to cross the meridian the face \
@@ -7750,43 +7781,44 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         };
         // A boundary hit's place against the section: `Negative` below
         // it, `Positive` above it, anything else between.
-        let place: Box<dyn Fn((T, T)) -> Result<Sign, BooleanError> + '_> = match crossings {
+        // What a boundary hit is placed against: the circle's two
+        // crossings, low first, or every corner of the loop's tube.
+        enum Bounds<T: Real> {
+            Circle([(T, T); 2]),
+            Tube(Vec<Point3<T>>),
+        }
+        let bounds = match crossings {
             Some(crossings) => {
                 let mut circle = crossings.map(latitude);
                 if above(circle[0], circle[1])? == Sign::Positive {
                     circle.swap(0, 1);
                 }
-                let [s1, s2] = circle;
-                Box::new(move |s| {
-                    Ok(match (above(s, s1)?, above(s, s2)?) {
-                        (Sign::Negative, _) => Sign::Negative,
-                        (_, Sign::Positive) => Sign::Positive,
-                        _ => Sign::Zero,
-                    })
-                })
+                Bounds::Circle(circle)
             }
-            // Along the half-meridian height orders latitude, and the
-            // loop's heights lie within its tube's.
             None => {
                 let CutSection::Loop { tube, .. } = &cut.section else {
                     return Err(corrupt("cut-in: a circle with no crossings"));
                 };
-                let corners: Vec<Point3<T>> = tube_corners(tube).into_iter().flatten().collect();
-                Box::new(move |s: (T, T)| {
-                    let mut signs = corners.iter().map(|&q| {
-                        sign_as(
-                            "bool_sphere_cut_loop_height",
-                            Margin::of(s.1 - axis.dot(q - cut.center)),
-                        )
-                    });
-                    let first = signs.next().transpose()?.unwrap_or(Sign::Zero);
-                    for sign in signs {
-                        if sign? != first {
-                            return Ok(Sign::Zero);
-                        }
-                    }
-                    Ok(first)
-                })
+                Bounds::Tube(tube_corners(tube).into_iter().flatten().collect())
+            }
+        };
+        // A boundary hit's place against the section: `Negative` below
+        // it, `Positive` above it, `Zero` between. Along the half-meridian
+        // height orders latitude, and a loop's heights lie within its
+        // tube's.
+        let place = |s: (T, T)| -> Result<Sign, BooleanError> {
+            match &bounds {
+                Bounds::Circle([s1, s2]) => Ok(match (above(s, *s1)?, above(s, *s2)?) {
+                    (Sign::Negative, _) => Sign::Negative,
+                    (_, Sign::Positive) => Sign::Positive,
+                    _ => Sign::Zero,
+                }),
+                Bounds::Tube(corners) => common_side(corners, |q| {
+                    sign_as(
+                        "bool_sphere_cut_loop_height",
+                        Margin::of(s.1 - axis.dot(q - cut.center)),
+                    )
+                }),
             }
         };
         // The face's boundary hits on the half-meridian.

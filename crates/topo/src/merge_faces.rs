@@ -2990,9 +2990,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // drops theirs until the result is minted whole, after the merge:
         // such a face is read off a copy with its own rows minted, which
         // read its loops in whichever roles they stand.
-        let unminted = core::iter::once(record.outer)
-            .chain(record.rings.iter().copied())
-            .flat_map(|l| crate::pcurves::loop_rows(self, l))
+        let unminted = self
+            .proven_face(face)
+            .loops()
+            .flat_map(|(l, _, _)| crate::pcurves::loop_rows(self, l))
             .any(|h| self.pcurve(h).is_none() || self.joint(h).is_none());
         let minted;
         let read = if unminted {
