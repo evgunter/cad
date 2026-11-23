@@ -2,13 +2,14 @@
 id: nurbs-curve-has-no-net-state-door
 kind: issue
 title: NurbsCurve has no net_state twin, so curve-side placeholder-or-described reads were never swept for a poisoned net
-status: review
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: M
 pr: 7433
 branch: walks/curve-placeholder
 refs: [described-net-two-state-reads-hand-a-poisoned-net-the-described-arm, transform-rigid-maps-a-poisoned-net-into-the-placeholder]
+closed: 2026-11-23
 ---
 
 
@@ -66,3 +67,7 @@ described arm then fails loudly on a poisoned net is that consumer's
 question; the one already filed is `map_carrier`'s, on SHELL's
 `transform-rigid-maps-a-poisoned-net-into-the-placeholder`, whose curve
 half now has only its first problem (mapped instead of refused).
+
+## Closed
+
+2026-11-23: PR 7433 merged.
