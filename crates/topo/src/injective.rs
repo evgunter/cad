@@ -2755,8 +2755,8 @@ fn on_sphere(carrier: &Curve3<Interval>, centre: Point3<Interval>, radius: Inter
         return false;
     };
     let r2 = radius.powi(2);
-    let off = c.frame.origin() - centre;
-    let on_axis = off.cross(c.frame.axis());
+    let off = c.frame().origin() - centre;
+    let on_axis = off.cross(c.frame().axis());
     let rest = off.dot(off) + c.radius().powi(2) - r2;
     let small = |x: Interval, tol: f64| x.is_certified() && x.lo() >= -tol && x.hi() <= tol;
     let (length, area) = (few_ulps(radius.hi()), few_ulps(r2.hi()));
@@ -2962,10 +2962,10 @@ fn pose_circles(
         }
         match out
             .iter_mut()
-            .find(|(_, a, _)| one_line(*a, c.frame.axis()))
+            .find(|(_, a, _)| one_line(*a, c.frame().axis()))
         {
             Some((es, ..)) => es.push(i),
-            None => out.push((vec![i], c.frame.axis(), c.frame.u_ref())),
+            None => out.push((vec![i], c.frame().axis(), c.frame().u_ref())),
         }
     }
     out
@@ -17345,10 +17345,10 @@ mod posed_rows {
         let c = *c.as_circle().expect("a circle");
         b.edges[1].arc = Some((
             Curve3::circle(
-                c.frame.origin(),
-                c.frame.axis(),
+                c.frame().origin(),
+                c.frame().axis(),
                 c.radius() + iv0(1e-9),
-                c.frame.u_ref(),
+                c.frame().u_ref(),
             ),
             span,
         ));
