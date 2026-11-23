@@ -71,7 +71,7 @@ fn kiss_part(label: &str) -> ProfileDoc {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     crate::fixture::place(doc, union).0

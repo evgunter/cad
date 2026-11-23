@@ -89,9 +89,8 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
         NodeKindWanted::Instances => {
             held.is_some()
                 && doc
-                    .node_reach(node)
-                    .chain()
-                    .is_some_and(|chain| !chain.is_empty())
+                    .read_of_node(node)
+                    .is_some_and(|var| doc.family_through_sources(var))
         }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
@@ -114,11 +113,8 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
     };
     match wanted {
         NodeKindWanted::Body => holds_body(doc, var),
-        NodeKindWanted::Instances => var.is_some_and(|var| {
-            doc.var_reach(var)
-                .chain()
-                .is_some_and(|chain| !chain.is_empty())
-        }),
+        // A member is read of a family a binder yields.
+        NodeKindWanted::Instances => var.is_some_and(|var| doc.family_through_sources(var)),
         NodeKindWanted::Profile => false,
     }
 }
@@ -126,9 +122,15 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
 /// **Whether `var` is a live `Body` variable**, by the edit door's own
 /// slot check (`SlotKind::admits`) — the one spelling of the body
 /// gate's kind test.
+///
+/// A family a binder yields is no one body (D10 `[repetition]`): the
+/// door refuses it at a seat for one, so the gate does too.
 fn holds_body(doc: &Doc<ProfileProgram>, var: Option<VarId>) -> bool {
-    var.and_then(|var| doc.var(var))
-        .is_some_and(|var| SlotKind::Is(VarKind::Body).admits(var))
+    var.is_some_and(|id| {
+        doc.var(id)
+            .is_some_and(|var| SlotKind::Is(VarKind::Body).admits(var))
+            && !doc.family_through_sources(id)
+    })
 }
 
 /// **Which seat kind a node is by its kind alone**, or `None` for a

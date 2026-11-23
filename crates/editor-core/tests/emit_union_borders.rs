@@ -388,7 +388,7 @@ impl PairOp {
     fn node(self, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
         match self {
             Self::Union => Node::Union {
-                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+                members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
             },
             Self::Subtract => Node::Subtract {
                 from: a.into(),
@@ -742,10 +742,10 @@ fn the_corner_boss_logs_its_corner_alike_in_every_order_and_every_pair_boolean()
         ("union, the boss first", |u, p| PairOp::Union.node(u, p)),
         ("union, the plate first", |u, p| PairOp::Union.node(p, u)),
         ("intersect, the boss first", |u, p| Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![u.into(), p.into()]),
+            members: editor_core::Bodies::spelled(vec![u.into(), p.into()]),
         }),
         ("intersect, the plate first", |u, p| Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![p.into(), u.into()]),
+            members: editor_core::Bodies::spelled(vec![p.into(), u.into()]),
         }),
         ("the plate subtracted", |u, p| PairOp::Subtract.node(u, p)),
     ];
@@ -1521,7 +1521,7 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
     let (pair_doc, pair) = insert(
         doc.clone(),
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), cyl.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), cyl.into()]),
         },
     );
     // The edge pieces each table names by their ends: (seam head, the
@@ -1604,7 +1604,7 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
     let (pair_doc, pair) = insert(
         doc.clone(),
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), boss.into()]),
         },
     );
     let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
@@ -1716,7 +1716,7 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
     let (pair_doc, pair) = insert(
         doc.clone(),
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), boss.into()]),
         },
     );
     let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
@@ -1770,7 +1770,7 @@ fn sunk_boss_joined() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) 
     let (doc, joined) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), boss.into()]),
         },
     );
     (doc, plate, boss, joined)
@@ -1988,7 +1988,7 @@ fn intersect_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, Rec
     insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
+            members: editor_core::Bodies::spelled(members.iter().map(|&m| m.into()).collect()),
         },
     )
 }
@@ -2291,7 +2291,7 @@ fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
         insert(
             doc.clone(),
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![a.into(), bar.into()]),
+                members: editor_core::Bodies::spelled(vec![a.into(), bar.into()]),
             },
         ),
     )];
@@ -2438,7 +2438,7 @@ fn the_silhouette_letters_name_through_an_intersect_of_an_intersect() {
         let (doc, two) = insert(
             doc.clone(),
             Node::Intersect {
-                members: editor_core::Bodies::Spelled(if hs {
+                members: editor_core::Bodies::spelled(if hs {
                     vec![t.into(), h.into()]
                 } else {
                     vec![h.into(), t.into()]
@@ -2448,7 +2448,7 @@ fn the_silhouette_letters_name_through_an_intersect_of_an_intersect() {
         let (doc, three) = insert(
             doc,
             Node::Intersect {
-                members: editor_core::Bodies::Spelled(if cs {
+                members: editor_core::Bodies::spelled(if cs {
                     vec![two.into(), c.into()]
                 } else {
                     vec![c.into(), two.into()]
