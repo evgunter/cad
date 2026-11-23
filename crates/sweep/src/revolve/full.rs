@@ -454,12 +454,9 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         seed.vertex,
         segs,
         &qs,
-        // A placeholder has no chart normal to state a side against;
+        // A pending face has no chart normal to state a side against;
         // the bit is provisional, and the disc is killed by the zip.
-        FaceSurface::New {
-            surface: Surface::nurbs_placeholder(),
-            sense: true,
-        },
+        FaceSurface::Pending { sense: true },
         tol,
     )?;
     let hes = lamina.hes;
@@ -640,10 +637,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
         theta,
         Sign::Positive,
         // A transient disc, killed by the closure, like the lamina's.
-        FaceSurface::New {
-            surface: Surface::nurbs_placeholder(),
-            sense: true,
-        },
+        FaceSurface::Pending { sense: true },
         tol,
     )?;
     body.kfmrh(turn.near_face, seed.face)?;
@@ -1132,7 +1126,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
 /// The spec that puts a band-2 wall on its band-1 twin's surface with
 /// the twin's sense: one classified wall, one material side. The copy
 /// is the classification itself: band 1 minted the twin off the wire
-/// face's placeholder chart, where its classified bit is written as
+/// face's pending slot, where its classified bit is written as
 /// stated.
 #[track_caller]
 fn twin_wall<T: Decide>(body: &Body<T>, twin: FaceKey) -> FaceSurface<T> {

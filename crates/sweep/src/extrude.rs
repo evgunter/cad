@@ -44,8 +44,8 @@
 //!    under-determined ⇒ the conventional description at rest), in-band
 //!    ⇒ the typed sliver, stations that disagree ⇒ the typed
 //!    [`ExtrudeError::SmoothJoinRefuted`].
-//! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
-//!    placeholder since `mvfs`) is replaced by the translated loop's
+//! 5. **Top cap.** The seed face's surface (pending since
+//!    `mvfs`) is replaced by the translated loop's
 //!    cap plane.
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
