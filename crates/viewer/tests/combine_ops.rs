@@ -463,7 +463,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: a.into(),
-                tool: b.into(),
+                tool: vec![b.into()],
             },
         },
     );
@@ -472,7 +472,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: b.into(),
-                tool: a.into(),
+                tool: vec![a.into()],
             },
         },
     );
@@ -518,7 +518,7 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
             BooleanSpec::Intersect(vec![a.into(), a.into(), wrong.into()]),
             BooleanSpec::Subtract {
                 from: a.into(),
-                tool: wrong.into(),
+                tool: vec![wrong.into()],
             },
         ] {
             let refused = session.perform(SessionOp::AddBoolean { spec });
@@ -547,7 +547,7 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: a.into(),
-                tool: a.into(),
+                tool: vec![a.into()],
             },
         },
     );
@@ -2255,7 +2255,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: body.into(),
-                tool: plane.into(),
+                tool: vec![plane.into()],
             },
         },
         SessionOp::AddSplit {
@@ -2404,17 +2404,17 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     boolean.pick(session.committed_doc(), a);
     assert_eq!(boolean.picks(), [a, b, a], "every pick appends");
 
-    // The subtraction's two seats: the first is the body KEPT, and a
-    // further pick replaces the SECOND, so the kept body stays where it
-    // was put. Changing the operation re-seats the first two members.
+    // The subtraction's seats: the first is the body KEPT, and every
+    // further pick appends a tool, so the kept body stays where it was
+    // put. Changing the operation re-seats the members in pick order.
     boolean.set_operation(BooleanOp::Subtract);
     assert_eq!(
         boolean.picks(),
-        [a, b],
-        "re-seated from the first two members"
+        [a, b, a],
+        "re-seated: the first member kept, the rest tools"
     );
+    boolean.clear();
     boolean.pick(session.committed_doc(), a);
-    assert_eq!(boolean.picks(), [a, a]);
     boolean.pick(session.committed_doc(), b);
     assert!(matches!(
         boolean.op(),
@@ -2423,11 +2423,11 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
                 from: first,
                 tool: second,
             },
-        }) if first == BodyRead::from(a) && second == BodyRead::from(b)
+        }) if first == BodyRead::from(a) && second == [BodyRead::from(b)]
     ));
 
-    // Deleting the REMOVED body's node empties that seat and leaves
-    // the kept one where it is — no promotion between roles.
+    // Deleting the REMOVED body's node drops that tool and leaves the
+    // kept one where it is — no promotion between roles.
     assert!(
         session
             .perform(SessionOp::DeleteNode { node: b })
@@ -2452,8 +2452,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
             seat: Seat::SubtractTool
         })
     ));
-    // The next pick refills the empty seat rather than displacing the
-    // held one.
+    // The next pick is a tool rather than displacing the held body.
     boolean.pick(session.committed_doc(), a);
     assert_eq!(boolean.picks(), [a, a]);
 
@@ -2671,7 +2670,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             Seat::SubtractFrom | Seat::SubtractTool => SessionOp::AddBoolean {
                 spec: BooleanSpec::Subtract {
                     from: (filled(Seat::SubtractFrom)).into(),
-                    tool: (filled(Seat::SubtractTool)).into(),
+                    tool: vec![(filled(Seat::SubtractTool)).into()],
                 },
             },
             Seat::SplitTarget => SessionOp::AddSplit {
@@ -2740,9 +2739,9 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
 }
 
 /// The routing is NARROW: a pick both seats admit follows the plain
-/// rule, so a subtraction's operands still fill in order and a third
-/// pick still replaces the second — which is what makes `A ∖ B`'s
-/// kept body stay where it was put.
+/// rule, so a subtraction's operands fill in order and a third pick is
+/// a second tool — which is what makes `A ∖ B`'s kept body stay where
+/// it was put.
 ///
 /// The other half of the same narrowness: a pick NEITHER seat admits
 /// is not steered anywhere. It lands where the plain rule puts it and
@@ -2760,8 +2759,8 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     boolean.pick(doc, a);
     assert_eq!(
         boolean.picks(),
-        [a, a],
-        "two body seats: the third pick replaces the second, as before",
+        [a, b, a],
+        "the body kept, then a tool per pick",
     );
 
     // A profile is no body, so the split tool has no seat to steer it
@@ -4108,7 +4107,7 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: block.into(),
-                tool: channel.into(),
+                tool: vec![channel.into()],
             },
         },
     );
@@ -4178,7 +4177,7 @@ fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
         tool.spec().expect("seated"),
         BooleanSpec::Subtract {
             from: port(SplitHalf::Above),
-            tool: port(SplitHalf::Below),
+            tool: vec![port(SplitHalf::Below)],
         },
         "members to seats keep their ports"
     );
@@ -4202,7 +4201,7 @@ fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
         pending.spec().expect("both seated"),
         BooleanSpec::Subtract {
             from: port(SplitHalf::Below),
-            tool: body.into(),
+            tool: vec![body.into()],
         }
     );
     let outcome = session.perform(SessionOp::AddBoolean {
@@ -4487,7 +4486,7 @@ fn a_boolean_reads_the_pattern_member_picked_in_the_viewport() {
         tool.spec().expect("both seated"),
         BooleanSpec::Subtract {
             from: member(pattern, 1),
-            tool: inner.into(),
+            tool: vec![inner.into()],
         },
         "the body kept is the member the ray met"
     );
@@ -4541,7 +4540,7 @@ fn a_family_picked_in_the_tree_is_read_whole_until_a_member_is_chosen() {
         pair.spec().expect("both seated"),
         BooleanSpec::Subtract {
             from: member(pattern, 0),
-            tool: member(pattern, 1),
+            tool: vec![member(pattern, 1)],
         }
     );
 
@@ -4752,7 +4751,7 @@ fn a_grid_member_is_read_at_both_its_indices() {
         tool.spec().expect("both seated"),
         BooleanSpec::Subtract {
             from: viewer::combine::member_read(grid, &[1, 2]),
-            tool: inner.into(),
+            tool: vec![inner.into()],
         },
         "the member the ray met, at (i, j)"
     );
@@ -4779,7 +4778,7 @@ fn the_boolean_tools_member_reads_carry_across_the_operation() {
         tool.spec().expect("seated"),
         BooleanSpec::Subtract {
             from: member(pattern, 1),
-            tool: inner.into(),
+            tool: vec![inner.into()],
         },
         "members to seats keep the index"
     );
@@ -4820,11 +4819,11 @@ fn every_seat_reads_a_member_exactly_where_its_door_takes_one() {
             Seat::Member => Some(BooleanSpec::Union(vec![read, body.into()])),
             Seat::SubtractFrom => Some(BooleanSpec::Subtract {
                 from: read,
-                tool: body.into(),
+                tool: vec![body.into()],
             }),
             Seat::SubtractTool => Some(BooleanSpec::Subtract {
                 from: body.into(),
-                tool: read,
+                tool: vec![read],
             }),
             // Each of these ops holds an `Operand`, which has no member.
             Seat::SplitTarget
@@ -4959,13 +4958,13 @@ fn a_transform_of_a_pattern_seats_where_evaluation_takes_it() {
             Seat::SubtractFrom => SessionOp::AddBoolean {
                 spec: BooleanSpec::Subtract {
                     from: read,
-                    tool: body.into(),
+                    tool: vec![body.into()],
                 },
             },
             Seat::SubtractTool => SessionOp::AddBoolean {
                 spec: BooleanSpec::Subtract {
                     from: body.into(),
-                    tool: read,
+                    tool: vec![read],
                 },
             },
             Seat::SplitTarget => SessionOp::AddSplit {
