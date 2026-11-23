@@ -715,9 +715,10 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
     body.edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
-            let geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = *c.carrier() else {
+            let geom::Curve3::Circle(conic_k) = *c.carrier() else {
                 return None;
             };
+            let frame = conic_k.frame();
             let center = frame.origin();
             let radius = conic_k.radius();
             if !near(radius, rim_r) || !near(center.y, rim_y) {
@@ -1300,6 +1301,39 @@ pub fn loft_prism_sections() -> Vec<Section> {
 /// naming this.
 pub fn stacked_at(zs: &[f64]) -> Vec<SketchPlane<f64>> {
     zs.iter().map(|z| sketch_at(*z)).collect()
+}
+
+/// The pinned-corner fixtures' square's corners: 2×2, corner 0 at
+/// (−1, −1), counterclockwise.
+pub const PINNED_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
+/// **The pinned-corner fixtures' section**: [`PINNED_SQUARE`], one loop.
+#[must_use]
+pub fn pinned_square() -> Section {
+    use profile::RawLoop;
+    vec![ProfileLoop::polygon(
+        PINNED_SQUARE
+            .iter()
+            .map(|&(x, y)| geom_core::Point2::new(x, y)),
+    )]
+}
+
+/// The rotation by `angle` about the axis through `at` along `about`.
+#[must_use]
+pub fn turn_about(at: [f64; 3], about: [f64; 3], angle: f64) -> geom_core::Affine3<f64> {
+    geom_core::Affine3::rotation_about_axis(
+        geom_core::Point3::new(at[0], at[1], at[2]),
+        geom_core::Vec3::new(about[0], about[1], about[2]),
+        angle,
+    )
+}
+
+/// Each rigid map of `ms` as a section's placement, kept rigid at `tol`.
+#[must_use]
+pub fn rigid_places(ms: &[geom_core::Affine3<f64>], tol: geom_core::Tol) -> Vec<SketchPlane<f64>> {
+    ms.iter()
+        .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(m, tol)))
+        .collect()
 }
 
 /// **Fixture sections at a lane scalar**: each loop of `sections`
@@ -2041,7 +2075,7 @@ fn circle_arcs_where(
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
                 Some(geom::Curve3::Circle(c))
-                    if pick(c.frame.origin(), c.radius(), c.frame.axis())
+                    if pick(c.frame().origin(), c.radius(), c.frame().axis())
             )
         })
         .map(|(k, _)| k)
