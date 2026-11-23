@@ -2737,6 +2737,99 @@ fn harmonic_roots<T: Decide>(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod held_bound_rows {
+    use super::*;
+
+    /// **A slanted pair's floor holds the least `|H|` where `H` turns
+    /// inside the arc**: a unit circle whose residual `R` against the line
+    /// is `−sin θ` and whose height `H` over it is `3 + cos θ`, read at
+    /// `θ = π` with `e = 0.5`, so the arc `|R| ≤ e` is `θ ∈ [5π/6, 7π/6]`
+    /// and `H`'s trough, 2, lies inside it. The floor is the least `|H|`
+    /// on the arc, 2, not the ends' `3 − cos(π/6)`: red where the turn is
+    /// read at `H`'s crest (the review's N8), which certifies a pair
+    /// farther apart than it is.
+    #[test]
+    fn a_slants_floor_is_the_least_height_where_it_turns_inside_the_arc() {
+        let circle = geom::Circle::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, 3.0), Vec3::unit_x(), Vec3::unit_z()),
+            1.0,
+        );
+        let k: &dyn Conic<f64> = &circle;
+        let (o, m, v) = (Point3::origin(), Vec3::unit_y(), Vec3::unit_z());
+        let r = k.height_along(o, m);
+        let slant = Slant {
+            at: r.crest(),
+            r,
+            h: k.height_along(o, v),
+            e: 0.5,
+            zero: 1e-9,
+        };
+        let pi = core::f64::consts::PI;
+        let (floor, _) = slant.read(pi).unwrap();
+        let truth = (0..=2000)
+            .map(|i| {
+                let t = 5.0 * pi / 6.0 + (pi / 3.0) * f64::from(i) / 2000.0;
+                (3.0 + t.cos()).abs()
+            })
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            floor <= truth + 1e-12,
+            "the floor {floor} past the least |H| {truth}"
+        );
+        assert!(
+            floor >= truth - 1e-9,
+            "the floor {floor} far under the least |H| {truth}"
+        );
+    }
+
+    /// **The one-curve gap holds two conics' true gap, its centres'
+    /// rounding charged**: an ellipse held on its arc at `a = 1e9` and the
+    /// same numbers held at its derived centre. They are two loci, apart by
+    /// the derived centre's rounding, which the uncharged reading cannot
+    /// see (both centres read the same bits). The truth, `|S − a·û − c′|`,
+    /// is formed exactly ([`geom_core::exact::Expansion`]), `S` the stored
+    /// anchor, `û` the stored seam and `c′` the centre the twin stores.
+    /// Red where the gap's `rounding_charge` is dropped (the review's N7),
+    /// which calls the two one curve on less than it can see.
+    #[test]
+    fn the_one_curve_gap_holds_a_derived_centres_rounding() {
+        use geom_core::exact::Expansion;
+        let anchor = Point3::new(1.3, -0.7, 0.4);
+        let axis = Vec3::new(0.5522240050794545, 0.3110026418424273, 0.7735153553621528);
+        let toward = Vec3::new(0.6816514125372342, -0.702621773621506, -0.20414209516648582);
+        let mut worst = 0.0_f64;
+        for (a, b) in [(1e9, 3e8), (3.7e8, 2.9e8), (1e7, 4e6)] {
+            let arc = geom::Ellipse::anchored(anchor, axis, toward, a, b);
+            let held = geom::Ellipse::new(Conic::frame(&arc), a, b);
+            let (ka, kb): (&dyn Conic<f64>, &dyn Conic<f64>) = (&arc, &held);
+            let (s, u) = ([anchor.x, anchor.y, anchor.z], ka.u_ref());
+            let c = kb.center();
+            let gap = [(s[0], u.x, c.x), (s[1], u.y, c.y), (s[2], u.z, c.z)]
+                .iter()
+                .map(|&(s, u, c)| {
+                    let mut d = Expansion::product(a, u).negated();
+                    d.add(s);
+                    d.add(-c);
+                    d.components().iter().sum::<f64>().powi(2)
+                })
+                .sum::<f64>()
+                .sqrt();
+            worst = worst.max(gap);
+            let read = one_curve_gap(ka, kb).max(one_curve_gap(kb, ka));
+            assert!(
+                read >= gap,
+                "a = {a:e}: the one-curve gap {read:e} under the true {gap:e}"
+            );
+        }
+        assert!(
+            worst > 1e-9,
+            "no pose here tells the derived centre from the true one ({worst:e})"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod polish_rows {
     use super::*;
 
