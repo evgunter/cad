@@ -7493,6 +7493,89 @@ pub(crate) fn face_reach_in<T: Decide>(
         .map(|cover| cover.box_in(frame))
 }
 
+/// A face's world reach ([`face_reach`]): its low and high corners.
+type WorldReach<T> = (Point3<T>, Point3<T>);
+
+/// One face as [`faces_apart`] reads it: its body, its key, its world
+/// reach ([`face_reach`]) and whether it is planar.
+pub(crate) type PairFace<'b, T> = (&'b Body<T>, FaceKey, WorldReach<T>, bool);
+
+/// **Whether two faces, each of its own body and both in one frame, are
+/// certainly apart**: arm 1 of [`sweep_cross_solid_backstop`]'s reading,
+/// and the one the separation doors ([`crate::Separation`],
+/// [`crate::SolidSeparation`]) read behind a box overlap. In order:
+///
+/// - a gap between the two world reaches along a world axis;
+/// - a gap along a direction that turns with the pair
+///   ([`crate::separating::apart_by`]): the axis between the two faces'
+///   anchors, either face's own normal where it is planar, the offset
+///   from an axis or centre either face proposes to the other's nearest
+///   boundary segment point ([`depth_gap::toward`]), either face's arc
+///   chords' normals, and the line between the two carriers' axes or
+///   centres ([`depth_gap::across`]). Both faces' covers are read along
+///   the direction, a sphere face's with its pole-side cut along it
+///   ([`crate::cover::face_cover_toward`]);
+/// - a gap in depth about an axis, a centre or a circle either face
+///   proposes ([`depth_gap::apart_in_depth`]), which clears a nested
+///   pair no direction separates;
+/// - for two planar faces, a gap where one meets the other's plane
+///   ([`in_plane::apart_in_plane`]).
+///
+/// Each gap is less both faces' [`sweep_pad`] and clears only where it
+/// is decided definitely positive at this lane's scalar. Each cover
+/// holds its face's locus, so any one of them proves the loci disjoint.
+/// Every reading is of the two faces alone, so the verdict does not
+/// depend on how the pair is turned, save that a world-axis gap may
+/// clear a pair first.
+pub(crate) fn faces_apart<T: Decide>(
+    (x, fa, ra, a_planar): PairFace<'_, T>,
+    (y, fb, rb, b_planar): PairFace<'_, T>,
+    band: Band,
+) -> bool {
+    use crate::separating::{Item, apart_by, planar_axis};
+    let ((alo, ahi), (blo, bhi)) = (ra, rb);
+    let world = [
+        (alo.x, ahi.x, blo.x, bhi.x),
+        (alo.y, ahi.y, blo.y, bhi.y),
+        (alo.z, ahi.z, blo.z, bhi.z),
+    ]
+    .into_iter()
+    .any(|(alo, ahi, blo, bhi)| {
+        let gap = (blo - ahi).max(alo - bhi);
+        matches!(
+            decide("census_backstop_gap", Margin::of(gap), band),
+            Ok(Sign::Positive)
+        )
+    });
+    if world {
+        return true;
+    }
+    // Both faces are read once for their depths, which aim the offset
+    // directions and bound the depth gap.
+    let reads = depth_gap::face_read(x, fa, band).zip(depth_gap::face_read(y, fb, band));
+    let proposed = reads.as_ref().map_or_else(Vec::new, |(rx, ry)| {
+        let mut dirs = depth_gap::toward(rx, ry, band);
+        dirs.extend(depth_gap::across(rx, ry, band));
+        dirs
+    });
+    let mut axes: Vec<_> = [(x, fa, ra), (y, fb, rb)]
+        .into_iter()
+        .filter_map(|(body, f, r)| planar_axis(body, f, || Some(r), band))
+        .collect();
+    axes.extend(proposed.iter().copied());
+    apart_by(
+        (x, Item::Face(fa)),
+        (y, Item::Face(fb)),
+        &axes,
+        sweep_pad(band),
+        band,
+        &|body, f, aim| crate::cover::face_cover_toward(body, f, band, aim).ok(),
+    ) || reads
+        .as_ref()
+        .is_some_and(|(rx, ry)| depth_gap::apart_in_depth((x, fa, rx), (y, fb, ry), band))
+        || (a_planar && b_planar && in_plane::apart_in_plane((x, fa), (y, fb), &proposed, band))
+}
+
 /// The touch lane's recourse for a designed contact it cannot read yet.
 macro_rules! designed_contact {
     () => {
@@ -9967,89 +10050,6 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Option<crate::props::ShellRole> {
     crate::props::shell_role(body, shell, band, tol, T::quad_lane()).ok()
-}
-
-/// A face's world reach ([`face_reach`]): its low and high corners.
-type WorldReach<T> = (Point3<T>, Point3<T>);
-
-/// One face as [`faces_apart`] reads it: its body, its key, its world
-/// reach ([`face_reach`]) and whether it is planar.
-pub(crate) type PairFace<'b, T> = (&'b Body<T>, FaceKey, WorldReach<T>, bool);
-
-/// **Whether two faces, each of its own body and both in one frame, are
-/// certainly apart**: arm 1 of [`sweep_cross_solid_backstop`]'s reading,
-/// and the one the separation doors ([`crate::Separation`],
-/// [`crate::SolidSeparation`]) read behind a box overlap. In order:
-///
-/// - a gap between the two world reaches along a world axis;
-/// - a gap along a direction that turns with the pair
-///   ([`crate::separating::apart_by`]): the axis between the two faces'
-///   anchors, either face's own normal where it is planar, the offset
-///   from an axis or centre either face proposes to the other's nearest
-///   boundary segment point ([`depth_gap::toward`]), either face's arc
-///   chords' normals, and the line between the two carriers' axes or
-///   centres ([`depth_gap::across`]). Both faces' covers are read along
-///   the direction, a sphere face's with its pole-side cut along it
-///   ([`crate::cover::face_cover_toward`]);
-/// - a gap in depth about an axis, a centre or a circle either face
-///   proposes ([`depth_gap::apart_in_depth`]), which clears a nested
-///   pair no direction separates;
-/// - for two planar faces, a gap where one meets the other's plane
-///   ([`in_plane::apart_in_plane`]).
-///
-/// Each gap is less both faces' [`sweep_pad`] and clears only where it
-/// is decided definitely positive at this lane's scalar. Each cover
-/// holds its face's locus, so any one of them proves the loci disjoint.
-/// Every reading is of the two faces alone, so the verdict does not
-/// depend on how the pair is turned, save that a world-axis gap may
-/// clear a pair first.
-pub(crate) fn faces_apart<T: Decide>(
-    (x, fa, ra, a_planar): PairFace<'_, T>,
-    (y, fb, rb, b_planar): PairFace<'_, T>,
-    band: Band,
-) -> bool {
-    use crate::separating::{Item, apart_by, planar_axis};
-    let ((alo, ahi), (blo, bhi)) = (ra, rb);
-    let world = [
-        (alo.x, ahi.x, blo.x, bhi.x),
-        (alo.y, ahi.y, blo.y, bhi.y),
-        (alo.z, ahi.z, blo.z, bhi.z),
-    ]
-    .into_iter()
-    .any(|(alo, ahi, blo, bhi)| {
-        let gap = (blo - ahi).max(alo - bhi);
-        matches!(
-            decide("census_backstop_gap", Margin::of(gap), band),
-            Ok(Sign::Positive)
-        )
-    });
-    if world {
-        return true;
-    }
-    // Both faces are read once for their depths, which aim the offset
-    // directions and bound the depth gap.
-    let reads = depth_gap::face_read(x, fa, band).zip(depth_gap::face_read(y, fb, band));
-    let proposed = reads.as_ref().map_or_else(Vec::new, |(rx, ry)| {
-        let mut dirs = depth_gap::toward(rx, ry, band);
-        dirs.extend(depth_gap::across(rx, ry, band));
-        dirs
-    });
-    let mut axes: Vec<_> = [(x, fa, ra), (y, fb, rb)]
-        .into_iter()
-        .filter_map(|(body, f, r)| planar_axis(body, f, || Some(r), band))
-        .collect();
-    axes.extend(proposed.iter().copied());
-    apart_by(
-        (x, Item::Face(fa)),
-        (y, Item::Face(fb)),
-        &axes,
-        sweep_pad(band),
-        band,
-        &|body, f, aim| crate::cover::face_cover_toward(body, f, band, aim).ok(),
-    ) || reads
-        .as_ref()
-        .is_some_and(|(rx, ry)| depth_gap::apart_in_depth((x, fa, rx), (y, fb, ry), band))
-        || (a_planar && b_planar && in_plane::apart_in_plane((x, fa), (y, fb), &proposed, band))
 }
 
 /// What the material test of one ordering read: every vertex of
