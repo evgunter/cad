@@ -664,3 +664,13 @@ body has the reasons):
 - 2026-11-23 10:08 — **New main red, not DOCTAIL's.** Ten
   `revalue_corpus` rows fail since PR 7411 (`germ/plane-pose-far-frame`),
   bisected by the 7396 lane. Filed on GREEN, with a line on GERM's log.
+- 2026-11-23 10:30 — **7396 merged** (`f282080`), on local evidence plus
+  a clean delta review (no MAJOR). The tangency prover now sees through
+  a placement and a `Through` frame at every tilt, zero included, so the
+  P1 is closed. The die tour proves 29 of 42 (the other 13 are
+  budget-bound), and the zero-tilt P2 is closed.
+  - **Into the follow-up PR:** the review's MINOR (the mated-box pin
+    can't tell over-budget from other causes, so `swept_along` must
+    carry its reason) and two NITs.
+  - **The other MINOR** (7434's zero-tilt revalue guard is red on main
+    from #7411) is already filed on GREEN.
