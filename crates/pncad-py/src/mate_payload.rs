@@ -185,6 +185,7 @@ fn unbounded(refusal: &ReachRefusal) -> Option<&'static str> {
     match refusal {
         ReachRefusal::FaceUnbounded { kind, .. } => Some(kind.name()),
         ReachRefusal::PartUnresolved { .. }
+        | ReachRefusal::FacePending { .. }
         | ReachRefusal::MalformedBody { .. }
         | ReachRefusal::NoExtent
         | ReachRefusal::NoFiniteBound => None,

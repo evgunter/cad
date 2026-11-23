@@ -6311,7 +6311,7 @@ class MateFault:
     @property
     def inner_variant(self) -> Optional[str]:
         """The nested refusal's own word: the lever refusal's
-        (`part_unresolved`, `face_unbounded`,
+        (`part_unresolved`, `face_unbounded`, `face_pending`,
         `malformed_body`, `no_extent`, `no_finite_bound`, with the
         instance it is about as `instance` or the copied shape as
         `shape`, or `out_of_range` and `below_zero_band`, about the

@@ -1114,7 +1114,7 @@ BOUND_AS = {
     # `MateFault` arm that carries it (`mate_unleverable`), and its
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
-    # `malformed_body`, `no_extent`, `no_finite_bound`), or why the
+    # `face_pending`, `malformed_body`, `no_extent`, `no_finite_bound`), or why the
     # lever the two form is out of the format's range (`out_of_range`)
     # or under the band's zero threshold (`below_zero_band`). The
     # instance a part's refusal is about crosses as

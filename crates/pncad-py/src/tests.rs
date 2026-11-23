@@ -5616,6 +5616,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "reach_refusal_tag",
         values: &[
+            "face_pending",
             "face_unbounded",
             "malformed_body",
             "no_extent",

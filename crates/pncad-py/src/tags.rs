@@ -2019,6 +2019,7 @@ pub fn reach_refusal_tag(refusal: &ReachRefusal) -> &'static str {
     match refusal {
         ReachRefusal::PartUnresolved { .. } => "part_unresolved",
         ReachRefusal::FaceUnbounded { .. } => "face_unbounded",
+        ReachRefusal::FacePending { .. } => "face_pending",
         ReachRefusal::MalformedBody { .. } => "malformed_body",
         ReachRefusal::NoExtent => "no_extent",
         ReachRefusal::NoFiniteBound => "no_finite_bound",
