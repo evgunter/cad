@@ -266,6 +266,23 @@ impl Contact {
     }
 }
 
+impl ContactKind {
+    /// **This record read stale**, as the census names it
+    /// ([`crate::StaleDeclaration`]).
+    #[must_use]
+    pub const fn stale(self) -> crate::StaleDeclaration {
+        use crate::StaleDeclaration as Stale;
+        match self {
+            Self::VertexVertex(a, b) => Stale::VertexVertex { a, b },
+            Self::VertexEdge(vertex, edge) => Stale::VertexOnEdge { vertex, edge },
+            Self::VertexFace(vertex, face) => Stale::VertexOnFace { vertex, face },
+            Self::EdgeEdge(a, b) => Stale::EdgeEdge { a, b },
+            Self::EdgeFace(edge, face) => Stale::EdgeFace { edge, face },
+            Self::FaceFace(face_a, face_b) => Stale::Patch { face_a, face_b },
+        }
+    }
+}
+
 /// Whether the lesser cell of `cells` bounds the greater in `body`: a
 /// vertex ends the edge or lies on one of the face's loops, or the edge
 /// bounds the face. A cell `body` does not hold bounds nothing; a live
@@ -977,6 +994,67 @@ mod tests {
     /// One pair has one spelling whichever order it is given in, and
     /// its kind reads off the canonical order. Red if the constructor
     /// keeps the given order.
+    /// A cell with no cover is not read as apart: the gate's separation
+    /// reading ([`crate::census::decided_apart`]) grants only what a
+    /// cover proves, so a record on such a cell goes on to the lanes. A
+    /// null strut hung at a cube's corner has no carrier, so no cover;
+    /// against an edge across the cube it is not apart, where an edge at
+    /// that corner is.
+    #[test]
+    fn a_cell_with_no_cover_is_not_read_as_apart() {
+        let tol = geom_core::Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol);
+        let mut body = cube.body;
+        let corner = cube.seed.vertex;
+        let he = body.get_vertex(corner).unwrap().emanating.unwrap();
+        let strut = body
+            .mev_null(
+                crate::construction::MevSite::Fan { he1: he, he2: he },
+                crate::null::NewVertexSide::Above,
+            )
+            .unwrap();
+        let ends = |e| {
+            let (a, b) = body.edge_vertices(e).unwrap();
+            [a, b]
+        };
+        let edges: Vec<crate::EdgeKey> = body
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|&e| e != strut.edge)
+            .collect();
+        let at_corner: Vec<crate::EdgeKey> = edges
+            .iter()
+            .copied()
+            .filter(|&e| ends(e).contains(&corner))
+            .collect();
+        let beside: Vec<crate::VertexKey> = at_corner.iter().flat_map(|&e| ends(e)).collect();
+        // An edge neither at the corner nor at one of its neighbours.
+        let far = *edges
+            .iter()
+            .find(|&&e| {
+                ends(e)
+                    .iter()
+                    .all(|v| !beside.contains(v) && *v != strut.vertex)
+            })
+            .expect("a cube has edges across from a corner");
+        let pair = |a, b| Contact::of(Cell::Edge(a), Cell::Edge(b)).unwrap();
+        assert!(
+            at_corner.iter().any(|&near| crate::census::decided_apart(
+                &body,
+                pair(near, far),
+                band
+            )
+            .is_some()),
+            "two covered edges a side apart are apart, so the reading is not vacuous"
+        );
+        assert_eq!(
+            crate::census::decided_apart(&body, pair(strut.edge, far), band),
+            None,
+            "an edge with no cover grants nothing"
+        );
+    }
+
     #[test]
     fn a_pair_is_canonical_in_either_order() {
         let p = prism();

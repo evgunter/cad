@@ -87,8 +87,11 @@ and asserted as held so that it goes red when this row is done:
 `sweep a_record_no_lane_reads::a_false_record_no_lane_reads_and_no_axis_parts_is_still_held`,
 a rod standing in the notch of an L-shaped prism, its foot circle on
 the carrier plane of the prism's top and 0.25 clear of the top,
-recorded as touching it and held at tier 3. A caller's
-`recording(...)` reaches it.
+recorded as touching it and held at tier 3. A second shape, in the
+same file: `a_wall_against_the_cap_of_a_block_it_touches_along_a_ruling_is_still_held`,
+a rod against a block's side, whose wall and the block's cap meet only
+at a point on both boundaries; the wall recorded as touching the cap
+is held at tier 3. A caller's `recording(...)` reaches both.
 
 *The fix is the census's missing lane*, not anything about the
 citation: the ratified end state is that the census confirms the

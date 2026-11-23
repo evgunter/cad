@@ -30,10 +30,7 @@ fn names(findings: &[topo::ValidationError]) -> Vec<String> {
         .iter()
         .map(|f| {
             let s = format!("{f:?}");
-            s.split(|c: char| c == ' ' || c == '{' || c == '(')
-                .next()
-                .unwrap()
-                .to_owned()
+            s.split([' ', '{', '(']).next().unwrap().to_owned()
         })
         .collect();
     out.sort();

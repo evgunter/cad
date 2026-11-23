@@ -10758,13 +10758,10 @@ pub enum Bar {
 
 impl Bar {
     /// **A deciding door's gate's**, from its reading of the records it
-    /// was handed. It takes the reading, so no bar is named before the
-    /// records are read.
-    fn of_gate(
-        records: &crate::boolean::ContactRecords,
-        read: &crate::census::Confirmation,
-    ) -> Self {
-        if records.is_empty() || !read.no_lane.is_empty() {
+    /// was handed, `holds_none` where it was handed none. It takes the
+    /// reading, so no bar is named before the records are read.
+    fn of_gate(holds_none: bool, read: &crate::census::Confirmation) -> Self {
+        if holds_none || !read.no_lane.is_empty() {
             Self::Tier3
         } else {
             Self::Tier3Prime
@@ -10772,19 +10769,19 @@ impl Bar {
     }
 
     /// **A `⊔`'s gate's**, from its reading of what the arrivals
-    /// carried and from the census it ran between them, `joined`
-    /// arrivals: tier 3′ only where every carried record confirmed, the
+    /// carried (`carried_none` where they carried none) and from the
+    /// census it ran between them, `joined` arrivals: tier 3′ only where every carried record confirmed, the
     /// census had something to decide (two arrivals, or a record), and
     /// it left no finding. It takes the census's finished report, so a
     /// join's bar cannot be named ahead of the reading that decides it,
     /// which is how one came to stand beside an undecided meeting.
     fn of_join(
-        carried: &crate::boolean::ContactRecords,
+        carried_none: bool,
         read: &crate::census::Confirmation,
         census: &crate::census::RecordedAtRest,
         joined: usize,
     ) -> Self {
-        let decided = joined >= 2 || !carried.is_empty();
+        let decided = joined >= 2 || !carried_none;
         if decided && read.no_lane.is_empty() && census.findings.is_empty() {
             Self::Tier3Prime
         } else {
@@ -10912,7 +10909,7 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
         if !read.refused.is_empty() {
             return Err(read.refused);
         }
-        let bar = Bar::of_gate(&records, &read);
+        let bar = Bar::of_gate(records.is_empty(), &read);
         Ok(Self {
             body,
             records,
@@ -10967,7 +10964,7 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
             .values()
             .collect::<std::collections::BTreeSet<_>>()
             .len();
-        let bar = Bar::of_join(&carried, &read, &recorded, joined);
+        let bar = Bar::of_join(carried.is_empty(), &read, &recorded, joined);
         // A record the census minted beside a finding is still a touch
         // it decided, with its row, and is held; what the findings take
         // away is the bar ([`crate::census::RecordedAtRest::records`]).

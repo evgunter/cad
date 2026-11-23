@@ -7922,6 +7922,8 @@ enum Recorded {
 mod confirm_only;
 mod curved;
 mod finding_solids;
+#[cfg(test)]
+pub(crate) use confirm_only::decided_apart;
 pub(crate) use confirm_only::{Confirmation, confirm_only};
 pub(crate) use curved::{EdgeSpan, edge_span};
 pub use finding_solids::census_finding_solids;

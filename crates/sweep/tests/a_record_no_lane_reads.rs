@@ -52,12 +52,12 @@ fn wedge(z0: f64) -> AtRestBody<f64> {
     finished("wedge", body, tol())
 }
 
+/// A body's faces and edges.
+type Cells = (Vec<FaceKey>, Vec<EdgeKey>);
+
 /// Two bodies joined, and each one's faces and edges in the joined
 /// body's keys.
-fn joined(
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-) -> (Body<f64>, [(Vec<FaceKey>, Vec<EdgeKey>); 2]) {
+fn joined(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> (Body<f64>, [Cells; 2]) {
     let mut join = Assembled::<f64>::new();
     let ka = join.graft_finished(a, None, tol()).unwrap();
     let kb = join.graft_finished(b, None, tol()).unwrap();
@@ -280,5 +280,38 @@ fn a_false_record_no_lane_reads_and_no_axis_parts_is_still_held() {
     assert!(
         held.iter().all(|&bar| bar == topo::Bar::Tier3),
         "and never at tier 3': {held:?}"
+    );
+}
+
+/// **The residual's second shape, also still held.** A rod against a
+/// block's side touches it along a ruling. The rod's wall and either
+/// cap of the block meet only at that ruling's end, a point on both
+/// boundaries, so a record of the wall touching a cap is false. The
+/// cap crosses the rod's axis, a pair the tangent locus has no line
+/// for, and no direction parts two cells that share a boundary point:
+/// held on its citation at tier 3.
+///
+/// As the row above, this asserts the hold and goes red when
+/// `work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`
+/// is done.
+#[test]
+fn a_wall_against_the_cap_of_a_block_it_touches_along_a_ruling_is_still_held() {
+    let block = finished(
+        "block",
+        sweep::test_support::brick::<f64>((-1.0, 1.0), (0.5, 1.5), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let (body, [(rod_faces, _), (block_faces, _)]) = joined(&rod(0.0, 0.0, 0.5, 0.0, 1.0), &block);
+    let held: Vec<topo::Bar> = rod_faces
+        .iter()
+        .filter(|&&f| kind(&body, f) == geom::SurfaceKind::Cylinder)
+        .flat_map(|&x| block_faces.iter().map(move |&y| (x, y)))
+        .filter_map(|(x, y)| handed(&body, Cell::Face(x), Cell::Face(y)).ok())
+        .map(|done| done.bar())
+        .filter(|&bar| bar == topo::Bar::Tier3)
+        .collect();
+    assert!(
+        !held.is_empty(),
+        "a false record of a wall on a cap is held"
     );
 }

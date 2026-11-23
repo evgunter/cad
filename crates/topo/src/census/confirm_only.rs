@@ -38,13 +38,13 @@ enum Reading {
 /// **What it can still hand back as held, unconfirmed**
 /// ([`Confirmation::no_lane`]): a record of a kind whose lane says no
 /// reading speaks to it ([`crate::contact::ContactReach::NoLane`]) and
-/// whose two cells [`apart`] does not decide apart. Such a record may
+/// whose two cells [`decided_apart`] does not decide apart. Such a record may
 /// be false, a caller's [`crate::Built::recording`] reaches this gate
 /// with one, and nothing here reads what it cites: the end state is a
 /// census lane for every kind a door records
 /// (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`,
 /// which names the test that holds one).
-pub(crate) fn confirm_only<T: crate::props::AtRestPolicy + geom_core::Bounds>(
+pub(crate) fn confirm_only<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -71,15 +71,19 @@ pub(crate) fn confirm_only<T: crate::props::AtRestPolicy + geom_core::Bounds>(
     // No record is held on its citation before its separation is read:
     // a lane that answers "this pair is not mine" has read no distance,
     // and two cells a definite distance apart do not touch whatever
-    // their kind. A lane that reads the pair says more than a box does
-    // (a verdict, a margin), so the boxes are read only where a lane
-    // declined, and then of every record.
+    // their kind. The order is deliberate: a lane that reads the pair
+    // says more than a separating axis does (a verdict, a margin), so
+    // its answer stands where it gives one, and separation is read only
+    // where a lane declined, and then of every record, so no gate with
+    // no declined lane pays for a cover. The row that goes red if a
+    // record were held without this read:
+    // `sweep review_7124_delta_probes::red_no_record_between_bodies_that_touch_nowhere_is_held`.
     if !out.no_lane.is_empty() {
         out.refused.extend(
             contacts
                 .rows()
                 .iter()
-                .filter_map(|row| apart(body, row.record.kind(), band))
+                .filter_map(|row| decided_apart(body, row.record, band))
                 .map(|declaration| ValidationError::StaleContactDeclaration { declaration }),
         );
     }
@@ -87,99 +91,43 @@ pub(crate) fn confirm_only<T: crate::props::AtRestPolicy + geom_core::Bounds>(
 }
 
 /// **A recorded pair whose cells are decided apart**, as the stale
-/// record it is. Two readings, each in the granting direction, either
-/// of which decides it:
-///
-/// - the narrow phase the Boolean's sweep reads behind a box overlap
-///   ([`crate::separating::apart`]), for a pair of faces or edges: both
-///   cells' covers separate, past the band, along the axis between
-///   their anchors, a world axis, or a planar cell's normal;
-/// - each cell's enclosure (a face's or an edge's cover box, a vertex's
-///   point) and a lower bound on the distance between the two
-///   ([`bvh::Aabb::separation_lo`]) past the band's far end.
-///
-/// A cell with no cover, or one the body does not hold, grants
-/// nothing: its record is not apart by this reading, and the lanes say
-/// what is wrong with it.
+/// record it is: the narrow phase the Boolean's sweep reads behind a
+/// box overlap ([`crate::separating::apart`]) over the record's two
+/// cells: a face, an edge, and a vertex as the ball of no radius about
+/// its point. Their covers separate, past the band, along the axis between
+/// their anchors, a world axis, or a planar cell's normal. It reads in
+/// the granting direction: a cell with no cover, or one the body does
+/// not hold, grants nothing, so its record is not apart by this
+/// reading, and the lanes say what is wrong with it.
 ///
 /// It decides apart only what a separating direction among those
 /// decides: two cells that touch nowhere and that none of them
 /// separates (an edge in the notch of an L-shaped face on its carrier)
 /// are not apart here
 /// (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`).
-fn apart<T: crate::props::AtRestPolicy + geom_core::Bounds>(
+pub(crate) fn decided_apart<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
-    kind: crate::boolean::ContactKind,
+    record: crate::Contact,
     band: Band,
 ) -> Option<StaleDeclaration> {
-    use crate::boolean::ContactKind;
     use crate::separating::Item;
-    let vertex = |v| {
-        let record = body.get_vertex(v)?;
-        bvh::Aabb::from_points([body.point_of(v, record)])
+    let item = |cell| match cell {
+        crate::Cell::Vertex(v) => body.get_vertex(v).map(|vertex| Item::Ball {
+            center: body.point_of(v, vertex),
+            radius: T::zero(),
+        }),
+        crate::Cell::Edge(e) => body.get_edge(e).map(|_| Item::Edge(e)),
+        crate::Cell::Face(f) => body.get_face(f).map(|_| Item::Face(f)),
     };
-    let edge = |e| {
-        body.get_edge(e)?;
-        Some(crate::cover::edge_cover(body, e).ok()?.aabb(0.0))
-    };
-    let face = |f| {
-        body.get_face(f)?;
-        Some(crate::cover::face_cover(body, f, band).ok()?.aabb(0.0))
-    };
-    // The narrow phase over two live cells, its axes the world's and
-    // each planar cell's normal.
-    let narrow = |x: Item<T>, y: Item<T>| {
-        let faces = [x, y].into_iter().filter_map(|item| match item {
-            Item::Face(f) => Some((body, f)),
-            _ => None,
-        });
-        let mut axes = crate::separating::face_axes(faces, band, None);
-        axes.extend(crate::separating::world_axes());
-        crate::separating::apart((body, x), (body, y), &axes, 0.0, band)
-    };
-    let (a, b, items, declaration) = match kind {
-        ContactKind::VertexVertex(a, b) => (
-            vertex(a)?,
-            vertex(b)?,
-            None,
-            StaleDeclaration::VertexVertex { a, b },
-        ),
-        ContactKind::VertexEdge(v, e) => (
-            vertex(v)?,
-            edge(e)?,
-            None,
-            StaleDeclaration::VertexOnEdge { vertex: v, edge: e },
-        ),
-        ContactKind::VertexFace(v, f) => (
-            vertex(v)?,
-            face(f)?,
-            None,
-            StaleDeclaration::VertexOnFace { vertex: v, face: f },
-        ),
-        ContactKind::EdgeEdge(a, b) => (
-            edge(a)?,
-            edge(b)?,
-            Some((Item::Edge(a), Item::Edge(b))),
-            StaleDeclaration::EdgeEdge { a, b },
-        ),
-        ContactKind::EdgeFace(e, f) => (
-            edge(e)?,
-            face(f)?,
-            Some((Item::Edge(e), Item::Face(f))),
-            StaleDeclaration::EdgeFace { edge: e, face: f },
-        ),
-        ContactKind::FaceFace(a, b) => (
-            face(a)?,
-            face(b)?,
-            Some((Item::Face(a), Item::Face(b))),
-            StaleDeclaration::Patch {
-                face_a: a,
-                face_b: b,
-            },
-        ),
-    };
-    (a.separation_lo(&b) > band.escalate() || items.is_some_and(|(x, y)| narrow(x, y)))
-        .then_some(declaration)
+    let [x, y] = record.cells();
+    let (x, y) = (item(x)?, item(y)?);
+    let faces = [x, y].into_iter().filter_map(|item| match item {
+        Item::Face(f) => Some((body, f)),
+        _ => None,
+    });
+    let mut axes = crate::separating::face_axes(faces, band, None);
+    axes.extend(crate::separating::world_axes());
+    crate::separating::apart((body, x), (body, y), &axes, 0.0, band).then(|| record.kind().stale())
 }
 
 /// **How a gate takes one finding of the confirmation direction.** The
@@ -377,75 +325,5 @@ fn reading(finding: &ValidationError) -> Reading {
         | ValidationError::StaleNullFaceOwnership { .. }
         | ValidationError::NullEdgeAtRest { .. }
         | ValidationError::NullFaceAtRest { .. } => Reading::NotConfirmed,
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::apart;
-    use crate::boolean::ContactKind;
-    use crate::test_support_fixtures::geometric_cube;
-    use geom_core::{Band, Tol};
-
-    /// A cell with no cover is not read as apart: the separation
-    /// reading grants only what a cover proves, so a record on such a
-    /// cell goes on to the lanes. A null strut hung at a cube's corner
-    /// has no carrier, so no cover; against the cube's farthest edge it
-    /// is not apart, where two of the cube's own opposite edges are.
-    #[test]
-    fn a_cell_with_no_cover_is_not_read_as_apart() {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let cube = geometric_cube::<f64>(tol);
-        let mut body = cube.body;
-        let corner = cube.seed.vertex;
-        let he = body.get_vertex(corner).unwrap().emanating.unwrap();
-        let strut = body
-            .mev_null(
-                crate::construction::MevSite::Fan { he1: he, he2: he },
-                crate::null::NewVertexSide::Above,
-            )
-            .unwrap();
-        assert!(
-            crate::cover::edge_cover(&body, strut.edge).is_err(),
-            "the strut has no cover"
-        );
-        let at = |v| body.get_vertex(v).unwrap().point;
-        let touches = |e, v| {
-            let (a, b) = body.edge_vertices(e).unwrap();
-            at(a) == at(v) || at(b) == at(v)
-        };
-        let edges: Vec<_> = body
-            .edges()
-            .map(|(e, _)| e)
-            .filter(|&e| e != strut.edge)
-            .collect();
-        let far = *edges
-            .iter()
-            .find(|&&e| {
-                let (a, b) = body.edge_vertices(e).unwrap();
-                [a, b].iter().all(|&v| {
-                    let (p, q) = (
-                        body.point_of(v, body.get_vertex(v).unwrap()),
-                        body.point_of(corner, body.get_vertex(corner).unwrap()),
-                    );
-                    p.x != q.x && p.y != q.y
-                })
-            })
-            .expect("a cube edge sharing neither x nor y with the corner");
-        let near = *edges
-            .iter()
-            .find(|&&e| touches(e, corner))
-            .expect("an edge at the corner");
-        assert!(
-            apart(&body, ContactKind::EdgeEdge(near, far), band).is_some(),
-            "two covered edges a side apart are apart, so the reading is not vacuous"
-        );
-        assert_eq!(
-            apart(&body, ContactKind::EdgeEdge(strut.edge, far), band),
-            None,
-            "an edge with no cover grants nothing"
-        );
     }
 }
