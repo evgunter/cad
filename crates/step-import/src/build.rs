@@ -565,17 +565,21 @@ fn choose(
     })?;
     // A cone's pose readings are levered from its apex (the station of a
     // coaxial cylinder's circles is a distance from it): no diameter is a
-    // reach from there.
-    let from_apexes = |lever: geom_core::Lever<f64>| {
-        [sa, sb].into_iter().fold(lever, |lever, s| match *s {
-            Surface::Cone { frame, .. } => lever.max(region.lever_from(frame.origin())),
-            _ => lever,
-        })
-    };
-    let extent = geom_brep::LeverBounds::Between {
-        below: from_apexes(run.below()),
-        above: from_apexes(run.above()),
-    };
+    // reach from there, so each bound takes in the edge's reach from the
+    // apex on its own side ([`geom_brep::edge_reach_bounds`]). Only the
+    // half from below is consumed: no reader of `above` has a cone arm.
+    let apexes = [sa, sb].into_iter().filter_map(|s| match *s {
+        Surface::Cone { frame, .. } => Some(frame.origin()),
+        _ => None,
+    });
+    let extent = apexes.fold(run, |extent, apex| {
+        let reach =
+            geom_brep::edge_reach_bounds(&spec.carrier, span, apex, region.lever_from(apex));
+        geom_brep::LeverBounds::Between {
+            below: extent.below().max(reach.below()),
+            above: extent.above().max(reach.above()),
+        }
+    });
     let spline = |s: &Surface<f64>| s.spline_chart().is_some();
     if spline(sa) || spline(sb) {
         return spline_pair(
@@ -998,7 +1002,11 @@ fn tangent(
             }
         }
     } else {
-        // The coaxial circle is built on its axis rows' Zero.
+        // The one row here that reads the extent is the torus's axis fork
+        // (`pt_axis_in_plane`), which takes its Zero for the meridian
+        // pose: from above. A plane the file read tangent along a parallel
+        // stands normal to that axis, where the row is Positive at any
+        // extent past the band, so no import's outcome turns on the bound.
         let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent.above(), band) {
             Ok(circle) => Ok(circle),
             Err(geom_brep::SectionError::Escalated(source)) => Err(Err(source)),
@@ -3113,6 +3121,75 @@ mod tests {
             "{:?}",
             refused.map(|c| c.carrier)
         );
+    }
+
+    /// **A plane's cut of a spline wall is read over the faces' run from
+    /// below.** The folded discs with the folded face's surface a
+    /// bilinear wall in its plane, 30 m long past the chord: the faces'
+    /// boundaries stand 4 m across and their region, which holds the
+    /// wall's net, over 30. The wall's column crosses the plane at the
+    /// fold, and the section's row is built on that crossing's definite
+    /// sign: a fold of `1e-6` is `4e-6` over the boundaries' run, in the
+    /// file's `1e-6` band, and refuses; a fold of `1e-5` builds the
+    /// chord. Red against the section read from above (the `1e-6` fold
+    /// reads `3.2e-5` over the region and builds).
+    #[test]
+    fn a_planes_cut_of_a_spline_wall_is_read_over_its_faces_run_from_below() {
+        let read = |fold: f64| {
+            let mut solid = folded_discs(fold);
+            let c0 = (1.0 - 1e-4_f64).sqrt();
+            let (y, z) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+            let away = Vec3::new(fold.cos(), 0.0, -fold.sin());
+            let mid = Point3::new(c0, 0.0, 0.0);
+            let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let control = vec![
+                mid - y * 2.0 - away * 0.5,
+                mid - y * 2.0 + away * 30.0,
+                mid + y * 2.0 - away * 0.5,
+                mid + y * 2.0 + away * 30.0,
+            ];
+            let wall = Surface::Nurbs(std::sync::Arc::new(
+                geom::NurbsSurface::new(k(), k(), control, vec![1.0; 4]).unwrap(),
+            ));
+            let plane = Surface::Plane {
+                frame: geom::Frame::new(mid, z, y),
+            };
+            solid.surfaces = crate::entities::records_of([(10, plane), (11, wall)]);
+            let run = crate::reach::faces_run(&solid, &[0, 1]).unwrap();
+            assert!(
+                run.below().length() < 4.0 && run.above().length() > 30.0,
+                "the bounds stand apart: {run:?}"
+            );
+            choose(
+                &solid,
+                1,
+                &solid.edges[&1],
+                (0, 1),
+                Tol::witness(),
+                FileBand::test(1e-6),
+            )
+        };
+        assert!(
+            matches!(
+                read(1e-5),
+                Ok(Chosen {
+                    description: Description::Intersection,
+                    carrier: Some(_),
+                    ..
+                })
+            ),
+            "a fold the boundaries' run tells from a graze builds the cut"
+        );
+        match read(1e-6) {
+            Err(StepImportError::NotYetSupported { what, .. }) => assert!(
+                what.contains("the spline-wall section refused"),
+                "the crossing is in the file's band over the boundaries' run: {what}"
+            ),
+            other => panic!(
+                "a crossing in the band over the run from below builds nothing: {:?}",
+                other.map(|c| c.carrier)
+            ),
+        }
     }
 
     /// A closed solid whose lid is the folded pair: two unit cylinders

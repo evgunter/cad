@@ -174,7 +174,9 @@ mod tests {
 
     /// **A face that bulges past its boundary is read to its bulge.** A
     /// cap of the unit sphere bounded by its circle at `z = 0.9` reaches
-    /// the pole at `z = 1`, which its boundary's hull does not.
+    /// the pole at `z = 1`, which its boundary's hull does not. Its run
+    /// ([`faces_run`]) is the rim's width from below and no less than
+    /// the sphere's from above: red against one bound returned for both.
     #[test]
     fn a_sphere_cap_is_read_to_its_pole() {
         let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
@@ -219,5 +221,16 @@ mod tests {
         let reach = Reach::of(&solid, [0]).expect("the cap has a region");
         let (_, top) = reach.along(z);
         assert!(top >= 1.0 - 1e-12, "the pole is in the cap's region: {top}");
+        let run = faces_run(&solid, &[0]).unwrap();
+        let rim = 2.0 * 0.19_f64.sqrt();
+        let (below, above) = (run.below().length(), run.above().length());
+        assert!(
+            0.9 * rim <= below && below <= rim * (1.0 + 1e-12),
+            "from below, the rim's own {rim} m across: {below}"
+        );
+        assert!(
+            above >= 2.0,
+            "from above, the sphere's 2 m: the rim bounds its larger cap too: {above}"
+        );
     }
 }

@@ -582,9 +582,10 @@ pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Leve
 
 /// The unit directions [`edges_extent_inf`] reads a point set's width
 /// along: the three axes, the six face diagonals and the four body
-/// diagonals of the world box. Some one of them stands within 36° of any
-/// direction, so the widest of the thirteen widths is at least 0.8 of the
-/// set's diameter.
+/// diagonals of the world box. Some one of them stands within 27.6° of
+/// any direction, so the widest of the thirteen widths is at least 0.886
+/// of the set's diameter, at a cost linear in the points where the
+/// farthest pair ([`farthest_pair`]) is quadratic.
 fn width_directions<T: Real>() -> impl Iterator<Item = Vec3<T>> {
     let (o, l) = (T::zero(), T::one());
     let m = o - l;

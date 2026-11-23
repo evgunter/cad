@@ -55,6 +55,28 @@ builds and certification refuses for the crossing: `choose` needs
 where the file's ε is near the run's: at a run ε of 1e-6, folds from
 `2.5e-6` to `1e-3`.
 
+## Whether an import that built before now refuses
+
+Not through this window. Certification is the same reader it was, so a
+crease it refuses now it refused before wherever the earlier `choose`
+built that crease, and wherever it did not the import refused sooner, as
+parallel planes.
+
+There is a second way, and it can newly refuse. Before PR 7219 `choose`
+levered the crossing at the diagonal of the box about the two faces'
+vertices; now it levers it at the faces' boundaries' own extent
+(`geom_brep::edges_extent_inf`), which is never past the farthest two
+boundary points. Where the faces' vertices span their boundaries the old
+diagonal can pass the new lever by up to √3. So a crease whose reading
+stood just past the file's band at the diagonal can read inside the band
+at the new lever, and refuse as ambiguous. That is the direction
+`crates/geom-core/README.md` asks of a lever whose definite sign builds
+(never past the extent). Measured by the PR's delta review (base
+`3900eb46` against `c65b9292`, ε = 1e-9): `offset_section_planes_parallel`'s
+margin moves in 158 tests of the kernel suites, step-import's corpus
+rows among the suites read, and no verdict moves in any. The class is
+real outside the suite all the same.
+
 ## What would close it
 
 One of: the import refuses such a crease itself, in the file's words
