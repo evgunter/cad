@@ -15,7 +15,7 @@ use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
 use crate::combine::{AssertionMeasure, BooleanTool, BoundChoice, PatternOutputChoice};
 use crate::drafts::{CommitFault, Drafts};
-use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, split_half_label};
+use crate::forms::{PatternLayoutChoice, boolean_op_label, split_half_label};
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool};
 use crate::parts::{PartChooser, PartEntry};
@@ -26,7 +26,7 @@ use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
 use crate::tree::DrawnBody;
-use crate::widgets::{CANCEL, commit_row, door, form_door, number_field};
+use crate::widgets::{CANCEL, commit_row, count_field, door, form_door};
 
 /// **The smallest instance index the part form offers.**
 ///
@@ -55,7 +55,7 @@ pub(crate) const PROJECTION_IS_PLACED: &str = "the selected copy is read out of 
 pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mut i64) {
     ui.horizontal(|ui| {
         ui.label("instance");
-        ui.add(number_field(instance, COUNT_DRAG_SPEED).range(MIN_PART_INSTANCE..=i64::MAX));
+        ui.add(count_field(instance).range(MIN_PART_INSTANCE..=i64::MAX));
     });
     crate::widgets::message_toned(
         ui,
@@ -210,7 +210,7 @@ pub(crate) fn member_rows(
             }
             let id = ui.id().with(("member row", i));
             let mut position = ui.data_mut(|d| *d.get_temp_mut_or(id, 0_usize));
-            ui.add(number_field(&mut position, COUNT_DRAG_SPEED).range(0..=members.len() - 1));
+            ui.add(count_field(&mut position).range(0..=members.len() - 1));
             ui.data_mut(|d| d.insert_temp(id, position));
             ui.label(format!("of {}", members.len()));
             if let Some(at) = members.get(position)
@@ -1283,10 +1283,7 @@ impl ViewerBehavior<'_> {
         let gesture = &mut self.drafts.trace_gesture;
         ui.horizontal(|ui| {
             ui.label("to crossing");
-            ui.add(
-                number_field(&mut gesture.crossing.nth, COUNT_DRAG_SPEED)
-                    .range(1..=MAX_TRACE_CROSSING),
-            );
+            ui.add(count_field(&mut gesture.crossing.nth).range(1..=MAX_TRACE_CROSSING));
             for passage in [TracePassage::Leave, TracePassage::Enter] {
                 ui.radio_value(&mut gesture.crossing.passage, passage, passage.word());
             }
