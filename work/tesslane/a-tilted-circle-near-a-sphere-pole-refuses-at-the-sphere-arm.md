@@ -101,3 +101,32 @@ ringed ops (both unions, ball ∖ tube) refuse `FoldedTriangle` at
 δ `2·10⁻²` and mesh at `5·10⁻³` and `10⁻³`; turned 0 about `z`, they mesh
 at every δ. Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+## At a face target of δ
+
+Measured by stage 1 of
+`a-refused-certificate-adds-a-point-and-no-face-sizes-below-delta`
+(2026-11-23), behind switches that do not ship, with the sphere arm
+sized at δ where it sizes at δ/2 today. Five meshings that mesh today
+refuse `FoldedTriangle`, all of them this shape, the same at ε `10⁻⁹`,
+`10⁻⁶` and `10⁻¹²`:
+
+- `sweep`'s `tilted_sphere_pair::a_circle_near_the_pole_meshes_at_a_coarse_delta`,
+  its second body at `δ = 4·10⁻²`, all four sphere faces. Five fold
+  rounds drop lattice nodes and the pass after them still folds. Today
+  each meshes in one pass and one shared-side round, 6,143 triangles.
+- `mesh`'s `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`,
+  the near-pole tube on the ball, its ringed sphere face at
+  `δ = 5·10⁻³`: a fold with no lattice corner, on the first pass. Today
+  that face folds at `δ = 2·10⁻²` and meshes at `5·10⁻³`.
+
+**The fold is not monotone in the target.** The tilted pair's faces at
+`δ = 4·10⁻²`, by the share of δ the arm sizes at: 1.0 folds, 0.9 and 0.8
+mesh, 0.7 folds, 0.6 and 0.5 mesh.
+
+**More fold rounds do not clear it.** With 20 and with 60 rounds where
+`trimmed::MAX_GRID_RETRIES` allows 6, the same four faces still fold.
+
+**A refused certificate's correction does not reach it.** No triangle
+of these faces reads over δ: their worst certificates are 0.934 δ and
+0.956 δ.
