@@ -636,3 +636,10 @@ body has the reasons):
   - **Lesson:** merging 7434 at a head whose slow rows never ran cost a
     red main. A change to a shared primitive (`least_turn`) needs the
     whole slow set run before merge.
+- 2026-11-23 05:52 — **The main-red fix went to its own cloud session,
+  session_013QoYWVTLpE3DMsK7xa2C6A.** The 7434 lane was still finishing
+  7396, and a red main shouldn't wait for one lane to work in order. It
+  re-pins only attributed moves, fixes the drive memo row's loss of
+  certification if it is real (stopping if that needs a design call),
+  and runs the whole slow set at all three ε. The 7434 lane continues
+  on 7396 and the follow-up PR.
