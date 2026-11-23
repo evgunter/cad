@@ -40,8 +40,7 @@ use crate::m10_9_pins_interval::measured_studies;
 /// (`carrier_matches_mapped_source`) it stopped at. The bracket's and
 /// the pad's over-band span readings (`arc_span`, `line_span`) are
 /// settled by the segments' ends, which lie on the other carrier, so
-/// the bracket replays whole and the pad stops at its extrude's pcurve
-/// certification (`pcurve_envelope`).
+/// the bracket and the pad replay whole.
 ///
 /// **The floor and the ceiling are witnesses of two open rows**, which
 /// ask whether moves of these columns were decisions lost:
@@ -57,7 +56,7 @@ const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
     ("r1_annulus", None, 511, 36),
     ("r2_link", None, 786, 2600),
     ("r2_filleted_bracket", None, 1367, 57),
-    ("r2_rounded_pad", Some("pcurve_envelope"), 1483, 1967),
+    ("r2_rounded_pad", None, 1483, 1967),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

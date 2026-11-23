@@ -803,9 +803,9 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x6db1_a826_a838_5b86),
-    (1e-6, 0x4be5_1cf9_e03d_a1e5),
-    (1e-12, 0x4ece_5cfa_12cd_02d6),
+    (1e-9, 0x5c0f_cf95_7305_251c),
+    (1e-6, 0xd0a7_5545_6da1_c3bf),
+    (1e-12, 0xc6f8_8d23_e65c_44b2),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

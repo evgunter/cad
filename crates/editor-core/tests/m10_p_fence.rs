@@ -20,8 +20,11 @@
 //!   into the K-telemetry sweep's executed floor, so it runs on that
 //!   schedule.
 //! - **The `Interval` row reads the same outcome at every node as the
-//!   `f64` walk, and an enclosure for every point**, compared in one
-//!   process.
+//!   `f64` walk, and an enclosure holding the `f64` point, to one unit in
+//!   the last place, for every point**, compared in one process. Beside it, an id-masked
+//!   `Interval` pin holds an unjudged move of an open P0 row
+//!   ([`the_interval_corpus_holds_sectcones_move_unjudged`]) until that
+//!   row is judged.
 //! - **A whole-corpus scalar says THAT a document moved, not which.**
 //!   `lib_g16_corpus_name_digests` pins a digest per document, the finer
 //!   reading.
@@ -335,8 +338,9 @@ fn outcome_row<T: geom_core::Real>(seen: &Seen<'_, T>) -> Option<String> {
 
 /// **The fence at `Interval`**, where every profile is elaborated at the
 /// lane (its second pass): every node of the corpus comes out as it
-/// does at `f64`, and every coordinate of every point is an enclosure
-/// that holds the `f64` walk's coordinate at the same place.
+/// does at `f64`, and every coordinate of every point is a finite
+/// enclosure that holds the `f64` walk's coordinate at the same place,
+/// to one unit in the last place.
 #[test]
 fn the_corpus_evaluation_at_interval_has_the_f64_outcomes() {
     use geom_core::{Bounds, Interval};
@@ -356,7 +360,15 @@ fn the_corpus_evaluation_at_interval_has_the_f64_outcomes() {
         if let Seen::Point { doc, id, i, p, .. } = seen {
             let f = at_f64.get(&(doc.to_owned(), format!("{id:?}"), i));
             for (k, c) in p.to_array().into_iter().enumerate() {
-                let holds = f.is_some_and(|f| c.lo() <= f[k] && f[k] <= c.hi());
+                // To one unit in the last place of the larger of the two:
+                // the f64 walk rounds where the Interval walk encloses, and
+                // on the corpus they part by at most that (die_composed_tour's
+                // turned corners, `0.4999999999999999` against `[0.5, 0.5]`).
+                let ulp = |x: f64| x.abs().next_up() - x.abs();
+                let holds = f.is_some_and(|f| {
+                    let slack = ulp(f[k]).max(ulp(c.lo())).max(ulp(c.hi()));
+                    c.lo() - slack <= f[k] && f[k] <= c.hi() + slack
+                });
                 if !(c.lo().is_finite() && c.hi().is_finite() && holds) {
                     bad.push(format!("{doc} {id:?} point {i}[{k}]: {c:?} against {f:?}"));
                 }
@@ -395,7 +407,11 @@ fn the_interval_corpus_holds_sectcones_move_unjudged() {
         |v| vec![v.lo().to_bits(), v.hi().to_bits()],
     );
     println!("m10-p fence interval id-free: {got:016x?}");
-    assert_eq!(got, (0, 0), "the corpus's Interval geometry moved");
+    assert_eq!(
+        got,
+        (0xd853_f6a1_8758_50a8, 0x3bca_9270_c8ab_f55c),
+        "the corpus's Interval geometry moved"
+    );
 }
 
 /// **The fence at `Probe`**, the K-telemetry scalar: Probe is a

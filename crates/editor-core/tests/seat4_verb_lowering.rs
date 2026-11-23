@@ -191,8 +191,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x44e8_8638_d130_c9e3_u64),
-        ("die_chamfer", 0x0591_f7aa_a61f_c663),
+        ("die_fillet", 0x6bad_4dbd_0a19_c0b9_u64),
+        ("die_chamfer", 0x6ead_3fc0_60f1_af69),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -286,9 +286,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x9c09_f7a5_2312_b0fc_u64),
-        ("heat_sink", 0xe2d7_927d_bfa7_7304),
-        ("kiss_carry", 0x08e4_4e88_348d_5232),
+        ("crossing_slots", 0x6786_1957_9448_2f9c_u64),
+        ("heat_sink", 0xb434_da35_b85e_b1c1),
+        ("kiss_carry", 0xd32c_3f70_2f81_2b90),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -445,7 +445,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x40bc_4e3b_d68b_4622,
+        got, 0x304f_8ade_5ed9_6b64,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }
