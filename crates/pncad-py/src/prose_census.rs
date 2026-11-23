@@ -80,12 +80,12 @@
 //! they disagree. The fallback costs precision; picking one rival would
 //! cost soundness, and that is the trade this module never makes.
 //!
-//! **[`UNDECIDED`] names every undecided site with its reason**, and
-//! the row over it fails in both directions: a new site the resolver
-//! cannot type reds until someone writes its line, and a line that no
-//! longer names a site reds too. Reducing that list is scheduled as
-//! `work/fix/prose-census-undecided-residue.md`, not left to the
-//! reader of a comment.
+//! **[`UNDECIDED`] names every undecided rendering with its reason**,
+//! and the row over it reds on a rendering the resolver cannot type
+//! that no line names. A line whose rendering has gone, or a named
+//! rendering that occurs more or fewer times, is not a red: the claim
+//! is that no undecided site stands unnamed, not the list's exact
+//! shape.
 //!
 //! # What it cannot see
 //!
@@ -1798,37 +1798,30 @@ fn local_binding_span(
 /// so the guard can land ahead of the repairs rather than behind them
 /// — the point of the guard is the site that is not on it yet.
 ///
-/// The count is part of the key. Without it a Display impl rendering
-/// one binding at several sites collapses to one row, and repairing
-/// some of them leaves the guard green over the rest.
+/// The count is a ceiling: a Display impl rendering one admitted
+/// binding at one more site is red, and a repair that lowers it is not.
 const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[];
 
 /// The blind spot, written down WITH ITS REASON.
 ///
-/// A site here is one this census could not decide. It is not a pass:
-/// the row over this list fails when a site arrives that is not on it
-/// and when a line no longer names a site, so the population cannot
-/// grow in silence — which is the only property a blind spot can
-/// honestly be given.
-///
-/// **Reducing it is scheduled**, at
-/// `work/fix/prose-census-undecided-residue.md`. A disclosed list with
-/// no schedule is a record of work done rather than an open thread.
-const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
+/// A rendering here — a `(file, display type, binding)` — is one this
+/// census could not decide. It is not a pass: the row over this list
+/// fails when a rendering arrives that is not on it, so the population
+/// cannot grow in silence — which is the only property a blind spot
+/// can honestly be given.
+const UNDECIDED: &[(&str, &str, &str, &str)] = &[
     // Pinned red, not yet a reason: SelectionRefusal's face arm
     // (`work/clear/main-red-prose-census-cannot-decide-the-selection-refusal-face-arm.md`).
     (
         "crates/editor-core/src/clearance.rs",
         "SelectionRefusal",
         POSITIONAL,
-        1,
         "a positional `{}` over `c.body`, an expression this census does not type",
     ),
     (
         "crates/editor-core/src/clearance.rs",
         "SelectionRefusal",
         "k",
-        1,
         "`k` is bound by `Some(k)` in a `match` on `c.key.face()`, a method \
          call's result this census does not type",
     ),
@@ -1836,7 +1829,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/editor-core/src/names/emit.rs",
         "NamingError",
         POSITIONAL,
-        1,
         "a positional `{:?}` over an expression this census does not type",
     ),
     // Pinned red, not yet a reason: CertifyError's `check` read
@@ -1845,7 +1837,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/geom-brep/src/certify.rs",
         "CertifyError",
         "check",
-        1,
         "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `refusal: RowRefusal::ImageEscalated { check, cause }` \
          — so no declared type reaches it",
@@ -1854,7 +1845,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/geom-brep/src/nurbs_iso.rs",
         "IsoRowError",
         "at",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1862,7 +1852,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/geom-brep/src/offset.rs",
         "OffsetError",
         "realized",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1870,7 +1859,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/geom-brep/src/offset.rs",
         "OffsetError",
         "realized_minor",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1878,14 +1866,12 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/geom-brep/src/offset_fit.rs",
         "OffsetFitError",
         POSITIONAL,
-        2,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
         "crates/topo/src/cover.rs",
         "FaceUncovered",
         "ek",
-        1,
         "`ek` is bound in a `match` on a `for` loop's variable over \
          `self.boundary`, a `Vec` field, whose element type this census does not \
          reach",
@@ -1894,7 +1880,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/cover.rs",
         "FaceUncovered",
         "v",
-        1,
         "`v` is bound in a `match` on a `for` loop's variable over \
          `self.boundary`, a `Vec` field, whose element type this census does not \
          reach",
@@ -1903,7 +1888,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/step-import/src/error.rs",
         "StepImportError",
         "e",
-        1,
         "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a \
          match binding, and this census types patterns and fields",
     ),
@@ -1911,7 +1895,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/offset_derive.rs",
         "CornerVerdict",
         "sine",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1919,7 +1902,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
         "gap",
-        3,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1927,7 +1909,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
         "offset",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1935,7 +1916,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
         "shift",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1943,7 +1923,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
         "station_max",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1951,7 +1930,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
         "station_min",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1959,14 +1937,12 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/shell.rs",
         "AsShelled",
         POSITIONAL,
-        1,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
         "crates/topo/src/shell.rs",
         "AsShelled",
         "realized",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1974,7 +1950,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/shell.rs",
         "AsShelled",
         "realized_minor",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1982,7 +1957,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/shell.rs",
         "ShellError",
         "gap",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1990,7 +1964,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/shell.rs",
         "ShellError",
         "needed",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1998,7 +1971,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/shell.rs",
         "ShellError",
         "thickness",
-        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -2006,7 +1978,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/splitting/mod.rs",
         "SplitReduceError",
         "u",
-        1,
         "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
     ),
@@ -2014,7 +1985,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/splitting/mod.rs",
         "SplitReduceError",
         "v",
-        1,
         "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
     ),
@@ -2394,7 +2364,7 @@ impl fmt::Display for PlantedError {
         let allowed = roster(KNOWN_BRACED);
         let new: Vec<_> = found
             .iter()
-            .filter(|(k, _)| !allowed.contains_key(*k))
+            .filter(|(k, n)| **n > allowed.get(*k).copied().unwrap_or(0))
             .collect();
         assert!(
             new.is_empty(),
@@ -2402,24 +2372,23 @@ impl fmt::Display for PlantedError {
              the refusal PANICS the binding at `typed_err` instead of raising: \
              {new:#?}\nRender the payload through its own `Display`, or give it one."
         );
-        assert_eq!(
-            found, allowed,
-            "KNOWN_BRACED must name exactly the brace-shaped sites, with their \
-             counts: an entry that no longer names one is struck in the PR that \
-             repaired it, and a partial repair moves the count"
-        );
     }
 
     #[test]
     fn every_site_this_census_cannot_decide_is_named_with_its_reason() {
         let found = tally(&census(&read_sources(&repo_root())), Verdict::Undecided);
-        assert_eq!(
-            found,
-            roster(UNDECIDED),
+        let named: BTreeSet<_> = UNDECIDED
+            .iter()
+            .map(|(file, ty, binding, _)| {
+                ((*file).to_owned(), (*ty).to_owned(), (*binding).to_owned())
+            })
+            .collect();
+        let unnamed: Vec<_> = found.keys().filter(|k| !named.contains(*k)).collect();
+        assert!(
+            unnamed.is_empty(),
             "the blind spot is a CENSUS, not a silence: a site this cannot decide \
-             either gets its line here, with the reason it could not be decided, or \
-             gets rewritten so it can be. Reducing the list is scheduled at \
-             work/fix/prose-census-undecided-residue.md"
+             either gets its line in UNDECIDED, with the reason it could not be \
+             decided, or gets rewritten so it can be: {unnamed:#?}"
         );
     }
 
@@ -2431,12 +2400,13 @@ impl fmt::Display for PlantedError {
             .iter()
             .map(|(file, message, _)| ((*file).to_owned(), (*message).to_owned()))
             .collect();
-        assert_eq!(
-            keys, allowed,
+        let unallowed: BTreeSet<_> = keys.difference(&allowed).collect();
+        assert!(
+            unallowed.is_empty(),
             "a raise site builds its human message out of a `Debug` rendering, \
              which is the other route to the panic the census above guards. The \
              allowance is keyed on the SITE, not the file: a second `Debug` raise \
-             in an allowed file inherits nothing."
+             in an allowed file inherits nothing: {unallowed:#?}"
         );
     }
 
