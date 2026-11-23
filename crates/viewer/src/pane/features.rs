@@ -1839,7 +1839,7 @@ mod tests {
 
         let (kind, files) = part_refused(PartFault::Unresolved {
             fault: ResolveFault::PinMismatch,
-            message: "the store's own words".to_owned(),
+            message: "the store's own words".into(),
         });
         let offer = crate::frame::version_offer(&kind, &files).expect("a pin mismatch offers");
         let row = TreeRow {
