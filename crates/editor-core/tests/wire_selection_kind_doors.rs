@@ -103,7 +103,9 @@ fn sentence(err: &EditError, entry: &str) -> String {
          selection reads",
         an(*found),
         an(*expected),
-        an(*expected)
+        an(*expected),
+        name = editor_core::test_support::said_text(&name),
+        node = editor_core::test_support::node_text(node)
     )
 }
 

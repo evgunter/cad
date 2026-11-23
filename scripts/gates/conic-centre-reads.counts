@@ -7,7 +7,7 @@ crates/geom-brep/src/curve_face/circle_torus.rs 2
 crates/geom-brep/src/curve_face/conic_oracle/exact.rs 1
 crates/geom-brep/src/curve_face/conic_quadric.rs 1
 crates/geom-brep/src/curve_face/spline_face.rs 1
-crates/geom-brep/src/curve_pair/on_surface.rs 2
+crates/geom-brep/src/curve_pair/on_surface.rs 3
 crates/geom-brep/src/curve_pair/pose.rs 8
 crates/geom-brep/src/curve_pair/pose/window.rs 2
 crates/geom-brep/src/edge_nurbs.rs 1
@@ -48,7 +48,7 @@ crates/topo/src/readback.rs 1
 crates/topo/src/region.rs 3
 crates/topo/src/replace_face.rs 3
 crates/topo/src/rim_wedge.rs 4
-crates/topo/src/ring_path.rs 9
+crates/topo/src/ring_path.rs 8
 crates/topo/src/separating.rs 1
 crates/topo/src/shell.rs 1
 crates/topo/src/solid_contain.rs 2
@@ -57,5 +57,4 @@ crates/topo/src/splitting/section_loops.rs 3
 crates/topo/src/stands.rs 1
 crates/topo/src/surface_group.rs 2
 crates/topo/src/test_support_fixtures.rs 1
-crates/topo/src/torus_region.rs 1
 crates/topo/src/validate.rs 3

@@ -119,17 +119,17 @@ enum Seat<T: geom_core::Real> {
 /// The one spin turns about the target's own direction, so a flip on
 /// either side of a mate moves no spin.
 #[must_use]
-pub fn flipped<P>(doc: &crate::doc::Doc<P>, pose: crate::VarId) -> bool {
-    use crate::pose::{PoseDef, PoseRole, RoleRead};
+pub fn flipped<P>(doc: &crate::doc::Doc<P>, pose: crate::pose::RoleRead<crate::VarId>) -> bool {
+    use crate::pose::PoseDef;
     let mut odd = false;
-    let mut at = pose;
+    if !pose.keeps_sense() {
+        return false;
+    }
+    let mut at = pose.read;
     while let Some(def) = doc.var(at).and_then(|v| v.def().pose()) {
         odd ^= matches!(def, PoseDef::Flip { .. });
         match def.kept() {
-            Some(RoleRead {
-                read,
-                role: None | Some(PoseRole::Normal | PoseRole::Direction),
-            }) => at = *read,
+            Some(kept) if kept.keeps_sense() => at = kept.read,
             _ => break,
         }
     }
@@ -255,19 +255,19 @@ pub fn spin_as_chain_turn<R>(charted: Charted<'_>, chain: &[Coord<R>]) -> Option
 /// own direction**: [`flipped`] over an operand — a pose variable read
 /// as [`flipped`] reads it, a pose definition walked the same way.
 #[must_use]
-pub fn side_flipped<P>(doc: &crate::doc::Doc<P>, side: &crate::Operand) -> bool {
-    use crate::pose::{PoseDef, PoseRole, RoleRead};
-    match side {
-        crate::Operand::Var(var) => flipped(doc, *var),
+pub fn side_flipped<P>(
+    doc: &crate::doc::Doc<P>,
+    side: &crate::pose::RoleRead<crate::Operand>,
+) -> bool {
+    use crate::pose::PoseDef;
+    if !side.keeps_sense() {
+        return false;
+    }
+    match &side.read {
+        crate::Operand::Var(var) => flipped(doc, crate::pose::RoleRead::plain(*var)),
         crate::Operand::Pose(def) => {
             let here = matches!(**def, PoseDef::Flip { .. });
-            let kept = match def.kept() {
-                Some(RoleRead {
-                    read,
-                    role: None | Some(PoseRole::Normal | PoseRole::Direction),
-                }) => side_flipped(doc, read),
-                _ => false,
-            };
+            let kept = def.kept().is_some_and(|read| side_flipped(doc, read));
             here != kept
         }
         _ => false,

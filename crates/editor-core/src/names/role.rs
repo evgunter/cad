@@ -538,7 +538,11 @@ pub struct StableName {
 // that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Speaker::TAG.name(self).fmt(f)
+        write!(
+            f,
+            "{}",
+            crate::sentence!(crate::spoken::Speaker::TAG.name(self))
+        )
     }
 }
 
@@ -1857,6 +1861,8 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
             source: Some(source.read),
         }),
         Node::InstantiatePart { .. } => Some(VerbatimEdge::Copied { source: None }),
+        // A datum's frame has no cells to name.
+        Node::Datum { .. } => None,
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }

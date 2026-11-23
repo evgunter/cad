@@ -1740,7 +1740,8 @@ pub fn set_sheet_sense<T: geom_core::Decide + crate::props::AtRestPolicy>(
     assert!(f.rings.is_empty(), "a sheet face has no ring");
     let outer = f.outer;
     let surface = body.get_surface(f.surface).expect("the surface").clone();
-    let (edges, _) = crate::props::loop_edges(body, outer).expect("the loop's edges");
+    let (edges, _) = crate::props::loop_edges(body.cycle_loop(outer).expect("a cycle loop"))
+        .expect("the loop's edges");
     let encoded = match geom_brep::props::boundary_material_sign_loops(&surface, &[&edges], band) {
         Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
             Some(side == geom_core::Sign::Positive)

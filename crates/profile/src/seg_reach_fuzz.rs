@@ -713,7 +713,7 @@ fn judge_joint<T: Decide>(s1: Shape, s2: Shape, v: P, band: Band) -> Judged {
     let Ok(segs) = crate::validate::build_loop_segs(&lp, 0, Consistency::Decide, band) else {
         return Judged::Unbuilt;
     };
-    match crate::validate::judge_pair(&[lp], &[segs], (0, 0), (0, 1), band) {
+    match crate::validate::judge_pair(&[segs], (0, 0), (0, 1), band) {
         Ok(()) => Judged::Clear,
         Err(_) => Judged::Refused,
     }

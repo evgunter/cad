@@ -2,10 +2,11 @@
 id: e2-recut-probe-has-no-residual-independence-left
 kind: issue
 title: review_arceval's E2 now re-executes the shipped row's fixture, constant and predicate, and can no longer disagree with it
-status: open
+status: closed
 opened: 2026-09-19
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 ## Finding
@@ -59,3 +60,7 @@ That is what was there before and it is what the header of that file
 now explains at length.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+Deleted E2 from `review_arceval_r1_probes.rs`; its header names `m5_s12_curved_ops_interval.rs`'s `interval_sphere_subtract_decides_definitely_after_the_recut` as the owner of the claim, and `common/sphere_recut.rs`'s header no longer counts E2 as a reader.
