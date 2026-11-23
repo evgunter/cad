@@ -1894,3 +1894,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - The `classify` fallback goes with U4d.
     - `AtRestPolicy`'s doc door count is stale ("nine" against "ten").
 - 2026-11-23 13:30 — **U4a lane: spec deviation agreed.** Spec §2.2 drops a walk piece that lies wholly off the arc at its split. Doing that changed the wrappers' `CircleRoots` answers (the count round the turn, and `Miss`) on every partial arc: 19 door rows went red. So an off-arc piece is now walked until it settles or refuses, and only a refusal that misses the arc is dropped. This keeps the spec's own claim that the wrappers change only where a refused stretch misses the arc. Drop-at-split is revisited at U4b, when the wrappers retire.
+- 2026-11-23 13:50 — **PR 7553's fix pass delivered** at `3dd6f28595`.
+  - The belly is now the conic's own door, `Conic::belly_along`, in `conic.rs`: read from the stored placement, with B crossed exactly.
+  - The general-angle probe now reads 0 wrong, in both placements, against exact-dyadic oracles built from stored data. On the old belly it read 50/317/406 wrong.
+  - Every mutant reds a row, except a `transverse` call-site mutant, which the lane argues cannot be witnessed end to end.
+  - The sibling is closed as a duplicate into ONEROUND's unit.
+  - The far-radius cylinder issue is filed (P2).
+  - The same reviewer is confirming on the new head.
