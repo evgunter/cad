@@ -5032,7 +5032,7 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     assert_eq!(
         trend,
         ResidualTrend::Stalled,
-        "the refused residual stopped falling"
+        "the refused residual stopped falling: {rounds:?}"
     );
     assert!(
         (19_700..20_000).contains(&samples),
@@ -5056,8 +5056,10 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 /// doubles the samples and leaves the margin where it was. At 9e-15 the
 /// arc certifies, so the floor sits between the two. The rounds
 /// run from about 4 490 samples until the next would overrun the
-/// branch's step budget, every one in band on limb 2 at the same width,
-/// and the refusal is the wall's, its ending naming the floor.
+/// branch's step budget, every one in band: on limb 2 at the same width,
+/// or on limb 1 where the wall image's own resolution, a few `f64` ulps
+/// of the wall's point and above this ε, is what the foot reads. The
+/// refusal is the wall's, its ending naming the floor.
 ///
 /// "The same width" is read against what the alternative would show: a
 /// between-sample error falls at least as fast as the gaps, so over a
@@ -5099,16 +5101,21 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     );
     let margins: Vec<f64> = rounds
         .iter()
-        .map(|round| match round.margin {
+        .filter_map(|round| match round.margin {
             RoundMargin::InBand(m) if round.limb == SsiLimb::HullSupChart => {
                 match m.diagnostic_f64_for_error_text() {
-                    geom_core::ErrorTextReading::Value(m) => m,
+                    geom_core::ErrorTextReading::Value(m) => Some(m),
                     other => panic!("a point margin: {other:?}"),
                 }
             }
-            _ => panic!("limb 2 in band every round: {rounds:?}"),
+            RoundMargin::InBand(_) if round.limb == SsiLimb::OnLocus => None,
+            _ => panic!("limb 1 or 2 in band every round: {rounds:?}"),
         })
         .collect();
+    assert!(
+        margins.len() >= 3,
+        "limb 2 reads the floor in three rounds or more: {rounds:?}"
+    );
     #[allow(clippy::cast_precision_loss)]
     let growth = last as f64 / first as f64;
     let (lo, hi) = margins.iter().fold((f64::INFINITY, 0.0f64), |(lo, hi), m| {

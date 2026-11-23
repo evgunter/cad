@@ -92,24 +92,8 @@ fn witnessed(
     (edge, k1)
 }
 
-/// Whether `refused` is the lane's own image missing the carrier's foot
-/// path: limb 2 against the wall, definite at a break of its composite or
-/// undecided there.
-fn image_missed(refused: &CertifyError) -> bool {
-    matches!(
-        refused,
-        CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb {
-            limb: SsiLimb::ImageMiss,
-            ..
-        }) | CertifyError::Escalated {
-            check: CertCheck::PlaneNurbsHullValue,
-            ..
-        }
-    )
-}
-
 /// **A carried rim arc certifies at rest against its partner, and refuses
-/// once either surface stands off it**: a sphere at `s = 0.01, 1, 10`, a
+/// once either surface stands off it**: a sphere at `s = 0.01, 1, 10, 100`, a
 /// cylinder and a torus at `s = 1`, each against the lofted wall. The
 /// carrier the whole reading fitted certifies as the pair's
 /// `Intersection` edge, its tube proved on the wall's chart. With the
@@ -122,21 +106,16 @@ fn image_missed(refused: &CertifyError) -> bool {
 /// partner. A sphere's reports the least sine of its radius against the
 /// wall's normal over the interior feet.
 ///
-/// Where the arc bends in the chart the lane's image of it is the pcurve
-/// mint's finest rung, which misses the foot path near the span's ends:
-/// at the default ε by `5.1e-10` m at `s = 1`, `1.3e-9` m at `s = 10` and
-/// `2.2e-9` m at `s = 100` (measured, and not in proportion to `s`). So
-/// the certificate holds where that clears ε and otherwise refuses on
-/// its own image's miss, never on the carrier: held here as a measured
-/// tripwire, per ε row ([`image_holds`];
-/// `work/sectarms/a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung.md`).
-/// The cylinder's arc runs along the wall's rulings, straight in the
-/// chart, and holds at every row.
+/// Where the arc bends in the chart the wall's image of it follows the
+/// bend: it is built on the arc's own knots, as the trace built the one
+/// it certified, so a sphere's and the torus's arcs hold at every row as
+/// the cylinder's, straight in the chart, does.
 ///
 /// Red against: a resolver with no arm for the pair
-/// (`CertifyError::Unimplemented`); the arm reading the wall's image at
-/// degree 1, whose chords miss the arc's bend in the chart by a fraction
-/// of a millimetre at every row; limbs 1 and 2 read against one surface
+/// (`CertifyError::Unimplemented`); the wall's image built on a uniform
+/// chain of eight spans with no knot taken where it misses
+/// (`carrier_image::IMAGE_ROUNDS` 0), which misses the arc's bend in the
+/// chart; limbs 1 and 2 read against one surface
 /// alone, which leaves an arc a thousand ε off the other to the tube.
 #[test]
 fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it() {
@@ -168,7 +147,6 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
             )
         };
         let straight = matches!(partner, Surface::Cylinder { .. });
-        let image_holds = image_holds(eps, partner, *s);
         let near = [
             ("as fitted", (0.0, 0.0)),
             ("the partner a thousandth of ε off", (1e-3 * eps, 0.0)),
@@ -178,12 +156,8 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
         for (moved, (dr, dy)) in near.into_iter().take(if straight { 3 } else { 1 }) {
             let read = against(dr, dy);
             assert!(
-                match &read {
-                    Ok(_) => image_holds,
-                    Err(refused) => !image_holds && image_missed(refused),
-                },
-                "s = {s}, {what}, {moved}: the arc certifies at rest where its image clears ε \
-                 ({image_holds}), and refuses on that image alone where it does not: {:?}",
+                read.is_ok(),
+                "s = {s}, {what}, {moved}: the arc certifies at rest: {:?}",
                 read.err()
             );
         }
@@ -245,7 +219,7 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
                  named by its key: {off:?}"
             );
         }
-        let (true, Surface::Sphere { frame, .. }) = (image_holds, partner) else {
+        let Surface::Sphere { frame, .. } = partner else {
             continue;
         };
         let center = frame.origin();
@@ -271,21 +245,6 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
             limbs.min_sin_theta
         );
     }
-}
-
-/// Whether the lane's image of the arc `partner` cuts on the wall at
-/// scale `s` clears ε: the measured tripwire, one line per ε row. A
-/// cylinder's arc is straight in the chart and its image holds at every
-/// row. A sphere's and the torus's bend, and their image holds at
-/// `1e-6`, at the default ε up to `s = 1`, and nowhere at `1e-12`: at
-/// that row no sphere or torus case certifies, so the rows' positive
-/// path for a bent arc runs at the two coarser rows alone.
-///
-/// # Panics
-///
-/// At an ε no row here was measured at.
-fn image_holds(_eps: f64, _partner: &Surface<f64>, _s: f64) -> bool {
-    true
 }
 
 /// The section's first carried component.
@@ -484,10 +443,6 @@ impl StandOff {
 /// `0.96` of its normal at the sphere's arc, so the multiples stand that
 /// far inside their intervals.
 ///
-/// At ε = 1e-12 the sphere's arc refuses on its own image before either
-/// surface is moved ([`image_holds`]), which is asserted, and its ladder
-/// is not read.
-///
 /// Red against: the lane's limbs decided on a band half as wide, or 1.5,
 /// 2 or 10 times wider.
 #[test]
@@ -528,18 +483,6 @@ fn the_stand_off_is_decided_on_the_runs_band() {
                 2.0 * s,
             )
         };
-        if !image_holds(eps, partner, *s) {
-            let read = against(0.0, 0.0);
-            assert!(
-                read.as_ref().is_err_and(image_missed),
-                "{what}: unmoved, the arc refuses on its image alone: {read:?}"
-            );
-            test_utils::vacuity::stood_down(
-                "the sphere's stand-off ladder",
-                "the band a sphere's stand-off is decided on at this ε: its image misses first",
-            );
-            continue;
-        }
         for (moved, (dr, dy)) in [("the partner", (1.0, 0.0)), ("the wall", (0.0, 1.0))] {
             for &(k, expected) in *ladder {
                 let read = against(k * eps * dr, k * eps * dy);
