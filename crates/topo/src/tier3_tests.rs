@@ -452,21 +452,18 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 /// Two halves. A datum that is not a number (NaN or `±∞`), or a stored
 /// direction (`normal`, `axis`, `u_ref`) that is the zero vector, is
 /// `PoisonedSurfaceDatum`; a finite datum outside its variant's
-/// convention — a frame off unit or off `u_ref ⊥ axis` by more than ε
-/// of locus movement at the kind's radius included — is
-/// `UnrepresentableSurfaceDatum`. The first six rungs are the
+/// convention is `UnrepresentableSurfaceDatum`. The first six rungs are the
 /// measurement the carried row took before check 1 read any analytic
 /// datum, when every one of them was refused only by checks 3–5's
 /// escalations.
 #[test]
 fn check_1_names_the_analytic_datum_that_describes_no_locus() {
     use geom::ConventionEnd::{Lower, Upper};
-    use geom::ConventionMeasure::Value;
     use geom::SurfaceDatum as D;
     use geom::SurfaceKind as K;
     enum Verdict {
         Poisoned,
-        Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
+        Unrepresentable(geom::ConventionEnd),
     }
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
@@ -504,7 +501,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             sphere(0.0),
             K::Sphere,
             D::Radius,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, NaN half-angle",
@@ -534,7 +531,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             cylinder(-1.0),
             K::Cylinder,
             D::Radius,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cylinder, infinite radius",
@@ -548,35 +545,35 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             sphere(-2.0),
             K::Sphere,
             D::Radius,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, zero half-angle",
             cone(0.0),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, half-angle pi/2",
             cone(core::f64::consts::FRAC_PI_2),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Value, Upper),
+            Verdict::Unrepresentable(Upper),
         ),
         (
             "cone, half-angle past pi/2",
             cone(2.0),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Value, Upper),
+            Verdict::Unrepresentable(Upper),
         ),
         (
             "torus, zero tube",
             torus(2.0, 0.0),
             K::Torus,
             D::MinorRadius,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "torus, NaN tube",
@@ -721,12 +718,11 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
                 },
             ],
             Verdict::Poisoned => vec![ValidationError::PoisonedSurfaceDatum { face, kind, datum }],
-            Verdict::Unrepresentable(measure, end) => {
+            Verdict::Unrepresentable(end) => {
                 vec![ValidationError::UnrepresentableSurfaceDatum {
                     face,
                     kind,
                     datum,
-                    measure,
                     end,
                 }]
             }
@@ -932,7 +928,6 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
 fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     use crate::validate::{DatumVerdict as V, analytic_datum_verdicts, poisoned_curve_datums};
     use geom::ConventionEnd::Lower;
-    use geom::ConventionMeasure::Value;
     use geom::Curve3;
     use geom::CurveDatum as D;
     let nan = f64::NAN;
@@ -955,11 +950,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     };
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let verdict = |c: &Curve3<f64>| {
-        analytic_datum_verdicts(
-            poisoned_curve_datums(c),
-            c.representability_margins(band),
-            band,
-        )
+        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins(), band)
     };
     type Row = (&'static str, Curve3<f64>, Option<V<D>>);
     let cases: Vec<Row> = vec![
@@ -1002,12 +993,12 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "circle, zero radius",
             circle(o, z, 0.0, x),
-            Some(V::Unrepresentable(D::Radius, Value, Lower)),
+            Some(V::Unrepresentable(D::Radius, Lower)),
         ),
         (
             "ellipse, zero minor",
             Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.0)),
-            Some(V::Unrepresentable(D::SemiV, Value, Lower)),
+            Some(V::Unrepresentable(D::SemiV, Lower)),
         ),
         ("honest spiric", spiric(0.5, 0.3), None),
         (
@@ -1018,7 +1009,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "spiric, zero tube",
             spiric(0.0, 0.3),
-            Some(V::Unrepresentable(D::MinorRadius, Value, Lower)),
+            Some(V::Unrepresentable(D::MinorRadius, Lower)),
         ),
         (
             "finite NURBS carrier",
@@ -1054,7 +1045,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         assert_eq!(
             analytic_datum_verdicts(
                 poisoned_curve_datums(&lifted),
-                lifted.representability_margins(band),
+                lifted.representability_margins(),
                 band,
             ),
             expected,

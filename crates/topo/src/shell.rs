@@ -867,7 +867,9 @@ fn cavity_refusal_said(
     use crate::clearance::EngineRefusal as R;
     match refusal {
         R::Sliver { .. } => "a separation sits wholly inside the ambiguity band".into(),
-        R::Budget(_) => "the search spent its budget with pairs of walls still undecided".into(),
+        R::Budget { .. } => {
+            "the search spent its budget with pairs of walls still undecided".into()
+        }
         R::Unsupported { carrier, .. } => {
             format!("a wall is {carrier}, which the certificate does not read").into()
         }
@@ -905,7 +907,7 @@ fn cavity_refusal_ending(
 ) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
-        R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
+        R::Sliver { .. } | R::Budget { .. } | R::WitnessUnverified { .. } => {
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
         }
         // A torus off its ring convention ends in its half's lever, in band

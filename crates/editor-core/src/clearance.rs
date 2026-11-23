@@ -1127,9 +1127,16 @@ impl ClearanceReport {
 
     /// **The human form** (M10-6 §2): the verdict in words, the
     /// witness as numbers rather than as bits, and the measured
-    /// discharge widths that say what the certificate cost.
-    pub fn render(&self) -> String {
+    /// discharge widths that say what the certificate cost. One
+    /// sentence per line; a refusal's nodes are mentioned by tag.
+    pub fn render(&self) -> crate::Lines {
+        self.rendered().lines()
+    }
+
+    /// [`Self::render`]'s lines, as one sentence.
+    fn rendered(&self) -> crate::Sentence {
         use core::fmt::Write as _;
+        let mut said = crate::Sentence::new();
         let mut s = String::new();
         match &self.verdict {
             ClearanceVerdict::Holds => {
@@ -1150,7 +1157,12 @@ impl ClearanceReport {
                 );
             }
             ClearanceVerdict::Refused(r) => {
-                let _ = writeln!(s, "REFUSED ({}): {r}", r.name());
+                let _ = crate::say!(
+                    &mut said,
+                    format_args!("REFUSED ({}): ", r.name()),
+                    crate::Said(r, crate::Speaker::TAG),
+                    "\n"
+                );
             }
         }
         let r = self.receipt;
@@ -1185,7 +1197,8 @@ impl ClearanceReport {
                 .map_or_else(|| "none".to_owned(), |x| format!("{x}")),
             w.deepest
         );
-        s
+        let _ = crate::say!(&mut said, s);
+        said
     }
 
     /// `verdict`, with the sweep's receipt, widths and region count.
@@ -1218,12 +1231,21 @@ impl ClearanceReport {
 /// census made global and parametric): the selection's boundary is
 /// injective, ERROR-DESIGN's *Self-intersection scope*.
 ///
-/// Every pair of the selection's faces is examined, a face against
-/// itself included. A face on an analytic carrier is injective by its
-/// kind; two cells that share no point of the boundary are certified at
-/// strictly positive distance; two that do are certified by a local
-/// certificate or refuse typed, naming the two faces, the shared cell
-/// and the arm ([`topo::clearance::Sweep::run`]).
+/// `Holds` rests on every pair of the selection's faces, a face
+/// against itself included. A face on an analytic carrier is injective
+/// by its kind; two cells that share no point of the boundary are
+/// certified at strictly positive distance; two that do are certified
+/// by a local certificate or refuse typed, naming the two faces, the
+/// shared cell and the arm ([`topo::clearance::Sweep::run`]).
+///
+/// It ends one of three ways: it proves the boundary clean (`Holds`);
+/// it finds and verifies a place where the boundary meets itself (a
+/// crossing, `Violated`); or it cannot decide a pair of faces
+/// (`Refused`). It ends at the first crossing or refusal it meets, and
+/// that is the leaf's verdict: the pairs after it are not read. A boundary that crosses itself and also holds a place the
+/// engine cannot read is told whichever the walk meets first, which
+/// moves with the body's pose and its faces' order; it is never told
+/// that it holds.
 pub fn self_intersection(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -1248,10 +1270,12 @@ pub fn self_intersection(
 /// and the strict bound over one body is the injectivity question.
 /// Between two bodies it is metric.
 ///
-/// The verdict combines the pairs' outcomes in one fixed order: a
-/// definite violation outranks a refusal, which outranks `Holds`. A
-/// finding is a stronger statement than an unknown, and an unknown is
-/// never presented as a pass.
+/// A metric bound's verdict combines the pairs' outcomes in one fixed
+/// order: a definite violation outranks a refusal, which outranks
+/// `Holds`. A finding is a stronger statement than an unknown, and an
+/// unknown is never presented as a pass. The injectivity question ends
+/// at its first finding instead ([`self_intersection`]), so its
+/// violation is one met before any refusal.
 pub fn clearance_at_dials(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -1704,33 +1728,44 @@ impl LeafFold {
 
     /// **The human form**: the verdict, then the four mass columns as
     /// percentages with the drive's uncertified share on its own line,
-    /// so no reader takes "holds" for "holds everywhere".
-    pub fn render(&self) -> String {
+    /// so no reader takes "holds" for "holds everywhere". One sentence
+    /// per line, as [`ClearanceReport::render`].
+    pub fn render(&self) -> crate::Lines {
         use core::fmt::Write as _;
-        let mut s = ClearanceReport {
+        let mut lines = ClearanceReport {
             verdict: self.verdict.clone(),
             receipt: self.receipt,
             widths: self.widths,
             decided: self.decided,
         }
-        .render();
+        .rendered();
+        let mut s = String::new();
         let m = &self.mass;
         let _ = writeln!(s, "  over {} certified leaf/leaves:", self.leaves.len());
         let _ = writeln!(
             s,
             "    {} of the measure holds",
-            crate::report::percent(&m.holds)
+            crate::report::percent(&m.holds, crate::Speaker::TAG, 0)
         );
-        let _ = writeln!(s, "    {} violated", crate::report::percent(&m.violated));
+        let _ = writeln!(
+            s,
+            "    {} violated",
+            crate::report::percent(&m.violated, crate::Speaker::TAG, 0)
+        );
         for (class, v) in &m.refused {
-            let _ = writeln!(s, "    {} refused ({class})", crate::report::percent(v));
+            let _ = writeln!(
+                s,
+                "    {} refused ({class})",
+                crate::report::percent(v, crate::Speaker::TAG, 0)
+            );
         }
         let _ = writeln!(
             s,
             "    {} the DRIVE never certified — this certificate says nothing about it",
-            crate::report::percent(&m.uncertified_by_the_drive)
+            crate::report::percent(&m.uncertified_by_the_drive, crate::Speaker::TAG, 0)
         );
-        s
+        let _ = crate::say!(&mut lines, s);
+        lines.lines()
     }
 }
 

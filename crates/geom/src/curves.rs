@@ -1281,12 +1281,8 @@ impl<T: Real> Curve3<T> {
     /// - `Spiric`: `minor_radius`, lower end (the `r > 0` half of the
     ///   ring convention). `R > r` and `|offset| < R − r` relate datums,
     ///   and [`Curve3::spiric`] decides them;
-    /// - **the frame**, for `Circle`, `Ellipse` and `Spiric`: `axis` and
-    ///   `u_ref` unit and `u_ref ⊥ axis` within `band`'s ε at the
-    ///   carrier's largest radius (the circle's `radius`, the larger
-    ///   semi-axis MAGNITUDE, the spiric's `R + r`) — the surface door's
-    ///   frame margins, for the same reason: a circle whose `axis` is
-    ///   `2·ẑ` evaluates an ellipse;
+    /// - **no frame margin**: a conic's or a spiric's frame is a
+    ///   [`crate::Frame`], rigid by its type, as on the surface door;
     /// - `Line`, `Nurbs`: none — a line's `dir` spans the same line at
     ///   any length, and a spline's datum is its net.
     ///
@@ -1294,36 +1290,20 @@ impl<T: Real> Curve3<T> {
     /// quantities are computed at `T` and returned, a margin of a
     /// poisoned datum is poison, and the variants are destructured
     /// without `..` so a field a variant gains is a compile error here.
-    pub fn representability_margins(
-        &self,
-        band: Band,
-    ) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
-        use crate::convention::{frame_margins, lower};
-        let frame = |axis, u_ref, arm| {
-            frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
-        };
+    pub fn representability_margins(&self) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
+        use crate::convention::lower;
         match self {
-            Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius()))
-                .chain(frame(c.frame().axis(), c.frame().u_ref(), c.radius()))
-                .collect(),
-            Curve3::Ellipse(e) => [
+            Curve3::Circle(c) => vec![lower(CurveDatum::Radius, c.radius())],
+            Curve3::Ellipse(e) => vec![
                 lower(CurveDatum::SemiU, e.semi_u()),
                 lower(CurveDatum::SemiV, e.semi_v()),
-            ]
-            .into_iter()
-            .chain(frame(e.frame().axis(), e.frame().u_ref(), e.speed_hi()))
-            .collect(),
+            ],
             Curve3::Spiric {
-                frame: carrier_frame,
-                major_radius,
+                frame: _,
+                major_radius: _,
                 minor_radius,
                 offset: _,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
-                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
-                    .collect()
-            }
+            } => vec![lower(CurveDatum::MinorRadius, *minor_radius)],
             Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
                 Vec::new()
             }
