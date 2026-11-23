@@ -14,9 +14,9 @@
 //! `p = 0.5` by the value door, and holds the evaluation over that
 //! prior to the fresh one.
 //!
-//! Each row names the mutant of `eval::wire::reads_seen` it is red
-//! under; all but the place row are red on the keys as they were, which
-//! hashed the bound member for every read.
+//! Each row names the mutant it is red under; all but the place row
+//! are red on the keys as they were, which hashed the bound member for
+//! every read and no read's variable.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, insert, step};
