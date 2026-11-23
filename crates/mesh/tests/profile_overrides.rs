@@ -9,7 +9,7 @@
 //!
 //! **What this pins is the DECISION, not the timing.** A timing cannot be
 //! asserted here: it is box-dependent and belongs to the perf lane
-//! (`memories/perf-measurement-lane.md`, `docs/PERF-PLAN.md`), which
+//! (`memories/perf-measurement-lane.md`, `work/perf/plan.md`), which
 //! reports and never gates. What it can pin is that the two overrides the
 //! measurement bought are still present and still `opt-level = 2` — the
 //! part that vanishes silently. Widening the block is fine and does not

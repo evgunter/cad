@@ -114,8 +114,8 @@ use pncad::document::say;
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
     HeldNodes, Label, MateFault, MateRef, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
-    ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode, ValuePayload, held_by,
-    node_kind_noun,
+    ProfileProgram, RecipeNodeId, Say, Sentence, Speaker, SplitSide, SpokenNode, ValuePayload,
+    held_by, node_kind_noun,
 };
 use pncad::prelude::StableName;
 use pncad::select::{
@@ -137,8 +137,10 @@ pub struct CarriedLine {
     /// [`THIS_DOCUMENT`] for the tree's own.
     pub document: String,
     /// The node's refusal exactly as its own tree draws it
-    /// (`CarriedLevel::line_in`).
-    pub line: String,
+    /// (`CarriedLevel::line_in`), its nodes mentioned in the document
+    /// that holds them: a part's are not this document's, so they are
+    /// no link on its screen.
+    pub line: Sentence,
 }
 
 /// The label of a carried level whose node is in the document the tree
@@ -153,8 +155,9 @@ pub enum RowStatus {
     /// The node's own operation failed. `message` is the typed
     /// error's own rendering, and `carried` the refusals it carries.
     Failed {
-        /// `NodeError::spoken` over the tree's document.
-        message: String,
+        /// `NodeError::spoken` over the tree's document, its nodes
+        /// mentioned there.
+        message: Sentence,
         /// **The refusals `message` points at and does not quote**, one
         /// per level ([`carried_lines`]): another node's refusal, with
         /// its own recourse, drawn under this row exactly as that
@@ -227,11 +230,11 @@ impl RowStatus {
     /// The line drawn under the row, when it has one: the typed
     /// payload's own words on a failing row, and on a downstream row
     /// the pointer at the row that has them.
-    pub fn message(&self) -> Option<&str> {
+    pub fn message(&self) -> Option<Sentence> {
         match self {
             Self::Ok | Self::Unevaluated => None,
-            Self::Failed { message, .. } => Some(message),
-            Self::Poisoned { message, .. } => message.as_deref(),
+            Self::Failed { message, .. } => Some(message.clone()),
+            Self::Poisoned { message, .. } => message.as_deref().map(Sentence::from),
         }
     }
 
@@ -1190,6 +1193,7 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
+        | ValuePayload::Datum(_)
         | ValuePayload::Instances(_) => None,
     }
 }
@@ -1274,7 +1278,7 @@ pub fn carried_lines(
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
                 CarriedIn::Part { doc_ref, .. } => files.name(doc_ref.id).to_owned(),
             },
-            line: level.line_in(doc).to_string(),
+            line: level.line_in(doc),
         })
         .collect()
 }
@@ -1330,7 +1334,7 @@ fn status_of(
             message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
         Standing::Failed(error, evaluation) => RowStatus::Failed {
-            message: error.spoken(doc, evaluation).to_string(),
+            message: error.spoken(doc, evaluation),
             carried: carried_lines(doc, &error.kind, files),
         },
     }
@@ -1670,6 +1674,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::NotOnTheCopy { mate }
+        | MateFault::NotTheDatumsOwn { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
         | MateFault::Backwards { mate, .. }

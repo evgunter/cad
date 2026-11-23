@@ -498,7 +498,7 @@ fn mate_elsewhere(
     match op {
         SessionOp::AddMate {
             placement, mate, ..
-        } => off(*placement, &mate.to),
+        } => off(*placement, &mate.to.read),
         SessionOp::SetBundle {
             placement,
             target,
@@ -507,7 +507,7 @@ fn mate_elsewhere(
         } => constraints
             .iter()
             .filter_map(|c| c.mate())
-            .find_map(|mate| off(*placement, &mate.to))
+            .find_map(|mate| off(*placement, &mate.to.read))
             .filter(|&(_, space)| *target != viewer::session::PlaceTarget::space(space)),
         _ => None,
     }

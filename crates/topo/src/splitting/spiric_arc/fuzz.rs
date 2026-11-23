@@ -6,6 +6,9 @@
 // carrier it evaluates, and the band and arithmetic it decides in.
 test_utils::gated_to![
     "crates/topo/src/splitting/spiric_arc.rs",
+    "crates/topo/src/splitting/containment.rs",
+    "crates/geom-brep/src/curve_face/spiric_plane.rs",
+    "crates/geom-brep/src/curve_face/pose.rs",
     "crates/geom-core/src/bisect.rs",
     "crates/geom/src/curves.rs",
     "crates/geom-core/src/predicate.rs",
@@ -58,11 +61,13 @@ struct Torus {
     o: f64,
 }
 
-/// Every regime the rate bounds cover: zero offset (a plane through
-/// the axis — [`geom::Curve3::spiric`] refuses it, the bounds' algebra
-/// does not), near-tangent cuts (`|o| → R − r`), very thin and very fat
-/// rings, negative offsets.
-fn torus(rng: &mut Rng) -> Torus {
+/// Every regime the rate bounds cover: near-tangent cuts
+/// (`|o| → R − r`), very thin and very fat rings, negative offsets, and
+/// by the axis: `through_axis`, zero offset (a plane through the axis —
+/// [`geom::Curve3::spiric`] refuses it, the bounds' algebra does not);
+/// otherwise a small one, inside the two-oval convention. Either way the
+/// draws are the same.
+fn torus(rng: &mut Rng, through_axis: bool) -> Torus {
     let big = 10f64.powf(rng.range(-2.0, 2.0));
     let r = big
         * match rng.below(4) {
@@ -72,9 +77,12 @@ fn torus(rng: &mut Rng) -> Torus {
         };
     let ring = big - r;
     let frac = match rng.below(5) {
-        0 => 0.0,
+        0 => {
+            let small = 10f64.powf(rng.range(-6.0, -2.0));
+            if through_axis { 0.0 } else { small }
+        }
         1 => 1.0 - 10f64.powf(rng.range(-6.0, -2.0)),
-        _ => rng.unit() * 0.999,
+        _ => 0.001 + rng.unit() * 0.998,
     };
     let o = if rng.below(2) == 0 {
         frac * ring
@@ -120,7 +128,7 @@ fn the_rate_bounds_hold_over_every_admitted_regime() {
     let mut rng = test_utils::fuzz::start("spiric_bounds");
     let (mut worst_a, mut worst_s) = (0.0_f64, 0.0_f64);
     for _ in 0..test_utils::fuzz::scaled(200) {
-        let t = torus(&mut rng);
+        let t = torus(&mut rng, true);
         let k = SpiricArc::new(
             oval::<f64>(t, Point3::new(0.0, 0.0, 0.0), frame(&mut rng)),
             (0.0, 1.0),
@@ -144,11 +152,13 @@ fn the_rate_bounds_hold_over_every_admitted_regime() {
                 pb: k.point(vb),
                 depth: 0,
             };
-            let b = k.bounds(&p);
-            let speed = b.reach / b.h;
+            let h = 0.5 * (vb - va).abs();
+            let speed = k.bounds(&p).reach / h;
+            let (_, accel) =
+                geom::spiric_window_rate_bounds((t.big, t.r, t.o), geom::mid_param(va, vb), h);
             for i in 0..=400 {
                 let v = va + (vb - va) * f64::from(i) / 400.0;
-                let a = c.deriv2(v).norm() / b.accel;
+                let a = c.deriv2(v).norm() / accel;
                 let s = c.deriv(v).norm() / speed;
                 worst_a = worst_a.max(a);
                 worst_s = worst_s.max(s);
@@ -188,8 +198,9 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
         (0usize, 0usize, 0usize, 0usize);
     let mut wrong = Vec::new();
     let mut on_refused = 0usize;
+    let mut unminted = 0usize;
     for case in 0..cases {
-        let t = torus(&mut rng);
+        let t = torus(&mut rng, false);
         // Keep scale near metres so the band is meaningful relative to it.
         let scale = 1.0 / t.big;
         let t = Torus {
@@ -205,17 +216,46 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
         );
         let v0 = rng.range(-4.0, 4.0);
         let w = rng.range(0.05, core::f64::consts::TAU - 0.05);
-        let span = if rng.below(2) == 0 {
-            (v0, v0 + w)
-        } else {
-            (v0 + w, v0)
-        };
+        // The ray's crossings read an edge's span, which ascends; the
+        // boundary reading has no sense, and reads it either way.
+        let reversed = rng.below(2) == 1;
+        let span = (v0, v0 + w);
         let cs = Case { t, fr, c };
         let cf: geom::Curve3<f64> = carrier(cs.t, cs.c, cs.fr);
         let k = SpiricArc::new(
             oval::<T>(cs.t, cs.c, cs.fr),
             (T::from_f64(span.0), T::from_f64(span.1)),
         );
+        let contact_arc = if reversed {
+            SpiricArc::new(
+                oval::<T>(cs.t, cs.c, cs.fr),
+                (T::from_f64(span.1), T::from_f64(span.0)),
+            )
+        } else {
+            k
+        };
+        // A cut the mint refuses at this band (its regime in band, or
+        // read past the inner equator): a ray across it is refused typed
+        // on the regime's margin, never read and never a fault.
+        if geom::Curve3::<f64>::spiric(c, fr.0, fr.1, t.big, t.r, t.o, band).is_err() {
+            unminted += 1;
+            let got = k.crossings(
+                crate::geometry::SurfaceKey::default(),
+                false,
+                normal_t::<T>(fr.1),
+                (
+                    Point3::new(T::from_f64(c.x), T::from_f64(c.y), T::from_f64(c.z)),
+                    normal_t::<T>(fr.0),
+                ),
+                band,
+            );
+            if got.is_ok() {
+                wrong.push(format!(
+                    "{lane} case {case} {t:?}: a cut the mint refuses read {got:?}"
+                ));
+            }
+            continue;
+        }
         let (axis, u) = fr;
         let m = axis.cross(u);
         let normal = u; // the plane's normal
@@ -287,7 +327,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
             // a near-tangent double crossing, so compare parity only.
             let truth_inside = (arc_cross + chord) % 2 == 1;
             asked += 1;
-            match k.contact(lift(q), ROWS, band) {
+            match contact_arc.contact(lift(q), ROWS, band) {
                 Ok(ArcHit::Off) => {}
                 other => {
                     refused_far += 1;
@@ -301,10 +341,15 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
                 }
             }
             let d = lift_v((dx, dy));
-            let side = normal_t::<T>(normal).cross(d);
-            match k.crossings(lift(q), d, side, band) {
-                None => abandoned += 1,
-                Some(cnt) => {
+            match k.crossings(
+                crate::geometry::SurfaceKey::default(),
+                false,
+                normal_t::<T>(normal),
+                (lift(q), d),
+                band,
+            ) {
+                Ok(None) | Err(_) => abandoned += 1,
+                Ok(Some(cnt)) => {
                     if cnt != arc_cross || ((cnt + chord) % 2 == 1) != truth_inside {
                         wrong.push(format!(
                             "{lane} case {case} {:?} span {:?} q={q:?} dir={ang}: row {cnt}, polyline {arc_cross}",
@@ -329,7 +374,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
             // point might be near another part of a non-convex oval.
             let dd = delta.abs();
             near_asked += 1;
-            let got = k.contact(lift(q), ROWS, band);
+            let got = contact_arc.contact(lift(q), ROWS, band);
             if dd <= band.escalate() && got == Ok(ArcHit::Off) {
                 wrong.push(format!(
                     "{lane} case {case} {:?}: δ={delta} in band read Off",
@@ -357,7 +402,13 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
         }
     }
     println!(
-        "{lane}: {asked} far asked, {abandoned} rays abandoned, {near_asked} near asked, {refused_far} refused past band, {on_refused} on-arc refused"
+        "{lane}: {asked} far asked, {abandoned} rays abandoned, {near_asked} near asked, {refused_far} refused past band, {on_refused} on-arc refused, {unminted} cuts the mint refuses"
+    );
+    // A ray is set aside near a graze or an arc's end; a lane that sets
+    // most aside reads nothing.
+    assert!(
+        abandoned * 5 <= asked,
+        "{lane}: {abandoned} of {asked} rays set aside"
     );
     assert!(
         wrong.is_empty(),

@@ -226,7 +226,12 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 /// Everything wearing [`crate::theme::Theme::actionable`] says its own
 /// words, so this decides salience and never meaning.
 pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -> egui::RichText {
-    let text = egui::RichText::new(text);
+    voiced(egui::RichText::new(text), theme, tone)
+}
+
+/// [`toned`]'s voice, on text already rich: a run of a sentence
+/// (`widgets::sentence`).
+pub(crate) fn voiced(text: egui::RichText, theme: &Theme, tone: frame::Tone) -> egui::RichText {
     match tone {
         frame::Tone::Advisory => text.weak(),
         frame::Tone::Actionable => text.color(chrome(theme.actionable)),
@@ -1625,7 +1630,12 @@ impl ViewerApp {
         } else if answered_save_choice {
             self.save_choice = None;
         }
-        let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
+        let verdict = frame::frame_status(
+            &notices,
+            &performed,
+            refusal.as_ref(),
+            frame::refusal_speaker(&performed, self.session.committed_doc()),
+        );
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
         // refusal does not cost it, and — for an unknown variable
@@ -1850,8 +1860,13 @@ impl ViewerApp {
                                 {
                                     ops.push(SessionOp::Select(row.select));
                                 }
-                                // A sentence, so `widgets::message`.
-                                crate::widgets::message(ui, row.sentence);
+                                let said = crate::widgets::sentence(
+                                    ui,
+                                    &row.sentence,
+                                    self.session.doc(),
+                                    None,
+                                );
+                                ops.extend(said.map(SessionOp::Select));
                             });
                             if let Some(node) = row.add_to_product
                                 && ui
@@ -2367,7 +2382,11 @@ impl ViewerApp {
                 ui.separator();
                 egui::ScrollArea::horizontal()
                     .id_salt("viewer_status_line")
-                    .show(ui, |ui| crate::widgets::message(ui, status.text()));
+                    .show(ui, |ui| {
+                        let said =
+                            crate::widgets::sentence(ui, status.said(), self.session.doc(), None);
+                        ops.extend(said.map(SessionOp::Select));
+                    });
             });
         }
     }
@@ -3208,7 +3227,7 @@ mod tests {
             let answer = features_fraction(wanted, stack);
             assert!(
                 matches!(answer, Some(share)
-                    if share.is_finite() && (0.0..=FEATURES_SHARE_CAP).contains(&share)),
+                    if (0.0..=FEATURES_SHARE_CAP).contains(&share)),
                 "{what} answered {answer:?}",
             );
         }
@@ -7678,6 +7697,227 @@ mod properties_pane_tests {
             .find(|(run, rect)| run == said && (rect.center().y - line.y).abs() < 1.0)
             .map(|(_, rect)| rect.center())
             .unwrap_or_else(|| panic!("the {seat:?} line names {said:?}: {painted:?}"))
+    }
+
+    /// **The startup document with `extra` profiles added**: a tree
+    /// longer than its pane, so its last rows are drawn scrolled out of
+    /// view, and the extrude near its top selected. Answers the pane
+    /// and the profiles, in tree order.
+    fn with_a_long_tree(extra: usize) -> (Driven, Vec<RecipeNodeId>) {
+        let ops = (0..extra)
+            .map(|k| SessionOp::AddProfile {
+                loops: vec![
+                    pncad::document::LoopProgram::circle(0.01 * k as f64, 0.0, 0.004)
+                        .expect("a finite circle"),
+                ],
+            })
+            .chain([SessionOp::Select(Selection::Node(extrude()))])
+            .collect();
+        let driven = Driven::with(ops);
+        let ids = driven.app.session.committed_doc().ids();
+        let profiles = ids[ids.len() - extra..].to_vec();
+        (driven, profiles)
+    }
+
+    /// **The clip the feature tree is drawn under**: its pane's, read
+    /// off its heading while the tree is scrolled to its top.
+    fn tree_clip(driven: &mut Driven) -> egui::Rect {
+        crate::pane::headless::find(&driven.landed(), "Features").clip
+    }
+
+    /// **Where the tree drew `node`'s row on screen**, if it is on
+    /// screen in `landed`: the galley beginning with its spelling under
+    /// the tree's clip (the Properties heading spells it too, in its
+    /// own pane).
+    fn tree_row_on_screen(
+        driven: &Driven,
+        landed: &[crate::pane::headless::Landed],
+        tree: egui::Rect,
+        node: RecipeNodeId,
+    ) -> Option<egui::Rect> {
+        let name = crate::tree::spelled(&driven.app.session.doc().spoken(node));
+        landed
+            .iter()
+            .filter(|landed| landed.clip == tree && landed.text.starts_with(&name))
+            .find_map(crate::pane::headless::Landed::visible)
+    }
+
+    /// **A node a refusal names on the status line is a link to it**:
+    /// an edit of a slot the extrude does not carry is refused in the
+    /// kernel's sentence naming the extrude, and a click on the name
+    /// selects it.
+    ///
+    /// *Breaks if* the refusal reaches the line as text (its mention
+    /// flattened on the way), or the click selects anything else.
+    #[test]
+    fn a_node_a_refusal_names_is_a_link_to_it() {
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(placement()))]);
+        driven.perform(SessionOp::SetSlot {
+            node: extrude(),
+            slot: SlotId::Radius,
+            value: crate::props::SlotValue::Continuous(0.01),
+        });
+        let name = crate::tree::spelled(&driven.app.session.doc().spoken(extrude()));
+        let landed = driven.landed();
+        let line = landed
+            .iter()
+            .find(|landed| {
+                landed.text.contains(&name) && landed.text.contains("has no slot radius")
+            })
+            .unwrap_or_else(|| panic!("the refusal is on the line: {:?}", driven.app.status));
+        driven.click_at(line.at(&name).expect("the refusal names the extrude"));
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(extrude()),
+            "the click selects the node the refusal names"
+        );
+    }
+
+    /// **A node a check finding names is a link to it**: a fresh
+    /// revolve nothing reads is reported unused, and a click on its name
+    /// in the finding's sentence (not the row's button) selects it.
+    ///
+    /// *Breaks if* the finding's sentence is drawn as text.
+    #[test]
+    fn a_node_a_check_finding_names_is_a_link_to_it() {
+        let (mut driven, revolve) = with_revolve(|_| vec![SessionOp::Select(Selection::None)]);
+        driven.app.checks_shown = true;
+        let rows = crate::frame::check_rows(
+            driven.app.session.checks().expect("the landing checked"),
+            driven.app.session.landed_pair().expect("landed").0,
+        );
+        let row = rows
+            .iter()
+            .find(|row| row.select == Selection::Node(revolve))
+            .expect("the revolve's unused finding");
+        let text = row.sentence.to_string();
+        let name = crate::tree::spelled(&driven.app.session.doc().spoken(revolve));
+        let landed = driven.landed();
+        let sentence = crate::pane::headless::find(&landed, &text);
+        driven.click_at(
+            sentence
+                .at(&name)
+                .unwrap_or_else(|| panic!("the finding names the revolve: {text}")),
+        );
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(revolve),
+            "the click selects the node the finding names"
+        );
+    }
+
+    /// **A node a failed row's line names is a link to it**: the
+    /// startup extrude set to no distance fails, the line under its row
+    /// names it, and a click on the name there selects it.
+    ///
+    /// *Breaks if* the failure line reaches the tree as text.
+    #[test]
+    fn a_node_a_failure_line_names_is_a_link_to_it() {
+        let mut driven = Driven::with(vec![
+            SessionOp::SetSlot {
+                node: extrude(),
+                slot: SlotId::Distance,
+                value: crate::props::SlotValue::Continuous(0.0),
+            },
+            SessionOp::Select(Selection::Node(placement())),
+        ]);
+        driven.quiet();
+        let rows = driven.app.session.tree_rows();
+        let failed = rows
+            .iter()
+            .find(|row| row.id == extrude())
+            .expect("the extrude's row");
+        let crate::tree::RowStatus::Failed { message, .. } = &failed.status else {
+            panic!("the premise: no distance fails, got {:?}", failed.status)
+        };
+        let text = message.to_string();
+        let name = crate::tree::spelled(&driven.app.session.doc().spoken(extrude()));
+        assert!(
+            message
+                .mentions()
+                .any(|mention| mention.node().is_some_and(|node| node.id() == extrude())),
+            "the line mentions the extrude: {message:?}"
+        );
+        let landed = driven.landed();
+        let line = crate::pane::headless::find(&landed, &text);
+        driven.click_at(line.at(&name).expect("the line names the extrude"));
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(extrude()),
+            "the click selects the node the line names"
+        );
+    }
+
+    /// **The tree scrolls to a selection made outside it**: the last
+    /// profile's row is out of view, a selection the tree did not make
+    /// (a link followed, a viewport pick) selects it, and its row is
+    /// drawn on screen.
+    ///
+    /// *Breaks if* the tree does not scroll on a selection from outside.
+    #[test]
+    fn the_tree_scrolls_to_a_selection_made_outside_it() {
+        let (mut driven, profiles) = with_a_long_tree(60);
+        let last = *profiles.last().expect("profiles were added");
+        let tree = tree_clip(&mut driven);
+        let landed = driven.landed();
+        assert_eq!(
+            tree_row_on_screen(&driven, &landed, tree, last),
+            None,
+            "the last row starts out of view"
+        );
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Select(Selection::Node(last))]);
+        driven.quiet();
+        let landed = driven.landed();
+        assert!(
+            tree_row_on_screen(&driven, &landed, tree, last).is_some(),
+            "the selected row is scrolled into view"
+        );
+    }
+
+    /// **A row clicked in the tree stays where it was clicked**: the
+    /// tree is scrolled part-way (to an outside selection), a row near
+    /// the bottom of the view is clicked, and it is drawn where it was.
+    ///
+    /// *Breaks if* the tree scrolls on a selection it made itself — it
+    /// would centre the clicked row.
+    #[test]
+    fn a_row_clicked_in_the_tree_does_not_jump() {
+        let (mut driven, profiles) = with_a_long_tree(60);
+        let tree = tree_clip(&mut driven);
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Select(Selection::Node(profiles[30]))]);
+        driven.quiet();
+        let landed = driven.landed();
+        let on_screen: Vec<(RecipeNodeId, egui::Rect)> = profiles[30..]
+            .iter()
+            .filter_map(|&node| Some((node, tree_row_on_screen(&driven, &landed, tree, node)?)))
+            .collect();
+        // Low in the view, and whole: three rows above the last one
+        // drawn, which the view may cut.
+        let (node, before) = on_screen[on_screen
+            .len()
+            .checked_sub(4)
+            .expect("rows below the selection are on screen")];
+        driven.click_at(before.center());
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(node),
+            "the click selects the row"
+        );
+        let landed = driven.landed();
+        let after =
+            tree_row_on_screen(&driven, &landed, tree, node).expect("the clicked row is on screen");
+        assert!(
+            (after.center().y - before.center().y).abs() < 1.0,
+            "the clicked row stays put: {before:?} then {after:?}"
+        );
     }
 
     /// **A revolve's Properties name the profile it was made from, and a
