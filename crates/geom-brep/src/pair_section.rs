@@ -3442,6 +3442,7 @@ impl<T: Decide> CarriedComponent<T> {
     /// in the band or past it, a witness standing off its foot.
     fn foot_along(&self, p: Point3<T>, t: T, band: Band) -> Result<T, SiteRefusal> {
         use geom::carrier_speed::{curvature_hi_over, speed_range};
+        let t = self.polished(p, t, band);
         use geom_core::SizedPass;
         use geom_core::k_stats::{
             decide_reported, detached, gate_rejection, splice, splice_superseded,
@@ -3495,6 +3496,63 @@ impl<T: Decide> CarriedComponent<T> {
         splice_superseded(end_record);
         splice(record);
         decided.map(|()| t).map_err(SiteRefusal::Escalated)
+    }
+
+    /// **The witness `t` polished toward the site's orthogonal foot**: a
+    /// few Newton steps on the along-residual `C′·(p − C)`, read at the
+    /// scalar's point values, held to an open component's span, and kept
+    /// only within the pad and the band's escalation of the witness, the
+    /// farthest a witness stands from its foot. A seed and no verdict:
+    /// [`Self::foot_along`] certifies what it returns, and `t` itself
+    /// where it cannot read. It frees a foot the tube piece's run clamped,
+    /// and one the carrier's polish left short of the foot.
+    fn polished(&self, p: Point3<T>, t: T, band: Band) -> T {
+        let value = |x: T| x.point_value();
+        let Some(t0) = value(t) else {
+            return t;
+        };
+        let span = (value(self.span.0), value(self.span.1));
+        let point = |s: f64| {
+            let q = self.carrier.eval(T::from_computed(s));
+            Some([value(q.x)?, value(q.y)?, value(q.z)?])
+        };
+        let Some(start) = point(t0) else {
+            return t;
+        };
+        let mut s = t0;
+        for _ in 0..4 {
+            let at = T::from_computed(s);
+            let (c, d1) = self.carrier.ders1(at);
+            let d2 = self.carrier.deriv2(at);
+            let off = p - c;
+            let (Some(g), Some(dg)) = (value(d1.dot(off)), value(d2.dot(off) - d1.dot(d1))) else {
+                return t;
+            };
+            // Past the curvature radius, or unread: no Newton step.
+            if dg.is_nan() || dg >= 0.0 {
+                break;
+            }
+            let mut next = s - g / dg;
+            if let (false, (Some(lo), Some(hi))) = (self.closed(), span) {
+                next = next.clamp(lo.min(hi), lo.max(hi));
+            }
+            if !next.is_finite() || next == s {
+                break;
+            }
+            s = next;
+        }
+        let Some(end) = point(s) else {
+            return t;
+        };
+        let moved = (0..3)
+            .map(|i| (end[i] - start[i]).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        if moved <= self.pad + band.escalate() {
+            T::from_computed(s)
+        } else {
+            t
+        }
     }
 
     /// **The end of this open component that the site stands past**,
@@ -4551,19 +4609,16 @@ mod wiring {
         }
     }
 
-    /// **A site past an open component's end reads at that end, `t`
-    /// metered to it**: straight splines along `+x` over `(0, 1)`, the
-    /// tube's run stopping short of the span's last end by `δ`, and a site
+    /// **A site past an open component's end reads at that end**:
+    /// straight splines along `+x` over `(0, 1)` at speeds `0.1` and `10`,
+    /// the tube's run stopping short of the span's last end, and a site
     /// past the carrier's end by `2·10⁻⁴` and `3·10⁻⁴` off it, so its
     /// witness is the run's end and its along-residual points out of the
-    /// span. At speed `0.1` a `δ` of five zeros is half a zero in metres:
-    /// the site reads at the span's end, `1`, exactly. At speed `10` a `δ`
-    /// of three tenths of a zero is three zeros in metres, in the band:
-    /// it escalates. A site inside reads its own foot. Red against the
-    /// span's ends swapped (the end the residual points past is `0`, a
-    /// metre away), against the gap read in parameter units (each speed's
-    /// verdict flips), and against the witness returned in place of the
-    /// end.
+    /// span. The polish carries the witness to the span's end, where the
+    /// residual still points out: the site reads at `1`, exactly. A site
+    /// inside reads its own foot. Red against the span's ends swapped (the
+    /// end the residual points past is then `0`, the span away), and
+    /// against the witness returned in place of the end.
     #[test]
     fn a_site_past_an_open_end_reads_at_that_end() {
         use geom_core::Point3;
@@ -4580,18 +4635,18 @@ mod wiring {
         assert_eq!(
             slow.reads(past(0.1), band()),
             Ok(Some(1.0)),
-            "half a zero short of the end in metres: the site reads at the end"
+            "five zeros short of the end in parameter: the site reads at the end"
         );
         let inside = slow.reads(Point3::new(0.05, 3e-4, 0.0), band());
         assert!(
             matches!(inside, Ok(Some(t)) if (0.1 * (t - 0.5)).abs() <= zero),
             "a site inside reads its foot: {inside:?}"
         );
-        let fast = line(10.0, 0.3 * zero);
-        let got = fast.reads(past(10.0), band());
-        assert!(
-            matches!(got, Err(super::SiteRefusal::Escalated(_))),
-            "three zeros short of the end in metres, in the band: {got:?}"
+        let fast = line(10.0, 1e-5);
+        assert_eq!(
+            fast.reads(past(10.0), band()),
+            Ok(Some(1.0)),
+            "the run a hundred microns short of the end in metres: the site reads at the end"
         );
     }
 
