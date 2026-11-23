@@ -291,7 +291,7 @@ fn revolved_runs_build_one_wall_each() {
             "axis rectangle",
             vec![pts(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])],
             y_axis(),
-            4,
+            3,
             5,
             vec![near()],
         ),
@@ -308,7 +308,7 @@ fn revolved_runs_build_one_wall_each() {
                 (0.0, 2.0),
             ])],
             y_axis(),
-            4,
+            3,
             5,
             vec![
                 near(),
@@ -327,7 +327,7 @@ fn revolved_runs_build_one_wall_each() {
                 (0.0, 1.0),
             ])],
             y_axis(),
-            4,
+            3,
             5,
             vec![near(), cube(-0.5, 0.5, -0.5, 1.0, 1.0, 1.0)],
         ),
@@ -341,7 +341,7 @@ fn revolved_runs_build_one_wall_each() {
                 (0.0, 2.0),
             ])],
             y_axis(),
-            4,
+            3,
             5,
             vec![near(), cube(-0.5, 0.5, -0.5, 1.0, 1.0, 1.0)],
         ),
@@ -355,7 +355,7 @@ fn revolved_runs_build_one_wall_each() {
                 (0.0, 0.0),
             ])],
             y_axis(),
-            4,
+            3,
             5,
             vec![near()],
         ),
@@ -384,7 +384,7 @@ fn revolved_runs_build_one_wall_each() {
                 (0.0, 2.0),
             ])],
             y_axis(),
-            3,
+            2,
             4,
             vec![near()],
         ),
@@ -400,7 +400,7 @@ fn revolved_runs_build_one_wall_each() {
                 (0.0, 2.0),
             ])],
             y_axis(),
-            7,
+            5,
             7,
             vec![cube(1.2, 0.7, -0.3, 0.6, 0.6, 0.6)],
         ),
@@ -422,7 +422,7 @@ fn revolved_runs_build_one_wall_each() {
                 pts(&[(2.0, 1.0), (2.0, 3.0), (4.0, 3.0), (4.0, 1.0), (3.0, 1.0)]),
             ],
             y_axis(),
-            8,
+            7,
             9,
             vec![cube(2.5, 0.5, -0.3, 1.0, 1.0, 0.6)],
         ),
@@ -607,7 +607,7 @@ fn extruded_arc_runs_build_one_wall_each() {
 }
 
 /// A fully revolved run of `k` cocircular arcs is ONE wall: a sphere
-/// (the D on the axis, its wall in the wire case's two π-bands), a
+/// (the D on the axis, its wall one band, its meridian a wrap edge), a
 /// torus (the D beside the axis, or a major arc of sum 2π − 0.2 closed
 /// by a chord), and a sphere zone between a bore's cylinder walls,
 /// wherever the loop starts; volumes in closed form (Pappus for the
@@ -625,11 +625,11 @@ fn fully_revolved_arc_runs_build_one_wall_each() {
         for start in starts(k) {
             let label = format!("sphere of {k} arcs start={start}");
             let b = full(d_of_arcs(0.0, k, start));
-            holds(&label, &b, Some(2), &[], &[slab()]);
+            holds(&label, &b, Some(1), &[], &[slab()]);
             assert_eq!(
                 same_key_adjacency(&b, false),
-                2,
-                "{label}: the π-split alone"
+                0,
+                "{label}: one band, no split"
             );
             has_volume(&label, &b, 4.0 / 3.0 * PI);
 

@@ -634,7 +634,8 @@ fn a_ball_escaping_through_a_plane_and_a_sphere() {
 /// The two lens-shaped differences build. The
 /// intersection builds a sliver `2·10⁻⁶` thick, sound: its two caps
 /// are small regions the sphere arm reads by the fan form, so its
-/// volume lands within about `1e-9` of the lens in either order (it
+/// volume lands within a few roundings of its flux's cancelling
+/// `R·Area` of the lens in either order (it
 /// read `−54%` and `−86%` before) and its at-infinity side decides, so
 /// it is a legal operand (`work/heldrecords/a-built-sliver-is-not-a-legal-operand.md`).
 #[test]
@@ -685,13 +686,18 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     }
     // `outcome`'s volume test is absolute (`1e-7`), which a lens of
     // `1.2e-11` passes whatever it reads, so the sliver's volume is held
-    // here RELATIVE to the exact lens, per order and per gap. Measured at
-    // most `4.0e-9` (`a ∩ b` at a `3e-6` gap, an error of 1.1e-19 m³),
-    // with each face read about its shell's own vertex; `2.9e-9` when
-    // every face was read about the world origin, the unit ball's
-    // centre, where its cap's flux has no lever to cancel. The `b ∩ a` sliver at a `1e-5` gap reads `2.5e-3`
-    // off: that is the flux's own `R·Area` against `c·A⃗` cancellation,
-    // FLUXTAIL's `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
+    // here RELATIVE to the exact lens, per order and per gap, to what the
+    // flux form can resolve. A sphere face's flux is `R·Area` against
+    // `c·A⃗` (FLUXTAIL's
+    // `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`):
+    // the big ball's cap carries `R·Area = 50·2π·50·h₂` (`6.2e-4` m³ at a
+    // `2e-6` gap, `h₂` its cap height), which cancels down to a lens of
+    // `1.2e-11`, so one rounding of that term is already `8.8e-9` of the
+    // lens. The bound is four such roundings, `4ε·R·Area / V`: `4.4e-8`
+    // at `2e-6`, `8.9e-9` at `1e-5`. Measured inside it in either order
+    // (`7.7e-9` at `a ∩ b`, `2e-6`). The `b ∩ a` sliver at a `1e-5` gap
+    // reads `2.5e-3` off, far past rounding: that is the same cancellation
+    // with the face read about a vertex `51` from the big ball's centre
     // (`work/heldrecords/a-built-sliver-is-not-a-legal-operand.md` has the
     // table), held at its measured size so it cannot grow unseen.
     for gap in [2e-6, 3e-6, 5e-6, 1e-5] {
@@ -708,10 +714,15 @@ fn a_large_ball_near_external_tangency_is_pinned() {
                 .unwrap_or_else(|| panic!("gap {gap:e}, {op}: the sliver builds"));
             let v = topo::test_support::pinned_volume("the measured body", &body, tol).volume;
             let rel = (v - want).abs() / want;
+            // The big ball's cap: its height above the radical plane,
+            // and the `R·Area` its flux cancels.
+            let a1 = (d * d + 1.0 - 50.0 * 50.0) / (2.0 * d);
+            let h2 = 50.0 - (d - a1);
+            let flux = 50.0 * core::f64::consts::TAU * 50.0 * h2;
             let bound = if gap == 1e-5 && op == "b ∩ a" {
                 3e-3
             } else {
-                5e-9
+                4.0 * f64::EPSILON * flux / want
             };
             assert!(
                 rel <= bound,

@@ -170,11 +170,12 @@ fn the_corpus_band_trim_census_is_the_recorded_one() {
         })
         .collect();
     for (name, n) in &got {
-        // Each name twice since D′3: in the fillet's table and in its
-        // world copy's, which carries it verbatim.
+        // Each name twice: in the fillet's table and in its world
+        // copy's, which carries it verbatim (D′3); each pip rim one
+        // closed edge, so one trimline.
         let want = match name.as_str() {
-            "die_composed" => 8,
-            "die_composed_tour" => 168,
+            "die_composed" => 4,
+            "die_composed_tour" => 84,
             _ => 0,
         };
         assert_eq!(
