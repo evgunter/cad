@@ -93,13 +93,15 @@ pub(crate) fn nested_doc(
 }
 
 /// **Each inner member alone, placed as the outer places it**: one row
-/// of `N` over `inner[i]` per `i`, under one index of its own. The
-/// document and the rows, by `i`.
+/// of `N` over `inner[i, 0]` per `i`, under one index of its own. The
+/// inner row is a yield of the binder `{i, j}`, keyed by both indices,
+/// and reads no `j`, so `inner[i, 0]` is its member `i`. The document and
+/// the rows, by `i`.
 pub(crate) fn per_member(doc: ProfileDoc, inner: RecipeNodeId) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (mut doc, alone) = fixture::index(doc, "alone", N);
     let mut rows = Vec::new();
     for i in 0..M {
-        let read = BodyRead::indexed(inner, vec![Formula::count(i)]);
+        let read = BodyRead::indexed(inner, vec![Formula::count(i), Formula::count(0)]);
         let (next, row) = along_y(doc, (inner, read), alone);
         doc = next;
         rows.push(row);
@@ -183,7 +185,9 @@ fn a_family_of_families_is_one_member_per_pair_outer_first() {
         ev.table_at(inner).expect("the inner"),
         ev.table_at(outer).expect("the outer"),
     );
-    assert_eq!(of_outer.len(), of_inner.len() * N as usize);
+    // The inner row is a yield of the binder `{i, j}`, one member per
+    // pair as the outer is.
+    assert_eq!(of_outer.len(), of_inner.len());
     for (name, entry) in of_outer.iter() {
         assert_eq!(name.node, outer);
         let [RoleSeg::Member { at, of: inner_name }] = name.path.as_slice() else {
@@ -204,7 +208,7 @@ fn a_family_of_families_is_one_member_per_pair_outer_first() {
         let inner_entry = of_inner
             .lookup(&in_member(
                 inner,
-                vec![(i_var, *i)],
+                vec![(i_var, *i), (j_var, *j)],
                 master.as_ref().clone(),
             ))
             .expect("the inner row exists");
@@ -214,7 +218,11 @@ fn a_family_of_families_is_one_member_per_pair_outer_first() {
         };
         let expected = match inner_entry {
             Entry::Unique(e) => {
-                assert_eq!(e.body, *i, "the inner row's body is its member's place");
+                assert_eq!(
+                    e.body,
+                    u32::try_from(flat(*i as usize, *j as usize)).unwrap(),
+                    "the inner row's body is its member's place"
+                );
                 Entry::Unique(at_flat(e))
             }
             Entry::Tied(es) => Entry::Tied(es.iter().map(at_flat).collect()),

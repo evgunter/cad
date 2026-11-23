@@ -3253,11 +3253,33 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
             },
         };
         if let Some((family, at)) = member {
-            replaced.push(member_projected(
-                family,
-                value_of(results, family)?.whole(),
-                &at,
-            )?);
+            let held = value_of(results, family)?;
+            let (family, index, mut value) = member_projected(family, held.whole(), &at)?;
+            // A member read at its binder's own indices, inside the
+            // binder, is the member the reader stands at (D10
+            // `[repetition]`): it answers that member's own table, as
+            // the member evaluated.
+            let written = match select {
+                Some(select) => doc.selected_body(select),
+                None if sourced.is_indexed() => sourced.clone(),
+                None => node
+                    .body_read(seat)
+                    .cloned()
+                    .unwrap_or_else(|| crate::BodyRead::plain(var)),
+            };
+            let own = held.family.is_some()
+                && doc
+                    .operation_of(written.read)
+                    .is_some_and(|at| at == family)
+                && doc
+                    .outputs(family)
+                    .iter()
+                    .find_map(|&out| doc.yielding(out))
+                    .is_some_and(|binder| doc.binder_indices(binder) == written.at);
+            if own {
+                value.outputs = held.outputs.clone();
+            }
+            replaced.push((family, index, value));
             continue;
         }
         replaced.extend(split_port(var, doc, results)?);
