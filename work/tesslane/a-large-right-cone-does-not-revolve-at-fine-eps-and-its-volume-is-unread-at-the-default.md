@@ -20,6 +20,6 @@ Bodies built with `crates/mesh/tests/split_rulings.rs`' `turned` (a profile revo
 
 ## What it costs today
 
-`split_rulings::a_run_anchored_on_a_needle_triangle_refuses_unresolved` reads `check_mesh` and `check_winding` and not the volume where the 1000 cone meshes, and uses the unit cone at ε 10⁻¹².
+`split_rulings::a_split_beside_a_large_cones_rim_end_meshes` and `a_one_chord_face_through_the_apex_with_both_sides_split_meshes` read `check_mesh`, `check_winding` and the count relation and not the volume where the 1000 cone meshes (`holds_the_relation`, which counts those cells), and use cones of height 1 at ε 10⁻¹².
 
 Owed: the cause of each (which decision escalates or refuses, at what margin), and whether a part of size 1000 failing to revolve or to be measured is a band scaling with the part's size.

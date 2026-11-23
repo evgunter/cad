@@ -451,7 +451,7 @@ pub fn iso_rectangle_sides<T: Decide>(
         } => {
             let (apex, axis) = (frame.origin(), frame.axis());
             let (sin_a, cos_a) = half_angle.sin_cos();
-            let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            let b = cone_boundary(surface, apex, axis, sin_a, cos_a, outer, band)?;
             linear_rims_at_extremes(&b, band)?;
             Ok(b.sides)
         }
@@ -1285,9 +1285,10 @@ struct RimArms<T> {
 }
 
 impl<T: Real> RimArms<T> {
-    /// The three surfaces whose level and azimuth turn about the same
-    /// radius: the cylinder and sphere (`R`) and the cone (its first
-    /// rim's own radius, [`cone_arm`]).
+    /// The cylinder and sphere, whose level and azimuth turn about the
+    /// same radius `R`; and the cone, whose azimuth is metered at its
+    /// first rim's own radius ([`cone_arm`]) and whose levels, lengths,
+    /// read no arm.
     fn uniform(r: T, arm: Lever<T>) -> Self {
         Self {
             level: arm,
@@ -2702,12 +2703,9 @@ fn require_cone_circle<T: Decide>(
     )?;
     require_zero(
         "props_cone_circle_off_axis",
-        // Unsourced lever: the rim centre's measured offset from the axis,
-        // a residual projected by `cos α`, not an extent, curvature or rate.
-        Margin::levered(
-            cos_a,
-            geom_core::Lever::unsourced((w - axis * w.dot(axis)).norm()),
-        ),
+        // The rim centre's offset from the axis, projected onto the
+        // cone's normal: the rim's elevation off the cone.
+        Margin::of((w - axis * w.dot(axis)).norm() * cos_a),
         band,
         Premise::OnSurface,
     )?;
@@ -3453,6 +3451,7 @@ fn cone_loop_winding<T: Decide>(
 /// that does not close around the apex ([`require_rim_only_closed`])
 /// rather than folding and leaving the check to whoever asked.
 fn cone_boundary<T: Decide>(
+    cone: &Surface<T>,
     apex: Point3<T>,
     axis: Vec3<T>,
     sin_a: T,
@@ -3519,9 +3518,10 @@ fn cone_boundary<T: Decide>(
         }
     }
     // Cone levels are the signed SLANT arc length — `Length`, bare —
-    // and the arm is the first rim's own radius ([`cone_arm`]).
-    let rim_radius = cone_arm(&rims, sin_a);
-    let arms = RimArms::uniform(rim_radius, Lever::curvature_radius(rim_radius));
+    // so the level arm is never consumed, and is the cone's own answer
+    // with no point to read at ([`crate::uniform_curvature_arm`]). The
+    // azimuth is metered at the first rim's own radius ([`cone_arm`]).
+    let arms = RimArms::uniform(cone_arm(&rims, sin_a), crate::uniform_curvature_arm(cone));
     let mut b = LinearBoundary {
         rims,
         levels,

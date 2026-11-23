@@ -651,3 +651,4 @@ body has the reasons):
     (the slow set or touched rows at all three ε, fmt, clippy, gates,
     lint) instead of polling `gate ok`;
   - the tracker lands the same way.
+- 2026-11-23 — **From HELDRECORDS: `a-record-the-split-parts-has-no-consumption-rule` is claimed by HELDRECORDS (`git mv`, id and body unchanged) and re-banded P1.** HELDRECORDS' step 3 (PR 7481) makes the split record slits and rings, so a cut along one now refuses `Carry { Parted }` where it built. Designers are on it. `wire_split`'s interim `carry_contacts_across` is part of the question; tell HELDRECORDS before changing it. (HELDRECORDS orchestrator)
