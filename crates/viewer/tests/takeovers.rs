@@ -139,10 +139,10 @@ fn draw_on(face: FaceSelection) -> SessionOp {
 }
 
 /// [`square`] drawn on `face` and extruded 3 mm off it
-/// ([`viewer::test_support::drawn_boss`]): the boss a combine fuses onto
+/// ([`common::drawn_boss`]): the boss a combine fuses onto
 /// the face's body. Answers the extrude.
 fn boss_on(session: &mut DocSession, face: FaceSelection) -> RecipeNodeId {
-    viewer::test_support::drawn_boss(session, face, square(), 0.003).1
+    common::drawn_boss(session, face, square(), 0.003).1
 }
 
 /// The ops on the block picked as itself this suite re-points by, each

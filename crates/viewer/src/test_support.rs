@@ -201,37 +201,6 @@ pub fn rectangle_chain(origin: [f64; 2], w: f64, h: f64) -> pncad::trace::Chain 
         .line_to(pncad::document::ProgramTarget::Start)
 }
 
-/// **A boss drawn on `face` and extruded `depth` off it**: `chain` drawn
-/// on the face's chart (`SessionOp::DrawOnFace`), then extruded
-/// (`SessionOp::AddExtrude`), each its own action and neither landed.
-/// Answers the profile and the extrude.
-///
-/// # Panics
-///
-/// If either door refuses.
-pub fn drawn_boss(
-    session: &mut crate::session::DocSession,
-    face: crate::session::FaceSelection,
-    chain: pncad::trace::Chain,
-    depth: f64,
-) -> (RecipeNodeId, RecipeNodeId) {
-    let mut made = |op| {
-        let out = session.perform(op);
-        assert!(out.refusal.is_none(), "{:?}", out.refusal);
-        out.made.expect("an insert makes a node")
-    };
-    let profile = made(crate::session::SessionOp::DrawOnFace {
-        face,
-        traced: Vec::new(),
-        chains: vec![chain],
-    });
-    let boss = made(crate::session::SessionOp::AddExtrude {
-        profile,
-        distance: len(depth),
-    });
-    (profile, boss)
-}
-
 /// An axis-aligned rectangular profile node's payload:
 /// [`rectangle_loop`] drawn on its own plane. `square` is this with two
 /// equal sides at the plane origin, and a fixture whose block sits
