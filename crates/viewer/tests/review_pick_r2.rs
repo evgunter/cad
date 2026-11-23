@@ -100,9 +100,10 @@ struct Tally {
 /// points, with fewer vertices, and a ray is aimed at each subsampled
 /// vertex, so fewer rays are AIMED and fewer near-degenerate candidates
 /// reach the determinant. Measured on this tree and on its merged main
-/// beside it: rays RAYS, grazes GRAZES, refused candidates REFUSED, rays
-/// with a refusal WITH. `genuine_refused` stays empty.
-const PINNED: (usize, usize, usize, usize) = (424_728, 138_718, 11_004, 5_130);
+/// beside it, which reads its own pin there: rays 451,512 → 424,728,
+/// grazes 147,844 → 138,712, refused candidates 16,596 → 11,004, rays
+/// with a refusal 8,142 → 5,130. `genuine_refused` stays empty.
+const PINNED: (usize, usize, usize, usize) = (424_728, 138_712, 11_004, 5_130);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
