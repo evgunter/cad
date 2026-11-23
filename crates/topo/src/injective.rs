@@ -726,7 +726,20 @@ fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<S
 
 /// The definite sign of a sine levered at `arm`, decided at the
 /// departure's site, or `None`.
+pub(crate) fn mutant(k: &str) -> bool {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("REMETER_MUTANT").unwrap_or_default()) == k
+}
+
 fn levered_sign(sine: Interval, arm: Lever<Interval>, band: Band) -> Option<Sign> {
+    let sine = if mutant("mid") { let m = 0.5 * (sine.lo() + sine.hi()); Interval::from_bounds(m, m) } else { sine };
+    let arm = if mutant("double") { Lever::unsourced(arm.length() * at(2.0)) } else { arm };
+    if mutant("zeroband") || mutant("exact") {
+        let m = sine * arm.length();
+        let t = if mutant("exact") { 0.0 } else { band.zero() };
+        if m.lo() > t { return Some(Sign::Positive); }
+        if m.hi() < -t { return Some(Sign::Negative); }
+    }
     definite(
         SELF_INTERSECTION_DEPARTURE,
         Margin::levered(sine, arm),
@@ -5663,9 +5676,14 @@ fn sign_on(
             Axis::U => fx,
             Axis::V => fy,
         };
-        grad.dot(f) / (grad.norm() * f.norm())
+        if mutant("unnorm") || mutant("span") { grad.dot(f) } else { grad.dot(f) / (grad.norm() * f.norm()) }
     };
-    let departs = |s: Side| levered_sign(sine(s.axis()) * at(s.into()), arm?, band);
+    let arm = if mutant("metre") { arm.or(Some(Lever::unsourced(at(1.0)))) } else { arm };
+    let span = |axis: Axis| match axis { Axis::U => p.x.1 - p.x.0, Axis::V => p.y.1 - p.y.0 };
+    let departs = |s: Side| {
+        let arm = if mutant("span") { Some(Lever::unsourced(at(span(s.axis())))) } else { arm };
+        levered_sign(sine(s.axis()) * at(s.into()), arm?, band)
+    };
     match &p.zero {
         Zero::None => interval_sign_as(
             centred(psi, p, p.x, p.y)?,
@@ -5692,10 +5710,12 @@ fn sign_on(
             // The sine's limit at a collapsed side (the bound is in this
             // function's docs, "Two sides, one of them collapsed"); two
             // regular sides, or two collapsed ones, are not read by it.
-            if a.collapsed().is_some() == b.collapsed().is_some() {
+            if !mutant("guard") && a.collapsed().is_some() == b.collapsed().is_some() {
                 return None;
             }
-            let sine = n.dot(fxy) / (n.norm() * fxy.norm());
+            let sine = if mutant("naivepole") { n.dot(fxy) / (n.norm() * fx.norm() * fy.norm()) }
+                else if mutant("unnorm") || mutant("span") { n.dot(fxy) } else { n.dot(fxy) / (n.norm() * fxy.norm()) };
+            let arm = if mutant("span") { Some(Lever::unsourced(at(span(Axis::U) * span(Axis::V)))) } else { arm };
             levered_sign(sine * at(Side::into(*s) * Side::into(*t)), arm?, band)
         }
         Zero::Curve(s, c) => {
@@ -5920,7 +5940,15 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// it (107.8 s without, 102.5 s with, summed over 85 stops).
 fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> {
     // One face against itself reads its boundary once.
-    let other = (x.face != y.face).then_some(y.boundary);
+    let other = (x.face != y.face && !mutant("dropother")).then_some(y.boundary);
+    let vother = (x.face != y.face && !mutant("oneface") && !mutant("dropother")).then_some(y.boundary);
+    let vfaces = || {
+        x.boundary
+            .vertices
+            .values()
+            .chain(vother.into_iter().flat_map(|b| b.vertices.values()))
+            .copied()
+    };
     let faces = || {
         x.boundary
             .vertices
@@ -5933,7 +5961,7 @@ fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> 
             .iter()
             .map(|v| {
                 let at = *x.boundary.vertices.get(v)?;
-                Some(crate::wedge_reach::reach_from_vertex(at, faces()))
+                Some(crate::wedge_reach::reach_from_vertex(at, vfaces()))
             })
             .collect()
     } else {
@@ -5945,7 +5973,10 @@ fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> 
             })
             .collect()
     };
-    arms?.into_iter().reduce(Lever::min)
+    let arms = arms?;
+    if mutant("first") { return arms.into_iter().next(); }
+    if mutant("greatest") { return arms.into_iter().reduce(Lever::max); }
+    arms.into_iter().reduce(Lever::min)
 }
 
 /// **Whether a face's part of a cell pair is refused as unreadable**:
