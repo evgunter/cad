@@ -462,6 +462,15 @@ impl Staged for PersistError {
     fn fmt_labelled(&self, f: &mut crate::Sentence, _: Labels) -> core::fmt::Result {
         self.fmt_said(f, crate::Speaker::TAG)
     }
+
+    fn say_labelled(
+        &self,
+        f: &mut crate::Sentence,
+        _: Labels,
+        by: crate::Speaker<'_>,
+    ) -> core::fmt::Result {
+        self.fmt_said(f, by)
+    }
 }
 
 /// The refusal under its stage word, each node it captured mentioned in

@@ -1127,9 +1127,16 @@ impl ClearanceReport {
 
     /// **The human form** (M10-6 §2): the verdict in words, the
     /// witness as numbers rather than as bits, and the measured
-    /// discharge widths that say what the certificate cost.
-    pub fn render(&self) -> String {
+    /// discharge widths that say what the certificate cost. One
+    /// sentence per line; a refusal's nodes are mentioned by tag.
+    pub fn render(&self) -> crate::Lines {
+        self.rendered().lines()
+    }
+
+    /// [`Self::render`]'s lines, as one sentence.
+    fn rendered(&self) -> crate::Sentence {
         use core::fmt::Write as _;
+        let mut said = crate::Sentence::new();
         let mut s = String::new();
         match &self.verdict {
             ClearanceVerdict::Holds => {
@@ -1150,7 +1157,12 @@ impl ClearanceReport {
                 );
             }
             ClearanceVerdict::Refused(r) => {
-                let _ = writeln!(s, "REFUSED ({}): {r}", r.name());
+                let _ = crate::say!(
+                    &mut said,
+                    format_args!("REFUSED ({}): ", r.name()),
+                    crate::Said(r, crate::Speaker::TAG),
+                    "\n"
+                );
             }
         }
         let r = self.receipt;
@@ -1185,7 +1197,8 @@ impl ClearanceReport {
                 .map_or_else(|| "none".to_owned(), |x| format!("{x}")),
             w.deepest
         );
-        s
+        let _ = crate::say!(&mut said, s);
+        said
     }
 
     /// `verdict`, with the sweep's receipt, widths and region count.
@@ -1704,16 +1717,18 @@ impl LeafFold {
 
     /// **The human form**: the verdict, then the four mass columns as
     /// percentages with the drive's uncertified share on its own line,
-    /// so no reader takes "holds" for "holds everywhere".
-    pub fn render(&self) -> String {
+    /// so no reader takes "holds" for "holds everywhere". One sentence
+    /// per line, as [`ClearanceReport::render`].
+    pub fn render(&self) -> crate::Lines {
         use core::fmt::Write as _;
-        let mut s = ClearanceReport {
+        let mut lines = ClearanceReport {
             verdict: self.verdict.clone(),
             receipt: self.receipt,
             widths: self.widths,
             decided: self.decided,
         }
-        .render();
+        .rendered();
+        let mut s = String::new();
         let m = &self.mass;
         let _ = writeln!(s, "  over {} certified leaf/leaves:", self.leaves.len());
         let _ = writeln!(
@@ -1730,7 +1745,8 @@ impl LeafFold {
             "    {} the DRIVE never certified — this certificate says nothing about it",
             crate::report::percent(&m.uncertified_by_the_drive)
         );
-        s
+        let _ = crate::say!(&mut lines, s);
+        lines.lines()
     }
 }
 

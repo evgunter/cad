@@ -978,7 +978,12 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     .expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("mixed:\n{}\n{}", budget.render(&r.doc), budget.serialize());
-    assert!(budget.render(&r.doc).contains("FORCED, not priced: lift"));
+    assert!(
+        budget
+            .render(&r.doc)
+            .to_string()
+            .contains("FORCED, not priced: lift")
+    );
     // Now a band-only box that the drive must SPLIT: a starved split on
     // a band axis prices nothing, typed.
     let mut sub = BTreeMap::new();
@@ -1024,7 +1029,12 @@ fn the_mc_lane_over_a_clearance_document_decides_nothing_and_says_so() {
     );
     assert_eq!(report.assertions[0].unevaluated, 16);
     assert!(report.assertions[0].violation_fraction().is_none());
-    assert!(report.render(&doc).contains("no sample decided"));
+    assert!(
+        report
+            .render(&doc)
+            .to_string()
+            .contains("no sample decided")
+    );
 }
 
 // --------------------------------------------- 9. the consumer walk
@@ -1163,7 +1173,7 @@ fn the_bracket_walk_through_the_public_doors() {
     // `ClearanceReport`'s — which had no `content_key` until the fix
     // pass, though claim 3 names it.
     let fold_gold = fold.serialize();
-    let fold_human = fold.render();
+    let fold_human = fold.render().to_string();
     eprintln!("{fold_human}");
     assert_ne!(
         fold_gold, fold_human,
@@ -1190,7 +1200,7 @@ fn the_bracket_walk_through_the_public_doors() {
         tol,
     );
     let gold = report.serialize();
-    let human = report.render();
+    let human = report.render().to_string();
     assert_ne!(gold, human, "and the same for a per-leaf clearance report");
     assert_eq!(
         report.content_key(),

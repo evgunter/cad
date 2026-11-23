@@ -483,7 +483,7 @@ fn the_two_hole_plate_stackup() {
             name: Some(name("web")),
         },
     );
-    let rendered = report.render(&named, &analyzed);
+    let rendered = report.render(&named, &analyzed).to_string();
     assert_eq!(
         rendered.lines().next(),
         Some("stackup of web"),
@@ -520,7 +520,7 @@ fn the_two_hole_plate_stackup() {
     assert!(!golden.contains("hole_r"), "{golden}");
     // The human form SPEAKS the node: by its spoken name, where the
     // content-keyed goldening form above holds its identity.
-    let human = unliftable.render(&doc, &analyzed);
+    let human = unliftable.render(&doc, &analyzed).to_string();
     assert!(
         human.contains(&format!(
             "unliftable at {}: the guided elaboration could not re-confirm loop 0 step 1",

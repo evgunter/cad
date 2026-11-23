@@ -33,6 +33,25 @@ pub trait Staged {
     /// None from a sentence: the type is the one `write!` returns.
     fn fmt_labelled(&self, f: &mut crate::Sentence, labels: Labels) -> core::fmt::Result;
 
+    /// [`Staged::fmt_labelled`], each node the refusal captured
+    /// mentioned by `by`, so in the document `by` speaks: what a carrier
+    /// that knows which document the refusal's nodes are of writes. A
+    /// refusal whose mentions need no document writes its labelled
+    /// sentence.
+    ///
+    /// # Errors
+    ///
+    /// None from a sentence: the type is the one `write!` returns.
+    fn say_labelled(
+        &self,
+        f: &mut crate::Sentence,
+        labels: Labels,
+        by: crate::Speaker<'_>,
+    ) -> core::fmt::Result {
+        let _ = by;
+        self.fmt_labelled(f, labels)
+    }
+
     /// The refusal as a carrier that names the stage renders it.
     fn sentence(&self) -> Labelled<'_, Self> {
         Labelled(self, Labels::Stripped)
@@ -50,6 +69,17 @@ impl<E: Staged + ?Sized> Labelled<'_, E> {
             write!(f, "{}: ", E::STAGE)?;
         }
         Ok(())
+    }
+}
+
+/// A [`Staged`] refusal rendered at a [`Labels`], its nodes mentioned
+/// by a speaker ([`Staged::say_labelled`]).
+pub struct LabelledBy<'a, E: ?Sized>(pub &'a E, pub Labels, pub crate::Speaker<'a>);
+
+impl<E: Staged + ?Sized> crate::Put for LabelledBy<'_, E> {
+    fn put(self, out: &mut crate::Sentence) {
+        let _ = Labelled::<E>::open(out, self.1);
+        let _ = self.0.say_labelled(out, self.1, self.2);
     }
 }
 

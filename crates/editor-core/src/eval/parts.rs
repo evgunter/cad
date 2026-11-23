@@ -251,8 +251,9 @@ pub enum PartFault {
     Unresolved {
         /// Which seam rule failed.
         fault: ResolveFault,
-        /// The resolver's diagnosis.
-        message: String,
+        /// The resolver's diagnosis, each node it names mentioned in the
+        /// part's document.
+        message: crate::Sentence,
     },
     /// The referenced document evaluated, but a node its PRODUCT reads
     /// failed — the ordinary "my part is broken, why?" path.
@@ -430,15 +431,15 @@ impl PartFault {
             // seam's is the same whatever the store.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
-                    write!(f, "the reference's pin does not hold: {message}")
+                    say!(f, "the reference's pin does not hold: ", message)
                 }
-                ResolveFault::EpsilonSeam => write!(
+                ResolveFault::EpsilonSeam => say!(
                     f,
-                    "the referenced document's recorded tolerance disagrees with this process's: \
-                     {message}. {}",
-                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
+                    "the referenced document's recorded tolerance disagrees with this process's: ",
+                    message,
+                    format_args!(". {}", Recourse(crate::part::EPSILON_SEAM_RECOURSE))
                 ),
-                ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
+                ResolveFault::Unresolved => say!(f, "the reference did not resolve: ", message),
             },
             Self::PartProductFailed { node, .. } => say!(
                 f,

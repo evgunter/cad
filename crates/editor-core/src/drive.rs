@@ -642,7 +642,7 @@ pub enum Unsettled {
         /// Which failure, without its payload.
         class: crate::NodeErrorClass,
         /// The failure as the document speaks it.
-        cause: String,
+        cause: crate::Sentence,
     },
 }
 
@@ -1003,10 +1003,15 @@ impl ParamBoxVerdict {
     /// band-only box produces exactly the same masses as one over a
     /// uniform box, and only the box knows that none of them is a
     /// probability ([`crate::report::MassBasis`]). Each variable a line
-    /// names is spoken from `doc`, the document the drive ran over.
-    pub fn render<P>(&self, doc: &crate::doc::Doc<P>, analyzed: &AnalyzedBox) -> String {
-        use core::fmt::Write as _;
-        let mut s = String::new();
+    /// names is spoken from `doc`, the document the drive ran over, and
+    /// mentioned in it: one sentence per line.
+    pub fn render<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        analyzed: &AnalyzedBox,
+    ) -> crate::Lines {
+        let by = crate::Speaker::of(doc);
+        let mut s = crate::Sentence::new();
         let r = self.receipt;
         let _ = writeln!(
             s,
@@ -1036,17 +1041,21 @@ impl ParamBoxVerdict {
                 })
                 .collect();
             for (node, unsettled) in named {
-                let said = crate::spoken::node_text(&doc.spoken(node));
+                let said = by.mention(&doc.spoken(node));
                 let _ = match unsettled {
-                    Unsettled::Undecided => writeln!(
-                        s,
-                        "    {said} is undecided and reads no variable of the box: \
-                         no split changes it"
+                    Unsettled::Undecided => say!(
+                        &mut s,
+                        "    ",
+                        said,
+                        " is undecided and reads no variable of the box: no split changes it\n"
                     ),
-                    Unsettled::Failed { cause, .. } => writeln!(
-                        s,
-                        "    {said} fails and reads no variable of the box: \
-                         no split changes it ({cause})"
+                    Unsettled::Failed { cause, .. } => say!(
+                        &mut s,
+                        "    ",
+                        said,
+                        " fails and reads no variable of the box: no split changes it (",
+                        cause,
+                        ")\n"
                     ),
                 };
             }
@@ -1098,12 +1107,11 @@ impl ParamBoxVerdict {
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
         }
-        let _ = write!(
-            s,
-            "{}",
+        let _ = say!(
+            &mut s,
             crate::report::MassBudget::of(&self.accounting, analyzed).render(doc)
         );
-        s
+        s.lines()
     }
 
     /// The verdict's content key: the identity of everything
@@ -1231,8 +1239,8 @@ pub enum DriveRefusal {
         /// The first node, in evaluation order, that did not build,
         /// spoken from the driven document.
         node: SpokenNode,
-        /// The node error's rendering.
-        cause: String,
+        /// The node error, said from the driven document.
+        cause: crate::Sentence,
     },
     /// The box has no varying axis: nothing is declared to vary, so
     /// there is no parameter box to subdivide. The nominal build
@@ -1253,10 +1261,10 @@ impl crate::Say for DriveRefusal {
                 f,
                 "the witness build refuses at ",
                 by.mention(node),
-                format_args!(
-                    ": {cause} — there is no branch to certify \
-                 leaves against until the nominal document builds"
-                )
+                ": ",
+                cause,
+                " — there is no branch to certify leaves against until the nominal document \
+                 builds"
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1331,7 +1339,7 @@ pub(crate) fn does_not_build(
     let node = standing.node();
     let cause = built
         .node_error(node)
-        .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc).to_string());
+        .map_or_else(|| standing.spoken(doc), |e| e.kind_spoken(doc));
     Some(DriveRefusal::WitnessDoesNotBuild {
         node: doc.spoken(node),
         cause,
@@ -1835,7 +1843,7 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
                     deciding: node,
                     unsettled: Unsettled::Failed {
                         class: err.kind.class(),
-                        cause: err.kind_spoken(doc).to_string(),
+                        cause: err.kind_spoken(doc),
                     },
                 };
             }

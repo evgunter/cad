@@ -82,19 +82,20 @@ impl core::fmt::Display for ResolveFault {
 }
 
 /// A typed resolution failure: the classified fault, plus the
-/// resolver's own rendering (which carries the store-level detail and
-/// recourse the kernel deliberately does not model).
+/// resolver's own sentence (which carries the store-level detail and
+/// recourse the kernel deliberately does not model), each node it names
+/// mentioned in the document it is a node of.
 #[derive(Debug, Clone)]
 pub struct ResolveFailure {
     /// Which seam rule failed.
     pub fault: ResolveFault,
     /// The resolver's human-readable diagnosis.
-    pub message: String,
+    pub message: crate::Sentence,
 }
 
 impl ResolveFailure {
     /// A failure of `fault` with the resolver's own diagnosis.
-    pub fn new(fault: ResolveFault, message: impl Into<String>) -> Self {
+    pub fn new(fault: ResolveFault, message: impl Into<crate::Sentence>) -> Self {
         Self {
             fault,
             message: message.into(),
@@ -102,12 +103,12 @@ impl ResolveFailure {
     }
 
     /// [`ResolveFault::Unresolved`], with the diagnosis.
-    pub fn unresolved(message: impl Into<String>) -> Self {
+    pub fn unresolved(message: impl Into<crate::Sentence>) -> Self {
         Self::new(ResolveFault::Unresolved, message)
     }
 
     /// [`ResolveFault::PinMismatch`], with the diagnosis.
-    pub fn pin_mismatch(message: impl Into<String>) -> Self {
+    pub fn pin_mismatch(message: impl Into<crate::Sentence>) -> Self {
         Self::new(ResolveFault::PinMismatch, message)
     }
 }

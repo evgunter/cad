@@ -288,7 +288,7 @@ fn r1_split_bore_disc_end_to_end() {
                         v.receipt(),
                         v.decisions()
                     );
-                    for line in v.render(&doc, &analyzed).lines().filter(|l| {
+                    for line in v.render(&doc, &analyzed).to_string().lines().filter(|l| {
                         l.contains("registered") || l.contains("symbolic") || l.contains("certif")
                     }) {
                         println!("      render| {line}");

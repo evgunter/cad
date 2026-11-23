@@ -374,7 +374,7 @@ fn lines_under(
     on_screen: &Doc<ProfileProgram>,
     theme: &Theme,
 ) -> FailureClicks {
-    let clicked = failure_lines(ui, row, on_screen, theme);
+    let mut clicked = failure_lines(ui, row, on_screen, theme);
     match &row.readout {
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
@@ -391,7 +391,8 @@ fn lines_under(
         // A clearance's third state is a sentence with its recourse.
         Some(Readout::Clearance(cleared)) => {
             if let Some(sentence) = cleared.sentence() {
-                advisory_line(ui, sentence, theme);
+                let followed = advisory_said_at(ui, 1, &sentence, on_screen, theme);
+                clicked.followed = clicked.followed.or(followed);
             }
         }
         Some(Readout::Value(_) | Readout::Empty(_)) | None => {}

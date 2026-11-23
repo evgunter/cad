@@ -61,7 +61,7 @@ use core::fmt;
 pub mod sentence;
 
 use sentence::Readers;
-pub use sentence::{Mention, Mentioned, Put, Run, SaidName, SaidNode, SaidVar, Sentence};
+pub use sentence::{Lines, Mention, Mentioned, Put, Run, SaidName, SaidNode, SaidVar, Sentence};
 
 use crate::DocumentId;
 use crate::doc::Doc;

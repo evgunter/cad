@@ -384,7 +384,7 @@ fn real_study(tol: Tol) {
         tol,
     )
     .expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&doc, &analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed).to_string()));
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
@@ -402,7 +402,7 @@ fn real_study(tol: Tol) {
         tol,
     ) {
         Ok(report) => {
-            println!("{}", indent(&report.render(&doc, &analyzed)));
+            println!("{}", indent(&report.render(&doc, &analyzed).to_string()));
             // What the captions below claim, asserted here — the cell panics
             // when the kernel stops doing what it narrates, the posture every
             // tour cell keeps. (A stackup that answered implies a leaf
@@ -564,7 +564,11 @@ fn real_study(tol: Tol) {
             );
             println!(
                 "{}",
-                indent(&MassBudget::of(&coverage, &analyzed).render(&doc))
+                indent(
+                    &MassBudget::of(&coverage, &analyzed)
+                        .render(&doc)
+                        .to_string()
+                )
             );
             println!(
                 "     This is NOT the expected answer any more: under M10-10's tier this \
@@ -588,9 +592,9 @@ fn real_study(tol: Tol) {
         tol,
     )
     .expect("the nominal builds");
-    println!("{}", indent(&mc.render(&doc)));
+    println!("{}", indent(&mc.render(&doc).to_string()));
     assert!(
-        mc.render(&doc).contains("ADVISORY"),
+        mc.render(&doc).to_string().contains("ADVISORY"),
         "the advisory lane's label rides it"
     );
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
@@ -647,7 +651,7 @@ fn certified_study(tol: Tol) {
         tol,
     )
     .expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&doc, &analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed).to_string()));
     // **The verdict the CI row gates on, read off the ASSERTION NODE**
     // — not off a comparison this cell makes for itself. That is the
     // whole correction R1 forced (see the module header's finding on
@@ -676,7 +680,7 @@ fn certified_study(tol: Tol) {
              regression, since this box is the one the cell exists to show certifying."
         ),
     };
-    println!("{}", indent(&report.render(&doc, &analyzed)));
+    println!("{}", indent(&report.render(&doc, &analyzed).to_string()));
     print_divergence(&report, bound, worst, &decided, tol);
     // The E11.6 datum: where each certified leaf's mass lands.
     let histogram = leaf_histogram(
@@ -688,7 +692,7 @@ fn certified_study(tol: Tol) {
         tol,
     )
     .expect("nothing stops the cell's run");
-    println!("{}", indent(&histogram.render(&doc)));
+    println!("{}", indent(&histogram.render(&doc).to_string()));
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \
          row gates on: {}",
@@ -742,7 +746,7 @@ fn certified_study(tol: Tol) {
         tol,
     )
     .expect("the nominal builds");
-    println!("{}", indent(&mc.render(&doc)));
+    println!("{}", indent(&mc.render(&doc).to_string()));
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
     // The advisory lane's own number, READ OFF THE REPORT rather than
     // asserted in prose. The first pass printed "0%" as a literal, so

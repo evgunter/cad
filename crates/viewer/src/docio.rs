@@ -101,12 +101,12 @@ impl PartResolver for DirResolver {
         // word as the store's own resolution carries it; the fault
         // classification is `Unresolved` because the reference itself
         // was never reached.
-        let workspace = self
-            .workspace()
-            .map_err(|error| ResolveFailure::unresolved(error.sentence().to_string()))?;
+        let workspace = self.workspace().map_err(|error| {
+            ResolveFailure::unresolved(pncad::document::sentence!(error.sentence()))
+        })?;
         workspace
             .resolve(doc_ref, tol)
-            .map_err(|error| error.resolve_failure(Scan::PerResolution))
+            .map_err(|error| error.resolve_failure(Scan::PerResolution, doc_ref.id))
     }
 }
 

@@ -636,16 +636,16 @@ impl Cleared {
     /// **The sentence drawn under the row**: a refusal said with its
     /// recourse, why the assertion did not evaluate, or that nothing is
     /// certifying it.
-    pub fn sentence(&self) -> Option<&str> {
+    pub fn sentence(&self) -> Option<pncad::document::Sentence> {
         use pncad::analysis::ClearanceOutcome as O;
         match &self.answer {
             Certified::Answered(
                 O::Refused { sentence, .. }
                 | O::OverMembers { sentence }
                 | O::Unanswered { sentence },
-            ) => Some(sentence),
-            Certified::Stopped => Some(CERTIFY_STOPPED),
-            Certified::OutOfBudget { sentence } => Some(sentence),
+            ) => Some(sentence.clone()),
+            Certified::Stopped => Some(CERTIFY_STOPPED.into()),
+            Certified::OutOfBudget { sentence } => Some(sentence.as_str().into()),
             Certified::Certifying
             | Certified::Answered(O::Holds | O::Within(_) | O::Violated(_) | O::Exceeded) => None,
         }

@@ -55,7 +55,7 @@ impl PartResolver for StubStore {
     fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         let fail = |fault, message: &str| ResolveFailure {
             fault,
-            message: message.to_string(),
+            message: message.into(),
         };
         if self.eps_seam.contains_key(&doc_ref.id) {
             return Err(fail(
@@ -390,7 +390,7 @@ impl PartResolver for PinBlind {
             .cloned()
             .ok_or_else(|| ResolveFailure {
                 fault: ResolveFault::Unresolved,
-                message: "no such document".to_string(),
+                message: "no such document".into(),
             })
     }
 }

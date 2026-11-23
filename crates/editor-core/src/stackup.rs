@@ -209,8 +209,9 @@ pub enum SensitivityOutcome {
         /// failed ancestor it was poisoned through; `None` for a value
         /// no measure is under, whose own definition refused.
         node: Option<RecipeNodeId>,
-        /// The node error, rendered.
-        cause: String,
+        /// The node error, said from the document the entry was taken
+        /// of.
+        cause: crate::Sentence,
         /// What the `f64` build of record read for the value.
         /// [`RecordReading::Measured`] says the refusal is the dual's
         /// alone: a door DUAL-DESIGN DL3 leaves unrun at a dual, or a
@@ -239,17 +240,27 @@ pub enum RecordReading {
     /// The value refused in the build of record: its measure, or a
     /// node under it, did not build.
     Refused {
-        /// The refusal, rendered with the node it came from.
-        cause: String,
+        /// The refusal, said from the document with the node it came
+        /// from.
+        cause: crate::Sentence,
     },
 }
 
-impl core::fmt::Display for RecordReading {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// Its sentence; a refusal's cause is already said, so `by` says
+/// nothing of it.
+impl crate::Say for RecordReading {
+    fn say(&self, f: &mut crate::Sentence, _: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Measured(v) => write!(f, "the f64 build of record measured {v:e}"),
-            Self::Refused { cause } => write!(f, "the f64 build of record refused it: {cause}"),
+            Self::Refused { cause } => say!(f, "the f64 build of record refused it: ", cause),
         }
+    }
+}
+
+/// Its sentence.
+impl core::fmt::Display for RecordReading {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -522,10 +533,9 @@ impl crate::Say for SensitivityRefusal {
                 f,
                 "the sensitivity pass for ",
                 by.var(param),
-                format_args!(
-                    " measured {pass:e} where {base} — the \
-                 dual's value channel is not the f64 build's (a D9 break)"
-                )
+                format_args!(" measured {pass:e} where "),
+                Said(&base, by),
+                " — the dual's value channel is not the f64 build's (a D9 break)"
             ),
         }
     }
@@ -602,7 +612,7 @@ pub fn sensitivities(
 /// nominal reading, the mark, and the entries — [`stackup()`] consumes
 /// all three, [`sensitivities`] keeps the entries.
 struct Driven {
-    nominal: Result<f64, (Option<RecipeNodeId>, String)>,
+    nominal: Result<f64, (Option<RecipeNodeId>, crate::Sentence)>,
     chamber: Chamber,
     entries: Vec<Sensitivity>,
 }
@@ -795,7 +805,7 @@ fn measure_of<T: topo::AtRestPolicy + geom_core::Decide + Copy>(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
     value: VarId,
-) -> Result<T, (Option<RecipeNodeId>, String)> {
+) -> Result<T, (Option<RecipeNodeId>, crate::Sentence)> {
     ev.reading_spoken(doc, value)
 }
 
@@ -963,7 +973,7 @@ impl BuildIdentity {
 struct Record {
     identity: BuildIdentity,
     /// The measured value's reading in the build of record.
-    nominal: Result<f64, (Option<RecipeNodeId>, String)>,
+    nominal: Result<f64, (Option<RecipeNodeId>, crate::Sentence)>,
 }
 
 /// Why a pass yields no entry: the binding refused it, or its measured
@@ -1061,7 +1071,7 @@ impl Record {
 fn unread_measure(
     pass: &Evaluation<Dual64>,
     node: Option<RecipeNodeId>,
-    cause: String,
+    cause: crate::Sentence,
     record: RecordReading,
 ) -> SensitivityOutcome {
     if let Some(id) = node
@@ -1212,8 +1222,8 @@ pub enum Unavailable {
         /// The refusing node, spoken from the document asked about;
         /// `None` for a value no measure is under.
         node: Option<SpokenNode>,
-        /// The node error, rendered.
-        cause: String,
+        /// The node error, said from the document asked about.
+        cause: crate::Sentence,
         /// What the `f64` build of record read for the value —
         /// [`RecordReading::Measured`] marks a refusal the dual alone
         /// made.
@@ -1291,15 +1301,16 @@ impl crate::Say for Unavailable {
                 if let Some(node) = node {
                     say!(f, " at ", by.mention(node))?;
                 }
-                write!(f, ": {cause}")?;
+                say!(f, ": ", cause)?;
                 match record {
-                    RecordReading::Measured(_) => write!(
+                    RecordReading::Measured(_) => say!(
                         f,
-                        " — but {record}, so the refusal is the dual's alone: a door DL3 \
-                         leaves unrun at a dual, or a decision the two scalars took \
-                         differently (a D9 break)"
+                        " — but ",
+                        Said(record, by),
+                        ", so the refusal is the dual's alone: a door DL3 leaves unrun at a \
+                         dual, or a decision the two scalars took differently (a D9 break)"
                     ),
-                    RecordReading::Refused { .. } => write!(f, " ({record})"),
+                    RecordReading::Refused { .. } => say!(f, " (", Said(record, by), ")"),
                 }
             }
             Self::Unliftable { var } => say!(
@@ -1548,7 +1559,7 @@ impl Stackup {
     /// number that gates.
     ///
     /// Each node it names is spoken from `doc`, the document the
-    /// stackup was taken of.
+    /// stackup was taken of, and mentioned in it: one sentence per line.
     ///
     /// # Panics
     ///
@@ -1557,7 +1568,7 @@ impl Stackup {
         &self,
         doc: &Doc<P>,
         analyzed: &crate::analysis::AnalyzedBox,
-    ) -> String {
+    ) -> crate::Lines {
         crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let by = crate::Speaker::of(doc);
         let mut s = crate::Sentence::new();
@@ -1585,7 +1596,7 @@ impl Stackup {
             }
         );
         let _ = writeln!(s, "  ADVISORY, never gating:");
-        let _ = write!(s, "{}", render_rss(&self.rss, doc));
+        render_rss(&mut s, &self.rss, doc);
         for row in &self.per_param {
             let _ = say!(
                 &mut s,
@@ -1601,12 +1612,11 @@ impl Stackup {
                 "\n"
             );
         }
-        let _ = write!(
-            s,
-            "{}",
+        let _ = say!(
+            &mut s,
             crate::report::MassBudget::of(&self.coverage, analyzed).render(doc)
         );
-        s.to_string()
+        s.lines()
     }
 }
 
@@ -1620,9 +1630,8 @@ impl Stackup {
 /// (`a_refused_rss_splits_back_into_its_blockers`). The parameter name
 /// a blocker frames is the document's, not the arm's; what a name may
 /// contain is the declaration door's to decide.
-fn render_rss<P>(rss: &Rss, doc: &Doc<P>) -> String {
-    use core::fmt::Write as _;
-    let mut s = String::new();
+fn render_rss<P: crate::ProfilePayload>(s: &mut crate::Sentence, rss: &Rss, doc: &Doc<P>) {
+    let by = crate::Speaker::of(doc);
     match rss {
         Rss::Advisory { sigma } => {
             let _ = writeln!(
@@ -1643,11 +1652,10 @@ fn render_rss<P>(rss: &Rss, doc: &Doc<P>) -> String {
                 }
             );
             for b in blockers {
-                let _ = writeln!(s, "{RSS_BLOCKER_LEAD}{}", b.respoken(doc));
+                let _ = say!(s, RSS_BLOCKER_LEAD, Said(&b.respoken(doc), by), "\n");
             }
         }
     }
-    s
 }
 
 /// What opens each blocker's line under a refused rss row.
@@ -1667,15 +1675,18 @@ const RSS_BLOCKER_LEAD: &str = "      - ";
 /// per consumer.
 ///
 /// A node it names is spoken from `doc`, the document the entry was
-/// taken of.
+/// taken of, and mentioned in it.
 ///
 /// # Panics
 ///
 /// When `doc` is not the document the entry was taken of.
-pub fn render_sensitivity<P: crate::ProfilePayload>(entry: &Sensitivity, doc: &Doc<P>) -> String {
+pub fn render_sensitivity<P: crate::ProfilePayload>(
+    entry: &Sensitivity,
+    doc: &Doc<P>,
+) -> crate::Sentence {
     crate::spoken::assert_taken_of("this sensitivity", entry.document, doc);
     let by = crate::Speaker::of(doc);
-    sensitivity_text(&entry.outcome, |id| sentence!(by.node(id))).to_string()
+    sensitivity_text(&entry.outcome, |id| sentence!(by.node(id)))
 }
 
 /// One sensitivity reading, each node it names written by `node`:
@@ -1707,7 +1718,7 @@ fn sensitivity_text(
                 }
                 RecordReading::Refused { .. } => String::new(),
             };
-            sentence!("refused", at, format_args!(": {cause}{alone}"))
+            sentence!("refused", at, ": ", cause, alone)
         }
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
@@ -1768,14 +1779,14 @@ pub enum StackupRefusal {
     ForeignBox,
     /// The measure refuses at the nominal build: there is no nominal
     /// and nothing to report. The cause is the measure door's own,
-    /// rendered.
+    /// said.
     MeasureRefusedAtNominal {
         /// The refusing node (a measure under the value, or the
         /// ancestor it was poisoned through), spoken from the document
         /// asked about; `None` for a value no measure is under.
         node: Option<SpokenNode>,
-        /// The node error, rendered.
-        cause: String,
+        /// The node error, said from the document asked about.
+        cause: crate::Sentence,
     },
     /// The drive certified nothing: a worst case over zero certified
     /// leaves is not an enclosure of anything, and a stackup without
@@ -1807,8 +1818,8 @@ pub enum StackupRefusal {
         /// The refusing node, spoken from the document asked about;
         /// `None` for a value no measure is under.
         node: Option<SpokenNode>,
-        /// The node error, rendered.
-        cause: String,
+        /// The node error, said from the document asked about.
+        cause: crate::Sentence,
     },
     /// A certified leaf's measure enclosure carries a domain violation
     /// (no certified bracket): a non-real entered a certified lane's
@@ -1835,9 +1846,8 @@ impl crate::Say for StackupRefusal {
                     Some(node) => sentence!(by.mention(node)),
                     None => crate::Sentence::from("the value"),
                 },
-                format_args!(
-                    " refuses at the nominal build, so there is no nominal to report: {cause}"
-                )
+                " refuses at the nominal build, so there is no nominal to report: ",
+                cause
             ),
             Self::NothingCertified { receipt, .. } => write!(
                 f,
@@ -1853,11 +1863,8 @@ impl crate::Say for StackupRefusal {
                     Some(node) => sentence!(by.mention(node)),
                     None => crate::Sentence::from("the value"),
                 },
-                format_args!(
-                    " on \
-                 replay — same inputs, a different result (a D9 replay-identity break): \
-                 {cause}"
-                )
+                " on replay — same inputs, a different result (a D9 replay-identity break): ",
+                cause
             ),
             Self::WorstCaseUncertified { .. } => f.write_str(
                 "a certified leaf's measure enclosure carries a domain violation — a \
@@ -2191,7 +2198,7 @@ mod tests {
             Unavailable::MeasureRefused {
                 var: param.clone(),
                 node: None,
-                cause: "a refusal".to_owned(),
+                cause: crate::Sentence::from("a refusal"),
                 record: RecordReading::Measured(1.0),
             },
             Unavailable::Unliftable { var: param.clone() },
@@ -2226,6 +2233,13 @@ mod tests {
         }
     }
 
+    /// The rss row's text, as the human form writes it.
+    fn rss_text<P: crate::ProfilePayload>(rss: &Rss, doc: &crate::Doc<P>) -> String {
+        let mut s = crate::Sentence::new();
+        render_rss(&mut s, rss, doc);
+        s.to_string()
+    }
+
     /// A refused rss row splits back into exactly the blockers it was
     /// made from, in order — including blockers whose sentences carry
     /// the punctuation a flat join would have split on, which a
@@ -2236,7 +2250,7 @@ mod tests {
     fn a_refused_rss_splits_back_into_its_blockers() {
         let mut blockers = every_arm("width");
         blockers.extend(every_arm("depth"));
-        let rendered = render_rss(
+        let rendered = rss_text(
             &Rss::UnavailableBecause {
                 blockers: blockers.clone(),
             },
@@ -2260,7 +2274,7 @@ mod tests {
 
     #[test]
     fn a_single_blocker_is_counted_in_the_singular() {
-        let rendered = render_rss(
+        let rendered = rss_text(
             &Rss::UnavailableBecause {
                 blockers: vec![Unavailable::Unliftable {
                     var: crate::SpokenVar::new(
@@ -2477,7 +2491,7 @@ mod tests {
             record: RecordReading::Measured(*measured),
         };
         let text = blocker.to_string();
-        assert!(text.contains(cause.as_str()), "{text}");
+        assert!(text.contains(&cause.to_string()), "{text}");
         assert!(text.contains("the dual's alone"), "{text}");
     }
 

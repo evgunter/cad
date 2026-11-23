@@ -147,7 +147,7 @@ fn a_refused_report_renders_the_refusal_in_words() {
         editor_core::clearance::ClearanceBound::at_least(0.1),
         Tol::witness(),
     );
-    let rendered = report.render();
+    let rendered = report.render().to_string();
     assert_eq!(
         rendered.lines().next(),
         Some(
