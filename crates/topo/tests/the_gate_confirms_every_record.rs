@@ -68,17 +68,19 @@ fn two_cubes(gap: f64, lift: f64) -> AtRestBody<f64> {
     finish_assembled(joined, tol()).unwrap().body
 }
 
-/// Two faces a nanometre apart, recorded as touching: the census reads
-/// their carriers' offset in the band and escalates, which is not a
-/// confirmation, and the gate refuses. Red on a gate that refuses only the stale and the
+/// Two faces 3ε apart, recorded as touching: the census reads their
+/// carriers' offset in the band (ε to 10ε, at whichever ε the suite
+/// runs) and escalates, which is not a confirmation, and the gate
+/// refuses. Red on a gate that refuses only the stale and the
 /// contradicted: it held the record.
 #[test]
 fn a_record_the_census_reads_in_the_band_refuses() {
-    let two = two_cubes(1e-9, 0.0);
+    let gap = 3.0 * tol().eps();
+    let two = two_cubes(gap, 0.0);
     let record = face_face(
         &two,
         face_at_x(&two, 1.0, 0.0),
-        face_at_x(&two, 1.0 + 1e-9, 0.0),
+        face_at_x(&two, 1.0 + gap, 0.0),
     );
     let got = finish(Built::of(Body::clone(&two)).recording(record), tol());
     let findings = got.expect_err("a record read in the band is not confirmed");

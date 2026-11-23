@@ -45,3 +45,17 @@ fixture was changed to hold the planted record alone
 way. Owed here: whether `Unread` on a record whose cell the op divides
 is a fourth end of the same stale record, or a true record the divided
 carry has no reading for (a different hole, with its own row).
+
+**A fourth end: a face that kept its key and was trimmed** (EMBED
+orchestrator's ruling, 2026-11-22; PR 7124's fix pass). A cut that
+carves a face away under a recorded touch without dividing it leaves
+the face its key; the Boolean's carry reads only the records of cells
+the op divided, so this one lands by lineage, unread, and the gate
+refuses the result stale. The slow set makes 109 stale `VertexOnFace`
+readings, all of them this, in the lying-pyramid scenes of
+`crates/topo/tests/a_vertex_read_by_two_sector_passes.rs` and
+`a_vertex_read_again_classes_every_edge.rs`. The ruling: the gate keeps
+refusing; the door is where it is fixed (a kept-key cell the op trimmed
+is "divided" for that record, read by the carry and retired where it no
+longer touches). Its own row:
+`work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`.
