@@ -31,10 +31,8 @@
 //!   a separator `ψ`, vanishing on the shared cell, takes one strict sign
 //!   on one face's part of the pair and the other strict sign on the
 //!   other's, so a coincidence can only happen on the shared cell, where
-//!   `f` is injective. `ψ` is a face's own analytic carrier (the other
-//!   face departs it to one side), a plane through straight shared edges
-//!   or the plane of a conic one, or the graph of the shared edge under
-//!   a projection.
+//!   `f` is injective. The separators and their order are listed at
+//!   [`departure`].
 //! - **Second order**, at a wedge-0/2π edge, is not built: such an edge
 //!   refuses typed, naming it.
 //!
@@ -92,6 +90,14 @@
 //! ([`Zero::Point`]) reads `ψ` zero there, so its sign may be misread
 //! within that tolerance, over `ψ`'s lean across the partner, of the
 //! vertex: the stored vertex's own tolerance, not a new one.
+//!
+//! The same membership reads a collapsed side ([`Along::at`]) zero under
+//! a plane through the stored vertex: the side's image is the cone's
+//! apex or the sphere's pole, which the vertex is within the band of
+//! ([`SELF_INTERSECTION_APEX`], `vertex_at_singular_point`), so `ψ` is
+//! read zero along a side it may miss by that distance over its lean.
+//! [`departure`]'s plane through the pair's one shared vertex reads it
+//! wherever a face against that vertex is presented by its collapse.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -123,9 +129,10 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a planar corner's convexity: how far the second
 /// edge's far end stands on the first edge's face side, metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
-/// The funnel site of a vertex at a collapse of its face's chart, a
-/// cone's apex or a sphere's pole: its distance from that point, metres.
-/// `Zero` is the collapse.
+/// The funnel site of a vertex at a cone's apex, the collapse of its
+/// face's chart: its distance from the apex, metres. `Zero` is the
+/// collapse. A sphere's pole is read by `vertex_at_singular_point`
+/// (`chart_singularity_at_vertex`).
 pub(crate) const SELF_INTERSECTION_APEX: &str = "self_intersection_apex";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
@@ -3619,11 +3626,16 @@ struct Through {
     conic: bool,
 }
 
-/// **The vertex that is the shared cell alone**: no shared edge, and one
-/// shared vertex.
-fn vertex_alone(no_edges: bool, vertices: &[VertexKey]) -> Option<VertexKey> {
+/// **The pair's one shared vertex**: the shared vertex, where the cells
+/// are near exactly one. Read with no shared edge near, it is the shared
+/// cell alone ([`corner_of`], [`graph_of`]); with shared edges near, the
+/// vertex [`departure`]'s last separator is built through. With two or
+/// more, none is chosen: reading at the first would be as sound (the
+/// argument at that separator's site names no one vertex), but nothing
+/// measured needs it and no row reads it.
+fn one_shared_vertex(vertices: &[VertexKey]) -> Option<VertexKey> {
     match vertices {
-        &[v] if no_edges => Some(v),
+        &[v] => Some(v),
         _ => None,
     }
 }
@@ -3681,7 +3693,9 @@ fn corner_of(
             other: e,
             alone: false,
         }),
-        (false, false) if vertex_alone(near_edges.is_empty(), near_vertices) == Some(vertex) => {
+        (false, false)
+            if near_edges.is_empty() && one_shared_vertex(near_vertices) == Some(vertex) =>
+        {
             // The arc read is the one of lower key, so the reading does not
             // depend on the order the walls come in.
             let (read, other) = if re.key <= rf.key { (e, f) } else { (f, e) };
@@ -5812,9 +5826,18 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
     })
 }
 
-/// **The departure arm.** Each separator in turn: one face's carrier
-/// with the other presented, a plane through straight shared edges or a
-/// conic one's own plane, the shared edge's graph.
+/// **The departure arm.** The separators, in the order tried (the one
+/// place they are listed):
+/// 1. one face's carrier with the other presented ([`implicit_of`]);
+/// 2. the planes through the shared cell ([`planes_through`]): through
+///    straight shared edges, a conic one's own plane, or a vertex the pair
+///    shares alone;
+/// 3. the shared edge's graph ([`graph_of`]);
+/// 4. the plane through the pair's one shared vertex, with shared edges
+///    near, each face presented against that vertex alone
+///    ([`one_shared_vertex`]; the argument is at its site below).
+///
+/// A pair none of them parts is a [`cusp`] or splits.
 fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
     let shared = near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face));
     let split = Outcome::Split {
@@ -5878,19 +5901,88 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
         return split;
     };
-    let opposite = |(psi, on): (Psi, On)| match (
+    let apart = |qx: &Presented<'_>, qy: &Presented<'_>, (psi, on): (Psi, On)| match (
         sign_on(&psi, Some(&on), qx, Some(qy), band),
         sign_on(&psi, Some(&on), qy, Some(qx), band),
     ) {
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
+    let opposite = |sep| apart(qx, qy, sep);
     let corner = qx.corner || qy.corner;
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
     }
     if graph_of(x, y, near, qx, qy, band).is_some_and(opposite) {
         return Outcome::Certified { corner };
+    }
+    // The pair's one shared vertex `v`, with shared edges near: the plane
+    // through `v` alone, each face presented against `v` alone. Its own
+    // path, not one more separator of the list above: those are read on
+    // the pair's presentations against the whole shared cell, this one on
+    // presentations against `v`.
+    //
+    // **Why it is sound.** Each presentation against `{v}` is a superset
+    // of the face's part of its cell up to the module's ε concessions:
+    // the sliver cannot fire against `{v}` (it reads a side on shared
+    // edges), but the touch, the cover and the sheet's overlap can drop
+    // points within their few ulps, as they do in any presentation. `apart`
+    // accepts only where the plane is strictly of one sign on each off its
+    // zero set and the two signs are opposite. Against `{v}` the zero sets
+    // lie at `v`: a zero carrying an edge reads nothing under a plane that
+    // lists `v` alone ([`On::holds`]). So a common point of the two parts
+    // other than `v` would carry both signs, and none exists. A shared
+    // edge's points in both cells, or a second ruling of a cone the plane
+    // face holds, are such common points: there the pair is not signed
+    // apart, and splits as before. Tangency, a second meeting off the
+    // shared cell, and a vertex that is no apex are refused by the same
+    // reading, not by a premise of their own.
+    //
+    // **Why a collapsed side is read.** A cone's apex or a sphere's pole
+    // is presented as a side whose whole image is `v` ([`Along::at`]), and
+    // `sign_on` reads it as any side, by the mean value theorem along the
+    // axis across it at each value of the other: `ψ∘Φ` vanishes on the
+    // side, so its sign off it is the sign of `ψ∘Φ`'s derivative across it
+    // over the whole rectangle. That never reads the derivative that
+    // vanishes at the collapse; across the side the chart's derivative is
+    // a ruling's or a meridian's direction. `ψ` vanishes on the side by
+    // membership, `q` being `v`'s stored point, and the side's image is
+    // `v` within the collapse's own reading: [`SELF_INTERSECTION_APEX`] at
+    // an apex, `vertex_at_singular_point` at a pole (the module's
+    // separator concessions).
+    //
+    // **Where it fires.** It certifies only where each face against `v` is
+    // presented with no zero (read by value), a corner point at `v`
+    // ([`Zero::Point`]: the plane's two-line corner, or the corner of two
+    // coordinate-line clips on a chart), or a collapsed side at `v` (a
+    // cone's apex, a sphere's pole). Measured: a plane against a cone at
+    // its apex (a wedge of a revolved cone past a half turn, a box face
+    // through the apex), and the two half-bands of a sphere at a pole (a
+    // union of revolved balls, the tour's dice's pips).
+    //
+    // With no shared edge near, the presentations against `v` are the
+    // pair's own, which the planes above have read: the edge test saves
+    // that work and is no premise.
+    if !near.edges.is_empty()
+        && let Some(v) = one_shared_vertex(&near.vertices)
+    {
+        let alone = Near {
+            edges: Vec::new(),
+            vertices: vec![v],
+        };
+        let (rx, ry) = (
+            present(x, &[], &alone.vertices, band),
+            present(y, &[], &alone.vertices, band),
+        );
+        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
+            && planes_through(x, &alone, rx, ry)
+                .into_iter()
+                .any(|sep| apart(rx, ry, sep))
+        {
+            return Outcome::Certified {
+                corner: rx.corner || ry.corner,
+            };
+        }
     }
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
@@ -6013,8 +6105,9 @@ fn parting_normal([a1, a2]: [Vec3<f64>; 2], [b1, b2]: [Vec3<f64>; 2]) -> Option<
 /// so each member of a family has its own `n` and `q` in these
 /// enclosures, normal to its own edge and on it: the plane vanishes on
 /// the listed cells for every member. The headings, the bisector and the
-/// wedges only choose a direction; any direction is exact. A shared vertex off the
-/// lines a plane was built through is not listed.
+/// wedges only choose a direction; any direction is exact. A shared
+/// vertex off the lines a plane was built through is not listed. Where
+/// these are tried among the other separators is [`departure`]'s list.
 fn planes_through(
     x: &Piece<'_>,
     near: &Near,
@@ -6261,7 +6354,7 @@ fn graph_of<'a>(
     py: &Presented<'_>,
     band: Band,
 ) -> Option<(Psi, On)> {
-    let alone = vertex_alone(near.edges.is_empty(), &near.vertices);
+    let alone = one_shared_vertex(&near.vertices).filter(|_| near.edges.is_empty());
     let (e, vertices) = match (near.edges.as_slice(), alone) {
         ([(i, _)], _) => (x.boundary.edges.get(*i)?, Vec::new()),
         (_, Some(v)) => {
@@ -13043,5 +13136,409 @@ mod presentation_rows {
             None,
             "the shared edge's far end"
         );
+    }
+
+    /// **A wedge plane and a cone face sharing a ruling to the apex.** The
+    /// cone `Φ(u, v) = v·(cos u, sin u, 1)/√2` about `z`, its face over
+    /// `u ∈ [0, 3π/2]`, `v ∈ [0, 1]`, its apex `A` a collapsed side, its
+    /// rulings at `u = 0` (edge 1, shared) and `u = 3π/2` (edge 2). The
+    /// plane `y = 0`, charted `(z, x)`, holds the shared ruling, whose
+    /// direction there is `(1, 1)`, and a second edge from `A` along
+    /// `far`; so it holds the cone's ruling at `u = π`, along `(1, −1)`,
+    /// on the cone face. The pair is read in the plane's cell at `A` and
+    /// the cone's at `A` about `u = π`, where they share `A` and are near
+    /// the shared ruling: [`certify_pair`]'s outcome.
+    fn wedge_at_the_apex(far: (f64, f64)) -> Outcome {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let pi = core::f64::consts::PI;
+        let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        let line = |a: Point3<Interval>, b: Point3<Interval>| {
+            Some((Curve3::line(a, b - a), (iv0(0.0), iv0(1.0))))
+        };
+        let apex = origin();
+        let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
+        // The plane's second edge ends at `q`, its chart point `far`.
+        let q = p3(far.1, 0.0, far.0);
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            ),
+        };
+        let mut c = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, 0.0, (0.0, 0.0), (0.0, 1.0)),
+                rim(
+                    2,
+                    [1, 3],
+                    Axis::U,
+                    1.5 * pi,
+                    (1.5 * pi, 0.0),
+                    (1.5 * pi, 1.0),
+                ),
+                rim(3, [2, 3], Axis::V, 1.0, (0.0, 1.0), (1.5 * pi, 1.0)),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
+            extent: Some([(0.0, 1.5 * pi), (0.0, 1.0)]),
+        };
+        c.edges[0].arc = line(apex, p0);
+        c.edges[0].uses[0].plus = false;
+        c.edges[1].arc = line(apex, p1);
+        // The rim: the circle at `v = 1` from `p0` to `p1`, run back.
+        c.edges[2].arc = Some((
+            Curve3::circle(
+                p3(0.0, 0.0, s2),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                iv0(s2),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            (iv0(0.0), iv0(1.5 * pi)),
+        ));
+        c.edges[2].uses[0].plus = false;
+        let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
+            key: edge(n),
+            arc,
+            stated: None,
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let w = Boundary {
+            sense: true,
+            edges: vec![
+                unread(1, [1, 2], line(apex, p0), false),
+                unread(4, [1, 4], line(apex, q), true),
+                unread(5, [4, 2], line(q, p0), true),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
+            extent: None,
+        };
+        let (lw, lc) = (
+            Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            },
+            Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            },
+        );
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(1)],
+        };
+        let piece = |face: FaceKey, surface, boundary, u, v, local| Piece {
+            face,
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let a = piece(face(1), &plane, &w, (0.0, 1e-3), (-1e-3, 1e-3), &lw);
+        let b = piece(face(2), &cone, &c, (pi - 3e-3, pi + 3e-3), (0.0, 1e-3), &lc);
+        certify_pair(&a, &b, &near, band())
+    }
+
+    /// **The cone's cell about the second ruling is parted from the wedge
+    /// plane at the apex** ([`wedge_at_the_apex`], the plane's second edge
+    /// the axis): no plane through the shared ruling signs the cone there,
+    /// as the plane's carrier holds the cone's ruling at `u = π`, and the
+    /// plane through the apex alone, both faces presented against it,
+    /// does. Red while [`departure`] reads no separator but those through
+    /// the shared edge, where the pair splits.
+    #[test]
+    fn a_cone_cell_about_the_wedge_planes_second_ruling_is_parted_at_the_apex() {
+        let got = wedge_at_the_apex((1.0, 0.0));
+        assert!(
+            matches!(got, Outcome::Certified { .. }),
+            "the plane through the apex parts the pair: {got:?}"
+        );
+    }
+
+    /// **A wedge plane holding the cone's second ruling is not parted
+    /// from it** ([`wedge_at_the_apex`], the plane's sector run on past
+    /// the axis to `(1, −2)`): the plane face holds the cone's ruling at
+    /// `u = π`, so the two faces meet along it, off the shared cell, and
+    /// no separator through the apex reads them apart. Red if the plane
+    /// through the apex certifies a pair that meets.
+    #[test]
+    fn a_wedge_plane_holding_the_cones_second_ruling_is_not_parted() {
+        let got = wedge_at_the_apex((1.0, -2.0));
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "the faces meet along the ruling at u = π: {got:?}"
+        );
+    }
+
+    /// **A cone cell across both nappes at its apex is presented on the
+    /// face's own**: a whole cone face about `z` (`u` over a whole turn,
+    /// its seam at `u = 0`, its rim at `v = 1`), whose extent wraps, so
+    /// nothing but the nappe places its `v`. The cell at the apex reaching
+    /// `v ∈ (−10⁻³, 10⁻³)` is presented against the apex alone as the
+    /// rectangle `v ∈ [0, 10⁻³]` with the apex its collapsed low side, and
+    /// the plane `z = 0` through the apex signs it positive. Red if the
+    /// rectangle is not clamped to the nappe: it then reaches the other
+    /// nappe, where the plane is negative, under the same sign
+    /// ([`departure`]'s plane through the one shared vertex reads this).
+    #[test]
+    fn a_cone_cell_across_both_nappes_at_its_apex_is_presented_on_its_nappe() {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let p0 = Point3::new(iv0(s2), iv0(0.0), iv0(s2));
+        let mut seam = rim(1, [1, 2], Axis::U, 0.0, (0.0, 0.0), (0.0, 1.0));
+        seam.arc = Some((Curve3::line(origin(), p0 - origin()), (iv0(0.0), iv0(1.0))));
+        let mut back = seam.uses[0].clone();
+        back.plus = false;
+        back.image = Some([p2((TURN, 0.0)), p2((TURN, 1.0))]);
+        back.iso = Some(Iso {
+            held: Axis::U,
+            at: iv0(TURN),
+            full: false,
+        });
+        seam.uses.push(back);
+        let mut ring = rim(2, [2, 2], Axis::V, 1.0, (0.0, 1.0), (TURN, 1.0));
+        ring.arc = Some((
+            Curve3::circle(
+                Point3::new(iv0(0.0), iv0(0.0), iv0(s2)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                iv0(s2),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            (iv0(0.0), iv0(TURN)),
+        ));
+        ring.uses[0].plus = false;
+        let b = Boundary {
+            sense: true,
+            edges: vec![seam, ring],
+            vertices: BTreeMap::from([(vertex(1), origin()), (vertex(2), p0)]),
+            extent: Some([(0.0, TURN), (0.0, 1.0)]),
+        };
+        let local = Local {
+            edges: vec![0],
+            vertices: vec![vertex(1)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &cone,
+            whole: false,
+            boundary: &b,
+            u: (2.0, 2.1),
+            v: (-1e-3, 1e-3),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let Ok(Presentation::Of(q)) = present_chart(&piece, &[], &[vertex(1)], band()) else {
+            panic!("the cell at the apex is presented");
+        };
+        assert_eq!(q.y, (0.0, 1e-3), "the rectangle is on the face's nappe");
+        assert!(
+            matches!(&q.zero, Zero::Side(Side::YLo, a) if a.vertex == Some(vertex(1))),
+            "the apex is the rectangle's collapsed low side: {:?}",
+            q.zero
+        );
+        let through = On {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+            whole: true,
+        };
+        let plane = Psi::Linear {
+            n: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            q: origin(),
+        };
+        assert_eq!(
+            sign_on(&plane, Some(&through), &q, None, band()),
+            Some(Sign::Positive),
+            "the plane through the apex signs the face's nappe"
+        );
+    }
+
+    /// [`wedge_at_the_apex`] in a true mirror (`y → −y`), on a re-charted
+    /// cone (axis `−z`: `u' = π − u`, `v' = −v`) and a re-charted plane
+    /// (normal `−y`), the plane's far edge at `(1, far.1)`, the cone's
+    /// cell about `u = π` widened by `du` and reaching `dv` along the
+    /// ruling: [`certify_pair`]'s outcome.
+    fn mirrored_wedge(
+        far: (f64, f64),
+        mirror: bool,
+        recone: bool,
+        replane: bool,
+        du: (f64, f64),
+        dv: f64,
+    ) -> Outcome {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let pi = core::f64::consts::PI;
+        let m = if mirror { -1.0 } else { 1.0 };
+        let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(m * y), iv0(z));
+        let line = |a: Point3<Interval>, b: Point3<Interval>| {
+            Some((Curve3::line(a, b - a), (iv0(0.0), iv0(1.0))))
+        };
+        let apex = origin();
+        let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
+        let q = p3(far.1, 0.0, far.0);
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(if recone { -1.0 } else { 1.0 })),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(if replane { -1.0 } else { 1.0 }), iv0(0.0)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            ),
+        };
+        // Chart of a cone point at original (u, v): mirror u -> -u (shift by 2π
+        // to stay in [π/2, 2π]); recone (u, v) -> (π − u, −v).
+        let ch = |u: f64, v: f64| -> (f64, f64) {
+            let u = if mirror {
+                if u <= 0.0 { -u } else { 2.0 * pi - u }
+            } else {
+                u
+            };
+            if recone { (pi - u, -v) } else { (u, v) }
+        };
+        let (u_sh, u_far) = (ch(0.0, 0.0).0, ch(1.5 * pi, 0.0).0);
+        let vr = if recone { -1.0 } else { 1.0 };
+        let mut c = Boundary {
+            sense: !mirror,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, u_sh, (u_sh, 0.0), (u_sh, vr)),
+                rim(2, [1, 3], Axis::U, u_far, (u_far, 0.0), (u_far, vr)),
+                rim(3, [2, 3], Axis::V, vr, (u_sh, vr), (u_far, vr)),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
+            extent: Some([
+                (u_sh.min(u_far), u_sh.max(u_far)),
+                (vr.min(0.0), vr.max(0.0)),
+            ]),
+        };
+        c.edges[0].arc = line(apex, p0);
+        c.edges[0].uses[0].plus = false;
+        c.edges[1].arc = line(apex, p1);
+        c.edges[2].arc = Some((
+            Curve3::circle(
+                p3(0.0, 0.0, s2),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(m)),
+                iv0(s2),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            (iv0(0.0), iv0(1.5 * pi)),
+        ));
+        c.edges[2].uses[0].plus = false;
+        let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
+            key: edge(n),
+            arc,
+            stated: None,
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let w = Boundary {
+            sense: !(mirror ^ replane),
+            edges: vec![
+                unread(1, [1, 2], line(apex, p0), false),
+                unread(4, [1, 4], line(apex, q), true),
+                unread(5, [4, 2], line(q, p0), true),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
+            extent: None,
+        };
+        let lw = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let lc = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(1)],
+        };
+        let piece = |face: FaceKey, surface, boundary, u, v, local| Piece {
+            face,
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        // The plane's chart is (z, ±x): x flips with replane.
+        let a = piece(face(1), &plane, &w, (0.0, 1e-3), (-1e-3, 1e-3), &lw);
+        let uc = ch(pi, 0.0).0;
+        let cv = if recone { (-dv, 0.0) } else { (0.0, dv) };
+        let b = piece(face(2), &cone, &c, (uc + du.0, uc + du.1), cv, &lc);
+        certify_pair(&a, &b, &near, band())
+    }
+
+    /// **A wedge plane holding the cone's second ruling is never parted
+    /// from it, in any mirror or chart** ([`mirrored_wedge`]): over both
+    /// mirrors, both cone charts, both plane charts, eight far edges
+    /// (those with `far.1 < −1` hold the ruling at `u = π`, so the faces
+    /// meet along it), five cone cells and three reaches, 960 pairs, none
+    /// holding the ruling certifies. Red if the plane through the one
+    /// shared vertex certifies where it signs one face only.
+    #[test]
+    fn mirrored_and_recharted_wedges_never_certify_a_meeting() {
+        let mut bad = Vec::new();
+        for mirror in [false, true] {
+            for recone in [false, true] {
+                for replane in [false, true] {
+                    for t in [0.9, 0.0, -0.5, -0.99, -1.01, -1.5, -2.0, -5.0] {
+                        for du in [
+                            (-3e-3, 3e-3),
+                            (-1e-4, 2e-3),
+                            (-2e-3, 1e-5),
+                            (-0.3, 0.3),
+                            (-1e-6, 1e-6),
+                        ] {
+                            for dv in [1e-3, 1e-6, 0.1] {
+                                let got = mirrored_wedge((1.0, t), mirror, recone, replane, du, dv);
+                                let cert = matches!(got, Outcome::Certified { .. });
+                                if t < -1.0 && cert {
+                                    bad.push(format!("mirror {mirror} recone {recone} replane {replane} far.1 {t} du {du:?} dv {dv}: {got:?}"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "false certificates: {bad:#?}");
     }
 }

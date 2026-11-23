@@ -3170,9 +3170,12 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
 /// `f64` the plane built from either does. At `Interval` the small
 /// ball's centre is a bracket (its profile arc's centre rounds), and
 /// two meridians stored in one bracket need not lie in one plane for
-/// every member, so its plane lists its own meridian alone and its pole
-/// refuses `Departure` there. Red at `f64` if the meridians are stored
-/// in two planes, or if the corner is read as zero off the list.
+/// every member, so its plane lists its own meridian alone; the pole is
+/// read by the plane through it alone, each half-band presented against
+/// the pole, which vanishes there for every member, and holds. Red at
+/// `f64` if the meridians are stored in two planes, or if the corner is
+/// read as zero off the list; red at `Interval` while the departure arm
+/// reads no plane but those through the shared meridian.
 #[test]
 fn a_two_ball_union_holds_with_its_poles_read() {
     fn snowman<T: Scalar>() -> Body<T> {
@@ -3206,28 +3209,182 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         report.receipt
     );
     let twin = snowman::<Interval>();
-    let verdict = injective(&twin, None, BUDGET).verdict;
-    let BoundVerdict::Refused(EngineRefusal::Uncertified {
-        shared: SharedCell::Edge(edge),
-        arm: CertificateArm::Departure,
-        ..
-    }) = verdict
-    else {
-        panic!("the snowman at Interval refuses Departure on a meridian: {verdict:?}");
-    };
-    let curve = twin.get_edge(edge).expect("a live edge").curve;
-    let carrier = twin
-        .get_curve_geom(curve)
-        .and_then(|g| g.certified())
-        .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. })) = carrier else {
-        panic!("the refusing edge is a meridian circle: {carrier:?}");
-    };
-    let radius = conic_k.radius();
-    assert!(
-        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
-        "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+    let at_interval = injective(&twin, None, BUDGET);
+    assert_holds("the snowman at Interval", &at_interval, &twin);
+    println!(
+        "[snowman] f64 {:?} | Interval {:?}",
+        report.receipt, at_interval.receipt
     );
+}
+
+/// The frames an apex row is read in: the plain one, a rigid turn about
+/// a generic axis, and the plain one moved a hundred units off the
+/// origin.
+fn apex_frames() -> [(&'static str, SketchPlane<f64>); 3] {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let a = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14f64.sqrt());
+    let (c, s) = (0.7f64.cos(), 0.7f64.sin());
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let turn = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    let frame = |m: Mat3<f64>, d: Vec3<f64>| {
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::from_parts(m, d),
+            tol(),
+        ))
+    };
+    [
+        ("plain", SketchPlane::xy()),
+        ("turned", frame(turn, Vec3::new(0.0, 0.0, 0.0))),
+        (
+            "moved",
+            frame(Mat3::identity(), Vec3::new(64.0, -57.0, 52.0)),
+        ),
+    ]
+}
+
+/// Whether a revolve refused at the certification limit a wedge reaches
+/// at ε = 1e-12 with coordinates of a hundred and more: the analytic
+/// rung 3's kernel limit on its cone, the mapped source's check
+/// escalating, or a pcurve's envelope term escalating
+/// (`work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md`).
+/// Any other refusal is not.
+fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
+    use geom_brep::{
+        AnalyticRung3Refusal, CertCheck, CertifyError, PcurveCertifyError, PcurveCheck,
+    };
+    match e {
+        sweep::RevolveError::Op {
+            source: topo::EulerOpError::Certification { error },
+        } => matches!(
+            error,
+            CertifyError::AnalyticRung3(AnalyticRung3Refusal::KernelLimit { .. })
+                | CertifyError::Escalated {
+                    check: CertCheck::MappedSource,
+                    ..
+                }
+        ),
+        sweep::RevolveError::Pcurve(topo::PcurveMintError::Certify { error, .. }) => matches!(
+            error,
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::EnvelopeTerm(_),
+                ..
+            }
+        ),
+        _ => false,
+    }
+}
+
+/// **A cone wedge past a half turn is embedded at its apex**: a
+/// triangle with a leg on the axis, revolved by `θ` about `y`. Each
+/// wedge plane holds the axis, so its carrier holds a second ruling of
+/// the cone through the apex, half a turn from the one it shares, and
+/// past a half turn that ruling is on the cone face: no plane through
+/// the shared ruling parts the cone's cells about it from the wedge
+/// plane's at the apex. A plane through the apex does, each face read
+/// against the apex alone. `Embedded` at both scalars: the unit
+/// triangle in each of [`apex_frames`] and a thousand units off the
+/// origin, and a triangle a hundred times the size, a needle and a flat
+/// one in the plain frame; and revolved by `−θ`, the unit triangle in
+/// the plain frame. Red while the departure arm reads no plane but those
+/// through the shared ruling. Revolved by `−θ` in the other poses the
+/// wedge refuses, at one scalar or both
+/// (`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).
+#[test]
+fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
+    use geom_core::{Affine3, Mat3, Vec3};
+    use topo::clearance::Embedding;
+    fn wedge<T: Scalar>(
+        place: &SketchPlane<f64>,
+        legs: (f64, f64),
+        theta: f64,
+    ) -> Result<Body<T>, sweep::RevolveError> {
+        let (r, h) = legs;
+        let profile = Profile::new(
+            plane_at::<T>(place),
+            lifted(&[ProfileLoop::polygon(
+                [(0.0, 0.0), (r, 0.0), (0.0, h)].map(|(x, y)| Point2::new(x, y)),
+            )]),
+        )
+        .validate(tol())
+        .unwrap();
+        revolve(
+            &profile,
+            axis_y(),
+            Revolution::Partial(T::from_f64(theta)),
+            tol(),
+        )
+        .map(|b| b.body.into_body())
+    }
+    let far = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(Mat3::identity(), Vec3::new(640.0, -570.0, 520.0)),
+        tol(),
+    ));
+    let mut poses: Vec<(&str, SketchPlane<f64>, (f64, f64))> = apex_frames()
+        .into_iter()
+        .map(|(name, place)| (name, place, (1.0, 1.0)))
+        .collect();
+    poses.extend([
+        ("moved a thousand", far, (1.0, 1.0)),
+        ("a hundred times", SketchPlane::xy(), (100.0, 100.0)),
+        ("a needle", SketchPlane::xy(), (0.05, 1.0)),
+        ("flat", SketchPlane::xy(), (1.0, 0.05)),
+    ]);
+    let plain = poses[..1].to_vec();
+    for theta in [1.5 * core::f64::consts::PI + 0.01, 5.5] {
+        for (turn, poses) in [(theta, &poses), (-theta, &plain)] {
+            for (name, place, legs) in poses {
+                let what = format!("the {turn} wedge, {name}");
+                // At ε = 1e-12 the two poses at coordinates of a hundred and
+                // more refuse their certification at the build:
+                // work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md.
+                let built = |r: Result<topo::clearance::EmbeddingReport, sweep::RevolveError>,
+                             scalar: &str| match r {
+                    Ok(report) => Some(report),
+                    Err(e)
+                        if matches!(*name, "moved a thousand" | "a hundred times")
+                            && tol().eps() < 1e-11
+                            && at_the_build_limit(&e) =>
+                    {
+                        println!(
+                            "SKIPPED (ε = {:e}): {what} at {scalar} does not build: {e}",
+                            tol().eps()
+                        );
+                        None
+                    }
+                    Err(e) => panic!("{what} builds at {scalar}: {e}"),
+                };
+                let float = built(
+                    wedge::<f64>(place, *legs, turn)
+                        .map(|b| door(&b, DEFAULT_MAX_CELL_DEPTH, BUDGET)),
+                    "f64",
+                );
+                let twin = built(
+                    wedge::<Interval>(place, *legs, turn)
+                        .map(|b| door(&b, DEFAULT_MAX_CELL_DEPTH, BUDGET)),
+                    "Interval",
+                );
+                println!(
+                    "[apex wedge] {what}: f64 {:?} | Interval {:?}",
+                    float.as_ref().map(|t| (&t.verdict, t.receipt)),
+                    twin.as_ref().map(|t| (&t.verdict, t.receipt))
+                );
+                for (scalar, report) in [("f64", float.as_ref()), ("Interval", twin.as_ref())]
+                    .into_iter()
+                    .filter_map(|(scalar, r)| r.map(|r| (scalar, r)))
+                {
+                    assert_eq!(
+                        report.verdict,
+                        Embedding::Embedded,
+                        "{what} at {scalar} is embedded"
+                    );
+                }
+            }
+        }
+    }
 }
 
 // ------------------------------- the ask ends at its first finding
