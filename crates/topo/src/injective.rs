@@ -5757,7 +5757,7 @@ fn sign_on(
         }
         Zero::Through(s, a) => {
             // Whole: a plane, never the graph, which holds no whole line.
-            if !(through_read(p, against) && on.is_some_and(|on| on.holds(a, true))) {
+            if !(through_read(against) && on.is_some_and(|on| on.holds(a, true))) {
                 return None;
             }
             departs(*s)
@@ -5813,7 +5813,7 @@ fn past_read(p: &Presented<'_>, against: Option<&Presented<'_>>) -> bool {
 }
 
 /// **Whether a side through a shared vertex is read**
-/// ([`Zero::Through`]): on an analytic face, under a plane holding the
+/// ([`Zero::Through`]): under a plane holding the
 /// side's whole line or circle, `against` a presentation whose zero is
 /// nothing or that vertex. Never in the carrier arm, where `against` is
 /// `None`.
@@ -5834,16 +5834,15 @@ fn past_read(p: &Presented<'_>, against: Option<&Presented<'_>>) -> bool {
 /// rules out, as for a side past the shared cell ([`partial_zero`]). A
 /// partner whose zero is a side, a corner, a curve or a side of its own
 /// through `V` may meet the line elsewhere, and is not read.
-fn through_read(p: &Presented<'_>, against: Option<&Presented<'_>>) -> bool {
-    let at_vertex = against.is_some_and(|q| match &q.zero {
+fn through_read(against: Option<&Presented<'_>>) -> bool {
+    against.is_some_and(|q| match &q.zero {
         Zero::None | Zero::Point(..) => true,
         Zero::Side(..)
         | Zero::Past(..)
         | Zero::Through(..)
         | Zero::Corner(..)
         | Zero::Curve(..) => false,
-    });
-    at_vertex && geom_brep::is_analytic(p.surface)
+    })
 }
 
 /// The carrier of a face as a separator.
