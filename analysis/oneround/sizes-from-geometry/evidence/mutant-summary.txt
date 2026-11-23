@@ -1,0 +1,34 @@
+NONE_A      Summary [   3.513s] 152 tests run: 152 passed, 15226 skipped
+M1      Summary [   3.409s] 152 tests run: 148 passed, 4 failed, 15226 skipped
+M2      Summary [   3.686s] 152 tests run: 150 passed, 2 failed, 15226 skipped
+M3      Summary [   3.439s] 152 tests run: 151 passed, 1 failed, 15226 skipped
+M4      Summary [   3.504s] 152 tests run: 151 passed, 1 failed, 15226 skipped
+M5      Summary [   3.481s] 152 tests run: 150 passed, 2 failed, 15226 skipped
+M6      Summary [   3.560s] 152 tests run: 144 passed, 8 failed, 15226 skipped
+M9      Summary [   3.650s] 152 tests run: 152 passed, 15226 skipped
+U2      Summary [   3.612s] 152 tests run: 152 passed, 15226 skipped
+U3      Summary [   3.332s] 152 tests run: 150 passed, 2 failed, 15226 skipped
+U13      Summary [   3.753s] 152 tests run: 151 passed, 1 failed, 15226 skipped
+pos_cone_ray      Summary [   3.503s] 152 tests run: 150 passed, 2 failed, 15226 skipped
+neg_cone_ray      Summary [   4.986s] 152 tests run: 152 passed, 15226 skipped
+NONE_B      Summary [   1.925s] 49 tests run: 49 passed, 15329 skipped
+M7      Summary [   1.897s] 49 tests run: 48 passed, 1 failed, 15329 skipped
+M8      Summary [   1.845s] 49 tests run: 48 passed, 1 failed, 15329 skipped
+U4_small      Summary [   1.890s] 49 tests run: 49 passed, 15329 skipped
+U4_nan      Summary [   1.965s] 49 tests run: 45 passed, 4 failed, 15329 skipped
+U5_small      Summary [   1.961s] 49 tests run: 49 passed, 15329 skipped
+U5_nan      Summary [   1.713s] 49 tests run: 43 passed, 6 failed, 15329 skipped
+U5_max      Summary [   1.501s] 49 tests run: 49 passed, 15329 skipped
+NONE_E      Summary [  33.762s] 733 tests run: 733 passed, 14645 skipped
+U14      Summary [  28.137s] 733 tests run: 716 passed, 17 failed, 14645 skipped
+U15      Summary [  29.554s] 733 tests run: 733 passed, 14645 skipped
+NONE_C      Summary [  35.250s] 495 tests run: 495 passed, 14883 skipped
+M10      Summary [  37.478s] 495 tests run: 404 passed, 91 failed, 14883 skipped
+U8c      Summary [  35.238s] 495 tests run: 492 passed, 3 failed, 14883 skipped
+U8s      Summary [  34.090s] 495 tests run: 490 passed, 5 failed, 14883 skipped
+U8t      Summary [  34.703s] 495 tests run: 492 passed, 3 failed, 14883 skipped
+NONE_D      Summary [  19.990s] 344 tests run: 344 passed, 15034 skipped
+U9      Summary [  20.983s] 344 tests run: 343 passed, 1 failed, 15034 skipped
+U10      Summary [  20.087s] 344 tests run: 344 passed, 15034 skipped
+DONE
+U15 over all of editor-core:      Summary [ 106.777s] 3155 tests run: 3155 passed, 620 skipped

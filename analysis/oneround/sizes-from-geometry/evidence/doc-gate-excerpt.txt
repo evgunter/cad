@@ -1,0 +1,22 @@
+ Documenting profile v0.0.0 (/home/user/cad/crates/profile)
+    Checking geom v0.0.0 (/home/user/cad/crates/geom)
+ Documenting geom v0.0.0 (/home/user/cad/crates/geom)
+    Checking geom-brep v0.0.0 (/home/user/cad/crates/geom-brep)
+ Documenting geom-brep v0.0.0 (/home/user/cad/crates/geom-brep)
+    Checking topo v0.0.0 (/home/user/cad/crates/topo)
+ Documenting topo v0.0.0 (/home/user/cad/crates/topo)
+error: unresolved link to `partial_reach`
+   --> crates/topo/src/solid_contain.rs:874:55
+    |
+874 |     /// `PartialConeFace` only when every ray does ([`partial_reach`]).
+    |                                                       ^^^^^^^^^^^^^ no item named `partial_reach` in scope
+    |
+    = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+    = note: `-D rustdoc::broken-intra-doc-links` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(rustdoc::broken_intra_doc_links)]`
+
+error: could not document `topo`
+warning: build failed, waiting for other jobs to finish...
+    Checking mesh v0.0.0 (/home/user/cad/crates/mesh)
+    Checking sweep v0.0.0 (/home/user/cad/crates/sweep)
+ERROR: doc-gate: rustdoc rejected the workspace pass (viewer at default features) — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints
