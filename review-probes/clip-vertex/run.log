@@ -1,0 +1,111 @@
+== A01_touched_falls_through (147s)
+     Summary [   0.453s] 115 tests run: 113 passed, 2 failed, 3069 skipped
+  unit: presentation_rows::two_walls_glued_across_a_circle_of_two_arcs_certify_beside_its_joint
+  unit: presentation_rows::a_clip_holding_a_shared_edge_beside_an_unshared_one_is_the_side_past_it
+     Summary [  35.319s] 52 tests run: 50 passed, 2 failed, 3818 skipped
+  suite: a_wall_holds_against_a_face_at_a_vertex_mid_ruling
+  suite: a_filleted_drum_certifies_across_its_fillet
+== A02_no_through (115s)
+     Summary [   0.567s] 115 tests run: 112 passed, 3 failed, 3069 skipped
+  unit: presentation_rows::zero_of_reads_a_shared_vertex_on_one_clips_side_through_it
+  unit: presentation_rows::a_wall_and_a_corner_at_a_vertex_mid_line_certify_under_the_lines_plane
+  unit: presentation_rows::a_side_through_a_vertex_is_zero_only_under_a_plane_holding_its_line
+     Summary [  33.756s] 52 tests run: 51 passed, 1 failed, 3818 skipped
+  suite: a_wall_holds_against_a_face_at_a_vertex_mid_ruling
+== A03_no_circle_plane (120s)
+     Summary [   0.360s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_wall_and_a_corner_at_a_vertex_mid_line_certify_under_the_lines_plane
+     Summary [  35.437s] 52 tests run: 52 passed, 3818 skipped
+== A04_through_with_shared_edge (102s)
+     Summary [   0.433s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::zero_of_reads_a_shared_vertex_on_one_clips_side_through_it
+     Summary [  35.477s] 52 tests run: 51 passed, 1 failed, 3818 skipped
+  suite: a_ring_a_milliradian_short_of_a_full_turn_holds_across_its_gap
+== A05_through_on_collapsed (97s)
+     Summary [   0.437s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::zero_of_reads_a_shared_vertex_on_one_clips_side_through_it
+     Summary [  33.262s] 52 tests run: 52 passed, 3818 skipped
+== A06_through_not_own_line (101s)
+     Summary [   0.414s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::zero_of_reads_a_shared_vertex_on_one_clips_side_through_it
+     Summary [  33.927s] 52 tests run: 52 passed, 3818 skipped
+== A07_loose_forbids_side (93s)
+     Summary [   0.340s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_loose_vertex_adds_a_zero_and_never_forbids_one
+     Summary [  33.682s] 52 tests run: 52 passed, 3818 skipped
+== A08_point_needs_lone (86s)
+     Summary [   0.341s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_loose_vertex_adds_a_zero_and_never_forbids_one
+     Summary [  34.218s] 52 tests run: 52 passed, 3818 skipped
+== A09_lone_refuses (96s)
+     Summary [   0.448s] 115 tests run: 113 passed, 2 failed, 3069 skipped
+  unit: presentation_rows::zero_of_reads_a_shared_vertex_on_one_clips_side_through_it
+  unit: presentation_rows::a_spheres_pole_is_a_collapsed_side_of_its_chart
+     Summary [  32.150s] 52 tests run: 51 passed, 1 failed, 3818 skipped
+  suite: a_ring_a_milliradian_short_of_a_full_turn_holds_across_its_gap
+== A10_several_refuse (100s)
+     Summary [   0.311s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_loose_vertex_adds_a_zero_and_never_forbids_one
+     Summary [  34.424s] 52 tests run: 52 passed, 3818 skipped
+== A11_through_read_side (87s)
+     Summary [   0.325s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_side_through_a_vertex_is_zero_only_under_a_plane_holding_its_line
+     Summary [  33.920s] 52 tests run: 52 passed, 3818 skipped
+== A12_holds_not_whole (86s)
+     Summary [   0.340s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_side_through_a_vertex_is_zero_only_under_a_plane_holding_its_line
+     Summary [  33.567s] 52 tests run: 52 passed, 3818 skipped
+== R01_through_any_separator (124s)
+     Summary [   0.331s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_side_through_a_vertex_is_zero_only_under_a_plane_holding_its_line
+     Summary [  32.366s] 52 tests run: 52 passed, 3818 skipped
+== R02_through_read_all (126s)
+     Summary [   0.346s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_side_through_a_vertex_is_zero_only_under_a_plane_holding_its_line
+     Summary [  33.174s] 52 tests run: 52 passed, 3818 skipped
+== R03_through_read_corner (98s)
+     Summary [   0.329s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_side_through_a_vertex_is_zero_only_under_a_plane_holding_its_line
+     Summary [  34.674s] 52 tests run: 52 passed, 3818 skipped
+== R04_through_read_curve (97s)
+     Summary [   0.283s] 115 tests run: 115 passed, 3069 skipped
+     Summary [  33.862s] 52 tests run: 52 passed, 3818 skipped
+== R05_through_read_through (83s)
+     Summary [   0.320s] 115 tests run: 115 passed, 3069 skipped
+     Summary [  32.523s] 52 tests run: 52 passed, 3818 skipped
+== R06_through_read_no_partner (99s)
+     Summary [   0.341s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_side_through_a_vertex_is_zero_only_under_a_plane_holding_its_line
+     Summary [  34.592s] 52 tests run: 52 passed, 3818 skipped
+== R07_no_corner_dropped (89s)
+     Summary [   0.415s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::zero_of_reads_a_shared_vertex_on_one_clips_side_through_it
+     Summary [  34.342s] 52 tests run: 52 passed, 3818 skipped
+== R08_through_before_point (134s)
+     Summary [   0.282s] 115 tests run: 115 passed, 3069 skipped
+     Summary [  34.254s] 52 tests run: 52 passed, 3818 skipped
+== R09_through_lone_dropped (127s)
+     Summary [   0.338s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_loose_vertex_adds_a_zero_and_never_forbids_one
+     Summary [  34.045s] 52 tests run: 52 passed, 3818 skipped
+== R10_no_through_plane (105s)
+     Summary [   0.346s] 115 tests run: 114 passed, 1 failed, 3069 skipped
+  unit: presentation_rows::a_wall_and_a_corner_at_a_vertex_mid_line_certify_under_the_lines_plane
+     Summary [  34.928s] 52 tests run: 51 passed, 1 failed, 3818 skipped
+  suite: a_wall_holds_against_a_face_at_a_vertex_mid_ruling
+== R11_ruling_plane_unprojected (102s)
+     Summary [   0.274s] 115 tests run: 115 passed, 3069 skipped
+     Summary [  33.051s] 52 tests run: 52 passed, 3818 skipped
+== R12_circle_plane_offset (96s)
+     Summary [   0.286s] 115 tests run: 115 passed, 3069 skipped
+     Summary [  33.441s] 52 tests run: 52 passed, 3818 skipped
+== R13_ruling_plane_offset (89s)
+     Summary [   0.296s] 115 tests run: 115 passed, 3069 skipped
+     Summary [  33.302s] 52 tests run: 52 passed, 3818 skipped
+== R14_past_read_admits_through (90s)
+     Summary [   0.299s] 115 tests run: 115 passed, 3069 skipped
+     Summary [  34.719s] 52 tests run: 52 passed, 3818 skipped
+== R15_touched_also_with_side (115s)
+     Summary [   0.321s] 115 tests run: 115 passed, 3069 skipped
+     Summary [  34.501s] 52 tests run: 52 passed, 3818 skipped
+ALLDONE

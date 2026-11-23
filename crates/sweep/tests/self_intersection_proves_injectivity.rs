@@ -3607,3 +3607,64 @@ fn probe_plane_pairs_at_a_vertex_alone() {
     run(&half_rod_on_a_block::<f64>().into_body(), "f64");
     run(&half_rod_on_a_block::<Interval>().into_body(), "Interval");
 }
+
+/// PROBE: flaps hung from the mid-ruling vertex `(1, 0, 0.5)` of the half
+/// rod on a block: the PR's through-flap, one lying in the wall's tangent
+/// plane `x = 1` with an edge along the wall's ruling (a touch along a
+/// segment off the shared cell), and one in the tangent plane clear of
+/// the ruling (touching the wall at the vertex only, along the tangent
+/// line, second order). Each as built and mirrored, at both scalars.
+#[test]
+fn probe_flaps_at_the_rulings_vertex() {
+    fn flapped<T: Scalar>(a0: [f64; 3], a1: [f64; 3], mirror: bool) -> (Body<T>, FaceKey, FaceKey) {
+        use geom_brep::EdgeCurveSpec;
+        use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+        use topo::test_support::plane;
+        let mut body = half_rod_on_a_block::<T>().into_body();
+        let at = |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+        let v_at = at(1.0, 0.0, 0.5);
+        let v = body.vertices().find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12).unwrap().0;
+        let (wall, _) = wall_and_the_faces_at_a_vertex_alone(&body);
+        let face_of = |body: &Body<T>, he| body.get_loop(body.get_half_edge(he).unwrap().parent_loop).unwrap().face;
+        let horizontal = |body: &Body<T>, f: FaceKey| match surface(body, f) {
+            Surface::Plane { frame } => mid(frame.axis().z).abs() > 0.5,
+            _ => false,
+        };
+        let h = body.edges().flat_map(|(_, e)| [e.he_plus, e.he_minus])
+            .find(|&he| body.get_half_edge(he).unwrap().start == v && horizontal(&body, face_of(&body, he))).unwrap();
+        let (a0, a1) = (at(a0[0], a0[1], a0[2]), at(a1[0], a1[1], a1[2]));
+        let fan = MevSite::Fan { he1: h, he2: h };
+        let s0 = body.mev_line(fan, a0, tol()).unwrap();
+        let s1 = body.mev_line(fan, a1, tol()).unwrap();
+        let flap = body.mef(
+            MefSite::Chords { he1: s0.he_minus, he2: s1.he_minus },
+            EdgeCurveSpec::line_between(a0, a1),
+            FaceSurface::New { surface: plane(&[a0, v_at, a1], tol()), sense: true },
+            tol(),
+        ).unwrap().face;
+        topo::mint_pcurves(&mut body, tol()).unwrap();
+        if mirror {
+            let body = probe_mirrored(body);
+            return (body, wall, flap);
+        }
+        (body, wall, flap)
+    }
+    let mut bad = Vec::new();
+    for (what, a0, a1) in [
+        ("through", [1.3, 0.4, 0.9], [0.6, 0.4, 0.9]),
+        ("along the ruling in the tangent plane", [1.0, 0.0, 0.9], [1.0, 0.4, 0.9]),
+        ("in the tangent plane off the ruling", [1.0, 0.4, 0.7], [1.0, 0.4, 0.9]),
+    ] {
+        for mirror in [false, true] {
+            let (b, w, f) = flapped::<f64>(a0, a1, mirror);
+            let r = injective(&b, Some(vec![w, f]), BUDGET);
+            let (bi, wi, fi) = flapped::<Interval>(a0, a1, mirror);
+            let ri = injective(&bi, Some(vec![wi, fi]), BUDGET);
+            println!("[probe-flap] {what} mirror={mirror}: f64 {} {:?} | Interval {} {:?}", class(&r.verdict), r.receipt, class(&ri.verdict), ri.receipt);
+            if !what.contains("off the ruling") && (matches!(r.verdict, BoundVerdict::Holds) || matches!(ri.verdict, BoundVerdict::Holds)) {
+                bad.push(format!("{what} mirror={mirror}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "a touching or crossing flap holds: {bad:?}");
+}
