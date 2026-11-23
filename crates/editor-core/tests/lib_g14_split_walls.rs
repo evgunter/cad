@@ -650,10 +650,10 @@ fn node_level_prose_carries_the_emitter_payload() {
     let carried = |e: NamingError| NodeErrorKind::Naming(e).to_string();
 
     let s = carried(NamingError::Emission {
-        what: "a chart cut survives in the result",
+        what: "a carried edge's group names no operand",
     });
     assert!(
-        s.contains("a chart cut survives in the result"),
+        s.contains("a carried edge's group names no operand"),
         "the Emission payload is the diagnosis, and it must survive the \
          node boundary: {s}"
     );

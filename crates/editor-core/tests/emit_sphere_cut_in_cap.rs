@@ -7,12 +7,10 @@
 //! (`topo::boolean::ops::apply_cut_ins`): the cut's new piece descends
 //! from the face it divided, and the cut itself is no edge of the lens.
 //!
-//! Intersected (the cap), and the brick minus the lens, the cut is glued
-//! away and the circle keeps one vertex with no identity of its own,
-//! which the table refuses typed until its edge-derived name is built
-//! (`work/borders/a-conventional-vertex-mints-no-edge-derived-name.md`).
-//! The union and the lens minus the brick keep the cut as two edges
-//! between pieces of one face ([`CUT_LEFT`]).
+//! The output stage closes the cut again (`topo::boolean::slit`, closing
+//! a cut), so every op builds, and the circle keeps one vertex with no
+//! identity of its own, which the table refuses typed until its
+//! edge-derived name is built ([`CONVENTIONAL`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
@@ -122,10 +120,10 @@ pub(crate) fn world_in_brick(
     against(doc, brick, body, &at)
 }
 
-/// Where the cut survives, the result holds two pieces of one sphere
-/// face across it.
-pub(crate) const CUT_LEFT: &str =
-    "work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick.md";
+/// A section circle no edge reached keeps one conventional vertex, which
+/// no name reads yet.
+pub(crate) const CONVENTIONAL: &str =
+    "work/borders/a-conventional-vertex-mints-no-edge-derived-name.md";
 
 /// The document: the lens, the brick, and `op` over them, lens first or
 /// not.
@@ -164,22 +162,20 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 /// **The lens and the brick name, and every op over them refuses only
-/// where a row is filed**: the cap and the brick minus the lens at the
-/// circle's conventional vertex, which the totality check reaches only
-/// once every face and edge is named, and the union and the lens minus
-/// the brick at the cut they keep ([`CUT_LEFT`]). No op over them
-/// publishes a table yet, so none is read here for the lens entities
-/// its names cite; the conventional-vertex row's fix makes the first
-/// three name, and asserts that here.
+/// where a row is filed**: at the circle's conventional vertex, which
+/// the totality check reaches only once every face and edge is named
+/// ([`CONVENTIONAL`]). No op over them publishes a table yet, so none is
+/// read here for the lens entities its names cite; the
+/// conventional-vertex row's fix makes them name, and asserts that here.
 #[test]
 fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
-    for (op, lens_first, want) in [
-        ("intersect", true, "ConventionalVertex"),
-        ("intersect", false, "ConventionalVertex"),
-        ("subtract", false, "ConventionalVertex"),
-        ("union", true, CUT_LEFT),
-        ("union", false, CUT_LEFT),
-        ("subtract", true, CUT_LEFT),
+    for (op, lens_first) in [
+        ("intersect", true),
+        ("intersect", false),
+        ("subtract", false),
+        ("union", true),
+        ("union", false),
+        ("subtract", true),
     ] {
         let what = format!("{op}, lens first: {lens_first}");
         let (doc, [lens, brick, out]) = document(op, lens_first);
@@ -187,17 +183,10 @@ fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
         assert!(failure(&ev, lens).is_none(), "{what}: the lens names");
         assert!(failure(&ev, brick).is_none(), "{what}: the brick names");
         let e = format!("{:?}", failure(&ev, out).expect("refuses"));
-        if want == CUT_LEFT {
-            assert!(
-                e.contains("a chart cut survives in the result"),
-                "{what}: refused other than at the cut ({CUT_LEFT}): {e}"
-            );
-        } else {
-            assert!(
-                e.starts_with("Naming(ConventionalVertex"),
-                "{what}: refused other than at the conventional vertex: {e}"
-            );
-        }
+        assert!(
+            e.starts_with("Naming(ConventionalVertex"),
+            "{what}: refused other than at the conventional vertex ({CONVENTIONAL}): {e}"
+        );
     }
 }
 
@@ -378,18 +367,7 @@ fn names_member_faces(
 #[test]
 fn the_holdings_over_a_cut_in_name_only_their_operands_faces() {
     let tol = Tol::witness();
-    let (doc, [lens, brick, _]) = document("union", true);
-    let ev = run(&doc);
-    let lens = framed_at(&ev, lens, "the lens");
-    let brick = framed_at(&ev, brick, "the brick");
-    // The brick read in the lens's coordinates, as the op reads it.
-    let brick = match lens.relative(&brick).expect("the frames compose") {
-        None => brick.body().clone(),
-        Some(map) => topo::transform::transform_rigid(brick.body(), &map)
-            .expect("the brick maps into the lens's frame"),
-    };
-    let lens = topo::test_support::finished("the lens", lens.body().clone(), tol);
-    let brick = topo::test_support::finished("the brick", brick, tol);
+    let (lens, brick) = operands();
     let (mut cut_in, mut built) = (0, 0);
     for (x, y, order) in [
         (&lens, &brick, "lens first"),
@@ -415,7 +393,7 @@ fn the_holdings_over_a_cut_in_name_only_their_operands_faces() {
                     continue;
                 }
             };
-            cut_in += usize::from(out.naming.chart_cuts.iter().any(|c| !c.is_empty()));
+            cut_in += usize::from(closes_a_cut(&out));
             built += 1;
             names_member_faces(&out.holdings, &out.body, [x, y], &what);
         }
@@ -441,4 +419,85 @@ fn the_holdings_over_a_cut_in_name_only_their_operands_faces() {
     }
     assert!(cut_in > 0, "some op cuts the lens's face in before it runs");
     assert!(built >= 6, "most of the ten runs build: {built}");
+}
+
+/// Whether the op closed a chart cut on a sphere face: the output stage
+/// deletes a cut's piece between two pieces of the face it divided with
+/// one of them, a substitution row from that piece onto the face that
+/// keeps it.
+fn closes_a_cut(out: &topo::BooleanBody<f64>) -> bool {
+    out.naming.substitutions.rows().iter().any(|&(dead, kept)| {
+        matches!((dead, kept), (topo::Cell::Face(_), topo::Cell::Face(k))
+            if matches!(out.body.face_surface(k), Some(topo::Surface::Sphere { .. })))
+    })
+}
+
+/// The lens and the brick as the kernel's ops read them: the brick in the
+/// lens's coordinates.
+fn operands() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
+    let tol = Tol::witness();
+    let (doc, [lens, brick, _]) = document("union", true);
+    let ev = run(&doc);
+    let lens = framed_at(&ev, lens, "the lens");
+    let brick = framed_at(&ev, brick, "the brick");
+    let brick = match lens.relative(&brick).expect("the frames compose") {
+        None => brick.body().clone(),
+        Some(map) => topo::transform::transform_rigid(brick.body(), &map)
+            .expect("the brick maps into the lens's frame"),
+    };
+    (
+        topo::test_support::finished("the lens", lens.body().clone(), tol),
+        topo::test_support::finished("the brick", brick, tol),
+    )
+}
+
+/// **Every op over the lens and the brick builds a maximal body whose
+/// volumes add up**: the kernel cuts the lens's face in and closes the
+/// cut again, so each sphere holds no more faces than the lens brought,
+/// and the union, the two differences and the cap partition the two
+/// operands' volumes, in either order.
+#[test]
+fn every_op_over_the_lens_and_the_brick_builds_maximal_and_additive() {
+    let tol = Tol::witness();
+    let (lens, brick) = operands();
+    let vol = |b: &topo::AtRestBody<f64>, what: &str| {
+        topo::test_support::pinned_volume(what, b, tol).volume
+    };
+    let spheres = |b: &topo::Body<f64>| {
+        b.faces()
+            .filter(|&(f, _)| matches!(b.face_surface(f), Some(topo::Surface::Sphere { .. })))
+            .count()
+    };
+    let built = |out: Result<topo::BooleanResult<f64>, topo::BooleanError>, what: &str| {
+        let Ok(topo::BooleanResult::Body(out)) = out else {
+            panic!("{what}: the op builds: {out:?}");
+        };
+        let body = out.body.clone();
+        assert!(
+            spheres(&body) <= spheres(&lens),
+            "{what}: no sphere holds more faces than the lens brought: {} against {}",
+            spheres(&body),
+            spheres(&lens)
+        );
+        vol(&body, what)
+    };
+    let (vl, vb) = (vol(&lens, "the lens"), vol(&brick, "the brick"));
+    let lens_less = built(topo::subtract(&lens, &brick, tol), "lens ∖ brick");
+    let brick_less = built(topo::subtract(&brick, &lens, tol), "brick ∖ lens");
+    let slack = 1e-9 * (vl + vb);
+    for (x, y, order) in [(&lens, &brick, "lens first"), (&brick, &lens, "brick first")] {
+        let cap = built(topo::intersect(x, y, tol), &format!("∩, {order}"));
+        let union = built(topo::union(x, y, tol), &format!("∪, {order}"));
+        assert!(cap > 0.0, "{order}: the cap has volume: {cap}");
+        for (what, got, want) in [
+            ("∪", union, vl + vb - cap),
+            ("lens ∖ brick", lens_less, vl - cap),
+            ("brick ∖ lens", brick_less, vb - cap),
+        ] {
+            assert!(
+                (got - want).abs() <= slack,
+                "{order}, {what}: volume {got}, the operands' less the cap {want}"
+            );
+        }
+    }
 }

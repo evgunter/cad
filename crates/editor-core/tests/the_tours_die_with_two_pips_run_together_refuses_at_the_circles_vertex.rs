@@ -5,15 +5,17 @@
 //!
 //! The n-ary union of the 21 balls builds: the step joining the moved
 //! pip cuts its ball and the neighbour's it crosses along their own
-//! charts' meridians (`topo::BooleanNaming::chart_cuts`). The output
-//! stage does not glue the cut away where gluing it would close the
-//! sphere's period (`topo::merge_faces`, `PeriodClosure`), so the union
-//! keeps a piece of the cut between two pieces of one ball face, which
-//! no name reads. The document's union refuses there, and the cut and the
-//! fillets over it are poisoned ([`CUT_LEFT`]).
+//! charts' meridians, and its output stage closes both cuts again
+//! (`topo::boolean::slit`, closing a cut), so each ball keeps its face
+//! and holds the circle the two balls meet in as a ring (the step's
+//! kernel body at its closed form:
+//! `sweep`'s `the_nary_door_reads_a_cut_in_accumulation_through_its_pieces`).
+//! That circle keeps one conventional vertex, which no name reads yet:
+//! the document's union refuses there, and the fillets over it are
+//! poisoned ([`CONVENTIONAL`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::emit_sphere_cut_in_cap::CUT_LEFT;
+use crate::emit_sphere_cut_in_cap::CONVENTIONAL;
 use editor_core::{DocEdit, FreeValue, FreeVar, NamingError, Node, NodeErrorKind, NodeResult};
 use geom_core::Tol;
 
@@ -30,7 +32,7 @@ const MOVED: [(&str, f64); 8] = [
 ];
 
 #[test]
-fn each_pip_moved_into_its_neighbour_refuses_at_the_unions_surviving_cut() {
+fn each_pip_moved_into_its_neighbour_refuses_at_the_circles_conventional_vertex() {
     let d = crate::corpus::die_composed_tour::document();
     for (spoken, nominal) in MOVED {
         let (var, value) = d
@@ -79,10 +81,10 @@ fn each_pip_moved_into_its_neighbour_refuses_at_the_unions_surviving_cut() {
         assert!(
             matches!(
                 kind,
-                NodeErrorKind::Naming(NamingError::Emission { what })
-                    if what.contains("a chart cut survives in the result")
+                NodeErrorKind::Naming(NamingError::ConventionalVertex { .. })
             ),
-            "{spoken} = {to}: the union refuses at the cut it keeps ({CUT_LEFT}), not {kind:?}"
+            "{spoken} = {to}: the union refuses at the circle's conventional vertex \
+             ({CONVENTIONAL}), not {kind:?}"
         );
     }
 }

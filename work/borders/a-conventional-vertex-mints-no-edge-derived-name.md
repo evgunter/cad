@@ -69,3 +69,18 @@ what it cannot assert today: the lens entities the cap's names cite,
 the faces the cut divided among them.
 
 Moved from SEAMRANK to BORDERS on 2026-11-20, by `git mv`, when SEAMRANK merged into BORDERS: SEAMRANK held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one BORDERS carries.
+
+## 2026-11-23 — the die and every cut-in op now refuse here (ORBIT)
+
+Branch `orbit/transient-chart-cut` closes the sphere cut-ins' chart cuts
+in the re-entered op's output stage (`topo::boolean::slit::close_cuts`),
+so no result holds a chart cut. The section circle each cut crossed
+then keeps one conventional vertex. Every op over the lens and the
+tilted brick (`editor-core` `emit_sphere_cut_in_cap`) and over the ball
+and the brick (`emit_ball_cut_by_brick`), in both orders, now refuses
+`ConventionalVertex` here. Before, the unions and the sphere-first
+differences refused at the surviving cut. So do the tour's die with
+two pips dragged together, all eight edits
+(`the_tours_die_with_two_pips_run_together_refuses_at_the_circles_vertex`):
+the kernel body under that union is sound and at its closed form.
+This row now stands between a normal verb on the die and its names.

@@ -6,14 +6,13 @@
 //! reaches, so the kernel cuts the ball's face along its own chart's
 //! meridian through the circle before the op runs
 //! (`topo::boolean::ops::apply_cut_ins`), and the ball's seam and poles
-//! stay where the ball has them. Every op then meets the rows the lens of
-//! `emit_sphere_cut_in_cap` meets: the cap and the brick minus the ball
-//! at the circle's conventional vertex, and the union and the ball minus
-//! the brick at the cut they keep ([`CUT_LEFT`]).
+//! stay where the ball has them. The output stage closes the cut again,
+//! and every op then meets the row the lens of `emit_sphere_cut_in_cap`
+//! meets: the circle's conventional vertex ([`CONVENTIONAL`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
-use crate::emit_sphere_cut_in_cap::{CUT_LEFT, ball, brick_toward, dir, world_in_brick};
+use crate::emit_sphere_cut_in_cap::{CONVENTIONAL, ball, brick_toward, dir, world_in_brick};
 use crate::fixture::insert;
 use editor_core::{Node, ProfileDoc, RecipeNodeId};
 use geom_core::Tol;
@@ -49,19 +48,17 @@ fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 /// **Every op over the ball and the brick, in both orders, refuses only
-/// where a row is filed**: the cap and the brick minus the ball at the
-/// circle's conventional vertex, and the union and the ball minus the
-/// brick at the cut they keep ([`CUT_LEFT`]). The ball and the brick
-/// name.
+/// where a row is filed**: the circle's conventional vertex
+/// ([`CONVENTIONAL`]). The ball and the brick name.
 #[test]
 fn a_ball_cut_by_a_brick_refuses_only_where_its_rows_are_filed() {
-    for (op, ball_first, want) in [
-        ("intersect", true, "ConventionalVertex"),
-        ("intersect", false, "ConventionalVertex"),
-        ("subtract", false, "ConventionalVertex"),
-        ("union", true, CUT_LEFT),
-        ("union", false, CUT_LEFT),
-        ("subtract", true, CUT_LEFT),
+    for (op, ball_first) in [
+        ("intersect", true),
+        ("intersect", false),
+        ("subtract", false),
+        ("union", true),
+        ("union", false),
+        ("subtract", true),
     ] {
         let what = format!("{op}, ball first: {ball_first}");
         let (doc, [b, brick, out]) = document(op, ball_first);
@@ -69,16 +66,9 @@ fn a_ball_cut_by_a_brick_refuses_only_where_its_rows_are_filed() {
         assert!(failure(&ev, b).is_none(), "{what}: the ball names");
         assert!(failure(&ev, brick).is_none(), "{what}: the brick names");
         let e = format!("{:?}", failure(&ev, out).expect("refuses"));
-        if want == CUT_LEFT {
-            assert!(
-                e.contains("a chart cut survives in the result"),
-                "{what}: refused other than at the cut ({CUT_LEFT}): {e}"
-            );
-        } else {
-            assert!(
-                e.starts_with("Naming(ConventionalVertex"),
-                "{what}: refused other than at the conventional vertex: {e}"
-            );
-        }
+        assert!(
+            e.starts_with("Naming(ConventionalVertex"),
+            "{what}: refused other than at the conventional vertex ({CONVENTIONAL}): {e}"
+        );
     }
 }

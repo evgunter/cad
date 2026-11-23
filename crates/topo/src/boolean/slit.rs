@@ -2,7 +2,8 @@
 //! line** (`crates/topo/README.md`, tier 3: where more than two sheets
 //! meet on a line, the material decides the edges, and no face passes
 //! through an edge's material wedge). Three operations on the result
-//! build what it decides:
+//! build what it decides, and the closing also deletes the chart cuts
+//! the kernel made for its own reasons (*Closing a cut*, below):
 //!
 //! - **Parting** ([`part_riders`]) makes two edges of one, where an edge
 //!   lies in a face whose material crosses its wedge.
@@ -118,6 +119,22 @@
 //! [`part_mid_slit`]). F's region is unchanged by each step. A strut
 //! the zip kept between two walls is a reflex edge of the result, and
 //! stays.
+//!
+//! # Closing a cut
+//!
+//! A cut the kernel makes for its own reasons is no edge of the result.
+//! The sphere cut-ins (`ops::apply_cut_ins`) cut a face along its chart's
+//! meridian through a section circle no edge reaches, so that the
+//! re-entered op's crossing layer meets the circle, and the re-entered op
+//! is handed each cut (`ops::Recut::Closing`). The output stage reads
+//! every edge of the result split off one ([`CutRoots`]) and
+//! [`close_cuts`] deletes each, after the struts and before the
+//! coplanar merge: `kef` where it lies between two faces, `kev` where an
+//! end dangles, and `kemr` where one face lies on both sides and neither
+//! end is free, which leaves the section circle a ring of the face
+//! ([`part_cut`]). Each step leaves the face's region as it was, so the
+//! face is the cut face again, its own seam or wrap edge kept, and the
+//! edge join then removes the circle's crossings.
 
 use geom_brep::variety::{Piece, Variety};
 use std::collections::{BTreeMap, BTreeSet};

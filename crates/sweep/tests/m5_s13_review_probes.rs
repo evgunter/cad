@@ -405,6 +405,19 @@ fn probe_two_nonparallel_escapes_build_both_caps_under_every_op() {
                 "{what}: the result passes tier 3"
             );
             assert_eq!(body.solids().count(), solids, "{what}: its solids");
+            // Both cuts are closed again: the ball's part of each solid is
+            // connected, so it holds no more faces than the ball brought.
+            let on_sphere = |x: &topo::Body<f64>| {
+                x.faces()
+                    .filter(|&(f, _)| matches!(x.face_surface(f), Some(topo::Surface::Sphere { .. })))
+                    .count()
+            };
+            assert!(
+                on_sphere(body) <= on_sphere(&b) + solids - 1,
+                "{what}: sphere faces {} against the ball's {}",
+                on_sphere(body),
+                on_sphere(&b)
+            );
             assert!(
                 (vol(body) - want).abs() < slack(),
                 "{what}: volume {}, closed form {want}",

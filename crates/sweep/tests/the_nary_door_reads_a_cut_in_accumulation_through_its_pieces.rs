@@ -101,6 +101,13 @@ fn a_fold_over_balls_a_step_cuts_in_builds_at_its_closed_form() {
             cut + 1
         );
         let last = &run.steps.last().unwrap().body.body;
+        let faces = |b: &topo::Body<f64>| b.faces().count();
+        let brought: usize = bodies.iter().map(|b| faces(b)).sum();
+        assert!(
+            faces(last) <= brought,
+            "{what}: the closed cut leaves no face the members did not bring: {} against {brought}",
+            faces(last)
+        );
         let got = topo::test_support::pinned_volume(what, last, tol()).volume;
         assert!(
             (got - want).abs() <= 1e-6 * want,
