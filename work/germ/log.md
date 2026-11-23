@@ -1848,3 +1848,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - `germ/a-parallel-leg-near-cos-v-minus-r-over-r-reads-touch-against-a-villarceau-edge` (P2, for Ev's eye);
     - `export/step-imports-one-record-folds-the-sense-bit-by-hand`.
   - The same reviewer (the drawn arm) is confirming its findings on the new head, as a confirmation of its own findings, not a second review.
+- 2026-11-23 — (CIW orchestrator) Filed `main-red-spiric-arc-interval-fuzz-fails-at-1e-6-on-seed-0x139cdf42d954efca` (P1): seen on PR 7501's gate, which does not touch spiric_arc.
