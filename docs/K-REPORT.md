@@ -1083,6 +1083,14 @@ ball from the oval's speed bound. The boundary reading's are
 | `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
 | `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
 
+**Roster retirement (GERM): the spiric edge's ray rows.** A ray counts a
+spiric arc's crossings as a conic arc's, across the ray's square plane
+through the co-surface arm and the spiric × plane door
+(`containment::arc_crossings`), so `point_in_arc_loop_spiric_side`,
+`_turn`, `_advance` and `point_in_arc_loop_reach` are retired; the
+boundary reading's four stand. The door's own row is
+`spiric_plane_oval_side` (geom-brep's census).
+
 **Roster addition (SPLICE): the spline edge's crossing row.** Eleven
 new names from `topo/src/splitting/spline_arc.rs`, the row the carrier
 walk crosses a spline edge by, halving the arc into Bézier pieces each

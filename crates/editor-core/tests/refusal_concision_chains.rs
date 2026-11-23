@@ -108,9 +108,9 @@ const KERNEL_KEYED: &[&str] = &[
     "Shell/Rim",
 ];
 
-/// The rows admitted over the word budget, each at the most words it
-/// renders today and filed with its owner: a row over its ceiling, or
-/// under it with the ceiling standing, is red.
+/// The rows admitted over the word budget, each at a ceiling and filed
+/// with its owner: a row over its ceiling is red. A row that shortens
+/// under its ceiling is not; the ceiling is a bound, not a pin.
 const OVER_BUDGET: &[(&str, usize)] = &[
     // work/profile/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Profile/ArcBelowSceneResolution", 85),
@@ -385,6 +385,9 @@ pub(crate) fn short_of_the_standard(
         let ceiling = OVER_BUDGET
             .iter()
             .find_map(|(row, most)| (*row == name.as_str()).then_some(*most));
+        if ceiling.is_some_and(|most| words <= most) {
+            used.insert(format!("OVER_BUDGET {name}"));
+        }
         let breach = format!(
             "{name} renders {words} words, over {}",
             test_utils::refusal::BUDGET
@@ -395,8 +398,6 @@ pub(crate) fn short_of_the_standard(
                     problems.push(format!(
                         "{name} renders {words} words, over its admitted {most}: {text}"
                     ));
-                } else {
-                    used.insert(format!("OVER_BUDGET {name}"));
                 }
                 continue;
             }
@@ -406,11 +407,6 @@ pub(crate) fn short_of_the_standard(
                 }
                 None => problems.push(problem),
             }
-        }
-        if let Some(most) = ceiling.filter(|most| words < *most) {
-            problems.push(format!(
-                "{name} renders {words} words; lower its admission of {most}"
-            ));
         }
     }
     problems

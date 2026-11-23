@@ -231,7 +231,9 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
         );
     };
     assert!(
-        message.contains("did not evaluate, so the bundle is not folded"),
+        message
+            .to_string()
+            .contains("did not evaluate, so the bundle is not folded"),
         "the kernel's own words on the placement's row: {message}"
     );
     let causes: Vec<_> = rows

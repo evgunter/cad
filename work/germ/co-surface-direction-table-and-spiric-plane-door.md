@@ -2,11 +2,13 @@
 id: co-surface-direction-table-and-spiric-plane-door
 kind: unit
 title: Build the co-surface arm's direction table (transversality rule, one edge-section reading) and the curve_face::spiric_plane door (section reduction), per C5 as ratified in PR 7301
-status: open
+status: review
 opened: 2026-11-21
 priority: P1
 cost: H
 parent: curve-surface-crossing-has-no-kind-pair-table
+pr: 7431
+branch: germ/co-surface-table
 ---
 
 

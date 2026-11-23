@@ -25,8 +25,7 @@ use std::path::Path;
 // The shared Rust-source lexer: `src/tags.rs` is READ by the tag-table
 // guard below, and a synthetic fixture beside it is read by the
 // guard's own guard. This is the tree's one answer to "is this text
-// code, prose or a literal"; `crates/test-utils/tests/reader_census.rs`
-// carries the line that says so.
+// code, prose or a literal".
 use test_utils::source::{
     ItemBody, balanced_end, boundary_after, boundary_before, code_and_literals, code_only,
     comments_only, ident, impl_head, item_body, line_start, plain_string_literal, skip_ws,
