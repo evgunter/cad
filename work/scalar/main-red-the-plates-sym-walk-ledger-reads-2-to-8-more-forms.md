@@ -2,7 +2,8 @@
 id: main-red-the-plates-sym-walk-ledger-reads-2-to-8-more-forms
 kind: issue
 title: main-red: the plate's Sym walk ledger reads 2–8 more forms than pinned
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-21
 priority: P2
 cost: E
@@ -40,3 +41,7 @@ Not yet bisected.
 (GREEN, branch `green/editor-1e-12`) The same move as `work/green/main-red-the-plates-sym-forms-ledger-moved-at-1e-12-since-the-ellipse-speed-magnitudes.md`: one pin serves every ε, and the five lines here are the ones that row quotes at 1e-12. It bisects to PR 7183 (`germ/ellipse-speed-magnitudes`, `6d58cebd`), and the 14 forms are the `Abs` and `Max` the PR's conic speed readers build over the plate's symbolic radii. The evidence is on the GREEN row; GREEN's PR re-pins `PLATE_LEDGER` at main's reading, which greens this row at the default ε too.
 
 The same PR found one move inside this row's numbers that is not PR 7183's: `Plain/Decision`'s digest, which PR 7193 (`sect/certificate-by-support`) moved by building the same forms in another order (the GREEN row has the probe). (GREEN, PR 7389's fix pass, 2026-11-22)
+
+## Closed (CIW, 2026-11-23)
+
+The ledger golden is gone. PR 7501 (`ciw/census-digest-goldens`) replaces it with the plate's growth guard, the slab's two-replay determinism and freeze-nothing rows, and the dial differential (no early-walk dial moves a plain line). A form count moving by 2–8 is not a decision moving, so no defect is suspected.
