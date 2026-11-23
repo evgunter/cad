@@ -417,7 +417,7 @@ impl<T: Decide> SurfaceCurve<T> {
     #[must_use]
     #[expect(
         clippy::disallowed_methods,
-        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+        reason = "a circle's centre frame, which a circle stores: a circle's datum (work/oneround/a-circles-centre-is-read-as-a-datum-under-the-conic-gate.md)"
     )]
     pub fn starting_at(self, p: Point3<T>) -> Self {
         let Shape::Circle(c) = self.shape else {
@@ -755,17 +755,15 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     }
 
     /// **The plane the edge's carrier lies in**: a point, its unit normal
-    /// and a direction in it; a conic's own, a spiric's cutting plane. A
-    /// line lies in no one plane (`None`).
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-    )]
+    /// and a direction in it; a conic's own, stated at the edge's point at
+    /// the middle of its span, a spiric's cutting plane. A line lies in no
+    /// one plane (`None`).
     pub fn plane(&self) -> Option<(Point3<T>, Vec3<T>, Vec3<T>)> {
         match *self.carrier {
             Curve3::Circle(_) | Curve3::Ellipse(_) => {
-                let frame = self.carrier.frame()?;
-                Some((frame.origin(), frame.axis(), frame.u_ref()))
+                let k = self.carrier.conic()?;
+                let (t0, t1) = self.span;
+                Some((k.point_at(geom::mid_param(t0, t1)), k.axis(), k.u_ref()))
             }
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());

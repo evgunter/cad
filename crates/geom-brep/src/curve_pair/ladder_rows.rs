@@ -11,6 +11,8 @@
 //! `CONIC_LADDER_OUT=<dir> CAD_TOLERANCE_EPS=<ε> cargo nextest run -p
 //! geom-brep --run-ignored only the_arc_held_ladder`.
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::fmt::Write as _;
 use std::io::Write as _;
 
@@ -164,7 +166,11 @@ fn the_arc_held_ladder() {
     for fat in [true, false] {
         for target in [1e4, 1e5, 1e6, 1e7, 1e8, 1e9] {
             let Some(e) = minted(target, fat) else {
-                writeln!(f, "{{\"door\":\"mint\",\"fat\":{fat},\"target\":{target:?}}}").unwrap();
+                writeln!(
+                    f,
+                    "{{\"door\":\"mint\",\"fat\":{fat},\"target\":{target:?}}}"
+                )
+                .unwrap();
                 continue;
             };
             let b = e.semi_axes().0.min(e.semi_axes().1);
@@ -183,7 +189,14 @@ fn the_arc_held_ladder() {
             }
             let carrier = Curve3::Ellipse(e);
             let carrier_i = lift(&carrier);
+            let only = std::env::var("CONIC_LADDER_ONLY").ok();
             for (case, &(theta, half, gamma, place)) in cases.iter().enumerate() {
+                if only
+                    .as_ref()
+                    .is_some_and(|o| *o != format!("{fat},{target:?},{case}"))
+                {
+                    continue;
+                }
                 let t = e.point_at(theta);
                 let tan = e.derivative_at(theta).normalize();
                 let n = e.axis();
@@ -211,7 +224,10 @@ fn the_arc_held_ladder() {
                         Span::new(&carrier_i, (iv(span_e.0), iv(span_e.1))),
                     );
                     let got_i = meet(&ia, &ib, band);
-                    for (lane, r) in [("f64", reading(&got, (&sa, &sb), |x| x)), ("interval", reading(&got_i, (&ia, &ib), imid))] {
+                    for (lane, r) in [
+                        ("f64", reading(&got, (&sa, &sb), |x| x)),
+                        ("interval", reading(&got_i, (&ia, &ib), imid)),
+                    ] {
                         writeln!(
                             f,
                             "{{\"door\":\"line\",\"lane\":\"{lane}\",{head},\"lo\":{},\"ld\":{},{r}}}",
@@ -222,11 +238,13 @@ fn the_arc_held_ladder() {
                     }
                     // The circle door: a unit circle through `t` in a
                     // plane crossing the arc at `gamma`, moved `shift`
-                    // along that plane's normal.
+                    // off the ellipse.
                     let w = (across * 0.7_f64.cos() + n * 0.7_f64.sin()).normalize();
                     let normal = (tan * gamma.sin() + w * gamma.cos()).normalize();
                     let in_plane = normal.cross(w.cross(tan)).normalize();
-                    let centre = t - in_plane + normal * shift;
+                    // Apart along the pair's common normal at `t`.
+                    let common = tan.cross(normal.cross(in_plane)).normalize();
+                    let centre = t - in_plane + common * shift;
                     let circle = Curve3::circle(centre, normal, 1.0, in_plane);
                     let (sa, sb) = (Span::new(&carrier, span_e), Span::new(&circle, (-1.0, 1.0)));
                     let got = meet(&sa, &sb, band);
@@ -236,7 +254,10 @@ fn the_arc_held_ladder() {
                         Span::new(&circle_i, (iv(-1.0), iv(1.0))),
                     );
                     let got_i = meet(&ia, &ib, band);
-                    for (lane, r) in [("f64", reading(&got, (&sa, &sb), |x| x)), ("interval", reading(&got_i, (&ia, &ib), imid))] {
+                    for (lane, r) in [
+                        ("f64", reading(&got, (&sa, &sb), |x| x)),
+                        ("interval", reading(&got_i, (&ia, &ib), imid)),
+                    ] {
                         writeln!(
                             f,
                             "{{\"door\":\"circle\",\"lane\":\"{lane}\",{head},\"c\":{},\"m\":{},\"cu\":{},{r}}}",

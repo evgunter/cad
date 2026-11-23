@@ -71,7 +71,15 @@
 //! nears the axis; across a half turn, which is exact, it does not move.
 //!
 //! The placement is private to this module, and nothing outside it asks
-//! which point a conic holds: a position is read as the centre
+//! which point a conic holds. Where a conic is, against a foreign point
+//! or along a direction, is read through it from the point it stores:
+//! a point's height over its plane ([`Conic::height_of`]), its level and
+//! direction ([`Conic::level_at`], [`Conic::azimuth`],
+//! [`Conic::unit_in_plane`]), and the conic's height along a direction
+//! as a first harmonic about that point, at a parameter, over a window,
+//! at its extremes and at its roots ([`Conic::height_along`],
+//! [`Conic::extent_along`], [`Conic::extremes_along`],
+//! [`Conic::roots_along`]). The centre itself is read as the centre
 //! ([`Conic::center`], the origin of [`Conic::frame`]), and the stored
 //! data are walked by name ([`Curve3::data`], whose datum for the stored
 //! point is [`CurveDatum::Center`] or [`CurveDatum::Anchor`]). A motion
@@ -294,6 +302,8 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// **`p` in the conic's unit coordinates**: its in-plane components
     /// over the semi-axes, `((p − c)·u_ref/a, (p − c)·v_ref/b)`, in which
     /// the conic is the unit circle and its parameter the polar angle.
+    /// Held on its arc, read from the anchor, `(cos θ₀ + x/a, sin θ₀ + y/b)`
+    /// with `(x, y)` `p`'s components from it; the centre is not formed.
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
         self.unit_of(p - self.frame().origin())
     }
@@ -313,6 +323,74 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// `None` for a datum that is not a finite number.
     fn cover_over(&self, window: ParamWindow<T>) -> Option<Cover<T>> {
         Cover::arc(&self.frame(), self.semi_axes(), window)
+    }
+
+    /// **`p`'s height over the conic's plane**, `(p − x)·axis`, `x` the
+    /// point the conic stores: its centre, or the anchor of an ellipse held
+    /// on its arc, which lies in the plane as stored. Read at `p`'s own
+    /// distance from that point, so a point beside the anchor reads at
+    /// the arc's scale however far the centre lies.
+    fn height_of(&self, p: Point3<T>) -> T {
+        (p - self.frame().origin()).dot(self.axis())
+    }
+
+    /// **The conic's level at the foreign point `p`**, with its
+    /// gradient: `F = X²/a² + Y²/b² − 1`, `(X, Y)` the in-plane
+    /// components of `p` from the centre along `(u_ref, v_ref)` and
+    /// `(a, b)` the stored semi-axes, and `(∂F/∂X, ∂F/∂Y) = (2X/a², 2Y/b²)`.
+    /// Negative inside, positive outside, zero on the conic; the height
+    /// of `p` over the plane plays no part. Held at its centre, `X` and
+    /// `Y` are read from it; held on its arc, from the anchor, and `F` is
+    /// formed as `2(cos θ₀·x/a + sin θ₀·y/b) + (x/a)² + (y/b)²`, `(x, y)`
+    /// `p`'s components from the anchor, with no cancellation: a point
+    /// beside the arc there reads its defect at the arc's scale.
+    fn level_at(&self, p: Point3<T>) -> (T, (T, T)) {
+        centred_level(self.unit_in_plane(p), self.semi_axes())
+    }
+
+    /// **`(P(θ) − o)·n` at `theta`**, the conic's height along `n` from
+    /// `o`, a first harmonic in `θ` stated from the point the conic
+    /// stores: held at its centre `(c − o)·n + p·cos θ + q·sin θ`, held on
+    /// its arc `(A − o)·n + p·(cos θ − cos θ₀) + q·(sin θ − sin θ₀)` read
+    /// through the evaluator's offsets, `(p, q)` [`Self::along`]. `n`
+    /// need not be unit.
+    fn height_along(&self, o: Point3<T>, n: Vec3<T>, theta: T) -> T {
+        let (p, q) = self.along(n);
+        let (s, c) = theta.sin_cos();
+        (self.frame().origin() - o).dot(n) + p * c + q * s
+    }
+
+    /// **The least and the greatest of `(P(θ) − o)·n` over the whole
+    /// conic**, [`Self::height_along`]'s extremes: the constant less and
+    /// plus the swing `√(p² + q²)` about the centre, and about the anchor
+    /// its height plus the trough's and the crest's offsets from it, each
+    /// formed with no cancellation ([`offset_extent`]'s).
+    fn extremes_along(&self, o: Point3<T>, n: Vec3<T>) -> (T, T) {
+        let (p, q) = self.along(n);
+        let c0 = (self.frame().origin() - o).dot(n);
+        let swing = (p.powi(2) + q.powi(2)).sqrt();
+        (c0 - swing, c0 + swing)
+    }
+
+    /// **Where `(P(θ) − o)·n` equals `level`**: `[falling, rising]`, the
+    /// root past the harmonic's crest and the one before it, each posed
+    /// about the point the conic stores. Held at its centre, each is read
+    /// from the extreme that has crossed `level` the less, to that
+    /// extreme's own relative precision (`2·asin(√r)` for a crossing `r`
+    /// of the swing). Held on its arc, the roots solve the evaluator's own
+    /// form in `t = tan(φ/2)`, `φ = θ − θ₀` the angle from the anchor:
+    /// `(h − 2P)·t² + 2Q·t + h = 0`, `h` the anchor's height less
+    /// `level`, `P = p·cos θ₀ + q·sin θ₀`, `Q = q·cos θ₀ − p·sin θ₀`, by
+    /// the root pair that cancels nothing, so a root beside the anchor is
+    /// read to its own relative precision however far the centre lies.
+    /// Where the harmonic does not reach `level`, both are its extreme
+    /// nearer it.
+    fn roots_along(&self, o: Point3<T>, n: Vec3<T>, level: T) -> [T; 2]
+    where
+        T: Decide,
+    {
+        let (p, q) = self.along(n);
+        centred_roots((self.frame().origin() - o).dot(n) - level, p, q)
     }
 
     /// **The vector `w` in the conic's unit coordinates**:
@@ -456,6 +534,24 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
         (**self).unit_in_plane(p)
     }
+    fn height_of(&self, p: Point3<T>) -> T {
+        (**self).height_of(p)
+    }
+    fn level_at(&self, p: Point3<T>) -> (T, (T, T)) {
+        (**self).level_at(p)
+    }
+    fn height_along(&self, o: Point3<T>, n: Vec3<T>, theta: T) -> T {
+        (**self).height_along(o, n, theta)
+    }
+    fn extremes_along(&self, o: Point3<T>, n: Vec3<T>) -> (T, T) {
+        (**self).extremes_along(o, n)
+    }
+    fn roots_along(&self, o: Point3<T>, n: Vec3<T>, level: T) -> [T; 2]
+    where
+        T: Decide,
+    {
+        (**self).roots_along(o, n, level)
+    }
     fn unit_of(&self, w: Vec3<T>) -> (T, T) {
         (**self).unit_of(w)
     }
@@ -589,17 +685,102 @@ fn offset_extent<T: Real>(window: &ArcWindow<T>, p: T, q: T, phase: (T, T)) -> (
         p * ku + q * kv
     };
     let (r0, r1) = (end(t0), end(t1));
-    let (c0, s0) = phase;
-    let amp = (p.powi(2) + q.powi(2)).sqrt();
-    let k = p * c0 + q * s0;
-    let ratio = (p * s0 - q * c0).powi(2) / (amp + k.abs()).max(T::from_f64(f64::MIN_POSITIVE));
-    let crest = k.select_le_zero(amp - k, ratio);
-    let trough = -(-k).select_le_zero(amp + k, ratio);
+    let (trough, crest) = offset_crests(p, q, phase);
     let hi = window.crest_outside(p, q).select_le_zero(crest, r0.max(r1));
     let lo = window
         .crest_outside(-p, -q)
         .select_le_zero(trough, r0.min(r1));
     (r0.min(r1).min(lo), r0.max(r1).max(hi))
+}
+
+/// **The trough and the crest of `p·(cos θ − cos θ₀) + q·(sin θ − sin θ₀)`
+/// over the whole turn**, [`offset_extent`]'s: `−(A + k)` and `A − k`,
+/// the one that cancels read as a ratio of sums.
+fn offset_crests<T: Real>(p: T, q: T, (c0, s0): (T, T)) -> (T, T) {
+    let amp = (p.powi(2) + q.powi(2)).sqrt();
+    let k = p * c0 + q * s0;
+    let ratio = (p * s0 - q * c0).powi(2) / (amp + k.abs()).max(T::from_f64(f64::MIN_POSITIVE));
+    let crest = k.select_le_zero(amp - k, ratio);
+    let trough = -(-k).select_le_zero(amp + k, ratio);
+    (trough, crest)
+}
+
+/// The row a harmonic's crest angle records its cut side under.
+const CREST_ROW: &str = "conic_harmonic_crest";
+
+/// **[`Conic::roots_along`] about the centre**: `c₀ + p·cos θ + q·sin θ`,
+/// `c₀` already less the level, read from the extreme that has crossed
+/// zero the less (`2·asin(√r)` of its crossing `r` of the swing `2A`,
+/// clamped to a half turn), about the crest's angle.
+fn centred_roots<T: Decide>(c0: T, p: T, q: T) -> [T; 2] {
+    let swing = (p.powi(2) + q.powi(2)).sqrt();
+    let (lo, hi) = (c0 - swing, c0 + swing);
+    let two = swing + swing;
+    let (cross_lo, cross_hi) = ((T::zero() - lo) / two, hi / two);
+    let past = |cross: T| T::from_f64(2.0) * cross.max(T::zero()).min(T::one()).sqrt().asin();
+    let from_hi = past(cross_hi);
+    let from_lo = T::pi() - past(cross_lo);
+    let at_hi = Azimuth::of(q, p).principal_as(CREST_ROW, geom_core::Band::least());
+    let psi = (cross_hi - cross_lo).select_le_zero(from_hi, from_lo);
+    [at_hi + psi, at_hi - psi]
+}
+
+/// **[`Conic::roots_along`] about an anchor at the anomaly `phase`**:
+/// `h + p·(cos θ − cos θ₀) + q·(sin θ − sin θ₀)`, `h` the anchor's
+/// height less the level. In `φ = θ − θ₀` it is
+/// `h + P·(cos φ − 1) + Q·sin φ`, and with `t = tan(φ/2)`
+/// `(h − 2P)·t² + 2Q·t + h = 0`; its roots are read as `w/(h − 2P)` and
+/// `h/w`, `w = −(Q + sign(Q)·√(Q² − (h − 2P)·h))`, which cancel nothing,
+/// each turned to `φ = 2·atan2(num, den)` without a division. Where the
+/// discriminant is negative the harmonic does not reach zero, and both
+/// are the extreme nearer it: the crest where `h` is below it, the
+/// trough where above.
+fn anchored_roots<T: Decide>(h: T, p: T, q: T, (c0, s0): (T, T)) -> [T; 2] {
+    let two = T::from_f64(2.0);
+    let big_p = p * c0 + q * s0;
+    let big_q = q * c0 - p * s0;
+    let a2 = h - two * big_p;
+    let disc = big_q.powi(2) - a2 * h;
+    let root = disc.max(T::zero()).sqrt();
+    let w = T::zero() - (big_q + big_q.select_le_zero(T::zero() - root, root));
+    let theta0 = Azimuth::of(s0, c0).principal_as(CREST_ROW, geom_core::Band::least());
+    // `2·atan(num/den)`, read as one angle so no quotient is formed.
+    let angle = |num: T, den: T| theta0 + (two * num * den).atan2(den.powi(2) - num.powi(2));
+    let (r1, r2) = (angle(w, a2), angle(h, w));
+    // The falling one first: where `dH/dθ = q·cos θ − p·sin θ` is negative.
+    let slope = |t: T| {
+        let (s, c) = t.sin_cos();
+        q * c - p * s
+    };
+    let falls = slope(r1);
+    let (falling, rising) = (falls.select_le_zero(r1, r2), falls.select_le_zero(r2, r1));
+    let at_hi = Azimuth::of(q, p).principal_as(CREST_ROW, geom_core::Band::least());
+    let nearer = h.select_le_zero(at_hi, at_hi + T::pi());
+    [
+        disc.select_le_zero(nearer, falling),
+        disc.select_le_zero(nearer, rising),
+    ]
+}
+
+/// **[`Conic::level_at`] from unit coordinates** `(X/a, Y/b)`.
+fn centred_level<T: Real>((u, v): (T, T), (a, b): (T, T)) -> (T, (T, T)) {
+    let two = T::from_f64(2.0);
+    (u.powi(2) + v.powi(2) - T::one(), (two * u / a, two * v / b))
+}
+
+/// **[`Conic::level_at`] from an anchor at the anomaly `(c₀, s₀)`**,
+/// `(du, dv)` the foreign point's unit offsets from it: `F` formed as
+/// `2(c₀·du + s₀·dv) + (du² + dv²) + (c₀² + s₀² − 1)`, the last zero for
+/// a stored phase, with no cancellation beside the anchor.
+fn anchored_level<T: Real>((du, dv): (T, T), (c0, s0): (T, T), (a, b): (T, T)) -> (T, (T, T)) {
+    let two = T::from_f64(2.0);
+    let (u, v) = (c0 + du, s0 + dv);
+    (
+        two * (c0 * du + s0 * dv)
+            + (du.powi(2) + dv.powi(2))
+            + (c0.powi(2) + s0.powi(2) - T::one()),
+        (two * u / a, two * v / b),
+    )
 }
 
 impl<T: Real> Circle<T> {
@@ -1182,6 +1363,68 @@ impl<T: Real> Conic<T> for Ellipse<T> {
                 let (lo, hi) = offset_extent(window, p, q, phase);
                 (at + lo, at + hi)
             }
+        }
+    }
+
+    fn height_of(&self, p: Point3<T>) -> T {
+        (p - self.at.origin()).dot(self.at.axis())
+    }
+
+    fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
+        let (du, dv) = self.unit_of(p - self.at.origin());
+        match self.held {
+            Held::Centre => (du, dv),
+            Held::Arc { phase: (c0, s0) } => (c0 + du, s0 + dv),
+        }
+    }
+
+    fn level_at(&self, p: Point3<T>) -> (T, (T, T)) {
+        let (du, dv) = self.unit_of(p - self.at.origin());
+        match self.held {
+            Held::Centre => centred_level((du, dv), self.semi_axes()),
+            Held::Arc { phase } => anchored_level((du, dv), phase, self.semi_axes()),
+        }
+    }
+
+    fn height_along(&self, o: Point3<T>, n: Vec3<T>, theta: T) -> T {
+        let (p, q) = self.along(n);
+        let at = (self.at.origin() - o).dot(n);
+        match self.held {
+            Held::Centre => {
+                let (s, c) = theta.sin_cos();
+                at + p * c + q * s
+            }
+            Held::Arc { phase } => {
+                let (ku, kv) = offsets(theta, phase);
+                at + (p * ku + q * kv)
+            }
+        }
+    }
+
+    fn extremes_along(&self, o: Point3<T>, n: Vec3<T>) -> (T, T) {
+        let (p, q) = self.along(n);
+        let at = (self.at.origin() - o).dot(n);
+        match self.held {
+            Held::Centre => {
+                let swing = (p.powi(2) + q.powi(2)).sqrt();
+                (at - swing, at + swing)
+            }
+            Held::Arc { phase } => {
+                let (trough, crest) = offset_crests(p, q, phase);
+                (at + trough, at + crest)
+            }
+        }
+    }
+
+    fn roots_along(&self, o: Point3<T>, n: Vec3<T>, level: T) -> [T; 2]
+    where
+        T: Decide,
+    {
+        let (p, q) = self.along(n);
+        let at = (self.at.origin() - o).dot(n) - level;
+        match self.held {
+            Held::Centre => centred_roots(at, p, q),
+            Held::Arc { phase } => anchored_roots(at, p, q, phase),
         }
     }
 

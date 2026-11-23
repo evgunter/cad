@@ -77,7 +77,7 @@ use crate::frame::Frame;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
     CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
-    PieceWalkRefusal, ellipse_level_clearance,
+    PieceWalkRefusal, ellipse_level_clearance, level_clearance,
 };
 pub use periodic_nurbs::{
     PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, PeriodicError, PeriodicNurbs3, PeriodicViewError,

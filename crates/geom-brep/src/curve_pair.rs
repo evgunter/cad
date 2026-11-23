@@ -1013,6 +1013,8 @@ impl From<SpanRefusal> for MeetFault {
 }
 
 #[cfg(test)]
+mod ladder_rows;
+#[cfg(test)]
 mod meet_oracle;
 #[cfg(test)]
 mod meet_rows;
@@ -1026,5 +1028,3 @@ mod plane_rows;
 mod span_rows;
 #[cfg(test)]
 mod touch_spread_rows;
-#[cfg(test)]
-mod ladder_rows;
