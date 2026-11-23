@@ -23,3 +23,9 @@ branch: oneround/sizes-from-geometry
 - `topo::offset_derive::plane_wall_section` — a sum ending `+ extent.length()` that sizes an `SsiDomain`.
 
 **Wanted:** each reads its size from the geometry the lever was read from (the cover, the carrier, the stored points), and the lever is kept for the margin.
+
+**Left by the converting unit (PR 7628), one line each:**
+
+- `ConicDeparture::of`, `BoundSupport::point`, `Bound::ray`: a direction and its lever packed into one vector read both as a lever and as geometry, the records question: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`.
+- `cone_cylinder_section` (`coc_station_reach`): the honest read is the consumed region's window along the cone's axis, which needs the function to take a `&Reach`, on PR 7442's ground: `apex-reaches-read-a-lever-as-a-window-along-the-axis` (sect).
+- `vtxfac::held_reads`: `PlannedRun.order` holds a lever and no region, the records question again: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`, and `pierce-and-rim-balls-are-built-from-an-arm` (heldrecords).
