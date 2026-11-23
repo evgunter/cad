@@ -621,11 +621,11 @@ fn a_ring_torus_face_a_cut_leaves_reads_its_whole_tube() {
 }
 
 /// **A spindle face reads its whole tube, so a lemon in the box refuses
-/// as a limit by it.** A lemon revolved from the arc through `(0, ±300)`
-/// of bulge 0.5 (radius 375, its centre 225 m behind the axis, so the
-/// sheet's `R = −225`) reaches 150 m off its axis; its tube reaches
-/// `|R| + r = 600` m. Moved 800 m along `x` the lemon reaches 950 m and
-/// the tube 1400 m: refused as the limit 400 m past, at the gate and at
+/// as a limit by it.** A lemon revolved from the arc through `(0, ±30)`
+/// of bulge 0.5 (radius 37.5, its centre 22.5 m behind the axis, so the
+/// sheet's `R = −22.5`) reaches 15 m off its axis; its tube reaches
+/// `|R| + r = 60` m. Moved 980 m along `x` the lemon reaches 995 m and
+/// the tube 1040 m: refused as the limit 40 m past, at the gate and at
 /// the placing door, as it is admitted at the origin. *Breaks if* a
 /// spindle face comes to read less than its tube (then the row is the
 /// measure of it), or the limit is refused as past.
@@ -634,14 +634,14 @@ fn a_lemon_in_the_box_reads_its_whole_tube() {
     let tol = Tol::witness();
     let lemon = sweep::test_support::try_revolved_about_y_at::<f64>(
         vec![
-            (Point2::new(0.0, -300.0), 0.5),
-            (Point2::new(0.0, 300.0), 0.0),
+            (Point2::new(0.0, -30.0), 0.5),
+            (Point2::new(0.0, 30.0), 0.0),
         ],
         Revolution::Full,
         tol,
     )
     .expect("the lemon revolves");
-    for (dx, want) in [(0.0, ("Ok", 0.0)), (800.0, ("Unshown", 400.0))] {
+    for (dx, want) in [(0.0, ("Ok", 0.0)), (980.0, ("Unshown", 40.0))] {
         let at = geom_core::RigidMotion::translation(Vec3::new(dx, 0.0, 0.0)).unwrap();
         let image = topo::transform_rigid(&lemon, &at).unwrap();
         for (door, (class, margin)) in [
@@ -657,30 +657,32 @@ fn a_lemon_in_the_box_reads_its_whole_tube() {
 }
 
 /// **A slender cone face reads no apex where its lift is decided, cut
-/// or not**: a ring revolved from `(9, 0)`, `(10, 0)`, `(10.001, 10)`,
-/// `(9, 10)`, whose outer wall tapers 1 mm over 10 m (its apex 100 km
-/// off), and the same ring cut by a slab tilted 1.2 rad about `x`, which
-/// leaves the wall bounded by plane sections. Each stands at `x = 980`
-/// (reaching 990.001 m) and is admitted, at the gate and at the placing
-/// door: the cone face's cover is its boundary's hull, its apex out
-/// (`topo::cover`'s cone arm). *Breaks if* the cone arm keeps a decided
-/// face's apex (then both refuse as the limit 100 km past).
+/// or not**: a ring revolved from `(0.09, 0)`, `(0.1, 0)`, `(0.1001,
+/// 0.1)`, `(0.09, 0.1)`, whose outer wall tapers 0.1 mm over 0.1 m (its
+/// apex 100 m off), and the same ring cut by a slab tilted 1.2 rad about
+/// `x`, which leaves the wall bounded by plane sections. Each is turned
+/// so its axis runs along `x`, its apex toward `+x`, and moved to
+/// `x = 980`: it lies within `[979.9, 980]` along `x`, its apex at 1080 m. Each is admitted, at
+/// the gate and at the placing door: the cone face's cover is its
+/// boundary's hull, its apex out (`topo::cover`'s cone arm). *Breaks if*
+/// the cone arm keeps a decided face's apex (then both refuse as the
+/// limit 80 m past).
 #[test]
 fn a_slender_cone_face_reads_no_apex_cut_or_not() {
     let tol = Tol::witness();
     let ring = sweep::test_support::try_revolved_about_y_at::<f64>(
         vec![
-            (Point2::new(9.0, 0.0), 0.0),
-            (Point2::new(10.0, 0.0), 0.0),
-            (Point2::new(10.001, 10.0), 0.0),
-            (Point2::new(9.0, 10.0), 0.0),
+            (Point2::new(0.09, 0.0), 0.0),
+            (Point2::new(0.1, 0.0), 0.0),
+            (Point2::new(0.1001, 0.1), 0.0),
+            (Point2::new(0.09, 0.1), 0.0),
         ],
         Revolution::Full,
         tol,
     )
     .expect("the ring revolves");
-    let slab = brick::<f64>((-20.0, 20.0), (-20.0, 20.0), (-1.0, 1.0), tol);
-    let tilt = geom_core::RigidMotion::translation(Vec3::new(0.0, 5.0, 0.0))
+    let slab = brick::<f64>((-0.2, 0.2), (-0.2, 0.2), (-0.01, 0.01), tol);
+    let tilt = geom_core::RigidMotion::translation(Vec3::new(0.0, 0.05, 0.0))
         .unwrap()
         .compose(
             geom_core::RigidMotion::rotation(unit(Vec3::new(1.0, 0.0, 0.0), tol), 1.2).unwrap(),
@@ -699,7 +701,18 @@ fn a_slender_cone_face_reads_no_apex_cut_or_not() {
         .body
         .clone()
         .into_body();
-    let at = geom_core::RigidMotion::translation(Vec3::new(980.0, 0.0, 0.0)).unwrap();
+    // The apex lies at `(0, −100, 0)`; a quarter turn about `z` takes it
+    // to `(100, 0, 0)`, then the move to `x = 980`.
+    let at = geom_core::RigidMotion::translation(Vec3::new(980.0, 0.0, 0.0))
+        .unwrap()
+        .compose(
+            geom_core::RigidMotion::rotation(
+                unit(Vec3::new(0.0, 0.0, 1.0), tol),
+                core::f64::consts::FRAC_PI_2,
+            )
+            .unwrap(),
+        )
+        .unwrap();
     for (what, home) in [("the ring", &ring), ("the cut ring", &cut)] {
         let image = topo::transform_rigid(home, &at).unwrap();
         for (door, (class, _)) in [

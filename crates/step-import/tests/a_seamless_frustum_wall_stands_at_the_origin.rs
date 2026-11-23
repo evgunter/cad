@@ -157,18 +157,20 @@ fn seamed_frustum(r0: f64, r1: f64, h: f64, spline_seam: bool) -> String {
 
 /// **A seamed slender frustum imports to a body the box admits at the
 /// origin, its apex far past the box**, whether its seam is a line or
-/// a degree-1 B-spline: rings of 1 m and 0.999 m, 10 m apart, so the
-/// cone's apex is 10 km off. The cone face's lift is decided, so its
+/// a degree-1 B-spline: rings of 100 mm and 99.95 mm, 1 m apart, so the
+/// cone's apex is 2 km off (inside the rounding reach at every ε the
+/// suite runs; at ε = 1e-12, about 5 km, an apex 10 km off refuses the
+/// import's seam residual). The cone face's lift is decided, so its
 /// cover is its boundary's hull and holds no apex (`topo::cover`'s cone
 /// arm: the apex joins only a face whose lift or apex incidence is not
 /// decided). *Breaks if* the cone arm keeps the apex of such a face
-/// (then the box refuses it as the limit 9 km past), or the door comes
+/// (then the box refuses it as the limit 1 km past), or the door comes
 /// to refuse the file.
 #[test]
 fn a_seamed_slender_frustum_imports_inside_the_box_with_its_apex_far_past_it() {
     let tol = Tol::witness();
     for (what, spline) in [("a line seam", false), ("a spline seam", true)] {
-        let text = seamed_frustum(1000.0, 999.0, 10_000.0, spline);
+        let text = seamed_frustum(100.0, 99.95, 1000.0, spline);
         let StepImport::Solid { body, .. } = import_step(&text, &ImportOptions::default(), tol)
             .unwrap_or_else(|e| panic!("{what}: imports: {}", e.render()))
         else {
