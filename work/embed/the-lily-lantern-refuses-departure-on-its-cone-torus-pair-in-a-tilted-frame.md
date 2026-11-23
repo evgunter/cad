@@ -54,3 +54,17 @@ clip reads, and whether its lift is the polar read's width, is not traced.
 Trace the torus cell's clip on `3v1 × 12v1`; say whether its line is a
 lifted frame's rounding, as the meridians' was
 (`a-balls-seam-meridians-in-one-bracket-…`).
+
+## Embedded with one line read by key (EMBED collinear-cover lane, 2026-11-23)
+
+With PR 7322's joint (`injective::joints`: rows joined at a vertex by
+key are one line whatever values they hold), the tour walk's
+`lily/lily_lantern` stop reads **`Embedded`**
+(`cand 33 disc 5620 refused 0 splits 5587`) where main reads
+`Refused Uncertified { 3v1, 12v1, Edge(19v1), Departure }`
+(`disc 20254 refused 76 splits 20297`). Measured twice, on the branch
+merged with main `a3d5ce89c` and with main `b5b3fe7da`; in both the
+walk's `diff` against main's own is this one stop (78 of 85 → 79). Not
+re-walked on the landing tree. The 1,720 "two lines on one side" exits
+this row traced are the merge's value compare, which the joint
+replaces for rows joined at a vertex.

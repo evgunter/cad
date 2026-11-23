@@ -236,4 +236,9 @@ the branch's):
   `diepips`, `diecomposed` and `diechamfer` refuse `8v3`/`39v3` on both.
 - **The mirrored disc** holds at `f64`; at `Interval` it runs out of
   depth off the cover
-  (`the-mirrored-rim-band-at-interval-runs-out-of-depth-in-the-distance-arm`).
+  (`the-mirrored-rim-band-at-interval-runs-out-of-depth-in-the-distance-arm`, on EMBEDWALK's slate).
+
+**Cost, left as it is:** `Lines::of` is built up to three times in one
+presentation (`vacuous` or the merge, `sides_are_the_faces`, the zero
+side) and `joints` once more inside the merge where two clips' values
+do not meet; each is a few comparisons over the cell's near edges.

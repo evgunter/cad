@@ -50,3 +50,16 @@ day it goes.
 
 **Reproducer:** `sweep::all self_intersection_proves_injectivity::a_three_arc_discs_filleted_rim_holds_across_its_joints`
 (the mirrored pose; about 10 s for the row).
+
+## On the landing tree (2026-11-23)
+
+Measured above on `c76b74b2c`, where the band's sliver still closed the
+tangent seams. On the landing tree (`origin/embed/wave3-land`
+`5764e4b84` merged, the sliver retired) the mirrored twin refuses
+earlier, at the top plane against the band:
+`Refused(Budget { stop: Pairs { max_cell_pairs: 65536 }, a: 1v1, b: 9v1 })`,
+the tangent seam of
+`the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam`,
+so this row's distance-arm stop is not reached there and the suite row
+no longer asks the mirrored twin. It is to be re-measured once a
+tangent seam is read at `Interval`.
