@@ -262,6 +262,22 @@ pub fn conic_quadric_roots<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, ConicQuadricRefusal> {
+    let got = conic_quadric_roots_inner(carrier, t0, t1, surface, band);
+    geom::probe::record(
+        "conic_quadric_roots",
+        || format!("{carrier:?} {t0:?} {t1:?} {surface:?}"),
+        || format!("{got:?}"),
+    );
+    got
+}
+
+fn conic_quadric_roots_inner<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Result<CircleRoots<T>, Unsettled>, ConicQuadricRefusal> {
     use super::pose::{Pose, PoseRefusal, PoseRung};
     let arm: fn(Indeterminate) -> ConicQuadricRefusal = match surface {
         geom::Surface::Sphere { .. } => ConicQuadricRefusal::Sphere,
@@ -384,7 +400,7 @@ pub(super) fn conic_quadric_method<T: Decide>(
                             degree: 2,
                         }),
                         walk: SubdivisionFrame {
-                            noise: if mode >= 3 { T::zero() } else { frame.walk.noise },
+                            noise: if (3..=5).contains(&mode) { T::zero() } else { frame.walk.noise },
                             ..frame.walk
                         },
                         ..frame

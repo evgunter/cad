@@ -7,8 +7,37 @@
 
 use std::cell::{Cell, RefCell};
 
+/// The process's default variant: `$CONIC_PROBE_MODE`, else 0. M4 runs
+/// whole suites under mode 6: every conic, centre-held ones too, read
+/// through the scratch polynomial (first-degree roots as the quadratic
+/// in `tan(θ/2)` about the stored point; a sphere's or a wall's residual
+/// as the offsets jet).
+fn default_mode() -> u8 {
+    static MODE: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
+    *MODE.get_or_init(|| {
+        std::env::var("CONIC_PROBE_MODE")
+            .ok()
+            .and_then(|m| m.parse().ok())
+            .unwrap_or(0)
+    })
+}
+
+/// M4's record of a door's call: appended to
+/// `$CONIC_PROBE_LOG/<pid>.log` as `test \t door \t input \t output`.
+pub fn record(door: &str, input: impl FnOnce() -> String, output: impl FnOnce() -> String) {
+    use std::io::Write;
+    let Ok(dir) = std::env::var("CONIC_PROBE_LOG") else {
+        return;
+    };
+    let name = std::thread::current().name().unwrap_or("?").to_owned();
+    let path = format!("{dir}/{}.log", std::process::id());
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(f, "{name}\t{door}\t{}\t{}", input(), output());
+    }
+}
+
 thread_local! {
-    static VARIANT: Cell<u8> = const { Cell::new(0) };
+    static VARIANT: Cell<u8> = Cell::new(default_mode());
     static LOG: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -45,12 +74,19 @@ pub fn take_log() -> Vec<String> {
 #[must_use]
 pub fn offset_roots<T: geom_core::Real>(h: T, p: T, q: T, (kc, ks): (T, T)) -> [(T, T); 2] {
     let two = T::from_f64(2.0);
-    let (pp, qq) = (p * kc + q * ks, q * kc - p * ks);
-    let (a2, c) = (h - two * pp, h);
-    let disc = (qq.powi(2) - a2 * c).max(T::zero()).sqrt();
-    let w = T::zero() - (qq + qq.select_le_zero(T::zero() - disc, disc));
-    // t₁ = w/a2, t₂ = c/w; (sin φ, cos φ) ∝ (2·num·den, den² − num²).
     let dir = |num: T, den: T| (two * num * den, den.powi(2) - num.powi(2));
+    let solve = |a2: T, b: T, c: T| {
+        let disc = (b.powi(2) - a2 * c).max(T::zero()).sqrt();
+        let w = T::zero() - (b + b.select_le_zero(T::zero() - disc, disc));
+        // t₁ = w/a2, t₂ = c/w; (sin, cos) ∝ (2·num·den, den² − num²).
+        [dir(w, a2), dir(c, w)]
+    };
+    if (kc.abs() + ks.abs()).is_exact_zero_in_every_channel() {
+        // Held at its centre: `h + p·cos θ + q·sin θ`, the quadratic
+        // `(h − p)·t² + 2q·t + (h + p)` in `t = tan(θ/2)`.
+        return solve(h - p, q, h + p);
+    }
+    let (pp, qq) = (p * kc + q * ks, q * kc - p * ks);
     let turn = |(y, x): (T, T)| (y * kc + x * ks, x * kc - y * ks);
-    [turn(dir(w, a2)), turn(dir(c, w))]
+    solve(h - two * pp, qq, h).map(turn)
 }

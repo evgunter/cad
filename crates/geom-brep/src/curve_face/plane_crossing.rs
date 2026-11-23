@@ -135,6 +135,23 @@ pub fn plane_crossing_lane<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> PlaneCrossingLane<T> {
+    let got = plane_crossing_lane_inner(carrier, t0, t1, plane_origin, plane_normal, band);
+    geom::probe::record(
+        "plane_crossing_lane",
+        || format!("{carrier:?} {t0:?} {t1:?} {plane_origin:?} {plane_normal:?}"),
+        || format!("{got:?}"),
+    );
+    got
+}
+
+fn plane_crossing_lane_inner<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    plane_origin: geom_core::Point3<T>,
+    plane_normal: geom_core::Vec3<T>,
+    band: Band,
+) -> PlaneCrossingLane<T> {
     match (carrier.conic(), carrier) {
         (Some(conic), _) => PlaneCrossingLane::Conic(conic_plane_meet(
             &conic,

@@ -1923,7 +1923,8 @@ pub(crate) fn probe_offset_angles<T: Decide>(
     (h, p, q, phase): (T, T, T, (T, T)),
     near: T,
 ) -> Option<[T; 2]> {
-    if geom::probe::variant() < 2 || (phase.0.abs() + phase.1.abs()).is_exact_zero_in_every_channel() {
+    let centre_held = (phase.0.abs() + phase.1.abs()).is_exact_zero_in_every_channel();
+    if geom::probe::variant() < 2 || (centre_held && geom::probe::variant() != 6) {
         return None;
     }
     Some(geom::probe::offset_roots(h, p, q, phase).map(|(y, x)| Azimuth::of(y, x).near(near)))

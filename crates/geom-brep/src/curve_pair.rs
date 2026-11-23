@@ -401,10 +401,21 @@ pub fn meet<T: Decide>(
     b: &Span<'_, T>,
     band: Band,
 ) -> Result<Meetings<T>, MeetRefusal<T>> {
-    match method(a.carrier().kind(), b.carrier().kind()) {
+    let got = match method(a.carrier().kind(), b.carrier().kind()) {
         Method::Closed(arm) => closed(arm, a, b, band),
         Method::Walk => walk::meet(a, b, band),
+    };
+    if a.carrier().conic().is_some() || b.carrier().conic().is_some() {
+        geom::probe::record(
+            "curve_pair::meet",
+            || format!("{:?} {:?} {:?} {:?}", a.carrier(), a.params(), b.carrier(), b.params()),
+            || match &got {
+                Ok(m) => format!("Ok {:?} {:?}", m.shared, m.points),
+                Err(r) => format!("Err {:?} {:?}", r.fault, r.found),
+            },
+        );
     }
+    got
 }
 
 /// [`meet`] for a closed-form arm. The ends come first, so the pose
