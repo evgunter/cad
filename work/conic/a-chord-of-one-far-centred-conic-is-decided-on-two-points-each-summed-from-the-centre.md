@@ -84,3 +84,7 @@ The enclosing functions were not run on a `Body`: the root parameters
 census pieces are built from, and the points handed on from those
 sites (`landing(…, carrier.eval(t), …)`, `meets_at(…, q, …)`) are
 computed upstream from the same far terms.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
