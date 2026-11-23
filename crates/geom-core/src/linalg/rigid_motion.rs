@@ -2737,8 +2737,10 @@ mod tests {
     /// evaluation's: every entry the plain Gram–Schmidt leaves unbounded
     /// (a degenerate column) is the plain reading bit for bit, and every
     /// other entry lies inside it (a column of nonzero length is still
-    /// narrowed). Red where the fallback is dropped (the meet of an
-    /// uncertified entry is NaI, not the plain reading).
+    /// narrowed). The same holds over 20 000 random boxes leaning
+    /// degenerate. Red where the fallback is dropped (the meet of an
+    /// uncertified entry is NaI, not the plain reading), and where an entry
+    /// whose plain reading is unbounded answers anything but it.
     #[test]
     fn a_bracket_box_reaching_a_zero_length_answers_the_plain_squaring() {
         let origin = Point3::origin().map(Interval::from_f64);
@@ -2784,6 +2786,49 @@ mod tests {
                 }
             }
         }
+        // And over random boxes leaning degenerate: `u`'s centre `w`'s,
+        // `−w`'s, or a part `10⁻¹⁶`·`10³` of the box's half-width off it,
+        // and `w`'s own length as small as the box.
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("rigid_motion::bracket_squaring::degenerate");
+        let mut unbounded = 0usize;
+        for i in 0..fuzz::scaled(20_000) {
+            let r = 10f64.powf(rng.range(-16.0, -1.0));
+            let mut v = || {
+                Vec3::new(
+                    rng.range(-0.5, 0.5),
+                    rng.range(-0.5, 0.5),
+                    rng.range(-0.5, 0.5),
+                )
+            };
+            let (w, off) = (v(), v());
+            let (w, u) = match i % 4 {
+                0 => (w, w),
+                1 => (w, -w),
+                2 => (w, w + off * (r * 10f64.powf(3.0 * rng.range(0.0, 1.0)))),
+                _ => (w * r, off),
+            };
+            let bx = |c: Vec3<f64>| c.map(|x| Interval::from_bounds(x - r, x + r));
+            let (w, u) = (bx(w), bx(u));
+            let got = entries(&RigidMotion::squared(origin, w, u));
+            let plain = entries(&RigidMotion::squared_about(origin, UnitVec3::squared(w), u));
+            for (j, (g, p)) in got.iter().zip(plain).enumerate() {
+                if !p.is_certified() {
+                    unbounded += 1;
+                    assert_eq!(
+                        (g.lo().to_bits(), g.hi().to_bits()),
+                        (p.lo().to_bits(), p.hi().to_bits()),
+                        "draw {i}, entry {j}: an entry the plain squaring leaves unbounded is \
+                         [{:e}, {:e}], not the plain [{:e}, {:e}]",
+                        g.lo(),
+                        g.hi(),
+                        p.lo(),
+                        p.hi()
+                    );
+                }
+            }
+        }
+        assert!(unbounded > 0, "no draw left a plain entry unbounded");
     }
 
     /// The witness tolerance's linear band, shared by this module's

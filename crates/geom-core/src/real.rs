@@ -504,8 +504,8 @@ pub trait Real:
     /// squares from bracket directions `w` and `u`, enclosed**: columns
     /// `[u, v, w]` that hold, entry by entry, the frame every point of the
     /// box `(w, u)` squares to over the reals, each inside the plain
-    /// evaluation of the squaring at this scalar wherever that is
-    /// certified. Decides nothing.
+    /// evaluation of the squaring at this scalar, and the plain entry
+    /// itself wherever that is not certified. Decides nothing.
     ///
     /// Only a plain enclosure answers (`Interval`, by the squaring's
     /// centered form). `None`, the default, is every other scalar's

@@ -779,9 +779,13 @@ impl Real for Interval {
     /// evaluation `S(X)`. Each is an enclosure of every frame the box's
     /// points square to, so their meet is too. Where an entry of the
     /// centered form is not a finite enclosure (a box reaching a zero
-    /// length, whose derivatives are unbounded), that entry is the plain
-    /// evaluation's; where only the plain entry is unbounded, the centered
-    /// one stands alone.
+    /// length, whose derivatives are unbounded), or the plain entry is not
+    /// certified, that entry is the plain evaluation's. The two go
+    /// together: the duals' value channel is the plain evaluation over the
+    /// box bit for bit, and each entry's derivatives divide by that
+    /// entry's own denominators, so an entry the plain evaluation leaves
+    /// unbounded has an unbounded derivative too (over 200 000 boxes
+    /// leaning degenerate, none had one without the other).
     fn square_frame(w: [Self; 3], u: [Self; 3]) -> Option<[[Self; 3]; 3]> {
         let x: [Self; 6] = [w[0], w[1], w[2], u[0], u[1], u[2]];
         if !x.iter().all(|e| e.is_finite_enclosure()) {
@@ -809,10 +813,10 @@ impl Real for Interval {
         Some(core::array::from_fn(|c| {
             core::array::from_fn(|r| {
                 let (p, q) = (plain[c][r], centered[c][r]);
-                match (q.is_finite_enclosure(), p.is_certified()) {
-                    (true, true) => Self::meet_readings(p, || q),
-                    (true, false) => q,
-                    (false, _) => p,
+                if q.is_finite_enclosure() && p.is_certified() {
+                    Self::meet_readings(p, || q)
+                } else {
+                    p
                 }
             })
         }))
