@@ -759,12 +759,12 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
 }
 
 fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
-    definite(row, Margin::of(x), band)
+    definite_as(row, Margin::of(x), band)
 }
 
 /// A margin's definite sign at `row`, or `None` where it is zero, in
 /// band or does not certify.
-fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
+fn definite_as(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
     match decide(row, margin, band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => None,
@@ -774,7 +774,7 @@ fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<S
 /// The definite sign of a sine levered at `arm`, decided at the
 /// departure's site, or `None`.
 fn levered_sign(sine: Interval, arm: Lever<Interval>, band: Band) -> Option<Sign> {
-    definite(
+    definite_as(
         SELF_INTERSECTION_DEPARTURE,
         Margin::levered(sine, arm),
         band,
@@ -6752,14 +6752,14 @@ fn sign_on(
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
     let grad_norm = psi.gradient_norm();
-    let sine = |axis: Axis| {
+    let leaving = |axis: Axis| {
         let f = match axis {
             Axis::U => fx,
             Axis::V => fy,
         };
         psi.rate(image, f) / (grad_norm * f.norm())
     };
-    let departs = |s: Side| levered_sign(sine(s.axis()) * at(s.into()), arm?, band);
+    let departs = |s: Side| levered_sign(leaving(s.axis()) * at(s.into()), arm?, band);
     match &p.zero {
         Zero::None => interval_sign_as(
             centred(psi, p, p.x, p.y)?,
@@ -17079,8 +17079,11 @@ mod posed_rows {
     /// not close. Red if the wrap goes unchecked.
     #[test]
     fn a_cap_holding_its_poses_pole_is_granted_no_extent() {
-        for sense in [true, false] {
-            let p = on_sphere([if sense { 1.0 } else { -1.0 }, 0.1, 0.1]);
+        // Each cap with a point of the hemisphere it holds, stated per
+        // case: the cap `x ≥ A` towards `+x`, the larger cap `x ≤ A`
+        // towards `−x`. A fixture's coordinate, no face normal.
+        for (sense, towards) in [(true, 1.0), (false, -1.0)] {
+            let p = on_sphere([towards, 0.1, 0.1]);
             assert_eq!(
                 holding(&x_cap(sense), p),
                 vec![None],
