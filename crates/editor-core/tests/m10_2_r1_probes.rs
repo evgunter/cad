@@ -1002,7 +1002,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
             &refusal,
             editor_core::EditError::SlotVarKind {
                 found: editor_core::VarKind::Length,
-                expected: editor_core::SlotKind::Placeable,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Body),
                 ..
             }
         ),

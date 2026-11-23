@@ -4130,44 +4130,8 @@ pub fn split(
                 crate::SlotValue::Read(reread(doc, var, heir_read(key)))
             }
         };
-        // A family spliced into a list whose heir is one piece of the
-        // instance's copy is that one body in the list (D10
-        // `[repetition]`): no binder of the remainder yields it.
-        let spliced = match (slot, &value) {
-            (crate::OperandSlot::Member(i), crate::SlotValue::Read(read)) => {
-                crate::continuation::spelled(remainder.doc(), node).and_then(|members| {
-                    members
-                        .get(i)
-                        .is_some_and(|(stored, _)| stored.is_splice())
-                        .then(|| {
-                            members
-                                .into_iter()
-                                .enumerate()
-                                .map(|(at, (_, written))| match at == i {
-                                    true => crate::Spell::One(crate::BodyRead::plain(read.clone())),
-                                    false => written,
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                })
-            }
-            _ => None,
-        };
-        rem_apply(
-            &mut remainder,
-            match spliced {
-                Some(members) => DocEdit::SetMembers {
-                    node,
-                    members: crate::Bodies::Spelled(members),
-                },
-                None => DocEdit::SetParam {
-                    node,
-                    slot: crate::SlotId::Operand(slot),
-                    value,
-                    fresh: Vec::new(),
-                },
-            },
-        )?;
+        let write = seat_write(remainder.doc(), node, slot, value);
+        rem_apply(&mut remainder, write)?;
         if doc.selection(var).is_some() && !reauthored.contains_key(&var) {
             let fresh = read_at(remainder.doc(), node, slot);
             reauthored.insert(var, fresh);
@@ -4870,8 +4834,17 @@ pub fn inline(
         spliced,
         crate::Operand::source(crate::BodyRead::plain(crate::Operand::Var(spliced))),
     );
+    // A product its binder yields is placed member by member, `{k in
+    // xs: place(xs[k])}`, and the binder yields the copies too (D10
+    // `[repetition]`).
+    let yielding = current.doc().yielding(spliced);
     let whole = Node::Place {
-        source: crate::BodyRead::plain(spliced),
+        source: crate::BodyRead {
+            read: spliced,
+            at: yielding
+                .map(|binder| current.doc().binder_indices(binder))
+                .unwrap_or_default(),
+        },
         target: *target,
         constraints: bundle.clone(),
     };
@@ -4888,6 +4861,21 @@ pub fn inline(
         .doc()
         .output(placement, 0)
         .unwrap_or_else(|| unreachable!("a placement defines its copy"));
+    if let Some(binder) = yielding {
+        let mut yields: Vec<crate::VarRef> = current
+            .doc()
+            .yields(binder)
+            .iter()
+            .map(|&y| y.into())
+            .collect();
+        yields.push(placed.into());
+        current
+            .apply(DocEdit::SetYields {
+                binder: binder.into(),
+                yields,
+            })
+            .map_err(refused)?;
+    }
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
     // relative and embeds no other node's identity (see split's
@@ -5577,15 +5565,8 @@ pub fn flatten(
             } else {
                 continue;
             };
-            step(
-                &mut current,
-                DocEdit::SetParam {
-                    node: id,
-                    slot: crate::SlotId::Operand(slot),
-                    value,
-                    fresh: Vec::new(),
-                },
-            )?;
+            let write = seat_write(current.doc(), id, slot, value);
+            step(&mut current, write)?;
             if doc.selection(var).is_some_and(|s| reads_copy(s.body.read))
                 && !reauthored.contains_key(&var)
             {
@@ -5671,6 +5652,59 @@ pub fn flatten(
         edits,
         maintenance,
     })
+}
+
+/// **The edit re-pointing `node`'s operand `slot` at `value`**: a
+/// [`DocEdit::SetParam`], except at a spelled list's member, where the
+/// entry is a splice exactly when its new read is a family a binder
+/// yields (D10 `[repetition]`), so the list is written whole
+/// ([`DocEdit::SetMembers`]) where that changes.
+fn seat_write(
+    doc: &ProfileDoc,
+    node: RecipeNodeId,
+    slot: crate::OperandSlot,
+    value: crate::SlotValue,
+) -> DocEdit<ProfileProgram> {
+    let set = |value| DocEdit::SetParam {
+        node,
+        slot: crate::SlotId::Operand(slot),
+        value,
+        fresh: Vec::new(),
+    };
+    let (crate::OperandSlot::Member(i), crate::SlotValue::Read(read)) = (slot, &value) else {
+        return set(value);
+    };
+    let family = match read {
+        crate::Operand::Var(var) => Some(*var),
+        crate::Operand::Node(id) => doc.outputs(*id).first().copied(),
+        crate::Operand::Output { node, port } => doc.output(*node, *port),
+        _ => None,
+    }
+    .is_some_and(|var| doc.family_through_sources(var));
+    let Some(members) = crate::continuation::spelled(doc, node) else {
+        return set(value);
+    };
+    if members
+        .get(i)
+        .is_none_or(|(stored, _)| stored.is_splice() == family)
+    {
+        return set(value);
+    }
+    let entry = crate::BodyRead::plain(read.clone());
+    DocEdit::SetMembers {
+        node,
+        members: crate::Bodies::Spelled(
+            members
+                .into_iter()
+                .enumerate()
+                .map(|(at, (_, written))| match (at == i, family) {
+                    (true, true) => crate::Spell::All(entry.clone()),
+                    (true, false) => crate::Spell::One(entry.clone()),
+                    (false, _) => written,
+                })
+                .collect(),
+        ),
+    }
 }
 
 /// **A remap never changes a KIND.**

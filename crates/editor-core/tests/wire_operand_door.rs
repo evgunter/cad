@@ -173,7 +173,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "placeable_operand over a profile (Place)",
-        Owes::EditDoor(VarKind::Profile, SlotKind::Placeable),
+        Owes::EditDoor(VarKind::Profile, SlotKind::Is(VarKind::Body)),
         crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(
             profile,
         ))),

@@ -97,7 +97,7 @@ fn assembled_family(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, Recip
 
 /// Two copies of `source` along x, `pitch` apart: a family over an
 /// index, member `k` slid `scalar(k)·pitch` (D10 `[repetition]`), in
-/// `source`'s space. Inserted plainly: the rows name their product, so
+/// `source`'s space, which the index's binder yields. Inserted plainly: the rows name their product, so
 /// no world `⊔` gathers the family beside it.
 fn patterned(doc: ProfileDoc, source: RecipeNodeId, pitch: f64) -> (ProfileDoc, RecipeNodeId) {
     let name = fixture::fresh_index_name(&doc);
@@ -109,14 +109,17 @@ fn patterned(doc: ProfileDoc, source: RecipeNodeId, pitch: f64) -> (ProfileDoc, 
         Vec::new(),
         fixture::slides_along(k, [1.0, 0.0, 0.0], pitch),
     );
-    put(
+    let (doc, row) = put(
         doc,
         Node::place(
             editor_core::BodyRead::plain(read),
             Operand::Var(target),
             placed.bundle(),
         ),
-    )
+    );
+    // The index's binder yields the row (D10 `[repetition]`).
+    let copy = doc.output(row, 0).expect("a placement defines its copy");
+    (fixture::yield_more(doc, k, &[copy]), row)
 }
 
 /// Member `i` of `family`, read by an indexed read and placed where it

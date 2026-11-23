@@ -339,9 +339,9 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
     let array = |v| serde_json::json!([v]);
     let cases = [
         (
-            "an index's count beside its within",
+            "an index's count beside its seat",
             edited(&|v| {
-                let index = holding(v, &["count", "within"]).expect("the index's fields");
+                let index = holding(v, &["count", "seat"]).expect("the index's fields");
                 let count = index.remove("count").expect("a count");
                 index.insert("count".to_owned(), nested(count, past, neg));
             }),

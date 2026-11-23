@@ -8947,6 +8947,13 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             let spoken = || doc.spoken(*node);
+            // A splice, `…xs`, reads a family whole (D10 `[repetition]`).
+            let spliced = |slot: crate::OperandSlot| match (members, slot) {
+                (crate::Bodies::Spelled(entries), crate::OperandSlot::Member(i)) => {
+                    entries.get(i).is_some_and(crate::Spell::is_splice)
+                }
+                _ => false,
+            };
             let lower =
                 |new: &mut Doc<P>, slot: crate::OperandSlot, member: &crate::BodyRead<Formula>| {
                     lower_operand(
@@ -8954,7 +8961,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         &spoken,
                         SlotId::Operand(slot),
                         &member.read,
-                        member.kind(slot),
+                        if spliced(slot) {
+                            crate::SlotKind::Is(VarKind::Bodies)
+                        } else {
+                            member.kind(slot)
+                        },
                     )
                 };
             let mut rewritten = current.clone();
