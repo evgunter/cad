@@ -539,6 +539,16 @@ pub enum BooleanOp {
 }
 
 impl BooleanOp {
+    /// **Whether this operation's result holds `operand`'s faces turned
+    /// inside out**: a subtract's holds its tool's (B's), since the cut
+    /// keeps the tool's boundary with its material on the other side.
+    /// The one rule every reading of a subtract's faces against a tool's
+    /// follows: the pair's holdings, and the n-ary fold's holdings and
+    /// given verdicts (`nary::NaryOp::holds_turned`).
+    pub(in crate::boolean) fn holds_turned(self, operand: Operand) -> bool {
+        self == Self::Subtract && operand == Operand::B
+    }
+
     /// **Every operation this enum names**, in declaration order — the
     /// one enumeration, owned where the exhaustive matches live.
     ///
@@ -1213,6 +1223,19 @@ pub(crate) enum GivenDecision<T: Real> {
 }
 
 impl<T: Real> GivenDecision<T> {
+    /// The same decision with one face's sense reversed: a one-carrier
+    /// pair's senses swap between opposed and aligned; a tangency reads
+    /// no sense. A rim junction has none: it is two faces whose outward
+    /// normals are aligned on the rim, which one face turned is not.
+    pub(in crate::boolean) fn reversed(self) -> Option<Self> {
+        match self {
+            Self::Rest => Some(Self::Continuation),
+            Self::Continuation => Some(Self::Rest),
+            tangent @ Self::Tangent { .. } => Some(tangent),
+            Self::Junction { .. } => None,
+        }
+    }
+
     /// The class the decision glues under.
     pub(crate) fn class(&self) -> GlueClass {
         match self {

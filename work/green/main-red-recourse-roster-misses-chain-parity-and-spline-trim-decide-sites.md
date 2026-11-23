@@ -26,6 +26,42 @@ has to move back under the name the roster lists. The gating gap that lets
 such a change past its PR is
 `green/a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
 
+## Seen by `oneround/unsourced-unions` (PR 7294), 2026-11-21
+
+Confirmed on that branch's final tree (debug build, default ε): `recourse_roster::every_decided_name_has_its_door_and_every_site_is_read` fails with `an indirect site not listed: chain_parity.rs: decide: name` and `… spline_trim.rs: decide: name`. Neither file is in that branch's diff.
+
+## Re-pinned (2026-11-23, `embed/roster-main-drift`)
+
+Reproduced on main `6c5ea3ec`: the row reported the two sites above and
+two more, `a declared carrier matched nothing in src: Const(NEST)` and
+`Const(REACH)`.
+
+- **The two sites** came with PR 7185 (commit `30439a67`, "a bound is
+  one typed term"), which moved each `decide(name, ..)` into a method on
+  the value it decides: `Gap::decide` (`crates/topo/src/chain_parity.rs:41`),
+  called by `ray_parity_as` as `g.decide(name, arm, band)`, and
+  `Floor::decide` (`crates/topo/src/spline_trim.rs:153`), whose one caller
+  is the spline region's carrier walk,
+  `cell.floor(q).decide(SPLINE_REGION_CARRIER, band)`
+  (`crates/topo/src/spline_region.rs:258`). Both are `decide`-spelled
+  forwarders, whose callers the census already reads as decide sites, so
+  each takes a `FORWARDS` line in `INDIRECT` with its own comment: what
+  it decides, whose name it carries, and what a refusal does there
+  (chain parity: the piece is halved, and at the depth stop the query
+  reads `Side::Near` with the diagnostic; spline floor: the cell is
+  walked and the diagnostic kept, and a walk ending unsettled on it
+  escalates as `ContainDecision::Carrier`). No code moved.
+- **`NEST` and `REACH`** were the local consts of topo's closed-form
+  `sphere_plane` and `sphere_sphere` section arms
+  (`boolean/section_cert.rs`, `section_sphere_plane_reach`,
+  `section_sphere_pair_reach`, `section_sphere_pair_nest`), removed by
+  PR 7354 (merge `4a94f710`, "plane × sphere, sphere × sphere and plane ×
+  cylinder on the section value"). Those poses are now decided in
+  geom-brep, under `ps_center_gap` (`crates/geom-brep/src/intersect.rs:1524`)
+  and `ss_carrier_external` / `ss_carrier_internal` (`:1673`), and topo
+  reads them off the section value. No topo name is spelled in either
+  const any more, so both declarations are removed from `CARRIERS`.
+
 ## Two dead carriers (2026-11-22, seen on `oneround/box-region`'s gate)
 
 The same row also reports `a declared carrier matched nothing in src: Const(NEST)` and `… Const(REACH)`. Main's `0639e45a` removed `const NEST` from topo's source. `REACH` survives only as a test fixture's length (`boolean/torus_frame_rows.rs:48`, `injective.rs:4911`), which is no name. The two `CARRIERS` entries in `crates/topo/tests/recourse_roster.rs` go, or are re-pointed at what replaced them. Seen on PR 7225's hosted slow-set step, which ran the roster because the PR edits the file; reproduced on that branch merged with main `706a250d`, and none of the four lines touches the PR's code.
