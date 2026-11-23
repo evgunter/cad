@@ -3351,7 +3351,6 @@ mod tests {
         let undecided = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
-            // UNDECIDED-NAME: the in-band cause this row's escalations carry
             predicate: Some("ssi_tube_one_arc"),
             terminal_sliver: false,
         };
