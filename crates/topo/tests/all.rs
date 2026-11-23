@@ -520,3 +520,5 @@ mod the_placed_boolean_door_is_the_pair_door;
 mod three_solids_on_one_line;
 #[path = "two_copies_filling_one_volume.rs"]
 mod two_copies_filling_one_volume;
+#[path = "probe_pending_names.rs"]
+mod probe_pending_names;
