@@ -933,8 +933,8 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     }
 
     /// **This value read whole**: in a member's view of its family, the
-    /// family; else this. A seat that takes a family whole
-    /// ([`crate::repetition::takes_whole`]) and a selection of one
+    /// family; else this. A read of a family whole (a list entry spliced
+    /// in, `…xs`, or an indexed read `xs[i]`) and a selection of one
     /// member read it so.
     pub(crate) fn whole(&self) -> &Self {
         self.family.as_deref().unwrap_or(self)
@@ -1768,19 +1768,6 @@ pub enum NodeErrorKind {
         /// The empty half.
         half: crate::names::SplitHalf,
     },
-    /// **A read of a split's half where the split's target is a
-    /// family** (D10 `[repetition]`): the split is evaluated once per
-    /// member, so its value is a family of splits and no single half
-    /// stands for the read. The repair is to split one member,
-    /// `xs[i]`, and read that split's half.
-    HalfOfAFamily {
-        /// The read of the half.
-        read: crate::VarId,
-        /// The split whose half was read.
-        input: RecipeNodeId,
-        /// The half read.
-        half: crate::names::SplitHalf,
-    },
     /// An indexed read `xs[i, j]` whose index leaves the family's
     /// range (D10 `[repetition]`): the read is unresolved, typed. A
     /// negative index lands here too — the index is neither wrapped nor
@@ -1800,13 +1787,20 @@ pub enum NodeErrorKind {
         /// The member's refusal.
         source: Box<NodeErrorKind>,
     },
-    /// **Two indices read in one reader, neither within the other**
-    /// (D10 `[repetition]`): they meet in no reader.
-    IndicesUnrelated {
+    /// **The indices of two binders read in one reader** (D10
+    /// `[repetition]`): no binder holds it.
+    TwoBinders {
         /// One index.
         a: crate::VarId,
         /// The other.
         b: crate::VarId,
+    },
+    /// **A binder that yields nothing and holds no assertion** (D10
+    /// `[repetition]`): what reads its indices is refused, since nothing
+    /// outside it could read what it builds.
+    YieldsNothing {
+        /// The binder, by its first index.
+        binder: crate::VarId,
     },
     /// **An index's count did not evaluate** where its reader is
     /// evaluated once per value.
@@ -2467,16 +2461,6 @@ impl crate::spoken::Say for NodeErrorKind {
                     findings.render(geom_brep::recourse::Reading::AtRest)
                 )
             }
-            Self::HalfOfAFamily { read, input, half } => say!(
-                f,
-                format_args!("{read} reads the {} half of ", half.name()),
-                by.node(*input),
-                ", whose target is a family: a split of a family is one split per member, \
-                 and no one half stands for the read. ",
-                crate::sentence::Recourse(crate::sentence!(
-                    "split one member (`xs[i]`) and read that split's half"
-                ))
-            ),
             Self::EmptyHalf { input, half } => say!(
                 f,
                 format_args!(
@@ -2532,20 +2516,26 @@ impl crate::spoken::Say for NodeErrorKind {
                 );
                 say!(f, "the member at ", at, " refused: ", Said(&**source, by))
             }
-            Self::IndicesUnrelated { a, b } => say!(
+            Self::TwoBinders { a, b } => say!(
                 f,
                 "the node reads the indices ",
                 by.read(*a),
-                sentence!(
-                    " and ",
-                    by.read(*b),
-                    format_args!(
-                        ", and neither is within the other, so \
-                 they meet in no reader. {}",
-                        crate::sentence::Recourse(
-                            "declare one within the other, or read one index here"
-                        )
+                " and ",
+                by.read(*b),
+                format_args!(
+                    ", which are of two binders, and a reader repeats inside one binder. {}",
+                    crate::sentence::Recourse(
+                        "bind both indices in one binder, or read what one binder yields"
                     )
+                )
+            ),
+            Self::YieldsNothing { binder } => say!(
+                f,
+                "the node reads the index ",
+                by.read(*binder),
+                format_args!(
+                    ", whose binder yields nothing. {}",
+                    crate::sentence::Recourse("name what the binder yields")
                 )
             ),
             Self::IndexCount { index, source } => {
@@ -4716,7 +4706,7 @@ where
             }
             _ => 0,
         };
-        let listed = match chains.get(&id).and_then(crate::repetition::Reached::chain) {
+        let listed = match chains.get(&id).and_then(Chained::chain) {
             Some(chain) if !chain.is_empty() => {
                 members::listing_steps(doc, &nominal_env, chain, remaining - parted, cancel)?
             }
@@ -4902,17 +4892,62 @@ where
     }
 }
 
+/// **What evaluation makes of a node's reach** ([`chains_of`]): the
+/// indices it reaches, as [`crate::repetition::Reach`] reads them, or
+/// the binder it stands in yielding nothing, which the evaluation
+/// refuses and the reach itself never says.
+#[derive(Debug, Clone)]
+enum Chained {
+    /// The reach as read.
+    Reached(crate::repetition::Reached),
+    /// The node stands in the binder, by its first index, which yields
+    /// nothing and holds no assertion.
+    YieldsNothing(crate::VarId),
+}
+
+impl Chained {
+    /// The chain, `None` where the node is refused.
+    fn chain(&self) -> Option<&[crate::VarId]> {
+        match self {
+            Self::Reached(reached) => reached.chain(),
+            Self::YieldsNothing(_) => None,
+        }
+    }
+}
+
 /// **Which indices each node of `order` reaches**, read off `doc`'s
 /// recipe: what a node is evaluated once per member of ([`members`]).
-fn chains_of(
-    doc: &Doc<ProfileProgram>,
-    order: &[RecipeNodeId],
-) -> BTreeMap<RecipeNodeId, crate::repetition::Reached> {
+fn chains_of(doc: &Doc<ProfileProgram>, order: &[RecipeNodeId]) -> BTreeMap<RecipeNodeId, Chained> {
     if !doc.declares_index() {
         return BTreeMap::new();
     }
     let mut reach = crate::repetition::Reach::new(doc);
-    order.iter().map(|&id| (id, reach.node(id))).collect()
+    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> =
+        order.iter().map(|&id| (id, reach.node(id))).collect();
+    // A binder that yields nothing refuses what it holds, unless it
+    // holds an assertion: an assertion is its own yield, a family of
+    // verdicts.
+    let binder_of = |reached: &crate::repetition::Reached| {
+        reached
+            .chain()
+            .and_then(|chain| chain.first())
+            .and_then(|&index| reach.binders().seat(index))
+            .map(|(binder, _)| binder)
+    };
+    let asserting: std::collections::BTreeSet<crate::VarId> = chains
+        .iter()
+        .filter(|(id, _)| matches!(doc.node(**id), Some(crate::Node::Assertion(_))))
+        .filter_map(|(_, reached)| binder_of(reached))
+        .collect();
+    chains
+        .iter()
+        .map(|(&id, reached)| match binder_of(reached) {
+            Some(binder) if doc.yields(binder).is_empty() && !asserting.contains(&binder) => {
+                (id, Chained::YieldsNothing(binder))
+            }
+            _ => (id, Chained::Reached(reached.clone())),
+        })
+        .collect()
 }
 
 /// **A part document's own listing steps**: its families', in its
@@ -4931,7 +4966,7 @@ fn own_steps(
     for id in &order {
         if let Some(chain) = chains
             .get(id)
-            .and_then(crate::repetition::Reached::chain)
+            .and_then(Chained::chain)
             .filter(|chain| !chain.is_empty())
         {
             match members::listing_steps(doc, &nominal, chain, remaining - held, cancel)? {
@@ -5224,7 +5259,7 @@ fn eval_any<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
-    chains: &BTreeMap<RecipeNodeId, crate::repetition::Reached>,
+    chains: &BTreeMap<RecipeNodeId, Chained>,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
@@ -5245,15 +5280,23 @@ where
         })
         .and_then(|p| p.value(id));
     let step = match chains.get(&id) {
-        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
+        Some(Chained::Reached(crate::repetition::Reached::TwoBinders(a, b))) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
-                kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
+                kind: NodeErrorKind::TwoBinders { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
             }),
             reused: false,
         },
-        Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
+        Some(Chained::YieldsNothing(binder)) => NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind: NodeErrorKind::YieldsNothing { binder: *binder },
+                escalations: Arc::new(Vec::new()),
+            }),
+            reused: false,
+        },
+        Some(Chained::Reached(crate::repetition::Reached::Chain(chain))) if !chain.is_empty() => {
             members::eval_family(
                 doc,
                 env,

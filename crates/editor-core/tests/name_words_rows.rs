@@ -839,7 +839,7 @@ fn a_strand_row_names_a_deleted_union() {
         &editor_core::Frame::translation([0.0, 0.0, 0.5]),
     );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
+        members: editor_core::Bodies::spelled(vec![block.into(), boss.into()]),
     });
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
