@@ -62,3 +62,15 @@ graze is then the Zero path's, and the row asks whether that path
 places a tangent touch at an end that lies outside the face. If it
 does, the near turns build. If not, they refuse there typed, with the
 `m²/2R` margin named.
+
+- 2026-11-23 (LATHE one-band lane, PR 7414): with a full revolve's
+  hemisphere one sphere face, the poses this row names no longer reach
+  the covered rung. The tube's seam ruling ends on that face's own rim,
+  not just outside a half-face beside it, so from `5·escalate` apart out
+  to `√(2000·R·escalate)` the sphere-capped tube builds in both member
+  orders (census `(4, 8, 6, 1)`), and only the sliver band still
+  escalates, at the glue door's rim routing
+  (`pi_seam_and_kiss_through_the_boolean::the_sphere_capped_tube_turned_within_a_hair_of_aligned`).
+  This row's witness is gone; the `m²/2R` question stands for a covered
+  line ending outside a face that is still a half-face (an import's
+  half-turn pair).
