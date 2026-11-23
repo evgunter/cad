@@ -92,3 +92,5 @@ Nightly 44989234943 (main `4d3402ecb1`'s kernel) against the 11-21 nightly 44870
 - geom-brep `curve_pair::pose::window::oracle::a_window_reading_the_dense_distance_contradicts_is_pinned_red`: **a wrong answer, not a cost**, pinned red against CPAIR's `a-window-reading-at-f64-is-contradicted-by-the-dense-distance-since-7131s-squaring` with its whole failure text. The oracle's bands are its own, so the seed stops at every ε row, not only 1e-12. F1F turns the sweep green, and the pin red.
 
 The per-row runs are in PR 7558's body.
+
+**The ruling's premise, corrected for one row.** The reply on 7505 said all 17 rows are refusals at ε 1e-12 and none is at the default ε. The window oracle is neither: it is a wrong answer, at every ε including the default (and the fuzzer is red on main at default ε on random seeds). It is pinned as CPAIR's red, not as accepted cost. Ev's ruling covers the 16 refusals.
