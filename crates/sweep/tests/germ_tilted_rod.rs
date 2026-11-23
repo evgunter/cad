@@ -368,8 +368,8 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
 /// chords alike, measured through the rotational lane, and stops at the
 /// crossings path's interior-loop guard on the torus wall × the rod's
 /// wall, whose section certificate refuses the pair. The two faces it
-/// names must resolve on their operands to that torus wall and that
-/// cylinder wall. Only that op is run at the two poses, so the identity
+/// names must resolve on their operands to that wall — the inner of the
+/// tube's two torus halves — and the rod's cylinder wall. Only that op is run at the two poses, so the identity
 /// is measured where the whole table is too costly
 /// ([`OTHER_SPINS_STOPS`] names it by word).
 #[test]
@@ -396,6 +396,16 @@ fn the_steeper_tilts_union_stops_by_identity() {
             (kind_of(&h, *face), kind_of(&c, *other_face)),
             (Some(SurfaceKind::Torus), Some(SurfaceKind::Cylinder)),
             "{at}: the refusal's faces are not the donut's torus wall and the rod's wall"
+        );
+        // The half donut's tube is two torus faces, split at its two
+        // profile vertices; the one the rod crosses is the INNER half,
+        // which holds the inner equator (radius 1.5, the hole's side).
+        let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+        let inner_equator = Point3::new(0.0, 0.0, -1.5);
+        assert_eq!(
+            topo::curved_face_containment(&h, *face, inner_equator, band).ok(),
+            Some(Some(topo::FaceContainment::In)),
+            "{at}: the refusal's torus face is not the half donut's inner wall"
         );
     }
 }

@@ -2884,7 +2884,7 @@ class TestTeapot(unittest.TestCase):
         )
 
     def teapot(self, doc, attach=True):
-        """The scene's four bodies and its two refused joins, as one
+        """The scene's four bodies and its two joins, as one
         document. Returns the nodes the rows below read; without
         `attach`, the pot and the lid alone (the spout, the handle and
         the joins `None`)."""
@@ -2967,7 +2967,7 @@ class TestTeapot(unittest.TestCase):
         )
         handle = joined(doc, pot, handle, axes_at(self.HANDLE_C, (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
-        # ---- the two joins: the handle's builds, the spout's refuses ----
+        # ---- the two joins: the handle's builds; the spout's is the frontier ----
         joins = [
             doc.insert(Node.union([cup, handle])),
             doc.insert(Node.union([cup, spout])),
@@ -3267,7 +3267,7 @@ class TestTeapot(unittest.TestCase):
 
     def test_the_handle_join_builds_and_the_spout_join_builds_or_refuses_typed(self):
         doc = Doc()
-        _sealed, cup, *_rest, handle, joins = self.teapot(doc)
+        _sealed, cup, _sharp, _lid, _spout_body, spout, handle, joins = self.teapot(doc)
         ev = evaluate(doc)
         handle_join, spout_join = joins
 
@@ -3295,13 +3295,16 @@ class TestTeapot(unittest.TestCase):
         # spout union vessel: the kernel's frontier, which moves as
         # the kernel grows (the tour's wall 3 pins where it stands). The
         # row holds what the binding owes either way: a union that
-        # builds is a valid body no smaller than the vessel, and one
-        # that refuses arrives as a typed boolean `EvaluationError`
+        # builds is a valid body held to the bounds the handle's is,
+        # and one that refuses arrives as a typed boolean `EvaluationError`
         # whose message is prose, never a panic or a `Debug` dump.
         if ev.succeeded(spout_join):
-            spout_body = ev.value(spout_join).body()
-            spout_body.validate()
-            self.assertGreater(pinned(spout_body).volume, v_cup)
+            spout_join_body = ev.value(spout_join).body()
+            spout_join_body.validate()
+            v_spout_join = pinned(spout_join_body).volume
+            v_spout = pinned(ev.value(spout).body()).volume
+            self.assertGreater(v_spout_join, max(v_cup, v_spout))
+            self.assertLess(v_spout_join, v_cup + v_spout)
             return
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)

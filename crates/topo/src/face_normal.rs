@@ -1413,6 +1413,8 @@ mod tests {
     ///    expand macros.
     /// 6. **A plane matched in one function and minted in a helper it
     ///    calls.** Neither function holds both halves.
+    /// 7. **A plane match and mint outside any `fn`** — a `static` or
+    ///    `const` initializer, which no `fn` item holds.
     #[test]
     fn the_planar_sense_flip_lives_in_one_place() {
         let home = crate::source_walk::src_root().join("face_normal.rs");
@@ -1507,11 +1509,13 @@ mod tests {
     /// signed scalar, which is textually the same shape — each named
     /// with what it negates, so a new hit is either a vector fold that
     /// belongs at a door or a scalar that is added here in the open
-    /// with its reason. An entry whose fold has gone is not a red: the
-    /// claim is that no fold stands unnamed.
+    /// with its reason. Each entry admits one fold of its key, so a
+    /// second fold of a sanctioned name reds; an entry whose fold has
+    /// gone is not a red: the claim is that no fold stands unnamed.
     ///
     /// Exempt: the constructor's own home (`geom-brep/src/enters.rs`),
-    /// and every `#[cfg(test)]` item, whose rows and helpers spell a flip
+    /// and every `#[cfg(test)]` or `#[cfg(any(test, …))]` item (a
+    /// `test-support` feature beside `test`), whose rows and helpers spell a flip
     /// by hand on purpose and reach no material verdict a user sees.
     /// This file's doors are read like any other file's, so a fold in
     /// one of them is a hit.
@@ -1587,7 +1591,20 @@ mod tests {
             walked > 100,
             "the walk saw {walked} files — it is not reading crates/*/src"
         );
-        let unnamed: Vec<_> = hits.iter().filter(|h| !sanctioned.contains(h)).collect();
+        // Each entry is a ceiling on its key's count: a second fold of a
+        // sanctioned scalar in the same file is a new fold, and reds.
+        let tally = |rows: &[(String, String)]| {
+            let mut out = std::collections::BTreeMap::new();
+            for row in rows {
+                *out.entry(row.clone()).or_insert(0usize) += 1;
+            }
+            out
+        };
+        let admitted = tally(&sanctioned);
+        let unnamed: Vec<_> = tally(&hits)
+            .into_iter()
+            .filter(|(key, n)| *n > admitted.get(key).copied().unwrap_or(0))
+            .collect();
         assert!(
             unnamed.is_empty(),
             "hand folds under a face's sense bit that are not sanctioned scalars: \
