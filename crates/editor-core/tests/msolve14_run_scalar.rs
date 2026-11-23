@@ -799,10 +799,15 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
+///
+/// RE-PINNED for binders (D10 `[repetition]`): the corpus's pattern
+/// documents carry `SetYields`, so the ids this digest feeds move; every
+/// solved pose, placement, fault and refusal kind is unchanged (the
+/// id-free rows beside it hold).
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x01dd_3a8d_8b3c_2c48),
-    (1e-6, 0xe8e2_aa6e_988c_072b),
-    (1e-12, 0xfff6_a398_3383_fec2),
+    (1e-9, 0xb86d_0600_d939_c347),
+    (1e-6, 0xbf0b_441e_c788_25df),
+    (1e-12, 0xa9b0_d925_b676_bf4a),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
