@@ -23,25 +23,20 @@
 
 use crate::corpus;
 
-/// FNV-1a 64 over every node's name rows, key-free and id-free
-/// (`fixture::digest::name_rows`): each name, its node ids spelled by
-/// place, with the cell it denotes read by its geometry.
+/// FNV-1a 64 over every node's names by what they say
+/// (`fixture::digest::name_shapes`): each name, its node ids spelled by
+/// place, with its entry's shape — no arena key, no mint id and no
+/// geometry.
 fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |s: &str| {
-        for b in s.bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
+    let mut h = crate::fixture::digest::Fnv::new();
     for (place, id) in ev.order.iter().enumerate() {
-        feed(&format!("@node{place}"));
-        for row in crate::fixture::digest::name_rows(ev, *id) {
-            feed(&row);
-            feed(";");
+        h.feed(format!("@node{place}").as_bytes());
+        for row in crate::fixture::digest::name_shapes(ev, *id) {
+            h.feed(row.as_bytes());
+            h.feed(b";");
         }
     }
-    h
+    h.finish()
 }
 
 /// The pinned digest per registered document, in registry order.
@@ -56,9 +51,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// measurement is now this number: forty-two rim arcs and twelve box
 /// edges, in one pin.
 ///
-/// The digest reads each name's cell by its geometry and no arena key
-/// or mint id, so a renumbered arena or a re-minted id moves no row; a
-/// name that comes to denote another cell does.
+/// The digest reads each name by what it says and its entry's shape,
+/// with no arena key, mint id or geometry, so a renumbered arena, a
+/// re-minted id or a moved body moves no row; a renamed role, a new
+/// name or a new tie does. Which cell a name denotes is the seat
+/// digests' (`fixture::digest::digest`), which read it by its geometry.
 ///
 /// `die_composed` and `die_composed_tour` are the only registered
 /// documents that carve a CLOSED chain, so they are the only two whose
@@ -80,13 +77,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// blend composes the same `RoleSeg`s off the same upstream names. Its
 /// node id is minted from the node itself (N1), so a fillet and a
 /// chamfer mint two ids and their names differ in `node` alone; read by
-/// place, those are the same, and the two rows differ in the cells the
-/// blends leave.
+/// place, those are the same names.
 /// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
 /// where the two nodes differ and the names must be disjoint.
 ///
-/// A row moves when its document's names, or the cells they denote,
-/// move, and a row is added with every document the registry gains.
+/// A row moves when its document's names move, and a row is added with every document the registry gains.
 /// The PR that moves a row says which documents moved and why.
 /// [`every_corpus_documents_name_tables_are_golden`] reads it.
 const PINNED: &[(&str, u64)] = &[

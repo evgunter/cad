@@ -45,41 +45,19 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 }
 
 /// Names-only digest (review R11): each name with its node ids spelled
-/// by their place in the evaluation order (`fixture::digest::id_free`),
-/// and its entry's shape (unique by output body, or a tie by width),
-/// sorted — no arena key, no mint id. It moves only where what the
-/// names SAY moves: the role vocabulary, the entry shapes, the
-/// recipe's structure.
+/// by their place and its entry's shape (`fixture::digest::name_shapes`)
+/// — no arena key, no mint id. It moves only where what the names SAY
+/// moves: the role vocabulary, the entry shapes, the recipe's structure.
 fn digest_names(ev: &Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |s: &str| {
-        for b in s.bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
+    let mut h = crate::fixture::digest::Fnv::new();
     for (place, id) in ev.order.iter().enumerate() {
-        feed(&format!("@node{place}"));
-        let mut rows: Vec<String> = crate::fixture::tables(ev, *id)
-            .into_iter()
-            .flat_map(|t| t.iter())
-            .map(|(n, e)| {
-                let shape = match e {
-                    editor_core::Entry::Unique(r) => format!("u{}", r.body),
-                    editor_core::Entry::Tied(c) => format!("t{}", c.len()),
-                };
-                format!(
-                    "{}={shape};",
-                    crate::fixture::digest::id_free(ev, &format!("{n:?}"))
-                )
-            })
-            .collect();
-        rows.sort();
-        for row in rows {
-            feed(&row);
+        h.feed(format!("@node{place}").as_bytes());
+        for row in crate::fixture::digest::name_shapes(ev, *id) {
+            h.feed(row.as_bytes());
+            h.feed(b";");
         }
     }
-    h
+    h.finish()
 }
 
 /// The pinned names-only die digest ([`digest_names`]); update only on a

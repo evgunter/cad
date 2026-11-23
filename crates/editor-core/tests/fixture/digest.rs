@@ -45,10 +45,14 @@
 //! composed into its space through `in_space` ([`super::in_space`]): a
 //! copy is pinned where it stands, as its rebuilt body was.
 //!
-//! Geometry enters through `Debug`, whose `f64` rendering
-//! is the shortest round-tripping decimal: a bijection with the bits
-//! for every finite value, `-0.0` included. Nothing rendered from a
-//! classification band enters, so the constants are eps-independent.
+//! Geometry enters as its values: a carrier's or a curve's `Debug`
+//! read through [`canonical`], which keeps every number and every
+//! type or variant name and drops field names, `None`, `true` and
+//! `false`, so a renamed field, or an added field that holds nothing,
+//! moves no digest. An `f64`'s `Debug` is the shortest round-tripping
+//! decimal: a bijection with the bits for every finite value, `-0.0`
+//! included. Nothing rendered from a classification band enters, so the
+//! constants are eps-independent.
 //!
 //! # What it leaves out: arena keys and mint ids
 //!
@@ -63,20 +67,72 @@
 //! change to how ids are minted, moves no digest; a name that comes to
 //! denote another cell, a cell that moves, and a body whose topology
 //! changes each do.
+//!
+//! **What a cell does not reach is not fed.** A body is fed as its
+//! faces, its edges and its points; an arena entry no face or edge
+//! carries (a surface or a curve nothing reads) is not.
 
 use std::collections::BTreeMap;
 
 use editor_core::{BooleanValue, EntityKey, Evaluation, SplitSide, ValuePayload};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 
-/// FNV-1a 64 over `bytes`.
-fn fnv(bytes: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in bytes {
-        h ^= u64::from(*b);
-        h = h.wrapping_mul(0x1000_0000_01b3);
+/// FNV-1a 64, the one mixer every digest in these suites uses.
+pub struct Fnv(u64);
+
+impl Fnv {
+    pub fn new() -> Self {
+        Self(0xcbf2_9ce4_8422_2325)
     }
-    h
+
+    pub fn feed(&mut self, bytes: &[u8]) {
+        for b in bytes {
+            self.0 ^= u64::from(*b);
+            self.0 = self.0.wrapping_mul(0x1000_0000_01b3);
+        }
+    }
+
+    pub fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+/// FNV-1a 64 over `bytes`.
+pub fn fnv(bytes: &[u8]) -> u64 {
+    let mut h = Fnv::new();
+    h.feed(bytes);
+    h.finish()
+}
+
+/// **A value by its values**: a `Debug` rendering with each field name,
+/// `None`, `true` and `false` dropped, and every number, type and
+/// variant name kept in order. A field renamed, or added holding
+/// nothing, reads the same; a number that moves does not.
+pub fn canonical(debug: &str) -> String {
+    let chars: Vec<char> = debug.chars().collect();
+    let word = |c: char| c.is_alphanumeric() || "_.-#".contains(c);
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if !word(chars[i]) {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < chars.len() && word(chars[i]) {
+            i += 1;
+        }
+        let token: String = chars[start..i].iter().collect();
+        let mut next = i;
+        while next < chars.len() && chars[next] == ' ' {
+            next += 1;
+        }
+        let field = chars.get(next) == Some(&':') && chars.get(next + 1) != Some(&':');
+        if !field && !matches!(token.as_str(), "None" | "true" | "false") {
+            out.push(token);
+        }
+    }
+    out.join(" ")
 }
 
 /// **A body read with no arena key in it** — every cell by its
@@ -151,7 +207,10 @@ impl<'b> KeyFree<'b> {
 
     /// A cell's word: its kind, and a hash of its reading.
     fn word(&self, kind: &str, reading: String) -> String {
-        format!("{kind}#{:016x}", fnv(self.resolved(reading).as_bytes()))
+        format!(
+            "{kind}#{:016x}",
+            fnv(canonical(&self.resolved(reading)).as_bytes())
+        )
     }
 
     /// `text` with every key the body knows so far replaced by its word.
@@ -193,7 +252,7 @@ impl<'b> KeyFree<'b> {
             "[{} -> {} on {}]",
             self.vertex(a),
             self.vertex(b),
-            self.resolved(format!("{curve:?}"))
+            canonical(&self.resolved(format!("{curve:?}")))
         )
     }
 
@@ -241,29 +300,30 @@ impl<'b> KeyFree<'b> {
         format!(
             "{} {} outer {outer} rings {rings:?}",
             if record.sense { '+' } else { '-' },
-            self.resolved(format!("{surface:?}"))
+            canonical(&self.resolved(format!("{surface:?}")))
         )
     }
 
-    /// The cell a name table entry's key denotes, or its absence.
-    pub fn entity(&self, key: &EntityKey) -> String {
-        // A key the body does not hold reads as that absence: the
-        // table's entity is not a cell of the body it names it in.
-        match *key {
+    /// The cell a name table entry's key denotes, or `None` where the
+    /// body does not hold it.
+    pub fn entity(&self, key: &EntityKey) -> Option<String> {
+        Some(match *key {
             EntityKey::Body => "body".to_owned(),
-            EntityKey::Face(f) if self.body.get_face(f).is_some() => {
-                format!("face {}", self.face(f))
-            }
-            EntityKey::Edge(e) if self.body.get_edge(e).is_some() => {
+            EntityKey::Face(f) => format!("face {}", self.face_held(f)?),
+            EntityKey::Edge(e) => {
+                self.body.get_edge(e)?;
                 format!("edge {}", self.edge(e))
             }
-            EntityKey::Vertex(v) if self.body.get_vertex(v).is_some() => {
+            EntityKey::Vertex(v) => {
+                self.body.get_vertex(v)?;
                 format!("vertex {}", self.vertex(v))
             }
-            EntityKey::Face(_) => "a face the body does not hold".to_owned(),
-            EntityKey::Edge(_) => "an edge the body does not hold".to_owned(),
-            EntityKey::Vertex(_) => "a vertex the body does not hold".to_owned(),
-        }
+        })
+    }
+
+    fn face_held(&self, f: FaceKey) -> Option<String> {
+        self.body.get_face(f)?;
+        Some(self.face(f))
     }
 
     /// The whole body: its faces, its edges and its points, each sorted,
@@ -321,67 +381,96 @@ pub fn id_free(ev: &Evaluation<f64>, text: &str) -> String {
     out
 }
 
+/// Each name of one node's tables, id-free ([`id_free`]), with its
+/// entry, sorted by name.
+fn named(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> Vec<(String, editor_core::Entry)> {
+    let mut rows: Vec<(String, editor_core::Entry)> = super::tables(ev, id)
+        .into_iter()
+        .flat_map(|t| t.iter())
+        .map(|(n, e)| (id_free(ev, &format!("{n:?}")), e.clone()))
+        .collect();
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    rows
+}
+
+/// **One node's names, by what they say**: each name ([`id_free`]) with
+/// its entry's shape — unique in which output body, or a tie and its
+/// width — and no cell. What moves it is the role vocabulary, the entry
+/// shapes and the recipe's structure.
+pub fn name_shapes(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> Vec<String> {
+    named(ev, id)
+        .into_iter()
+        .map(|(name, e)| match e {
+            editor_core::Entry::Unique(r) => format!("{name}=u{}", r.body),
+            editor_core::Entry::Tied(c) => format!("{name}=t{}", c.len()),
+        })
+        .collect()
+}
+
 /// **One node's name tables, key-free and id-free**: each name
 /// ([`id_free`]) with the cell it denotes read by its geometry
-/// ([`KeyFree`]) in the output body it names it in, sorted.
+/// ([`KeyFree`]) in the output body it names it in, in name order. A
+/// key the body does not hold reads as an absent cell numbered in the
+/// order the names first meet it, so a name moving between two absent
+/// cells moves the row
+/// (`work/refs/a-split-values-name-table-names-faces-its-output-body-does-not-hold.md`).
 pub fn name_rows(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> Vec<String> {
     let Some(value) = ev.value(id) else {
         return Vec::new();
     };
+    let rows = named(ev, id);
     let mut bodies: BTreeMap<u32, Option<Body<f64>>> = BTreeMap::new();
-    for table in super::tables(ev, id) {
-        for (_, entry) in table.iter() {
-            let refs = match entry {
-                editor_core::Entry::Unique(r) => core::slice::from_ref(r),
-                editor_core::Entry::Tied(c) => c.as_slice(),
-            };
-            for r in refs {
-                bodies.entry(r.body).or_insert_with(|| {
-                    value
-                        .payload
-                        .output_body(r.body)
-                        .ok()
-                        .map(|b| b.body().clone())
-                });
-            }
+    for (_, entry) in &rows {
+        let refs = match entry {
+            editor_core::Entry::Unique(r) => core::slice::from_ref(r),
+            editor_core::Entry::Tied(c) => c.as_slice(),
+        };
+        for r in refs {
+            bodies.entry(r.body).or_insert_with(|| {
+                value
+                    .payload
+                    .output_body(r.body)
+                    .ok()
+                    .map(|b| b.body().clone())
+            });
         }
     }
     let reads: BTreeMap<u32, Option<KeyFree<'_>>> = bodies
         .iter()
         .map(|(i, b)| (*i, b.as_ref().map(KeyFree::new)))
         .collect();
-    let read = |r: &editor_core::EntityRef| match &reads[&r.body] {
-        Some(body) => format!("{}:{}", r.body, body.entity(&r.key)),
+    let mut absent: BTreeMap<editor_core::EntityRef, usize> = BTreeMap::new();
+    let mut read = |r: &editor_core::EntityRef| match &reads[&r.body] {
+        Some(body) => match body.entity(&r.key) {
+            Some(cell) => format!("{}:{cell}", r.body),
+            None => {
+                let next = absent.len();
+                let n = *absent.entry(*r).or_insert(next);
+                format!("{}:absent cell {n}", r.body)
+            }
+        },
         None => format!("{}:no body", r.body),
     };
-    let mut rows = Vec::new();
-    for table in super::tables(ev, id) {
-        for (name, entry) in table.iter() {
+    rows.into_iter()
+        .map(|(name, entry)| {
             let entry = match entry {
-                editor_core::Entry::Unique(r) => format!("u {}", read(r)),
+                editor_core::Entry::Unique(r) => format!("u {}", read(&r)),
                 editor_core::Entry::Tied(c) => {
-                    let mut tied: Vec<String> = c.iter().map(read).collect();
+                    let mut tied: Vec<String> = c.iter().map(&mut read).collect();
                     tied.sort();
                     format!("t {tied:?}")
                 }
             };
-            rows.push(format!("{}={entry}", id_free(ev, &format!("{name:?}"))));
-        }
-    }
-    rows.sort();
-    rows
+            format!("{name}={entry}")
+        })
+        .collect()
 }
 
 /// FNV-1a 64 over a document's evaluated name tables and values — see
 /// the module docs for what is fed and why.
 pub fn digest(ev: &Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |bytes: &[u8]| {
-        for b in bytes {
-            h ^= u64::from(*b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
+    let mut h = Fnv::new();
+    let mut feed = |bytes: &[u8]| h.feed(bytes);
     for (place, id) in ev.order.iter().enumerate() {
         feed(format!("@node{place}").as_bytes());
         let Some(value) = ev.value(*id) else { continue };
@@ -399,8 +488,9 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             ValuePayload::Body(body) => feed_body(&mut feed, &super::in_space(body)),
             ValuePayload::Boolean(bv) => match bv {
                 BooleanValue::Body { body, kind } => {
-                    let contacts =
-                        KeyFree::new(body.body()).resolved(format!("{:?}", value.carry.contacts));
+                    let contacts = canonical(
+                        &KeyFree::new(body.body()).resolved(format!("{:?}", value.carry.contacts)),
+                    );
                     feed(format!("{kind:?}{}", id_free(ev, &contacts)).as_bytes());
                     feed_body(&mut feed, &super::in_space(body));
                 }
@@ -422,7 +512,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             | ValuePayload::Family => {}
         }
     }
-    h
+    h.finish()
 }
 
 /// The body half of [`digest`]: the body's key-free reading

@@ -27,10 +27,12 @@ use geom_core::{SymCounts, SymRules, Tol};
 
 use crate::m10_9_pins_interval::measured_studies;
 
-/// **WHERE EACH REPLAY PAST ITS CEILING STOPS**, in `measured_studies`'
-/// order: `None` where it replays whole, or the predicate its refusal
-/// names. The claim below is over every decision taken before the stop,
-/// so a replay that stops earlier than this claims less, and reds.
+/// **WHERE EACH REPLAY PAST ITS CEILING STOPS, AND WHAT IT MAY NOT
+/// LOSE**, in `measured_studies`' order: the stop — `None` where it
+/// replays whole, or the predicate its refusal names — then a floor on
+/// `symbolic` and a ceiling on `frozen`. The claim below is over every
+/// decision taken before the stop, so a replay that stops earlier
+/// claims less, and reds.
 ///
 /// The plate and the annulus refuse nowhere the bisection reaches, and
 /// replay whole at [`PAST_NO_CEILING`]. The link replays whole too:
@@ -40,12 +42,22 @@ use crate::m10_9_pins_interval::measured_studies;
 /// settled by the segments' ends, which lie on the other carrier, so
 /// the bracket replays whole and the pad stops at its extrude's pcurve
 /// certification (`pcurve_envelope`).
-const PAST_THE_CEILING: [(&str, Option<&str>); 5] = [
-    ("two_hole_plate", None),
-    ("r1_annulus", None),
-    ("r2_link", None),
-    ("r2_filleted_bracket", None),
-    ("r2_rounded_pad", Some("pcurve_envelope")),
+///
+/// **The floor and the ceiling are witnesses of two open rows**, which
+/// ask whether moves of these columns were decisions lost:
+/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`
+/// and `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`.
+/// A theorem that goes numeric, or a form that newly freezes, reds
+/// here; a move the other way does not. They narrow to the stop alone
+/// once both rows close. `frozen` against `checks_expanded` is also the
+/// coverage of the dispute zero: a check over a frozen form cannot
+/// dispute.
+const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
+    ("two_hole_plate", None, 979, 36),
+    ("r1_annulus", None, 511, 36),
+    ("r2_link", None, 786, 2600),
+    ("r2_filleted_bracket", None, 1367, 57),
+    ("r2_rounded_pad", Some("pcurve_envelope"), 1483, 1967),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
@@ -96,8 +108,9 @@ fn replay_on_a_thread(
 /// witness contradicts its own form at NONE of them, at any ε.
 ///
 /// **What the zero speaks for is asserted beside it**: each replay
-/// stops where [`PAST_THE_CEILING`] says, the tier proved some of its
-/// decisions, and some of its contradiction checks saw a whole form,
+/// stops where [`PAST_THE_CEILING`] says, proves no fewer theorems and
+/// freezes no more forms than it says, and some of its contradiction
+/// checks saw a whole form,
 /// at ε = 1e-6, 1e-9 and 1e-12.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), on every PR
@@ -132,10 +145,17 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
                         want.1
                     ));
                 }
-                if counts.symbolic == 0 || counts.checks_expanded == 0 {
+                if counts.symbolic < want.2 || counts.frozen > want.3 {
                     moved.push(format!(
-                        "{name}: the tier proved nothing, or no contradiction check saw a \
-                         whole form, so the zeros below speak for nothing: {counts:?}"
+                        "{name}: symbolic {} under its floor {} or frozen {} over its ceiling \
+                         {}: {counts:?}",
+                        counts.symbolic, want.2, counts.frozen, want.3
+                    ));
+                }
+                if counts.checks_expanded == 0 {
+                    moved.push(format!(
+                        "{name}: no contradiction check saw a whole form, so the zeros below \
+                         speak for nothing: {counts:?}"
                     ));
                 }
                 if counts.registrations_contradicted != 0 {

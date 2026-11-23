@@ -223,14 +223,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `corner_table`, on
 /// `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`,
 /// and `boss_union`, on
-/// `work/onecopy/boss-unions-body-moved-at-6710-and-is-pinned-unjudged.md`.
+/// `work/onecopy/boss-unions-body-moved-at-6710-and-is-pinned-unjudged.md`
+/// and, for PR 7354's later move,
+/// `work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`.
 /// `die`, `cut_cylinder` and `kitchen_sink` are judged.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xabdd_0fd3_05f7_e91c),
         ("corner_table", 0xc3c5_eebd_572c_2d2e),
+        // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
         ("cut_cylinder", 0x6e02_833a_f76d_9770),
+        // Holds PR 7354's move unjudged; SECTCONE owes the judgement
+        // (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
         ("boss_union", 0x0748_38f9_8150_9644),
         ("kitchen_sink", 0x5f10_c612_cfdc_a7b5),
     ];

@@ -335,21 +335,30 @@ fn outcome_row<T: geom_core::Real>(seen: &Seen<'_, T>) -> Option<String> {
 
 /// **The fence at `Interval`**, where every profile is elaborated at the
 /// lane (its second pass): every node of the corpus comes out as it
-/// does at `f64`, and every coordinate of every point is an enclosure,
-/// finite with its ends in order.
+/// does at `f64`, and every coordinate of every point is an enclosure
+/// that holds the `f64` walk's coordinate at the same place.
 #[test]
 fn the_corpus_evaluation_at_interval_has_the_f64_outcomes() {
     use geom_core::{Bounds, Interval};
+    use std::collections::BTreeMap;
     let mut want = Vec::new();
-    walk::<f64>(|seen| want.extend(outcome_row(&seen)));
+    let mut at_f64: BTreeMap<(String, String, usize), [f64; 3]> = BTreeMap::new();
+    walk::<f64>(|seen| {
+        want.extend(outcome_row(&seen));
+        if let Seen::Point { doc, id, i, p, .. } = seen {
+            at_f64.insert((doc.to_owned(), format!("{id:?}"), i), p.to_array());
+        }
+    });
     let mut got = Vec::new();
     let mut bad = Vec::new();
     walk::<Interval>(|seen| {
         got.extend(outcome_row(&seen));
         if let Seen::Point { doc, id, i, p, .. } = seen {
-            for c in p.to_array() {
-                if !(c.lo().is_finite() && c.hi().is_finite() && c.lo() <= c.hi()) {
-                    bad.push(format!("{doc} {id:?} point {i}: {c:?}"));
+            let f = at_f64.get(&(doc.to_owned(), format!("{id:?}"), i));
+            for (k, c) in p.to_array().into_iter().enumerate() {
+                let holds = f.is_some_and(|f| c.lo() <= f[k] && f[k] <= c.hi());
+                if !(c.lo().is_finite() && c.hi().is_finite() && holds) {
+                    bad.push(format!("{doc} {id:?} point {i}[{k}]: {c:?} against {f:?}"));
                 }
             }
         }
@@ -359,7 +368,34 @@ fn the_corpus_evaluation_at_interval_has_the_f64_outcomes() {
         got, want,
         "a node of the corpus comes out differently at Interval than at f64"
     );
-    assert!(bad.is_empty(), "points that are not enclosures: {bad:?}");
+    assert!(
+        bad.is_empty(),
+        "points whose enclosure does not hold the f64 point: {bad:?}"
+    );
+}
+
+/// **The `Interval` corpus with ids masked, pinned** — the witness of
+/// an open P0 row, not a baseline. PR 7354 (SECTCONE, merge
+/// `4a94f7109b`) moved `boss_union`'s `Interval` enclosures, and PR 7299
+/// (judged) narrowed `cut_cylinder`'s; this pin holds PR 7354's move
+/// unjudged, and SECTCONE owes the judgement
+/// (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
+/// Once that row closes, this pin goes and the row above carries the
+/// fence.
+#[test]
+fn the_interval_corpus_holds_sectcones_move_unjudged() {
+    use geom_core::{Bounds, Interval};
+    let got = id_free_corpus_digest_at::<Interval>(
+        |p| {
+            p.to_array()
+                .into_iter()
+                .flat_map(|c| [c.lo().to_bits(), c.hi().to_bits()])
+                .collect()
+        },
+        |v| vec![v.lo().to_bits(), v.hi().to_bits()],
+    );
+    println!("m10-p fence interval id-free: {got:016x?}");
+    assert_eq!(got, (0, 0), "the corpus's Interval geometry moved");
 }
 
 /// **The fence at `Probe`**, the K-telemetry scalar: Probe is a
@@ -392,15 +428,29 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
 /// `id.0`, so a change to how ids are minted moves it with no point
 /// moving; this one moves only when an outcome or a point does.
 fn id_free_corpus_digest() -> (u64, u64) {
-    type Nodes = std::collections::BTreeMap<editor_core::MintId, (String, Vec<[u64; 3]>)>;
+    id_free_corpus_digest_at::<f64>(
+        |p| p.to_array().map(f64::to_bits).to_vec(),
+        |v| vec![v.to_bits()],
+    )
+}
+
+/// [`id_free_corpus_digest`] at `T`, each point and each fixture value
+/// read to its exact bits by `point` and `scalar`.
+fn id_free_corpus_digest_at<T: editor_core::test_support::AnyEvaluate>(
+    point: impl Fn(&geom_core::Point3<T>) -> Vec<u64>,
+    scalar: impl Fn(T) -> Vec<u64>,
+) -> (u64, u64) {
+    type Nodes = std::collections::BTreeMap<editor_core::MintId, (String, Vec<Vec<u64>>)>;
     let mut docs: Vec<(String, Nodes)> = Vec::new();
     let mut fixture = Digest::new();
-    walk::<f64>(|seen| match seen {
+    walk::<T>(|seen| match seen {
         Seen::Fixture(i) => fixture.u64(i as u64),
         Seen::FixtureLoop { vertices, .. } => fixture.u64(vertices as u64),
         Seen::FixtureVertex { x, y, sweep, .. } => {
             for c in [x, y, sweep] {
-                fixture.u64(c.to_bits());
+                for b in scalar(c) {
+                    fixture.u64(b);
+                }
             }
         }
         Seen::FixtureRefused(_) => fixture.text("refused"),
@@ -421,14 +471,14 @@ fn id_free_corpus_digest() -> (u64, u64) {
             .and_then(|(_, nodes)| nodes.get_mut(&id))
             .expect("a point is walked under its node")
             .1
-            .push(p.to_array().map(f64::to_bits)),
+            .push(point(p)),
     });
     let mut d = Digest::new();
     d.u64(fixture.lo);
     d.u64(fixture.hi);
     for (name, nodes) in docs {
         d.text(&name);
-        let mut held: Vec<(String, Vec<[u64; 3]>)> = nodes
+        let mut held: Vec<(String, Vec<Vec<u64>>)> = nodes
             .into_values()
             .map(|(outcome, mut points)| {
                 points.sort_unstable();

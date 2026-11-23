@@ -312,10 +312,26 @@ fn the_slabs_walks_build_one_ledger_and_freeze_nothing() {
 /// The holes' plane mates place by a reach read off the faces' cover
 /// (`topo::cover`), and the largest form is one of its norms, so a
 /// change to how a cover is read is what moves it.
+///
+/// **And the cap apex's lines freeze nothing** — the witness of an open
+/// row, not a baseline: rule D folds `sin` and `cos` of `q·atan X` but
+/// not `tan`, and a cap apex read through `tan(|Δθ|/4)` froze 104 nodes
+/// on each of `Early/Assertion` and `Door/Decision`
+/// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it.md`).
+/// The apex reads `Arc2::quarter_tan` now; a reader that mints the
+/// `tan` atom again reds here. It goes when that row closes.
 #[test]
 fn the_plates_largest_form_is_under_the_growth_guard() {
     let tol = Tol::witness();
-    let (_, largest) = walk_ledger("plate", &the_plate(tol), tol);
+    let (ledger, largest) = walk_ledger("plate", &the_plate(tol), tol);
+    let apex: Vec<_> = frozen_by_line(&ledger)
+        .into_iter()
+        .filter(|(label, _)| label == "Early/Assertion" || label == "Door/Decision")
+        .collect();
+    assert!(
+        apex.len() == 2 && apex.iter().all(|(_, n)| *n == 0),
+        "the cap apex's lines freeze nothing on the plate: {apex:?}"
+    );
     assert!(
         largest <= PLATE_MAX_TERMS,
         "the plate's largest form has {largest} terms, past the growth guard {PLATE_MAX_TERMS}"

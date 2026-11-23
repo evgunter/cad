@@ -67,11 +67,12 @@ pub(crate) struct Study {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Door {
     /// The door discharges nothing here: every decision it could answer
-    /// is a theorem of the tier's own algebra. Not replayed shut.
+    /// is a theorem of the tier's own algebra, so shut, the replay reads
+    /// the shipped receipt.
     Idle,
-    /// Shut, the replay refuses: the document certifies only through
-    /// the door.
-    LoadBearing,
+    /// Shut, the replay refuses at this predicate: the document
+    /// certifies only through the door.
+    LoadBearing(&'static str),
     /// Shut, the replay still certifies and decides the same decisions,
     /// and this many of them move from `symbolic` to `numeric`: what the
     /// door discharges here. A registrant that started stating
@@ -126,7 +127,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.029e2,
             refuses_at: Some(3.030e2),
             refused_by: None,
-            door: Door::LoadBearing,
+            // Door shut, limb 2 stalls against the cylinder rim.
+            door: Door::LoadBearing("Stalled { operand: Cylinder"),
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -464,16 +466,13 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// refuses.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`): two
-/// whole-box replays of the link, the bracket and the pad.
+/// whole-box replays of each of the five.
 #[test]
 fn m10_9_what_the_registry_buys() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let mut moved: Vec<String> = Vec::new();
     for study in measured_studies(tol) {
-        if matches!(study.door, Door::Idle) {
-            continue;
-        }
         let name = study.name;
         let doc = (study.at)(study.certifies_at * eps);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -487,15 +486,26 @@ fn m10_9_what_the_registry_buys() {
             on_refusal.is_none(),
             "{name}: certifies shipped: {on_refusal:?}"
         );
-        match (study.door, &off_refusal) {
-            (Door::LoadBearing, Some(_)) => {}
-            (Door::LoadBearing, None) => moved.push(format!(
+        let bought = match study.door {
+            Door::Idle => Some(0),
+            Door::Buys(n) => Some(n),
+            Door::LoadBearing(_) => None,
+        };
+        match (study.door, bought, &off_refusal) {
+            (Door::LoadBearing(predicate), _, Some(r)) => {
+                if !r.contains(predicate) {
+                    moved.push(format!(
+                        "{name}: shut, the replay refuses, but not at `{predicate}`: {r}"
+                    ));
+                }
+            }
+            (Door::LoadBearing(_), _, None) => moved.push(format!(
                 "{name}: the door is load-bearing, but shut the replay certifies: {off:?}"
             )),
-            (Door::Buys(_), Some(r)) => moved.push(format!(
+            (_, _, Some(r)) => moved.push(format!(
                 "{name}: shut, the replay refuses where it certified: {r}"
             )),
-            (Door::Buys(bought), None) => {
+            (_, Some(bought), None) => {
                 if off.decisions() != on.decisions() {
                     moved.push(format!(
                         "{name}: both certify, so the door moves decisions between columns \
@@ -510,7 +520,7 @@ fn m10_9_what_the_registry_buys() {
                     ));
                 }
             }
-            (Door::Idle, _) => unreachable!("an idle door is not replayed"),
+            (_, None, None) => unreachable!("only a load-bearing door buys no count"),
         }
     }
     assert!(
