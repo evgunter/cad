@@ -198,20 +198,21 @@ with EMBEDGATE's lane C.
 
 ## Measured and landed (lane `embed/verdict-read`, 2026-11-23)
 
-The unit lands on `embed/wave3-land`; `origin/embed/wave3-land` at
-`8d34076a9e` is merged in, and "before" below is that commit unless a
-line says otherwise. Every figure names the population it was measured
-on.
+The unit lands on `embed/wave3-land`. Its tip was merged twice, at
+`8d34076a9e` and then at `7f85375799` (main's unit directions and edge
+views, `embed/strip`, the tangent corner). "Before" below is
+`8d34076a9e` unless a line says otherwise, and each line says which
+merge it was measured on. Every figure names its population.
 
 **Verdicts.** None moved, on any population read:
 
 | population | before | after |
 |---|---|---|
-| `crates/sweep/tests/self_intersection_proves_injectivity.rs`, default ε, 1e-6 and 1e-12, `f64` and `Interval` twins | the landing branch's rows | 92 of 92 pass at each ε, the landing branch's rows among them with no verdict re-pinned |
+| `crates/sweep/tests/self_intersection_proves_injectivity.rs`, default ε, 1e-6 and 1e-12, `f64` and `Interval` twins | the landing branch's rows | on the first merge 92 of 92 at each ε; on the second 94 of 95 at each ε, the one red the notched rod, which does not build on that tip (`section_site_foot_bend`, SECTCONE's). No verdict of the landing branch's rows is re-pinned |
 | 24 probes: the half cone, a stepped ring and a stepped drum built off the dyadic grid, each as built, turned 0.7 rad about `(1, 2, 3)`, mirrored across a generic plane and a hundred units out, at `f64` and `Interval` | 23 embedded, 1 refused | the same 23 and the same 1, with the same receipts but the drum's as built (52 and 47 cells against 57 and 57) |
-| the tour's walk, 85 bodies at `f64`, default ε | @@BASEWALK@@ | 82 hold, 3 cross (`bench`, `bench60`, `bench90`) |
-| `editor-core`'s clearance rows (the document's strict same-body question) | — | 97 of 97 pass |
-| `topo` and `sweep`, every test (8333) | five red on main's own list | 8328 pass; the 4 red are on that list (`work/green/log.md`, 23 Nov, "nine topo and sweep slow rows red on main") |
+| the tour's walk, 85 bodies at `f64`, default ε, first merge | not taken on the landing branch (its build was stopped for memory) | 82 hold, 3 cross (`bench`, `bench60`, `bench90`). Against `embed/remeter` before either merge, no line of the walk differed |
+| `editor-core`'s clearance rows (the document's strict same-body question), first merge | not taken | 97 of 97 pass |
+| `topo` and `sweep`, every test (8333), first merge | not taken | 8328 pass. Of the 5 red, 4 are on main's own list (`work/green/log.md`, 23 Nov, "nine topo and sweep slow rows red on main"); the fifth, a door census reading two parameter names of this unit as field writes, was this unit's and is fixed |
 
 Before the merge, against `embed/remeter` at `18d52c6e9`: the 43
 `sweep::all` tests the census (`c2a0c41f40`) read
@@ -223,10 +224,21 @@ again on the merged tree.
 
 Two COUNTS moved, verdicts unchanged:
 `a_rod_less_a_tilted_slab_holds_across_its_curved_corners` read 14
-certificates through a corner at both scalars and reads 16 at `f64`
-and 18 at `Interval`, re-pinned per scalar; the off-grid drum as built
+certificates through a corner at both scalars and reads 16 at both
+(on the first merge, 16 and 18); the off-grid drum as built
 discharges 52 cells at `f64` and 47 at `Interval` where the landing
 branch discharges 57.
+
+**The sector sliver of `embed/strip` holds, with its receipt
+unchanged** (`contact9_side_codes::the_sector_slivers_meet_is_certified_by_the_reach_lever_once_its_faces_are_read`).
+That row was written to go red here, on the reading that the narrower
+face's run is the 20 mm over which the sliver's top and bottom stay
+within ε of each other. By the definition above both faces run the
+sliver's 10 m from the tip edge's line, the summed sine reads 500ε
+there, and the pair is certified: `Embedded`, receipt
+`(15, 24, 0, 0, 0, 9, 13)`, as before. Whether the tiers clause means
+the in-band stretch is not this unit's to settle; it is with the
+orchestrator.
 
 **The spec's pins.**
 - *The cone that owns its apex, cut through its axis, holds.* The
@@ -275,7 +287,10 @@ read: none is near a vertex alone that a face holds no run from.
 
 **A spline shared edge is read from its own arc** (more than the
 definition, which reads the whole carrier). 19 of the suite's rows
-and the walk read such loci (924 and 520 readings). @@SPLINE@@ Noted
+and the walk read such loci (924 and 520 readings). Whether any
+reading changes a verdict against the whole carrier was not measured:
+none of those rows' verdicts moved, which shows only that the
+over-read does not refuse. Noted
 on `work/honeone/the-wedge-reach-counts-a-faces-run-along-its-edge.md`.
 
 **Callers found beyond the spec's list.** The strict same-body sweep
