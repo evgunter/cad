@@ -3581,3 +3581,29 @@ fn probe_restored_a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
     assert!(report.receipt.refused > 0, "{:?}", report.receipt);
 }
 
+
+/// PROBE: every pair of plane faces of the half rod on a block that
+/// shares a vertex and no edge, at both scalars, as built.
+#[test]
+fn probe_plane_pairs_at_a_vertex_alone() {
+    fn run<T: Scalar>(body: &Body<T>, name: &str) {
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let face_of = |he| body.get_loop(body.get_half_edge(he).unwrap().parent_loop).unwrap().face;
+        let verts = |f: FaceKey| -> BTreeSet<VertexKey> {
+            body.edges().flat_map(|(_, e)| [e.he_plus, e.he_minus]).filter(|&h| face_of(h) == f).map(|h| body.get_half_edge(h).unwrap().start).collect()
+        };
+        let edges = |f: FaceKey| -> BTreeSet<topo::EdgeKey> {
+            body.edges().filter(|(_, e)| face_of(e.he_plus) == f || face_of(e.he_minus) == f).map(|(k, _)| k).collect()
+        };
+        for (i, &a) in faces.iter().enumerate() {
+            for &b in &faces[i + 1..] {
+                if !(matches!(surface(body, a), Surface::Plane { .. }) && matches!(surface(body, b), Surface::Plane { .. })) { continue; }
+                if verts(a).is_disjoint(&verts(b)) || !edges(a).is_disjoint(&edges(b)) { continue; }
+                let r = injective(body, Some(vec![a, b]), BUDGET);
+                println!("[probe-planes] {name} {a:?} {b:?}: {}", class(&r.verdict));
+            }
+        }
+    }
+    run(&half_rod_on_a_block::<f64>().into_body(), "f64");
+    run(&half_rod_on_a_block::<Interval>().into_body(), "Interval");
+}
