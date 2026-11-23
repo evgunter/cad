@@ -91,7 +91,7 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     assert!(fd.rings.is_empty(), "the base disc carries no ring");
     assert_eq!(
         loop_edges(&body, fd.outer).len(),
-        2,
+        1,
         "the base disc's outer cycle is exactly the rim"
     );
     let out = fillet_edges(
@@ -143,7 +143,7 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
     // arc of the rim, in that face's own outer cycle.
     assert_eq!(
         loop_edges(&body, fd.outer).len(),
-        2,
+        1,
         "the merged flat top's outer cycle is exactly this rim"
     );
     assert!(
@@ -201,7 +201,7 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
     };
     let mut both = rim_arcs_at(&source, 1.0, 0.0);
     both.extend(rim_arcs_at(&source, 0.2, 1.2));
-    assert_eq!(both.len(), 4, "two hostless rims of two arcs each");
+    assert_eq!(both.len(), 2, "two hostless rims of one edge each");
     let one_call = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &both,
@@ -287,11 +287,11 @@ fn r1_the_mixed_shared_support_arm_is_what_refuses_the_bosss_two_rims() {
     let body = boss();
     let mut both = rim_arcs_at(&body, 1.0, 1.0);
     both.extend(rim_arcs_at(&body, 0.5, 1.0));
-    assert_eq!(both.len(), 4, "the top rim and the dome rim, two arcs each");
+    assert_eq!(both.len(), 2, "the top rim and the dome rim, one edge each");
     // Both rims rest on the SAME merged flat top.
     assert_eq!(
-        plane_host(&body, &both[..2]),
-        plane_host(&body, &both[2..]),
+        plane_host(&body, &both[..1]),
+        plane_host(&body, &both[1..]),
         "one plane face carries the ladder ring and the annulus cycle"
     );
     match fillet_edges(

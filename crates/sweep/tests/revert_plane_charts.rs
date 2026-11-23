@@ -104,8 +104,8 @@ fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
         assert_mirrored(&format!("{ek:?}"), before, after, &schedule(&cavity, *ek));
     }
     assert_eq!(
-        circles, 2,
-        "the latitude ring's two half-circles are plane images"
+        circles, 1,
+        "the latitude ring's one circle are plane images"
     );
     assert!(
         stored.len() > circles,

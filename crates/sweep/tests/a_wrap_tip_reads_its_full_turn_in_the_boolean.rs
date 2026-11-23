@@ -33,11 +33,9 @@
 use crate::common::membership::{self, Region, ball, cuboid};
 use crate::common::wrap_tip::{cone, hemisphere, one_wrap_edge};
 use core::f64::consts::PI;
-use geom_brep::EdgeDescriptionSpec;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
-use topo::construction::Construct;
 use topo::{AtRestBody, BooleanResult, SplitPart, intersect, split, subtract};
 
 fn tol() -> Tol {
@@ -95,11 +93,11 @@ fn tipped_hemisphere() -> AtRestBody<f64> {
     )
 }
 
-/// The unit ball whose one wrap edge runs pole to pole: the full
-/// revolve's two meridians made one by `kef` at the north pole.
+/// The unit ball whose one wrap edge runs pole to pole, as the full
+/// revolve builds it.
 fn tipped_ball() -> AtRestBody<f64> {
     let t = (PI / 8.0).tan();
-    let mut body = revolved_about_y(
+    let body = revolved_about_y(
         vec![
             (Point2::new(0.0, -1.0), t),
             (Point2::new(1.0, 0.0), t),
@@ -108,19 +106,6 @@ fn tipped_ball() -> AtRestBody<f64> {
         Revolution::Full,
         tol(),
     );
-    let north = crate::common::wrap_tip::vertex_at(&body, crate::common::wrap_tip::NORTH);
-    let out = crate::common::wrap_tip::leaving(&body, north);
-    let wraps = body.get_half_edge(out[0]).unwrap().edge;
-    let surface = body
-        .get_face(body.face_of_half_edge(out[0]).unwrap())
-        .unwrap()
-        .surface;
-    body.kef_describing(
-        out[1],
-        &[(wraps, EdgeDescriptionSpec::wrap(surface))],
-        tol(),
-    )
-    .expect("the survivor restates as the ball's wrap edge");
     finished("the tipped ball", body, tol())
 }
 

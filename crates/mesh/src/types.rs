@@ -727,9 +727,6 @@ pub enum SphereTrimCause {
     /// domain (a sphere's `|v| > π/2`) mid-edge: the lane meets a row's
     /// point only at a loop vertex.
     PastPole,
-    /// The loop visits one mesh vertex at two chart locations off a
-    /// singular row (a seam traversed twice).
-    SeamTwice,
     /// A projected image comes so near a singular row that its
     /// closed-form azimuth speed bound `|p′|/ρ` is unbounded on it: no
     /// chord schedule is sized, because none is bounded.
@@ -764,7 +761,6 @@ impl SphereTrimCause {
     pub const fn name(self) -> &'static str {
         match self {
             Self::PastPole => "past_pole",
-            Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
             Self::ChordBudget => "chord_budget",
             Self::BothNappes => "both_nappes",
@@ -1086,10 +1082,6 @@ impl TessellateError {
                     SphereTrimCause::PastPole => {
                         "an edge's image runs past a chart pole or apex mid-edge, and \
                          the trimmed lane meets one only at a loop vertex"
-                    }
-                    SphereTrimCause::SeamTwice => {
-                        "its loop visits one vertex at two chart locations off a pole or \
-                         apex (a seam traversed twice)"
                     }
                     SphereTrimCause::ThroughPole => {
                         "an edge of its boundary passes so near a chart pole or apex that \

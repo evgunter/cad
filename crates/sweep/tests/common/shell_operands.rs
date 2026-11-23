@@ -56,6 +56,35 @@ pub fn vessel_at<T: Decide + topo::AtRestPolicy>(r: f64, h: f64) -> Body<T> {
     )
 }
 
+/// **The disc drum**: a circle of two half arcs on the `zx` plane,
+/// extruded `h` along `+y` — the vessel's solid (one cylinder of radius
+/// `r`, caps at `y = 0` and `y = h`) worn by TWO wall faces on one
+/// cylinder chart, parted by the two profile vertices' struts, each a
+/// DECLARED chart image (the profile vertex's extrusion declared it). A
+/// full revolve's wall is one face whose seam is derived, so the rows
+/// whose subject is a declared image on a shared curved chart stand on
+/// this body.
+pub fn disc_drum(r: f64, h: f64) -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(r, 0.0), 1.0),
+        (Point2::new(-r, 0.0), 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::zx(), vec![lp])
+        .validate(Tol::witness())
+        .expect("the two-arc disc is a valid profile");
+    sweep::extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the disc extrudes")
+    .body
+    .into_body()
+}
+
 /// **The tube**: the annular meridian `[ri, ro] × [0, h]` revolved a
 /// full turn — the curved two-shell shape the STEP gate is recorded on.
 pub fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {

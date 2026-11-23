@@ -9,7 +9,9 @@
 //! flux arm reads it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::seam_region_common::{flipped, seam_region, sphere_faces, split_at_meridian, v};
+use crate::seam_region_common::{
+    flipped, seam_region, sphere_faces, split_at_meridian, two_lunes, v,
+};
 use geom_brep::props::PropsError;
 use geom_core::Tol;
 use sweep::test_support::{ball_poled, brick, finished};
@@ -84,11 +86,9 @@ fn one_flipped_sibling_is_check_4s_lamina_and_not_the_census() {
 #[test]
 fn a_flipped_ringed_member_is_named_by_its_own_read_and_not_the_census() {
     let tol = Tol::witness();
-    let ball = finished(
-        "ball",
-        ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol),
-        tol,
-    );
+    let mut ball = ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol);
+    two_lunes(&mut ball, tol);
+    let ball = finished("ball", ball, tol);
     let bar = finished(
         "bar",
         brick::<f64>((-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4), tol),

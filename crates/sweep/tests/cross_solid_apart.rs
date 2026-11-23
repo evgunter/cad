@@ -81,7 +81,7 @@ fn refuses_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError])
 
 /// **The row's minimal repro**: a 1 × 2 revolved cylinder shelled at
 /// 0.2, then shelled again at 0.05, is two nested thin solids (4
-/// shells, 16 faces); a hollow torus shelled again is two nested thin
+/// shells, 12 faces); a hollow torus shelled again is two nested thin
 /// tubes. Both pass the census on no records. Red on main, where the
 /// cylinder's 32 face pairs and the torus's 16 refuse.
 #[test]
@@ -92,7 +92,7 @@ fn a_hollow_shelled_again_passes_the_census() {
         0.05,
     );
     assert_eq!(twice.solids().count(), 2, "two thin solids");
-    assert_eq!(twice.faces().count(), 16, "sixteen faces");
+    assert_eq!(twice.faces().count(), 12, "twelve faces: three per shell");
     assert_eq!(census(&twice), Ok(()), "the nested cylinders");
     let tori = shelled("the hollow torus", tube_torus_hollow(2.0, 0.5, 0.125), 0.05);
     assert_eq!(tori.solids().count(), 2, "two thin tubes");

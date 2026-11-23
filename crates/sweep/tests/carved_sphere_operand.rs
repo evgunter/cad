@@ -11,7 +11,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use topo::construction::Construct;
 
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
@@ -354,9 +353,9 @@ fn a_point_whose_antipode_is_a_face_vertex_is_read() {
     }
 }
 
-/// **A face whose only edge is a seam is the whole sphere.** Killing one
-/// of a ball's two meridians (`kef`) leaves ONE sphere face whose loop
-/// runs the other meridian pole to pole and back: both half-edges of
+/// **A face whose only edge is a seam is the whole sphere.** A full
+/// revolve's ball is ONE sphere face whose loop runs its one meridian
+/// pole to pole and back: both half-edges of
 /// that edge are the face's, so it bounds nothing, and every point of the
 /// sphere off it is in the face. Every great circle through such a point
 /// crosses the meridian once, at a crossing the loop holds twice, so a
@@ -366,15 +365,13 @@ fn a_point_whose_antipode_is_a_face_vertex_is_read() {
 fn a_face_whose_only_edge_is_a_seam_is_the_whole_sphere() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let mut slit = revolved_about_y(
+    let slit = revolved_about_y(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         Revolution::Full,
         tol,
     );
-    let meridian = slit.edges().next().map(|(_, e)| e.he_plus).unwrap();
-    slit.kef(meridian).expect("one meridian kills");
     let faces: Vec<_> = slit.faces().map(|(k, _)| k).collect();
-    assert_eq!(faces.len(), 1, "one sphere face is left");
+    assert_eq!(faces.len(), 1, "one sphere face");
     for (x, y, z) in [
         (0.6, 0.0, 0.8),
         (-0.6, 0.0, -0.8),

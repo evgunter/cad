@@ -163,6 +163,147 @@ fn a_plane_clear_of_a_sphere_or_torus_face_splits_the_body() {
     }
 }
 
+/// A full revolve's sphere face is one face whose seam runs from its rim
+/// to the pole at its tip and back, and its cover reads the latitude
+/// zone between the rim and that pole, not the ball: the cap's reaches
+/// `y ∈ [1, 1.5]` (its tip the `+y` pole), the truncated ball's
+/// `y ∈ [−1, 1]` (its tip the `−y` pole, past a hemisphere). The ball
+/// is `y ∈ [−1, 1.5]`, so each zone's far end off its tip is the rim,
+/// which a tip-blind reading of the face's side misses: the rim alone
+/// bounds a cap either way.
+#[test]
+fn a_one_band_sphere_faces_cover_is_its_zone_not_the_ball() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let pad = 1e-9;
+    for (name, body, (lo, hi)) in [
+        ("sphere cap", capped_cylinder(), (1.0, 1.5)),
+        ("truncated ball", truncated_ball(), (-1.0, 1.0)),
+    ] {
+        let spheres: Vec<_> = body
+            .faces()
+            .filter(|(_, f)| body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+            .map(|(k, _)| k)
+            .collect();
+        let [face] = spheres.as_slice() else {
+            panic!("{name}: one sphere face, got {}", spheres.len());
+        };
+        let cover = body.face_cover(*face, band).unwrap_or_else(|e| {
+            panic!("{name}: the sphere face has a cover: {e:?}");
+        });
+        let (below, above) = cover.range_along(Vec3::new(0.0, 1.0, 0.0));
+        assert!(
+            (lo - pad..=lo + pad).contains(&below) && (hi - pad..=hi + pad).contains(&above),
+            "{name}: the face reads y ∈ [{below}, {above}], its zone is [{lo}, {hi}]"
+        );
+    }
+}
+
+/// The sphere face of a full revolve of `chain`: its key and cover.
+fn one_sphere_face(name: &str, body: &AtRestBody<f64>) -> geom::cover::Cover<f64> {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let spheres: Vec<_> = body
+        .faces()
+        .filter(|(_, f)| body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+        .map(|(k, _)| k)
+        .collect();
+    let [face] = spheres.as_slice() else {
+        panic!("{name}: one sphere face, got {}", spheres.len());
+    };
+    body.face_cover(*face, band)
+        .unwrap_or_else(|e| panic!("{name}: the sphere face has a cover: {e:?}"))
+}
+
+/// A one-band sphere face's cover holds the face and is its zone: every
+/// sampled point of the face (the profile arc from `rim` to the pole at
+/// its tip, swept a full turn about `y`) lies within the cover's range
+/// along each of 64 directions spread over the sphere, and the range
+/// along `y` is the zone, not the ball. A concave face (a dimple, the
+/// material outside its sphere, so its sense is negative) and a cap
+/// whose rim is 3° from its pole read the same way as a convex cap.
+#[test]
+fn a_one_band_sphere_faces_cover_holds_the_face_at_either_sense_and_near_its_pole() {
+    // A dimple of radius √0.72 about (0, 1.6) in the top of the unit
+    // cylinder: the arc (0.6, 1) → (0, 1.6 − √0.72) runs clockwise.
+    let dimple_r = 0.72f64.sqrt();
+    let dimple_c = Point2::new(0.0, 1.6);
+    let dimple_pole = Point2::new(0.0, 1.6 - dimple_r);
+    let dimple = {
+        let (a, b) = (Point2::new(0.6, 1.0), dimple_pole);
+        let bulge = bulge_from_center(a, b, dimple_c, ArcSweep::Cw);
+        revolved(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (a, bulge),
+            (b, 0.0),
+        ])
+    };
+    // A thin rod of radius 0.05 under a unit sphere's cap: its rim is
+    // asin(0.05) ≈ 2.9° from the pole.
+    let rod_c = Point2::new(0.0, 1.0 - (1.0f64 - 0.0025).sqrt());
+    let rod_pole = Point2::new(0.0, rod_c.y + 1.0);
+    let rod = {
+        let (a, b) = (Point2::new(0.05, 1.0), rod_pole);
+        let bulge = bulge_from_center(a, b, rod_c, ArcSweep::Ccw);
+        revolved(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.05, 0.0), 0.0),
+            (a, bulge),
+            (b, 0.0),
+        ])
+    };
+    let pad = 1e-9;
+    let golden = PI * (3.0 - 5f64.sqrt());
+    let dirs: Vec<Vec3<f64>> = (0..64)
+        .map(|i| {
+            let y = 1.0 - 2.0 * (f64::from(i) + 0.5) / 64.0;
+            let rho = (1.0 - y * y).sqrt();
+            let phi = golden * f64::from(i);
+            Vec3::new(rho * phi.cos(), y, rho * phi.sin())
+        })
+        .collect();
+    for (name, body, center, radius, rim, pole) in [
+        (
+            "dimple",
+            dimple,
+            dimple_c,
+            dimple_r,
+            Point2::new(0.6, 1.0),
+            dimple_pole,
+        ),
+        ("rod cap", rod, rod_c, 1.0, Point2::new(0.05, 1.0), rod_pole),
+    ] {
+        let cover = one_sphere_face(name, &body);
+        let (below, above) = cover.range_along(Vec3::new(0.0, 1.0, 0.0));
+        let (lo, hi) = (rim.y.min(pole.y), rim.y.max(pole.y));
+        assert!(
+            (lo - pad..=lo + pad).contains(&below) && (hi - pad..=hi + pad).contains(&above),
+            "{name}: the face reads y ∈ [{below}, {above}], its zone is [{lo}, {hi}]"
+        );
+        let (a0, a1) = (
+            (rim.y - center.y).atan2(rim.x),
+            (pole.y - center.y).atan2(pole.x),
+        );
+        let ranges: Vec<_> = dirs.iter().map(|&d| (d, cover.range_along(d))).collect();
+        for i in 0..=16 {
+            let a = a0 + (a1 - a0) * f64::from(i) / 16.0;
+            let (rho, y) = (radius * a.cos(), center.y + radius * a.sin());
+            for k in 0..24 {
+                let theta = 2.0 * PI * f64::from(k) / 24.0;
+                let p = Vec3::new(rho * theta.cos(), y, rho * theta.sin());
+                for &(d, (lo, hi)) in &ranges {
+                    let s = p.dot(d);
+                    assert!(
+                        lo - pad <= s && s <= hi + pad,
+                        "{name}: the face point {p:?} reads {s} along {d:?}, outside the \
+                         cover's [{lo}, {hi}]"
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// The plane taking a small dome off the cap near its pole, on the
 /// `−z` side: its normal is the cap's radial direction 15° from the pole
 /// toward `−z`, at 1.23 from the sphere's centre, so it meets the cap in a
