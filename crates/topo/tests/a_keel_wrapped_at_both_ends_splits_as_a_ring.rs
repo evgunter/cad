@@ -343,14 +343,11 @@ fn a_keel_wrapped_at_both_ends_splits_with_its_keel_a_ring() {
 /// tip.** The side round the keel, split again: by `x = 2`, across the
 /// ring's two edges, into halves of `15.7 / 2` whose copies of the
 /// crossing share one point key; by `x = 1.5` and `x = 2.5` through its
-/// tips, and by `z = 0` along it. At a tip the section face wraps a full
-/// turn round the ring's two coincident edges, and each side holds its
-/// closed form and passes tier 3′ against its records. By `y = 2`, upright
-/// along it, the cut parts the ring's edge–edge record onto its two sides,
-/// each edge lying in the plane and bounding no face of the cut, and the
-/// split refuses `Carry { Parted }`: the touch lies in the cut plane, which
-/// the carry has no rule to retire
-/// (`work/doctail/a-record-the-split-parts-has-no-consumption-rule.md`).
+/// tips, and by `y = 2` and `z = 0` along it. At a tip the section face
+/// wraps a full turn round the ring's two coincident edges, and each side
+/// holds its closed form and passes tier 3′ against its records. By
+/// `y = 2`, upright along it, the cut parts the ring's edge–edge record
+/// onto its two sides, each edge on the cut, and the carry consumes it.
 #[test]
 fn a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip() {
     let tol = t();
@@ -417,6 +414,13 @@ fn a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip() {
             6.0,
         ),
         (
+            "along it, upright",
+            [0.0, 2.0, 0.0],
+            [0.0, 1.0, 0.0],
+            7.85,
+            7.85,
+        ),
+        (
             "along it, in its plane",
             [0.0, 0.0, 0.0],
             [0.0, 0.0, 1.0],
@@ -444,15 +448,6 @@ fn a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip() {
                 "{what}: volume {v}, closed form {volume}"
             );
         }
-    }
-    match split(&walls, &plane([0.0, 2.0, 0.0], [0.0, 1.0, 0.0]), tol) {
-        Err(topo::SplitError::Finish(topo::SplitFinishError::Carry {
-            refusal: topo::CarryRefusal::Parted { .. },
-        })) => {}
-        other => panic!(
-            "the cut along it, upright: {:?}, not the parted record's refusal",
-            other.map(drop)
-        ),
     }
 }
 

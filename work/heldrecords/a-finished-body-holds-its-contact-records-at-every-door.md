@@ -143,7 +143,7 @@ The eager graft census is the one new cost: 10.2 s over 2,679 calls.
 - `split_along_a_pinch_face`: a plane along a face through a union
   pinch refuses `Carry { Parted }` at the kernel door, where the kernel
   dropped the record silently and the document already refused
-  (`work/doctail/a-record-the-split-parts-has-no-consumption-rule.md`).
+  (`work/heldrecords/a-record-the-split-parts-has-no-consumption-rule.md`).
 - `a_vertex_read_by_two_sector_passes::a_touching_vertex_along_two_arches_shared_ray_*`:
   tier 3′ holds in 4 results of the first pyramid, was 1 (the plain
   doors carry the arches' records).

@@ -4436,7 +4436,6 @@ fn carried<T: Decide + AtRestPolicy>(
             &mut confirms,
             band,
             T::region_lane(),
-            None,
         )
         .map_err(|refusal| {
             // A carried record cites the operand's record it is; a ring
@@ -5646,16 +5645,9 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
             what: "the carry refused a row it places by lineage",
         },
     };
-    let landed = super::records::landings(
-        &[row],
-        &lineage,
-        &[body],
-        confirms,
-        band,
-        T::region_lane(),
-        None,
-    )
-    .map_err(refused)?;
+    let landed =
+        super::records::landings(&[row], &lineage, &[body], confirms, band, T::region_lane())
+            .map_err(refused)?;
     landed
         .into_iter()
         .map(|l| {

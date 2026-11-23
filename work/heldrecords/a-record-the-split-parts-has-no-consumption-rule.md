@@ -2,10 +2,12 @@
 id: a-record-the-split-parts-has-no-consumption-rule
 kind: issue
 title: A contact record whose cells the split's plane parts has no consumption rule in topo's carry; the document drops it after a check instead
-status: open
-priority: P3
+status: closed
+priority: P1
 cost: M
 opened: 2026-11-01
+design: true
+closed: 2026-11-23
 ---
 
 
@@ -72,3 +74,34 @@ this row asks for (a touch lying in the cut plane retires) would build
 it again. Every recorded coincident pair a later cut runs along reaches
 this, curved ones included, so the rule now gates the slit forms'
 reuse as well as the union pinch.
+
+## Claimed by HELDRECORDS and re-banded P1 (2026-11-23, HELDRECORDS orchestrator)
+
+HELDRECORDS claimed this row from DOCTAIL by `git mv`; the id and body are unchanged. Plan step 3 (PR 7481, `heldrecords/split-on`) makes the split record its own coincident edges, per Ev's PR 5967 ruling. A later cut whose plane contains a recorded slit's or ring's two edges then refuses `Carry { Parted }` where it built before. The witness is `a_keel_wrapped_at_both_ends_splits_as_a_ring::a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip`, a cut at y = 2: 7.85 | 7.85 before. Every recorded slit or ring a later cut runs along reaches it, so a legal split refuses: P1. The row blocks step 3's landing, and a blocker inherits the band of what waits on it.
+
+Two Opus designers are weighing the question (Fable is unavailable this sitting). Their statement is `origin/heldrecords/briefs:briefs/fork-parted-record.md`. The answer changes the README's carry paragraph, a design page, so it goes to Ev unless the designers agree and the text they would change turns out unratified.
+
+## Ruled (2026-11-23, Ev on PR 7489)
+
+The carry consumes a record whose two cells the op puts in different
+result bodies where each cell reaches the cut by a decision the op made:
+an image of each holds a vertex of the split's ON set (the operand
+vertices it decided ON, the crossings and tangencies it minted there,
+`SplitReduction::on_vertices`, and their copies). Otherwise the record
+refuses `Parted`, a lineage defect. `crates/topo/README.md`'s carry
+paragraph states it.
+
+## Closed (2026-11-23, `heldrecords/split-on`, PR 7481)
+
+Built in topo's one carry (`boolean::records::landings`, every caller's,
+the Boolean's included): the ON set travels on the lineage
+(`MintedBacking::OneCut { on }`, from `SplitNaming::on_the_cut`), and the
+interim section-face test, the opt-in carry and its `Parting` list are
+gone. `split_along_a_pinch_face` builds, each brick with no record; the
+ring's `y = 2` cut builds `7.85 | 7.85` again, each side at 3′ against its
+records. The precondition is pinned by
+`splitting::finish::parted_on_the_cut::a_parted_record_is_consumed_only_on_the_cut`
+(the same carry with the ON set emptied refuses `Parted`). The
+postcondition the ruling leans on, that each side's cells lie in its
+closed half-space, is not checked by the split: filed as
+`work/heldrecords/the-split-checks-no-postcondition-that-each-sides-cells-lie-in-its-half-space.md`.

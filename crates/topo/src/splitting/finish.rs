@@ -266,18 +266,14 @@ impl<T: crate::props::AtRestPolicy> Sides<'_, T> {
     /// **`records`, the operand's, carried onto the two sides** through
     /// [`Self::lineage`] ([`crate::ContactRecords::carried_through`], at
     /// `band` through `region`), each side's records citing the
-    /// operand's, **a record the cut parts across the cut retired**: a
-    /// record whose two cells the cut puts on different sides, each cell
-    /// with an image on the cut, is a touch between the two sides, as
-    /// their meeting across the cut is, and no one side's records state
-    /// it. An image is on the cut where it is a face its side holds of
-    /// the plane ([`SplitNaming::plane_pieces`]) or a cell bounding one.
+    /// operand's. A record the cut parts, each cell reaching the cut by a
+    /// vertex the split decided on it, is consumed by the carry: it is a
+    /// meeting between the two sides across the cut, which no one side's
+    /// records state.
     ///
     /// # Errors
     ///
-    /// As [`crate::ContactRecords::carried_through`];
-    /// [`CarryRefusal::Parted`] for a parted record a cell of which has
-    /// no image on the cut.
+    /// As [`crate::ContactRecords::carried_through`].
     pub(in crate::splitting) fn carried_across(
         &self,
         records: &crate::boolean::ContactRecords,
@@ -286,40 +282,7 @@ impl<T: crate::props::AtRestPolicy> Sides<'_, T> {
     ) -> Result<SplitContacts, CarryRefusal> {
         let sides = self.listed();
         let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
-        let mut parted = Vec::new();
-        let lists =
-            records.carried_onto(0, &self.lineage(), &bodies, band, region, Some(&mut parted))?;
-        let pieces: Vec<Vec<FaceKey>> = sides
-            .iter()
-            .map(|&(side, body)| self.naming.plane_pieces(side, body).faces)
-            .collect();
-        let on_cut = |s: usize, cell: Cell| {
-            let body = sides[s].1;
-            let piece = |f: FaceKey| pieces[s].contains(&f);
-            match cell {
-                Cell::Face(f) => piece(f),
-                Cell::Edge(e) => body.get_edge(e).is_some_and(|edge| {
-                    [edge.he_plus, edge.he_minus]
-                        .into_iter()
-                        .filter_map(|he| body.face_of_half_edge(he))
-                        .any(piece)
-                }),
-                Cell::Vertex(v) => body
-                    .faces_of_vertex(v)
-                    .is_some_and(|faces| faces.into_iter().any(piece)),
-            }
-        };
-        for parting in parted {
-            if !parting
-                .held
-                .iter()
-                .all(|held| held.iter().any(|&(s, c)| on_cut(s, c)))
-            {
-                return Err(CarryRefusal::Parted {
-                    record: parting.record,
-                });
-            }
-        }
+        let lists = records.carried_onto(0, &self.lineage(), &bodies, band, region)?;
         let mut out = SplitContacts::default();
         for ((side, _), list) in sides.iter().zip(lists) {
             match side {
@@ -459,7 +422,7 @@ impl<'a, T: Real> Sides<'a, T> {
             .through_fusions(&self.naming.vertex_fusions)
             .through_merges(merged)
             .through_joins(&joins)
-            .one_cut();
+            .one_cut(self.naming.on_the_cut());
         let mut copies: Vec<(crate::entity::VertexKey, Vec<Cell>)> = Vec::new();
         for &(copy, original) in &self.naming.vertex_pairs {
             match copies.iter_mut().find(|(o, _)| *o == original) {
@@ -634,6 +597,10 @@ pub struct SplitNaming {
     /// held by the vertex that survives it, a copy as well as an
     /// original ([`Self::vertex_pairs`]).
     pub vertex_fusions: crate::lineage::Fusions,
+    /// The vertices the split decided on the plane: the operand vertices
+    /// it decided ON and the crossings and tangencies it minted there
+    /// ([`super::SplitReduction::on_vertices`]), in discovery order.
+    pub on_vertices: Vec<crate::entity::VertexKey>,
 }
 
 /// A side's faces that hold part of the tool plane
@@ -655,6 +622,26 @@ pub struct PlanePieces {
 }
 
 impl SplitNaming {
+    /// **The split's ON set**: [`Self::on_vertices`] and every copy of
+    /// one a null edge made ([`Self::vertex_pairs`]), the vertices by
+    /// which a cell reaches the cut ([`crate::Lineage::on_the_cut`]).
+    #[must_use]
+    pub fn on_the_cut(&self) -> std::collections::BTreeSet<crate::entity::VertexKey> {
+        let mut on: std::collections::BTreeSet<_> = self.on_vertices.iter().copied().collect();
+        loop {
+            let copies: Vec<_> = self
+                .vertex_pairs
+                .iter()
+                .filter(|(copy, original)| on.contains(original) && !on.contains(copy))
+                .map(|&(copy, _)| copy)
+                .collect();
+            if copies.is_empty() {
+                return on;
+            }
+            on.extend(copies);
+        }
+    }
+
     /// **The operand vertex `v` stands for**: `v` itself, or the end of
     /// its chain of null-pair rows ([`Self::vertex_pairs`]), a copy of a
     /// copy chased to the original.
@@ -889,6 +876,7 @@ impl Default for SplitNaming {
             merge_skipped: Default::default(),
             islands: Default::default(),
             vertex_fusions: crate::lineage::Fusions::new(crate::lineage::LineageRows::Fusions),
+            on_vertices: Default::default(),
         }
     }
 }
@@ -1580,7 +1568,10 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         return Ok(RawSplit::from_reduction(
             rows,
             sides,
-            SplitNaming::default(),
+            SplitNaming {
+                on_vertices: red.on_vertices.clone(),
+                ..SplitNaming::default()
+            },
             coincident,
         ));
     }
@@ -1604,6 +1595,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         merge_groups: Vec::new(),
         merge_skipped: Vec::new(),
         islands: Vec::new(),
+        on_vertices: red.on_vertices.clone(),
         vertex_fusions: crate::lineage::Fusions::new(crate::lineage::LineageRows::Fusions),
     };
 
@@ -3539,6 +3531,80 @@ mod desync_rows {
         assert!(
             empty.contains("Recourse:") && !empty.contains(defect_ending(Reading::Build)),
             "an empty operand is the caller's: {empty}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod parted_on_the_cut {
+    use geom_core::{Point3, Tol, Vec3};
+
+    use super::{RawPart, Sides};
+    use crate::CarryRefusal;
+    use crate::body::Body;
+
+    /// **A record the cut parts is consumed only where each cell reaches
+    /// the cut** (`crates/topo/README.md`, the carry). Two bricks united
+    /// along the line `(1, 1, z)`, their pinch's vertex-pair record, split
+    /// by `x = 1`, which puts a brick on each side: carried through the
+    /// split's lineage, the record is consumed, its two cells on vertices
+    /// the split decided ON. The same carry with the ON set emptied, a
+    /// lineage defect, refuses it `Parted`. Red on a carry that consumes
+    /// every parted record, or none.
+    #[test]
+    fn a_parted_record_is_consumed_only_on_the_cut() {
+        let tol = Tol::witness();
+        let brick = |x, y| {
+            crate::test_support::finished(
+                "a brick",
+                crate::test_support_fixtures::brick::<f64>(x, y, (0.0, 1.0), tol),
+                tol,
+            )
+        };
+        let crate::BooleanResult::Body(pinch) = crate::union(
+            &brick((0.0, 1.0), (0.0, 1.0)),
+            &brick((1.0, 2.0), (1.0, 2.0)),
+            tol,
+        )
+        .unwrap() else {
+            panic!("the pinch is empty");
+        };
+        let records = crate::FinishedBody::records(&pinch.body).clone();
+        assert!(!records.is_empty(), "the pinch holds its record");
+        let mut operand = Body::clone(&pinch.body);
+        operand.merge_all_solids().unwrap();
+        let plane = crate::test_support::split_plane(
+            Point3::new(1.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            tol,
+        );
+        let (above, below, mut naming, ..) = super::super::split_direct(&operand, &plane, tol)
+            .unwrap()
+            .into_parts();
+        let body = |p: RawPart<f64>| match p {
+            RawPart::Body(b) => b,
+            RawPart::Empty => panic!("a brick lies on each side"),
+        };
+        let (above, below) = (body(above), body(below));
+        let band = geom_core::Band::linear(tol).unwrap();
+        let carry = |naming: &super::SplitNaming| {
+            Sides {
+                above: Some(&above),
+                below: Some(&below),
+                naming,
+            }
+            .carried_across(&records, band, None)
+        };
+        let on = carry(&naming).expect("the record parted on the cut is consumed");
+        assert!(
+            on.above.is_empty() && on.below.is_empty(),
+            "neither side carries the parted record: {on:?}"
+        );
+        naming.on_vertices.clear();
+        assert!(
+            matches!(carry(&naming), Err(CarryRefusal::Parted { record: 0 })),
+            "with no vertex on the cut the parted record refuses"
         );
     }
 }

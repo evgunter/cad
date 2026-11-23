@@ -74,12 +74,19 @@ pub enum Remainder {
 }
 
 /// How a carry backs two cells an op minted, one on each of a record's
-/// two cells, that meet at a point.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// two cells, that meet at a point, and a record the op parts.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum MintedBacking {
     /// One cut made both, so they meet where the record puts them: the
-    /// landing cites the record alone. The split's one plane.
-    OneCut,
+    /// landing cites the record alone. The split's one plane, with the
+    /// vertices it decided on the cut (`on`, its ON set: the operand
+    /// vertices it decided ON, the crossings and tangencies it minted
+    /// there, and the copies of each), by which a record it parts is
+    /// read as reaching the cut.
+    OneCut {
+        /// The ON set, in the result bodies' keys.
+        on: std::sync::Arc<std::collections::BTreeSet<crate::entity::VertexKey>>,
+    },
     /// The op cannot back the meeting, and the carry refuses it.
     Refused,
 }
@@ -249,15 +256,28 @@ impl Lineage {
     }
 
     /// The lineage of an op whose one cut made every pair of cells it
-    /// minted on a record's two cells ([`MintedBacking::OneCut`]).
+    /// minted on a record's two cells, the vertices it decided on the cut
+    /// `on` ([`MintedBacking::OneCut`]).
     #[must_use]
-    pub(crate) fn one_cut(mut self) -> Self {
-        self.meeting = MintedBacking::OneCut;
+    pub(crate) fn one_cut(
+        mut self,
+        on: std::collections::BTreeSet<crate::entity::VertexKey>,
+    ) -> Self {
+        self.meeting = MintedBacking::OneCut {
+            on: std::sync::Arc::new(on),
+        };
         self
     }
 
-    pub(crate) fn meeting(&self) -> MintedBacking {
-        self.meeting
+    /// The vertices the op decided on its cut, where it is one cut's
+    /// ([`MintedBacking::OneCut`]).
+    pub(crate) fn on_the_cut(
+        &self,
+    ) -> Option<&std::collections::BTreeSet<crate::entity::VertexKey>> {
+        match &self.meeting {
+            MintedBacking::OneCut { on } => Some(on),
+            MintedBacking::Refused => None,
+        }
     }
 
     /// The lineage of an op that glues a record's cells into one cell,

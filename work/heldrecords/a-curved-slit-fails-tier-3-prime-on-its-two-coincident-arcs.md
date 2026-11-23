@@ -166,4 +166,4 @@ records, the `ci` profile of topo, sweep and editor-core at the default
 Not reached by that run: the split's curved pinch along a closed keel
 (filed: `a-splits-curved-pinch-along-a-closed-keel-records-no-edge-edge-pair`).
 A later cut along a recorded slit now refuses `Carry { Parted }`
-(`work/doctail/a-record-the-split-parts-has-no-consumption-rule.md`).
+(`work/heldrecords/a-record-the-split-parts-has-no-consumption-rule.md`).
