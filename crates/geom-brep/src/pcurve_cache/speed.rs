@@ -367,8 +367,10 @@ pub(super) fn projected_speeds(
 /// and `(−sin, cos)`, so `|g × 2g′| = |det M|` exactly and `|g| ≥ σ_min(M)`:
 /// the rate is at most `|det M| / (2·σ_min²) = σ_max² / (2·|det M|)`, from
 /// `σ_min·σ_max = |det M|`. `σ_max²` is the larger eigenvalue of `MᵀM`.
-/// Read in interval arithmetic; a `det M` whose enclosure holds zero (the
-/// conic's radial part a segment, a meridian's) bounds nothing.
+/// Read in interval arithmetic as the magnitude of `σ_max² / (2·det M)`,
+/// whose sign is `det M`'s; a `det M` whose enclosure holds zero (the
+/// conic's radial part a segment, a meridian's) refuses the quotient and
+/// bounds nothing.
 fn pole_azimuth_speed(image: &ProjectedImage<f64>) -> Result<f64, NoSpeedBound> {
     let (Some(pole), FramedCarrier::Conic { a, b, .. }) = (image.pole(), image.carrier()) else {
         unreachable!("an image with a pole end is a conic's")
@@ -378,10 +380,9 @@ fn pole_azimuth_speed(image: &ProjectedImage<f64>) -> Result<f64, NoSpeedBound> 
     let (ax, ay, bx, by) = (i(ga.x), i(ga.y), i(gb.x), i(gb.y));
     let (aa, bb, ab) = (ax.sqr() + ay.sqr(), bx.sqr() + by.sqr(), ax * bx + ay * by);
     let sigma_max_sq = i(0.5) * (aa + bb) + hyp(i(0.5) * (aa - bb), ab);
-    let det = ax * by - ay * bx;
-    let det = if det.hi() < 0.0 { i(0.0) - det } else { det };
-    if det.lo() > 0.0 {
-        finite((sigma_max_sq / (i(2.0) * det)).hi())
+    let rate = sigma_max_sq / (i(2.0) * (ax * by - ay * bx));
+    if rate.is_certified() {
+        finite(rate.mag())
     } else {
         Err(NoSpeedBound::ThroughSingularSet)
     }
