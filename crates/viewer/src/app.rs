@@ -11768,10 +11768,7 @@ mod properties_pane_tests {
             height_px: f64::from(rect.height()) * ppp,
         };
         let is_rim = |name: &pncad::prelude::StableName| {
-            matches!(
-                name.path.as_slice(),
-                [.., RoleSeg::BandRim(_)]
-            )
+            matches!(name.path.as_slice(), [.., RoleSeg::BandRim(_)])
         };
         let aimed = {
             let index = driven.on_screen();

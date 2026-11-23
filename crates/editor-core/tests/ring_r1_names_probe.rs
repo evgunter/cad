@@ -96,7 +96,10 @@ fn full_wire_holed_revolve_names_totally() {
     // And the wire outer names one band per off-axis side (loop 0), its
     // cylinder's seam the one meridian, the axis side none.
     for s in 0..3 {
-        assert!(t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some(), "outer side {s}");
+        assert!(
+            t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some(),
+            "outer side {s}"
+        );
     }
     assert!(t.lookup(&band(rev, pe(&doc, rev, 0, 3))).is_none());
     assert!(

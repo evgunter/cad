@@ -295,8 +295,8 @@ use pncad::prelude::{
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
-    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, edge_name,
-    face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
+    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, edge_name, face_carrier_kind,
+    face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, BooleanError};

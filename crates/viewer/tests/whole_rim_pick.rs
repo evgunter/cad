@@ -195,10 +195,7 @@ fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
     let node = common::drawn_node(session.committed_doc(), node);
     let index = plate_index(&session);
     let edges = drawn(&index, node, 0);
-    let a = edges
-        .iter()
-        .find(|e| is_rim(&e.name))
-        .expect("an arc");
+    let a = edges.iter().find(|e| is_rim(&e.name)).expect("an arc");
     let whole = index.whole_edge(a).expect("the index answers the rim");
     let b = edges
         .iter()
@@ -265,10 +262,7 @@ fn a_held_rim_through_an_edit_that_makes_the_revolve_partial() {
     let node = common::drawn_node(session.committed_doc(), feature);
     let index = plate_index(&session);
     let edges = drawn(&index, node, 0);
-    let a = edges
-        .iter()
-        .find(|e| is_rim(&e.name))
-        .expect("an arc");
+    let a = edges.iter().find(|e| is_rim(&e.name)).expect("an arc");
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
@@ -319,10 +313,7 @@ fn a_held_rim_through_an_undo_that_removes_the_body() {
     let node = common::drawn_node(session.committed_doc(), feature);
     let index = plate_index(&session);
     let edges = drawn(&index, node, 0);
-    let a = edges
-        .iter()
-        .find(|e| is_rim(&e.name))
-        .expect("an arc");
+    let a = edges.iter().find(|e| is_rim(&e.name)).expect("an arc");
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
