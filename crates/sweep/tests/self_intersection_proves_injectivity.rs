@@ -7181,3 +7181,27 @@ fn review_probe_ball_on_the_other_nappe() {
         }
     }
 }
+
+/// REVIEW PROBE: the receipts of a generic-tilt cut's halves and of its
+/// half against its cut cap, so an extent mutant's effect (cells dropped
+/// as outside) shows where no verdict moves.
+#[test]
+fn review_probe_receipts_under_a_generic_tilt() {
+    for above in [true, false] {
+        let body = cone_cut::<f64>(OFF_GRID, (0.43, 0.3, 0.7), above).into_body();
+        let halves = injective(&body, Some(cone_faces(&body)), BUDGET);
+        println!(
+            "[rp] receipt halves above {above}: {} {:?} cornered {}",
+            class(&halves.verdict),
+            halves.receipt,
+            halves.cornered
+        );
+        let all = injective(&body, None, BUDGET);
+        println!(
+            "[rp] receipt whole above {above}: {} {:?} cornered {}",
+            class(&all.verdict),
+            all.receipt,
+            all.cornered
+        );
+    }
+}
