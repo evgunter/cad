@@ -20,3 +20,9 @@ Found by DOCTAIL's `main-red-the-identity-turns-decisions-moved-the-m10-slow-row
 - **`sweep` `a_plane_through_a_cones_apex::a_plane_through_a_{30,45}_degree_cones_apex_cuts_its_closed_forms`** (`a_plane_through_a_cones_apex.rs`, the assertion near :218). Red at 1e-6 only. At α = 30° and 45°, θ = 0, tilt 0.001, normal 1·n, the plane refuses `Reduce(CrossingEscalated { edge: EdgeKey(6v1), fault: Method { door: PlaneCrossing, fault: Unsettled(Tangency) } })`, where the row pins `ConsecutiveOnSectors`. The default ε is green.
 
 Neither was bisected.
+
+**Also seen, on a row GREEN already holds:** `sweep` `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` is red on `fa42c60`, on `ccabcfb` and on `da61db71a` alike. But its β 0.5, spin 0.5 refusal reads differently:
+- `Euler(RebasedCarrier { edge: EdgeKey(15v1), error: PeriodicView(Span { … }) })` on `fa42c60` and `ccabcfb`;
+- `Euler(DescriptionUncertified { edge: Keyed(EdgeKey(15v1)), … })` on `da61db71a`.
+
+Opt-level 0 and 2 agree. So a merge in `ccabcfb..da61db71a` changed which door refuses there. It was not bisected.
