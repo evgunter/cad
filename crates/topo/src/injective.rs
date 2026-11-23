@@ -3022,13 +3022,17 @@ fn posed_extent(
 /// section, a circle of another sphere) would shift the hull by that
 /// offset times the latitude's tangent, the unsound way, so it is no
 /// row of a granted extent.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre, read for whether the circle lies on the sphere: its offset from the sphere's centre along and across the circle's axis; owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn on_sphere(carrier: &Curve3<Interval>, centre: Point3<Interval>, radius: Interval) -> bool {
     let Some(c) = carrier.as_circle() else {
         return false;
     };
     let r2 = radius.powi(2);
     let off = c.frame().origin() - centre;
-    let on_axis = off.cross(c.frame().axis());
+    let on_axis = off.cross(c.axis());
     let rest = off.dot(off) + c.radius().powi(2) - r2;
     let small = |x: Interval, tol: f64| x.is_certified() && x.lo() >= -tol && x.hi() <= tol;
     let (length, area) = (few_ulps(radius.hi()), few_ulps(r2.hi()));
@@ -3232,12 +3236,9 @@ fn pose_circles(
         if seam(e) || !is_curved(surface, e) {
             continue;
         }
-        match out
-            .iter_mut()
-            .find(|(_, a, _)| one_line(*a, c.frame().axis()))
-        {
+        match out.iter_mut().find(|(_, a, _)| one_line(*a, c.axis())) {
             Some((es, ..)) => es.push(i),
-            None => out.push((vec![i], c.frame().axis(), c.frame().u_ref())),
+            None => out.push((vec![i], c.axis(), c.u_ref())),
         }
     }
     out
