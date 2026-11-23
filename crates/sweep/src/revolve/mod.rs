@@ -8,32 +8,39 @@
 //!   every sketch point gets a signed **radial coordinate**
 //!   `r(p) = (p − origin)·ê_r = (p − origin).perp_dot(d̂)` and an axial
 //!   coordinate `z(p) = (p − origin)·d̂`. The profile may lie on either
-//!   side of the axis line: one wholly at `r ≤ 0` revolves as the same
-//!   turn about the reversed axis (`−d̂`, `−θ`), which puts it at
-//!   `r ≥ 0`, so everything below reads the profile in the closed
-//!   half-plane `r ≥ 0` (the half-plane check: a definite `r < 0`
-//!   anywhere is then a profile across the axis, a typed error; the
-//!   sliver band is a typed error too — micro-radius revolve is a
-//!   genuine sliver).
+//!   side of the axis line. One wholly at `r ≤ 0` is the same turn about
+//!   the reversed axis (`−d̂`, `−θ`), where it lies at `r ≥ 0`, and the
+//!   builders read it there (`AxisFrame::reflected`); so the half-plane
+//!   check reads every profile in the closed half-plane `r ≥ 0` of the
+//!   frame it builds in (a definite `r < 0` anywhere is then a profile
+//!   across the axis, a typed error; the sliver band is a typed error
+//!   too — micro-radius revolve is a genuine sliver). What the body
+//!   hands out follows the AUTHORED axis whichever frame built it: the
+//!   wall charts' axis, the gaps' rank, the caps where the authored
+//!   turn puts them.
 //! - **Angle.** [`Revolution::Partial`] carries a **signed** angle θ in
 //!   radians, right-hand rule about the world axis direction
 //!   `a₃ = place·d̂`; `|θ|` must classify definitely inside `(0, 2π)`
 //!   (zero/sliver ⇒ typed error; `|θ| ≥ 2π` at tolerance ⇒ typed error —
-//!   an exactly-full revolve must say [`Revolution::Full`], which sweeps
-//!   `+2π`). Angular margins are metered in meters through the profile's
-//!   maximum radial extent (D4 ¶1 — the lever arm is named).
-//! - **Winding.** For θ > 0 the rotation carries the profile toward the
-//!   `−n` side of the sketch plane (velocity `a₃ × radial` at angle 0),
-//!   so the **start cap** (on the sketch plane) is outward-`+n` and
-//!   carries the profile's canonical winding; the sweep therefore
-//!   traverses the chains **reversed** for θ > 0, forward for θ < 0.
-//!   `θ > 0` is this verb's answer to the question extrude answers
-//!   with `w·n < 0`; both feed the one `swept::swept_segments`, which
-//!   is where the involution itself lives. [`Revolution::Full`] sweeps +2π and reverses
-//!   likewise.
+//!   an exactly-full revolve must say [`Revolution::Full`]). Angular
+//!   margins are metered in meters through the profile's maximum radial
+//!   extent (D4 ¶1 — the lever arm is named).
+//! - **Winding.** In the frame it builds in, for θ > 0 the rotation
+//!   carries the profile toward the `−n` side of the sketch plane
+//!   (velocity `a₃ × radial` at angle 0), so the **start cap** (on the
+//!   sketch plane) is outward-`+n` and carries the profile's canonical
+//!   winding; the sweep therefore traverses the chains **reversed** for
+//!   θ > 0, forward for θ < 0. A profile to the authored axis's left
+//!   turns toward `+n` for an authored θ > 0: it builds at `−θ`, so its
+//!   start cap is outward-`−n` and its chains run forward. `θ > 0` is
+//!   this verb's answer to the question extrude answers with `w·n < 0`;
+//!   both feed the one `swept::swept_segments`, which is where the
+//!   involution itself lives. [`Revolution::Full`] sweeps +2π about the
+//!   axis it builds about and reverses likewise.
 //! - **The shared azimuthal frame.** Every revolution surface minted by
-//!   one revolve call uses `axis = +a₃` and `u_ref = u₃ = place·ê_r`,
-//!   anchored on the placed axis line — so the `u = 0` iso-curve of
+//!   one revolve call uses `axis` the AUTHORED `a₃` and `u_ref = u₃`, the
+//!   placed radial towards the profile (`AxisFrame::chart`), anchored on
+//!   the placed axis line — so the `u = 0` iso-curve of
 //!   every wall is the **angle-0 meridian half-plane**, which is where
 //!   the profile sits. A full revolve's surviving meridian edges are
 //!   therefore exactly the `u = 0` iso-curves: they re-describe as
@@ -164,8 +171,9 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::rows::WALL_COSURFACE;
 
 /// The revolve axis: a line in **sketch coordinates** (module docs).
-/// The profile lies wholly on one side of it, either side; `dir` and
-/// the sign of a partial angle together say which way it turns.
+/// The profile lies wholly on one side of it, either side. `dir` and the
+/// sign of a partial angle together say which way it turns; a full
+/// revolve's body is the same for either `dir`.
 #[derive(Clone, Copy, Debug)]
 pub struct RevolveAxis<T: Real> {
     /// A point on the axis, sketch-plane meters.
@@ -305,9 +313,10 @@ pub enum CavityOrigin {
     },
     /// The region a gap between two consecutive axis runs of the outer
     /// loop closes: gap 0 lies between the two runs lowest along the
-    /// axis direction, gap 1 above it, and so on.
+    /// authored axis direction, gap 1 above it, and so on, whichever
+    /// side of the axis the profile lies on.
     Pocket {
-        /// The gap's rank along the axis direction.
+        /// The gap's rank along the authored axis direction.
         gap: usize,
     },
 }
@@ -386,7 +395,9 @@ pub enum RevolvedKind<T: Real> {
     /// θ < 2π: wedge caps plus both meridian chains.
     Partial {
         /// The start cap — on the sketch plane; carries the profile's
-        /// canonical winding for θ > 0 (module docs).
+        /// canonical winding where the turn carries the profile toward
+        /// the plane's `−n` side: θ > 0 for a profile right of the
+        /// authored axis, θ < 0 for one to its left (module docs).
         start_cap: FaceKey,
         /// The end cap — on the sketch plane rotated by θ.
         end_cap: FaceKey,
@@ -415,7 +426,9 @@ pub enum RevolvedKind<T: Real> {
     /// holes are strictly off-axis by validated containment) sweeps
     /// two π-bands so poles/apexes keep valence 2 (tier 2's strut
     /// ban): `walls`/`rims` are the angle-0…π band, the `pi_*` fields
-    /// the π…2π band, for the outer shell's stretch and every gap's
+    /// the π…2π band (angles about the axis the revolve builds about,
+    /// which for a profile to the authored axis's left is the reversed
+    /// one), for the outer shell's stretch and every gap's
     /// cavity stretch alike. In either case a PLANE wall is one face with no
     /// meridian — an annulus whose inner circle is a ring, or (wire
     /// case only) a disc whose centre is no vertex — so its `meridians`
@@ -1172,27 +1185,21 @@ pub(crate) fn revolve_construction<T: Decide + topo::AtRestPolicy>(
     }
     let authored = axis::AxisFrame::build(*profile.plane(), &axis, band)?;
     // ---- The side (module docs: axis): a profile to the axis's left
-    // revolves as the same turn about the reversed axis. ----
-    let (frame, revolution) = if axis::lies_left(profile, &authored, band) {
-        let reversed = RevolveAxis {
-            origin: axis.origin,
-            dir: Vec2::new(T::zero() - axis.dir.x, T::zero() - axis.dir.y),
-        };
+    // builds as the same turn about the reversed axis. ----
+    let reach = axis::RadialReach::of(profile, &authored);
+    let (frame, revolution) = if reach.lies_left(band) {
         let revolution = match revolution {
             Revolution::Full => Revolution::Full,
             Revolution::Partial(t) => Revolution::Partial(T::zero() - t),
         };
-        (
-            axis::AxisFrame::build(*profile.plane(), &reversed, band)?,
-            revolution,
-        )
+        (authored.reflected(), revolution)
     } else {
         (authored, revolution)
     };
 
     // ---- Angle classification (module docs), metered at the
     // profile's maximum radial extent (the named lever arm). ----
-    let r_max = axis::radial_extent(profile, &frame);
+    let r_max = reach.extent();
     let (theta, reverse, full) = match revolution {
         Revolution::Full => (T::tau(), true, true),
         Revolution::Partial(t) => (t, partial_angle_reverses(t, r_max, band)?, false),
