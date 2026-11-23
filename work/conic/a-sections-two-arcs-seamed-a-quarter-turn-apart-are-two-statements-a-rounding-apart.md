@@ -67,6 +67,13 @@ held at the centre, `u_ref` of the second the first's stored `v`
 direction and the semi-axes exchanged). The cylinder's cap cut holds at
 `f64` all the same in three of four placements, by another reading.
 
+Of the 24 cone/cone census tests run through the at-rest gate with
+PR 7605's reading and this unit's in one tree, 12 still fail, and none
+of the 12 was traced to a quarter turn: their refusals are a cone
+against a plane (5), two cones (5), a plane against a torus (1) and a
+depth budget (1), and they are the 12 that failed before the anchored
+ellipse.
+
 **Not checked:** the census tests' own bodies (the count above is of
 14 bodies built here, not of the census), and which other section doors
 seam two arcs of one conic a quarter turn apart.

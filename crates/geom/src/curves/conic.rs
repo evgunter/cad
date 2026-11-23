@@ -1286,7 +1286,9 @@ mod tests {
     /// the centre, so every other pattern states another ellipse. All
     /// negated at once (the axis, `u_ref` and both phase components) is
     /// not one of them: it is the mirror image across the tangent at the
-    /// anchor. Each restatement's point at the parameter its identity
+    /// anchor. Held at the centre, where no phase exists, all four
+    /// patterns on the axis and `u_ref` are restatements: the centre and
+    /// both axis lines are kept by each. Each restatement's point at the parameter its identity
     /// names is the ellipse's own: bit for bit run back, where `−θ` is
     /// exact, and to the parameter's rounding through a half turn, where
     /// `θ + π` is not. Red if a pattern outside the group is a
@@ -1341,6 +1343,21 @@ mod tests {
             }
         }
         assert_eq!(restated.len(), 4, "{restated:?}");
+        // Held at the centre there is no phase to pair: every one of the
+        // four sign patterns on the axis and `u_ref` is a restatement.
+        let centred = |sn: f64, su: f64| {
+            super::Ellipse::new(crate::Frame::new(anchor, n * sn, u * su), 0.75, 0.4)
+        };
+        for sn in signs {
+            for su in signs {
+                assert!(
+                    centred(1.0, 1.0).restatements().iter().any(|r| {
+                        Curve3::Ellipse(*r).same_content(&Curve3::Ellipse(centred(sn, su)))
+                    }),
+                    "held at the centre: {sn} {su}"
+                );
+            }
+        }
         let [_, half, back, both] = e.restatements();
         for theta in [-2.9, -0.7, 0.0, 0.3, 1.1, 2.4, 5.0] {
             let p = Conic::point_at(&e, theta);
