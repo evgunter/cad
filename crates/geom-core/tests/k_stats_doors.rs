@@ -608,8 +608,14 @@ fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
     );
     let offered = fixed.offered_band().unwrap();
     assert_eq!(offered.zero(), band.offer_deciding(6e-9 - 2e-9).unwrap());
-    assert_eq!(decide_across(NAMES, 6e-9, 2e-9, offered), Ok(Sign::Positive));
-    assert_eq!(decide_across(NAMES, -6e-9, 2e-9, offered), Ok(Sign::Negative));
+    assert_eq!(
+        decide_across(NAMES, 6e-9, 2e-9, offered),
+        Ok(Sign::Positive)
+    );
+    assert_eq!(
+        decide_across(NAMES, -6e-9, 2e-9, offered),
+        Ok(Sign::Negative)
+    );
     let far_offer = Band::new(8e-9 / k, 8e-9).unwrap();
     assert_eq!(
         decide_across(NAMES, 6e-9, 2e-9, far_offer)
@@ -619,9 +625,8 @@ fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
         "the far reading's own offer leaves the floor in band"
     );
 
-    let scaled = |datum: f64, bands: f64, band: Band| {
-        decide_across(NAMES, datum, bands * band.zero(), band)
-    };
+    let scaled =
+        |datum: f64, bands: f64, band: Band| decide_across(NAMES, datum, bands * band.zero(), band);
     let tie = scaled(0.0, 9.9, band).unwrap_err();
     assert_eq!(tie.predicate, Some("row"));
     assert!(!tie.offers_tolerance(), "a reading that is its own swing");
@@ -632,7 +637,10 @@ fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
     let sized = scaled(3e-9, 0.8, band).unwrap_err();
     assert_eq!(sized.predicate, Some("row"));
     let smaller = sized.offered_band().unwrap();
-    assert_eq!(smaller.zero(), band.offer_deciding(3e-9 - 0.8 * band.zero()).unwrap());
+    assert_eq!(
+        smaller.zero(),
+        band.offer_deciding(3e-9 - 0.8 * band.zero()).unwrap()
+    );
     assert_eq!(scaled(3e-9, 0.8, smaller), Ok(Sign::Positive));
 
     let boxed = |lo: f64, hi: f64, swing: f64| {
