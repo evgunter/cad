@@ -349,9 +349,7 @@ fn candidates(
 /// ([`Surface::axis_line`]); a sphere's centre has no axis of its own.
 fn axis(s: &Surface<f64>) -> Option<Line<f64>> {
     match s {
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => {
-            s.axis_line().map(Line::unit)
-        }
+        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => s.axis_line(),
         _ => None,
     }
 }
@@ -387,7 +385,7 @@ fn plane_of(s: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
 /// Where `line` meets the plane through `p` with normal `n`; `None` where
 /// the line runs nearer along the plane than across it.
 fn meets(line: Line<f64>, (p, n): (Point3<f64>, Vec3<f64>)) -> Option<Point3<f64>> {
-    let across = n.dot(line.dir);
+    let across = n.dot(line.dir.get());
     (across.abs() > std::f64::consts::FRAC_1_SQRT_2)
         .then(|| line.at(n.dot(p - line.origin) / across))
 }
@@ -419,7 +417,7 @@ fn gap(kind: SnapRelation, a: &Surface<f64>, b: &Surface<f64>, reach: &Reach) ->
                 return far;
             };
             meets(line, plane).map_or(far, |pivot| {
-                plane.1.cross(line.dir).norm() * reach.from(pivot)
+                plane.1.cross(line.dir.get()).norm() * reach.from(pivot)
             })
         }
         SnapRelation::Coaxial => match (axis(a), axis(b)) {
@@ -658,7 +656,7 @@ fn tangent(
         }
     };
     // Square to the axis, so the move is a translation across it.
-    let delta = delta - line.dir * delta.dot(line.dir);
+    let delta = delta - line.dir.get() * delta.dot(line.dir.get());
     Ok((
         Surface::Cylinder {
             frame: cylinder_frame.with_origin(origin + delta),
@@ -746,16 +744,16 @@ fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface
             // Turned onto the kept direction about the moved axis's point
             // at its faces, and carried onto the kept line there.
             let pivot = from.foot(faces.centre());
-            let dir = if from.dir.dot(onto.dir) < 0.0 {
+            let dir = if from.dir.get().dot(onto.dir.get()) < 0.0 {
                 -onto.dir
             } else {
                 onto.dir
             };
             let to = onto.foot(pivot);
-            carry(&mut out, from, (pivot, to), dir);
+            carry(&mut out, from, (pivot, to), dir.get());
             (
                 out,
-                (to - pivot).norm() + (dir - from.dir).norm() * faces.from(pivot),
+                (to - pivot).norm() + (dir.get() - from.dir.get()).norm() * faces.from(pivot),
             )
         }
         (Some(onto), None) => {
@@ -771,7 +769,12 @@ fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface
                 return (out, f64::INFINITY);
             };
             let delta = c - from.foot(c);
-            carry(&mut out, from, (from.origin, from.origin + delta), from.dir);
+            carry(
+                &mut out,
+                from,
+                (from.origin, from.origin + delta),
+                from.dir.get(),
+            );
             (out, delta.norm())
         }
         (None, None) => {
@@ -809,23 +812,23 @@ fn axis_normal(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Sur
         return (moved.clone(), f64::INFINITY);
     };
     if matches!(moved, Surface::Plane { .. }) {
-        let normal = if n.dot(line.dir) < 0.0 {
+        let normal = if n.dot(line.dir.get()) < 0.0 {
             -line.dir
         } else {
             line.dir
         };
-        let u_ref = geom::Frame::new(pivot, normal, u_ref).square().u_ref;
+        let u_ref = geom::Frame::new(pivot, normal.get(), u_ref).square().u_ref;
         (
             Surface::Plane {
-                frame: geom::Frame::new(pivot, normal, u_ref),
+                frame: geom::Frame::new(pivot, normal.get(), u_ref),
             },
-            (normal - n).norm() * faces.from(pivot),
+            (normal.get() - n).norm() * faces.from(pivot),
         )
     } else {
-        let dir = if line.dir.dot(n) < 0.0 { -n } else { n };
+        let dir = if line.dir.get().dot(n) < 0.0 { -n } else { n };
         let mut out = moved.clone();
         carry(&mut out, line, (pivot, pivot), dir);
-        (out, (dir - line.dir).norm() * faces.from(pivot))
+        (out, (dir - line.dir.get()).norm() * faces.from(pivot))
     }
 }
 
@@ -843,7 +846,7 @@ fn carry(
         Surface::Cylinder { frame, .. }
         | Surface::Torus { frame, .. }
         | Surface::Cone { frame, .. } => {
-            let along = from.dir.dot(frame.origin() - pivot);
+            let along = from.dir.get().dot(frame.origin() - pivot);
             let at = to + dir * along;
             // The seam squared to the new axis, as the frame door squares it.
             *frame = geom::Frame::new(at, dir, frame.u_ref());

@@ -137,7 +137,10 @@ fn hunt(
     let surface_i = surface.map_scalar(f);
     let line_i = Curve3::line(
         Point3::new(f(line.origin.x), f(line.origin.y), f(line.origin.z)),
-        Vec3::new(f(line.dir.x), f(line.dir.y), f(line.dir.z)),
+        // The direction lifted as a direction, its polar enclosure: a
+        // point box of a rounded unit vector encloses none, and `checked`
+        // would poison it.
+        line.dir.map_scalar(f),
     );
     let at = |t: f64| distance(&surface_i, &line_i, t.clamp(t0, t1));
     let n: u32 = 2000;
@@ -155,14 +158,17 @@ fn hunt(
     for &i in peaks.iter().take(8) {
         best = best.max(golden(&at, grid[i - 1], grid[i + 1]));
     }
-    let uu = line.dir.dot(line.dir);
+    let uu = line.dir.get().dot(line.dir.get());
     let mut near: Vec<f64> = singular
         .iter()
-        .map(|s| (*s - line.origin).dot(line.dir) / uu)
+        .map(|s| (*s - line.origin).dot(line.dir.get()) / uu)
         .collect();
-    if let Some(geom::Line { origin: o, dir: a }) = surface.axis_line().map(geom::Line::unit) {
+    if let Some(geom::Line { origin: o, dir: a }) = surface.axis_line() {
         let (q, u) = (line.origin - o, line.dir);
-        let (qo, uo) = (q - a * q.dot(a), u - a * u.dot(a));
+        let (qo, uo) = (
+            q - a.get() * q.dot(a.get()),
+            u.get() - a.get() * u.get().dot(a.get()),
+        );
         near.push(-qo.dot(uo) / uo.dot(uo));
     }
     for c in near.into_iter().filter(|c| c.is_finite()) {
@@ -244,7 +250,7 @@ fn draw(rng: &mut fuzz::Rng, surface: &Surface<f64>, singular: &[Point3<f64>]) -
     let tilt = unit(rng) * tilt_by;
     let (point, dir) = match rng.below(5) {
         4 => match surface.axis_line() {
-            Some(axis) => (axis.at(rng.range(-1.0, 1.0)), axis.dir),
+            Some(axis) => (axis.at(rng.range(-1.0, 1.0)), axis.dir.get()),
             None => (wall, unit(rng)),
         },
         0 | 1 => {
@@ -267,7 +273,13 @@ fn draw(rng: &mut fuzz::Rng, surface: &Surface<f64>, singular: &[Point3<f64>]) -
     };
     geom::Line {
         origin: point + offset - dir * rng.range(-1.0, 1.0),
-        dir: (dir + tilt) * rng.log_uniform(0.25, 4.0),
+        // A line's direction is unit, so a drawn length has no carrier
+        // to land on: the tilted direction is squared, and the length's
+        // draw is still made so every later draw is the stream it was.
+        dir: {
+            let _unrepresentable_length = rng.log_uniform(0.25, 4.0);
+            geom_core::UnitVec3::squared(dir + tilt)
+        },
     }
 }
 
@@ -289,7 +301,7 @@ fn no_parameter_of_the_span_is_farther_than_the_read() {
                 read(&surface, &line, span),
                 hunt(&surface, &singular, &line, span),
             );
-            let reach = (line.origin - Point3::origin()).norm() + line.dir.norm() * 2.0 + 3.0;
+            let reach = (line.origin - Point3::origin()).norm() + line.dir.get().norm() * 2.0 + 3.0;
             let what = format!("{name}: {line:?} over {span:?}; {}", fuzz::replay());
             assert!(
                 read >= hunted - (1e-4 * zero + 256.0 * f64::EPSILON * reach),
@@ -329,6 +341,22 @@ fn no_parameter_of_the_span_is_farther_than_the_read() {
     println!("[line incidence] past the band {off}, inside the zero band {on}");
 }
 
+/// A line on its unit direction and the factor its stated spans scale by.
+type UnitLine = (geom::Line<f64>, f64);
+
+/// **A stated line `origin + dir·t` on its unit direction**, and `|dir|`,
+/// the factor its stated spans are read in metres by: the same segment
+/// for any span.
+fn on_unit(origin: Point3<f64>, dir: Vec3<f64>) -> UnitLine {
+    (
+        geom::Line {
+            origin,
+            dir: geom_core::UnitVec3::squared(dir),
+        },
+        dir.norm(),
+    )
+}
+
 /// **A line on the chart, or within the zero band of it, is not read
 /// off**: each cone's generators through the apex on both nappes, read
 /// over spans across the apex and to one side; the same shifted along
@@ -355,30 +383,25 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
                         let g = wall - apex;
                         let side = surface.deriv_u(u, v).normalize();
                         for shift in [0.0, 0.5 * zero()] {
-                            lines.push(geom::Line {
-                                origin: wall + side * shift,
-                                dir: g,
-                            });
+                            lines.push(on_unit(wall + side * shift, g));
                         }
                     }
                 }
                 Surface::Cylinder { frame, .. } => {
                     let axis = frame.axis();
-                    lines.push(geom::Line {
-                        origin: surface.eval(u, 0.4),
-                        dir: axis * 0.7,
-                    })
+                    lines.push(on_unit(surface.eval(u, 0.4), axis * 0.7))
                 }
-                Surface::Plane { .. } => lines.push(geom::Line {
-                    origin: surface.eval(u, 0.4),
-                    dir: surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u,
-                }),
+                Surface::Plane { .. } => lines.push(on_unit(
+                    surface.eval(u, 0.4),
+                    surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u,
+                )),
                 _ => {}
             }
         }
         let surface_i = surface.map_scalar(f);
-        for line in lines {
+        for (line, k) in lines {
             for span in [(-1.5, 0.5), (-0.4, 1.0), (0.1, 0.6)] {
+                let span = (span.0 * k, span.1 * k);
                 let carrier = Curve3::Line(line);
                 let carrier_i = carrier.map_scalar(f);
                 let verdicts = (
@@ -420,7 +443,7 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
 fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     let f = Interval::from_f64;
     let u_ref = Vec3::unit_x();
-    let mut cases: Vec<(String, Surface<f64>, geom::Line<f64>)> = Vec::new();
+    let mut cases: Vec<(String, Surface<f64>, UnitLine)> = Vec::new();
     for big in [0.3, -0.3] {
         for axis in [Vec3::unit_z(), Vec3::new(0.1, -0.2, 1.0).normalize()] {
             let c = Point3::new(0.0, 0.0, 0.0);
@@ -432,10 +455,7 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
                     major_radius: big,
                     minor_radius: 0.5,
                 },
-                geom::Line {
-                    origin: c - axis * tip,
-                    dir: axis * (2.0 * tip),
-                },
+                on_unit(c - axis * tip, axis * (2.0 * tip)),
             ));
         }
     }
@@ -445,10 +465,7 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
             frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), u_ref),
             radius: 0.5,
         },
-        geom::Line {
-            origin: Point3::new(0.0, 0.0, -0.5),
-            dir: Vec3::unit_z(),
-        },
+        on_unit(Point3::new(0.0, 0.0, -0.5), Vec3::unit_z()),
     ));
     // The torus's outer equator point to its inner one at azimuth 0,
     // through the core circle at `x = R`.
@@ -459,10 +476,7 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
             major_radius: 1.2,
             minor_radius: 0.4,
         },
-        geom::Line {
-            origin: Point3::new(0.8, 0.0, 0.0),
-            dir: Vec3::new(0.8, 0.0, 0.0),
-        },
+        on_unit(Point3::new(0.8, 0.0, 0.0), Vec3::new(0.8, 0.0, 0.0)),
     ));
     // Two points of the cone at height ±0.3, either side of the axis,
     // shifted off the apex by `30·zero`: the chord crosses the apex plane
@@ -476,16 +490,17 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     cases.push((
         "cone chord past the apex".into(),
         cone,
-        geom::Line {
-            origin: Point3::new(r, 0.0, 0.3) + side,
-            dir: Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3),
-        },
+        on_unit(
+            Point3::new(r, 0.0, 0.3) + side,
+            Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3),
+        ),
     ));
-    for (what, surface, line) in cases {
+    for (what, surface, (line, k)) in cases {
         let carrier = Curve3::Line(line);
         let (carrier_i, surface_i) = (carrier.map_scalar(f), surface.map_scalar(f));
         // The second span puts the middle off the sampled schedule.
         for span in [(0.0, 1.0), (0.013, 0.9)] {
+            let span = (span.0 * k, span.1 * k);
             let off = |r: Option<&PcurveCertifyError>| {
                 matches!(
                     r.and_then(crate::IncidenceRead::of),
