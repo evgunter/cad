@@ -3,6 +3,7 @@ id: main-red-recourse-roster-misses-intersect-rs-closed-form-shown-and-shown
 kind: issue
 title: Main red: geom-brep's recourse_roster finds intersect.rs's closed_form_shown and shown as indirect sites it does not list, since PR 7171
 status: closed
+closed: 2026-11-23
 opened: 2026-11-20
 priority: P1
 cost: E
