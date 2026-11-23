@@ -201,9 +201,29 @@ pub(super) fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Resul
 }
 
 /// [`geometry`], with the volume read off `solid` ([`got_enclosing`]).
-fn geometry_enclosing(
+pub(super) fn geometry_enclosing(
     body: &Body<f64>,
     solid: &Body<f64>,
+    mesh: &mesh::Mesh,
+    delta: f64,
+) -> Result<(), String> {
+    geometry_reading(body, Some(solid), mesh, delta)
+}
+
+/// [`geometry`] but the volume: for a body whose mass properties are not
+/// read at this ε (outside the session box, or escalating).
+pub(super) fn geometry_but_the_volume(
+    body: &Body<f64>,
+    mesh: &mesh::Mesh,
+    delta: f64,
+) -> Result<(), String> {
+    geometry_reading(body, None, mesh, delta)
+}
+
+/// [`geometry`], reading the volume off `solid` where one is given.
+fn geometry_reading(
+    body: &Body<f64>,
+    solid: Option<&Body<f64>>,
     mesh: &mesh::Mesh,
     delta: f64,
 ) -> Result<(), String> {
@@ -214,9 +234,10 @@ fn geometry_enclosing(
             e.triangle
         )
     })?;
-    if !body
-        .faces()
-        .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
+    if let Some(solid) = solid
+        && !body
+            .faces()
+            .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
     {
         let at_rest = sweep::test_support::at_rest(solid, tol());
         let props = topo::test_support::pinned_volume("the meshed body", &at_rest, tol());
@@ -2010,9 +2031,9 @@ fn a_ringless_cone_face_near_its_apex_meshes_sound() {
 /// wall about that edge (both unions, cone ∖ box) the cone face is half
 /// the cone, apex to rim, each side ruling split where the box meets it.
 /// A straight side holding a point sends the face to the trimmed lane
-/// (`walk::splits_a_straight_side`), whose CDT runs in the cone's
-/// development, where three points of one ruling are collinear and no
-/// triangle takes them. The rectangle lane triangulated its chart, where
+/// (`walk::splits_a_straight_side`), which walks it (`tessellate::Lane::Walked`):
+/// its triangles join its rim to the apex in order of angle, and no
+/// triangle takes three points of one ruling. The rectangle lane triangulated its chart, where
 /// the apex is a row and a ruling a column, and fanned the apex down the
 /// column beside the split side into triangles of no area, which the
 /// join refuses (`crates/mesh/README.md` `[mesh.winding]`).
@@ -2139,6 +2160,19 @@ fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
 /// freely at a coarse δ. With the cylinder arm reading the ear alone each
 /// cell here meshed with an edge of four triangles; the shared-side cure
 /// (`mesh::trimmed`, `attempt`) keeps every face off such a side.
+///
+/// **What the cure costs here, a stated cost.** A cylinder face lays no
+/// lattice (`chart_table::AnalyticRow::lattice_rows`), so its first
+/// triangulation is its `n` boundary points' `n − 2` triangles, and on
+/// these faces nearly every one holds a side the face across can make:
+/// the cure puts a point inside each, two triangles a point, and a second
+/// rounds a few more. Each cylinder face holds at most `3.25n` triangles
+/// (measured on the first pair: `n = 28` at δ 0.5, 26 sides cured then
+/// 4, 86 triangles; `n = 60` at δ 0.1, 182; `n = 130` at δ 0.02, 128
+/// then 10 then 2, 408), up to 2.2 times what the
+/// face took when it laid rows, whose nodes kept most of its triangles
+/// off the arcs. The rule that decides such a side is
+/// `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`.
 #[test]
 fn crossing_rods_keep_no_side_a_neighbour_can_make() {
     for (r, r2, theta, op, deltas) in [
@@ -2165,11 +2199,23 @@ fn crossing_rods_keep_no_side_a_neighbour_can_make() {
             Ok(Some(body)) => {
                 let body = &body.body;
                 assert_eq!(got(body, 0.1), Got::Meshed, "{what}, δ = 0.1");
-                for &delta in deltas.iter().filter(|&&d| d != 0.1) {
+                for &delta in deltas {
                     let mesh = mesh::tessellate(body, delta, tol())
                         .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: meshes, got {e:?}"));
                     mesh::validate::check_mesh(&mesh)
                         .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e:?}"));
+                    for patch in &mesh.patches {
+                        if kind_of(body, patch.face) != SurfaceKind::Cylinder {
+                            continue;
+                        }
+                        let n = crate::rowless_cylinders::boundary_points(body, &mesh, patch.face);
+                        assert!(
+                            4 * patch.triangles.len() <= 13 * n,
+                            "{what}, δ = {delta:e}: a cylinder face holds {} triangles on {n} \
+                             boundary points, past the cure's 3.25n",
+                            patch.triangles.len()
+                        );
+                    }
                 }
             }
             // Off the default ε the boolean may not build the pair.

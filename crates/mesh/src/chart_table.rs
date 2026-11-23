@@ -300,6 +300,11 @@ impl<'a> AnalyticRow<'a> {
         })
     }
 
+    /// The surface the row charts.
+    pub(crate) fn surface(&self) -> &Surface<f64> {
+        self.surface
+    }
+
     /// **The chart's kind, with what its steps and certificate read**,
     /// from the surface's own data and the face's window.
     pub(crate) fn kind(&self) -> Analytic {
@@ -351,24 +356,22 @@ impl<'a> AnalyticRow<'a> {
     }
 
     /// The steps a lane's lattice lays from the cell steps `(hu, hv)`
-    /// ([`Self::steps`]): on a ruled chart, rows every `lever·hu` metres,
-    /// square in 3-D at the face's widest radius (the cylinder's radius,
-    /// the cone's largest), which shape the triangulation and move no
-    /// bound; on a torus and a spindle sheet both periodic steps capped at
+    /// ([`Self::steps`]): on a cone, rows every `ρ_max·hu` metres, square
+    /// in 3-D at the face's largest radius, which shape the triangulation
+    /// and move no bound; on a cylinder none (the steps as they are, `hv`
+    /// unbounded: [`Self::lattice_rows`] lays no row there); on a torus
+    /// and a spindle sheet both periodic steps capped at
     /// `sizing::MAX_ANGULAR_STEP`; on a sphere the steps as they are, both
     /// capped already.
     ///
-    /// A cone's row step has two readers. The curved lane lays rows
-    /// uniform in `v` at it (`curved::grid_counts`, a face with a point on
-    /// a side between its rims); that face has no worst-triangle theorem
-    /// (`work/tesslane/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`),
-    /// its certificate is what holds it, and its rows are left as they
-    /// are. The trimmed lane lays [`Self::lattice_rows`] from it, graded.
+    /// A cone's row step has one reader: the trimmed lane lays
+    /// [`Self::lattice_rows`] from it, graded. The curved lane lays no
+    /// rows on a ruled chart (`curved::grid_counts`), and the trimmed lane
+    /// lays none on a face it walks (`crate::ruled_walk`).
     pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
         match self.kind() {
-            Analytic::Cylinder { radius: lever } | Analytic::Cone { rho_max: lever, .. } => {
-                (hu, lever * hu)
-            }
+            Analytic::Cylinder { .. } => (hu, hv),
+            Analytic::Cone { rho_max: lever, .. } => (hu, lever * hu),
             Analytic::Torus { .. } | Analytic::Spindle { .. } => (cap_angular(hu), cap_angular(hv)),
             Analytic::Sphere { .. } => (hu, hv),
         }
@@ -378,7 +381,19 @@ impl<'a> AnalyticRow<'a> {
     /// `v` window `(v0, v1)`**, from the lattice steps `(hu, hv)`
     /// ([`Self::lattice_steps`]), ascending.
     ///
-    /// Every chart but the cone: uniform, `⌈(v1 − v0)/hv⌉` gaps.
+    /// **The cylinder: none.** Its every line `u = const` is straight on
+    /// the surface, so a triangle's deviation is set by its span round
+    /// the axis (`cert::cert_cylinder`), which a row does not shorten,
+    /// while rows multiply the triangles. With no row there is no lattice
+    /// node, and the lane triangulates the face's boundary points, each
+    /// triangle held by the certificate. Measured over the `mesh` suite
+    /// and `sweep`'s meshing modules at three ε: no cylinder face refuses
+    /// or folds without its rows, and a notched or holed pipe wall takes
+    /// 1 to 1.5 times the rectangle lane's triangles over the
+    /// iso-rectangles it divides into, where the rows made 4 to 220 times.
+    ///
+    /// The sphere, the torus and the spindle sheet: uniform,
+    /// `⌈(v1 − v0)/hv⌉` gaps.
     ///
     /// **The cone: uniform in `√|v|`**, in `⌈2·(√v₁ − √v₀)·√v_w/hv⌉`
     /// gaps, `v_w = hv/(hu·sin α)` the slant the row step was laid at (the
@@ -440,10 +455,8 @@ impl<'a> AnalyticRow<'a> {
                     .filter(|v| v.abs() > certified)
                     .collect())
             }
-            Analytic::Cylinder { .. }
-            | Analytic::Sphere { .. }
-            | Analytic::Torus { .. }
-            | Analytic::Spindle { .. } => {
+            Analytic::Cylinder { .. } => Ok(Vec::new()),
+            Analytic::Sphere { .. } | Analytic::Torus { .. } | Analytic::Spindle { .. } => {
                 let n = ceil_count(v1 - v0, hv)?;
                 Ok((1..n).map(|j| lerp(v0, v1, j, n)).collect())
             }
@@ -549,15 +562,7 @@ impl<'a> AnalyticRow<'a> {
     /// `trimmed`'s `singular_vertices` refuses the face typed instead
     /// (`SphereTrimCause::SingularUndecided`).
     pub(crate) fn is_singular(&self, p: Point3<f64>, band: Band) -> Result<bool, Indeterminate> {
-        let mut undecided = None;
-        for s in &self.singular {
-            match geom_brep::chart_singularity::vertex_at_singular_point(p, s.point, band) {
-                Ok(true) => return Ok(true),
-                Ok(false) => {}
-                Err(e) => undecided = Some(e),
-            }
-        }
-        undecided.map_or(Ok(false), Err)
+        at_a_singular_point(self.singular.iter().map(|s| s.point), p, band)
     }
 
     /// The face's outward normal at the foot of `p` on its chart, from the
@@ -618,6 +623,46 @@ impl<'a> AnalyticRow<'a> {
             | Analytic::Spindle { .. } => None,
         }
     }
+}
+
+/// **Whether `p` is one of the singular `points`** at `band`, decided in
+/// their order: `true` where one is decided zero distance from `p`,
+/// `false` where every one is decided clear, the escalation where none
+/// is decided zero and one is in the band. The one read of a vertex on a
+/// singular point, which [`AnalyticRow::is_singular`] and
+/// [`at_a_pole`] both make.
+fn at_a_singular_point(
+    points: impl Iterator<Item = Point3<f64>>,
+    p: Point3<f64>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut undecided = None;
+    for point in points {
+        match geom_brep::chart_singularity::vertex_at_singular_point(p, point, band) {
+            Ok(true) => return Ok(true),
+            Ok(false) => {}
+            Err(e) => undecided = Some(e),
+        }
+    }
+    undecided.map_or(Ok(false), Err)
+}
+
+/// **Whether `p` is a singular point of `surface`'s chart** (a cone's
+/// apex, a sphere's poles: `topo::chart::Chart::poles`), read as the lane
+/// reads it ([`AnalyticRow::is_singular`]) without a row: a reader with no
+/// face window at hand (the route's `trimmed::walkable`) asks this.
+/// `None` where the surface has no analytic chart.
+pub(crate) fn at_a_pole(
+    surface: &Surface<f64>,
+    p: Point3<f64>,
+    band: Band,
+) -> Option<Result<bool, Indeterminate>> {
+    let poles = topo::chart::Chart::of(surface)?.poles();
+    Some(at_a_singular_point(
+        poles.into_iter().map(|(point, _)| point),
+        p,
+        band,
+    ))
 }
 
 #[cfg(test)]
@@ -907,7 +952,8 @@ mod tests {
         let row = AnalyticRow::new(&cylinder, f64::NAN).unwrap();
         assert_eq!(
             row.lattice_rows((1.0, 2.0), (0.1, 0.3)).unwrap(),
-            vec![1.25, 1.5, 1.75]
+            Vec::<f64>::new(),
+            "a cylinder lays no row"
         );
     }
 
