@@ -14,3 +14,10 @@ Label mapping, model versions as the harness reports them:
 - B = Fable (Fable 5.2, `claude-fable-5-2`)
 
 Both designers are subagents of the orchestrator's session.
+
+## Further designer (rule 5, the orchestrator's judgement)
+
+Dispatched 2026-11-23 at about 23:15, after rounds 2 and 3 oscillated.
+
+- Model: Opus 5.5 (`claude-opus-5-5`), a subagent of the orchestrator's session.
+- Label in the PR: "a further designer".
