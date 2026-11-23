@@ -331,18 +331,29 @@ pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
 /// `node`'s constraints as child rows, empty for a node that is no
 /// placement.
 fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<ConstraintRow> {
-    match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints
-            .iter()
-            .enumerate()
-            .map(|(at, constraint)| ConstraintRow {
-                mate: MateRef::new(id, constraint.id),
-                said: constraint_said(at + 1, constraint),
-                is_mate: constraint.mate().is_some(),
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    numbered_constraints(node)
+        .map(|(at, constraint)| ConstraintRow {
+            mate: MateRef::new(id, constraint.id),
+            said: constraint_said(at, constraint),
+            is_mate: constraint.mate().is_some(),
+        })
+        .collect()
+}
+
+/// **A placement's constraints, each with the number a person finds it
+/// by**: its 1-based position in the bundle, the number its child row
+/// and its seats in the Properties are said by. None for a node that
+/// holds no bundle.
+pub fn numbered_constraints(
+    node: &Node<ProfileProgram>,
+) -> impl Iterator<Item = (usize, &Constraint)> {
+    let bundle = match node {
+        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
+            constraints.as_slice()
+        }
+        _ => &[],
+    };
+    bundle.iter().enumerate().map(|(at, held)| (at + 1, held))
 }
 
 impl TreeRow {

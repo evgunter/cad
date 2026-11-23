@@ -81,6 +81,11 @@ impl Seat {
     /// **The seat `slot` of `node`, as a person finds it**: a
     /// constraint's seat by the constraint's position in `node`'s
     /// bundle, any other seat as it is.
+    ///
+    /// # Panics
+    ///
+    /// On a constraint seat whose constraint `node`'s bundle does not
+    /// hold, which no node's operand rows produce.
     #[must_use]
     pub fn of(node: &Node<ProfileProgram>, slot: OperandSlot) -> Self {
         let constraint = match slot {
@@ -89,19 +94,15 @@ impl Seat {
             | OperandSlot::About { constraint } => constraint,
             _ => return Self::Operand(slot),
         };
-        let bundle = match node {
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-                constraints.as_slice()
-            }
-            _ => &[],
+        // A node's constraint seats are read off its own bundle, so the
+        // constraint is in it; a seat said without its number would
+        // spell its arena key.
+        let Some((at, _)) =
+            crate::tree::numbered_constraints(node).find(|(_, held)| held.id == constraint)
+        else {
+            unreachable!("a constraint seat of a node reads a constraint of its own bundle")
         };
-        bundle
-            .iter()
-            .position(|held| held.id == constraint)
-            .map_or(Self::Operand(slot), |at| Self::Constraint {
-                at: at + 1,
-                slot,
-            })
+        Self::Constraint { at, slot }
     }
 
     /// The seat as a reader says it: `profile`, `part`, `constraint 2

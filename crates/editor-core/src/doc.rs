@@ -2726,12 +2726,10 @@ impl<P> Doc<P> {
     /// `m`, `xs` for `m = xs[1]`, `xs = Row`), then the first read below
     /// them that is no source (Row's body), the body copied.
     fn copy_chain(&self, read: VarId) -> Vec<VarId> {
-        let steps = self.source_steps(read);
-        let root = steps.last().map_or(read, |&(_, body)| body.read);
-        steps
+        self.source_steps(read)
             .iter()
             .map(|&(at, _)| at)
-            .chain(core::iter::once(root))
+            .chain(self.source_root(read))
             .collect()
     }
 

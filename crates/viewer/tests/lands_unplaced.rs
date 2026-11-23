@@ -649,3 +649,57 @@ fn a_clearance_on_a_placement_whose_piece_is_picked_reads_the_placement() {
         doc.operand_reads(made)
     );
 }
+
+/// **The product door and a seat's copy count ignore a pick's copy**:
+/// the `⊔`'s copy has no world copy for a seat to count
+/// (`world::world_copies_of_read`), and with the pick's copy already in
+/// the product, adding the `⊔`'s copy adds its own body, not the one
+/// piece the pick draws.
+///
+/// *Breaks if* a pick's copy is counted as a world copy of the placement
+/// it picks from, at a seat or at the product door.
+#[test]
+fn the_product_door_and_a_seats_copy_count_ignore_a_picks_copy() {
+    let tol = Tol::witness();
+    let (mut session, _, assemble) = a_pick_through_a_union(tol);
+    let doc = session.committed_doc().clone();
+    let [held] = doc.placements_of(assemble)[..] else {
+        panic!("the ⊔ is copied into the world once")
+    };
+    let picked: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| {
+            p != held
+                && doc
+                    .copied_read(p)
+                    .is_some_and(|read| doc.pick(doc.through_sources(read).read).is_some())
+        })
+        .collect();
+    let [pick] = picked[..] else {
+        panic!("one copy of a pick: {picked:?}")
+    };
+    assert_eq!(
+        viewer::world::world_copies_of_read(&doc, &Operand::Node(held)),
+        Vec::<VarId>::new(),
+        "no world copy of the ⊔'s copy"
+    );
+    let out = session.perform(SessionOp::AddToProduct {
+        node: pick,
+        body: None,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let out = session.perform(SessionOp::AddToProduct {
+        node: held,
+        body: None,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    let body = doc.output(held, 0).expect("the ⊔'s copy's body");
+    assert!(
+        viewer::world::product_reads(doc).contains(&body),
+        "the product reads the ⊔'s copy itself: {:?}",
+        viewer::world::product_reads(doc)
+    );
+}
