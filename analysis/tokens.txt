@@ -1,2 +1,4 @@
 A round1: subagent_tokens 207147, 35 tool uses, 366487 ms, report at 21:00Z 2026-11-23
 B round1: subagent_tokens 282869, 52 tool uses, 528651 ms, report at 21:03Z 2026-11-23
+A round2: subagent_tokens 235200 (cumulative as reported), 8 tool uses, 156801 ms, report at 21:06Z
+B round2: subagent_tokens 322748 (cumulative as reported), 6 tool uses, 241530 ms, report at 21:07Z
