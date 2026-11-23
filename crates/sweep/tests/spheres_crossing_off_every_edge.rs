@@ -228,7 +228,13 @@ fn assert_six(
         ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
     for ((op, volume, out), want) in ops.into_iter().zip(wants) {
-        check(&format!("{pose}, {op}"), [a, b], out, (volume, va + vb), want);
+        check(
+            &format!("{pose}, {op}"),
+            [a, b],
+            out,
+            (volume, va + vb),
+            want,
+        );
     }
 }
 

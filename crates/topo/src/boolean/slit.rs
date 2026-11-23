@@ -968,16 +968,16 @@ pub(super) fn close_cuts<T: Decide + crate::props::AtRestPolicy>(
             .find_map(|&edge| body.toward_free_end(edge).map(|t| (edge, t)))
         {
             let face = one_face(edge);
-            let plan = body
-                .plan_strut_prune(face, toward_free)
-                .map_err(|refusal| match refusal {
-                    crate::strut::StrutRefusal::Curved => {
-                        BooleanError::CurvedFaceClosesAcrossSlit { face, edge }
-                    }
-                    crate::strut::StrutRefusal::LoneOutline => BooleanError::JoinDesync {
-                        what: "a chart cut's piece with both ends free is its face's outline",
-                    },
-                })?;
+            let plan =
+                body.plan_strut_prune(face, toward_free)
+                    .map_err(|refusal| match refusal {
+                        crate::strut::StrutRefusal::Curved => {
+                            BooleanError::CurvedFaceClosesAcrossSlit { face, edge }
+                        }
+                        crate::strut::StrutRefusal::LoneOutline => BooleanError::JoinDesync {
+                            what: "a chart cut's piece with both ends free is its face's outline",
+                        },
+                    })?;
             let vertices = body.prune_strut(&plan, tol)?;
             closed.push(ClosedStrut {
                 face,

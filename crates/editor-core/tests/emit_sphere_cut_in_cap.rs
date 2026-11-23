@@ -485,7 +485,10 @@ fn every_op_over_the_lens_and_the_brick_builds_maximal_and_additive() {
     let lens_less = built(topo::subtract(&lens, &brick, tol), "lens ∖ brick");
     let brick_less = built(topo::subtract(&brick, &lens, tol), "brick ∖ lens");
     let slack = 1e-9 * (vl + vb);
-    for (x, y, order) in [(&lens, &brick, "lens first"), (&brick, &lens, "brick first")] {
+    for (x, y, order) in [
+        (&lens, &brick, "lens first"),
+        (&brick, &lens, "brick first"),
+    ] {
         let cap = built(topo::intersect(x, y, tol), &format!("∩, {order}"));
         let union = built(topo::union(x, y, tol), &format!("∪, {order}"));
         assert!(cap > 0.0, "{order}: the cap has volume: {cap}");

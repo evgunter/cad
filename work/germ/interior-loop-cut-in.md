@@ -7,6 +7,7 @@ opened: 2026-09-28
 priority: P3
 cost: H
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
+design: true
 ---
 
 ## What
@@ -90,3 +91,22 @@ refuse `FallbackExtentUnsupported` with the R-loop sentence ("a closed
 loop interior to both faces"), at ε 1e-6, 1e-9 and 1e-12.
 
 Moved from GERMTAIL to GERM on 2026-11-20, by `git mv`, when GERMTAIL merged into GERM: GERMTAIL held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+## 2026-11-23 — the cut-in is transient now; the class stays split by path (ORBIT)
+
+Evidence from `orbit/transient-chart-cut`. The re-entered op's output
+stage now deletes every piece of a cut-in's meridian
+(`topo::boolean::slit::close_cuts`). A sphere face that keeps the region
+round a section circle ends holding that circle as a **ring**: the
+ringed sphere face this row's 2026-10-05 evidence found nothing reads.
+It now passes tier 3, props measure it at its closed form, and the
+mesher draws it, except beside a chart pole
+(`work/tesslane/a-sphere-ring-beside-a-chart-pole-has-no-place-in-its-outer-loops-sheet.md`).
+
+The class is still split by path. The cut-in serves only **sphere**
+faces, and only on the **no-crossings** path (`sphere_extent_scan`,
+then `apply_cut_ins`). On the crossings path, an R-loop anywhere refuses
+the op (`boolean::ops::interior_loop_verdict`), a sphere's included,
+however other pairs cross. Whether a certified interior loop is cut in
+(and closed) on every path and surface, or stays a refusal off the
+sphere case, is a design question: `design: true`.
