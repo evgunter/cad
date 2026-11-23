@@ -209,17 +209,35 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
                 .map(|w| seg_dist(q, w[0], w[1]))
                 .fold(f64::INFINITY, f64::min)
         };
+        let fell_back = Cell::new(false);
         let run = |f: FaceKey| {
-            let on_curves = face_samples
-                .get(&f)
-                .map_or(0.0, |v: &Vec<[f64; 3]>| v.iter().map(|&q| dist(q)).fold(0.0_f64, f64::max));
-            reach_home
+            let empty = Vec::new();
+            let pts: &Vec<[f64; 3]> = face_samples.get(&f).unwrap_or(&empty);
+            let on_curves = pts.iter().map(|&q| dist(q)).fold(0.0_f64, f64::max);
+            let r = reach_home
                 .face_points(f)
                 .iter()
                 .map(|&p| dist(p3(p)))
-                .fold(on_curves, f64::max)
+                .fold(on_curves, f64::max);
+            // A face whose whole boundary is on this edge (a disc on its
+            // one closed rim): half its boundary's diameter.
+            let step = (pts.len() / 400).max(1);
+            let diam = pts
+                .iter()
+                .step_by(step)
+                .flat_map(|a| pts.iter().step_by(step).map(move |b| {
+                    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+                }))
+                .fold(0.0_f64, f64::max);
+            if r <= 1e-12 * (1.0 + diam) && diam > 0.0 {
+                fell_back.set(true);
+                0.5 * diam
+            } else {
+                r
+            }
         };
         let (ra, rb) = (run(a), run(b));
+        let fell_back = fell_back.get();
         let (narrow, narrow_face) = if ra <= rb { (ra, a) } else { (rb, b) };
         let info = EdgeInfo {
             crease,
@@ -232,7 +250,7 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
         emit(
             "WME",
             &format!(
-                "{e:?}\t{}/{}\t{class}\treach={:e}\tfold={:e}\tnarrow={:e}\tnarrow_face={narrow_face:?}:{}\truns={ra:e}/{rb:e}",
+                "{e:?}\t{}/{}\t{class}\treach={:e}\tfold={:e}\tnarrow={:e}\tnarrow_face={narrow_face:?}:{}\truns={ra:e}/{rb:e}\tfallback={fell_back}",
                 kind(sa),
                 kind(sb),
                 info.reach,
