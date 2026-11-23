@@ -1581,7 +1581,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Naming(_) => None,
         // The member names the step that refused, not the node to
         // repair: the refusal is the union's.
-        NodeErrorKind::UnionFoldStep { .. } => None,
+        NodeErrorKind::FoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
         | NodeErrorKind::PoseRead { .. }

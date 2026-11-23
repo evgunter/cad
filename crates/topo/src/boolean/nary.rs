@@ -5,7 +5,8 @@
 //! another.
 //!
 //! It judges every member pair whose boxes meet once, as a pair
-//! boolean, then folds the members in list order, `((m0 ∘ m1) ∘ m2) ∘ …`.
+//! boolean — a subtract's body kept against each tool as a subtract,
+//! and two tools as a union, for their verdicts alone — then folds the members in list order, `((m0 ∘ m1) ∘ m2) ∘ …`.
 //! Each fold step is given the judgements' verdicts on the member it
 //! joins, read through the face lineage the door advances from its own
 //! steps' naming ([`MemberLineage`]), and decides no carrier pair of its
@@ -26,8 +27,8 @@
 //! can refuse a face's holdings where another reads them. So does which
 //! member's carrier description a glued face keeps.
 //!
-//! Where the operation stops, at a refusal or an intersect's empty
-//! result, the door returns what it built up to there
+//! Where the operation stops, at a refusal or an empty result (an
+//! intersect's, or a subtract whose tools take the whole kept body), the door returns what it built up to there
 //! ([`NaryRun::end`]), so a caller that reads each judgement and step in
 //! turn meets the operation's events in the order they happened.
 //!
@@ -69,6 +70,15 @@ impl NaryOp {
             Self::Intersect => BooleanOp::Intersect,
             Self::Subtract => BooleanOp::Subtract,
         }
+    }
+
+    /// **Whether the fold's result holds member `member`'s faces
+    /// turned**: the pair rule ([`BooleanOp::holds_turned`]) with member
+    /// 0 in operand A's place and every other member in B's, as each
+    /// step folds a member into the accumulation of member 0's.
+    fn holds_turned(self, member: usize) -> bool {
+        let operand = if member == 0 { Operand::A } else { Operand::B };
+        self.op().holds_turned(operand)
     }
 }
 
@@ -532,8 +542,8 @@ struct PairVerdict<T: Real> {
     row: Option<JudgedRow>,
 }
 
-/// **The n-ary union or intersect of `members`, in their order**
-/// (module docs).
+/// **The n-ary union, intersect or subtract of `members`, in their
+/// order** (module docs).
 ///
 /// Each member pair whose boxes meet ([`crate::Separation::hull`]) is
 /// judged as its own pair boolean, operand A the member of the lesser
@@ -545,8 +555,9 @@ struct PairVerdict<T: Real> {
 /// other face, carrying the accumulation's records and the member's.
 /// Two members are one step, `m0 ∘ m1`, and no rank is read.
 ///
-/// The operation stops at the first refusal, and an intersect at the
-/// first empty judgement or step (the typed empty result); the run
+/// The operation stops at the first refusal, and an intersect or a
+/// subtract at the first empty judgement or step (the typed empty
+/// result); the run
 /// holds what came before ([`NaryRun::end`]).
 ///
 /// # The given channel is this door's own
@@ -909,10 +920,11 @@ fn lift<T: Decide + crate::AtRestPolicy>(
             if exact.contains(&m) {
                 continue;
             }
-            // A subtract's result holds each tool's faces turned inside
-            // out.
-            let reversed = op == NaryOp::Subtract && m.0 != 0;
-            match overlap_as(region, ((members[m.0].body, m.1), reversed), band) {
+            match overlap_as(
+                region,
+                ((members[m.0].body, m.1), op.holds_turned(m.0)),
+                band,
+            ) {
                 Ok(true) => {
                     exact.insert(m);
                 }
@@ -1140,12 +1152,12 @@ fn given_pairs<T: Real>(
             if !parents.contains(&at) {
                 continue;
             }
-            // A subtract's accumulation holds each tool's faces turned
-            // inside out, so a verdict read through one has its senses
-            // reversed.
-            let decision = match op {
-                NaryOp::Subtract if at.0 != 0 => v.decision.reversed(),
-                NaryOp::Union | NaryOp::Intersect | NaryOp::Subtract => v.decision,
+            // A verdict read through a face the accumulation holds turned
+            // has its senses reversed ([`NaryOp::holds_turned`]).
+            let decision = if op.holds_turned(at.0) {
+                v.decision.reversed()
+            } else {
+                v.decision
             };
             let prior = given.entry((f, joining)).or_insert(decision);
             if prior.class() != decision.class() {

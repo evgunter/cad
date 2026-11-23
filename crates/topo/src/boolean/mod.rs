@@ -539,6 +539,16 @@ pub enum BooleanOp {
 }
 
 impl BooleanOp {
+    /// **Whether this operation's result holds `operand`'s faces turned
+    /// inside out**: a subtract's holds its tool's (B's), since the cut
+    /// keeps the tool's boundary with its material on the other side.
+    /// The one rule every reading of a subtract's faces against a tool's
+    /// follows: the pair's holdings, and the n-ary fold's holdings and
+    /// given verdicts (`nary::NaryOp::holds_turned`).
+    pub(in crate::boolean) fn holds_turned(self, operand: Operand) -> bool {
+        self == Self::Subtract && operand == Operand::B
+    }
+
     /// **Every operation this enum names**, in declaration order — the
     /// one enumeration, owned where the exhaustive matches live.
     ///

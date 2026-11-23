@@ -82,7 +82,7 @@
 //!
 //! A refusal raised mid-fold carries no fold-table name: a step's
 //! refusal is the kernel's own, under the member that step folds in
-//! (`NodeErrorKind::UnionFoldStep`). A coincidence row a step decides
+//! (`NodeErrorKind::FoldStep`). A coincidence row a step decides
 //! is read against the collapsed accumulation ([`collapse_table`]) and
 //! spelled by the member cells that meet there ([`member_cells`]), as
 //! the pairwise judgement's rows are.

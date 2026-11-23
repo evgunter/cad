@@ -3450,7 +3450,7 @@ impl Node {
     /// Members whose faces a margin decides on one surface glue there,
     /// and the coincidence is recorded for the `unproven_coincidence`
     /// check. A refusal only a fold step raises is
-    /// `kind == "union_fold_step"`, naming the member it folds in.
+    /// `kind == "fold_step"`, naming the member it folds in.
     #[staticmethod]
     fn union(members: MembersArg) -> PyResult<Self> {
         Ok(Self {

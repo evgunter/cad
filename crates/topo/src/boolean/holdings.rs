@@ -306,9 +306,9 @@ impl Holdings {
         (operands, clones): ([&Body<T>; 2], [Option<&Body<T>>; 2]),
         band: Band,
     ) -> Self {
-        // A subtract's result holds B's faces turned: a finished face is
-        // read against a face of B the other way round.
-        let turned = |place: usize| place == Operand::B.index() && op == BooleanOp::Subtract;
+        // A face of an operand the result holds turned is read the other
+        // way round ([`BooleanOp::holds_turned`]).
+        let turned = |place: usize| op.holds_turned(Operand::BOTH[place]);
         let descent = FaceDescent::of(naming);
         let root =
             |operand: Operand, f: FaceKey| (operand.index(), descent.clone_source(operand, f).root);

@@ -2423,7 +2423,7 @@ class Node:
         Members whose faces a margin decides on one surface glue there,
         and each such coincidence is recorded for the
         `unproven_coincidence` check. A refusal only a fold step raises
-        is `kind == "union_fold_step"`, naming the member it folds in.
+        is `kind == "fold_step"`, naming the member it folds in.
 
         A closed surface of one member that lies wholly on another's —
         one read at two seats, or a member carried into a union

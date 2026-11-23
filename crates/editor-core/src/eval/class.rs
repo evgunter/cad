@@ -145,8 +145,8 @@ pub enum NodeErrorClass {
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
     Naming,
-    /// [`NodeErrorKind::UnionFoldStep`].
-    UnionFoldStep,
+    /// [`NodeErrorKind::FoldStep`].
+    FoldStep,
     /// [`NodeErrorKind::Shell`].
     Shell,
     /// [`NodeErrorKind::ShellLaneUnsupported`].
@@ -283,7 +283,7 @@ impl NodeErrorKind {
             Self::CountOutOfRange { .. } => C::CountOutOfRange,
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
-            Self::UnionFoldStep { .. } => C::UnionFoldStep,
+            Self::FoldStep { .. } => C::FoldStep,
             Self::Shell(_) => C::Shell,
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
             Self::WitnessBifurcation(_) => C::WitnessBifurcation,
@@ -427,7 +427,7 @@ mod tests {
         CountOutOfRange,
         UnschedulableCycle,
         Naming,
-        UnionFoldStep,
+        FoldStep,
         Shell,
         ShellLaneUnsupported,
         WitnessBifurcation,
@@ -717,7 +717,7 @@ mod tests {
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
             }),
-            C::UnionFoldStep => K::UnionFoldStep {
+            C::FoldStep => K::FoldStep {
                 member: 2,
                 read: crate::VarId::new(2, 2),
                 refusal: Box::new(K::UnschedulableCycle),

@@ -1956,13 +1956,15 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
-    /// **A step of a union's fold refused** (DM4): the step folding
-    /// `member` into the accumulation of the members listed before it,
-    /// with the step's own refusal. The pairwise judgement decides every
-    /// pair of members before the fold in every member order; a refusal
+    /// **A step of a boolean's n-ary fold refused** (DM4) — a union's,
+    /// an intersect's, or a subtract's of two or more tools: the step
+    /// folding `member` into the accumulation of the members listed
+    /// before it, with the step's own refusal. The pairwise judgement
+    /// decides every pair of members before the fold in every member
+    /// order; a refusal
     /// only a fold step raises names the step, so it is never read as a
     /// pair's.
-    UnionFoldStep {
+    FoldStep {
         /// The position, in the node's member list, of the member the
         /// refusing step folds in: members of one family share a read.
         member: u32,
@@ -2648,7 +2650,7 @@ impl crate::spoken::Say for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => say!(f, "name emission failed: ", Said(e, by)),
-            Self::UnionFoldStep {
+            Self::FoldStep {
                 member,
                 read,
                 refusal,
