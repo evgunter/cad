@@ -41,10 +41,11 @@ const BEND: f64 = 3.0;
 /// What is built off the cap.
 #[derive(Clone, Copy, Debug)]
 enum OffCap {
-    /// A quarter turn about the line through `(axis_x, 0)` heading
+    /// A quarter turn about the line through `(axis_x, axis_y)` heading
     /// `heading`, turned through `angle`.
     Elbow {
         axis_x: f64,
+        axis_y: f64,
         heading: f64,
         angle: f64,
     },
@@ -110,6 +111,11 @@ fn closed_form(hollow: bool, off: OffCap) -> f64 {
 }
 
 fn join(hollow: bool, end: CapEnd, off: OffCap) -> Joined {
+    join_at(hollow, LENGTH, end, off)
+}
+
+/// [`join`], the pipe `length` long.
+fn join_at(hollow: bool, length: f64, end: CapEnd, off: OffCap) -> Joined {
     let doc = ProfileDoc::empty_derived("a_pipe_and_its_elbow", Tol::witness());
     let (doc, section) = insert(
         doc,
@@ -123,7 +129,7 @@ fn join(hollow: bool, end: CapEnd, off: OffCap) -> Joined {
         doc,
         Node::Extrude {
             profile: section.into(),
-            distance: len(LENGTH),
+            distance: len(length),
         },
     );
     let cap = StableName {
@@ -145,11 +151,12 @@ fn join(hollow: bool, end: CapEnd, off: OffCap) -> Joined {
     let built = match off {
         OffCap::Elbow {
             axis_x,
+            axis_y,
             heading,
             angle,
         } => Node::Revolve {
             profile: drawn.profile.into(),
-            axis_through: [len(axis_x), len(0.0)],
+            axis_through: [len(axis_x), len(axis_y)],
             axis_heading: ang(heading),
             angle: ang(angle),
         },
@@ -199,6 +206,7 @@ fn the_eight_poses() -> [(CapEnd, OffCap); 8] {
     let q = FRAC_PI_2;
     let elbow = |axis_x, heading, angle| OffCap::Elbow {
         axis_x,
+        axis_y: 0.0,
         heading,
         angle,
     };
@@ -317,6 +325,7 @@ fn an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction() {
     for k in [2.0, 1e3] {
         let off = OffCap::Elbow {
             axis_x: BEND,
+            axis_y: 0.0,
             heading: -FRAC_PI_2 + k * Tol::witness().eps(),
             angle: -FRAC_PI_2,
         };
@@ -491,6 +500,7 @@ fn zz_probe_outcomes() {
         let d = k * Tol::witness().eps();
         let off = OffCap::Elbow {
             axis_x: BEND,
+            axis_y: 0.0,
             heading: -FRAC_PI_2 + d,
             angle: -FRAC_PI_2,
         };
@@ -504,4 +514,71 @@ fn zz_probe_outcomes() {
         "PROBE extrude: {}",
         outcome(&join(true, CapEnd::End, off), closed_form(true, off))
     );
+}
+
+/// The elbow bent away about the line through `3·(−sin δ, cos δ)`
+/// heading `δ`: the bend's neutral point on each rim (where its relative
+/// curvature across the rim passes through zero) sits `δ` round the rim
+/// from the pipe's seam ruling and the rim's vertex, where edges end.
+fn neutral_off_the_seam(delta: f64) -> OffCap {
+    OffCap::Elbow {
+        axis_x: -BEND * delta.sin(),
+        axis_y: BEND * delta.cos(),
+        heading: delta,
+        angle: -FRAC_PI_2,
+    }
+}
+
+/// **An edge ending at or near a neutral point stops where its distance
+/// from it says** (the end-root door, `geom_brep::curve_face::end_root`,
+/// through the union):
+///
+/// - on it, the end's root is of order four, read past, and the union
+///   stops at the finish;
+/// - `1e-9` off it, the quadratic term reads in band: the end's order
+///   escalates (`JunctionEndOrder`);
+/// - `1e-5` off it, the quadratic term decides but no window holds its
+///   spread: the end is unread (`JunctionEndUnread`, `Window`), the belt
+///   `work/heldrecords/the-junction-end-window-refuses-in-a-belt-around-a-neutral-point.md`
+///   files.
+#[test]
+fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
+    let on = join(true, CapEnd::End, neutral_off_the_seam(0.0));
+    stops_at_the_finish(&on, "on the neutral point");
+    let near = join(true, CapEnd::End, neutral_off_the_seam(1e-9));
+    let e = refusal(&near, "1e-9 off it");
+    assert!(
+        matches!(
+            e,
+            topo::BooleanError::CurvedPierceEscalated {
+                decision: topo::BooleanDecision::JunctionEndOrder,
+                ..
+            }
+        ),
+        "1e-9 off it, the order in band: {e:?}"
+    );
+    let belt = join(true, CapEnd::End, neutral_off_the_seam(1e-5));
+    let e = refusal(&belt, "1e-5 off it");
+    assert!(
+        matches!(
+            e,
+            topo::BooleanError::JunctionEndUnread {
+                gap: topo::JunctionEndGap::Window,
+                ..
+            }
+        ),
+        "1e-5 off it, no window: {e:?}"
+    );
+}
+
+/// **A root of the rest of the span is found, not covered.** A pipe 4
+/// long: its seam ruling `x = 1` meets the bend's carrier again at
+/// `z = 4 − √12`, inside its span and off the bend's face. The window past
+/// the rim end stops short of it, the root doors place it off the face,
+/// and the union passes the crossing layer.
+#[test]
+fn a_long_pipe_whose_ruling_meets_the_bends_carrier_again_passes_the_crossing_layer() {
+    let (end, off) = the_eight_poses()[1];
+    assert!(bends_away(off));
+    stops_at_the_finish(&join_at(true, 4.0, end, off), "a pipe 4 long");
 }
