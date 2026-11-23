@@ -72,7 +72,7 @@ use crate::pickindex::{EdgeNamesRefused, PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, Refusal, SaveChoice, SessionOp, Step};
+use crate::session::{DocSession, Refusal, SessionOp, Step};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -525,11 +525,12 @@ pub struct ViewerApp {
     /// once at startup ([`platform::chooser_backend`]); the Open, Save
     /// and Save As controls read it every frame.
     chooser: platform::ChooserBackend,
-    /// **The choice a refused save left standing** ([`SaveChoice`]):
-    /// drawn on the toolbar until the person picks one of its two
-    /// saves, dismisses it, or a later save, open or new document
-    /// answers it.
-    save_choice: Option<SaveChoice>,
+    /// **The refused save whose choice stands** — the event its two
+    /// saves are read off ([`crate::recourse::offers`]), held here and
+    /// only here: drawn on the toolbar until the person picks one of
+    /// them, dismisses it, or a later save, open or new document answers
+    /// it.
+    standing_save: Option<Refusal>,
     /// Where the theme choice is remembered. Held rather than
     /// rediscovered per save: the path is an environment read, and a
     /// viewer whose config directory moved mid-session would be
@@ -1025,7 +1026,7 @@ impl ViewerApp {
             line_tool: None,
             notices: Vec::new(),
             chooser: platform::chooser_backend(),
-            save_choice: None,
+            standing_save: None,
             store,
             keys_pref: saved.keys,
             last_dir: saved.last_dir,
@@ -1597,14 +1598,9 @@ impl ViewerApp {
                 .map(crate::drafts::Dropped::notice),
         );
         let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
-        // A refusal that offers a choice stands it up; a save, fork or
-        // replacement that LANDED answers it; any other refusal leaves
-        // the standing one where it is.
-        if let Some(choice) = refusal.as_ref().and_then(Refusal::save_choice) {
-            self.save_choice = Some(choice);
-        } else if answered_save_choice {
-            self.save_choice = None;
-        }
+        let offered = refusal.as_ref().map_or_else(Vec::new, |refused| {
+            crate::recourse::offers(crate::recourse::Failure::Refused(refused))
+        });
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
@@ -1630,8 +1626,23 @@ impl ViewerApp {
             }
             None => {}
         }
-        if let Some(name) = frame::creation_offer(refusal.as_ref()) {
-            self.drafts.offer_variable(name);
+        // A refusal's lead is taken as it is heard: the add-variable
+        // form opens on the name an expression read.
+        let mut commits = false;
+        for offer in offered {
+            match offer {
+                crate::recourse::Offer::Lead(lead) => self.drafts.take_lead(lead, &mut self.tools),
+                crate::recourse::Offer::Commit(_) => commits = true,
+                crate::recourse::Offer::Unoffered(_) => {}
+            }
+        }
+        // A refusal that offers a save stands it up; a save, fork or
+        // replacement that LANDED answers it; any other refusal leaves
+        // the standing one where it is.
+        if commits {
+            self.standing_save = refusal;
+        } else if answered_save_choice {
+            self.standing_save = None;
         }
         self.apply_status(verdict);
     }
@@ -1809,6 +1820,7 @@ impl ViewerApp {
             return;
         }
         let mut open = true;
+        let mut taken = None;
         egui::Window::new("Checks")
             .open(&mut open)
             .default_width(420.0)
@@ -1821,7 +1833,10 @@ impl ViewerApp {
                         if report.findings.is_empty() && report.pending.is_empty() {
                             ui.label("checks: no findings");
                         }
-                        for row in frame::check_rows(report, landed) {
+                        // The offers are read off the run only while it
+                        // is the committed document's.
+                        let current = self.session.current();
+                        for row in frame::check_rows(report, landed, current) {
                             ui.horizontal_top(|ui| {
                                 if ui
                                     .button(row.button)
@@ -1833,12 +1848,10 @@ impl ViewerApp {
                                 // A sentence, so `widgets::message`.
                                 crate::widgets::message(ui, row.sentence);
                             });
-                            if let Some(node) = row.add_to_product
-                                && ui
-                                    .button(crate::pane::properties::ADD_TO_THE_PRODUCT)
-                                    .clicked()
+                            if let Some(offer) =
+                                crate::widgets::offer_controls(ui, &row.offers, &self.theme)
                             {
-                                ops.push(SessionOp::AddToProduct { node, body: None });
+                                taken = Some(offer);
                             }
                             for (label, select) in row.cells {
                                 if ui
@@ -1881,6 +1894,11 @@ impl ViewerApp {
                     }
                 }
             });
+        match taken {
+            Some(crate::widgets::Taken::Op(op)) => ops.push(op),
+            Some(crate::widgets::Taken::Lead(lead)) => self.drafts.take_lead(lead, &mut self.tools),
+            None => {}
+        }
         self.checks_shown = open;
     }
 
@@ -2052,16 +2070,16 @@ impl ViewerApp {
                     ops.push(SessionOp::Save(path));
                 }
             }
-            if let Some(choice) = self.save_choice.clone() {
+            if let Some(refused) = &self.standing_save {
                 ui.separator();
-                if ui.button(choice.over_label()).clicked() {
-                    ops.push(choice.over());
-                }
-                if ui.button(choice.fork_label()).clicked() {
-                    ops.push(choice.fork());
+                let offers = crate::recourse::offers(crate::recourse::Failure::Refused(refused));
+                if let Some(crate::widgets::Taken::Op(op)) =
+                    crate::widgets::offer_controls(ui, &offers, &self.theme)
+                {
+                    ops.push(op);
                 }
                 if ui.button("Dismiss").clicked() {
-                    self.save_choice = None;
+                    self.standing_save = None;
                 }
             }
             ui.separator();
@@ -2167,8 +2185,11 @@ impl ViewerApp {
                     // Two clauses in a wrapping row, so a sentence:
                     // `widgets::message`.
                     crate::widgets::message(ui, CANCELED_LINE);
-                    if ui.button("Re-evaluate").clicked() {
-                        ops.push(SessionOp::Reevaluate);
+                    let offers = crate::recourse::offers(crate::recourse::Failure::Canceled);
+                    if let Some(crate::widgets::Taken::Op(op)) =
+                        crate::widgets::offer_controls(ui, &offers, &self.theme)
+                    {
+                        ops.push(op);
                     }
                     if indexing {
                         ui.weak("indexing…")
@@ -2247,11 +2268,18 @@ impl ViewerApp {
                 draw_badge(ui, &self.theme, &badge);
             }
             // The product's recourse, as the action it names: the one
-            // door, on each body drawn outside the product.
-            for (label, op) in
-                frame::product_recourse(self.session.product_fault(), self.session.committed_doc())
+            // door, on each body drawn outside the product, read off the
+            // run only while it is the committed document's.
+            if let Some(current) = self.session.current()
+                && let Some(fault) = current.product_fault()
             {
-                if ui.button(label).clicked() {
+                let offers = crate::recourse::offers(crate::recourse::Failure::Run(
+                    current,
+                    crate::recourse::Ran::Product(fault),
+                ));
+                if let Some(crate::widgets::Taken::Op(op)) =
+                    crate::widgets::offer_controls(ui, &offers, &self.theme)
+                {
                     ops.push(op);
                 }
             }
@@ -2826,7 +2854,7 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
     }
 }
 
-/// **Whether `op`, landing, answers a standing [`SaveChoice`]**: a
+/// **Whether `op`, landing, answers a standing save choice**: a
 /// save or a fork, and every door that puts another document under the
 /// session.
 fn answers_a_save_choice(op: &SessionOp) -> bool {

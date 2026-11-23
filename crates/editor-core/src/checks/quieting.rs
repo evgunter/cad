@@ -135,13 +135,28 @@ impl Quieting {
         tol: geom_core::Tol,
     ) -> Result<Recorded<P>, EditError> {
         let mut action = Recording::start(doc, tol);
+        self.record(&mut action)?;
+        action.finish()
+    }
+
+    /// **[`Self::edits`], recorded into `action`**, which the caller
+    /// finishes: the same edits, read off the document `action` stands
+    /// on. Answers the assertion, the last node it mints.
+    ///
+    /// # Errors
+    ///
+    /// The insert door's refusals; `action` answers them from then on.
+    pub fn record<P: Clone + crate::ProfilePayload>(
+        &self,
+        action: &mut Recording<'_, P>,
+    ) -> Result<crate::RecipeNodeId, EditError> {
         for reference in &self.references {
             let QuietingRef::Read(var) = reference else {
                 continue;
             };
-            // Each name is read off `doc`, the action's start: a claim
-            // has one variable read as it is, a split's one tool.
-            if let Some(name) = tool_name(doc, *var) {
+            // A claim has one variable read as it is, a split's one
+            // tool, so each name is read off the action's start.
+            if let Some(name) = tool_name(action.doc(), *var) {
                 action.apply(DocEdit::RenameVar {
                     var: (*var).into(),
                     name: Some(name),
@@ -149,8 +164,7 @@ impl Quieting {
             }
         }
         let measured = action.measure(&[self.primitive()])?;
-        action.insert(Node::Assertion(self.claim(measured.outputs[0])))?;
-        action.finish()
+        action.insert(Node::Assertion(self.claim(measured.outputs[0])))
     }
 
     /// The claim in words, each reference as `by` speaks it, a cell by

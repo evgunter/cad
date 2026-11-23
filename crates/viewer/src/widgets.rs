@@ -5266,3 +5266,50 @@ mod count_site_tests {
         assert_steps_by_one("circle split n", moved);
     }
 }
+
+/// **What a click on a drawn offer asked for** ([`offer_controls`]).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Taken {
+    /// A [`crate::recourse::Commit`]'s op, to perform.
+    Op(SessionOp),
+    /// A [`crate::recourse::Lead`], to open its form.
+    Lead(crate::recourse::Lead),
+}
+
+/// **A failure's offers, drawn** — the one drawer of
+/// [`crate::recourse::offers`]: a [`crate::recourse::Commit`] or a
+/// [`crate::recourse::Lead`] as a button, in a wrapping row, and an
+/// act no door here takes as its words. A lead with no control
+/// ([`crate::recourse::Lead::CreateVariable`], taken when its refusal
+/// is heard) draws nothing. The offer whose button was clicked.
+pub(crate) fn offer_controls(
+    ui: &mut egui::Ui,
+    offers: &[crate::recourse::Offer],
+    theme: &Theme,
+) -> Option<Taken> {
+    use crate::recourse::Offer;
+    let mut taken = None;
+    let controls: Vec<_> = offers
+        .iter()
+        .filter_map(|offer| Some((offer.label()?, offer)))
+        .collect();
+    if !controls.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            for (label, offer) in controls {
+                if ui.button(label).clicked() {
+                    taken = Some(match offer {
+                        Offer::Commit(commit) => Taken::Op(commit.op.clone()),
+                        Offer::Lead(lead) => Taken::Lead(lead.clone()),
+                        Offer::Unoffered(_) => unreachable!("words have no control"),
+                    });
+                }
+            }
+        });
+    }
+    for offer in offers {
+        if let Offer::Unoffered(act) = offer {
+            message_toned(ui, act.words(), theme, crate::frame::Tone::Advisory);
+        }
+    }
+    taken
+}

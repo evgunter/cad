@@ -1497,6 +1497,23 @@ impl Drafts {
         core::mem::take(&mut self.dropped)
     }
 
+    /// **Take a failure's lead** ([`crate::recourse::Lead`]): open the
+    /// form its act is authored in, filled with what the failure
+    /// determines. The interference's pair opens the assertion tool on
+    /// a `Gap` bounded from above, its seats the pair's faces; the
+    /// bound's value stays the person's. A variable to create opens the
+    /// add-variable form on its name.
+    pub(crate) fn take_lead(&mut self, lead: crate::recourse::Lead, tools: &mut crate::tools::Tools) {
+        match lead {
+            crate::recourse::Lead::AssertGap { pair, .. } => {
+                tools.open_assertion(crate::combine::AssertionTool::led(&pair));
+                self.assertion_measure = AssertionMeasure::Gap;
+                self.assertion_bound = BoundChoice::AtMost;
+            }
+            crate::recourse::Lead::CreateVariable { name } => self.offer_variable(name),
+        }
+    }
+
     /// **Offer to declare `name`**, the variable a refused expression
     /// read and the document does not hold: the add-variable form opens
     /// with the name in it and no dimension picked, since the text it

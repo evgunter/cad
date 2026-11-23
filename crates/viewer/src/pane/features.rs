@@ -8,7 +8,7 @@ use pncad::document::{AssertionVerdict, MateRef, RecipeNodeId, SpokenNode, Uneva
 use crate::app::{GLYPH_WORLD, ViewerBehavior, toned};
 use crate::frame;
 use crate::props::Notation;
-use crate::session::{Refusal, Selection, SessionOp, VersionOffer};
+use crate::session::{Refusal, Selection, SessionOp};
 use crate::theme::Theme;
 use crate::tree::{self, Readout, RowStatus, TreeRow};
 
@@ -157,10 +157,14 @@ pub(crate) fn feature_row_ui(
     if let Some(to) = lines_under(ui, row, theme) {
         clicks.select = Some(to);
     }
-    if let Some(offer) = &row.version_offer
-        && version_offer_lines(ui, offer, theme)
-    {
-        clicks.accept = Some(offer.accept());
+    if !row.offers.is_empty() {
+        clicks.offered = ui
+            .horizontal(|ui| {
+                ui.add_space(nested_indent(ui, 1));
+                ui.vertical(|ui| crate::widgets::offer_controls(ui, &row.offers, theme))
+                    .inner
+            })
+            .inner;
     }
     clicks
 }
@@ -189,18 +193,6 @@ pub(crate) const REMOVE_CONSTRAINT: &str = "remove";
 /// The label on a placement row's button that opens its editor.
 pub(crate) const EDIT_PLACEMENT: &str = "edit placement";
 
-/// **The accept a pin-mismatched instance row offers, drawn** under
-/// its failure: the question, and the button that is the edit the
-/// failure's recourse names. Whether the button was clicked.
-fn version_offer_lines(ui: &mut egui::Ui, offer: &VersionOffer, theme: &Theme) -> bool {
-    advisory_line(ui, &Refusal::version_question(offer), theme);
-    ui.horizontal(|ui| {
-        ui.add_space(nested_indent(ui, 1));
-        ui.button(VersionOffer::LABEL).clicked()
-    })
-    .inner
-}
-
 /// What a click on one drawn feature row asked for.
 #[derive(Debug, Default)]
 pub(crate) struct RowClicks {
@@ -210,9 +202,9 @@ pub(crate) struct RowClicks {
     /// Whether the instance should now be hidden, when its toggle was
     /// clicked.
     pub(crate) hide: Option<bool>,
-    /// The operation accepting the row's [`TreeRow::version_offer`],
-    /// when its button was clicked.
-    pub(crate) accept: Option<SessionOp>,
+    /// The offer among the row's [`TreeRow::offers`] whose control was
+    /// clicked.
+    pub(crate) offered: Option<crate::widgets::Taken>,
     /// The constraint whose remove button was clicked, among the row's
     /// [`TreeRow::constraints`].
     pub(crate) remove: Option<MateRef>,
@@ -424,8 +416,10 @@ impl ViewerBehavior<'_> {
                 on: !hidden,
             });
         }
-        if let Some(accept) = clicks.accept {
-            self.ops.push(accept);
+        match clicks.offered {
+            Some(crate::widgets::Taken::Op(op)) => self.ops.push(op),
+            Some(crate::widgets::Taken::Lead(lead)) => self.drafts.take_lead(lead, self.tools),
+            None => {}
         }
         if clicks.edit {
             match crate::matetool::MateTool::edit(self.session.committed_doc(), row.id) {
@@ -561,7 +555,7 @@ mod tests {
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         }
     }
@@ -611,7 +605,7 @@ mod tests {
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         };
         let drawn = painted_text(|ui| {
@@ -678,7 +672,7 @@ mod tests {
             },
             repair_at,
             readout: None,
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         }
     }
@@ -1068,7 +1062,7 @@ mod tests {
             status: RowStatus::Ok,
             repair_at: None,
             readout: Some(Readout::Empty(readout)),
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         };
         for (emptiness, phrase) in [
@@ -1633,7 +1627,7 @@ mod tests {
         super::RowClicks {
             select: select.get(),
             hide: hide.get(),
-            accept: None,
+            offered: None,
             remove: remove.get(),
             edit: false,
             hovered: false,
@@ -1653,7 +1647,7 @@ mod tests {
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         }
     }
@@ -1779,7 +1773,7 @@ mod tests {
         assert_eq!(selected, None, "the button selects nothing");
 
         let unoffered = TreeRow {
-            version_offer: None,
+            offers: Vec::new(),
             ..row
         };
         let drawn = painted_text(|ui| feature_row_drawn(ui, &unoffered, &Theme::DEFAULT));

@@ -640,12 +640,9 @@ impl Recourse {
                 Some(claim) => crate::sentence!(ONE_CONSTRUCTION, ", or assert ", claim),
                 None => crate::Sentence::from(ONE_CONSTRUCTION),
             },
-            Self::Assert => {
-                either("the door cannot read what decided it as a function of the variables")
-            }
-            Self::Budget => either(
-                "what decided it, read as a function of the variables, outgrew the door's budget",
-            ),
+            Self::Assert | Self::Budget => either(self.why_asserted().unwrap_or_else(|| {
+                unreachable!("an asserting recourse says why it asserts")
+            })),
             Self::ReadTheAxis => {
                 "Recourse: draw the profile on the face the traced face's sweep was drawn on or a \
                  face mated flat onto its cap, or on a frame whose z is read off the traced face's \
@@ -658,6 +655,34 @@ impl Recourse {
                  reaches the row"
                     .into()
             }
+        }
+    }
+}
+
+impl Recourse {
+    /// **The recourse beside a control that authors its assertion**
+    /// ([`Self::words`] for a row that carries one): every act but the
+    /// assertion, and why it is the assertion, for a surface that draws
+    /// the claim as the control itself rather than as words.
+    #[must_use]
+    pub fn words_beside_its_claim(self, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
+        match self.why_asserted() {
+            Some(why) => crate::Sentence::from(why),
+            None => self.words(None, by),
+        }
+    }
+
+    /// Why the row is asserted rather than built, for the two recourses
+    /// whose only act is the assertion.
+    const fn why_asserted(self) -> Option<&'static str> {
+        match self {
+            Self::Assert => {
+                Some("the door cannot read what decided it as a function of the variables")
+            }
+            Self::Budget => Some(
+                "what decided it, read as a function of the variables, outgrew the door's budget",
+            ),
+            Self::OneConstruction | Self::ReadTheAxis | Self::MemberBudget => None,
         }
     }
 }

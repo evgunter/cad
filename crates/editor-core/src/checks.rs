@@ -928,6 +928,59 @@ impl crate::spoken::Say for CheckFinding {
     }
 }
 
+impl CheckFinding {
+    /// **The finding's sentence beside a control that authors the
+    /// assertion it carries**, said by `by`: its recourse names every
+    /// act but that assertion, which the control is
+    /// ([`CheckEvidence::UnprovenCoincidence`]'s `quieting`,
+    /// [`at_rest::InterferenceFinding::quieting`]). A finding that
+    /// carries none is said whole.
+    #[must_use]
+    pub fn said_beside_its_assertion(&self, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
+        crate::spoken::Said(&Beside(self), by).sentence()
+    }
+}
+
+/// A finding to be said beside the control that authors its
+/// assertion ([`CheckFinding::said_beside_its_assertion`]).
+struct Beside<'a>(&'a CheckFinding);
+
+impl crate::spoken::Say for Beside<'_> {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+        crate::finding::compose(f, &BesideItsAssertion(SaidFinding(self.0, by)))
+    }
+}
+
+/// A finding said with its recourse less the assertion a control
+/// beside it authors.
+struct BesideItsAssertion<'a>(SaidFinding<'a>);
+
+impl crate::finding::Finding for BesideItsAssertion<'_> {
+    fn subject(&self, f: &mut crate::Sentence) -> fmt::Result {
+        self.0.subject(f)
+    }
+
+    fn story(&self, f: &mut crate::Sentence) -> fmt::Result {
+        self.0.story(f)
+    }
+
+    fn recourse(&self) -> crate::Sentence {
+        let SaidFinding(finding, by) = self.0;
+        match &finding.evidence {
+            _ if finding.quiet.is_some() => self.0.recourse(),
+            CheckEvidence::UnprovenCoincidence {
+                recourse,
+                quieting: Some(_),
+                ..
+            } => recourse.words_beside_its_claim(by),
+            CheckEvidence::Interference { finding } if finding.quieting.is_some() => {
+                interference_recourse(None, by)
+            }
+            _ => self.0.recourse(),
+        }
+    }
+}
+
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

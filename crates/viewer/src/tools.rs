@@ -295,7 +295,9 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. } => None,
+        | SessionOp::AcceptPartVersion { .. }
+        // A finding's offer, drawn beside the finding, not a tool's edit.
+        | SessionOp::AssertQuieting { .. } => None,
     }
 }
 
@@ -643,6 +645,12 @@ impl Tools {
     /// `edit` and `remove`), closing whatever was open.
     pub fn open_mate(&mut self, tool: MateTool) {
         self.open = Some(OpenTool::Mate(tool));
+    }
+
+    /// Open the assertion tool holding `tool`'s seats: the one a
+    /// finding's lead fills ([`AssertionTool::led`]).
+    pub fn open_assertion(&mut self, tool: AssertionTool) {
+        self.open = Some(OpenTool::Assertion(tool));
     }
 
     /// The open boolean tool.

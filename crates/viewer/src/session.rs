@@ -104,7 +104,7 @@ pub use op::{
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     BundleRefusal, GestureFrameFault, NodeKindWanted, ParseRefusal, Refusal, SaveChoice, Step,
-    VersionOffer, admits, admits_read,
+    admits, admits_read,
 };
 pub use select::{
     EdgeSelection, FaceSelection, Holds, HoldsNothing, Hovered, Selection, Standing,
@@ -765,6 +765,45 @@ impl core::fmt::Debug for Derived {
             .finish()
     }
 }
+
+/// **A landed run that is the committed document's run** — the one
+/// value a document-editing offer is read off
+/// ([`crate::recourse::Failure::Run`]). Only [`DocSession::current`]
+/// makes one, and only while the landed and the committed generations
+/// match, so what the run reports describes the document the offer's op
+/// acts on. It lives no longer than the borrow of the session.
+#[derive(Clone, Copy)]
+pub struct Current<'a> {
+    run: &'a LandedRun,
+}
+
+impl<'a> Current<'a> {
+    /// The document the run answers: the committed one.
+    pub fn doc(self) -> &'a Doc<ProfileProgram> {
+        &self.run.doc
+    }
+
+    /// The run's advisory-check report ([`DocSession::checks`]).
+    pub fn checks(self) -> Option<&'a ChecksReport> {
+        self.run.checks.as_ref()
+    }
+
+    /// Why the run's product does not gather ([`DocSession::product_fault`]).
+    pub fn product_fault(self) -> Option<&'a ProductError> {
+        self.run.gather.as_ref().err()
+    }
+
+    /// The part files the run's resolver could name ([`PartFiles`]).
+    pub fn files(self) -> &'a PartFiles {
+        &self.run.files
+    }
+
+    /// The run's evaluation.
+    pub fn evaluation(self) -> &'a Evaluation<f64> {
+        &self.run.evaluation
+    }
+}
+
 
 /// One completed evaluation, landed: the pair it answers and every
 /// verdict taken for that pair.
@@ -1663,6 +1702,16 @@ impl DocSession {
         }
     }
 
+    /// **The landed run, while it is the committed document's**
+    /// ([`Current`]): `None` while a run of a newer document is
+    /// outstanding, a gesture's preview is shown, or nothing has landed.
+    pub fn current(&self) -> Option<Current<'_>> {
+        if self.busy() || self.derived.scratch.is_some() {
+            return None;
+        }
+        self.derived.landed.as_ref().map(|run| Current { run })
+    }
+
     /// The generation the session is waiting for a result on.
     pub fn generation(&self) -> Generation {
         self.generation
@@ -1790,13 +1839,17 @@ impl DocSession {
                         }
                     }
                 }
-                // An offer acts on the COMMITTED document, so one read
-                // off a run of an older document is withheld until the
-                // current one lands: the accept it made may already be
-                // the edit that run is answering.
-                if self.busy() {
+                // An offer acts on the COMMITTED document, so it is read
+                // only off a run of that document: one read off an older
+                // run could be the edit that run is still answering.
+                if let Some(current) = self.current() {
                     for row in &mut rows {
-                        row.version_offer = None;
+                        if let Some(error) = tree::own_error(row.id, current.evaluation()) {
+                            row.offers = crate::recourse::offers(crate::recourse::Failure::Run(
+                                current,
+                                crate::recourse::Ran::Node(&error.kind),
+                            ));
+                        }
                     }
                 }
                 rows
@@ -2362,6 +2415,7 @@ impl DocSession {
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
             | SessionOp::AddAssertion { .. }
+            | SessionOp::AssertQuieting { .. }
             | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
@@ -2428,6 +2482,9 @@ impl DocSession {
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddAssertion { a, b, claim } => self.add_assertion(a, b, claim),
+            SessionOp::AssertQuieting { quieting } => {
+                Ok(creating(move |run| quieting.record(run)))
+            }
             SessionOp::Place { body, target, name } => self.place(body, target, name),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
@@ -3860,7 +3917,7 @@ impl DocSession {
                             })?;
                     Ok(Operand::select(body, names))
                 }
-                AssertedSeat::Read(read) => Ok(read),
+                AssertedSeat::Minted(reference) => Ok(reference.operand()),
             }
         };
         let (a, b) = (read(a)?, read(b)?);

@@ -116,8 +116,13 @@ impl ViewerBehavior<'_> {
             }
             None => {}
         }
-        if let Some(name) = frame::creation_offer(news.refused.as_ref()) {
-            self.drafts.offer_variable(name);
+        // A refusal's lead is taken as it is heard.
+        for offer in news.refused.iter().flat_map(|refused| {
+            crate::recourse::offers(crate::recourse::Failure::Refused(refused))
+        }) {
+            if let crate::recourse::Offer::Lead(lead) = offer {
+                self.drafts.take_lead(lead, self.tools);
+            }
         }
         true
     }
