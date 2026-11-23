@@ -548,6 +548,21 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     if matches!(surface, Surface::Plane { .. } | Surface::Cone { .. }) {
         return rim_face(surface, loops, band, window, centre, accept);
     }
+    let face = rotational_face(body, surface, sense, loops, centre)?;
+    quad::rotational_cut_face_rounds::<T>(&face, band, window, accept)
+}
+
+/// **A curved-cut face on a chart of revolution as the rotational lane
+/// reads it** ([`quad::RotationalFaceQ`]): its chart under `sense`, its
+/// chart term about `centre` (the world origin where `None`) and each
+/// loop's edge terms off its stored pcurves.
+fn rotational_face<T: Decide + Bounds + CertifiedEnclosure>(
+    body: &Body<T>,
+    surface: &Surface<T>,
+    sense: bool,
+    loops: &[super::FlatLoop<T>],
+    centre: Option<Point3<Interval>>,
+) -> Result<quad::RotationalFaceQ, PropsError> {
     let iv = Interval::from_certified;
     let (origin, chart) = match surface {
         Surface::Cylinder { frame, radius, .. } => {
@@ -732,7 +747,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         }
         terms.push(edges);
     }
-    let face = quad::RotationalFaceQ {
+    Ok(quad::RotationalFaceQ {
         chart,
         chart_term: quad::ChartTermQ {
             closed,
@@ -746,8 +761,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             },
         },
         loops: terms,
-    };
-    quad::rotational_cut_face_rounds::<T>(&face, band, window, accept)
+    })
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
@@ -3148,4 +3162,54 @@ mod tests {
             }
         }
     }
+}
+
+/// **The side a cylinder or sphere face's loops encode, read through the
+/// rotational lane** ([`quad::rotational_material_sign`]), for a face no
+/// closed form reads: its loops' chart images (`loops`, the face walk's
+/// own) and, on the sphere, the poles among `held`, the face's wrap
+/// tips, each read against every loop that does not pass it.
+///
+/// # Errors
+///
+/// [`PropsError::QuadratureUnsupported`] on any other kind; the lane's
+/// own refusals.
+pub(super) fn material_sign<T: Decide + Bounds + CertifiedEnclosure>(
+    body: &Body<T>,
+    surface: &Surface<T>,
+    loops: &[super::FlatLoop<T>],
+    held: &[Point3<T>],
+    band: Band,
+) -> Result<geom_brep::props::MaterialSign, PropsError> {
+    let at = |a: Point3<T>, b: Point3<T>| {
+        geom_brep::chart_singularity::vertex_at_singular_point(a, b, band)
+    };
+    let reads: Vec<[bool; 2]> = match *surface {
+        Surface::Cylinder { .. } => vec![[false; 2]; loops.len()],
+        Surface::Sphere { frame, radius, .. } => {
+            let up = frame.axis().normalize() * radius;
+            let poles = [frame.origin() + up, frame.origin() - up];
+            // A pole the face holds, unread where its incidence is in band.
+            let holds = poles.map(|p| held.iter().any(|&h| at(h, p).unwrap_or(false)));
+            loops
+                .iter()
+                .map(|(edges, _)| {
+                    core::array::from_fn(|k| {
+                        holds[k]
+                            && edges
+                                .iter()
+                                .all(|e| at(e.traversal_start(), poles[k]) == Ok(false))
+                    })
+                })
+                .collect()
+        }
+        _ => {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a face's side read by the rotational lane on a chart other than the \
+                       cylinder or the sphere",
+            });
+        }
+    };
+    let face = rotational_face(body, surface, true, loops, None)?;
+    quad::rotational_material_sign::<T>(&face, &reads, band)
 }

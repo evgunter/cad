@@ -432,7 +432,7 @@ impl<'c> Run<'c> {
 /// value, so none decides it; a point or poisoned margin is no
 /// enclosure to narrow. Read off the escalation itself, so a predicate
 /// reaching here that is not enclosure-shaped refines nothing.
-fn refinable(cause: &geom_core::Indeterminate) -> bool {
+pub(super) fn refinable(cause: &geom_core::Indeterminate) -> bool {
     cause.margin.kind() == geom_core::MarginKind::Enclosure && !cause.terminal_sliver
 }
 

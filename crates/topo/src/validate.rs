@@ -8422,6 +8422,22 @@ pub(crate) fn tier3_local_checks_marked<
             .filter(|edges| geom_brep::chart_image::bounds_area(edges))
             .collect();
         let side = geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band);
+        // A cylinder or sphere face whose trims no closed form reads is
+        // read through the rotational lane, over the same chart images
+        // and wrap tips (`quad_lane::material_sign`); a refusal there
+        // is exempt, as a closed form's is.
+        let lane_side = || {
+            let lane = <T as crate::props::AtRestPolicy>::quad_lane()?;
+            let flat: Vec<crate::props::FlatLoop<T>> = images
+                .iter()
+                .filter(|(edges, _)| geom_brep::chart_image::bounds_area(edges))
+                .cloned()
+                .collect();
+            match crate::props::QuadLaneOf::material_sign(lane, body, surface, &flat, &held, band) {
+                Ok(geom_brep::props::MaterialSign::Encoded(side)) => Some(side),
+                _ => None,
+            }
+        };
         if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
             flattened.insert(face_key, full);
         }
@@ -8443,8 +8459,11 @@ pub(crate) fn tier3_local_checks_marked<
                 else {
                     continue; // derivation exempt (posture above)
                 };
-                let region = region.side(band);
-                if let Some(geom_brep::props::MaterialSign::Encoded(side)) = region
+                let region = match region.side(band) {
+                    Some(geom_brep::props::MaterialSign::Encoded(side)) => Some(side),
+                    _ => lane_side(),
+                };
+                if let Some(side) = region
                     && (side == Sign::Positive) != face.sense
                 {
                     errors.push(ValidationError::CurvedSenseInverted { face: face_key });
@@ -8462,8 +8481,16 @@ pub(crate) fn tier3_local_checks_marked<
             // would DESTROY that report rather than add to it, check 7
             // being gated on `errors.is_empty()` — the recorded
             // exception is the conic-trimmed wall named above, whose
-            // quadrature flux is winding-derived and answers.
-            Err(_) => {}
+            // quadrature flux is winding-derived and answers. The
+            // rotational lane's reading of the same face, where it reads
+            // one, is held against the bit as the closed form's is.
+            Err(_) => {
+                if let Some(side) = lane_side()
+                    && (side == Sign::Positive) != face.sense
+                {
+                    errors.push(ValidationError::CurvedSenseInverted { face: face_key });
+                }
+            }
         }
     }
 
