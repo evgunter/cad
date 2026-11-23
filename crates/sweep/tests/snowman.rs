@@ -1,9 +1,8 @@
 //! **The snowman**: two balls of revolution on distinct centres along
 //! one axis, meeting in a real circle, under every boolean.
 //!
-//! Each ball is the canonical full revolve of a semicircle: two
-//! half-bands on one sphere key, their seam meridians crossing the
-//! partner sphere. The section is the radical-plane circle, and the
+//! Each ball is the canonical full revolve of a semicircle: one sphere
+//! face, its seam meridian a wrap edge crossing the partner sphere. The section is the radical-plane circle, and the
 //! rows reach it through the crossing layer's circle × sphere roots and
 //! the sphere pair's join. Every body is held to all three validation
 //! tiers and to its volume against the two spherical caps the radical
@@ -12,8 +11,8 @@
 //! **The seams need not be coplanar.** Both balls are revolved from the
 //! same seam, so each seam meridian pierces the other sphere on the
 //! other's seam meridian and every chord runs seam to seam. Spin one
-//! ball about the shared axis and the pierce lands inside a half-band
-//! instead, a pierce ring, which joins: that pose builds too.
+//! ball about the shared axis and the pierce lands inside the sphere face
+//! off its seam instead, a pierce ring, which joins: that pose builds too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

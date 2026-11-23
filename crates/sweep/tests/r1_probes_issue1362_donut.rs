@@ -376,7 +376,7 @@ fn r1_sweeps_the_revolve_fixtures_for_more_structural_zeros() {
     println!("UNLIFTED rows showing the structural-zero signature: {unlifted_suspects:?}");
     // FINDING, pinned: the class is wider than `signed_volume_lifted`'s
     // doc says ("faces whose boundary probes are COPLANAR — the
-    // two-band sphere/cone patches"). The donut's halves are not
+    // one-band sphere/cone faces"). The donut's halves are not
     // coplanar; they are MIRROR-PAIRED, a second mechanism, and PR
     // 1389 documented it only at the one call site it repaired. A
     // partially-revolved ball is a third instance. No committed row

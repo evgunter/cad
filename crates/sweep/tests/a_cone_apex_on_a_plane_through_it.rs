@@ -446,7 +446,8 @@ fn a_plane_grazing_a_tipped_cone_along_a_ruling_refuses_typed() {
     }
 }
 
-/// The 3° needle (`revolve_common::needle`, two meridians at its apex)
+/// The 3° needle (`revolve_common::needle`, its one meridian a wrap
+/// edge whose tip is the apex)
 /// against the block below the plane through the point `k·ε` down its
 /// seam ruling, the plane's normal tilted `tilt` off the axis toward
 /// azimuth 0.

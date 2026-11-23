@@ -1,6 +1,6 @@
 //! Adversarial review suite for M2 PR 5, interval lane: the
 //! reviewer's shapes that go beyond the shipped
-//! four-acceptance set — a multi-segment two-band wire (dome), the
+//! four-acceptance set — a multi-segment full-revolve wire (dome), the
 //! wrap-run donut, and a NEGATIVE-angle non-dyadic wedge. Refusals
 //! here are defects, not honesty (the lane is fully live post-B1).
 
@@ -36,7 +36,7 @@ fn assert_tiers(body: &topo::Body<Interval>) {
 #[test]
 fn survives_interval_dome_two_band_wire() {
     // Four wire segments (plane, cylinder, cone, plane) + axis run:
-    // the richest two-band wire, at the certified scalar.
+    // the richest full-revolve wire, at the certified scalar.
     let lp = ProfileLoop::polygon([
         p2(0.0, 0.0),
         p2(1.0, 0.0),

@@ -90,12 +90,11 @@ fn lentil() -> Body<f64> {
     )
 }
 
-/// **The seam-split lantern**: the same shapes on a POLE-TOUCHING
-/// profile, whose full revolve splits every wall into two half-bands.
-///
-/// That is the body #319's second finding was probed on: each latitude
-/// rim is two arcs, and the two vertices where they meet are the points
-/// at which the charts' seam meridians cross the rim.
+/// **The pole-touching lantern**: the same shapes on a POLE-TOUCHING
+/// profile, the body #319's second finding was probed on. Its full
+/// revolve sweeps each wall as one band, so each latitude rim is one
+/// closed edge, met by the wall's one seam meridian at its conventional
+/// vertex.
 fn lantern() -> Body<f64> {
     let bulge = (0.6f64.asin() / 4.0).tan();
     revolved_about_y(
