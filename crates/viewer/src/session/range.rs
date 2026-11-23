@@ -457,6 +457,10 @@ impl Say for Reason<'_> {
 
 #[cfg(test)]
 mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
     use pncad::analysis::{BudgetKind, RangeRefusal, RefusalReason, Unproven, Unsettled};
     use pncad::document::{
         Doc, DocEdit, FreeVar, NodeErrorClass, ProfileProgram, RecipeNodeId, Speaker, VarDecl,
@@ -615,7 +619,7 @@ mod tests {
                 .parse()
                 .unwrap_or_else(|_| panic!("a number: {text:?}"))
         };
-        for (end, nominal) in [(0.375_123_456_789_012_34, 0.25), (0.5_f64.next_down(), 0.0)] {
+        for (end, nominal) in [(0.375_123_456_789_012_3, 0.25), (0.5_f64.next_down(), 0.0)] {
             let shown = props::shown_text_toward(m, end, nominal);
             assert!(
                 back(&shown) <= end && back(&shown) > nominal,
@@ -641,8 +645,8 @@ mod tests {
                 "the difference is shown outward: {different}"
             );
         }
-        let below = props::shown_text_toward(m, -0.375_123_456_789_012_34, -0.25);
-        assert!(back(&below) >= -0.375_123_456_789_012_34, "{below}");
+        let below = props::shown_text_toward(m, -0.375_123_456_789_012_3, -0.25);
+        assert!(back(&below) >= -0.375_123_456_789_012_3, "{below}");
     }
 
     /// **Every reason ground is undecided has words of its own**, and

@@ -578,9 +578,10 @@ pub fn shown_text_toward(unit: Option<UnitDef>, canonical: f64, toward: f64) -> 
     }
     // The text rounded past `canonical`: move toward `toward` by a step
     // that doubles until the grid rounds the other way. The first step
-    // is the miss itself, so the answer is within two grid steps.
+    // is the miss itself, which is not zero, since the text read back
+    // on the wrong side; so the answer is within two grid steps.
     let direction = if up { 1.0 } else { -1.0 };
-    let mut step = (canonical - back).abs().max(f64::EPSILON * canonical.abs());
+    let mut step = (canonical - back).abs();
     for _ in 0..128 {
         let candidate = canonical + direction * step;
         if (up && candidate > toward) || (!up && candidate < toward) {

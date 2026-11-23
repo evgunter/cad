@@ -410,7 +410,7 @@ fn a_slot_reading_a_named_variable_says_the_range_is_the_variables() {
         .tree_rows()
         .iter()
         .map(|row| row.id)
-        .last()
+        .next_back()
         .expect("the slab has its extrude");
     let outcome = session.perform(SessionOp::ProveRange {
         target: RangeTarget::Slot {
