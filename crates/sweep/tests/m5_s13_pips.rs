@@ -190,8 +190,8 @@ fn die_pip_subtract_is_green() {
         }
     }
     assert!(
-        seam_arcs >= 2,
-        "the seam circle survives as exact circle arcs, got {seam_arcs}"
+        seam_arcs >= 1,
+        "the seam circle survives as an exact circle, got {seam_arcs}"
     );
 }
 

@@ -400,7 +400,7 @@ const H: f64 = 2.0;
 /// The capsule revolved from one profile: a tube of radius [`R`] on
 /// `z ∈ [0, H]` and a half ball on it, the ball's quarter arc authored
 /// as the side's tangent continuation and its joint minted
-/// `TangentIntersection` (two semicircles).
+/// `TangentIntersection` (one closed circle).
 fn capsule() -> AtRestBody<f64> {
     let t = tol();
     let lp: ProfileLoop<f64> = Open
@@ -467,11 +467,11 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
     let cap = capsule();
     let struts = tangent_struts(&cap);
     assert!(
-        struts.len() == 2
+        struts.len() == 1
             && struts.iter().all(|&(x, y)| {
                 [x, y].contains(&SurfaceKind::Cylinder) && [x, y].contains(&SurfaceKind::Sphere)
             }),
-        "the capsule's joint, two semicircles between its tube and half ball: {struts:?}"
+        "the capsule's joint, one circle between its tube and half ball: {struts:?}"
     );
     let capsule_volume = PI * R * R * H + 2.0 / 3.0 * PI * R.powi(3);
     for (pose, z0, len) in [

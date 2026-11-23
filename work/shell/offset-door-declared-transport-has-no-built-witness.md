@@ -33,7 +33,10 @@ now one face whose one meridian is the chart's derived seam
 and the extruded two-arc drum, whose struts are declared, refuses the
 cap offset on its declared cap arcs (`CarrierLaneUnsupported`), so
 `verbs_offd::the_untouched_walls_declared_meridian_is_re_anchored` was
-retired with its subject.
+retired with its subject. So was the axial door's re-authoring of a
+declared meridian ARC (`topo::offset_axial`'s `reauthor`), whose witness
+`torax_axial::torax_re_authored_arcs_put_both_corners_on_the_moved_circle`
+read the torus fixtures' angle-π meridians.
 
 The rows: for each arm, build a face carrying a declared edge through
 a door a user has (or plant a TRUE declaration through `set_edge_curve`,
@@ -42,4 +45,4 @@ declaration survives with its placement moved by exactly `d` along the
 normal.
 
 - 2026-11-02 — moved from SHELF to SHELL by `git mv` when SHELF merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SHELF had fallen far under it).
-- 2026-11-23 — the untouched-face arm's witness retired with the full revolve's angle-π meridian (LATHE, `a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote`); both arms are now unwitnessed.
+- 2026-11-23 — the untouched-face arm's witness retired with the full revolve's angle-π meridian (LATHE, `a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote`); the untouched-face arm and the axial door's arc re-authoring are now unwitnessed.

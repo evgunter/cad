@@ -542,20 +542,33 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
 }
 
 /// **A revolved ball holds**: a half disc revolved a full turn about
-/// its diameter, two half-bands of one sphere sharing their two
-/// meridians and both poles. Each half-band is read in its own half
-/// turn and the pair splits there, so the body holds only after it
-/// splits. Red if it holds without a split: one half-band was then read
-/// as holding nothing in its own window, on an extent off its sheet.
+/// its diameter is one sphere face, its one meridian walked out and
+/// back, and it holds at both scalars. Cut into two lunes sharing their
+/// two meridians and both poles, each lune is read in its own half turn
+/// and the pair splits there, so the body holds only after it splits.
+/// Red if the lunes hold without a split: one was then read as holding
+/// nothing in its own window, on an extent off its sheet.
 #[test]
 fn a_revolved_ball_holds_only_after_it_splits() {
     fn ball<T: Scalar>() -> Body<T> {
         let p = |y: f64, b: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(b));
         revolved_about_y_at(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol())
     }
-    for report in holds_at_both("the ball", ball(), ball()) {
-        assert!(report.receipt.splits > 0, "{:?}", report.receipt);
-    }
+    let (float, twin) = (
+        injective(&ball::<f64>(), None, BUDGET),
+        injective(&ball::<Interval>(), None, BUDGET),
+    );
+    same_class("the one-face ball", &float, &twin);
+    assert!(
+        matches!(float.verdict, BoundVerdict::Holds),
+        "the one-face ball is embedded: {:?}",
+        float.receipt
+    );
+    let mut lunes = ball::<f64>();
+    crate::seam_region_common::two_lunes(&mut lunes, tol());
+    let report = injective(&lunes, None, BUDGET);
+    assert_holds("the two lunes", &report, &lunes);
+    assert!(report.receipt.splits > 0, "{:?}", report.receipt);
 }
 
 /// **A cone holds**: the triangle `(0,0) (1,0) (0,1)` revolved a full

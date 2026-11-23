@@ -1,10 +1,11 @@
 //! **A chart singularity stays a vertex** (`docs/DESIGN.md`, maximal
-//! edges: poles and apexes stay vertices). A full revolve's sphere has
-//! a valence-2 vertex at each pole, and a cone one at its apex, whose
-//! two edges are chart edges of one surface key on one iso family:
-//! two meridians, two rulings. Every structural reading the chart arm
-//! of `joinable` takes holds there, and the join refuses on the
-//! vertex's distance from the chart's singular set alone.
+//! edges: poles and apexes stay vertices). A full revolve's sphere
+//! reaches each pole, and a cone its apex, by one wrap edge: a tip, with
+//! nothing to join. The ball cut into two lunes has a valence-2 vertex
+//! at each pole, whose two edges are chart edges of one surface key on
+//! one iso family, two meridians: every structural reading the chart arm
+//! of `joinable` takes holds there, and the join refuses on the vertex's
+//! distance from the chart's singular set alone.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -16,23 +17,32 @@ use sweep::test_support::revolved_about_y;
 fn a_spheres_poles_and_a_cones_apex_are_not_joinable() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    for (label, profile, on_axis) in [
-        (
-            "the ball",
+    let ball = || {
+        revolved_about_y(
             vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
-            2,
-        ),
-        (
-            "the cone",
-            vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(1.0, 0.0), 0.0),
-                (Point2::new(0.0, 1.0), 0.0),
-            ],
-            1,
-        ),
+            Revolution::Full,
+            tol,
+        )
+    };
+    let lunes = {
+        let mut b = ball();
+        crate::seam_region_common::two_lunes(&mut b, tol);
+        b
+    };
+    let cone = revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    for (label, b, on_axis, valence) in [
+        ("the ball", ball(), 2, 1),
+        ("the two lunes", lunes, 2, 2),
+        ("the cone", cone, 1, 1),
     ] {
-        let b = revolved_about_y(profile, Revolution::Full, tol);
         let mut singular = 0;
         for (_, d) in b.vertices() {
             let p = *b.get_point(d.point).unwrap();
@@ -57,9 +67,10 @@ fn a_spheres_poles_and_a_cones_apex_are_not_joinable() {
                     }
                 })
                 .collect();
+            assert_eq!(surfaces.len(), valence, "{label}: the valence at the axis");
             assert!(
-                matches!(surfaces.as_slice(), [a, b] if a == b),
-                "{label}: valence 2, both edges on one chart: {surfaces:?}"
+                surfaces.iter().all(|&s| s == surfaces[0]),
+                "{label}: every edge at the axis on one chart: {surfaces:?}"
             );
         }
         assert_eq!(singular, on_axis, "{label}: its vertices on the axis");
