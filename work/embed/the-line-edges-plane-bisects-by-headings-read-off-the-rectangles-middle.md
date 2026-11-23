@@ -11,7 +11,7 @@ cost: M
 
 ## Finding
 
-Measured by EMBED's lane `embed/wedge-measure` (branch `embed/wedge-measure` at `2c591054d9`, `measure/wedge/REPORT.md` §4; code read on PR 7329's head), filed by the EMBED orchestrator from its report.
+Measured by EMBED's lane `embed/wedge-measure` (branch `embed/wedge-measure` at `6c403617c7`, `measure/wedge/REPORT.md` §4; code read on PR 7329's head), filed by the EMBED orchestrator from its report.
 
 Over the per-solid census (1,301 tests), 19,190 crease cell pairs that the embedding question refuses for good have **both faces definite alone and on the same side of the separating plane**: the plane separates nothing. 19,164 of them are at the bisecting plane of one straight shared edge, **all in one test**: `sweep parallel_cylinder_join::seams_lying_on_the_walls_read_the_axes_across_the_region` (edge `14v1`, faces `3v1` / `8v3`; also `8v1`, `13v1`, `15v1`, `3v1`), cylinder against cylinder, a concave crease whose departures are 90° apart.
 
