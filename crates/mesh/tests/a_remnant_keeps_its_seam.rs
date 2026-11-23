@@ -44,8 +44,8 @@ fn a_sphere_remnant_walks_its_seam_twice(body: &Body<f64>) -> bool {
 }
 
 /// `body` meshes at each δ, passes `check_mesh`, and encloses `volume`
-/// to within the mesh's deviation over the surface (`δ·area`, the area
-/// bounded by `area`).
+/// to within the mesh's deviation over its curved surface (`δ·area`,
+/// `area` that surface's, bounded above): a planar face meshes exactly.
 fn meshes_at_its_volume(what: &str, body: &Body<f64>, volume: f64, area: f64) {
     assert!(
         a_sphere_remnant_walks_its_seam_twice(body),
@@ -83,7 +83,7 @@ fn a_ball_under_a_box_face_meshes_with_its_seam() {
     let h: f64 = 0.5;
     let cap = PI * h * h * (3.0 - h) / 3.0;
     let volume = 4.0 * PI / 3.0 + 2.5 * 4.0 * 2.0 - cap / 2.0;
-    meshes_at_its_volume("the ball under a box face", body, volume, 4.0 * PI + 60.0);
+    meshes_at_its_volume("the ball under a box face", body, volume, 4.0 * PI);
 }
 
 /// Two unit balls `1.4` apart, the second leaning toward `y` so the

@@ -508,9 +508,10 @@ pub(crate) fn tessellate_trimmed(
         &singular,
     );
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
-    // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
-    // `singular_row_shape` admits, so the duplicate-id skip in the emit
-    // pass never collapses a fan at one (#678).
+    // A CHART WITH SINGULAR POINTS keeps its polygon to the shapes
+    // `singular_row_shape` admits: no point past a row that ends the
+    // chart, no face on both sides of one inside it. #678's fan is kept
+    // off the lattice by `repeat_columns`.
     if let ChartRow::Analytic(ref a) = row
         && !a.singular_points().is_empty()
     {
@@ -2540,15 +2541,23 @@ fn singular_row_shape(
 /// until no mesh id the polygon holds at two UV locations
 /// ([`crate::cdt::ids_at_two_uvs`]) has exactly one lattice column
 /// strictly between two of its `u`s — the shape #678's non-manifold fan
-/// needs (`curved::pole_columns` carries the argument). Those ids are a
-/// singular vertex's copies (a pole side, [`singular_row_shape`]) and a
-/// vertex on the chart's cut met from both sides (a seam or a wrap edge
-/// walked out and back), on every analytic arm. Doubling keeps every
-/// column it had, so a span's count never falls, but it need not rise
-/// past one at the first doubling (the new columns can land outside a
-/// short span); the loop reads the count again after each, and ends once
-/// the spacing is under half the shortest span, where every span holds
-/// at least two. [`ceil_count`] caps the doubling.
+/// needs (`curved::pole_columns` carries the argument). Doubling keeps
+/// every column it had, so a span's count never falls, but it need not
+/// rise past one at the first doubling (the new columns can land outside
+/// a short span); the loop reads the count again after each, and ends
+/// once the spacing is under half the shortest span, where every span
+/// holds at least two. [`ceil_count`] caps the doubling.
+///
+/// Those ids are of two kinds. A singular vertex's copies (a pole side,
+/// [`singular_row_shape`]) span any `u` interval, and the doubling is
+/// what keeps one column off a short one. A vertex on the chart's cut met
+/// from both sides (a seam or a wrap edge walked out and back) has copies
+/// a whole period apart, `2π`, against an `h_u` every arm caps at `π/4`
+/// (`sizing::cap_angular`), so `nu ≥ 8` and seven columns stand between
+/// them: for those the rule is the generic one, and the step cap is what
+/// holds it. Only `u` spans are read. Copies a `v` period apart (a
+/// torus's) meet rows, not columns, and are held by the same cap on
+/// `h_v` alone: `work/tesslane/a-torus-faces-v-period-copies-are-held-off-678-by-the-row-cap-alone.md`.
 fn repeat_columns(
     trim: &TrimPolygon,
     (u0, u1): (f64, f64),
@@ -2561,7 +2570,7 @@ fn repeat_columns(
             us.entry(id).or_default().push(u);
         }
     }
-    let sides: Vec<(f64, f64)> = us
+    let spans: Vec<(f64, f64)> = us
         .values()
         .flat_map(|us| {
             us.iter().enumerate().flat_map(move |(i, &a)| {
@@ -2573,7 +2582,7 @@ fn repeat_columns(
         })
         .collect();
     let one_between = |nu: usize| {
-        sides.iter().any(|&(a, b)| {
+        spans.iter().any(|&(a, b)| {
             (1..nu)
                 .filter(|&i| {
                     #[allow(clippy::cast_precision_loss)]
@@ -3814,6 +3823,12 @@ pub(super) mod tests {
         assert_eq!(on, 2, "two creased walls");
     }
 
+    /// Whether any mesh id appears at two different UV locations, by
+    /// [`crate::cdt::ids_at_two_uvs`]'s reading.
+    fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
+        !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
+    }
+
     /// The ingredient test #678's fan needs, pinned on its own: a mesh
     /// id at two DIFFERENT UV locations is the thing that can be
     /// fanned apart; the same id twice at the SAME location is one CDT
@@ -3825,12 +3840,6 @@ pub(super) mod tests {
     /// two spade vertices and must read APART, and `-0.0` against
     /// `0.0` is one spade vertex and must not — the case a `to_bits`
     /// spelling gets backwards.
-    /// Whether any mesh id appears at two different UV locations, by
-    /// [`crate::cdt::ids_at_two_uvs`]'s reading.
-    fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-        !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
-    }
-
     #[test]
     fn a_repeat_at_one_uv_is_not_a_repeat_apart() {
         let same = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (0.0, 0.0, 7)];
@@ -4599,12 +4608,17 @@ pub(super) mod tests {
         );
     }
 
-    /// **`repeat_columns` takes the lattice off #678's shape.** A
-    /// pole side, or a seam vertex's two copies, over `u ∈ [0.45, 0.55]` on a box `[0, 1]` has exactly
-    /// one column strictly between its ends at `nu = 2` (at ½), and the
-    /// first doubling's new columns (¼, ¾) land outside it; the count
-    /// must keep doubling until two columns stand between, and a side
-    /// with none or two between is left as it is.
+    /// **`repeat_columns` takes the lattice off #678's shape.** A pole
+    /// side over `u ∈ [0.45, 0.55]` on a box `[0, 1]` has exactly one
+    /// column strictly between its ends at `nu = 2` (at ½), and the first
+    /// doubling's new columns (¼, ¾) land outside it; the count must keep
+    /// doubling until two columns stand between, and a side with none or
+    /// two between is left as it is.
+    ///
+    /// A seam vertex's copies a period apart, at `u = 0` and `2π` on the
+    /// box `[0, 2π]`, are read by the same rule: handed `nu = 2` (one
+    /// column, at π) it doubles; at the `nu = 8` every arm's step cap
+    /// gives that box (`h_u ≤ π/4`) it is left as it is.
     #[test]
     fn repeat_columns_doubles_past_one_column_between() {
         let half_pi = core::f64::consts::FRAC_PI_2;
@@ -4625,26 +4639,35 @@ pub(super) mod tests {
         };
         assert_eq!(between(2), 1);
         assert_eq!(between(4), 1, "the first doubling alone does not clear it");
-        let seam = [
+        let polygon = super::TrimPolygon::of_loops(&polygon, &[]);
+        let nu = super::repeat_columns(&polygon, (0.0, 1.0), 2).unwrap();
+        assert!(between(nu) >= 2, "nu {nu} leaves {} between", between(nu));
+        assert_eq!(
+            super::repeat_columns(&polygon, (0.0, 1.0), 3).unwrap(),
+            3,
+            "none between at nu 3 is left as it is"
+        );
+
+        let tau = core::f64::consts::TAU;
+        let band = [
             (0.0, 0.0, 1u32),
-            (0.45, 0.2, 7),
-            (1.0, 0.0, 2),
-            (0.55, 0.2, 7),
+            (tau, 0.0, 1),
+            (tau, 0.5, 2),
+            (0.0, 0.5, 2),
         ];
-        for (name, polygon) in [("pole side", polygon), ("seam copies", seam)] {
-            let polygon = super::TrimPolygon::of_loops(&polygon, &[]);
-            let nu = super::repeat_columns(&polygon, (0.0, 1.0), 2).unwrap();
-            assert!(
-                between(nu) >= 2,
-                "{name}: nu {nu} leaves {} between",
-                between(nu)
-            );
-            assert_eq!(
-                super::repeat_columns(&polygon, (0.0, 1.0), 3).unwrap(),
-                3,
-                "{name}: none between at nu 3 is left as it is"
-            );
-        }
+        let band = super::TrimPolygon::of_loops(&band, &[]);
+        assert_eq!(
+            super::repeat_columns(&band, (0.0, tau), 2).unwrap(),
+            4,
+            "seam copies with one column between double"
+        );
+        let cap = (tau / crate::sizing::MAX_ANGULAR_STEP).ceil();
+        assert_eq!(cap, 8.0, "the step cap's count over a whole turn");
+        assert_eq!(
+            super::repeat_columns(&band, (0.0, tau), 8).unwrap(),
+            8,
+            "at the step cap's count seam copies are left as they are"
+        );
     }
 
     /// **The tilted pair's faces meet their poles as polygon sides, and
@@ -5479,6 +5502,16 @@ pub(super) mod tests {
     /// between the two has a height far inside its allowance: the lane
     /// answers `UnresolvedWinding` itself, naming that height, and does
     /// not read the noise as a fold to cure or as outward.
+    ///
+    /// The witness is a fixed one found by a scan, not written down: a
+    /// node within rounding of a loop vertex, and not on it (on it, the
+    /// node enters at an existing vertex and refuses `Triangulation`), on
+    /// a lattice the trim box itself sizes, so moving the box to place the
+    /// vertex moves the lattice too. The scan: the box face at `x ∈ {−0.25,
+    /// 0.25, 0.3, 0.5, 0.6, 0.75}`, the ball poled `y` and `z`, `δ` from
+    /// 0.02 to 0.1 in steps of 5e-4. One cell refused at clearance zero:
+    /// `x = 0.5`, poled `y`, `δ = 0.037`. A change to the lattice or the
+    /// chord schedule can lose it; then re-run that scan.
     #[test]
     fn a_lattice_laid_without_clearance_cuts_a_triangle_the_lane_refuses() {
         const DELTA: f64 = 0.037;
