@@ -3,9 +3,10 @@ id: a-record-the-split-parts-has-no-consumption-rule
 kind: issue
 title: A contact record whose cells the split's plane parts has no consumption rule in topo's carry; the document drops it after a check instead
 status: open
-priority: P3
+priority: P1
 cost: M
 opened: 2026-11-01
+design: true
 ---
 
 
@@ -42,3 +43,9 @@ parted record, so the README's carry paragraph stays true of it. Only
 whether the README's carry paragraph gains this as a consumption case.
 
 Moved from WIREHOLD to DOCTAIL on 2026-11-20, by `git mv`, when WIREHOLD merged into DOCTAIL: WIREHOLD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one DOCTAIL carries.
+
+## Claimed by HELDRECORDS and re-banded P1 (2026-11-23, HELDRECORDS orchestrator)
+
+HELDRECORDS claimed this row from DOCTAIL by `git mv`; the id and body are unchanged. Plan step 3 (PR 7481, `heldrecords/split-on`) makes the split record its own coincident edges, per Ev's PR 5967 ruling. A later cut whose plane contains a recorded slit's or ring's two edges then refuses `Carry { Parted }` where it built before. The witness is `a_keel_wrapped_at_both_ends_splits_as_a_ring::a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip`, a cut at y = 2: 7.85 | 7.85 before. Every recorded slit or ring a later cut runs along reaches it, so a legal split refuses: P1. The row blocks step 3's landing, and a blocker inherits the band of what waits on it.
+
+Two Opus designers are weighing the question (Fable is unavailable this sitting). Their statement is `origin/heldrecords/briefs:briefs/fork-parted-record.md`. The answer changes the README's carry paragraph, a design page, so it goes to Ev unless the designers agree and the text they would change turns out unratified.

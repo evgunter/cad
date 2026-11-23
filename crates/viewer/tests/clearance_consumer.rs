@@ -51,7 +51,7 @@ fn scene(
 
 /// The world placement that draws `block`.
 fn drawn(session: &DocSession, block: RecipeNodeId) -> RecipeNodeId {
-    let [placement] = viewer::world::placements_of(session.committed_doc(), block)[..] else {
+    let [placement] = session.committed_doc().placements_of(block)[..] else {
         panic!("each block is placed once");
     };
     placement
@@ -878,7 +878,9 @@ fn member_scene(
     }
     // A pattern moved into the world is drawn by its own node; a copy
     // of one, by the copy.
-    let drawn = viewer::world::placements_of(session.committed_doc(), pattern)
+    let drawn = session
+        .committed_doc()
+        .placements_of(pattern)
         .first()
         .copied()
         .unwrap_or(pattern);
