@@ -2,13 +2,14 @@
 id: the-ten-readings-that-are-not-levers-are-decided-by-what-they-are
 kind: unit
 title: the ten readings that are not levers are decided by what they are
-status: review
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: H
 refs: [7410, 7268]
 branch: oneround/readings-not-levers
 pr: 7442
+closed: 2026-11-23
 ---
 
 
@@ -98,3 +99,13 @@ together).
 Letter H, tier single FULL: ten sites in five files and a new door in
 geom-core, verdicts move at two of the families, and a wrong meter or
 band reads plausibly with no row going red.
+
+## Closed (2026-11-23, PR 7442)
+
+The ten references are each decided by what they are, as Ev's answer on PR 7410 set out: the wedge read at the offer in the refusal's own offered band; a tip's wrap counted as an integer of half turns, metered at the half-turn corners' least lever; the join's travel decided across its stand-off through `decide_across`; the apex reaches as a quotient formed on the sine's definite arm; `resolved_as` in a band one step finer. `lever-sources.counts` falls by ten. A single FULL review with no MAJOR, a fix pass, a delta read that approves with fixes, a last pass read by the orchestrator. Inside the fix pass the shared door `decide_across` was found to over-offer for every caller with a nonzero swing: its far row's refusal now offers what the bracket's floor supports, or nothing. What the unit left, each in its own file:
+- `travels-refusal-withholds-a-tolerance-that-exists-when-its-swing-scales-with-the-band` (P3).
+- `the-joins-sites-are-read-on-the-conic-so-the-travel-carries-no-swing`.
+- `work/instr/k-names-that-record-another-quantity-or-band-since-the-readings-unit.md`; `work/pcert/a-pinned-fuzz-witness-reads-the-environments-seed.md`.
+- `site-rounding-charges-owed-a-re-posing` carries the apex's rounding term, now pinned, and the sweep's hit list.
+
+The row is `docs/model-compare-log/rows/PR-7442.md`.

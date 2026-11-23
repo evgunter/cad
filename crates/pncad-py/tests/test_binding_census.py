@@ -2440,6 +2440,8 @@ NOT_BOUND = {
     "SaidNode": SHAPE,
     "SaidVar": SHAPE,
     "Sentence": SHAPE,
+    # A report as lines of sentences: Python takes its text.
+    "Lines": SHAPE,
     "say": SHAPE,
     "sentence": SHAPE,
     "display_said": SHAPE,
@@ -2628,6 +2630,7 @@ NOT_BOUND = {
     # `str()`, and the stripped sentence is what a Rust carrier renders
     # inside its own. The phrase is read in that text.
     "Labelled": SHAPE,
+    "LabelledBy": SHAPE,
     "Labels": SHAPE,
     "PASS_A_RESOLVER": SHAPE,
     # The one recourse of a run out of its member budget: read in the

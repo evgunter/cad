@@ -106,7 +106,7 @@ a step id is below; never positional, never reused), and
 (`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`, ...), the carry-through
 `From { read, of }` (an entity an operation brings in from an input, keyed
 by the variable the input slot reads, DM4: a union's or intersect's members,
-a subtract's two seats, a shell's or blend's one input), boolean (`Seam`,
+a subtract's body kept and each tool, a shell's or blend's one input), boolean (`Seam`,
 `Merged`, `Fragment`), split (`SectionFace`, `SectionEdge`, `SplitFragment`,
 ...), blend (shared by fillet and
 chamfer, told apart by the minting node), family `Member { at, of }`

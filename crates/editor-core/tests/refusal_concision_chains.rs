@@ -795,7 +795,7 @@ test_utils::f6_variants! {
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, UnschedulableCycle,
-        Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
+        Naming, FoldStep, Shell, ShellLaneUnsupported,
         WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
         MeasureNotParallel, MeasureUnsupported, PayloadExpr,
@@ -995,7 +995,7 @@ mod kernel {
             Band, ConeCornerEscalated, ConeCornerUnread, WedgeEscalated, Undescribed,
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
-            NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
+            UnplacedHole, NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, EdgeJoin, Merge,
         ];
     }
@@ -1279,7 +1279,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::CountOutOfRange { .. }
         | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::UnionFoldStep { .. }
+        | NodeErrorKind::FoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
         | NodeErrorKind::CrossingUnverified { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
@@ -2907,6 +2907,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 face,
                 diag: Some(diag()),
             },
+        ),
+        (
+            "UnplacedHole(outline)",
+            F::UnplacedHole(topo::splitting::UnplacedHole {
+                hole: face,
+                beside: None,
+            }),
+        ),
+        (
+            "UnplacedHole(beside)",
+            F::UnplacedHole(topo::splitting::UnplacedHole {
+                hole: face,
+                beside: Some(face),
+            }),
         ),
         (
             "NestingContradiction",
@@ -5472,8 +5486,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
-            "UnionFoldStep",
-            NodeErrorKind::UnionFoldStep {
+            "FoldStep",
+            NodeErrorKind::FoldStep {
                 member: 2,
                 read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {

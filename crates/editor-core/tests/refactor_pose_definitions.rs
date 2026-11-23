@@ -468,7 +468,7 @@ fn a_slot_answers_an_operands_read_and_an_expressions_variable() {
         "an extrude's distance reads its variable"
     );
     assert_eq!(
-        doc.slot(split_node, SlotId::Operand(OperandSlot::Cut)),
+        doc.slot(split_node, SlotId::Operand(OperandSlot::Cut(0))),
         None,
         "a split has no cut operand"
     );

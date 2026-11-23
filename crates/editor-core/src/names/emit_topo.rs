@@ -6638,7 +6638,7 @@ mod split_carries_candidates {
             doc,
             Node::Subtract {
                 from: a.into(),
-                tool: crate::BodyRead::plain(crate::Operand::output(cutter, 0)),
+                tool: crate::BodyRead::plain(crate::Operand::output(cutter, 0)).into(),
             },
         );
         let tool = plane_on(&doc, a, [0.0, y, 0.0], [0.0, ny, 0.0], Tol::witness());
@@ -7219,7 +7219,7 @@ mod edge_pieces_of_one_line_tie {
             doc,
             Node::Subtract {
                 from: from.into(),
-                tool: crate::BodyRead::plain(crate::Operand::output(copy, 0)),
+                tool: crate::BodyRead::plain(crate::Operand::output(copy, 0)).into(),
             },
         )
     }
