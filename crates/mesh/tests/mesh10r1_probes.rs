@@ -260,7 +260,9 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
                 .certified()
                 .unwrap();
             println!("child stored interval after: {:?}", c2.params());
-            assert_eq!(construction_state(&body), 1, "the split's one station");
+            let base = donut();
+            let (seam, _) = base.edges().next().unwrap();
+            construction_state(&body, &split_points(&base, seam, &[0.5]));
             println!(
                 "tessellate: {:?}",
                 mesh::tessellate(&body, 0.1, tol)

@@ -147,7 +147,9 @@ fn m10r2_split_lineage_after_graft() {
     let tol = Tol::witness();
     let (src, seam, minted) = split_seam_donut(&[0.5]);
     println!("M10R2 source: seam {seam:?} minted {minted:?}");
-    assert_eq!(construction_state(&src), 1, "the source's one station");
+    let base = donut();
+    let station = split_points(&base, base.edges().next().unwrap().0, &[0.5]);
+    construction_state(&src, &station);
     // (a) into an empty body.
     let mut empty = Body::<f64>::new();
     topo::graft_disjoint(&mut empty, &src).expect("graft into an empty body");
@@ -173,11 +175,7 @@ fn m10r2_split_lineage_after_graft() {
         }
     }
     for (what, body, mesh) in [("empty", &empty, &mesh_empty), ("held", &held, &mesh_held)] {
-        assert_eq!(
-            construction_state(body),
-            1,
-            "{what}: the graft's one station"
-        );
+        construction_state(body, &station);
         assert!(
             mesh.is_ok(),
             "{what}: the grafted split-seam donut meshes: {mesh:?}"
@@ -261,10 +259,10 @@ fn m10r2_set_edge_curve_on_a_split_child() {
             let meet = geom_brep::props::PropsError::SpanUncertified {
                 what: "props_meridian_pieces_meet",
             };
-            assert_eq!(
-                construction_state(&body),
-                1,
-                "split={split} phi={phi:e}: the split's one station"
+            let base = donut();
+            construction_state(
+                &body,
+                &split_points(&base, base.edges().next().unwrap().0, &[0.5]),
             );
             assert!(
                 matches!(&m, Err(mesh::TessellateError::UnsupportedCurvedShape { source, .. }) if *source == meet),

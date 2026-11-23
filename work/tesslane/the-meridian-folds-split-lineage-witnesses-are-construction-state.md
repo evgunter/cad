@@ -38,12 +38,21 @@ construction state where they used to measure the split body's volume.
 donut have no witness now, since no boolean takes a construction-state
 operand.
 
-## The question
+## An at-rest witness
 
-Is the fold reachable at rest at all? A seam meridian is carried by
-more than one edge at rest only where another edge meets it, at a
-vertex that is no station (valence 3 or more: a cut or a rim ending on
-the seam). If some door builds such a body, that body is the fold's
-at-rest witness, and the union half of issue 1597 can be re-pinned on
-it. If none does, the fold only ever reads construction state, and it
-should say so, or retire.
+A seam meridian is carried by more than one edge at rest only where
+another edge meets it, at a vertex that is no station (valence 3 or
+more). The review of PR 7532 found one door that builds that:
+`donut ∪ bar`, the tour donut and the brick `x ∈ [1, 3]`,
+`y, z ∈ [−0.1, 0.1]`. The union is at rest, and its minor circles
+carry `SplitEdge` lineage where the bar's edges end on them (six
+split-lineage edges, measured on `lathe/wrap-edge-station`).
+
+## Done when
+
+The rows above read the fold on that body, or one like it, at rest:
+`mass_properties` and the meridian fold on its split pieces, and the
+union half of issue 1597 re-pinned with a far box in both operand
+orders. That body's own 1-ulp order asymmetry is filed apart, on the
+boolean's slate
+(`work/onedoor/a-disjoint-union-volume-differs-by-an-ulp-between-operand-orders.md`).

@@ -67,7 +67,7 @@ use topo::{
 };
 
 use crate::common::differential::{
-    VOLUME_PAD_BUDGET, every_op_both_orders, judged_within, outcome,
+    VOLUME_CLAIM, VOLUME_PAD_BUDGET, Verdict, every_op_both_orders, judged, judged_within, outcome,
 };
 use crate::common::oracles::{ball_volume, cap_volume};
 use crate::common::poses::torax_pose;
@@ -1119,19 +1119,33 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
 }
 
 /// `r` holds its closed form `want` in one shell, sound
-/// (`differential::outcome`), or meets the self-touch limit: every
-/// check passes but tier 3′, whose one finding is the self-touch at a
-/// vertex resting inside an edge read `Unreadable`
-/// (`work/atrest/a-vertex-inside-an-edge-its-face-is-tangent-along-reads-unreadable.md`).
+/// ([`judged`]), or meets the self-touch limit: tier 3′'s one finding is
+/// the self-touch at a vertex resting inside an edge read `Unreadable`
+/// (`work/atrest/a-vertex-inside-an-edge-its-face-is-tangent-along-reads-unreadable.md`),
+/// and every other check passes: tier 2, the geometric certificate, the
+/// body as an operand, and a certified volume enclosure that holds the
+/// closed form within the sound line's claim and budget.
 fn sound_or_unread_self_touch(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64) {
     let Ok(BooleanResult::Body(b)) = &r else {
-        panic!("{row}: a body, got {:?}", r.map(|_| ()));
+        panic!("{row}: a body, got {:?}", r.as_ref().map(|_| ()));
     };
     assert_eq!(b.body.shells().count(), 1, "{row}: shells");
     let findings = topo::validate_pseudomanifold(&b.body, &b.contacts, tol()).err();
-    let line = outcome(r, want, tol());
+    let t2 = topo::validate_closed(&b.body);
+    let cert = topo::validate_geometric_certificate(&b.body, tol()).map(|_| ());
+    let far = fin(
+        "the far brick",
+        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+    );
+    let operand = topo::union(&b.body, &far, tol()).map(|_| ());
+    let judgement = judged(r, Some(want), tol());
     if findings.is_none() {
-        assert!(line.starts_with("OK SOUND"), "{row}: {line}");
+        assert_eq!(
+            judgement.verdict,
+            Verdict::Sound,
+            "{row}: {}",
+            judgement.line
+        );
         return;
     }
     assert!(
@@ -1144,16 +1158,16 @@ fn sound_or_unread_self_touch(row: &str, r: Result<BooleanResult<f64>, BooleanEr
         ),
         "{row}: the self-touch alone, got {findings:?}"
     );
+    assert!(t2.is_ok(), "{row}: tier 2: {t2:?}");
+    assert!(cert.is_ok(), "{row}: the certificate: {cert:?}");
+    assert!(operand.is_ok(), "{row}: an operand: {operand:?}");
+    let (Some(v), Some(pad)) = (judgement.volume, judgement.pad) else {
+        panic!("{row}: the volume measures: {}", judgement.line);
+    };
     assert!(
-        line.starts_with("OK BAD t2=true t3p=false cert=true operand=true"),
-        "{row}: every other check passes: {line}"
+        pad <= VOLUME_PAD_BUDGET && (v - want).abs() <= VOLUME_CLAIM,
+        "{row}: the certified enclosure {v} ± {pad} holds the closed form {want}"
     );
-    let [v, w] = ["v=", "want="].map(|k| {
-        line.split_whitespace()
-            .find_map(|t| t.strip_prefix(k))
-            .unwrap_or_else(|| panic!("{row}: no {k} in {line}"))
-    });
-    assert_eq!(v, w, "{row}: the closed form's volume");
 }
 
 /// `r` holds its closed form `want` (`differential::outcome`) in one

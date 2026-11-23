@@ -240,7 +240,7 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
         topo::test_support::pinned_resolution(tol),
     )
     .expect("the unsplit donut measures");
-    assert_eq!(construction_state(&body), 1, "the split seam's one station");
+    construction_state(&body, &[split_point]);
     assert!(
         (mp0.enclosure.volume - 9.869_604_401_089_358).abs() < 1e-12,
         "V = π² for R = 2, r = 0.5"
@@ -388,11 +388,8 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
             [p0.x.to_bits(), p0.y.to_bits(), p0.z.to_bits()],
             "{fracs:?}: the anchor point"
         );
-        assert_eq!(
-            construction_state(&body),
-            fracs.len(),
-            "{fracs:?}: one station per split"
-        );
+        let (seam_key, _) = base.edges().next().unwrap();
+        construction_state(&body, &split_points(&base, seam_key, fracs));
         // The enforcement: shift the last-minted child by a period.
         let mut shifted = body.clone();
         let child = shifted.edges().last().unwrap().0;

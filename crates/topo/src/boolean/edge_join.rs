@@ -1,7 +1,8 @@
 //! **The join**: a vertex of valence 2 whose two edges lie on one
-//! structural carrier between the same two faces is no corner, so the
-//! two edges are one edge cut for no reason (`docs/DESIGN.md`, maximal
-//! edges). The join kills the vertex and makes the two edges one.
+//! structural carrier between the same two faces, or are both the wrap
+//! edge of one face, is no corner, so the two edges are one edge cut for
+//! no reason (`docs/DESIGN.md`, maximal edges). The join kills the
+//! vertex and makes the two edges one.
 //!
 //! **The join door** ([`Body::join_edges`](crate::construction::Construct::join_edges)) is the one public spelling:
 //! every door that finishes a body ends with it (`docs/DESIGN.md`, the
