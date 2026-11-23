@@ -2418,10 +2418,14 @@ fn ray_inside(m: [Interval; 2], u: [Interval; 2], l: Interval, band: Band) -> bo
 /// on the face's side, whatever its angle: convex, straight, straight to
 /// a rounding, reflex. The ray `m` into the face, the sum of the two
 /// edges' unit toward-face normals, bisects it, and each piece is the
-/// cone of one edge and a ray a little past `m`, the image of
-/// `[0, x̄] × [0, ȳ]` with the vertex at the origin: a convex corner of
-/// its own, read as one. The two cover the sector and overlap about `m`.
-/// Which side of straight the corner lies on is never asked.
+/// cone of one edge and `m`, the image of `[0, x̄] × [0, ȳ]` with the
+/// vertex at the origin: a convex corner of its own, read as one. The
+/// two cover the sector and meet along `m`. Which side of straight the
+/// corner lies on is never asked.
+///
+/// A cell whose side lies on `m` leaves the far piece a rectangle a
+/// rounding wide. It is read as any other: the departure's margin is a
+/// sine at the faces' reach ([`arm_of`]), not the rectangle's extent.
 ///
 /// Nothing else bounds the face in the cell: the cell's edges are these
 /// two, its only vertex theirs, and each piece's reach along its edge
@@ -2606,20 +2610,7 @@ fn present_plane<'a>(
             if !(ray_inside(m, u1, la, band) && ray_inside(m, u2, lb, band)) {
                 return Err(Unpresented::Local);
             }
-            // Each piece runs on past `m` toward the other edge: the first
-            // ends at `r1 = 3m̂ + b̂`, the second at `r2 = 3m̂ + â`,
-            // positive combinations, so each lies strictly between `m` and
-            // that edge and the pieces overlap in the cone of `r2` and
-            // `r1`. Cut on `m` itself they would abut on a line a cell's
-            // side can lie on (a symmetric corner's bisector is a chart
-            // axis), leaving the far piece a rectangle a rounding wide. Each stays under a half turn: `a × r1` is
-            // `sin(θ/2)·(3 + 2cos(θ/2))`, positive at every corner angle
-            // `θ` short of a full turn.
             let mh = unit2(m);
-            let (ah, bh) = ([a[0] / la, a[1] / la], [bv[0] / lb, bv[1] / lb]);
-            let three = at(3.0);
-            let r1 = [three * mh[0] + bh[0], three * mh[1] + bh[1]];
-            let r2 = [three * mh[0] + ah[0], three * mh[1] + ah[1]];
             let d = [cell_u - o.x, cell_v - o.y];
             // One piece: the cone of an edge's direction `e`, of length
             // `l`, and the ray, as the image of `[0, x] × [0, y]`; `None`
@@ -2681,8 +2672,8 @@ fn present_plane<'a>(
                     }
                 }
             };
-            let first = cone(a, la, r1, &zero(*e1, (v1, w1)))?;
-            let second = cone(bv, lb, r2, &zero(*e2, (v2, w2)))?;
+            let first = cone(a, la, mh, &zero(*e1, (v1, w1)))?;
+            let second = cone(bv, lb, mh, &zero(*e2, (v2, w2)))?;
             Ok(match (first, second) {
                 (None, None) => Presentation::Vacuous,
                 (Some(p), None) | (None, Some(p)) => Presentation::Of(Box::new(p)),

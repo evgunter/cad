@@ -194,7 +194,8 @@ The PR does not land; its branch stays.
 ## Owed
 
 **Design: a two-line corner read as two convex pieces**
-(`embed/corner-pieces`, 2026-11-22; a design, nothing built). It takes
+(`embed/corner-pieces`, 2026-11-22; built since, see "Built" below,
+which says where the build departs from this design). It takes
 the straight corner at any placement, the reflex corner and every
 turned body as one reading. The
 band-scale reading considered before it (a lean decided `Zero` at
@@ -276,7 +277,7 @@ is a real overlap of the faces, or where the margin is in the band.
 | `departure` | the carrier arm, `planes_through`, `graph_of`, `cusp`, once per face pair | the same ladder once per piece pair; certified iff every piece pair is; any piece pair's cusp is the pair's | premise 5; each rung reads one piece as it reads a corner today |
 | the carrier arm | the other face's one presentation against this carrier | each of the other face's pieces against it | a piece is a subset of the face |
 | `opposite` | two `sign_on` calls | unchanged, per piece pair | |
-| `planes_through` | built from `near` and two presentations | built from the PIECE pair's near: the shared edges that piece pair holds, else the vertex | a plane through `e₁`'s line is not strict on the piece off `e₁` at a straight corner (`n·b = 0`), so one plane per face pair cannot serve; each plane still lists only what it holds |
+| `planes_through` | built from `near` and two presentations | built from the faces' `near` and the two PIECES (as built; the design gave each piece pair a near of its own, which was dropped) | a plane through a shared edge lists the edge's ends, so it holds the corner of a piece off that edge; where that plane is zero along the off-edge piece too (a straight corner, `n·b = 0`) it parts nothing and the pair is left to the carrier arm, which closes every valid plane/plane pair that shares one edge |
 | `anchor`, `heading`, `wedges_apart` | per presentation | per piece | they choose a direction and decide nothing |
 | `corner` | either presentation's | any piece's | a flag |
 | `cusp` | the two shared normals | the pieces that hold the shared edge | the others have no shared side |
