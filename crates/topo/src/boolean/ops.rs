@@ -4031,7 +4031,7 @@ fn carried_rows(records: &OperandRecords, side: Operand) -> Vec<([Cell; 2], Cite
         ef,
         ff,
     } = records;
-    let input = u32::from(side == Operand::B);
+    let input = side.input();
     let cite = |record| Cites::one(Backing::Carried { input, record });
     vv.iter()
         .map(|c| {
@@ -4250,7 +4250,7 @@ impl Rows {
             ef,
             ff,
         } = carried;
-        let input = u32::from(side == Operand::B);
+        let input = side.input();
         let cite = |record| Cites::one(Backing::Carried { input, record });
         Self {
             vv: vv
@@ -4833,11 +4833,14 @@ fn record_classes<T: Decide>(
             });
             return Err(match carried {
                 Some((input, record)) => BooleanError::CarryRefused {
-                    row: super::RefusedRow::Carried(if input == 0 {
-                        Operand::A
-                    } else {
-                        Operand::B
-                    }),
+                    row: super::RefusedRow::Carried(Operand::of_input(input).unwrap_or_else(
+                        || {
+                            unreachable!(
+                                "a boolean's row cites a record carried in by input {input}, \
+                                 though a boolean's inputs are its two operands"
+                            )
+                        },
+                    )),
                     refusal: super::CarryRefusal::Stale { record },
                 },
                 None => BooleanError::JoinDesync {
@@ -5922,10 +5925,7 @@ impl<'a> Held<'a> {
                 let Backing::Carried { input, record } = backing else {
                     continue;
                 };
-                let Some(&operand) = usize::try_from(input)
-                    .ok()
-                    .and_then(|i| Operand::BOTH.get(i))
-                else {
+                let Some(operand) = Operand::of_input(input) else {
                     unreachable!(
                         "a boolean's row cites a record carried in by input {input}, though a \
                          boolean's inputs are its two operands"

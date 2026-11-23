@@ -5720,6 +5720,23 @@ impl Operand {
         }
     }
 
+    /// This operand's position among a boolean's inputs, as a row's
+    /// [`crate::Backing::Carried`] cites it: [`Self::index`] as a `u32`.
+    #[must_use]
+    pub const fn input(self) -> u32 {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+        }
+    }
+
+    /// The operand at position `input` among a boolean's inputs
+    /// ([`Self::input`]'s inverse), where a boolean has one there.
+    #[must_use]
+    pub fn of_input(input: u32) -> Option<Self> {
+        Self::BOTH.into_iter().find(|o| o.input() == input)
+    }
+
     /// The other operand.
     pub fn other(self) -> Self {
         match self {

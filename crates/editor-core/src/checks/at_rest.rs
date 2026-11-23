@@ -1750,8 +1750,9 @@ fn could_quiet(
 }
 
 /// The connected solids of `result`, each with the aggregate faces its
-/// faces descend from; `None` when a face's lineage does not reach a
-/// face of either copy.
+/// faces descend from; `None` when a face's lineage does not reach one
+/// face of either copy (a face a re-chart turned reaches every face of
+/// its shell).
 fn components<T: topo::AtRestPolicy + Decide>(
     product: &Product<T>,
     a: usize,
@@ -1773,9 +1774,15 @@ fn components<T: topo::AtRestPolicy + Decide>(
                     topo::Operand::A => a,
                     topo::Operand::B => b,
                 };
-                for input in source.inputs {
-                    sources.insert((copy, product.copies[copy].keys.face(input)?));
-                }
+                // A face a re-chart turned stands for every face of its
+                // input shell, of which it may hold no area: as a source it
+                // would let `covered` and the quieting rule read faces the
+                // component does not hold, so the component is unnamed.
+                // Not pinned: no at-rest fixture turns a shell.
+                let [input] = source.inputs[..] else {
+                    return None;
+                };
+                sources.insert((copy, product.copies[copy].keys.face(input)?));
             }
         }
         out.push(Component { solid, sources });

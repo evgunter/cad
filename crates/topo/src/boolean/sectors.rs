@@ -309,7 +309,7 @@ pub(super) fn pair_sectors<T: Decide>(
     band: Band,
 ) -> Result<[Vec<BoolSector<T>>; 2], BooleanError> {
     let [a, b] = Operand::BOTH.map(|operand| {
-        let (body, vertex, tips) = sites[operand as usize];
+        let (body, vertex, tips) = sites[operand.index()];
         Star::walk(body, vertex, tips, band)
             .map_err(|fault| star_fault(fault, operand, vertex, band))
     });

@@ -93,3 +93,24 @@ That is a choice of field, not an index, as the row already said. Also
 not converted: a `MemberFace`'s first field where it is a member's place
 in an n-ary list rather than an operand. In `Holdings` (an operand's
 place) it now reads `Operand::B.index()`.
+
+Pass 3, on the delta's review: the `u32` input a row's
+`Backing::Carried` cites now has its own pair, `Operand::input` and its
+inverse `Operand::of_input`. Every literal reading goes through them:
+
+- `boolean/ops.rs`: the two `u32::from(side == Operand::B)`, the
+  carried-record lookup, and the stale vertex-vertex refusal's
+  `if input == 0`. An input past 1 now reaches an `unreachable!` where it
+  used to read as B.
+- `boolean/material.rs`: the `input: 0` / `input: 1` patterns in the
+  read-back of the material's records and in the cut's re-citation. An
+  input past 1 is unread there, as it was.
+- `boolean/records.rs`: a test.
+- `crates/editor-core/src/eval/wire.rs`: the fold's `input: 0` arm.
+- `boolean/sectors.rs` `pair_sectors`: `operand as usize`, a discriminant
+  cast, is now `.index()`.
+
+Sweep: `input: (0|1)`, `input [!=]= (0|1)` and `as usize]` in
+`crates/{topo,editor-core,sweep}/src`, with no hits left. Blind spot: a
+literal `0`/`1` that stands for an operand under a name other than
+`input`.
