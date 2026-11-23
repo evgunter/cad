@@ -1,7 +1,7 @@
 ---
 id: embed
 kind: program
-title: EMBED — the body-level injectivity certificate, its readings, and the at-rest gate that asks it
+title: EMBED — the body-level injectivity certificate's readings and their margins
 status: active
 opened: 2026-11-14
 group: api/assembly
@@ -40,11 +40,35 @@ valid bodies:
   ONEDOOR's no-reset lift (PR 6900).
 - `the-graph-separator-accepts-a-side-past-its-edges-piece-by-membership`
   (P1). Probe it first.
-- `the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`
-  (P1, design).
+- `the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`:
+  ruled by Ev on PR 7095 and landed by `embed/remeter` (PR 7329). The
+  sliver is gone; its residue is
+  `the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms`
+  (P1, design) and
+  `five-more-injectivity-margins-are-levered-at-a-cell-of-the-sweep`
+  (P1).
 
 **Measuring.** The tour walk is the measure: 82 of 85 bodies hold at
 the cut, and the three bench assemblies are recorded contacts. The
 harness is an uncommitted patch: an example plus `demos/tour` edits
 exposing `walk_tour`. Each lane has re-applied it.
 `work/embed/log.md` names the last copy.
+
+## Cut on 2026-11-22
+
+Two tracks were cut from this one along its seams (`log.md`, 22 Nov):
+
+- **EMBEDWALK** (`work/embedwalk/`) took the walk under the readings: a
+  face's window and extent, the cells the walk drops, the budget and
+  where an ask stops (`clearance.rs`).
+- **EMBEDGATE** (`work/embedgate/`) took the gate that asks the question
+  and what a finished body carries: `the-at-rest-gate-certifies-embedding`
+  and its lanes C to E, the carry, an op over an assembly, the cavity
+  gate's measuring row.
+
+What stays is what a reading decides about one cell pair, in
+`crates/topo/src/injective.rs`: the presentations and separators, and
+the margins they are read at against tier 3
+(`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`,
+the design fork `embed-wedge`). Where the text above names the gate as
+the unit at the top, read EMBEDGATE.

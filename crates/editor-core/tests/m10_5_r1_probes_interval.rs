@@ -726,7 +726,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
             matches!(
                 starved.verdict(),
                 ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-                    refusal: EngineRefusal::Budget(CellBudget::Pairs { .. }),
+                    refusal: EngineRefusal::Budget {
+                        stop: CellBudget::Pairs { .. },
+                        ..
+                    },
                     ..
                 }) | ClearanceVerdict::Violated(_)
             ),

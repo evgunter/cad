@@ -7157,7 +7157,7 @@ fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
 fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
     if 0.25 * landing_reach(tol) < d_shape_reach() {
-        match d_shape(1.0, tol) {
+        match d_shape(1.0, tol).map_err(|e| e.refusal().clone()) {
             Err(PathError::ArcMissBelowSceneResolution { read, .. }) => {
                 assert_eq!(read.gate().predicate(), "path_arc_landing");
             }
@@ -7706,7 +7706,7 @@ fn a_clearance_reports_payloads_are_nameable_from_the_facade() {
     fn caught(r: &ClearanceRefusal) -> String {
         match r {
             ClearanceRefusal::Engine { refusal, .. } => match refusal {
-                EngineRefusal::Budget(b) => budget(b),
+                EngineRefusal::Budget { stop: b, .. } => budget(b),
                 EngineRefusal::Uncertified {
                     shared: c, arm: a, ..
                 } => {

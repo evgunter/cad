@@ -2,7 +2,7 @@
 id: vseam
 kind: program
 title: VSEAM — the viewer's seams and session vocabulary
-status: ready
+status: active
 opened: 2026-09-17
 group: gui/author
 prefix: vseam/
