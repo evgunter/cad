@@ -83,8 +83,9 @@ const BORE: f64 = 0.1;
 /// `(0,0) → (1,0)` is radial, so it revolves to the base DISK;
 /// `(1,0) → (0.8,0.6)` is the unit-sphere arc; `(0.8,0.6) → (0.2,1.2)`
 /// is straight, so it revolves to a CONE; `(0.2,1.2) → (0,1.2)` is
-/// radial again, the top DISK. Both ends touch the axis, which is what
-/// makes every wall a pair of half-bands and every rim a pair of arcs.
+/// radial again, the top DISK. Both ends touch the axis, and the full
+/// revolve sweeps every wall as one band and every rim as one closed
+/// edge.
 fn lantern() -> Body<f64> {
     sweep::test_support::lantern(tol())
 }

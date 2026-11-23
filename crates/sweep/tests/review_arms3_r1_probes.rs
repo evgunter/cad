@@ -545,7 +545,8 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
 
 /// A spinning top: a cone from the bottom pole to (0.6, 0.45), closed
 /// by a sphere cap through the top pole (centre (0, 0.275), R = 0.625).
-/// Pole-touching, so the full revolve seam-splits every wall.
+/// Pole-touching: the full revolve sweeps each wall as one band whose
+/// seam meridian, a wrap edge, ends at a pole.
 fn spinning_top() -> Body<f64> {
     let cs = Point2::new(0.0, 0.275);
     let p1 = Point2::new(0.6, 0.45);

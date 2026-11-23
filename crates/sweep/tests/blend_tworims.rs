@@ -343,8 +343,8 @@ fn a_seam_two_bands_split_is_named_after_its_source_by_every_row() {
     assert_eq!(
         twice_split_seams(&lantern_body, &lantern_out),
         1,
-        "the lantern's shared walls are half-band pairs, and one of them is \
-         both its bands' MATE: its two seams are each split by both"
+        "the lantern's shared walls are one band each, and one of them is \
+         both its bands' MATE: its one seam is split by both"
     );
 }
 

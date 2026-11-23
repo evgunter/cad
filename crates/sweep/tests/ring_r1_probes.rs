@@ -269,7 +269,7 @@ fn boolean_admissible_fixture_still_runs_no_crossing_machinery() {
 }
 
 /// Wire outer (axis contact) × circular hole: the torus cavity rides
-/// inside a two-π-band wire build — the composition the PR suite's
+/// inside a one-band wire build — the composition the PR suite's
 /// wire row (square hole) does not cover.
 #[test]
 fn wire_outer_with_circular_hole_torus_cavity() {

@@ -102,7 +102,10 @@ fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
 /// 0.7172 from each top edge, and its closest points lie off the
 /// screen's sample lattice, so the screen reads a wider gap: 0.72 and
 /// 0.73 pass the screen and are refused by the exact ring check, and
-/// 0.74 is past the screen's sampled gap.
+/// 0.74 is past the screen's sampled gap. Why 0.74 at any turn: the
+/// screen samples the ring on a 45° lattice, so its sample nearest an
+/// edge lies at most 22.5° round the ring from the ring's nearest point,
+/// and the sampled gap is at most `1 − √0.08·cos 22.5° = 0.7387`.
 ///
 /// Red when the screen stops overestimating a sampled gap, or the
 /// surgery stops checking rings exactly. Its lattice-ALIGNED twin, on

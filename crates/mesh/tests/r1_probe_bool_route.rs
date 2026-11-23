@@ -33,7 +33,8 @@ fn axis_y() -> sweep::RevolveAxis<f64> {
     }
 }
 
-/// Ball of radius r about the origin (two half-bands on one sphere).
+/// Ball of radius r about the origin (one sphere face, its meridian a
+/// wrap edge).
 fn ball(r: f64) -> Result<topo::Body<f64>, String> {
     let bulge = 1.0; // semicircle
     let lp = bulge_loop(vec![

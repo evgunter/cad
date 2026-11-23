@@ -36,8 +36,8 @@ fn rect(r0: f64, r1: f64, y0: f64, y1: f64, turn: Revolution<f64>) -> Body<f64> 
 }
 
 /// The unit square over `[0, h]`, revolved about `y` by `turn`: a
-/// cylinder of radius 1 and height `h`, its walls two half-bands on one
-/// key and its caps two discs, or a wedge of it.
+/// cylinder of radius 1 and height `h`, its wall one band and its caps
+/// two discs, or a wedge of it.
 fn cylinder(h: f64, turn: Revolution<f64>) -> Body<f64> {
     rect(0.0, 1.0, 0.0, h, turn)
 }
