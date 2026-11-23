@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 63;
+const OP_COUNT: usize = 64;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -559,7 +559,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // An insert door, fenced with every other one.
         SessionOp::AddAssertion { .. } => (45, false),
         // The same insert door, from a finding's value.
-        SessionOp::AssertQuieting { .. } => (62, false),
+        SessionOp::AssertQuieting { .. } => (63, false),
     }
 }
 

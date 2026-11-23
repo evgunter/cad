@@ -2352,7 +2352,11 @@ impl ViewerApp {
             // The product's recourse, as the action it names: the one
             // door, on each body drawn outside the product, read off the
             // run only while it is the committed document's.
-            if let Some(ran) = self.session.current().and_then(|current| current.product()) {
+            if let Some(ran) = self
+                .session
+                .current()
+                .and_then(|current| current.gather_refusal())
+            {
                 let offers = crate::recourse::offers(crate::recourse::Failure::Run(ran)).drawn;
                 if let Some(crate::widgets::Taken::Op(op)) =
                     crate::widgets::offer_controls(ui, &offers, &self.theme)

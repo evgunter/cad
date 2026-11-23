@@ -814,9 +814,9 @@ impl<'a> Current<'a> {
 
     /// **The run's gather refusal, as a failure it reports**: `None`
     /// where the product gathers.
-    pub fn product(self) -> Option<crate::recourse::Ran<'a>> {
+    pub fn gather_refusal(self) -> Option<crate::recourse::Ran<'a>> {
         let fault = self.run.gather.as_ref().err()?;
-        Some(crate::recourse::Ran::product(self, fault))
+        Some(crate::recourse::Ran::gather_refusal(self, fault))
     }
 
     /// **The node `id`'s own failure, as a failure this run reports**:

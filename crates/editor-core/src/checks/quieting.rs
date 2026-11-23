@@ -222,7 +222,7 @@ impl Quieting {
     /// [`Node::Measure`] over [`Self::primitive`], whose insert mints each
     /// reference's selection and pose, then a [`Node::Assertion`] of
     /// [`Self::claim`] over its output, the last node minted. A variable
-    /// the measure reads as it is ([`QuietingRef::Read`]) gains a reader,
+    /// the measure reads as it is (a reference [`QuietingRef::name`] answers `None` for) gains a reader,
     /// and an unnamed variable has one (VARIABLES VR2), so an unnamed one
     /// is named first ([`DocEdit::RenameVar`]) by [`tool_name`], which
     /// the recourse says it by.

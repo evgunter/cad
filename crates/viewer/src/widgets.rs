@@ -5424,7 +5424,7 @@ pub(crate) enum Taken {
 /// [`crate::recourse::offers`]: a [`crate::recourse::Commit`] or a
 /// [`crate::recourse::Lead`] as a button, in a wrapping row, and an
 /// act no door here takes as its words. A lead with no control
-/// ([`crate::recourse::Lead::CreateVariable`], taken when its refusal
+/// ([`crate::recourse::Heard::CreateVariable`], taken when its refusal
 /// is heard) draws nothing. The offer whose button was clicked.
 pub(crate) fn offer_controls(
     ui: &mut egui::Ui,

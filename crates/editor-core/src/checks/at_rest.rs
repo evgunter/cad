@@ -1000,7 +1000,7 @@ fn holding_measures<'a, P, T: Decide + topo::AtRestPolicy>(
 /// **The assertion in `doc` that already says `claim`**, verdict
 /// aside: a `Claim::Value` relating a measure of `claim`'s verb to zero
 /// by its relation, whose two references read, in order, as
-/// `claim`'s ([`reference`]). `None` where none does.
+/// `claim`'s ([`reference()`]). `None` where none does.
 pub(crate) fn asserted<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     claim: &Quieting,

@@ -185,7 +185,7 @@ pub enum Failure<'a> {
 }
 
 /// **A failure a current run reports**, as only [`Current`] hands one
-/// out ([`Current::finding`], [`Current::product`], [`Current::node`]):
+/// out ([`Current::finding`], [`Current::gather_refusal`], [`Current::node`]):
 /// what it was read from is the run whose document its offers act on.
 #[derive(Clone, Copy)]
 pub struct Ran<'a> {
@@ -211,7 +211,7 @@ impl<'a> Ran<'a> {
     }
 
     /// `fault`, `current`'s gather refusal.
-    pub(crate) fn product(current: Current<'a>, fault: &'a ProductError) -> Self {
+    pub(crate) fn gather_refusal(current: Current<'a>, fault: &'a ProductError) -> Self {
         Self {
             current,
             what: What::Product(fault),
@@ -451,7 +451,7 @@ fn node_act(kind: &NodeErrorKind) -> NodeAct {
         | K::SelectResolve { .. }
         | K::ParamBox { .. }
         | K::Seed { .. }
-        | K::RecordRefused { .. }
+        | K::RecordRefused
         | K::RecordMispaired { .. }
         | K::WrongOperand { .. }
         | K::EmptyOperand { .. }
@@ -480,7 +480,7 @@ fn node_act(kind: &NodeErrorKind) -> NodeAct {
         | K::PoseDegenerate { .. }
         | K::PoseScalar { .. }
         | K::CountOutOfRange { .. }
-        | K::UnschedulableCycle { .. }
+        | K::UnschedulableCycle
         | K::Naming { .. }
         | K::UnionFoldStep { .. }
         | K::Shell { .. }
@@ -800,7 +800,9 @@ mod tests {
         use pncad::document::NodeErrorClass as C;
         let files = PartFiles::Unscanned;
         let mut seen = 0;
-        for (class, kind) in editor_core::test_support::node_error_witnesses() {
+        for (class, kind) in
+            editor_core::test_support::node_error_witnesses(pncad::geom_core::Tol::witness())
+        {
             let made = node_offers(&kind, &files);
             match class {
                 C::PartPinMismatch => assert!(

@@ -1071,7 +1071,7 @@ pub fn product_commits(
     current: Option<crate::session::Current<'_>>,
 ) -> Vec<crate::recourse::Commit> {
     use crate::recourse::{Failure, Offer, offers};
-    let Some(ran) = current.and_then(crate::session::Current::product) else {
+    let Some(ran) = current.and_then(crate::session::Current::gather_refusal) else {
         return Vec::new();
     };
     offers(Failure::Run(ran))

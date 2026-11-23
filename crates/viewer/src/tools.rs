@@ -868,7 +868,7 @@ impl Tools {
     }
 
     /// **A door's target change held** ([`crate::session::Refusal::TargetHeld`]'s
-    /// lead, [`crate::recourse::Lead::HoldTarget`]): the placement editor
+    /// lead, [`crate::recourse::Heard::HoldTarget`]): the placement editor
     /// opens on `placement` with `target` set, so the change is held
     /// there as the editor holds one — the rows reading the old space
     /// marked, and the strike offered. Answers whether it opened.
