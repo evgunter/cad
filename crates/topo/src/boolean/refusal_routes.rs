@@ -919,11 +919,13 @@ pub enum SphereQuestion {
     /// axes' cross levered at the radius): a definite lean passes, and a
     /// decided zero refuses with its decided margin.
     RecutAlign,
-    /// Where the meridian cut through a trimmed sphere face's section
-    /// circle meets the face's boundary (`bool_sphere_cut_*`): the
-    /// meridian's placement, its roots on each boundary arc, and their
-    /// order along it. Its arms pass on different sets (a root at an
-    /// arc's end is a vertex of the cut, one inside it splits the arc).
+    /// Where the meridian cut through a sphere face's section circle
+    /// meets the face's boundary (`bool_sphere_cut_*`): the meridian's
+    /// placement, its roots on each boundary arc, and their order along
+    /// it; and, on the re-entered op's result, whether an edge lies on
+    /// the cut's half-meridian (`bool_sphere_cut_survives`). Its arms
+    /// pass on different sets (a root at an arc's end is a vertex of the
+    /// cut, one inside it splits the arc).
     CutIn,
 }
 

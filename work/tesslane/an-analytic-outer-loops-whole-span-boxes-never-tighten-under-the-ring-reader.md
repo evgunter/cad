@@ -39,3 +39,14 @@ predicate "ring_place_clear" }) }`, so the mesh refuses `DomainUnread`
 at every δ. The same stub turned 0.5, −0.5, 1.5 or 3.0 places and
 meshes. Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+## A sphere face that reaches it (2026-11-23, LATHE interior-loop lane, PR 7440)
+
+With a sphere cut-in's meridian glued away by the output merge,
+`snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds` (the pole
+strut, slab toward `(0.866, 0.1, −0.5)`, ∪) builds a maximal sphere face
+whose ring `Body::face_lift` answers `Undecided { cause: None }`, and the
+mesh refuses `DomainUnread`. On the base the result carried the cut (two
+faces of one record) and meshed. The merge's own outline reading meets
+the same limit on an annulus (`merge_faces` `curved_outline_ring`, which
+settles it by striking out the slot the reader refuses decidedly).

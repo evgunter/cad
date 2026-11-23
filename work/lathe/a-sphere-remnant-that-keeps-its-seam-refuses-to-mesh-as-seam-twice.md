@@ -32,6 +32,17 @@ Failing on the branch: `sweep` `snowman::a_bar_through_a_ball_builds_under_every
 `route_rows::a_section_tilted_within_the_band_meshes_to_mains_bytes`.
 Each reports `SphereTrimShape { .., cause: SeamTwice }`.
 
+**More once a sphere cut-in's meridian is glued away** (LATHE
+interior-loop lane, PR 7440, 2026-11-23). These unions meshed on the
+base only because the transient cut survived the output merge (each
+base result carries 2 to 8 edges dividing two faces of one sphere
+record); with the cut glued away the remnant keeps its one seam and
+meets this row: `spheres_crossing_off_every_edge::{two_trimmed_spheres_build,
+a_trimmed_face_cut_beside_its_pole_builds, a_ball_crossed_by_two_partners_builds}`
+and `snowman::{a_slab_cutting_a_cap_off_a_banded_ball_builds,
+a_circle_across_an_earlier_cut_takes_none_of_its_own}`. The trimmed
+operands of `two_trimmed_spheres_build` refuse `SeamTwice` on their own.
+
 ## Ground
 
 `crates/mesh/src/trimmed.rs`: tesslane and tesslie. Claimed by LATHE.
