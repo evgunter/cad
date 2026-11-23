@@ -423,8 +423,9 @@ pub(crate) enum BoundaryMember<'a, T: Real> {
 /// [`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)
 /// does at rest. The one home of the standing:
 /// [`TouchUnread::LoneLoop`](crate::TouchUnread::LoneLoop),
-/// [`PointInLoopError::LoneLoop`](crate::PointInLoopError::LoneLoop) and
-/// the boolean's `ContainError::EmptyLoop` answer it.
+/// [`PointInLoopError::LoneLoop`](crate::PointInLoopError::LoneLoop),
+/// [`ChartRegionError::NoOutline`](crate::ChartRegionError::NoOutline)
+/// and the boolean's `ContainError::EmptyLoop` answer it.
 pub(crate) const LONE_LOOP_REFUSAL: geom_brep::ladder::Refusal = geom_brep::ladder::Refusal::Limit;
 
 /// **A loop of a face that is a cycle**, resolved and checked once: the
