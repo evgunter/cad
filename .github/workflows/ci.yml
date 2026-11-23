@@ -561,6 +561,7 @@ jobs:
           cargo nextest list --ignore-default-filter -p viewer --features app --message-format json \
             | python3 scripts/check-slow-set-names.py --members "$members"
       - name: wasm32 clippy (the browser entry point)
+        if: '!cancelled()'
         run: |
           rustup target add wasm32-unknown-unknown
           RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo clippy -p viewer --features app --target wasm32-unknown-unknown -- -D warnings
