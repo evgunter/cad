@@ -121,6 +121,15 @@ impl ToolKind {
         compose(&Panel::Tool(self).name(), what)
     }
 
+    /// [`Self::says`], into a sentence: `what` keeps its mentions.
+    fn says_into(
+        self,
+        out: &mut editor_core::Sentence,
+        what: impl pncad::document::Put,
+    ) -> core::fmt::Result {
+        pncad::document::say!(out, format_args!("{}: ", Panel::Tool(self).name()), what)
+    }
+
     /// **This tool's panel refusing its commit**, as the value
     /// [`crate::frame::tool_news`] takes.
     pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
@@ -281,7 +290,6 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::CancelFreeMove
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
-        | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -341,20 +349,19 @@ pub enum ToolNotice {
 /// dropped face pick is said by the speaker, a node it does not hold as
 /// the tool kept it.
 impl Say for ToolNotice {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
-        let said = match self {
-            Self::Mate(event) => ToolKind::Mate.says(&Said(event, by)),
-            Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
-            Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
-            Self::Split(event) => ToolKind::Split.says(&Said(event, by)),
-            Self::Assertion(event) => ToolKind::Assertion.says(&Said(event, by)),
-            Self::Seated { tool, event } => tool.says(event),
-            Self::Missed { tool, kinds } => tool.says(&format_args!(
-                "{} under the cursor — no pick taken",
-                kinds.nothing()
-            )),
-        };
-        f.write_str(&said)
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::Mate(event) => ToolKind::Mate.says_into(f, Said(event, by)),
+            Self::Blend(event) => ToolKind::Blend.says_into(f, Said(event, by)),
+            Self::Mirror(event) => ToolKind::Mirror.says_into(f, Said(event, by)),
+            Self::Split(event) => ToolKind::Split.says_into(f, Said(event, by)),
+            Self::Assertion(event) => ToolKind::Assertion.says_into(f, Said(event, by)),
+            Self::Seated { tool, event } => tool.says_into(f, Said(event, by)),
+            Self::Missed { tool, kinds } => tool.says_into(
+                f,
+                format_args!("{} under the cursor — no pick taken", kinds.nothing()),
+            ),
+        }
     }
 }
 
@@ -471,7 +478,7 @@ impl core::fmt::Display for PanelRefusal {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ToolNotice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -481,7 +488,9 @@ impl ToolNotice {
     /// name within its table in that document's evaluation
     /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
     pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
-        Said(self, crate::frame::landed_speaker(landed)).to_string()
+        Said(self, crate::frame::landed_speaker(landed))
+            .sentence()
+            .to_string()
     }
 }
 
@@ -512,6 +521,21 @@ pub enum OpenTool {
 }
 
 impl OpenTool {
+    /// The tool of `kind`, holding nothing.
+    fn fresh(kind: ToolKind) -> Self {
+        match kind {
+            ToolKind::Mate => Self::Mate(MateTool::new()),
+            ToolKind::Boolean => Self::Boolean(BooleanTool::new()),
+            ToolKind::Split => Self::Split(SplitTool::new()),
+            ToolKind::Transform => Self::Transform(TransformTool::new()),
+            ToolKind::Pattern => Self::Pattern(PatternTool::new()),
+            ToolKind::Blend => Self::Blend(BlendTool::new()),
+            ToolKind::Part => Self::Part(PartTool::new()),
+            ToolKind::Mirror => Self::Mirror(MirrorTool::new()),
+            ToolKind::Assertion => Self::Assertion(AssertionTool::new()),
+        }
+    }
+
     /// Which kind this is — the vocabulary the rules that do not need
     /// the tool's own state are addressed in.
     pub fn kind(&self) -> ToolKind {
@@ -583,17 +607,7 @@ impl Tools {
     /// affordance, and the FORM fields (an angle, a count) are drafts
     /// living outside the tool and are untouched either way.
     pub fn open(&mut self, kind: ToolKind) {
-        self.open = Some(match kind {
-            ToolKind::Mate => OpenTool::Mate(MateTool::new()),
-            ToolKind::Boolean => OpenTool::Boolean(BooleanTool::new()),
-            ToolKind::Split => OpenTool::Split(SplitTool::new()),
-            ToolKind::Transform => OpenTool::Transform(TransformTool::new()),
-            ToolKind::Pattern => OpenTool::Pattern(PatternTool::new()),
-            ToolKind::Blend => OpenTool::Blend(BlendTool::new()),
-            ToolKind::Part => OpenTool::Part(PartTool::new()),
-            ToolKind::Mirror => OpenTool::Mirror(MirrorTool::new()),
-            ToolKind::Assertion => OpenTool::Assertion(AssertionTool::new()),
-        });
+        self.open = Some(OpenTool::fresh(kind));
     }
 
     /// Close whatever is open (the Cancel door, and the one a committed
@@ -868,10 +882,18 @@ impl Tools {
     /// open, holding nothing ([`Tools::open`]). Its picks are ids of the
     /// document they were made in, and the next document may hold a
     /// node of the same id (`SpokenNode::respoken`'s premise).
+    ///
+    /// The tool's value is rebuilt whole, so a pick a tool adds goes
+    /// with it. Sorted as `Drafts::document_replaced` sorts: a field
+    /// added to [`Tools`] does not compile here until it is named and
+    /// rebuilt below (kept), or written `_` and left to
+    /// `..Self::default()` (dropped).
     pub fn document_replaced(&mut self) {
-        if let Some(kind) = self.open_kind() {
-            self.open(kind);
-        }
+        let Self { open } = core::mem::take(self);
+        *self = Self {
+            // Which tool is open is chrome; what it holds is not.
+            open: open.map(|tool| OpenTool::fresh(tool.kind())),
+        };
     }
 
     /// **Feed one frame's operations to the open tool.**

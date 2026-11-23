@@ -754,7 +754,8 @@ fn curve_sense<T: Decide>(
     band: Band,
 ) -> Result<geom_core::Sign, Indeterminate> {
     match (locus, curve.carrier()) {
-        (Locus::Rim(rim), geom::Curve3::Circle(geom::Circle { frame, .. })) => {
+        (Locus::Rim(rim), geom::Curve3::Circle(the_circle @ geom::Circle { .. })) => {
+            let frame = the_circle.frame();
             let axis = frame.axis();
             crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band)
         }
@@ -873,8 +874,8 @@ fn crossings<T: Decide>(
             }
             Ok(Some(kept))
         }
-        (geom::Curve3::Circle(arc @ geom::Circle { frame, .. }), _) => {
-            let (center, axis) = (frame.origin(), frame.axis());
+        (geom::Curve3::Circle(arc), _) => {
+            let (center, axis) = (arc.frame().origin(), arc.frame().axis());
             let radius = arc.radius();
             let (ce, ae, re) = (center, axis, radius);
             let e1 = {
@@ -962,19 +963,11 @@ fn rides<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match (locus, curve.carrier()) {
-        (
-            Locus::Rim(rim),
-            geom::Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: carrier_frame_27,
-                    ..
-                },
-            ),
-        ) => {
+        (Locus::Rim(rim), geom::Curve3::Circle(circle)) => {
             let (center, axis, u_ref) = (
-                carrier_frame_27.origin(),
-                carrier_frame_27.axis(),
-                carrier_frame_27.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             same_circle(
@@ -1027,11 +1020,11 @@ pub(crate) fn face_boundary_arcs<T: Real>(
         return out;
     };
     for member in f.boundary() {
-        let crate::live::BoundaryMember::Edge { he, ek, edge, .. } = member else {
+        let crate::live::BoundaryMember::Edge { he, edge, .. } = member else {
             continue;
         };
-        if let Some(c) = body.edge_curve_linked(ek, edge).certified() {
-            out.push((edge.he_plus == he, c));
+        if let Some(c) = edge.certified() {
+            out.push((edge.record().he_plus == he, c));
         }
     }
     out
@@ -1042,16 +1035,11 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: carrier_frame_26,
-                    ..
-                },
-            ) => {
+            geom::Curve3::Circle(circle) => {
                 let (center, axis, u_ref) = (
-                    carrier_frame_26.origin(),
-                    carrier_frame_26.axis(),
-                    carrier_frame_26.u_ref(),
+                    circle.frame().origin(),
+                    circle.frame().axis(),
+                    circle.frame().u_ref(),
                 );
                 let radius = circle.radius();
                 Some(Rim {

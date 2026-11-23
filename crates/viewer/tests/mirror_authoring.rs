@@ -393,7 +393,7 @@ fn a_mirror_on_one_of_two_copies_is_that_copys_part_alone() {
     let part = part.expect("the picked copy becomes its part");
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::placements_of(doc, block),
+        doc.placements_of(block),
         [first, second],
         "both copies still place the block"
     );
@@ -822,8 +822,8 @@ fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
         .map(|(_, plane)| plane.to_owned())
         .unwrap_or_else(|| panic!("the line holds the plane: {line:?}"));
     let (block_said, copy_said) = (
-        session.doc().spoken(block).to_string(),
-        session.doc().spoken(copy).to_string(),
+        viewer::tree::spelled(&session.doc().spoken(block)),
+        viewer::tree::spelled(&session.doc().spoken(copy)),
     );
     assert!(
         plane.starts_with("the side wall ")
@@ -955,8 +955,8 @@ fn a_click_on_a_copy_seats_the_copy_and_says_the_plane_on_it() {
     let wall = face_toward(&session, 1.0);
     let wall_copy = wall.node;
     let tools = mirror_tool_picking(&session, &[wall]);
-    let said = session.doc().spoken(block).to_string();
-    let copy = session.doc().spoken(wall_copy).to_string();
+    let said = viewer::tree::spelled(&session.doc().spoken(block));
+    let copy = viewer::tree::spelled(&session.doc().spoken(wall_copy));
     let line = tools
         .mirror()
         .expect("open")

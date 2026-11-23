@@ -5,7 +5,7 @@ title: gate_rust_code --statements cuts a Rust array type at its semicolon, so a
 status: open
 opened: 2026-09-07
 priority: P3
-cost: D
+cost: M
 ---
 
 
