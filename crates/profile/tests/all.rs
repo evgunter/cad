@@ -158,6 +158,8 @@ mod raw_door_census;
 mod recorded_directions;
 #[path = "recourse_roster.rs"]
 mod recourse_roster;
+#[path = "review_mint_probes.rs"]
+mod review_mint_probes;
 #[path = "review_fillet_recourse_arm_r2_probes.rs"]
 mod review_fillet_recourse_arm_r2_probes;
 
