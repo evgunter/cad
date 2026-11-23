@@ -40,7 +40,7 @@ use pncad::geom::Surface;
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MeridianEnd, RoleSeg, StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
-use pncad::select::{ProfilePieces, band_rim, band_rim_pi, edge_name};
+use pncad::select::{ProfilePieces, band_rim, edge_name};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 use demo_tour::teapot::{
@@ -336,11 +336,11 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
 
 /// The latitude rim at meridian vertex `v` of an axis-touching lid,
 /// WHOLE: its two half-arcs' names.
-fn rim_arcs(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> [StableName; 2] {
+fn rim_names(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> [StableName; 1] {
     let piece = pieces_of(doc, lid, tol)
         .vertex(0, v as usize)
         .expect("the vertex is the meridian's");
-    [band_rim(lid, piece), band_rim_pi(lid, piece)]
+    [band_rim(lid, piece)]
 }
 
 /// **The scene's one request builds the kernel's one-request body.**
@@ -355,7 +355,7 @@ fn one_request_builds_the_kernels_body() {
     let (mut doc, lid) = sharp_lid_in(Doc::empty_derived("teapot-solid-lid", tol), 0.0, tol);
     let sel: Vec<StableName> = ROLLED
         .iter()
-        .flat_map(|&v| rim_arcs(&doc, lid, v, tol))
+        .flat_map(|&v| rim_names(&doc, lid, v, tol))
         .collect();
     let rolled = insert(
         &mut doc,

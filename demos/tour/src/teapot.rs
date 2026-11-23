@@ -295,7 +295,7 @@ use pncad::prelude::{
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
-    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, band_rim_pi, edge_name,
+    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, edge_name,
     face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
@@ -888,13 +888,10 @@ fn vertex_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, v: u32, tol: Tol) -
         .expect("the vertex is the meridian's")
 }
 
-/// **The latitude rim at `vertex`, WHOLE**: on a full revolve of a
-/// profile that touches the axis, a rim is two half-arcs meeting at
-/// two seam vertices, named `BandRim` (`[0, π)`) and `BandRimPi`
-/// (`[π, 2π)`). The fillet takes the pair; either arc alone ends at a
-/// seam vertex and refuses `UnbuiltEnd::Seam`.
-fn rim_arcs(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 2] {
-    [band_rim(node, vertex), band_rim_pi(node, vertex)]
+/// **The latitude rim at `vertex`, WHOLE**: on a full revolve a rim is
+/// one closed edge, named `BandRim`.
+fn rim_names(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 1] {
+    [band_rim(node, vertex)]
 }
 
 fn build_doc(tol: Tol) -> Recipe {
@@ -933,15 +930,14 @@ fn build_doc(tol: Tol) -> Recipe {
     // seam-piece identities are re-read against the partially-carved
     // body, so the convenient spelling is the door's grain.
     //
-    // The lid's profile touches the axis, so each rim is two half-arcs
-    // and is asked for whole ([`rim_arcs`]); the band carves over both.
+    // Each rim is one closed edge, asked for whole ([`rim_names`]).
     //
     // The flange's rim and the dome's foot stand at the two ends of the
     // flange cone, so both bands slit and cross THAT segment's meridians;
     // their names tell the two apart by the band that made each.
     let rims: Vec<StableName> = LID_RIMS
         .iter()
-        .flat_map(|&(v, ..)| rim_arcs(plain_lid, vertex_at(&doc, plain_lid, v, tol)))
+        .flat_map(|&(v, ..)| rim_names(plain_lid, vertex_at(&doc, plain_lid, v, tol)))
         .collect();
     let lid = insert(
         &mut doc,
@@ -1184,7 +1180,7 @@ fn rim_circle(
     vertex: u32,
 ) -> (f64, f64) {
     let start = vertex_at(doc, node, vertex, Tol::witness());
-    let names = rim_arcs(node, start);
+    let names = rim_names(node, start);
     let seeds: Vec<_> = query::all_edges(body)
         .into_iter()
         .filter(|&k| edge_name(ev, node, 0, k).ok() == Some(&names[0]))
@@ -1488,9 +1484,9 @@ type Census = (usize, usize, usize);
 fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
     let lid = revolved(&mut doc, lid_meridian(), tol);
-    let rims: Vec<[StableName; 2]> = LID_RIMS
+    let rims: Vec<[StableName; 1]> = LID_RIMS
         .iter()
-        .map(|&(v, ..)| rim_arcs(lid, vertex_at(&doc, lid, v, tol)))
+        .map(|&(v, ..)| rim_names(lid, vertex_at(&doc, lid, v, tol)))
         .collect();
     let asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
         .iter()

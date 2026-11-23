@@ -4744,7 +4744,7 @@ class GeomPred:
         writes one refuses here: `EvalError`, `unlowered_name`."""
 
 
-# Minting a revolve's role name: the six doors that ANSWER a name
+# Minting a revolve's role name: the four doors that ANSWER a name
 # rather than selecting one. `select` answers names FROM an
 # evaluation; a selection that is AUTHORED — `Node.fillet`'s frozen
 # selection, `Node.shell`'s open list — is written before any
