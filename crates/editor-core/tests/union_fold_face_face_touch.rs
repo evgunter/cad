@@ -549,3 +549,41 @@ fn a_cut_whose_record_its_gate_contradicts_refuses_at_the_node() {
         "the cut refuses on its one contradicted record: {text}"
     );
 }
+
+/// **A record past the certifier's set is held on its citation, and the
+/// union names tier 3** (`[topology.tiers]`). The leaning rod on the
+/// plate alone: the census confirms the tangency over the pair's own
+/// extent, and the union is tier 3′ over its records. With the 298-long
+/// neighbour merged into the plate's face, no closed-form tangent locus
+/// spans the merged face, so the census has no lane that reads the
+/// recorded pair: the union holds the record as its fold step cited it,
+/// and its bar is tier 3
+/// (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`).
+/// Red where the gate refuses a record no lane reads, or where it holds
+/// one and still names tier 3′.
+#[test]
+fn a_record_no_lane_reads_is_held_at_tier_3() {
+    let (doc, plate) = plate();
+    let (doc, rod) = leaning_rod(doc, plate, 0.1 * Tol::witness().eps());
+    let (doc, long) = block_on(doc, plate, (2.0, 300.0), (-2.0, 2.0), 0.0, 1.0);
+    for (what, members, bar) in [
+        ("plate, rod", vec![plate, rod], topo::Bar::Tier3Prime),
+        ("plate, long, rod", vec![plate, long, rod], topo::Bar::Tier3),
+        ("rod, plate, long", vec![rod, plate, long], topo::Bar::Tier3),
+    ] {
+        let (doc, u) = union_over(doc.clone(), &members);
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("{what}: refused: {e:?}");
+        }
+        let value = ev.value(u).expect("the union evaluated");
+        let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
+            panic!("{what}: not a boolean body");
+        };
+        let finished = body
+            .holding()
+            .finished(Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: a union's body is finished: {e:?}"));
+        assert_eq!(finished.bar(), bar, "{what}");
+    }
+}

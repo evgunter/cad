@@ -99,6 +99,11 @@ fn a_blend_away_from_the_kiss_carries_it() {
     );
     let filleted = fillet_edges(&base.body, &[edge], R, tol()).expect("the fillet builds");
     carried_kiss("fillet", &filleted);
+    assert_eq!(
+        filleted.body.bar(),
+        topo::Bar::Tier3Prime,
+        "fillet: its gate confirmed the kiss it carried"
+    );
 
     let chamfered = chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds");
     let carried = carried_kiss("chamfer", &chamfered);

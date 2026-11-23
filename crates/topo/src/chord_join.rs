@@ -1072,7 +1072,7 @@ pub(crate) fn corrupt_face(face: FaceKey) -> JoinError {
 /// reaches from there, measured from the base vertex `at`'s point off
 /// the face's cover: on a cone the [`geom_brep::Reach::Face`] the cone
 /// lane reads ([`crate::cover::cone_face_reach`]), on a cylinder the
-/// [`WallReach`] [`wall_face_section`] reads, on a torus its farthest
+/// [`WallReach`] the plane×cylinder arm reads, on a torus its farthest
 /// distance. A sphere's lane reads none. `within` is a second face's
 /// cover the consumed region also lies in: the partner wall face's,
 /// where `face` is the plane the boolean cuts it with.
@@ -1631,7 +1631,7 @@ fn section_loop<T: Decide>(
 pub(crate) enum SectionReach<T: Real> {
     /// A cone wall's face, as the plane×cone arm reads it.
     Cone(geom_brep::Reach<T>),
-    /// A cylinder wall's face, as [`wall_face_section`] reads it.
+    /// A cylinder wall's face, as the plane×cylinder arm reads it.
     Cylinder(WallReach<T>),
     /// A torus wall's face, or a plane face against a torus: the
     /// divided face's farthest distance from the chord's site, which the
@@ -1656,20 +1656,6 @@ pub(crate) struct WallReach<T: geom_core::Real> {
     pub(crate) above: T,
     /// The face's farthest distance from `at`.
     pub(crate) across: geom_core::Lever<T>,
-}
-
-/// **A plane×cylinder section over a wall face's reach**
-/// ([`WallReach`], read as a [`geom_brep::Reach::Face`]): the chord lane
-/// ([`section_case`]) and the germ frame
-/// (`boolean::join::pair_section_frame_at`) read it.
-pub(crate) fn wall_face_section<T: Decide>(
-    plane: &impl geom_brep::SectionPlane<T>,
-    wall: &geom::Surface<T>,
-    reach: WallReach<T>,
-    band: Band,
-) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
-    let face = geom_brep::Reach::of_face(reach.at, (reach.below, reach.above), reach.across);
-    geom_brep::plane_cylinder_section(plane, wall, &face, band)
 }
 
 /// The section of the surface PAIR `(s1, s2)` under THE C5 table, as
@@ -1720,8 +1706,7 @@ fn section_case<T: Decide>(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
                  plane×cylinder, plane×cone, plane×sphere and plane×torus, and a curved×curved pair has no conic \
                  to take an arc of; refused typed rather than defaulted to a straight chord. A \
-                 sphere pair never arrives here: its section lies in the pair's radical \
-                 plane, which the boolean's join hands each side as a plane×sphere pair",
+                 sphere pair never arrives here: the operation's section table carries it",
             ));
         }
     };
@@ -1910,7 +1895,8 @@ fn plane_wall_case<T: Decide>(
             };
         }
     };
-    let sec = wall_face_section(plane_s, wall, reach, band).map_err(table)?;
+    let face_reach = geom_brep::Reach::of_face(reach.at, (reach.below, reach.above), reach.across);
+    let sec = geom_brep::plane_cylinder_section(plane_s, wall, &face_reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c) => conic(c, false),
         geom_brep::PlaneCylinderSection::Rim(c) => conic(c, true),
@@ -2664,7 +2650,7 @@ pub(crate) fn cone_apex_plane_section<T: Decide>(
 /// crossings along it (`splitting::join`) — so the two cannot read
 /// different conics. It is lane-neutral: the pair is the face and a
 /// plane, and nothing here knows which lane asks; a cylinder wall is
-/// read over its face's cover ([`wall_face_section`]).
+/// read over its face's cover ([`section_reach`]).
 ///
 /// # Errors
 ///

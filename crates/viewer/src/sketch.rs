@@ -43,10 +43,10 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, Evaluation, Formula, LoopProgram, Node, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation,
-    RecordedProgramError, SlotId, SpokenNode, StepArg, StepId, StepShape, TraceCrossing,
-    TracePassage, TraceRefusal, TraceSense, ValuePayload, WrittenLoopFault, resolve_written_loops,
+    DimensionError, Doc, Evaluation, Formula, LoopProgram, Node, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    SpokenNode, StepArg, StepId, StepShape, TraceCrossing, TracePassage, TraceRefusal, TraceSense,
+    ValuePayload, WrittenLoopFault, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Point3, Tell, Tol, Vec2};
 use pncad::profile::path::program::{FilletConstruction, replay_drawn};
@@ -59,7 +59,7 @@ use pncad::profile::{
 use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
-use crate::props::Notation;
+use crate::props::{Notation, WorkingNotation as _};
 use crate::session::refuse::{NodeKindWanted, admits};
 
 /// **A step of `verb` with the editor's starting numbers** — what
@@ -171,11 +171,11 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
     }
 }
 
-/// **`notation` over every argument `program` holds** — each `Length`
-/// argument written in its length unit, each `Angle` one in its angle
-/// unit, and every other argument (a bulge, a director component) left
-/// with the one spelling a dimensionless number has — except where
-/// `noted` names the unit the argument at `(step, arg)` is written in.
+/// **`notation` over every argument `program` holds** — each argument
+/// recorded in the unit `notation` writes its dimension in (a length in
+/// its length unit, an angle in its angle unit, a bulge or a director
+/// component in the dimensionless row) — except where `noted` names the
+/// unit the argument at `(step, arg)` is written in.
 ///
 /// Asked of the PROGRAM, through its own argument enumeration, rather
 /// than of the steps: which roles a step holds is the document layer's
@@ -192,10 +192,8 @@ fn recorded_notation(
             recorded.set(step, arg, unit)?;
             continue;
         }
-        match arg.dimension() {
-            Dimension::Length => recorded.set(step, arg, notation.length.def())?,
-            Dimension::Angle => recorded.set(step, arg, notation.angle.def())?,
-            Dimension::Scalar | Dimension::Count => {}
+        if let Some(unit) = notation.unit(arg.dimension()) {
+            recorded.set(step, arg, unit)?;
         }
     }
     Ok(recorded)
@@ -1742,15 +1740,18 @@ fn preview_replayed(
 /// drew which piece.
 ///
 /// The close is `line_to Start`, re-spelled the way the lattice spells
-/// the same leg for each refusal that says it is tangent, one
-/// declaration per kind, until it replays: `continue_to` where it runs
-/// straight on from the last leg (`JunctionTangent`), and a start
-/// declared tangent where it arrives continuing the entry's first side
-/// (`SeamTangent`). A close that does both takes both. Only a decided
-/// tangency is re-spelled: an escalation is the kernel declining to
-/// say whether the close runs straight on, and another spelling that
-/// happens to replay is not an answer to that. Any other refusal is
-/// said in `line_to Start`'s words.
+/// the same leg for each refusal whose turn is zero at tolerance, one
+/// declaration per kind, until it replays: `continue_to` where it may
+/// run straight on from the last leg (`JunctionTurnWithinTolerance`),
+/// and a start declared tangent where it may arrive continuing the
+/// entry's first side (`SeamTurnWithinTolerance`). A close that does
+/// both takes both. Each re-spelling is checked by the replay, so a
+/// real angle over a short leg that the declared spelling does not fit
+/// still refuses in `line_to Start`'s words. Only a decided zero turn
+/// is re-spelled: an escalation is the kernel declining to say whether
+/// the close runs straight on, and another spelling that happens to
+/// replay is not an answer to that. Any other refusal is said in
+/// `line_to Start`'s words.
 fn replay_provisionally_closed(
     steps: &[Step<f64>],
     tol: Tol,
@@ -1782,8 +1783,8 @@ fn replay_provisionally_closed(
     let mut kind = kind_of(&first);
     loop {
         match kind {
-            Some(PathErrorKind::JunctionTangent) if !straight_on => straight_on = true,
-            Some(PathErrorKind::SeamTangent) if !seam_declared => seam_declared = true,
+            Some(PathErrorKind::JunctionTurnWithinTolerance) if !straight_on => straight_on = true,
+            Some(PathErrorKind::SeamTurnWithinTolerance) if !seam_declared => seam_declared = true,
             _ => return Err(first),
         }
         match closed_by(straight_on, seam_declared) {
@@ -2602,7 +2603,7 @@ mod tests {
                 PreviewError::Geometry {
                     loop_: 0,
                     step: 1,
-                    kind: PathErrorKind::JunctionTangent,
+                    kind: PathErrorKind::JunctionTurnWithinTolerance,
                     rendered: String::new().into(),
                 },
                 Tone::Actionable,

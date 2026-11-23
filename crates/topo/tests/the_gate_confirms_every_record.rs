@@ -218,3 +218,61 @@ fn a_box_scalars_taker_reads_the_records_its_leaf_holds() {
         "{findings:?}"
     );
 }
+
+/// **A finished body names the bar its gate paid on its records**
+/// (`[topology.tiers]`), at each door that makes one. A brick holds no
+/// record: tier 3. A kiss holds its record, confirmed: tier 3′ over its
+/// records, and so do its image under a move, as a finished body and as
+/// a leaf, the side of a split that keeps the kiss, and its shell. A
+/// `⊔` of two cubes apart, whose census decided between them and found
+/// nothing, is tier 3′, and stays so moved as a leaf, though it holds no
+/// record; a `⊔` of one brick, which had nothing to decide, is tier 3.
+/// Red where a leaf's move reads the bar off its image's records alone,
+/// or a `⊔` claims tier 3′ for a census that had one arrival.
+#[test]
+fn a_finished_body_names_the_bar_its_gate_paid() {
+    use topo::Bar;
+    assert_eq!(cube(0.0, 0.0, 0.0).bar(), Bar::Tier3, "a brick");
+    let kiss = kiss();
+    assert_eq!(kiss.bar(), Bar::Tier3Prime, "a kiss");
+    let slide = Isometry::Proper(RigidMotion::axes_xy(Point3::new(3.0, -2.0, 0.5)));
+    assert_eq!(
+        FinishedBody::moved_by(&kiss, &slide, tol()).unwrap().bar(),
+        Bar::Tier3Prime,
+        "a kiss, moved"
+    );
+    assert_eq!(
+        LeafBody::moved_by(&kiss, &slide, tol()).unwrap().bar(),
+        Bar::Tier3Prime,
+        "a kiss, moved as a leaf"
+    );
+    let plane = common::split_plane(Point3::new(0.0, 0.0, -5.0), Vec3::new(0.0, 0.0, 1.0), tol());
+    let split = topo::split(&kiss, &plane, tol()).unwrap();
+    let side = [&split.above, &split.below]
+        .into_iter()
+        .find_map(|part| part.body())
+        .expect("the side that keeps the kiss");
+    assert_eq!(side.bar(), Bar::Tier3Prime, "the split's side");
+    assert_eq!(
+        topo::shell(&kiss, 0.1, tol()).unwrap().body.bar(),
+        Bar::Tier3Prime,
+        "the kiss's shell"
+    );
+    let apart = two_cubes(5.0, 0.0);
+    assert!(apart.records().is_empty(), "two cubes apart touch nowhere");
+    assert_eq!(apart.bar(), Bar::Tier3Prime, "a join of two arrivals");
+    assert_eq!(
+        LeafBody::moved_by(&apart, &slide, tol()).unwrap().bar(),
+        Bar::Tier3Prime,
+        "a join of two arrivals, moved as a leaf"
+    );
+    let mut alone = Assembled::<f64>::new();
+    alone
+        .graft_finished(&cube(0.0, 0.0, 0.0), None, tol())
+        .unwrap();
+    assert_eq!(
+        finish_assembled(alone, tol()).unwrap().body.bar(),
+        Bar::Tier3,
+        "a join of one arrival"
+    );
+}

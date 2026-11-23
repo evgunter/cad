@@ -331,7 +331,7 @@ import pncad
 try:
     Open.at((0 * mm, 0 * mm)).line_to((40 * mm, 0 * mm)).angle(0 * pncad.deg)
 except pncad.PathError as refused:
-    assert refused.variant == "junction_tangent"
+    assert refused.variant == "junction_turn_within_tolerance"
 else:
     raise AssertionError("an accidentally tangent corner must refuse")
 
