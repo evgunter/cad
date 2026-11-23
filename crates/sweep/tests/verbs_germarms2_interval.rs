@@ -310,6 +310,16 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
     }
 }
 
+/// The window [`the_meeting_axes_pose_builds_at_the_certified_scalar`]'s
+/// direct union refuses in at ε 1e-12
+/// (`crate::common::frame_cost::at_the_least_band`): the result's pcurve
+/// pass escalates `pcurve_envelope` with its margin's upper end in this
+/// window (measured 1.284e-12). Cause: bracket, the spun walls' frames
+/// built at `Interval` from bracket inputs (fork 274); mutant F1X (PR
+/// 7131's body) builds the union, and turns this pin red; mutant A does
+/// not.
+const MEETING_AXES_FRAME_COST: (f64, f64) = (1.2e-12, 1.35e-12);
+
 /// **The skew pose at the BODY level, at the certified scalar.** Slide
 /// the pair along the common perpendicular `â₁ × â₂` by the dyadic
 /// `0.375`: the crossings are found, the germ pair is minted, and the
