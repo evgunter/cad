@@ -2732,6 +2732,8 @@ NOT_BOUND = {
     # document a carried finding is spoken over (`CarriedCoincidence.finding`).
     "PinnedDoc": INTERIOR,
     "Route": INTERIOR,
+    # One hop of a `Route`: the instance and the document holding it.
+    "RouteHop": INTERIOR,
     # The answers of `Doc::expr_reach` and `Doc::member_envs` (D10
     # `[repetition]`), the reads a reader that evaluates an expression
     # itself makes. Python evaluates through `evaluate`, which makes both
