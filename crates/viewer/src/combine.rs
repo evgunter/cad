@@ -430,12 +430,17 @@ impl PlaneSeats {
     }
 
     /// **Feed one selection**: a face is the plane ([`Self::pick_plane`]),
-    /// a variable the plane where it is one ([`Self::pick_defined`]), and
-    /// any other pick of a node ([`Selection::seat_node`]) the body.
+    /// a variable the plane where it is one ([`Self::pick_defined`]), a
+    /// datum picked whole its frame through its xy plane, and any other
+    /// pick of a node ([`Selection::seat_node`]) the body.
     fn feed(&mut self, doc: &Doc<ProfileProgram>, selection: &Selection) -> Option<PlaneEvent> {
         match selection {
             Selection::Face(face) => self.pick_plane(doc, face.clone()),
             Selection::Variable(var) => return self.pick_defined(doc, *var),
+            // A datum picked whole is its frame, read through its xy plane.
+            Selection::Node(node) if let Some(frame) = crate::tools::datum_frame(doc, *node) => {
+                return self.pick_defined(doc, frame);
+            }
             _ => {
                 if let Some(node) = selection.seat_node() {
                     self.seats.pick(doc, node);

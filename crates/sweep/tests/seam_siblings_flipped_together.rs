@@ -235,7 +235,10 @@ fn a_holed_region_reads_its_side_by_its_area() {
     let [x, y] = siblings[0];
     let f = body.faces().find(|(k, _)| *k == x).unwrap().1;
     assert_eq!(
-        topo::props::loop_edges(&body, f.outer).unwrap().0.len(),
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+            .unwrap()
+            .0
+            .len(),
         6,
         "each lune meets both slab planes and both seams"
     );
@@ -282,7 +285,8 @@ fn split_along_a_meridian(
 ) {
     let f = body.faces().find(|(k, _)| *k == face).unwrap().1.clone();
     let (center, radius, pole) = sphere_of(body, face);
-    let (edges, _) = topo::props::loop_edges(body, f.outer).unwrap();
+    let (edges, _) =
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
     let near = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-9;
     let mut seam = None;
     let mut inside = None;

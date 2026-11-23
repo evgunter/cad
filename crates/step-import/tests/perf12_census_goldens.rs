@@ -8,8 +8,8 @@
 //!
 //! An `Ok` row records the body's arena counts; a refusal records the
 //! error vector one finding per line. A candidate pre-filter in the
-//! census must leave every row byte-identical (the editor-core twin,
-//! `perf12_census_goldens`, says why the K-funnel's log is not part of
+//! census must leave every row byte-identical (`editor-core`'s
+//! `perf12_census_bvh_diff` says why the K-funnel's log is not part of
 //! the pin).
 //!
 //! # Re-blessing

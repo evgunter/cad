@@ -18,3 +18,11 @@ cost: E
 ## What a fix is
 
 Read the facing through the `face_normal` door (or the door the census names for a record-level facing), or, if a record-level read genuinely has no face to ask, add the site to the census's allowlist with its reason.
+
+## Evidence (GERM, PR 7431)
+
+GERM's PR 7431 review also saw `no_source_file_folds_the_bit_by_hand`
+red outside that PR's diff. The lane re-ran it on an `origin/main`
+worktree on 2026-11-23, and it was red there too, flagging the same
+`from_n` fold in `crates/step-import/src/one_record.rs`. A duplicate row
+filed on PR 7431's branch was withdrawn in favour of this one.
