@@ -368,11 +368,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
-        7,
-        5,
-        "the 5 that ask are `ray_at`'s lead, read where it certifies, and `box_gap`'s per-axis \
-         gap, read only where both boxes' coordinates certify and NaN otherwise, which holds \
-         nothing apart (`PadsMeet`). The other 2 read \
+        3,
+        1,
+        "the 1 that asks is `ray_at`'s lead, read where it certifies. The other 2 read \
          the pivot's lift, the foot's height over the stored plane divided by the stored \
          normal's length: `Pivot::shift`'s upper end, which pads the reading's band, and a \
          quotient by a length not proven away from zero has an end that is not finite, which \
@@ -383,13 +381,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/cells.rs",
-        4,
-        2,
-        "the 2 that ask are `Reader::clears`'s, the partner's form in metres over a cell, read \
-         past the cut only where it certifies: a refused enclosure clears nothing. The other 2 \
-         are `Enclosure::carried`'s, the corners of a cell's image as the box a site is read \
-         in: every cell it holds read a finite pad, which `pair_section::farthest` gives only \
-         where each side of the image certifies",
+        20,
+        20,
+        "",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/curved.rs",

@@ -35,6 +35,18 @@ first reading only:
 | ball about `(0, 1.1, −1)`, radius `1.6` | 332 | 1628 | 3953 | 0.78 s | 3.1 s |
 | ball about `(0, 1.1, −0.5)`, radius `1.2` | 453 | 2162 | 5242 | 0.93 s | 4.6 s |
 
+Two arcs each, the same wall and profile (measured on a quieter box
+than the table above, so compare within these two lines):
+
+| partner | cells kept an arc | first reading | the listing |
+|---|---|---|---|
+| rod of radius `0.09` along the wall | 64, 64 | 0.06 s | 0.38 s |
+| the same rod turned 30° in the wall | 1674, 1475 | 1.83 s | 4.68 s |
+
+The turned rod's arcs are fitted in many short spans, whose windows
+overlap, and are read in twenty-five times the cells of the straight
+rod's for arcs about as long.
+
 About five cells are kept per span, where an arc a rung wide needs
 about two per rung of its length. Before the cells were read to the
 rung and cleared (two-rung cells, read against their own span), the
