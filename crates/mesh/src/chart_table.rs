@@ -492,6 +492,20 @@ impl<'a> AnalyticRow<'a> {
     /// time, which is the shape whose span round the axis the target
     /// bounds. `k` is rounded to a power of two, so the plane changes in
     /// steps of two as the window's height grows.
+    ///
+    /// **Measured against the two alternatives** (debug, the correction
+    /// on, the fuzz seed pinned; `mesh`, `sweep`'s meshing modules, and
+    /// 900 two-hole cells over gap 1.0 to 3.0 columns): the cylinder's own
+    /// development, `k = 1/r`, which is an isometry, and the metric this
+    /// lane read when it laid rows, whose rows were square in 3-D and
+    /// whose `k` is therefore `1/r` too up to the rounding. They are one
+    /// alternative, and both lose: 180 of 180 two-hole cells refuse
+    /// `CertificateExceeded` (0.0276 against δ 10⁻³, the correction's
+    /// budget spent), with 16 `mesh` rows and 16 `sweep` rows red. There
+    /// a column is `1/r` of the window's height in the CDT's own
+    /// coordinates, the face reads as a tall strip, and the triangulation
+    /// prefers triangles spanning several columns — the shape whose span
+    /// round the axis nothing bounds.
     pub(crate) fn metric(
         &self,
         (u0, u1): (f64, f64),

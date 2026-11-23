@@ -662,14 +662,28 @@ pub(crate) fn tessellate_trimmed(
             // and the lattice the row lays from them.
             let (hu, hv) =
                 a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
-            let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
-            let rows = a.lattice_rows((v0, v1), (hu, hv))?;
+            let columns = ceil_count(u1 - u0, hu)?;
+            // A CYLINDER lays no row ([`AnalyticRow::lattice_rows`]) and so
+            // no node, and has no singular point: its column count is read
+            // by the metric below and by nothing else, and the pole-side
+            // rule — which thins the columns a lattice lays beside a
+            // singular point — has nothing to thin.
+            let (nu, rows) = if matches!(a.kind(), Analytic::Cylinder { .. }) {
+                (columns, Vec::new())
+            } else {
+                (
+                    pole_side_columns(&polygon, &singular, (u0, u1), columns)?,
+                    a.lattice_rows((v0, v1), (hu, hv))?,
+                )
+            };
             (
                 lattice_candidates((u0, u1), (v0, v1), nu, &rows),
                 None,
                 // The cone's CDT runs in its development and reads no
                 // metric; every other arm's rows are uniform, one fewer
-                // than their gaps.
+                // than their gaps, and a cylinder's none, so its one gap is
+                // the window's height ([`AnalyticRow::metric`] says what
+                // that plane is for).
                 match a.development() {
                     Some(_) => 1.0,
                     None => a.metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
