@@ -2261,8 +2261,9 @@ fn junction_end_held<T: Decide>(
     band: Band,
 ) -> Result<crate::rim_wedge::OnTouch, geom_core::Indeterminate> {
     let w = p - rim.center;
-    let height = w.dot(rim.axis);
-    let radial = (w - rim.axis * height).norm() - rim.radius;
+    let axis = rim.axis.get();
+    let height = w.dot(axis);
+    let radial = (w - axis * height).norm() - rim.radius;
     let off = (radial.powi(2) + height.powi(2)).sqrt();
     match geom_core::k_stats::decide("junction_end_on_rim", Margin::of(off), band)? {
         Sign::Zero => touch.holds(rim, p, band),
@@ -2382,7 +2383,7 @@ fn junction_end_window<T: Decide>(
     };
     let (_, d) = q.carrier.ders1(t_end);
     let along = (d * toward).normalize();
-    let rim_tangent = q.rim.axis.cross(q.p - q.rim.center);
+    let rim_tangent = q.rim.axis.get().cross(q.p - q.rim.center);
     let ridden = match q.rides {
         Sign::Positive => rim_tangent.normalize(),
         Sign::Negative => -rim_tangent.normalize(),
@@ -10161,7 +10162,7 @@ mod junction_end_rows {
     fn rim(center: Point3<f64>, radius: f64) -> crate::rim_wedge::Rim<f64> {
         crate::rim_wedge::Rim {
             center,
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom_core::UnitVec3::exact_z(),
             radius,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
@@ -10173,7 +10174,7 @@ mod junction_end_rows {
     fn elbow(rides: Sign) -> Result<Option<EndWindow<f64>>, JunctionEndUnsettled> {
         let ruling = geom::Curve3::Line(geom::Line {
             origin: Point3::new(1.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom_core::UnitVec3::exact_z(),
         });
         let bend = geom::Surface::Torus {
             frame: geom::Frame::new(
@@ -10328,7 +10329,7 @@ mod junction_end_rows {
     fn a_rim_tighter_than_the_spread_holds_no_side() {
         let ruling = geom::Curve3::Line(geom::Line {
             origin: Point3::new(1.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom_core::UnitVec3::exact_z(),
         });
         let bend = geom::Surface::Torus {
             frame: geom::Frame::new(
