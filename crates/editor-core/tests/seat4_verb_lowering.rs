@@ -172,10 +172,11 @@ fn both_blends_evaluate_in_one_document() {
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
 ///
-/// A row that moves is re-cut when the move is explained and right, and
-/// the PR that re-cuts it says what moved and why; the feed takes ids,
-/// names, arena keys and every carrier's `Debug`, so most moves are a
-/// spelling. A row whose body moved with no one judging the new body is
+/// The feed takes no arena key and no mint id (`fixture::digest`'s
+/// module docs), so a row moves only when a body, a value or the cell a
+/// name denotes does. A row that moves is re-cut when the move is
+/// explained and right, and the PR that re-cuts it says what moved and
+/// why. A row whose body moved with no one judging the new body is
 /// PINNED at what main reads and named below with the row that owes the
 /// judgment: the pin holds it still so the next move reds, and says
 /// nothing about the body being right.
@@ -269,10 +270,11 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// is what "nothing observable moved" means here; without it the
 /// constants would only say the branch agrees with itself.
 ///
-/// A row that moves is re-cut when the move is explained and right, and
-/// the PR that re-cuts it says what moved and why; the feed takes ids,
-/// names, arena keys and every carrier's `Debug`, so most moves are a
-/// spelling. A row whose body moved with no one judging the new body is
+/// The feed takes no arena key and no mint id (`fixture::digest`'s
+/// module docs), so a row moves only when a body, a value or the cell a
+/// name denotes does. A row that moves is re-cut when the move is
+/// explained and right, and the PR that re-cuts it says what moved and
+/// why. A row whose body moved with no one judging the new body is
 /// PINNED at what main reads and named below with the row that owes the
 /// judgment: the pin holds it still so the next move reds, and says
 /// nothing about the body being right.

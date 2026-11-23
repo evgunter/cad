@@ -11,9 +11,7 @@
 //! closed record channel. The wire format is pinned by a byte-identical
 //! round trip over a document carrying both sweeps, and each
 //! sweep-carrying corpus document's evaluation is pinned to a committed
-//! digest that says WHICH document moved. `m10_p_fence` digests every
-//! body point's bits corpus-wide and `lib_g16_corpus_name_digests`
-//! digests every name table; neither says which document moved.
+//! digest that says WHICH document moved.
 //!
 //! # 2. The profile's radius, at the walls and in the key
 //!
@@ -200,20 +198,22 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `boss_union` carry the two carrier loop forms (`circle` and
 /// `circle_split`), and `kitchen_sink` is the registry's revolve.
 ///
-/// The digest feeds every node id, each body's `Debug` (its carriers'
-/// stored fields and edge descriptions included) and each name table
-/// (`fixture::digest`'s module docs), so a re-minted id, a renamed field
-/// or a moved bit moves it. They are goldens in the ordinary sense —
-/// when one moves the question is whether the new behaviour is right,
-/// never how to restore the old number.
+/// The digest feeds each body's key-free reading (its faces' senses,
+/// carriers and loops, its edges' curves and descriptions, its points'
+/// bits) and each name table, name by name with the cell it denotes
+/// (`fixture::digest`'s module docs), so a renamed field or a moved bit
+/// moves it. They are goldens in the ordinary sense — when one moves
+/// the question is whether the new behaviour is right, never how to
+/// restore the old number.
 ///
 /// `cut_cylinder`'s and `kitchen_sink`'s numbers are the ones
 /// `seat8_split_lowering` pins: one feed, one number per document.
 ///
-/// A row that moves is re-cut when the move is explained and right, and
-/// the PR that re-cuts it says what moved and why; the feed takes ids,
-/// names, arena keys and every carrier's `Debug`, so most moves are a
-/// spelling. A row whose body moved with no one judging the new body is
+/// The feed takes no arena key and no mint id (`fixture::digest`'s
+/// module docs), so a row moves only when a body, a value or the cell a
+/// name denotes does. A row that moves is re-cut when the move is
+/// explained and right, and the PR that re-cuts it says what moved and
+/// why. A row whose body moved with no one judging the new body is
 /// PINNED at what main reads and named below with the row that owes the
 /// judgment: the pin holds it still so the next move reds, and says
 /// nothing about the body being right.

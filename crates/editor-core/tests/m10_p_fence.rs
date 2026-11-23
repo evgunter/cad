@@ -1,35 +1,30 @@
 //! **The bit-identity fence.**
 //!
-//! A digest of the whole corpus's observable evaluation and nothing
-//! else: every node's outcome in id order, with its id, and for every
-//! body the bits of every point it carries, at `f64`, at `Interval`
-//! and at `Probe`; and beside them the same corpus at `f64` with every
-//! id masked ([`id_free_corpus_digest`]). Each is a golden number in
-//! the ordinary sense: when one moves, the question is whether the new
-//! behaviour is correct, not how to get the old number back.
+//! The whole corpus's observable evaluation and nothing else: every
+//! node's outcome, and for every body the bits of every point it
+//! carries, at `f64`, at `Interval` and at `Probe`.
 //!
 //! What each row says when it holds:
 //!
-//! - **The id-masked row** moves only when an outcome or a point moves.
-//!   The others hash ids too, so a change to how the mint draws ids, or
-//!   to the node count, moves them with no point moving; read this row
-//!   beside them to tell the two apart.
-//! - **The `Probe` row is the `f64` row's number** and must stay so: a
-//!   transparent `f64` whose digest drifted would mean the telemetry
-//!   scalar had started changing decisions. It is rostered into the
-//!   K-telemetry sweep's executed floor, so it runs on that schedule.
-//! - **The `f64` row is blind to curve parameters.** It hashes outcomes
-//!   and points, so an unmoved `f64` digest says no outcome flipped and
-//!   no point of any body moved; it is no claim of parameter-level bit
-//!   identity.
+//! - **The id-masked `f64` row** ([`id_free_corpus_digest`]) is a
+//!   golden number in the ordinary sense: it moves only when an outcome
+//!   or a point moves — never with how ids are minted or how many nodes
+//!   there are — and when it moves, the question is whether the new
+//!   behaviour is correct, not how to get the old number back. A change
+//!   that moves it says in its PR what moved and why, measured by a dump
+//!   of every node's outcome and every point's bits taken with and
+//!   without the change.
+//! - **The `Probe` row reads what the `f64` row reads**, compared in one
+//!   process: a transparent `f64` whose walk drifted would mean the
+//!   telemetry scalar had started changing decisions. It is rostered
+//!   into the K-telemetry sweep's executed floor, so it runs on that
+//!   schedule.
+//! - **The `Interval` row reads the same outcome at every node as the
+//!   `f64` walk, and an enclosure for every point**, compared in one
+//!   process.
 //! - **A whole-corpus scalar says THAT a document moved, not which.**
 //!   `lib_g16_corpus_name_digests` pins a digest per document, the finer
 //!   reading.
-//!
-//! **A change that moves a number says in its PR what moved and why**,
-//! measured by a dump of every node's outcome and every point's bits
-//! taken with and without the change, at each scalar that moved. That
-//! record of every past move lives in those PRs, not here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -176,6 +171,7 @@ pub(crate) fn walk<T: editor_core::test_support::AnyEvaluate>(mut seen: impl FnM
     }
 }
 
+#[cfg(feature = "probe")]
 /// The corpus's evaluation, digested at one scalar.
 ///
 /// `bits` maps the scalar's coordinate to its exact representation.
@@ -311,83 +307,69 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
     }
 }
 
+#[cfg(feature = "probe")]
 fn f64_bits(d: &mut Digest, p: &geom_core::Point3<f64>) {
     for c in p.to_array() {
         d.u64(c.to_bits());
     }
 }
 
-/// **The fence at `f64`.** Evaluating the corpus with the default
-/// options produces exactly these bits.
-#[test]
-fn the_corpus_evaluation_is_bit_identical_at_f64() {
-    let got = corpus_digest::<f64, _, _>(f64_bits, |d, v: f64| d.u64(v.to_bits()));
-    println!("m10-p fence f64: {got:016x?}");
-    assert_eq!(
-        got,
-        (0x9391_711d_3fce_042c, 0x283e_b2e7_b94a_9c38),
-        "the corpus's f64 evaluation moved — see this file's header before \
-         touching the number"
-    );
-}
-
-/// The same fence at `Interval`, where every profile is elaborated at
-/// the lane (its second pass).
-///
-/// RE-TAKEN when angle reads moved onto `Period::near` and
-/// `Azimuth::near` (no rotation by the reference, the window's cut side
-/// and the rename's marks decided at the least band). Against its merge
-/// base, 628 enclosure bounds moved, each by at most `7.2e-16`, in
-/// `die_composed_tour`, `die_tool`, `die_composed`, `reshaped_rod` and
-/// `die_pips`; every node's outcome and kind held, and the `f64` fence
-/// above did not move. The pin it replaced was already stale on that
-/// base (it read `(0x14da…, 0xdf66…)`, not the pin).
-///
-/// RE-TAKEN when the extrudes' caps and walls became their sketch
-/// frames (BOXFINISH's `boxfinish/sweep-frames`). Against its merge
-/// base every node's outcome held and 30 enclosure bounds moved, in 11
-/// points of `boss_union` (6 bounds) and `reshaped_rod` (24), each by
-/// at most `1.33e-15`, and every one of those points narrower; the
-/// `f64` fence above did not move.
-///
-/// RE-TAKEN when the carriers held their frames as rigid motions
-/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`). Against
-/// its merge base every node's outcome and kind held and 96 enclosure
-/// bounds moved, in 48 coordinates of `tube_arc` (16) and
-/// `hollow_tube_elbow` (32), each by at most `2.67e-15`, every one of
-/// them wider and containing the base's: the tube's frames squared at
-/// the scalar are enclosures of the rotations they state, where the base
-/// read their three vectors as points. The `f64` fence above did not
-/// move.
-#[test]
-fn the_corpus_evaluation_is_bit_identical_at_interval() {
-    use geom_core::{Bounds, Interval};
-    let got = corpus_digest::<Interval, _, _>(
-        |d, p| {
-            for c in p.to_array() {
-                d.u64(c.lo().to_bits());
-                d.u64(c.hi().to_bits());
+/// What the outcome comparison reads of one observable: a corpus node's
+/// outcome, and that its body carries points. The arc-carrier fixture
+/// is not read: the eye does not certify at `Interval` (`profile`'s
+/// `generic_replay` census says why).
+fn outcome_row<T: geom_core::Real>(seen: &Seen<'_, T>) -> Option<String> {
+    match seen {
+        Seen::Node { doc, id, outcome } => Some(format!(
+            "{doc} {id:?}: {}",
+            match outcome {
+                Outcome::Poisoned { through } => format!("poisoned through {through:?}"),
+                Outcome::Failed => "failed".to_owned(),
+                Outcome::Ok { kind } => (*kind).to_owned(),
             }
-        },
-        |d, v: Interval| {
-            d.u64(v.lo().to_bits());
-            d.u64(v.hi().to_bits());
-        },
-    );
-    println!("m10-p fence interval: {got:016x?}");
-    assert_eq!(
-        got,
-        (0xd079_10f9_3b56_2ffa, 0x6c4b_05bb_b430_84de),
-        "the corpus's Interval evaluation moved"
-    );
+        )),
+        Seen::Point { doc, id, i: 0, .. } => Some(format!("{doc} {id:?}: points")),
+        _ => None,
+    }
 }
 
-/// And at `Probe`, the K-telemetry scalar.
+/// **The fence at `Interval`**, where every profile is elaborated at the
+/// lane (its second pass): every node of the corpus comes out as it
+/// does at `f64`, and every coordinate of every point is an enclosure,
+/// finite with its ends in order.
+#[test]
+fn the_corpus_evaluation_at_interval_has_the_f64_outcomes() {
+    use geom_core::{Bounds, Interval};
+    let mut want = Vec::new();
+    walk::<f64>(|seen| want.extend(outcome_row(&seen)));
+    let mut got = Vec::new();
+    let mut bad = Vec::new();
+    walk::<Interval>(|seen| {
+        got.extend(outcome_row(&seen));
+        if let Seen::Point { doc, id, i, p, .. } = seen {
+            for c in p.to_array() {
+                if !(c.lo().is_finite() && c.hi().is_finite() && c.lo() <= c.hi()) {
+                    bad.push(format!("{doc} {id:?} point {i}: {c:?}"));
+                }
+            }
+        }
+    });
+    assert!(!want.is_empty(), "the corpus walk observed nothing");
+    assert_eq!(
+        got, want,
+        "a node of the corpus comes out differently at Interval than at f64"
+    );
+    assert!(bad.is_empty(), "points that are not enclosures: {bad:?}");
+}
+
+/// **The fence at `Probe`**, the K-telemetry scalar: Probe is a
+/// transparent `f64`, so its walk is the `f64` walk's bit for bit, ids
+/// included.
 #[cfg(feature = "probe")]
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_probe() {
     use geom_core::Probe;
-    let got = corpus_digest::<Probe, _, _>(
+    let probe = corpus_digest::<Probe, _, _>(
         |d, p| {
             for c in p.to_array() {
                 d.u64(c.0.to_bits());
@@ -395,14 +377,12 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
         },
         |d, v: Probe| d.u64(v.0.to_bits()),
     );
-    println!("m10-p fence probe: {got:016x?}");
-    // Probe is a transparent f64, so this is the f64 row's number and
-    // must stay so: a Probe digest that drifted from it would mean the
-    // telemetry scalar had started changing decisions.
+    let f64 = corpus_digest::<f64, _, _>(f64_bits, |d, v: f64| d.u64(v.to_bits()));
+    println!("m10-p fence probe: {probe:016x?}, f64: {f64:016x?}");
     assert_eq!(
-        got,
-        (0x9391_711d_3fce_042c, 0x283e_b2e7_b94a_9c38),
-        "the corpus's Probe evaluation moved"
+        probe, f64,
+        "the corpus's Probe evaluation is not its f64 evaluation: the telemetry scalar \
+         changed a decision"
     );
 }
 

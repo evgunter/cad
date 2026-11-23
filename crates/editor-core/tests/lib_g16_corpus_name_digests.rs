@@ -23,8 +23,9 @@
 
 use crate::corpus;
 
-/// FNV-1a 64 over the tables' deterministic Debug encoding — copied
-/// from `m4_pr3_names_ci.rs::digest` so the number is comparable.
+/// FNV-1a 64 over every node's name rows, key-free and id-free
+/// (`fixture::digest::name_rows`): each name, its node ids spelled by
+/// place, with the cell it denotes read by its geometry.
 fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut feed = |s: &str| {
@@ -33,12 +34,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
             h = h.wrapping_mul(0x1000_0000_01b3);
         }
     };
-    for id in &ev.order {
-        feed(&format!("#{id:?}"));
-        for t in crate::fixture::tables(ev, *id) {
-            for (n, e) in t.iter() {
-                feed(&format!("{n:?}={e:?};"));
-            }
+    for (place, id) in ev.order.iter().enumerate() {
+        feed(&format!("@node{place}"));
+        for row in crate::fixture::digest::name_rows(ev, *id) {
+            feed(&row);
+            feed(";");
         }
     }
     h
@@ -56,12 +56,9 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// measurement is now this number: forty-two rim arcs and twelve box
 /// edges, in one pin.
 ///
-/// The digest encodes each name's entity with its slot VERSION, so a
-/// change in how many keys an arena has spent before a mint moves a
-/// row with no name changing. A graft spends one key per dead
-/// ancestor its forwarded records name (`topo`'s combine door), which
-/// is why the documents whose booleans graft a split operand carry
-/// versions that no name reads.
+/// The digest reads each name's cell by its geometry and no arena key
+/// or mint id, so a renumbered arena or a re-minted id moves no row; a
+/// name that comes to denote another cell does.
 ///
 /// `die_composed` and `die_composed_tour` are the only registered
 /// documents that carve a CLOSED chain, so they are the only two whose
@@ -82,15 +79,15 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// blend swapped, so D3 having ruled the role vocabulary shared, the
 /// blend composes the same `RoleSeg`s off the same upstream names. Its
 /// node id is minted from the node itself (N1), so a fillet and a
-/// chamfer mint two ids and their names differ in `node` alone.
+/// chamfer mint two ids and their names differ in `node` alone; read by
+/// place, those are the same, and the two rows differ in the cells the
+/// blends leave.
 /// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
 /// where the two nodes differ and the names must be disjoint.
 ///
-/// A row moves when its document's names or the ids they are keyed by
-/// move, and a row is added with every document the registry gains;
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// tells a move of names and ids alone from one of geometry. The PR
-/// that moves a row says which documents moved and why.
+/// A row moves when its document's names, or the cells they denote,
+/// move, and a row is added with every document the registry gains.
+/// The PR that moves a row says which documents moved and why.
 /// [`every_corpus_documents_name_tables_are_golden`] reads it.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xaa906bcbb1b5ba37),
