@@ -1937,3 +1937,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-23 22:18 — **Next dispatches, logged before their draws:**
   - **`turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling`** (P1 M). Letter **M**, tier **single FULL**: an enclosure that fails to enclose, and its soundness has to be shown against an oracle.
   - **`conic-constructions-from-computed-sizes-unaudited`** (P1 H). Letter **H**, tier **single FULL**: about 240 sites, each owed a sign disposition. It is many local decisions rather than one architectural one, so it is not dual. Each disposition still has to be argued or proved, so it is not a style tier. It runs as a cloud session, since it is heavy.
+- 2026-11-23 22:20 — **Dispatched:**
+  - the turn-defect P1, as a local lane on branch `germ/turn-defect-sup-encloses`;
+  - the conic-constructions audit, as cloud session `session_01BJC3B2yq7zFHzsrXXqX6CK` on branch `germ/conic-constructions-audit`.
+  The implementer arms were drawn and recorded on the analysis branch. The briefs are arm-free.
