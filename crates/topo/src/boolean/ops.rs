@@ -3369,7 +3369,7 @@ fn describe_edges_seamed<T: Decide + crate::props::AtRestPolicy>(
                     // where it rests. Any other scaffold stays one, and
                     // tier 3 refuses it.
                     geom_brep::EdgeDescription::Scaffold(_) => {
-                        recorded_skip(sides.faces()) || seams.contains(&edge)
+                        { let r = recorded_skip(sides.faces()); if !r && seams.contains(&edge) { if std::env::var("R2_BT").is_ok() { eprintln!("R2SEAM edge {:?} carrier {:?} params {:?}", edge, existing.as_ref().map(|c| c.carrier().kind()), existing.as_ref().map(|c| c.params())); }  if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SEAM\t{}", std::thread::current().name().unwrap_or("?")); } } } r || (seams.contains(&edge) && std::env::var("R2_MUT2").is_err()) }
                     }
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth

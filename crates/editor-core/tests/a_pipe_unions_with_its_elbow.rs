@@ -466,3 +466,47 @@ fn zz_probe_outcomes() {
         outcome(&join(true, CapEnd::End, off), closed_form(true, off))
     );
 }
+
+/// R2 probe: the built outward elbow's topology and its edges' descriptions.
+#[test]
+fn r2_probe_the_built_elbow() {
+    for (hollow, end, off) in [
+        (true, CapEnd::End, the_eight_poses()[1].1),
+        (false, CapEnd::End, the_eight_poses()[1].1),
+        (true, CapEnd::End, turned(1e-3).0),
+    ] {
+        let j = join(hollow, end, off);
+        if let Some(e) = j.ev.node_error(j.union) {
+            eprintln!("R2E {hollow} {off:?}: REFUSES {}", e.kind);
+            continue;
+        }
+        let body = crate::corpus::body_of(&j.ev, j.union);
+        let (f, e, v) = (body.faces().count(), body.edges().count(), body.vertices().count());
+        eprintln!("R2E {hollow} {off:?}: faces {f} edges {e} vertices {v} solids {} shells {}", body.solids().count(), body.shells().count());
+        for (k, edge) in body.edges() {
+            let c = body.get_curve_geom(edge.curve).and_then(|c| c.certified());
+            match c {
+                Some(c) => {
+                    let d = format!("{:?}", c.description());
+                    eprintln!("R2E   edge {k:?}: {:?} params {:?} desc {}", c.carrier().kind(), c.params(), &d[..d.len().min(60)]);
+                }
+                None => eprintln!("R2E   edge {k:?}: uncertified"),
+            }
+        }
+        let b = built(&j);
+        eprintln!("R2E   t3 {:?} t3' {:?} vol {} want {}", b.tier3.is_ok(), b.tier3_prime.is_ok(), b.volume, { let OffCap::Elbow { heading, .. } = off else { unreachable!() }; section(hollow) * LENGTH + section(hollow) * BEND * (heading + FRAC_PI_2).cos() * FRAC_PI_2 });
+    }
+}
+
+/// R2 probe: the neutral points in the half-arcs' end gaps.
+#[test]
+fn r2_probe_neutral_points_in_the_end_gaps() {
+    for delta in [1.15, 1.18, 1.21, -1.21] {
+        let (off, want) = turned(delta);
+        for hollow in [true, false] {
+            let want = if hollow { want } else { section(false) * LENGTH + section(false) * BEND * delta.cos() * FRAC_PI_2 };
+            let j = join(hollow, CapEnd::End, off);
+            eprintln!("R2G delta {delta} hollow {hollow}: {}", outcome(&j, want));
+        }
+    }
+}

@@ -1467,6 +1467,7 @@ fn along_spec<T: Decide>(
     match carrier {
         geom::Curve3::Line(_) => geom_brep::EdgeCurveSpec::segment_of_line(carrier, t0, t1),
         geom::Curve3::Circle(..) if !closed => {
+            if std::env::var("R2_BT").is_ok() { eprintln!("R2BT fate along_spec circle arc {:?}..{:?}\n{}", t0, t1, std::backtrace::Backtrace::force_capture()); }
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1)
         }
         _ => Some(geom_brep::EdgeCurveSpec {

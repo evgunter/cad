@@ -1965,6 +1965,7 @@ impl<T: Real> EdgeCurveSpec<T> {
         };
         let center = frame.origin();
         let start = carrier.eval(t0);
+        if std::env::var("R2_BT").is_ok() { eprintln!("R2BT arc_of_circle\n{}", std::backtrace::Backtrace::force_capture()); }
         Some(Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
                 crate::mapped::MappedSource::RevolvedPoint {

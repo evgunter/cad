@@ -2184,10 +2184,11 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
             let rim_tangent = rim_at.axis.cross(p - rim_at.center).normalize();
             let departure = (along - rim_tangent * along.dot(rim_tangent)).norm();
             let bend = carrier_curvature(carrier) + T::one() / rim_at.radius;
+            if std::env::var("R2_MUT3").is_ok() { return Ok(Some(window)); }
             match junction_side(departure, bend, window.spread, window.charge, band) {
-                Ok(Sign::Positive) => Ok(Some(window)),
-                Ok(_) => Err(unread(super::JunctionEndGap::Window)),
-                Err(diag) => Err(escalated(diag)),
+                Ok(Sign::Positive) => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SIDEPOS\t{}", std::thread::current().name().unwrap_or("?")); } } } Ok(Some(window)) }
+                Ok(_) => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SIDENEG\t{}", std::thread::current().name().unwrap_or("?")); } } } Err(unread(super::JunctionEndGap::Window)) }
+                Err(diag) => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SIDEESC\t{}", std::thread::current().name().unwrap_or("?")); } } } Err(escalated(diag)) }
             }
         }
         Err(EndRootRefusal::LiesOn) => Ok(None),

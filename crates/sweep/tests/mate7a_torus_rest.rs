@@ -539,3 +539,33 @@ fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
     walls.sort();
     assert_eq!(inverted, walls, "the gate names each reversed wall once");
 }
+
+/// R2 probe: the chain's union topology and edge descriptions, both orders.
+#[test]
+fn r2_probe_the_chain() {
+    let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
+        eprintln!("R2C no fixtures");
+        return;
+    };
+    for (o, x, y) in [("A,B", &a, &b), ("B,A", &b, &a)] {
+        match topo::union(x, y, Tol::witness()) {
+            Ok(BooleanResult::Body(bb)) => {
+                let body = &bb.body;
+                eprintln!("R2C {o}: faces {} edges {} vertices {} solids {} shells {} contacts {}", body.faces().count(), body.edges().count(), body.vertices().count(), body.solids().count(), body.shells().count(), bb.contacts.len());
+                for (k, f) in body.faces() {
+                    eprintln!("R2C   face {k:?}: {:?}", body.get_surface(f.surface).map(|s| format!("{s:?}").chars().take(50).collect::<String>()));
+                }
+                for (k, edge) in body.edges() {
+                    match body.get_curve_geom(edge.curve).and_then(|c| c.certified()) {
+                        Some(c) => {
+                            let d = format!("{:?}", c.description());
+                            eprintln!("R2C   edge {k:?}: {:?} params {:?} desc {}", c.carrier().kind(), c.params(), &d[..d.len().min(70)]);
+                        }
+                        None => eprintln!("R2C   edge {k:?}: uncertified"),
+                    }
+                }
+            }
+            other => eprintln!("R2C {o}: {:?}", other.map(|_| ()).err()),
+        }
+    }
+}

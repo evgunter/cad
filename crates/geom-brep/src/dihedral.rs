@@ -1403,7 +1403,8 @@ pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
                 ..
             })
         );
-        if *first.get_or_insert(above) != above {
+        if *first.get_or_insert(above) != above && std::env::var("R2_MUT1").is_err() {
+            { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "WALK\t{}", std::thread::current().name().unwrap_or("?")); } } }
             return SecondOrderWalk::UnderDetermined;
         }
         if let ControlFlow::Break(b) = hook.after_positive(&station, &item) {
