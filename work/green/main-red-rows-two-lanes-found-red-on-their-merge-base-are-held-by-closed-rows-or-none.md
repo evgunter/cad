@@ -2,11 +2,12 @@
 id: main-red-rows-two-lanes-found-red-on-their-merge-base-are-held-by-closed-rows-or-none
 kind: issue
 title: Main red: rows two lanes found red on their merge base at the default eps are held by closed rows, by rows that say 1e-12, or by none
-status: done
+status: closed
 opened: 2026-11-22
 priority: P0
 cost: E
 pr: 7400
+closed: 2026-11-22
 ---
 
 
