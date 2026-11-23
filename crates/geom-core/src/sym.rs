@@ -4185,7 +4185,7 @@ enum WalkKind {
 }
 
 /// **Which memo a walk reads and fills**: the first attempt's three,
-/// or one retry attempt's early or door table ([`Session::retries`]).
+/// or one retry attempt's early or door table (`NodeState::retries`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MemoSlot {
     Plain,
