@@ -975,3 +975,72 @@ fn scopes_that_meet_are_within_any_upper_bound_over_a_box() {
         }
     }
 }
+
+/// **A clearance over a box is keyed by the rebuild its verifier
+/// reads**: the dumbbell with a free length `idle` no body reads, its
+/// `≥ 0.5` violated over a box of `idle` about 0 and again, over that
+/// run as its prior, over a box about 0.15. Every input the lane reads
+/// is the same in both runs, so only the rebuild tells them apart: the
+/// second run's pair stands at ITS box's midpoint, `idle = +0.15`.
+/// Red if a clearance's key leaves the rebuild's point out: the second
+/// run is served the first's verdict, whose point (`+0`) is no point of
+/// the box it is reported over.
+#[test]
+fn a_clearance_over_a_prior_of_another_box_stands_at_its_own_boxs_midpoint() {
+    let f = dumbbell(&[ClearanceBounds::AtLeast(0.5)]);
+    let (doc, _) = fixture::step(
+        f.doc,
+        DocEdit::DeclareVar {
+            name: name("idle"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
+                dim: Dimension::Length,
+                value: 1.0,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: None,
+            }),
+        },
+    );
+    let idle = doc.var_named("idle").expect("declared");
+    let over = |lo: f64, hi: f64, prior: Option<&editor_core::Evaluation<geom_core::Interval>>| {
+        let axes = [(idle, editor_core::analysis::BoxAxis::Varying { lo, hi })];
+        let opts = EvalOptions {
+            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
+                axes.into_iter().collect(),
+            ))),
+            ..EvalOptions::default()
+        };
+        editor_core::evaluate(&doc, prior, &CancelToken::new(), &opts, Tol::witness())
+    };
+    let point = |ev: &editor_core::Evaluation<geom_core::Interval>| {
+        let report = report_of(ev, f.assertions[0]);
+        let ClearanceVerdict::Violated(w) = report.verdict() else {
+            panic!("0.5 above a 0.4 gap is violated: {}", report.render());
+        };
+        w.param.offsets.clone()
+    };
+    let prior = over(-0.05, 0.05, None);
+    assert_eq!(point(&prior), [(idle, 0.0)], "the first box's midpoint");
+    let fresh = over(0.1, 0.2, None);
+    assert_eq!(point(&fresh).len(), 1, "one axis");
+    assert!(
+        (point(&fresh)[0].1 - 0.15).abs() < 1e-12,
+        "the second box's midpoint: {:?}",
+        point(&fresh)
+    );
+    let served = over(0.1, 0.2, Some(&prior));
+    assert_eq!(
+        point(&served),
+        point(&fresh),
+        "over the prior, the pair stands at this run's box's midpoint"
+    );
+    assert_eq!(
+        report_of(&served, f.assertions[0]).verdict(),
+        report_of(&fresh, f.assertions[0]).verdict(),
+        "and the verdict is the fresh run's, whole"
+    );
+    assert!(
+        served.reused > 0,
+        "the bodies, which read no boxed variable, are served: {} reused",
+        served.reused
+    );
+}

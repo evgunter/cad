@@ -109,6 +109,10 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// The options this run's value bits read beyond the document and
     /// the tolerance ([`RunLane`]): what a dual bound to it compares.
     pub(crate) lane: RunLane,
+    /// The candidate generation its booleans ran
+    /// ([`EvalOptions::boolean_sweep`]), which no key hashes: what a run
+    /// holds its prior to ([`PriorRefusal::Options`]).
+    pub(crate) boolean_sweep: topo::SweepStrategy,
     /// **The run refused before building anything** ([`Self::refused_whole`]):
     /// every node carries one refusal the run raised up front — a
     /// tolerance conflict, a parameter box or a seed its scalar cannot
@@ -116,19 +120,18 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// to bind. Such a run reports [`EvalOutcome::Completed`], so this
     /// is the one place that says it is no build.
     pub(crate) whole_refusal: bool,
-    /// **A prior of another document, refused** (DI3): `Some` when
-    /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
-    /// is not this document's, in which case the run had NO memo —
-    /// every node recomputed and [`Evaluation::reused`] is zero. The
-    /// payload is the same [`Mispaired`] the two erroring doors carry,
-    /// because the question is the same one.
+    /// **The prior this run was handed and took nothing from**
+    /// ([`PriorRefusal`]): one of another document (DI3), or one that ran
+    /// under other options than this run's, among those an op reads and
+    /// no key hashes. The run then had NO memo: every node recomputed,
+    /// no part row was carried, and [`Evaluation::reused`] is zero.
     ///
     /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
     /// is completed, canceled or exhausted, so the refusal is recorded on the
     /// value the caller already reads rather than pushed into an
     /// outcome arm that would mean something else. `None` is both "no
-    /// prior" and "a prior of this document".
-    pub prior_refused: Option<Mispaired>,
+    /// prior" and "a prior this run could read".
+    pub prior_refused: Option<PriorRefusal>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the document; Kahn's algorithm, ties to the
     /// lesser id, the node inserted first). Always the FULL order, even when
@@ -1052,6 +1055,7 @@ impl Evaluation<f64> {
             pin: None,
             tolerance: tolerance_of(tol),
             lane: RunLane::default(),
+            boolean_sweep: topo::SweepStrategy::Realized,
             whole_refusal: false,
             prior_refused: None,
             recomputed: order.len(),
@@ -3224,11 +3228,13 @@ pub struct EvalOptions {
     /// the SAME document in one test run. Results are bit-identical
     /// either way (the tree prunes, predicates decide — the suite pins
     /// it), which is also why the strategy is deliberately NOT part of
-    /// any content key. The one strategy-dependent OBSERVABLE is the
-    /// verdict LOG (`NodeValue::verdicts`): pruning runs strictly
-    /// fewer predicates, so logs are only comparable within one
-    /// strategy (the diff engine always compares production runs).
-    /// Production default: `Realized`.
+    /// any content key. What does depend on the strategy is the verdict
+    /// LOG (`NodeValue::verdicts`): pruning runs strictly fewer
+    /// predicates, so logs are only comparable within one strategy (the
+    /// diff engine always compares production runs), and a pair the
+    /// tree prunes can refuse where the brute-force sweep examines it.
+    /// So a prior that ran the other strategy is no memo for this run
+    /// ([`PriorRefusal::Options`]). Production default: `Realized`.
     pub boolean_sweep: topo::SweepStrategy,
     /// The document seam (ASM-2A D-3): how an `InstantiatePart` node
     /// reaches the document it pins. `None` — the default — crosses no
@@ -3287,6 +3293,8 @@ pub struct EvalOptions {
     /// body stands where it did in its space. Answer-preserving up to the
     /// rounding of the frames, and test-facing as [`Self::parallel`] is:
     /// the row that holds the frame no part of meaning compares both.
+    /// It enters no key, and a prior that ran under another frame is no
+    /// memo for this run ([`PriorRefusal::Options`]).
     /// `None` — the default — is the evaluation as built.
     pub computing_twist: Option<ComputingTwist>,
     /// **The run's member budget** (D9): the listing steps every family
@@ -3998,6 +4006,42 @@ impl core::fmt::Display for RecordMispairing {
     }
 }
 
+/// **Why a run took nothing from the prior it was handed**
+/// ([`Evaluation::prior_refused`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PriorRefusal {
+    /// The prior is an evaluation of another document (DI3).
+    Document(Mispaired),
+    /// The prior ran under another second computing frame
+    /// ([`EvalOptions::computing_twist`]), another boolean candidate
+    /// generation ([`EvalOptions::boolean_sweep`]) or the other setting
+    /// of [`EvalOptions::symbols`]. An op reads each (a construction its
+    /// frame, a boolean its strategy, whose verdict log and refusals
+    /// differ, a part's own run all three) and no key hashes any, so a
+    /// node of the prior with this run's keys need not hold this run's
+    /// value. They are the run's, the same at every node, so the prior
+    /// is refused whole rather than each written into every key.
+    Options,
+}
+
+impl PriorRefusal {
+    /// Why a run of `doc` at `opts` reads nothing of `prior`, if it
+    /// does not.
+    fn of<T: topo::AtRestPolicy + Decide>(
+        doc: &Doc<ProfileProgram>,
+        prior: &Evaluation<T>,
+        opts: &EvalOptions,
+    ) -> Option<Self> {
+        if let Some(mispaired) = crate::ident::mispaired(doc.id(), prior.document) {
+            return Some(Self::Document(mispaired));
+        }
+        let ours = RunLane::of(opts);
+        ((prior.lane.twist, prior.lane.symbols, prior.boolean_sweep)
+            != (ours.twist, ours.symbols, opts.boolean_sweep))
+            .then_some(Self::Options)
+    }
+}
+
 /// **The options a run's value bits read beyond the document and the
 /// tolerance**: its parameter box, its symbols, its seed and its second
 /// computing frame, the frame by bits. What [`evaluate_recorded`] holds
@@ -4405,18 +4449,20 @@ fn evaluate_at_descent<T>(
 where
     T: EvalScalar,
 {
-    // The memo's own door (DI3): a prior is a prior OF a document, and
+    // The memo's own door: a prior is a prior OF a document (DI3), and
     // node ids are minted per document, so an evaluation of another
     // document can collide on them and be mined for hits that are
-    // about other geometry. Refused HERE, once, before the schedule is
-    // even built — which is what makes the per-node lookup below
-    // (`prior.and_then(|p| p.nodes.get(&id))`) a lookup that cannot
-    // reach a foreign node, rather than a check repeated per node.
-    let (prior, prior_refused) =
-        match prior.and_then(|p| crate::ident::mispaired(doc.id(), p.document).map(|m| (p, m))) {
-            Some((_, refused)) => (None, Some(refused)),
-            None => (prior, None),
-        };
+    // about other geometry; and it is a prior UNDER the options an op
+    // reads and no key hashes ([`PriorRefusal::Options`]). Refused
+    // HERE, once, before the schedule is even built, which is what
+    // makes the per-node lookup below (`prior.and_then(|p|
+    // p.nodes.get(&id))`) and the part rows carried from the prior
+    // (`parts::PartStore::enter`) reads of a run this one could have
+    // been, rather than a check repeated per node.
+    let (prior, prior_refused) = match prior.and_then(|p| PriorRefusal::of(doc, p, opts)) {
+        Some(refused) => (None, Some(refused)),
+        None => (prior, None),
+    };
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
@@ -4753,6 +4799,7 @@ where
         pin: None,
         tolerance: tolerance_of(tol),
         lane: RunLane::of(opts),
+        boolean_sweep: opts.boolean_sweep,
         whole_refusal: false,
         prior_refused,
         order,
@@ -4892,7 +4939,7 @@ fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -4917,7 +4964,7 @@ fn refuse_param_box<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     source: crate::analysis::ParamBoxError,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4940,7 +4987,7 @@ fn refuse_seed<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     source: crate::analysis::SeedError,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4961,7 +5008,7 @@ fn refuse_every_node<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     tol: Tol,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
@@ -4990,6 +5037,7 @@ where
         pin: None,
         tolerance: tolerance_of(tol),
         lane: RunLane::of(opts),
+        boolean_sweep: opts.boolean_sweep,
         whole_refusal: true,
         prior_refused,
         order,
@@ -5501,6 +5549,19 @@ where
     let upstream_naming: Vec<UpstreamRead<NamingKey>> =
         upstream.iter().map(|read| read.keyed(read.key.1)).collect();
 
+    let rebuild = match (&input, op_env.lane.witness) {
+        (wire::OpInput::Clearance { .. }, Some(witness)) => Some(Rebuild {
+            param: &witness.param,
+            seats: upstream
+                .iter()
+                .map(|read| {
+                    let built = witness.results.get(&read.at).and_then(NodeResult::value);
+                    built.map(|value| value.content_key)
+                })
+                .collect(),
+        }),
+        _ => None,
+    };
     let content_key = content_key(
         node,
         &crate::param_source::definitions_of(doc),
@@ -5513,6 +5574,7 @@ where
         input.resolved_program(),
         input.lane_program(),
         &upstream_keys,
+        rebuild.as_ref(),
         doc.witness(id),
         tol,
     );
@@ -6139,6 +6201,7 @@ fn content_key<'d, T>(
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
     upstream_keys: &[UpstreamRead<ContentKey>],
+    rebuild: Option<&Rebuild<'_>>,
     witness: Option<&crate::witness::WitnessDatum>,
     tol: Tol,
 ) -> ContentKey
@@ -6579,6 +6642,34 @@ where
                     feed_stable_name(&mut h, name);
                 }
             }
+            // The `f64` rebuild its verifier reads ([`Rebuild`]): the
+            // point it stands at, which the verdict reports, and each
+            // seat's operation as the rebuild built it, which the
+            // proving pair is found on. Neither is a function of this
+            // lane's own inputs: two boxes over a variable no seat
+            // reads have two midpoints, and two expressions of one
+            // enclosure have two values at one.
+            match rebuild {
+                None => h.write_tag(tag::presence::ABSENT),
+                Some(rebuild) => {
+                    h.write_tag(tag::presence::PRESENT);
+                    h.write_u64(rebuild.param.offsets.len() as u64);
+                    for &(var, offset) in &rebuild.param.offsets {
+                        h.write_id(var.0);
+                        h.write_f64_bits(offset);
+                    }
+                    h.write_u64(rebuild.seats.len() as u64);
+                    for seat in &rebuild.seats {
+                        match seat {
+                            None => h.write_tag(tag::presence::ABSENT),
+                            Some(key) => {
+                                h.write_tag(tag::presence::PRESENT);
+                                h.write_key(*key);
+                            }
+                        }
+                    }
+                }
+            }
         }
         // A tube's WINDOW VARIANT is recipe payload, not a slot: which
         // variant it is decides whether the node has window slots at
@@ -6786,6 +6877,15 @@ where
 
 /// **One read a node's keys feed** (D10): the operation `at` defining
 /// the variable read, the port read, and that operation's key.
+/// **The `f64` rebuild a clearance's verifier reads, as the
+/// clearance's key hashes it** ([`wire::Witnessing`]): the parameter
+/// point it stands at, and the rebuild's key of each operation a seat
+/// reads, in read order, `None` where the rebuild built no value there.
+struct Rebuild<'a> {
+    param: &'a crate::clearance::ParamWitness,
+    seats: Vec<Option<ContentKey>>,
+}
+
 /// One read of an operation's output, as its reader's keys hash it.
 #[derive(Clone, Copy)]
 struct UpstreamRead<K> {

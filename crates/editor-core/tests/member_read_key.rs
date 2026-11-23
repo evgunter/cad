@@ -376,3 +376,85 @@ fn a_member_of_a_nested_family_is_rebuilt_when_the_member_it_reads_moves() {
         "the reader over the prior is the fresh reader"
     );
 }
+
+/// **A source of another member** (`member_read`'s source arm):
+/// `reader[k]`, a copy of the source `tall[(k + 1) mod 2]` placed where
+/// it stands, the read at its seat plain and the member the source's
+/// own. Red if a source's member read is keyed as the value that
+/// stands.
+#[test]
+fn a_members_source_of_another_member_is_rebuilt_when_that_member_moves() {
+    let (doc, k, tall) = tall("member-read-key-source");
+    let target = fixture::space(&doc, tall);
+    let still = editor_core::Placed::of(&doc, Vec::new(), Vec::new());
+    let (doc, reader) = insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::source(BodyRead::indexed(tall, vec![next(k)]))),
+            Operand::Var(target),
+            still.bundle(),
+        ),
+    );
+    served_is_fresh::<f64>(doc, reader, "place(source(tall[next]))");
+}
+
+/// **A member read is keyed by the member's place too**: its place
+/// among its family's bodies is what a reader of it is handed beside
+/// its value (a clearance reports its seat by it), and in a family
+/// whose inner count moves it moves under a member whose own key does
+/// not. `j` of `n` within `k` of two, `tall[k, j]` an extrude `0.25 +
+/// (scalar(k) + scalar(j))·p` deep; `reader = union([tall[1, 0]])`, no
+/// family; at `n = 1` member `(1, 0)` stands at place 1, at `n = 2` at
+/// place 2. Red if a member read's key leaves the place out
+/// (`tag::member::PLACE` not written): `reader`'s key is then the same
+/// at both.
+#[test]
+fn a_member_reads_key_moves_with_the_members_place() {
+    let doc = declare(
+        with_p("member-read-key-place-moves"),
+        "n",
+        FreeVar::Count { value: 1 },
+    );
+    let (doc, k) = fixture::index_of(doc, "k", Formula::count(2), None);
+    let n = Formula::named(VarName::from_static("n"), Dimension::Count);
+    let (doc, j) = fixture::index_of(doc, "j", n, Some(k));
+    let by = Formula::add(scalar(var(k)), scalar(var(j))).unwrap();
+    let (doc, tall) = prism(doc, 0.0, depth(by));
+    let (doc, reader) = insert(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![BodyRead::indexed(
+                tall,
+                vec![Formula::count(1), Formula::count(0)],
+            )]),
+        },
+    );
+    let one = evaluate::<f64>(&doc, None);
+    let two = evaluate::<f64>(&set(doc, "n", FreeValue::Count(2)), None);
+    let member = |ev: &Evaluation<f64>| {
+        let family = ev
+            .value(tall)
+            .expect("tall")
+            .members
+            .as_ref()
+            .expect("a family");
+        let place = family
+            .members
+            .iter()
+            .position(|(at, _)| at == &[1, 0])
+            .expect("member (1, 0)");
+        (place, family.members[place].1.content_key)
+    };
+    assert_eq!(
+        (member(&one).0, member(&two).0),
+        (1, 2),
+        "member (1, 0) stands a place on once member (0, 1) stands"
+    );
+    assert_eq!(member(&one).1, member(&two).1, "under its own key");
+    let key = |ev: &Evaluation<f64>| ev.value(reader).expect("the reader builds").content_key;
+    assert_ne!(
+        key(&one),
+        key(&two),
+        "the reader's key moves with the place"
+    );
+}
