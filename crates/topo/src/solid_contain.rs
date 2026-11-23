@@ -2664,17 +2664,19 @@ impl<T: Copy> RayHit<T> {
     /// definitely positive (decided on `order`, signed: within each
     /// other's rounding it is negative) are a pair, or a tie that grazes,
     /// on any two of their faces that do not meet
-    /// ([`crate::side_reader::meet`]). A pair is a gap in band
-    /// ([`crate::validate::in_band`]): a gap whose enclosure reaches past
-    /// the band (two crossings a box holds apart for some members and
-    /// together for none it can name) is no reading of how far apart the
-    /// faces lie, and grazes.
+    /// ([`crate::side_reader::meet`]).
+    ///
+    /// The gap is handed back as read, undecided: whether it lies in
+    /// the band is the caller's reading
+    /// ([`crate::validate::in_band`]). Point containment refuses on it
+    /// with its margin either way (`cast_ray`); the side reader takes
+    /// a pair only on a gap in band and sets the ray aside on one that
+    /// reaches past it (`side_reader::aimed_ray`).
     ///
     /// # Errors
     ///
     /// [`RayFault::InBand`] with the pair's first face, its gap and the
-    /// other face; [`RayFault::Graze`] at a tie, and at a gap no reading
-    /// placed.
+    /// other face; [`RayFault::Graze`] at a tie.
     pub(crate) fn pair_as<U: Decide>(
         &self,
         body: &Body<U>,
@@ -2704,8 +2706,8 @@ impl<T: Copy> RayHit<T> {
                     continue;
                 }
                 return Err(match along {
-                    Err(diag) if crate::validate::in_band(&diag) => RayFault::InBand((a, diag, b)),
-                    Err(_) | Ok(_) => RayFault::Graze,
+                    Err(diag) => RayFault::InBand((a, diag, b)),
+                    Ok(_) => RayFault::Graze,
                 });
             }
         }
@@ -3119,7 +3121,7 @@ fn wall_crosses_by_turn<T: Decide>(
             }
             _ => return Ok(None),
         };
-        let Some(clear) = edge_clearance(body, &e, p) else {
+        let Some(clear) = edge_clearance(body, &e, p, None) else {
             return Ok(None);
         };
         if decide(
@@ -3160,30 +3162,21 @@ fn turned_inside<T: Decide>(
         == Sign::Positive)
 }
 
-/// **`n̂·(u × w)` and `u·w` for two vectors of the plane across the unit
-/// `normal`**, the second read as `(n̂ × u)·(n̂ × w)`: turning both
-/// vectors a quarter turn in their plane keeps their dot, since
-/// `(n̂ × u)·(n̂ × w) = (u·w)|n̂|² − (u·n̂)(w·n̂)` and neither has a part
-/// along `n̂`. A vector between two points of a plane has no part along
-/// its normal, and the points' own enclosures do not know it: two points
-/// of a cap that rides a boxed height each carry that height, their
-/// difference carries its width along the normal, and `u·w` read on all
-/// three components sums that width squared where the value holds none
-/// of it. `n̂ ×` drops the part along the normal before anything is
-/// multiplied, as `n̂·(u × w)` already does. No frame is chosen across
-/// the normal: a frame is a selection
-/// ([`Vec3::orthonormal_basis`]), and an enclosure of a normal on its
-/// seam selects both.
-fn in_plane<T: Decide>(normal: Vec3<T>, u: Vec3<T>, w: Vec3<T>) -> (T, T) {
+/// **`n̂·(u × w)` and `u·w` of two vectors across the unit `normal`**,
+/// the dot read as `(n̂ × u)·(n̂ × w)`: equal to `u·w` where neither has
+/// a part along `n̂`, and it multiplies nothing along `n̂`. At `f64` it
+/// is `u·w` to rounding; at `Interval` and `Sym` a part along the
+/// normal that two points' enclosures share is never squared into the
+/// dot. It chooses no frame ([`Vec3::orthonormal_basis`] selects one).
+fn planar_cross_dot<T: Decide>(normal: Vec3<T>, u: Vec3<T>, w: Vec3<T>) -> (T, T) {
     (normal.dot(u.cross(w)), normal.cross(u).dot(normal.cross(w)))
 }
-
 /// **The turn of `face`'s loops about `p`**, about `normal`, every point
 /// of them first carried by `map` (the identity for a planar face, which
 /// `p` lies in; an image of a curved face in the plane `p`'s image lies
 /// in): a line edge, carried to a segment, turns by the angle its ends
 /// make at `p`, and a circle arc, carried to a circle arc, by [`arc_turn`]
-/// over its two halves, each read in the plane ([`in_plane`]). `None`
+/// over its two halves, each read across the normal ([`planar_cross_dot`]). `None`
 /// where an edge is neither.
 fn loop_turn<T: Decide>(
     body: &Body<T>,
@@ -3200,7 +3193,7 @@ fn loop_turn<T: Decide>(
             .ok_or_else(corrupt)
     };
     let angle = |a: Point3<T>, b: Point3<T>| {
-        let (cross, dot) = in_plane(normal, a - p, b - p);
+        let (cross, dot) = planar_cross_dot(normal, a - p, b - p);
         cross.atan2(dot)
     };
     let mut turn = T::zero();
@@ -3265,7 +3258,7 @@ fn arc_turn<T: Decide>(
     (a, m, b): (Point3<T>, Point3<T>, Point3<T>),
 ) -> T {
     let numerator = |x: Point3<T>| {
-        let (cross, dot) = in_plane(normal, x - b, x - a);
+        let (cross, dot) = planar_cross_dot(normal, x - b, x - a);
         (dot, cross)
     };
     let ((pr, pi), (mr, mi)) = (numerator(p), numerator(m));
@@ -3299,10 +3292,20 @@ pub(crate) fn along_half<T: Decide>(
 /// or a circle arc: its carrier's closed-form distance from the edge's
 /// span ([`geom::Curve3::distance_within`]), the segment between its
 /// vertices for a line. `None` for another edge.
+///
+/// With `across` a planar face's unit normal, a line edge is read
+/// across it: the distance from `n̂ × (m − a)` to the segment along
+/// `n̂ × (b − a)`. `n̂ ×` drops a vector's part along the normal and
+/// turns the rest a quarter turn, so this is never more than the
+/// distance, and is the distance where `m` and the edge lie in one
+/// plane across `n̂`. At `f64` the two readings agree to rounding
+/// there; at `Interval` and `Sym` a part along the normal that the
+/// points' enclosures share is not summed.
 pub(crate) fn edge_clearance<T: Decide>(
     body: &Body<T>,
     e: &crate::live::FaceEdge,
     m: Point3<T>,
+    across: Option<Vec3<T>>,
 ) -> Option<T> {
     let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
     let curve = body
@@ -3312,52 +3315,26 @@ pub(crate) fn edge_clearance<T: Decide>(
     match *curve.carrier() {
         geom::Curve3::Line(_) => {
             let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
-            geom::Curve3::Line(geom::Line {
-                origin: a,
-                dir: b - a,
-            })
-            .distance_within(m, (T::zero(), T::one()))
+            // The segment as the line from `from` along `along`, and the
+            // point read against it.
+            let (from, along, to) = match across {
+                Some(n) => {
+                    let o = Point3::new(T::zero(), T::zero(), T::zero());
+                    (o, n.cross(b - a), o + n.cross(m - a))
+                }
+                None => (a, b - a, m),
+            };
+            Some(
+                geom::Line {
+                    origin: from,
+                    dir: along,
+                }
+                .distance_within(to, (T::zero(), T::one())),
+            )
         }
         geom::Curve3::Circle(_) => curve.carrier().distance_within(m, curve.params()),
         _ => None,
     }
-}
-
-/// **A lower bound on the distance from `m` to the edge of `e`, in the
-/// plane across the unit `normal`**: for a line edge, the distance
-/// between `n̂ × (m − a)` and the segment along `n̂ × (b − a)`, `a` and
-/// `b` its ends; another edge as [`edge_clearance`] reads it. `n̂ ×`
-/// drops a vector's part along the normal and turns the rest a quarter
-/// turn in the plane, which keeps every distance there. Dropping a part
-/// lengthens nothing, so this is a lower bound on the distance wherever
-/// the points lie, and it is the distance where `m` and the edge lie in
-/// one plane across `normal`: a point of a planar face's boundary
-/// against another edge of it. Two points of a face that rides a boxed
-/// height each carry that height, and their difference carries its
-/// width along the normal, which this reading never sums.
-pub(crate) fn clearance_in_plane<T: Decide>(
-    body: &Body<T>,
-    e: &crate::live::FaceEdge,
-    m: Point3<T>,
-    normal: Vec3<T>,
-) -> Option<T> {
-    let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
-    let curve = body
-        .get_edge(e.edge)
-        .and_then(|ed| body.get_curve_geom(ed.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
-    if curve.carrier().as_line().is_none() {
-        return edge_clearance(body, e, m);
-    }
-    let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
-    let o = Point3::new(T::zero(), T::zero(), T::zero());
-    Some(
-        geom::Line {
-            origin: o,
-            dir: normal.cross(b - a),
-        }
-        .distance_within(o + normal.cross(m - a), (T::zero(), T::one())),
-    )
 }
 
 /// Whether every edge bounding `face` is one of `read`: a seam inside it

@@ -350,9 +350,10 @@ fn slab_reads(half: f64) -> (usize, Vec<String>) {
 ///
 /// **Red, each under one reading put back as it was** in `topo`:
 /// - the loops' turn read on all three components
-///   (`u.dot(w)` for the second reading of `solid_contain::in_plane`):
+///   (`u.dot(w)` for the second reading of `solid_contain::planar_cross_dot`):
 ///   no ray reads at either width;
-/// - the aim's step reading `solid_contain::edge_clearance`: at `± 0.3`
+/// - the aim's step reading `solid_contain::edge_clearance` with no
+///   normal (`None` for `Some(normal)` in `loop_aim`): at `± 0.3`
 ///   the top cap's ray is set aside on the turn of its own loop.
 ///
 /// The walls' rays are not asked for: a wall's aim hangs a fixed step
@@ -401,10 +402,10 @@ fn a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box() {
 /// the reader's rays are unread, so the volume is asked: they do not
 /// refuse on a pair.
 ///
-/// **Red where `solid_contain::RayHit::pair_as` reads every undecided
-/// gap as a pair** (`Err(diag) => RayFault::InBand(..)` without the band
-/// test): the top cap's ray reads `Pair` at `± 0.45`, and at `± 0.5` the
-/// reader refuses `InBand` on caps half a depth apart.
+/// **Red where `side_reader::aimed_ray` takes a pair on any undecided
+/// gap** (the `in_band` test on the gap `RayHit::pair_as` hands back
+/// removed): the top cap's ray reads `Pair` at `± 0.45`, and at `± 0.5`
+/// the reader refuses `InBand` on caps half a depth apart.
 #[test]
 fn a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair() {
     let slab = &shapes()[0];
@@ -440,7 +441,7 @@ fn a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair() {
 ///
 /// **Red where the loops' turn is read on the normal's frame** (the
 /// components of `u` and `w` along `normal.orthonormal_basis()` in
-/// `solid_contain::in_plane`): every ray is set aside on the turn of a
+/// `solid_contain::planar_cross_dot`): every ray is set aside on the turn of a
 /// seam wall, and the reader falls to the volume.
 #[test]
 fn a_prism_with_walls_on_the_frame_seam_reads_by_its_rays_at_interval() {

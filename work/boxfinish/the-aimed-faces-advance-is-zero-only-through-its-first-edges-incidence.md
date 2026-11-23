@@ -65,3 +65,11 @@ box, and the reader leans on rays aimed at faces that do not move).
 **The test that says it is closed.** The fork is ruled; if the first
 arm, the top cap's ray of the door's slab reads at `± 0.45` with a row
 holding its own crossing's span against the members' `0`.
+It also turns one row red by design:
+`sweep`'s `an_aimed_ray_over_boxed_door_bodies::a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair`
+pins the top cap's ray as set aside at `± 0.45` and the reader as
+unread at `± 0.5`, both of which hold only while the advance is as wide
+as the box. With the advance read from the edge the top cap's ray
+reads at both widths; that row is then re-stated on a box where a
+crossing's span still reaches its neighbour's, or retired with the
+reason.

@@ -405,7 +405,9 @@ fn a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it() {
 /// along the unit brick's exact direction, as long as the edge is
 /// (`top` for an upright edge). [`brick_at`]'s own lines are minted from
 /// their two ends (`EdgeCurveSpec::line_between`), so a moving edge's
-/// direction there is as wide as its chord.
+/// direction there is as wide as its chord. This restates how a door
+/// states a line; nothing keeps it in step with the doors, and the
+/// door-built rows are `sweep`'s `an_aimed_ray_over_boxed_door_bodies`.
 fn lined_brick(top: Boxed, tol: Tol) -> Body<Boxed> {
     let mut body = brick_at(top, Boxed::from_f64(1.0), false, tol);
     let twin = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
@@ -508,7 +510,7 @@ const HALVES: [f64; 3] = [0.05, 0.25, 0.45];
 /// `1e-9` of the members' value at each of [`HALVES`].
 ///
 /// **Red where the turn is read on all three components**
-/// (`u.dot(w)` for the second reading of `solid_contain::in_plane`):
+/// (`u.dot(w)` for the second reading of `solid_contain::planar_cross_dot`):
 /// `u·w` then sums the height's width squared, and at a quarter of the
 /// height the turn about the inside point encloses `[−0.6, 13]`.
 #[test]
@@ -550,10 +552,10 @@ fn a_moving_caps_turn_is_as_narrow_as_a_members() {
 /// `0.19` at every height, read between points that each carry the
 /// cap's height.
 ///
-/// **Red where the step reads `solid_contain::edge_clearance`** in
-/// place of `clearance_in_plane`: a clearance then carries the height's
-/// width along the normal, and at a quarter of the height the aim is
-/// `0.27` wide across the cap.
+/// **Red where the step reads `solid_contain::edge_clearance` with no
+/// normal** (`None` for `Some(normal)` in `loop_aim`): a clearance then
+/// carries the height's width along the normal, and at a twentieth of
+/// the height the aim's `x` is `[0.191, 0.216]`.
 #[test]
 fn a_moving_caps_aim_is_stepped_by_its_members_step() {
     let at = |top: f64| {
@@ -589,7 +591,7 @@ fn a_moving_caps_aim_is_stepped_by_its_members_step() {
 /// walls' are set aside, and no aim reads `In`.
 ///
 /// **Red where the loops' turn is read on all three components**
-/// (`u.dot(w)` for the second reading of `solid_contain::in_plane`):
+/// (`u.dot(w)` for the second reading of `solid_contain::planar_cross_dot`):
 /// neither cap's ray reads.
 ///
 /// A wall's ray is not asked for: its aim hangs a fixed step under its
@@ -712,3 +714,6 @@ fn no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has() {
         tally(&all)
     );
 }
+
+#[path = "side_reader_tilted_cap_rows.rs"]
+mod tilted_cap_rows;
