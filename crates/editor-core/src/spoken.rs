@@ -10,7 +10,7 @@
 //! and the nodes and variables it names as [`Mention`]s, each with the
 //! document its id is spelled in, so a reader can find what it names. A
 //! [`Say`] value writes its sentence into one; only a whole sentence
-//! becomes text, [`spell`] is the one spelling of a mention as text,
+//! becomes text, [`sentence::spell`] is the one spelling of a mention as text,
 //! and no sentence becomes text while another is being said
 //! ([`display_said`]).
 //!
@@ -61,7 +61,7 @@ use core::fmt;
 pub mod sentence;
 
 use sentence::Readers;
-pub use sentence::{Mention, Mentioned, Put, Run, SaidName, SaidNode, SaidVar, Sentence, spell};
+pub use sentence::{Mention, Mentioned, Put, Run, SaidName, SaidNode, SaidVar, Sentence};
 
 use crate::DocumentId;
 use crate::doc::Doc;
@@ -229,7 +229,7 @@ impl SpokenVar {
 }
 
 impl SpokenVar {
-    /// The variable as text ([`spell`]'s, for a variable).
+    /// The variable as text ([`sentence::spell`]'s, for a variable).
     fn spell(&self, f: &mut dyn fmt::Write) -> fmt::Result {
         match &self.name {
             Some(name) => write!(f, "{name}"),
@@ -302,7 +302,7 @@ impl<P> Doc<P> {
 /// document it was spoken from did not hold. The kind is not repeated
 /// beside a label: the label and the tag already say which node. It
 /// has no `Display`: a sentence carries it as a [`Mention`], and
-/// [`spell`] says it.
+/// [`sentence::spell`] says it.
 ///
 /// Built by [`Doc::spoken`] from the document that holds the node, and
 /// spoken again from a later version by [`SpokenNode::respoken`].
@@ -421,7 +421,7 @@ impl SpokenNode {
 }
 
 impl SpokenNode {
-    /// The node as text ([`spell`]'s, for a node).
+    /// The node as text ([`sentence::spell`]'s, for a node).
     fn spell(&self, f: &mut dyn fmt::Write) -> fmt::Result {
         match (self.kind, &self.label) {
             (Some(_), Some(label)) => {
@@ -1614,7 +1614,7 @@ impl<T: Say + ?Sized> Said<'_, T> {
 }
 
 /// **A node alone as text**: a sentence of its one mention, by tag,
-/// spelled ([`spell`]) — for a surface that draws a node outside any
+/// spelled ([`sentence::spell`]) — for a surface that draws a node outside any
 /// sentence (a button, a heading, a test's expected text). Refused
 /// inside a sentence being said, like every spelling.
 #[must_use]
@@ -1630,9 +1630,11 @@ pub fn var_text(var: &SpokenVar) -> String {
 
 /// **The one `Display` of a [`Say`] value**: its sentence, each node
 /// said by `by`, as text — refused inside a sentence being said, like
-/// every spelling of a sentence (`Sentence`'s `Display`). Every
-/// sentence-bearing type's `Display` is this one line, so `{value}` in
-/// a `say` body is caught on this road rather than at each type.
+/// every spelling of a sentence (`Sentence`'s `Display`). A [`Say`]
+/// type's `Display` is this one line; a staged refusal's goes through
+/// [`crate::sentence::Labelled`] and `NodeError`'s through its failed
+/// line, and each ends in `Sentence`'s `Display`, so `{value}` in a
+/// `say` body is caught on that road rather than at each type.
 ///
 /// # Errors
 ///

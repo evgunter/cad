@@ -150,7 +150,7 @@ pub use editor_core::{
 pub use editor_core::{
     FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
     Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said, held_by,
-    node_kind_noun, node_text, say, sentence, spell, spoken_by, spoken_within, var_text,
+    node_kind_noun, node_text, say, sentence, spoken_by, spoken_within, var_text,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the

@@ -45,8 +45,11 @@ pub fn saying<R>(say: impl FnOnce() -> R) -> R {
 /// mention a word the viewer cannot link. `Arguments` erases the type a
 /// `{}` formats, so this cannot be refused at compile time; it is
 /// refused here, on the one road every such text takes ([`Sentence`]'s
-/// `Display`, which every sentence-bearing value's `Display` reaches
-/// through [`super::display_said`]).
+/// `Display`, which every sentence-bearing value's `Display` ends in:
+/// a [`Say`] type's through [`super::display_said`], a staged refusal's
+/// (`ProductError`, `PersistError`, `WorkspaceError`) through
+/// [`crate::sentence::Labelled`]'s, and `NodeError`'s through its
+/// failed line).
 fn flattening() {
     debug_assert!(
         SAYING.with(Cell::get) == 0,
@@ -162,10 +165,14 @@ impl Mention {
 /// `Extrude 3fa9c1d2a0b1`; `node 3fa9c1d2a0b1` where the document did
 /// not hold it. A variable is its name, or its id with none.
 ///
+/// Crate-private: outside the kernel a mention reaches text only
+/// through a sentence's `Display`, which refuses inside a sentence being
+/// written ([`saying`]); a public `spell` would be a road around it.
+///
 /// # Errors
 ///
 /// The writer's.
-pub fn spell(mention: &Mention, out: &mut dyn fmt::Write) -> fmt::Result {
+pub(crate) fn spell(mention: &Mention, out: &mut dyn fmt::Write) -> fmt::Result {
     match &mention.of {
         Mentioned::Node(node) => node.spell(out),
         Mentioned::Var(var) => var.spell(out),

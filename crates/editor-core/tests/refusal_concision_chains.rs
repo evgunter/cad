@@ -5616,7 +5616,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartProductFailed",
             PartFault::PartProductFailed {
-                held: Default::default(),
+                held: part_held(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
@@ -5624,7 +5624,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartProductFailed(part)",
             PartFault::PartProductFailed {
-                held: Default::default(),
+                held: part_held(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Part {
                     doc_ref: doc_ref(),
@@ -5636,7 +5636,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartProductPoisoned",
             PartFault::PartProductPoisoned {
-                held: Default::default(),
+                held: part_held(),
                 node: RecipeNodeId::new(0, tagged(8)),
                 through: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
@@ -5645,7 +5645,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartProductFailureUnrecorded",
             PartFault::PartProductFailureUnrecorded {
-                held: Default::default(),
+                held: part_held(),
                 node: RecipeNodeId::new(0, tagged(7)),
             },
         ),
@@ -5783,7 +5783,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Part {
                 doc_ref: doc_ref(),
                 fault: PartFault::PartProduct {
-                    held: Default::default(),
+                    held: part_held(),
                     refusal: error.into(),
                 },
             },
@@ -6908,4 +6908,19 @@ fn decode(literal: &str) -> String {
         }
     }
     out
+}
+
+/// **The part's nodes as the pinned part holds them**: every node a
+/// corpus part fault names, by tag, held as an extrude of one part
+/// document, so the part's sentence MENTIONS them. With an empty hold
+/// every node is words (`node <tag>`) and a law row over the corpus
+/// (`no_node_refusal_spells_a_mention_into_its_words`) would have no
+/// mention to find flattened.
+fn part_held() -> std::sync::Arc<editor_core::HeldNodes> {
+    std::sync::Arc::new(editor_core::HeldNodes::of_nodes(
+        editor_core::DocumentId::derive("refusal-concision-part"),
+        (1..=16).map(|n| {
+            editor_core::test_support::spoken(RecipeNodeId::new(0, tagged(n)), Some("Extrude"))
+        }),
+    ))
 }

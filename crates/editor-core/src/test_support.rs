@@ -1680,7 +1680,7 @@ pub fn evaluate_bound<T: crate::eval::BoundToRecord>(
 pub use crate::eval::testing::{AnyEvaluate, evaluate_any};
 
 /// **A sentence's text, for a test to compare**: `piece` written into a
-/// sentence of its own and spelled ([`crate::spell`]).
+/// sentence of its own and spelled ([`crate::spoken::sentence::spell`]).
 pub fn text(piece: impl crate::Put) -> String {
     crate::sentence!(piece).to_string()
 }

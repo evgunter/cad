@@ -2405,7 +2405,6 @@ NOT_BOUND = {
     "Sentence": SHAPE,
     "say": SHAPE,
     "sentence": SHAPE,
-    "spell": SHAPE,
     "display_said": SHAPE,
     "node_text": SHAPE,
     "var_text": SHAPE,
