@@ -1760,3 +1760,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Both lanes merged main and pushed: PR 7411 at `3abf8640d7`, PR 7431 at `f5d7ed9762`. Their CI is queued.
   - Remedy for this orchestrator: check `mergeable` at every check-in, not only the check runs.
 - 2026-11-23 06:50 — **Dispatched `main-red-axis-normal-snap-refuses-nist-ftc-09`** (P1 E; owed by GERM since PR 7171 brought in `c25c174105`; it also skips the nightly render lanes). Letter M, tier single FULL: the fix changes what an import refuses in the band, so its correctness has to be shown, not just read. The implementer draw is byte 172, recorded on `analysis/model-compare/germ-2026-11-22`. The tier and letter were set in the same step as the draw, not logged here first; noted against rule 2.
+- 2026-11-23 07:40 — **Held `conic-constructions-from-computed-sizes-unaudited` (P1/H) until ONEROUND's PR 7510 lands.**
+  - PR 7510 (`oneround/conic-readers`, "conic readers (first part) … the centre-frame doors gated") is migrating how conic sites read their geometry. It follows the anchored-conic change already on main.
+  - A sweep of about 240 `Circle::new` / `Ellipse::new` sites would conflict with it file by file, and would have to be redone against the gated doors.
+  - The constructors on main still take a raw size, so the audit is still owed.
+  - The alternative was to dispatch now and merge through the conflicts. I did not, because the gated doors may themselves settle some sites' sign dispositions.
+  - Re-weigh at each check-in.
