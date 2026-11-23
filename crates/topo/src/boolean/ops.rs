@@ -1027,7 +1027,7 @@ fn rows_name_input_cells<T: Real>(rows: &[crate::Coincidence], inputs: [&Body<T>
     for row in rows {
         for cell in row.every_cell() {
             if let crate::RowCell::Input { input, cell } = cell
-                && !super::records::holds(inputs[side(input)], cell)
+                && !super::records::holds(inputs[input.index()], cell)
             {
                 unreachable!(
                     "row {row:?} names {input:?}'s {cell:?}, which that input does not hold, \
@@ -1037,11 +1037,6 @@ fn rows_name_input_cells<T: Real>(rows: &[crate::Coincidence], inputs: [&Body<T>
             }
         }
     }
-}
-
-/// An operand's index in an `[A, B]` pair.
-fn side(input: Operand) -> usize {
-    usize::from(input == Operand::B)
 }
 
 /// [`boolean_op_with`]'s body.
@@ -1293,7 +1288,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map(|r| (r.operand, r.face))
         .chain(substituted.iter().map(|s| (s.operand, s.face)))
     {
-        discarded[usize::from(operand == Operand::B)].insert(face);
+        discarded[operand.index()].insert(face);
     }
     let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
     let OutputStage {
@@ -3656,7 +3651,7 @@ impl Descendants {
     ) -> [Vec<(VertexKey, VertexKey)>; 2] {
         let mut copies = [Vec::new(), Vec::new()];
         for r in null_edges {
-            copies[usize::from(r.operand == Operand::B)].push((r.attr.below_end, r.attr.above_end));
+            copies[r.operand.index()].push((r.attr.below_end, r.attr.above_end));
         }
         copies
     }
@@ -3691,7 +3686,7 @@ impl Descendants {
     /// The clone face holding `f`'s region: `f`, or the face the join
     /// merged it into, followed while that one was merged too.
     fn holding(&self, side: Operand, f: FaceKey) -> FaceKey {
-        self.absorbed[usize::from(side == Operand::B)].survivor(f)
+        self.absorbed[side.index()].survivor(f)
     }
 
     /// `v` and every vertex null edges join it to, transitively, in
@@ -3701,7 +3696,7 @@ impl Descendants {
     /// met (the null-copy closure's other spellings are
     /// `emit/crossing-sense-carries-five-copies-of-the-null-copy-closure`).
     fn copies_of(&self, side: Operand, v: VertexKey) -> Vec<VertexKey> {
-        let rows = &self.copies[usize::from(side == Operand::B)];
+        let rows = &self.copies[side.index()];
         let mut out = vec![v];
         let mut i = 0;
         while let Some(&at) = out.get(i) {
@@ -3818,7 +3813,7 @@ impl Descendants {
             return Ok(None);
         };
         let mut held = None;
-        let rows = &self.along[usize::from(side == Operand::B)];
+        let rows = &self.along[side.index()];
         for &(_, chord) in rows.iter().filter(|&&(e, _)| e == edge) {
             // A chord is minted, never an `along` row's edge, so one
             // hop ends the read.
@@ -4004,7 +3999,7 @@ pub(super) fn ledger<T: crate::props::AtRestPolicy>(
             k,
             (tie.operand.other(), Cell::Face(red.pierce_rings[ring].face)),
         ));
-        carried[usize::from(tie.operand == Operand::B)].push((
+        carried[tie.operand.index()].push((
             [Cell::Vertex(tie.a), Cell::Vertex(tie.b)],
             Cites::decided(k),
         ));
@@ -4036,7 +4031,7 @@ fn carried_rows(records: &OperandRecords, side: Operand) -> Vec<([Cell; 2], Cite
         ef,
         ff,
     } = records;
-    let input = u32::from(side == Operand::B);
+    let input = side.input();
     let cite = |record| Cites::one(Backing::Carried { input, record });
     vv.iter()
         .map(|c| {
@@ -4189,7 +4184,7 @@ fn uncopied(
     side: Operand,
     v: VertexKey,
 ) -> VertexKey {
-    copies[usize::from(side == Operand::B)].root(v)
+    copies[side.index()].root(v)
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -4255,7 +4250,7 @@ impl Rows {
             ef,
             ff,
         } = carried;
-        let input = u32::from(side == Operand::B);
+        let input = side.input();
         let cite = |record| Cites::one(Backing::Carried { input, record });
         Self {
             vv: vv
@@ -4408,7 +4403,7 @@ fn carried<T: Decide + AtRestPolicy>(
     let desync = |what| BooleanError::JoinDesync { what };
     let mut out = [Rows::default(), Rows::default()];
     let mut confirms = super::records::Confirms::new(1);
-    for (s, side) in [Operand::A, Operand::B].into_iter().enumerate() {
+    for (s, side) in Operand::BOTH.into_iter().enumerate() {
         let rows = &ledger.carried[s];
         if rows.is_empty() {
             continue;
@@ -4545,7 +4540,7 @@ fn operand_fate<T: Real>(
     x: Cell,
     back: &mut Vec<Back>,
 ) -> Result<crate::Fate, BooleanError> {
-    let incidence = &ledger.incidence[usize::from(side == Operand::B)];
+    let incidence = &ledger.incidence[side.index()];
     let copies = |v: VertexKey| desc.copies_of(side, v).into_iter().map(Cell::Vertex);
     let (pieces, minted, divided): (Vec<Cell>, Vec<Cell>, bool) = match x {
         Cell::Vertex(v) => (copies(v).collect(), Vec::new(), false),
@@ -4620,9 +4615,7 @@ fn face_pieces(
     f: FaceKey,
 ) -> (Vec<Cell>, Vec<Cell>, bool) {
     let mut fragments: Vec<FaceKey> = Vec::new();
-    for g in crate::lineage::Descent::of(f, desc.fragments[usize::from(side == Operand::B)].rows())
-        .cells()
-    {
+    for g in crate::lineage::Descent::of(f, desc.fragments[side.index()].rows()).cells() {
         let g = desc.holding(side, g);
         if !incidence.scaffold.contains(&g) && !fragments.contains(&g) {
             fragments.push(g);
@@ -4712,7 +4705,7 @@ fn carried_vertices<T: Real>(
     discarded: [&BTreeSet<FaceKey>; 2],
 ) -> Result<BTreeSet<VertexKey>, BooleanError> {
     let mut back: Vec<Back> = Vec::new();
-    for (s, side) in [Operand::A, Operand::B].into_iter().enumerate() {
+    for (s, side) in Operand::BOTH.into_iter().enumerate() {
         for &(pair, _) in &ledger.carried[s] {
             if let [x @ Cell::Vertex(_), y @ Cell::Vertex(_)] = pair {
                 for c in [x, y] {
@@ -4840,11 +4833,14 @@ fn record_classes<T: Decide>(
             });
             return Err(match carried {
                 Some((input, record)) => BooleanError::CarryRefused {
-                    row: super::RefusedRow::Carried(if input == 0 {
-                        Operand::A
-                    } else {
-                        Operand::B
-                    }),
+                    row: super::RefusedRow::Carried(Operand::of_input(input).unwrap_or_else(
+                        || {
+                            unreachable!(
+                                "a boolean's row cites a record carried in by input {input}, \
+                                 though a boolean's inputs are its two operands"
+                            )
+                        },
+                    )),
                     refusal: super::CarryRefusal::Stale { record },
                 },
                 None => BooleanError::JoinDesync {
@@ -4989,8 +4985,8 @@ fn join_input_edge<T: Real>(
     views: [&KeyView<'_>; 2],
     inputs: [&Body<T>; 2],
 ) -> Option<crate::RowCell> {
-    [Operand::A, Operand::B].into_iter().find_map(|input| {
-        let key = match views[side(input)] {
+    Operand::BOTH.into_iter().find_map(|input| {
+        let key = match views[input.index()] {
             KeyView::Direct => Some(e),
             KeyView::Graft(g) => g
                 .edges
@@ -4999,7 +4995,7 @@ fn join_input_edge<T: Real>(
             KeyView::Absent => None,
         }?;
         let (input, cell) = input_end((input, Cell::Edge(key)), &ledger.mints);
-        super::records::holds(inputs[side(input)], cell)
+        super::records::holds(inputs[input.index()], cell)
             .then_some(crate::RowCell::Input { input, cell })
     })
 }
@@ -5343,8 +5339,8 @@ fn carry_rows<T: Decide + AtRestPolicy>(
     one_arena: bool,
     band: Band,
 ) -> Result<ContactRecords, BooleanError> {
-    let sides = [Operand::A, Operand::B];
-    let view = |side: Operand| views[usize::from(side == Operand::B)];
+    let sides = Operand::BOTH;
+    let view = |side: Operand| views[side.index()];
     let mut out = ContactRecords::default();
     // The rows by the kinds of their two cells, each vertex end first.
     let mut vv_rows: Vec<Tagged<'_>> = Vec::new();
@@ -5565,7 +5561,7 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
     confirms: &mut super::records::Confirms<'b, T>,
     band: Band,
 ) -> Result<Vec<(Cell, Cell)>, BooleanError> {
-    let at = |side: Operand| usize::from(side == Operand::B);
+    let at = |side: Operand| side.index();
     let mut divided: Option<(usize, crate::Fate)> = None;
     if found.is_some() {
         for (i, &(side, cell)) in ends.iter().enumerate() {
@@ -5803,7 +5799,7 @@ impl OneRecordTokens {
                         [fa.sense, b_sense],
                     );
                     let side = census.moving();
-                    let view = &views[usize::from(side == Operand::B)];
+                    let view = &views[side.index()];
                     let moved: BTreeSet<FaceKey> = census
                         .moved
                         .iter()
@@ -5867,7 +5863,7 @@ fn lowered_faces<T: Real>(
     (side, view): (Operand, &KeyView<'_>),
     f: FaceKey,
 ) -> Vec<FaceKey> {
-    let rows = desc.fragments[usize::from(side == Operand::B)].rows();
+    let rows = desc.fragments[side.index()].rows();
     let mut out: Vec<FaceKey> = Vec::new();
     for g in crate::lineage::Descent::of(f, rows).cells() {
         let Some(g) = view.face(desc.holding(side, g)) else {
@@ -5929,8 +5925,13 @@ impl<'a> Held<'a> {
                 let Backing::Carried { input, record } = backing else {
                     continue;
                 };
-                let operand = if input == 0 { Operand::A } else { Operand::B };
-                let Some(carried) = self.records[usize::from(operand == Operand::B)]
+                let Some(operand) = Operand::of_input(input) else {
+                    unreachable!(
+                        "a boolean's row cites a record carried in by input {input}, though a \
+                         boolean's inputs are its two operands"
+                    );
+                };
+                let Some(carried) = self.records[operand.index()]
                     .ff
                     .iter()
                     .find(|c| c.record == record)
@@ -7680,7 +7681,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             tol,
         )?;
         pieces.push((cut.operand, cut.face, created.face));
-        let side = &mut made[usize::from(cut.operand == Operand::B)];
+        let side = &mut made[cut.operand.index()];
         side.divisions.push((created.face, face));
         side.edges.push(created.edge);
         side.arc_splits.extend(arc_splits);
@@ -7720,8 +7721,8 @@ fn respell_through_cuts(
     // input shell's faces where a re-chart turned it: a cut-in cuts a
     // face no re-chart turned.
     let recut = |(input, cell): End| {
-        let cell = cuts[side(input)].input_cell(cell);
-        (input, cell, recharted[side(input)].input_faces(cell))
+        let cell = cuts[input.index()].input_cell(cell);
+        (input, cell, recharted[input.index()].input_faces(cell))
     };
     let read = |end: End| match recut(end) {
         (input, _, Some(&[face])) => ((input, Cell::Face(face)), None),
@@ -8228,10 +8229,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<FallbackFates, BooleanError> {
-    let gone = |o: Operand, f: FaceKey| match o {
-        Operand::A => discarded[0].contains(&f),
-        Operand::B => discarded[1].contains(&f),
-    };
+    let gone = |o: Operand, f: FaceKey| discarded[o.index()].contains(&f);
     // Whether the pair is cut: its kept copy held, its dropped one not.
     let owed = |holder: Operand, kept: FaceKey, dropped: FaceKey| match (
         gone(holder, kept),
@@ -10348,7 +10346,8 @@ mod tests {
             DescribeRefusal::undecided(strut, MustCarryEscalation::at(MustCarryRung::Wedge, diag)),
             DescribeRefusal::undecided(strut, MustCarryEscalation::at(MustCarryRung::Bend, diag)),
         ];
-        let residual = crate::euler::EulerOpError::Certification {
+        let residual = crate::euler::EulerOpError::DescriptionUncertified {
+            edge: crate::EdgeSubject::Minted,
             error: geom_brep::CertifyError::ResidualExceeded {
                 check: geom_brep::CertCheck::SurfaceResidual {
                     surface: crate::geometry::SurfaceKey::default(),
@@ -10429,7 +10428,10 @@ mod tests {
             predicate: Some("carrier_on_surface_2"),
             terminal_sliver: false,
         };
-        let certification = |error| EulerOpError::Certification { error };
+        let certification = |error| EulerOpError::DescriptionUncertified {
+            edge: crate::EdgeSubject::Minted,
+            error,
+        };
         let escalated = |check| {
             certification(CertifyError::Escalated {
                 check,
@@ -11419,7 +11421,7 @@ mod join_row_rows {
             recorded: Vec::new(),
             glued: Vec::new(),
             incidence: [Incidence::of(a, &BTreeSet::new()), Incidence::default()],
-            copies: [Operand::A, Operand::B].map(|o| Minted::new(LineageRows::NullEdgeCopies(o))),
+            copies: Operand::BOTH.map(|o| Minted::new(LineageRows::NullEdgeCopies(o))),
         }
     }
 

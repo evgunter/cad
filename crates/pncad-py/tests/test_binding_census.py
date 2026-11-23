@@ -588,6 +588,11 @@ BOUND_AS = {
     "CopyRef": ("InterferenceFinding.a", "InterferenceFinding.a_member"),
     "Overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "Unlocalized": "InterferenceFinding.unlocalized",
+    # What a finding's assertion recourse determines. An interference's
+    # pair of faces is a tuple of the finding's own `FaceSite`s; a
+    # coincidence's claim is `Quieting`, authored as one action by
+    # `Doc.assert_quieting`.
+    "OpposedPair": "InterferenceFinding.quieting",
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.
@@ -1139,10 +1144,13 @@ BOUND_AS = {
     # THE "PLACE PART" GESTURE: the identity bundle — `Doc.place` with
     # no constraints.
     "stand": "Doc.place",
-    # "Sketch on this face", one recorded action answering its four
-    # nodes.
-    "sketch_on_face": "Doc.sketch_on_face",
-    "SketchOutcome": "Doc.sketch_on_face",
+    # A profile drawn on a face, one recorded action answering the
+    # profile: `OnFace`'s orientation, spin, slides and traced faces are
+    # its keyword arguments, and the outcome is the document it leaves
+    # and the id it answers.
+    "draw_on_face": "Doc.draw_on_face",
+    "DrawnOnFace": "Doc.draw_on_face",
+    "OnFace": "Doc.draw_on_face",
     # A takeover, one recorded action answering the names it moved.
     "take_over": "Doc.take_over",
     "TakeOverOutcome": "Doc.take_over",
@@ -1652,19 +1660,6 @@ FAMILIES: dict[str, str] = {
         "entry, and one Python row asking a reversed loop for a step's "
         "edges and naming the wall each addresses."
     ),
-    # A PROFILE DRAWN ON A FACE arrived with its door: DOCTAIL's
-    # `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` landed
-    # `editor_core::draw_on_face` and the face's chart it draws on, and
-    # the binding is
-    # `work/pydoor/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
-    "B-DRAW-ON-FACE": (
-        "the drawn-on-face door — `draw_on_face`, its `OnFace` "
-        "(orientation, spin, two slides, traced faces) and its "
-        "`DrawnOnFace` outcome. Closing it needs a `Doc` method taking "
-        "the face, the loops and those four, a `pncad.pyi` entry, and "
-        "one Python row drawing on a bottom cap and extruding a boss "
-        "and a pocket."
-    ),
     # THE FIFTH ARRIVED WITH ITS DOOR TOO, and it is the one whose
     # PYTHON half is the measurement. EDIT's
     # `recorded-program-arguments-carry-no-notation` landed the kernel
@@ -1696,6 +1691,17 @@ FAMILIES: dict[str, str] = {
     # since nothing bound folds the rows. `crates/pncad-py/*` is
     # LIB's ground; `work/pydoor/python-has-no-maintenance-net-door`
     # carries the finding.
+    "B-READS": (
+        "what a node reads and what reads it — `Doc::operand_reads` "
+        "(each read a node's operand seats make, as `OperandRead`) and "
+        "`Doc::read_index` (the whole document's reads and read-by, as "
+        "`ReadIndex`), which the viewer's Properties draw as links. "
+        "Python has no node-payload reader, so it cannot compose either "
+        "caller-side. Closing it needs a `Doc.reads(node)` / "
+        "`Doc.read_by(node)` door, `pncad.pyi` entries, and one Python "
+        "row asserting the inverse law on a corpus document "
+        "(work/pydoor/python-cannot-ask-what-a-node-reads-or-what-reads-it.md)."
+    ),
     "B-MAINT-NET": (
         "the net of a sequence of accepted edits' maintenance rows — "
         "`MaintenanceNet`, pushed one applied edit at a time and "
@@ -2051,13 +2057,13 @@ FAMILIES: dict[str, str] = {
 #: was real missing surface — the read-back carried the bool and
 #: Python could not read it, so the outward normal was unformable.
 #:
-#: What it binds: `Doc.sketch_on_face(body, face, outline, distance,
-#: spin)` — a body, an opaque face name and an angle — beside
-#: `Evaluation.face_carrier_kind` and `Pose.sense`. The positive form
-#: is `tests/test_face_frame.py`, where the three meet: the sketch's
-#: origin is the pose's, its normal is `sense * axis`, its +x is
-#: `u_ref` turned by the spin about that normal, and the face whose
-#: kind reads `Torus` is the face the sketch refuses.
+#: What it binds: `Doc.draw_on_face(body, face, outline, ...)` — a
+#: body, an opaque face name, and the chart's orientation, spin and
+#: slides — beside `Evaluation.face_carrier_kind` and `Pose.sense`.
+#: The positive form is `tests/test_face_frame.py`, where the three
+#: meet: the sketch's normal is `sense * axis`, its axes are the
+#: nearest orientation's turned by the spin about that normal, and the
+#: face whose kind reads `Torus` is the face the sketch refuses.
 #: **B-NOTATION is CLOSED and no longer a `gap` id here**
 #: (LIB-B-NOTATION), and it is the first family whose roster was
 #: HONEST about its own entries: it cited two names, `WrittenLength`
@@ -2452,6 +2458,8 @@ NOT_BOUND = {
     # `StrandedSelection` a selection's, `StrandedAppearance` the
     # appearance store's), so the carrier is never a separate value.
     "NameCarrier": SHAPE,
+    "OperandRead": f"{GAP}: B-READS one read a node's operand seat makes, and the node it reaches",
+    "ReadIndex": f"{GAP}: B-READS the whole document's reads and read-by, built in one walk",
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
@@ -2671,6 +2679,16 @@ NOT_BOUND = {
     # the same reason, and its fault.
     "resolve_written_loops": INTERIOR,
     "WrittenLoopFault": INTERIOR,
+    # The face's chart read before anything is drawn there, and the
+    # orientation it writes nearest the face with why none reads: the
+    # viewer's trace preview, for the same reason. A chart seats only a
+    # profile's frame (`face_chart_unseated` anywhere else), and
+    # `Doc.draw_on_face` writes it, with the nearest orientation where
+    # `orient=None`; a face that reads no orientation is the chart's own
+    # refusal at `evaluate`.
+    "chart_on_face": INTERIOR,
+    "nearest_to_face": INTERIOR,
+    "FaceUnread": INTERIOR,
     "v2": SHAPE,
     "v3": SHAPE,
     "write_step": SHAPE,
@@ -3388,16 +3406,6 @@ NOT_BOUND = {
     # kernel-side: the door exists, succeeds, and answers a closed
     # four-variant tag.
     "edge_carrier_kind": f"{GAP}: B-EDGE-KIND the named edge's stored carrier tag",
-    # --- gap: a profile drawn on a face -----------------------------
-    # The editor-core door landed with DOCTAIL's face-chart unit; its
-    # Python binding is the pydoor unit that retires `Doc.sketch_on_face`
-    # for it.
-    "draw_on_face": f"{GAP}: B-DRAW-ON-FACE the drawn-on-face door",
-    "DrawnOnFace": f"{GAP}: B-DRAW-ON-FACE the door's outcome",
-    "OnFace": f"{GAP}: B-DRAW-ON-FACE where the profile stands on the face",
-    "chart_on_face": f"{GAP}: B-DRAW-ON-FACE the chart the door draws on, read before drawing",
-    "FaceUnread": f"{GAP}: B-DRAW-ON-FACE why no orientation reads off a face",
-    "nearest_to_face": f"{GAP}: B-DRAW-ON-FACE the orientation the door writes",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a
@@ -3509,6 +3517,7 @@ NOT_BOUND = {
     "Stackup": SHAPE,
     "StackupRefusal": SHAPE,
     "Unavailable": SHAPE,
+    "Unsettled": SHAPE,
     "WorstCase": SHAPE,
     "assertion_at": SHAPE,
     "drive": SHAPE,
@@ -3578,6 +3587,10 @@ MEMBERS_BOUND_AS = {
     # --- an interference finding's overlap and quieting assertion ---
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
+    # A reference that is a cell crosses flat: the body read beside the
+    # entity's name and the pose read off it, `name` being `None` on
+    # the other arm.
+    "QuietingRef::Entity": ("QuietingRef.name", "QuietingRef.pose"),
     # --- a one-of subject spelled as its arms' attributes ---------
     # A finding is about one placement output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.
@@ -4122,7 +4135,6 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SolidWithoutShells": "ValidationFinding.variant",
     "ValidationError::ShellWithoutFaces": "ValidationFinding.variant",
     "ValidationError::EdgeAcrossShells": "ValidationFinding.variant",
-    "ValidationError::ComponentEulerViolation": "ValidationFinding.variant",
     "ValidationError::MissingProvenance": "ValidationFinding.variant",
     "ValidationError::LeakedProvenance": "ValidationFinding.variant",
     "ValidationError::ScaffoldingEmptyLoop": "ValidationFinding.variant",
@@ -4254,6 +4266,10 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     # "read_failed"`, `"read_poisoned"`, `"unknown_node"`), with its
     # node as `node`.
     "ProductError::Read": "ProductError.read",
+    # The arm's PAYLOAD: the variable the measure reads as it is. The
+    # same getter answers the body read on the `Entity` arm, and `name`
+    # being `None` is what says which arm it is.
+    "QuietingRef::Read": "QuietingRef.read",
 }
 
 #: Members with no Python spelling at all, by family — `NOT_BOUND`'s three

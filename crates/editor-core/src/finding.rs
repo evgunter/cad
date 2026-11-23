@@ -48,7 +48,7 @@ pub(crate) trait Finding {
     /// where one exists.
     fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
     /// The one recourse, or `""` when the story already carries it.
-    fn recourse(&self) -> &str;
+    fn recourse(&self) -> std::borrow::Cow<'_, str>;
 }
 
 /// The one composition: `subject: story — recourse` (the recourse
@@ -61,7 +61,7 @@ pub(crate) fn compose<F: Finding + ?Sized>(f: &mut fmt::Formatter<'_>, finding: 
     let recourse = finding.recourse();
     if !recourse.is_empty() {
         f.write_str(" — ")?;
-        f.write_str(recourse)?;
+        f.write_str(&recourse)?;
     }
     Ok(())
 }
