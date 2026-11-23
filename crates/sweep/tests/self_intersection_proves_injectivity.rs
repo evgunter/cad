@@ -1650,7 +1650,8 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
 // ------------------------------------------- a face across its seam
 
 /// **A cylinder face across its chart's seam, pierced by a planar face
-/// it shares an edge with, never `Holds`.** The wall is the unit
+/// it shares an edge with, is construction state the question is not
+/// asked of.** The wall is the unit
 /// cylinder over `u ∈ [β, α + 2π]`, `β = 4`, `α = 0.2`, so its chart
 /// window crosses `u = 0`. A planar flap hangs off its `α` strut along
 /// the chord toward the ruling at `u = 5` and past it: the flap crosses
@@ -1665,7 +1666,7 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
 /// is presented on the one sheet of its own span a cell meets, and a
 /// cell that meets two is split, so the crossing is reached.
 #[test]
-fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
+fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_is_not_asked() {
     fn pierced<T: Scalar>() -> (Body<T>, FaceKey, FaceKey) {
         use geom_brep::EdgeCurveSpec;
         use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
@@ -1761,26 +1762,27 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
         topo::mint_pcurves(&mut body, tol()).unwrap();
         (body, wall, flap)
     }
-    let (body, wall, flap) = pierced::<f64>();
-    let report = injective(&body, Some(vec![wall, flap]), BUDGET);
-    let (twin, tw, tf) = pierced::<Interval>();
-    same_class(
-        "the seam-crossing wall and its flap",
-        &report,
-        &injective(&twin, Some(vec![tw, tf]), BUDGET),
-    );
-    println!(
-        "[selfx] the seam-crossing wall and its flap: {:?} {:?}",
-        report.verdict, report.receipt
-    );
-    assert!(
-        !matches!(report.verdict, BoundVerdict::Holds),
-        "the flap crosses the wall at u = 5: {:?} {:?}",
-        report.verdict,
-        report.receipt
-    );
-    if let BoundVerdict::Violated(w) = &report.verdict {
-        assert!(w.d < 1e-9, "a coincidence: {w:?}");
+    // The question takes tier 3's facts, and this sheet and its flap are
+    // construction state tier 3's local battery refuses (the wall's
+    // scaffold struts, the flap's edges with no description on both
+    // sides), so the pair is not asked at either scalar. The
+    // presentation the body was built to reach is held where it is read:
+    // `injective::presentation_rows`'
+    // `a_cell_across_the_seam_is_not_presented_in_either_order` and
+    // `each_side_of_the_seam_presents_its_own_part_in_both_orders`.
+    fn refused<T: Scalar>() -> Vec<topo::ValidationError> {
+        let (body, _, _) = pierced::<T>();
+        topo::geometric(&body, tol())
+            .err()
+            .expect("tier 3's local battery refuses the pierced sheet")
+    }
+    for (scalar, findings) in [("f64", refused::<f64>()), ("Interval", refused::<Interval>())] {
+        assert!(
+            findings
+                .iter()
+                .any(|f| matches!(f, topo::ValidationError::ScaffoldAtRest { .. })),
+            "at {scalar}: the wall's struts are scaffolding at rest: {findings:?}"
+        );
     }
 }
 
