@@ -1323,6 +1323,13 @@ fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
 /// point of the box's arc, so no triangle of either face toward the other
 /// is all circle points. It meshes positive, at 0.238 of the body's
 /// (main's 0.656), and nothing splits.
+///
+/// **The foot's witnesses**, pinned as measured: three-face caps toward
+/// latitude 68° (azimuth 0°, height 0.03, δ 0.1) and 70° (azimuth 20°,
+/// height 0.05, δ 1 and 0.3), where a side both faces make is split beside
+/// a triangle the pair trigger does not cover. Split at the sphere's chart
+/// midpoint a piece folds and the face refuses `FoldedTriangle`; at the
+/// foot each meshes, at 0.656 and 0.582 of the body's volume.
 #[test]
 fn a_cap_thinner_than_delta_encloses_its_volume() {
     let box_ = finished(
@@ -1379,6 +1386,23 @@ fn a_cap_thinner_than_delta_encloses_its_volume() {
         }
     }
     assert_eq!(cells, 30, "the cells this row reads");
+    // THE FOOT'S WITNESSES: caps reaching toward the pole that also meet
+    // the box's face. A side both faces make is split there, beside a
+    // triangle the pair trigger does not cover; split at the sphere's
+    // chart midpoint, a piece folds and the face refuses `FoldedTriangle`;
+    // at the foot it meshes.
+    for (lat, az, h, delta, measured) in [
+        (68.0, 0.0, 3e-2, 0.1, 0.656),
+        (70.0, 20.0, 5e-2, 1.0, 0.582),
+        (70.0, 20.0, 5e-2, 0.3, 0.582),
+    ] {
+        let what = format!("the three-face cap of height {h} toward latitude {lat}, azimuth {az}");
+        let ratio = enclosed(&what, &cap(lat, az, h), delta);
+        assert!(
+            (ratio - measured).abs() < 5e-4,
+            "{what}, δ {delta}: meshes at its measured {measured} of the body's, got {ratio}"
+        );
+    }
     let ratio = enclosed("the three-face cap", &cap(45.0, 300.0, 3e-2), 0.3);
     assert!(
         (ratio - 0.238).abs() < 5e-4,
