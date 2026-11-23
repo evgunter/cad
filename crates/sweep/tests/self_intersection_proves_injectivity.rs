@@ -4345,51 +4345,125 @@ fn a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints() {
     );
 }
 
+/// The edges of `f`'s loops.
+fn edges_of<T: Real>(body: &Body<T>, f: FaceKey) -> BTreeSet<topo::EdgeKey> {
+    body.face(f)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
+        .flat_map(|l| match body.get_loop(l).unwrap().boundary {
+            LoopBoundary::Empty { .. } => Vec::new(),
+            LoopBoundary::Cycle { first } => body
+                .loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .map(|he| body.get_half_edge(he).unwrap().edge)
+                .collect(),
+        })
+        .collect()
+}
+
 /// **The same bodies at `Interval`**, the scalar the shell gate and the
-/// document door ask at, as built. What is asserted, and no more: of
-/// the support planes asked alone against a corner patch they touch, no
-/// pair is refused across an edge (their arc), and at least one pair is
-/// `Embedded`; a pair may read something else (a vertex alone, a
-/// budget), and no exit is named. The whole bodies do not hold: each
-/// refuses on a pair this reading does not touch, a finding and not a
-/// target
-/// (`work/embed/three-fillet-bodies-embedded-at-f64-refuse-at-interval-on-pairs-untraced.md`),
-/// so the row reads no one verdict class at both scalars. Which pair
-/// the door names first moves with ε and the build, so the row pins
-/// only that the body is not read `Embedded`, and prints what it reads.
+/// document door ask at, as built: every support plane asked alone
+/// against a corner patch it shares an arc with.
 ///
-/// Red if the run reads at `f64` only (a plane against a patch then
-/// refuses across an edge), or when the findings close: the pin then
-/// moves to `Embedded`.
+/// **The inset corner**: each such pair is `Embedded`.
+///
+/// **The rounded plate: each such pair is refused, and this half holds
+/// the refusal's exit only.** A cap and a patch are tangent along their
+/// arc, and since the sliver was retired nothing reads a pair tangent
+/// along a shared curve at `Interval`: the departure's sine straddles
+/// zero at the arc's mid cells down to the depth floor
+/// (`work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`,
+/// P0, this pair its third sighting; the joint's cells decide, traced
+/// there). Pinned exactly: no such pair is `Embedded`; each is refused
+/// `Uncertified`, arm `Departure`, across an edge, its two faces a
+/// plane and a torus, or by the depth budget on those two faces (which
+/// of the two a pair reads moves with ε); and at least one reads the
+/// first. **The pin flips to holding the day a tangent seam is read at
+/// `Interval`**: it then goes red and moves to `Embedded`. It does not
+/// go red if the run through the vertex is withdrawn (the pair then
+/// refuses at the same exit, earlier, at the joint): the `f64` row
+/// above and `injective`'s unit rows are what hold the run.
+///
+/// The whole bodies do not hold either, on pairs this reading does not
+/// touch
+/// (`work/embed/three-fillet-bodies-embedded-at-f64-refuse-at-interval-on-pairs-untraced.md`):
+/// pinned as refused, and printed.
 #[test]
 fn a_support_face_c1_through_a_vertex_at_interval() {
-    for (what, body) in [
-        ("the inset corner", inset_filleted::<Interval>()),
-        ("the rounded plate", rounded_plate::<Interval>()),
+    use topo::clearance::{CellBudget, CertificateArm, Embedding, embedded};
+    for (what, body, holds) in [
+        ("the inset corner", inset_filleted::<Interval>(), true),
+        ("the rounded plate", rounded_plate::<Interval>(), false),
     ] {
         let Some(body) = body else {
             continue;
         };
-        let mut held = 0;
+        let (mut asked, mut at_the_exit) = (0, 0);
         for (a, b) in touching_pairs(&body) {
             let mut kinds = [kind(&body, a), kind(&body, b)];
             kinds.sort_unstable();
-            if kinds != ["plane", "torus"] {
+            if kinds != ["plane", "torus"] || edges_of(&body, a).is_disjoint(&edges_of(&body, b)) {
                 continue;
             }
-            let class = door_over::<Interval>(&body, vec![a, b]);
-            assert!(
-                !class.ends_with("across an edge"),
-                "{what} at Interval: a plane against a patch across their arc: {class}"
+            asked += 1;
+            let verdict = embedded(
+                &Side {
+                    body: &*body,
+                    faces: vec![a, b],
+                },
+                band(),
+                Budgets {
+                    max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                    max_cell_pairs: BUDGET,
+                },
+            )
+            .verdict;
+            let these = |x: FaceKey, y: FaceKey| (x, y) == (a, b) || (x, y) == (b, a);
+            if holds {
+                assert!(
+                    matches!(verdict, Embedding::Embedded),
+                    "{what} at Interval: a plane against a patch across their arc: {verdict:?}"
+                );
+                continue;
+            }
+            let exit = matches!(
+                &verdict,
+                Embedding::Refused(EngineRefusal::Uncertified {
+                    a: x,
+                    b: y,
+                    shared: SharedCell::Edge(_),
+                    arm: CertificateArm::Departure,
+                }) if these(*x, *y)
             );
-            held += usize::from(class == "Embedded");
+            let depth = matches!(
+                &verdict,
+                Embedding::Refused(EngineRefusal::Budget {
+                    stop: CellBudget::Depth { .. },
+                    a: x,
+                    b: y,
+                }) if these(*x, *y)
+            );
+            assert!(
+                exit || depth,
+                "{what} at Interval: a plane against a patch tangent along their arc is refused \
+                 at the tangent seam's exit: {verdict:?}"
+            );
+            at_the_exit += usize::from(exit);
         }
         assert!(
-            held > 0,
-            "{what} at Interval: a plane holds against a patch"
+            asked > 0,
+            "{what} at Interval: no plane shares an arc with a patch"
+        );
+        assert!(
+            holds || at_the_exit > 0,
+            "{what} at Interval: no pair reads `Uncertified Departure` across its arc"
         );
         let whole = door_class::<Interval>(&body);
-        println!("[tangent] {what} at Interval, whole: {whole}");
+        println!(
+            "[tangent] {what} at Interval: {asked} pairs, {at_the_exit} at the exit; whole: {whole}"
+        );
         assert!(
             whole.starts_with("Uncertified") || whole.starts_with("Refused"),
             "{what} at Interval, whole: refused on another pair, not {whole}"
