@@ -2,10 +2,12 @@
 id: main-red-the-kite-moats-digest-moved-in-value-at-pr-7411
 kind: issue
 title: Main red: the kite moat's evaluation digest moved in value at PR 7411's re-posed plane offset, after PR 7131 respelled it
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: E
+closed: 2026-11-23
+pr: 7597
 ---
 
 
