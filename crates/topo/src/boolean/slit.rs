@@ -463,7 +463,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         // A zero-area ring in a curved face is not measured, so the
         // parting refuses on any face it would part that is no plane.
         let plane =
-            |f: FaceKey| matches!(body.proven_face(f).described(), geom::Surface::Plane { .. });
+            |f: FaceKey| matches!(body.proven_face(f).expect_described(), geom::Surface::Plane { .. });
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
             return Err(BooleanError::EdgeInFace {
                 edge,
@@ -1356,7 +1356,7 @@ pub(super) fn carrier_on_surface<T: Decide>(
     f: FaceKey,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    let surface = body.proven_face(f).described();
+    let surface = body.proven_face(f).expect_described();
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
@@ -2030,7 +2030,7 @@ fn walls_inside<T: Decide>(
         // Bent alike, the wall's sheet and the floor's are one to the
         // order read ([`coplanar_wall_inside`]).
         let coplanar = || coplanar_wall_inside(normal, floor, arm, band, refused);
-        let surface = |face: FaceKey| body.proven_face(face).described();
+        let surface = |face: FaceKey| body.proven_face(face).expect_described();
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
             Margin::levered(into.dot(floor), arm),
@@ -2122,7 +2122,7 @@ fn spline_floor<T: Decide>(
     band: Band,
 ) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
     use crate::face_normal::{NormalAtError, SplineNormalError};
-    let chart = body.proven_face(f).described();
+    let chart = body.proven_face(f).expect_described();
     if chart.spline_chart().is_none() {
         return Ok(None);
     }
@@ -3372,7 +3372,7 @@ mod spline_rider {
         );
         crate::test_support_fixtures::describe_as_intersections(&mut keel_body, tol);
         crate::instance::graft_disjoint(&mut body, &keel_body).unwrap();
-        let normal = body.proven_face(face).described().clone();
+        let normal = body.proven_face(face).expect_described().clone();
         assert!(
             matches!(normal, geom::Surface::Plane { frame, .. }
                 if (frame.origin().x - 1.0).abs() < 1e-12 && frame.axis().x.abs() > 0.99),

@@ -793,7 +793,7 @@ class ReadbackError(PncadError):
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
     under its OWN tags rather than a wrapper tag (`dangling_entity`,
-    `no_canonical_frame`, `no_carrier`). `dangling_entity` is a stale
+    `no_canonical_frame`, `no_carrier`, `pending_surface`). `dangling_entity` is a stale
     or foreign handle.
 
     `ambiguous` is the one to read twice: a tie is a naming success

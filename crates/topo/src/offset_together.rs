@@ -513,7 +513,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         let Surface::Plane {
             frame: carrier_frame,
             ..
-        } = face.described().clone()
+        } = face.expect_described().clone()
         else {
             unreachable!("{first:?}'s chart was read a plane in this call's plan phase")
         };

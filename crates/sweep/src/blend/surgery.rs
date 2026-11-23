@@ -279,10 +279,25 @@ pub(super) fn disagrees(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::BodyNotIntact { at, breach, detail }
 }
 
+/// **Row 1**, a face's surface that did not resolve at `face`: a stale
+/// key is [`unresolved`], and a pending surface slot is construction
+/// [`scaffolding`], each naming `detail`.
+pub(super) fn surface_missed(
+    face: FaceKey,
+    miss: topo::SurfaceMiss,
+    detail: &'static str,
+) -> BlendError {
+    match miss {
+        topo::SurfaceMiss::Stale => unresolved(EntityId::Face(face), detail),
+        topo::SurfaceMiss::Pending => scaffolding(EntityId::Face(face), detail),
+    }
+}
+
 /// **Row 1**, construction scaffolding at `at`: an edge with no
-/// certified carrier, or a lone-vertex cycle. Tier 2 refuses both at
-/// rest, so the build doors never reach it; a direct battery caller
-/// ([`super::battery::run_battery_for`]) reads a raw body and does.
+/// certified carrier, a lone-vertex cycle, or a face with no surface
+/// yet. Tiers 2 and 3 refuse all three at rest, so the build doors never
+/// reach it; a direct battery caller ([`super::battery::run_battery_for`])
+/// reads a raw body and does.
 pub(super) fn scaffolding(at: EntityId, detail: &'static str) -> BlendError {
     let breach = Breach::Scaffolding;
     BlendError::BodyNotIntact { at, breach, detail }
@@ -1443,7 +1458,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let is_plane_surface = |k: SurfaceKey| -> Result<bool, BlendError> {
         let s = body
             .get_surface(k)
-            .map_err(|_| unresolved(EntityId::Face(link0.face_a), "a rim support's surface"))?;
+            .map_err(|miss| surface_missed(link0.face_a, miss, "a rim support's surface"))?;
         Ok(matches!(s, Surface::Plane { .. }))
     };
     let host_surface = if second_support_is_host(is_plane_surface(ka)?, is_plane_surface(kb)?) {

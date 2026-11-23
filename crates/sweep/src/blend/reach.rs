@@ -104,7 +104,7 @@ use super::battery::{
     face_clearance_margin, outward, same_supports,
 };
 use super::open::planar::{MixedGeometry, MixedLink, mixed_corner_geometry};
-use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
+use super::surgery::{disagrees, loop_walk, surface_missed, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -903,7 +903,7 @@ fn normal_at<T: Decide>(
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
     body.face_surface(face)
         .cloned()
-        .map_err(|_| unresolved(EntityId::Face(face), "a face's stored surface"))
+        .map_err(|miss| surface_missed(face, miss, "a face's stored surface"))
 }
 
 fn surface_key<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey, BlendError> {

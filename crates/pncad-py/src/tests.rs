@@ -5634,7 +5634,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "readback_error_tag",
-        values: &["dangling_entity", "no_canonical_frame", "no_carrier"],
+        values: &[
+            "dangling_entity",
+            "no_canonical_frame",
+            "no_carrier",
+            "pending_surface",
+        ],
         delegates: &[],
     },
     TagEntry {

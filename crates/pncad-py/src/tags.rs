@@ -2684,6 +2684,7 @@ pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
         ReadbackError::Dangling { .. } => "dangling_entity",
         ReadbackError::NoCanonicalFrame { .. } => "no_canonical_frame",
         ReadbackError::NoCarrier => "no_carrier",
+        ReadbackError::PendingSurface { .. } => "pending_surface",
     }
 }
 

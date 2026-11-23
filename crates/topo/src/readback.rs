@@ -161,6 +161,13 @@ pub enum ReadbackError {
     /// certified carrier — a transient state tier 2 refuses at rest,
     /// surfaced rather than guessed around.
     NoCarrier,
+    /// The face has no surface yet ([`crate::SurfaceMiss::Pending`]) — a
+    /// transient state tier 3 refuses at rest, surfaced rather than
+    /// guessed around.
+    PendingSurface {
+        /// The pending face.
+        face: FaceKey,
+    },
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -187,6 +194,12 @@ impl core::fmt::Display for ReadbackError {
                 "the edge carries null-edge scaffolding rather than a \
                  certified carrier — a transient state tier 2 refuses at rest; \
                  let the body reach rest before reading it back",
+            ),
+            Self::PendingSurface { face } => write!(
+                f,
+                "{} has no surface yet — a transient state tier 3 refuses at \
+                 rest; let the body reach rest before reading it back",
+                EntityId::Face(*face)
             ),
         }
     }
@@ -226,9 +239,10 @@ impl From<CarrierAbsence> for ReadbackError {
 }
 
 /// **A face's carrier surface, as the read-back doors refuse it**:
-/// [`Body::face`]'s [`crate::live::FaceView::surface`], its one refusal (a stale face key) spelled
-/// [`ReadbackError::Dangling`], with the surface's key and the face's
-/// orientation sense read off the record beside it.
+/// [`Body::face`]'s [`crate::live::FaceView::surface`], a stale face key
+/// spelled [`ReadbackError::Dangling`] and a pending face
+/// [`ReadbackError::PendingSurface`], with the surface's key and the
+/// face's orientation sense read off the record beside it.
 pub(crate) fn carrier_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -236,10 +250,9 @@ pub(crate) fn carrier_surface<T: Real>(
     let f = body.face(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
-    // A pending face has no carrier, so no frame.
-    let surface = f.surface().map_err(|_| ReadbackError::NoCanonicalFrame {
-        carrier: "pending surface",
-    })?;
+    let surface = f
+        .surface()
+        .map_err(|_| ReadbackError::PendingSurface { face })?;
     Ok((f.record().surface, surface, f.sense()))
 }
 

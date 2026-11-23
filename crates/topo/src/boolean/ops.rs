@@ -2077,7 +2077,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
     let pad = boxes::sweep_pad(band);
     body.face_views()
         .map(|fd| {
-            let (face, surface) = (fd.key(), fd.described().clone());
+            let (face, surface) = (fd.key(), fd.expect_described().clone());
             let cover = crate::cover::face_cover(body, face, band);
             let bbox = boxes::cover_box(&cover, pad);
             Ok(FaceRow {
@@ -3274,7 +3274,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let (v0, v1) = crate::query::edge_ends(body, edge);
         let p0 = body.linked_vertex_point(v0, EntityId::HalfEdge(sides.plus.half_edge), "start");
         let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.plus.half_edge), "end");
-        let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).described();
+        let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).expect_described();
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
         let existing = body
             .edge_curve_linked(edge, &edge_data)
@@ -5791,7 +5791,7 @@ impl OneRecordTokens {
                     };
                     let subtracts = op == BooleanOp::Subtract;
                     let b_sense = if subtracts {
-                        crate::revert::reverted_sense(fb.described(), fb.sense())
+                        crate::revert::reverted_sense(fb.expect_described(), fb.sense())
                     } else {
                         fb.sense()
                     };
@@ -6018,7 +6018,7 @@ mod refused_faces {
     /// takes the body.
     pub(super) fn kinds<T: Real>(body: &Body<T>) -> Vec<(FaceKey, geom::SurfaceKind)> {
         body.face_views()
-            .map(|face| (face.key(), face.described().kind()))
+            .map(|face| (face.key(), face.expect_described().kind()))
             .collect()
     }
 
@@ -6083,7 +6083,7 @@ pub fn refused_face_kind(e: &BooleanError) -> Option<geom::SurfaceKind> {
 fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
     for view in body.face_views() {
         let face = view.key();
-        let geom::Surface::Cone { frame, .. } = *view.described() else {
+        let geom::Surface::Cone { frame, .. } = *view.expect_described() else {
             continue;
         };
         let (apex, axis) = (frame.origin(), frame.axis());
@@ -6309,7 +6309,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let mut seen: Vec<SurfaceKey> = Vec::new();
         for view in x.face_views() {
             let face = view.key();
-            let x_surface = view.described();
+            let x_surface = view.expect_described();
             let &geom::Surface::Sphere { frame, radius } = x_surface else {
                 continue;
             };
@@ -7244,11 +7244,11 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let sign_as = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
         let face = body.proven_face(cut.face);
         let sphere = face.record().surface;
-        let &geom::Surface::Sphere { frame, .. } = face.described() else {
+        let &geom::Surface::Sphere { frame, .. } = face.expect_described() else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
         let axis = frame.axis();
-        let record = geom_brep::curve_pair::on_surface::Charted::record(sphere, face.described());
+        let record = geom_brep::curve_pair::on_surface::Charted::record(sphere, face.expect_described());
         let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
@@ -10622,7 +10622,7 @@ mod tests {
                 },
             )
             .unwrap();
-        let &geom::Surface::Sphere { frame, radius, .. } = capped.proven_face(top).described()
+        let &geom::Surface::Sphere { frame, radius, .. } = capped.proven_face(top).expect_described()
         else {
             panic!("the cap's carrier is the sphere");
         };

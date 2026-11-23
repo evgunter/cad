@@ -1479,8 +1479,8 @@ pub enum Breach {
     /// touch, a chain across two shells.
     Disagrees,
     /// The entity is construction scaffolding a finished body does not
-    /// hold: an edge with no certified carrier (a null edge), or a
-    /// lone-vertex cycle. The one breach with a way through, and it is
+    /// hold: an edge with no certified carrier (a null edge), a
+    /// lone-vertex cycle, or a face with no surface yet. The one breach with a way through, and it is
     /// the advice every door gives an operand with scaffolding at rest
     /// ([`topo::SCAFFOLDING_RECOURSE`]): a direct battery
     /// caller hands in a body no door gated.

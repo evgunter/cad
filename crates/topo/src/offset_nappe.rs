@@ -234,7 +234,7 @@ pub fn group_nappe<T: Decide>(
                 Err(e) => return Err(e),
             };
             let view = body.proven_face(face);
-            let Some(axis) = view.described().axis_line() else {
+            let Some(axis) = view.expect_described().axis_line() else {
                 unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
             };
             let (station_min, station_max) = corner_stations(body, view, axis);

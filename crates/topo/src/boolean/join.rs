@@ -316,7 +316,7 @@ fn keyed_surface<T: geom_core::Real>(
     face: FaceKey,
 ) -> (crate::geometry::SurfaceKey, &geom::Surface<T>) {
     let face = body.proven_face(face);
-    (face.record().surface, face.described())
+    (face.record().surface, face.expect_described())
 }
 
 /// **A segment's germ face pair, as [`bool_connect`] reads it** before

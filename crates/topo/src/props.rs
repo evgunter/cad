@@ -1490,7 +1490,7 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
     for run in runs {
         let face = body.proven_face(run.face);
         let loops = face_loops(body, face.record())?;
-        let surface = face_anchored(face.described(), &loops);
+        let surface = face_anchored(face.expect_described(), &loops);
         let c = run.about.point();
         let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
         let anchor = match surface {
@@ -1685,7 +1685,7 @@ fn rederive_faces<T: geom_core::Certifies>(
     let mut quadrature = false;
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.described();
+        let surface = face.expect_described();
         #[cfg(any(test, feature = "test-support"))]
         read_points::note(
             body,
@@ -1787,7 +1787,7 @@ fn lifted_closed_form<T: geom_core::Certifies>(
         |surface, loops, points, same_sense, band, about, cap| {
             (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
         },
-        face.described(),
+        face.expect_described(),
         &face_loops(body, face.record())?,
         &face_tips(body, face.record())?,
         face.sense(),
@@ -1837,7 +1837,7 @@ fn shell_polygons<T: geom_core::Certifies>(
     let mut polygons = Vec::with_capacity(runs.len());
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.described();
+        let surface = face.expect_described();
         match (
             vertex_rings(body, surface, &flat_loops(body, face.record())?, lane)?,
             surface,
@@ -3723,7 +3723,7 @@ pub fn closed_form_reads<T: CertifiedPolicy + geom_core::CertifiedBounds>(
         |(flux, area): (Interval, Interval)| [(flux.lo(), flux.hi()), (area.lo(), area.hi())];
     let mut reads = Vec::new();
     for run in &walked.runs {
-        let surface = body.proven_face(run.face).described();
+        let surface = body.proven_face(run.face).expect_described();
         if run.contribution.enclosure.is_some() || matches!(surface, Surface::Plane { .. }) {
             continue;
         }
@@ -4007,7 +4007,7 @@ pub fn quadrature_rounds(
             round = run.next_round();
         }
         if quadrature {
-            rounds.push((face, body.proven_face(face).described().kind(), met));
+            rounds.push((face, body.proven_face(face).expect_described().kind(), met));
         }
     }
     Ok(rounds)

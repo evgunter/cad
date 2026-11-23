@@ -3615,7 +3615,7 @@ fn root_outward<T: Decide>(
                     "bool_ray_cone_incidence",
                     Margin::levered(
                         d.dot(chart_normal(body, face, p)?),
-                        geom_brep::curvature_lever_arm(body.proven_face(face).described(), p),
+                        geom_brep::curvature_lever_arm(body.proven_face(face).expect_described(), p),
                     ),
                     band,
                 )
@@ -3629,7 +3629,7 @@ fn root_outward<T: Decide>(
                     "bool_ray_torus_incidence",
                     Margin::levered(
                         d.dot(chart_normal(body, face, p)?),
-                        geom_brep::uniform_curvature_arm(body.proven_face(face).described()),
+                        geom_brep::uniform_curvature_arm(body.proven_face(face).expect_described()),
                     ),
                     band,
                 )
@@ -3653,7 +3653,7 @@ fn chart_normal<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, RayFault<PointInSolidError>> {
     Ok(geom_brep::implicit_gradient(
-        body.proven_face(face).described(),
+        body.proven_face(face).expect_described(),
         p,
     ))
 }
@@ -3680,7 +3680,7 @@ fn reach_margin<T: Decide>(
     root: T,
 ) -> Result<T, RayFault<PointInSolidError>> {
     let geom::Line { origin: q, dir: d } = ray.line();
-    let surface = body.proven_face(face).described();
+    let surface = body.proven_face(face).expect_described();
     let (at, passage) = (q + d * root, q + d * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
     let n = chart_normal(body, face, at)?;

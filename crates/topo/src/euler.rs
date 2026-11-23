@@ -5767,7 +5767,9 @@ mod tests {
         let weights = vec![1.0; control.len()];
         let patch = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
         assert!(patch.is_finite());
-        assert!(body.describe_slot_for_tests(s_seed, geom::Surface::Nurbs(std::sync::Arc::new(patch))));
+        assert!(
+            body.describe_slot_for_tests(s_seed, geom::Surface::Nurbs(std::sync::Arc::new(patch)))
+        );
         *body.surface_mut(s_plus).unwrap() = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),

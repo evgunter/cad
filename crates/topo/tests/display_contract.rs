@@ -54,14 +54,14 @@ const CONTACT_REFUSAL_FIELDS: &[&str] = &["diag:", "what:"];
 
 test_utils::f6_variants! {
     /// [`ReadbackError`]'s census — see [`CONTACT_REFUSAL`].
-    const READBACK_ERROR: ReadbackError = [Dangling, NoCanonicalFrame, NoCarrier];
+    const READBACK_ERROR: ReadbackError = [Dangling, NoCanonicalFrame, NoCarrier, PendingSurface];
 }
 
 /// Every `Debug` field name [`ReadbackError`]'s payloads carry, and
 /// what that is worth — see [`CONTACT_REFUSAL_FIELDS`]. `NoCarrier` is
 /// a UNIT variant, so its dump carries no brace and its whole
 /// fingerprint is the identifier the roster above holds.
-const READBACK_ERROR_FIELDS: &[&str] = &["what:", "carrier:"];
+const READBACK_ERROR_FIELDS: &[&str] = &["what:", "carrier:", "face:"];
 
 /// Every arm names the contact situation and carries the TWO-arm
 /// menu — except `NotCertifiable`, where a declaration cannot move the
@@ -111,6 +111,12 @@ fn readback_error_display_names_its_content_not_its_struct() {
         (
             ReadbackError::NoCarrier,
             vec!["scaffolding", "at rest", "reach rest"],
+        ),
+        (
+            ReadbackError::PendingSurface {
+                face: topo::FaceKey::default(),
+            },
+            vec!["no surface yet", "at rest", "reach rest"],
         ),
     ];
     assert_f6_every_variant(&cases, &READBACK_ERROR, &[], READBACK_ERROR_FIELDS);

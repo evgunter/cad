@@ -514,7 +514,7 @@ impl<'a, T: Real> FaceView<'a, T> {
     ///
     /// On a pending slot.
     #[track_caller]
-    pub(crate) fn described(self) -> &'a Surface<T> {
+    pub(crate) fn expect_described(self) -> &'a Surface<T> {
         self.surface().unwrap_or_else(|_| {
             unreachable!(
                 "{} is pending at a reader of finished bodies: tier 3 refuses a pending \

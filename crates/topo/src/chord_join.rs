@@ -2416,7 +2416,7 @@ fn chord_spec<T: Decide>(
     let wall_key = view.record().surface;
     // The surface is a link of the face the join divides, mid-operation
     // ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one is not curved.
-    if let geom::Surface::Plane { .. } = view.described() {
+    if let geom::Surface::Plane { .. } = view.expect_described() {
         // The boolean's planar-side chord of a curved germ pair
         // takes its own lane (M5 PR 9); every other lane keeps
         // the straight chord BIT-IDENTICALLY.
@@ -2635,7 +2635,7 @@ pub(crate) fn cone_apex_plane_section<T: Decide>(
 ) -> Result<geom_brep::PlaneConeSection<T>, JoinError> {
     let wall = body
         .face(face)
-        .map(|f| f.described().clone())
+        .map(|f| f.expect_described().clone())
         .ok_or_else(|| corrupt_face(face))?;
     let SectionReach::Cone(reach) = section_reach(body, at, face, (&wall, None), band)? else {
         return Err(JoinError::SectionInvariant {
@@ -2683,7 +2683,7 @@ pub(crate) fn wall_section<T: Decide>(
 ) -> Result<Option<WallSection<T>>, JoinError> {
     let wall = body
         .face(face)
-        .map(|f| f.described())
+        .map(|f| f.expect_described())
         .cloned()
         .ok_or_else(|| corrupt_face(face))?;
     match wall {
@@ -3790,7 +3790,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
 ) -> Result<Result<Sign, Indeterminate>, JoinError> {
     let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let sense = view.sense();
-    let surface = view.described().clone();
+    let surface = view.expect_described().clone();
     let WallChart {
         origin: centre,
         axis,
@@ -4273,7 +4273,7 @@ impl<T: Decide> IslandReading<T> {
         let surface = body
             .face(face)
             .ok_or_else(|| corrupt_face(face))?
-            .described();
+            .expect_described();
         let carrier = Carrier::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         Ok((surface, carrier))
     }
@@ -4290,7 +4290,7 @@ impl<T: Decide> IslandReading<T> {
         band: Band,
     ) -> Result<Result<Self, Indeterminate>, JoinError> {
         let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
-        let unread = || ring_island_unread(face, view.described());
+        let unread = || ring_island_unread(face, view.expect_described());
         let outward = match &carrier {
             Carrier::Quadric(quadric) => {
                 match quadric.off_apex(q, band) {
@@ -4303,7 +4303,7 @@ impl<T: Decide> IslandReading<T> {
             Carrier::Wall(wall) => wall.outward(q, view.sense()).ok_or_else(unread)?,
         };
         Ok(Ok(Self {
-            surface: view.described().clone(),
+            surface: view.expect_described().clone(),
             carrier,
             arcs,
             q,
@@ -5255,7 +5255,7 @@ pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
     let surface = body
         .face(oldf)
         .ok_or_else(|| corrupt_face(oldf))?
-        .described();
+        .expect_described();
     match LoopSide::of(surface).ok_or_else(|| ring_island_unread(oldf, surface))? {
         LoopSide::Planar => {
             let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
@@ -5618,7 +5618,7 @@ impl ChordJoiner {
             LoneRing::Pierce => {
                 let surface = body
                     .face(oldf)
-                    .map(|f| f.described())
+                    .map(|f| f.expect_described())
                     .ok_or_else(|| corrupt_face(oldf))?;
                 if !reads_loop_side(surface) {
                     return Err(invariant(
@@ -5717,7 +5717,7 @@ impl ChordJoiner {
         let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
         let surface = body
             .face(oldf)
-            .map(|f| f.described())
+            .map(|f| f.expect_described())
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
         // How a ring's side is read: off the plane, or by a path on a
@@ -5836,7 +5836,7 @@ fn face_plane_normal<T: Decide>(
     // Corruption and an unwired arm are different refusals.
     match body
         .face(face)
-        .map(|f| f.described())
+        .map(|f| f.expect_described())
         .ok_or_else(|| corrupt_face(face))?
     {
         geom::Surface::Plane { frame, .. } => {

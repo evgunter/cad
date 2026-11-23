@@ -1105,8 +1105,15 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
-    let sa = body.face_surface(face_a).map_err(|_| broken())?.clone();
-    let sb = body.face_surface(face_b).map_err(|_| broken())?.clone();
+    let surface = |face: FaceKey| {
+        body.face_surface(face).cloned().map_err(|miss| match miss {
+            topo::SurfaceMiss::Stale => broken(),
+            topo::SurfaceMiss::Pending => {
+                super::surgery::surface_missed(face, miss, "a link's support face")
+            }
+        })
+    };
+    let (sa, sb) = (surface(face_a)?, surface(face_b)?);
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
     // It is the edge's wedge read whole, as tier 3 reads it: every

@@ -101,7 +101,8 @@ fn verdict_of<T: Decide>(
 /// **An edge's wedge** (module docs), levered at its faces' extent
 /// ([`crate::edge_wedge_reach`]), read by a reader that reads its side
 /// (its sign and end recorded as choices). `None` where the edge carries no
-/// certified curve or a record on the way does not resolve.
+/// certified curve, a record on the way does not resolve, or a face of
+/// the edge has no surface yet.
 #[must_use]
 pub fn edge_wedge<T: Decide>(
     body: &Body<T>,

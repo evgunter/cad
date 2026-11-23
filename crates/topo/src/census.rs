@@ -2806,8 +2806,7 @@ fn wedges_overlap<P, W, D>(
 /// `None` folds in with a spline chart's, told apart where a refusal
 /// names its cause.
 fn is_pending<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
-    body.face(face)
-        .is_some_and(|f| f.slot().is_pending())
+    body.face(face).is_some_and(|f| f.slot().is_pending())
 }
 
 /// `e`'s material wedge ([`line_wedges`]), its sheets read at `at`, a
@@ -6736,7 +6735,7 @@ fn curved_same_side_pairs<T: Decide>(
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
 ) -> CurvedSameSide {
-    let surface = |f: FaceKey| body.face_surface(f).ok();
+    let surface = |f: FaceKey| body.face(f)?.surface().ok();
     let kind = |f: FaceKey| {
         surface(f)
             .filter(|s| geom_brep::carrier_eq::exact_curved(s))

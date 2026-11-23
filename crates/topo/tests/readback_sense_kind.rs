@@ -163,14 +163,14 @@ fn face_carrier_kind_refuses_dangling_and_pending_and_nothing_else() {
     let seed = bare
         .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
-    assert!(matches!(
-        face_pose(&bare, seed.face),
-        Err(ReadbackError::NoCanonicalFrame { .. })
-    ));
-    assert!(matches!(
+    assert_eq!(
+        face_pose(&bare, seed.face).err(),
+        Some(ReadbackError::PendingSurface { face: seed.face })
+    );
+    assert_eq!(
         face_carrier_kind(&bare, seed.face),
-        Err(ReadbackError::NoCanonicalFrame { .. })
-    ));
+        Err(ReadbackError::PendingSurface { face: seed.face })
+    );
 }
 
 // ---------------------------------------------------------------------
