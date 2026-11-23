@@ -1,0 +1,49 @@
+DIAG SUMMARY n=200 iso==A [f64, Interval]=[200, 34] iso==B=[88, 23]
+DIAG 0 f64 span=(0.2338017932073546,0.7964687021888409)
+  iso: OK Certificate { samples: 9, max_residual: 1.3211188539434977e-14 }
+  A:   OK Certificate { samples: 9, max_residual: 1.3211188539434977e-14 }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 0 interval span=(0.2338017932073546,0.7964687021888409)
+  iso: OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.3211188539434977e-14, hi: 1.3211188539434977e-14, dec: Com }) }
+  A:   OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.3211188539434977e-14, hi: 1.3211188539434977e-14, dec: Com }) }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 1 f64 span=(0.10643145509962969,0.9708870021542011)
+  iso: OK Certificate { samples: 9, max_residual: 1.175842411042089e-14 }
+  A:   OK Certificate { samples: 9, max_residual: 1.175842411042089e-14 }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 1 interval span=(0.10643145509962969,0.9708870021542011)
+  iso: OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.175842411042089e-14, hi: 1.5364459830641228e-14, dec: Com }) }
+  A:   OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.175842411042089e-14, hi: 1.8551026114548664e-14, dec: Com }) }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 2 f64 span=(0.12918488603623077,0.6513763767236584)
+  iso: OK Certificate { samples: 9, max_residual: 8.859066520769572e-15 }
+  A:   OK Certificate { samples: 9, max_residual: 8.859066520769572e-15 }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 2 interval span=(0.12918488603623077,0.6513763767236584)
+  iso: OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.196632539041927e-14, hi: 1.196632539041927e-14, dec: Com }) }
+  A:   OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 8.859066520769572e-15, hi: 1.6910413304902305e-14, dec: Com }) }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 3 f64 span=(0.4216272111938655,0.5672772545536946)
+  iso: OK Certificate { samples: 9, max_residual: 6.706185580080989e-15 }
+  A:   OK Certificate { samples: 9, max_residual: 6.706185580080989e-15 }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 3 interval span=(0.4216272111938655,0.5672772545536946)
+  iso: OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 6.706185580080989e-15, hi: 1.1417498175509915e-14, dec: Com }) }
+  A:   OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 6.706185580080989e-15, hi: 1.158042977991629e-14, dec: Com }) }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 4 f64 span=(0.1446428430680804,0.918118023628576)
+  iso: OK Certificate { samples: 9, max_residual: 1.196845899252031e-14 }
+  A:   OK Certificate { samples: 9, max_residual: 1.196845899252031e-14 }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 4 interval span=(0.1446428430680804,0.918118023628576)
+  iso: OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.3711426315458115e-14, hi: 1.456720918722774e-14, dec: Com }) }
+  A:   OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.196845899252031e-14, hi: 1.895069727218146e-14, dec: Com }) }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 6 f64 span=(0.08706265078817872,0.691800083977128)
+  iso: OK Certificate { samples: 9, max_residual: 1.096171017399183e-14 }
+  A:   OK Certificate { samples: 9, max_residual: 1.096171017399183e-14 }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
+DIAG 6 interval span=(0.08706265078817872,0.691800083977128)
+  iso: OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.096171017399183e-14, hi: 1.7319479184152442e-14, dec: Com }) }
+  A:   OK Certificate { samples: 9, max_residual: Interval(DInterval { lo: 1.096171017399183e-14, hi: 1.7319479184152442e-14, dec: Com }) }
+  B:   ERR NoGeneralLane { chart: Plane, carrier: Nurbs, gap: Envelope }
