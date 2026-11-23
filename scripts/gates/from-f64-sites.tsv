@@ -122,7 +122,6 @@ crates/geom-core/src/spline/projective.rs	1	constant	num	form_coef: degree eleva
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/azimuth.rs	1	constant	0.5 * f64::from(self.0)	a quarter-turn count
 crates/geom/src/carrier_speed.rs	1	constant	i as f64 / LENGTH_PIECES as f64	a length sum's piece end as a fraction of the stretch, a fixed schedule (length_hi)
-crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/cover.rs	1	constant	f64::from(k)	a piece index
 crates/geom/src/cover/readings.rs	1	constant	cut	a spline window's interior cut, a point the cover chooses from the window's point ends (geom-brep `net_param`'s posture)
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
