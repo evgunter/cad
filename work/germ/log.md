@@ -1753,3 +1753,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The bisect missed that U3b also moved the Interval fence row: both seam z intervals narrowed and still hold the exact crossing. That is recorded on the green row for whoever re-pins it.
   - Merged over CI queued about 95 minutes, under Ev's 2026-11-22 rule that low-risk changes may merge over a running CI: the change is test pins only, run locally at three ε, and fixes a main red.
 - 2026-11-23 02:30 — **Friction: runner queue.** PR 7411's fix-pass head `ea6e47e9f3` sat queued from about 00:40 to past 02:14. 88–95 runs were queued repo-wide throughout.
+- 2026-11-23 06:00 — **Friction: a conflicting PR runs no CI, silently.**
+  - PR 7411's fix-pass head `2fee1eda6e`, pushed at 04:10, and PR 7431's `3ff2099ac1` got no workflow runs at all.
+  - ONEROUND's `oneround/anchored-conic` had landed and conflicted with both, in `on_surface.rs` and `ring_path.rs`. Nothing told the lanes or me; I found it at 05:12 by asking for `mergeable`.
+  - About 60 minutes lost on top of the runner queue, which held at about 100 runs.
+  - Both lanes merged main and pushed: PR 7411 at `3abf8640d7`, PR 7431 at `f5d7ed9762`. Their CI is queued.
+  - Remedy for this orchestrator: check `mergeable` at every check-in, not only the check runs.
