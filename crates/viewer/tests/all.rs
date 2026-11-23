@@ -88,6 +88,8 @@ mod controls_guide;
 mod creation_ops;
 #[path = "datum_authoring.rs"]
 mod datum_authoring;
+#[path = "datum_review_b.rs"]
+mod datum_review_b;
 #[path = "debug_dumps.rs"]
 mod debug_dumps;
 #[path = "display_budget.rs"]
