@@ -1893,3 +1893,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - U4d's spec owes the arm's own windows, not whole refusals, and a field for the `ChartMeeting` chart point.
     - The `classify` fallback goes with U4d.
     - `AtRestPolicy`'s doc door count is stale ("nine" against "ten").
+- 2026-11-23 13:30 — **U4a lane: spec deviation agreed.** Spec §2.2 drops a walk piece that lies wholly off the arc at its split. Doing that changed the wrappers' `CircleRoots` answers (the count round the turn, and `Miss`) on every partial arc: 19 door rows went red. So an off-arc piece is now walked until it settles or refuses, and only a refusal that misses the arc is dropped. This keeps the spec's own claim that the wrappers change only where a refused stretch misses the arc. Drop-at-split is revisited at U4b, when the wrappers retire.
