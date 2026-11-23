@@ -3357,6 +3357,18 @@ impl<T: Decide> CarriedComponent<T> {
     ///
     /// [`SiteRefusal`]: an undecided reading escalates.
     pub fn reads(&self, p: Point3<T>, band: Band) -> Result<Option<T>, SiteRefusal> {
+        let Some(t) = self.witness(p, band)? else {
+            return Ok(None);
+        };
+        self.foot_along(p, t, band)?;
+        Ok(Some(t))
+    }
+
+    /// **Whether `p` lies on this component, and where the carrier
+    /// passes within its padded band**: [`Self::reads`] short of the
+    /// foot's certificate. The carry asks this alone ([`Self::holds`]):
+    /// which component a point lies on, never its place along it.
+    fn witness(&self, p: Point3<T>, band: Band) -> Result<Option<T>, SiteRefusal> {
         use geom::OnCarrier;
         let pad = if self.boxes.is_empty() {
             self.pad
@@ -3398,10 +3410,7 @@ impl<T: Decide> CarriedComponent<T> {
             None => self.carrier.foot(p, self.span.0),
         };
         match foot.on_carrier(padded) {
-            Ok(OnCarrier::On { t, .. }) => {
-                self.foot_along(p, t, band)?;
-                self.within_span(t, band)
-            }
+            Ok(OnCarrier::On { t, .. }) => self.within_span(t, band),
             Ok(OnCarrier::Off) => Ok(None),
             Err(refusal) => Err(refusal.into()),
         }
@@ -3511,15 +3520,16 @@ impl<T: Decide> CarriedComponent<T> {
     /// within the band of two arcs crossing there, and escalates, as an
     /// undecided one does. Any other component's foot is its own.
     ///
-    /// **`t` is the site's foot, certified within the zero**
-    /// ([`Self::foot_along`]): the orthogonal foot stands within the zero
-    /// of it along the carrier, and any point of the carrier within the
-    /// zero of the site within twice the zero. So a site is excluded only
-    /// where `t` stands past the span's end by the band's escalation and
-    /// that twice the zero more
+    /// **`t` is a witness** ([`Self::witness`]): a parameter where the
+    /// carrier passes within the zero of the site, which
+    /// [`Self::reads`] then certifies as its foot. Any point of the
+    /// carrier within the zero of the site lies within twice the zero of
+    /// the witness's, the foot among them, so a site is excluded only
+    /// where its witness stands past the span's end by the band's
+    /// escalation and that twice the zero more
     /// (`section_site_in_span_past`, the overshoot metered at the inf over
     /// the gap, so "farther than that" is sound), whatever the band's ratio
-    /// of the two. The desync, a foot past the end by less than that
+    /// of the two. The desync, a witness past the end by less than that
     /// reach, is read at the sup (`section_site_in_span_past_near`), so
     /// "nearer than that" is sound; where the two meters disagree the
     /// site escalates on both bounds. That reach is the zero's because a
@@ -3573,7 +3583,7 @@ impl<T: Decide> CarriedComponent<T> {
             .map_err(SiteRefusal::Escalated)?;
         match near.0 {
             NonzeroSign::Positive => Err(SiteRefusal::Desync(
-                "a foot read past the span reads inside it nearer by twice the zero",
+                "a witness read past the span reads inside it nearer by twice the zero",
             )),
             // Past by more than the reach at the sup, nearer at the inf:
             // the carrier's speed over the gap leaves the site undecided.
@@ -3663,9 +3673,10 @@ impl<T: Decide> CarriedComponent<T> {
             ))
     }
 
-    /// [`Self::reads`] as the carry reads it.
+    /// Whether `w` lies on this component, as the carry reads it
+    /// ([`Self::witness`]).
     fn holds(&self, w: Point3<T>, band: Band) -> Result<bool, CarryError> {
-        Ok(self.reads(w, band)?.is_some())
+        Ok(self.witness(w, band)?.is_some())
     }
 }
 
@@ -3835,16 +3846,16 @@ const SITE_FOOT_AT_END: &str = "section_site_foot_at_end";
 /// The predicate a foot on an open conic arc is read within its span by.
 const SITE_IN_SPAN: &str = "section_site_in_span";
 
-/// The site's foot past the span's end by more than the zero's
+/// The site's witness past the span's end by more than the zero's
 /// reach from it, its gap metered at the inf over the gap
 /// ([`CarriedComponent::within_span`]'s docs).
 const SITE_PAST_SPAN: &str = "section_site_in_span_past";
 
-/// The site's foot past the span's end by less than the zero's reach,
+/// The site's witness past the span's end by less than the zero's reach,
 /// a desync, its gap metered at the sup over the gap.
 const SITE_PAST_SPAN_NEAR: &str = "section_site_in_span_past_near";
 
-/// The foot past by more than the reach at the sup and by less at the
+/// The witness past by more than the reach at the sup and by less at the
 /// inf: the two bounds of one undecided overshoot.
 const SITE_PAST_SPAN_STRADDLE: &str = "section_site_in_span_past_straddle";
 

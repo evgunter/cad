@@ -56,6 +56,7 @@ const CARRIERS: &[NameCarrier] = &[
     // no name table and is not declared.
     NameCarrier::Table("CsDecision"),
     NameCarrier::Table("CcDecision"),
+    NameCarrier::Table("ConeDecision"),
     NameCarrier::Table("Row"),
     NameCarrier::Table("TorusDatum"),
     NameCarrier::Table("Meter"),
@@ -159,6 +160,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("EXTERNAL"),
     NameCarrier::Const("INTERNAL"),
     NameCarrier::Const("PC_PARALLEL_GAP"),
+    NameCarrier::Const("TANGENCY"),
     NameCarrier::Const("SITE_FOOT_ALONG"),
     NameCarrier::Const("SITE_FOOT_AT_END"),
     NameCarrier::Const("SITE_FOOT_PAST_END"),
@@ -413,6 +415,12 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pair_section.rs: decide_stance: name", FORWARDS),
     ("pair_section.rs: coaxial_tangent_circle: a", NOT_A_NAME),
     ("pair_section.rs: pair_section: a", NOT_A_NAME),
+    (
+        "pair_section/cones.rs: against_wall: ConeDecision::Radius.name()",
+        CLOSED_TYPE,
+    ),
+    ("pair_section/cones.rs: decide: a", NOT_A_NAME),
+    ("pair_section/cones.rs: read: decision.name()", CLOSED_TYPE),
     ("pair_section/cylinders.rs: decide: lines", NOT_A_NAME),
     (
         "pair_section/cylinders.rs: decide_stance: CcDecision::Radius.name()",
@@ -566,7 +574,7 @@ const INDIRECT: &[(&str, &str)] = &[
         FORWARDS,
     ),
     (
-        "pcurve_cache/spline_incidence.rs: spline_incidence_as: name",
+        "pcurve_cache/spline_incidence.rs: span_incidence_as: name",
         FORWARDS,
     ),
     (
