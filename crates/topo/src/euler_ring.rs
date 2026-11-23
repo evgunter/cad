@@ -1374,9 +1374,7 @@ impl<T: Decide> Body<T> {
     /// and tier 3 reports it (`MissingCache` per rowless half-edge). A
     /// CURVED one that stores none — never minted, its whole boundary
     /// the moved loop or run, or emptied by the site mint — is the
-    /// producer's closing mint's to re-derive; left at rest without it,
-    /// tier 3 re-derives the face and reports it unminted, or the
-    /// refusal its derivation meets. The drop buys a body that no
+    /// finish's to complete. The drop buys a body that no
     /// longer HOLDS the wrong row for `props`, the tessellator or
     /// `loop_windings` to read.
     ///

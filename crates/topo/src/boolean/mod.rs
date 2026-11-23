@@ -6599,7 +6599,7 @@ pub fn sweep_records(
 
 /// **The boolean pipeline through its join**, undeclared and realized:
 /// the two operand clones as the join leaves them, every null edge
-/// killed, before the finish, the zip and the closing mint — the
+/// killed, before the finish and the zip — the
 /// production sequence itself (`ops::through_the_join`), stopped there,
 /// with the interior-loop guard's verdict the pipeline raises later.
 /// `None` where the pipeline answers without a join to stop at. Test

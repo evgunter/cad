@@ -135,8 +135,8 @@ pub enum PcurveMintError {
     /// A face on a chart that mints stores none of its rows, and the
     /// minting pass derives and certifies every one of them: the body
     /// was not minted after it was built or edited. Rows are mandatory
-    /// at rest (C4), so this is a producer's omission, or an assembly
-    /// of Euler operations left without its closing mint.
+    /// at rest (C4), and the finish completes every face that stores
+    /// none, so this is a body that reached tier 3 without a finish.
     Unminted {
         /// The face that stores no row.
         face: FaceKey,
@@ -200,7 +200,7 @@ pub enum PcurveMintError {
 
 impl PcurveMintError {
     /// **The ending this refusal gives at `at`**, for a door that reports
-    /// it under its own sentence (the shell op's closing mint): a nested
+    /// it under its own sentence: a nested
     /// certification refusal's decision's ([`PcurveCertifyError::ending`]);
     /// an undecided reading's "not yet", as the at-rest table ends it
     /// (`validate::classify_pcurve`); and the lever of a refusal a lever
@@ -629,8 +629,8 @@ pub(super) fn analytic_derive<T: Decide>(
 /// reads that check's verdict; a parameter difference instead would be
 /// radians against a band in metres, and at an interval scalar would
 /// carry the copy's own width twice. Read by tier 3 on every stored row
-/// ([`validate_pcurves`]) and by a producer's closing mint on every row
-/// it carries ([`carry_rows`]).
+/// ([`validate_pcurves`]) and by the minting pass on every row it
+/// carries ([`carry_rows`]).
 ///
 /// [`validate_pcurves`]: super::validate_pcurves
 pub(super) fn row_interval<T: Decide>(
@@ -1798,9 +1798,10 @@ pub(crate) fn sphere_twin<T: Real>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> 
 }
 
 /// Mints (and certifies) the pcurve caches of every curved face of
-/// `body` whose chart has a certified closed-form lane — the pass the
-/// C5 splitting lane runs on each side it produces (spec §1: caches are
-/// minted where curved faces are minted).
+/// `body` whose chart has a certified closed-form lane, clearing the map
+/// first. No producer closes with it: the finish completes a body's rows
+/// instead, keeping every stored row, so a stale one is refused rather
+/// than replaced (`complete_pcurves`).
 ///
 /// Idempotent by construction on a given body: it walks faces in arena
 /// order, loops in outer-then-rings order, and half-edges in `next`
@@ -1858,14 +1859,10 @@ pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(),
 /// either — it reaches rows through face loops — so they are invisible
 /// to tier 3 until the slot is recycled.
 ///
-/// **A caller that has killed a half-edge and wants the map's at-rest
-/// guarantee must use [`mint_pcurves`].** What this entry gives is the
-/// weaker, scoped statement a partial producer can honestly make: the
-/// rows it may have staled are re-derived, and it asserts nothing at
-/// all about the rest of the map. The simultaneous offset doors are
-/// exactly that caller: they perform no topological surgery, so no
-/// half-edge of theirs ever dies and the two statements coincide.
-/// Pinned by `sweep`'s `shell10_r1_probes` and `shell10_r2_probes`,
+/// **A caller that has killed a half-edge and wants the map whole must
+/// use [`mint_pcurves`].** What this entry gives is the weaker, scoped
+/// statement: the named faces' rows are re-derived, and it asserts
+/// nothing at all about the rest of the map. Pinned by `sweep`'s `shell10_r1_probes` and `shell10_r2_probes`,
 /// which kill a half-edge through the public `kef` and count what each
 /// pass leaves.
 ///
@@ -1944,8 +1941,7 @@ fn mint_rows<T: AtRestPolicy>(
 /// own door against the current carrier and surface. So a row the mint
 /// has no route to — a
 /// `Fitted` row on a spline chart, stated by a certifying door —
-/// survives a producer's closing mint (a
-/// transform, a merge) exactly when it still certifies, and a half the
+/// survives the minting pass exactly when it still certifies, and a half the
 /// face held no row for stays without one, for tier 3 to read.
 ///
 /// # Errors

@@ -1235,9 +1235,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let substituted = connected.fates.substituted.clone();
     let tangent_lines = red.tangent_lines.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
-    // The zip, the merge, the re-description and the closing mint are
-    // one door's surgery (`crate::surgery`): the operators inside them
-    // do not each re-derive the whole body, and `gate` below — tier 3
+    // The zip, the merge and the re-description are one door's surgery
+    // (`crate::surgery`): the operators inside them do not each
+    // re-derive the whole body, and `gate` below — tier 3
     // over the result, on every build — is what this door pays instead.
     // The guard owns the borrow, so a refusal on the way closes the
     // scope by dropping it.

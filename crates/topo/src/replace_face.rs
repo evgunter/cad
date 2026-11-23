@@ -207,8 +207,8 @@
 //!
 //! Every decision — the mint, the refusals, the whole boundary plan —
 //! runs read-only against the incoming body. Mutation then runs on a
-//! clone in the attach layer's order (surface, then edge descriptions,
-//! then the whole-body pcurve mint), the clone is validated once at
+//! clone in the attach layer's order (surface, then edge descriptions),
+//! the clone is validated once at
 //! tier 2 — closed, every edge certified on its charts — and only a
 //! clone that passes is adopted. The body is untouched on every `Err`.
 //! Tier 2 does not read orientation: a move that carries a face through
@@ -2289,14 +2289,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     // A row is stated over its edge's interval, which ends at the
     // edge's vertices, so the move stales every row of an edge that
     // ends at a moved vertex. They go before the re-anchors' site mints
-    // could keep them; the closing mint re-derives every face. That
-    // includes a fitted row on a neighbour that keeps its chart, which
-    // the closing mint would otherwise carry (`pcurves::carry_rows`):
-    // its image ends on the chart point of the vertex where it was
-    // stated, so once that vertex is displaced past the band the carry
-    // re-certifies it against an edge that ends elsewhere and refuses.
-    // A vertex in `moved` that lands within the band of where it was
-    // keeps a carryable row that this drop loses
+    // could keep them, for the finish to complete. That includes a
+    // fitted row on a neighbour that keeps its chart: its image ends on
+    // the chart point of the vertex where it was stated, so once that
+    // vertex is displaced past the band it is stale. A vertex in `moved`
+    // that lands within the band of where it was keeps a current row
+    // that this drop loses
     // (`work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
     let staled: Vec<_> = work
         .half_edges

@@ -848,8 +848,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // clearing the cache map (the module-docs posture in
     // `topo::pcurves`). The row's key not being in the graft's
     // half-edge walk IS the staleness test (the walk covers every live
-    // half-edge of the grafted solid), and the boolean result's own
-    // final mint pass clears and re-derives every cache anyway. ----
+    // half-edge of the grafted solid). ----
     for (k, cache) in src.pcurves.iter() {
         let Some(&dk) = half_edges.get(k) else {
             continue;

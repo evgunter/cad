@@ -1217,8 +1217,8 @@ pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
 }
 
 /// **The direct split run through its join**: the scratch body as the
-/// join leaves it, every null edge killed, before the finish and the
-/// closing mint. Test vocabulary (`topo::test_support`), for the rows
+/// join leaves it, every null edge killed, before the finish. Test
+/// vocabulary (`topo::test_support`), for the rows
 /// that read the rows a face carries at that point.
 ///
 /// # Errors

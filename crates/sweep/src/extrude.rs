@@ -754,9 +754,8 @@ struct LoopBase {
 /// ([`profile::SketchPlane`]); the extrusion vector or depth
 /// is classified against the plane normal per the crate docs' direction
 /// conventions. The door runs its operators under one surgery scope
-/// (`topo::surgery`), so tier 1 is not re-derived per operator, closes
-/// with the whole-body pcurve mint (`topo::mint_pcurves`), so every
-/// curved wall stores its certified rows at rest, and ends in its
+/// (`topo::surgery`), so tier 1 is not re-derived per operator, and ends
+/// in its
 /// scalar's leaf ([`topo::AtRestPolicy::leaf`]): on success the body is
 /// the scalar's leaf, finished at `f64` and `Probe` and tier 2 alone at
 /// the box scalars, and a body the leaf refuses (a measured case at

@@ -968,7 +968,7 @@ pub mod test_support {
     }
 
     /// The boolean pipeline through its join: both operand clones with
-    /// every null edge killed, before the finish and the closing mint
+    /// every null edge killed, before the finish
     /// (`boolean::through_the_join`). `None` where the pipeline answers
     /// without a join to stop at.
     ///
@@ -1033,7 +1033,7 @@ pub mod test_support {
     }
 
     /// The direct split run through its join: the scratch body with
-    /// every null edge killed, before the finish and the closing mint
+    /// every null edge killed, before the finish
     /// (`splitting::through_the_join`).
     ///
     /// # Errors
