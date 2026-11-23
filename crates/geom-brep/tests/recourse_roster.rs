@@ -47,6 +47,7 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
     NameCarrier::Const("OVAL_SIDE"),
+    NameCarrier::Const("OVAL_IN_BAND"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),
