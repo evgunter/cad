@@ -307,10 +307,14 @@ It is the wall's foot path of the carrier, interpolated on the
 carrier's own knots at the carrier's degree and no lower than cubic,
 the knots graded toward a node included; a carrier with no knots (a
 line, a conic) takes a fixed uniform chain. **A carrier's knot vector is
-the chain its certificate is built on.** The image takes a knot at the
-middle of a span only where its measured miss of the foot path there
-exceeds its share of the band, and is refused, with that miss, past a
-fixed number of rounds or knots. The foot path follows the carrier
+the chain its certificate is built on.** The image takes a knot only where its
+measured miss of the foot path exceeds its share of the band (or of the
+carrier's own standoff from the wall, where that is the larger): at the
+middle of the span that misses, or, where the path crosses a knot line
+of the wall there across which the wall is less smooth than the image,
+at the crossing, at the multiplicity that leaves the image as smooth as
+the wall. It is refused, with that miss, past a fixed number of rounds
+or knots. The foot path follows the carrier
 continuously: its first foot is the wall's nearest point to the
 carrier's start, on the side of a closed wall's seam the path leaves
 into the rectangle from, and each next foot is reached from the last
@@ -319,10 +323,11 @@ tangents predict, so the path stays on the sheet of a folded wall it
 started on and reaches a seam from the side it came by. A foot is
 settled to `f64`'s resolution at the wall's point. The trace's
 certificate, the pcurve mint and the edge certificate at rest all call
-this function, on one chart operand (the wall read on the certificate's
-grid, `ChartedNurbs::certificate_grid`), so rest re-derives a trace's
-certificate bit for bit from the carrier alone, and a stored pcurve is
-the function's value remembered. An image is evidence: inside the wall's knot rectangle limb 2
+this function, on one chart operand: limb 3 reads the wall's chart on
+its own cells, and where that refuses, on the certificate's grid
+(`ChartedNurbs::certificate_grid`), the same two steps in a trace and at
+rest. So rest re-derives a trace's certificate bit for bit from the
+carrier alone, and a stored pcurve is the function's value remembered. An image is evidence: inside the wall's knot rectangle limb 2
 bounds its distance from the carrier, and where it leaves the rectangle
 between two nodes limb 2 reads the boundary cell's polynomial extension
 and can pass, and there limb 3 refuses, its boxes cut to the rectangle

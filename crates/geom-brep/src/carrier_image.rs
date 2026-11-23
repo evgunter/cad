@@ -33,10 +33,13 @@
 //!   it. A chain whose every reading is within
 //!   [`IMAGE_MISS`] of the band's zero, or of the carrier's standoff
 //!   there where that is the larger, is the image. Otherwise each
-//!   knot span holding a larger one takes a knot at its middle and the
-//!   feet are followed again, at most [`IMAGE_ROUNDS`] times; past that
-//!   the image is refused with the miss it read
-//!   ([`ImageRefusal::Miss`]).
+//!   knot span holding a larger one takes a knot at its middle, or,
+//!   where the path crosses a knot line of the wall there across which
+//!   the wall is less smooth than the image, a knot at the crossing of
+//!   the multiplicity that leaves the image as smooth as the wall
+//!   ([`crossing`]); the feet are followed again, at most
+//!   [`IMAGE_ROUNDS`] times. Past that the image is refused with the
+//!   miss it read ([`ImageRefusal::Miss`]).
 //!
 //! Everything here is the `f64` structure lane (C6): the image is
 //! evidence, and what makes it sound is that its consumer bounds
@@ -77,6 +80,10 @@ const RESOLUTION_ULPS: f64 = 64.0;
 /// How many of the seed grid's nearest points [`nearest`] settles a foot
 /// from (D9).
 const START_SEEDS: usize = 8;
+
+/// How many halvings place a path's crossing of a wall's knot line
+/// ([`crossing`]): to `f64`'s resolution of the unit interval (D9).
+const CROSSING_HALVINGS: u32 = 60;
 
 /// How many times [`follow`] halves the way to a foot it cannot reach
 /// from the last one (D9).
@@ -281,6 +288,7 @@ where
     let chain_knots = chain.len();
     let tol = IMAGE_MISS * band.zero();
     // The first foot, from the chain's own first step.
+    let lines = knot_lines(wall, degree);
     let first = start(
         &read,
         wall,
@@ -302,9 +310,10 @@ where
         let uv: Vec<Point2<f64>> = feet.iter().map(|f| f.uv).collect();
         let image = NurbsCurve2::<f64>::interpolate_on(&uv, &collocation)
             .map_err(|_| ImageRefusal::Fit)?;
-        // The spans that miss, by the knot at each one's middle, and the
-        // largest miss read.
-        let (mut add, mut worst) = (Vec::new(), 0.0_f64);
+        // The spans that miss, by the knot each takes (at its middle, or
+        // on a line of the wall the path crosses in it), and the largest
+        // miss read.
+        let (mut add, mut creases, mut worst) = (Vec::new(), Vec::new(), 0.0_f64);
         for (i, pair) in feet.windows(2).enumerate() {
             let at = 0.5 * (pair[0].at + pair[1].at);
             #[allow(clippy::cast_possible_truncation)]
@@ -318,8 +327,9 @@ where
                 continue;
             }
             worst = worst.max(miss);
-            if let Some(k) = span_middle(&chain, at) {
-                add.push(k);
+            match crossing(&read, wall, &lines, (pair[0], pair[1])) {
+                Some(crease) => creases.push(crease),
+                None => add.extend(span_middle(&chain, at)),
             }
         }
         if worst == 0.0 {
@@ -327,6 +337,13 @@ where
         }
         add.sort_by(f64::total_cmp);
         add.dedup();
+        // A crease's knot at the multiplicity that gives the image the
+        // wall's continuity there, less what the chain holds of it.
+        for (k, multiplicity) in creases {
+            let held = chain.iter().filter(|x| **x == k).count()
+                + add.iter().filter(|x| **x == k).count();
+            add.extend(core::iter::repeat_n(k, multiplicity.saturating_sub(held)));
+        }
         if add.is_empty() || round == IMAGE_ROUNDS || chain.len() + add.len() > chain_knots + IMAGE_KNOTS
         {
             return Err(ImageRefusal::Miss { miss: worst });
@@ -335,6 +352,66 @@ where
         chain.sort_by(f64::total_cmp);
     }
     unreachable!("the last round returns")
+}
+
+/// A line of the wall's chart across which the wall is less smooth than
+/// the image: the chart axis it is constant on (`0` for `u`), its value,
+/// and the multiplicity a knot of the image takes there to be as smooth
+/// as the wall and no smoother.
+type KnotLine = (usize, f64, usize);
+
+/// The wall's interior knot lines whose continuity, `C^(p−m)` at a knot
+/// of multiplicity `m` in a degree-`p` direction, is below the image's
+/// `C^(degree−1)`: the foot path is only as smooth as the wall across
+/// one, and an image smoother than that misses it by its kink.
+fn knot_lines<T: geom_core::Real>(wall: &NurbsSurface<T>, degree: usize) -> Vec<KnotLine> {
+    [wall.knots_u_f64_interim(), wall.knots_v_f64_interim()]
+        .into_iter()
+        .enumerate()
+        .flat_map(|(axis, knots)| {
+            let p = knots.degree();
+            knots.interior_knots().filter_map(move |(k, m)| {
+                let continuity = p.saturating_sub(m);
+                (continuity + 1 < degree).then(|| (axis, k, degree - continuity))
+            })
+        })
+        .collect()
+}
+
+/// **Where the path crosses a line of the wall between two feet**: the
+/// unit fraction of the crossing, found by halving the way between the
+/// feet [`CROSSING_HALVINGS`] times with the path followed to each
+/// middle, and the line's multiplicity. `None` where the feet lie on
+/// one side of every line, or a middle's foot is not reached. Of two
+/// lines crossed, the first listed.
+fn crossing<T>(
+    read: &Read<'_, T>,
+    wall: &NurbsSurface<T>,
+    lines: &[KnotLine],
+    (a, b): (Foot, Foot),
+) -> Option<(f64, usize)>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    let along = |f: &Foot, axis: usize| if axis == 0 { f.uv.x } else { f.uv.y };
+    let &(axis, k, multiplicity) = lines
+        .iter()
+        .find(|(axis, k, _)| (along(&a, *axis) - k) * (along(&b, *axis) - k) < 0.0)?;
+    let start = along(&a, axis) > k;
+    let (mut near, mut far) = (a, b);
+    for _ in 0..CROSSING_HALVINGS {
+        let at = 0.5 * (near.at + far.at);
+        if !(near.at < at && at < far.at) {
+            break;
+        }
+        let foot = follow(read, wall, near, at, FOLLOW_HALVINGS).ok()?;
+        if (along(&foot, axis) > k) == start {
+            near = foot;
+        } else {
+            far = foot;
+        }
+    }
+    Some((far.at, multiplicity))
 }
 
 /// The degree a carrier is imaged at.
