@@ -97,7 +97,7 @@ pub(crate) fn filleted_plate(hole: f64, r: f64, arcs: usize) -> Body<f64> {
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle(c)) if c.frame.origin().z == 0.0
+                Some(geom::Curve3::Circle(c)) if c.frame().origin().z == 0.0
             )
         })
         .map(|(k, _)| k)
