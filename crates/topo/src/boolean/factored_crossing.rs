@@ -122,7 +122,8 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                     let Some(geom::Line { origin, dir }) = carrier.as_line() else {
                         return Ok(None);
                     };
-                    roots[i].push(geom::plane_offset(origin, normal, centre) / dir.dot(normal));
+                    roots[i]
+                        .push(geom::plane_offset(origin, normal, centre) / dir.get().dot(normal));
                 }
             }
             PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => {}

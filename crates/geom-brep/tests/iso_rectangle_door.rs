@@ -46,7 +46,10 @@ fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 }
 fn mer(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     edge(
-        Curve3::line(p3(u.cos(), u.sin(), 0.0), v3(0.0, 0.0, 1.0)),
+        Curve3::line(
+            p3(u.cos(), u.sin(), 0.0),
+            geom::stated_direction(v3(0.0, 0.0, 1.0)),
+        ),
         v0,
         v1,
         a,

@@ -437,7 +437,7 @@ pub(crate) fn carrier_of<'b, T: Decide>(
             let round = topo::Round::of(&surface, face.sense);
             match (&surface, round) {
                 (Surface::Cylinder { frame, radius, .. }, Some(round)) => {
-                    let (origin, axis) = (frame.origin(), frame.axis());
+                    let (origin, axis) = (frame.origin(), frame.axis_unit());
                     let Some(reach) = reach(|s| s.frame().map(|f| f.origin())) else {
                         return Carrier::Other("a face with no cover");
                     };
@@ -475,7 +475,7 @@ pub(crate) fn carrier_of<'b, T: Decide>(
                 .map(topo::EdgeCurve::carrier);
             match carrier {
                 Some(Curve3::Line(geom::Line { dir, .. })) => Carrier::Line {
-                    dir: seat.vec(*dir),
+                    dir: seat.vec(dir.get()),
                     ends: body
                         .half_edge_start_point(edge.he_plus)
                         .zip(body.half_edge_start_point(edge.he_minus))
@@ -773,7 +773,7 @@ fn distance<T: Decide>(
         // pair shares, which is `gap`'s refusal for the same reason.
         (Carrier::Cylinder { axis: la, .. }, Carrier::Cylinder { axis: lb, .. }) => {
             let axes = geom_brep::Directions::Axes;
-            if !parallel(axes, la.dir, lb.dir, arm(a, b), band)? {
+            if !parallel(axes, la.dir.get(), lb.dir.get(), arm(a, b), band)? {
                 return not_parallel("distance", axes.name(), a, b);
             }
             Ok(la.distance(lb.origin))
@@ -1614,7 +1614,7 @@ mod tests {
         };
         let axis = geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            dir: v(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(v(0.0, 0.0, 1.0)),
         };
         let cylinder = |convex| Carrier::Cylinder {
             axis,
@@ -1719,7 +1719,10 @@ mod tests {
         radius: f64,
         convex: bool,
     ) -> Carrier<'static, f64> {
-        let axis = geom::Line { origin, dir: axis };
+        let axis = geom::Line {
+            origin,
+            dir: geom::stated_direction(axis),
+        };
         Carrier::Cylinder {
             axis,
             radius,

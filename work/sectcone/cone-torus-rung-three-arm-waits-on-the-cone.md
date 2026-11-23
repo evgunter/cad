@@ -2,12 +2,18 @@
 id: cone-torus-rung-three-arm-waits-on-the-cone
 kind: issue
 title: Cone × torus routes to rung 3 and refuses: the torus half is built, the cone's meters conversion is not
-status: open
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: M
 refs: [torus-certificate-runs-root-free-through-its-quartic]
+closed: 2026-11-23
+pr: 7395
 ---
+
+## Closed (2026-11-23, PR 7395)
+
+Cone × torus off the axis has its rung-3 door: `the-cone-torus-pair-door`, built on the cone's limb-2 reading at the search (PR 7350) and the tube's cone arm (PR 7358). The apex node and touch still refuse, because the ℝ³ march has no node end (`work/ssiedge/an-r3-tube-chain-has-no-node-end.md`).
 
 Filed by SECT's `sect-toruscert` lane (branch `sect/torus-certificate`),
 which retired sphere × torus at rung 3 and left this pair's arm unretired.
