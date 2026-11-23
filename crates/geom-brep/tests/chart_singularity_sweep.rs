@@ -632,9 +632,10 @@ mod sampled_and_fuzzed {
                     let s = (1.0 - d * d).sqrt();
                     let ends = [n1 * d + chord * s, n1 * d - chord * s];
                     let ang = |c: &Curve3<f64>, p: Vec3<f64>| {
-                        let Curve3::Circle(geom::Circle { frame, .. }) = c else {
+                        let Curve3::Circle(circle @ geom::Circle { .. }) = c else {
                             unreachable!()
                         };
+                        let frame = circle.frame();
                         let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                         let w = Point3::new(p.x, p.y, p.z) - center;
                         w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)).rem_euclid(TAU)
@@ -843,9 +844,10 @@ mod sampled_and_fuzzed {
         let z = 0.5_f64;
         let rim = section(Vec3::new(0.0, 0.0, 1.0), z);
         // The rim's angle-0 point, in its frame.
-        let Curve3::Circle(geom::Circle { frame, .. }) = rim.clone() else {
+        let Curve3::Circle(the_circle @ geom::Circle { .. }) = rim.clone() else {
             unreachable!()
         };
+        let frame = the_circle.frame();
         let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let p0 = center + u_ref * (1.0 - z * z).sqrt();
         let az = Vec3::new(p0.x, p0.y, 0.0);

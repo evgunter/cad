@@ -45,7 +45,8 @@ const PRE_C: [(&str, &str); 39] = [
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "89b46a31a322fc03/88"),
     ("kitchen_sink", "fddfb7f84e02cfcd/196"),
-    ("cut_cylinder", "d2acb2b37c5273db/28"),
+    // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
+    ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
     ("die_fillet", "934f10b8156f9396/76"),

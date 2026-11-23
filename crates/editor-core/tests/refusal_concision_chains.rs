@@ -909,7 +909,7 @@ mod kernel {
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
             ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
             ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
-            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
+            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction, Deferred,
         ];
     }
 
@@ -4705,6 +4705,24 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "OverdeterminedJunction",
             P::OverdeterminedJunction { site: "arc_to" },
         ),
+        // The stored-form refusal as the close raises it about the
+        // fillet's step: the longest inner sentence a deferral carries.
+        (
+            "Deferred",
+            P::Deferred {
+                step: 2,
+                raised_at: 11,
+                deferral: profile::Deferral::FilletStoredForm,
+                refusal: Box::new(P::FilletCarrierBelowSceneResolution {
+                    turn: a(0.5),
+                    radius: gl(1e-9),
+                    scale: l(10.0),
+                    resolution: l(1e-8),
+                    predicate: "fillet_scene_resolution",
+                    margin: l(1e-12),
+                }),
+            },
+        ),
     ];
     use profile::{EscalatedAt, Gate};
     let routed = [
@@ -4740,21 +4758,18 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         .collect();
     // The state that takes the most verbs, so its recourse is the
     // longest list a lattice refusal draws.
-    let transition = ReplayError {
-        step: 2,
-        kind: ReplayErrorKind::Transition {
+    let transition = ReplayError::new(
+        2,
+        ReplayErrorKind::Transition {
             state: TipState::DirectedPoint,
             verb: Some(profile::Verb::CloseTo),
         },
-    };
+    );
     path.into_iter()
         .map(|(n, p)| {
             (
                 format!("ProfileReplay/Path/{n}"),
-                ReplayError {
-                    step: 2,
-                    kind: ReplayErrorKind::Path(p),
-                },
+                ReplayError::new(2, ReplayErrorKind::Path(p)),
             )
         })
         .chain([("ProfileReplay/Transition".to_owned(), transition)])
