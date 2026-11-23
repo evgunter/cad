@@ -78,7 +78,10 @@ jobs:
       # A dispatch naming a PR gates that PR's test merge with its base, as
       # the PR's own pull_request run would, pinned by sha so every job reads
       # one tree; the checks still attach to the dispatch's sha. GitHub
-      # rebuilds the merge after a push, so wait for it on this head.
+      # rebuilds the merge after a push, so wait for it on this head; a
+      # `false` can be the previous head's too, so it must hold for three
+      # polls running. merge-ref.yml polls the same fields the same way; a
+      # change to how either reads `mergeable` belongs in both.
       - name: the merge this dispatch gates
         id: target
         if: inputs.pr != ''
@@ -87,6 +90,7 @@ jobs:
           PR: ${{ inputs.pr }}
         run: |
           set -euo pipefail
+          falses=0
           for _ in $(seq 30); do
             info="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" \
               --jq '[.head.sha, (.mergeable | tostring), (.merge_commit_sha // "-")] | join(" ")')"
@@ -104,8 +108,14 @@ jobs:
                   echo "gating PR #$PR's test merge $merge"
                   exit 0
                 fi ;;
-              false) echo "::error title=PR conflicts with its base::PR #$PR does not merge cleanly, so there is no merge to gate. Merge the base in and push."; exit 1 ;;
+              false)
+                falses=$((falses + 1))
+                if [ "$falses" -ge 3 ]; then
+                  echo "::error title=PR conflicts with its base::PR #$PR does not merge cleanly, so there is no merge to gate. Merge the base in and push."
+                  exit 1
+                fi ;;
             esac
+            [ "$mergeable" = false ] || falses=0
             sleep 10
           done
           echo "::error::GitHub did not build PR #$PR's test merge on $GITHUB_SHA in 5 minutes"
@@ -758,6 +768,27 @@ jobs:
       - name: build the dependency graph (only when the key stored nothing)
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo test --no-run --workspace
+
+  # lint saves `lint` only on main, and lint never runs on a push, so
+  # without this every PR's clippy and rustdoc pass compiled the graph
+  # cold. Same shape as cache-prime: lint's key, lint's (empty) job env,
+  # built only when the key stored nothing.
+  cache-prime-lint:
+    name: prime the lint cache
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: cache
+        with:
+          shared-key: lint
+      - name: build what clippy and the rustdoc pass read (only when the key stored nothing)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cargo clippy --workspace --exclude viewer --all-targets --all-features
+          scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit
 
   # The one check to read: green when every job that ran passed.
   gate-ok:

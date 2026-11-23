@@ -517,6 +517,19 @@ impl Real for Interval {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    /// The enclosure itself: it carries no tangent.
+    type Value = Self;
+
+    fn without_tangent(self) -> Self {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
+
     /// The point enclosure `[x, x]` with decoration `Com` — an exact
     /// embedding for every *finite* `f64`. NaN and ±∞ are not real
     /// numbers and have no enclosure: they map to NaI, explicitly —
@@ -762,6 +775,25 @@ impl Real for Interval {
     /// A certified point's `f64`: its two ends one bit pattern.
     fn stated_point(self) -> Option<f64> {
         stated_point(self)
+    }
+
+    /// The exact sum enclosed where every input is a stated point
+    /// ([`Real::stated_point`]) each of whose products is exact as an
+    /// expansion (every nonzero input within `2^±450`, so no product's
+    /// residual leaves the normal range); the plain enclosure elsewhere.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = || crate::real::plain_difference_dot(q, o, n);
+        let in_range = |x: &f64| *x == 0.0 || (2f64.powi(-450)..=2f64.powi(450)).contains(&x.abs());
+        let Some([q, o, n]) =
+            stated_points(&[q, o, n]).filter(|a| a.iter().flatten().all(in_range))
+        else {
+            return plain();
+        };
+        let e = crate::exact::Expansion::difference_dot(q, o, n);
+        if !e.is_finite() {
+            return plain();
+        }
+        enclose_expansion(&e, 0.0)
     }
 
     /// **The unit's enclosure**, the one-column case of

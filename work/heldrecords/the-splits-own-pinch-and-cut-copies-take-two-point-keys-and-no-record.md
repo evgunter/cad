@@ -2,10 +2,12 @@
 id: the-splits-own-pinch-and-cut-copies-take-two-point-keys-and-no-record
 kind: issue
 title: The split's own pinch and cut copies at one point take two point keys and no contact record, so tier 3′ refuses sound sides
-status: open
+status: review
 opened: 2026-10-28
 priority: P1
 cost: M
+branch: heldrecords/split-keys
+pr: 7421
 ---
 
 

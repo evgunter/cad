@@ -755,11 +755,7 @@ impl Say for PlaneEvent {
             Self::PlaneLost { role, plane, .. } => {
                 crate::matetool::pick_lost(f, role.name(), plane, by)
             }
-            Self::DefinedLost { role, var } => write!(
-                f,
-                "the {} pick ({var}) is no longer in the document; the tool dropped it",
-                role.name()
-            ),
+            Self::DefinedLost { role, var } => crate::seats::pick_gone(f, role.name(), var),
             Self::NotAPlane { role, var } => write!(
                 f,
                 "{var} is neither a plane nor a frame, so it is not taken as the {}",
@@ -1877,39 +1873,4 @@ pub fn part_node(
 /// part form's and a boolean seat's (`seats::Port::body_read`).
 pub fn member_read(read: impl Into<Operand>, at: &[i64]) -> pncad::document::BodyRead<Formula> {
     pncad::document::BodyRead::indexed(read, at.iter().map(|&i| Formula::count(i)).collect())
-}
-
-/// **Whether a node, named alone, reads as a single body** — the
-/// question every body seat asks, answered by the edit door's own
-/// rule: the read [`Doc::read_of_node`] takes is one a body seat admits
-/// (`SlotKind::admits`, the door's kind check).
-///
-/// A node named alone reads its one output (spec Q5): a split's two
-/// sides, or a revolve's body beside its axis, are several, so the read
-/// refuses and the seat names a port; a family's members are a list of
-/// bodies. A
-/// seat filled with one refuses at the door rather than after the edit
-/// lands. The recipe's way of saying which of several is meant is
-/// a read of one of its outputs (`crates/editor-core/REFERENCES.md`
-/// DM3: a split's half by its port), or a read of one member of a
-/// family; either is ONE `Body`.
-///
-/// A node this admits may still refuse downstream — an empty boolean
-/// result is a typed success that is not a body, and `wire_sweep`
-/// refuses every recipe-expressible sweep today (the curved-solid
-/// frontier) — and that refusal is the node's own, arriving by poison
-/// propagation. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
-/// offers each kind to the real door and asserts the two agree.
-///
-/// **Not `product`'s "body-denoting"**, which is a WIDER set: the
-/// product gather counts a family's members and a split's sides
-/// among the bodies it collects, because collecting several is what it
-/// does. This answers the narrower question a single-body operand seat
-/// asks.
-pub fn denotes_body(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    doc.read_of_node(node)
-        .and_then(|read| doc.var(read))
-        .is_some_and(|var| {
-            pncad::document::SlotKind::Is(pncad::document::VarKind::Body).admits(var)
-        })
 }

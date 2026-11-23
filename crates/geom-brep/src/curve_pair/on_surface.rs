@@ -419,7 +419,7 @@ impl<T: Decide> SurfaceCurve<T> {
         let Shape::Circle(c) = self.shape else {
             unreachable!("only a circle's start moves: a line's origin is its locus")
         };
-        let (centre, axis) = (c.frame.origin(), c.frame.axis());
+        let (centre, axis) = (c.frame().origin(), c.frame().axis());
         let w = p - centre;
         let w = w - axis * w.dot(axis);
         debug_assert!(
@@ -741,7 +741,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         // The plane is charted along the curve: a circle's reference, or a
         // line's direction, each in its plane.
         let u_ref = match curve.shape {
-            Shape::Circle(c) => c.frame.u_ref(),
+            Shape::Circle(c) => c.frame().u_ref(),
             Shape::Line(l) => l.dir,
         };
         let plane = geom::Surface::Plane {
@@ -750,17 +750,20 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         co_surface(&super::Span::new(self.carrier, self.span), &plane, band)
     }
 
-    /// **The plane the edge's carrier lies in**: a point, its unit normal
-    /// and a direction in it; a conic's own, a spiric's cutting plane. A
-    /// line lies in no one plane (`None`).
-    pub fn plane(&self) -> Option<(Point3<T>, Vec3<T>, Vec3<T>)> {
+    /// **The plane the edge's carrier lies in**, as a frame whose axis is
+    /// its unit normal: a conic's own frame, its axes as stored, a spiric's cutting
+    /// plane with the spiric's `u_ref` kept bit for bit as its axis. A line
+    /// lies in no one plane (`None`).
+    pub fn plane(&self) -> Option<Frame<T>> {
         match *self.carrier {
-            Curve3::Circle(Circle { frame, .. }) | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                Some((frame.origin(), frame.axis(), frame.u_ref()))
-            }
+            Curve3::Circle(_) | Curve3::Ellipse(_) => self.carrier.frame(),
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());
-                Some((center + u_ref * offset, u_ref, frame.axis()))
+                Some(Frame::of_motion(&geom_core::RigidMotion::squared_about(
+                    center + u_ref * offset,
+                    frame.u_ref_unit(),
+                    frame.axis(),
+                )))
             }
             _ => None,
         }
@@ -787,10 +790,8 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         band: Band,
     ) -> Result<CoSurface<T>, AcrossRefusal<T>> {
         self.same_record(curve)?;
-        let (origin, normal, u_ref) = self.plane().ok_or(AcrossRefusal::NoPlane)?;
-        let plane = geom::Surface::Plane {
-            frame: geom::Frame::new(origin, normal, u_ref),
-        };
+        let frame = self.plane().ok_or(AcrossRefusal::NoPlane)?;
+        let plane = geom::Surface::Plane { frame };
         let carrier = curve.carrier();
         let span = super::Span::new(&carrier, span);
         let span = if endless { span.endless() } else { span };
@@ -1134,5 +1135,46 @@ mod tests {
             .across(&line, b())
             .unwrap();
         assert!(matches!(touch, CoSurface::Touch), "{touch:?}");
+    }
+
+    /// **An edge's plane is its carrier's as stored** ([`OnSurface::plane`]):
+    /// a circle edge a megametre out, on frames whose axes are unit as
+    /// stored, hands its plane over bit for bit. Re-squaring a unit axis
+    /// changes its bits about a third of the time, and an ulp of tilt moves
+    /// the plane by `1e-10` across a megametre, past the zero band at
+    /// ε `1e-12`.
+    #[test]
+    fn an_edges_plane_is_its_carriers_frame_as_stored() {
+        let mut moved = 0;
+        for i in 0..64 {
+            let t = f64::from(i) * 0.37;
+            let axis = Vec3::new(t.cos() * 0.6, t.sin() * 0.6, 0.8 - 0.01 * t);
+            let frame = Frame::new(
+                Point3::new(1e6 + t, -2e6 + 3.0 * t, 5e5),
+                axis,
+                Vec3::new(-axis.y, axis.x, 0.0),
+            );
+            let carrier = Curve3::Circle(Circle::new(frame, 2.0));
+            let plane = OnSurface::edge(key(), &carrier, (0.0, 1.0))
+                .plane()
+                .unwrap();
+            let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+            assert_eq!(
+                bits(plane.axis()),
+                bits(frame.axis()),
+                "frame {i}: the axis"
+            );
+            assert_eq!(
+                bits(plane.origin() - Point3::origin()),
+                bits(frame.origin() - Point3::origin()),
+                "frame {i}: the origin"
+            );
+            let squared = Frame::new(frame.origin(), frame.axis(), frame.u_ref());
+            if bits(squared.axis()) != bits(frame.axis()) {
+                moved += 1;
+            }
+        }
+        // The witness the row guards against: re-squaring moves some axes.
+        assert!(moved > 0, "no stored axis moves when squared again");
     }
 }

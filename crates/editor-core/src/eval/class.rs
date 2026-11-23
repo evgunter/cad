@@ -105,6 +105,8 @@ pub enum NodeErrorClass {
     UnfinishedLeaf,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
+    /// [`NodeErrorKind::HalfOfAFamily`].
+    HalfOfAFamily,
     /// [`NodeErrorKind::MemberOutOfRange`].
     MemberOutOfRange,
     /// [`NodeErrorKind::MemberRefused`].
@@ -258,6 +260,7 @@ impl NodeErrorKind {
             Self::NotFinished { .. } => C::NotFinished,
             Self::UnfinishedLeaf { .. } => C::UnfinishedLeaf,
             Self::EmptyHalf { .. } => C::EmptyHalf,
+            Self::HalfOfAFamily { .. } => C::HalfOfAFamily,
             Self::MemberOutOfRange { .. } => C::MemberOutOfRange,
             Self::MemberRefused { .. } => C::MemberRefused,
             Self::IndicesUnrelated { .. } => C::IndicesUnrelated,
@@ -404,6 +407,7 @@ mod tests {
         NotFinished,
         UnfinishedLeaf,
         EmptyHalf,
+        HalfOfAFamily,
         MemberOutOfRange,
         MemberRefused,
         IndicesUnrelated,
@@ -536,13 +540,13 @@ mod tests {
             C::Profile => K::Profile(profile::ProfileError::PlaneNotFinite),
             C::ProfileReplay => K::ProfileReplay {
                 loop_: 0,
-                error: profile::ReplayError {
-                    step: 2,
-                    kind: profile::ReplayErrorKind::Transition {
+                error: profile::ReplayError::new(
+                    2,
+                    profile::ReplayErrorKind::Transition {
                         state: profile::TipState::Closed,
                         verb: None,
                     },
-                },
+                ),
             },
             C::ProfileLaneReplay => K::ProfileLaneReplay {
                 loop_: 0,
@@ -643,6 +647,11 @@ mod tests {
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),
                 half: crate::SplitHalf::Above,
+            },
+            C::HalfOfAFamily => K::HalfOfAFamily {
+                read: crate::VarId::new(2, 0),
+                input: n(3),
+                half: crate::SplitHalf::Below,
             },
             C::MemberOutOfRange => K::MemberOutOfRange {
                 input: n(3),

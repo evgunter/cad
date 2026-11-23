@@ -2,10 +2,13 @@
 id: a-revolve-refuses-a-profile-on-one-side-of-its-axis-as-across-it
 kind: issue
 title: A revolve refuses a profile that lies wholly on one side of its axis as lying across it, with a recourse that cannot help; reversing the axis heading builds
-status: open
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
+closed: 2026-11-23
+pr: 7425
+branch: lathe/one-side-of-the-axis
 ---
 
 
@@ -13,7 +16,7 @@ Found by PROFILE's elbow probe (2026-11-21), run on hosted CI as the
 throwaway PR 7280 (runs 44883617049 and 44889924284, `test (app)`,
 `editor-core::zz_probe_elbow`), for Ev's question whether a hollow
 cylinder's end loops can be revolved into an elbow
-(`work/profile/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md`).
+(`work/faceloop/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md`).
 
 ## Measured
 

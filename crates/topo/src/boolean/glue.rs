@@ -572,6 +572,10 @@ fn coincidence_site(decided: geom_brep::Coincident) -> (crate::Relation, crate::
         C::TorusTorus => (Relation::Coaxial, Site::CoaxialTori),
         C::CylinderRadii => (Relation::SameRadius, Site::CrossingCylinders),
         C::CylinderAxesMeet => (Relation::AxesMeet, Site::CrossingCylinders),
+        C::ConeApex => unreachable!(
+            "a cone's apex on its partner is decided on a cone pair's section, which the \
+             glue door never reads: `pair_section::serves` admits no cone"
+        ),
     }
 }
 
@@ -631,7 +635,8 @@ fn face_closures<T: geom_core::Real>(
         .map(|view| {
             let mut cells = vec![Cell::Face(view.key())];
             for member in view.boundary() {
-                if let crate::live::BoundaryMember::Edge { ek, .. } = member {
+                if let crate::live::BoundaryMember::Edge { edge, .. } = member {
+                    let ek = edge.key();
                     cells.push(Cell::Edge(ek));
                 }
                 cells.push(Cell::Vertex(member.vertex()));

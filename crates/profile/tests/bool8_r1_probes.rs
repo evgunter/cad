@@ -295,7 +295,7 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
     assert!(
         matches!(
             base().toward(1.0, 0.0, t),
-            Err(PathError::JunctionTangent { .. })
+            Err(PathError::JunctionTurnWithinTolerance { .. })
         ),
         "toward() at the exact incoming direction must still refuse"
     );
@@ -305,20 +305,23 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
     assert!(
         matches!(
             base().toward(7.5, 0.0, t),
-            Err(PathError::JunctionTangent { .. })
+            Err(PathError::JunctionTurnWithinTolerance { .. })
         ),
         "a rescaled director is the same ray and must still refuse"
     );
     // (c) `.angle` with the exact incoming angle.
     assert!(
-        matches!(base().angle(0.0, t), Err(PathError::JunctionTangent { .. })),
+        matches!(
+            base().angle(0.0, t),
+            Err(PathError::JunctionTurnWithinTolerance { .. })
+        ),
         "angle() at the incoming angle must still refuse"
     );
     // (d) `.toward` just inside the band but not exactly on it.
     assert!(
         matches!(
             base().toward(1.0, 1e-15, t),
-            Err(PathError::JunctionTangent { .. })
+            Err(PathError::JunctionTurnWithinTolerance { .. })
         ),
         "an in-band-but-not-exact director must still refuse"
     );
@@ -342,7 +345,7 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
     assert!(
         matches!(
             base().line_to(Point2::new(4.0, 0.0), t),
-            Err(PathError::JunctionTangent { .. })
+            Err(PathError::JunctionTurnWithinTolerance { .. })
         ),
         "an authored collinear target must still refuse"
     );
@@ -355,7 +358,7 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
                 .line(2.0, t)
                 .unwrap()
                 .line_to(Point2::new(6.0, 0.0), t),
-            Err(PathError::JunctionTangent { .. })
+            Err(PathError::JunctionTurnWithinTolerance { .. })
         ),
         "the continuation must not launder a later authored tangency"
     );
@@ -384,7 +387,10 @@ fn probe_curved_zero_turn_and_cusp_still_refuse_off_a_continuation() {
             .unwrap()
     };
     assert!(
-        matches!(after().turn(0.0, t), Err(PathError::JunctionTangent { .. })),
+        matches!(
+            after().turn(0.0, t),
+            Err(PathError::JunctionTurnWithinTolerance { .. })
+        ),
         "zero turn off a continuation must refuse"
     );
     assert!(
@@ -933,14 +939,14 @@ fn probe_reproduce_the_measured_seam_wall_in_both_rotations() {
     let err_b = author_to_the_closer(&ring_b, t);
     println!("probe: rotation B (seam at a subdivision) -> {err_b:?}");
     assert!(
-        matches!(err_a, Some(PathError::JunctionTangent { .. })),
+        matches!(err_a, Some(PathError::JunctionTurnWithinTolerance { .. })),
         "rotation A must refuse at the closer's DEPARTURE — as an ORDINARY \
          departure refusal, the same one a mid-chain tangent departure gets, \
          got {err_a:?}"
     );
     assert!(
-        matches!(err_b, Some(PathError::SeamTangent { .. })),
-        "rotation B must refuse at the SEAM, and `SeamTangent` is a refusal \
+        matches!(err_b, Some(PathError::SeamTurnWithinTolerance { .. })),
+        "rotation B must refuse at the SEAM, and `SeamTurnWithinTolerance` is a refusal \
          only a seam can produce, got {err_b:?}"
     );
 }
@@ -973,8 +979,14 @@ fn probe_reproduce_the_quoted_margin_on_the_suites_own_fixture() {
     // since the seam wall's departure half collapsed they are different
     // TYPES rather than one type carrying a site tag — so this pins them
     // by type and no payload needs reading.
-    assert!(matches!(err, Some(PathError::JunctionTangent { .. })));
-    assert!(matches!(err_b, Some(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        err,
+        Some(PathError::JunctionTurnWithinTolerance { .. })
+    ));
+    assert!(matches!(
+        err_b,
+        Some(PathError::SeamTurnWithinTolerance { .. })
+    ));
 }
 
 fn author_to_the_closer(ring: &[Point2<f64>], t: Tol) -> Option<PathError<f64>> {

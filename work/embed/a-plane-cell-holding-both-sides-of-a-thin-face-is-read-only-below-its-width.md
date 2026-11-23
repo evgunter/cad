@@ -2,10 +2,12 @@
 id: a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width
 kind: issue
 title: present_plane reads one line or one corner, so a cell of a thin plane face, holding both its long sides or a short side with both its neighbours, is read only once split below the face's width: a thin slab refuses at the depth floor, a long needle spends the pair budget
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P0
 cost: M
+pr: 7334
+branch: embed/strip
 ---
 
 

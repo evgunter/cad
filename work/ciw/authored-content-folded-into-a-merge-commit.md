@@ -2,10 +2,11 @@
 id: authored-content-folded-into-a-merge-commit
 kind: issue
 title: authored lines land inside merge commits, where git log -p does not show them and nothing detects it
-status: open
+status: closed
 opened: 2026-09-05
 priority: P3
 cost: D
+closed: 2026-11-22
 ---
 
 
@@ -63,3 +64,9 @@ reads and a claim no gate reads are one kind of work. Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Asks for a new per-PR check on every merge commit. The incident it names is one, `18a5368da` (2026-09-05), caught in review.
+No later incident in `work/*/log.md`. vseam's merge-commit clippy fix is a resolution, which the check would have to allow.
+Its strictness question ("resolution content" scoped to conflicted paths) makes it noisy. A review-time discipline costs nothing per run.

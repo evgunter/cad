@@ -1,15 +1,15 @@
 ---
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
-title: A minted section conic is stored anchored on the arc its edge uses, its centre derived (Ev, PR 4812)
-status: dispatched
+title: A conic is held about its centre or about a point of its arc, a family of two placements fixed by its construction
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: H
 branch: oneround/anchored-conic
 refs: [4812, 7194, 7258]
 pr: 7203
-design: true
+closed: 2026-11-23
 ---
 
 Part 2 of the design on
@@ -129,10 +129,10 @@ miss in units of `u·a`, with the point read three ways:
   conic's frame and its origin are; an anchored form changes what that
   origin is.
 - Readers that need the anchor exact, measured on a far-centred conic:
-  `work/oneround/a-far-centred-conics-point-is-decided-against-an-in-box-point-at-the-centres-rounding.md`,
+  `work/conic/a-far-centred-conics-point-is-decided-against-an-in-box-point-at-the-centres-rounding.md`,
   `work/select/an-endpoint-pin-passes-on-a-far-centred-conics-own-rounded-point.md`.
 - A circle has no re-seaming door:
-  `work/oneround/a-far-circle-has-no-re-seaming-door.md`.
+  `work/conic/a-far-circle-has-no-re-seaming-door.md`.
 
 ## Claimed by ONEROUND (2026-11-19)
 
@@ -142,3 +142,117 @@ Moved from HONEPAIR by `git mv`, id and body unchanged, and re-banded P2 → P1:
 - **What the phase-1 measurement adds** (the appended section above; tables on `analysis/oneround/conic-vertex-probes`): the anchor has to be allowed at a general point of the arc, since a cylinder's shallow cut has no principal vertex near its in-box arc; and the near-gap families, the chords of one carrier and the readings that compare a conic's point with an in-box point all recover once evaluators read a form anchored in the box.
 - **Unit:** `oneround/anchored-conic`, letter H, tier dual (a concurrent pair), as logged for `oneround/conic-vertex` on 2026-11-19, whose implementer keeps it. It is stacked on `onehome/carrier-frames` (PR 7131), which makes every carrier hold its frame as a `RigidMotion` (decided, fork 274) and still asks Ev how a stored frame is read at `Interval`.
 
+
+## The stored form (2026-11-21)
+
+The rule is `crates/geom-core/README.md`, "Float rounding". This
+replaces "Re-scoped" above and the one-stored-form text of PR 7194,
+which was built (step B, parked on `oneround/anchored-conic-one-form`)
+and measured before it was set aside; the measurements are in
+`work/oneround/log.md`, 2026-11-21.
+
+- **A family of two placements.** `Circle` and `Ellipse` each hold
+  their directions and sizes once, and a placement: `Centre(point)`, or
+  `OnArc(point)` with, for an ellipse, where on the ellipse the point
+  sits. Each holds only its own numbers. Only the conic's module
+  matches on it; `Curve3`'s conic kinds stay two. A centre-held
+  conic's parameter is the angle from its seam; an arc-held one's is
+  zero at its stored point.
+- **The construction fixes the placement, the same at every size.** A
+  construction handed a centre holds it. One that holds a point of the
+  arc holds that. One whose centre runs off at a pose it can reach (a
+  cylinder cut toward its axis, the equal-cylinder bisector) holds the
+  arc always, and holding a centre there is a kernel bug. Nothing
+  converts one placement to the other.
+- **A conic is the curve its stored numbers state**, and every
+  reading, and every measurement of one, is judged against that curve.
+  A centre-held conic is read from its centre at every scalar, as it
+  was before this unit; it fixes a point of its arc only to the
+  rounding of the centre's distance and directions, so a large one
+  refuses near-tangent decisions it cannot place. An arc-held conic
+  sums short chords from its stored point, which is exact. Reading a
+  centre-held conic by chords from a rounded seam vertex reads another
+  curve: measured, twelve roots 1.4 to 2.7 ε off at a 10 km radius.
+- **Readers go through the conic.** Covers, extents, chart images and
+  the inverse; none restates the curve as `centre + size·direction`. A
+  reader that needs only directions derives no position
+  (`a-conics-points-are-restated-in-centre-form-outside-its-evaluator`).
+- **A move, a mirror and a scaling map the stored point and keep the
+  placement.** A reversal flips the axis, and an arc-held ellipse's
+  phase with it. A re-seam turns a centre-held conic about its centre;
+  an arc-held one has none.
+
+This unit (PR 7203) holds an ellipse's placement as one private value
+in the conic's module, at its centre or on its arc with the phase
+inside that case, and no unread field (it held a tag beside an unread
+field when this section was written). What remains is on two
+rows that PR files:
+`one-stored-form-waits-on-the-readers-of-a-conics-centre` (the
+readers) and
+`a-section-conic-is-anchored-at-a-general-point-of-its-arc` (the
+constructions whose centre runs off).
+
+## What `oneround/anchored-conic` (PR 7203) lands of it
+
+- **The second placement, for an ellipse.** `Ellipse` is held at its
+  centre or on its arc with the phase of its anchor, privately in
+  `crates/geom/src/curves/conic.rs`; the tag and the unread field the
+  section above names are one placement on the merged head. A circle is
+  held at its centre only: no construction mints one on its arc and no
+  filed row will.
+- **One construction whose centre runs off holds the arc**:
+  `plane_cone_section`'s ellipse, at its near vertex. The others still
+  store a centre
+  (`a-section-conic-is-anchored-at-a-general-point-of-its-arc`).
+- **An arc-held ellipse's parameter is zero at its stored point as
+  minted, and not after a re-seam.** `Ellipse::seamed_near` exists and
+  turns the seam under the anchor: parameter zero is then at the turned
+  seam's vertex and the anchor a quarter or a half turn from it, and a
+  point near the anchor holds to 1.5 to 3.6 `u·a`, not to the arc's
+  scale (`a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`,
+  "What this row closes on a re-seamed ellipse"). The section above says
+  an arc-held conic has no re-seam; that is not built.
+- **Readers do not yet all go through the conic**: the readers row,
+  with its list of sites.
+
+**Two things the reviews of PR 7203 left on this row.**
+
+- `carrier_resolution::resolution`
+  (`crates/geom-brep/src/carrier_resolution.rs`) charges an ellipse held
+  on its arc `u` times its semi-axis, as it charges one held at its
+  centre, and its module doc says an ellipse resolves its arc "only to
+  about `u·A`". Near an anchor at the seam's own vertex the point holds
+  to its own coordinates' rounding, so the charge is conservative there.
+  Whether any reader should read less is not decided.
+- A seam turn decided on an `Interval` that straddles
+  (`Ellipse::quarter_turned_where`, `seamed_toward`) hulls the anchor's
+  phase to `([0, 1], [−1, 0])`, and the derived centre is then about a
+  semi-axis wide, where an ellipse held at its centre keeps its centre
+  exact through the same turn. Not probed.
+
+## Closed (2026-11-23, PR 7203)
+
+The design is decided (Ev, PR 7258: a conic is one of a family of two
+placements, fixed by its construction) and its first part is built: an
+ellipse is held at its centre or on its arc with its anchor's phase,
+privately in `crates/geom/src/curves/conic.rs`, and the cone's section
+holds its near vertex. A centre-held conic is unchanged to the bit.
+
+What is not built, each on its own row:
+
+- every reader that rebuilds or restates a conic from its centre goes
+  through the conic: `one-stored-form-waits-on-the-readers-of-a-conics-centre`;
+- the four constructions whose centre runs off and still store a
+  centre: `a-construction-whose-centre-runs-off-still-stores-a-centre`;
+- parameter zero at the stored point through a re-seam, and an anchor
+  at a general point of the arc:
+  `a-section-conic-is-anchored-at-a-general-point-of-its-arc`;
+- the resolution charge of an arc-held ellipse and its phase across an
+  `Interval` seam turn:
+  `an-arc-held-ellipse-is-charged-a-centre-held-ones-resolution-and-hulls-its-phase-across-an-interval-seam-turn`;
+- a sketch arc written by points:
+  `work/profile/a-sketch-arc-written-by-points-is-lowered-to-a-centre.md`;
+- the cone section's image built from its derived centre:
+  `work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`.
+
+How the unit went is `docs/model-compare-log/rows/PR-7203.md`.
