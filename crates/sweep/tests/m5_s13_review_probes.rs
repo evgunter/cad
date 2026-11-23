@@ -358,18 +358,17 @@ fn probe_plane_sphere_section_dense_residual() {
     }
 }
 
-/// PROBE 9 — **the review's MAJOR, pinned at the F1 refusal**: ONE
-/// sphere group escaping through TWO NON-PARALLEL faces (top z = 1 and
-/// side x = 0) with the seam great circle steered clear of both — no
-/// crossings, so only the extent scan sees the configuration. Before
-/// the fix the scan kept the FIRST escape normal only, the re-charted
-/// seam cut one circle, and the union answered 16 + cap_top exactly —
-/// tier-3 valid and silently short one cap. Now the scan collects
-/// EVERY definite escape normal and refuses typed unless all are
-/// parallel (`bool_sphere_escape_parallel`, metered at the group's
-/// radius); multi-chart re-cutting stays banked as an extension.
+/// PROBE 9 — **one sphere group escaping through TWO NON-PARALLEL
+/// faces builds both caps under every op**: the slab's top `z = 1` and
+/// side `x = 0`, with the ball's seam steered clear of both, so no edge
+/// crosses and only the extent scan sees the pose. Each escape is cut in
+/// along the ball's own meridian through its circle, so both circles
+/// land, and every op meets its closed form from the two caps (heights
+/// 0.25 and 0.017, disjoint: no point of the ball lies past both faces).
+/// Red on a body short a cap, on an invalid body, or on a refusal, in
+/// either strategy.
 #[test]
-fn probe_two_nonparallel_escapes_refuse_typed() {
+fn probe_two_nonparallel_escapes_build_both_caps_under_every_op() {
     let r = 0.4;
     let (cx, cy, cz) = (0.383, 2.0, 0.85);
     let pivot = Vec3::new(cx, cy, cz);
@@ -380,19 +379,37 @@ fn probe_two_nonparallel_escapes_refuse_typed() {
         finished("the slab", slab::<f64>(), Tol::witness()),
         finished("the turned ball", b, Tol::witness()),
     );
+    let caps = cap(r, cz + r - 1.0) + cap(r, r - cx);
+    let ball = 4.0 / 3.0 * PI * r.powi(3);
     for strat in [SweepStrategy::Realized, SweepStrategy::Idealized] {
-        let err = boolean_op_with(
-            BooleanOp::Union,
-            &slab,
-            &b,
-            &topo::BooleanInputs::default(),
-            strat,
-            Tol::witness(),
-        )
-        .expect_err("two non-parallel escapes must refuse");
-        let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-            panic!("{strat:?}: expected the multi-escape refusal, got {err:?}");
-        };
-        assert!(what.contains("NON-PARALLEL"), "{strat:?}: {what}");
+        for (op, x, y, want, solids) in [
+            (BooleanOp::Union, &slab, &b, 16.0 + caps, 1),
+            (BooleanOp::Intersect, &slab, &b, ball - caps, 1),
+            (BooleanOp::Subtract, &slab, &b, 16.0 - (ball - caps), 1),
+            (BooleanOp::Subtract, &b, &slab, caps, 2),
+        ] {
+            let what = format!("{strat:?}, {op:?}");
+            let out = boolean_op_with(
+                op,
+                x,
+                y,
+                &topo::BooleanInputs::default(),
+                strat,
+                Tol::witness(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: both escapes cut in and the op builds: {e:?}"));
+            let body = &out.body().unwrap_or_else(|| panic!("{what}: a body")).body;
+            assert_eq!(
+                topo::validate_geometric(body, Tol::witness()),
+                Ok(()),
+                "{what}: the result passes tier 3"
+            );
+            assert_eq!(body.solids().count(), solids, "{what}: its solids");
+            assert!(
+                (vol(body) - want).abs() < slack(),
+                "{what}: volume {}, closed form {want}",
+                vol(body)
+            );
+        }
     }
 }

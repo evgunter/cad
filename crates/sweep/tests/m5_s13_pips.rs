@@ -183,9 +183,10 @@ fn die_pip_subtract_is_green() {
             assert!(cache.certificate().max_residual < 1e-9);
         }
     }
-    assert!(
-        seam_arcs >= 2,
-        "the seam circle survives as exact circle arcs, got {seam_arcs}"
+    assert_eq!(
+        seam_arcs, 1,
+        "the seam circle survives as one exact closed circle edge: the meridian the ball \
+         was cut along to meet it is a cut of the chart, not an edge"
     );
 }
 
@@ -214,9 +215,9 @@ fn die_pip_intersect_is_the_cap_and_additive() {
 /// closed-sphere GROUP arm under multiple sphere surfaces. The two-ball
 /// operand is itself §1 output (a no-crossing ∪ whose extent scan
 /// certifies the balls disjoint and assembles two shells), and the
-/// subtract re-cuts EACH group about its own escape normal. The
-/// assembly and the re-cut graft carry certificates and the seam zip
-/// re-certifies, each graft's bridge read off its record.
+/// subtract cuts EACH ball in along its own meridian through its circle,
+/// in place: no graft. The assembly carries certificates and the seam
+/// zip re-certifies, each graft's bridge read off its record.
 #[test]
 fn two_pips_cut_under_the_group_arm() {
     // Placements: disjoint balls, both far enough from every slab
@@ -247,17 +248,11 @@ fn two_pips_cut_under_the_group_arm() {
         "the disjoint union's assembly graft"
     );
     let cut = both_lanes(BooleanOp::Subtract, &slab(), &pair);
-    // Per lane: the re-cut grafts the second turned ball back onto the
-    // first, carrying, and the seam zip then re-certifies.
+    // Per lane: the cut-ins graft nothing, and the seam zip re-certifies.
     assert_eq!(
         topo::test_support::take_graft_bridges(),
-        [
-            GraftBridge::RemapKeys,
-            GraftBridge::Recertify,
-            GraftBridge::RemapKeys,
-            GraftBridge::Recertify,
-        ],
-        "the re-cut graft, then the seam zip's, in each lane"
+        [GraftBridge::Recertify, GraftBridge::Recertify],
+        "the seam zip's graft alone, in each lane"
     );
     assert!(
         (vol(&cut) - (16.0 - 2.0 * cap(PIP_R, PIP_H))).abs() < slack(),
@@ -279,16 +274,14 @@ fn two_pips_cut_under_the_group_arm() {
     );
 }
 
-/// **A re-charted ball's rows name its input shell, not the cells the
-/// turn moved.** `slab ∖ (two balls)` re-charts both balls and keeps no
-/// shell, so the first turned ball becomes the re-cut operand with its
-/// input keys at turned places, and the second is grafted under new
-/// keys. Every row naming a cell of the pair names every face of one of
-/// its input shells, both shells reached: the sphere each turned cell
-/// lies on. An input edge or vertex of the first ball, held under its
-/// own key but standing where the turn put it, names no row.
+/// **A cut-in ball's rows name the input face the cut divided, not the
+/// piece the cut minted.** `slab ∖ (two balls)` cuts each ball's face in
+/// along a meridian through its circle before the op re-enters, so the
+/// circle's crossings land on a piece under a key the cut minted. Every
+/// row naming a cell of the pair names one face of the pair (the face
+/// that piece reads back to), both balls reached.
 #[test]
-fn a_re_charted_balls_rows_name_its_input_shells_faces() {
+fn a_cut_in_balls_rows_name_the_input_face_each_cut_divides() {
     let pair = topo::union(&pip_ball(2.0, 1.2), &pip_ball(2.0, 2.8), Tol::witness())
         .expect("disjoint balls assemble")
         .body()
@@ -326,10 +319,12 @@ fn a_re_charted_balls_rows_name_its_input_shells_faces() {
         if named.is_empty() {
             continue;
         }
-        let shell = shells.iter().position(|faces| *faces == named);
+        let shell = shells
+            .iter()
+            .position(|faces| named.len() == 1 && named.is_subset(faces));
         assert!(
             shell.is_some(),
-            "row {row:?} names the pair's {named:?}, not every face of one of its shells \
+            "row {row:?} names the pair's {named:?}, not one face of one of its shells \
              {shells:?}"
         );
         if let Some(at) = shell {

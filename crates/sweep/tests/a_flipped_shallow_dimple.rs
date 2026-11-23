@@ -2,18 +2,17 @@
 //! nothing else** — the witness for why `sphere_loop_side` reads a
 //! one-loop face's side off its chart poles.
 //!
-//! A box less a shallow ball leaves a dimple. The boolean charts the
-//! ball with its pole on the cut plane's normal, so the dimple is two
-//! sphere faces meeting along a seam at the pole, each bounded by half
-//! the section circle and the seam. Flipping the sense of BOTH faces
-//! keeps the seam consistent, and the section circle meets the planar
-//! top face transversally, so tier 3's check 4, which reads material
-//! pairing only across `Smooth` edges, sees nothing; and the sphere's
-//! flux reads the bit, so a flip left unread would measure the box less
-//! the ball's COMPLEMENT, a wrong positive volume. Each face has the
-//! pole on its loop and the far pole off it, on the side the face does
-//! not lie on, so the reader encodes its side, and both tier 3's check
-//! 6 and the mass properties refuse the flip by name.
+//! A box less a shallow ball leaves a dimple: one sphere face bounded by
+//! the section circle alone, the ball's chart poles both off it (the
+//! meridian the boolean cut the ball along to meet the circle is a cut
+//! of the chart, not an edge, and does not survive). The section circle
+//! meets the planar top face transversally, so tier 3's check 4, which
+//! reads material pairing only across `Smooth` edges, sees nothing of a
+//! flipped sense; and the sphere's flux reads the bit, so a flip left
+//! unread would measure the box less the ball's COMPLEMENT, a wrong
+//! positive volume. Flipped, the face claims the complement of the cap,
+//! which holds both poles, so the reader encodes its side, and both tier
+//! 3's check 6 and the mass properties refuse the flip by name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Tol, Vec3};
@@ -67,48 +66,40 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
         .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(dimple.len(), 2, "the dimple is two half-faces on one seam");
-    let flipped = dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
-        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
-            .expect("the face")
-    });
-    // Each flipped half claims its complement, which holds the other, so
-    // the cover census refuses their region as claimed twice, named by
-    // its first member, before the face reads name each flipped half;
-    // that complement holds the north pole too, which the
-    // chart-singularity arm names after them.
+    let [dimple] = dimple[..] else {
+        panic!("the dimple is one face, got {dimple:?}");
+    };
+    let flipped = body
+        .flipped_face_sense_for_tests(dimple, geom_core::Tol::witness())
+        .expect("the face");
     assert_eq!(
         topo::validate_geometric(&flipped, tol),
         Err(
-            core::iter::once(topo::ValidationError::SeamRegionOvercovered {
-                face: dimple[0],
-                times: 2,
-            })
-            .chain(
-                dimple
-                    .iter()
-                    .map(|&face| topo::ValidationError::CurvedSenseInverted { face })
-            )
-            .chain(dimple.iter().map(|&face| {
-                topo::ValidationError::ChartSingularityNotAVertex {
-                    face,
-                    point: geom_brep::chart_singularity::Singularity::North,
-                    lies: topo::SingularityLies::Interior,
-                }
-            }))
-            .collect()
+            core::iter::once(topo::ValidationError::CurvedSenseInverted { face: dimple })
+                .chain(
+                    [
+                        geom_brep::chart_singularity::Singularity::North,
+                        geom_brep::chart_singularity::Singularity::South,
+                    ]
+                    .map(|point| topo::ValidationError::ChartSingularityNotAVertex {
+                        face: dimple,
+                        point,
+                        lies: topo::SingularityLies::Interior,
+                    })
+                )
+                .collect()
         ),
-        "check 6 names the overlap, both flipped faces and the pole each holds, and nothing \
+        "check 6 names the flipped face and both poles its complement holds, and nothing \
          else does"
     );
     assert!(
         matches!(
-            // Raw door: `flipped` is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
+            // Raw door: tier 3 refuses `flipped` (above).
             topo::test_support::measure_unvalidated(&flipped, tol, topo::test_support::pinned_resolution(tol)),
             Err(topo::MassPropsError::Face {
                 face,
                 source: geom_brep::props::PropsError::SenseContradicted,
-            }) if dimple.contains(&face)
+            }) if face == dimple
         ),
         "the flipped dimple is refused, not measured as the complement"
     );
