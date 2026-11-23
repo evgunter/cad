@@ -34,3 +34,5 @@ such a change past its PR is
 - the same for `pcurves/decision.rs: decide_joint: chart`.
 
 That lane's branch prints the same lines and nothing else.
+
+**On `origin/main` at `ffb8d91ae5` (2026-11-23).** The two `Const(NEST)`/`Const(REACH)` lines are gone. Two new indirect sites are not listed: `boolean/join.rs: conic_section_frame_at: sa` and `boolean/section_cert.rs: cone_torus: f`. The other five lines stand. `oneround/lever-sites-topo` at its merge with that main prints the same seven lines.
