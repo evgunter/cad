@@ -1087,8 +1087,8 @@ impl Evaluation<f64> {
             sourced: Arc::default(),
             spaces: Arc::default(),
             parts_sym: Vec::new(),
-        sym_table: geom_core::sym::table(),
-        parts: parts::Carried::none(),
+            sym_table: geom_core::sym::table(),
+            parts: parts::Carried::none(),
             resolver: None,
         }
     }
@@ -3017,14 +3017,13 @@ pub(crate) mod leaf {
 
     /// A shared memo prior over the nominal box, for the numeric lane.
     ///
-    /// **The symbolic lane has none, deliberately.** A `Sym` value carries
-    /// a DAG node id, its hash-consing table is per session and thread-local
-    /// (`geom_core::sym::with_session`), and a memo built in one session and
-    /// served into another hands the second session ids it has no nodes for.
-    /// The forms would freeze rather than cancel — sound, but it would
-    /// silently switch the tier off for exactly the subgraph the prior was
-    /// built to save. A per-leaf session with no prior costs evaluation time
-    /// and claims nothing false.
+    /// **The symbolic lane has none.** A `Sym` value names nodes of
+    /// the expression table it was built under
+    /// (`geom_core::sym::table`): a prior built under the same drive's
+    /// table would be read, and one built under another is not
+    /// ([`prior_under_this_table`]). No caller hands a symbolic leaf a
+    /// prior of its own drive yet; a leaf with none costs evaluation
+    /// time and claims nothing false.
     pub(crate) enum LeafPrior {
         /// No prior — every leaf evaluates standalone.
         None,
@@ -5291,6 +5290,12 @@ fn prior_under_this_table<T: topo::AtRestPolicy + Decide>(prior: &Evaluation<T>)
 /// another, that registered an identity, in node-id order. A node's
 /// scope is opened over these and over no other node's
 /// ([`geom_core::sym::MintScope::node`]).
+///
+/// **The order is part of the answer.** Records merge one after
+/// another, and which identity a cycle drops and which node an alias
+/// chain ends at follow that order. Node ids are the document's, so the
+/// order is the same in every leaf; whatever else merges records (a
+/// store serving a node) has to merge them in this order.
 fn upstream_records<T: topo::AtRestPolicy + Decide>(
     doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,

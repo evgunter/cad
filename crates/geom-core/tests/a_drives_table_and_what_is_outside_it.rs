@@ -77,11 +77,9 @@ fn a_value_resolves_through_the_table_in_a_leaf_with_no_cache_of_its_maker() {
         let c = lit(2.0);
         zero(c * c - lit(4.0));
         let second = std::thread::scope(|s| {
-            s.spawn(|| {
-                with_session_memo(budget(), folding(), &m, || zero(c * c * c - lit(8.0))).1
-            })
-            .join()
-            .expect("the second leaf ran")
+            s.spawn(|| with_session_memo(budget(), folding(), &m, || zero(c * c * c - lit(8.0))).1)
+                .join()
+                .expect("the second leaf ran")
         });
         assert_eq!(
             decisions(second),
@@ -156,7 +154,11 @@ fn a_form_over_an_unknown_is_not_published() {
         let b = std::thread::scope(|s| s.spawn(|| minting(&m)).join().expect("leaf B ran"));
         assert_eq!(decisions(b), (1, 0), "leaf B builds the real form: {b:?}");
     });
-    assert_eq!(m.size().frozen, 0, "no freeze of the unknown is in the drive's set");
+    assert_eq!(
+        m.size().frozen,
+        0,
+        "no freeze of the unknown is in the drive's set"
+    );
 }
 
 /// **What a leaf builds over an unknown does not stay in the caches
@@ -173,8 +175,16 @@ fn a_form_over_an_unknown_is_not_kept_warm() {
     assert_eq!(decisions(handed(&m, outside)), (0, 1));
     // The table still names no `c`: checked, so the next leaf's fold
     // is its own minting and not a resolution through the table.
-    assert_eq!(m.size().nodes, 3, "the product, the literal 4 and the difference");
-    assert_eq!(decisions(minting(&m)), (1, 0), "a leaf that mints `c` folds");
+    assert_eq!(
+        m.size().nodes,
+        3,
+        "the product, the literal 4 and the difference"
+    );
+    assert_eq!(
+        decisions(minting(&m)),
+        (1, 0),
+        "a leaf that mints `c` folds"
+    );
 }
 
 /// **What is left of the order between leaves, pinned as it stands.**
@@ -189,7 +199,15 @@ fn a_form_over_an_unknown_is_not_kept_warm() {
 fn an_outside_value_resolves_once_a_leaf_has_minted_its_content() {
     let outside = lit(2.0);
     let m = folding_table();
-    assert_eq!(decisions(handed(&m, outside)), (0, 1), "before any leaf minted it");
+    assert_eq!(
+        decisions(handed(&m, outside)),
+        (0, 1),
+        "before any leaf minted it"
+    );
     let _ = with_session_memo(budget(), folding(), &m, || lit(2.0));
-    assert_eq!(decisions(handed(&m, outside)), (1, 0), "after a leaf minted it");
+    assert_eq!(
+        decisions(handed(&m, outside)),
+        (1, 0),
+        "after a leaf minted it"
+    );
 }

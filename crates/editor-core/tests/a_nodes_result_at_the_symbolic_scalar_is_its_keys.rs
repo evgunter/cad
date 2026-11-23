@@ -395,12 +395,13 @@ fn cylinder(label: &str, tol: Tol) -> ProfileDoc {
 }
 
 /// The cylinder instanced once, in a document named `assembly`.
-fn instancing(part: &ProfileDoc, assembly: &str, tol: Tol) -> (ProfileDoc, editor_core::RecipeNodeId) {
+fn instancing(
+    part: &ProfileDoc,
+    assembly: &str,
+    tol: Tol,
+) -> (ProfileDoc, editor_core::RecipeNodeId) {
     let pin = editor_core::content_pin(part, tol).expect("the pin computes");
-    let doc_ref = editor_core::DocRef {
-        id: part.id(),
-        pin,
-    };
+    let doc_ref = editor_core::DocRef { id: part.id(), pin };
     let doc = ProfileDoc::empty(editor_core::DocumentId::derive(assembly), tol);
     let (doc, instance) = crate::fixture::insert(doc, crate::fixture::mated_instance(doc_ref));
     (crate::fixture::assemble_world_copies(doc), instance)
@@ -451,10 +452,19 @@ fn a_parts_run_is_the_same_in_two_instancing_documents() {
     let part = cylinder("session-state-part", tol);
     let record_in = |assembly: &str| {
         let (doc, _) = instancing(&part, assembly, tol);
-        let (ev, _) = one_leaf(&doc, Some(Arc::new(OneDoc(part.clone()))), None, &table(), tol);
+        let (ev, _) = one_leaf(
+            &doc,
+            Some(Arc::new(OneDoc(part.clone()))),
+            None,
+            &table(),
+            tol,
+        );
         ev.parts_sym[0].counts()
     };
-    assert_eq!(record_in("session-state-first"), record_in("session-state-second"));
+    assert_eq!(
+        record_in("session-state-first"),
+        record_in("session-state-second")
+    );
 }
 
 /// **The product's gather is the product's.** The gather runs after
@@ -521,5 +531,8 @@ fn a_prior_built_under_another_table_is_not_read() {
     let shared = table();
     let (first, _) = one_leaf(&doc, None, None, &shared, tol);
     let (second, _) = one_leaf(&doc, None, Some(&first), &shared, tol);
-    assert!(second.reused > 0, "a prior of the same drive's table is read");
+    assert!(
+        second.reused > 0,
+        "a prior of the same drive's table is read"
+    );
 }

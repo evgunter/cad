@@ -13,8 +13,8 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 
 /// A spline's memoised meter: `compute` afresh inside a symbolic
 /// session, `cell`'s value outside one (filled on first read). A
-/// session's table holds the nodes it saw built, and a node minted
-/// anywhere else freezes in it to an unknown of its own
+/// session's table holds the nodes built under it, and a node minted
+/// under no session is in it an unknown of its own
 /// (`geom_core::sym`, "No session, no tier"), so a memo served across
 /// that boundary would change what the session decides; inside one
 /// nothing the meter mints is kept.

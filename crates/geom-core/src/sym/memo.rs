@@ -26,17 +26,29 @@
 //! expressions colliding on a 128-bit content hash would be a
 //! soundness break.
 //!
-//! # Every node a drive reasons about is in its table
+//! # What a leaf resolves through the table, and what it cannot
 //!
 //! A session on a drive's table records each node as it mints it, and
 //! a leaf resolves an id through its own cache and then through the
 //! table, so a value built in one leaf of a drive means in another
-//! what it meant where it was built. An id in neither was minted
-//! outside every session of the drive. No kernel path carries a
-//! symbolic value across a session's boundary, and a walk that meets
-//! such an id under a drive's table says so (`form_in`'s
-//! `debug_assert!`): whether it is absent would otherwise depend on
-//! which leaf ran first.
+//! what it meant where it was built.
+//!
+//! An id in neither was minted outside every session on the table: a
+//! `Sym` is a plain value, and any public door can be handed one. It
+//! is an UNKNOWN in that leaf (`Session::unknown`): an indeterminate
+//! of its own, which proves nothing the node would not, and its form
+//! and every plain form built over it are neither published here nor
+//! left in the caches the table keeps warm, because they are that
+//! leaf's reading and not a function of the id.
+//!
+//! **One dependence on the order of leaves is left, and it is this
+//! one.** An id is its content's hash, so once any leaf has minted the
+//! same content inside a session the table names it, and a leaf handed
+//! that content from outside resolves it. Sound either way; stronger
+//! after the minting leaf. Only a value from outside every session
+//! reaches it, and the evaluation service refuses the one such value
+//! it is handed whole, a prior built under another table
+//! (`editor_core`'s `prior_under_this_table`).
 //!
 //! # A leaf's `frozen` column
 //!
@@ -55,9 +67,13 @@
 //! makes one its cache does not hold. The caches outlive the leaf:
 //! the table keeps them ([`DriveMemo::warm`]) and hands one to the
 //! next leaf, which therefore starts with what an earlier leaf made
-//! and publishes only what is new to it. A cache holds nothing the
-//! table does not, so which cache a leaf is handed changes what it
-//! costs and nothing it answers. The forms are `Arc<Form>`, so a hit
+//! and publishes only what is new to it. Every node and plain form in
+//! a cache is in the table; its atom records are more than the
+//! table's (the early and retry walks' too), and each is a function of
+//! its id. So which cache a leaf is handed changes what it costs and
+//! nothing it answers. Nothing caps a cache: it grows to the table's
+//! size, one per leaf that runs at once, and
+//! [`MemoSize::bytes_estimate`] does not count it. The forms are `Arc<Form>`, so a hit
 //! hands back the allocation the first leaf built.
 //!
 //! With the dial off ([`DriveMemo::counting_only`]) the table keeps

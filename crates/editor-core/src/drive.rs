@@ -776,12 +776,14 @@ impl ParamBoxVerdict {
         &self.accounting
     }
 
-    /// **What the drive's plain memo came to** at its end
-    /// (`DriveConfig::plain_memo`): the forms and atoms it held and an
-    /// estimate of the heap they occupied.
+    /// **What the drive's table came to** at its end
+    /// (`DriveConfig::plain_memo`): the nodes, plain forms and atom
+    /// records it held and an estimate of the heap they occupied. The
+    /// leaves' warm caches of it are not in the estimate
+    /// (`geom_core::sym::MemoSize::bytes_estimate`).
     ///
-    /// With the dial OFF the memo serves no form, so `forms` and
-    /// `atoms` are zero — but `frozen` is not, and neither is
+    /// With the dial OFF the table serves nothing, so `nodes`, `forms`
+    /// and `atoms` are zero — but `frozen` is not, and neither is
     /// `bytes_estimate`: the off lane still collects the drive's
     /// distinct freezes, which is what keeps the receipt's `frozen`
     /// column the same column in both lanes (the plate reads
