@@ -3254,7 +3254,11 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
         };
         if let Some((family, at)) = member {
             let held = value_of(results, family)?;
-            let (family, index, mut value) = member_projected(family, held.whole(), &at)?;
+            // A member of a yielded half of a split of each member is
+            // that member's half (D10 `[repetition]`).
+            let halves = split_halves(var, doc, family, held.whole())?;
+            let whole = halves.as_ref().map_or(held.whole(), |(_, family)| family);
+            let (family, index, mut value) = member_projected(family, whole, &at)?;
             // A member read at its binder's own indices, inside the
             // binder, is the member the reader stands at (D10
             // `[repetition]`): it answers that member's own table, as
@@ -3277,7 +3281,13 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
                     .find_map(|&out| doc.yielding(out))
                     .is_some_and(|binder| doc.binder_indices(binder) == written.at);
             if own {
-                value.outputs = held.outputs.clone();
+                value.outputs = match halves {
+                    Some((port, _)) => held
+                        .output(port)
+                        .map(|names| Arc::from([names.clone()]))
+                        .unwrap_or_else(|| held.outputs.clone()),
+                    None => held.outputs.clone(),
+                };
             }
             replaced.push((family, index, value));
             continue;
@@ -3465,16 +3475,17 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
         .unwrap_or_else(|| unreachable!("a split defines a port per half"));
     let value = value_of(results, split)?;
     let ValuePayload::Split { above, below } = &value.payload else {
-        // A split of a family is a family of splits (D10
-        // `[repetition]`), read here by a reader of no member of it.
-        return Err(match value.payload {
-            ValuePayload::Family => NodeErrorKind::HalfOfAFamily {
-                read: var,
-                input: split,
-                half,
-            },
-            _ => wrong_operand(value, split, super::family::SPLIT),
-        });
+        // A split inside a binder, `{k in xs: split(xs[k])}`, is a family
+        // of splits (D10 `[repetition]`); a reader of its yielded half
+        // reads that half of every member, a family of bodies.
+        return match (&value.payload, &value.members) {
+            (ValuePayload::Family, Some(members)) => half_of_each(split, port, half, members)
+                .map(|family| Some((split, half.output_body(), family))),
+            (ValuePayload::Family, None) => {
+                unreachable!("family of splits {split:?} keeps no members")
+            }
+            _ => Err(wrong_operand(value, split, super::family::SPLIT)),
+        };
     };
     let body = split_side(split, half, above, below)?;
     // The half's names are its own output's (N1, the scope).
@@ -3489,6 +3500,77 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
     let at = half.output_body() as usize;
     let carry = value.carry.member(at).clone();
     Ok(Some((of, index, super::NodeValue { carry, ..projected })))
+}
+
+/// **The family of halves a read of `var` reads off `held`**, with the
+/// split's port: `Some` where `var` is a half of the split `split` and
+/// `held` is a family of splits, a split inside a binder; `None` for any
+/// other read, which reads `held` itself.
+fn split_halves<T: topo::AtRestPolicy + Decide>(
+    var: crate::VarId,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    split: RecipeNodeId,
+    held: &super::NodeValue<T>,
+) -> Result<Option<(u8, super::NodeValue<T>)>, NodeErrorKind> {
+    let (ValuePayload::Family, Some(members)) = (&held.payload, &held.members) else {
+        return Ok(None);
+    };
+    let Some(port) = doc
+        .var(var)
+        .and_then(|v| v.def().output())
+        .filter(|&(at, _)| at == split && matches!(doc.node(at), Some(Node::Split { .. })))
+        .map(|(_, port)| port)
+    else {
+        return Ok(None);
+    };
+    let half = SplitHalf::of_output_body(u32::from(port))
+        .unwrap_or_else(|| unreachable!("a split defines a port per half"));
+    half_of_each(split, port, half, members).map(|family| Some((port, family)))
+}
+
+/// **The half `half` (the split's port `port`) of each member of a
+/// family of splits**, as the family of those halves: each member's half
+/// projected as one split's half is ([`projected`]), then gathered as
+/// any family of bodies is ([`super::members::family_value`]), each
+/// half named at its member's place. A member whose half is empty
+/// refuses the family ([`NodeErrorKind::EmptyHalf`]).
+fn half_of_each<T: topo::AtRestPolicy + Decide>(
+    split: RecipeNodeId,
+    port: u8,
+    half: SplitHalf,
+    members: &super::members::Members<T>,
+) -> Result<super::NodeValue<T>, NodeErrorKind> {
+    let halves = members
+        .members
+        .iter()
+        .map(|(at, member)| {
+            let ValuePayload::Split { above, below } = &member.payload else {
+                return Err(wrong_operand(member, split, super::family::SPLIT));
+            };
+            let body = split_side(split, half, above, below)?;
+            let names = member.output(port).cloned().unwrap_or_else(|| {
+                unreachable!("a member of split {split:?} names its {half:?} half (port {port})")
+            });
+            let (_, _, projected) = projected(split, member, body, names, 0)?;
+            let carry = member.carry.member(half.output_body() as usize).clone();
+            Ok((
+                at.clone(),
+                super::NodeValue {
+                    carry,
+                    members: None,
+                    family: None,
+                    ..projected
+                },
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    super::members::family_value(
+        split,
+        super::members::Members {
+            over: members.over.clone(),
+            members: halves,
+        },
+    )
 }
 
 /// `value`'s output `index` as the body alone, at output 0, with that

@@ -113,6 +113,8 @@ mod band_planar_cut_off_names;
 mod band_planar_mitre_names;
 #[path = "band_run_wall_names.rs"]
 mod band_run_wall_names;
+#[path = "binder_split_halves.rs"]
+mod binder_split_halves;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
