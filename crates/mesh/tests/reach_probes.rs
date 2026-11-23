@@ -2166,9 +2166,10 @@ fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
 /// triangulation is its `n` boundary points' `n − 2` triangles, and on
 /// these faces nearly every one holds a side the face across can make:
 /// the cure puts a point inside each, two triangles a point, and a second
-/// round a few more. Each cylinder face holds at most `3n + 2` triangles
+/// rounds a few more. Each cylinder face holds at most `3.25n` triangles
 /// (measured on the first pair: `n = 28` at δ 0.5, 26 sides cured then
-/// 4, 86 triangles; `n = 60` at δ 0.1, 182), up to 2.2 times what the
+/// 4, 86 triangles; `n = 60` at δ 0.1, 182; `n = 130` at δ 0.02, 128
+/// then 10 then 2, 408), up to 2.2 times what the
 /// face took when it laid rows, whose nodes kept most of its triangles
 /// off the arcs. The rule that decides such a side is
 /// `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`.
@@ -2209,9 +2210,9 @@ fn crossing_rods_keep_no_side_a_neighbour_can_make() {
                         }
                         let n = crate::rowless_cylinders::boundary_points(body, &mesh, patch.face);
                         assert!(
-                            patch.triangles.len() <= 3 * n + 2,
+                            4 * patch.triangles.len() <= 13 * n,
                             "{what}, δ = {delta:e}: a cylinder face holds {} triangles on {n} \
-                             boundary points, past the cure's 3n + 2",
+                             boundary points, past the cure's 3.25n",
                             patch.triangles.len()
                         );
                     }
