@@ -144,24 +144,17 @@ impl<T: Real> Placing<T> {
         }
     }
 
-    /// A sketch direction carried by the station's frame: `(d, 0)`
-    /// through the placement's linear part, then turned. The placement
-    /// and the turn are rigid, so a unit direction comes out unit, and
-    /// the result carries that as its type ([`Unit3`]); nothing is
-    /// re-derived from placed points.
+    /// A sketch direction carried by the station's frame: the `u` of
+    /// the station's frame turned onto `d` ([`RigidMotion::spun_onto`],
+    /// then carried by the turn), so it is [`Self::frame_toward`]'s `u`
+    /// by one rule: within its rounding `(d, 0)` through the
+    /// placement's linear part, then turned, bit for bit; past it,
+    /// squared with its frame. The placement and the turn are rigid, so
+    /// a unit direction comes out unit, and the result carries that as
+    /// its type ([`Unit3`]); nothing is re-derived from placed points.
     pub(crate) fn direction(self, d: Unit2<T>) -> Unit3<T> {
         let Unit2(d) = d;
-        // The sketch direction is a normalization (`sketch_direction`), a
-        // bare `Vec2`, so it is checked; its two rigid carries are the
-        // rigid image's door ([`RigidMotion::turn`]), the placement's
-        // linear part the same as `place`'s.
-        let placed = self
-            .motion
-            .turn(UnitVec3::checked(Vec3::new(d.x, d.y, T::zero())));
-        Unit3(match self.turn {
-            None => placed,
-            Some(turn) => turn.anchored.turn(placed),
-        })
+        Unit3(self.carry_frame(self.motion.spun_onto(d)).u())
     }
 
     /// **The station's frame**: the rigid frame this placing's
@@ -178,7 +171,8 @@ impl<T: Real> Placing<T> {
     /// of the sketch vector `d` ([`RigidMotion::spun_toward`], which
     /// normalizes `d` once, as [`sketch_direction`] does), then carried
     /// by the turn. Its `u` is [`Self::direction`] of that sketch
-    /// direction, its `w` the station's normal, and nothing is decided:
+    /// direction by one rule (both read the frame [`RigidMotion::spun_onto`]
+    /// turns, `d` normalized first here), its `w` the station's normal, and nothing is decided:
     /// the frame is measured, and re-squared only past its rounding.
     pub(crate) fn frame_toward(self, d: Vec2<T>) -> RigidMotion<T> {
         self.carry_frame(self.motion.spun_toward(d))

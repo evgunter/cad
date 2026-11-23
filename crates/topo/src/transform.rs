@@ -544,11 +544,11 @@ pub fn surface_at<T: Real>(
 
 /// **One curve carrier read at a rigid motion**: `motion ∘ c`, as
 /// [`surface_at`] reads a surface, with the factor its parameter is
-/// `c`'s times ([`map_carrier_stretched`]): `one`, but for a line whose
-/// image direction the door squared, where a point at `c`'s parameter
-/// `t` is the image's at `t` times the stretch. A reader holding a span
-/// on `c` scales it by the stretch, as [`transform_rigid`] scales an
-/// edge's.
+/// `c`'s times, `k` ([`map_carrier_stretched`]): `one`, but for a line
+/// whose image direction the door squared. The point `c` reads at `t`
+/// moves to the point the image reads at `k·t`, so a span `(t0, t1)` on
+/// `c` is the span `(k·t0, k·t1)` on the image, as [`transform_rigid`]
+/// scales an edge's.
 ///
 /// # Errors
 ///

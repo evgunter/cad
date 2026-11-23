@@ -766,7 +766,13 @@ impl<T: Real> UnitVec3<T> {
     /// `0/0`, poison, beside its true length, zero, which a span reader
     /// refuses typed. A chord with an entry that is not finite, or whose
     /// length overflows the format, has neither: the direction and the
-    /// length are both poison, never one component of them.
+    /// length are both poison, never one component of them. An
+    /// overflowing chord of finite entries has a direction the prescale
+    /// reads, but it is poisoned with its length all the same: a chord
+    /// is the span `(0, |v|)` a segment stands on, and a chord longer
+    /// than the format is no segment the kernel holds: its ends stand
+    /// far past any session box. A finite direction beside a poisoned
+    /// length would only move the refusal to the span's reader.
     #[must_use]
     pub fn chord(v: Vec3<T>) -> (Self, T) {
         let (d, len) = v.direction_and_length();

@@ -1024,10 +1024,15 @@ impl<T: Real> RigidMotion<T> {
 
     /// **`self ∘ inner`**: `inner` acts first. The product of two
     /// rigid motions is rigid, so nothing is decided again: the axes
-    /// are `self` acting on `inner`'s ([`Self::turn`]) and the origin
-    /// is `self` acting on `inner`'s. The arithmetic is
-    /// [`Affine3`]'s own product, bit for bit (`linear · linear`
-    /// column by column, then `linear · t + t`).
+    /// are `self`'s linear part acting on `inner`'s, and the origin is
+    /// `self` acting on `inner`'s. The product's three columns are
+    /// measured as one frame ([`Self::measured_frame`], as
+    /// [`Self::carried_by`]'s image is): within every rounding charge
+    /// they are [`Affine3`]'s own product, bit for bit (`linear ·
+    /// linear` column by column, then `linear · t + t`); one past a
+    /// charge they are squared about the product's `w`, so a chain of
+    /// compositions does not drift off rigid, where each column turned
+    /// alone stays unit but not square to its neighbours.
     ///
     /// # Errors
     ///
@@ -1035,12 +1040,13 @@ impl<T: Real> RigidMotion<T> {
     /// when the composed origin overflows.
     pub fn compose(self, inner: Self) -> Result<Self, RigidMotionError> {
         let origin = finite(self.transform_point(inner.origin), MotionPart::Product)?;
-        Ok(Self {
+        let l = self.linear();
+        Ok(Self::measured_frame(
             origin,
-            u: self.turn(inner.u),
-            v: self.turn(inner.v),
-            w: self.turn(inner.w),
-        })
+            l * inner.u.get(),
+            l * inner.v.get(),
+            l * inner.w.get(),
+        ))
     }
 
     /// **The inverse, as the transpose**: linear part `Rᵀ`, translation
@@ -1428,7 +1434,19 @@ impl<T: Real> RigidMotion<T> {
     /// direction bit for bit.
     #[must_use]
     pub fn spun_toward(self, d: Vec2<T>) -> Self {
-        let c = d.normalize();
+        self.spun_onto(d.normalize())
+    }
+
+    /// **This frame turned about its own `w` onto the unit `c`**, a
+    /// direction of its own `uv` plane already normalized (a sketch
+    /// direction, [`Vec2::normalize`]'s): [`Self::spun_toward`] with its
+    /// normalization taken, `u` this frame turning `(c, s, 0)` and `v`
+    /// turning `(−s, c, 0)`, `w` and the origin kept. `c` is not
+    /// trusted: the image is measured as one frame, its column norms
+    /// among the margins, so a `c` off unit past its rounding is squared
+    /// with the frame (Gram–Schmidt from `w`) or, past `√ε`, poisons it.
+    #[must_use]
+    pub fn spun_onto(self, c: Vec2<T>) -> Self {
         let along = Vec3::new(c.x, c.y, T::zero());
         let left = Vec3::new(T::zero() - c.y, c.x, T::zero());
         Self::measured_frame(
@@ -2045,7 +2063,9 @@ impl<T: Decide> RigidMotion<T> {
     /// bitwise `direction` the turn is the identity and every axis keeps
     /// its value.
     ///
-    /// The origin is stored verbatim, since the turn fixes it.
+    /// The origin is stored verbatim, since the turn fixes it. The turned
+    /// axes are measured as one frame ([`Self::measured_frame`]), as a
+    /// composition's are.
     ///
     /// Its decisions are [`Self::least_turn`]'s, under `site`, over `arm`
     /// ([`Lever`]'s sources; [`Lever::session_box`] where no geometry is
@@ -2065,12 +2085,13 @@ impl<T: Decide> RigidMotion<T> {
         tol: Tol,
     ) -> Result<Self, TurnError> {
         let turn = Self::least_turn(self.w, direction, Point3::origin(), arm, site, band, tol)?;
-        Ok(Self {
-            origin: self.origin,
-            u: turn.turn(self.u),
-            v: turn.turn(self.v),
-            w: turn.turn(self.w),
-        })
+        let l = turn.linear();
+        Ok(Self::measured_frame(
+            self.origin,
+            l * self.u.get(),
+            l * self.v.get(),
+            l * self.w.get(),
+        ))
     }
 }
 
@@ -2745,6 +2766,46 @@ mod motion_rows {
                 assert_eq!(bits12(&typed), bits12(&untyped), "{a:?} ∘ {b:?}");
             }
         }
+    }
+
+    /// **A deep composition of a motion a little off rigid stays
+    /// within the door's rounding**: a rotation whose columns are scaled
+    /// by `1 + 4ε` (each `8ε` off unit, which
+    /// [`RigidMotion::check_rigid`] admits), composed onto itself ten
+    /// thousand times. Each product is measured as one frame, so every
+    /// one of `check_rigid`'s seven margins stays within its charge: the
+    /// worst reads just under it, since the door keeps a product until a
+    /// margin passes its charge and squares it then. Red with each column turned
+    /// alone (unit, but not held square: about `0.3ε` of
+    /// orthogonality a step, `298ε` at a thousand), and red with the
+    /// frame door keeping what it should square.
+    #[test]
+    fn a_deep_composition_of_a_motion_off_rigid_stays_within_its_rounding() {
+        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.7, 0.64), 0.83);
+        let off = 1.0 + 4.0 * f64::EPSILON;
+        let scaled =
+            Affine3::from_parts(turn.linear.map(|x| x * off), Vec3::new(0.01, -0.02, 0.03));
+        let motion =
+            RigidMotion::check_rigid(&scaled).expect("the door admits a column 8ε off unit");
+        let worst_of = |m: &RigidMotion<f64>| {
+            charged_margins(&m.to_affine())
+                .iter()
+                .map(|(_, r)| r.value.abs() / r.error)
+                .fold(0.0_f64, f64::max)
+        };
+        let mut chain = motion;
+        let mut worst = 0.0_f64;
+        for depth in 1..=10_000 {
+            chain = motion.compose(chain).expect("the chain stays finite");
+            worst = worst.max(worst_of(&chain));
+            if depth == 1000 || depth == 10_000 {
+                assert!(
+                    RigidMotion::check_rigid(&chain.to_affine()).is_ok(),
+                    "at depth {depth} the product is within the door: {chain:?}"
+                );
+            }
+        }
+        assert!(worst <= 1.0, "every product within its charge: {worst}");
     }
 
     /// **The rotation mints are `Affine3`'s constructions over the
