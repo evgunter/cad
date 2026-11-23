@@ -4480,6 +4480,44 @@ mod bend_rows {
         }
     }
 
+    /// **The material fold still reads the stations** (no `Mixed` →
+    /// `Lamina` move): over an arc whose `κ_rel` changes sign between two
+    /// stations, the faces facing each other (an opposed contact) read a
+    /// cusp on one side of the neutral point and a slit on the other, and
+    /// the fold names the two stations; facing one way, the seam stands,
+    /// its bend under-determined.
+    #[test]
+    fn a_bend_crossing_zero_keeps_its_material_verdict() {
+        let rim = rim();
+        let (t0, t1) = (0.1, PI + 0.1);
+        let side = |surface, sense| crate::SideFace { surface, sense };
+        let (pipe, bend) = (pipe(), bend());
+        let read = |sense| {
+            let walk =
+                crate::WedgeWalk::along_edge(side(&pipe, true), side(&bend, sense), &rim, t0, t1);
+            crate::edge_wedge_over(&walk, fixture_lever(1.0), band())
+        };
+        assert!(
+            matches!(
+                read(false),
+                crate::WedgeVerdict::Mixed(MixedStations::End { .. })
+            ),
+            "opposed, the end flips at the neutral point: {:?}",
+            read(false)
+        );
+        assert!(
+            matches!(
+                read(true),
+                crate::WedgeVerdict::Seam {
+                    bend: crate::Bend::UnderDetermined,
+                    ..
+                }
+            ),
+            "aligned, the seam: {:?}",
+            read(true)
+        );
+    }
+
     /// The certificate's half of the same rows: what the rule leaves
     /// undemanded is what the tangency certificate's tube cannot certify,
     /// read through the one [`tube_separation`].
