@@ -42,11 +42,13 @@ branch, whose corner reading this shape never reaches.
   so `present_curved` returns `Local`, and every smaller cell along that
   side is the same.
 
-This is the curved sibling of the line case `present_plane_corner`'s
-sliver concession answers (`chute`'s annulus cells touching their line
-from its far side within rounding). The sliver concession is frozen
-(`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`),
-so this row does not adopt it. What a fix needs: a reading of a cell
+This is the curved sibling of the line case `present_plane_corner`
+reads (`chute`'s annulus cells touching their line from its far side
+within rounding). That case is no longer conceded: the sliver is
+retired (`embed/remeter`, PR 7329), and such a cell is presented as a
+rectangle with no width, or rounding's, and read at the faces' reach
+(`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`,
+"Landed"). What a fix needs: a reading of a cell
 that the curve passes outside of, by an amount the band decides, as a
 cell the curve does not bound (its face's part of the cell is all on one
 side, or none of it), which is the sliver row's question for a curve.
@@ -72,6 +74,31 @@ takes the band of what waits on it. It is the curved twin of the
 question the sliver fork put to Ev (PR 7095), and by this row's own
 note that fork's reading does not reach the cell: `graph_read` refuses
 at its choice of run, before any rectangle or margin exists.
+
+## Instance: a sphere's cell beside a cap's circle, in the circle's pose (EMBED, lane lune, 2026-11-18)
+
+The two-arc lune's hollow (`two_arc_lune` in
+`crates/sweep/tests/self_intersection_proves_injectivity.rs`), turned
+about `x` by 0.3, about `(1, 1, 1)` by 1.0 or about `z` by 1.2, refused
+`Uncertified` at the lane's first head (`f35afe01`). The cells were the
+cavity's sphere halves beside a cap's circle, read in the circle's pose
+(`present_posed`, `crates/topo/src/injective.rs`), where the circle is
+a parallel. A cell outside the face, its side a rounding off that
+parallel's enclosure, was read `Local` at every depth: no line put it
+on the parallel's non-face side, and with no extent in the pose no sheet
+said it missed the face. That is this row's class, on a line of a pose
+rather than a curve of the stored chart.
+
+**What answers it for a pose:** the posed extent (`posed_extent`,
+granted only where every row of the outer loop has an enclosure in the
+pose, the lift closes on one sheet without wrapping the azimuth, and its
+orientation is certified to make the face the bounded side), read by
+`sheets` as a stored extent is. Those cells now read `Missed`
+(`Vacuous`): 6 on the plain hollow, 86 over it and the six turns, and
+every turn holds (`a_two_arc_lunes_hollow_holds_turned_six_ways`, and a
+pinned sweep of 24 rigid motions). It does not answer this row's drum:
+the drum's cell is the stored chart's, beside a curve, not a line of a
+pose, and its face's extent already exists there.
 
 ## 2026-11-18 — the drum family, and the radius-1 drum's holding by alignment that PR 7131 then moved (EMBED, lane rational-window)
 

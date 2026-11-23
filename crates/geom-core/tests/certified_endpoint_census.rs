@@ -694,6 +694,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`is_certified().then_some`), so every bracket read there certifies by construction",
     ),
     ("crates/geom-core/src/test_support.rs", 2, 2, ""),
+    ("crates/geom/src/azimuth.rs", 3, 3, ""),
     (
         "crates/geom/src/curves/nurbs.rs",
         3,
@@ -771,25 +772,27 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        182,
-        84,
-        "the 84 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (26), \
-         `present_plane` (16), `present_plane_corner` (7), `present_vertex_corner` (12), \
+        200,
+        98,
+        "the 98 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `ends_on_collapse` (3), \
+         `present_chart` (22), the pose's four (17, below), \
+         `present_plane` (14), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
-         `is_certified()` and finiteness ask; `present_plane`'s 16 are its cell's placement off a \
-         line's face side (3, wholly off, `y` and a corner's `x`); a side's chart range handed \
-         to `segment_params` (3); its rectangle's bounds, the cell's reach and a cap's height \
-         (8), each an enclosure's outer end, so the rectangle holds more of the plane and \
-         never less; and a cap's run along its frame (2), whose two ends decide its direction \
-         behind the cap's own `is_certified()` ask. All 16 count as asking because \
-         `present_plane` names `is_certified()` and its readings are closures inside it: the \
-         census asks of the enclosing `fn`, and the dispositions here are each read's own. `present_chart` asks each clip line where it is placed, so 16 of its \
-         reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
-         lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
-         to the ask, so they count as asking only because the census reads a whole function, \
-         and they are sound because the line is exact. `present_plane_corner` \
+         `is_certified()` and finiteness ask; `present_plane`'s 14 are its cell's placement off a \
+         line's face side (3, wholly off: `y`, and a corner's `x` and `y`); a side's chart range \
+         handed to `segment_params` (3); and its rectangle's bounds, the cell's reach and a strip \
+         end's cap height (8), each an enclosure's outer end, so the rectangle holds more of \
+         the plane and never less, the cap's height behind its own `is_certified()` (an \
+         undecided one caps nothing). All 14 count as asking because `present_plane` names \
+         `is_certified()` and its readings are closures inside it: the census asks of the \
+         enclosing `fn`, and these dispositions are each read's own. `present_chart` asks each clip line where it is placed, so 14 of its \
+         reads, the touch, reach, merge and rectangle-side reads, see only certified \
+         lines; its other 8 read a singular latitude's clip line, a sphere pole's `±π/2` or a \
+         cone apex's `0`, a constant never handed to the ask, so they count as asking only \
+         because the census reads a whole function, and they are sound because the line is \
+         exact. `present_plane_corner` \
          and `present_vertex_corner` each read the cell's 4 ends behind their `cell` ask; \
          each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
          (1, and 2 in `present_vertex_corner`, one per axis), neither of which the ask covers: \
@@ -798,7 +801,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (4), behind its own `is_certified()` ask. `Trig::psi`'s 3 are its `over` \
          closure, read behind `is_certified()`. `face_extent`'s 4 read each line of the face \
          against its extent, a line it takes only where its value `is_certified()` and places \
-         by whole turns, which keeps it certified. Of the other 95, the seeds and selections \
+         by whole turns, which keeps it certified. `ends_on_collapse` reads \
+         an edge's held coordinate (1) and its image's end (2) behind its own `is_certified()` \
+         ask, to hand them to the incidence decision. Of the other 102, \
+         `reaching_its_singular_points`' 4 \
+         read the ends of a singular latitude, a sphere pole's `±π/2` or a cone apex's `0`, to \
+         compare the stored extent with it and move the extent to it: the constant's own \
+         enclosure, as `present_chart`'s singular reads are; the seeds and selections \
          (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
          any point of which is exact), `Params::nearest`'s hull of the parameters shifted by \
          whole turns, read outward so `Along::under_graph`'s containment is conservative, \
@@ -815,18 +824,34 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          asking, which is `work/embed/one-plane-reads-a-brackets-ends-as-a-point-without-asking`. \
          `continues` reads its arcs' parameter spans outward (2), a parameter read, and its \
          directions' product at its lower end (1), which no ask covers: \
-         `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`",
+         `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`. \
+         The pose's four each read behind their own ask: `on_sphere` its residuals' ends \
+         against their rounding (2), only where they certify, and the radius's upper end and \
+         its square's (2), the scale those are read at; `pose_frame` a norm's low end (1), \
+         taken positive only where it certifies; `posed_cell` the box's `Z/r` (2), behind its \
+         ask and clamped to `[-1, 1]`, where every point of the sphere has it, and the placed \
+         rectangle's latitude and azimuth (4), each certified; and `posed_extent` each row's \
+         span outward (2), a parameter read, and the lift's signed area less or plus its \
+         margin at the end that decides its sign (2), granted only where the area certifies, \
+         and each piece's starting parameter (2), a parameter read, its point placed by \
+         `posed_cell`",
     ),
     (
         "crates/topo/src/props.rs",
-        7,
+        11,
         3,
         "the 3 that ask are `deciding_walk`'s confirmation reads, which refine on a re-derivation \
-         that does not certify. The other 4: `far_from`'s 2 read the distances that decide \
+         that does not certify. The other 8: `far_from`'s 2 read the distances that decide \
          whether a region is carried, a choice of reference point, and the carry it selects is \
          refused by name in `carry_of` unless it certifies; `SignCertificate::interval_volume`'s \
          2, its ends, are a refusal's payload (`outward_volume`, the bracket `Undecided` \
-         reports) and certify nothing",
+         reports) and certify nothing; `closed_form_reads`' 4, its `ends` closure's `lo` and \
+         `hi` of a face's flux and area, read the walk's lifted sums and the closed form run \
+         again (`walked_closed_form`, `lifted_closed_form`) into the `(lo, hi)` pairs a \
+         `ClosedFormRead` reports. That function is test vocabulary, built only under `test` or \
+         `test-support`, and its rows compare the two readings bit for bit or match the \
+         refusal `lifted_closed_form` returns: no branch is taken on an end, so a pair that \
+         does not certify is reported as an enclosure and certifies nothing",
     ),
     ("crates/topo/src/props/quad_lane.rs", 27, 27, ""),
     ("crates/topo/src/test_support_fixtures.rs", 2, 2, ""),

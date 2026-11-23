@@ -219,6 +219,10 @@ pub mod membership;
 /// evaluate no surface, so it routes here.
 pub mod latitude_seam;
 
+/// The keel trees in the plane: a block less V-grooves whose floors
+/// meet end to end, at any scalar. Body authoring, so it routes here.
+pub mod keel_tree;
+
 pub mod semicircle_wall;
 
 /// The `Interval` literals — a scalar, and points and vectors from
