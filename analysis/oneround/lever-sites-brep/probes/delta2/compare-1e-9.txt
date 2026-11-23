@@ -1,0 +1,180 @@
+eps 1e-9: tests with a decision log: base 2623, head 2627; in both 2623
+only base: []
+only head: ['geom_brep__dihedral..seam_rows..a_charts_arm_is_poison_where_no_bound_is_read', 'step_import__build..tests..a_crease_is_read_over_its_faces_run', 'step_import__build..tests..a_planes_cut_of_a_spline_wall_is_read_over_its_faces_run_from_below', 'step_import__build..tests..the_folded_lid_imports_whole_where_the_file_tells_its_lids_apart']
+decisions by scalar: {('base', 'Dual<f64>'): 32, ('base', 'Interval'): 1445013, ('base', 'Sym<Interval>'): 20, ('base', 'Sym<f64>'): 154, ('base', 'f64'): 268995237, ('head', 'Dual<f64>'): 32, ('head', 'Interval'): 1445013, ('head', 'Sym<Interval>'): 20, ('head', 'Sym<f64>'): 154, ('head', 'f64'): 268995237}
+test outcomes: base Counter({'PASS': 3408, 'FAIL': 4}), head Counter({'PASS': 3424, 'FAIL': 4})
+outcome differs: [('geom-brep carrier_eq::tests::two_cones_are_levered_from_the_farther_apex', None, 'PASS'), ('geom-brep carrier_eq::tests::two_cylinders_tilt_is_levered_from_the_offsets_farther_end', None, 'PASS'), ('geom-brep dihedral::seam_rows::a_charts_arm_is_poison_where_no_bound_is_read', None, 'PASS'), ('geom-brep dihedral::seam_rows::a_charts_arm_is_read_at_its_point_over_its_reach', None, 'PASS'), ('geom-brep extent::geometry_door_rows::a_ball_levered_from_two_pivots_reaches_from_the_farther', None, 'PASS'), ('geom-brep extent::geometry_door_rows::a_cones_generator_lever_is_read_from_its_apex', None, 'PASS'), ('geom-brep extent::geometry_door_rows::a_covers_diameter_is_its_boxs_diagonal', None, 'PASS'), ('geom-brep extent::geometry_door_rows::a_faces_ruled_lever_is_read_from_the_hinge_with_its_turn', None, 'PASS'), ('geom-brep extent::geometry_door_rows::several_edges_extent_never_passes_their_farthest_pair', None, 'PASS'), ('geom-brep extent::geometry_door_rows::the_ruled_rows_lever_is_read_at_the_reachs_pivot_on_the_axis', None, 'PASS'), ('geom-brep extent::geometry_door_rows::two_crossing_cylinders_ball_does_not_move_with_the_reach', None, 'PASS'), ('geom-brep pair_section::cylinders::tests::a_point_is_placed_against_the_region_by_its_distance_alone', None, 'PASS'), ('step-import build::tests::a_crease_is_read_over_its_faces_run', None, 'PASS'), ('step-import build::tests::a_face_pair_with_no_region_names_the_edge_whose_carrier_does_not_read', None, 'PASS'), ('step-import build::tests::a_planes_cut_of_a_spline_wall_is_read_over_its_faces_run_from_below', None, 'PASS'), ('step-import build::tests::the_folded_lid_imports_whole_where_the_file_tells_its_lids_apart', None, 'PASS')]
+non-pass on both: ['geom-brep::all recourse_roster::every_decided_name_is_read_and_every_site_is_listed', 'step-import snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them', 'step-import::all tier_gate::every_corpus_import_passes_the_shared_gate', 'step-import::all wild::wild_refusals_are_typed_and_name_their_class']
+
+TESTS WHOSE DECISION COUNTS DIFFER (a verdict moved or a decision was added/dropped): 0
+
+TESTS WHOSE COUNTS AGREE AND SOME MARGIN VALUE DIFFERS: 168
+   by (scalar, predicate): [(('f64', 'offset_section_planes_parallel'), 159), (('f64', 'coc_aperture_cos'), 11), (('f64', 'coc_aperture_sin'), 11), (('f64', 'coc_seam_off_axis'), 11), (('f64', 'coc_station_reach'), 11), (('f64', 'pt_axis_in_plane'), 11), (('f64', 'kos_aperture_cos'), 6), (('f64', 'kos_aperture_sin'), 6), (('f64', 'ssi_boundary_strip'), 4), (('f64', 'ssi_boundary_crossing'), 3), (('f64', 'ssi_transversality'), 2), (('f64', 'ssi_transversality_arm'), 2), (('f64', 'ssi_tube_transversality'), 1)]
+   all__--nocapture | f64:offset_section_planes_parallel
+   all__a_carrier_the_kernel_builds_is_reported_where_it_is_not_the_printed_one..a_line_printed_off_its_planes_is_reported_at_its_stand_off | f64:offset_section_planes_parallel
+   all__a_carrier_the_kernel_builds_is_reported_where_it_is_not_the_printed_one..a_line_printed_on_its_planes_moves_by_nothing | f64:offset_section_planes_parallel
+   all__a_certified_body_measures_only_itself..a_copy_changed_after_import_leaves_the_measurement_as_it_was | f64:offset_section_planes_parallel
+   all__a_certified_body_measures_only_itself..a_resolution_finer_than_eps_is_refused_through_the_certified_body | f64:offset_section_planes_parallel
+   all__a_certified_body_measures_only_itself..twins_built_alike_each_measure_their_own_volume | f64:offset_section_planes_parallel
+   all__a_foreign_carrier_splits_at_each_c0_knot..a_creased_wall_and_its_creased_edges_import_split_at_the_knot | f64:offset_section_planes_parallel
+   all__a_foreign_carrier_splits_at_each_c0_knot..a_face_bounded_by_a_curved_knot_line_imports_whole | f64:offset_section_planes_parallel
+   all__a_foreign_carrier_splits_at_each_c0_knot..a_knot_vertex_nothing_else_meets_survives_the_closing_join | f64:offset_section_planes_parallel
+   all__a_foreign_carrier_splits_at_each_c0_knot..a_rational_wall_splits_where_its_rims_carry_no_knot | f64:offset_section_planes_parallel
+   all__a_foreign_carrier_splits_at_each_c0_knot..a_trim_crossing_the_knot_line_four_times_imports_in_three_pieces | f64:offset_section_planes_parallel, f64:ssi_boundary_crossing
+   all__a_foreign_carrier_splits_at_each_c0_knot..the_circular_half_frustum_promotes_whole_instead_of_splitting | f64:offset_section_planes_parallel
+   all__a_line_beside_a_straight_spline_joins..a_line_kept_over_a_straight_spline_joins_either_way_round | f64:offset_section_planes_parallel
+   all__a_promoted_kind_is_the_same_whichever_way_the_net_runs..the_half_cone_promotes_to_a_cone_either_way_round | f64:offset_section_planes_parallel
+   all__a_promoted_kind_is_the_same_whichever_way_the_net_runs..the_half_cylinder_promotes_to_a_cylinder_either_way_round | f64:offset_section_planes_parallel
+   all__a_promotion_no_edge_carries_is_not_reported..a_rim_the_build_carries_on_its_row_reports_its_carrier_not_a_promotion | f64:offset_section_planes_parallel
+   all__a_relation_the_file_band_reads_zero_is_snapped..a_fillet_off_its_planes_moves_its_axis_to_both | f64:offset_section_planes_parallel
+   all__a_relation_the_file_band_reads_zero_is_snapped..a_fillets_offset_is_read_at_its_faces | f64:offset_section_planes_parallel
+   all__a_relation_the_file_band_reads_zero_is_snapped..a_move_that_breaks_an_exact_relation_refuses | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach
+   all__a_relation_the_file_band_reads_zero_is_snapped..a_move_the_file_band_reads_apart_refuses_as_unsolved | f64:offset_section_planes_parallel
+   all__a_relation_the_file_band_reads_zero_is_snapped..a_slot_end_between_parallel_planes_takes_half_their_spacing | f64:offset_section_planes_parallel
+   all__a_relation_the_file_band_reads_zero_is_snapped..an_asymmetric_fillet_moves_its_axis_along_the_side_that_holds | f64:offset_section_planes_parallel
+   all__a_retimed_straight_rim_imports_on_its_wall..each_straight_rim_is_carried_on_its_wall_boundary | f64:offset_section_planes_parallel, f64:ssi_boundary_strip
+   all__a_smooth_join_imports_by_the_must_carry_rule..thin_tangent_joins_round_trip | f64:offset_section_planes_parallel
+   all__a_straight_seam_on_a_retimed_column_imports..either_statement_of_the_seam_imports_on_its_column | f64:offset_section_planes_parallel, f64:ssi_boundary_strip, f64:ssi_transversality, f64:ssi_transversality_arm
+   all__a_vertex_its_description_fixes_is_built_where_its_surfaces_meet..a_corner_printed_off_its_planes_is_built_at_their_meeting | f64:offset_section_planes_parallel
+   all__an_edge_is_read_on_its_description_whatever_recognition_says..a_printed_curve_off_its_description_between_its_samples_refuses | f64:offset_section_planes_parallel
+   all__an_edge_is_read_on_its_description_whatever_recognition_says..a_straight_rim_recognition_declines_is_carried_on_its_column | f64:offset_section_planes_parallel, f64:ssi_boundary_strip
+   all__an_off_iso_line_on_a_spline_wall_imports_its_general_row..the_tetrahedron_imports_and_its_diagonal_takes_a_general_row | f64:offset_section_planes_parallel, f64:ssi_tube_transversality
+   all__an_open_arc_trims_inside_what_its_spline_covers..a_sub_arc_of_the_spline_imports_and_its_complement_refuses | f64:offset_section_planes_parallel
+   all__cert1_r1_import_probes..probe_near_polar_half_cap_twins_certify | f64:offset_section_planes_parallel
+   all__cert1_r1_import_probes..probe_split_vertex_exactly_at_the_pole_certifies | f64:offset_section_planes_parallel
+   all__chart_singularity_vertex..every_chart_singularity_a_file_puts_in_a_face_imports_as_a_pole_form_vertex | f64:offset_section_planes_parallel
+   all__corpus_fold..the_folds_divergence_is_exactly_the_reported_promotion | f64:offset_section_planes_parallel
+   all__cusp_round_trip..a_native_cusp_round_trips_through_step_as_a_solid | f64:offset_section_planes_parallel
+   all__freecad..cross_dialect_fixed_point | f64:offset_section_planes_parallel
+   all__freecad..eps_in_is_the_scaled_declaration_and_the_override_wins | f64:offset_section_planes_parallel
+   all__freecad..foreign_corpus | f64:offset_section_planes_parallel
+   all__freecad..millimetre_lengths_scale_by_one_rounded_multiply | f64:offset_section_planes_parallel
+   all__freecad..negative_zeros_normalize_at_translation | f64:offset_section_planes_parallel
+   all__freecad..outerness_is_inferred_on_the_multi_ring_fixture | f64:offset_section_planes_parallel
+   all__freecad..refusals_survive_the_dialect_relaxations | f64:offset_section_planes_parallel
+   all__freecad..structure_normalizations_are_reported_with_their_census_mapping | f64:offset_section_planes_parallel
+   all__freecad..sub_tolerance_geometry_is_refused_not_silently_imported | f64:offset_section_planes_parallel
+   all__freecad..the_assembly_record_covers_a_file_that_places_nothing | f64:offset_section_planes_parallel
+   all__freecad..the_assembly_record_retains_the_occurrence_structure | f64:offset_section_planes_parallel
+   all__halfcap_pole..a_curved_join_leaves_no_row_on_a_dead_cell | f64:offset_section_planes_parallel
+   all__halfcap_pole..the_no_split_twin_certifies_the_same_volume | f64:offset_section_planes_parallel
+   all__halfcap_pole..the_split_half_cap_certifies_the_exact_volume | f64:offset_section_planes_parallel
+   all__hollow_bodies_round_trip..a_box_with_a_box_cavity_round_trips | f64:offset_section_planes_parallel
+   all__hollow_bodies_round_trip..a_box_with_two_cavities_round_trips | f64:offset_section_planes_parallel
+   all__hollow_bodies_round_trip..a_hand_spliced_void_imports_as_its_cavity | f64:offset_section_planes_parallel
+   all__hollow_bodies_round_trip..a_shelled_box_round_trips | f64:offset_section_planes_parallel
+   all__hollow_bodies_round_trip..a_void_outside_its_outer_shell_refuses_at_the_gate | f64:offset_section_planes_parallel
+   all__hollow_bodies_round_trip..a_void_with_the_wrong_sense_refuses_at_the_gate | f64:offset_section_planes_parallel
+   all__hollow_bodies_round_trip..a_void_written_unreversed_or_stated_t_refuses | f64:offset_section_planes_parallel
+   all__hollow_bodies_round_trip..open_cascade_hollow_solids_import_with_their_cavities | f64:offset_section_planes_parallel
+   all__inst_review_probes..an_in_band_displacement_is_carried_not_snapped | f64:offset_section_planes_parallel
+   all__inst_review_probes..an_instance_moved_out_of_the_box_refuses_typed | f64:offset_section_planes_parallel
+   all__inst_review_probes..each_distinct_solid_finishes_once_however_often_it_is_placed | f64:offset_section_planes_parallel
+   all__inst_review_probes..identity_boundary_at_eps_in | f64:offset_section_planes_parallel
+   all__inst_review_probes..multi_instance_import_is_deterministic | f64:offset_section_planes_parallel
+   all__inst_review_probes..nested_assembly_outer_transform_must_not_be_dropped | f64:offset_section_planes_parallel
+   all__inst_review_probes..per_solid_gate_names_the_inverted_instance | f64:offset_section_planes_parallel
+   all__inst_review_probes..rotation_plus_translation_re_certifies | f64:offset_section_planes_parallel
+   all__inst_review_probes..three_instances_of_one_component | f64:offset_section_planes_parallel
+   all__inst_review_probes..three_level_nesting_composes_outermost_last | f64:offset_section_planes_parallel
+   all__inst_review_probes..two_components_each_instanced | f64:offset_section_planes_parallel
+   all__lamina_annulus_round_trip..unslit_plane_annuli_round_trip_through_step | f64:pt_axis_in_plane
+   all__nurbs_import..an_adopted_iso_column_is_a_knot_domain_end | f64:offset_section_planes_parallel
+   all__nurbs_import..loft_prism_descriptions_land_in_the_native_classes | f64:offset_section_planes_parallel
+   all__nurbs_import..loft_prism_walls_get_distinct_surface_keys | f64:offset_section_planes_parallel
+   all__nurbs_import..promoted_ruling_seams_reexport_as_line | f64:offset_section_planes_parallel
+   all__onb_wild_normal_census..no_wild_face_sits_on_the_frame_seam | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach, f64:offset_section_planes_parallel
+   all__one_record_reads_facing_at_the_faces..a_boxs_opposite_sides_are_never_asked | f64:offset_section_planes_parallel
+   all__one_record_reads_facing_at_the_faces..a_face_restated_on_an_antiparallel_record_joins_facing_the_same_way | f64:offset_section_planes_parallel
+   all__one_record_reads_facing_at_the_faces..a_records_origin_off_the_faces_within_the_plane_still_joins | f64:offset_section_planes_parallel
+   all__p1b_r1_import_scan..no_committed_fixture_imports_with_a_scaffold_at_rest | f64:kos_aperture_cos, f64:kos_aperture_sin, f64:offset_section_planes_parallel, f64:pt_axis_in_plane
+   all__parser..a_conversion_based_unit_resolves_from_the_file_s_own_factor | f64:offset_section_planes_parallel
+   all__parser..eps_in_declared_and_overridable | f64:offset_section_planes_parallel
+   all__parser..part21_basic_alphabet_bounds_on_the_read_path | f64:offset_section_planes_parallel
+   all__parser..prefixed_unit_scales_instead_of_refusing | f64:offset_section_planes_parallel
+   all__parser..truncations_refuse_without_panicking | f64:offset_section_planes_parallel
+   all__perf12_census_goldens..the_import_census_verdicts_are_goldened_bit_exact | f64:kos_aperture_cos, f64:kos_aperture_sin, f64:offset_section_planes_parallel, f64:pt_axis_in_plane
+   all__placed_m7_8_instance..a_placed_m7_8_instance_imports | f64:offset_section_planes_parallel
+   all__probe_dup..duplicate_solid_rules | f64:offset_section_planes_parallel
+   all__probe_eps..declared_uncertainty_is_never_raised_to_a_floor | f64:offset_section_planes_parallel
+   all__probe_fuzz..giant_repeat_counts_and_numeric_extremes_never_panic_or_hang | f64:offset_section_planes_parallel
+   all__probe_fuzz..reference_cycles_and_dangling_refs_never_panic | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach, f64:offset_section_planes_parallel
+   all__probe_knot..hostile_knot_multiplicities_refuse_typed_instead_of_aborting | f64:offset_section_planes_parallel
+   all__probe_mirror..mirror_smuggling_and_rigid_roundtrip | f64:offset_section_planes_parallel
+   all__probe_outer..two_outer_bounds_on_a_planar_face_with_a_real_hole | f64:offset_section_planes_parallel
+   all__probe_review..a1_control_box_face_sense_flip | f64:offset_section_planes_parallel
+   all__probe_review..a3_sweep_all_tiers | f64:offset_section_planes_parallel
+   all__probe_review..a4_inference_on_demoted_bounds | f64:offset_section_planes_parallel
+   all__probe_review..a5_nearly_coincident_planes_refuse | f64:offset_section_planes_parallel
+   all__probe_review..a5_off_locus_arc_between_coincident_planes | f64:offset_section_planes_parallel
+   all__probe_sense..flipped_sense_is_never_silent_misgeometry | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach, f64:offset_section_planes_parallel
+   all__probe_vol..measured_relative_volume_agreement | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach, f64:offset_section_planes_parallel
+   all__r1_dm1_probe..dm1_no_longer_refuses_at_the_instancing_gate | f64:offset_section_planes_parallel
+   all__recognize_pins..a_displaced_seam_carrier_refuses_with_the_measured_residual | f64:offset_section_planes_parallel
+   all__recognize_pins..own_corpus_promotions_are_exactly_the_enumerated_planar_walls | f64:kos_aperture_cos, f64:kos_aperture_sin, f64:offset_section_planes_parallel, f64:pt_axis_in_plane
+   all__recognize_pins..quasi_uniform_vocabulary_reads_the_same_surface | f64:offset_section_planes_parallel
+   all__recognize_pins..the_integral_mixed_body_imports_first_class_with_a_charted_seam | f64:offset_section_planes_parallel
+   all__recognize_pins..the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm | f64:offset_section_planes_parallel
+   all__recognize_pins..the_straight_arc_prisms_arc_wall_promotes_to_a_cylinder | f64:offset_section_planes_parallel
+   all__records_follow_the_file..a_record_worn_both_ways_imports_as_the_union_leaves_it | f64:offset_section_planes_parallel
+   all__records_follow_the_file..a_record_worn_by_faces_no_edge_joins_imports_as_the_boolean_that_divides_a_face | f64:offset_section_planes_parallel
+   all__records_follow_the_file..a_spline_face_split_on_one_key_round_trips_by_reference | f64:offset_section_planes_parallel, f64:ssi_boundary_crossing
+   all__records_follow_the_file..a_surface_two_solids_cite_is_two_records | f64:offset_section_planes_parallel
+   all__records_follow_the_file..a_surface_two_voids_cite_is_two_records | f64:offset_section_planes_parallel
+   all__records_follow_the_file..coplanar_neighbours_of_one_record_import_as_the_half_revolve_leaves_them | f64:offset_section_planes_parallel
+   all__records_follow_the_file..one_spline_stated_twice_with_an_edge_between_refuses_typed | f64:offset_section_planes_parallel
+   all__review_band_probes..r1_seams_at_rest_on_both_fixtures | f64:offset_section_planes_parallel
+   all__review_band_probes..r1_torus_region_selection_is_real | f64:pt_axis_in_plane
+   all__review_band_probes..r1_washer90_imports_the_true_region | f64:pt_axis_in_plane
+   all__review_k3_probe..k3_scale_corruption_old_accepted_new_catches | f64:offset_section_planes_parallel
+   all__review_k3_probe..k6_loft_prism_imports_the_nurbs_frontier_retired | f64:offset_section_planes_parallel
+   all__review_probes..c3c_wrong_surface_pair_refuses_adoption | f64:offset_section_planes_parallel
+   all__review_probes..c3d_curve_off_intersection_refuses_adoption | f64:offset_section_planes_parallel
+   all__review_probes..d4_renumbered_kiss_assembly_still_assembles | f64:offset_section_planes_parallel
+   all__review_probes..d4_reversed_data_lines_still_assemble | f64:offset_section_planes_parallel
+   all__review_probes..e5_closed_forms | f64:offset_section_planes_parallel
+   all__review_probes..f6_face_sense_flip_is_not_healed | f64:offset_section_planes_parallel
+   all__review_probes..g7_full_truncation_sweep | f64:offset_section_planes_parallel
+   all__review_probes..g7_nonunit_vector_rescales_without_moving_the_solid | f64:offset_section_planes_parallel
+   all__review_probes..h8_eps_in_not_consumed | f64:offset_section_planes_parallel
+   all__review_probes_m7_3..probe_all_unit_weight_rational_instance_imports_identically | f64:offset_section_planes_parallel
+   all__review_probes_m7_3..probe_descriptions_native_vs_imported_bitwise | f64:offset_section_planes_parallel
+   all__review_probes_m7_3..probe_iso_adoption_deterministic | f64:offset_section_planes_parallel
+   all__review_probes_m7_3..probe_reexport_promotion_divergence | f64:offset_section_planes_parallel
+   all__review_probes_m7_3..probe_refit_seam_refuses_typed | f64:offset_section_planes_parallel
+   all__review_probes_m7_3..probe_subunit_x_direction_rim_frame_rigidity | f64:offset_section_planes_parallel
+   all__review_r1_tier_gate_probes..a_one_solid_file_past_the_session_box_refuses_outside_it_alone | f64:offset_section_planes_parallel
+   all__review_r1_tier_gate_probes..r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner | f64:offset_section_planes_parallel
+   all__review_r1_tier_gate_probes..r1_control_single_inverted_cube_refuses_negative_volume | f64:offset_section_planes_parallel
+   all__review_r1_tier_gate_probes..r1_import_is_deterministic_for_a_gated_body | f64:pt_axis_in_plane
+   all__review_r1_tier_gate_probes..r1_in_band_dihedral_wedge_never_ships_silently | f64:offset_section_planes_parallel
+   all__review_r1_tier_gate_probes..r1_in_band_vertex_defect_refuses_loudly_at_adoption | f64:offset_section_planes_parallel
+   all__review_r1_tier_gate_probes..r1_multisolid_cannot_smuggle_an_inverted_solid_at_any_position | f64:offset_section_planes_parallel
+   all__review_r1_tier_gate_probes..r1_multisolid_of_honest_solids_still_imports | f64:offset_section_planes_parallel
+   all__review_r1_tier_gate_probes..r1_the_kiss_certifies_with_its_touch_recorded | f64:offset_section_planes_parallel
+   all__roundtrip..committed_corpus | f64:kos_aperture_cos, f64:kos_aperture_sin, f64:offset_section_planes_parallel, f64:pt_axis_in_plane
+   all__roundtrip..fixed_point | f64:kos_aperture_cos, f64:kos_aperture_sin, f64:offset_section_planes_parallel, f64:pt_axis_in_plane
+   all__s58_iso_rectangle..cross_the_649_fixture_imports_and_measures_exactly | f64:offset_section_planes_parallel
+   all__s58_iso_rectangle..merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one | f64:offset_section_planes_parallel
+   all__s58_iso_rectangle..rect_the_control_still_measures_exactly | f64:offset_section_planes_parallel
+   all__s58_iso_rectangle..tee_the_one_sided_variant_imports_and_measures_exactly | f64:offset_section_planes_parallel
+   all__shell_reads_a_chart_worn_both_ways..a_chart_worn_both_ways_is_finished_and_shell_refuses_it | f64:offset_section_planes_parallel
+   all__shell_reads_a_chart_worn_both_ways..a_face_restated_on_an_antiparallel_record_still_faces_its_own_way | f64:offset_section_planes_parallel
+   all__spiric_roundtrip..a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume | f64:offset_section_planes_parallel
+   all__split_iso_side..a_split_iso_side_meshes_watertight_under_an_oblique_placement | f64:offset_section_planes_parallel
+   all__tcost_k3_import_certificate..the_readers_gate_runs_one_certificate_and_hands_it_back | f64:offset_section_planes_parallel
+   all__the_interpretation_layer_reads_the_file_at_its_band..a_declared_eps_in_of_zero_reads_at_the_runs_floor | f64:offset_section_planes_parallel
+   all__the_interpretation_layer_reads_the_file_at_its_band..a_placement_pairs_entry_bounds_its_snap_and_its_frames | f64:offset_section_planes_parallel
+   all__the_interpretation_layer_reads_the_file_at_its_band..the_kept_record_is_the_earliest_in_data_not_the_least_id | f64:offset_section_planes_parallel
+   all__the_interpretation_layer_reads_the_file_at_its_band..two_records_of_one_plane_become_one | f64:offset_section_planes_parallel
+   all__tier_gate..every_corpus_import_passes_the_shared_gate | f64:offset_section_planes_parallel, f64:pt_axis_in_plane, f64:ssi_boundary_crossing, f64:ssi_boundary_strip, f64:ssi_transversality, f64:ssi_transversality_arm
+   all__two_records_of_one_round_surface_become_one..a_cone_restated_joins_the_earlier_record | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach
+   all__two_records_of_one_round_surface_become_one..a_cone_turned_by_a_small_angle_joins_at_its_faces_reach | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach
+   all__two_records_of_one_round_surface_become_one..a_cylinder_restated_within_the_zero_joins_the_earlier_record | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach
+   all__two_records_of_one_round_surface_become_one..two_axes_are_read_apart_where_the_faces_are | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach
+   all__verbs_chamfer_roundtrip..the_chamfered_cube_round_trips_through_step | f64:offset_section_planes_parallel
+   all__wall_column_structure..a_validated_wall_never_refuses_its_own_boundary_column | f64:kos_aperture_cos, f64:kos_aperture_sin, f64:offset_section_planes_parallel, f64:pt_axis_in_plane
+   all__wild..the_band_re_mint_reports_its_normalizations | f64:offset_section_planes_parallel
+   all__wild..wild_bodies_are_a_fixed_point_of_our_own_dialect | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach, f64:offset_section_planes_parallel
+   all__wild..wild_files_import_and_agree_with_the_oracle | f64:coc_aperture_cos, f64:coc_aperture_sin, f64:coc_seam_off_axis, f64:coc_station_reach, f64:offset_section_planes_parallel
+   all__wild..wild_refusals_are_typed_and_name_their_class | f64:offset_section_planes_parallel

@@ -1,0 +1,88 @@
+diff --git a/crates/geom-brep/src/lib.rs b/crates/geom-brep/src/lib.rs
+index 6ff0887ec1..c2642222b0 100644
+--- a/crates/geom-brep/src/lib.rs
++++ b/crates/geom-brep/src/lib.rs
+@@ -153,6 +153,11 @@ pub use certify::{
+     NurbsLaneOf, RowRefusal, SplineFoot, SplineFootOf, StatedImage, StatedSpan, WindingReading,
+     folded_parallelism, sample_param, schedule_param, side_row_certifies,
+ };
++/// REVIEW mutant switch.
++#[must_use]
++pub fn review_mutant(name: &str) -> bool {
++    std::env::var("REVIEW_MUTANT").is_ok_and(|v| v == name)
++}
+ pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
+ pub use curvature_arm::{
+     chart_curvature_arm, circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm,
+diff --git a/crates/geom-brep/src/pair_section/cones.rs b/crates/geom-brep/src/pair_section/cones.rs
+index 9a2e9e8a00..059d3145d2 100644
+--- a/crates/geom-brep/src/pair_section/cones.rs
++++ b/crates/geom-brep/src/pair_section/cones.rs
+@@ -573,7 +573,7 @@ pub(super) fn cone_ruled<T: Decide>(
+     let mut decided = Vec::new();
+     let mut listed = Vec::new();
+     let held = |p: Point3<T>| {
+-        super::cylinders::placement(super::cylinders::Occupant::point(p), region, band)
++        crate::review_mutant("e8-cone-points-always-held") || super::cylinders::placement(super::cylinders::Occupant::point(p), region, band)
+             != RegionPlacement::Outside
+     };
+     let point = |at: Point3<T>, why: NoCarrier| {
+diff --git a/crates/geom-brep/src/pair_section/cylinders.rs b/crates/geom-brep/src/pair_section/cylinders.rs
+index a406921663..86b5f65de7 100644
+--- a/crates/geom-brep/src/pair_section/cylinders.rs
++++ b/crates/geom-brep/src/pair_section/cylinders.rs
+@@ -622,7 +622,7 @@ impl<T: Real> Occupant<T> {
+     pub(super) fn point(center: Point3<T>) -> Self {
+         Self {
+             center,
+-            radius: T::zero(),
++            radius: if crate::review_mutant("e7-point-given-radius") { T::one() } else { T::zero() },
+         }
+     }
+ }
+diff --git a/crates/step-import/src/build.rs b/crates/step-import/src/build.rs
+index c21a650127..777439b361 100644
+--- a/crates/step-import/src/build.rs
++++ b/crates/step-import/src/build.rs
+@@ -576,8 +576,8 @@ fn choose(
+         let reach =
+             geom_brep::edge_reach_bounds(&spec.carrier, span, apex, region.lever_from(apex));
+         geom_brep::LeverBounds::Between {
+-            below: extent.below().max(reach.below()),
+-            above: extent.above().max(reach.above()),
++            below: if geom_brep::review_mutant("e1-below-takes-apex-reach-from-above") { extent.below().max(reach.above()) } else if geom_brep::review_mutant("e6-below-without-apex-reach") { extent.below() } else { extent.below().max(reach.below()) },
++            above: if geom_brep::review_mutant("e5-above-without-apex-reach") { extent.above() } else { extent.above().max(reach.above()) },
+         }
+     });
+     let spline = |s: &Surface<f64>| s.spline_chart().is_some();
+@@ -665,7 +665,7 @@ fn spline_pair(
+         return Ok(rim);
+     }
+     // The section builds on its pose readings' definite signs.
+-    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
++    let read = |band| read_section(spec, (sa, sb), region, if geom_brep::review_mutant("e2-spline-section-reads-above") { extent.above() } else { extent.below() }, band);
+     // An escalation at the file's band is the file's ambiguity: its
+     // statements do not decide the reading at their own precision.
+     match read(file.band()).map_err(|source| ambiguous(id, &source, file))? {
+@@ -1007,7 +1007,7 @@ fn tangent(
+         // pose: from above. A plane the file read tangent along a parallel
+         // stands normal to that axis, where the row is Positive at any
+         // extent past the band, so no import's outcome turns on the bound.
+-        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent.above(), band) {
++        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, if geom_brep::review_mutant("e4-coaxial-reads-below") { extent.below() } else { extent.above() }, band) {
+             Ok(circle) => Ok(circle),
+             Err(geom_brep::SectionError::Escalated(source)) => Err(Err(source)),
+             Err(e) => Err(Ok(e)),
+diff --git a/crates/step-import/src/reach.rs b/crates/step-import/src/reach.rs
+index 9eb9d224f1..afeffe0b74 100644
+--- a/crates/step-import/src/reach.rs
++++ b/crates/step-import/src/reach.rs
+@@ -69,6 +69,8 @@ pub(crate) fn faces_run(
+             .into_iter()
+             .map(|spec| (&spec.carrier, (spec.t0, spec.t1))),
+     );
++    if geom_brep::review_mutant("e3-run-below-for-both") { return Ok(geom_brep::LeverBounds::Exact(below)); }
++    if geom_brep::review_mutant("e9-run-above-for-both") { return Ok(geom_brep::LeverBounds::Exact(above)); }
+     Ok(geom_brep::LeverBounds::Between { below, above })
+ }
+ 

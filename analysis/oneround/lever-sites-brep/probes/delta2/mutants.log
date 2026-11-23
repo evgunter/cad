@@ -1,0 +1,26 @@
+e1-below-takes-apex-reach-from-above: 0 red;      Summary [  27.756s] 424 tests run: 424 passed, 59 skipped
+e6-below-without-apex-reach: 14 red;      Summary [  28.183s] 424 tests run: 417 passed, 7 failed, 59 skipped
+     step-import::all onb_wild_normal_census::no_wild_face_sits_on_the_frame_seam
+     step-import::all probe_sense::flipped_sense_is_never_silent_misgeometry
+     step-import::all two_records_of_one_round_surface_become_one::a_cone_restated_joins_the_earlier_record
+     step-import::all two_records_of_one_round_surface_become_one::a_cone_turned_by_a_small_angle_joins_at_its_faces_reach
+     step-import::all two_records_of_one_round_surface_become_one::a_cylinder_restated_within_the_zero_joins_the_earlier_record
+     step-import::all two_records_of_one_round_surface_become_one::two_axes_are_read_apart_where_the_faces_are
+e5-above-without-apex-reach: 0 red;      Summary [  27.697s] 424 tests run: 424 passed, 59 skipped
+e4-coaxial-reads-below: 0 red;      Summary [  27.600s] 424 tests run: 424 passed, 59 skipped
+e3-run-below-for-both: 4 red;      Summary [  29.000s] 424 tests run: 422 passed, 2 failed, 59 skipped
+     step-import build::tests::a_planes_cut_of_a_spline_wall_is_read_over_its_faces_run_from_below
+     step-import reach::tests::a_sphere_cap_is_read_to_its_pole
+e9-run-above-for-both: 6 red;      Summary [  29.015s] 424 tests run: 421 passed, 3 failed, 59 skipped
+     step-import build::tests::a_crease_is_read_over_its_faces_run
+     step-import build::tests::a_planes_cut_of_a_spline_wall_is_read_over_its_faces_run_from_below
+     step-import reach::tests::a_sphere_cap_is_read_to_its_pole
+e2-spline-section-reads-above: 2 red;      Summary [  29.513s] 424 tests run: 423 passed, 1 failed, 59 skipped
+     step-import build::tests::a_planes_cut_of_a_spline_wall_is_read_over_its_faces_run_from_below
+e7-point-given-radius: 8 red;      Summary [  78.657s] 2506 tests run: 2502 passed, 4 failed, 455 skipped
+     geom-brep pair_section::cylinders::tests::a_point_is_placed_against_the_region_by_its_distance_alone
+     geom-brep::all cylinder_pair_section::a_node_the_region_does_not_hold_is_not_listed
+     geom-brep::all cylinder_pair_section::a_region_clear_of_the_pair_lists_nothing
+     geom-brep::all cylinder_pair_section::a_ruling_the_region_misses_is_not_listed
+e8-cone-points-always-held: 0 red;      Summary [  79.805s] 2506 tests run: 2506 passed, 455 skipped
+MUTANTS DONE
