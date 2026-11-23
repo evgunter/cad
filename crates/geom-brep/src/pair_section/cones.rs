@@ -351,7 +351,7 @@ impl<T: Decide> ConeRuledPose<T> {
         let o = frame.origin();
         let axis = geom::Line {
             origin: o + d * d.dot(cone.apex - o),
-            dir: d,
+            dir: frame.axis_unit(),
         };
         let slack =
             geom_core::rounding_charge((o - Point3::origin()).norm() + (cone.apex - o).norm());
@@ -405,7 +405,8 @@ impl<T: Decide> ConeRuledPose<T> {
             Form::cone(
                 geom::Line {
                     origin: c.apex,
-                    dir: c.axis,
+                    // `Frame::square`'s axis, a normalization: checked.
+                    dir: geom_core::UnitVec3::checked(c.axis),
                 },
                 c.sc.1,
             )
@@ -563,7 +564,16 @@ impl<T: Real> RuledCone<T> {
     fn partner_residual(&self, p: Point3<T>) -> T {
         let Form { at, d, .. } = self.partner;
         match (self.partner.radius(), self.partner_cos()) {
-            (Some(r), _) => geom::Line { origin: at, dir: d }.distance(p) - r,
+            // `d` is the partner line's own unit direction, as `Form`
+            // took it ([`Form::cylinder`]): checked, its bits kept.
+            (Some(r), _) => {
+                geom::Line {
+                    origin: at,
+                    dir: geom_core::UnitVec3::checked(d),
+                }
+                .distance(p)
+                    - r
+            }
             (None, Some(cos)) => {
                 let sin = (T::one() - cos.powi(2)).max(T::zero()).sqrt();
                 let (h, rho) = ((p - at).dot(d), ((p - at) - d * (p - at).dot(d)).norm());

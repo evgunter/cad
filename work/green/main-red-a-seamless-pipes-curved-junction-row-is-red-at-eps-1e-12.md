@@ -37,6 +37,25 @@ This row records the red. Whoever owns the junction's certificate
 (the test's subject) takes it from here.
 (BOXFINISH orchestrator)
 
+## Its sibling row is red with it, one payload (GREEN U9, 2026-11-22)
+
+(GREEN, `green/held-reds`) This row also holds
+`topo::all a_seamless_pipe_cut_by_an_oblique_plane_measures::a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval`,
+which PR 7344's body cited to QUAD's closed
+`quadrature-interval-floor-grows-with-the-body-past-the-band`. On
+current main (`5ea1ac0a70`, hosted, throwaway run 45051569400 with both
+names out of the slow set) both rows are green at the default ε and at
+1e-6 and red at 1e-12, and both panic at the same unwrap
+(`a_seamless_pipe_cut_by_an_oblique_plane_measures.rs:239`):
+
+    Certification { error: AnalyticRung3(Stalled { operand: Cylinder,
+      cause: Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0,
+      hi: 2.193467629756736e-12, .. }), band: Band { zero: 1e-12,
+      escalate: 1e-11 }, predicate: Some("ssi_hull_sup") } }) }
+
+The nightly of main `1942290ead` (run 44989234943) shows the same pair
+red at 1e-12 with the same payload. One cause, so one fix greens both.
+
 ## Measured (GREEN, `green/seamless-pipe`, 2026-11-22)
 
 **The payload.** At ε = 1e-12 the row panics in `pipe::<Interval>`,
