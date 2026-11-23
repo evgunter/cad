@@ -661,6 +661,12 @@ trait HoldsNodes {
     fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf>;
     /// The name the document holds for the variable `id`, if any.
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
+    /// The name a measure reading the variable `id` as it is gives it
+    /// first ([`crate::checks::quieting::tool_name`]), where the
+    /// document holds it.
+    fn tool_name(&self, _id: crate::var::VarId) -> Option<crate::doc::VarName> {
+        None
+    }
     /// The operation `id` is an output of, and its port's name, where
     /// the document holds it.
     fn output_port(&self, _id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
@@ -730,6 +736,10 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
 
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
         self.var_name(id).cloned()
+    }
+
+    fn tool_name(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
+        crate::checks::quieting::tool_name(self, id)
     }
 
     fn output_port(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
@@ -1221,6 +1231,13 @@ impl<'a> Speaker<'a> {
     /// speaker's document; `None` by tag or where it holds no such node.
     pub(crate) fn carry(self, id: RecipeNodeId) -> Option<Carry> {
         self.doc?.carry(id)
+    }
+
+    /// The name a measure reading `var` as it is gives it first
+    /// ([`crate::checks::quieting::tool_name`]); `None` for the tag, or a
+    /// variable that needs none.
+    pub(crate) fn tool_name(self, var: crate::var::VarId) -> Option<crate::doc::VarName> {
+        self.doc?.tool_name(var)
     }
 
     /// **The read `var`, said**: its name where the document holds one,

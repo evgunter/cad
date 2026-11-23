@@ -361,16 +361,15 @@ pub(crate) struct SizingTols {
     /// convention `Band::linear` prescribes). The same band routes every
     /// face before this value exists (`tessellate::Routes::of`, whose
     /// doors hand it to `geom_brep::props::require_iso_rectangle` and then
-    /// to `require_one_chart_branch`). This field is consumed by four
+    /// to `require_one_chart_branch`). This field is consumed by three
     /// sites — the walk's wrap strip and the trimmed lane's singular
     /// vertices (`crate::chart_table::AnalyticRow::is_singular`), both of
     /// which hand it to
-    /// `geom_brep::chart_singularity::vertex_at_singular_point`; a
+    /// `geom_brep::chart_singularity::vertex_at_singular_point`, and a
     /// trimmed face's domain read at its turn (`tessellate::Route::ready`,
-    /// which hands it to `topo::Body::face_lift`); and a walked face's
-    /// one decision of its own, whether a side lies beyond its
-    /// neighbour's reach (`trimmed::may_make`), which reads it through
-    /// `geom_core::k_stats::decide` and holds no margin of its own. Not an
+    /// which hands it to `topo::Body::face_lift`) — and
+    /// by no rule of this crate's own: `mesh` decides nothing
+    /// against it, it carries the band to geom-brep's predicates. Not an
     /// ε read of this crate, and the inventory pin does not count it as
     /// one.
     pub band: Band,
@@ -638,7 +637,8 @@ pub(crate) fn sphere_face_widest_cos(
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let (z0, z1) = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle { frame, .. }) => {
+            geom::Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                let frame = the_circle.frame();
                 let cc = frame.origin();
                 let height = |p: geom_core::Point3<f64>| (p - center).dot(axis);
                 let c = height(cc);
@@ -715,11 +715,7 @@ fn outer_loop_curves(
     crate::walk::loop_half_edges(body, face.outer, fk)?
         .into_iter()
         .map(|(hek, ek, _)| {
-            let curve = body
-                .get_edge(ek)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+            let curve = crate::walk::edge_curve(body, ek)?;
             Ok((hek, ek, curve))
         })
         .collect()

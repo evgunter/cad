@@ -214,11 +214,12 @@ pub(crate) fn loops_reach_from<T: Decide>(
         .iter()
         .flat_map(profile::ValidatedLoop::segments)
     {
-        let cover = match (s.kind, s.directions) {
-            (
-                profile::SegmentKind::Arc { arc, turn },
-                profile::SegmentDirections::Arc { start, .. },
-            ) => {
+        let cover = match s.kind {
+            profile::SegmentKind::Arc {
+                arc,
+                turn,
+                radials: [start, _],
+            } => {
                 let up = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
                 let axis = if turn == geom_core::Sign::Negative {
                     -up
@@ -236,7 +237,7 @@ pub(crate) fn loops_reach_from<T: Decide>(
                     ParamWindow::new(T::zero(), arc.sweep.abs()),
                 )
             }
-            _ => Cover::segment(lift(s.start), lift(s.end)),
+            profile::SegmentKind::Line { .. } => Cover::segment(lift(s.start), lift(s.end)),
         }
         .ok_or(ReachRefusal::NoFiniteBound)?;
         let bound = far_from(&cover, origin);
