@@ -514,7 +514,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
         }
     }
 }
-/// A validated tensor-product NURBS surface (module docs; immutable
+
 /// **The three states a NURBS control net can be in.** This enum's
 /// docs are the one statement of the distinction; every consumer that
 /// tells the states apart matches on [`NurbsSurface::net_state`] and
@@ -557,6 +557,7 @@ pub enum NetState {
     Poisoned,
 }
 
+/// A validated tensor-product NURBS surface (module docs; immutable
 /// after construction — every knot-algebra operation returns a new
 /// surface).
 #[derive(Clone)]
@@ -772,8 +773,7 @@ impl<T: Real> NurbsSurface<T> {
     /// description yet" state — rather than a described surface?
     ///
     /// The discriminator and the reason it is `all` and not
-    /// `any` are the crate docs' totality-and-poison section;
-    /// the surface and curve halves answer it identically.
+    /// `any` are the crate docs' totality-and-poison section.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
     }
@@ -948,6 +948,24 @@ impl<T: Real> NurbsSurface<T> {
             self.knots_u.clone(),
             self.knots_v.clone(),
             self.control.iter().map(|p| f(*p)).collect(),
+            self.weights.clone(),
+        )
+    }
+
+    /// **This net with its control points rewritten by index**: point
+    /// `i` (in the net's `iu · nv + iv` order) becomes `f(i, point)`, the
+    /// knots and weights kept. A net of the counts it was read from needs
+    /// no validation, as [`Self::map_points`] argues.
+    #[must_use]
+    pub fn map_points_indexed(&self, f: impl Fn(usize, Point3<T>) -> Point3<T>) -> Self {
+        Self::from_validated_parts(
+            self.knots_u.clone(),
+            self.knots_v.clone(),
+            self.control
+                .iter()
+                .enumerate()
+                .map(|(i, p)| f(i, *p))
+                .collect(),
             self.weights.clone(),
         )
     }
@@ -1200,6 +1218,9 @@ impl<T: ProjectiveScalar> Column<T> {
     /// This column through a plan chain made on its value channel
     /// ([`spline::CurvePlan::apply_rational`], over the u knots held in
     /// `T` and carried plan to plan), with the knots the chain ends on.
+    /// Every new point is a blend of two, and a blend of one stored point
+    /// with itself is kept as that point, so a column whose points are
+    /// all one stored point stays so.
     /// A value a plan brings in is `fresh(v)` (the curve's
     /// `apply_plans` says which entry each caller makes).
     fn through(
@@ -1219,7 +1240,16 @@ impl<T: ProjectiveScalar> Column<T> {
                 &points,
                 &weights,
                 (net::poison_point::<T, Point3<T>>(), fresh),
-                |x, y, l: T| x.lerp(y, l),
+                // A blend of one stored point with itself is that point,
+                // so a side collapsed to one point stays one through the
+                // algebra (DESIGN `[extensibility]`).
+                |x, y, l: T| {
+                    if geom_core::bit_identity::one_stored_point(&x, &y) {
+                        x
+                    } else {
+                        x.lerp(y, l)
+                    }
+                },
             );
             held = held.restructure(plan.knots().clone(), fresh);
         }
@@ -2515,5 +2545,66 @@ mod beside_tests {
                 .x
                 .is_nan()
         );
+    }
+}
+
+/// **The knot algebra keeps a collapsed side one stored point**: a net
+/// whose side `v = 0` is one point (a `−0` coordinate in it), through
+/// `u` insertion, refinement and elevation, at `f64` and at the symbolic
+/// scalar, whose blend of a node with itself is another node unless it
+/// is kept (`Column::through`).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod a_collapsed_side_through_the_knot_algebra {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    fn net() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let p = Point3::new(0.1, -0.0, 0.3);
+        let mut control = Vec::new();
+        for iu in 0..3_u32 {
+            for iv in 0..3_u32 {
+                control.push(if iv == 0 {
+                    p
+                } else {
+                    Point3::new(
+                        f64::from(iu) + 0.37,
+                        f64::from(iv) * 1.3,
+                        0.7 * f64::from(iu),
+                    )
+                });
+            }
+        }
+        let w = vec![1.0, 1.3, 0.8, 0.9, 1.1, 1.2, 1.0, 0.7, 1.4];
+        NurbsSurface::new(ku, kv, control, w).unwrap()
+    }
+
+    fn v_low_one<T: Real>(s: &NurbsSurface<T>) -> bool {
+        let (nu, nv) = s.control_counts();
+        let c = s.control();
+        (0..nu).all(|iu| geom_core::bit_identity::one_stored_point(&c[iu * nv], &c[0]))
+    }
+
+    #[test]
+    fn a_collapsed_side_stays_one_point_through_insertion_refinement_and_elevation() {
+        let s = net();
+        assert!(v_low_one(&s), "as built");
+        for (what, t) in [
+            ("insert", s.insert_knot_u(0.37, 1).unwrap()),
+            ("refine", s.refine_knots_u(&[0.2, 0.61]).unwrap()),
+            ("elevate", s.elevate_degree_u(2).unwrap()),
+        ] {
+            assert!(v_low_one(&t), "f64 {what}");
+        }
+        let sym = s.map_scalar(geom_core::Sym::<f64>::from_f64);
+        for (what, t) in [
+            ("insert", sym.insert_knot_u(0.37, 1).unwrap()),
+            ("refine", sym.refine_knots_u(&[0.2, 0.61]).unwrap()),
+            ("elevate", sym.elevate_degree_u(2).unwrap()),
+        ] {
+            assert!(v_low_one(&t), "symbolic {what}");
+        }
     }
 }

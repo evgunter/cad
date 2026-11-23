@@ -608,7 +608,7 @@ fn profile_x_extent(value: &pncad::document::NodeValue<f64>) -> Result<(f64, f64
         .flat_map(|lp| {
             let vertices = lp.vertices().iter().map(|p| (p.x, p.x));
             let arcs = lp.segments().iter().filter_map(|s| match s.kind {
-                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Line { .. } => None,
                 pncad::profile::SegmentKind::Arc { arc, .. } => {
                     Some((arc.centre.x - arc.radius, arc.centre.x + arc.radius))
                 }
