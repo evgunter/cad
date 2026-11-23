@@ -37,11 +37,13 @@
 //! its loop's tips back ([`ChartImage`]). The readers of a sphere face's
 //! side keep them as the datum of that side: tier 3's check 6
 //! (`geom_brep::props::boundary_material_sign_holding`), the closed-form
-//! lane's cross-check of the bit (`geom_brep::props::curved_face_holding`),
-//! the mass-property doors' seam refusals (`props::face_tips`) and the
-//! face cover's sphere window (`cover::sphere_window`). The seam
-//! region's reader does not: it refuses a region holding a tip
-//! (`work/nearpoint/a-seam-region-holding-a-wrap-tip-is-never-read`).
+//! lane's cross-check of the bit (`geom_brep::props::curved_face_holding`)
+//! the mass-property doors' seam refusals (`props::face_tips`) and a
+//! sphere face's cover window (`cover::sphere_window`, through
+//! `props::chart_image_with_tips`), which reads a wrap-tip cap as its
+//! latitude zone and not the whole ball. One reader of a sphere face
+//! does not: the seam region's reader, which refuses a region holding a
+//! tip (`work/nearpoint/a-seam-region-holding-a-wrap-tip-is-never-read`).
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};

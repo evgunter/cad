@@ -5382,6 +5382,21 @@ pub fn chart_image_edges<T: Decide>(
     image_of_cycle(body, &cycle)
 }
 
+/// [`chart_image_edges`] with the stored point of every tip the image
+/// drops ([`image_with_tips`]): the image and the datum of the face's
+/// side together, so no reader of the side reads the image without it.
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+pub(crate) fn chart_image_with_tips<T: Decide>(
+    body: &Body<T>,
+    lk: LoopKey,
+) -> Result<(FlatLoop<T>, Vec<Point3<T>>), LoopEdgesError> {
+    let (_, cycle) = loop_edges(body, lk)?;
+    image_with_tips(body, &cycle)
+}
+
 /// [`chart_image_edges`] of a loop's cycle the caller has walked.
 ///
 /// # Errors
