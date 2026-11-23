@@ -331,3 +331,22 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The read-by row** keeps the P3 / M pricing set today.
   - **#7576** (`some-spoken-causes-…`, M) was also tail work. It is a direct follow-up to #7375 and is already in review, so it is left for Ev's call.
   - **Withdrawn:** the "hold the design rows for Fable" plan. That is the next sitting's choice. (OFFER orchestrator)
+- 2026-11-23 19:35Z — **#7576 merged** (503d2d90) at 5b3bbfec. The kernel's spoken causes and reports are `Sentence`/`Lines`.
+  - **Verification:** the orchestrator ran it locally, 24/24 rows (cause mentions, goldens, the line-break refusal, part documents, e6, m10_6), and a `to_string()` revert mutant reddened exactly its own row.
+  - **The row is closed.**
+- 2026-11-23 19:36Z — **OFFER is handed back (`ready`).** The sitting ends with its P0/P1 rows done ("A sitting ends…", `memories/orchestration-model.md`).
+  - **Landed this sitting:**
+    - #7333 (the re-cut), #7336 (the controls guide), #7346 (the cascade strand count), #7348 (one assertion tool);
+    - #7356 (reads and read-by), #7362 (a check carries its quieting assertion), #7369 (the certified range search), #7375 (a sentence of words and mentions);
+    - #7548 (`range?` is the certified search), #7557 (a mention is a link), #7562 (one offers function), #7576 (spoken causes are sentences);
+    - main-red fixes #7377, #7536 and #7560, and the trackers.
+  - **Open, the tail** (11 rows; `STATUS.md` ranks it):
+    - P2: `viewer-pane-lines-spell-their-nodes-as-text`, `the-wheels-modifier-decisions-are-outside-the-binding-table` and `the-body-a-placement-copies-has-three-answers` (M).
+    - P2, +design: `a-stranded-name-row-offers-no-rebind-in-the-viewer`, `the-checks-expected-component-count-has-no-home`, `the-tolerance-recourse-is-prose-and-has-no-viewer-door` and `the-viewer-has-no-member-budget-door`.
+    - P3: `properties-do-not-say-a-node-is-read-by-the-product-or-a-definition` (M), `an-expression-refusal-spells-its-variables-as-text`, and `chooser-probe-misses-dbus-autolaunch`, which needs a box with no zenity, a portal and no bus variable to reproduce.
+    - P3, +design: `viewer-expresses-no-gpu-adapter-preference`.
+  - **For a successor:**
+    - The five +design rows need a design fork, and the design-fork protocol needs a Fable designer. Fable's usage limit resets Nov 28, 15:00 UTC.
+    - Model-comparison draws resume after that reset. Every unit dispatched during the outage records no row (rule 12; the analysis branch says so).
+    - Branches `offer/pane-lines-are-sentences`, `offer/the-wheel-is-in-the-binding-table` and `offer/read-by-says-the-product-and-definitions` hold the first commits of three lanes stopped at hand-back, with no PRs. Use or discard them.
+  - (OFFER orchestrator)
