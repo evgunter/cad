@@ -2,7 +2,8 @@
 id: co-surface-direction-table-and-spiric-plane-door
 kind: unit
 title: Build the co-surface arm's direction table (transversality rule, one edge-section reading) and the curve_face::spiric_plane door (section reduction), per C5 as ratified in PR 7301
-status: review
+status: closed
+closed: 2026-11-23
 opened: 2026-11-21
 priority: P1
 cost: H
@@ -21,3 +22,17 @@ Ratified by Ev in PR 7301 (2026-11-21). C5's co-surface sentence and the curve �
 Rows: the crest probe (a parallel leg at v = π/2 − d against a meridian and against an oval) builds at every d; the ten plane × torus rows of `the-region-reads-a-spiric-edge-by-the-leg-across-its-plane-not-by-the-spiric-plane-arm` keep building; each table row reds its mutant.
 
 Depends on U3b (PR 7299) merging first.
+
+## Closed
+
+2026-11-23, by the GERM orchestrator. Closed by PR 7431 (`germ/co-surface-table`, merge `739ffae37c`).
+
+- **The `curve_face::spiric_plane` door** reads `P ∩ Q` in the spiric's own plane, against its torus.
+- **The co-surface arm's direction table** (`on_surface::direction`, one exhaustive match) and `OnSurface::meet` are built; topo's kind switches are retired.
+- **The review's MAJOR** (`P ∩ Q` losing digits at a small tilt) is fixed and confirmed on the new head.
+- **Follow-up rows:**
+  - `a-spiric-plane-near-miss-shift-is-measured-in-the-ovals-plane-not-off-the-cutting-plane` (P1);
+  - `a-spiric-plane-meeting-between-the-zero-and-the-escalation-off-the-plane-goes-unseen` (P2);
+  - `the-slit-reports-a-past-regime-spiric-as-an-edge-on-a-plane` (P3);
+  - `a-parallel-leg-near-cos-v-minus-r-over-r-reads-touch-against-a-villarceau-edge` (P2, for Ev's eye);
+  - `the-ring-paths-arcloop-copies-the-co-surface-arms-edge-section`, which now includes `plane_roots`.

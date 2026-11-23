@@ -2404,7 +2404,7 @@ fn beyond(
             origin, outward, ..
         } => (origin, outward.vec(), vec![rectangle(span)], span),
         Carrier::Cylinder { axis, radius, .. } => {
-            let base = axis.origin - axis.dir * span;
+            let base = axis.origin - axis.dir.get() * span;
             // A concave face (a bore) has its material outside the
             // carrier, so the region past it is the solid cylinder; a
             // convex one (a pin) the tube around it.
@@ -2413,7 +2413,7 @@ fn beyond(
             } else {
                 vec![circle(radius)]
             };
-            (base, axis.dir, loops, 2.0 * span)
+            (base, axis.dir.get(), loops, 2.0 * span)
         }
         _ => unreachable!("the carrier was matched above"),
     };
