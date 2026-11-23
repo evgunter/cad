@@ -6564,8 +6564,17 @@ const OFF_GRID: Frustum = (0.7, 0.31, 0.9);
 /// `one_stated_conic` reads as two conics, so the cap's corner of two
 /// arcs has no reading
 /// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`).
-/// The cone's side of that pair is presented. When the cap's corner is
-/// read this row's bodies are embedded, and the pin moves.
+/// When the cap's corner is read this row's bodies are embedded, and the
+/// pin moves.
+///
+/// **What this row pins on this tree**: the first reading (the halves
+/// hold, with a corner read, only by the ruling's corner with the arc),
+/// and that a focal row is read at all (without it a half-cone has no
+/// extent and no sheet, and the halves refuse). It does NOT pin the
+/// second and third readings, the cone's side of the cone/cap pair: that
+/// pair refuses on the cap whichever of its two faces is unread, and the
+/// refusal names the pair and not the face. Those two are pinned at
+/// `injective::focal_rows` until a whole cut cone is embedded.
 ///
 /// **At `Interval`** the halves hold in one class with `f64` wherever
 /// the cut is as built, turned or a hundred out under a tilt toward a
@@ -6666,9 +6675,9 @@ fn a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap() {
 /// **A cap cut under a generic tilt refuses on its cut cap, not on its
 /// cone.** Off the dyadic grid and tilted toward no ruling, the two arcs
 /// the split mints on the cut's cap are one ellipse stated with frames a
-/// quarter turn apart, their semi-axes exchanged, which `one_stated_conic`
-/// does not read as one conic: the cap's corner of two arcs is read by
-/// no presentation
+/// half turn apart (`u_ref` opposed), as every cut cap's are, which
+/// `one_stated_conic` does not read as one conic: the cap's corner of two
+/// arcs is read by no presentation
 /// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`).
 /// The pair refused holds the cap; the two halves of the wall alone hold.
 #[test]
@@ -6785,14 +6794,20 @@ fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
             "a ball on the section",
             ball(wall, true, on_section(OFF_GRID, wall, 1.3)),
         ),
-        // The face's extent is read off the arc's enclosure: a ball
-        // through the wall just inside the face beside the arc's far end,
-        // and beside its lowest point, which is interior to the arc under
-        // a generic tilt, is in a part of the face an extent drawn from
-        // the arc's end values alone would leave unasked. Off every edge
-        // the walk runs out of depth on the crossing pair at `f64` (a ball
-        // or a block alike) and finds it at `Interval`, so these two are
-        // read as never embedded and never certified, at every ε.
+        // A block through the wall just inside the face beside the arc's
+        // far end, and beside its lowest point, which is interior to the
+        // arc under a generic tilt. Off every edge the walk runs out of
+        // depth on the crossing pair at `f64` (a ball or a block alike)
+        // and finds it at `Interval`, so these two are read as never
+        // embedded and never certified, at every ε. They do NOT pin the
+        // face's extent: a grafted solid shares no cell with the wall, so
+        // its crossing is found by distance, which reads no extent, and
+        // the verdict is the same with the extent drawn a tenth inside
+        // the arc. An extent too small costs a verdict only where a face
+        // that SHARES a cell with the wall crosses it in the part left
+        // out, and no kernel operation builds that; the extent's reader
+        // is pinned at `clearance::extent_rows`'
+        // `a_focal_rows_extent_holds_its_arc_and_its_slants_extreme`.
         (
             "a block beside the arc's far end",
             block(tilted, beside(tilted, core::f64::consts::PI - 0.05, 0.03)),
@@ -6824,6 +6839,111 @@ fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
         if tol().eps() == geom_core::tolerance::DEFAULT_EPS && !what.starts_with("a block") {
             assert!(matches!(float, Embedding::Crosses(_)), "{what}: {float:?}");
             assert!(matches!(twin, Embedding::Crosses(_)), "{what}: {twin:?}");
+        }
+    }
+}
+
+/// Whether the cut's section stays on the wall alone, clear of both
+/// caps by `clear`.
+fn cuts_the_wall_alone(shape: Frustum, cut: Cut, clear: f64) -> bool {
+    (0..64).all(|i| {
+        let y = on_section(shape, cut, f64::from(i) * TAU / 64.0).y;
+        clear < y && y < shape.2 - clear
+    })
+}
+
+/// **The two halves of a cut cone's wall never cross, at any half-angle
+/// or tilt**: frusta of half-angles from 7.6° to 69°, one that widens
+/// upward (the other slant sense), each cut at mid height under tilts of
+/// `±0.3` and `0.08` toward five azimuths, on and off the rulings, both
+/// sides of the cut kept: 150 placements, less those whose plane runs
+/// out through a cap or does not split. The halves are asked alone at
+/// the verdict door, at `f64`. None reads `Crosses`: the bodies are
+/// honest. How many read `Embedded` is printed and is not a floor: a
+/// placement the readings do not reach refuses, which is the row's
+/// other allowed answer.
+#[test]
+fn a_cut_cones_halves_never_cross_at_any_half_angle_or_tilt() {
+    let shapes: [(&str, Frustum); 5] = [
+        ("half-angle 26.6°", (1.0, 0.5, 1.0)),
+        ("off the grid", (0.7, 0.31, 0.9)),
+        ("flat, 69°", (1.0, 0.2, 0.3)),
+        ("narrow, 7.6°", (0.3, 0.1, 1.5)),
+        ("widening", (0.4, 0.9, 0.8)),
+    ];
+    let (mut asked, mut held) = (0, 0);
+    for (name, shape) in shapes {
+        for phi in [0.3, -0.3, 0.08] {
+            for psi in [0.0, 0.7, core::f64::consts::FRAC_PI_2, 2.5, 3.9] {
+                let tilt = phi * if name.starts_with("flat") { 0.2 } else { 1.0 };
+                let cut = (shape.2 * 0.5, tilt, psi);
+                if !cuts_the_wall_alone(shape, cut, 0.02 * shape.2) {
+                    continue;
+                }
+                for above in [true, false] {
+                    let Ok(body) = try_cone_cut::<f64>(shape, cut, above) else {
+                        continue;
+                    };
+                    let body = body.into_body();
+                    let class = door_over(&body, cone_faces(&body));
+                    asked += 1;
+                    held += usize::from(class == "Embedded");
+                    assert_ne!(
+                        class, "Crosses",
+                        "{name}, tilt {tilt} toward {psi}, above {above}"
+                    );
+                }
+            }
+        }
+    }
+    println!("[cone] halves: {held} of {asked} placements Embedded at f64");
+    assert!(asked > 0, "the sweep builds a cut");
+}
+
+/// **A flap through a cut cone's wall at its ruling's corner is never
+/// embedded**: a thin brick about the vertex where a ruling meets the
+/// section, in each of its three thin orientations, at both of the
+/// ruling's corners, for a cut tilted off the rulings, toward one and
+/// away from it: eighteen asks, at both scalars, over the cone's faces
+/// and the flap's (no cap, so a cap's refusal answers nothing here).
+#[test]
+fn a_flap_through_a_cut_cones_wall_at_its_rulings_corner_is_never_embedded() {
+    fn flapped<T: Scalar + geom_core::Certifies>(
+        cut: Cut,
+        at: Point3<f64>,
+        half: [f64; 3],
+    ) -> String {
+        let mut body = cone_cut::<T>(OFF_GRID, cut, true).into_body();
+        let before: BTreeSet<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let side = |c: f64, w: f64| (c - w, c + w);
+        let flap = sweep::test_support::brick::<T>(
+            side(at.x, half[0]),
+            side(at.y, half[1]),
+            side(at.z, half[2]),
+            tol(),
+        );
+        topo::graft_disjoint_all_keyed(&mut body, &flap).expect("the flap grafts");
+        let mut faces = cone_faces(&body);
+        faces.extend(body.faces().map(|(k, _)| k).filter(|k| !before.contains(k)));
+        door_over(&body, faces)
+    }
+    for cut in [(0.43, 0.3, 0.7), (0.43, -0.3, 0.0), (0.43, 0.3, 0.0)] {
+        for theta in [0.0, core::f64::consts::PI] {
+            let at = on_section(OFF_GRID, cut, theta);
+            for half in [
+                [0.02, 0.02, 0.002],
+                [0.002, 0.02, 0.02],
+                [0.02, 0.002, 0.02],
+            ] {
+                let (float, twin) = (
+                    flapped::<f64>(cut, at, half),
+                    flapped::<Interval>(cut, at, half),
+                );
+                assert!(
+                    float != "Embedded" && twin != "Embedded",
+                    "the flap {half:?} at {theta} of {cut:?}: f64 {float} | Interval {twin}"
+                );
+            }
         }
     }
 }

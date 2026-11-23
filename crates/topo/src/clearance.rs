@@ -4275,8 +4275,8 @@ enum Row {
     /// ([`monotone_line`]): its two ends' chart points `[u, v]`, whose
     /// hull is the row's.
     Ends([[Interval; 2]; 2]),
-    /// A harmonic or wall image that may bulge past its ends: its enclosure over
-    /// its whole span, `[u, v]`, which holds it.
+    /// A harmonic, wall or focal image, which may bulge past its ends: its
+    /// enclosure over its whole span, `[u, v]`, which holds it.
     Bulging([Interval; 2]),
 }
 
@@ -4284,6 +4284,16 @@ enum Row {
 /// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
 /// harmonic, spiric wall or focal image by its enclosure over its whole span,
 /// its coefficients crossed by `lift`; `None` for any other image.
+///
+/// **A row that is no monotone line is never read by its ends.** Its
+/// extreme on an axis can lie between them: a harmonic channel's
+/// anywhere, and a focal image's slant at the section's far or near
+/// vertex wherever the arc runs through one, which an arc cut under a
+/// generic tilt does. An extent drawn too small is not a refusal that a
+/// smaller cell repairs: a cell that misses it reads the face as absent
+/// ([`injective`]'s `sheets`), so the part of the face it leaves out is
+/// never asked. The enclosure over the whole span holds every point of
+/// the row, so the hull it enters is a superset.
 fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
     (t0, t1): (Interval, Interval),
@@ -4300,8 +4310,8 @@ fn row_of<T: CertifiedBounds>(
 /// **The face's own extent in its chart** ([`Boundary::extent`]): the
 /// hull, on each axis, of the outer loop's lifted chain. A row that is a
 /// monotone coordinate line contributes its ends, which are its hull; a
-/// harmonic or wall row its enclosure over its span, which holds it, so the
-/// extent is then a superset. A superset spanning a whole turn on an
+/// harmonic, wall or focal row its enclosure over its span, which holds
+/// it, so the extent is then a superset. A superset spanning a whole turn on an
 /// axis `periodic` marks is not taken: a reader would read it as a loop
 /// that wraps. On an axis that is not periodic no width means a wrap. Any
 /// other row, or an end or enclosure not certified, is `None` (`None`
@@ -4368,8 +4378,8 @@ fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> bool {
 type IsoImage = (Axis, Interval, bool);
 
 /// A half-edge's chart image as the boundary lifts it: its two end
-/// points, the coordinate line it is, its harmonic form, and its spiric
-/// wall form.
+/// points, the coordinate line it is, and its closed form on the curve's
+/// parameter where it has one (harmonic, spiric wall or focal).
 type Image = (
     [Point2<Interval>; 2],
     Option<IsoImage>,
@@ -5580,6 +5590,86 @@ mod extent_rows {
         )
         .expect("an extent");
         assert!(top >= 1.0, "the extent reaches the bulge: {top}");
+    }
+
+    /// A section ellipse's focal image on a cone: its slant
+    /// `2 − 0.6·cos t`, greatest at the far vertex `t = π`.
+    fn focal(sense: f64) -> Pcurve<f64> {
+        Pcurve::FocalSection(geom_brep::FocalImage {
+            u0: 0.4,
+            t0: 0.0,
+            v0: 2.0,
+            va: -0.6,
+            vb: 0.0,
+            vl: 0.0,
+            beta: 0.3,
+            sense,
+        })
+    }
+
+    /// **A focal row's extent holds its arc: the slant's extreme between
+    /// its ends, and every point of it.** The arc runs through the
+    /// section's far vertex, where the slant is `2.6` and neither end's
+    /// is over `2.38`; the reader itself ([`row_of`], and [`extent_of`]
+    /// over it) is asked, with the row's own evaluator's ends, either
+    /// sense. The extent holds the far vertex, the stored row at 201
+    /// parameters of the span, both ends among them; on the azimuth,
+    /// which is monotone, it is the two ends' hull and no wider (on the
+    /// slant it is a superset, the chord-dip box). Red if the row is
+    /// read by its ends, or its enclosure is drawn inside the arc on
+    /// either axis.
+    #[test]
+    fn a_focal_rows_extent_holds_its_arc_and_its_slants_extreme() {
+        for sense in [1.0, -1.0] {
+            let p = focal(sense);
+            let (t0, t1) = (PI - 1.2, PI + 0.9);
+            let end = |t: f64| {
+                let q = p.eval(t);
+                [q.x, q.y].map(|x| Interval::from_bounds(x, x))
+            };
+            let row = || {
+                super::certified_lift(|lift| {
+                    row_of(
+                        &p,
+                        (Interval::from_f64(t0), Interval::from_f64(t1)),
+                        [end(t0), end(t1)],
+                        lift,
+                    )
+                })
+                .flatten()
+            };
+            assert!(
+                matches!(row(), Some(Row::Bulging(_))),
+                "sense {sense}: the arc is read by its enclosure"
+            );
+            let [(u_lo, u_hi), (v_lo, v_hi)] =
+                extent_of([true, false], [row()].into_iter()).expect("an extent");
+            let far = p.eval(PI);
+            assert!(
+                far.y > p.eval(t0).y.max(p.eval(t1).y) + 0.2,
+                "the slant's extreme is between the ends: {far:?}"
+            );
+            assert!(
+                v_hi >= far.y && u_lo <= far.x && far.x <= u_hi,
+                "sense {sense}: the extent holds the far vertex {far:?}: {v_lo} {v_hi}"
+            );
+            let samples: Vec<_> = (0..=200)
+                .map(|k| p.eval(t0 + (t1 - t0) * f64::from(k) / 200.0))
+                .collect();
+            for q in &samples {
+                assert!(
+                    u_lo <= q.x && q.x <= u_hi && v_lo <= q.y && q.y <= v_hi,
+                    "sense {sense}: the extent holds the arc's point {q:?}: \
+                     [{u_lo}, {u_hi}] × [{v_lo}, {v_hi}]"
+                );
+            }
+            let (first, last) = (p.eval(t0).x, p.eval(t1).x);
+            assert!(
+                (u_hi - u_lo) <= (last - first).abs() * (1.0 + 1e-9),
+                "sense {sense}: on the azimuth the extent is the two ends' hull: \
+                 [{u_lo}, {u_hi}] against {first} {last}"
+            );
+        }
     }
 
     /// **A superset extent a whole turn wide is not taken on a periodic

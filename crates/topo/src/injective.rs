@@ -103,7 +103,14 @@
 //!   edge's periodic chart curve is read through its vertex by its
 //!   closed form, past a span
 //!   that stops short of the period, in the curve's parameter, by the
-//!   rounding of `τ`;
+//!   rounding of `τ`. Its readers are a harmonic row, a spiric's wall
+//!   image, and a section ellipse's focal image on a cone, continued a
+//!   turn of azimuth on by its sense ([`ChartCurve::wind`]). The gap is
+//!   ulps of `τ` in the parameter, so in metres it is that times the
+//!   curve's speed: for a focal image no more than
+//!   `|v|·sin α·(1 + |β|)/(1 − |β|) + |(va, vb)|` per unit of
+//!   parameter, the azimuth's greatest rate at the slant's greatest
+//!   lever plus the slant's own;
 //! - **the vertex** ([`on_vertex`]): at a corner the two edges' points at
 //!   the vertex, decided within the band of each other, are read as one,
 //!   so a face point between the two edges within the band of the corner's
@@ -5104,7 +5111,9 @@ pub(crate) const SELF_INTERSECTION_CORNER_VERTEX: &str = "self_intersection_corn
 ///
 /// The chart gap is levered into metres by `speed`, the chart's speed
 /// bound over the rectangle: exact on a constant-speed chart (a plane's,
-/// a cylinder's), an upper bound on a torus's. Every chart read through a
+/// a cylinder's), an upper bound on a torus's and on a cone's, whose
+/// speed along `u` is `|v|·sin α` and is taken at the rectangle's far
+/// slant. Every chart read through a
 /// corner is orthogonal (`S_u ⊥ S_v`), so the root of the two levered
 /// squares bounds the metres between the two points over the rectangle,
 /// and a gap decided `Zero` on it is within the band.
@@ -5374,7 +5383,8 @@ enum Reading {
     Wall(Wall),
     /// The shared edge is a coordinate line of a cylinder's chart, the
     /// other edge a harmonic chart curve; or a parallel of a torus's,
-    /// the other edge a wall image.
+    /// the other edge a wall image; or a ruling or a rim's arc of a
+    /// cone's, the other edge a section ellipse's focal image.
     Line(ChartCurve),
     /// The shared edge is a plane's line edge, the other edge a conic,
     /// its chart curve this.
@@ -6495,7 +6505,8 @@ type Run = Vec<(Node, f64)>;
 /// **A curved edge's chart curve over its span, cut into [`PIECES`]
 /// pieces**, read along one column axis, and how its pieces follow one
 /// another: through a closed edge's join, its period moves the curve by
-/// its linear part's whole turns on the column axis.
+/// whole turns on the column axis ([`ChartCurve::wind`]: a harmonic
+/// channel's linear part, a focal image's sense on its azimuth).
 struct Pieces<'c> {
     chart: &'c ChartCurve,
     column: Axis,
@@ -20787,7 +20798,9 @@ mod focal_rows {
                 let e = Pcurve::FocalSection(point(&image)).eval(iv0(s));
                 if e.x.hi() < u.lo() || e.x.lo() > u.hi() || e.y.hi() < v.lo() || e.y.lo() > v.hi()
                 {
-                    missed.push(format!("case {case} {image:?} at {s}: {e:?} against {u:?} {v:?}"));
+                    missed.push(format!(
+                        "case {case} {image:?} at {s}: {e:?} against {u:?} {v:?}"
+                    ));
                 }
             }
         }
@@ -20802,10 +20815,9 @@ mod focal_rows {
 
     /// **The image over a whole arc holds the arc: both its ends, entire,
     /// and its slant's extreme between them.** A face's extent is read
-    /// off this enclosure (`clearance`'s `row_of` calls
-    /// [`ChartCurve::at`] over the edge's whole span), and there a hull
-    /// that is too small is not a refusal: the part of the face it misses
-    /// is never asked. The arc runs through the section's far vertex
+    /// off this enclosure (`clearance`'s `row_of`, which says why it must
+    /// hold the arc and is pinned at its own row). The arc runs through
+    /// the section's far vertex
     /// (`E = π`), where the slant is greatest and neither end is; the
     /// enclosure holds the stored row there, and holds each end's own
     /// evaluation whole, by the row's evaluator at the interval scalar.
@@ -21197,9 +21209,7 @@ mod focal_rows {
             "the rectangle's columns are the cell's: {x:?}"
         );
         assert!(
-            y.0 <= (mv - 0.02).min(arc[0])
-                && y.1 >= (mv + 0.02).max(arc[1])
-                && y.1 - y.0 < 0.1,
+            y.0 <= (mv - 0.02).min(arc[0]) && y.1 >= (mv + 0.02).max(arc[1]) && y.1 - y.0 < 0.1,
             "the rectangle holds the cell and the arc over its columns ({arc:?}): {y:?}"
         );
         let (rim, corner) = rim_corner();
@@ -21224,9 +21234,27 @@ mod focal_rows {
     /// turn on by its sense ([`ChartCurve::wind`]). Red if the join is
     /// continued by any other turn count: the run stops at the vertex,
     /// inside the columns.
+    ///
+    /// The join is an ε concession (the module docs' list): the span's
+    /// end, the rounded period, may stop an ulp of `τ` short of the
+    /// vertex in the parameter. Here that is under `1e-15` m: the curve's
+    /// speed is no more than `|v|·sin α·(1 + |β|)/(1 − |β|)` along the
+    /// azimuth plus `|va|` along the slant, about `1.03` m per unit of
+    /// parameter.
     #[test]
     fn a_closed_section_is_read_through_its_join() {
         use core::f64::consts::PI;
+        {
+            let image = section(0.4, true);
+            let b = image.beta.abs();
+            let speed = (image.v0 + image.va.abs()) * ALPHA.sin() * (1.0 + b) / (1.0 - b)
+                + image.va.abs();
+            let gap = TURN * f64::EPSILON * speed;
+            assert!(
+                speed < 1.04 && gap < 1e-15,
+                "the join's gap in metres: {gap} at speed {speed}"
+            );
+        }
         for with in [true, false] {
             let image = section(0.4, with);
             let (ju, jv) = stored(&image, PI);
