@@ -467,6 +467,14 @@ fn the_parametric_living_walk() {
     // the same door. The run is explicit and commits nothing; it is
     // stopped before it builds its witness, since what this walk needs
     // of it is that the next edit drops it.
+    let before = session.history().len();
+    let taper_var = common::var_of(session.committed_doc(), taper.as_str());
+    let outcome = session.perform(SessionOp::ProveRange {
+        target: RangeTarget::Variable { var: taper_var },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(outcome.committed.is_empty(), "a run commits nothing");
+    assert_eq!(session.history().len(), before, "and mints no history");
     let outcome = session.perform(SessionOp::ProveRange {
         target: RangeTarget::Slot {
             node: tower,
@@ -488,7 +496,6 @@ fn the_parametric_living_walk() {
         }
         ref other => panic!("expected the kernel's admission refusal, got {other:?}"),
     }
-    assert!(session.range().is_none(), "a refused run leaves no reading");
     let outcome = session.perform(SessionOp::ProveRange {
         target: RangeTarget::Variable {
             var: pncad::document::VarId::new(0, 0x7461_7070_6572),
@@ -503,17 +510,13 @@ fn the_parametric_living_walk() {
         "{:?}",
         outcome.refusal
     );
-    let before = session.history().len();
-    let taper_var = common::var_of(session.committed_doc(), taper.as_str());
-    let outcome = session.perform(SessionOp::ProveRange {
-        target: RangeTarget::Variable { var: taper_var },
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(outcome.committed.is_empty(), "a run commits nothing");
-    assert_eq!(session.history().len(), before, "and mints no history");
     let reading = session.range().expect("the run started").clone();
-    assert_eq!(reading.target, RangeTarget::Variable { var: taper_var });
-    assert!(reading.proving(), "and proves until stopped");
+    assert_eq!(
+        reading.target,
+        RangeTarget::Variable { var: taper_var },
+        "the refusals neither set a reading nor cleared the run in flight"
+    );
+    assert!(reading.proving(), "and it proves until stopped");
     session.perform(SessionOp::StopRange);
     session.pump();
     assert!(

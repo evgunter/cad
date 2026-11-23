@@ -75,8 +75,8 @@ use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{
     CertifyDone, CertifyRequest, CertifyService, DoorDone, DoorRequest, DoorService, EvalRequest,
-    EvalService, InlineCertifier, InlineEvaluator, InlineProver, InlineRanger, RangeProgress,
-    RangeReport, RangeRequest, RangeRun, RangeService,
+    EvalService, InlineCertifier, InlineEvaluator, InlineProver, InlineRanger, RangeReport,
+    RangeRequest, RangeRun, RangeService, RangeState,
 };
 use crate::g1;
 use crate::generation::Generation;
@@ -1035,6 +1035,13 @@ impl OutOfBudget {
     }
 }
 
+/// **A `range?` request the kernel's admission door admitted**: the
+/// field, and the seed it is searched over.
+struct AdmittedRange {
+    field: pncad::analysis::RangeField,
+    seed: pncad::analysis::RangeSeed,
+}
+
 /// What the session owes at one moment: the picture against the
 /// document, and the seam against the picture.
 ///
@@ -1551,10 +1558,7 @@ impl DocSession {
     /// shown document (`request_eval`'s discard); never a reading of
     /// another document than the one shown.
     pub fn range(&self) -> Option<&RangeReading> {
-        self.derived
-            .range
-            .as_ref()
-            .filter(|reading| reading.generation == self.generation)
+        self.derived.range.as_ref()
     }
 
     /// Whether a `range?` run is stepping — the range seam's work, not
@@ -2756,10 +2760,12 @@ impl DocSession {
 
     /// **Start a `range?` run for `target`**: admit it as the control
     /// did ([`Self::range_refusal`]), stop any run in flight, and hand
-    /// the shown document to the range seam under a fresh run.
+    /// the shown document to the range seam under a fresh run. A refused
+    /// request changes nothing, the run in flight included: a refusal
+    /// is a no-op here as at every door.
     fn prove_range(&mut self, target: RangeTarget) -> OpOutcome {
-        let request = match self.range_request(&target) {
-            Ok(request) => request,
+        let admitted = match self.range_request(&target) {
+            Ok(admitted) => admitted,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
         self.range_runs += 1;
@@ -2768,15 +2774,13 @@ impl DocSession {
             unit: target.unit(self.doc(), self.notation),
             target,
             run,
-            generation: self.generation,
-            answer: None,
-            progress: RangeProgress::Proving,
+            state: RangeState::Starting,
         });
         self.ranger.submit(RangeRequest {
             run,
             doc: Arc::new(self.doc().clone()),
-            field: request.0,
-            seed: request.1,
+            field: admitted.field,
+            seed: admitted.seed,
             resolver: self.run_resolver(),
             tol: self.tol,
         });
@@ -2795,10 +2799,7 @@ impl DocSession {
     }
 
     /// The field and seed a run of `target` searches, admitted.
-    fn range_request(
-        &self,
-        target: &RangeTarget,
-    ) -> Result<(pncad::analysis::RangeField, pncad::analysis::RangeSeed), Refusal> {
+    fn range_request(&self, target: &RangeTarget) -> Result<AdmittedRange, Refusal> {
         let doc = self.doc();
         let field = target.field();
         let built = self
@@ -2809,7 +2810,8 @@ impl DocSession {
             .map(|run| &*run.evaluation);
         pncad::analysis::RangeSeed::of(doc, &field)
             .and_then(|seed| {
-                pncad::analysis::range::admit(doc, &field, seed, built).map(|_| (field, seed))
+                pncad::analysis::range::admit(doc, &field, seed, built)
+                    .map(|_| AdmittedRange { field, seed })
             })
             .map_err(|refusal| Refusal::Range(Box::new(refusal)))
     }
@@ -2824,8 +2826,7 @@ impl DocSession {
             .as_mut()
             .filter(|reading| reading.run == report.run)
         {
-            reading.answer = Some(report.answer);
-            reading.progress = report.progress;
+            reading.state = report.state;
         }
     }
 
@@ -3511,6 +3512,10 @@ impl DocSession {
     /// two are the same state under a pointer and now get the same
     /// answer ([`SessionOp::permitted_during_free_move`]).
     fn clear_for_new_document(&mut self) {
+        // The reading goes with `Derived`; its run is stopped here too,
+        // so no door that replaces the document can leave the outgoing
+        // document's search stepping.
+        self.ranger.stop();
         self.derived = Derived::none();
         self.display.clear();
         // A landing's report names the outgoing document's nodes, which
@@ -5300,8 +5305,9 @@ impl DocSession {
     fn request_eval_from(&mut self, seed: Option<crate::evalseam::Seed>) {
         // **Every route that changes the shown document passes here**,
         // which is why the range run is stopped and its reading dropped
-        // here and nowhere else: a commit, a gesture preview, an undo,
-        // an open. TWO
+        // here: a commit, a gesture preview, an undo, an open, a new
+        // document. `clear_for_new_document` drops the reading too, before
+        // this runs, so the stop does not ask whether one was held. TWO
         // callers do not change the document — `Reevaluate`, and a
         // save-as into a different directory, which resubmits the same
         // document against a new resolver (`SessionOp::Save`'s row in
@@ -5309,9 +5315,8 @@ impl DocSession {
         // them too is the conservative direction: a range
         // recomputed on request costs a button press, a stale one costs
         // a wrong decision.
-        if self.derived.range.take().is_some() {
-            self.ranger.stop();
-        }
+        self.derived.range = None;
+        self.ranger.stop();
         self.generation = self.generation.next();
         self.exhausted = None;
         // ONE clone of the shown document per request: into the

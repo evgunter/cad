@@ -946,29 +946,60 @@ pub struct RangeRequest {
     pub tol: Tol,
 }
 
-/// Where a run stands when it reports.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RangeProgress {
-    /// Still stepping: a later report supersedes this one.
-    Proving,
-    /// Stopped by [`RangeService::stop`] or by a later submit. The
-    /// answer is what was proven when it stopped.
-    Stopped,
-    /// The answer can no longer move ([`range::Step::Finished`]), or the
-    /// request was refused.
-    Finished,
+/// **Where a `range?` run stands**, with what it has proven.
+///
+/// Not the kernel's [`range::Step`], which says what ONE step did: this
+/// is what the run is, which adds the two states before any step — the
+/// witness being built, and a request that never started — and the one
+/// stop that came before the witness was built. Each state carries
+/// exactly the answer it has, so there is no answer beside a state that
+/// could disagree with it.
+#[derive(Clone, Debug)]
+pub enum RangeState {
+    /// The witness is being built: nothing has been replayed. The seam
+    /// never reports this; the session holds it until the first report.
+    Starting,
+    /// Still stepping; a later report supersedes this one.
+    Proving(CertifiedRange),
+    /// Stopped by [`RangeService::stop`] or by a later submit, with
+    /// what it had proven.
+    Stopped(CertifiedRange),
+    /// Stopped while its witness was being built: nothing was replayed,
+    /// so nothing is proven, and there is no answer to say it of.
+    StoppedUnstarted,
+    /// The answer can no longer move ([`range::Step::Finished`]).
+    Finished(CertifiedRange),
+    /// The request was refused, or its witness does not build.
+    Refused(RangeRefusal),
 }
 
-/// **A range run's answer so far**: the search's answer after the steps
-/// it has taken, or why it could not start.
+impl RangeState {
+    /// The answer, where the run has one.
+    pub fn answer(&self) -> Option<&CertifiedRange> {
+        match self {
+            Self::Proving(answer) | Self::Stopped(answer) | Self::Finished(answer) => Some(answer),
+            Self::Starting | Self::StoppedUnstarted | Self::Refused(_) => None,
+        }
+    }
+
+    /// Whether more reports follow.
+    pub fn proving(&self) -> bool {
+        match self {
+            Self::Starting | Self::Proving(_) => true,
+            Self::Stopped(_) | Self::StoppedUnstarted | Self::Finished(_) | Self::Refused(_) => {
+                false
+            }
+        }
+    }
+}
+
+/// **A range run's answer so far**, tagged with the run it answers.
 #[derive(Clone, Debug)]
 pub struct RangeReport {
     /// The run this answers.
     pub run: RangeRun,
-    /// The answer, or the refusal of the request or of its witness.
-    pub answer: Result<CertifiedRange, RangeRefusal>,
-    /// Whether more reports follow.
-    pub progress: RangeProgress,
+    /// Where it stands.
+    pub state: RangeState,
 }
 
 /// **The search's budget**: the depth a curved field needs, and no cap
@@ -978,11 +1009,14 @@ fn range_budget(request: &RangeRequest) -> RangeBudget {
     RangeBudget::for_seed(request.seed, request.tol, usize::MAX)
 }
 
-/// The search for `request`, its witness built under `stop`, or the
-/// report that refuses it: stopped where `stop` was canceled, finished
-/// otherwise.
-fn start_range(request: &RangeRequest, stop: &Stop) -> Result<RangeSearch, Box<RangeReport>> {
-    RangeSearch::new(
+/// The search for `request`, its witness built under `stop`, and the
+/// report it starts at; or the run's last report, where it could not
+/// start: stopped where `stop` was canceled, refused otherwise.
+fn start_range(
+    request: &RangeRequest,
+    stop: &Stop,
+) -> Result<(RangeSearch, RangeReport), Box<RangeReport>> {
+    match RangeSearch::new(
         &request.doc,
         &request.field,
         request.seed,
@@ -990,31 +1024,36 @@ fn start_range(request: &RangeRequest, stop: &Stop) -> Result<RangeSearch, Box<R
         request.resolver.clone(),
         stop,
         request.tol,
-    )
-    .map_err(|refusal| {
-        Box::new(RangeReport {
+    ) {
+        Ok(search) => {
+            let first = RangeReport {
+                run: request.run,
+                state: RangeState::Proving(search.answer()),
+            };
+            Ok((search, first))
+        }
+        Err(refusal) => Err(Box::new(RangeReport {
             run: request.run,
-            answer: Err(refusal),
-            progress: if stop.cancel.is_canceled() {
-                RangeProgress::Stopped
+            state: if stop.cancel.is_canceled() {
+                RangeState::StoppedUnstarted
             } else {
-                RangeProgress::Finished
+                RangeState::Refused(refusal)
             },
-        })
-    })
+        })),
+    }
 }
 
 /// One step of `search`, and the report it leaves.
 fn step_range(run: RangeRun, search: &mut RangeSearch, stop: &Stop) -> RangeReport {
-    let progress = match search.step(stop) {
-        range::Step::Advanced => RangeProgress::Proving,
-        range::Step::Finished => RangeProgress::Finished,
-        range::Step::Stopped(_) => RangeProgress::Stopped,
-    };
+    let step = search.step(stop);
+    let answer = search.answer();
     RangeReport {
         run,
-        answer: Ok(search.answer()),
-        progress,
+        state: match step {
+            range::Step::Advanced => RangeState::Proving(answer),
+            range::Step::Finished => RangeState::Finished(answer),
+            range::Step::Stopped(_) => RangeState::Stopped(answer),
+        },
     }
 }
 
@@ -1022,23 +1061,23 @@ fn step_range(run: RangeRun, search: &mut RangeSearch, stop: &Stop) -> RangeRepo
 /// job answers MORE than once: the search is stepped, its answer can be
 /// read after every step, and the panel shows each as "proven so far".
 /// So [`RangeService::poll`] hands back the newest report, and a run's
-/// last report is the one whose progress is not
-/// [`RangeProgress::Proving`].
+/// last report is the one that is not [`RangeState::proving`].
 ///
-/// [`RangeService::stop`] ends the run and keeps its answer; a submit
-/// stops the run in flight too, and its reports carry the run they
-/// answer, so the session drops them.
+/// **A poll answers only the run submitted last.** A submit stops the
+/// run in flight, and nothing that run reports afterwards reaches a
+/// poll; [`RangeService::stop`] ends the run and its last report keeps
+/// what it proved.
 pub trait RangeService {
     /// Ask for `request`. Stops a run in flight and replaces any
     /// waiting one.
     fn submit(&mut self, request: RangeRequest);
 
     /// Stop the run in flight. Its next report is its last, with what
-    /// it had proven.
+    /// it had proven. Nothing in flight is nothing to stop.
     fn stop(&mut self);
 
-    /// The newest report, if there is one the caller has not taken.
-    /// Never blocks.
+    /// The newest report of the run submitted last, if there is one the
+    /// caller has not taken. Never blocks.
     fn poll(&mut self) -> Option<RangeReport>;
 
     /// Whether a run is in flight or waiting.
@@ -1048,7 +1087,8 @@ pub trait RangeService {
 /// The range seam with no thread behind it: `poll` builds the witness,
 /// then takes ONE step per call — the standing of [`InlineCertifier`],
 /// sliced, so that a caller pumping a frame at a time sees the answer
-/// grow and can stop it between steps.
+/// grow and can stop it between steps. A submit drops the run in hand,
+/// so no older run can report.
 #[derive(Debug, Default)]
 pub struct InlineRanger {
     pending: Option<RangeRequest>,
@@ -1078,21 +1118,16 @@ impl RangeService for InlineRanger {
         let stop = Stop::canceled_by(&self.stop);
         if let Some(request) = self.pending.take() {
             return Some(match start_range(&request, &stop) {
-                Ok(search) => {
-                    let report = RangeReport {
-                        run: request.run,
-                        answer: Ok(search.answer()),
-                        progress: RangeProgress::Proving,
-                    };
+                Ok((search, first)) => {
                     self.running = Some((request.run, search));
-                    report
+                    first
                 }
-                Err(report) => *report,
+                Err(last) => *last,
             });
         }
         let (run, search) = self.running.as_mut()?;
         let report = step_range(*run, search, &stop);
-        if report.progress != RangeProgress::Proving {
+        if !report.state.proving() {
             self.running = None;
         }
         Some(report)
@@ -1151,8 +1186,8 @@ mod threaded {
     use super::{
         CertifyDone, CertifyRequest, CertifyService, DoorDone, DoorRequest, DoorService, EvalDone,
         EvalRequest, EvalService, FitDone, FitRequest, FitService, IndexDone, IndexRequest,
-        IndexService, PickMemo, PriorRun, RangeProgress, RangeReport, RangeRequest, RangeService,
-        build_index, run_certify, run_fit, run_once, start_range, step_range,
+        IndexService, PickMemo, PriorRun, RangeReport, RangeRequest, RangeService, build_index,
+        run_certify, run_fit, run_once, start_range, step_range,
     };
 
     /// Which of this module's workers a refusal is about (D4 ¶3:
@@ -1981,48 +2016,62 @@ mod threaded {
         }
     }
 
-    /// **The newest report of the run in flight**, written by the range
+    /// **The newest step report of one run**, written by the range
     /// worker after every step and taken by [`ThreadRanger::poll`]: a
     /// cell rather than a channel, because only the newest is ever read.
+    /// One cell per run, made at its submit, so a run's reports can only
+    /// ever reach its own cell.
     type Latest = std::sync::Arc<std::sync::Mutex<Option<RangeReport>>>;
 
-    /// A range job: the request, and the cell its reports go to.
+    /// A range job: the request, and its run's cell.
     #[derive(Debug)]
     struct RangeJob {
         request: RangeRequest,
         latest: Latest,
     }
 
-    /// The range job: step the search until it finishes or its token is
-    /// canceled, writing every step's report to the cell, and answer
-    /// with the last.
+    /// The range job: build the witness and report it, step the search
+    /// until it finishes or its token is canceled, writing every step's
+    /// report to the run's cell, and answer with the last.
     fn run_range(job: RangeJob, cancel: &CancelToken) -> RangeReport {
+        let write = |report: RangeReport| {
+            *job.latest
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(report);
+        };
         let stop = pncad::document::Stop::canceled_by(cancel);
         let mut search = match start_range(&job.request, &stop) {
-            Ok(search) => search,
-            Err(report) => return *report,
+            Ok((search, first)) => {
+                write(first);
+                search
+            }
+            Err(last) => return *last,
         };
         let run = job.request.run;
         loop {
             let report = step_range(run, &mut search, &stop);
-            if report.progress != RangeProgress::Proving {
+            if !report.state.proving() {
                 return report;
             }
-            *job.latest
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(report);
+            write(report);
         }
     }
 
     /// A background-thread range seam: [`Cancelling`] over one field's
-    /// certified search, whose every step is written to a cell the
-    /// handle reads ([`RangeService`]'s docs say why a run answers more
-    /// than once). Its own thread, so a search that runs for minutes
-    /// sits in front of no evaluation, index or check.
+    /// certified search, whose every step is written to its run's cell
+    /// ([`RangeService`]'s docs say why a run answers more than once).
+    /// Its own thread, so a search that runs for minutes sits in front
+    /// of no evaluation, index or check.
+    ///
+    /// **Only the run submitted last is heard.** The handle reads only
+    /// that run's cell, and drops a last report of any other run, which
+    /// [`Coalescing`] hands back when the earlier run had already ended
+    /// before the submit.
     #[derive(Debug)]
     pub struct ThreadRanger {
         inner: Cancelling<RangeJob, RangeReport>,
-        latest: Latest,
+        /// The run submitted last, and its cell.
+        current: Option<(super::RangeRun, Latest)>,
     }
 
     impl ThreadRanger {
@@ -2035,38 +2084,40 @@ mod threaded {
         pub fn spawn() -> Result<Self, SpawnError> {
             Ok(Self {
                 inner: Cancelling::spawn(Worker::Range, "viewer-range", run_range)?,
-                latest: Latest::default(),
+                current: None,
             })
         }
     }
 
     impl RangeService for ThreadRanger {
         fn submit(&mut self, request: RangeRequest) {
-            self.inner.submit(RangeJob {
-                request,
-                latest: std::sync::Arc::clone(&self.latest),
-            });
+            let latest = Latest::default();
+            self.current = Some((request.run, std::sync::Arc::clone(&latest)));
+            self.inner.submit(RangeJob { request, latest });
         }
 
         fn stop(&mut self) {
             self.inner.cancel();
         }
 
-        /// A run's last report first: the worker wrote every step's
+        /// The run's last report first: the worker wrote every step's
         /// report to the cell before it sent its last, so a step's
         /// report still in the cell is older and is dropped with it.
         fn poll(&mut self) -> Option<RangeReport> {
-            let mut latest = self
-                .latest
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            match self.inner.poll() {
-                Some(last) => {
-                    *latest = None;
-                    Some(last)
+            let (run, latest) = self.current.as_ref()?;
+            let run = *run;
+            while let Some(last) = self.inner.poll() {
+                if last.run == run {
+                    *latest
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                    return Some(last);
                 }
-                None => latest.take(),
             }
+            latest
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take()
         }
 
         fn busy(&self) -> bool {

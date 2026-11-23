@@ -533,9 +533,15 @@ fn with_defined(session: &mut DocSession) -> VarId {
 /// (`work/doctail/range-admission-says-a-defined-variable-is-absent`).
 #[test]
 fn range_on_a_defined_or_absent_variable_is_refused_by_the_kernels_admission() {
-    let (mut session, _a, _b, _w, _k) = two_extrudes();
+    let (mut session, _a, _b, w, _k) = two_extrudes();
     let d = with_defined(&mut session);
     let absent = pncad::document::VarId::new(0, 0x0123_4567_89ab_cdef);
+    // A run already in flight, so the refusals below are seen to clear
+    // nothing as well as to set nothing.
+    let started = session.perform(SessionOp::ProveRange {
+        target: RangeTarget::Variable { var: w },
+    });
+    assert!(started.refusal.is_none(), "{:?}", started.refusal);
     for var in [d, absent] {
         let target = RangeTarget::Variable { var };
         let greyed = session.range_refusal(&target).expect("the control greys");
@@ -563,7 +569,11 @@ fn range_on_a_defined_or_absent_variable_is_refused_by_the_kernels_admission() {
             "{refused}"
         );
     }
-    assert!(session.range().is_none(), "a refused run leaves no reading");
+    assert_eq!(
+        session.range().map(|reading| reading.target.clone()),
+        Some(RangeTarget::Variable { var: w }),
+        "a refused run neither sets a reading nor clears the one in flight"
+    );
 }
 
 /// **The add-variable form's exists-notice reads a defined variable as

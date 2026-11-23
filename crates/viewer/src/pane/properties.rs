@@ -1250,6 +1250,14 @@ impl ViewerBehavior<'_> {
         }
     }
 
+    /// Whether a `range?` run for `target` is proving: its button then
+    /// starts it again, dropping what it has proven.
+    fn proving(&self, target: &RangeTarget) -> bool {
+        self.session
+            .range()
+            .is_some_and(|reading| reading.target == *target && reading.proving())
+    }
+
     /// **The session's `range?` reading for `target`**: its lines, and
     /// whether the run is still proving. No lines while no run was taken
     /// for that field, or the document changed since.
@@ -1280,7 +1288,15 @@ impl ViewerBehavior<'_> {
             slot: row.slot,
         };
         let refused = self.session.range_refusal(&target);
-        if range_control(ui, label, refused.as_ref()) {
+        let restarts = self.proving(&target);
+        // A scalar row's button says it restarts; a vector's tagged one
+        // keeps its axis tag and says so on hover.
+        let label = if restarts && label == "range?" {
+            "restart"
+        } else {
+            label
+        };
+        if range_control(ui, label, refused.as_ref(), restarts) {
             self.ops.push(SessionOp::ProveRange { target });
         }
     }
@@ -1896,16 +1912,26 @@ fn range_notes(
     }
     RangeAsked {
         stop: proving && stop_link(ui),
-        range: range_control(ui, "range?", refused),
+        range: range_control(
+            ui,
+            if proving { "restart" } else { "range?" },
+            refused,
+            proving,
+        ),
     }
 }
 
 /// **The `range?` button**, greyed with `refused`'s own words where the
 /// admission door refuses the run. Answers whether it was clicked.
-fn range_control(ui: &mut egui::Ui, label: &str, refused: Option<&Refusal>) -> bool {
+fn range_control(
+    ui: &mut egui::Ui,
+    label: &str,
+    refused: Option<&Refusal>,
+    restarts: bool,
+) -> bool {
     let button = ui.add_enabled(refused.is_none(), egui::Button::new(label).small());
     match refused {
-        None => button.on_hover_text(RANGE_HOVER),
+        None => button.on_hover_text(if restarts { RESTART_HOVER } else { RANGE_HOVER }),
         // The refusal renders itself; nothing here composes words.
         Some(refusal) => button.on_disabled_hover_text(crate::shown(refusal)),
     }
@@ -1941,8 +1967,12 @@ const NAME_HOVER: &str = "name the variable this slot reads, so a formula can re
 
 /// What a range button says on hover, for a slot's and a variable's
 /// alike.
-const RANGE_HOVER: &str = "prove how far this can move and stay the same build — it runs until \
-                           it can prove no more, or until you stop it";
+const RANGE_HOVER: &str = "prove how far this can move and stay the same build — it keeps \
+                           proving until you stop it or it can go no further, which on some \
+                           fields is never";
+
+/// What the button says on hover while its run is proving.
+const RESTART_HOVER: &str = "start proving again from nothing, dropping what this run has proven";
 
 /// What the stop under a proving run says on hover.
 const STOP_HOVER: &str = "stop proving, and keep what is proven so far";
@@ -2213,7 +2243,7 @@ mod layout_tests {
         let (region, painted) = drawn_in(REGION, |ui| {
             range_notes(ui, &Theme::DEFAULT, &lines, true, None);
         });
-        let button = find(&painted, "range?");
+        let button = find(&painted, "restart");
         let stop = find(&painted, "stop");
         for line in &lines {
             let said = find(&painted, line);
@@ -2304,7 +2334,7 @@ mod tests {
         ] {
             let clicked = Cell::new(false);
             painted_after_clicking("range?", |ui| {
-                if super::range_control(ui, "range?", refused.as_ref()) {
+                if super::range_control(ui, "range?", refused.as_ref(), false) {
                     clicked.set(true);
                 }
             });

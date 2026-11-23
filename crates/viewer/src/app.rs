@@ -12726,6 +12726,84 @@ mod properties_pane_tests {
             assert!(driven.app.session.committed_doc().bit_eq(&before));
         }
 
+        /// **The pane's `range?` greys from the session's admission
+        /// door**, at a slot and at a variable. Over a depth a formula
+        /// defines, the button's hover is the kernel's refusal and its
+        /// click starts nothing; after a typed number the same button
+        /// starts a run. A variable whose document does not build greys
+        /// the same way, in the witness's words.
+        #[test]
+        fn the_range_buttons_grey_from_the_admission_door() {
+            let mut driven = with_w();
+            type_depth(&mut driven, "w * 2");
+            let target = crate::session::RangeTarget::Slot {
+                node: extrude(),
+                slot: SlotId::Distance,
+            };
+            let refused = crate::shown(
+                &driven
+                    .app
+                    .session
+                    .range_refusal(&target)
+                    .expect("the admission door refuses a defined slot"),
+            );
+            let gained = driven.gained_hovering("range?");
+            assert!(
+                gained.iter().any(|run| run.contains(&refused)),
+                "the greyed button says the refusal: {gained:?}"
+            );
+            driven.click("range?");
+            driven.settle();
+            assert!(
+                driven.app.session.range().is_none(),
+                "a greyed button starts nothing"
+            );
+            type_depth(&mut driven, "0.02");
+            driven.click("range?");
+            assert_eq!(
+                driven
+                    .app
+                    .session
+                    .range()
+                    .map(|reading| reading.target.clone()),
+                Some(target),
+                "and an admitted one starts a run"
+            );
+
+            let mut driven = with_w();
+            type_depth(&mut driven, "w");
+            let w = driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("w")
+                .expect("w is declared");
+            let set = driven.app.session.perform(SessionOp::SetVariable {
+                var: w,
+                value: crate::props::SlotValue::Continuous(0.0),
+            });
+            assert!(set.refusal.is_none(), "{:?}", set.refusal);
+            driven
+                .app
+                .session
+                .perform(SessionOp::Select(Selection::Variable(w)));
+            driven.settle();
+            let refused = crate::shown(
+                &driven
+                    .app
+                    .session
+                    .range_refusal(&crate::session::RangeTarget::Variable { var: w })
+                    .expect("a document that does not build is refused"),
+            );
+            let gained = driven.gained_hovering("range?");
+            assert!(
+                gained.iter().any(|run| run.contains(&refused)),
+                "the variable's greyed button says the refusal: {gained:?}"
+            );
+            driven.click("range?");
+            assert!(driven.app.session.range().is_none(), "and starts nothing");
+        }
+
         /// **`range?` over a slot a formula defines is refused in the
         /// kernel's words; a typed number lands after it, and the run of
         /// the literal starts.**
