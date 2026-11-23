@@ -817,6 +817,19 @@ impl BoxAxis {
         let (lo, hi) = self.span();
         geom::mid_param(lo, hi)
     }
+
+    /// The two halves of this axis's span, lower first, cut at
+    /// [`Self::midpoint`]. `None` for a fixed axis, and for one too
+    /// narrow to split: a midpoint that lands on an endpoint, the `f64`
+    /// grid's own floor. [`ParamBox::split`] and the range search both
+    /// halve through here.
+    pub fn halves(&self) -> Option<[(f64, f64); 2]> {
+        let Self::Varying { lo, hi } = *self else {
+            return None;
+        };
+        let mid = self.midpoint();
+        (lo < mid && mid < hi).then_some([(lo, mid), (mid, hi)])
+    }
 }
 
 /// A sub-box of the [`AnalyzedBox`]: one [`BoxAxis`] per continuous
@@ -980,20 +993,21 @@ impl ParamBox {
             })
     }
 
-    /// The DETERMINISTIC split axis (D9): the varying axis of greatest
-    /// width RELATIVE to `root`'s width on that axis, ties broken to the
-    /// EARLIEST-DECLARED variable, the least id — the order every box
-    /// iterates in. `None` when nothing varies.
+    /// The DETERMINISTIC split axis (D9): of the varying axes `among`
+    /// admits, the one of greatest width RELATIVE to `root`'s width on
+    /// that axis, ties broken to the EARLIEST-DECLARED variable, the
+    /// least id — the order every box iterates in. `None` when `among`
+    /// admits no varying axis.
     ///
     /// Relative rather than absolute because axes carry different
     /// dimensions and different spreads: a 10 mm band and a 0.01°
     /// band are not comparable as numbers, and bisecting the numerically
     /// widest would subdivide one axis forever. Relative width is
     /// dimensionless and is 1 on every axis of the root box, so the
-    /// recursion refines the box uniformly.
-    pub fn split_axis(&self, root: &Self) -> Option<VarId> {
+    /// recursion refines the admitted axes uniformly.
+    pub fn split_axis(&self, root: &Self, among: impl Fn(VarId) -> bool) -> Option<VarId> {
         let mut best: Option<(VarId, f64)> = None;
-        for (name, lo, hi) in self.varying() {
+        for (name, lo, hi) in self.varying().filter(|&(name, _, _)| among(name)) {
             let full = root.get(name).map_or(0.0, BoxAxis::width);
             // A varying axis of a box whose root axis is degenerate has
             // no relative width to speak of; rank it by its own width so
@@ -1013,21 +1027,14 @@ impl ParamBox {
     }
 
     /// The two halves of this box across `name`, bisected at the axis
-    /// midpoint. `None` when the axis is absent, fixed, or too narrow to
-    /// split (a midpoint that lands on an endpoint — the `f64` grid's
-    /// own floor).
+    /// midpoint ([`BoxAxis::halves`]). `None` when the axis is absent,
+    /// fixed, or too narrow to split.
     ///
     /// The midpoint is [`BoxAxis::midpoint`]'s, so the same box splits
     /// into the same two halves on every machine and in every schedule
     /// (D9).
     pub fn split(&self, name: VarId) -> Option<(Self, Self)> {
-        let BoxAxis::Varying { lo, hi } = *self.axes.get(&name)? else {
-            return None;
-        };
-        let mid = BoxAxis::Varying { lo, hi }.midpoint();
-        if !(lo < mid && mid < hi) {
-            return None;
-        }
+        let [(lo, mid), (_, hi)] = self.axes.get(&name)?.halves()?;
         let mut a = self.clone();
         let mut b = self.clone();
         a.axes.insert(name, BoxAxis::Varying { lo, hi: mid });

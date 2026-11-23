@@ -225,8 +225,13 @@ pub(crate) enum Lane {
     Curved,
     /// `trimmed::tessellate_trimmed`: the chart lane, on every face
     /// that is no iso-rectangle of its chart, on a ruled rectangle whose
-    /// straight side holds a point, and on any NURBS chart.
+    /// straight side holds a point that the walk does not take, and on any
+    /// NURBS chart.
     Trimmed,
+    /// The chart lane's walk (`crate::ruled_walk`), on a ruled rectangle
+    /// whose straight side holds a point and whose loop is the walk's
+    /// (`trimmed::walkable`): no lattice and no CDT, at δ.
+    Walked,
 }
 
 /// The dispatch.
@@ -333,8 +338,13 @@ pub(crate) fn route_of(
             match crate::curved::iso_rectangle_shape(body, fk, face.outer, surface, band)? {
                 Shape::Rectangle(rectangle) => {
                     if crate::walk::splits_a_straight_side(body, fk, surface)? {
-                        // The split-straight-side fact: the token goes unspent.
-                        (Route::Trimmed(Trim::Structural), None)
+                        // Fact 4: the token goes unspent; the walk takes the
+                        // face where its loop is the walk's.
+                        if crate::trimmed::walkable(body, fk, surface, band)? {
+                            (Route::Trimmed(Trim::Walked), None)
+                        } else {
+                            (Route::Trimmed(Trim::Structural), None)
+                        }
                     } else {
                         (Route::Curved(rectangle), None)
                     }
@@ -374,6 +384,9 @@ pub(crate) enum Trim {
     /// The doors decided the face no rectangle, and the route read its
     /// domain ([`route_of`]).
     Read(topo::pcurves::FaceLift<f64>),
+    /// Fact 4 on a face the walk takes ([`Lane::Walked`]); its domain is
+    /// read at its turn.
+    Walked,
 }
 
 /// **The one read of a trimmed face's domain** (`trimmed::face_domain`),
@@ -425,6 +438,7 @@ impl Route {
             Self::Curved(rectangle) => Ready::Curved(rectangle),
             Self::Trimmed(Trim::Read(lift)) => Ready::Trimmed(lift),
             Self::Trimmed(Trim::Structural) => Ready::Trimmed(read_domain(body, fk, band, None)?),
+            Self::Trimmed(Trim::Walked) => Ready::Walked(read_domain(body, fk, band, None)?),
         })
     }
 }
@@ -434,6 +448,7 @@ pub(crate) enum Ready {
     Planar,
     Curved(crate::curved::Rectangle),
     Trimmed(topo::pcurves::FaceLift<f64>),
+    Walked(topo::pcurves::FaceLift<f64>),
 }
 
 impl Ready {
@@ -443,6 +458,7 @@ impl Ready {
             Self::Planar => Lane::Planar,
             Self::Curved(_) => Lane::Curved,
             Self::Trimmed(_) => Lane::Trimmed,
+            Self::Walked(_) => Lane::Walked,
         }
     }
 
@@ -450,7 +466,7 @@ impl Ready {
     /// none.
     fn domain(&self) -> Option<&topo::pcurves::FaceLift<f64>> {
         match self {
-            Self::Trimmed(lift) => Some(lift),
+            Self::Trimmed(lift) | Self::Walked(lift) => Some(lift),
             Self::Planar | Self::Curved(_) => None,
         }
     }
@@ -468,7 +484,12 @@ pub(crate) enum Routed {
 /// route's refusal, and the K-funnel recordings the route made: the
 /// doors' and the split-side fact's (spliced where the lane runs), and
 /// the domain read's where the route read the domain (spliced on every
-/// run).
+/// run). On a ruled face with a split side the fact also asks whether the
+/// walk takes it (`trimmed::walkable`): one `chart_singularity_at_vertex`
+/// per singular point of the chart per vertex of the outer loop. The walk
+/// itself records nothing of its own: whether a face across can reach a
+/// side (`trimmed::may_make`) reads no band. Pinned on a split-side body
+/// (`tests/route_rows.rs`, `a_split_side_body_records_the_walks_decisions`).
 pub(crate) struct FaceRoute {
     pub(crate) face: FaceKey,
     pub(crate) route: Result<Route, TessellateError>,
@@ -487,11 +508,13 @@ pub(crate) struct Routes {
 
 /// One face's entry in [`Routes`]: its lane, a curved-lane face's
 /// carrying the doors' answer, which the chord rule reads beside the
-/// walk ([`Routes::rectangle`]), or the route's refusal.
+/// walk ([`Routes::rectangle`]), a trimmed face the walk takes or one it
+/// does not, or the route's refusal.
 enum Entry {
     Planar,
     Curved(crate::curved::Rectangle),
     Trimmed,
+    Walked,
     Refused,
 }
 
@@ -523,6 +546,7 @@ impl Routes {
                 let entry = match &r.route {
                     Ok(Route::Planar) => Entry::Planar,
                     Ok(Route::Curved(rectangle)) => Entry::Curved(rectangle.clone()),
+                    Ok(Route::Trimmed(Trim::Walked)) => Entry::Walked,
                     Ok(Route::Trimmed(_)) => Entry::Trimmed,
                     Err(_) => Entry::Refused,
                 };
@@ -551,6 +575,7 @@ impl Routes {
             Some(Entry::Planar) => Ok(Routed::To(Lane::Planar)),
             Some(Entry::Curved(_)) => Ok(Routed::To(Lane::Curved)),
             Some(Entry::Trimmed) => Ok(Routed::To(Lane::Trimmed)),
+            Some(Entry::Walked) => Ok(Routed::To(Lane::Walked)),
             Some(Entry::Refused) => Ok(Routed::Refused),
             None => Err(TessellateError::MissingEntity { what: "face" }),
         }
@@ -779,17 +804,20 @@ fn tessellate_impl(
                     // projects valid boundaries below spade's
                     // coordinate domain.
                     let run = || match &route {
-                        Ready::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
-                            body,
-                            fk,
-                            surface,
-                            &chords,
-                            shared,
-                            &tol,
-                            &bounds,
-                            lift,
-                            crate::trimmed::BOUNDARY_CLEARANCE,
-                        ),
+                        Ready::Trimmed(lift) | Ready::Walked(lift) => {
+                            crate::trimmed::tessellate_trimmed(
+                                body,
+                                fk,
+                                surface,
+                                &chords,
+                                shared,
+                                &tol,
+                                &bounds,
+                                lift,
+                                crate::trimmed::BOUNDARY_CLEARANCE,
+                                lane == Lane::Walked,
+                            )
+                        }
                         Ready::Planar => tessellate_planar(body, fk, &chords.ids, shared),
                         Ready::Curved(rectangle) => tessellate_curved(
                             body,

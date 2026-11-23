@@ -347,6 +347,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Measure => "MeasureUnavailable",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
             ErrorClass::Mc => "McRefusal",
+            ErrorClass::Range => "RangeRefusal",
             ErrorClass::StepHandle => "StepHandleError",
         }
     }
@@ -387,6 +388,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Measure,
         ErrorClass::AnalysisPolicy,
         ErrorClass::Mc,
+        ErrorClass::Range,
         ErrorClass::StepHandle,
     ] {
         assert_eq!(class.class_name(), expected(class));
@@ -676,6 +678,17 @@ fn picking_refusal_tags_are_stable() {
             expected: pncad::document::DocumentId::derive("tag-expected"),
             found: pncad::document::DocumentId::derive("tag-found"),
         }),
+        "evaluation_of_another_document"
+    );
+    assert_eq!(
+        crate::tags::range_refusal_tag(
+            &pncad::analysis::RangeRefusal::EvaluationOfAnotherDocument(
+                pncad::document::Mispaired {
+                    expected: pncad::document::DocumentId::derive("tag-expected"),
+                    found: pncad::document::DocumentId::derive("tag-found"),
+                }
+            )
+        ),
         "evaluation_of_another_document"
     );
 
@@ -2061,6 +2074,7 @@ fn node_error_tags_are_the_published_words() {
         NotFinished => "not_finished",
         UnfinishedLeaf => "unfinished_leaf",
         EmptyHalf => "empty_half",
+        HalfOfAFamily => "half_of_a_family",
         MemberOutOfRange => "member_out_of_range",
         MemberRefused => "member_refused",
         IndicesUnrelated => "indices_unrelated",
@@ -3578,7 +3592,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
         restated: Vec::new(),
-        quietable: false,
+        quieting: None,
     };
     // One fold row reported with it: the payload counts it.
     let unproven = {
@@ -3586,7 +3600,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             row,
             residual,
             recourse,
-            quietable,
+            quieting,
             ..
         } = &unproven
         else {
@@ -3601,7 +3615,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             residual: residual.clone(),
             recourse: *recourse,
             restated: vec![(fold, (**residual).clone(), *recourse)],
-            quietable: *quietable,
+            quieting: quieting.clone(),
         }
     };
     carries(&unproven, &["reason", "relation", "site", "restated"]);
@@ -4439,7 +4453,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ball_does_not_fit",
             "band",
             "body_not_intact",
-            "certify",
             "chain_not_connected",
             "chain_not_g1",
             "chamfer_arm_unsupported",
@@ -4452,6 +4465,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
+            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -4567,6 +4581,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "boundary_edit_tag",
         values: &["name_serialize", "param_name_not_an_identifier"],
         delegates: &["label_fault_tag", "pin_refusal_tag"],
+    },
+    TagEntry {
+        function: "budget_kind_tag",
+        values: &["depth", "leaves", "resolution"],
+        delegates: &[],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -4704,6 +4723,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "difference_kind_tag",
+        values: &["builds_differently", "standing_change"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "disagree_shape_tag",
         values: &[
             "band_verdicts_disagree_flush_senses_disagree",
@@ -4730,6 +4754,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "distribution_kind_tag",
         values: &["band", "normal", "truncated_normal", "uniform"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "drive_refusal_tag",
+        values: &["nothing_varies", "stopped", "witness_does_not_build"],
         delegates: &[],
     },
     TagEntry {
@@ -5247,6 +5276,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "expr",
             "extrude",
             "fillet",
+            "half_of_a_family",
             "index_count",
             "index_count_out_of_range",
             "indices_unrelated",
@@ -5619,6 +5649,27 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "range_refusal_tag",
+        values: &[
+            "derivation",
+            "evaluation_of_another_document",
+            "more_than_one_axis_varies",
+            "not_a_continuous_param",
+            "seed_is_not_the_analyzed_axis",
+            "seed_not_a_bracket",
+            "slot_is_defined",
+            "structural_slot",
+            "unknown_node",
+            "unknown_slot",
+        ],
+        delegates: &["drive_refusal_tag"],
+    },
+    TagEntry {
+        function: "range_step_tag",
+        values: &["advanced", "finished", "stopped"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "reach_refusal_tag",
         values: &[
             "face_unbounded",
@@ -5643,6 +5694,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "subdivision_count",
         ],
         delegates: &["expr_dimension_error_tag"],
+    },
+    TagEntry {
+        function: "refusal_reason_tag",
+        values: &[
+            "bifurcation",
+            "budget",
+            "flip_crossing",
+            "infeasible",
+            "reads_no_variable",
+            "sliver_terminal",
+        ],
+        delegates: &[],
     },
     TagEntry {
         function: "replay_error_tag",
@@ -6210,6 +6273,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "unproven_tag",
+        values: &["flip_unfounded", "stalled", "unfinished"],
+        delegates: &["refusal_reason_tag"],
+    },
+    TagEntry {
         function: "update_error_tag",
         values: &["already_pinned", "no_such_reference"],
         delegates: &[],
@@ -6232,7 +6300,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
-            "component_euler_violation",
             "contact_contradicted",
             "curve_datum_undecided",
             "curved_sense_inverted",
@@ -6464,7 +6531,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_profile", 3),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 5),
+    ("evaluation_of_another_document", 6),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
     // the seat that reads one face, the entity's own word.
     ("face", 4),
@@ -6608,8 +6675,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("split_lineage_cycle", 2),
     ("step_ids", 3),
     // One fact: an evaluation a door ran stopped short
-    // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
-    ("stopped", 2),
+    // (`editor_core::Stopped`), at the Monte-Carlo and split doors, at
+    // a drive's witness build and at one step of a range search.
+    ("stopped", 4),
     ("structure", 3),
     // As `coaxial`: the coincidence relation and the snap relation.
     ("tangent", 2),
@@ -6629,8 +6697,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // rigidity margin the decided door left undecided.
     ("undecided", 3),
     ("underflowed_direction", 2),
-    ("unknown_node", 6),
+    ("unknown_node", 7),
     ("unknown_param", 3),
+    // One fact at the edit door and the range query's admission: a
+    // node that carries no such slot.
+    ("unknown_slot", 2),
     // One fact three times: a reference to something no mint holds —
     // a program's step, a step handle, and (`pose_fault_tag`) a pose
     // definition's read.
@@ -8193,10 +8264,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 34,
+        literals: 35,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
-            holds: "the 35 class names, against a SECOND exhaustive match, so a new \
+            holds: "the 36 class names, against a SECOND exhaustive match, so a new \
                     class stops the build",
         }],
     },

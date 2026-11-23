@@ -2,10 +2,12 @@
 id: dirty-pr-gets-no-actions-run
 kind: issue
 title: A PR that goes mergeable_state dirty against a moved main gets NO Actions run on its next push — an absence, not a red — and the lane cannot tell it from a queue
-status: open
+status: closed
 opened: 2026-09-05
+closed: 2026-11-22
+branch: ciw/dirty-pr-visible
 refs: [1910]
-priority: P1
+priority: P4
 cost: E
 ---
 
@@ -221,10 +223,42 @@ gate could enforce. The reader's-side symptom it added: a lane polling
 for "no failures" or "all checks complete" reads a runless head as
 green; only a lane that asserts a positive job count notices.
 
-- 2026-11-22 — **Re-banded P4 → P1 by CIW triage.** This is a direct latency sink of about 20-45 min per occurrence. Occurrences in the last month:
-- 2026-11-20: ONEROUND, PR 7143. Three pushes got no CI for about 40 min (`work/oneround/log.md:92`). On 2026-11-19 PR 7140 needed main merged three times in 90 min (`:46`).
-- 2026-11-13: ONEDOOR, #6900. Read as slow CI (`work/onedoor/log.md:481`).
-- 2026-11-10: BAND. Two lanes pushed empty commits to start CI on conflicting PRs (`work/band/log.md:1269`).
-- 2026-11-03: SPLICE, PR 6441 (`work/splice/log.md:1270-1272`).
-- 2026-10-28: SECT, PR 5886 (`work/sect/log.md:112`).
-The discipline sentence already exists (`memories/agent-lane-operations.md:120`), and lanes still miss it, so the cheap half has failed. The fix that turns the absence into a signal is a tiny job that does not need a merge ref, or a poll helper that reads `mergeable_state`. `local-scripts/bt-wait-pr.sh` reads only checks. Either costs nothing on a PR's critical path.
+## Closed
+
+`.github/workflows/merge-ref.yml` turns the absence into a red. On every
+push to a branch other than `main` its one job, `merge ref`, finds the
+open PRs whose head is that branch, waits up to a minute for GitHub to
+compute each one's mergeability at the pushed sha, and fails if any is
+`mergeable: false` for six polls running while ci.yml has no
+`pull_request` run for that sha, with the annotation *"no merge ref: merge the PR's
+base branch into it"* naming the base to merge. A clean PR, a branch with
+no PR, an API error, or a mergeability not settled after 75 s passes.
+It is not in `gate ok`'s needs, checks nothing out, and holds
+`pull-requests: read` and `actions: read`. The discipline sentence lives in that
+annotation: *a push with no run is a conflict with the PR's own base,
+not a queue.*
+
+It runs on `push`, not on `pull_request_target` as sketched above:
+a probe under `pull_request_target` (PRs 7413 and 7417, against a
+scratch base holding the workflow) produced no run at all, dirty or
+clean, consistent with GitHub's documentation that it runs only the
+default branch's copy. The cost of `push` is
+a PR opened when it already conflicts, which stays silent until its next
+push; that and the check's own queueing are
+`a-pr-opened-already-conflicting-gets-no-merge-ref-red`.
+
+**Probe** (throwaway draft PRs against a scratch base
+`ciw/dirty-probe-base`, both closed). PR 7413, head and base each adding
+the same file with different contents, `mergeable_state: dirty`: the push
+of `54bfd63b13` got run 45062549663, `merge ref` failed with the
+annotation above and showed on the PR's checks, and ci.yml created no run
+for that sha. Merging the base in and resolving (`3f29ff7e17`) gave a
+ci.yml `pull_request` run at once (45063131261) and a green `merge ref`
+(45063127056, "merges cleanly", `mergeable_state: unstable`). That job
+started minutes after its push and answered on its first poll, so the
+probe did not exercise the window where `mergeable` still carries the
+previous head's `false`; the workflow guards it by construction instead
+(a `false` must hold for six polls and ci.yml must have no `pull_request`
+run for the sha). Clean control PR 7417
+(`51befdf984`): green, 45062552623.
+
