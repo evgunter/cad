@@ -2,10 +2,11 @@
 id: the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage
 kind: issue
 title: The n-ary boolean door panics, on an accumulation face with no member-face lineage, when a variable of the tour's composed die is edited
-status: open
+status: dispatched
 opened: 2026-11-23
 priority: P1
 cost: M
+branch: heldrecords/nary-lineage
 ---
 
 
