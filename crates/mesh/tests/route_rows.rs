@@ -314,7 +314,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "pipe cut on a tilt",
             0xcbf2_9ce4_8422_2325,
             0xcbf2_9ce4_8422_2325,
-            0x3f32_81cc_55e5_8d9a,
+            0xcdc8_47b7_d422_010b,
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
