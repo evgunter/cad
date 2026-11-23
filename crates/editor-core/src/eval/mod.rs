@@ -176,6 +176,13 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     spaces: Arc<BTreeMap<RecipeNodeId, crate::VarId>>,
     /// The parts this run entered and evaluated, carried for the run
     /// that names it as its prior.
+    /// **What each part run this evaluation made left in the symbolic
+    /// session** ([`geom_core::sym::NodeRecord`]), in the order run: a
+    /// part is built once in a replay however many nodes instantiate
+    /// it, so its decisions are counted here, once, and not on a node.
+    /// A replay's receipt is its nodes' records, these, and its
+    /// product's ([`crate::product::Product::sym`]).
+    pub parts_sym: Vec<Arc<geom_core::sym::NodeRecord>>,
     parts: parts::Carried<T>,
     /// The resolver this run crossed the document seam with: what a
     /// replay of the same document at another scalar resolves its parts
@@ -1074,7 +1081,8 @@ impl Evaluation<f64> {
             reads: Arc::new(reads),
             sourced: Arc::default(),
             spaces: Arc::default(),
-            parts: parts::Carried::none(),
+            parts_sym: Vec::new(),
+        parts: parts::Carried::none(),
             resolver: None,
         }
     }
@@ -4637,6 +4645,7 @@ where
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,
+            built: Vec::new(),
         },
         (None, None) => unreachable!("a run enters its parts or is handed them"),
     };
@@ -4796,6 +4805,7 @@ where
         reads: Arc::new(doc.output_ports()),
         sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
+        parts_sym: entry.built,
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -5034,6 +5044,7 @@ where
         reads: Arc::new(doc.output_ports()),
         sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
+        parts_sym: Vec::new(),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -5155,22 +5166,30 @@ where
             reused: false,
         },
         Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
-            members::eval_family(
-                doc,
-                env,
-                id,
-                chain,
-                results,
-                prior,
-                cancel,
-                op_env,
-                |env, results, prior, op_env, at| {
-                    let member = eval_node(doc, env, id, results, prior, op_env, at, tol);
-                    #[cfg(debug_assertions)]
-                    own_bodies(id, &member);
-                    member
-                },
-            )?
+            // The family is a scope of its own, named by the node, and
+            // its members' scopes open inside it: the family's record
+            // holds what every member registered and decided, and what
+            // the schedule decided between them, so a node that reads
+            // the family whole receives all of it.
+            let (family, record) = node_mints(op_env.mints, id, &[]).node([], || {
+                members::eval_family(
+                    doc,
+                    env,
+                    id,
+                    chain,
+                    results,
+                    prior,
+                    cancel,
+                    op_env,
+                    |env, results, prior, op_env, at| {
+                        let member = eval_node(doc, env, id, results, prior, op_env, at, tol);
+                        #[cfg(debug_assertions)]
+                        own_bodies(id, &member);
+                        member
+                    },
+                )
+            });
+            recorded(family?, record)
         }
         _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
     };
@@ -5304,12 +5323,36 @@ fn eval_node<T>(
 where
     T: EvalScalar,
 {
-    let upstream = upstream_records(doc, id, results);
-    let (mut step, record) = node_mints(op_env.mints, id, at)
+    let mut upstream = upstream_records(doc, id, results);
+    // A node that instantiates a part reads the part's row: the
+    // identities the part's run registered are among what it reads,
+    // and ride its own record to whatever reads it. The part's counts
+    // stay the part's (`Evaluation::parts_sym`).
+    let part = geom_core::sym::session_installed()
+        .then(|| parts::instantiated(doc, id))
+        .flatten()
+        .and_then(|doc_ref| op_env.parts.get(&doc_ref, tol).ok())
+        .map(|row| Arc::new(row.sym.identities_alone()))
+        .filter(|record| record.registrations() > 0);
+    upstream.extend(part.iter().cloned());
+    let (step, record) = node_mints(op_env.mints, id, at)
         .node(upstream.iter().map(|r| &**r), || {
             eval_node_in(doc, env, id, results, prior, op_env, at, tol)
         });
-    // A reused value keeps the record of the run that built it.
+    let record = match &part {
+        Some(part) => geom_core::sym::NodeRecord::gather([&**part, &record]),
+        None => record,
+    };
+    recorded(step, record)
+}
+
+/// `step` with what its scope left in the symbolic session written on
+/// the result it made. A reused value keeps the record of the run that
+/// built it.
+fn recorded<T: topo::AtRestPolicy + Decide>(
+    mut step: NodeStep<T>,
+    record: geom_core::sym::NodeRecord,
+) -> NodeStep<T> {
     match &mut step.result {
         NodeResult::Ok(value) if !step.reused => value.sym = Arc::new(record),
         NodeResult::Failed(error) => error.sym = Arc::new(record),

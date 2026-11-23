@@ -371,12 +371,22 @@ pub(super) struct Closed {
 }
 
 fn closed_forms(arg: &Form, sess: &mut Session) -> Option<Rc<Closed>> {
-    let key = arg.digest();
-    if let Some(hit) = sess.trig_closed.get(&key) {
+    // Keyed by the rules and the ring bound beside the argument, as
+    // `Session::reductions` is: a retry attempt builds under its own,
+    // and a refusal is kept.
+    let (key, rules, bits) = (arg.digest(), sess.rules, super::rational::coeff_bound());
+    if let Some((_, _, hit)) = sess
+        .trig_closed
+        .get(&key)
+        .and_then(|held| held.iter().find(|(r, b, _)| *r == rules && *b == bits))
+    {
         return hit.clone();
     }
     let built = build_closed_forms(arg, sess).map(Rc::new);
-    sess.trig_closed.insert(key, built.clone());
+    sess.trig_closed
+        .entry(key)
+        .or_default()
+        .push((rules, bits, built.clone()));
     built
 }
 
