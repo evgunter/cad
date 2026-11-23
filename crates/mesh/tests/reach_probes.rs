@@ -772,8 +772,8 @@ fn nappes(body: &Body<f64>) -> Vec<f64> {
 ///   `2·10⁻⁴`, whose triangles are the lattice's thinnest;
 /// - a shifted funnel, `(0, 133.3)`, `(612.3, 911.1)`, `(0, 911.1)`, at
 ///   `δ = 0.18`, cut at `y = 533`;
-/// - two funnels apex to apex, unioned: the lower one's faces lie on
-///   their surface's `v < 0` nappe and run through its apex.
+/// - two funnels apex to apex, unioned: the lower one's face lies on
+///   its surface's `v < 0` nappe and runs through its apex.
 #[test]
 fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
@@ -881,8 +881,8 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
     on.sort_by(f64::total_cmp);
     assert_eq!(
         on,
-        vec![-1.0, -1.0, 1.0, 1.0],
-        "two faces on each nappe, none on both"
+        vec![-1.0, 1.0],
+        "one face on each nappe, each funnel's whole turn, none on both"
     );
     assert_at_every(
         "the funnels apex to apex",
@@ -963,7 +963,8 @@ fn the_unit_funnel_cut_near_its_apex_meshes_at_every_delta() {
 /// **A ball across a cylinder's wall refuses in the chord pass.** The
 /// first pose of `sweep`'s `cylinder_sphere_frame` rows: the section is
 /// one closed fitted loop, a periodic cubic, on a cylinder face and a
-/// sphere face that store its edges' `Pcurve::Projected` images. The
+/// sphere face that store its edges' `Pcurve::Projected` images (the
+/// union's one-band ball face holds it as a ring). The
 /// sphere face is the trimmed lane's sphere row's, and the first section
 /// edge the chord pass reaches refuses there: the chord pass bounds a
 /// projected image's speed for a conic's image only
@@ -994,8 +995,9 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
         let spline_faces: Vec<(SurfaceKind, Vec<Option<&str>>)> = body
             .faces()
             .filter_map(|(fk, face)| {
-                let images: Vec<_> = loop_forms(body, face.outer)
-                    .into_iter()
+                let images: Vec<_> = core::iter::once(face.outer)
+                    .chain(face.rings.iter().copied())
+                    .flat_map(|lk| loop_forms(body, lk))
                     .filter(|(carrier, _)| *carrier == CurveKind::Nurbs)
                     .map(|(_, image)| image)
                     .collect();
@@ -1311,23 +1313,34 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
     }
 }
 
-/// **A needle funnel cut `10⁻⁵` above its apex refuses typed: this row
-/// pins a gap**
-/// (`work/tesslane/a-needle-funnel-cut-at-its-apex-refuses-folded.md`).
+/// **A needle funnel cut near its apex refuses typed: this row pins a
+/// gap** (`work/tesslane/a-needle-funnel-cut-at-its-apex-refuses-folded.md`).
 /// The funnel of rim radius `0.02` cut by the tilted plane of
 /// [`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`] through
-/// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`
-/// and `3·10⁻⁵` and `UnclearedSharedSide` at `2·10⁻⁴`, the half below meshes, and
-/// a cut at `10⁻³` meshes both halves. No mesh is returned where it
-/// refuses. Off the default ε a split that refuses or leaves no half is
-/// printed and skipped, and each cell's answer is printed, not held.
+/// `(0, h, 0)`: the half above is one cone face a whole turn round, and
+/// at `h = 10⁻⁵` it refuses `UnclearedSharedSide` at δ `10⁻³` and
+/// `FoldedTriangle` at `2·10⁻⁴` and `3·10⁻⁵`; at `h = 10⁻³` it refuses
+/// `FoldedTriangle` at δ `10⁻³` and meshes at the finer two. The half
+/// below meshes at every cell. No mesh is returned where it refuses.
+/// Off the default ε a split that refuses or leaves no half is printed
+/// and skipped, and each cell's answer is printed, not held.
 #[test]
 fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
     use mesh::TessellateError as E;
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [1e-3, 2e-4, 3e-5];
-    // The half above the cut at `h = 10⁻⁵`, at each δ.
-    let refused = ["FoldedTriangle", "UnclearedSharedSide", "FoldedTriangle"];
+    // The half above the cut at each `h`, at each δ.
+    let refused = |h: f64| {
+        if h > 1e-5 {
+            [Some("FoldedTriangle"), None, None]
+        } else {
+            [
+                Some("UnclearedSharedSide"),
+                Some("FoldedTriangle"),
+                Some("FoldedTriangle"),
+            ]
+        }
+    };
     let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     for h in [1e-3, 1e-5] {
         let body = finished(
@@ -1361,11 +1374,11 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                     Err(E::UnclearedSharedSide { .. }) => Some("UnclearedSharedSide"),
                     Err(e) => panic!("{what}, δ = {delta:e}: {e:?}"),
                 };
-                let want = if h > 1e-5 || side != "above" {
-                    None
-                } else {
+                let want = if side == "above" {
                     let at = deltas.iter().position(|&d| d == delta);
-                    Some(refused[at.expect("a δ of the table")])
+                    refused(h)[at.expect("a δ of the table")]
+                } else {
+                    None
                 };
                 if exact {
                     assert_eq!(refusal, want, "{what}, δ = {delta:e}");
