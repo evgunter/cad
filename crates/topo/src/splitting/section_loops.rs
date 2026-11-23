@@ -429,7 +429,8 @@ fn edges_clear<T: Decide>(
         }
         (e, h) => conics_clear(conic(e), conic(h), band),
     };
-    carriers
+    let _ = carriers; // MUTATION D: no carrier reading
+    false
         || matches!(
             geom_brep::curve_pair::meet(&Span::new(c, s), &Span::new(d, t), band),
             Ok(met) if met.points.is_empty() && met.shared.is_none()
