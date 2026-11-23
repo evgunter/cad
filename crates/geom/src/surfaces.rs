@@ -5,8 +5,7 @@
 //! …), and a closed enum makes every dispatch site exhaustively checked
 //! at compile time. The [`Surface::Nurbs`] variant is the universal
 //! fallback — it carries a validated [`NurbsSurface`] payload (see
-//! [`nurbs`]) and its evaluator arms are real; the "no description yet"
-//! state is [`Surface::nurbs_placeholder`].
+//! [`nurbs`]) and its evaluator arms are real.
 //!
 //! # Surface conventions (normative; the surface half)
 //!
@@ -274,10 +273,7 @@ pub enum Surface<T: Real> {
     /// The NURBS fallback (D3: representable from day one; evaluators
     /// implemented at M5 PR 3). The payload is a validated
     /// [`NurbsSurface`] behind an [`Arc`] (immutable, cheap to clone —
-    /// see the enum docs on the `Copy` loss). The "no description yet"
-    /// state the former unit variant carried is
-    /// [`Surface::nurbs_placeholder`] — a poison-valued payload with
-    /// the same all-poison evaluation behavior.
+    /// see the enum docs on the `Copy` loss).
     Nurbs(Arc<NurbsSurface<T>>),
 
     /// An **approximating** surface: a fitted NURBS standing in for a
@@ -293,9 +289,7 @@ pub enum Surface<T: Real> {
     /// trusts the stored certificate.
     ///
     /// The payload is certified by construction ([`ApproxSurface`] has
-    /// no other door), so unlike [`Surface::Nurbs`] there is no
-    /// placeholder state in this variant: an `Approx` surface is always
-    /// described.
+    /// no other door).
     ///
     /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]), and its
     /// fit as geometry: evaluation, boxes, pcurves and sections read the
@@ -327,7 +321,7 @@ pub enum SurfaceKind {
     Torus,
     /// A [`Surface::Spindle`].
     Spindle,
-    /// A [`Surface::Nurbs`], described or the placeholder.
+    /// A [`Surface::Nurbs`].
     Nurbs,
     /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`]. A
     /// kind-indexed table says what it does with one; the intersection
