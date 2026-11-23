@@ -1314,8 +1314,9 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
 /// (`work/tesslane/a-needle-funnel-cut-at-its-apex-refuses-folded.md`).
 /// The funnel of rim radius `0.02` cut by the tilted plane of
 /// [`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`] through
-/// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`,
-/// `2·10⁻⁴` and `3·10⁻⁵`, the half below meshes, and
+/// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`
+/// and `2·10⁻⁴` and `UnclearedSharedSide` at `3·10⁻⁵`, the half below
+/// meshes, and
 /// a cut at `10⁻³` meshes both halves. No mesh is returned where it
 /// refuses. Off the default ε a split that refuses or leaves no half is
 /// printed and skipped, and each cell's answer is printed, not held.
@@ -1325,7 +1326,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [1e-3, 2e-4, 3e-5];
     // The half above the cut at `h = 10⁻⁵`, at each δ.
-    let refused = ["FoldedTriangle"; 3];
+    let refused = ["FoldedTriangle", "FoldedTriangle", "UnclearedSharedSide"];
     let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     for h in [1e-3, 1e-5] {
         let body = finished(
