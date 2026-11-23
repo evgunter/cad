@@ -6,9 +6,9 @@
 use geom_core::{Band, Point3, Tol, Vec3};
 
 use crate::contain::{ContainError, FaceContainment, contfp};
-use crate::splitting::PointInLoopError;
+
+use crate::Body;
 use crate::test_support_fixtures::box_with_a_lone_ring;
-use crate::{Body, PointInSolidError};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("a band")
@@ -95,19 +95,22 @@ fn a_face_with_no_outline_is_refused_by_every_area_reader() {
         (seed.face, seed.r#loop, seed.vertex),
         "the refusal names the face, its loop and the vertex"
     );
-    let lone = PointInLoopError::LoneLoop {
-        r#loop: seed.r#loop,
-    };
+    // The one refusal of a face with no outline, which names its loop.
+    let lone = crate::solid_contain::no_outline(no);
+    assert!(
+        format!("{lone:?}").contains(&format!("{:?}", seed.r#loop)),
+        "the refusal names the loop: {lone:?}"
+    );
     let at = Point3::new(0.0, 0.0, 0.0);
     assert_eq!(
         crate::solid_contain::point_in_face(&body, seed.face, up(), at, band()),
-        Err(PointInSolidError::Loop(lone.clone())),
+        Err(lone.clone()),
         "the ray walk"
     );
     assert!(
         matches!(
             crate::region::boundary(&body, seed.face, &[]),
-            Err(PointInSolidError::Loop(e)) if e == lone
+            Err(e) if e == lone
         ),
         "the region reading"
     );

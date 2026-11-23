@@ -5444,8 +5444,20 @@ pub(crate) fn face_tips<T: Decide>(
 }
 
 /// [`FaceView::area_loops`], a face with no outline refused as
-/// [`MassPropsError::NoOutline`].
+/// [`MassPropsError::NoOutline`]. The raw door measures a body no
+/// validator has certified, so a loop that does not resolve or walk is
+/// read first ([`Body::unchecked_face_boundary`]) and refused
+/// [`MassPropsError::Corrupt`] rather than met as a broken link.
 fn area_of<T: Real>(face: FaceView<'_, T>) -> Result<AreaLoops<'_, T>, MassPropsError> {
+    if face
+        .body()
+        .unchecked_face_boundary(face.record())
+        .any(|read| read.is_err())
+    {
+        return Err(MassPropsError::Corrupt {
+            what: "a face's loop does not resolve or does not walk",
+        });
+    }
     face.area_loops().map_err(MassPropsError::NoOutline)
 }
 
