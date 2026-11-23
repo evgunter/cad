@@ -13,7 +13,7 @@
 //!
 //! - **the outcome's kind**: every order builds, or every order refuses;
 //! - **a refusal**: the pass's own, the same in every order — or a
-//!   fold step's ([`NodeErrorKind::UnionFoldStep`]), whose inner
+//!   fold step's ([`NodeErrorKind::FoldStep`]), whose inner
 //!   refusal is of one kind in every order (the member it names is the
 //!   one each order folds in, and differs);
 //! - **the judged rows**: the union's order-free rows (DM4), each the
@@ -189,7 +189,7 @@ fn decide(
     );
     let ev = run(&doc);
     match failure(&ev, union) {
-        Some(NodeErrorKind::UnionFoldStep {
+        Some(NodeErrorKind::FoldStep {
             member,
             read,
             refusal,

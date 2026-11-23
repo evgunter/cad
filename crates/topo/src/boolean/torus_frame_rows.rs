@@ -128,7 +128,13 @@ fn assert_frame(got: SectionLoop<f64>, centre: Point3<f64>, axis: Vec3<f64>, wha
         got.axis.origin
     );
     assert!(
-        got.axis.dir.normalize().cross(axis.normalize()).norm() <= eps,
+        got.axis
+            .dir
+            .get()
+            .normalize()
+            .cross(axis.normalize())
+            .norm()
+            <= eps,
         "{what}: axis {:?}, want {axis:?}",
         got.axis
     );
@@ -244,7 +250,7 @@ fn on_oval(d: f64, sigma: f64, v: f64) -> (Point3<f64>, Vec3<f64>) {
 
 /// The turn of `tangent` at `p` about `axis`.
 fn turn(axis: geom::Line<f64>, p: Point3<f64>, tangent: Vec3<f64>) -> f64 {
-    axis.dir.dot((p - axis.origin).cross(tangent))
+    axis.dir.get().dot((p - axis.origin).cross(tangent))
 }
 
 /// **The spiric ovals turn about where the core circle crosses the
@@ -580,8 +586,8 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
     );
     let surface = |body: &crate::Body<f64>, f: FaceKey| body.proven_face(f).surface().clone();
-    let on = super::carrier_pair::face_witnesses(&torus, face).unwrap();
-    let at = frame_reading(&surface(&torus, face), on, Vec::new()).unwrap();
+    let cover = || crate::cover::face_cover(&torus, face, b);
+    let at = frame_reading(&surface(&torus, face), cover, cover).unwrap();
     let rho = big_r + r * a.cos();
     let reach = [
         (Point3::new(0.0, 0.0, r * a.sin()), rho),

@@ -468,22 +468,22 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         &self,
         doc: &Doc<P>,
         var: crate::VarId,
-    ) -> Result<T, (Option<RecipeNodeId>, String)>
+    ) -> Result<T, (Option<RecipeNodeId>, crate::Sentence)>
     where
         T: Copy,
     {
         self.reading(doc, var).map_err(|refusal| match refusal {
             measure::ObservedRefusal::Measure(standing) => {
                 self.node_error(standing.node()).map_or_else(
-                    || (Some(standing.node()), standing.to_string()),
-                    |e| (Some(e.node), e.kind_spoken(doc).to_string()),
+                    || (Some(standing.node()), standing.spoken(doc)),
+                    |e| (Some(e.node), e.kind_spoken(doc)),
                 )
             }
             measure::ObservedRefusal::Expr(source) => (
                 doc.observed_outputs(var)
                     .first()
                     .and_then(|out| doc.operation_of(*out)),
-                source.to_string(),
+                crate::Sentence::from(source.to_string()),
             ),
         })
     }
@@ -1129,16 +1129,12 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// result. The family's one output names each body at its member's
     /// place, and names nothing at an empty one.
     ///
-    /// **Who takes it, and who refuses.** A reader of the same index
-    /// reads one member, never this value. A member seat (a union's,
-    /// an intersect's or an assemble's) takes every member, and refuses
-    /// an empty one [`NodeErrorKind::EmptyMember`]; an indexed read
-    /// takes one member out of it by its tuple, the empty value at an
-    /// empty member; the product gather takes every body at its place.
-    /// Any other body seat that meets it whole takes ONE body and
-    /// refuses it typed (`WrongOperand`): a boolean of N bodies is N
-    /// booleans or one union of them, and the recipe does not guess
-    /// which.
+    /// **Who takes it.** A `Bodies` seat (a union's, an intersect's or
+    /// an assemble's member, a subtract's tool) takes every member, and
+    /// refuses an empty one [`NodeErrorKind::EmptyMember`]; an indexed
+    /// read takes one member out of it by its tuple, the empty value at
+    /// an empty member; a placement copies it whole; the product gather
+    /// takes every body at its place (D10 `[repetition]`).
     Instances(Vec<Option<Framed<T>>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
@@ -1969,13 +1965,15 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
-    /// **A step of a union's fold refused** (DM4): the step folding
-    /// `member` into the accumulation of the members listed before it,
-    /// with the step's own refusal. The pairwise judgement decides every
-    /// pair of members before the fold in every member order; a refusal
+    /// **A step of a boolean's n-ary fold refused** (DM4) — a union's,
+    /// an intersect's, or a subtract's of two or more tools: the step
+    /// folding `member` into the accumulation of the members listed
+    /// before it, with the step's own refusal. The pairwise judgement
+    /// decides every pair of members before the fold in every member
+    /// order; a refusal
     /// only a fold step raises names the step, so it is never read as a
     /// pair's.
-    UnionFoldStep {
+    FoldStep {
         /// The position, in the node's member list, of the member the
         /// refusing step folds in: members of one family share a read.
         member: u32,
@@ -2661,7 +2659,7 @@ impl crate::spoken::Say for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => say!(f, "name emission failed: ", Said(e, by)),
-            Self::UnionFoldStep {
+            Self::FoldStep {
                 member,
                 read,
                 refusal,
@@ -3122,7 +3120,7 @@ pub(crate) mod leaf {
     /// something different — a consumer reading it should meet the three
     /// states by name rather than by unwrapping.
     pub(crate) type MeasureRead =
-        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, String)>;
+        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, crate::Sentence)>;
 
     /// What came back.
     #[derive(Debug, Clone, Default)]
@@ -6592,10 +6590,16 @@ where
             constraints,
         } => feed_bundle(&mut h, defs, constraints),
         Node::World | Node::Space => {}
-        // The operands and the members are input edges.
-        Node::Subtract { from: _, tool: _ } => {}
-        Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
-            h.write_tag(match members {
+        // The operands and the members are input edges; a list's shape
+        // is not.
+        Node::Subtract {
+            from: _,
+            tool: list,
+        }
+        | Node::Union { members: list }
+        | Node::Intersect { members: list }
+        | Node::Assemble { members: list } => {
+            h.write_tag(match list {
                 crate::Bodies::Family(_) => tag::bodies::FAMILY,
                 crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
             });

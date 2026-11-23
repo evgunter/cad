@@ -162,8 +162,8 @@ pub fn sheet_apexes<T: Real>(
     } = axis;
     let height = geom::sheet_apex(major, minor).height;
     [
-        (Singularity::SheetApexUp, center + axis * height),
-        (Singularity::SheetApexDown, center - axis * height),
+        (Singularity::SheetApexUp, center + axis.get() * height),
+        (Singularity::SheetApexDown, center - axis.get() * height),
     ]
 }
 
@@ -176,8 +176,8 @@ pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, P
         dir: axis,
     } = axis;
     [
-        (Singularity::North, center + axis * radius),
-        (Singularity::South, center - axis * radius),
+        (Singularity::North, center + axis.get() * radius),
+        (Singularity::South, center - axis.get() * radius),
     ]
 }
 
