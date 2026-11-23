@@ -189,6 +189,22 @@ fn main() {
                 run_meet(&c, "G", "coplanar", &ce, se, &turned(n), se, (theta, theta));
                 run_meet(&c, "G", "across", &ce, se, &turned(d), se, (theta, theta));
             }
+            // ---- Q: `chart_pcurve` of the ellipse on planes parallel to its own (rows 19, 42: the pcurve's harmonic)
+            for k in [0.0, 5.0, 30.0] {
+                let c = Ctx { band, eps, a, shape, s: 0.0 };
+                let plane = geom::Surface::Plane { frame: Frame::new(anchor + n * (k * eps), n, u) };
+                let got = geom_brep::chart_pcurve(&ce, &plane, band);
+                // the image alone claims nothing (its incidence test is one-sided by its docs); the certificate does
+                let half = 10.0 / b;
+                let kind = match got {
+                    Ok(image) => match geom_brep::PcurveCache::certify(image, -half, half, &ce, &plane, band) {
+                        Ok(_) => "certified".to_owned(),
+                        Err(r) => format!("refused:certify:{}", trim(&r, 140)),
+                    },
+                    Err(r) => format!("refused:image:{}", trim(&r, 140)),
+                };
+                println!("{{\"door\":\"pcurve\",{},\"lift_eps\":{k:?},\"kind\":{kind:?}}}", head(&c, "Q", &format!("own+{k}")));
+            }
             // ---- B: a line along the major axis at the anchor vertex (row 1 i, the GAP row)
             let c = Ctx { band, eps, a, shape, s: 0.0 };
             let half = 10.0 / b;
