@@ -33,7 +33,7 @@ evaluator's own error at the pose (`|point_at(θ) − P(θ)|`) beside it:
 | 1e-12 | 1e6 thin | θ = 0.5, line at 30° | 1.1e-11 | a meeting `1.1e-11` off |
 | 1e-12 | 1e8, 1e9 thin | 1000 m of arc from the anchor (θ = 0.054, 0.017) | 7.7e-12, 1.7e-11 | a meeting `1.7e-11` off; for the circle door `Ok`, no meeting, true gap `9e-13`, `8e-13` |
 
-19 such readings in all (4 at 1e-9, 15 at 1e-12, every one at `f64`;
+19 such readings in all (7 at 1e-9, 12 at 1e-12, every one at `f64`;
 `Interval` reads none wrongly, refusing these), the circle door's alike.
 Judged against the stored numbers' curve, as every reading must be: the
 evaluator is not the curve away from the anchor, by its own rounding.
