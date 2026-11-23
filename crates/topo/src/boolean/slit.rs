@@ -1545,8 +1545,8 @@ fn clears_plane<T: Decide>(
     }
 }
 
-/// **Whether a spline carrier meets an analytic surface at isolated
-/// points only over `(t0, t1)`**: the curve × face table's composite door
+/// **Whether a spline carrier meets a curved analytic surface at
+/// isolated points only over `(t0, t1)`**: the curve × face table's composite door
 /// ([`geom_brep::curve_face::cross()`]) read every piece of the span
 /// clear of the surface or monotone across it, so no piece lies on it. A
 /// touch, or a piece within the band of the surface, refuses there, and
@@ -1560,6 +1560,10 @@ fn spline_crosses<T: Decide + crate::props::AtRestPolicy>(
     let geom::Curve3::Nurbs(net) = carrier else {
         return false;
     };
+    // A plane is read on the hull alone ([`clears_plane`]).
+    if matches!(surface, geom::Surface::Plane { .. }) {
+        return false;
+    }
     let composite = geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
         == geom_brep::curve_face::Door::SplineComposite;
     composite

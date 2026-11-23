@@ -358,44 +358,38 @@ fn a_general_pose_refuses_at_its_frame_naming_its_loops() {
     }
 }
 
-/// **The corner bar on the donut refuses at its end square**, in every
-/// op: the end squares stand past the inner equator (`z² − (R − r)² =
+/// **The corner bar on the donut builds in every op, both orders**:
+/// the end squares stand past the inner equator (`z² − (R − r)² =
 /// 2(r − s)(R − r − s) > 0`), so each cuts one null oval, a general
-/// pose. The plane the refusal names is an end square, square to `z`.
+/// pose the section value marches. Each result is valid to tier 3 and
+/// holds the donut's and the bar's closed forms less their overlap
+/// (`germ_interior_oval::corner_bar_overlap`).
 #[test]
-fn the_donuts_corner_bar_refuses_at_its_end_square() {
+fn the_donuts_corner_bar_builds_at_its_end_squares() {
+    let (w, big_r, r) = (0.1, 2.0, 0.5);
     let d = donut();
-    let b = corner_bar(2.0, 0.5, 0.1);
-    for (op, r) in six(&d, &b) {
-        let Err(BooleanError::GermSectionSpiric {
-            a_face,
-            a_kind,
-            b_face,
-            loops: SpiricLoops::Null,
-            ..
-        }) = r
-        else {
-            panic!("{op}: {:?}", r.err());
-        };
-        let face = if a_kind == geom::SurfaceKind::Plane {
-            a_face
-        } else {
-            b_face
-        };
-        let surface = b.face_surface(face).unwrap();
-        let geom::Surface::Plane {
-            frame: carrier_frame,
-            ..
-        } = surface
-        else {
-            panic!("{op}: the refusal's planar face is not a plane: {surface:?}");
-        };
-        let normal = carrier_frame.axis();
+    let b = corner_bar(big_r, r, w);
+    let rho = big_r - (r * r - w * w).sqrt();
+    let z = (rho * rho - w * w).sqrt();
+    let (vt, vp) = (core::f64::consts::PI.powi(2), 4.0 * w * w * 2.0 * z);
+    let vo = crate::germ_interior_oval::corner_bar_overlap(w, z);
+    for ((op, r), want) in six(&d, &b).into_iter().zip([
+        vt + vp - vo,
+        vt + vp - vo,
+        vo,
+        vo,
+        vt - vo,
+        vp - vo,
+    ]) {
+        let r = r.unwrap_or_else(|e| panic!("{op}: builds, got {e:?}"));
+        let body = r.body().unwrap_or_else(|| panic!("{op}: a body"));
         assert_eq!(
-            (normal.x, normal.y),
-            (0.0, 0.0),
-            "{op}: an end square is square to z, got {normal:?}"
+            topo::validate_geometric(&body.body, Tol::witness()),
+            Ok(()),
+            "{op}: tier 3"
         );
+        let got = topo::test_support::pinned_volume(op, &body.body, Tol::witness()).volume;
+        assert!((got - want).abs() < 1e-8, "{op}: volume {got} against {want}");
     }
 }
 

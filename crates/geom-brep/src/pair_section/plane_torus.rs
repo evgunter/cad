@@ -33,8 +33,9 @@
 //! marched over the torus's ball and matched to the count by its
 //! winding about the torus, which the two essential pairs claim and the
 //! null loop does not. A plane has no channel, so no loop winds about
-//! it. A tangent pose lists one tangent component, a point at the tube
-//! circle it touches.
+//! it. A tangent pose lists one tangent component: a point where it
+//! touches the tube's outer half, an elliptic point, and a loop,
+//! classification only, at a saddle on the inner half.
 
 use geom::Surface;
 use geom_core::k_stats::decide_reported;
@@ -219,10 +220,27 @@ fn tilted<T: Decide>(
     let h = n.dot(q - c);
     let tangent = |row: &'static str, margin, sigma: Option<T>| {
         // The touch is on the tube circle about the core point toward
-        // `σ·m`, `r` from it along the plane's normal.
+        // `σ·m`, `r` from it along the plane's normal. It is a point of
+        // the section only where it stands on the tube's outer half, an
+        // elliptic point: the plane on the far side of `k_σ` from the
+        // axis, `σ·(n·(k_σ − q)) < 0`. On the inner half the torus is a
+        // saddle and the section a node there, which no point stands
+        // for: the tangent component is then a loop, classification
+        // only.
         let at = sigma.and_then(|sigma| {
             let k = c + perp / s * (sigma * big_r);
             let above = n.dot(k - q);
+            let elliptic = matches!(
+                geom_core::k_stats::decide(
+                    "pt_touch_elliptic",
+                    Margin::of(T::zero() - sigma * above),
+                    band
+                ),
+                Ok(Sign::Positive)
+            );
+            if !elliptic {
+                return None;
+            }
             let p = k - n * (above.select_le_zero(T::zero() - r, r));
             [p.x, p.y, p.z]
                 .into_iter()
