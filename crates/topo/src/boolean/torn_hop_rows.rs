@@ -208,7 +208,7 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
                 },
                 Point3::origin(),
                 1.0,
-                Vec3::unit_z(),
+                geom_core::UnitVec3::exact_z(),
             ),
             band(),
         )
@@ -291,7 +291,7 @@ fn the_wrap_scan_panics_on_a_torn_outer_link() {
     let rims = WrapRims {
         axis: geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         },
     };
     assert!(
@@ -317,7 +317,7 @@ fn the_wrap_scan_panics_on_a_torn_curve() {
     let rims = WrapRims {
         axis: geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         },
     };
     assert!(

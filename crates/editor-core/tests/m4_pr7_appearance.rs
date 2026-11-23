@@ -11,7 +11,7 @@ use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, CancelToken, CapEnd, Dimension, DocEdit, EditError,
     EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, ProfileDoc,
-    RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
+    RecipeNodeId, Rgba8, RoleSeg, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, square, step};
 use geom_core::Tol;
@@ -148,7 +148,7 @@ fn set_appearance_validates_and_applies_purely() {
         )
         .unwrap_err(),
         EditError::AppearanceNamesMissingNode {
-            name: SpokenName::absent(bogus)
+            name: doc.spoken_name(&bogus)
         }
     );
 }

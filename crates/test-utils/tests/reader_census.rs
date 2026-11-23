@@ -8,21 +8,21 @@
 //! that converts today's members and stops closes the smaller half.
 //!
 //! What closes the larger half is this row: **every site that reads
-//! Rust source as text is enumerated here, and a new one reds until
-//! someone writes its line.** The next reader cannot arrive silently,
-//! because arriving is what this row detects.
+//! Rust source as text reaches the shared lexer, or is listed here as
+//! an exception.** The next hand-rolled reader cannot arrive silently,
+//! because a site that reads source and reaches no shared door is what
+//! this row detects. A site that does reach one needs no line: that is
+//! read off its own code.
 //!
 //! # What a red here means
 //!
-//! Not *"you did something wrong"*. It means a site that reads source
-//! text arrived or moved, and the ledger owes it a disposition. Three
-//! honest ones:
+//! A site reads Rust source as text and reaches no door of
+//! [`test_utils::source`]. Two honest answers:
 //!
-//! - it calls [`test_utils::source`] — add the line, say which view;
 //! - it reads a language that is not Rust (a STEP file, a manifest, a
-//!   `.cad` document) — add the line, say which;
-//! - it is a new hand-rolled Rust reader — do not add the line. Use
-//!   the shared lexer. That is the whole point of the row.
+//!   `.cad` document) — add the exception, say which;
+//! - it is a new hand-rolled Rust reader — do not add a line. Use the
+//!   shared lexer. That is the whole point of the row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -41,8 +41,7 @@ use test_utils::source::{balanced_end, code_and_literals, code_only, repo_root, 
 ///
 /// **No delimiter.** `every_suite_file_is_aggregated! { }` and `! [ ]`
 /// are the same invocation to `rustc` as `! ( )`, so a needle ending in
-/// `(` would stop seeing a file whose row was re-delimited — which reds
-/// fifteen `Shared` lines over a change that altered nothing. The
+/// `(` would stop seeing a file whose row was re-delimited. The
 /// trailing `!` is what keeps a prose mention of the row's `fn` NAME
 /// (`crates/bvh/tests/aggregator_headers.rs` holds one, inside an
 /// `assert!` message) from answering as an invocation.
@@ -85,9 +84,6 @@ struct Entry {
 }
 
 enum Disposition {
-    /// Reads Rust source through [`test_utils::source`]. The
-    /// destination for every member of this class.
-    Shared,
     /// The home itself.
     Home,
     /// Reads Rust source through something other than
@@ -103,329 +99,33 @@ enum Disposition {
     NotRust(&'static str),
 }
 
-use Disposition::{Home, NotRust, Shared, Unconverted};
+use Disposition::{Home, NotRust, Unconverted};
 
-/// **The ledger.** One line per site that reads source text.
+/// **The exceptions.** One line per site that reads Rust source as text
+/// and does not reach the shared lexer: the home itself, a reader of
+/// another language, and the readers still owed a conversion.
 ///
-/// Sorted by path. Adding a line is a deliberate act and the enum above
-/// says which acts are honest.
+/// A site that reaches the shared lexer needs no line — that is read
+/// off its own code ([`reaches_the_shared_lexer`]). Sorted by path.
+/// Adding a line is a deliberate act and the enum above says which
+/// acts are honest. A line whose file was converted or deleted is not a
+/// red: it excuses nothing, and it goes stale silently.
 const LEDGER: &[Entry] = &[
-    Entry {
-        path: "crates/bvh/tests/aggregator_headers.rs",
-        disposition: Shared, // prose + literal views
-    },
-    Entry {
-        path: "crates/bvh/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/editor-core/src/eval/mod.rs",
-        disposition: Shared, // node-kind vocabulary census, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/editor-core/tests/docm1_face_frame.rs",
-        disposition: Shared, // the two read-door module docs, prose view
-    },
-    Entry {
-        path: "crates/editor-core/tests/docm4_evaluation_identity.rs",
-        disposition: Shared, // Evaluation-literal census, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/docm5_subject.rs",
-        disposition: Shared, // the landing's gather call sites and the no-sharing
-                             // needles, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/every_predicate_name_is_minted_once.rs",
-        disposition: Shared, // every crate's row registry and its turn-bundle door, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
-        disposition: Shared, // polygon-close uniqueness census, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/gui1_pick_r2.rs",
-        disposition: Shared, // public-surface scan, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/m10_3_r2_probes_interval.rs",
-        disposition: Shared, // unreachable-variant scan, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/msolve7_member_residue.rs",
-        disposition: Shared, // one-environment-per-solve build count over
-                             // mate/member.rs and mate/solve.rs, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/node_standing.rs",
-        disposition: Shared, // node-result reader census over every src tree, code view
-    },
-    Entry {
-        path: "crates/editor-core/tests/product_finishes_once.rs",
-        disposition: Shared, // product.rs finishes its aggregate once and censuses at
-                             // one site, code view (`blanked`)
-    },
-    Entry {
-        path: "crates/editor-core/tests/refusal_concision_chains.rs",
-        disposition: Shared, // blend raise-site details over sweep/src/blend,
-                             // code and code-and-literals views
-    },
-    Entry {
-        path: "crates/editor-core/tests/wire_operand_door.rs",
-        disposition: Shared, // operand-door and expected-phrase census over
-                             // eval/wire.rs and verbs/split.rs, code and
-                             // code-and-literals views
-    },
-    Entry {
-        path: "crates/geom-brep/src/curve_face/rows.rs",
-        disposition: Shared, // door-name prefix census (`predicate_census`), code and
-                             // literal views
-    },
-    Entry {
-        path: "crates/geom-brep/src/sector_shape.rs",
-        disposition: Shared, // the rung names spelled in one module, code-and-literals view
-    },
-    Entry {
-        path: "crates/geom-brep/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/geom-brep/tests/kstats_escalation_channel.rs",
-        disposition: Shared, // op-minted `Indeterminate` scan, code view
-    },
-    Entry {
-        path: "crates/geom-brep/tests/pcurve_conic.rs",
-        disposition: Shared, // wildcard-arm scan, code view
-    },
-    Entry {
-        path: "crates/geom-core/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/geom-core/tests/bounds_census.rs",
-        disposition: Shared, // sole-bracket-bound roster, code view
-    },
-    Entry {
-        path: "crates/geom-core/tests/certified_endpoint_census.rs",
-        disposition: Shared, // certification endpoint-read census, code view + literal view
-    },
-    Entry {
-        path: "crates/geom-core/tests/flagged_census.rs",
-        disposition: Shared, // call census, code view + offsets
-    },
-    Entry {
-        path: "crates/geom-core/tests/sym_rule_f_rows.rs",
-        disposition: Shared, // `copysign` mint-site register over crates/*/src,
-                             // code view, each file cut at its test module
-    },
-    Entry {
-        path: "crates/geom/src/curves/on_carrier/rows.rs",
-        disposition: Shared, // on-carrier seed-read census over crates/*/src, code view
-    },
-    Entry {
-        path: "crates/geom/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/mesh/tests/all.rs",
-        disposition: Shared, // eps inventory, code view
-    },
-    Entry {
-        path: "crates/pncad-py/src/prose_census.rs",
-        disposition: Shared, // every `impl Display` in the tree: code view for the
-                             // structure, literal view for the format string
-    },
-    Entry {
-        path: "crates/pncad-py/src/surface_census.rs",
-        disposition: Shared, // every `*Options` type CONSTRUCTED under src/py/, so the
-                             // options rosters' membership is derived rather than hand-kept:
-                             // code view, which is what keeps a doc comment naming a struct
-                             // from reading as a door building one
-    },
-    Entry {
-        path: "crates/pncad-py/src/tests.rs",
-        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
-                             // read; the kind words in src/node_kind.rs: literal view alone;
-                             // the literal census of src/errors.rs: code, literal and comment
-                             // views together, so a literal adjoining a comment is told apart;
-                             // the roster's and the blind-spot list's test names, re-derived
-                             // against this file's own source: code view, which is what keeps
-                             // a name written in prose from answering yes; and the instance
-                             // attributes pncad.pyi declares, which is a Python stub and no
-                             // Rust source at all — it is read by line prefix and triple-quote
-                             // parity, with tests/test_stubs.py's `ast` walk the second reader
-                             // of that one convention (work/census/one-stub-convention-…)
-    },
-    Entry {
-        path: "crates/pncad/tests/all.rs",
-        disposition: Shared, // the facade boundary guards, code and literal views; and the
-                             // box-document fixture twin in crates/pncad-py/src/tests.rs,
-                             // raw text between sentinels, compared with its own copy
-    },
-    Entry {
-        path: "crates/profile/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/profile/tests/gate_kinds_followed.rs",
-        disposition: Shared, // fillet_recourse.rs's gate rows against its prose,
-                             // code-and-literals and prose views
-    },
-    Entry {
-        path: "crates/profile/tests/r2_bool9_review_probes.rs",
-        disposition: Shared, // the value-equal row's ceiling is asserted to
-                             // EXIST in lift_census.rs, code+literal view
-    },
-    Entry {
-        path: "crates/profile/tests/raw_door_census.rs",
-        disposition: Shared, // production-writer census + the raw door's own
-                             // gate, code+literal view
-    },
-    Entry {
-        path: "crates/profile/tests/recourse_roster.rs",
-        disposition: Shared, // the dispatch-order row reads path.rs's own match
-                             // patterns, code+literal view. The decide-site walk
-                             // it also runs is source::predicate_census, so that
-                             // half reads nothing here
-    },
-    Entry {
-        path: "crates/profile/tests/seal.rs",
-        disposition: Shared, // serde-free seal, code view
-    },
-    Entry {
-        path: "crates/source-scope/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/step-export/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
     Entry {
         path: "crates/step-import/src/parse.rs",
         disposition: NotRust("STEP Part 21"),
-    },
-    Entry {
-        path: "crates/step-import/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/step-import/tests/per_part_gate_policy.rs",
-        disposition: Shared, // lib.rs's per-part policy consultation, code view
-    },
-    Entry {
-        path: "crates/step-import/tests/tier_gate.rs",
-        disposition: Shared, // validator call sites, code view
-    },
-    Entry {
-        path: "crates/stl/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/sweep/src/blend/admit.rs",
-        disposition: Shared, // token construction sites, code view
-    },
-    Entry {
-        path: "crates/sweep/src/lib.rs",
-        disposition: Shared, // caller's re-description door call census, code view
-    },
-    Entry {
-        path: "crates/sweep/tests/a_blend_reads_the_wedge_through_the_one_fold.rs",
-        disposition: Shared, // the blend's wedge reads outside its one fold, code and
-                             // literal views with the inline test modules blanked
-                             // (`every_site_that_reads_rust_source_is_in_the_ledger`
-                             // named this file on arrival)
-    },
-    Entry {
-        path: "crates/sweep/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/sweep/tests/review_blend5_r5_probes.rs",
-        disposition: Shared, // the doc citations and the rows they name,
-                             // prose and code views
-    },
-    Entry {
-        path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
-        disposition: Shared, // the seam's and open bands' visibility census, code view
-    },
-    Entry {
-        path: "crates/sweep/tests/review_fillet_t_r1_probes.rs",
-        disposition: Shared, // the blend surgery's one `kef` door, code view
     },
     Entry {
         path: "crates/test-utils/src/source.rs",
         disposition: Home,
     },
     Entry {
-        path: "crates/test-utils/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/test-utils/tests/deny_unknown_fields_census.rs",
-        disposition: Shared, // `deny_unknown_fields` sites and the declaration
-                             // each heads, code view
-    },
-    Entry {
-        path: "crates/test-utils/tests/hand_written_impl_census.rs",
-        disposition: Shared, // hand-written `Debug`/`PartialEq` impls and the bodies
-                             // they walk, code view
-    },
-    Entry {
-        path: "crates/test-utils/tests/predicate_name_coverage.rs",
-        disposition: Shared, // every crate's predicate census, references and
-                             // holds, through source::predicate_census,
-                             // test_references and held_spellings
-    },
-    Entry {
-        path: "crates/test-utils/tests/reader_census.rs",
-        disposition: Shared, // this census, literal view
-    },
-    Entry {
-        path: "crates/test-utils/tests/torus_verdict_matches.rs",
-        disposition: Shared, // every crate's production code, code view
-    },
-    Entry {
-        path: "crates/topo/src/boolean/join.rs",
-        disposition: Shared, // the join's one face-to-surface walk, code view
-    },
-    Entry {
-        path: "crates/topo/src/boolean/offer_rows.rs",
-        disposition: Shared, // the Boolean's decision sites, code view
-    },
-    Entry {
-        path: "crates/topo/src/boolean/ops.rs",
-        disposition: Shared, // the smooth seam arm's route through the rule, code view
-    },
-    Entry {
-        path: "crates/topo/src/census.rs",
-        disposition: Shared, // the backstop's no-inline-`what` guard, literal view
-                             // carved by `balanced_end`
-    },
-    Entry {
         path: "crates/topo/src/chord_join.rs",
         disposition: Unconverted("Track Q — whitespace-stripped raw text, no reader"),
     },
     Entry {
-        path: "crates/topo/src/euler.rs",
-        disposition: Shared, // the removal census over validate.rs's tier-1 pass and
-                             // the kill helpers' bodies, code view
-    },
-    Entry {
         path: "crates/topo/src/face_normal.rs",
         disposition: Unconverted("Track Q — raw text"),
-    },
-    Entry {
-        path: "crates/topo/src/link.rs",
-        disposition: Shared, // the one-door guard over link.rs and census.rs's touch
-                             // section, code view carved by `balanced_end`
-    },
-    Entry {
-        path: "crates/topo/src/live.rs",
-        disposition: Shared, // the `Live` door guard, code view carved by `balanced_end`
     },
     Entry {
         path: "crates/topo/src/pcurves/lift_agreement_rows.rs",
@@ -446,105 +146,8 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
-        path: "crates/topo/src/policy_lane.rs",
-        disposition: Shared, // the edge-certification origin census, code view carved
-                             // by `attributed_extent`
-    },
-    Entry {
-        path: "crates/topo/src/review_d18.rs",
-        disposition: Shared, // the announcing body, code view carved by `balanced_end`
-    },
-    Entry {
-        path: "crates/topo/src/review_d18_probes.rs",
-        disposition: Shared, // `unreachable!` message texts, literal view
-    },
-    Entry {
         path: "crates/topo/src/sector_shape.rs",
         disposition: Unconverted("Track Q — raw text, no reader at all"),
-    },
-    Entry {
-        path: "crates/topo/src/source_walk.rs",
-        disposition: Shared, // the mutation-door walk, code view
-    },
-    Entry {
-        path: "crates/topo/src/surgery.rs",
-        disposition: Shared, // `Body`'s surgery-depth field declaration, code view
-    },
-    Entry {
-        path: "crates/topo/src/tier3_tests.rs",
-        disposition: Shared, // the one-walk guard over validate.rs and rim_wedge.rs, code view
-    },
-    Entry {
-        path: "crates/topo/src/validate.rs",
-        disposition: Shared, // the at-rest door roster, prose view and code view
-    },
-    Entry {
-        path: "crates/topo/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/topo/tests/r1_lane1_bracket_read_census.rs",
-        disposition: Shared, // validate.rs's bracket reads, code view
-    },
-    Entry {
-        path: "crates/topo/tests/certified_enclosure_impl_census.rs",
-        disposition: Shared, // door values and CertifiedEnclosure impls vs wiring rows, code view
-    },
-    Entry {
-        path: "crates/topo/tests/readback_sense_kind.rs",
-        disposition: Shared, // the query seat's body, code view
-    },
-    Entry {
-        path: "crates/topo/tests/shell_tolerance_chain.rs",
-        disposition: Shared, // the shell offset chain's signatures, code view
-    },
-    Entry {
-        path: "crates/verbs/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/verbs/tests/layer_guard.rs",
-        disposition: Shared, // the crate's src/ directory walk, for the file-list pin
-    },
-    Entry {
-        path: "crates/viewer/src/gpu.rs",
-        disposition: Shared, // pipeline census over its own source, code view
-    },
-    Entry {
-        path: "crates/viewer/src/widgets.rs",
-        disposition: Shared, // the helper roster and the message roster, code view
-    },
-    Entry {
-        path: "crates/viewer/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/viewer/tests/frame_policy.rs",
-        disposition: Shared, // the README's badge-door and store-read counts, code view
-    },
-    Entry {
-        path: "crates/viewer/tests/gesture_table.rs",
-        disposition: Shared, // the cancel doors' chrome reader, code view
-    },
-    Entry {
-        path: "crates/viewer/tests/landing_gathers.rs",
-        disposition: Shared, // the gather counter's three gated sites, code view
-    },
-    Entry {
-        path: "crates/viewer/tests/tree_badges.rs",
-        disposition: Shared, // the standing doors' as-drawn census, code view
-    },
-    Entry {
-        path: "demos/tour/tests/all.rs",
-        disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "tools/k-lint/tests/predicate_roster.rs",
-        disposition: Shared, // roster pinned to the kernel's mint: code view to locate, literal view to read
-    },
-    Entry {
-        path: "tools/tess-meter/tests/derivations.rs",
-        disposition: Shared, // cross-root const pins: code view to locate, literal view to read
     },
 ];
 
@@ -654,20 +257,12 @@ fn gated_to_names(code: &str) -> usize {
     total
 }
 
-/// `code` with `//`-to-end-of-line comments removed — a marker is an ITEM and
-/// never a comment, and without the cut the macro's own documentation (which
-/// quotes a call) subtracts paths nothing declares. A line cut rather than a
-/// lexer, the same trade `scripts/ci-filter.py` makes and for the same reason:
-/// a `//` inside a string literal truncates the line early, which can only
-/// LOSE an invocation and never invent one.
+/// `code` with its comments blanked by the shared lexer — a marker is an
+/// ITEM and never a comment, and without the cut the macro's own
+/// documentation (which quotes a call) subtracts paths nothing declares.
+/// Literals are kept: the marker's paths are literals.
 fn strip_line_comments(code: &str) -> String {
-    code.lines()
-        .map(|l| match l.find("//") {
-            Some(i) => &l[..i],
-            None => l,
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    code_and_literals(code)
 }
 
 /// **The subtraction's own guard.** `gated_to_names` is the one number in this
@@ -748,11 +343,12 @@ fn reads_rust_source(code: &str) -> bool {
         || (code.contains("read_dir(") && code.contains("\"rs\""));
     // (3) Spells a Rust comment delimiter as a literal — the tell of a
     // hand-rolled lexer, wherever its text came from.
-    let lexes_rust_comments = ["\"//\"", "\"///\"", "\"//!\"", "\"/*\"", "\"*/\"", "b'/'"]
-        .iter()
-        .any(|tok| code.contains(tok));
+    let lexes_rust_comments = COMMENT_DELIMITERS.iter().any(|tok| code.contains(tok));
     named > mounted || walks_a_source_tree || lexes_rust_comments
 }
+
+/// Shape (3)'s needles: a Rust comment delimiter spelled as a literal.
+const COMMENT_DELIMITERS: [&str; 6] = ["\"//\"", "\"///\"", "\"//!\"", "\"/*\"", "\"*/\"", "b'/'"];
 
 /// Every path under the repository root that reads Rust source as text.
 fn sites_reading_rust_source(root: &Path) -> Vec<String> {
@@ -789,34 +385,57 @@ fn sites_reading_rust_source(root: &Path) -> Vec<String> {
         .collect()
 }
 
-/// **The ledger is the tree's set, not a subset of it.**
+/// **Every site that reads Rust source reaches the shared lexer, or is
+/// an exception.**
 ///
-/// A WALK THAT MATCHED NOTHING IS NOT A PASS, and the equality is what
-/// says so: an empty or broken traversal reports every entry in the
-/// ledger as stale and reds, so this row needs no separate count floor
-/// (an earlier one asserted `found.len() >= 20`, which set equality had
-/// already subsumed and which could not fail for the reason it
-/// stated). [`test_utils::source::rust_sources`] panics on an empty
-/// directory underneath it as well.
+/// A WALK THAT MATCHED NOTHING IS NOT A PASS: the walk must still find
+/// the [`Home`], the one reader no conversion moves, or it has gone
+/// blind and every site it cannot see passes unread.
 #[test]
 fn every_site_that_reads_rust_source_is_in_the_ledger() {
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let mut found = sites_reading_rust_source(&root);
     found.sort();
-    let ledger: Vec<&str> = LEDGER.iter().map(|e| e.path).collect();
+    for e in LEDGER.iter().filter(|e| matches!(e.disposition, Home)) {
+        assert!(
+            found.iter().any(|f| f == e.path),
+            "the walk no longer finds {}, the shared lexer's home: it has gone blind. \
+             Found: {found:#?}",
+            e.path
+        );
+    }
     let unlisted: Vec<&String> = found
         .iter()
-        .filter(|f| !ledger.contains(&f.as_str()))
+        .filter(|f| !LEDGER.iter().any(|e| e.path == f.as_str()))
+        .filter(|f| {
+            let text = std::fs::read_to_string(root.join(f.as_str()))
+                .unwrap_or_else(|err| panic!("reading {f}: {err}"));
+            !reaches_the_shared_lexer(&text)
+        })
         .collect();
-    let stale: Vec<&&str> = ledger
+    let doors = shared_lexer_fns();
+    let unlexed: Vec<String> = found
         .iter()
-        .filter(|l| !found.iter().any(|f| f == *l))
+        .filter(|f| !LEDGER.iter().any(|e| e.path == f.as_str()))
+        .flat_map(|f| {
+            let text = std::fs::read_to_string(root.join(f.as_str()))
+                .unwrap_or_else(|err| panic!("reading {f}: {err}"));
+            fns_spelling_a_delimiter_unlexed(&text, &doors)
+                .into_iter()
+                .map(move |name| format!("{f}: fn {name}"))
+        })
         .collect();
     assert!(
-        unlisted.is_empty() && stale.is_empty(),
-        "the source-reader ledger no longer matches the tree.\n  \
-         arrived or moved (owe a ledger line): {unlisted:#?}\n  \
-         listed but no longer reading source (delete the line): {stale:#?}"
+        unlexed.is_empty(),
+        "these fns spell a Rust comment delimiter as a literal and call no fn of the \
+         shared lexer: a hand-rolled reader beside a file's shared reads. Read through \
+         `test_utils::source`: {unlexed:#?}"
+    );
+    assert!(
+        unlisted.is_empty(),
+        "these sites read Rust source as text and reach no door of the shared lexer \
+         ({SHARED_LEXER_DOORS:?}). Read through `test_utils::source`; a site reading a \
+         language that is not Rust takes a `NotRust` line in LEDGER: {unlisted:#?}"
     );
 }
 
@@ -825,56 +444,83 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
 /// Two, because one of them hides the other: an aggregating
 /// `tests/all.rs` reaches `test_utils::source::aggregation_violations`
 /// through the aggregation row macro, and the module path it reaches is
-/// in the macro's EXPANSION rather than in the file. A door added to the
-/// façade that no site can be seen to use does not belong here; a door
-/// that fifteen files use does.
-///
-/// **What the second entry costs, stated because it is a real trade.**
-/// The first entry is checked against its subject on every `Shared`
-/// row: the file names `test_utils::source` or it does not. The second
-/// is a claim about a macro body that is NOT in the file being read, and
-/// `crates/test-utils/src/source.rs` — where that body lives — is
-/// dispositioned [`Home`], so it is filtered out of
-/// [`every_shared_entry_actually_reaches_the_shared_lexer`] before that
-/// row looks at anything. Before the collapse, fifteen `all.rs` files
-/// each carried their own copy and each was checked on its own text; a
-/// reversion in ONE of them red'd that file. Now one body answers for
-/// fifteen call sites.
+/// in the macro's EXPANSION rather than in the file. One body answers
+/// for every invocation, so
 /// [`the_aggregation_row_macro_reaches_the_shared_lexer`] is what checks
-/// it, and it is ONE check where there were fifteen — the loss of
-/// redundancy is what the collapse costs, and it is not nothing.
+/// that the second entry still reaches the lexer.
 const SHARED_LEXER_DOORS: [&str; 2] = [
     "test_utils::source",
     concat!("test_utils::", aggregation_row_macro!()),
 ];
 
-/// **A `Shared` line is a CLAIM, and this is what checks it.**
+/// Whether a file's code (not its prose: a mention is not a call)
+/// names a door of the shared lexer.
 ///
-/// Without this row the ledger's own silent direction is the one it
-/// exists to close: a converted site that reverts to a hand-rolled
-/// reader keeps its `Shared` line, keeps tripping the detector, and the
-/// census stays green over exactly the change it was built to catch.
-#[test]
-fn every_shared_entry_actually_reaches_the_shared_lexer() {
-    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
-    let liars: Vec<&str> = LEDGER
-        .iter()
-        .filter(|e| matches!(e.disposition, Shared))
-        .filter(|e| {
-            let text = std::fs::read_to_string(root.join(e.path))
-                .unwrap_or_else(|err| panic!("reading {}: {err}", e.path));
-            // The code view: a mention in prose is not a call.
-            let code = test_utils::source::code_only(&text);
-            !SHARED_LEXER_DOORS.iter().any(|door| code.contains(door))
-        })
-        .map(|e| e.path)
+/// A file can reach the lexer for one read and hand-roll another; the
+/// per-`fn` check ([`fns_spelling_a_delimiter_unlexed`]) catches the
+/// hand-rolled one when it spells a comment delimiter. One that reads
+/// raw text with no delimiter, in a file that reaches the lexer
+/// elsewhere, is not seen.
+fn reaches_the_shared_lexer(text: &str) -> bool {
+    let code = code_only(text);
+    SHARED_LEXER_DOORS.iter().any(|door| code.contains(door))
+}
+
+/// The `pub fn`s of the shared lexer, read off its home: the names a
+/// call to it is spelled with once imported.
+fn shared_lexer_fns() -> Vec<String> {
+    let home = repo_root(env!("CARGO_MANIFEST_DIR")).join("crates/test-utils/src/source.rs");
+    let code = code_only(&std::fs::read_to_string(home).expect("the lexer's home reads"));
+    let mut out: Vec<String> = code
+        .match_indices("pub fn ")
+        .map(|(at, _)| test_utils::source::ident(&code, at + "pub fn ".len()).to_string())
+        .filter(|name| !name.is_empty())
         .collect();
+    out.sort();
+    out.dedup();
     assert!(
-        liars.is_empty(),
-        "these entries are dispositioned Shared but no longer call \
-         `test_utils::source`, by any of {SHARED_LEXER_DOORS:?} — either they reverted \
-         to a hand-rolled reader, or the line is stale: {liars:#?}"
+        out.iter().any(|n| n == "code_only"),
+        "the lexer's home names no `code_only`: this read of it has gone blind"
     );
+    out
+}
+
+/// The innermost `fn` items of `text` that spell a comment delimiter as a
+/// literal and whose body calls no fn of the shared lexer (by path or by
+/// an imported name).
+fn fns_spelling_a_delimiter_unlexed(text: &str, doors: &[String]) -> Vec<String> {
+    let bare = code_only(text);
+    let lexed = code_and_literals(text);
+    let Ok(items) = test_utils::source::fn_items(&bare) else {
+        return Vec::new();
+    };
+    let calls_a_door = |body: &str| {
+        body.contains("test_utils::source::")
+            || doors.iter().any(|door| {
+                body.match_indices(&format!("{door}(")).any(|(at, _)| {
+                    body[..at]
+                        .chars()
+                        .next_back()
+                        .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+                })
+            })
+    };
+    let mut out = Vec::new();
+    for tok in COMMENT_DELIMITERS {
+        for (at, _) in lexed.match_indices(tok) {
+            let Some((name, body)) = items
+                .iter()
+                .filter(|(_, body)| body.contains(&at))
+                .min_by_key(|(_, body)| body.len())
+            else {
+                continue;
+            };
+            if !calls_a_door(&bare[body.clone()]) && !out.contains(name) {
+                out.push(name.clone());
+            }
+        }
+    }
+    out
 }
 
 /// The file holding the aggregation row macro's body — the subject of
@@ -895,9 +541,9 @@ fn aggregation_row_macro_name() -> &'static str {
 /// [`AGGREGATION_ROW_MACRO`] is a string. Renaming the macro re-spells
 /// fifteen invocations for free — the compiler does it — and leaves the
 /// string untouched, at which point shape (2) of [`reads_rust_source`]
-/// matches nothing, fifteen `Shared` lines red as stale, and the cause is
-/// a needle nobody edited rather than a reader anybody reverted. This row
-/// is the edge a rename trips on instead, and it names the cause.
+/// matches nothing and every aggregating `tests/all.rs` stops reading as
+/// a source reader, silently. This row is the edge a rename trips on
+/// instead, and it names the cause.
 #[test]
 fn the_aggregation_row_needle_names_a_macro_that_exists() {
     let name = aggregation_row_macro_name();
@@ -915,17 +561,11 @@ fn the_aggregation_row_needle_names_a_macro_that_exists() {
 ///
 /// [`SHARED_LEXER_DOORS`]' second entry says that invoking the
 /// aggregation row macro reaches the shared lexer. That is a claim about
-/// a body in `crates/test-utils/src/source.rs`, which is dispositioned
-/// [`Home`] and therefore never looked at by
-/// [`every_shared_entry_actually_reaches_the_shared_lexer`] — so
-/// rewriting the macro to walk `tests/` by hand leaves all fifteen
-/// `Shared` lines green and every other row in this file passing.
-/// Measured, not supposed: that reversion reds this row and nothing else.
-///
-/// Before the collapse each of the fifteen carried its own copy and each
-/// was checked against its own file. This is the one that survives, and
-/// it is stated as one check replacing fifteen rather than as their
-/// equal.
+/// a body in `crates/test-utils/src/source.rs`, not in the invoking
+/// file — so rewriting the macro to walk `tests/` by hand leaves every
+/// invoking file reading as one that reaches the lexer, and every other
+/// row in this file passing. That reversion reds this row and nothing
+/// else.
 #[test]
 fn the_aggregation_row_macro_reaches_the_shared_lexer() {
     let name = aggregation_row_macro_name();
@@ -946,49 +586,6 @@ fn the_aggregation_row_macro_reaches_the_shared_lexer() {
         );
     }
 }
-
-/// **The debt, stated as an equality and hand-synced loudly.**
-///
-/// Every [`Unconverted`] entry is a site reading Rust source through
-/// something other than the shared lexer, with the track that owes its
-/// conversion. Converting one means deleting its line AND lowering
-/// [`UNCONVERTED_TODAY`] — two edits, on purpose.
-///
-/// **What equality catches and what it does not.** It catches a reader
-/// added without one being converted, which a `<=` ceiling does not: a
-/// lane that converts one and adds one nets zero and slides under a
-/// ceiling silently. It does NOT catch that same swap here either —
-/// nothing a single number can do will — so the swap is caught one
-/// row up instead: `every_site_that_reads_rust_source_is_in_the_ledger`
-/// forces the new reader to arrive as a NAMED PATH in this file, and
-/// `every_shared_entry_actually_reaches_the_shared_lexer` stops it
-/// hiding behind a `Shared` line. **The number is the tripwire; the
-/// paths are the guard.** The failure below prints the paths for that
-/// reason.
-#[test]
-fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
-    let outstanding: Vec<String> = LEDGER
-        .iter()
-        .filter_map(|e| match e.disposition {
-            Unconverted(owner) => Some(format!("{} — {owner}", e.path)),
-            Home | Shared | NotRust(_) => None,
-        })
-        .collect();
-    assert_eq!(
-        outstanding.len(),
-        UNCONVERTED_TODAY,
-        "the ledger holds {} readers outside the shared lexer and \
-         UNCONVERTED_TODAY says {UNCONVERTED_TODAY}. That constant is HAND-SYNCED: \
-         converting one lowers it, and it may not be raised without the row that \
-         licenses a new reader. Outstanding: {outstanding:#?}",
-        outstanding.len()
-    );
-}
-
-/// The number of sites still reading Rust source through something
-/// other than [`test_utils::source`]. **Hand-synced with the ledger
-/// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 5;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what
@@ -1022,7 +619,7 @@ fn every_disposition_that_carries_a_reason_states_a_real_one() {
                  is a second finding on top of the first, not a way out of it.",
                 entry.path
             ),
-            Home | Shared => {}
+            Home => {}
         }
     }
 }
@@ -1098,9 +695,6 @@ enum Seen {
 enum ScopeDisposition {
     /// `crates/source-scope` itself.
     ScopeHome,
-    /// Answers its scope questions through `source_scope`. Checked: the
-    /// file calls the home's reader ([`calls_the_scope_home`]).
-    Parsed,
     /// Spells a binding keyword for a reason that is not a scope
     /// question: one of a closed set of reasons, each confined to the
     /// files it was written for and to the needles they hold. The text
@@ -1152,7 +746,7 @@ impl NotScopeWhy {
     }
 }
 
-use ScopeDisposition::{HandRolled, NotScope, Parsed, ScopeHome};
+use ScopeDisposition::{HandRolled, NotScope, ScopeHome};
 
 /// The work row every pre-existing hand-rolled scope reader is owed by.
 const SCOPE_CONVERSION_ROW: &str = "work/onecopy/hand-rolled-scope-readers-predate-source-scope.md";
@@ -1196,20 +790,16 @@ const NOT_SCOPE_AT_THE_HOMES_ARRIVAL: [&str; 11] = [
 ];
 
 /// **The scope ledger.** One line per reason a site [`asks_a_scope_question`]
-/// (a file may hold more than one), and one per site of a shape it cannot
-/// see ([`Seen::Anchor`]). Sorted by path.
+/// without calling the home's reader (a file may hold more than one), and
+/// one per site of a shape it cannot see ([`Seen::Anchor`]). A site that
+/// calls the home ([`calls_the_scope_home`]) needs no line. Sorted by
+/// path.
 const SCOPE_LEDGER: &[ScopeEntry] = &[
     ScopeEntry {
         path: "crates/geom-core/tests/bounds_census.rs",
         seen: Seen::Anchor,
         disposition: HandRolled(SCOPE_CONVERSION_ROW), // a bound's path matched by spelling
         items: &["is_sole_bracket"],
-    },
-    ScopeEntry {
-        path: "crates/geom-core/tests/flagged_census.rs",
-        seen: Seen::Needle,
-        disposition: Parsed, // the flagged doors' call sites and forwarding wrappers
-        items: &[],
     },
     ScopeEntry {
         path: "crates/pncad-py/src/prose_census.rs",
@@ -1251,12 +841,6 @@ const SCOPE_LEDGER: &[ScopeEntry] = &[
         path: "crates/source-scope/src/lib.rs",
         seen: Seen::Needle,
         disposition: ScopeHome,
-        items: &[],
-    },
-    ScopeEntry {
-        path: "crates/source-scope/tests/scopes.rs",
-        seen: Seen::Needle,
-        disposition: Parsed, // the home's own resolution rows
         items: &[],
     },
     ScopeEntry {
@@ -1323,7 +907,8 @@ const SCOPE_KEYWORD_LITERALS: [&str; 6] = [
 /// The spelling a site that resolves through the home carries.
 const SCOPE_HOME_DOOR: &str = "source_scope";
 
-/// The home's reader, which a [`Parsed`] site must call.
+/// The home's reader: a site that calls it answers its scope questions
+/// through the home.
 const SCOPE_HOME_READ: &str = "read";
 
 /// Whether `code` (a comments-blanked, literals-kept view) asks a scope
@@ -1403,9 +988,9 @@ fn calls_the_scope_home(code: &str) -> bool {
         })
 }
 
-/// **The scope ledger is the tree's set**, the way [`LEDGER`] is: a new
-/// scope reader reds here until it has a line, and the only line a new
-/// hand-rolled one can honestly carry is none.
+/// **The scope ledger is the tree's set of scope readers that do not call
+/// the home**: a new one reds here, and the only line a new hand-rolled
+/// one can honestly carry is none.
 #[test]
 fn every_site_that_asks_a_scope_question_is_in_the_scope_ledger() {
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
@@ -1422,8 +1007,10 @@ fn every_site_that_asks_a_scope_question_is_in_the_scope_ledger() {
             let text = std::fs::read_to_string(path).expect("a readable source file");
             // The lexed view only blanks comments, so a needle it holds is
             // in the raw text too: screen on the raw text, lex the hits.
-            (asks_a_scope_question(&text) && asks_a_scope_question(&code_and_literals(&text)))
-                .then(|| relative.to_string_lossy().replace('\\', "/"))
+            (asks_a_scope_question(&text)
+                && asks_a_scope_question(&code_and_literals(&text))
+                && !calls_the_scope_home(&code_only(&text)))
+            .then(|| relative.to_string_lossy().replace('\\', "/"))
         })
         .collect();
     found.sort();
@@ -1452,7 +1039,6 @@ fn every_site_that_asks_a_scope_question_is_in_the_scope_ledger() {
 
 /// **Each line's claim, checked against its file.**
 ///
-/// - [`Parsed`]: the file calls the home's reader, not merely names it.
 /// - [`HandRolled`] and [`NotScope`] name their items, and in a file with
 ///   either, every needle hit lies in an item some line lists: a reader
 ///   added beside the listed ones is a hit no line answers for. Each
@@ -1486,9 +1072,6 @@ fn every_scope_line_holds_of_its_file() {
             .any(|e| matches!(e.disposition, HandRolled(_) | NotScope(..)));
         for e in &lines {
             match e.disposition {
-                Parsed if !calls_the_scope_home(&code) => wrong.push(format!(
-                    "{path}: Parsed, but it does not call `{SCOPE_HOME_DOOR}::{SCOPE_HOME_READ}`"
-                )),
                 HandRolled(_) | NotScope(..) if e.items.is_empty() => wrong.push(format!(
                     "{path}: a HandRolled or NotScope line names the items it answers for"
                 )),
@@ -1603,7 +1186,7 @@ fn the_hand_rolled_scope_readers_are_the_ones_this_tree_still_owes() {
                 "{}: the home is source-scope",
                 e.path
             ),
-            Parsed | NotScope(..) => {}
+            NotScope(..) => {}
         }
     }
     let converted: Vec<&&str> = HAND_ROLLED_AT_THE_HOMES_ARRIVAL

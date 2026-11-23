@@ -593,6 +593,10 @@ BOUND_AS = {
     # coincidence's claim is `Quieting`, authored as one action by
     # `Doc.assert_quieting`.
     "OpposedPair": "InterferenceFinding.quieting",
+    # Which of the two a loud finding carries: `CheckEvidence.quieting`
+    # or `InterferenceFinding.quieting`, each `None` where it carries
+    # none.
+    "CarriedAssertion": ("CheckEvidence.quieting", "InterferenceFinding.quieting"),
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.
@@ -2424,6 +2428,23 @@ NOT_BOUND = {
     # A space as a refusal speaks it: the world, its name, or the node
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
+    # A sentence as a value: its words and mentions, and the pieces a
+    # door writes it from. Python reads a
+    # refusal's sentence as the message text, each mention spelled; a
+    # mention's node rides as the payload's `NodeId`.
+    "Mention": SHAPE,
+    "Mentioned": SHAPE,
+    "Put": SHAPE,
+    "Run": SHAPE,
+    "SaidName": SHAPE,
+    "SaidNode": SHAPE,
+    "SaidVar": SHAPE,
+    "Sentence": SHAPE,
+    "say": SHAPE,
+    "sentence": SHAPE,
+    "display_said": SHAPE,
+    "node_text": SHAPE,
+    "var_text": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     # The names a deciding predicate's decisions are recorded under:
     # each `Settle` constructor fixes its own, which its docstring
@@ -2759,6 +2780,8 @@ NOT_BOUND = {
     # document a carried finding is spoken over (`CarriedCoincidence.finding`).
     "PinnedDoc": INTERIOR,
     "Route": INTERIOR,
+    # One hop of a `Route`: the instance and the document holding it.
+    "RouteHop": INTERIOR,
     # The answers of `Doc::expr_reach` and `Doc::member_envs` (D10
     # `[repetition]`), the reads a reader that evaluates an expression
     # itself makes. Python evaluates through `evaluate`, which makes both
@@ -3632,10 +3655,6 @@ MEMBERS_BOUND_AS = {
     # --- an interference finding's overlap and quieting assertion ---
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
-    # A reference that is a cell crosses flat: the body read beside the
-    # entity's name and the pose read off it, `name` being `None` on
-    # the other arm.
-    "QuietingRef::Entity": ("QuietingRef.name", "QuietingRef.pose"),
     # --- a one-of subject spelled as its arms' attributes ---------
     # A finding is about one placement output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.
@@ -3872,6 +3891,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
+    "MateFault::NotTheDatumsOwn": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::Backwards": "MateFault.variant",
@@ -4325,10 +4345,6 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     # "read_failed"`, `"read_poisoned"`, `"unknown_node"`), with its
     # node as `node`.
     "ProductError::Read": "ProductError.read",
-    # The arm's PAYLOAD: the variable the measure reads as it is. The
-    # same getter answers the body read on the `Entity` arm, and `name`
-    # being `None` is what says which arm it is.
-    "QuietingRef::Read": "QuietingRef.read",
 }
 
 #: Members with no Python spelling at all, by family — `NOT_BOUND`'s three

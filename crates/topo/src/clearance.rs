@@ -671,12 +671,18 @@ impl EngineRefusal {
         }
     }
 
-    /// **The refusal in words**, each face and scope named with its
-    /// side as `sides` names it: the first side's, then the second's.
-    pub fn say(
+    /// **The refusal in words, into `f`**, each face and scope named with
+    /// its side as `sides` writes it: the first side's, then the
+    /// second's. A side is written by its caller, so a caller writing a
+    /// sentence of its own says each side in its own terms.
+    ///
+    /// # Errors
+    ///
+    /// The writer's.
+    pub fn say<W: core::fmt::Write + ?Sized>(
         &self,
-        f: &mut core::fmt::Formatter<'_>,
-        sides: [&dyn core::fmt::Display; 2],
+        f: &mut W,
+        sides: [&dyn Fn(&mut W) -> core::fmt::Result; 2],
     ) -> core::fmt::Result {
         let [first, second] = sides;
         match self {
@@ -703,56 +709,77 @@ impl EngineRefusal {
                 carrier,
                 face,
                 side,
-            } => write!(
-                f,
-                "the clearance engine cannot answer for face {face:?} of {}: it is {carrier}",
-                side.of(sides)
-            ),
+            } => {
+                write!(
+                    f,
+                    "the clearance engine cannot answer for face {face:?} of "
+                )?;
+                side.of(sides)(f)?;
+                write!(f, ": it is {carrier}")
+            }
             Self::WitnessUnverified { what } => write!(
                 f,
                 "a pair the interval pass found below the lower bound or within the upper one \
                  was not confirmed by the verifier: {what}"
             ),
-            Self::PoisonEnclosure { a, b } => write!(
-                f,
-                "the enclosure between face {a:?} of {first} and face {b:?} of {second} did \
-                 not evaluate, which is geometry, not a budget"
-            ),
-            Self::BoxDependent { a, b, separation } => write!(
-                f,
-                "the closest pair of face {a:?} of {first} and face {b:?} of {second} reaches \
-                 [{}, {}] over the parameter box, within the upper bound at some of its \
-                 points and past it at others, so the box does not decide it; a narrower box \
-                 can",
-                separation.0, separation.1
-            ),
-            Self::EmptyScope { side } => write!(
-                f,
-                "the scope of {} names no face, so there is nothing to measure",
-                side.of(sides)
-            ),
-            Self::Uncertified { a, b, shared, arm } => write!(
-                f,
-                "face {a:?} of {first} and face {b:?} of {second} touch through {}, and the \
-                 {} certificate did not discharge them",
-                shared.payload(),
-                arm.name()
-            ),
-            Self::CollapsedChart { face, side, vertex } => write!(
-                f,
-                "the chart of face {face:?} of {} collapses an edge to its vertex {vertex:?} \
-                 near a touching pair, and the monotone certificate reads no collapsed chart",
-                side.of(sides)
-            ),
+            Self::PoisonEnclosure { a, b } => {
+                write!(f, "the enclosure between face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                f.write_str(" did not evaluate, which is geometry, not a budget")
+            }
+            Self::BoxDependent { a, b, separation } => {
+                write!(f, "the closest pair of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " reaches [{}, {}] over the parameter box, within the upper bound at some \
+                     of its points and past it at others, so the box does not decide it; a \
+                     narrower box can",
+                    separation.0, separation.1
+                )
+            }
+            Self::EmptyScope { side } => {
+                f.write_str("the scope of ")?;
+                side.of(sides)(f)?;
+                f.write_str(" names no face, so there is nothing to measure")
+            }
+            Self::Uncertified { a, b, shared, arm } => {
+                write!(f, "face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " touch through {}, and the {} certificate did not discharge them",
+                    shared.payload(),
+                    arm.name()
+                )
+            }
+            Self::CollapsedChart { face, side, vertex } => {
+                write!(f, "the chart of face {face:?} of ")?;
+                side.of(sides)(f)?;
+                write!(
+                    f,
+                    " collapses an edge to its vertex {vertex:?} near a touching pair, and the \
+                     monotone certificate reads no collapsed chart"
+                )
+            }
             Self::TorusNotRing {
                 face,
                 side,
                 refusal,
-            } => write!(
-                f,
-                "face {face:?} of {} lies on a torus not decided a ring (R > r > 0): {refusal}",
-                side.of(sides)
-            ),
+            } => {
+                write!(f, "face {face:?} of ")?;
+                side.of(sides)(f)?;
+                write!(
+                    f,
+                    " lies on a torus not decided a ring (R > r > 0): {refusal}"
+                )
+            }
         }
     }
 }
@@ -761,7 +788,13 @@ impl EngineRefusal {
 /// the second.
 impl core::fmt::Display for EngineRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, [&"the first side", &"the second side"])
+        self.say(
+            f,
+            [
+                &|f: &mut core::fmt::Formatter<'_>| f.write_str("the first side"),
+                &|f: &mut core::fmt::Formatter<'_>| f.write_str("the second side"),
+            ],
+        )
     }
 }
 
@@ -3456,7 +3489,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     // The box's range of a chart parameter that the carrier evaluates
     // as `origin + dir·v`: `Line::param`, correct for any `dir`.
     let along = |origin: Point3<Interval>, dir: Vec3<Interval>| -> (f64, f64) {
-        let d = geom::Line { origin, dir }.param(extent);
+        // `Line::param`'s coefficient, spelled out: `dir` is the chart's
+        // own, not a unit direction.
+        let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
     match stored {

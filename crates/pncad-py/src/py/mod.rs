@@ -334,7 +334,7 @@ pyo3::create_exception!(
      product slot's read, on `stranded_product`; `None` where the arm \
      does not carry them).\n\n\
      Its message names each node as the evaluation's own document \
-     holds it (kind, label and tag): the document the gather was taken \
+     holds it (its label and tag, or its kind and tag with no label): the document the gather was taken \
      of. `node` and `through` carry the full ids.\n\n\
      A product is the body the document's product slot reads, \
      gathered whole or not at all — there are no partial products."

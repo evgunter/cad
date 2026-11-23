@@ -174,6 +174,8 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use crate::Said;
+use crate::say;
 use geom_core::Tol;
 
 use crate::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
@@ -668,49 +670,56 @@ pub enum RangeRefusal {
     Drive(Box<DriveRefusal>),
 }
 
-impl core::fmt::Display for RangeRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for RangeRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::SeedNotABracket { lo, hi } => write!(
                 f,
                 "a seed brackets the field's current value: offsets [{lo}, {hi}] must be finite \
                  with lo <= 0 <= hi and some width"
             ),
-            Self::NotAContinuousParam { param } => write!(
+            Self::NotAContinuousParam { param } => say!(
                 f,
-                "{param} is not a continuous parameter of this document — there is no axis to \
+                by.var(param),
+                " is not a continuous parameter of this document — there is no axis to \
                  certify over"
             ),
             Self::UnknownNode { node } => {
-                write!(f, "this document has no {node}")
+                say!(f, "this document has no ", by.mention(node))
             }
             Self::UnknownSlot { node, slot } => {
-                write!(f, "{node} carries no {} slot", slot.label())
+                say!(
+                    f,
+                    by.mention(node),
+                    format_args!(" carries no {} slot", slot.label())
+                )
             }
-            Self::StructuralSlot { node, slot } => write!(
+            Self::StructuralSlot { node, slot } => say!(
                 f,
-                "the {} slot of {} is structural (Count) — a structural slot selects \
-                 between shapes and has no interval to certify over",
-                slot.label(),
-                node
+                format_args!("the {} slot of ", slot.label()),
+                by.mention(node),
+                " is structural (Count) — a structural slot selects \
+                 between shapes and has no interval to certify over"
             ),
-            Self::SlotIsDefined { node, slot } => write!(
+            Self::SlotIsDefined { node, slot } => say!(
                 f,
-                "the {} slot of {} reads a variable defined by a formula, which has no \
+                format_args!("the {} slot of ", slot.label()),
+                by.mention(node),
+                format_args!(
+                    " reads a variable defined by a formula, which has no \
                  interval of its own. {}",
-                slot.label(),
-                node,
-                crate::sentence::Recourse("certify the variables that formula reads instead")
+                    crate::sentence::Recourse("certify the variables that formula reads instead")
+                )
             ),
             // Every derived edit re-writes a value the document already
             // holds, or declares one over a validated seed, so the edit
             // door's recourse — about an edit nobody made — is not this
             // door's.
-            Self::Derivation(e) => write!(
+            Self::Derivation(e) => say!(
                 f,
-                "the derived document was refused: {}. {}",
-                e.problem(),
-                geom_core::KERNEL_DEFECT_ENDING
+                "the derived document was refused: ",
+                Said(&e.problem(), by),
+                format_args!(". {}", geom_core::KERNEL_DEFECT_ENDING)
             ),
             Self::SeedIsNotTheAnalyzedAxis {
                 analyzed: (analyzed_lo, analyzed_hi),
@@ -733,8 +742,15 @@ impl core::fmt::Display for RangeRefusal {
                  document {} asked about",
                 m.found, m.expected
             ),
-            Self::Drive(e) => write!(f, "{e}"),
+            Self::Drive(e) => say!(f, Said(&e, by)),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for RangeRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

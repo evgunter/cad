@@ -67,8 +67,8 @@ fn holds(body: &Body<f64>, cell: Cell, p: Point3<f64>, band: Band) -> bool {
                 panic!("a brick edge is a line: {:?}", c.carrier());
             };
             let (t0, t1) = c.params();
-            let t = (p - *origin).dot(*dir) / dir.dot(*dir);
-            let foot = *origin + *dir * t;
+            let t = (p - *origin).dot(dir.get()) / dir.get().dot(dir.get());
+            let foot = *origin + dir.get() * t;
             foot.distance(p) <= ON && t0.min(t1) + ON < t && t < t0.max(t1) - ON
         }
         Cell::Face(f) => {

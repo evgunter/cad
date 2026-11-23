@@ -38,7 +38,6 @@
 
 use std::sync::Arc;
 
-use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::MeetKind;
 use geom_brep::curve_pair::Span;
@@ -51,7 +50,6 @@ use crate::body::Body;
 use crate::contain::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::face_normal::NormalAtError;
-use crate::live::BoundaryMember;
 
 /// **Why [`overlap`] gave no answer.**
 #[derive(Clone, Debug)]
@@ -421,25 +419,19 @@ fn place<T: Decide>(
 /// outward normal from its first bound to its second.
 type Corner<T> = (Leaving<T>, Leaving<T>);
 
-/// Each loop of `face`, as its edge half-edges in walk order.
+/// Each loop of `face`, as its edge half-edges in walk order. A face
+/// with no outline, or one holding a lone ring (a boundary point no
+/// corner reading here places), is unread.
 fn loops<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
 ) -> Result<Vec<Vec<HalfEdgeKey>>, OverlapRefusal> {
+    let lone = OverlapRefusal::Unread(OverlapUnread::LoneVertex);
     let f = body.face(face).ok_or(OverlapRefusal::StaleFace { face })?;
-    let mut out = Vec::new();
-    for (_, members, _) in f.boundary_by_loop() {
-        let mut cycle = Vec::with_capacity(members.len());
-        for member in members {
-            match member {
-                BoundaryMember::Edge { he, .. } => cycle.push(he),
-                BoundaryMember::Isolated { .. } => {
-                    return Err(OverlapRefusal::Unread(OverlapUnread::LoneVertex));
-                }
-            }
-        }
-        out.push(cycle);
+    let area = f.area_loops().map_err(|_| lone.clone())?;
+    if !area.lone_rings().is_empty() {
+        return Err(lone);
     }
-    Ok(out)
+    Ok(area.cycles().map(|(lp, _)| lp.cycle()).collect())
 }
 
 /// The certified carrier and span of half-edge `he`'s edge.
@@ -571,11 +563,8 @@ fn half_plane<T: Decide>(
             .ok_or_else(torn)
     };
     let (at_t0, at_t1) = (vertex(v0)?, vertex(v1)?);
-    let reach = |ta: T, (tb, end): (T, Point3<T>)| match carrier {
-        geom::Curve3::Line(_) => {
-            LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))
-        }
-        _ => crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p),
+    let reach = |ta: T, (tb, end): (T, Point3<T>)| {
+        crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p)
     };
     let (ahead, behind) = if forward {
         ((t1, at_t1), (t0, at_t0))

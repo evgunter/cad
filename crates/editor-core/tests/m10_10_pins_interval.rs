@@ -213,6 +213,13 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 /// still takes. PCERT's closed-form bound (a stated harmonic image bounded by its residual's
 /// coefficients, main's `4121c920`) moves none of these counts: the stated images sit on moved
 /// copies whose certificates are carried, so none is metered again in the measuring frame.
+///
+/// **`line_span` is no longer asked.** Its eight, which A0 decided as
+/// comparisons of two rational constants, were the plate's rectangle
+/// read at its four corners' shared vertices, two a corner. Validation
+/// now takes an adjacent line pair's shared vertex by construction
+/// (`profile::seg`'s `line_line`), so the row pins that none is asked,
+/// with the algebra off or on.
 #[test]
 fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     let tol = Tol::witness();
@@ -258,13 +265,14 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
          on the negative frame to −1; the rim folds onto |r|, so every one of the 36 is a \
          THEOREM"
     );
-    assert_eq!(
-        row(&on, "line_span"),
-        [8, 0],
-        "the plate's eight `line_span` comparisons are between two rational CONSTANTS, \
-         which A0 decides exactly — THEOREMS, no value read \
-         (`work/decide/a0-leaves-max-and-min-of-constants-opaque`'s fix)"
-    );
+    for table in [&off, &on] {
+        assert!(
+            !table.contains_key("line_span"),
+            "the plate's only `line_span` decisions were its rectangle's four corners, two \
+             a corner; validation takes an adjacent line pair's shared vertex by construction \
+             (`profile::seg`'s `line_line`), so none is asked: {table:?}"
+        );
+    }
     for (p, before) in &off {
         let after = row(&on, p);
         assert!(

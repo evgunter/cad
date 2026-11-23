@@ -153,8 +153,7 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::live::BoundaryMember;
+use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::{decide, decide_nonzero, decide_positive};
 
@@ -315,6 +314,9 @@ pub enum ChartRegionError {
         /// The loop.
         r#loop: LoopKey,
     },
+    /// A face's outer loop is a lone vertex: the face has no outline,
+    /// so no region to read ([`crate::NoOutline`]).
+    NoOutline(crate::NoOutline),
     /// A loop's chart image has fewer than three straight segments, so it
     /// is no polygon the area test reads. Mixed: a loop collapsed in its
     /// structure beside one a periodic chart's wrap closes in one or two
@@ -458,6 +460,7 @@ impl ChartRegionError {
             | Self::WitnessCellCapExceeded { .. }
             | Self::EdgeScale
             | Self::FaceUncovered(_) => Ok(Refusal::Limit),
+            Self::NoOutline(_) => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::MissingCache { .. }
             | Self::CarrierTilt
             | Self::Corrupt
@@ -618,6 +621,12 @@ impl ChartRegionError {
                 f,
                 "chart-region: a face of the pair has no region to read its carriers over: \
                  {why}"
+            ),
+            Self::NoOutline(_) => write!(
+                f,
+                "chart-region: a face's outline is a single vertex, so the face bounds no \
+                 region to read. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::Corrupt => write!(
                 f,
@@ -1341,21 +1350,34 @@ fn pair_cover<T: Decide>(
     crate::cover::face_cover(body, face, band).map_err(ChartRegionError::FaceUncovered)
 }
 
-/// Every boundary vertex of a face, outer loop then rings, cycle order
-/// (fixed schedule, D9): [`crate::live::FaceView::boundary`], every hop past
-/// the face a link. A lone-vertex loop is refused, as a face that does
-/// not resolve is.
+/// Every boundary vertex of a face's region, outer loop then ring
+/// cycles, cycle order (fixed schedule, D9), one per half-edge as
+/// [`loop_uv_polygon`] images them: [`face_area`]'s cycles. A lone ring
+/// bounds no area and has no half-edge to pair.
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
-    let view = body.face(face).ok_or(ChartRegionError::Corrupt)?;
-    view.boundary()
-        .map(|member| match member {
-            BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
-            BoundaryMember::Edge { .. } => Ok(body.member_point(&member)),
+    Ok(face_area(body, face)?
+        .cycles()
+        .flat_map(|(lp, _)| lp.edges().into_iter().map(|m| m.point))
+        .collect())
+}
+
+/// `face`'s region ([`crate::FaceView::area_loops_unchecked`]): a face
+/// with no outline refused [`ChartRegionError::NoOutline`], and a face
+/// or loop that does not resolve or walk [`ChartRegionError::Corrupt`].
+fn face_area<T: geom_core::Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<crate::AreaLoops<'_, T>, ChartRegionError> {
+    body.face(face)
+        .ok_or(ChartRegionError::Corrupt)?
+        .area_loops_unchecked()
+        .map_err(|miss| match miss {
+            crate::live::AreaMiss::NoOutline(no) => ChartRegionError::NoOutline(no),
+            crate::live::AreaMiss::Torn(_) => ChartRegionError::Corrupt,
         })
-        .collect()
 }
 
 /// **`chart_region_carrier_tilt`** — the metered gate that turns
@@ -2719,17 +2741,14 @@ fn pcurve_entry<T: Decide + Bounds>(
 fn loop_uv_polygon<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
-    lk: LoopKey,
+    lp: crate::CycleLoop<'_, T>,
     surface: &Surface<T>,
     read: ChartRead,
     band: Band,
 ) -> Result<Vec<Point2<T>>, ChartRegionError> {
-    let loop_data = body.get_loop(lk).ok_or(ChartRegionError::Corrupt)?;
-    let LoopBoundary::Cycle { first } = loop_data.boundary else {
-        return Err(ChartRegionError::Corrupt); // an empty loop bounds no region
-    };
+    let lk = lp.key();
     let mut poly = Vec::new();
-    let cycle = body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)?;
+    let cycle = lp.cycle();
     // The minted rows as the loop's lift places them
     // ([`crate::Body::loop_lift`]); a loop with no lift reads as rowless
     // here, and each half refuses or derives below.
@@ -2794,11 +2813,11 @@ fn extract_face_uv<T: Decide + Bounds>(
     read: ChartRead,
     band: Band,
 ) -> Result<FaceUv<T>, ChartRegionError> {
-    let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
-    let outer = loop_uv_polygon(body, face, face_data.outer, surface, read, band)?;
-    let mut rings = Vec::with_capacity(face_data.rings.len());
-    for &rk in &face_data.rings {
-        rings.push(loop_uv_polygon(body, face, rk, surface, read, band)?);
+    let area = face_area(body, face)?;
+    let outer = loop_uv_polygon(body, face, area.outer(), surface, read, band)?;
+    let mut rings = Vec::new();
+    for (_, ring) in area.rings() {
+        rings.push(loop_uv_polygon(body, face, ring, surface, read, band)?);
     }
     Ok(FaceUv { outer, rings })
 }
@@ -3981,6 +4000,11 @@ mod tests {
                 r#loop: LoopKey::default(),
                 vertices: 2,
             },
+            ChartRegionErrorKind::NoOutline => ChartRegionError::NoOutline(crate::NoOutline {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+                vertex: crate::entity::VertexKey::default(),
+            }),
             ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
             ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
             ChartRegionErrorKind::WitnessSegmentCapExceeded => {
@@ -4032,6 +4056,7 @@ mod tests {
                 | ChartRegionErrorKind::WitnessCellCapExceeded
                 | ChartRegionErrorKind::EdgeScale
                 | ChartRegionErrorKind::FaceUncovered => Ok(Refusal::Limit),
+                ChartRegionErrorKind::NoOutline => Ok(crate::live::LONE_LOOP_REFUSAL),
                 ChartRegionErrorKind::MissingCache
                 | ChartRegionErrorKind::CarrierTilt
                 | ChartRegionErrorKind::Corrupt
@@ -5311,7 +5336,8 @@ mod tests {
         // refuse typed at the inventory gate.
         let bottom_he = {
             let face_data = body.get_face(wall).unwrap();
-            let LoopBoundary::Cycle { first } = body.get_loop(face_data.outer).unwrap().boundary
+            let crate::LoopBoundary::Cycle { first } =
+                body.get_loop(face_data.outer).unwrap().boundary
             else {
                 panic!("wall outer loop is a cycle");
             };

@@ -18,7 +18,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, EdgeView, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
@@ -162,7 +162,7 @@ pub fn face_nearest<T: Decide>(
     let Surface::Plane { frame, .. } = *f.surface() else {
         return near;
     };
-    let (origin, normal) = (frame.origin(), frame.axis());
+    let (origin, normal) = (frame.origin(), frame.axis_unit());
     let least = match *site {
         geom::cover::Site::Point(q) => geom::Line {
             origin,
@@ -170,7 +170,7 @@ pub fn face_nearest<T: Decide>(
         }
         .square_foot(q),
         geom::cover::Site::Line(geom::Line { origin: o, dir }) => {
-            o + dir * ((origin - o).dot(normal) / dir.dot(normal))
+            o + dir.get() * ((origin - o).dot(normal.get()) / dir.get().dot(normal.get()))
         }
     };
     let finite = [least.x, least.y, least.z]
@@ -314,9 +314,9 @@ fn face_cover_in<T: Decide>(
     let f = body.proven_face(face);
     let surface = f.surface();
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    // A lone-vertex outer loop bounds nothing: a ruled face holds no
-    // hull of it.
-    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
+    // A face with no outline bounds no region: no hull of its boundary
+    // holds it, and its carrier's cover is the one that does.
+    let bounded = f.area_loops().is_ok();
     match surface {
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
             carrier
@@ -556,6 +556,29 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     })
 }
 
+/// **How far apart two points of `face` stand at least**: the largest
+/// of its boundary edges' own extents from below
+/// ([`geom_brep::edge_extent_inf`], each edge a part of the face), the
+/// lever of a reading consumed over the face that claims a definite
+/// sign. `None` for a face with no certified boundary edge, whose
+/// points this reads none of.
+pub(crate) fn face_extent_below<T: SpanLocate>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<geom_core::Lever<T>> {
+    body.face(face)?
+        .boundary()
+        .filter_map(|member| match member {
+            BoundaryMember::Edge { edge, .. } => edge.certified(),
+            BoundaryMember::Isolated { .. } => None,
+        })
+        .map(|curve| {
+            let (t0, t1) = curve.params();
+            geom_brep::edge_extent_inf(curve.carrier(), t0, t1)
+        })
+        .reduce(geom_core::Lever::max)
+}
+
 /// **The boundary's cover**: each boundary edge's cover
 /// ([`edge_cover_linked`]), hulled with each isolated vertex and each
 /// placeholder's one point (a null edge whose two ends are one point,
@@ -677,7 +700,7 @@ pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 /// axis, reads its latitude zone.
 ///
 /// `face` resolved to `f` in the caller, so its outer loop and that
-/// loop's members are links ([`Body::loop_members_linked`]), and a
+/// loop's members are links ([`FaceView::area_loops`]), and a
 /// record the flattening of that loop names is one too: a flattening
 /// that refuses past a cycle loop is a torn body and panics
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
@@ -694,18 +717,14 @@ fn sphere_window<T: Decide>(
     let Surface::Sphere { frame, radius } = surface else {
         unreachable!("a sphere's window is read of a sphere")
     };
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
     if !radius.structure_positive() {
         return None;
     }
-    let (outer, outer_loop) = f.outer();
-    if matches!(
-        body.loop_members_linked(outer, outer_loop).as_slice(),
-        [BoundaryMember::Isolated { .. }]
-    ) {
+    let Ok(area) = f.area_loops() else {
         return None;
-    }
-    let outer = match crate::props::chart_image_edges(body, outer) {
+    };
+    let outer = match crate::props::chart_image_edges(area.outer()) {
         Ok((outer, _)) if outer.is_empty() => return None,
         Ok((outer, _)) => outer,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
@@ -732,7 +751,7 @@ fn sphere_window<T: Decide>(
             Ok(None) | Err(PointInSolidError::Escalated { .. }) => return Err(()),
             Err(refusal) => torn_outer_loop(body, f, refusal),
         };
-        let unit = UnitVec3::new(axis, SPHERE_AXIS, band).map_err(|_| ())?;
+        let unit = UnitVec3::new(axis.get(), SPHERE_AXIS, band).map_err(|_| ())?;
         Ok((trim, unit))
     })?;
     let pole = |sign: T| (sign * *radius, T::zero());
@@ -1173,7 +1192,8 @@ pub(crate) fn edge_reach_bounds<T: SpanLocate>(
 
 /// **How far a piece of an edge reaches from `pivot`, bounded from both
 /// sides**: the piece of `carrier` over `span` from a point inside the
-/// edge to one of its vertices (`overlap`'s half-turns), its region the
+/// edge to one of its vertices (`overlap`'s half-turns, `fate`'s
+/// straight corners), its region the
 /// edge cover's construction over the piece ([`edge_cover_over`]), read
 /// as [`edge_reach_bounds`] reads the whole edge's.
 pub(crate) fn piece_reach_bounds<T: SpanLocate>(

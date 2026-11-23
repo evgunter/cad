@@ -96,6 +96,7 @@
 //! write is not something this API can express, which is a stronger
 //! statement than one it does not perform.
 
+use crate::say;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -1035,7 +1036,7 @@ impl ParamBoxVerdict {
                 })
                 .collect();
             for (node, unsettled) in named {
-                let said = doc.spoken(node);
+                let said = crate::spoken::node_text(&doc.spoken(node));
                 let _ = match unsettled {
                     Unsettled::Undecided => writeln!(
                         s,
@@ -1245,13 +1246,17 @@ pub enum DriveRefusal {
     Stopped(crate::Stopped),
 }
 
-impl core::fmt::Display for DriveRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for DriveRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::WitnessDoesNotBuild { node, cause } => write!(
+            Self::WitnessDoesNotBuild { node, cause } => say!(
                 f,
-                "the witness build refuses at {node}: {cause} — there is no branch to certify \
+                "the witness build refuses at ",
+                by.mention(node),
+                format_args!(
+                    ": {cause} — there is no branch to certify \
                  leaves against until the nominal document builds"
+                )
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1259,6 +1264,13 @@ impl core::fmt::Display for DriveRefusal {
             ),
             Self::Stopped(stopped) => write!(f, "the drive stopped: {stopped}"),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for DriveRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1319,7 +1331,7 @@ pub(crate) fn does_not_build(
     let node = standing.node();
     let cause = built
         .node_error(node)
-        .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
+        .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc).to_string());
     Some(DriveRefusal::WitnessDoesNotBuild {
         node: doc.spoken(node),
         cause,
@@ -1823,7 +1835,7 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
                     deciding: node,
                     unsettled: Unsettled::Failed {
                         class: err.kind.class(),
-                        cause: err.kind_spoken(doc),
+                        cause: err.kind_spoken(doc).to_string(),
                     },
                 };
             }
@@ -2331,8 +2343,11 @@ mod tests {
             slotmap::SlotMap::with_key();
         let k1 = arena.insert(s1.map_scalar(lift));
         let k2 = arena.insert(s2.map_scalar(lift));
-        let carrier =
-            Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).map_scalar(lift);
+        let carrier = Curve3::line(
+            Point3::new(x, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        )
+        .map_scalar(lift);
         let (t0, t1) = (lift(0.0), lift(1.0));
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let spec = EdgeCurveSpec {

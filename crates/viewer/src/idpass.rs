@@ -39,6 +39,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::say;
 use pncad::document::{Doc, Evaluation, ProfileProgram, Said, Say, Speaker};
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -284,7 +285,7 @@ impl Say for IdAnswer {
     /// fact, since the index does name it. The id is `id N` in every
     /// arm that carries one, because it is one `u32` read out of the id
     /// buffer, whatever it turns out to denote.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Named(face) => PickedName::face(face).say(f, by),
             Self::Refused(fault) => fault.say(f, by),
@@ -296,7 +297,7 @@ impl Say for IdAnswer {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdAnswer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -362,12 +363,13 @@ impl Say for Disagreement {
     /// Destructured rather than field-read, so a third field added to
     /// [`Disagreement`] and left out of this sentence is E0027 rather
     /// than silently unsaid.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
-        write!(
+        say!(
             f,
-            "picking paths disagree at the cursor: id buffer {}, ray ",
-            Said(from_gpu, by)
+            "picking paths disagree at the cursor: id buffer ",
+            Said(from_gpu, by),
+            ", ray "
         )?;
         match &from_ray[..] {
             [] => f.write_str("nothing"),
@@ -389,7 +391,7 @@ impl Say for Disagreement {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for Disagreement {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -420,7 +422,9 @@ fn cursor_notice(news: &impl Say, landed: (&Doc<ProfileProgram>, &Evaluation<f64
     let (doc, evaluation) = landed;
     Message::new(
         Subject::Cursor,
-        Said(news, Speaker::of(doc).within(evaluation)).to_string(),
+        Said(news, Speaker::of(doc).within(evaluation))
+            .sentence()
+            .to_string(),
         Retold::Again,
     )
 }
@@ -453,12 +457,12 @@ impl Say for IdNews {
     /// word about the picture. The ray's refusal is not in the
     /// sentence: it is the ray path's news and is said in its own words
     /// ([`compare`]).
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Disagreement(disagreement) => disagreement.say(f, by),
-            Self::BesideRefusal { id } => write!(
+            Self::BesideRefusal { id } => say!(
                 f,
-                "id buffer at the cursor: {}",
+                "id buffer at the cursor: ",
                 Said(&IdAnswer::Hidden { id: *id }, by)
             ),
             Self::NoReadback(fault) => {
@@ -471,7 +475,7 @@ impl Say for IdNews {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdNews {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 

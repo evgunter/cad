@@ -2,11 +2,12 @@
 id: census-and-digest-pins-cost-a-fix-a-day-and-caught-eight-real-defects-in-a-month
 kind: issue
 title: Censuses, hand-kept rosters and digest/count pins went red 81 times in a month and caught 8 real defects; restructure each to its claim, or delete it
-status: open
+status: parked
 opened: 2026-11-22
 priority: P1
 cost: H
 refs: [a-stored-data-change-runs-none-of-the-slow-rows-that-read-it, dependents-slow-sets-skip-a-kernel-pr]
+blocked_on: [an-interval-endpoint-can-be-read-without-asking-whether-it-certified]
 ---
 
 Filed by the CIW orchestrator, 2026-11-22, on Ev's question in chat:
@@ -105,6 +106,14 @@ What would close it: every test named above either asserts its claim
 without an exact count, list or golden that an intended change moves, or
 is deleted with the reason; and the next month's census and pin reds are
 counted against this one's 81.
+
+## Progress (2026-11-23)
+
+Three families are done (PRs 7494, 7496, 7501): the text censuses and refusal-text pins, the hand-kept lists, and the digest and count goldens. Each test now asserts its claim, with counts as ceilings, lists derived, and digests fed by geometry with certificate residuals read only as finite. Witness pins stay only where an open defect row needs one.
+
+What remains is `geom-core/tests/certified_endpoint_census.rs` (15 reds, 3 real). It waits on SCALAR's `an-interval-endpoint-can-be-read-without-asking-whether-it-certified` (P1, design), which makes the census unnecessary. If that design is still far off, the cheap restructure in this row (red only on an unasked, undispositioned read) can go first.
+
+Count the next month's census and pin reds against this row's 81.
 
 ## Appendix: the classification
 

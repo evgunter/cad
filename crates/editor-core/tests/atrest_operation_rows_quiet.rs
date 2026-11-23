@@ -1487,7 +1487,7 @@ fn a_splits_unnamed_tool_is_named_by_a_free_name() {
             "{claim:?}"
         );
         assert!(
-            claim.said(by).contains("tool_3"),
+            claim.said(by).to_string().contains("tool_3"),
             "the sentence names the tool as its edits do: {}",
             claim.said(by)
         );
@@ -1509,7 +1509,8 @@ fn a_splits_unnamed_tool_is_named_by_a_free_name() {
     let by = editor_core::Speaker::of(&doc);
     for claim in first.iter().chain(&second) {
         assert!(
-            claim.said(by).contains("tool_2") && named_by(&doc, claim).as_deref() == Some("tool_2"),
+            claim.said(by).to_string().contains("tool_2")
+                && named_by(&doc, claim).as_deref() == Some("tool_2"),
             "each tool, found in this document, is tool_2 there: {}",
             claim.said(by)
         );
@@ -1552,17 +1553,14 @@ fn the_mint_takes_the_rows_own_order_first() {
             .unwrap_or_else(|| panic!("a {site:?} row"));
         let claim = quieting(doc, ev, &row, Tol::witness())
             .unwrap_or_else(|| panic!("{site:?}: the row carries a claim"));
-        assert_eq!(claim.measure, editor_core::MeasureVerb::Gap, "{site:?}");
-        let reads = |r: &editor_core::QuietingRef| match r {
-            editor_core::QuietingRef::Read(var) => *var,
-            editor_core::QuietingRef::Entity { read, .. } => *read,
-        };
+        assert_eq!(claim.measure(), editor_core::MeasureVerb::Gap, "{site:?}");
+        let reads = editor_core::QuietingRef::read;
         let input = |c: &NamedCell| match c {
             NamedCell::Entity { input, .. } | NamedCell::Tool { input, .. } => *input,
             NamedCell::Piece { .. } => panic!("a piece"),
         };
         assert_eq!(
-            claim.references.each_ref().map(reads),
+            claim.references().each_ref().map(reads),
             [input(&row.cells[0]), input(&row.cells[1])],
             "{site:?}: the claim reads the row's cells in the row's order"
         );

@@ -27,6 +27,7 @@
 //! nature; serializer failure is save-only; ε reconciliation is
 //! process state, not a document property.
 
+use crate::Said;
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
 use crate::doc::{
@@ -37,6 +38,8 @@ use crate::meta::MetaVersionError;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProgramRefusal};
+use crate::say;
+use crate::sentence;
 use crate::spoken::SpokenVar;
 use crate::spoken::{SpokenName, SpokenNode};
 use crate::var::{VarId, VarKind, VarRef};
@@ -71,8 +74,8 @@ pub enum NonFiniteSite {
 
 // The site prose. Each arm names WHERE the float sits, in the
 // vocabulary a document author reads.
-impl core::fmt::Display for NonFiniteSite {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for NonFiniteSite {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Epsilon => f.write_str("the recorded ε"),
             Self::DocParam {
@@ -83,9 +86,21 @@ impl core::fmt::Display for NonFiniteSite {
                 write!(f, "{}, {field}", SiteVar(var))
             }
             Self::Metadata { name, key, path } => {
-                write!(f, "metadata {key:?} on {name}, at {path}")
+                say!(
+                    f,
+                    format_args!("metadata {key:?} on "),
+                    Said(&name, by),
+                    format_args!(", at {path}")
+                )
             }
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for NonFiniteSite {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -624,7 +639,7 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 snapshot
                     .operation_of(*copy)
                     .and_then(|at| snapshot.node(at)),
-                Some(crate::Node::Place { .. } | crate::Node::InstantiatePart { .. })
+                Some(node) if node.makes_a_copy()
             )
         {
             return Some(PoseFault::NotACopy { var: *copy });
@@ -1622,33 +1637,45 @@ impl SnapshotError {}
 // invents a second vocabulary for a refusal that already has one. A
 // node or a name renders through its spoken `Display` (`SpokenNode`,
 // `SpokenName`), never a hand-rolled respelling.
-impl core::fmt::Display for SnapshotError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for SnapshotError {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeNotMinted { id } => write!(
+            Self::NodeNotMinted { id } => say!(
                 f,
-                "{id} is not in the document's mint log — the document never minted it",
+                by.mention(id),
+                " is not in the document's mint log — the document never minted it"
             ),
-            Self::StepIds { node, fault } => write!(f, "{node}'s step ids: {fault}"),
+            Self::StepIds { node, fault } => {
+                say!(f, by.mention(node), format_args!("'s step ids: {fault}"))
+            }
             Self::SectionIds { node, fault } => match fault {
-                SectionIdBreak::Unminted { section } => write!(
+                SectionIdBreak::Unminted { section } => say!(
                     f,
-                    "{node}'s section {section} carries no section id: the file was written \
+                    by.mention(node),
+                    format_args!(
+                        "'s section {section} carries no section id: the file was written \
                      before a loft's sections were minted, a format this build no longer \
                      reads. {}",
-                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                        crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                    )
                 ),
-                SectionIdBreak::NotMinted { section } => write!(
+                SectionIdBreak::NotMinted { section } => say!(
                     f,
-                    "{node} spells the section id {section}, which the document's mint log does \
+                    by.mention(node),
+                    format_args!(
+                        " spells the section id {section}, which the document's mint log does \
                      not hold as a section's — the document never minted it. {}",
-                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                        geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                    )
                 ),
-                SectionIdBreak::Repeated { section } => write!(
+                SectionIdBreak::Repeated { section } => say!(
                     f,
-                    "{node}'s section id {section} stands for a second section in the document, \
+                    by.mention(node),
+                    format_args!(
+                        "'s section id {section} stands for a second section in the document, \
                      which no mint writes. {}",
-                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                        geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                    )
                 ),
             },
             Self::MintLogOrder { entry } => write!(
@@ -1657,180 +1684,286 @@ impl core::fmt::Display for SnapshotError {
                  place in the log (a repeat, a step down or a gap), which no mint writes. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
-            Self::NameReadNotMinted { name, read } => write!(
+            Self::NameReadNotMinted { name, read } => say!(
                 f,
-                "{name} carries the read {read}, which the document's mint log does not hold \
-                 as a variable's — the document never minted it",
+                Said(&name, by),
+                format_args!(
+                    " carries the read {read}, which the document's mint log does not hold \
+                 as a variable's — the document never minted it"
+                )
             ),
-            Self::AppearanceReadNotABody { name, read } => write!(
+            Self::AppearanceReadNotABody { name, read } => say!(
                 f,
-                "an appearance entry on {name} is read in {read}, which the document holds as \
+                "an appearance entry on ",
+                Said(&name, by),
+                format_args!(
+                    " is read in {read}, which the document holds as \
                  no output holding a body, so no table names what it holds. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                )
             ),
-            Self::NameStepNotMinted { name, step } => write!(
+            Self::NameStepNotMinted { name, step } => say!(
                 f,
-                "{name} spells the profile step id {step}, which the document's mint log \
-                 does not hold — the document never minted it",
+                Said(&name, by),
+                format_args!(
+                    " spells the profile step id {step}, which the document's mint log \
+                 does not hold — the document never minted it"
+                )
             ),
             // A document written before operands were reads holds a
             // node id in every operand, which the log holds as a node.
-            Self::OperandUnminted { node, slot, var } => write!(
+            Self::OperandUnminted { node, slot, var } => say!(
                 f,
-                "{node}'s {slot} reads {var}, which the document's mint log does not hold as a \
+                by.mention(node),
+                format_args!("'s {slot} reads "),
+                by.var(var),
+                format_args!(
+                    ", which the document's mint log does not hold as a \
                  variable — the document never minted it, or was written before an operand \
                  was a read. {}",
-                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                )
             ),
-            Self::PlacementReadsNoSource { node, read } => write!(
+            Self::PlacementReadsNoSource { node, read } => say!(
                 f,
-                "{node} reads {read} as its source directly, and a placement reads its body \
+                by.mention(node),
+                " reads ",
+                by.var(read),
+                format_args!(
+                    " as its source directly, and a placement reads its body \
                  through a source. {}",
-                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                )
             ),
-            Self::SourceReadKind { var, found } => write!(
+            Self::SourceReadKind { var, found } => say!(
                 f,
-                "{var} is a source reading {} {found}, and a source reads one body",
-                crate::sentence::article(&found.to_string())
+                by.var(var),
+                format_args!(
+                    " is a source reading {} {found}, and a source reads one body",
+                    crate::sentence::article(&found.to_string())
+                )
             ),
-            Self::SourceReadRank { var, found, rank } => write!(
+            Self::SourceReadRank { var, found, rank } => say!(
                 f,
-                "{var} is a source reading a member by {found} {}, where its family has {rank}, \
+                by.var(var),
+                format_args!(
+                    " is a source reading a member by {found} {}, where its family has {rank}, \
                  and a member is read at its family's rank",
-                if *found == 1 { "index" } else { "indices" }
+                    if *found == 1 { "index" } else { "indices" }
+                )
             ),
             Self::SelectionShape { var, fault } => {
-                write!(f, "{var} is not a selection a door writes: {fault}")
+                say!(
+                    f,
+                    by.var(var),
+                    format_args!(" is not a selection a door writes: {fault}")
+                )
             }
-            Self::PoseShape { var, fault } => write!(
+            Self::PoseShape { var, fault } => say!(
                 f,
-                "{var} is not a pose a door writes: {fault}. {}",
-                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                by.var(var),
+                format_args!(
+                    " is not a pose a door writes: {fault}. {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                )
             ),
             Self::SelectionBody { var, fault } => match fault {
-                SelectionBodyFault::Unminted { body } => write!(
+                SelectionBodyFault::Unminted { body } => say!(
                     f,
-                    "{var} selects in {body}, which the document's mint log does not hold as a \
+                    by.var(var),
+                    format_args!(
+                        " selects in {body}, which the document's mint log does not hold as a \
                      variable. {}",
-                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                        crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                    )
                 ),
                 SelectionBodyFault::Kind { body, found } => {
-                    write!(
+                    say!(
                         f,
-                        "{var} selects in {body}, which is {} {found}, not a body",
-                        crate::sentence::article(&found.to_string())
+                        by.var(var),
+                        sentence!(
+                            " selects in ",
+                            by.var(body),
+                            format_args!(
+                                ", which is {} {found}, not a body",
+                                crate::sentence::article(&found.to_string())
+                            )
+                        )
                     )
                 }
-                SelectionBodyFault::Index { k, index, found } => write!(
+                SelectionBodyFault::Index { k, index, found } => say!(
                     f,
-                    "{var} selects in a member at index {k}, {index}, which is {} {found}, not a \
+                    by.var(var),
+                    sentence!(
+                        format_args!(" selects in a member at index {k}, "),
+                        by.var(index),
+                        format_args!(
+                            ", which is {} {found}, not a \
                      count",
-                    crate::sentence::article(&found.to_string())
+                            crate::sentence::article(&found.to_string())
+                        )
+                    )
                 ),
             },
-            Self::ReadCycle { at } => write!(
+            Self::ReadCycle { at } => say!(
                 f,
-                "the nodes' reads close a loop through {at} — no edit writes one. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                "the nodes' reads close a loop through ",
+                by.mention(at),
+                format_args!(
+                    " — no edit writes one. {}",
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                )
             ),
             Self::WitnessSite { node } => {
-                write!(f, "a witness is attached to {node}, which bears no sketch")
+                say!(
+                    f,
+                    "a witness is attached to ",
+                    by.mention(node),
+                    ", which bears no sketch"
+                )
             }
             Self::WitnessOnMissingNode { node } => {
-                write!(f, "a witness is attached to {node}, which is not live")
+                say!(
+                    f,
+                    "a witness is attached to ",
+                    by.mention(node),
+                    ", which is not live"
+                )
             }
             Self::LabelOnMissingNode { node } => {
-                write!(f, "a label is attached to {node}, which is not live")
+                say!(
+                    f,
+                    "a label is attached to ",
+                    by.mention(node),
+                    ", which is not live"
+                )
             }
-            Self::VarKind { var, kind, def } => write!(
+            Self::VarKind { var, kind, def } => say!(
                 f,
-                "{var} is stored as kind {kind} and its definition is of kind {def}"
+                by.var(var),
+                format_args!(" is stored as kind {kind} and its definition is of kind {def}")
             ),
-            Self::VarNotMinted { var } => write!(
+            Self::VarNotMinted { var } => say!(
                 f,
-                "{var} is not in the document's mint log — the document never \
+                by.var(var),
+                " is not in the document's mint log — the document never \
                  minted it"
             ),
             Self::OutputSignature { node, fault } => match &**fault {
                 OutputFault::NodeAbsent { var } => {
-                    write!(
+                    say!(
                         f,
-                        "{var} is stored as an output of {node}, which is not live"
+                        by.var(var),
+                        " is stored as an output of ",
+                        by.mention(node),
+                        ", which is not live"
                     )
                 }
-                OutputFault::PortOutside { var, port, ports } => write!(
+                OutputFault::PortOutside { var, port, ports } => say!(
                     f,
-                    "{var} is stored as port {port} of {node}, whose signature has {ports} \
+                    by.var(var),
+                    format_args!(" is stored as port {port} of "),
+                    by.mention(node),
+                    format_args!(
+                        ", whose signature has {ports} \
                      port(s)"
+                    )
                 ),
                 OutputFault::Kind {
                     var,
                     port,
                     stored,
                     signature,
-                } => write!(
+                } => say!(
                     f,
-                    "{var} is stored as {} {stored}, and the {port} port of {node} defines \
+                    by.var(var),
+                    format_args!(
+                        " is stored as {} {stored}, and the {port} port of ",
+                        crate::sentence::article(&stored.to_string())
+                    ),
+                    by.mention(node),
+                    format_args!(
+                        " defines \
                      {} {signature}",
-                    crate::sentence::article(&stored.to_string()),
-                    crate::sentence::article(&signature.to_string())
+                        crate::sentence::article(&signature.to_string())
+                    )
                 ),
                 OutputFault::Twice {
                     port,
                     first,
                     second,
-                } => write!(
+                } => say!(
                     f,
-                    "{first} and {second} are both stored as the {port} port of {node}"
+                    by.var(first),
+                    sentence!(
+                        " and ",
+                        by.var(second),
+                        format_args!(" are both stored as the {port} port of ")
+                    ),
+                    by.mention(node)
                 ),
                 // A file written before operations defined variables lacks
                 // every output, and only a current build can mint them.
-                OutputFault::Missing { port } => write!(
+                OutputFault::Missing { port } => say!(
                     f,
-                    "{node} defines a {port} port and no variable is stored for it. {}",
-                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                    by.mention(node),
+                    format_args!(
+                        " defines a {port} port and no variable is stored for it. {}",
+                        crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                    )
                 ),
             },
-            Self::AnonymousVarUnread { var } => write!(
+            Self::AnonymousVarUnread { var } => say!(
                 f,
-                "{var} has no name and nothing reads it, and a variable with no name is one \
+                by.var(var),
+                " has no name and nothing reads it, and a variable with no name is one \
                  something reads"
             ),
-            Self::SharedVarNeedsName { var } => write!(
+            Self::SharedVarNeedsName { var } => say!(
                 f,
-                "{var} has no name and more than one reader, and a variable with no name has \
+                by.var(var),
+                format_args!(
+                    " has no name and more than one reader, and a variable with no name has \
                  exactly one. {}",
-                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                )
             ),
-            Self::DefinitionReadsUnmintedVar { var, read } => write!(
+            Self::DefinitionReadsUnmintedVar { var, read } => say!(
                 f,
-                "the definition of {var} reads variable {read}, which the document never \
+                "the definition of ",
+                by.var(var),
+                format_args!(
+                    " reads variable {read}, which the document never \
                  minted"
+                )
             ),
             Self::DefinitionVarKind {
                 var,
                 read,
                 declared,
                 referenced,
-            } => write!(
+            } => say!(
                 f,
-                "{}",
-                crate::edit::DefinitionVarKindSentence {
-                    var,
-                    read,
-                    declared: *declared,
-                    referenced: *referenced,
-                }
+                Said(
+                    &crate::edit::DefinitionVarKindSentence {
+                        var,
+                        read,
+                        declared: *declared,
+                        referenced: *referenced,
+                    },
+                    by
+                )
             ),
-            Self::DefinitionCycle { var, through } => write!(
+            Self::DefinitionCycle { var, through } => say!(
                 f,
-                "{}",
-                crate::edit::DefinitionCycleSentence { var, through }
+                Said(&crate::edit::DefinitionCycleSentence { var, through }, by)
             ),
-            Self::DefinitionTooLarge { var, nodes } => write!(
+            Self::DefinitionTooLarge { var, nodes } => say!(
                 f,
-                "{}",
-                crate::edit::DefinitionTooLargeSentence { var, nodes: *nodes }
+                Said(
+                    &crate::edit::DefinitionTooLargeSentence { var, nodes: *nodes },
+                    by
+                )
             ),
             Self::NameOnMissingVar { var, name } => write!(
                 f,
@@ -1842,29 +1975,44 @@ impl core::fmt::Display for SnapshotError {
                  within a document"
             ),
             Self::PickPath { var, at } => {
-                write!(f, "{}", crate::edit::PicksNoPiece(var, *at))
+                say!(f, crate::edit::PicksNoPiece(by.var(var), *at))
             }
             Self::ProductRead { read, fault } => {
-                write!(f, "the product slot reads {read}, and {fault}")
+                say!(
+                    f,
+                    format_args!("the product slot reads {read}, and "),
+                    Said(&fault, by)
+                )
             }
             Self::EpsilonInvalid { value, k } => write!(
                 f,
                 "the recorded ε {value:e} is not admissible: {}",
                 geom_core::tolerance::EpsFloor { k: *k }
             ),
-            Self::ConstraintNotMinted { node, constraint } => write!(
+            Self::ConstraintNotMinted { node, constraint } => say!(
                 f,
-                "{node}'s constraint {constraint} was minted as no constraint's id, or is held \
+                by.mention(node),
+                format_args!(
+                    "'s constraint {constraint} was minted as no constraint's id, or is held \
                  twice"
+                )
             ),
             Self::MateRefused {
                 node,
                 constraint,
                 fault,
-            } => write!(f, "{node}'s constraint {constraint} is refused: {fault}"),
-            Self::ReaderOfUnmintedVar { node, var } => write!(
+            } => say!(
                 f,
-                "{node} reads variable {var}, which this document never minted"
+                by.mention(node),
+                sentence!(
+                    format_args!("'s constraint {constraint} is refused: "),
+                    Said(&fault, by)
+                )
+            ),
+            Self::ReaderOfUnmintedVar { node, var } => say!(
+                f,
+                by.mention(node),
+                format_args!(" reads variable {var}, which this document never minted")
             ),
             Self::SlotVarKind {
                 node,
@@ -1873,16 +2021,25 @@ impl core::fmt::Display for SnapshotError {
                 found,
                 expected,
             } => match expected {
-                crate::SlotKind::Is(kind) if let Some(referenced) = kind.dimension() => write!(
+                crate::SlotKind::Is(kind) if let Some(referenced) = kind.dimension() => say!(
                     f,
-                    "{node}: slot {} reads {var} as {} {referenced}, and it is declared {found}",
-                    slot.label(),
-                    referenced.article()
+                    by.mention(node),
+                    format_args!(": slot {} reads ", slot.label()),
+                    by.var(var),
+                    format_args!(
+                        " as {} {referenced}, and it is declared {found}",
+                        referenced.article()
+                    )
                 ),
-                _ => write!(
+                _ => say!(
                     f,
-                    "{node}'s {slot} reads {var}, which is {} {found}, where it takes {expected}",
-                    crate::sentence::article(&found.to_string()),
+                    by.mention(node),
+                    format_args!("'s {slot} reads "),
+                    by.var(var),
+                    format_args!(
+                        ", which is {} {found}, where it takes {expected}",
+                        crate::sentence::article(&found.to_string())
+                    )
                 ),
             },
             Self::PayloadVarKind {
@@ -1890,15 +2047,22 @@ impl core::fmt::Display for SnapshotError {
                 var,
                 declared,
                 referenced,
-            } => write!(
+            } => say!(
                 f,
-                "{node}: its payload expression reads {var} as {} {referenced}, and it is \
+                by.mention(node),
+                ": its payload expression reads ",
+                by.var(var),
+                format_args!(
+                    " as {} {referenced}, and it is \
                  declared {declared}",
-                referenced.article()
+                    referenced.article()
+                )
             ),
-            Self::InputList { node, fault } => write!(f, "{node}: {fault}"),
+            Self::InputList { node, fault } => {
+                say!(f, by.mention(node), format_args!(": {fault}"))
+            }
             Self::LoftShape { node, fault } => {
-                fault.problem(f, node)?;
+                fault.problem(f, by.mention(node))?;
                 write!(
                     f,
                     ". {}",
@@ -1909,23 +2073,39 @@ impl core::fmt::Display for SnapshotError {
                 node,
                 measured,
                 bound,
-            } => write!(
+            } => say!(
                 f,
-                "{node} bounds {} {measured} value with {} {bound} expression",
-                measured.article(),
-                bound.article()
+                by.mention(node),
+                format_args!(
+                    " bounds {} {measured} value with {} {bound} expression",
+                    measured.article(),
+                    bound.article()
+                )
             ),
-            Self::ObservedRead { node, slot, var } => write!(
+            Self::ObservedRead { node, slot, var } => say!(
                 f,
-                "{node}'s slot {} reads {var}, a measured value, which only an assertion reads",
-                slot.label()
+                by.mention(node),
+                format_args!("'s slot {} reads ", slot.label()),
+                by.var(var),
+                ", a measured value, which only an assertion reads"
             ),
-            Self::MetadataUnversioned { name, key, error } => write!(
+            Self::MetadataUnversioned { name, key, error } => say!(
                 f,
-                "metadata {key:?} on {name} does not carry an integer \
+                format_args!("metadata {key:?} on "),
+                Said(&name, by),
+                format_args!(
+                    " does not carry an integer \
                  \"v\" version field: {error}"
+                )
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for SnapshotError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -2790,7 +2970,7 @@ mod tests {
                 assert_eq!(node.label().map(crate::Label::as_str), Some("outline"));
                 let said = e.to_string();
                 assert!(
-                    said.contains(&format!("Profile \"outline\" ({profile})'s program: ")),
+                    said.contains(&format!("\"outline\" ({profile})'s program: ")),
                     "{said}"
                 );
             }
@@ -2832,7 +3012,7 @@ mod tests {
                 let said = e.to_string();
                 assert!(
                     said.contains(&format!(
-                        "metadata \"swatch\" on the face of Profile \"outline\" \
+                        "metadata \"swatch\" on the face of \"outline\" \
                          ({profile})"
                     )),
                     "{said}"

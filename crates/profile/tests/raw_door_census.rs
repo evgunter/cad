@@ -674,10 +674,14 @@ fn every_crate_that_names_the_door_reaches_it() {
 /// — and when that mutation was applied, every row in this file, the
 /// façade's root-export census and `seal.rs` all stayed green.
 ///
-/// So the type's public method set is PINNED. A method that reads is
-/// welcome and costs one line here; a method that MINTS a loop from
-/// data is the thing the Q1 ruling retired, and the line it costs is
-/// where someone has to argue for it.
+/// So every public inherent fn on the type takes a receiver: a method
+/// reads or derives from a loop that already exists, and an associated
+/// fn with no `self` is a constructor, the authoring tier the Q1 ruling
+/// retired.
+///
+/// **What this cannot see**: a receiver method that mints from a table
+/// it is handed (`with_vertices(&self, v)`), which takes `self` and
+/// reads nothing of it. Telling that from a reader is reading the body.
 #[test]
 fn the_types_public_surface_mints_nothing() {
     let text = std::fs::read_to_string(repo_root().join("crates/profile/src/lib.rs"))
@@ -686,14 +690,15 @@ fn the_types_public_surface_mints_nothing() {
 
     // The inherent impl blocks on the type, by their opening lines; the
     // trait impl inside the macro is not one of them.
-    let mut found: Vec<String> = Vec::new();
+    let lines: Vec<&str> = view.lines().collect();
+    let mut found: Vec<(String, bool)> = Vec::new();
     let mut inside = false;
-    for line in view.lines() {
+    for (i, line) in lines.iter().enumerate() {
         if line.starts_with("impl ProfileLoop<") || line.starts_with("impl<T: Real> ProfileLoop<") {
             inside = true;
             continue;
         }
-        if inside && line == "}" {
+        if inside && *line == "}" {
             inside = false;
             continue;
         }
@@ -702,34 +707,46 @@ fn the_types_public_surface_mints_nothing() {
                 .chars()
                 .take_while(|c| c.is_alphanumeric() || *c == '_')
                 .collect();
-            found.push(name);
+            // The first parameter: after the `(` on this line, or on the
+            // next line once rustfmt wraps the signature.
+            let after = rest.split_once('(').map_or("", |(_, p)| p).trim_start();
+            let first = if after.is_empty() {
+                lines.get(i + 1).map_or("", |l| l.trim_start())
+            } else {
+                after
+            };
+            // `self`, `&self`, `&'a mut self`, `self: Box<Self>`: the
+            // receiver is the word `self` itself, not a name starting so.
+            let first = first.trim_start_matches('&').trim_start();
+            let first = match first.strip_prefix('\'') {
+                Some(rest) => rest
+                    .trim_start_matches(|c: char| c.is_alphanumeric() || c == '_')
+                    .trim_start(),
+                None => first,
+            };
+            let first = first.strip_prefix("mut ").unwrap_or(first).trim_start();
+            let word: String = first
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            found.push((name, word == "self"));
         }
     }
-    found.sort();
     assert!(
         !found.is_empty(),
         "the scanner found no inherent methods on ProfileLoop — the impl \
          blocks were re-spelled and this row is reading nothing"
     );
-
-    // READERS hand back what is already stored; `map_scalar` is the
-    // materialization door (a loop that already exists, at another
-    // scalar); `reversed` derives from an existing loop. None of them
-    // takes a vertex table.
-    let pinned = [
-        "directions",
-        "map_scalar",
-        "reversed",
-        "segments",
-        "vertices",
-    ];
-    assert_eq!(
-        found, pinned,
-        "the public surface of `ProfileLoop` moved.\n  \
-         found:  {found:?}\n  pinned: {pinned:?}\n\
-         A method that READS is welcome — add its name here. A method \
-         that MINTS a loop from a vertex table is the authoring tier \
-         coming back as an inherent method, where the raw door's gate \
-         cannot reach it: that is a ruling, not an edit."
+    let constructors: Vec<&String> = found
+        .iter()
+        .filter(|(_, takes_self)| !takes_self)
+        .map(|(name, _)| name)
+        .collect();
+    assert!(
+        constructors.is_empty(),
+        "`ProfileLoop` has a public associated fn with no receiver: {constructors:?}. A \
+         method that READS or derives from a loop is welcome. One that MINTS a loop from a \
+         vertex table is the authoring tier coming back as an inherent method, where the \
+         raw door's gate cannot reach it: that is a ruling, not an edit."
     );
 }

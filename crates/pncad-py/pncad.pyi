@@ -216,7 +216,8 @@ class EvaluationError(PncadError):
     (attributes never go missing).
 
     The message speaks the failed node as the document holds it: its
-    kind, its label and its tag, `Extrude "base plate" (3fa9c1d2a0b1)`.
+    label and its tag, `"base plate" (3fa9c1d2a0b1)`, or its kind and
+    tag when it has no label, `Extrude 3fa9c1d2a0b1`.
     It is read off the document the evaluation is OF, the one
     `evaluate` was handed. So a label set after `evaluate` shows on the
     next evaluation, not on this one's errors. `node` is the `NodeId`,
@@ -695,7 +696,7 @@ class ProductError(PncadError):
     or not at all — there are no partial products.
 
     Its message names each node as the evaluation's own document holds
-    it (kind, label and tag): the document the gather was taken of.
+    it (its label and tag, or its kind and tag with no label): the document the gather was taken of.
     `node` and `through` carry the full ids: a failed or poisoned
     operation and the failed node that poisoned it. `empty_product` is
     a slot reading nothing; `stranded_product` a slot whose body is
@@ -1120,7 +1121,7 @@ class McRefusal(PncadError):
     estimate (`no_samples`). Or the document does not build at its
     nominal, so there is nothing to replay
     (`nominal_does_not_build`, with `node` and `cause`). Its message
-    speaks that node as the document holds it, kind, label and tag;
+    speaks that node as the document holds it, label and tag (kind and tag with no label);
     `node` keeps the full id. Or an evaluation the run made — its
     nominal build or a sample — stopped short (`stopped`): this door
     takes no `cancel=`, so it ran out of its member budget, the budget
@@ -2393,6 +2394,22 @@ class Node:
         Its result reads like any body. A `subtract` cutting it, or an
         `intersect` meeting it, acts on each piece and keeps what it
         made as pieces: `(p ⊔ q) − t` is `(p − t) ⊔ (q − t)`."""
+
+    @staticmethod
+    def datum(
+        target: _SpaceArg,
+        constraints: Optional[_BundleArg] = None,
+    ) -> Node:
+        """A datum: a placement whose source is nothing, placing a bare
+        frame into `target` by `constraints`, written whole as
+        `Node.place`'s are; `None` stands the frame at the space's
+        origin, by the identity bundle. Its one output is the frame
+        (`Doc.output(node)`): read a plane or an axis off it through a
+        role (`RoleRead(frame, "xy")`). A mate of its bundle reads the
+        datum's own frame on its `on` side, plainly or through its
+        `"xy"` plane, `"z"` axis or `"origin"`, so it is written once
+        the datum is (`DocEdit.set_constraints`); any other `on` refuses
+        `mate_not_the_datums_own`."""
 
     @staticmethod
     def space() -> Node:
@@ -4295,8 +4312,8 @@ class Doc:
         The vocabulary, in full: `profile`, `extrude`, `revolve`,
         `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
         `shell`, `split`, `mirror`, `union`, `intersect`, `assemble`,
-        `subtract`, `place`, `world`, `space`, `instantiate_part`,
-        `measure`, `assertion`.
+        `subtract`, `place`, `datum`, `world`, `space`,
+        `instantiate_part`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         placement and a union all evaluate to a value whose
@@ -5250,7 +5267,8 @@ class Body:
         A measurement that cannot be made raises `ValidationError` with
         `reason == "mass_properties_failed"` and `measure_refusal`
         naming which: `"face"`, `"ring_on_curved_face"`, `"corrupt"`,
-        `"null_scaffold_edge"` or `"band"` (no enclosure),
+        `"null_scaffold_edge"`, `"no_outline"` (a face whose outline is a
+        single vertex) or `"band"` (no enclosure),
         `"poisoned"` (the predicate's margin could not be read),
         `"resolution_finer_than_eps"`, `"empty_contains"` (a
         `Settle.contains` whose `lo` is above its `hi`), or
@@ -6319,10 +6337,12 @@ class Mate:
     a node.
 
     `on` is a pose read off the copied shapes' geometry — a `PoseDef`
-    over one of the placement's shapes, or over the instance itself.
-    `to` is a pose of the space the copy joins (a `PoseDef`, or a pose
-    variable), read off geometry there: a mate reads only geometry,
-    never the world's frame. The kind is the primitive: plane to
+    over one of the placement's shapes, or over the instance itself — or,
+    for a datum, the datum's own frame, plainly or as a `RoleRead` of
+    its `"xy"` plane, `"z"` axis or `"origin"`. `to` is a pose of the
+    space the copy joins (a `PoseDef`, a pose variable, or a `RoleRead`
+    of a frame there, a datum's among them): a mate reads only what is
+    placed or built there, never the world's frame. The kind is the primitive: plane to
     plane rests, axis to axis is coaxial, frame to frame coincides,
     point to point is a ball, direction to direction is parallel. A
     plain plane mate equates outward normals, so two faces resting
@@ -6344,17 +6364,19 @@ class Mate:
 
     def __init__(
         self,
-        on: _Operand,
-        to: _Operand,
+        on: _PoseRead,
+        to: _PoseRead,
         *,
         orient: Optional[Orientation] = None,
     ) -> None: ...
     @property
-    def on(self) -> PoseDef:
-        """The copy's pose, as written."""
+    def on(self) -> PoseDef | RoleRead:
+        """The copy's pose, as written: a `RoleRead` where it reads
+        through a role."""
     @property
-    def to(self) -> PoseDef:
-        """The pose the copy's is equated with."""
+    def to(self) -> PoseDef | RoleRead:
+        """The pose the copy's is equated with: a `RoleRead` where it
+        reads through a role."""
     @property
     def orient(self) -> Orientation:
         """The orientation, as written."""
@@ -7453,16 +7475,19 @@ class Coincidence:
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
-    `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
-    `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
-    `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
+    `tangent`, `cusp`, `surface_tangent`, `rim_junction`, `coaxial`,
+    `same_radius`, `axes_meet`, `co_ruled` or `meet`; `site` is
+    `plane_ladder`, `carrier_ladder`, `tangent_witness`, `rim_junction`,
+    `coaxial_sphere`, `sphere_on_torus_axis`,
     `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or
     `smooth_join`. A `profile_junction` row is `tangent` or `cusp`
     between two carriers and `same_oriented` where its two pieces
     continue one carrier; a `tangent_witness` row is `surface_tangent`,
-    claiming nothing of the materials. `rung` is the door's rung that
+    claiming nothing of the materials, and a `rim_junction` row is
+    `rim_junction`, two faces that end on one rim joined there smoothly,
+    with no touch claimed along it. `rung` is the door's rung that
     proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a
