@@ -406,7 +406,7 @@ fn two_boxes(low_first: bool) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![low_placed.into(), tall_placed.into()]),
+            members: editor_core::Bodies::spelled(vec![low_placed.into(), tall_placed.into()]),
         },
     );
     (doc, low, tall, union)

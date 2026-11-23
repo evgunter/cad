@@ -2,12 +2,13 @@
 id: two-quantities-of-one-sentence-told-apart-can-read-in-two-units
 kind: issue
 title: Two quantities of one sentence told through separate doors can read in two units
-status: open
+status: closed
 opened: 2026-11-20
 priority: P2
 cost: M
 parent: patherror-display-renders-float-noise
 rides_with: a-number-in-a-unit-is-rounded-once
+closed: 2026-11-21
 ---
 
 
@@ -40,3 +41,7 @@ it.
 ## Decided
 
 Ev, PR 7261 (2026-11-21): settled by `a-number-in-a-unit-is-rounded-once`, which this row rides with and which builds the answer.
+
+## Closed
+
+Built by `a-number-in-a-unit-is-rounded-once`: every unit says every quantity, so the unit a quantity is told in depends only on the reader's notation and its dimension, and two quantities of one sentence through separate doors read in one unit. The one quantity told in metres in every notation is the tolerance, as ratified. A compared pair of two dimensions no longer constructs (`Told::beside` panics: a builder's bug), and a position's coordinates must be of one dimension. The viewer's `valid from 1e307 mm … up to 1e306 m` reads `… up to 1e309 mm`; the row there is the viewer's, and its test is re-baselined in the same PR.
