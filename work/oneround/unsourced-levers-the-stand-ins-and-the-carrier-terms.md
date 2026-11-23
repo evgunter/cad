@@ -2,12 +2,14 @@
 id: unsourced-levers-the-stand-ins-and-the-carrier-terms
 kind: unit
 title: The unsourced arms that are not a lever at all: a tolerance or rounding standing in for an arm, and a carrier's stored term, each re-posed by the role its length plays
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: H
 parent: unsourced-levers-await-a-source
 branch: oneround/unsourced-stand-ins
+closed: 2026-11-23
+pr: 7268
 ---
 
 
@@ -34,3 +36,12 @@ Each site checked before it was changed; corrections to the classification above
 - **`fate` `sign` is two quantities.** At `bisector` it is the bounds' sum, a sine-like reading with a lever in hand (the bounds' reaches); at `tip_wraps` it is a count of half-turns, an integer plus an `atan2` sum's rounding.
 - **The joint room's `d − 2ε` is a length and a stand-off**, not a rounding: the decided quantity is a quarter of the vertex's parallel's chord, `d·sin(step/4)/2` with the step a fixed half or whole period, a length times a constant (`Margin::of`); the ends' `2ε` stand-off is the band's (`Band::padded`).
 - **`intersect`'s five quotients, `join`'s slack and `validate`'s `resolved` are not stand-ins for an arm either**: a stand-off (with its rounding) scaled by a dimensionless factor, and a rounding against a share of the band. `dihedral`'s two are a dimensionless sine against the band's own ratio `1/K`. None had a door that names it; decided on PR 7410 (`unsourced-levers-with-no-door-that-names-them`), converted by `the-ten-readings-that-are-not-levers-are-decided-by-what-they-are`.
+
+## Closed (2026-11-23, PR 7268)
+
+Seven of the references are re-posed by what each length is, as "Read against the tree" above says: the Villarceau tilt and `unit_sign` levered at the circle's own radius, the focal β and the spiric chart's axis read by their sign, `fate`'s bisector at the bounds' reaches, the joint room as a length with the band's stand-off, the cone circle's off-axis residual. A single FULL review, a fix pass and a delta read that approves with two minor fixes, taken. What the unit left, each in its own file:
+- `unsourced-levers-with-no-door-that-names-them` (P1): the ten references that are no lever of anything, decided by Ev on PR 7410 and converted by `the-ten-readings-that-are-not-levers-are-decided-by-what-they-are` (PR 7442, stacked on this one).
+- `test-fixture-arms-pass-through-the-curvature-door`: three test fixtures arm a unit length through `Lever::curvature_radius`, which neither lever gate counts.
+- `work/pcert/the-villarceau-tilt-gate-decides-only-which-in-band-refusal-is-named.md` (P3).
+
+The row is `docs/model-compare-log/rows/PR-7268.md`.
