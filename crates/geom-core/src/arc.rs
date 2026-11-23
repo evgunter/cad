@@ -202,7 +202,7 @@ impl<T: Real> Arc2<T> {
     /// the zero form.
     pub fn off_carrier(self, p: Point2<T>) -> T {
         let w = p - self.centre;
-        crate::radius_gap(w.norm_squared(), w.norm(), self.radius)
+        w.radius_gap(self.radius)
     }
 
     /// Where this arc started at `a` ends: [`Arc2::point_from`] at
