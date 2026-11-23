@@ -2650,6 +2650,46 @@ fn a_mirrored_turned_flush_union_holds() {
     );
 }
 
+/// `b` mirrored across the plane through `(0.1, -0.2, 0.4)` normal to
+/// `(1, 2, 3)`, at rest: the mirror re-mints the body's stored rows.
+fn mirrored_across_a_generic_plane<T: Scalar>(b: &topo::AtRestBody<T>) -> topo::AtRestBody<T> {
+    use sweep::test_support::finished;
+    let at = T::from_f64;
+    let reflection = topo::Reflection::across(
+        Point3::new(at(0.1), at(-0.2), at(0.4)),
+        geom_core::Vec3::new(at(1.0), at(2.0), at(3.0)),
+        tol(),
+    )
+    .expect("a plane with a normal");
+    finished(
+        "the mirror image",
+        topo::mirror_body(b, &reflection, tol()).expect("the body mirrors"),
+        tol(),
+    )
+}
+
+/// **Mirrored across a generic plane**, by the mirror door.
+#[test]
+fn a_flush_union_mirrored_across_a_generic_plane_holds() {
+    let at = [0.1, 0.2, 0.3];
+    embedded_at_both(
+        "the flush union's mirror image",
+        mirrored_across_a_generic_plane(&flush_union::<f64>(at, 1.0, false)),
+        mirrored_across_a_generic_plane(&flush_union::<Interval>(at, 1.0, false)),
+    );
+}
+
+/// **A hundred units out**, moved off the grid on every axis.
+#[test]
+fn a_flush_union_a_hundred_units_out_holds() {
+    let by = geom_core::Affine3::translation(geom_core::Vec3::new(100.3, -99.7, 100.1));
+    embedded_at_both(
+        "the flush union a hundred units out",
+        moved(&flush_union::<f64>([0.1, 0.2, 0.3], 1.0, false), &by),
+        moved(&flush_union::<Interval>([0.1, 0.2, 0.3], 1.0, false), &by),
+    );
+}
+
 /// **With the profiles turned in their sketch plane**, so each face is
 /// turned in its own chart ([`flush_union_of_turned_profiles`]).
 #[test]
