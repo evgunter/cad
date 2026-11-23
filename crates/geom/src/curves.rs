@@ -1271,10 +1271,6 @@ impl<T: Real> Curve3<T> {
     /// quantities are computed at `T` and returned, a margin of a
     /// poisoned datum is poison, and the variants are destructured
     /// without `..` so a field a variant gains is a compile error here.
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-    )]
     pub fn representability_margins(
         &self,
         band: Band,
@@ -1285,14 +1281,14 @@ impl<T: Real> Curve3<T> {
         };
         match self {
             Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius()))
-                .chain(frame(c.frame().axis(), c.frame().u_ref(), c.radius()))
+                .chain(frame(c.axis(), c.u_ref(), c.radius()))
                 .collect(),
             Curve3::Ellipse(e) => [
                 lower(CurveDatum::SemiU, e.semi_u()),
                 lower(CurveDatum::SemiV, e.semi_v()),
             ]
             .into_iter()
-            .chain(frame(e.frame().axis(), e.frame().u_ref(), e.speed_hi()))
+            .chain(frame(e.axis(), e.u_ref(), e.speed_hi()))
             .collect(),
             Curve3::Spiric {
                 frame: carrier_frame,

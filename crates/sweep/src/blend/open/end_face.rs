@@ -386,6 +386,10 @@ impl<T: Bounds> SectionFrame<T> {
     }
 
     /// `d` in the section's unit coordinates.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn unit(self, d: Vec3<T>) -> (T, T) {
         geom::Conic::unit_in_plane(&self.shape, Point3::origin() + d)
     }

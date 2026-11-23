@@ -745,10 +745,6 @@ struct ReadRun<T: geom_core::Real> {
 /// (`reread`, from [`pierced_and_paired`]) and crosses the face, refuses
 /// [`BooleanError::VertexReadTwice`].
 #[allow(clippy::too_many_arguments)]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-)]
 pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &Body<T>,
     pierced_body: &Body<T>,
@@ -1317,7 +1313,6 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             {
                 let in_plane = match &section.components()[k].carrier {
                     geom::Curve3::Ellipse(e) => e
-                        .frame()
                         .axis()
                         .normalize()
                         .cross(datum.vec().normalize())

@@ -425,6 +425,10 @@ impl<T: Decide> Window<'_, T> {
 
     /// A seed for `q`'s foot on `b`: its angle about `b`'s centre in
     /// `b`'s unit coordinates.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn foot_seed(&self, q: Point3<T>) -> T {
         let (x, y) = self.b.unit_in_plane(q);
         geom::Azimuth::of(y, x).principal_as(super::row::BRANCH, Band::least())

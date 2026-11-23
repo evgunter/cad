@@ -256,8 +256,14 @@ failure-output = "immediate-final"
 # run 45073621726):
 #    0.61 s  sweep::all pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab
 #    0.51 s  sweep::all pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune
+# The arc-held cover's three seeded sweeps (6,000, 3,000 and 4,000
+# ellipses and windows each, against points of the stored curve):
+#    3.2 s  geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+#    2.9 s  geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+#    1.5 s  geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
 default-filter = """
 not (
+  (binary_id(geom) & (test(=cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64) | test(=cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval) | test(=cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends))) |
   (binary_id(sweep::all) & (test(=pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune) | test(=pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab))) |
   (binary_id(sweep::all) & (test(=band_planar_cut_off_meters::a_far_side_arc_with_no_vertex_in_the_tube_is_clear_of_the_strip) | test(=band_planar_mitre::a_frustum_top_rim_mitres_at_leaning_walls) | test(=join_pierce_runs_sweep::six_crossing_corners_build_every_op))) |
   (binary_id(mesh::all) & test(=sizing_theorem_rows::cone_frusta_mesh_within_delta)) |

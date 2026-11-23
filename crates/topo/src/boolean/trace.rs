@@ -376,6 +376,10 @@ pub fn ray_crossings_to<T: Decide>(
 /// # Errors
 ///
 /// [`TraceFault`], past no crossing the piece takes.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn circle_crossings_to<T: Decide>(
     surface: &Surface<T>,
     sense: bool,

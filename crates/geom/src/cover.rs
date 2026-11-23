@@ -22,6 +22,9 @@
 //! about: [`Cover::about`], the axes, centres and cores of its pieces of
 //! revolution. A carrier's surface that lies at a level about its own
 //! site (a wall, a shell) is read there by [`Cover::range_about`].
+//! An ellipse held on its arc is covered through its own points
+//! ([`Cover::arc_of`]), so its cover stands where its stored numbers
+//! put the arc and not where a derived centre would.
 //! **The values follow `[simple.conditioned]`**: at `f64` each is the
 //! real-arithmetic bound computed as if exact, and nothing charges float
 //! rounding; at `Interval` each is an enclosure, by the scalar's own
@@ -330,6 +333,9 @@ enum Piece<T: Real> {
     /// `center + semi_u·cos t·u_ref + semi_v·sin t·v_ref`, `t` in the
     /// window.
     Arc(Arc<T>),
+    /// An ellipse's arc over the window, read through the ellipse's own
+    /// points ([`Cover::arc_of`]).
+    HeldArc(HeldArc<T>),
     /// The solid cylinder about `origin + h·axis`, `h` in the window, of
     /// radius `radius`; the axis is unit. A cylinder's wall holds no
     /// point nearer the axis than its `wall` radius.
@@ -354,11 +360,14 @@ struct Arc<T: Real> {
     semi_u: T,
     semi_v: T,
     window: ParamWindow<T>,
-    /// The ellipse the arc is read through where it is held on its arc
-    /// ([`Cover::arc_of`]): its support and its distances are then
-    /// stated from its points, and `frame` is its frame at the centre it
-    /// derives, read for directions alone.
-    on: Option<Ellipse<T>>,
+}
+
+/// An ellipse's arc over a window, stated by the ellipse and read through
+/// its readings alone: no frame, centre or size is held beside it.
+#[derive(Clone, Copy, Debug)]
+struct HeldArc<T: Real> {
+    ellipse: Ellipse<T>,
+    window: ParamWindow<T>,
 }
 
 /// **An arc's mean circle as a site reads it** ([`Arc::circle_about`]):
@@ -659,7 +668,8 @@ impl<T: Real> Cover<T> {
     /// (the window's ends and crests against the whole turn's), so the
     /// window's piece alone can read a far distance or a support an ulp
     /// past the whole conic's. The meet reads the lesser of each, so no
-    /// reader of an arc's cover reads past its whole conic.
+    /// reader of a cover built here reads past its whole conic. An arc
+    /// read through its points ([`Self::arc_of`]) is not met so.
     pub fn arc(frame: &Frame<T>, (semi_u, semi_v): (T, T), window: ParamWindow<T>) -> Option<Self> {
         let piece = |window| {
             Self::piece(Piece::Arc(Arc {
@@ -667,35 +677,34 @@ impl<T: Real> Cover<T> {
                 semi_u,
                 semi_v,
                 window,
-                on: None,
             }))
         };
         (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite())
             .then(|| piece(window).meet(piece(ParamWindow::new(T::zero(), T::tau()))))
     }
 
-    /// **The arc of `ellipse` over `window`, stated from its points**
-    /// ([`Conic::cover_over`], which hands an ellipse held on its arc
-    /// here): the support is the ellipse's own extent, and the distances
-    /// are read off its points and their chords, so a short arc beside
-    /// the anchor is covered at its own scale however far its centre
-    /// lies. `None` for a datum that is not a finite number.
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-    )]
+    /// **The arc of `ellipse` over `window`, read through its points**
+    /// ([`Conic::cover_over`] hands an ellipse held on its arc here). The
+    /// support is the ellipse's own extent ([`Conic::extent_along`]); the
+    /// ball and the distances are read off its points and chords
+    /// ([`HeldArc`]). So a short arc beside the anchor is covered at its
+    /// own scale however far its centre lies.
+    ///
+    /// The arc is cut into four pieces whatever its length, and each is
+    /// bounded out to its bulge, so over a long window this cover is
+    /// looser than [`Self::arc`]'s by a piece's bulge either way, and it
+    /// is not met with its whole conic's: a reader can read past the
+    /// whole conic's extreme by that much. `None` for a datum that is
+    /// not a finite number.
     pub(crate) fn arc_of(ellipse: Ellipse<T>, window: ParamWindow<T>) -> Option<Self> {
-        let frame = Conic::frame(&ellipse);
         let (semi_u, semi_v) = ellipse.semi_axes();
-        (finite_frame(&frame) && finite(&[semi_u, semi_v]) && window.finite()).then(|| {
-            Self::piece(Piece::Arc(Arc {
-                frame,
-                semi_u,
-                semi_v,
-                window,
-                on: Some(ellipse),
-            }))
-        })
+        let stored = ellipse.point_at(window.lo) - Point3::origin();
+        (finite_vec(stored)
+            && finite_vec(ellipse.axis())
+            && finite_vec(ellipse.u_ref())
+            && finite(&[semi_u, semi_v])
+            && window.finite())
+        .then(|| Self::piece(Piece::HeldArc(HeldArc { ellipse, window })))
     }
 
     /// **The whole circle** `core` names ([`Core`]): its turn's region,
@@ -703,6 +712,10 @@ impl<T: Real> Cover<T> {
     /// of a circle a reader holds by its centre, axis and radius; a
     /// reader holding the carrier reads `Curve3::cover`. `None` for a
     /// datum that is not a finite number.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn circle(core: Core<T>) -> Option<Self> {
         let axis = core.axis.dir.normalize();
         let frame = Frame::new(core.axis.origin, axis, axis.orthonormal_basis().0);
@@ -1331,7 +1344,6 @@ impl<T: Real> Tube<T> {
             semi_u: self.major,
             semi_v: self.major,
             window: ParamWindow::new(T::zero(), T::tau()),
-            on: None,
         }
     }
 
@@ -1451,10 +1463,6 @@ impl<T: Real> Frustum<T> {
 
 impl<T: Real> Arc<T> {
     fn support(&self, e: Vec3<T>) -> T {
-        if let Some(ellipse) = &self.on {
-            let window = ArcWindow::new(self.window.lo, self.window.hi);
-            return ellipse.extent_along(&window, Point3::origin(), e).1;
-        }
         let (_, hi) = ArcWindow::new(self.window.lo, self.window.hi).extent(
             vec_of(self.frame.origin()).dot(e),
             self.semi_u * self.frame.u_ref().dot(e),
@@ -1468,46 +1476,8 @@ impl<T: Real> Arc<T> {
     /// [`Arc::far`]): no squared form, which cancels where the site is
     /// near the arc, and on a short arc far from its centre.
     fn range(&self, site: &Site<T>) -> (T, T) {
-        if let Some(ellipse) = &self.on {
-            return self.chord_range(ellipse, site);
-        }
         let c = self.circle_about(site);
         (self.near(&c), self.far(&c, site))
-    }
-
-    /// **The distance range of an arc read through its points**
-    /// ([`Arc::on`]), over the four pieces [`Arc::far`] cuts. A piece
-    /// lies in the parallelogram on its chord shifted by its bulge
-    /// `(1 − cos h)·(x(m) − c)`, which is `−(1 − cos h)·x″(m)` and reads
-    /// no position. So every point of it is within the bulge's length of
-    /// its chord, and the site is no nearer than the chord's nearest
-    /// point less that length; the farthest is at a corner, as there.
-    fn chord_range(&self, ellipse: &Ellipse<T>, site: &Site<T>) -> (T, T) {
-        let (lo, hi) = (self.window.lo, self.window.hi);
-        let turn = T::tau();
-        let quarter = ((hi - lo).max(T::zero() - turn).min(turn)) * T::from_f64(0.25);
-        let half = quarter * T::from_f64(0.5);
-        let shift = T::one() - half.abs().cos();
-        let point = |t: T| ellipse.point_at(t);
-        let starts = [
-            lo,
-            lo + quarter,
-            lo + quarter + quarter,
-            lo + quarter + quarter + quarter,
-        ];
-        starts
-            .into_iter()
-            .fold(None, |range: Option<(T, T)>, s0| {
-                let s1 = s0 + quarter;
-                let bulge = -ellipse.second_derivative_at(s0 + half) * shift;
-                let (x0, x1) = (point(s0), point(s1));
-                let near = (segment_range(x0, x1, site).0 - bulge.norm()).max(T::zero());
-                let far = [x0, x0 + bulge, x1, x1 + bulge]
-                    .into_iter()
-                    .fold(T::zero(), |far, p| far.max(site.distance(p)));
-                Some(range.map_or((near, far), |(n, f)| (n.min(near), f.max(far))))
-            })
-            .unwrap_or((T::zero(), T::zero()))
     }
 
     /// **The circle the arc is read against from `site`.**
@@ -1632,7 +1602,7 @@ impl<T: Real> Arc<T> {
         ) + c.dev;
         let turn = T::tau();
         let quarter = ((hi - lo).max(T::zero() - turn).min(turn)) * T::from_f64(0.25);
-        let shift = T::one() - (quarter * T::from_f64(0.5)).abs().cos();
+        let shift = bulge_factor(quarter);
         let point = |t: T| self.point(t);
         let pieces = (0..4).fold(site.distance(point(lo)), |far, k| {
             let s0 = lo + quarter * T::from_f64(f64::from(k));
@@ -1657,9 +1627,6 @@ impl<T: Real> Arc<T> {
     /// The whole conic's ball: its centre, out to the Gram bound on its
     /// frame's two semi-axis vectors.
     fn ball(&self) -> Ball<T> {
-        if let Some(ellipse) = &self.on {
-            return self.chord_ball(ellipse);
-        }
         let (p, q) = (
             self.frame.u_ref() * self.semi_u,
             self.frame.v_ref() * self.semi_v,
@@ -1669,21 +1636,75 @@ impl<T: Real> Arc<T> {
     }
 }
 
-impl<T: Real> Arc<T> {
-    /// **The ball of an arc read through its points** ([`Arc::on`]):
-    /// about its middle's point, out to the farthest the arc runs from
-    /// it. A point `δ` of parameter from the middle is a chord of the
-    /// unit circle `2·sin(|δ|/2)` long, which the ellipse's map
-    /// stretches by at most its larger semi-axis; past half a turn
-    /// either way the chord is the diameter.
-    fn chord_ball(&self, ellipse: &Ellipse<T>) -> Ball<T> {
+/// `1 − cos h` for a piece of signed width `quarter = 2h`, read as
+/// `2·sin²(h/2)`: the difference cancels on a short piece, and is zero
+/// below `h ≈ 1e-8`, where the square keeps every digit.
+fn bulge_factor<T: Real>(quarter: T) -> T {
+    T::from_f64(2.0) * (quarter * T::from_f64(0.25)).sin().powi(2)
+}
+
+impl<T: Real> HeldArc<T> {
+    fn support(&self, e: Vec3<T>) -> T {
+        let window = ArcWindow::new(self.window.lo, self.window.hi);
+        self.ellipse.extent_along(&window, Point3::origin(), e).1
+    }
+
+    /// The window capped at one turn either way and cut into four: a
+    /// piece's signed width, and each piece's start.
+    fn pieces(&self) -> (T, [T; 4]) {
+        let (lo, hi) = (self.window.lo, self.window.hi);
+        let turn = T::tau();
+        let quarter = ((hi - lo).max(T::zero() - turn).min(turn)) * T::from_f64(0.25);
+        let half = quarter + quarter;
+        (quarter, [lo, lo + quarter, lo + half, lo + half + quarter])
+    }
+
+    /// **The distance range from a site.** A piece about its middle `m`
+    /// of half-width `h` lies in the parallelogram on its chord shifted
+    /// by its bulge `(1 − cos h)·(x(m) − c)`, which is
+    /// `−(1 − cos h)·x″(m)` and reads no position. So every point of it
+    /// is within the bulge's length of its chord, and the site is no
+    /// nearer than the chord's nearest point less that length; a
+    /// distance from a point or a line is convex, so the farthest is at
+    /// a corner.
+    fn range(&self, site: &Site<T>) -> (T, T) {
+        let (quarter, starts) = self.pieces();
+        let shift = bulge_factor(quarter);
+        let point = |t: T| self.ellipse.point_at(t);
+        let piece = |s0: T| {
+            let s1 = s0 + quarter;
+            let bulge = -self
+                .ellipse
+                .second_derivative_at(s0 + quarter * T::from_f64(0.5))
+                * shift;
+            let (x0, x1) = (point(s0), point(s1));
+            let near = (segment_range(x0, x1, site).0 - bulge.norm()).max(T::zero());
+            let far = [x0, x0 + bulge, x1, x1 + bulge]
+                .into_iter()
+                .fold(T::zero(), |far, p| far.max(site.distance(p)));
+            (near, far)
+        };
+        starts[1..]
+            .iter()
+            .fold(piece(starts[0]), |(near, far), &s0| {
+                let (n, f) = piece(s0);
+                (near.min(n), far.max(f))
+            })
+    }
+
+    /// The arc's ball: about its middle's point, out to the farthest
+    /// the arc runs from it. A point `δ` of parameter from the middle is
+    /// a chord of the unit circle `2·sin(|δ|/2)` long, which the
+    /// ellipse's map stretches by at most its larger semi-axis; past
+    /// half a turn either way the chord is the diameter.
+    fn ball(&self) -> Ball<T> {
         let half = T::from_f64(0.5);
         let (lo, hi) = (self.window.lo, self.window.hi);
         let reach = ((hi - lo) * half).abs().min(T::pi());
         let chord = T::from_f64(2.0) * (reach * half).sin();
         (
-            ellipse.point_at(crate::mid_param(lo, hi)),
-            ellipse.speed_hi() * chord,
+            self.ellipse.point_at(crate::mid_param(lo, hi)),
+            self.ellipse.speed_hi() * chord,
         )
     }
 }
@@ -1694,6 +1715,7 @@ impl<T: Real> Piece<T> {
             Piece::Points(points) | Piece::Net(points) => points_support(points, e),
             Piece::Segment(ends) => points_support(ends, e),
             Piece::Arc(arc) => arc.support(e),
+            Piece::HeldArc(arc) => arc.support(e),
             Piece::Slab(slab) => slab.support(e),
             Piece::Frustum(f) => f.support(e),
             Piece::Patch(patch) => patch.support(e),
@@ -1710,6 +1732,7 @@ impl<T: Real> Piece<T> {
             Piece::Points(points) => points_range(points, site),
             Piece::Segment([a, b]) => segment_range(*a, *b, site),
             Piece::Arc(arc) => arc.range(site),
+            Piece::HeldArc(arc) => arc.range(site),
             Piece::Slab(slab) => match site {
                 Site::Point(q) => slab.point_range(*q),
                 Site::Line(line) => slab.line_range(line),
@@ -1773,6 +1796,7 @@ impl<T: Real> Piece<T> {
             | Piece::Points(_)
             | Piece::Segment(_)
             | Piece::Arc(_)
+            | Piece::HeldArc(_)
             | Piece::Net(_) => None,
         }
     }
@@ -1788,6 +1812,7 @@ impl<T: Real> Piece<T> {
             Piece::Points(points) | Piece::Net(points) => points_ball(points),
             Piece::Segment(ends) => points_ball(ends),
             Piece::Arc(arc) => arc.ball(),
+            Piece::HeldArc(arc) => arc.ball(),
             Piece::Slab(slab) => slab.ball(),
             Piece::Frustum(f) => f.slab().ball(),
             Piece::Patch(patch) => patch.tube.ball(),

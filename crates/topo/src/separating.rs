@@ -87,6 +87,10 @@ pub(crate) struct Circle<T: Real> {
 impl<T: Real> Circle<T> {
     /// The circle's cover: its arc over the whole turn. `None` for a
     /// datum that is not a finite number.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn cover(&self) -> Option<Cover<T>> {
         Cover::arc(
             &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),

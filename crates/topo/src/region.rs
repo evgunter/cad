@@ -1091,11 +1091,7 @@ impl<T: Decide> Course<T> for Round<T> {
         reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
     )]
     fn heading(&self, y: Point3<T>) -> Vec3<T> {
-        let h = self
-            .circle
-            .frame()
-            .axis()
-            .cross(y - self.circle.frame().origin());
+        let h = self.circle.axis().cross(y - self.circle.frame().origin());
         h.normalize()
     }
 

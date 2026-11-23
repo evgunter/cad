@@ -17,7 +17,8 @@ ignore-interior-mutability = ["editor_core::names::role::NameRef"]
 # (`crates/geom-core/README.md`, "Float rounding": "Every reading of
 # where a conic is goes through the conic"). These doors hand out the
 # frame at the centre, which an ellipse held on its arc derives on each
-# read at its semi-axes' rounding, so production code outside
+# read at its semi-axes' rounding, or read a point about that centre,
+# or take a conic restated on a caller's frame; so production code outside
 # `crates/geom/src/curves/conic.rs` reads them only at a site that says
 # why (`#[expect(clippy::disallowed_methods, reason = "...")]`).
 # `scripts/gates/conic-centre-reads.sh` holds the arming and the count.
@@ -27,4 +28,7 @@ disallowed-methods = [
     { path = "geom::Circle::frame", reason = "a circle's centre frame: read where the circle is through its readings" },
     { path = "geom::Ellipse::frame", reason = "an ellipse's centre frame, derived where it is held on its arc: read where it is through its readings" },
     { path = "geom::Curve3::frame", reason = "a carrier's centre frame: read where a conic is through its readings" },
+    { path = "geom::Conic::unit_in_plane", reason = "a point's unit coordinates about the conic's centre, derived where an ellipse is held on its arc" },
+    { path = "geom::Curve3::circle_at", reason = "a circle rebuilt on a frame the caller restates: map the conic's own placement instead" },
+    { path = "geom::cover::Cover::arc", reason = "an arc's cover on a frame the caller restates: a carrier's is Curve3::cover_over" },
 ]
