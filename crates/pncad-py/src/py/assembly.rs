@@ -95,7 +95,9 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
             standing.through().map_or_else(none, |through| id(&through)),
             none(),
         ),
-        E::Frame { node, .. } | E::Graft { node, .. } => (id(node), none(), none()),
+        E::Frame { node, .. } | E::Graft { node, .. } | E::ReadRefused { node, .. } => {
+            (id(node), none(), none())
+        }
         // The read the product slot holds, as the handle
         // `Doc.set_product` takes.
         E::StrandedProduct { read } | E::ProductOutsideWorld { read } => (

@@ -317,7 +317,12 @@ fn node_standing_display_names_its_content_and_no_door() {
         ),
         (
             NodeStanding::Members { node },
-            vec!["node 000000000006", "once per member", "no one value", "a yield"],
+            vec![
+                "node 000000000006",
+                "once per member",
+                "no one value",
+                "a yield",
+            ],
         ),
         (
             NodeStanding::Failed { node },

@@ -201,7 +201,9 @@ impl ValueChannelBits for Probe {
 fn arm<T: topo::AtRestPolicy + geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
     match r {
         None => "absent",
-        Some(NodeResult::Ok(_)) => "ok",
+        // A family evaluated once per member is `ok`, as its `Family`
+        // value was.
+        Some(NodeResult::Ok(_) | NodeResult::Members(_)) => "ok",
         Some(NodeResult::Failed(_)) => "failed",
         Some(NodeResult::Poisoned { .. }) => "poisoned",
     }
@@ -405,6 +407,29 @@ fn probe_agrees_with_f64_bit_for_bit_save_the_lane_pass_keys() {
                     Some(NodeResult::Poisoned { through: tf }),
                     Some(NodeResult::Poisoned { through: tp }),
                 ) => assert_eq!(tf, tp, "{}: node {id:?}: poisoned through", d.name),
+                // A family that is no one value: its keys and its members'
+                // logs, as its `Family` value's were compared.
+                (Some(NodeResult::Members(ff)), Some(NodeResult::Members(fp))) => {
+                    if lane_pass.contains(&id) {
+                        lane_splits.push((d.name, id.0.ordinal()));
+                    }
+                    if ff.content_key != fp.content_key {
+                        content_splits.push((d.name, id.0.ordinal()));
+                    }
+                    if ff.naming_key != fp.naming_key {
+                        naming_splits.push((d.name, id.0.ordinal()));
+                    }
+                    assert_eq!(
+                        ff.verdicts, fp.verdicts,
+                        "{}: node {id:?}: the members' verdict logs",
+                        d.name
+                    );
+                    assert_eq!(
+                        ff.escalations, fp.escalations,
+                        "{}: node {id:?}: the members' escalation logs",
+                        d.name
+                    );
+                }
                 (Some(NodeResult::Ok(vf)), Some(NodeResult::Ok(vp))) => {
                     if lane_pass.contains(&id) {
                         lane_splits.push((d.name, id.0.ordinal()));

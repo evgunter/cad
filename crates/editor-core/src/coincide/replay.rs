@@ -310,7 +310,10 @@ fn prove_row(
     }
     // A family's rows are its members', in member order, as a value's
     // are its own.
-    let Some(coincidences) = ev.result(node).and_then(crate::eval::NodeResult::coincidences) else {
+    let Some(coincidences) = ev
+        .result(node)
+        .and_then(crate::eval::NodeResult::coincidences)
+    else {
         return left(why_no_value(ev, node));
     };
     let Some(replayed) = coincidences

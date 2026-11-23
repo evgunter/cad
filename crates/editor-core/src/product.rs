@@ -299,10 +299,9 @@ impl ProductError {
                  document {expected}",
             ),
             Self::Read(standing) => say!(f, Said(&standing.of_read(), by)),
-            Self::ReadRefused { kind, .. } => say!(
-                f,
-                sentence!("the body the slot reads: ", Said(&kind, by))
-            ),
+            Self::ReadRefused { kind, .. } => {
+                say!(f, sentence!("the body the slot reads: ", Said(&kind, by)))
+            }
             Self::EmptyProduct => write!(
                 f,
                 "the product slot reads nothing, so the document has no product. {}",

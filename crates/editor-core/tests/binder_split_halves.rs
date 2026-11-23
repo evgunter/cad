@@ -120,8 +120,11 @@ fn world_product(
 ) -> (ProfileDoc, editor_core::Evaluation<f64>, VarId) {
     let doc = ProfileDoc::empty_derived("binder-split-halves-product", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, placed) =
-        fixture::in_world(doc, the_box, &editor_core::Frame::translation([0.0, 0.0, 0.0]));
+    let (doc, placed) = fixture::in_world(
+        doc,
+        the_box,
+        &editor_core::Frame::translation([0.0, 0.0, 0.0]),
+    );
     let (doc, k, row) = fixture::row(doc, placed, ("k", 3), axis, 2.0);
     let tool = fixture::plane_on(&doc, placed, [0.0, 0.0, 0.25], [0.0, 0.0, 1.0]);
     let target = fixture::member_here(&doc, row.into());
@@ -169,7 +172,13 @@ fn the_product_of_a_yielded_half_is_that_half_of_every_member() {
         .filter_map(|(name, _)| {
             let said = format!("{name:?}");
             let at = said.find("Member")?;
-            Some(said[at..].split(" of").next().unwrap_or_default().to_owned())
+            Some(
+                said[at..]
+                    .split(" of")
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned(),
+            )
         })
         .collect();
     places.sort();
