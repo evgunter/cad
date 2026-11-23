@@ -20,3 +20,5 @@ Fable usage was exhausted from 2026-11-20 until 2026-11-22 00:40 UTC (the user, 
 | 2026-11-23 | a-spiric-oval-wholly-inside-the-band-on-one-side-of-the-cutting-plane-reads-as-a-miss | M | single FULL | implementer | 32 | Opus |
 | 2026-11-23 | U4a local windows (PR 7577) | H | dual | slot order (head 0293a7a264) | 41 | Fable=R1 Opus=R2 |
 | 2026-11-23 | a-spiric-oval-wholly-inside-the-band-on-one-side-of-the-cutting-plane-reads-as-a-miss | M | single FULL | reviewer (head ee17f18819) | 176 | Opus |
+| 2026-11-23 | turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling | M | single FULL | implementer | 224 | Opus |
+| 2026-11-23 | conic-constructions-from-computed-sizes-unaudited | H | single FULL | implementer | 227 | Fable |
