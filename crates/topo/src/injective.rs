@@ -27,7 +27,7 @@
 //!   positive definite at every point of `H` makes `L∘S` strongly
 //!   monotone, `⟨L∘S(p) − L∘S(q), p − q⟩ > 0` for `p ≠ q`, so `S` is
 //!   injective on `H`.
-//! - **Departure** ([`certify_pair`]), across a shared edge or vertex:
+//! - **Departure** ([`certify_pair_in`]), across a shared edge or vertex:
 //!   a separator `ψ`, vanishing on the shared cell, takes one strict sign
 //!   on one face's part of the pair and the other strict sign on the
 //!   other's, so a coincidence can only happen on the shared cell, where
@@ -59,7 +59,11 @@
 //! - **the touch** ([`vacuous`], [`present_chart`]): a line within
 //!   [`few_ulps`] of the cell's side touches it, and a cell reaching no
 //!   more than [`few_ulps`] past a line onto its face side lies outside
-//!   it;
+//!   it. The touch is read in a pose ([`present_posed`]) too, where a
+//!   line is an enclosure of its edge's lift: it touches only where
+//!   every point of the enclosure does (its far bound), so the pose's
+//!   touch is the stored one's, no wider; a posed extent's overlap is
+//!   read as a stored one's;
 //! - **the cover** ([`covered`]): an edge whose range stops within
 //!   [`few_ulps`] of the cell's side covers it. (A side's edge is first
 //!   run on past a corner it makes with a line on the other axis, to
@@ -90,7 +94,7 @@
 //! The same membership reads a collapsed side ([`Along::at`]) zero under
 //! a plane through the stored vertex: the side's image is the cone's
 //! apex or the sphere's pole, which the vertex is within the band of
-//! ([`SELF_INTERSECTION_APEX`], `vertex_at_singular_point`), so `ψ` is
+//! (`vertex_at_singular_point`, the one reading of both), so `ψ` is
 //! read zero along a side it may miss by that distance over its lean.
 //! [`departure`]'s plane through the pair's one shared vertex reads it
 //! wherever a face against that vertex is presented by its collapse.
@@ -135,11 +139,6 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// axis leans to the line's face side ([`present_vertex_corner`]).
 /// Metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
-/// The funnel site of a vertex at a cone's apex, the collapse of its
-/// face's chart: its distance from the apex, metres. `Zero` is the
-/// collapse. A sphere's pole is read by `vertex_at_singular_point`
-/// (`chart_singularity_at_vertex`).
-pub(crate) const SELF_INTERSECTION_APEX: &str = "self_intersection_apex";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
 pub(crate) const SELF_INTERSECTION_NAPPE: &str = "self_intersection_nappe";
@@ -291,7 +290,10 @@ pub(crate) struct Boundary {
     /// the chart, its rows meeting at every joint and, at a pole or an
     /// apex, joined by a run along the singular latitude that lies
     /// between their ends. So on a periodic axis the hull is on ONE
-    /// sheet, not wrapped. A row that is a coordinate line whose moving
+    /// sheet, not wrapped. It is the hull of the rows alone: a row's end
+    /// at a pole is its pcurve's value there, a rounding to either side
+    /// of the singular latitude, and [`face_extent`] puts the latitude
+    /// in. A row that is a coordinate line whose moving
     /// coordinate is monotone gives its ends, which bound it; a harmonic
     /// or spiric wall row its enclosure over its span, so the hull may be
     /// a superset, which holds the face. It is the FACE's extent only
@@ -310,7 +312,17 @@ pub(crate) struct Boundary {
     /// that nesting is checked on planar faces only (check 9); on a
     /// curved face it holds by construction (validate's not-yet-checked
     /// list, #638).
+    ///
+    /// In a pose's lifted boundary this is the posed extent instead, read
+    /// off the lift rather than assumed; [`posed_extent`] says what it
+    /// rests on.
     pub(crate) extent: Option<[(f64, f64); 2]>,
+    /// **The outer loop's rows in the loop's own order**, each an index
+    /// into `edges` and whether its use runs along the edge: the body's
+    /// walk of the loop ([`crate::live::FaceView::boundary_by_loop`]),
+    /// kept by the lift. `None` for a face with a ring, or one whose walk
+    /// does not resolve.
+    pub(crate) outer: Option<Vec<(usize, bool)>>,
 }
 
 impl Boundary {
@@ -596,8 +608,15 @@ pub(crate) fn rects_meet(a: ((f64, f64), (f64, f64)), b: ((f64, f64), (f64, f64)
 }
 
 /// **A touching pair of one face**, whose rectangles do not meet: it
-/// touches through the face's own identifications.
-pub(crate) fn certify_self(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band) -> Outcome {
+/// touches through the face's own identifications. The face's poses are
+/// read from `face`, the walk's store for the ask ([`FacePoses`]).
+pub(crate) fn certify_self(
+    x: &Piece<'_>,
+    y: &Piece<'_>,
+    near: &Near,
+    band: Band,
+    face: &FacePoses,
+) -> Outcome {
     let collapsed = x.boundary.collapsed();
     if let Some(&v) = near.vertices.iter().find(|v| collapsed.contains(v)) {
         return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -607,7 +626,7 @@ pub(crate) fn certify_self(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band
         });
     }
     match near.edges.as_slice() {
-        [_] => departure(x, y, near, band, false),
+        [_] => departure(x, y, near, band, false, (face, face)),
         _ => Outcome::Split {
             arm: CertificateArm::Departure,
             shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
@@ -617,8 +636,23 @@ pub(crate) fn certify_self(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band
 
 /// **A touching pair of two faces**: the departure arm, its separators
 /// in a fixed order.
-pub(crate) fn certify_pair(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band) -> Outcome {
-    departure(x, y, near, band, true)
+#[cfg(test)]
+fn certify_pair(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band) -> Outcome {
+    let (fx, fy) = (FacePoses::default(), FacePoses::default());
+    certify_pair_in(x, y, near, band, (&fx, &fy))
+}
+
+/// The pair's certificate, each face's poses read from the walk's store
+/// for the ask ([`FacePoses`]); its rows' door, with fresh stores, is
+/// `certify_pair`.
+pub(crate) fn certify_pair_in(
+    x: &Piece<'_>,
+    y: &Piece<'_>,
+    near: &Near,
+    band: Band,
+    faces: (&FacePoses, &FacePoses),
+) -> Outcome {
+    departure(x, y, near, band, true, faces)
 }
 
 // ------------------------------------------------------------ helpers
@@ -728,12 +762,12 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
 }
 
 fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
-    definite(row, Margin::of(x), band)
+    definite_as(row, Margin::of(x), band)
 }
 
 /// A margin's definite sign at `row`, or `None` where it is zero, in
 /// band or does not certify.
-fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
+fn definite_as(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
     match decide(row, margin, band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => None,
@@ -743,7 +777,7 @@ fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<S
 /// The definite sign of a sine levered at `arm`, decided at the
 /// departure's site, or `None`.
 fn levered_sign(sine: Interval, arm: Lever<Interval>, band: Band) -> Option<Sign> {
-    definite(
+    definite_as(
         SELF_INTERSECTION_DEPARTURE,
         Margin::levered(sine, arm),
         band,
@@ -1415,26 +1449,77 @@ struct Clip {
     edges: Vec<usize>,
     /// The vertex a collapsed side is.
     collapsed: Option<VertexKey>,
+    /// The edge ends that end on a collapsed side ([`ends_on_collapse`]),
+    /// each an index into the boundary's edges and which end; empty for
+    /// any other side.
+    ends_here: Vec<(usize, usize)>,
 }
 
 /// **Present `piece`'s face in its cell**, the shared cell being the
 /// edges `near_edges` (indices into the face's boundary) and the vertices
 /// `near_vertices`.
-fn present<'a>(
+///
+/// A sphere face the stored chart does not present is read in a pose
+/// ([`present_posed`]), held in `poses`; a pose's `Local` stands for the
+/// stored chart's `Structural`, as a smaller cell may be read in it.
+fn present<'a: 'h, 'h>(
     piece: &Piece<'a>,
     near_edges: &[usize],
     near_vertices: &[VertexKey],
     band: Band,
-) -> Result<Presentation<'a>, Unpresented> {
+    poses: &'h Poses<'_>,
+) -> Result<Presentation<'h>, Unpresented> {
     match piece.surface {
         Surface::Plane { .. } => present_plane(piece, near_edges, near_vertices, band),
         Surface::Nurbs(_) => present_chart(piece, near_edges, near_vertices, band),
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => present_chart(piece, near_edges, near_vertices, band),
+        // One arm for the quadrics, though only a sphere has poses
+        // ([`poses_of`] finds none on any other kind, and
+        // [`present_posed`] answers `None`): the stored chart's reading
+        // stands for every other kind.
+        | Surface::Torus { .. } => match present_chart(piece, near_edges, near_vertices, band) {
+            Err(stored @ (Unpresented::Structural | Unpresented::Local))
+                if unplaced_line(piece, band) =>
+            {
+                Err(stored)
+            }
+            Err(stored @ (Unpresented::Structural | Unpresented::Local)) => {
+                match present_posed(piece, near_edges, near_vertices, band, poses) {
+                    Some(Ok(read)) => Ok(read),
+                    Some(Err(Unpresented::Local)) => Err(Unpresented::Local),
+                    _ => Err(stored),
+                }
+            }
+            read => read,
+        },
         Surface::Spindle { .. } | Surface::Approx(_) => Err(Unpresented::Structural),
     }
+}
+
+/// **A line in reach with no place at any depth**: a coordinate line of
+/// the stored chart, on a periodic axis whose sheet the face's extent
+/// does not give ([`Sheet::Unknown`], [`placed`]), in the cell's local
+/// boundary. That is the face's fact, the same in every cell holding
+/// the line, so no smaller cell changes it, and [`present`] keeps the
+/// stored chart's answer rather than try a pose.
+fn unplaced_line(piece: &Piece<'_>, band: Band) -> bool {
+    let b = piece.boundary;
+    let Ok(Sheets::On(sheet)) = sheets(piece.surface, b, (piece.u, piece.v), band) else {
+        return false;
+    };
+    piece.local.edges.iter().any(|&i| {
+        b.edges.get(i).is_some_and(|e| {
+            e.arc.is_some()
+                && !seam(e)
+                && e.uses.iter().any(|u| {
+                    u.iso.is_some_and(|iso| {
+                        placed(piece.surface, iso, sheet, iso.held.of((piece.u, piece.v))).is_none()
+                    })
+                })
+        })
+    })
 }
 
 /// The failure for an edge no presentation reads: structural when the
@@ -1491,8 +1576,18 @@ enum Extent {
     Known([(f64, f64); 2]),
 }
 
-/// **The face's extent, read against the face's own lines and nappe**
-/// ([`Boundary::extent`]); the one reader of that field.
+/// **The face's extent, read against the face's own lines, nappe and
+/// singular points** ([`Boundary::extent`]); the one reader of that field.
+///
+/// **A face reaches each singular latitude it holds a vertex at**, a
+/// sphere's pole or a cone's apex ([`reaching_its_singular_points`]), in
+/// every cell, as the vertex is the face's: the extent returned ends on
+/// that latitude where the stored end is itself at the singular point
+/// by the band, and a stored end that is not contradicts the vertex and
+/// refuses `Structural`. The lines and the nappe are read against the
+/// STORED extent, before it is moved: they are what the stored value is
+/// checked by. A cone face's end past its apex, on the other nappe, is on
+/// its nappe where it is at the apex by the same decision.
 ///
 /// **A face lies within the hull of its boundary**, so every line of a
 /// boundary edge, placed by [`placed`] on the extent's sheet, meets the
@@ -1554,29 +1649,169 @@ fn face_extent(
                     lo + slack < line.hi()
                 }
         });
-    let on_nappe = face_nappe(surface, b, band).is_none_or(|up| {
+    let on_nappe = face_nappe(surface, b, band).is_none_or(|(up, apex)| {
         let (lo, hi) = extent[Axis::V.index()];
         let slack = chart_slack(&[lo, hi]);
+        let u = extent[Axis::U.index()].0;
+        let at_apex = |v| parallel_at(surface, (u, v), apex, band);
         if up {
-            lo >= -slack && hi > slack
+            (lo >= 0.0 || at_apex(lo)) && hi > slack
         } else {
-            hi <= slack && lo < -slack
+            (hi <= 0.0 || at_apex(hi)) && lo < -slack
         }
     });
-    if lines && on_nappe {
-        Ok(Extent::Known(extent))
-    } else {
-        Err(Unpresented::Structural)
+    if !(lines && on_nappe) {
+        return Err(Unpresented::Structural);
+    }
+    reaching_its_singular_points(surface, b, band, extent)
+        .map(Extent::Known)
+        .ok_or(Unpresented::Structural)
+}
+
+/// **A cone face's nappe** ([`nappe`]) **and its cone's apex**; `None`
+/// on any other surface, or where the nappe is not decided.
+fn face_nappe(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    band: Band,
+) -> Option<(bool, Point3<Interval>)> {
+    match surface {
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            Some((nappe(b, apex, frame.axis(), band)?, apex))
+        }
+        _ => None,
     }
 }
 
-/// **A cone face's nappe** ([`nappe`]); `None` on any other surface, or
-/// where the nappe is not decided.
-fn face_nappe(surface: &Surface<Interval>, b: &Boundary, band: Band) -> Option<bool> {
-    match surface {
-        Surface::Cone { frame, .. } => nappe(b, frame.origin(), frame.axis(), band),
-        _ => None,
+/// **Whether a chart's parallel is at the singular point `point`**, by
+/// the incidence a vertex is read at it with (`vertex_at_singular_point`,
+/// at `band`): the surface's point at chart `(u, v)` decided at `point`.
+/// A sphere's parallel and a cone's circle lie at one distance from the
+/// pole or the apex, so one point of it answers for all of it.
+fn parallel_at(
+    surface: &Surface<Interval>,
+    (u, v): (f64, f64),
+    point: Point3<Interval>,
+    band: Band,
+) -> bool {
+    use geom_brep::chart_singularity::vertex_at_singular_point;
+    matches!(
+        vertex_at_singular_point(surface.eval(at(u), at(v)), point, band),
+        Ok(true)
+    )
+}
+
+/// **A sphere's polar latitude**, `v = π/2` at the north pole and
+/// `-π/2` at the south: a bound of its chart's canonical domain.
+fn pole_latitude(north: bool) -> Interval {
+    let half = Interval::pi() * at(0.5);
+    if north { half } else { -half }
+}
+
+/// The singular latitudes of a chart a point is at, `[high, low]`: the
+/// one that is the high end of the face's `v`, and the one that is its
+/// low end, each with the singular point it collapses to.
+type SingularEnds = [Option<(Interval, Point3<Interval>)>; 2];
+
+/// **The singular latitudes of its chart that the face's vertex `p` is
+/// at** ([`SingularEnds`]): a sphere's `π/2` at its north pole, the high
+/// end, and `-π/2` at its south, the low; a cone's `0` at its apex, the
+/// low end of a face on the positive nappe and the high end of one on
+/// the negative ([`nappe`]). None on any other surface.
+///
+/// `p` is at a singular point by the one reading of that incidence
+/// (`vertex_at_singular_point`): its distance from the point decided
+/// zero at `band`, which a vertex within the band's zero of the point
+/// is. An incidence the band does not decide reads as off the point.
+///
+/// `None` where `p` is at a cone's apex and the face has no one nappe:
+/// the apex is then no one end of its `v`.
+fn singular_ends(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    p: Point3<Interval>,
+    band: Band,
+) -> Option<SingularEnds> {
+    use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
+    let held = |point| matches!(vertex_at_singular_point(p, point, band), Ok(true));
+    match *surface {
+        Surface::Sphere { frame, radius, .. } => {
+            let line = geom::Line {
+                origin: frame.origin(),
+                dir: frame.axis(),
+            };
+            let mut ends = [None; 2];
+            for (pole, point) in sphere_poles(line, radius) {
+                let north = pole == Singularity::North;
+                if held(point) {
+                    ends[usize::from(!north)] = Some((pole_latitude(north), point));
+                }
+            }
+            Some(ends)
+        }
+        Surface::Cone { frame, .. } if held(frame.origin()) => {
+            let apex = frame.origin();
+            let low = nappe(b, apex, frame.axis(), band)?;
+            let mut ends = [None; 2];
+            ends[usize::from(low)] = Some((at(0.0), apex));
+            Some(ends)
+        }
+        _ => Some([None; 2]),
     }
+}
+
+/// **A face's extent, reaching each singular latitude the face holds a
+/// vertex at** ([`singular_ends`]). A vertex at a sphere's pole or a
+/// cone's apex is a point of the face on that latitude, an end of the
+/// face's `v`, so the face's extent ends on it. The stored hull ends
+/// where the lift's rows do, and a meridian's end at the point is its
+/// pcurve evaluated at the edge's parameter: a rounding at the scale of
+/// the edge's coordinates, to either side of the latitude, or, for a
+/// vertex in the band of the point and off it, the vertex's own
+/// latitude. The hull with the latitude is a superset of the stored one,
+/// so it holds the face still.
+///
+/// **The extent moves where the stored end is itself at the singular
+/// point**: the surface's parallel at the stored end latitude decided at
+/// the point by the incidence that decided the vertex ([`parallel_at`]),
+/// so within the band's zero of it, in metres. That is the one decision
+/// asked of the row's end as it is of the vertex; this reader has no
+/// scale of its own. Every point of the strip between the stored end
+/// and the latitude is then at the singular point by that decision.
+///
+/// **A stored end that is not at the point contradicts the vertex**,
+/// `None`: the vertex is at the singular point and the row that ends at
+/// that vertex is not, one face's data naming two places.
+///
+/// A cone face with no one nappe is left as stored: the apex is no one
+/// end of it.
+fn reaching_its_singular_points(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    band: Band,
+    mut extent: [(f64, f64); 2],
+) -> Option<[(f64, f64); 2]> {
+    let u = extent[Axis::U.index()].0;
+    let v = &mut extent[Axis::V.index()];
+    for &p in b.vertices.values() {
+        let Some([high, low]) = singular_ends(surface, b, p, band) else {
+            continue;
+        };
+        if let Some((line, point)) = high {
+            if v.1 < line.lo() && !parallel_at(surface, (u, v.1), point, band) {
+                return None;
+            }
+            v.1 = v.1.max(line.hi());
+        }
+        if let Some((line, point)) = low {
+            if v.0 > line.hi() && !parallel_at(surface, (u, v.0), point, band) {
+                return None;
+            }
+            v.0 = v.0.min(line.lo());
+        }
+    }
+    Some(extent)
 }
 
 /// What [`sheets`] reads of a cell.
@@ -1700,12 +1935,29 @@ fn vacuous(
     surface: &Surface<Interval>,
     cell: ((f64, f64), (f64, f64)),
     outside: &[(Side, Interval, usize)],
+    posed: bool,
 ) -> bool {
     outside.iter().any(|&(side, line, ei)| {
         let (lo, hi) = side.axis().of(cell);
+        // Which end of the line is read. The stored branch reads its near
+        // end: at `f64` a stored line is a point, its ends one; at
+        // `Interval` it is the bracket the lift rounds it to, and the touch
+        // holds where any point of the bracket touches, `few_ulps` and
+        // the bracket's width, the stored concession as the stored chart
+        // has always read it. A pose reads its far end: its line is an
+        // enclosure of its edge's lift, and it touches only where every
+        // point of the enclosure does (the end the comparison below
+        // binds), so a pose's touch is never wider than the stored reading
+        // of a line of that width.
+        let (near, far) = (line.lo(), line.hi());
+        let (near, far) = match side {
+            Side::XLo | Side::YLo => (near, far),
+            Side::XHi | Side::YHi => (far, near),
+        };
+        let x = if posed { far } else { near };
         let touches = match side {
-            Side::XLo | Side::YLo => line.lo() <= hi + few_ulps(hi),
-            Side::XHi | Side::YHi => line.hi() >= lo - few_ulps(lo),
+            Side::XLo | Side::YLo => x <= hi + few_ulps(hi),
+            Side::XHi | Side::YHi => x >= lo - few_ulps(lo),
         };
         let axis = side.axis().other();
         touches
@@ -1744,7 +1996,9 @@ fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval
 ///
 /// **A side's edges run on past a corner** ([`run_on`]): an edge that
 /// ends at a vertex it shares with a clip on the other axis covers the
-/// side out to that clip's line's far bound. The run-on is sound only
+/// side out to that clip's line's far bound, and one that ends at the
+/// vertex a collapsed side is covers it out to that side
+/// ([`ends_on_collapse`]). The run-on is sound only
 /// with the other two checks, which is why all three are read here and
 /// nowhere else: that the other line bounds the face there is that
 /// line's own coverage, and that the corner is the face's is
@@ -1800,38 +2054,95 @@ fn corners(b: &Boundary, c: &Clip, d: &Clip) -> BTreeSet<VertexKey> {
 fn run_on(b: &Boundary, c: &Clip, merged: &[Clip], periodic: bool) -> Option<Vec<Interval>> {
     let held = c.side.axis();
     let mut out = edge_ranges(b, &c.edges, held)?;
-    for d in merged
-        .iter()
-        .filter(|d| d.side.axis() != held && d.collapsed.is_none())
-    {
+    // The end `k` of the edge `ei`, run on to `d`'s line's far bound.
+    let mut run = |ei: usize, k: usize, d: &Clip| -> Option<()> {
+        let e = b.edges.get(ei)?;
+        for u in &e.uses {
+            let iso = u.iso?;
+            if iso.held != held || iso.full {
+                continue;
+            }
+            let end = iso.moving(u.image?[k]);
+            let end = if periodic {
+                wrap(end, geom::mid_param(d.at.lo(), d.at.hi()))
+            } else {
+                end
+            };
+            out.push(match d.side {
+                Side::XHi | Side::YHi => Interval::from_bounds(end.lo(), end.hi().max(d.at.hi())),
+                Side::XLo | Side::YLo => Interval::from_bounds(end.lo().min(d.at.lo()), end.hi()),
+            });
+        }
+        Some(())
+    };
+    for d in merged.iter().filter(|d| d.side.axis() != held) {
+        if d.collapsed.is_some() {
+            // An edge that ends on the collapsed side, by its end vertex's
+            // key ([`ends_on_collapse`]).
+            for &(ei, k) in d.ends_here.iter().filter(|(ei, _)| c.edges.contains(ei)) {
+                run(ei, k, d)?;
+            }
+            continue;
+        }
         let at = corners(b, c, d);
         for &ei in &c.edges {
             let e = b.edges.get(ei)?;
             for (k, _) in e.ends.iter().enumerate().filter(|(_, v)| at.contains(v)) {
-                for u in &e.uses {
-                    let iso = u.iso?;
-                    if iso.held != held || iso.full {
-                        continue;
-                    }
-                    let end = iso.moving(u.image?[k]);
-                    let end = if periodic {
-                        wrap(end, geom::mid_param(d.at.lo(), d.at.hi()))
-                    } else {
-                        end
-                    };
-                    out.push(match d.side {
-                        Side::XHi | Side::YHi => {
-                            Interval::from_bounds(end.lo(), end.hi().max(d.at.hi()))
-                        }
-                        Side::XLo | Side::YLo => {
-                            Interval::from_bounds(end.lo().min(d.at.lo()), end.hi())
-                        }
-                    });
-                }
+                run(ei, k, d)?;
             }
         }
     }
     Some(out)
+}
+
+/// **The edge ends that end on a collapsed side**, the side being the
+/// vertex `v`, read at the singular point `point` ([`singular_ends`]):
+/// each end of a boundary edge whose end vertex is `v`, by key, and
+/// whose chart image there is at `point` by the band ([`parallel_at`]).
+/// [`run_on`] runs such an end's line on to the collapsed side.
+///
+/// **Why that is the face's side, with no slack read**: the edge's curve
+/// ends at `v`; `v` is at the singular point, by the one incidence; and
+/// the image's end, a rounding of the edge's own parameters or the
+/// vertex's own latitude, is at the singular point by the same decision,
+/// so every surface point of the strip between it and the collapsed side
+/// is too. The boundary in that strip is nowhere else at the band, and
+/// the face has no point there to wrap round the edge's end into.
+///
+/// An end whose vertex is another, however near the side, is not one,
+/// nor an end whose image is off the point by the band: that edge and
+/// its vertex name two places, and it covers only its own range.
+fn ends_on_collapse(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    v: VertexKey,
+    point: Point3<Interval>,
+    band: Band,
+) -> Vec<(usize, usize)> {
+    let at_point = |e: &Rim, k: usize| {
+        e.uses.iter().all(|u| {
+            let (Some(iso), Some(image)) = (u.iso, u.image) else {
+                return false;
+            };
+            let (held, end) = (iso.at, iso.moving(image[k]));
+            let chart = |h: f64, m: f64| match iso.held {
+                Axis::U => (h, m),
+                Axis::V => (m, h),
+            };
+            held.is_certified()
+                && end.is_certified()
+                && [end.lo(), end.hi()]
+                    .into_iter()
+                    .all(|m| parallel_at(surface, chart(held.lo(), m), point, band))
+        })
+    };
+    b.edges
+        .iter()
+        .enumerate()
+        .flat_map(|(ei, e)| (0..2).map(move |k| (ei, e, k)))
+        .filter(|&(_, e, k)| e.ends[k] == v && at_point(e, k))
+        .map(|(ei, _, k)| (ei, k))
+        .collect()
 }
 
 /// **A cone face's nappe**: `true` where its vertices off the apex stand
@@ -1891,10 +2202,34 @@ fn present_chart<'a>(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
+    present_chart_in(piece, near_edges, near_vertices, band, false)
+}
+
+/// [`present_chart`], in the stored chart or, `posed`, in a pose of a
+/// sphere ([`present_posed`]): there the cell is under a turn wide, its
+/// sheet is the posed extent's ([`posed_extent`]), and a side carries no
+/// parameters.
+fn present_chart_in<'a>(
+    piece: &Piece<'a>,
+    near_edges: &[usize],
+    near_vertices: &[VertexKey],
+    band: Band,
+    posed: bool,
+) -> Result<Presentation<'a>, Unpresented> {
     let b = piece.boundary;
     let cell = (piece.u, piece.v);
     let sheet = if piece.whole {
         [Sheet::Free; 2]
+    } else if posed {
+        // A pose's extent is the pose's reading ([`posed_extent`] says
+        // what it rests on), not the face's fact: where it is not granted,
+        // or its lines contradict it ([`face_extent`]), the cell is placed
+        // by itself, under a turn wide ([`posed_cell`]), never refused.
+        match b.extent.map(|_| sheets(piece.surface, b, cell, band)) {
+            Some(Ok(Sheets::On(s))) => s,
+            Some(Ok(Sheets::Missed)) => return Ok(Presentation::Vacuous),
+            _ => [Sheet::Free; 2],
+        }
     } else {
         match sheets(piece.surface, b, cell, band)? {
             Sheets::On(s) => s,
@@ -1959,6 +2294,7 @@ fn present_chart<'a>(
                             at: iso.at,
                             edges: vec![ei],
                             collapsed: None,
+                            ends_here: Vec::new(),
                         });
                     }
                 }
@@ -1999,11 +2335,12 @@ fn present_chart<'a>(
                 at: line,
                 edges: vec![ei],
                 collapsed: None,
+                ends_here: Vec::new(),
             });
         }
     }
     if !inside && !outside.is_empty() {
-        return if vacuous(b, piece.surface, cell, &outside) {
+        return if vacuous(b, piece.surface, cell, &outside, posed) {
             Ok(Presentation::Vacuous)
         } else {
             Err(Unpresented::Local)
@@ -2034,6 +2371,7 @@ fn present_chart<'a>(
             at: hull,
             edges: on.iter().flat_map(|c| c.edges.iter().copied()).collect(),
             collapsed: None,
+            ends_here: Vec::new(),
         });
     }
     // The rectangle: the cell, its sides moved to the lines, outward.
@@ -2048,107 +2386,71 @@ fn present_chart<'a>(
             Side::YHi => y.1 = c.at.hi(),
         }
     }
-    // A cone's apex is a collapsed side of its chart.
-    if let Surface::Cone { frame, .. } = piece.surface {
-        let (apex, axis) = (frame.origin(), frame.axis());
-        for &v in &piece.local.vertices {
-            let Some(&p) = b.vertices.get(&v) else {
+    // A sphere's pole and a cone's apex are collapsed sides of the chart:
+    // `v = ±π/2`, bounds of the sphere's canonical domain, and `v = 0`.
+    let on_cone = matches!(piece.surface, Surface::Cone { .. });
+    for &v in &piece.local.vertices {
+        let Some(&p) = b.vertices.get(&v) else {
+            continue;
+        };
+        // A face with an apex vertex in reach and no one nappe is not
+        // presented in any cell that holds that vertex; a cell away
+        // from the apex reads it as any face.
+        let Some(ends) = singular_ends(piece.surface, b, p, band) else {
+            return Err(Unpresented::Structural);
+        };
+        for (low, end) in [false, true].into_iter().zip(ends) {
+            let Some((line, point)) = end else {
                 continue;
             };
-            if !matches!(
-                decide(SELF_INTERSECTION_APEX, Margin::of((p - apex).norm()), band),
-                Ok(Sign::Zero)
-            ) {
-                continue;
-            }
-            // A face with an apex vertex in reach and no one nappe is not
-            // presented in any cell that holds that vertex; a cell away
-            // from the apex reads it as any face.
-            let Some(lo) = nappe(b, apex, axis, band) else {
-                return Err(Unpresented::Structural);
-            };
-            // The cell on the other nappe holds only the apex of the
+            // The cell on a cone's other nappe holds only the apex of the
             // face. This is read only where the face's extent wraps or is
             // unknown: a known one is on the face's nappe ([`face_extent`]),
             // and a cell on the other misses it in [`sheets`] first.
             let (cv0, cv1) = piece.v;
-            if (lo && cv1 <= 0.0) || (!lo && cv0 >= 0.0) {
+            if on_cone && ((low && cv1 <= 0.0) || (!low && cv0 >= 0.0)) {
                 return Ok(Presentation::Vacuous);
             }
-            if (lo && y.0 > 0.0) || (!lo && y.1 < 0.0) {
+            // A rectangle short of the latitude is a cell short of it, or
+            // one a line of the face bounds short of it. The extent, where
+            // it is known, reaches the latitude ([`face_extent`]), so its
+            // clip is never what stops the rectangle short.
+            if (low && y.0 > line.hi()) || (!low && y.1 < line.lo()) {
                 continue;
             }
-            y = if lo {
-                (y.0.max(0.0), y.1)
+            // A rectangle wholly past the latitude is left with no width
+            // here, which is refused below. Where the extent was moved to
+            // the latitude, the strip between its stored end and the
+            // latitude is at the singular point by the band
+            // ([`reaching_its_singular_points`]), so the face's points in
+            // it are read as the vertex, the side's zero.
+            if low {
+                y.0 = line.lo();
             } else {
-                (y.0, y.1.min(0.0))
-            };
-            let side = Side::of(Axis::V, lo);
-            // A line on the face's low side that does not hold `0`, in a
-            // rectangle that still reaches `0`, lies within the slack of
-            // `0` (every line meets the extent, which is on the nappe): the
-            // collapse and the line are two readings of one side that do
-            // not agree, which a smaller cell does not hold both of.
+                y.1 = line.hi();
+            }
+            let side = Side::of(Axis::V, low);
+            // A line on that side that does not hold the latitude, in a
+            // rectangle that still reaches it, lies within the slack of it
+            // (every line meets the extent): the collapse and the line are
+            // two readings of one side that do not agree, which a smaller
+            // cell does not hold both of.
             match merged.iter_mut().find(|m| m.side == side) {
-                Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
+                Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
+                    // A second vertex at the same collapsed side replaces the
+                    // first here. That only refuses: the first is then on no
+                    // zero side, and its edges are not run on.
+                    m.collapsed = Some(v);
+                    m.ends_here = ends_on_collapse(piece.surface, b, v, point, band);
+                }
                 Some(_) => return Err(Unpresented::Local),
                 None => merged.push(Clip {
                     side,
-                    at: at(0.0),
+                    at: line,
                     edges: Vec::new(),
                     collapsed: Some(v),
+                    ends_here: ends_on_collapse(piece.surface, b, v, point, band),
                 }),
-            }
-        }
-    }
-    // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
-    // bound of its canonical domain. A vertex is at it by the one reading
-    // of that incidence.
-    if let &Surface::Sphere { frame, radius, .. } = piece.surface {
-        let (center, axis) = (frame.origin(), frame.axis());
-        use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
-        let half = Interval::pi() * at(0.5);
-        let poles = sphere_poles(
-            geom::Line {
-                origin: center,
-                dir: axis,
-            },
-            radius,
-        );
-        for &v in &piece.local.vertices {
-            let Some(&p) = b.vertices.get(&v) else {
-                continue;
-            };
-            for (pole, point) in poles {
-                if !matches!(vertex_at_singular_point(p, point, band), Ok(true)) {
-                    continue;
-                }
-                let north = pole == Singularity::North;
-                let line = if north { half } else { -half };
-                if (north && y.1 < line.lo()) || (!north && y.0 > line.hi()) {
-                    continue;
-                }
-                if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
-                    return Err(Unpresented::Local);
-                }
-                if north {
-                    y.1 = line.hi();
-                } else {
-                    y.0 = line.lo();
-                }
-                let side = Side::of(Axis::V, !north);
-                match merged.iter_mut().find(|m| m.side == side) {
-                    Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
-                        m.collapsed = Some(v);
-                    }
-                    Some(_) => return Err(Unpresented::Local),
-                    None => merged.push(Clip {
-                        side,
-                        at: line,
-                        edges: Vec::new(),
-                        collapsed: Some(v),
-                    }),
-                }
             }
         }
     }
@@ -2211,6 +2513,9 @@ fn present_chart<'a>(
                 Some(&[e]) => Zero::Side(
                     side,
                     Along::over(piece.surface, b, e, on_edges, || {
+                        if posed {
+                            return None;
+                        }
                         iso_params(piece.surface, b.edges.get(e)?, range)
                     }),
                 ),
@@ -2232,6 +2537,664 @@ fn present_chart<'a>(
         corner: false,
         cache: Cache::default(),
     })))
+}
+
+// ------------------------------------------------- a sphere, re-posed
+
+/// A rectangle of a chart, `(u, v)`.
+type ChartRect = ((f64, f64), (f64, f64));
+
+/// **The frame a sphere is posed in about a circle** ([`present_posed`]):
+/// about the sphere's centre `c`, the circle's axis and its seam's part
+/// across it, each normalized. The vectors are enclosures of the exact
+/// unit frame the stored ones normalize to, so every reading in the pose
+/// holds for that exact chart of the sphere. `None` where either does not
+/// normalize.
+fn pose_frame(
+    c: Point3<Interval>,
+    axis: Vec3<Interval>,
+    u_ref: Vec3<Interval>,
+) -> Option<geom::Frame<Interval>> {
+    let unit = |w: Vec3<Interval>| {
+        let n = w.norm();
+        (n.is_certified() && n.lo() > 0.0).then(|| w * (at(1.0) / n))
+    };
+    let a = unit(axis)?;
+    let x = unit(u_ref - a * u_ref.dot(a))?;
+    Some(geom::Frame::new(c, a, x))
+}
+
+/// The sphere of `radius` about `frame`'s origin, charted in it.
+fn posed_sphere(frame: &geom::Frame<Interval>, radius: Interval) -> Surface<Interval> {
+    Surface::Sphere {
+        frame: *frame,
+        radius,
+    }
+}
+
+/// **An edge's use, lifted into a pose** ([`present_posed`]): the image
+/// the mint would store of its carrier on the posed sphere
+/// ([`geom_brep::chart_pcurve_over`]), read as [`crate::clearance`]'s
+/// boundary reads a stored row ([`crate::clearance::chart_use`]). On a
+/// sphere a circle is a parallel of the chart about its own axis, and a
+/// great circle through that axis a meridian, which the mint stores as
+/// coordinate lines by variant; any other circle's image is the projected
+/// one, which no presentation reads as a line. **A pose reads circles
+/// only**, by this check: a sphere holds no other conic, and a side a
+/// pose reads is then a line or circle's, which is what
+/// [`Along::under_graph`]'s reading of a side with no parameters rests on.
+/// A seam's two uses are lifted alike: a seam of the stored chart is no
+/// boundary of the face in any chart, and [`present_chart`] passes it by.
+fn posed_use(surface: &Surface<Interval>, rim: &Rim, u: &Use, band: Band) -> Use {
+    let none = Use {
+        plus: u.plus,
+        image: None,
+        iso: None,
+        harmonic: None,
+        wall: None,
+    };
+    let Some((carrier, (t0, t1))) = rim.arc.as_ref().filter(|(c, _)| c.as_circle().is_some())
+    else {
+        return none;
+    };
+    let got = geom_brep::chart_pcurve_over(carrier, *t0, *t1, surface, band);
+    got.ok()
+        .and_then(|image| {
+            crate::clearance::chart_use(&image, (*t0, *t1), u.plus, rim.ends[0] == rim.ends[1])
+        })
+        .unwrap_or(none)
+}
+
+/// **A face's boundary lifted into a pose**: each edge as
+/// [`posed_use`] reads it on `surface`, the vertices as they are, and its
+/// extent in the pose where one is granted ([`posed_extent`]).
+fn posed_boundary(
+    frame: &geom::Frame<Interval>,
+    surface: &Surface<Interval>,
+    radius: Interval,
+    b: &Boundary,
+    band: Band,
+) -> Boundary {
+    Boundary {
+        sense: b.sense,
+        edges: b
+            .edges
+            .iter()
+            .map(|e| Rim {
+                key: e.key,
+                arc: e.arc.clone(),
+                stated: e.stated.clone(),
+                ends: e.ends,
+                uses: e
+                    .uses
+                    .iter()
+                    .map(|u| posed_use(surface, e, u, band))
+                    .collect(),
+            })
+            .collect(),
+        vertices: b.vertices.clone(),
+        extent: posed_extent(frame, radius, b),
+        outer: b.outer.clone(),
+    }
+}
+
+/// **A face's extent in a pose**, granted only where it is decided; the
+/// one statement of what a posed extent rests on, which
+/// [`present_posed`] and [`present_chart_in`] point to. The face lies
+/// left of its outer loop about its outward normal (the stored extent's
+/// premise, [`Boundary::extent`]), and a pose has the stored chart's
+/// orientation, as every sphere chart built by [`geom::Frame::new`] has
+/// its normal outward; so where the loop's lift into the pose closes on
+/// one sheet and runs the way the face's sense says, the face is the
+/// lift's bounded side and lies within its hull. Read here, not
+/// assumed: in the stored chart that is the B-rep's invariant about how
+/// a face is stored, and in a pose a loop that runs the other way is a
+/// face holding a pose's pole, or the loop's outside.
+///
+/// - **The loop** is the body's walk of the face's outer loop, kept by
+///   the lift ([`Boundary::outer`]); a face with a ring has none here.
+/// - **Every row on this sphere, exactly as stored** ([`on_sphere`]):
+///   a row's points are placed by their latitude `asin(Z/R)`, which is
+///   the latitude only of a point on the sphere.
+/// - **The lift**: each row's carrier, in its traversal order, cut into
+///   [`pieces_of`] its span, each piece's box placed in the pose
+///   ([`posed_cell`]), so every row has an enclosure that holds it; each
+///   piece moved by whole turns to meet the one before. A piece whose box
+///   holds the pose's axis has no placement, so a loop through a pose's
+///   pole has no extent.
+/// - **One sheet**: the hull under a turn wide. A loop's lift that does
+///   not close winds round the axis, from a longitude to a whole number
+///   of turns past it, so its pieces span a turn or more; under a turn,
+///   it closes, and the loop does not wrap the azimuth.
+/// - **Its orientation**: the signed area of the polygon through the
+///   pieces' starts, certified to the sign the face's sense gives with a
+///   margin of the pieces' rectangles' areas, which bound how far the
+///   loop's area can differ from the polygon's (the loop and each chord
+///   lie in their piece's rectangle). The margin decides only for a face
+///   narrower than its rows' chords stray, which may wind either way.
+///   The sign itself, a face read as its complement, is pinned by one
+///   unit row only (`a_face_thinner_than_its_rows_chords_is_granted_no_extent`,
+///   the thin band both ways round). No body row reaches it: it needs a face holding both of the pose's poles
+///   while its loop winds round neither, and every sphere face this
+///   kernel builds is a revolve's half, which holds a pole its loop
+///   winds round, so the wrap refuses first. That premise is the
+///   kernel's, not this reader's: a face larger than a hemisphere (an
+///   import, say) reopens it, with that row still the sign's only pin.
+///
+/// The hull of the pieces' rectangles is then the extent, a superset of
+/// the face. `None` where any of these does not certify: the pose then
+/// places by the cell alone, as it does with no extent.
+fn posed_extent(
+    frame: &geom::Frame<Interval>,
+    radius: Interval,
+    b: &Boundary,
+) -> Option<[(f64, f64); 2]> {
+    let order = b.outer.as_ref()?;
+    for &(i, _) in order {
+        let (carrier, _) = b.edges.get(i)?.arc.as_ref()?;
+        if !on_sphere(carrier, frame.origin(), radius) {
+            return None;
+        }
+    }
+    let place = |p: Point3<Interval>| posed_cell(frame, radius, p);
+    let shift = |(lo, hi): (f64, f64), k: f64| {
+        let d = k * TURN;
+        (lo + d - few_ulps(lo + d), hi + d + few_ulps(hi + d))
+    };
+    let meets = |a: (f64, f64), b: (f64, f64)| {
+        let slack = chart_slack(&[a.0, a.1, b.0, b.1]);
+        a.0 <= b.1 + slack && b.0 <= a.1 + slack
+    };
+    let mut hull = [(f64::INFINITY, f64::NEG_INFINITY); 2];
+    let mut slack_area = 0.0;
+    let mut corners: Vec<(Interval, Interval)> = Vec::new();
+    let mut prev: Option<(f64, f64)> = None;
+    for &(i, plus) in order {
+        let (carrier, (t0, t1)) = b.edges.get(i)?.arc.as_ref()?;
+        let mut pieces = pieces_of((t0.lo(), t1.hi()));
+        if !plus {
+            pieces.reverse();
+        }
+        for t in pieces {
+            let (lon, lat) = place(carrier.eval(t))?;
+            let k = prev.map_or(0.0, |p| ((mid(iv(p)) - mid(iv(lon))) / TURN).round());
+            let lon = shift(lon, k);
+            if prev.is_some_and(|p| !meets(p, lon)) {
+                return None;
+            }
+            prev = Some(lon);
+            hull[0] = (hull[0].0.min(lon.0), hull[0].1.max(lon.1));
+            hull[1] = (hull[1].0.min(lat.0), hull[1].1.max(lat.1));
+            slack_area += (lon.1 - lon.0) * (lat.1 - lat.0);
+            let start = if plus { t.lo() } else { t.hi() };
+            let (plon, plat) = place(carrier.eval(at(start)))?;
+            let plon = shift(plon, ((mid(iv(lon)) - mid(iv(plon))) / TURN).round());
+            corners.push((iv(plon), iv(plat)));
+        }
+    }
+    // A lift that does not close winds round the axis, from a longitude
+    // to a whole number of turns past it, so its pieces span a turn or
+    // more: under a turn wide, the lift closes on one sheet. The reader
+    // would refuse such a hull too ([`face_extent`] reads an extent a
+    // turn wide as wrapping, which gives no sheet), so this says here
+    // what the extent's premise is rather than leaving it to that reading.
+    if hull[0].1 - hull[0].0 >= TURN {
+        return None;
+    }
+    let n = corners.len();
+    let twice: Interval = (0..n).fold(at(0.0), |acc, j| {
+        let ((x0, y0), (x1, y1)) = (corners[j], corners[(j + 1) % n]);
+        acc + x0 * y1 - x1 * y0
+    });
+    let area = twice * at(0.5);
+    let margin = at(slack_area);
+    let ccw = matches!(b.orientation(), PolygonOrientation::CounterClockwise);
+    let decided = if ccw {
+        (area - margin).lo() > 0.0
+    } else {
+        (area + margin).hi() < 0.0
+    };
+    (decided && area.is_certified()).then_some(hull)
+}
+
+/// **Whether a carrier lies on the sphere of `radius` about `centre`,
+/// exactly as it is stored**: a circle whose stored centre lies on its
+/// axis line through `centre` and whose stored radius and centre's
+/// distance make up the sphere's (`|c − C|² + ρ² = R²`), each to within
+/// the rounding of the few products that read them ([`few_ulps`] of `R`
+/// and of `R²`, below any edge tolerance). [`posed_extent`] places a row's points by
+/// their latitude `asin(Z/R)`, which is the latitude only of a point on
+/// the sphere; a row stored off it by an edge's tolerance (a spline
+/// section, a circle of another sphere) would shift the hull by that
+/// offset times the latitude's tangent, the unsound way, so it is no
+/// row of a granted extent.
+fn on_sphere(carrier: &Curve3<Interval>, centre: Point3<Interval>, radius: Interval) -> bool {
+    let Some(c) = carrier.as_circle() else {
+        return false;
+    };
+    let r2 = radius.powi(2);
+    let off = c.frame.origin() - centre;
+    let on_axis = off.cross(c.frame.axis());
+    let rest = off.dot(off) + c.radius().powi(2) - r2;
+    let small = |x: Interval, tol: f64| x.is_certified() && x.lo() >= -tol && x.hi() <= tol;
+    let (length, area) = (few_ulps(radius.hi()), few_ulps(r2.hi()));
+    [on_axis.x, on_axis.y, on_axis.z]
+        .into_iter()
+        .all(|x| small(x, length))
+        && small(rest, area)
+}
+
+/// **Whether each pose of a sphere face holds `point` in its extent**:
+/// one entry per pose of the face ([`FacePoses`]), `None` where the
+/// extent the presentation reads ([`face_extent`] over the posed
+/// boundary's [`Boundary::extent`]) is not known. The poses and the
+/// extents are the ones [`present_chart_in`] is handed, so a mis-wired
+/// posed extent is read here as it is there. A test reads it: a face
+/// point a granted extent leaves out is a premise of the extent broken.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn posed_extents_holding(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    point: Point3<Interval>,
+    band: Band,
+) -> Vec<Option<bool>> {
+    let Some((_, radius)) = sphere_of(surface) else {
+        return Vec::new();
+    };
+    let face = FacePoses::default();
+    face.get(surface, b, band)
+        .iter()
+        .map(|pose| {
+            let Ok(Extent::Known([lon, lat])) = face_extent(&pose.surface, &pose.boundary, band)
+            else {
+                return None;
+            };
+            let Some(((plo, phi), (tlo, thi))) = posed_cell(&pose.frame, radius, point) else {
+                return Some(true);
+            };
+            let meets = |(a0, a1): (f64, f64), (b0, b1): (f64, f64)| a0 <= b1 && b0 <= a1;
+            Some(
+                meets((tlo, thi), lat)
+                    && (-2..=2).any(|k| {
+                        let d = f64::from(k) * TURN;
+                        meets((plo + d, phi + d), lon)
+                    }),
+            )
+        })
+        .collect()
+}
+
+/// **A cell in a pose**: a rectangle of the pose's chart holding every
+/// point of the sphere in the box `image`, which holds the face's part of
+/// the cell. On the sphere `Z/r` is the sine of the latitude, so the
+/// latitude lies in the arcsine of the box's `Z/r` clamped to `[−1, 1]`;
+/// the azimuth is the box's direction in the frame, read about its middle
+/// ([`geom::Azimuth::about_middle`]), within a quarter turn of it up to
+/// rounding, so the rectangle is under a turn wide, which is what the
+/// pose reads it by: it holds at most one copy of each point and each
+/// line of the periodic axis. `None` where the box is not
+/// decided off the pose's axis, about which every azimuth meets: a
+/// smaller cell may be.
+fn posed_cell(
+    frame: &geom::Frame<Interval>,
+    radius: Interval,
+    image: Point3<Interval>,
+) -> Option<ChartRect> {
+    let s = (image - frame.origin()).dot(frame.axis()) / radius;
+    if !s.is_certified() {
+        return None;
+    }
+    let (lo, hi) = (s.lo().max(-1.0), s.hi().min(1.0));
+    if lo > hi {
+        return None;
+    }
+    let lat = Interval::from_bounds(lo, hi).asin();
+    let lon = frame.azimuth(image).about_middle()?;
+    lat.is_certified()
+        .then_some(((lon.lo(), lon.hi()), (lat.lo(), lat.hi())))
+}
+
+/// One pose a sphere face's cell is read in: the chart, the boundary
+/// lifted into it, and the cell there with its ball and local boundary.
+struct Posed<'f> {
+    pose: &'f FacePose,
+    x: (f64, f64),
+    y: (f64, f64),
+    ball: Ball,
+    local: Local,
+}
+
+/// **The poses one face's cell is read in**, held for as long as a
+/// presentation in one of them is read ([`present`]).
+pub(crate) struct Poses<'f> {
+    face: &'f FacePoses,
+    set: std::cell::OnceCell<PoseSet<'f>>,
+}
+
+impl<'f> Poses<'f> {
+    /// A cell's store, drawing on its face's poses.
+    pub(crate) fn of(face: &'f FacePoses) -> Self {
+        Self {
+            face,
+            set: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// A store that offers no pose: its set is empty before any cell asks,
+    /// so `face` is never read and [`present`] reads the stored chart only.
+    pub(crate) fn none(face: &'f FacePoses) -> Self {
+        let set = std::cell::OnceCell::new();
+        let _ = set.set(PoseSet::default());
+        Self { face, set }
+    }
+}
+
+/// **A sphere face's poses, built once per ask** ([`present_posed`]): one
+/// per axis line of the face's circles that its stored chart reads as no
+/// coordinate line ([`pose_circles`]), each with its frame, its sphere
+/// and the face's boundary lifted into it, the posed extent included
+/// ([`posed_boundary`]). They are facts of the face, so the walk keeps
+/// them beside the face's boundary, and a cell selects the poses of the
+/// circles in its reach ([`poses_of`]).
+#[derive(Default)]
+pub(crate) struct FacePoses {
+    of: std::cell::OnceCell<Vec<FacePose>>,
+    builds: std::cell::Cell<usize>,
+}
+
+/// A copy of a face's window starts its own store: the poses are built
+/// again for it, once.
+impl Clone for FacePoses {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl core::fmt::Debug for FacePoses {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("FacePoses")
+            .field("built", &self.of.get().map(Vec::len))
+            .field("builds", &self.builds.get())
+            .finish()
+    }
+}
+
+/// One of a face's poses: the circles' edges it is about, its frame, its
+/// sphere and the face's boundary lifted into it.
+struct FacePose {
+    edges: Vec<usize>,
+    frame: geom::Frame<Interval>,
+    surface: Surface<Interval>,
+    boundary: Boundary,
+}
+
+impl FacePoses {
+    /// The face's poses, each built once.
+    fn get(&self, surface: &Surface<Interval>, b: &Boundary, band: Band) -> &[FacePose] {
+        self.of.get_or_init(|| {
+            let Some((center, radius)) = sphere_of(surface) else {
+                return Vec::new();
+            };
+            pose_circles(surface, b, 0..b.edges.len())
+                .into_iter()
+                .filter_map(|(edges, axis, u_ref)| {
+                    let frame = pose_frame(center, axis, u_ref)?;
+                    let posed = posed_sphere(&frame, radius);
+                    self.builds.set(self.builds.get() + 1);
+                    let boundary = posed_boundary(&frame, &posed, radius, b, band);
+                    Some(FacePose {
+                        edges,
+                        frame,
+                        surface: posed,
+                        boundary,
+                    })
+                })
+                .collect()
+        })
+    }
+
+    /// How many posed boundaries this face has built in this ask.
+    pub(crate) fn builds(&self) -> usize {
+        self.builds.get()
+    }
+}
+
+/// **The circles a sphere face is posed about** among `edges`: each
+/// circle edge of `b` that is no seam and that the stored chart reads as
+/// no coordinate line ([`is_curved`]), grouped by axis line, with that
+/// axis and the first such circle's seam direction. The one filter both
+/// [`FacePoses`] and the containment rows read.
+fn pose_circles(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    edges: impl IntoIterator<Item = usize>,
+) -> Vec<(Vec<usize>, Vec3<Interval>, Vec3<Interval>)> {
+    let mut out: Vec<(Vec<usize>, Vec3<Interval>, Vec3<Interval>)> = Vec::new();
+    for i in edges {
+        let Some(e) = b.edges.get(i) else { continue };
+        let Some(c) = e.arc.as_ref().and_then(|(c, _)| c.as_circle()) else {
+            continue;
+        };
+        if seam(e) || !is_curved(surface, e) {
+            continue;
+        }
+        match out
+            .iter_mut()
+            .find(|(_, a, _)| one_line(*a, c.frame.axis()))
+        {
+            Some((es, ..)) => es.push(i),
+            None => out.push((vec![i], c.frame.axis(), c.frame.u_ref())),
+        }
+    }
+    out
+}
+
+/// What [`poses_of`] finds: the poses placed, whether a pose was left
+/// out for want of a placement, and whether the cell reaches a corner no
+/// chart reads ([`unread_corner`]).
+#[derive(Default)]
+struct PoseSet<'f> {
+    poses: Vec<Posed<'f>>,
+    unplaced: bool,
+    unread_corner: bool,
+}
+
+/// **The poses of a sphere face's cell**: one per circle in its local
+/// boundary that the stored chart does not read as a coordinate line,
+/// charted about that circle's axis from its seam (one per axis line),
+/// each with the cell placed in it ([`posed_cell`]). A pose in which a
+/// shared edge (`near_edges`) is no coordinate line is left out: that
+/// edge is shared by every smaller cell of the pair, and unread there at
+/// any depth. The flag says a pose was left out for want of a placement,
+/// which a smaller cell may have.
+fn poses_of<'f>(
+    piece: &Piece<'_>,
+    near_edges: &[usize],
+    near_vertices: &[VertexKey],
+    band: Band,
+    face: &'f FacePoses,
+) -> PoseSet<'f> {
+    let Some((_, radius)) = sphere_of(piece.surface) else {
+        return PoseSet::default();
+    };
+    let all = face.get(piece.surface, piece.boundary, band);
+    // The poses of the circles in reach, in the order the cell's local
+    // boundary first reaches each.
+    let mut charted: Vec<&'f FacePose> = Vec::new();
+    for &i in &piece.local.edges {
+        if let Some(p) = all.iter().find(|p| p.edges.contains(&i))
+            && !charted.iter().any(|q| core::ptr::eq(*q, p))
+        {
+            charted.push(p);
+        }
+    }
+    let unread_corner = unread_corner(piece, &charted, near_vertices);
+    let image = piece.surface.rect_enclosure(piece.u, piece.v);
+    let mut unplaced = false;
+    let mut out = Vec::new();
+    for pose in charted {
+        if !lines(&pose.boundary, near_edges) {
+            continue;
+        }
+        let Some((x, y)) = posed_cell(&pose.frame, radius, image) else {
+            unplaced = true;
+            continue;
+        };
+        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+        let ball = Ball::holding(
+            pose.surface.point_eval(m(x), m(y)),
+            pose.surface.rect_enclosure(x, y),
+        );
+        let local = Local::of(&pose.boundary, ball, band);
+        out.push(Posed {
+            pose,
+            x,
+            y,
+            ball,
+            local,
+        });
+    }
+    PoseSet {
+        poses: out,
+        unplaced,
+        unread_corner,
+    }
+}
+
+/// A sphere's centre and radius; `None` for any other surface, which has
+/// no pose.
+fn sphere_of(surface: &Surface<Interval>) -> Option<(Point3<Interval>, Interval)> {
+    match *surface {
+        Surface::Sphere { frame, radius } => Some((frame.origin(), radius)),
+        _ => None,
+    }
+}
+
+/// Whether every use of each of the edges `at` is a coordinate line of
+/// `b`'s chart.
+fn lines(b: &Boundary, at: &[usize]) -> bool {
+    at.iter().all(|&i| {
+        b.edges
+            .get(i)
+            .is_some_and(|e| e.uses.iter().all(|u| u.iso.is_some()))
+    })
+}
+
+/// **A corner no chart reads, at a vertex the pair touches through**
+/// (`near_vertices`): two or more edges of the face meet at it in the
+/// cell's reach, one is no coordinate line of the stored chart, and in
+/// every pose one is no coordinate line either. Every smaller pair
+/// touching through the vertex holds that corner, so it is read at no
+/// depth, as [`beside_curve`] types an unread corner. Read off the cell's
+/// own local boundary, not a pose's wider rectangle, and only where that
+/// vertex is the one the pair is near in reach: a split parts two such
+/// vertices, and the other may be read, so the pair is not refused for a
+/// corner it can be split away from.
+fn unread_corner(piece: &Piece<'_>, charted: &[&FacePose], near_vertices: &[VertexKey]) -> bool {
+    let b = piece.boundary;
+    let on_shared = |v: &VertexKey| near_vertices.contains(v);
+    let touched: Vec<&VertexKey> = piece
+        .local
+        .vertices
+        .iter()
+        .filter(|v| on_shared(v))
+        .collect();
+    if touched.len() != 1 {
+        return false;
+    }
+    touched.into_iter().any(|v| {
+        let at: Vec<usize> = piece
+            .local
+            .edges
+            .iter()
+            .copied()
+            .filter(|&i| {
+                b.edges
+                    .get(i)
+                    .is_some_and(|e| e.arc.is_some() && !seam(e) && e.ends.contains(v))
+            })
+            .collect();
+        at.len() > 1 && !lines(b, &at) && charted.iter().all(|p| !lines(&p.boundary, &at))
+    })
+}
+
+/// **Present a sphere face in a pose** where its stored chart does not:
+/// a sphere is its own image under every rotation about its centre, so
+/// the face is a region of the sphere's chart about any axis, bounded by
+/// its edges' images there ([`posed_use`]). A circle on the sphere is a
+/// parallel of the chart about its own axis, and a great circle through
+/// that axis is a meridian of it; so a face beside a circle off the
+/// stored axis is read by [`present_chart`], unchanged, in the chart
+/// that makes the circle a coordinate line ([`poses_of`]).
+///
+/// **Why that is the face's part of the cell.** The cell's image lies in
+/// a box, and the pose's rectangle holds every point of the sphere in the
+/// box ([`posed_cell`]), so every point of the face in the cell. The
+/// rectangle is under a turn wide, so it holds one copy of each point and
+/// of each line. Its ball and local boundary are the pose's own
+/// rectangle's, so every argument [`present_chart`] makes about the
+/// boundary in reach is made over the rectangle it presents. A cell
+/// holding a pole of the pose is not placed in it.
+///
+/// **The face's sheet in a pose** is its posed extent's, the posed
+/// boundary's [`Boundary::extent`], read by [`sheets`] as a stored one
+/// is; what it is granted on is [`posed_extent`]'s to say. A rectangle that misses it holds none
+/// of the face (`Vacuous`). Where no extent is granted, or its lines
+/// contradict it, the rectangle is the face's sheet (`Sheet::Free`):
+/// never refused, never `Structural`, as the pose's extent is the pose's
+/// reading, not the face's fact.
+///
+/// **What a pose does not read**: an edge whose image is no coordinate
+/// line there is unread as in any chart, so a face bounded by circles in
+/// two planes is read, per cell, in the pose of the one its cell
+/// reaches, and not at a corner where both meet ([`unread_corner`]). A
+/// side is read as its edge's carrier is in any chart ([`Along::of`]),
+/// but carries no parameters, so the graph separator reads it only where
+/// it lies on its edges ([`Along::under_graph`]).
+///
+/// Every pose is tried in turn: `Structural` where the cell reaches a
+/// corner no chart reads ([`unread_corner`]); `None` where the face has
+/// no pose that reads its shared edges ([`poses_of`]); otherwise the
+/// first presentation, else `Local`. Both answers that keep the stored
+/// chart's `Structural` are **cost guards**, not soundness: each is a
+/// cell every smaller cell of the pair also holds unread, so reading on
+/// only splits further before the pair refuses. A pose's rectangle
+/// and ball are wider than the cell's, so what it finds unread in reach
+/// may lie outside the cell, and a smaller cell is placed tighter: no
+/// pose's own failure decides `Structural`.
+fn present_posed<'h>(
+    piece: &Piece<'_>,
+    near_edges: &[usize],
+    near_vertices: &[VertexKey],
+    band: Band,
+    store: &'h Poses<'_>,
+) -> Option<Result<Presentation<'h>, Unpresented>> {
+    let set = store
+        .set
+        .get_or_init(|| poses_of(piece, near_edges, near_vertices, band, store.face));
+    if set.unread_corner {
+        return Some(Err(Unpresented::Structural));
+    }
+    if set.poses.is_empty() && !set.unplaced {
+        return None;
+    }
+    for p in &set.poses {
+        let posed = Piece {
+            face: piece.face,
+            surface: &p.pose.surface,
+            whole: false,
+            boundary: &p.pose.boundary,
+            u: p.x,
+            v: p.y,
+            local: &p.local,
+            ball: p.ball,
+        };
+        let got = present_chart_in(&posed, near_edges, near_vertices, band, true);
+        if let Ok(read) = got {
+            return Some(Ok(read));
+        }
+    }
+    Some(Err(Unpresented::Local))
 }
 
 /// Whether the face is the quadrant two clips cut at the vertex their
@@ -3916,8 +4879,9 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
         chart_curve(s, o, u).map(Reading::PlaneLine)
     } else {
         // The argument is made on a chart that never collapses: a
-        // cylinder's, or a ring torus's. A sphere's images are its
-        // parallels and meridians, coordinate lines, so none reaches this;
+        // cylinder's, or a ring torus's. On a sphere a circle is read in
+        // the pose that makes it a coordinate line ([`present_posed`]),
+        // and a curve no chart makes one is not argued here;
         // a cone's apex collapses a line of its chart, and is not read
         // past here, conservatively: an apex in reach is a vertex the
         // reading refuses. On a torus the line is a parallel, and the
@@ -5867,14 +6831,14 @@ fn sign_on(
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
     let grad_norm = psi.gradient_norm();
-    let sine = |axis: Axis| {
+    let leaving = |axis: Axis| {
         let f = match axis {
             Axis::U => fx,
             Axis::V => fy,
         };
         psi.rate(image, f) / (grad_norm * f.norm())
     };
-    let departs = |s: Side| levered_sign(sine(s.axis()) * at(s.into()), arm?, band);
+    let departs = |s: Side| levered_sign(leaving(s.axis()) * at(s.into()), arm?, band);
     match &p.zero {
         Zero::None => interval_sign_as(
             centred(psi, p, p.x, p.y)?,
@@ -6027,6 +6991,12 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
 ///    near, each face presented against that vertex alone
 ///    ([`one_shared_vertex`]; the argument is at its site below).
 ///
+/// A face is presented through [`present`], so a sphere face the stored
+/// chart leaves unread is presented in the pose of one of its circles
+/// ([`present_posed`]), from that face's poses (`faces`), wherever
+/// separators 1 to 3 read it presented. Separator 4 re-presents each face
+/// against the shared vertex on its stored chart only.
+///
 /// A pair none of them parts is a [`cusp`] or splits.
 ///
 /// A face presented in two pieces ([`Presentation::Pair`]) is read piece
@@ -6036,7 +7006,14 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
 /// separator of its own. The pieces cover each face's part of its cell,
 /// so a coincidence of the faces is one of some piece pair, and the pair
 /// is certified only where all of them are.
-fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
+fn departure(
+    x: &Piece<'_>,
+    y: &Piece<'_>,
+    near: &Near,
+    band: Band,
+    two: bool,
+    faces: (&FacePoses, &FacePoses),
+) -> Outcome {
     let shared = near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face));
     let split = Outcome::Split {
         arm: CertificateArm::Departure,
@@ -6063,8 +7040,9 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
             arm: CertificateArm::Departure,
         });
     }
-    let px = present(x, &ex, &near.vertices, band);
-    let py = present(y, &ey, &near.vertices, band);
+    let (sx, sy) = (Poses::of(faces.0), Poses::of(faces.1));
+    let px = present(x, &ex, &near.vertices, band, &sx);
+    let py = present(y, &ey, &near.vertices, band, &sy);
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -6164,9 +7142,9 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     // vanishes at the collapse; across the side the chart's derivative is
     // a ruling's or a meridian's direction. `ψ` vanishes on the side by
     // membership, `q` being `v`'s stored point, and the side's image is
-    // `v` within the collapse's own reading: [`SELF_INTERSECTION_APEX`] at
-    // an apex, `vertex_at_singular_point` at a pole (the module's
-    // separator concessions).
+    // `v` within the collapse's own reading: `vertex_at_singular_point`,
+    // at an apex and at a pole alike (the module's separator
+    // concessions).
     //
     // **Where it fires.** It certifies only where each face against `v` is
     // presented with no zero (read by value), a corner point at `v`
@@ -6187,9 +7165,15 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
             edges: Vec::new(),
             vertices: vec![v],
         };
+        // The faces are re-presented against `v` on their stored charts
+        // only, never in a pose: no review has read a posed presentation
+        // re-presented against `{v}`
+        // (`work/embed/the-one-shared-vertex-arm-reads-no-posed-presentation`).
+        let unposed = FacePoses::default();
+        let (nx, ny) = (Poses::none(&unposed), Poses::none(&unposed));
         let (rx, ry) = (
-            present(x, &[], &alone.vertices, band),
-            present(y, &[], &alone.vertices, band),
+            present(x, &[], &alone.vertices, band, &nx),
+            present(y, &[], &alone.vertices, band, &ny),
         );
         if let (Ok(rx), Ok(ry)) = (&rx, &ry) {
             let (rxs, rys) = (rx.pieces(), ry.pieces());
@@ -7198,6 +8182,7 @@ mod presentation_rows {
             edges,
             vertices: BTreeMap::new(),
             extent: Some([(BETA, top), (0.0, 1.0)]),
+            outer: None,
         }
     }
 
@@ -7339,6 +8324,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([extent, (0.0, 1.0)]),
+            outer: None,
         }
     }
 
@@ -7407,6 +8393,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(1.0, 2.0), (0.0, 1.0)]),
+            outer: None,
         };
         assert_eq!(
             chart_near(&s, &b, &all(4), &[0], ((1.2, 1.8), (0.0, 1.0))),
@@ -7437,6 +8424,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(q, h), (0.0, 0.5)]),
+            outer: None,
         };
         for v in [(0.2, 0.8), (0.5, 0.8), (1.0, 2.0)] {
             let read = chart_near(&s, &b, &all(4), &[3], ((q + 0.2, h - 0.2), v));
@@ -7472,6 +8460,7 @@ mod presentation_rows {
                 (vertex(9), origin()),
             ]),
             extent: Some([(1.0, 2.0), (-1.0, -0.5)]),
+            outer: None,
         };
         let local = Local {
             edges: all(4),
@@ -7548,6 +8537,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(1.0, 2.0), (0.0, 1.0)]),
+            outer: None,
         };
         for u in [(2.2, 2.8), (1.2, 1.8)] {
             let read = chart_near(&s, &b, &all(4), &[], (u, (0.2, 0.8)));
@@ -7637,6 +8627,7 @@ mod presentation_rows {
             edges: vec![rim(1, [3, 3], Axis::V, 1.0, (TURN, 1.0), (0.0, 1.0))],
             vertices: vertices.clone(),
             extent: Some([(0.0, TURN), (0.0, 1.0)]),
+            outer: None,
         };
         assert_eq!(
             at(&wrapping, (-0.5, -0.1)),
@@ -7657,6 +8648,7 @@ mod presentation_rows {
             ],
             vertices,
             extent: Some([(1.0, 2.0), (-1e-15, 1.0)]),
+            outer: None,
         };
         assert!(
             matches!(at(&sector, (0.2, 0.8)), Read::Of(..)),
@@ -7690,6 +8682,7 @@ mod presentation_rows {
                 (vertex(9), origin()),
             ]),
             extent: Some([(0.0, TURN), (-1.0, 1.0)]),
+            outer: None,
         };
         let local = Local {
             edges: all(1),
@@ -7734,6 +8727,7 @@ mod presentation_rows {
                 edges: Vec::new(),
                 vertices: BTreeMap::from([(vertex(3), Point3::new(iv0(1.0), iv0(0.0), iv0(z)))]),
                 extent: Some([(1.0, 2.0), (0.0, 0.0)]),
+                outer: None,
             };
             assert_eq!(
                 chart(&s, &b, &[], (1.2, 1.8), (-0.5, 0.5)),
@@ -7760,6 +8754,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(0.0, TURN), (0.5, 1.0)]),
+            outer: None,
         };
         assert_eq!(
             chart(&s, &b, &all(2), (1.0, 2.0), (0.4, 1.1)),
@@ -7793,6 +8788,7 @@ mod presentation_rows {
             edges: Vec::new(),
             vertices: BTreeMap::new(),
             extent: Some([(0.0, TURN), (0.0, 0.0)]),
+            outer: None,
         };
         assert_eq!(
             chart(&s, &b, &[], (1.0, 2.0), (0.5, 1.0)),
@@ -7816,6 +8812,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(0.0, 3.0), (0.0, 1.0)]),
+            outer: None,
         }
     }
 
@@ -7866,6 +8863,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: Some([(0.0, 3.0), (0.0, 1.0)]),
+            outer: None,
         };
         assert_eq!(
             chart_near(&s, &b, &all(4), &[0], ((0.9, 1.1), (0.4, 0.6))),
@@ -7887,6 +8885,7 @@ mod presentation_rows {
             edges: Vec::new(),
             vertices: BTreeMap::new(),
             extent: Some([(-6.18, -0.05), (0.0, 1.0)]),
+            outer: None,
         };
         assert_eq!(
             chart(&s, &b, &[], (11.98, 12.98), (0.3, 0.7)),
@@ -7982,6 +8981,7 @@ mod presentation_rows {
             edges,
             vertices: BTreeMap::new(),
             extent: Some([(1.0, 2.0), (0.0, 1.0)]),
+            outer: None,
         }
     }
 
@@ -8232,6 +9232,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges: vec![i],
             collapsed: None,
+            ends_here: Vec::new(),
         };
         assert!(convex(&b, &clip(Side::XHi, 0), &clip(Side::YLo, 3)));
         assert!(!convex(&b, &clip(Side::XLo, 0), &clip(Side::YLo, 3)));
@@ -8249,6 +9250,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges: vec![i],
             collapsed: None,
+            ends_here: Vec::new(),
         };
         let right = clip(Side::XHi, 0);
         let bottom = clip(Side::YLo, 3);
@@ -8305,6 +9307,7 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::new(),
             extent: None,
+            outer: None,
         };
         let local = Local {
             edges: vec![0],
@@ -8375,6 +9378,7 @@ mod presentation_rows {
             edges: vec![line(y, 2, !forward), line(x, 3, forward)],
             vertices: BTreeMap::new(),
             extent: None,
+            outer: None,
         };
         let local = Local {
             edges: vec![0, 1],
@@ -8460,6 +9464,7 @@ mod presentation_rows {
                     (vertex(k2 + 100), origin() + v3(d2) * iv0(4.0)),
                 ]),
                 extent: None,
+                outer: None,
             },
         )
     }
@@ -8521,13 +9526,22 @@ mod presentation_rows {
             Outcome::Split { .. } | Outcome::Cusp { .. } => false,
             other => panic!("certified, split or cusp: {other:?}"),
         };
-        let a = one(departure(&x, &y, &near(edges.to_vec()), band(), true));
+        let none = FacePoses::default();
+        let a = one(departure(
+            &x,
+            &y,
+            &near(edges.to_vec()),
+            band(),
+            true,
+            (&none, &none),
+        ));
         let b = one(departure(
             &y,
             &x,
             &near(edges.iter().map(|&(i, j)| (j, i)).collect()),
             band(),
             true,
+            (&none, &none),
         ));
         assert_eq!(a, b, "either face first");
         a
@@ -8806,6 +9820,7 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::from([(vertex(1), origin())]),
             extent: None,
+            outer: None,
         }
     }
 
@@ -8898,7 +9913,7 @@ mod presentation_rows {
     }
 
     /// **A rim folded on itself is a cusp; across it, an annulus
-    /// certifies.** [`certify_pair`] on the cell `(0.69, 0.71) × (0.1,
+    /// certifies.** [`certify_pair_in`] on the cell `(0.69, 0.71) × (0.1,
     /// 0.11)` beside the rim of a [`disk`], paired with the same cell of
     /// a twin sharing the rim: the twin run backward with its sense
     /// flipped lies on the same side, its normal opposed (wedge 0), and
@@ -9011,6 +10026,7 @@ mod presentation_rows {
             edges: [arc, other].into_iter().chain(extra).collect(),
             vertices,
             extent: None,
+            outer: None,
         }
     }
 
@@ -9232,6 +10248,7 @@ mod presentation_rows {
             edges: vec![upper, lower],
             vertices: BTreeMap::from([(vertex(1), p(1.0)), (vertex(2), p(-1.0))]),
             extent: None,
+            outer: None,
         }
     }
 
@@ -9912,6 +10929,7 @@ mod presentation_rows {
                 (vertex(3), p(0.0, 0.0, 1.0)),
             ]),
             extent: Some([(0.0, q), (0.0, q)]),
+            outer: None,
         };
         (s, b)
     }
@@ -9961,6 +10979,694 @@ mod presentation_rows {
         );
     }
 
+    /// The octant, its two meridians ending at `top` at the pole: the
+    /// lift's end there and the extent's `v` top.
+    fn octant_ending_at(top: f64) -> (Surface<Interval>, Boundary) {
+        let (s, mut b) = octant();
+        let q = core::f64::consts::FRAC_PI_2;
+        b.edges[1] = rim(2, [2, 3], Axis::U, q, (q, 0.0), (q, top));
+        b.edges[2] = rim(3, [3, 1], Axis::U, 0.0, (0.0, top), (0.0, 0.0));
+        b.extent = Some([(0.0, q), (0.0, top)]);
+        (s, b)
+    }
+
+    /// **A sphere face whose stored extent stops ulps short of its pole
+    /// places the pole, in every cell that reaches it.** The octant's
+    /// meridians end one ulp under `π/2`'s enclosure, as a meridian's
+    /// pcurve evaluated at its edge's parameter does, and one over it.
+    /// The face holds a vertex at the pole, so its extent reaches the
+    /// polar latitude ([`face_extent`]), and the window's top cell and
+    /// each cell under it down to a width of a few ulps is presented
+    /// with the pole's collapsed side its zero. Red, every cell
+    /// unpresented, where the rectangle is clipped to the stored extent.
+    #[test]
+    fn a_sphere_face_whose_extent_stops_ulps_short_of_its_pole_places_the_pole() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        for (stored, what) in [(q.next_down(), "short"), (q, "on"), (q.next_up(), "past")] {
+            let (s, b) = octant_ending_at(stored);
+            assert!(
+                matches!(
+                    face_extent(&s, &b, band()),
+                    Ok(Extent::Known([_, (0.0, hi)])) if hi == line.hi()
+                ),
+                "{what}: the extent ends on the polar latitude"
+            );
+            let local = Local {
+                edges: vec![1, 2],
+                vertices: vec![vertex(3)],
+            };
+            let top = q.next_up();
+            let widths =
+                core::iter::successors(Some(0.07), |w| Some(w * 0.5)).take_while(|w| *w > 1e-14);
+            for w in widths {
+                let piece = Piece {
+                    face: FaceKey::default(),
+                    surface: &s,
+                    whole: false,
+                    boundary: &b,
+                    u: (0.7, 0.8),
+                    v: (top - w, top),
+                    local: &local,
+                    ball: Ball::holding(origin(), origin()),
+                };
+                let got = match present_chart(&piece, &[], &[vertex(3)], band()) {
+                    Ok(Presentation::Of(p)) => Some((p.zero, p.y)),
+                    _ => None,
+                };
+                assert!(
+                    matches!(&got, Some((Zero::Side(Side::YHi, a), (_, hi)))
+                        if *hi == line.hi() && a.vertex == Some(vertex(3))),
+                    "{what}, a cell {w} under the pole: the pole's side is the zero: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **The south pole is the low side of its face's chart**: the
+    /// octant under the equator, its meridians ending an ulp over
+    /// `-π/2`. The cell at the pole, wholly at negative `v`, is presented
+    /// with the side `v = -π/2` its zero. Red where a sphere's cell is
+    /// read as a cone's on its other nappe, holding nothing.
+    #[test]
+    fn a_spheres_south_pole_is_the_low_side_of_its_chart() {
+        let (s, mut b) = octant();
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(false);
+        let end = -q.next_down();
+        b.edges = vec![
+            rim(1, [2, 1], Axis::V, 0.0, (q, 0.0), (0.0, 0.0)),
+            rim(2, [3, 2], Axis::U, q, (q, end), (q, 0.0)),
+            rim(3, [1, 3], Axis::U, 0.0, (0.0, 0.0), (0.0, end)),
+        ];
+        b.vertices
+            .insert(vertex(3), Point3::new(iv0(0.0), iv0(0.0), iv0(-1.0)));
+        b.extent = Some([(0.0, q), (end, 0.0)]);
+        assert_eq!(v_of(&s, &b), Ok((line.lo(), 0.0)));
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.7, 0.8),
+            v: (-q.next_up(), -1.5),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = match present_chart(&piece, &[], &[vertex(3)], band()) {
+            Ok(Presentation::Of(p)) => Some((p.zero, p.y)),
+            _ => None,
+        };
+        assert!(
+            matches!(&got, Some((Zero::Side(Side::YLo, a), (lo, _)))
+                if *lo == line.lo() && a.vertex == Some(vertex(3))),
+            "the south pole's side is the zero: {got:?}"
+        );
+    }
+
+    /// **A meridian that ends at the pole's vertex runs on to the pole's
+    /// side**: the octant with its meridians' images ending half the
+    /// band's zero under the pole, as a vertex in the band and off the
+    /// pole puts them. The cell at the pole is presented with the pole's
+    /// side its zero. With the same images and the meridians ending at
+    /// other vertices, beside the pole's, the cell is `Local`: the gap is
+    /// past the cover's `few_ulps`, and no key closes it. Red where the
+    /// run-on is granted without the vertex's key, or not at all.
+    #[test]
+    fn a_meridian_ending_at_the_poles_vertex_runs_on_to_the_poles_side() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        let (s, b) = octant_ending_at(line.lo() - 0.5 * band().zero());
+        let at_pole = |b: &Boundary| {
+            let local = Local {
+                edges: vec![1, 2],
+                vertices: vec![vertex(3)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: b,
+                u: (0.0, q),
+                v: (1.5, q.next_up()),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            match present_chart(&piece, &[], &[vertex(3)], band()) {
+                Ok(Presentation::Of(p)) => Ok((p.zero, p.y)),
+                Ok(Presentation::Pair(..)) => panic!("a chart presents one piece"),
+                Ok(Presentation::Vacuous) => panic!("vacuous"),
+                Err(e) => Err(e),
+            }
+        };
+        let got = at_pole(&b);
+        assert!(
+            matches!(&got, Ok((Zero::Side(Side::YHi, a), (_, hi)))
+                if *hi == line.hi() && a.vertex == Some(vertex(3))),
+            "the meridians end at the pole's vertex: {got:?}"
+        );
+        let mut beside = b.clone();
+        beside.edges[1].ends[1] = vertex(7);
+        beside.edges[2].ends[0] = vertex(8);
+        assert!(
+            matches!(at_pole(&beside), Err(Unpresented::Local)),
+            "the meridians end beside the pole, at other vertices"
+        );
+    }
+
+    /// **A meridian whose image ends off the pole does not run on to the
+    /// pole's side, though the face's extent moved there** (review of
+    /// PR 7115): the octant with one meridian's image ending an ulp
+    /// under `π/2` and the other's 0.01 under, both ending at the pole's
+    /// vertex. The stored extent ends an ulp under, so it moves to the
+    /// latitude; the short meridian still covers only its own range, so
+    /// the cell across both meridians at the pole is `Local`. Red where
+    /// the run-on is granted by the key, or by the moved extent, alone.
+    #[test]
+    fn a_meridian_ending_off_the_pole_does_not_run_on_where_the_extent_moved() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        let (s, mut b) = octant_ending_at(q.next_down());
+        b.edges[1] = rim(2, [2, 3], Axis::U, q, (q, 0.0), (q, q - 0.01));
+        assert_eq!(v_of(&s, &b), Ok((0.0, line.hi())), "the extent moves");
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.0, q),
+            v: (1.5, q.next_up()),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = present_chart(&piece, &[], &[vertex(3)], band());
+        assert!(
+            matches!(got, Err(Unpresented::Local)),
+            "the short meridian does not cover its side: {:?}",
+            got.map(|p| matches!(p, Presentation::Vacuous))
+        );
+    }
+
+    /// **An edge runs on to the pole's side only where its image ends at
+    /// the pole by the band**: a polar cap whose loop wraps the sphere
+    /// (its extent says nothing, so nothing has checked its rows), with a
+    /// meridian spur up to the pole's vertex. The cell beside the spur at
+    /// the pole is presented where the spur's image ends half the band's
+    /// zero short of the latitude, and is `Local` where it ends twice
+    /// the band's escalation short: that edge and its vertex name two
+    /// places. Red where the vertex's key alone grants the run-on.
+    #[test]
+    fn an_edge_runs_on_only_where_its_image_ends_at_the_pole_by_the_band() {
+        let (s, _) = octant();
+        let top = pole_latitude(true).lo();
+        let cap = |end: f64| Boundary {
+            sense: true,
+            outer: None,
+            edges: vec![
+                rim(1, [1, 1], Axis::V, 1.0, (0.0, 1.0), (TURN, 1.0)),
+                rim(2, [1, 3], Axis::U, 1.5, (1.5, 1.0), (1.5, end)),
+            ],
+            vertices: BTreeMap::from([
+                (
+                    vertex(1),
+                    Point3::new(iv0(1.0_f64.cos()), iv0(0.0), iv0(1.0_f64.sin())),
+                ),
+                (vertex(3), Point3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+            ]),
+            extent: Some([(0.0, TURN), (1.0, core::f64::consts::FRAC_PI_2)]),
+        };
+        let at_pole = |b: &Boundary| {
+            let local = Local {
+                edges: vec![1],
+                vertices: vec![vertex(3)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: b,
+                u: (1.2, 1.5),
+                v: (1.5, core::f64::consts::FRAC_PI_2.next_up()),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            read(present_chart(&piece, &[], &[vertex(3)], band()))
+        };
+        assert!(
+            matches!(at_pole(&cap(top - 0.5 * band().zero())), Read::Of(..)),
+            "in the band: {:?}",
+            at_pole(&cap(top - 0.5 * band().zero()))
+        );
+        assert_eq!(
+            at_pole(&cap(top - 2.0 * band().escalate())),
+            Read::Local,
+            "past the band"
+        );
+    }
+
+    /// **A rectangle wholly past a singular latitude is not presented**:
+    /// a polar cap whose loop wraps the sphere, so its extent says
+    /// nothing, read in a cell past `π/2` with the pole's vertex in
+    /// reach. The pole's side leaves the rectangle no width, which is
+    /// `Local`. Red where the collapse is skipped for such a rectangle
+    /// and it keeps its width.
+    #[test]
+    fn a_rectangle_wholly_past_the_pole_is_not_presented() {
+        let (s, _) = octant();
+        let b = Boundary {
+            sense: true,
+            outer: None,
+            edges: vec![rim(1, [1, 1], Axis::V, 1.0, (0.0, 1.0), (TURN, 1.0))],
+            vertices: BTreeMap::from([
+                (
+                    vertex(1),
+                    Point3::new(iv0(1.0_f64.cos()), iv0(0.0), iv0(1.0_f64.sin())),
+                ),
+                (vertex(3), Point3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+            ]),
+            extent: Some([(0.0, TURN), (1.0, core::f64::consts::FRAC_PI_2)]),
+        };
+        let local = Local {
+            edges: Vec::new(),
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (1.2, 1.8),
+            v: (1.58, 1.6),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        // No vertex is shared in this cell, so a rectangle that kept its
+        // width would be presented with no zero.
+        assert!(matches!(
+            present_chart(&piece, &[], &[], band()),
+            Err(Unpresented::Local)
+        ));
+    }
+
+    /// **A face that holds no vertex at a pole is given no pole**, and
+    /// its extent is the stored one: a vertex a millimetre of arc off
+    /// the pole, on a unit sphere, at either end; a face of another
+    /// surface with a vertex where a sphere's pole would be; and the
+    /// south pole's vertex moves the extent's low end alone. Red where
+    /// the extent is widened for a vertex off the pole, or at the wrong
+    /// end.
+    #[test]
+    fn a_face_short_of_its_pole_reads_no_pole() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let sphere = octant().0;
+        let lone = |z: f64, v: (f64, f64)| Boundary {
+            sense: true,
+            vertices: BTreeMap::from([(
+                vertex(3),
+                Point3::new(iv0((1.0 - z * z).sqrt()), iv0(0.0), iv0(z)),
+            )]),
+            extent: Some([(0.0, 1.0), v]),
+            ..Boundary::default()
+        };
+        let v_of = |s: &Surface<Interval>, b: &Boundary| match face_extent(s, b, band()) {
+            Ok(Extent::Known([_, v])) => Some(v),
+            _ => None,
+        };
+        let short = q - 1e-3;
+        for (z, stored, want, what) in [
+            (
+                short.sin(),
+                (0.5, short),
+                (0.5, short),
+                "north, off the pole",
+            ),
+            (
+                -short.sin(),
+                (-short, -0.5),
+                (-short, -0.5),
+                "south, off the pole",
+            ),
+            (
+                -1.0,
+                (-q.next_down(), -0.5),
+                (pole_latitude(false).lo(), -0.5),
+                "at the south pole",
+            ),
+        ] {
+            assert_eq!(v_of(&sphere, &lone(z, stored)), Some(want), "{what}");
+        }
+        let cylinder = cylinder();
+        let stored = (0.5, q.next_down());
+        assert_eq!(
+            v_of(&cylinder, &lone(1.0, stored)),
+            Some(stored),
+            "a cylinder has no pole"
+        );
+        // The octant cut off at the latitude `v = 1.5`: no vertex at the
+        // pole, so a cell reaching past the latitude is bounded by it
+        // and holds no collapsed side.
+        let (s, mut b) = octant_ending_at(1.5);
+        b.vertices.insert(
+            vertex(3),
+            Point3::new(iv0(0.0), iv0(1.5_f64.cos()), iv0(1.5_f64.sin())),
+        );
+        assert_eq!(v_of(&s, &b), Some((0.0, 1.5)), "the cut octant's extent");
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.7, 0.8),
+            v: (1.4, q.next_up()),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = present_chart(&piece, &[], &[vertex(3)], band());
+        assert!(
+            !matches!(&got, Ok(Presentation::Of(p)) if matches!(p.zero, Zero::Side(Side::YHi, _))),
+            "the cut octant reads no pole"
+        );
+    }
+
+    /// A boundary of one vertex, the point `p`, and the extent `v` over
+    /// `u ∈ [0, 1]`: what [`face_extent`] reads of a singular point.
+    fn lone(p: Point3<Interval>, v: (f64, f64)) -> Boundary {
+        Boundary {
+            sense: true,
+            vertices: BTreeMap::from([(vertex(3), p)]),
+            extent: Some([(0.0, 1.0), v]),
+            ..Boundary::default()
+        }
+    }
+
+    /// The extent's `v` as [`face_extent`] returns it: `Ok` where it is
+    /// known, `Err` where the face refuses.
+    fn v_of(s: &Surface<Interval>, b: &Boundary) -> Result<(f64, f64), Unpresented> {
+        match face_extent(s, b, band()) {
+            Ok(Extent::Known([_, v])) => Ok(v),
+            Ok(_) => panic!("an extent neither wrapping nor unknown"),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// A sphere of radius 1 about `(0, 0, c)`, its axis `z`.
+    fn sphere_at(c: f64) -> Surface<Interval> {
+        Surface::Sphere {
+            frame: geom::Frame::new(
+                Point3::new(iv0(0.0), iv0(0.0), iv0(c)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            radius: iv0(1.0),
+        }
+    }
+
+    /// A right-angled cone with its apex at `(0, 0, c)`, its axis `z`.
+    fn cone_at(c: f64) -> Surface<Interval> {
+        Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(iv0(0.0), iv0(0.0), iv0(c)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        }
+    }
+
+    /// **The extent moves to a singular latitude where its stored end is
+    /// at the singular point by the band, and nowhere else**: the one
+    /// incidence decision, asked of the row's end. On a unit sphere and a
+    /// right-angled cone, at the origin and a hundred units off it, a
+    /// face holding the vertex at the pole or apex whose stored extent
+    /// ends half the band's zero short of the latitude, in metres along
+    /// the surface, reaches it; one whose extent ends twice the band's
+    /// escalation short contradicts its vertex and refuses `Structural`.
+    /// Both poles, and both nappes. Red where the bound is a scale of
+    /// this reader's own, tighter or looser than the band.
+    #[test]
+    fn an_extent_moves_where_its_stored_end_is_at_the_singular_point_by_the_band() {
+        let (north, south) = (pole_latitude(true), pole_latitude(false));
+        let (near, far) = (0.5 * band().zero(), 2.0 * band().escalate());
+        for c in [0.0, 100.0] {
+            let at_z = |z: f64| Point3::new(iv0(0.0), iv0(0.0), iv0(c + z));
+            let sphere = sphere_at(c);
+            assert_eq!(
+                v_of(&sphere, &lone(at_z(1.0), (0.5, north.lo() - near))),
+                Ok((0.5, north.hi())),
+                "at {c}: in the band under the north pole"
+            );
+            assert_eq!(
+                v_of(&sphere, &lone(at_z(-1.0), (south.hi() + near, -0.5))),
+                Ok((south.lo(), -0.5)),
+                "at {c}: in the band over the south pole"
+            );
+            for (z, v, what) in [
+                (
+                    1.0,
+                    (0.5, north.lo() - far),
+                    "past the band under the north pole",
+                ),
+                (1.0, (-1.0, 0.0), "a radian and a half under the north pole"),
+                (
+                    -1.0,
+                    (south.hi() + far, -0.5),
+                    "past the band over the south pole",
+                ),
+            ] {
+                assert_eq!(
+                    v_of(&sphere, &lone(at_z(z), v)),
+                    Err(Unpresented::Structural),
+                    "at {c}: {what}"
+                );
+            }
+            // A cone face is on a nappe by a vertex off the apex.
+            let cone = cone_at(c);
+            let on = |up: bool, v: (f64, f64)| {
+                let mut b = lone(at_z(0.0), v);
+                let z = if up { 1.0 } else { -1.0 };
+                b.vertices
+                    .insert(vertex(4), Point3::new(iv0(1.0), iv0(0.0), iv0(c + z)));
+                v_of(&cone, &b)
+            };
+            assert_eq!(
+                on(true, (near, 1.0)),
+                Ok((0.0, 1.0)),
+                "at {c}: over the apex"
+            );
+            assert_eq!(
+                on(false, (-1.0, -near)),
+                Ok((-1.0, 0.0)),
+                "at {c}: under it"
+            );
+            for (up, v, what) in [
+                (true, (far, 1.0), "past the band over the apex"),
+                (false, (-1.0, -far), "past the band under the apex"),
+            ] {
+                assert_eq!(on(up, v), Err(Unpresented::Structural), "at {c}: {what}");
+            }
+            // An end past the apex, on the other nappe, is on the face's
+            // nappe where it is at the apex by the same decision.
+            assert_eq!(
+                on(true, (-near, 1.0)),
+                Ok((-near, 1.0)),
+                "at {c}: the nappe"
+            );
+            assert_eq!(
+                on(true, (-far, 1.0)),
+                Err(Unpresented::Structural),
+                "at {c}: an end on the other nappe"
+            );
+            assert_eq!(
+                on(false, (-1.0, near)),
+                Ok((-1.0, near)),
+                "at {c}: the nappe"
+            );
+            assert_eq!(
+                on(false, (-1.0, far)),
+                Err(Unpresented::Structural),
+                "at {c}: an end on the other nappe"
+            );
+        }
+    }
+
+    /// **The face's lines are read against the stored extent, before it
+    /// is moved to a pole**: a face above the latitude a slack and a half
+    /// under its north pole, holding the pole's vertex, whose stored
+    /// extent ends 0.9 of a slack under the pole. The line has no room
+    /// under the stored end, so the extent contradicts it and the face
+    /// refuses `Structural`. Red, the extent known, where the line is
+    /// read against the extent moved to the pole, which gives it room.
+    #[test]
+    fn a_line_is_read_against_the_stored_extent_not_the_one_moved_to_the_pole() {
+        let (s, mut b) = octant();
+        let q = core::f64::consts::FRAC_PI_2;
+        let north = pole_latitude(true);
+        let slack = chart_slack(&[0.0, north.hi()]);
+        let lat = north.lo() - 1.5 * slack;
+        b.edges[0] = rim(1, [1, 2], Axis::V, lat, (0.0, lat), (q, lat));
+        b.extent = Some([(0.0, q), (0.0, north.lo() - 0.9 * slack)]);
+        assert_eq!(v_of(&s, &b), Err(Unpresented::Structural));
+        // The same line with room under the stored end agrees with it.
+        b.extent = Some([(0.0, q), (0.0, north.lo())]);
+        assert_eq!(v_of(&s, &b), Ok((0.0, north.hi())));
+    }
+
+    /// **The extent moves to the pole for the vertices the incidence
+    /// reads at it, and no others**: on the unit sphere a vertex half the
+    /// band's zero of arc off the north pole is at it, and one twice the
+    /// band's escalation off is not, so the first face's extent ends on
+    /// the latitude and the second's is the stored one. The reading is
+    /// `vertex_at_singular_point`'s, in metres, reused; red where this
+    /// reader takes a scale of its own.
+    #[test]
+    fn the_extent_moves_for_a_vertex_the_band_reads_at_the_pole() {
+        let sphere = octant().0;
+        let north = pole_latitude(true);
+        let stored = (0.5, north.lo().next_down());
+        let off = |arc: f64| Point3::new(iv0(arc.sin()), iv0(0.0), iv0(arc.cos()));
+        assert_eq!(
+            v_of(&sphere, &lone(off(0.5 * band().zero()), stored)),
+            Ok((0.5, north.hi())),
+            "in the band's zero"
+        );
+        assert_eq!(
+            v_of(&sphere, &lone(off(2.0 * band().escalate()), stored)),
+            Ok(stored),
+            "past the band"
+        );
+        // The vertex in the band and off the pole, its rows ending at its
+        // own latitude: the end is at the pole by the same decision.
+        let arc = 0.5 * band().zero();
+        assert_eq!(
+            v_of(&sphere, &lone(off(arc), (0.5, north.lo() - arc))),
+            Ok((0.5, north.hi())),
+            "in the band's zero, the rows ending at the vertex's latitude"
+        );
+    }
+
+    /// **A cone face whose stored extent starts a rounding off its apex
+    /// places the apex.** The sector of
+    /// [`a_cone_face_at_its_apex_is_read_on_its_own_nappe`], its
+    /// meridians ending at the apex vertex, with the extent's low end at
+    /// `0`, an ulp of 1 above it (as a meridian line `c + l·t` evaluates
+    /// off the origin) and an ulp below. The face holds a vertex at the
+    /// apex, so its extent reaches `v = 0` ([`face_extent`]) and the cell
+    /// at the apex is presented with the apex's side its zero. Red, the
+    /// cell `Local`, where the rectangle is clipped to a stored end above
+    /// zero. A stored end off the apex by the band contradicts the vertex
+    /// and refuses `Structural`; a face on the negative nappe reaches the
+    /// apex at its high end.
+    #[test]
+    fn a_cone_face_whose_extent_starts_a_rounding_off_its_apex_places_the_apex() {
+        let s = cone_at(0.0);
+        let sector = |lo: f64| Boundary {
+            sense: true,
+            outer: None,
+            edges: vec![
+                rim(1, [9, 3], Axis::U, 2.0, (2.0, lo), (2.0, 1.0)),
+                rim(2, [3, 4], Axis::V, 1.0, (2.0, 1.0), (1.0, 1.0)),
+                rim(3, [4, 9], Axis::U, 1.0, (1.0, 1.0), (1.0, lo)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(3), Point3::new(iv0(1.0), iv0(0.0), iv0(1.0))),
+                (vertex(9), origin()),
+            ]),
+            extent: Some([(1.0, 2.0), (lo, 1.0)]),
+        };
+        // The low end the revolved cone at `y = 1.7` stores, and its mirror;
+        // then ends past the cover's own `few_ulps`, as a meridian of a
+        // cone 50 long stores (an ulp of 53.85), up to half the band's
+        // zero: the meridian ends at the apex's vertex, so it runs on to
+        // the collapsed side ([`ends_on_collapse`]).
+        let ulp = 2.220_446_049_250_313e-16;
+        let past = [
+            1.5e-15,
+            2.0e-15,
+            7.105_427_357_601_002e-15,
+            0.5 * band().zero(),
+        ];
+        for lo in [0.0, ulp, -ulp].into_iter().chain(past) {
+            let b = sector(lo);
+            assert_eq!(
+                v_of(&s, &b),
+                Ok((lo.min(0.0), 1.0)),
+                "the extent from {lo:e}"
+            );
+            let local = Local {
+                edges: vec![0, 2],
+                vertices: vec![vertex(9)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: &b,
+                u: (1.2, 1.8),
+                v: (-0.1, 0.3),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            let got = match present_chart(&piece, &[], &[vertex(9)], band()) {
+                Ok(Presentation::Of(p)) => Some((p.zero, p.y)),
+                _ => None,
+            };
+            assert!(
+                matches!(&got, Some((Zero::Side(Side::YLo, a), (0.0, 0.3)))
+                    if a.vertex == Some(vertex(9))),
+                "the extent from {lo:e}: the apex's side is the zero: {got:?}"
+            );
+        }
+        assert_eq!(
+            v_of(&s, &sector(2.0 * band().escalate())),
+            Err(Unpresented::Structural),
+            "a stored end off the apex by the band"
+        );
+        // The same gap under an edge whose end vertex is another: the
+        // meridians end at vertices 7 and 8, beside the apex's vertex 9,
+        // and nothing runs them on.
+        let mut beside = sector(past[2]);
+        beside.edges[0].ends[0] = vertex(7);
+        beside.edges[2].ends[1] = vertex(8);
+        let local = Local {
+            edges: vec![0, 2],
+            vertices: vec![vertex(9)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &beside,
+            u: (1.2, 1.8),
+            v: (-0.1, 0.3),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        assert!(
+            matches!(
+                present_chart(&piece, &[], &[vertex(9)], band()),
+                Err(Unpresented::Local)
+            ),
+            "an edge that ends beside the apex, at another vertex"
+        );
+        let mut below = lone(origin(), (-1.0, -ulp));
+        below
+            .vertices
+            .insert(vertex(4), Point3::new(iv0(1.0), iv0(0.0), iv0(-1.0)));
+        assert_eq!(v_of(&s, &below), Ok((-1.0, 0.0)), "the negative nappe");
+    }
+
     /// **An edge or a vertex in reach of the corner's rectangle but not
     /// of the cell is read**: the cell `(0.96, 0.995) × (−0.02, 0.02)`
     /// stops short of the vertex, so the rectangle is widened to hold
@@ -10001,7 +11707,7 @@ mod presentation_rows {
         );
     }
 
-    /// **A curved corner folded on itself is a cusp**: [`certify_pair`]
+    /// **A curved corner folded on itself is a cusp**: [`certify_pair_in`]
     /// on the quarter disc's corner cell and the same cell of a twin
     /// lying on the same side of the arc, its loop reversed and its
     /// sense flipped — wedge 0 along the arc. Both are presented through
@@ -10122,6 +11828,7 @@ mod presentation_rows {
             edges: [ruling, other].into_iter().chain(extra).collect(),
             vertices,
             extent: Some([(0.0, 1.0), (0.0, 1.0)]),
+            outer: None,
         }
     }
 
@@ -10266,6 +11973,7 @@ mod presentation_rows {
                 (vertex(3), on_cyl(1.0 - 0.5 * du, 0.5)),
             ]),
             extent: Some([(0.0, 2.0), (0.0, 1.0)]),
+            outer: None,
         }
     }
 
@@ -10382,7 +12090,7 @@ mod presentation_rows {
     }
 
     /// **Two cylinder corners at a vertex they share alone**
-    /// ([`certify_pair`]): the face above the parallel and left of the
+    /// ([`certify_pair_in`]): the face above the parallel and left of the
     /// ruling against the one below it and right, diagonally opposite
     /// quadrants of one tangent plane, certify through the plane leaning
     /// furthest from both wedges. Against the face below the parallel and LEFT of the
@@ -10469,6 +12177,7 @@ mod presentation_rows {
                 (vertex(n + 2), o + v(d2)),
             ]),
             extent: None,
+            outer: None,
         };
         (plane, b)
     }
@@ -10512,9 +12221,15 @@ mod presentation_rows {
         };
         let wedge = quadrant_piece(&plane, &pb, &wedge_local, 2, ((-0.02, 0.02), (-0.02, 0.02)));
         let zeros = |p: &Piece<'_>| -> Vec<Zero> {
-            present(p, &[], &near.vertices, band())
-                .map(|q| q.pieces().iter().map(|r| r.zero.clone()).collect())
-                .unwrap_or_default()
+            present(
+                p,
+                &[],
+                &near.vertices,
+                band(),
+                &Poses::of(&FacePoses::default()),
+            )
+            .map(|q| q.pieces().iter().map(|r| r.zero.clone()).collect())
+            .unwrap_or_default()
         };
         assert!(
             matches!(zeros(&cap).as_slice(), [Zero::Side(Side::YHi, _)])
@@ -10605,7 +12320,7 @@ mod presentation_rows {
             let a = quadrant_piece(&floor, &fb, &local, 1, ca);
             let b = quadrant_piece(&wedge, &wb, &local, 2, cb);
             let presented = |p: &Piece<'_>| {
-                matches!(present(p, &[], &near.vertices, band()),
+                matches!(present(p, &[], &near.vertices, band(), &Poses::of(&FacePoses::default())),
                     Ok(Presentation::Pair(q, r))
                         if matches!(q.zero, Zero::Point(..)) && matches!(r.zero, Zero::Point(..)))
             };
@@ -10878,6 +12593,7 @@ mod presentation_rows {
                 ),
             ]),
             extent: Some([(0.0, 2.0), (-1.0, 1.0)]),
+            outer: None,
         }
     }
 
@@ -10997,6 +12713,7 @@ mod presentation_rows {
                 (vertex(3), on_cyl(far.0, far.1)),
             ]),
             extent: Some([(0.0, 2.6), (0.0, 1.0)]),
+            outer: None,
         }
     }
 
@@ -11081,6 +12798,7 @@ mod presentation_rows {
                 (vertex(3), on_cyl(2.5, 0.5)),
             ]),
             extent: Some([(-1.6, 2.6), (-1.5, 0.6)]),
+            outer: None,
         };
         assert_eq!(
             on_cylinder(&b, (-0.1, 1.0), (0.4, 0.62)),
@@ -11264,10 +12982,11 @@ mod presentation_rows {
                 (vertex(8), on_cyl(0.0, 0.3)),
             ]),
             extent: Some([(-0.5, 1.6), (-1.0, 0.3)]),
+            outer: None,
         }
     }
 
-    /// [`certify_pair`] of a face on [`floor`] in the cell `disc` and
+    /// [`certify_pair_in`] of a face on [`floor`] in the cell `disc` and
     /// [`wall_past_the_corner`] in the cell `wall`, sharing the arc
     /// (edge 0 of each) and the vertex at `(1, 0, 0)`.
     fn across_the_fold(disc: &Boundary, cells: [((f64, f64), (f64, f64)); 2]) -> Outcome {
@@ -11494,6 +13213,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges,
             collapsed: None,
+            ends_here: Vec::new(),
         };
         let s = cylinder();
         let side = |clips: &[Clip], near: &[usize], vertices: &[VertexKey]| {
@@ -11554,6 +13274,7 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::new(),
             extent: None,
+            outer: None,
         }
     }
 
@@ -11630,6 +13351,7 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::from([(vertex(1), on(t0)), (vertex(2), on(t1))]),
             extent: None,
+            outer: None,
         };
         let strip = (-0.148, 0.05);
         let beside = chart_near(&cyl, &b, &[0], &[0], ((-0.05, 0.05), strip));
@@ -11988,6 +13710,7 @@ mod presentation_rows {
                 (vertex(9), Point3::new(iv0(2.0), iv0(1.0), iv0(0.0))),
             ]),
             extent: None,
+            outer: None,
         };
         let floor = Surface::Plane {
             frame: geom::Frame::new(
@@ -12608,6 +14331,7 @@ mod presentation_rows {
             edges: rims,
             vertices: points.iter().map(|&(n, p)| (vertex(n), p)).collect(),
             extent: None,
+            outer: None,
         }
     }
 
@@ -12639,7 +14363,13 @@ mod presentation_rows {
             local,
             ball: Ball::holding(origin(), origin()),
         };
-        present(&piece, near.0, near.1, band())
+        present(
+            &piece,
+            near.0,
+            near.1,
+            band(),
+            Box::leak(Box::new(Poses::of(Box::leak(Box::default())))),
+        )
     }
 
     fn only_edge() -> Local {
@@ -12932,7 +14662,7 @@ mod presentation_rows {
         (plane, b)
     }
 
-    /// [`certify_pair`] of a cap cell and a torus cell `cell` of
+    /// [`certify_pair_in`] of a cap cell and a torus cell `cell` of
     /// [`spiric_face`], across the rim.
     fn across_the_wall(cell: ((f64, f64), (f64, f64))) -> Outcome {
         let ((plane, cap), (torus, wall_face)) = (cap(), (ring(2.0), spiric_face(true, true)));
@@ -13241,6 +14971,7 @@ mod presentation_rows {
                 }],
                 vertices: BTreeMap::from([(vertex(1), p)]),
                 extent: None,
+                outer: None,
             }
         }
 
@@ -13578,6 +15309,7 @@ mod presentation_rows {
             }],
             vertices: BTreeMap::new(),
             extent: None,
+            outer: None,
         };
         let local = Local {
             edges: vec![0],
@@ -13681,7 +15413,13 @@ mod presentation_rows {
                 local,
                 ball: Ball::holding(origin(), origin()),
             };
-            match present(&piece, &[0], &local.vertices, band()) {
+            match present(
+                &piece,
+                &[0],
+                &local.vertices,
+                band(),
+                Box::leak(Box::new(Poses::of(Box::leak(Box::default())))),
+            ) {
                 Ok(Presentation::Of(q)) => q,
                 _ => panic!("presented"),
             }
@@ -13872,6 +15610,7 @@ mod presentation_rows {
                 (vertex(4), on_torus(1.0, top)),
             ]),
             extent: Some([(0.5, 1.0), (-half, top)]),
+            outer: None,
         };
         let local = Local {
             edges: vec![0, 1],
@@ -13893,9 +15632,11 @@ mod presentation_rows {
         };
         let x = piece(face(1), &cyl, &bx, (0.97, 1.03), (0.45, 0.5));
         let y = piece(face(2), &torus, &by, (0.94, 1.0), (-half, -half + 0.5));
+        let faces = (FacePoses::default(), FacePoses::default());
+        let poses = (Poses::of(&faces.0), Poses::of(&faces.1));
         let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (
-            present(&x, &[0], &[vertex(1)], band()),
-            present(&y, &[0], &[vertex(1)], band()),
+            present(&x, &[0], &[vertex(1)], band(), &poses.0),
+            present(&y, &[0], &[vertex(1)], band(), &poses.1),
         ) else {
             panic!("both presented");
         };
@@ -14038,6 +15779,7 @@ mod presentation_rows {
             edges: vec![segment(1, [1, 2], (0.0, 0.0), (1.0, 0.0))],
             vertices: BTreeMap::new(),
             extent: None,
+            outer: None,
         };
         b.vertices.insert(vertex(1), origin());
         b.vertices
@@ -14093,6 +15835,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::new(),
             extent: None,
+            outer: None,
         };
         corner.edges[0].uses[0].plus = false;
         corner.edges[1].uses[0].plus = false;
@@ -14182,6 +15925,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
             extent: Some([(0.0, 1.5 * pi), (0.0, 1.0)]),
+            outer: None,
         };
         c.edges[0].arc = line(apex, p0);
         c.edges[0].uses[0].plus = false;
@@ -14219,6 +15963,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
             extent: None,
+            outer: None,
         };
         let (lw, lc) = (
             Local {
@@ -14329,6 +16074,7 @@ mod presentation_rows {
             edges: vec![seam, ring],
             vertices: BTreeMap::from([(vertex(1), origin()), (vertex(2), p0)]),
             extent: Some([(0.0, TURN), (0.0, 1.0)]),
+            outer: None,
         };
         let local = Local {
             edges: vec![0],
@@ -14431,6 +16177,7 @@ mod presentation_rows {
                 (u_sh.min(u_far), u_sh.max(u_far)),
                 (vr.min(0.0), vr.max(0.0)),
             ]),
+            outer: None,
         };
         c.edges[0].arc = line(apex, p0);
         c.edges[0].uses[0].plus = false;
@@ -14467,6 +16214,7 @@ mod presentation_rows {
             ],
             vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
             extent: None,
+            outer: None,
         };
         let lw = Local {
             edges: vec![0, 1],
@@ -14975,6 +16723,1148 @@ mod rate_rows {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod posed_rows {
+    //! A sphere face beside circles off its stored axis, read in the
+    //! chart about each circle's own axis ([`present_posed`]).
+    use super::*;
+    use geom_core::Tol;
+
+    /// The caps' planes `x = A` and `y = A`.
+    const A: f64 = 0.25;
+    /// Where the cone strip crosses the sphere, `x = B`.
+    const B: f64 = 0.3;
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+
+    fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
+        Vec3::new(iv0(x), iv0(y), iv0(z))
+    }
+
+    fn pt(x: f64, y: f64, z: f64) -> Point3<Interval> {
+        Point3::new(iv0(x), iv0(y), iv0(z))
+    }
+
+    fn p2((u, v): (f64, f64)) -> Point2<Interval> {
+        Point2::new(iv0(u), iv0(v))
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn vertex(n: u64) -> VertexKey {
+        VertexKey::from(slotmap::KeyData::from_ffi(n | (1 << 32)))
+    }
+
+    fn edge(n: u64) -> EdgeKey {
+        EdgeKey::from(slotmap::KeyData::from_ffi(n | (1 << 32)))
+    }
+
+    fn face(n: u64) -> FaceKey {
+        FaceKey::from(slotmap::KeyData::from_ffi(n | (1 << 32)))
+    }
+
+    /// `√(1 − x²)`: the radius of the unit sphere's circle `x` off its
+    /// centre.
+    fn across(x: f64) -> f64 {
+        (1.0 - x * x).sqrt()
+    }
+
+    /// A use whose chart image is no coordinate line, from `a` to `b`.
+    fn curve_use(plus: bool, a: (f64, f64), b: (f64, f64)) -> Use {
+        Use {
+            plus,
+            image: Some([p2(a), p2(b)]),
+            iso: None,
+            harmonic: None,
+            wall: None,
+        }
+    }
+
+    /// An edge of one use on the circle about `centre` along `axis`,
+    /// seam `u_ref`, of `radius`, over `span`.
+    fn circle_rim(
+        n: u64,
+        ends: [u64; 2],
+        (centre, axis, u_ref, radius): (Point3<Interval>, Vec3<Interval>, Vec3<Interval>, f64),
+        span: (f64, f64),
+        u: Use,
+    ) -> Rim {
+        Rim {
+            key: edge(n),
+            arc: Some((
+                Curve3::circle(centre, axis, iv0(radius), u_ref),
+                (iv0(span.0), iv0(span.1)),
+            )),
+            stated: None,
+            ends: ends.map(vertex),
+            uses: vec![u],
+        }
+    }
+
+    /// The unit sphere about the origin, charted about `z` from `x`.
+    fn sphere() -> Surface<Interval> {
+        Surface::Sphere {
+            frame: geom::Frame::new(pt(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
+            radius: iv0(1.0),
+        }
+    }
+
+    /// The circle `x = A`, about `x` from `y`: `(A, s·cos t, s·sin t)`.
+    fn x_circle() -> (Point3<Interval>, Vec3<Interval>, Vec3<Interval>, f64) {
+        (
+            pt(A, 0.0, 0.0),
+            v3(1.0, 0.0, 0.0),
+            v3(0.0, 1.0, 0.0),
+            across(A),
+        )
+    }
+
+    /// **The spherical triangle `x ≥ A`, `y ≥ A`, `z ≥ 0`**, the
+    /// two-arc lune's cavity face in miniature: from `E1 = (A, s, 0)` up
+    /// the circle `x = A` (edge 1) to `T = (A, A, h)`, down the circle
+    /// `y = A` (edge 2) to `E2 = (s, A, 0)`, and back along the equator
+    /// (edge 3), counter-clockwise about the outward normal. The stored
+    /// chart reads the equator as `v = 0` and neither circle as any
+    /// coordinate line.
+    fn triangle() -> Boundary {
+        let (s, h) = (across(A), (1.0 - 2.0 * A * A).sqrt());
+        let lon = |x: f64, y: f64| y.atan2(x);
+        let (e1, e2, top) = (lon(A, s), lon(s, A), (h.asin(), lon(A, A)));
+        let t_top = h.atan2(A);
+        Boundary {
+            sense: true,
+            edges: vec![
+                circle_rim(
+                    1,
+                    [1, 3],
+                    x_circle(),
+                    (0.0, t_top),
+                    curve_use(true, (e1, 0.0), (top.1, top.0)),
+                ),
+                circle_rim(
+                    2,
+                    [3, 2],
+                    (pt(0.0, A, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0), s),
+                    (A.atan2(h), core::f64::consts::FRAC_PI_2),
+                    curve_use(true, (top.1, top.0), (e2, 0.0)),
+                ),
+                circle_rim(
+                    3,
+                    [2, 1],
+                    (pt(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0), 1.0),
+                    (e2, e1),
+                    Use {
+                        iso: Some(Iso {
+                            held: Axis::V,
+                            at: iv0(0.0),
+                            full: false,
+                        }),
+                        ..curve_use(true, (e2, 0.0), (e1, 0.0))
+                    },
+                ),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), pt(A, s, 0.0)),
+                (vertex(2), pt(s, A, 0.0)),
+                (vertex(3), pt(A, A, h)),
+            ]),
+            extent: Some([(e2, e1), (0.0, top.0)]),
+            outer: Some(vec![(0, true), (1, true), (2, true)]),
+        }
+    }
+
+    /// The local boundary of `b` on `surface`'s cell `u × v`, and its ball.
+    fn reach(
+        surface: &Surface<Interval>,
+        b: &Boundary,
+        (u, v): ((f64, f64), (f64, f64)),
+    ) -> (Local, Ball) {
+        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+        let ball = Ball::holding(surface.point_eval(m(u), m(v)), surface.rect_enclosure(u, v));
+        (Local::of(b, ball, band()), ball)
+    }
+
+    /// A presentation without its borrow: the zero, the rectangle, and
+    /// the pole axis of the sphere it is read on.
+    type Posed = (Zero, (f64, f64), (f64, f64), Vec3<f64>);
+
+    /// What presenting `b` in the cell came to, the shared cell `near`,
+    /// read through [`present`].
+    fn posed(
+        surface: &Surface<Interval>,
+        b: &Boundary,
+        cell: ((f64, f64), (f64, f64)),
+        near: (&[usize], &[VertexKey]),
+    ) -> Result<Posed, Unpresented> {
+        let (local, ball) = reach(surface, b, cell);
+        let piece = Piece {
+            face: face(1),
+            surface,
+            whole: false,
+            boundary: b,
+            u: cell.0,
+            v: cell.1,
+            local: &local,
+            ball,
+        };
+        let face_poses = FacePoses::default();
+        let poses = Poses::of(&face_poses);
+        match present(&piece, near.0, near.1, band(), &poses)? {
+            Presentation::Vacuous => panic!("the cell holds the face"),
+            Presentation::Pair(..) => panic!("a sphere is presented in one piece"),
+            Presentation::Of(q) => {
+                let Surface::Sphere { frame, .. } = *q.surface else {
+                    panic!("a sphere is presented on a sphere")
+                };
+                Ok((q.zero.clone(), q.x, q.y, vmid(frame.axis())))
+            }
+        }
+    }
+
+    /// The poses [`poses_of`] finds for the cell `cell` of the face `b` on
+    /// `surface`, the shared cell being `near`: how many are placed,
+    /// whether one went unplaced, and whether a corner no chart reads
+    /// stopped them, the exit [`present_posed`] takes.
+    fn exit(
+        surface: &Surface<Interval>,
+        b: &Boundary,
+        cell: ((f64, f64), (f64, f64)),
+        near: (&[usize], &[VertexKey]),
+    ) -> (usize, bool, bool) {
+        let (local, ball) = reach(surface, b, cell);
+        let piece = Piece {
+            face: face(1),
+            surface,
+            whole: false,
+            boundary: b,
+            u: cell.0,
+            v: cell.1,
+            local: &local,
+            ball,
+        };
+        let face_poses = FacePoses::default();
+        let set = poses_of(&piece, near.0, near.1, band(), &face_poses);
+        (set.poses.len(), set.unplaced, set.unread_corner)
+    }
+
+    /// **A sphere face beside an off-axis circle reads it as a parallel
+    /// of the circle's own pose** ([`present_posed`]). At `E1`, beside
+    /// the circle `x = A`, the stored chart has no coordinate line for the
+    /// circle and reads `Structural`; the pose about `x` reads the circle
+    /// as the parallel `asin A`, the face above it, and the equator as
+    /// the meridian `0`, the face past it. Across either, that side is
+    /// the zero. Red if a pose reads a line on the wrong side of its face,
+    /// misplaces the parallel, reads the equator as no line, or is not
+    /// tried.
+    #[test]
+    fn a_sphere_face_beside_an_off_axis_circle_reads_it_as_a_parallel_of_its_pose() {
+        let (s, b) = (sphere(), triangle());
+        let at_e1 = ((1.29, 1.34), (-0.03, 0.03));
+        let parallel = A.asin();
+        match posed(&s, &b, at_e1, (&[0], &[vertex(1)])) {
+            Ok((Zero::Side(Side::YLo, along), x, y, axis)) => {
+                assert_eq!(along.edges, vec![edge(1)], "the circle is the zero");
+                assert!(
+                    along.params.is_none(),
+                    "a pose's side carries no parameters"
+                );
+                assert_eq!(axis.to_array(), [1.0, 0.0, 0.0], "the pose about x");
+                assert!(
+                    y.0 <= parallel && parallel - y.0 < 1e-12,
+                    "the side is the parallel asin A: {y:?}"
+                );
+                assert!(
+                    x.0 < 0.0 && 0.0 < x.1,
+                    "the rectangle reaches E1's meridian: {x:?}"
+                );
+            }
+            other => panic!("across the circle at E1: {other:?}"),
+        }
+        match posed(&s, &b, at_e1, (&[2], &[vertex(1)])) {
+            Ok((Zero::Side(Side::XLo, along), x, y, _)) => {
+                assert_eq!(along.edges, vec![edge(3)], "the equator is the zero");
+                assert!(
+                    x.0 <= 0.0 && x.0 > -1e-12,
+                    "the side is the meridian 0: {x:?}"
+                );
+                assert!(y.0 <= parallel, "the rectangle reaches the parallel: {y:?}");
+            }
+            other => panic!("across the equator at E1: {other:?}"),
+        }
+    }
+
+    /// **A corner no chart reads is `Structural` only where the cell
+    /// reaches it** ([`unread_corner`]). At `T` the two circles meet,
+    /// each a parallel only of its own pose, and `T` ends the shared
+    /// edge: every smaller cell holding `T` holds that corner, so the
+    /// cell is `Structural`. A cell holding the whole triangle, across the
+    /// equator, reaches `E1` and `E2`, each a corner some pose reads (the
+    /// circle's own, where the equator is a meridian), and `T`, which the
+    /// shared cell does not hold; a smaller cell parts them, so it is
+    /// `Local`. Red if a pose's own failure is reported as `Structural`,
+    /// or a corner no chart reads is not.
+    #[test]
+    fn a_corner_no_chart_reads_is_structural_only_where_the_cell_reaches_it() {
+        let (s, b) = (sphere(), triangle());
+        assert_eq!(
+            posed(&s, &b, ((0.76, 0.81), (1.19, 1.23)), (&[0], &[vertex(3)])).err(),
+            Some(Unpresented::Structural),
+            "at T"
+        );
+        assert!(
+            exit(&s, &b, ((0.76, 0.81), (1.19, 1.23)), (&[0], &[vertex(3)])).2,
+            "at T, by the corner no chart reads"
+        );
+        assert_eq!(
+            posed(
+                &s,
+                &b,
+                ((0.2, 1.4), (-0.05, 1.25)),
+                (&[2], &[vertex(1), vertex(2)])
+            )
+            .err(),
+            Some(Unpresented::Local),
+            "the whole triangle"
+        );
+        assert!(
+            matches!(
+                exit(
+                    &s,
+                    &b,
+                    ((0.2, 1.4), (-0.05, 1.25)),
+                    (&[2], &[vertex(1), vertex(2)])
+                ),
+                (1.., _, false)
+            ),
+            "the whole triangle, by the poses' own failure"
+        );
+        assert!(
+            !exit(
+                &s,
+                &b,
+                ((0.2, 1.4), (-0.05, 1.25)),
+                (&[0], &[vertex(1), vertex(3)])
+            )
+            .2,
+            "a cell touching the pair at two vertices, one of them T: a smaller cell parts them"
+        );
+    }
+
+    /// **The cap `x ≥ A`**: the one closed circle `x = A`, its vertex at
+    /// `E1`, about the pole `(1, 0, 0)` of its own pose.
+    fn cap() -> Boundary {
+        let e1 = across(A).atan2(A);
+        Boundary {
+            sense: true,
+            edges: vec![circle_rim(
+                1,
+                [1, 1],
+                x_circle(),
+                (0.0, TURN),
+                curve_use(true, (e1, 0.0), (e1, 0.0)),
+            )],
+            vertices: BTreeMap::from([(vertex(1), pt(A, across(A), 0.0))]),
+            extent: None,
+            outer: Some(vec![(0, true)]),
+        }
+    }
+
+    /// **A cell holding its pose's pole is not placed in the pose**
+    /// ([`posed_cell`]): the cap `x ≥ A` holds the pose's pole `(1, 0,
+    /// 0)`, where every azimuth of the pose meets. A cell holding the
+    /// pole and reaching the circle is `Local`; one beside the circle,
+    /// clear of the pole, reads the circle — closed, a whole turn — as
+    /// the parallel. Red if a rectangle is placed about the pole.
+    #[test]
+    fn a_cell_holding_its_poses_pole_is_not_placed() {
+        let (s, b) = (sphere(), cap());
+        assert_eq!(
+            posed(&s, &b, ((-1.35, 1.35), (-0.1, 0.1)), (&[0], &[])).err(),
+            Some(Unpresented::Local),
+            "the cell holds the pole"
+        );
+        let top = across(A).asin();
+        match posed(
+            &s,
+            &b,
+            ((-0.05, 0.05), (top - 0.03, top + 0.03)),
+            (&[0], &[]),
+        ) {
+            Ok((Zero::Side(Side::YLo, along), _, y, axis)) => {
+                assert_eq!(along.edges, vec![edge(1)]);
+                assert_eq!(axis.to_array(), [1.0, 0.0, 0.0], "the pose about x");
+                assert!(
+                    y.0 <= A.asin() && A.asin() - y.0 < 1e-12,
+                    "the parallel: {y:?}"
+                );
+            }
+            other => panic!("beside the circle: {other:?}"),
+        }
+    }
+
+    /// **The cone through the circles `x = A` and `x = B`**: its apex on
+    /// the `x` axis at `c`, opening toward `−x` at `α`; `(c, α)`.
+    fn cone_apex() -> (f64, f64) {
+        let slope = (across(B) - across(A)) / (B - A);
+        (A - across(A) / slope, (-slope).atan())
+    }
+
+    /// **A cone strip on the triangle's edge 1**: the cone through the
+    /// circles `x = A` and `x = B`, over the azimuths of edge 1 and from
+    /// `x = A` to `x = 0.5`, so it leaves the sphere at the circle and
+    /// crosses it again at `x = B`. Its chart is the cone's about `−x`
+    /// from `y`, the azimuth `u = −t` of edge 1's parameter `t`, the
+    /// slant `v` from the apex.
+    fn strip() -> (Surface<Interval>, Boundary) {
+        let (c, alpha) = cone_apex();
+        let slant = |x: f64| (c - x) / alpha.cos();
+        let (near, far) = (slant(A), slant(0.5));
+        let t_top = (1.0 - 2.0 * A * A).sqrt().atan2(A);
+        let s = Surface::Cone {
+            frame: geom::Frame::new(pt(c, 0.0, 0.0), v3(-1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
+            half_angle: iv0(alpha),
+        };
+        let on = |u: f64, v: f64| {
+            let r = v * alpha.sin();
+            pt(c - v * alpha.cos(), r * u.cos(), -r * u.sin())
+        };
+        let line = |n: u64, ends: [u64; 2], u: f64, (v0, v1): (f64, f64)| {
+            let (p, q) = (vmid_point(on(u, v0)), vmid_point(on(u, v1)));
+            Rim {
+                key: edge(n),
+                arc: Some((Curve3::line(lift3(p), lift(q - p)), (iv0(0.0), iv0(1.0)))),
+                stated: None,
+                ends: ends.map(vertex),
+                uses: vec![Use {
+                    iso: Some(Iso {
+                        held: Axis::U,
+                        at: iv0(u),
+                        full: false,
+                    }),
+                    ..curve_use(true, (u, v0), (u, v1))
+                }],
+            }
+        };
+        let iso_v = |u: Use, at: f64| Use {
+            iso: Some(Iso {
+                held: Axis::V,
+                at: iv0(at),
+                full: false,
+            }),
+            ..u
+        };
+        let shared = circle_rim(
+            1,
+            [1, 3],
+            x_circle(),
+            (0.0, t_top),
+            iso_v(curve_use(true, (0.0, near), (-t_top, near)), near),
+        );
+        let rim = far * alpha.sin();
+        let outer = circle_rim(
+            4,
+            [5, 6],
+            (
+                pt(0.5, 0.0, 0.0),
+                v3(-1.0, 0.0, 0.0),
+                v3(0.0, 1.0, 0.0),
+                rim,
+            ),
+            (-t_top, 0.0),
+            iso_v(curve_use(true, (-t_top, far), (0.0, far)), far),
+        );
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                outer,
+                line(5, [6, 1], 0.0, (far, near)),
+                shared,
+                line(6, [3, 5], -t_top, (near, far)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), on(0.0, near)),
+                (vertex(3), on(-t_top, near)),
+                (vertex(5), on(-t_top, far)),
+                (vertex(6), on(0.0, far)),
+            ]),
+            extent: Some([(-t_top, 0.0), (far, near)]),
+            outer: None,
+        };
+        (s, b)
+    }
+
+    fn vmid_point(p: Point3<Interval>) -> Point3<f64> {
+        pmid(p)
+    }
+
+    fn lift3(p: Point3<f64>) -> Point3<Interval> {
+        Point3::new(iv0(p.x), iv0(p.y), iv0(p.z))
+    }
+
+    /// **A pair crossing past a posed circle is not certified**: the
+    /// triangle against the cone strip on its edge 1, which crosses the
+    /// sphere at `x = B`, 0.05 past the circle. The triangle is presented
+    /// in its pose about `x`; cells reaching the crossing are not
+    /// certified, while cells short of it are. Red if a pose reads the
+    /// face on the wrong side of its circle, or presents a rectangle that
+    /// misses part of the face's cell.
+    #[test]
+    fn a_cone_crossing_a_posed_sphere_face_past_its_circle_is_not_certified() {
+        let (sf, bf) = (sphere(), triangle());
+        let (sg, bg) = strip();
+        let shared = Shared::of(&bf, &bg, false);
+        let (c, alpha) = cone_apex();
+        let slant = |x: f64| (c - x) / alpha.cos();
+        let outcome = |fu: (f64, f64), fv: (f64, f64), gu: (f64, f64), gv: (f64, f64)| {
+            let (lf, ballf) = reach(&sf, &bf, (fu, fv));
+            let (lg, ballg) = reach(&sg, &bg, (gu, gv));
+            let piece = |surface, boundary, u, v, local, ball| Piece {
+                face: face(1),
+                surface,
+                whole: false,
+                boundary,
+                u,
+                v,
+                local,
+                ball,
+            };
+            let (x, y) = (
+                piece(&sf, &bf, fu, fv, &lf, ballf),
+                Piece {
+                    face: face(2),
+                    ..piece(&sg, &bg, gu, gv, &lg, ballg)
+                },
+            );
+            let near = Near::of(&shared, &lf, &lg);
+            assert!(!near.is_empty(), "the cells touch across edge 1");
+            certify_pair(&x, &y, &near, band())
+        };
+        // About edge 1's point at t = 0.6548: the triangle's cell reaches
+        // x = B at its azimuth's low end, the strip's its slant's low end.
+        let (fu, fv) = ((1.15, 1.28), (0.6, 0.66));
+        let gu = (-0.70, -0.61);
+        assert!(
+            posed(&sf, &bf, (fu, fv), (&[0], &[])).is_ok(),
+            "the triangle is presented in its pose there"
+        );
+        let crossing = outcome(fu, fv, gu, (slant(B) - 0.02, slant(A) + 0.02));
+        assert!(
+            !matches!(crossing, Outcome::Certified { .. }),
+            "cells reaching the crossing: {crossing:?}"
+        );
+        let short = outcome(
+            (1.24, 1.27),
+            (0.625, 0.637),
+            (-0.66, -0.65),
+            (slant(A) - 0.005, slant(A) + 0.005),
+        );
+        assert!(
+            matches!(short, Outcome::Certified { .. }),
+            "cells short of the crossing: {short:?}"
+        );
+    }
+    /// **A pose is not tried where a shared edge is no conic**
+    /// ([`poses_of`]): the triangle with its edge 2 stored on a line, a
+    /// carrier no pose projects to a coordinate line, shared, beside the
+    /// circle `x = A`, which a pose would read. The shared edge is unread
+    /// in every pose and every smaller cell of the pair holds it, so the
+    /// stored chart's `Structural` stands. Red if a pose whose shared edge
+    /// is no line is tried: its failure reads `Local`.
+    #[test]
+    fn a_pose_is_not_tried_where_a_shared_edge_is_no_conic() {
+        let s = sphere();
+        let mut b = triangle();
+        let (p, q) = (b.vertices[&vertex(3)], b.vertices[&vertex(2)]);
+        b.edges[1].arc = Some((Curve3::line(p, q - p), (iv0(0.0), iv0(1.0))));
+        // The shared edge first: [`beside_curve`] types a cell by the
+        // first unread curved edge in its local boundary.
+        let local = Local {
+            edges: vec![1, 0],
+            vertices: Vec::new(),
+        };
+        let piece = Piece {
+            face: face(1),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.7, 0.9),
+            v: (0.9, 1.1),
+            local: &local,
+            ball: Ball::holding(pt(0.0, 0.0, 0.0), pt(0.0, 0.0, 0.0)),
+        };
+        let face_poses = FacePoses::default();
+        let poses = Poses::of(&face_poses);
+        assert_eq!(
+            present(&piece, &[1], &[], band(), &poses).err(),
+            Some(Unpresented::Structural),
+            "the shared line is unread in every pose"
+        );
+        let face_poses = FacePoses::default();
+        let set = poses_of(&piece, &[1], &[], band(), &face_poses);
+        assert!(
+            set.poses.is_empty() && !set.unplaced && !set.unread_corner,
+            "by the pose left out, not a corner or a placement"
+        );
+    }
+
+    /// The triangle with its circle `x = A` split into two arcs at `S`,
+    /// the circle's parameter `tm` (`vertex(4)`): edge 0 runs `E1 → S`,
+    /// edge 3 `S → T`.
+    fn split_triangle(tm: f64) -> (Boundary, (f64, f64)) {
+        let mut b = triangle();
+        let (c, (t0, t1)) = b.edges[0].arc.clone().expect("the circle");
+        let sp = c.eval(iv0(tm));
+        let lonlat = |p: Point3<Interval>| (mid(p.y).atan2(mid(p.x)), mid(p.z).asin());
+        let (e1, top) = (
+            lonlat(b.vertices[&vertex(1)]),
+            lonlat(b.vertices[&vertex(3)]),
+        );
+        let ps = lonlat(sp);
+        b.edges[0] = Rim {
+            key: edge(1),
+            arc: Some((c.clone(), (t0, iv0(tm)))),
+            stated: None,
+            ends: [vertex(1), vertex(4)],
+            uses: vec![curve_use(true, e1, ps)],
+        };
+        b.edges.push(Rim {
+            key: edge(4),
+            arc: Some((c, (iv0(tm), t1))),
+            stated: None,
+            ends: [vertex(4), vertex(3)],
+            uses: vec![curve_use(true, ps, top)],
+        });
+        b.vertices.insert(vertex(4), sp);
+        b.outer = Some(vec![(0, true), (3, true), (1, true), (2, true)]);
+        (b, ps)
+    }
+
+    /// **A pose reads a side that runs on past the shared cell**
+    /// ([`partial_zero`]): the circle `x = A` split into two arcs at `S`,
+    /// the pair sharing the arc `E1 → S` and the vertex `S` alone. In the
+    /// pose about `x` both arcs lie on the one parallel, so its clip holds
+    /// an edge the other face does not share, and the zero is that side,
+    /// run on past the shared cell (`Zero::Past`). Red if a pose does not
+    /// reach it, or reads the side as the shared edge's alone.
+    #[test]
+    fn a_pose_reads_a_side_run_on_past_the_shared_cell() {
+        let s = sphere();
+        let (b, (lon, lat)) = split_triangle(0.4);
+        let d = 0.02;
+        let got = posed(
+            &s,
+            &b,
+            ((lon - d, lon + d), (lat - d, lat + d)),
+            (&[0], &[vertex(4)]),
+        );
+        assert!(
+            matches!(got, Ok((Zero::Past(..), _, _, axis)) if (axis.x, axis.y, axis.z) == (1.0, 0.0, 0.0)),
+            "the parallel through S of the pose about x, run on past the shared arc: {got:?}"
+        );
+    }
+
+    /// **A pose reads a corner zero** ([`present_chart_in`]): at `E1`
+    /// with both the circle and the equator shared, [`zero_of`] finds the
+    /// corner of the two sides, the parallel `asin A` and the meridian
+    /// `0` of the pose about `x`, and the arms read the separator as
+    /// vanishing on both. Red if a pose refuses the corner, or
+    /// reads either side as the zero alone.
+    #[test]
+    fn a_pose_reads_a_corner_zero() {
+        let (s, b) = (sphere(), triangle());
+        let got = posed(
+            &s,
+            &b,
+            ((1.29, 1.34), (-0.03, 0.03)),
+            (&[0, 2], &[vertex(1)]),
+        );
+        assert!(
+            matches!(got, Ok((Zero::Corner(..), ..))),
+            "the corner of the circle and the equator, both shared: {got:?}"
+        );
+    }
+
+    /// `w` scaled onto the unit sphere.
+    fn on_sphere(w: [f64; 3]) -> Point3<Interval> {
+        let n = (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt();
+        pt(w[0] / n, w[1] / n, w[2] / n)
+    }
+
+    /// The extents the triangle's two poses grant, read at `p`.
+    fn holding(b: &Boundary, p: Point3<Interval>) -> Vec<Option<bool>> {
+        posed_extents_holding(&sphere(), b, p, band())
+    }
+
+    /// **A pose's extent holds its face** ([`posed_extent`]): the
+    /// triangle `x ≥ A`, `y ≥ A`, `z ≥ 0` is granted an extent in both its
+    /// circles' poses, and each holds the face's points: 64 along each
+    /// edge's carrier, its corners, and positive mixtures of its corners
+    /// (the face is convex on the sphere). Red if either pose grants
+    /// none, or a hull leaves out a point of the face.
+    #[test]
+    fn a_poses_extent_holds_its_face() {
+        let b = triangle();
+        let mut points: Vec<Point3<Interval>> = b.vertices.values().copied().collect();
+        for e in &b.edges {
+            let (c, (t0, t1)) = e.arc.as_ref().expect("a carrier");
+            for t in pieces_of((t0.lo(), t1.hi())) {
+                points.push(c.eval(at(mid(t))));
+            }
+        }
+        let corners: Vec<[f64; 3]> = b
+            .vertices
+            .values()
+            .map(|p| [mid(p.x), mid(p.y), mid(p.z)])
+            .collect();
+        for (i, j, k) in [
+            (1.0, 1.0, 1.0),
+            (5.0, 1.0, 1.0),
+            (1.0, 5.0, 1.0),
+            (1.0, 1.0, 5.0),
+            (8.0, 8.0, 1.0),
+        ] {
+            let w = [0, 1, 2].map(|d| i * corners[0][d] + j * corners[1][d] + k * corners[2][d]);
+            points.push(on_sphere(w));
+        }
+        for p in points {
+            assert_eq!(
+                holding(&b, p),
+                vec![Some(true), Some(true)],
+                "both poses grant an extent holding {p:?}"
+            );
+        }
+    }
+
+    /// **A face whose bounded side in a pose is not the face is granted
+    /// no extent** ([`posed_extent`]): the triangle's complement, its
+    /// loops the same, its sense flipped, so the face is the rest of the
+    /// sphere and holds both poses' poles. The lift closes in each pose,
+    /// unwrapped, and winds the wrong way for the face. Red if the
+    /// orientation goes unread.
+    #[test]
+    fn a_face_whose_bounded_side_in_a_pose_is_not_it_is_granted_no_extent() {
+        let b = Boundary {
+            sense: false,
+            ..triangle()
+        };
+        assert_eq!(holding(&b, on_sphere([-1.0, 0.0, 0.0])), vec![None, None]);
+    }
+
+    /// **A face with an edge of no enclosure is granted no extent**
+    /// ([`posed_extent`]): the triangle with its equator's carrier gone.
+    /// Red if a row with no enclosure is left out of the hull.
+    #[test]
+    fn a_face_with_an_edge_of_no_enclosure_is_granted_no_extent() {
+        let mut b = triangle();
+        b.edges[2].arc = None;
+        assert_eq!(holding(&b, on_sphere([1.0, 1.0, 0.5])), vec![None, None]);
+    }
+
+    /// The cap `x ≥ A` (`sense`) or `x ≤ A` (`!sense`): one face of the
+    /// circle `x = A` alone, a whole turn from the vertex `(A, s, 0)`.
+    fn x_cap(sense: bool) -> Boundary {
+        let s = across(A);
+        let e = s.atan2(A);
+        Boundary {
+            sense,
+            edges: vec![circle_rim(
+                1,
+                [1, 1],
+                x_circle(),
+                (0.0, TURN),
+                curve_use(true, (e, 0.0), (e, 0.0)),
+            )],
+            vertices: BTreeMap::from([(vertex(1), pt(A, s, 0.0))]),
+            extent: None,
+            outer: Some(vec![(0, true)]),
+        }
+    }
+
+    /// **A cap holding its pose's pole is granted no extent**
+    /// ([`posed_extent`]): the cap `x ≥ A`, and the larger cap `x ≤ A`,
+    /// each holding a pole of the pose about `x`. Its circle lifts to a
+    /// whole parallel, which wraps the azimuth: unwrapped, the lift does
+    /// not close. Red if the wrap goes unchecked.
+    #[test]
+    fn a_cap_holding_its_poses_pole_is_granted_no_extent() {
+        // Each cap with a point of the hemisphere it holds, stated per
+        // case: the cap `x ≥ A` towards `+x`, the larger cap `x ≤ A`
+        // towards `−x`. A fixture's coordinate, no face normal.
+        for (sense, towards) in [(true, 1.0), (false, -1.0)] {
+            let p = on_sphere([towards, 0.1, 0.1]);
+            assert_eq!(
+                holding(&x_cap(sense), p),
+                vec![None],
+                "the cap, sense {sense}"
+            );
+        }
+    }
+
+    /// The face `x ≥ A`, `y ≤ B` of the unit sphere, its loop the long arc
+    /// of the circle `x = A` through `y < B` and the arc of `y = B`
+    /// through `x > A`, walked one way (`forward`) or the other: one
+    /// direction is the face, the other its complement.
+    fn x_and_y_cut(forward: bool) -> Boundary {
+        let b = 0.5_f64;
+        let s = across(A);
+        let (r, z0) = ((1.0 - b * b).sqrt(), (1.0 - A * A - b * b).sqrt());
+        let tx = (b / s).acos();
+        let (t0, t1) = (A.atan2(z0), A.atan2(-z0));
+        let flat = curve_use(forward, (0.0, 0.0), (0.0, 0.0));
+        Boundary {
+            sense: true,
+            edges: vec![
+                circle_rim(1, [1, 2], x_circle(), (tx, TURN - tx), flat.clone()),
+                circle_rim(
+                    2,
+                    [1, 2],
+                    (pt(0.0, b, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0), r),
+                    (t0, t1),
+                    curve_use(!forward, (0.0, 0.0), (0.0, 0.0)),
+                ),
+            ],
+            vertices: BTreeMap::from([(vertex(1), pt(A, b, z0)), (vertex(2), pt(A, b, -z0))]),
+            extent: None,
+            outer: Some(vec![(0, forward), (1, !forward)]),
+        }
+    }
+
+    /// **A loop round its pose's pole is granted no extent in that pose,
+    /// whatever its lifted area** ([`posed_extent`]): the face `x ≥ A`,
+    /// `y ≤ B` holds the pole `(1, 0, 0)` of the pose about `x`, its loop
+    /// winding once round it at varying latitude, so the forced-closed
+    /// polygon's area is no rounding, and in the pose about `y` it holds
+    /// neither pole. Walked as the face, only the pose about `y` grants an
+    /// extent, holding a point near `(1, 0, 0)`; walked as the complement,
+    /// which holds a pole of each, neither does. Red if the wrap goes
+    /// unchecked: the pose about `x` then grants a turn-wide hull.
+    #[test]
+    fn a_loop_round_its_poses_pole_is_granted_no_extent_there() {
+        let p = on_sphere([0.95, 0.1, 0.1]);
+        let mut got = [true, false].map(|f| holding(&x_and_y_cut(f), p));
+        got.sort();
+        assert_eq!(got, [vec![None, None], vec![None, Some(true)]]);
+    }
+
+    /// **A cell outside the face beside its pose's parallel misses the
+    /// posed extent** ([`posed_extent`], [`sheets`]): a cell of the
+    /// triangle's stored chart at latitude 0.5, its longitude 5e-4 to
+    /// 1.5e-3 past the circle `x = A`, the circle in its reach, so outside the face (`x < A`) though
+    /// inside its stored extent, and clear of the circle by more than the
+    /// touch. The stored chart reads the circle as no line; in the pose
+    /// about `x` the cell lies below the parallel `asin A`, which the
+    /// face's posed extent starts at, so it holds none of the face
+    /// (`Vacuous`). Red if a missed posed extent is not read.
+    #[test]
+    fn a_cell_outside_the_face_beside_its_poses_parallel_misses_the_posed_extent() {
+        let (s, b) = (sphere(), triangle());
+        let phi: f64 = 0.5;
+        let lc = (A / phi.cos()).acos();
+        let cell = ((lc + 5e-4, lc + 1.5e-3), (phi - 5e-4, phi + 5e-4));
+        let (_, ball) = reach(&s, &b, cell);
+        // The circle in the stored cell's reach, as a cell beside it holds
+        // it; the pose reads its own rectangle's reach ([`poses_of`]).
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let piece = Piece {
+            face: face(1),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: cell.0,
+            v: cell.1,
+            local: &local,
+            ball,
+        };
+        let face_poses = FacePoses::default();
+        let poses = Poses::of(&face_poses);
+        let got = present(&piece, &[0], &[], band(), &poses);
+        assert!(
+            matches!(got, Ok(Presentation::Vacuous)),
+            "outside the face, beside the parallel: {:?} (local {:?})",
+            got.as_ref().err(),
+            local.edges
+        );
+    }
+
+    /// [`x_and_y_cut`] walked as the face, its long arc of `x = A` split in
+    /// two at a vertex `eps` past `t = π` in the direction it is walked:
+    /// the face's lowest point in the pose about `y`, `(A, −s, 0)` at
+    /// `t = π`, then lies inside the first part's last piece, not at its
+    /// end.
+    fn x_and_y_cut_split(eps: f64) -> Boundary {
+        let p = on_sphere([0.95, 0.1, 0.1]);
+        let forward = [true, false]
+            .into_iter()
+            .find(|&f| holding(&x_and_y_cut(f), p) == vec![None, Some(true)])
+            .expect("one way round is the face");
+        let mut b = x_and_y_cut(forward);
+        let (c, (t0, t1)) = b.edges[0].arc.clone().expect("the long arc");
+        let at_t = if forward {
+            core::f64::consts::PI + eps
+        } else {
+            core::f64::consts::PI - eps
+        };
+        let split = c.eval(iv0(at_t));
+        let u = b.edges[0].uses[0].clone();
+        b.edges[0] = Rim {
+            key: edge(1),
+            arc: Some((c.clone(), (t0, iv0(at_t)))),
+            stated: None,
+            ends: [vertex(1), vertex(3)],
+            uses: vec![u.clone()],
+        };
+        b.edges.push(Rim {
+            key: edge(3),
+            arc: Some((c, (iv0(at_t), t1))),
+            stated: None,
+            ends: [vertex(3), vertex(2)],
+            uses: vec![u],
+        });
+        b.vertices.insert(vertex(3), split);
+        b.outer = Some(if forward {
+            vec![(0, true), (2, true), (1, false)]
+        } else {
+            vec![(1, true), (2, false), (0, false)]
+        });
+        b
+    }
+
+    /// **A pose's hull holds a row's last piece** ([`posed_extent`]): the
+    /// face `x ≥ A`, `y ≤ B` with its long arc split just past its lowest
+    /// point in the pose about `y` ([`x_and_y_cut_split`]), so that point
+    /// lies inside a row's last piece. The pose about `y` grants an extent
+    /// that holds it. Red if a row's last piece is left out of the hull.
+    #[test]
+    fn a_poses_hull_holds_a_rows_last_piece() {
+        let b = x_and_y_cut_split(5e-3);
+        let low = pt(A, -across(A), 0.0);
+        let got = holding(&b, low);
+        assert_eq!(got.len(), 2, "two poses: {got:?}");
+        assert!(
+            got.contains(&Some(true)),
+            "the pose about y holds the lowest point: {got:?}"
+        );
+        assert!(
+            !got.contains(&Some(false)),
+            "no extent leaves it out: {got:?}"
+        );
+    }
+
+    /// The band `h ≤ z ≤ h + d`, `x ≥ A`, `y ≥ 0` of the unit sphere: the
+    /// parallels `z = h` and `z = h + d` (the stored chart's), closed by the
+    /// circle `x = A` and the meridian `y = 0`. `sense` picks the band or
+    /// its complement.
+    fn band_between_parallels(h: f64, d: f64, sense: bool) -> Boundary {
+        let r = |z: f64| (1.0 - z * z).sqrt();
+        let (r0, r1) = (r(h), r(h + d));
+        let (y2, y3) = ((r0 * r0 - A * A).sqrt(), (r1 * r1 - A * A).sqrt());
+        let (f2, f3) = (y2.atan2(A), y3.atan2(A));
+        let (t2, t3) = (h.atan2(y2), (h + d).atan2(y3));
+        let parallel =
+            |z: f64, rr: f64| (pt(0.0, 0.0, z), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0), rr);
+        let flat = |plus: bool| curve_use(plus, (0.0, 0.0), (0.0, 0.0));
+        let line = |plus: bool, held: Axis, at: f64| Use {
+            iso: Some(Iso {
+                held,
+                at: iv0(at),
+                full: false,
+            }),
+            ..flat(plus)
+        };
+        Boundary {
+            sense,
+            edges: vec![
+                circle_rim(
+                    1,
+                    [1, 2],
+                    parallel(h, r0),
+                    (0.0, f2),
+                    line(true, Axis::V, h.asin()),
+                ),
+                circle_rim(
+                    2,
+                    [2, 3],
+                    x_circle(),
+                    (t2.min(t3), t2.max(t3)),
+                    flat(t3 > t2),
+                ),
+                circle_rim(
+                    3,
+                    [4, 3],
+                    parallel(h + d, r1),
+                    (0.0, f3),
+                    line(false, Axis::V, (h + d).asin()),
+                ),
+                circle_rim(
+                    4,
+                    [4, 1],
+                    (pt(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(1.0, 0.0, 0.0), 1.0),
+                    (-(h + d).asin(), -h.asin()),
+                    line(true, Axis::U, 0.0),
+                ),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), pt(r0, 0.0, h)),
+                (vertex(2), pt(A, y2, h)),
+                (vertex(3), pt(A, y3, h + d)),
+                (vertex(4), pt(r1, 0.0, h + d)),
+            ]),
+            extent: None,
+            outer: Some(vec![(0, true), (1, t3 > t2), (2, false), (3, true)]),
+        }
+    }
+
+    /// **A face thinner than its rows' chords is granted no extent, either
+    /// way round** ([`posed_extent`]'s margin): the band between the
+    /// parallels `z = 0.3` and `z = 0.3 + 1e-6`, closed by the circle
+    /// `x = A` and a meridian, and its complement, in the pose about `x`.
+    /// The parallels are curves there, and a piece's chord strays from its
+    /// arc by far more than the band is wide, so the polygon through the
+    /// pieces' starts may wind either way: its area is within the margin
+    /// of the pieces' rectangles, its sign undecided, and neither the band
+    /// nor the rest of the sphere is granted an extent. (A face bounded by
+    /// the pose's own circle and one other is a lens or a segment, convex,
+    /// and its polygon winds its way; the margin is for a face like this.)
+    /// Red if the area's sign is read without its margin: the polygon's
+    /// sign then grants one of the two a hull of the band.
+    #[test]
+    fn a_face_thinner_than_its_rows_chords_is_granted_no_extent() {
+        for sense in [true, false] {
+            let b = band_between_parallels(0.3, 1e-6, sense);
+            assert_eq!(
+                holding(&b, on_sphere([0.9, 0.1, 0.3])),
+                vec![None],
+                "sense {sense}"
+            );
+        }
+    }
+
+    /// **A face with a row stored off its sphere is granted no extent**
+    /// ([`on_sphere`]): the triangle with its circle `y = A` stored with a
+    /// radius 1e-9 too large, an edge's tolerance off the sphere, not a
+    /// rounding: its points' latitudes `asin(Z/R)` would place it where it
+    /// is not. Neither pose grants an extent; the triangle as stored grants
+    /// both ([`a_poses_extent_holds_its_face`]). Red if a row off the
+    /// sphere is lifted into a granted extent.
+    #[test]
+    fn a_face_with_a_row_off_its_sphere_is_granted_no_extent() {
+        let mut b = triangle();
+        let (c, span) = b.edges[1].arc.clone().expect("the circle y = A");
+        let c = *c.as_circle().expect("a circle");
+        b.edges[1].arc = Some((
+            Curve3::circle(
+                c.frame.origin(),
+                c.frame.axis(),
+                c.radius() + iv0(1e-9),
+                c.frame.u_ref(),
+            ),
+            span,
+        ));
+        assert_eq!(holding(&b, on_sphere([1.0, 1.0, 0.5])), vec![None, None]);
+    }
+
+    /// The half cap `x ≥ A`, `z ≥ 0`: the circle `x = A` over `z ≥ 0` and
+    /// the equator arc through the pose's pole `(1, 0, 0)`.
+    fn half_cap() -> Boundary {
+        let s = across(A);
+        let e = s.atan2(A);
+        Boundary {
+            sense: true,
+            edges: vec![
+                circle_rim(
+                    1,
+                    [1, 2],
+                    x_circle(),
+                    (0.0, core::f64::consts::PI),
+                    curve_use(true, (e, 0.0), (-e, 0.0)),
+                ),
+                circle_rim(
+                    2,
+                    [2, 1],
+                    (pt(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0), 1.0),
+                    (-e, e),
+                    Use {
+                        iso: Some(Iso {
+                            held: Axis::V,
+                            at: iv0(0.0),
+                            full: false,
+                        }),
+                        ..curve_use(true, (-e, 0.0), (e, 0.0))
+                    },
+                ),
+            ],
+            vertices: BTreeMap::from([(vertex(1), pt(A, s, 0.0)), (vertex(2), pt(A, -s, 0.0))]),
+            extent: None,
+            outer: Some(vec![(0, true), (1, true)]),
+        }
+    }
+
+    /// **A face with its pose's pole on its boundary is granted no
+    /// extent** ([`posed_extent`]): the half cap `x ≥ A`, `z ≥ 0`, its
+    /// equator arc running through the pose's pole `(1, 0, 0)` mid-edge.
+    /// The piece holding the pole is placed at no azimuth
+    /// ([`posed_cell`]), and either side of it the lift is half a turn
+    /// apart, so the lift is not read closing. Red if the pose grants it
+    /// an extent.
+    #[test]
+    fn a_face_with_its_poses_pole_on_its_boundary_is_granted_no_extent() {
+        assert_eq!(holding(&half_cap(), on_sphere([1.0, 0.0, 0.5])), vec![None]);
+    }
+
+    /// **A pose's reach is its own rectangle's** ([`poses_of`]): a short
+    /// radial segment stands on the sphere at a corner of the pose's
+    /// rectangle for a cell beside the circle `x = A`, clear of the stored
+    /// cell's ball but in the rectangle. The
+    /// pose's presentation would hold it, so the cell is `Local`. Red if a
+    /// pose reads the stored cell's local boundary in its wider rectangle.
+    #[test]
+    fn a_poses_reach_is_its_own_rectangles() {
+        let (s, mut b) = (sphere(), triangle());
+        let cell = ((1.0, 1.34), (0.5, 0.6));
+        let (Ok((_, x, y, _)), (_, stored)) =
+            (posed(&s, &b, cell, (&[0], &[])), reach(&s, &b, cell))
+        else {
+            panic!("the cell beside the circle is presented");
+        };
+        let frame = pose_frame(pt(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0))
+            .expect("the pose about x");
+        let pose = posed_sphere(&frame, iv0(1.0));
+        let corner = [(x.0, y.1), (x.1, y.1), (x.0, y.0), (x.1, y.0)]
+            .into_iter()
+            .map(|(u, v)| pmid(pose.point_eval(u, v)))
+            .find(|&c| stored.clear_of_point(lift3(c), band()))
+            .expect("a corner of the pose's rectangle off the stored cell's ball");
+        let tip = Point3::new(corner.x * 1.001, corner.y * 1.001, corner.z * 1.001);
+        b.edges.push(Rim {
+            key: edge(9),
+            arc: Some((
+                Curve3::line(lift3(corner), lift(tip - corner)),
+                (iv0(0.0), iv0(1.0)),
+            )),
+            stated: None,
+            ends: [vertex(7), vertex(8)],
+            uses: vec![curve_use(true, (0.0, 0.0), (0.0, 0.0))],
+        });
+        assert!(
+            !reach(&s, &b, cell).0.edges.contains(&3),
+            "the segment is clear of the stored cell"
+        );
+        assert_eq!(
+            posed(&s, &b, cell, (&[0], &[])).err(),
+            Some(Unpresented::Local),
+            "the segment in the pose's rectangle"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod margin_rows {
     //! The departure's margin: a sine levered at the faces' reach.
     use super::presentation_rows::arm;
@@ -15279,6 +18169,7 @@ mod margin_rows {
                 .map(|&(k, p)| (key(k), p3(p[0], p[1], p[2])))
                 .collect(),
             extent: None,
+            outer: None,
         }
     }
 
@@ -15429,6 +18320,7 @@ mod margin_reach_rows {
             edges,
             vertices: vertices.iter().map(|&(k, p)| (key(k), pa(p))).collect(),
             extent: None,
+            outer: None,
         }
     }
 
