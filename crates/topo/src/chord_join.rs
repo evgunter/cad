@@ -1546,7 +1546,7 @@ impl<T: Real> SectionCurve<T> {
     /// conic's seam direction (a principal one), an oval's torus axis.
     fn in_plane(&self) -> Vec3<T> {
         match self {
-            Self::Conic(c) => c.conic().frame().u_ref(),
+            Self::Conic(c) => c.conic().u_ref(),
             Self::Oval(o) => match o.carrier {
                 geom::Curve3::Spiric { frame, .. } => frame.axis(),
                 _ => unreachable!(
