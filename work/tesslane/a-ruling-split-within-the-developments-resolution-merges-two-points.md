@@ -78,15 +78,17 @@ when it emits (`trimmed::Run`).
   refused `DevelopedMerge` mesh, pass `check_mesh` and are the body's;
   at ε `10⁻¹²`, the 1479 that refused mesh (516 of them on the 0.1°
   bodies, whose volume is not computable there, so it is not read). The
-  pins are meshing rows: `split_rulings::a_run_of_ruling_points_the_development_merges_meshes`,
-  its grid `every_run_of_a_draft_cones_rulings_meshes`,
+  pins are meshing rows: `split_rulings::a_draft_cones_seam_split_within_its_developments_resolution_meshes`,
+  its grid `every_close_split_of_a_draft_cones_rulings_meshes`,
   `a_draft_cone_ruling_split_within_the_developments_resolution_meshes`
   and `a_frustum_seam_split_within_the_developments_resolution_meshes`.
 - **What it leaves refusing `DevelopedMerge`**: a merge that is no run.
   A point merged with the apex and points of two sides or two loops
   (unit rows, `trimmed`'s `a_run_is_read_from_the_polygons_order`; no
   body builds either), and a ruling side wholly inside the cut
-  (`split_rulings::a_cone_band_shorter_than_the_developments_resolution_refuses`).
+  (`split_rulings::a_cone_band_shorter_than_the_developments_resolution_refuses`;
+  on a face the chart lane walks, such a band meshes since unit 4c:
+  `a_cone_band_shorter_than_the_developments_resolution_meshes`).
 - **What it found beside it**:
   `a-run-anchored-on-a-needle-triangle-makes-triangles-f64-cannot-wind`,
   `a-planar-face-makes-a-triangle-of-three-close-points-of-one-straight-edge`,

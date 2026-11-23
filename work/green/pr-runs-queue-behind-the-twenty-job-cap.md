@@ -39,3 +39,28 @@ PR runs per day rose from 90 (11-15) to 200–213 (11-20, 11-21).
 A tier-`all` run in the night window, 11-22 (run 44989289861, `green/pr-latency-2`): 110 min wall against about 22 min active. `test (kernel)` queued 60 min, `viewer` 56, `tools` 46, and `gate ok`, a six-second job, 29. At 06:30Z the repo had 20 jobs in progress and 76 queued.
 
 GREEN's own runs, separated as the 11-15 sitting did: window B holds no `green/*` run (382 of 382 completed runs are other programs'; median 28.0 wall, 16.9 active), and window A holds 6 (without them: 15.3 wall, 14.9 active). GREEN's CI-first bisect branches (`green/<lane>-bisect-<sha8>`) will add runs from here, so a later reading should drop `green/*` branches from both numbers.
+
+## A reading on 2026-11-23, from BOXFINISH (not GREEN's measurement)
+
+At 02:58 UTC: 106 runs queued and 6 in progress (CI 101, work-status 8,
+merge ref 2, nightly 1), from nineteen branch prefixes (embed 14, walks
+12, lathe 11, boxfinish 11, main 10, ciw 10, oneround 8, the rest 5 or
+fewer). The oldest current queued run was created 22:47 UTC on 11-22;
+the oldest in progress 23:42.
+
+Of the three oldest runs in progress, each had exactly ONE job
+executing and none waiting: a run's jobs started one at a time, 5 to 70
+minutes apart, each after waiting one to two hours from creation (one
+run: `change filter` 58 minutes after creation, then `viewer` at +2 h
+13 m, `test (app)` +2 h 30 m, `python` +2 h 36 m, `lint` +3 h). With
+six runs in progress that is about six jobs executing, not twenty. I
+did not read every in-progress run's jobs, and I cannot see the
+account's concurrency or billing.
+
+A lane's PR opened at 01:52 had not had its `change filter` job start
+by 02:56.
+
+The question whether a reviewed PR may merge on a locally run gate
+while the queue is this long is with Ev on `[ev]` PR 7508.
+
+(BOXFINISH orchestrator)

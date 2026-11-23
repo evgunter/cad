@@ -1366,7 +1366,6 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::SolidWithoutShells { .. }
         | E::ShellWithoutFaces { .. }
         | E::EdgeAcrossShells { .. }
-        | E::ComponentEulerViolation { .. }
         | E::MissingProvenance { .. }
         | E::LeakedProvenance { .. }
         | E::ScaffoldingEmptyLoop { .. }
