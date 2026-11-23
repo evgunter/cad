@@ -580,9 +580,21 @@ fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
         (2360, 3857),
+        // The floor at 1e-9 is what the tree reads, 1461 of 1474 once
+        // the pcurve cache read a ruling's direction over the radius and
+        // the on-wall premises through the rationalized gap
+        // (`geom_core::radius_gap`): (a) a ruling's
+        // `pcurve_chart_cut_side` margin is of a direction, which the
+        // apart dilation does not move, 75 -> 58 moved; (b) eight
+        // `props_meridian_on_surface` margins that were exact zeros at
+        // `f64` in both builds are roundings that differ between them,
+        // 16 -> 24 moved. No decision flips and nothing is laundered.
+        // The row stays red on its other pin, `(2360, 3857)` against the
+        // tree's `(2390, 3856)`, until main's is re-cut
+        // (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
         PerRow {
             at_1e6: 1414,
-            at_1e9: 1462,
+            at_1e9: 1461,
             at_1e12: 1402,
         },
         &[],
