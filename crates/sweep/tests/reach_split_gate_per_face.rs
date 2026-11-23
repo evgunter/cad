@@ -163,6 +163,41 @@ fn a_plane_clear_of_a_sphere_or_torus_face_splits_the_body() {
     }
 }
 
+/// A full revolve's sphere face is one face whose seam runs from its rim
+/// to the pole at its tip and back, and its cover reads the latitude
+/// zone between the rim and that pole, not the ball: the cap's reaches
+/// `y ∈ [1, 1.5]` (its tip the `+y` pole), the truncated ball's
+/// `y ∈ [−1, 1]` (its tip the `−y` pole, past a hemisphere). The ball
+/// is `y ∈ [−1, 1.5]`, so each zone's far end off its tip is the rim,
+/// which a tip-blind reading of the face's side misses: the rim alone
+/// bounds a cap either way.
+#[test]
+fn a_one_band_sphere_faces_cover_is_its_zone_not_the_ball() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let pad = 1e-9;
+    for (name, body, (lo, hi)) in [
+        ("sphere cap", capped_cylinder(), (1.0, 1.5)),
+        ("truncated ball", truncated_ball(), (-1.0, 1.0)),
+    ] {
+        let spheres: Vec<_> = body
+            .faces()
+            .filter(|(_, f)| body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+            .map(|(k, _)| k)
+            .collect();
+        let [face] = spheres.as_slice() else {
+            panic!("{name}: one sphere face, got {}", spheres.len());
+        };
+        let cover = body.face_cover(*face, band).unwrap_or_else(|e| {
+            panic!("{name}: the sphere face has a cover: {e:?}");
+        });
+        let (below, above) = cover.range_along(Vec3::new(0.0, 1.0, 0.0));
+        assert!(
+            (lo - pad..=lo + pad).contains(&below) && (hi - pad..=hi + pad).contains(&above),
+            "{name}: the face reads y ∈ [{below}, {above}], its zone is [{lo}, {hi}]"
+        );
+    }
+}
+
 /// The plane taking a small dome off the cap near its pole, on the
 /// `−z` side: its normal is the cap's radial direction 15° from the pole
 /// toward `−z`, at 1.23 from the sphere's centre, so it meets the cap in a

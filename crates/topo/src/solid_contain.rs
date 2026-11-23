@@ -1274,7 +1274,7 @@ pub(crate) fn trim_window_short<T: Decide>(
 /// **A sphere face's exact chart rectangle**, for the face class the
 /// sphere chart rectangle can actually express — the rectangle the
 /// sphere arm of the face boxes bounds a face by
-/// (`boxes::sphere_window`). Point containment does not read it: a
+/// (`cover::sphere_window`). Point containment does not read it: a
 /// trimmed sphere face's region is read from its boundary arcs
 /// ([`crate::sphere_region`]).
 ///

@@ -626,9 +626,11 @@ pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 /// face's `sense`, which places the face on the rectangle's side of its
 /// boundary. The trim's class then holds no pole inside the face, so
 /// the face lies in the rectangle its boundary spans. The side is read
-/// without the tips the chart image drops: a wrap-tip cap holds the
-/// pole at its tip, outside that class, and its rim alone encodes no
-/// side. A face whose side is unencoded, refused, or in disagreement,
+/// with the tips the chart image drops, which the face holds
+/// ([`crate::props::chart_image_with_tips`]): a wrap-tip cap's image is
+/// its rim alone, which bounds a cap either way, and the pole at its
+/// tip is the datum that says which; the trim folds that pole in as a
+/// level the face reaches. A face whose side is unencoded, refused, or in disagreement,
 /// one whose outer loop is a lone vertex or carries null scaffolding,
 /// one outside the trim's class, one whose trim escalates, one whose
 /// axis is not decided unit, and one whose radius is not positive (the
@@ -665,9 +667,9 @@ fn sphere_window<T: Decide>(
     ) {
         return None;
     }
-    let outer = match crate::props::chart_image_edges(body, outer) {
-        Ok((outer, _)) if outer.is_empty() => return None,
-        Ok((outer, _)) => outer,
+    let ((outer, _), held) = match crate::props::chart_image_with_tips(body, outer) {
+        Ok(((outer, _), _)) if outer.is_empty() => return None,
+        Ok(image) => image,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
         Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, f, refusal),
     };
@@ -677,7 +679,7 @@ fn sphere_window<T: Decide>(
         Sign::Negative
     };
     let (trim, unit) = constraint(|| {
-        if geom_brep::props::boundary_material_sign(surface, &outer, band).ok()
+        if geom_brep::props::boundary_material_sign_holding(surface, &[&outer], &held, band).ok()
             != Some(geom_brep::props::MaterialSign::Encoded(side))
         {
             return Err(());
