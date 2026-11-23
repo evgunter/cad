@@ -1144,32 +1144,46 @@ fn carried_far<T: Decide>(
     matches!(pick, geom_core::k_stats::Pick::Positive).then_some(gx)
 }
 
-/// **`gone`'s far end read off `kept`'s carrier**: the parameter of
-/// `gone`'s middle near `tw`, then of `far` near that, so the reading
-/// walks from the vertex along `gone`. A closed form inverts in closed
-/// form; a periodic cubic by its foot ([`geom::Curve3::foot`]), which is
-/// the one reading of a far end on a loop that [`carried_far`] does not
-/// carry: an arc stated a whole turn away across the loop's seat, an
-/// arc stated on the loop run back, and one whose parameter at the
-/// vertex is not the kept edge's bit for bit. Where `gone` lies on the very
-/// carrier ([`carried_far`]), this names `gx`'s point, and the two
-/// spellings agree up to rounding (ledger row F39).
+/// **`gone`'s far end read off `kept`'s carrier**, walking from the
+/// vertex along `gone`, whose parameters `(gw, gf)` are at the vertex
+/// and at its far end. A closed form inverts in closed form: `gone`'s
+/// middle near `tw`, then `far` near that. A periodic cubic inverts by
+/// its foot ([`geom::Curve3::foot`]), the one reading of a far end on a
+/// loop that [`carried_far`] does not carry: an arc stated a whole turn
+/// away across the loop's seat, an arc stated on the loop run back, and
+/// one whose parameter at the vertex is not the kept edge's bit for bit.
+/// That foot is polished from its seed, and a seed a long arc away can
+/// settle on a nearer local minimum of the distance, so the walk reads
+/// `gone`'s point at each eighth of its span in turn, each seeded at the
+/// last, then `far`, each in the turn nearest the parameter walked from.
+/// Where `gone` lies on the very carrier ([`carried_far`]), this names
+/// `gx`'s point, and the two spellings agree up to rounding (ledger row
+/// F39).
 fn read_far<T: Decide>(
     carrier: &geom::Curve3<T>,
     gone: &geom::Curve3<T>,
-    (g0, g1): (T, T),
+    (gw, gf): (T, T),
     far: geom_core::Point3<T>,
     tw: T,
 ) -> Option<T> {
-    // A periodic cubic inverts by its foot, read in the turn nearest the
-    // parameter walked from.
     if let Some(p) = carrier.as_periodic() {
         let turn = geom_core::period::Period::new(p.period());
         let near = |q: geom_core::Point3<T>, from: T| turn.near(carrier.foot(q, from).seed(), from);
-        return Some(near(far, near(gone.mid_point(g0, g1), tw)));
+        let half = T::one() / (T::one() + T::one());
+        let mut stations = vec![gw, gf];
+        for _ in 0..3 {
+            stations = stations
+                .windows(2)
+                .flat_map(|w| [w[0], (w[0] + w[1]) * half])
+                .chain([gf])
+                .collect();
+        }
+        let inner = &stations[1..stations.len() - 1];
+        let t = inner.iter().fold(tw, |from, &g| near(gone.eval(g), from));
+        return Some(near(far, t));
     }
     carrier
-        .param_near(gone.mid_point(g0, g1), tw)
+        .param_near(gone.mid_point(gw, gf), tw)
         .and_then(|tm| carrier.param_near(far, tm))
 }
 
@@ -1229,7 +1243,7 @@ fn joined_spec<T: Decide>(
             }
         }
     } else {
-        read_far(carrier, gone.stored_carrier(), (g0, g1), far, tw).ok_or(
+        read_far(carrier, gone.stored_carrier(), at_w, far, tw).ok_or(
             BooleanError::JoinCarrierUnsupported {
                 edge: join.kept,
                 carrier: carrier.kind(),
