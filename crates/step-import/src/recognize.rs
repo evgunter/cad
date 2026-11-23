@@ -112,7 +112,9 @@
 use geom::{NurbsSurface, Surface};
 use geom_core::{Band, LengthOutOfFormat, NoDirection, Point3, RigidMotion, Vec3};
 
-use crate::interpret::{FileBand, Read, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL};
+use crate::interpret::{
+    FileBand, Read, STEP_COLLAPSED_SIDE, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL,
+};
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
 pub(crate) use crate::PromotedKind;
@@ -632,29 +634,124 @@ fn estimate_cone(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f6
     })
 }
 
-/// The side of the net that collapses to one point — every control point
-/// of a boundary row or column bitwise equal — as that point and whether
-/// it is a `u` side (a row of fixed `iu`), in the fixed order `u` start,
-/// `u` end, `v` start, `v` end.
-fn collapsed_side(patch: &NurbsSurface<f64>) -> Option<(Point3<f64>, bool)> {
-    let (nu, nv) = patch.control_counts();
+/// A healed net, and each side it made one point with how far that moved
+/// a control point of it ([`heal_collapsed_sides`]).
+pub(crate) type Healed = (NurbsSurface<f64>, Vec<(geom_brep::ChartSide, f64)>);
+
+/// **The net sides the file states one point at its band, made exactly
+/// that point** (DESIGN `[import]` healing, `[extensibility]`). Every side
+/// of the knot rectangle not already one point is decided first, on the
+/// file's statement: its spread, the farthest its control points lie from
+/// its first, read at the file's band. The sides that read Zero are then
+/// healed jointly with the sides already one point, by connected class:
+/// two sides meet at a corner, which both hold, so a class is the sides
+/// that chain through shared corners, and every control point of it
+/// becomes one point, where the whole class reads one point at the band,
+/// so the home reads each healed side collapsed
+/// ([`geom_brep::chart_singularity::collapsed_sides`]). That point is a
+/// side the file states exactly one point where the class holds one (the
+/// stated geometry wins its shared corner), else the class's first in
+/// file order. Each side a control point of which moved is reported with
+/// the farthest one of its own points moved; `None` where no side read
+/// Zero.
+///
+/// # Errors
+///
+/// [`crate::interpret::Refusal::Ambiguous`] for a side whose spread, or a
+/// class whose spread, is in the file's band: whether it is one point is
+/// the file's to say.
+pub(crate) fn heal_collapsed_sides(
+    patch: &NurbsSurface<f64>,
+    file: FileBand,
+) -> Result<Option<Healed>, crate::interpret::Refusal> {
+    use geom_brep::chart_singularity::{side_row, spline_side_spans};
     let control = patch.control();
-    let at = |iu: usize, iv: usize| control[iu * nv + iv];
-    let bits = |p: Point3<f64>| p.to_array().map(f64::to_bits);
-    let side = |count: usize, point: &dyn Fn(usize) -> Point3<f64>| {
-        let first = point(0);
-        (1..count)
-            .all(|k| bits(point(k)) == bits(first))
-            .then_some(first)
+    let spread = |row: &[usize], from: Point3<f64>| {
+        row.iter()
+            .filter_map(|&i| control.get(i))
+            .fold(0.0_f64, |m, p| m.max((*p - from).norm()))
     };
-    [
-        (side(nv, &|iv| at(0, iv)), true),
-        (side(nv, &|iv| at(nu - 1, iv)), true),
-        (side(nu, &|iu| at(iu, 0)), false),
-        (side(nu, &|iu| at(iu, nv - 1)), false),
-    ]
-    .into_iter()
-    .find_map(|(p, u_side)| p.map(|p| (p, u_side)))
+    // Each side to heal or to heal against: its row, and whether the file
+    // states it one point exactly.
+    let mut sides: Vec<(geom_brep::ChartSide, Vec<usize>, bool)> = Vec::new();
+    for side in geom_brep::ssi::boundary::SIDES {
+        let row = side_row(patch, side);
+        if !spline_side_spans(patch, side) {
+            sides.push((side, row, true));
+            continue;
+        }
+        let Some(&first) = row.first().and_then(|&i| control.get(i)) else {
+            continue;
+        };
+        let d = spread(&row, first);
+        match file.read(STEP_COLLAPSED_SIDE, d) {
+            Read::Zero => sides.push((side, row, false)),
+            Read::InBand => return Err(file.ambiguous(STEP_COLLAPSED_SIDE, d)),
+            Read::Apart => {}
+        }
+    }
+    if sides.iter().all(|&(_, _, exact)| exact) {
+        return Ok(None);
+    }
+    // The connected classes: a side joins the class of every side whose
+    // row shares a control point with its own.
+    let mut class: Vec<usize> = (0..sides.len()).collect();
+    for a in 0..sides.len() {
+        for b in a + 1..sides.len() {
+            if sides[a].1.iter().any(|i| sides[b].1.contains(i)) {
+                let (from, to) = (class[b], class[a]);
+                for c in &mut class {
+                    if *c == from {
+                        *c = to;
+                    }
+                }
+            }
+        }
+    }
+    let mut target: Vec<Option<Point3<f64>>> = vec![None; control.len()];
+    for k in 0..sides.len() {
+        if class[k] != k {
+            continue;
+        }
+        let in_class: Vec<usize> = (0..sides.len()).filter(|&m| class[m] == k).collect();
+        let mut members: Vec<usize> = in_class
+            .iter()
+            .flat_map(|&m| sides[m].1.iter().copied())
+            .collect();
+        members.sort_unstable();
+        members.dedup();
+        // The stated point: an exact side's, the one whose row starts
+        // first in file order, else the class's first control point.
+        let anchor = in_class
+            .iter()
+            .filter(|&&m| sides[m].2)
+            .filter_map(|&m| sides[m].1.first().copied())
+            .min()
+            .or_else(|| members.first().copied());
+        let Some(&first) = anchor.and_then(|i| control.get(i)) else {
+            continue;
+        };
+        let d = spread(&members, first);
+        if file.read(STEP_COLLAPSED_SIDE, d) != Read::Zero {
+            return Err(file.ambiguous(STEP_COLLAPSED_SIDE, d));
+        }
+        for &i in &members {
+            target[i] = Some(first);
+        }
+    }
+    let healed = patch.map_points_indexed(|i, p| target.get(i).copied().flatten().unwrap_or(p));
+    let moved = sides
+        .iter()
+        .map(|(side, row, _)| {
+            let by = row
+                .iter()
+                .map(|&i| (control[i] - healed.control()[i]).norm())
+                .fold(0.0_f64, f64::max);
+            (*side, by)
+        })
+        .filter(|&(side, by)| by > 0.0 || sides.iter().any(|&(s, _, exact)| s == side && !exact))
+        .collect();
+    Ok(Some((healed, moved)))
 }
 
 /// The sphere candidate (module docs): the midpoint's centre of mean
@@ -688,7 +785,12 @@ fn estimate_sphere(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<
     }
     let (um, vm) = at_fraction(patch, 0.5, 0.5);
     let (u0, v0) = at_fraction(patch, 0.0, 0.0);
-    let (axis, seam) = match collapsed_side(patch) {
+    // The net's first collapsed side (`u` start, `u` end, `v` start,
+    // `v` end), from the singular set's one home.
+    let collapsed = geom_brep::chart_singularity::collapsed_sides(patch)
+        .first()
+        .map(|&(side, pole)| (pole, side.fixed == geom_brep::ChartAxis::U));
+    let (axis, seam) = match collapsed {
         Some((pole, u_side)) => {
             let (axis, _) = (pole - center).checked_direction().ok()?;
             (
@@ -886,6 +988,173 @@ pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) 
 /// falsify the certification claims by execution — a patch exact at
 /// every sample and bulging between them, near-boundary nets, exact
 /// conics, and the selection order.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod collapsed_side_healing {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    /// A bilinear patch whose side `u = 0` runs from (1, 1, 0) to `top`
+    /// ([`geom::test_support::collapsed::triangle`]).
+    fn triangle(top: Point3<f64>) -> NurbsSurface<f64> {
+        geom::test_support::collapsed::triangle(Point3::new(1.0, 1.0, 0.0), top)
+    }
+
+    /// **A side one ulp wide is made its first point and reported**; one
+    /// the file's band reads apart is kept; one in the band refuses as
+    /// ambiguous; one already a point is not touched.
+    #[test]
+    fn a_side_the_file_reads_as_one_point_is_made_that_point() {
+        let file = crate::interpret::FileBand::test(1e-9);
+        let pole = Point3::new(1.0, 1.0, 0.0);
+        let ulp = geom::test_support::collapsed::ulp_along_x(pole);
+        let Ok(Some((healed, sides))) = heal_collapsed_sides(&triangle(ulp), file) else {
+            panic!("one ulp: healed");
+        };
+        assert_eq!(sides.len(), 1, "one ulp: the one side");
+        assert!(
+            sides[0].1 > 0.0 && sides[0].1 < 1e-15,
+            "one ulp: its move {}",
+            sides[0].1
+        );
+        let got = geom_brep::chart_singularity::collapsed_sides(&healed);
+        assert!(
+            got.len() == 1 && got[0].0 == sides[0].0 && got[0].1.equals_exactly(pole),
+            "one ulp: the side is the first point exactly"
+        );
+        assert!(
+            matches!(heal_collapsed_sides(&triangle(pole), file), Ok(None)),
+            "a point already: untouched"
+        );
+        assert!(
+            matches!(
+                heal_collapsed_sides(&triangle(Point3::new(1.0, 2.0, 0.0)), file),
+                Ok(None)
+            ),
+            "a unit apart: kept"
+        );
+        assert!(
+            matches!(
+                heal_collapsed_sides(&triangle(Point3::new(1.0 + 3e-9, 1.0, 0.0)), file),
+                Err(crate::interpret::Refusal::Ambiguous { .. })
+            ),
+            "in the band: ambiguous"
+        );
+    }
+
+    /// **Two adjacent sides heal as one class**: the `u`-high side and
+    /// the `v`-low side of a bilinear net share the corner `(1, 0)`, each
+    /// a few ulps wide, and both become the class's first point in file
+    /// order, `(0, 0)`'s; both are reported, and the home reads both
+    /// collapsed. Then the same on a 3 × 3 net, where the shared corner
+    /// holds the exact point and the class's first, the `v`-low side's
+    /// start, is a few ulps off it.
+    #[test]
+    fn two_adjacent_sides_heal_as_one_class() {
+        let file = crate::interpret::FileBand::test(1e-9);
+        let up = |n: u64| Point3::new(f64::from_bits(1.0_f64.to_bits() + n), 1.0, 0.0);
+        let p = Point3::new(1.0, 1.0, 0.0);
+        let bilinear = || {
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            )
+        };
+        let two = NurbsSurface::new(
+            bilinear(),
+            bilinear(),
+            vec![p, Point3::new(3.0, 2.0, 0.0), up(1), up(2)],
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let three_knots = || {
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            )
+        };
+        let mut control = Vec::new();
+        for iu in 0..3_u32 {
+            for iv in 0..3_u32 {
+                control.push(match (iu, iv) {
+                    (2, 0) => p,
+                    (2, _) => up(u64::from(iv) + 1),
+                    (_, 0) => up(u64::from(iu) + 5),
+                    _ => Point3::new(f64::from(iu) * 3.0, f64::from(iv) * 2.0 + 5.0, 0.0),
+                });
+            }
+        }
+        let three = NurbsSurface::new(three_knots(), three_knots(), control, vec![1.0; 9]).unwrap();
+        for (what, net, first) in [("2 × 2", two, p), ("3 × 3", three, up(5))] {
+            let Ok(Some((healed, sides))) = heal_collapsed_sides(&net, file) else {
+                panic!("{what}: healed");
+            };
+            let mut reported: Vec<_> = sides.iter().map(|(side, _)| *side).collect();
+            let mut exact: Vec<_> = geom_brep::chart_singularity::collapsed_sides(&healed)
+                .into_iter()
+                .map(|(side, at)| {
+                    assert!(at.equals_exactly(first), "{what}: the class's first point");
+                    side
+                })
+                .collect();
+            reported.sort_by_key(|s| format!("{s}"));
+            exact.sort_by_key(|s| format!("{s}"));
+            assert_eq!(reported.len(), 2, "{what}: both sides reported");
+            assert_eq!(reported, exact, "{what}: every reported side is one point");
+            assert!(
+                sides.iter().all(|(_, by)| *by > 0.0 && *by < 1e-14),
+                "{what}: each side's move, {sides:?}"
+            );
+        }
+    }
+
+    /// **A side the file states exactly one point keeps it**: on a 3 × 3
+    /// net whose `u`-high side is exactly `q` and whose `v`-low side, a
+    /// few ulps wide and starting off `q`, shares its corner `(2, 0)`,
+    /// the class heals to `q`, the stated point. The `u`-high side is
+    /// untouched and unreported; the `v`-low side is made `q` and
+    /// reported with its move.
+    #[test]
+    fn a_side_stated_exactly_one_point_anchors_its_class() {
+        let file = crate::interpret::FileBand::test(1e-9);
+        let near = |k: u64| Point3::new(f64::from_bits(1.0_f64.to_bits() + k), 1.0, 0.0);
+        let q = near(9);
+        let knots = || {
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            )
+        };
+        let mut control = Vec::new();
+        for iu in 0..3_u32 {
+            for iv in 0..3_u32 {
+                control.push(match (iu, iv) {
+                    (2, _) => q,
+                    (_, 0) => near(u64::from(iu) + 3),
+                    _ => Point3::new(f64::from(iu) * 3.0, f64::from(iv) * 2.0 + 5.0, 0.0),
+                });
+            }
+        }
+        let net = NurbsSurface::new(knots(), knots(), control, vec![1.0; 9]).unwrap();
+        let Ok(Some((healed, sides))) = heal_collapsed_sides(&net, file) else {
+            panic!("healed");
+        };
+        for i in 6..9 {
+            assert!(
+                healed.control()[i].equals_exactly(q),
+                "the stated side keeps q at {i}"
+            );
+        }
+        let exact = geom_brep::chart_singularity::collapsed_sides(&healed);
+        assert_eq!(exact.len(), 2, "both sides one point: {exact:?}");
+        assert!(exact.iter().all(|(_, at)| at.equals_exactly(q)), "at q");
+        assert!(
+            matches!(
+                sides[..],
+                [(side, by)] if side.fixed == geom_brep::ChartAxis::V && by > 0.0 && by < 1e-14
+            ),
+            "only the v-low side moved and is reported: {sides:?}"
+        );
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod review_probes {

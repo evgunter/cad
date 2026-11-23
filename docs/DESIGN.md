@@ -188,7 +188,7 @@ one way to do each thing, done in one place and stated in one place. A
 new kind is introduced only where no existing one is it: an assembly
 is a document, and the kernel has no assembly type ([assemblies]); a
 copy, a pattern and a moved body are all placements ([placement]); a
-pattern is an index, not an operation ([repetition]). Two ways of deciding one fact can decide it
+pattern is a binder, not an operation ([repetition]). Two ways of deciding one fact can decide it
 differently inside the band; two places stating one fact can drift
 apart. Two types carrying the same fields are a sign of a cleaner
 arrangement to find: usually kinds share part of what they are, and
@@ -290,7 +290,7 @@ of them is a defect.
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; the finish also completes a body's pcurve rows before its verdict, the one place they become complete: it drops rows on dead half-edges, keeps every stored row and derives each missing one, so no producer mints to close and a stale row is refused rather than replaced; in construction state a door keeps a stored row current or drops it; a move carries the rows under a motion and re-derives them under a reflection;  doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -914,13 +914,15 @@ tiers".
   with, K·ε ([tolerance.recourse]). Pieces of a solid's boundary that
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
-  itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. That
-  reading is the edge's wedge as tier 3 reads it, one reading for
-  both: an angle metered at the reach of the faces it governs
+  itself, the question reads from the verdict what tier 3 decided
+  there (an edge's class and turn, an end, a pole or apex vertex) and
+  decides none of it. Over each cell it reads the rate at which the
+  two faces part, the faces' rates summed, levered at how far the
+  narrower of them runs from what they share, measured across it
   ([tolerance.epsilon]), never at a cell of the question's own
-  subdivision. A cell holds none of a face only where it lies off
-  the face. A
+  subdivision, and that passes by more than the band. Where tier 3
+  holds no fact, that reading is the only one. A cell holds none of a
+  face only where it lies off the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
@@ -1504,30 +1506,46 @@ document whose slot reads nothing has an empty product.
 
 *From:* [intent.statements], [one-way].
 
-**Repetition.** A document repeats by an **index**: `k = index(N)`
-defines a `Count` variable over `0..N`, `N` any `Count` expression. A
-definition or operation whose reads reach `k` is evaluated once per
-value of it, and each of its outputs is a **family** of that kind (a
-`Bodies` is the family of `Body`), one member per value, keyed by the
-tuple of the indices it reaches, outer first. Membership is derived
-from reads, as dependency is: no node holds a template, and there is
-no pattern operation. A profile's program repeats part of
-itself with `each k { … }`, which takes the index whole as `union`
-takes a `Bodies` (`docs/PATHS-DESIGN.md` §2, *Composition*). A variable defined by reading `k` is, to a
-reader that reaches the same `k`, its member at the same value, and to
-every other reader the whole family: `xs[i, j]` reads one member, and
-`union`, `intersect` and `assemble` take a `Bodies`: a family, or its
-members spelled as reads; so does a subtract's tool, so
-`subtract(a, holes)` cuts `a` by every member, and `subtract(a, holes[k])`
-cuts it member by member.
-Lockstep is one index read twice. An index enters a placement as a value, a slide or a
+**Repetition is written.** A document repeats only inside a
+**binder** `{k in D: …}`, a scope in the recipe, and nothing repeats
+outside one. Its domain `D` is a range `0..N`, `N` any `Count`
+expression, or a family's own keys (`k in holes`), and its index `k` is
+a `Count` over that domain. A binder may bind several indices,
+`{i in 0..R, j in 0..C(i): …}`. A binder stores its index and the
+names it **yields**, and each yield is a **family** of its kind (a
+`Bodies` is the family of `Body`), one member per value. Families are
+flat, keyed by the tuple of the binder's indices, outermost first.
+Inside a binder a step repeats exactly when it reads `k`, directly or
+through another definition, as dependency is derived from reads: a
+step that reads nothing of `k` is the same at every member, and
+building it once is a cache. No node holds a template, and there is no
+pattern operation. A profile's program repeats part of itself with
+`each k { … }` (`docs/PATHS-DESIGN.md` §2, *Composition*).
+
+**Containment.** A definition that reads `k` may be read only by
+definitions that read `k`, or by its binder's yields. Any other reader
+is refused when written, and on load is unresolved and typed, so no
+reader outside a binder silently becomes plural. A binder with no
+yield is refused.
+
+**Reading a family.** A read at a full key is one member anywhere:
+`xs[i, j]` of a grid is one member, and `xs[i]` is row `i`. A list seat (`union`,
+`intersect`, `assemble`, a subtract's tool) takes a family whole, or
+its members spelled as reads, and a family spliced into a spelled list
+is written `[A, …holes]`, each member keyed by its read. A one-body
+seat (a split, a mirror, a fillet, a shell, a subtract's kept body, a
+placement's source) handed a family is refused at the door by kind,
+with the recourse `{k in xs: op(xs[k])}`. "Each member" is always
+written as a binder: `subtract(plate, holes)` is one plate with every
+member cut from it, and `{k in holes: subtract(plate, holes[k])}` is
+one plate per member.
+Lockstep is one binder over a family's keys, so its domain is stated
+once. An index enters a placement as a value, a slide or a
 spin that is a `Length` or `Angle` expression over it, or through a
 mate whose target is a member of another family
 (`bolt.axis ≡ holes[k].axis`); no pose is constructed from an index, so
 an `Axis` mate with `spin = scalar(k)·turn/N` is a ring and a slide of
-`scalar(k)·pitch` a row. Two indices meet in one reader only when one is
-declared `within` the other, which is implied when its count reads the
-other; a reader of two unrelated indices refuses. `Count` arithmetic is
+`scalar(k)·pitch` a row. `Count` arithmetic is
 exact and includes `mod`, so a relation between a ring's neighbours is
 one statement (`assert(gap(c[k].r, c[(k + 1) mod N].l) = −b)`), while a
 ring stepped by `turn/N` whose member spans its step meets each
@@ -1537,7 +1555,7 @@ is no list literal: an irregular family is its members written out,
 each saying where it is. A definer that refuses at one index refuses
 the whole family, naming the index; a read whose index leaves the
 range is unresolved and typed, never re-pointed. A member's names are
-`Member { (i, j), of }`, keyed by the index variables' ids and the
+`Member { (i, j), of }`, keyed by the binder's index ids and the
 integers. Copies of one body are built once and mapped; a construction
 whose scalar inputs read an index is built per member. A mirror image is not a copy, because a
 reflection is not a pose: `Mirror { body, plane }`
@@ -1646,9 +1664,10 @@ offers the existing one), and a pick whose body the source no longer
 has is unresolved, typed, never re-pointed. Two placements of a part
 are two copies. Nothing moves a body: a copy is defined by its one
 placement and never moved after, and an operation that would move one
-is a placement. A pattern is a placement whose reads reach an index
-(FORK-PAT, [repetition]): one copy per value, the index entering as a
-value or through a mate's target. A placement's mates and values
+is a placement. A pattern is a binder around one placement
+(FORK-PAT, [repetition]): one copy per value of its index, the index
+entering as a value or through a mate's target, and the copies are a
+family the binder yields. A placement's mates and values
 together set every freedom: a bundle that leaves one unset is refused
 at the door, so every placement is pinned and an unwritten freedom
 cannot be represented. A body's symmetry pins nothing (a written value
@@ -2017,13 +2036,13 @@ anywhere else is loud until something says otherwise, and an overlap
 the kernel cannot bound is loud and nothing quiets it.
 
 **Families.** Each member of a family is its own arrival, examined
-like any other, and an assertion about each of them is written once, as an
-assertion whose reads reach the family's index ([repetition]): one
-assertion per member, each reading the one bound variable, as many as
-the index's `Count`. That quiets each member against another copy. An
-overlap between two members is quieted by an assertion reading two of
-them: `c[k]` and `c[(k + 1) mod N]` for neighbours in a ring, or two
-indices, one `within` the other, for all pairs.
+like any other, and an assertion about each of them is written once,
+inside a binder over the family's keys ([repetition]): one assertion
+per member, each reading the one bound variable, as many as the
+family has members. That quiets each member against another copy. An overlap between two
+members is quieted by an assertion reading two of them: `c[k]` and
+`c[(k + 1) mod N]` for neighbours in a ring, or a binder over two
+indices for all pairs.
 
 ### Identity and naming `[identity]`
 
@@ -2539,8 +2558,8 @@ framing because that is what they still cost.
 - **Assemblies — shipped at v1 scope** (`crates/editor-core/ASSEMBLY.md`):
   an assembly document is a recipe of the same formalism ([operations],
   [placement]) — a copy of a part is a placement, its mates and values
-  are the placement's constraints, and a pattern is a placement whose
-  reads reach an index, so the editor and solver machinery transfers
+  are the placement's constraints, and a pattern is a binder around a
+  placement, so the editor and solver machinery transfers
   unchanged; binding is
   pinned-with-explicit-update, the Cargo.lock model. Interference
   checks fall out of booleans / M10 clearance.

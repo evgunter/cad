@@ -2,10 +2,13 @@
 id: a-fillet-refusal-names-the-step-that-resolved-it-not-the-fillet
 kind: issue
 title: A fillet that cannot be resolved is reported at the step that resolved it, not at the fillet's own step, though the chain already records the fillet's step
-status: open
+status: closed
 opened: 2026-09-24
 priority: P1
 cost: M
+closed: 2026-11-22
+pr: 7252
+branch: profile/fillet-refusal-names-its-step
 ---
 
 
@@ -104,3 +107,30 @@ needs no change if the index arriving from `ReplayError` is right.
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Closed (2026-11-22, PR 7252)
+
+The trace above was half right. Ev's sentence is
+`FilletCarrierBelowSceneResolution`, raised only when the loop closes
+and re-reads each fillet arc's stored form, so "step 11" was the close.
+The resolution at the arrival had the same defect, and so did the arc
+read-back at the close. All three are fixed, and no indexing base
+differs between the viewer's rows and the replay's steps.
+
+A refusal is filed against the step its recourse edits. Three refusals
+are raised after the step they are about, and each is
+`PathError::Deferred { step, raised_at, deferral, refusal }`, whose
+sentence names both steps ("step 3's fillet, not stored at the close:
+…"). A refusal whose only lever is the arrival's (its anchor, or its
+own junction) stays the arriving step's. `ReplayError::step()` is
+derived from the refusal on every read, and `raised_at()` says how far
+the replay got. `crates/profile/README.md` states the rule (Ev's
+sign-off on the PR, 2026-11-21).
+
+Left on their own rows: a cusp refused at the close
+(`a-cusp-refused-at-the-close-is-filed-against-the-close`), and the
+Python door, whose path error carries no step
+(`work/bind/a-python-path-error-carries-no-step-for-a-deferred-refusal.md`).
+The two things noted above as not this row's (the internal function
+name and the turn in radians in the fillet's sentence) are still open
+on `profile-refusals-say-what-they-mean`.
