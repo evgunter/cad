@@ -1795,12 +1795,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             margin: geom_core::MarginDiag::value(-75.0),
         },
     ));
-    for (cause, why) in session_box_uncovered_causes() {
+    for (label, why, cause) in session_box_uncovered_causes() {
         s.push((
-            format!("SessionBoxUncovered({cause})"),
+            format!("SessionBoxUncovered({label})"),
             ValidationError::SessionBoxUncovered {
                 face: crate::entity::FaceKey::default(),
                 why,
+                cause,
             },
         ));
     }
@@ -2389,48 +2390,71 @@ fn touch_reasons() -> impl Iterator<Item = crate::link::TouchUnread> {
         )
 }
 
-/// One face-cover refusal per cause class the session box names
-/// ([`ValidationError::SessionBoxUncovered`]): a net that bounds no
-/// region, a datum that is not a finite number, an unbounded carrier
-/// with a boundary edge not built yet, one with a defective edge, one
-/// with a lone vertex that is no point, and one no loop bounds.
-fn session_box_uncovered_causes() -> Vec<(&'static str, crate::cover::FaceUncovered)> {
+/// One face-cover refusal per cause the session box names
+/// ([`ValidationError::SessionBoxUncovered`], [`crate::UncoveredCause`]),
+/// each with the cover refusal it is read from.
+fn session_box_uncovered_causes() -> Vec<(
+    &'static str,
+    crate::cover::FaceUncovered,
+    crate::UncoveredCause,
+)> {
+    use crate::UncoveredCause as C;
     use crate::cover::{BoundaryUnknown, EdgeUncovered, FaceUncovered};
+    use geom::SurfaceKind as K;
     use geom::cover::{Entity, Uncovered, Unknown};
     let surface = |kind, what| Uncovered::new(Entity::Surface(kind), what);
-    let plane = || surface(geom::SurfaceKind::Plane, Unknown::Unbounded);
+    let plane = || surface(K::Plane, Unknown::Unbounded);
     let edge = crate::entity::EdgeKey::default();
+    let on_plane = |why: EdgeUncovered| {
+        FaceUncovered::with_boundary(plane(), vec![BoundaryUnknown::Edge(edge, why)])
+    };
+    let line = EdgeUncovered::Carrier(Uncovered::new(
+        Entity::Curve(geom::CurveKind::Line),
+        Unknown::Unbounded,
+    ));
+    let net = || FaceUncovered::of_carrier(surface(K::Nurbs, Unknown::PoisonedNet));
     vec![
-        (
-            "net",
-            FaceUncovered::of_carrier(surface(geom::SurfaceKind::Nurbs, Unknown::PoisonedNet)),
-        ),
+        ("not described", net(), C::NotDescribed),
+        ("poisoned net", net(), C::PoisonedNet),
         (
             "datum",
-            FaceUncovered::of_carrier(surface(geom::SurfaceKind::Torus, Unknown::NonFinite)),
+            FaceUncovered::of_carrier(surface(K::Torus, Unknown::NonFinite)),
+            C::Datum(K::Torus, geom::SurfaceDatum::MinorRadius),
+        ),
+        (
+            "direction datum",
+            FaceUncovered::of_carrier(surface(K::Cylinder, Unknown::NonFinite)),
+            C::Datum(K::Cylinder, geom::SurfaceDatum::Axis),
+        ),
+        (
+            "unnamed",
+            FaceUncovered::of_carrier(surface(K::Sphere, Unknown::NonFinite)),
+            C::Unnamed(K::Sphere),
         ),
         (
             "edge not built",
-            FaceUncovered::with_boundary(
-                plane(),
-                vec![BoundaryUnknown::Edge(edge, EdgeUncovered::Scaffold)],
-            ),
+            on_plane(EdgeUncovered::Scaffold),
+            C::Edge(EdgeUncovered::Scaffold),
+        ),
+        ("edge carrier", on_plane(line.clone()), C::Edge(line)),
+        (
+            "edge ends",
+            on_plane(EdgeUncovered::Ends),
+            C::Edge(EdgeUncovered::Ends),
         ),
         (
-            "edge defect",
-            FaceUncovered::with_boundary(
-                plane(),
-                vec![BoundaryUnknown::Edge(edge, EdgeUncovered::Ends)],
-            ),
-        ),
-        (
-            "vertex",
+            "lone vertex",
             FaceUncovered::with_boundary(
                 plane(),
                 vec![BoundaryUnknown::Vertex(crate::entity::VertexKey::default())],
             ),
+            C::LoneVertex,
         ),
-        ("no loop", FaceUncovered::of_carrier(plane())),
+        (
+            "no loop",
+            FaceUncovered::of_carrier(plane()),
+            C::NoLoop(K::Plane),
+        ),
     ]
 }
 

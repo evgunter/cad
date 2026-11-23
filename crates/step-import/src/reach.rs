@@ -38,7 +38,10 @@ impl Reach {
                     });
                 }
             }
-            let region = solid.surface_of(face).face_region(boundary?).ok()?;
+            let region = solid
+                .surface_of(face)
+                .face_region(boundary?, geom::cover::Apex::MayHold)
+                .ok()?;
             all = Some(match all {
                 Some(c) => c.hull(region),
                 None => region,

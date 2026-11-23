@@ -145,13 +145,18 @@ fn interval_described_net_carrying_poison_is_refused_on_its_face() {
     let errs = validate_geometric(&body, Tol::witness())
         .expect_err("corrupt described geometry is refused at the interval scalar too");
     // The session box cannot bound a face whose net bounds no region,
-    // so it refuses the face, alone, before check 1 runs; check 1's own
-    // verdict on the state is `tier3_tests`'.
+    // so it refuses the face, alone, before check 1 runs, naming the
+    // state as a described net; check 1's own verdict at this scalar is
+    // `tier3_tests::check_1_names_a_described_net_carrying_poison_at_interval`.
     assert!(
         matches!(
             &errs[..],
-            [ValidationError::SessionBoxUncovered { face: f, .. }] if *f == face
+            [ValidationError::SessionBoxUncovered {
+                face: f,
+                cause: topo::UncoveredCause::PoisonedNet,
+                ..
+            }] if *f == face
         ),
-        "the box names the corrupt described surface: {errs:?}",
+        "the box names the corrupt described surface, not as the placeholder: {errs:?}",
     );
 }

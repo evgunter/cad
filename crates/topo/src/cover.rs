@@ -17,7 +17,7 @@
 //! over a `Body`.
 
 use geom::Surface;
-use geom::cover::{Cover, ParamWindow, Uncovered};
+use geom::cover::{Apex, Cover, ParamWindow, Uncovered};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
@@ -97,21 +97,6 @@ pub type FaceCovered<T> = Result<Cover<T>, FaceUncovered>;
 
 /// A boundary's cover, or every boundary entity that has none.
 pub(crate) type BoundaryCovered<T> = Result<Cover<T>, Vec<BoundaryUnknown>>;
-
-/// The carrier's cover met with a trim constraint the boundary bounds:
-/// a refusal on either side is the meet's identity, and a refusal on
-/// both keeps both.
-fn and_trim<T: Real>(carrier: FaceCovered<T>, trim: BoundaryCovered<T>) -> FaceCovered<T> {
-    match (carrier, trim) {
-        (Ok(c), Ok(t)) => Ok(c.meet(t)),
-        (Ok(c), Err(_)) => Ok(c),
-        (Err(_), Ok(t)) => Ok(t),
-        (Err(mut why), Err(unknowns)) => {
-            why.boundary.extend(unknowns);
-            Err(why)
-        }
-    }
-}
 
 /// The cover met with a constraint the reading proved, where it proved
 /// one; an unproven one adds nothing.
@@ -254,7 +239,7 @@ pub(crate) fn hull_of_covers<T: Real>(
 /// - **Cone**: the convex hull of the boundary and, where the face may
 ///   hold the apex, the apex: the rulings run through it. A face holds
 ///   the apex only where a loop winds round the axis
-///   ([`cone_may_hold_apex`]). Met with the carrier's frustum over the
+///   ([`cone_hull_may_miss_apex`]). Met with the carrier's frustum over the
 ///   heights the hull spans ([`Cover::cone`]), which is measured about
 ///   the axis ([`Cover::about`]).
 /// - **Sphere**: the ball, met with the chart rectangle or latitude zone
@@ -326,19 +311,13 @@ fn face_cover_in<T: Decide>(
     let surface = f.surface();
     let bounded = outer_bounds(f);
     // Every arm starts from the face's unproven region and meets only
-    // what it proves into it, or replaces it by a hull of fewer of its
-    // points, so the cover holds no more than that region.
-    let base = || face_cover_unproven(surface, bounded, || boundary_cover(body, f));
+    // what it proves into it, so the cover holds no more than that
+    // region; the cone's start is the region its apex reading gives.
+    let base = |apex| face_cover_unproven(surface, bounded, apex, || boundary_cover(body, f));
     match surface {
-        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
-            base()
-        }
-        Surface::Plane { .. } => base(),
+        Surface::Plane { .. } => base(Apex::MayHold),
         Surface::Cylinder { frame, radius } => {
-            let base = base();
-            if !crate::validate::is_direction(&frame.axis()) {
-                return base;
-            }
+            let base = base(Apex::MayHold);
             let wall = base
                 .as_ref()
                 .ok()
@@ -346,22 +325,12 @@ fn face_cover_in<T: Decide>(
             and_proven(base, wall)
         }
         Surface::Cone { frame, half_angle } => {
-            let boundary = boundary_cover(body, f);
-            let base = face_cover_unproven(surface, bounded, || boundary.clone());
-            if Cover::points(vec![frame.origin()]).is_none() {
-                return base;
-            }
-            // The base holds the apex; a face shown not to hold it lies in
-            // its boundary's hull alone, a hull of fewer of the base's
-            // points.
-            let hull = if cone_may_hold_apex(body, face, surface, band) {
-                base
+            let apex = if bounded && !cone_hull_may_miss_apex(body, face, surface, band) {
+                Apex::Off
             } else {
-                and_trim(
-                    surface.cover().map_err(FaceUncovered::of_carrier),
-                    boundary.map(Cover::convex),
-                )
+                Apex::MayHold
             };
+            let hull = base(apex);
             let frustum = hull
                 .as_ref()
                 .ok()
@@ -372,7 +341,7 @@ fn face_cover_in<T: Decide>(
             let center = frame.origin();
             let zone = sphere_window(body, f, surface, band);
             let cut = aim.and_then(|aim| pole_side(body, f, (center, *radius), aim, band));
-            and_proven(and_proven(base(), zone), cut)
+            and_proven(and_proven(base(Apex::MayHold), zone), cut)
         }
         Surface::Torus {
             frame,
@@ -389,11 +358,11 @@ fn face_cover_in<T: Decide>(
                     torus_chart_window(&face_window_steps(body, face), *major_radius, *minor_radius)
                 })
                 .and_then(|(u, v)| Cover::patch(frame, (*major_radius, *minor_radius), Some(u), v));
-            and_proven(base(), rect)
+            and_proven(base(Apex::MayHold), rect)
         }
         // A spindle's tube, with no chart window: the window's closed
         // form reads a ring torus.
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => base(),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => base(Apex::MayHold),
     }
 }
 
@@ -410,9 +379,10 @@ pub(crate) fn outer_bounds<T: Real>(f: FaceView<'_, T>) -> bool {
 /// its carrier's region where that is bounded; where it is not (a plane,
 /// a cylinder, a cone), in the region its boundary bounds on that carrier
 /// ([`Surface::face_region`]: the boundary's convex hull, with a cone's
-/// apex). `outer_cycle` is whether its outer loop is a cycle
-/// ([`outer_bounds`]); a lone-vertex loop bounds no hull. It reads no
-/// decision.
+/// apex unless `apex` is [`Apex::Off`]). `outer_cycle` is whether its
+/// outer loop is a cycle ([`outer_bounds`]); a lone-vertex loop bounds
+/// no hull. It reads no decision; the session box's first stage reads it
+/// with [`Apex::MayHold`].
 ///
 /// # Errors
 ///
@@ -421,6 +391,7 @@ pub(crate) fn outer_bounds<T: Real>(f: FaceView<'_, T>) -> bool {
 pub(crate) fn face_cover_unproven<T: Decide>(
     surface: &Surface<T>,
     outer_cycle: bool,
+    apex: Apex,
     boundary: impl FnOnce() -> BoundaryCovered<T>,
 ) -> FaceCovered<T> {
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
@@ -428,7 +399,9 @@ pub(crate) fn face_cover_unproven<T: Decide>(
         return carrier;
     }
     carrier.or_else(|mut why| match boundary() {
-        Ok(b) => surface.face_region(b).map_err(FaceUncovered::of_carrier),
+        Ok(b) => surface
+            .face_region(b, apex)
+            .map_err(FaceUncovered::of_carrier),
         Err(unknowns) => {
             why.boundary.extend(unknowns);
             Err(why)
@@ -453,9 +426,13 @@ pub(crate) fn face_cover_unproven<T: Decide>(
 ///   axis the extremes are the top and bottom circles, and none is a
 ///   candidate: a face holding an arc of one inside it has a boundary
 ///   that crosses the circle, at the circle's height, unless it holds the
-///   whole circle, and every finished torus face that does has a
-///   meridian seam (the revolve, the tube and the import's band
-///   normalization seam every full turn), which reaches it.
+///   whole circle. A face holding a whole one with no edge at its height
+///   shows no point of it here, so the box reads it by its cover alone and
+///   refuses as a limit where that reaches past, never as past: the
+///   inside read only chooses which refusal. Today's torus doors (the
+///   revolve, the tube, the import's band normalization) seam every full
+///   turn, so a meridian reaches the circle; no check holds a new door to
+///   that.
 /// - **Cone**: its apex. A coordinate is linear along each ruling, so a
 ///   ruled face's extremes are on its boundary or at the apex. A finished
 ///   face holding its apex carries it as a vertex (tier 3's chart
@@ -625,28 +602,34 @@ pub(crate) fn cone_face_reach<T: Decide>(
     ))
 }
 
-/// **Whether a face on `cone` may hold its apex**: unless every loop's
-/// lift is decided ([`crate::pcurves::Lift::decided`], at the band: the
-/// cover is read mid-operation too, of faces whose rows are not all
-/// written), every vertex of it is decided off the apex, and either
-/// every lift closes in the chart ([`crate::pcurves::Lift::closes_in_chart`])
-/// or exactly two wind the axis once each and the face's corners decide
-/// one nappe ([`crate::offset_nappe::face_nappe_reading`]).
+/// **Whether `face`'s apex may lie outside its boundary's hull**, on
+/// `cone`: unless every loop's lift is decided
+/// ([`crate::pcurves::Lift::decided`], at the band: the cover is read
+/// mid-operation too, of faces whose rows are not all written), every
+/// vertex of it is decided off the apex, and its loops' lifts either all
+/// close in the chart ([`crate::pcurves::Lift::closes_in_chart`]) or
+/// exactly two of them each wind the axis once.
 ///
 /// The apex is the chart's pole, and on one nappe the chart is an
 /// annulus about it. A bounded face holding the apex has a loop through
-/// it, or exactly one loop that winds round it a whole turn (a cap,
-/// whose rim is that loop). A loop that closes in the chart clear of the
-/// apex leaves it outside; a face whose boundary holds two loops that
-/// each wind once is the band between them (a connected region of an
-/// annulus has at most two boundary curves that wind it), which reaches
-/// the apex only through a loop that does, or across to the other nappe.
-/// Every loop, not the outer alone: a file's designated outer bound can
-/// be a hole, and the loop enclosing the apex then a ring. A loop whose
-/// lift is not decided, one that winds otherwise, a vertex whose
-/// incidence on the apex is undecided, and a band whose nappe is not
-/// decided may hold it.
-pub(crate) fn cone_may_hold_apex<T: Decide>(
+/// it, or holds it inside: on one nappe, exactly one loop that winds
+/// round it a whole turn (a cap, whose rim is that loop), and across
+/// both nappes a loop winding round each. A loop that closes in the
+/// chart clear of the apex leaves it outside. A face whose loops wind
+/// exactly two is one of two things: the band between them on one nappe
+/// (a connected region of an annulus has at most two boundary curves
+/// that wind it), which holds no apex; or a face across both nappes
+/// through the apex, one winding loop on each. Each winding loop's
+/// projection on the plane square to the axis winds round the axis, so
+/// its hull meets the axis, on its own nappe's side of the apex; the two
+/// hulls' hull holds the segment between, and so the apex. Either way the
+/// apex lies in the boundary's hull, so which of the two the face is
+/// need not be read. Every loop, not the outer alone: a file's
+/// designated outer bound can be a hole, and the loop enclosing the apex
+/// then a ring. A loop whose lift is not decided, one that winds
+/// otherwise, and a vertex whose incidence on the apex is undecided may
+/// leave it outside.
+pub(crate) fn cone_hull_may_miss_apex<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     cone: &Surface<T>,
@@ -690,11 +673,7 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
             _ => return true,
         }
     }
-    match winding_once {
-        0 => false,
-        2 => constraint(|| crate::offset_nappe::face_nappe_reading(body, face, band)).is_none(),
-        _ => true,
-    }
+    !matches!(winding_once, 0 | 2)
 }
 
 /// **The boundary's cover**: each boundary edge's cover
@@ -1187,7 +1166,7 @@ pub(crate) fn face_window_steps<T: Decide>(
             // The window's slack is each STORED row's certified envelope
             // ([`TorusChartWindow::step`]), so the lift read is the stored
             // one: a lift decided at the band, as the cone arm's
-            // ([`cone_may_hold_apex`]), has no certificate to widen by. A
+            // ([`cone_hull_may_miss_apex`]), has no certificate to widen by. A
             // loop with a gap in its rows has no lift (`LiftGap`, the
             // read's one refusal), and says so in its steps: every one is
             // `None`, which abandons the window for the whole tube.

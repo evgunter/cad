@@ -118,3 +118,66 @@ fn a_seamless_frustum_wall_imports_inside_the_box_or_refuses_as_an_unrecognized_
         }
     }
 }
+
+/// [`seamless_frustum`] seamed: one cone face bounded by one loop, the
+/// bottom ring, a seam up the generator at `x = r0`, the top ring back
+/// and the seam down. The seam is a `LINE`, or the same segment as a
+/// degree-1 `B_SPLINE_CURVE_WITH_KNOTS`.
+fn seamed_frustum(r0: f64, r1: f64, h: f64, spline_seam: bool) -> String {
+    let f = |x: f64| format!("{x:?}");
+    let seam = if spline_seam {
+        "#60 = B_SPLINE_CURVE_WITH_KNOTS('',1,(#17,#21),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,1.),.UNSPECIFIED.);"
+            .to_owned()
+    } else {
+        format!(
+            "#61 = DIRECTION('',({},0.,{}));\n#62 = VECTOR('',#61,1.);\n#60 = LINE('',#17,#62);",
+            f(r1 - r0),
+            f(h)
+        )
+    };
+    let loops = "#30 = ADVANCED_FACE('',(#33),#29,.T.);
+#64 = ORIENTED_EDGE('',*,*,#63,.T.);
+#65 = ORIENTED_EDGE('',*,*,#63,.F.);
+#32 = EDGE_LOOP('',(#31,#64,#34,#65));
+#33 = FACE_OUTER_BOUND('',#32,.T.);";
+    let text = seamless_frustum(r0, r1, h);
+    let start = text.find("#30 = ADVANCED_FACE").expect("the cone face");
+    let end = text.find("#37 = ").expect("the bottom disc's edge");
+    let kept: String = text[start..end]
+        .lines()
+        .filter(|l| l.starts_with("#31 ") || l.starts_with("#34 "))
+        .map(|l| format!("{l}\n"))
+        .collect();
+    format!(
+        "{}{seam}\n#63 = EDGE_CURVE('',#18,#22,#60,.T.);\n{kept}{loops}\n{}",
+        &text[..start],
+        &text[end..]
+    )
+}
+
+/// **A seamed slender frustum imports to a body the box admits at the
+/// origin, its apex far past the box**, whether its seam is a line or
+/// a degree-1 B-spline: rings of 1 m and 0.999 m, 10 m apart, so the
+/// cone's apex is 10 km off. The cone face's lift is decided, so its
+/// cover is its boundary's hull and holds no apex (`topo::cover`'s cone
+/// arm: the apex joins only a face whose lift or apex incidence is not
+/// decided). *Breaks if* the cone arm keeps the apex of such a face
+/// (then the box refuses it as the limit 9 km past), or the door comes
+/// to refuse the file.
+#[test]
+fn a_seamed_slender_frustum_imports_inside_the_box_with_its_apex_far_past_it() {
+    let tol = Tol::witness();
+    for (what, spline) in [("a line seam", false), ("a spline seam", true)] {
+        let text = seamed_frustum(1000.0, 999.0, 10_000.0, spline);
+        let StepImport::Solid { body, .. } = import_step(&text, &ImportOptions::default(), tol)
+            .unwrap_or_else(|e| panic!("{what}: imports: {}", e.render()))
+        else {
+            panic!("{what}: imports as a solid");
+        };
+        assert_eq!(
+            topo::validate_geometric(&body, tol),
+            Ok(()),
+            "{what}: the wall at the origin is a finished body"
+        );
+    }
+}

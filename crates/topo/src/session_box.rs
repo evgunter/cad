@@ -73,9 +73,9 @@ struct Reads<T> {
     /// its vertices and its certified edges' own points.
     points: T,
     /// The largest `|coordinate|` of its vertices and of each face's
-    /// region bounded by its carrier and boundary alone; the first face
-    /// with no such cover where one has none.
-    cover: Result<T, (FaceKey, crate::cover::FaceUncovered)>,
+    /// region bounded by its carrier and boundary alone; every face with
+    /// no such cover where one has none.
+    cover: Result<T, Vec<(FaceKey, crate::cover::FaceUncovered)>>,
 }
 
 /// [`reach_of`] over the body as it stands, each edge's cover read by
@@ -212,6 +212,7 @@ fn reach_of<T: Decide, E>(
         Ok(crate::cover::face_cover_unproven(
             surface,
             crate::cover::outer_bounds(f),
+            geom::cover::Apex::MayHold,
             || {
                 crate::cover::boundary_cover_by(body, f, &place, |ek, _| {
                     covers
@@ -226,21 +227,26 @@ fn reach_of<T: Decide, E>(
 }
 
 /// **The largest `|coordinate|` of every face's cover**, as `read`
-/// reads each, from `from` up: the one fold over a body's faces. The
-/// first face with no cover ends it, with its cover's refusal.
+/// reads each, from `from` up: the one fold over a body's faces. Where a
+/// face has no cover, every such face, each with its cover's refusal.
 fn faces_reach<T: Decide, E>(
     body: &Body<T>,
     from: T,
     mut read: impl FnMut(crate::live::FaceView<'_, T>) -> Result<crate::cover::FaceCovered<T>, E>,
-) -> Result<Result<T, (FaceKey, crate::cover::FaceUncovered)>, E> {
+) -> Result<Result<T, Vec<(FaceKey, crate::cover::FaceUncovered)>>, E> {
     let mut far = from;
+    let mut uncovered = Vec::new();
     for (face, _) in body.faces() {
         match read(body.proven_face(face))? {
             Ok(cover) => far = far.max(cover_reach(&cover)),
-            Err(why) => return Ok(Err((face, why))),
+            Err(why) => uncovered.push((face, why)),
         }
     }
-    Ok(Ok(far))
+    Ok(if uncovered.is_empty() {
+        Ok(far)
+    } else {
+        Err(uncovered)
+    })
 }
 
 /// The largest `|coordinate|` of `body`'s vertices as `place` sets them.
@@ -270,7 +276,10 @@ pub(crate) const SESSION_BOX_POINT: &str = "session_box_point";
 /// [`ValidationError::OutsideSessionBox`], with the points' margin, or a
 /// limit ([`ValidationError::SessionBoxUnshown`],
 /// [`ValidationError::SessionBoxUncovered`]).
-pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<(), ValidationError> {
+pub(crate) fn in_session_box<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Result<(), Vec<ValidationError>> {
     let reads = unmoved_reads(body, edge_cover_where);
     if within(&reads.cover, band) {
         return Ok(());
@@ -299,13 +308,13 @@ pub(crate) fn in_session_box_at<T: Decide>(
     let image = crate::transform::map_isometry(body, &crate::Isometry::Proper(*motion))
         .map_err(crate::MoveError::Map)?;
     past_its_carriers(&image, reads.points, band)
-        .map_err(|finding| crate::MoveError::NotFinished(crate::NotFinished::new(vec![finding])))
+        .map_err(|findings| crate::MoveError::NotFinished(crate::NotFinished::new(findings)))
 }
 
 /// Whether a cover's reach decides its region in the box: anything but a
 /// definitely negative margin, and no face left uncovered.
 fn within<T: Decide>(
-    cover: &Result<T, (FaceKey, crate::cover::FaceUncovered)>,
+    cover: &Result<T, Vec<(FaceKey, crate::cover::FaceUncovered)>>,
     band: Band,
 ) -> bool {
     cover.as_ref().is_ok_and(|&reach| {
@@ -346,7 +355,7 @@ fn past_its_carriers<T: Decide>(
     body: &Body<T>,
     points: T,
     band: Band,
-) -> Result<(), ValidationError> {
+) -> Result<(), Vec<ValidationError>> {
     let cover = faces_reach::<T, core::convert::Infallible>(body, points_only(body, |p| p), |f| {
         Ok(crate::cover::face_cover(body, f.key(), band))
     })
@@ -358,9 +367,16 @@ fn past_its_carriers<T: Decide>(
             band,
         )) {
             None => return Ok(()),
-            Some(margin) => ValidationError::SessionBoxUnshown { margin },
+            Some(margin) => vec![ValidationError::SessionBoxUnshown { margin }],
         },
-        Err((face, why)) => ValidationError::SessionBoxUncovered { face, why },
+        Err(faces) => faces
+            .into_iter()
+            .map(|(face, why)| ValidationError::SessionBoxUncovered {
+                face,
+                cause: crate::validate::UncoveredCause::of(body, face, &why),
+                why,
+            })
+            .collect(),
     };
     let origin = Point3::origin();
     let inside = body
@@ -373,7 +389,7 @@ fn past_its_carriers<T: Decide>(
         box_margin(inside),
         band,
     )) {
-        Some(margin) => Err(ValidationError::OutsideSessionBox { margin }),
+        Some(margin) => Err(vec![ValidationError::OutsideSessionBox { margin }]),
         None => Err(unshown),
     }
 }
@@ -741,7 +757,7 @@ mod tests {
             match past {
                 Some(past) => {
                     for (what, got) in [
-                        ("gate", gate.err()),
+                        ("gate", gate.err().and_then(|f| f.into_iter().next())),
                         ("door", door.and_then(|f| f.into_iter().next())),
                     ] {
                         let Some(ValidationError::OutsideSessionBox { margin }) = got else {
@@ -759,58 +775,107 @@ mod tests {
         }
     }
 
-    /// **A face with no cover refuses at the gate, alone and by its
-    /// cause**, before any of tier 3's checks runs, at tier 3 and at
-    /// tier 3′. One body per cause class that reaches the gate:
+    /// **A face with no cover refuses at the gate, alone, every such face
+    /// named, each in words true of it**, before any of tier 3's checks
+    /// runs, at tier 3 and at tier 3′. One body per cause that reaches
+    /// the gate:
     ///
-    /// - a cube whose faces are the seed's placeholder NURBS (a net that
-    ///   bounds no region): "its surface may not be described yet",
-    ///   ending in the placeholder's recourse;
-    /// - a sphere cap whose radius is NaN (a datum that is not a finite
-    ///   number): the defect ending;
-    /// - a brick with one vertex at NaN (a plane face whose boundary
-    ///   edge has no cover): the defect ending.
+    /// - a cube whose six faces are the seed's placeholder NURBS: six
+    ///   findings, each "no surface described yet", ending in the
+    ///   placeholder's recourse;
+    /// - a brick with one face's surface a described bilinear net holding
+    ///   a NaN: "its description holds invalid numbers", the defect
+    ///   ending;
+    /// - a sphere cap whose radius is NaN: "stores a radius that is not
+    ///   a finite number", the defect ending;
+    /// - a brick with one face's surface a cylinder whose axis is NaN
+    ///   (a frame squared from a zero axis): "stores an axis that is not
+    ///   a direction", the defect ending. Only geom's ruled rule refuses
+    ///   this face (`Surface::face_region`'s axis guard): without it the
+    ///   face reads its boundary's hull, in the box, and check 1 names it
+    ///   instead;
+    /// - a brick with one vertex at NaN: its three faces, each "an end
+    ///   vertex of the edge is not a finite point, on the boundary of a
+    ///   face", the defect ending.
     ///
     /// A lone-vertex loop whose point is NaN never reaches the box: tier 2
     /// refuses it as scaffolding first, as it does a face no loop bounds
-    /// and a null edge, so those causes are not met at the gate. *Breaks
-    /// if* the box's refusal is deferred behind the checks (check 1 then
-    /// names the net or the datum, and the brick's checks their own
-    /// findings), or reported beside them.
+    /// and a null edge. *Breaks if* the box's refusal is deferred behind
+    /// the checks or reported beside them, names fewer faces than have no
+    /// cover, or says another cause's words.
     #[test]
     fn a_face_with_no_cover_refuses_at_the_gate_alone_by_its_cause() {
         let tol = Tol::witness();
+        let swap = |surface: Surface<f64>| {
+            let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+            let face = body.faces().next().unwrap().0;
+            let key = body.get_face(face).unwrap().surface;
+            *body.surfaces.get_mut(key).unwrap() = surface;
+            body
+        };
         let net = crate::test_support_fixtures::declined_cube::<f64>(tol).body;
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control: Vec<Point3<f64>> = (0..4)
+            .map(|i| Point3::new(f64::from(i % 2), f64::from(i / 2), 0.0))
+            .collect();
+        control[1].x = f64::NAN;
+        let described = swap(Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+        )));
         let (mut datum, cap) = crate::test_support_fixtures::sphere_cap(0.5, tol);
         let key = datum.get_face(cap).unwrap().surface;
         let Some(Surface::Sphere { radius, .. }) = datum.surfaces.get_mut(key) else {
             panic!("the cap's carrier is a sphere");
         };
         *radius = f64::NAN;
+        let axis = swap(Surface::Cylinder {
+            frame: geom::Frame::new(
+                Point3::origin(),
+                geom_core::Vec3::zero(),
+                geom_core::Vec3::unit_x(),
+            ),
+            radius: 1.0,
+        });
         let mut edge = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let corner = edge.vertices().next().unwrap().1.point;
         *edge.points.get_mut(corner).unwrap() = Point3::new(f64::NAN, 0.0, 0.0);
+        let defect = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
         let records = Default::default();
-        for (what, body, says, ends) in [
+        for (what, body, faces, says, ends) in [
             (
                 "the placeholder cube",
                 &net,
-                "a face's nurbs surface has a control net that bounds no region: its surface may \
-                 not be described yet",
+                6,
+                "a face has no surface described yet, only the placeholder",
                 geom_brep::recourse::PLACEHOLDER_RECOURSE,
+            ),
+            (
+                "the described net holding a NaN",
+                &described,
+                1,
+                "a face's surface description holds invalid numbers",
+                defect,
             ),
             (
                 "the NaN-radius cap",
                 &datum,
-                "a datum of a face's sphere surface is not a finite number",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                1,
+                "a spherical face's surface stores a radius that is not a finite number",
+                defect,
+            ),
+            (
+                "the NaN-axis cylinder",
+                &axis,
+                1,
+                "a cylindrical face's surface stores an axis that is",
+                defect,
             ),
             (
                 "the NaN-cornered brick",
                 &edge,
-                "a face's plane surface is unbounded and its boundary is unread: an end vertex of \
-                 the edge is not a finite point",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                3,
+                "an end vertex of the edge is not a finite point, on the boundary of a face",
+                defect,
             ),
         ] {
             for (tier, errors) in [
@@ -821,14 +886,22 @@ mod tests {
                 ),
             ] {
                 let errors = errors.expect_err(what);
-                let [ValidationError::SessionBoxUncovered { .. }] = &errors[..] else {
-                    panic!("{what}, {tier}: the box's refusal, alone: {errors:?}");
-                };
-                let said = errors[0].to_string();
                 assert!(
-                    said.starts_with(says) && said.contains("session box") && said.ends_with(ends),
-                    "{what}, {tier}: {said}"
+                    errors.len() == faces
+                        && errors
+                            .iter()
+                            .all(|e| matches!(e, ValidationError::SessionBoxUncovered { .. })),
+                    "{what}, {tier}: the box's refusal of {faces} faces, alone: {errors:?}"
                 );
+                for error in &errors {
+                    let said = error.to_string();
+                    assert!(
+                        said.starts_with(says)
+                            && said.contains("session box")
+                            && said.ends_with(ends),
+                        "{what}, {tier}: {said}"
+                    );
+                }
             }
         }
         let (mut ring, _, lone) = crate::test_support_fixtures::box_with_a_lone_ring(tol);

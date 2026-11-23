@@ -1825,7 +1825,7 @@ pub(crate) mod tests {
     /// circle at `z = 1` holds the apex inside though none of its
     /// boundary reaches it, its rim winding a whole turn about the axis.
     /// Its box runs from the apex to the rim. Red where the apex rule
-    /// reads only an unread walk as winding (`cover::cone_may_hold_apex`).
+    /// reads only an unread walk as winding (`cover::cone_hull_may_miss_apex`).
     #[test]
     fn a_cone_caps_box_holds_its_apex() {
         let alpha = 0.5_f64;

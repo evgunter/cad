@@ -16,4 +16,4 @@ Found by the r1 review of PR 7225 (MINOR 2) and r2's NOTE 8, filed by that PR's 
 
 **The shape of a fix.** A spindle face's placement (its carrier read as the torus's, and its trim read in its chart as a ring torus's is); with it, `face_extreme_points` takes a spindle's extremes as it takes a torus's (the same critical points). The cover's tube is a separate row (`work/boxes/a-spindle-faces-cover-is-its-whole-tube.md`).
 
-**Why P2.** The session box (PR 7225) refuses a valid body that main admits, wherever such a face's whole carrier reaches past the box. It needs a face whose carrier stands within its own diameter of a box face, so not everyday parts, but site-scale models stand there by design.
+**Why P2.** With no point placed on a spindle face, a body past the box by a spindle face alone is refused as a limit rather than as past it. Every one of the 36 past-the-box limits in PR 7225's differential has a spindle face. That is the right body refused for the wrong reason, and its recourse (move the geometry) is the same.

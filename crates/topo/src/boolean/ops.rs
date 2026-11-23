@@ -9238,22 +9238,29 @@ mod tests {
         let a = declined_cube::<f64>(Tol::witness()).body;
         let b = far_cube(10.0);
         // Door 1 — the placeholder is not a finished body: the at-rest
-        // gate that would hand it to the boolean refuses it, by the
-        // session box on a face whose net bounds no region, so no NURBS
-        // placeholder reaches a pair.
+        // gate that would hand it to the boolean refuses each of its
+        // faces, by the session box, which bounds no face with no
+        // surface described yet, so no NURBS placeholder reaches a pair.
         for (what, body) in [("the declined cube", &a), ("the far declined cube", &b)] {
             let errors = crate::finish(body.clone(), Tol::witness())
                 .expect_err("a NURBS placeholder is not a finished body");
-            let named: Vec<_> = errors
+            let mut named: Vec<_> = errors
                 .iter()
                 .filter_map(|e| match e {
-                    crate::ValidationError::SessionBoxUncovered { face, .. } => Some(*face),
+                    crate::ValidationError::SessionBoxUncovered {
+                        face,
+                        cause: crate::UncoveredCause::NotDescribed,
+                        ..
+                    } => Some(*face),
                     _ => None,
                 })
                 .collect();
+            named.sort();
+            let mut faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+            faces.sort();
             assert!(
-                errors.len() == 1 && named.len() == 1 && body.get_face(named[0]).is_some(),
-                "{what}: one of its faces named, alone: {errors:?}"
+                named == faces && errors.len() == faces.len(),
+                "{what}: every face named as not described, alone: {errors:?}"
             );
         }
 

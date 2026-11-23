@@ -14,4 +14,4 @@ Found by the r1 review of PR 7225 (MINOR 2) and filed by that PR's lane.
 
 **The shape of a fix.** Candidates where the face's net is extreme along each axis, each projected onto the face (`spline_region::spline_face_placement` places a point and reports its in-trim foot), kept where placed on the face; or the net's extreme control points' feet. Either gives points on the face from below.
 
-**Why P2.** The session box (PR 7225) refuses a valid body that main admits, wherever such a face's whole carrier reaches past the box. It needs a face whose carrier stands within its own diameter of a box face, so not everyday parts, but site-scale models stand there by design.
+**Why P2.** With no point read on a spline face, a body past the box by a spline face alone is refused as a limit rather than as past it. That is the right body refused for the wrong reason, and its recourse (move the geometry) is the same. No valid body's verdict moves, so this is the message's precision, not the box's.
