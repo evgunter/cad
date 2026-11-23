@@ -9626,3 +9626,36 @@ mod shell_reference_rows {
         );
     }
 }
+
+#[cfg(test)]
+mod review_7437_probe {
+    #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+    use geom_core::Tol;
+
+    /// A body with one edge's curve removed, read through the raw
+    /// mass-properties door: Corrupt (typed) or a panic?
+    #[test]
+    fn raw_door_on_a_removed_curve() {
+        let tol = Tol::witness();
+        let mut body = crate::splitting::reassembly::quad_prism(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            1.0,
+            tol,
+        );
+        let curve = body.edges.iter().next().unwrap().1.curve;
+        body.curves.remove(curve).expect("the curve was there");
+        let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            crate::test_support::measure_unvalidated(
+                &body,
+                tol,
+                crate::test_support::pinned_resolution(tol),
+            )
+            .map(|_| ())
+            .map_err(|e| format!("{e:?}"))
+        }));
+        match got {
+            Ok(r) => println!("PROBE typed: {r:?}"),
+            Err(_) => panic!("PROBE panicked on a removed curve"),
+        }
+    }
+}
