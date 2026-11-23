@@ -5,7 +5,7 @@
 //! carrier's true distance from the surface, a double-double root, a
 //! series.
 
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::gated_to![
     "crates/geom-brep/src/curve_face.rs",

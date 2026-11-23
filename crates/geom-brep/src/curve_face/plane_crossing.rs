@@ -181,7 +181,7 @@ fn conic_plane_meet<T: Decide>(
             // A kernel fault this wrapper's shape has no arm for: it fails
             // loud, as the placement did before it answered the fault.
             super::cross::PlaceWhy::Contradiction(what) => {
-                panic!("the plane lane's placement read a contradiction: {what}")
+                unreachable!("the plane lane's placement read a contradiction: {what}")
             }
         });
     }

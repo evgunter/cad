@@ -193,9 +193,9 @@ pub(super) fn line_method<T: Decide>(
                 if held {
                     walked.roots.push(t);
                 } else {
-                    let reach = slack + widen;
+                    let about = slack + widen;
                     walked.windows.push((
-                        (t - reach, t + reach),
+                        (t - about, t + about),
                         MeetFault::Unsettled(Unsettled::Meter {
                             row: "line_quadric_cone_root_slack",
                         }),

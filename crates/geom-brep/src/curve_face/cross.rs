@@ -449,6 +449,10 @@ pub(super) enum PlaceWhy<T> {
 const ORDER_CONTRADICTS: &str =
     "two roots apart past the band by their chord read level along the span";
 
+/// [`Placed::read`]'s answer: each meeting with its parameter, and the
+/// windows.
+type Read<T> = (Vec<(Meeting<T>, T)>, Vec<Undecided<T, CrossWhy>>);
+
 /// **The roots placed on the span** ([`place`]): the meetings, ascending,
 /// and the roots it could not place, each with its window.
 pub(super) struct Placed<T: Real> {
@@ -460,11 +464,7 @@ pub(super) struct Placed<T: Real> {
 impl<T: Decide> Placed<T> {
     /// The meetings, each a crossing or the pose's touch with its
     /// parameter, and the windows, each the method's.
-    fn read(
-        self,
-        door: Door,
-        touch: Option<Touch<T>>,
-    ) -> (Vec<(Meeting<T>, T)>, Vec<Undecided<T, CrossWhy>>) {
+    fn read(self, door: Door, touch: Option<Touch<T>>) -> Read<T> {
         let kind = touch.map_or(MeetingKind::Cross, |t| MeetingKind::Touch { arc: t.arc });
         let meetings = self
             .meetings

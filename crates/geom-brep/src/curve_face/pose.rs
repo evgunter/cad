@@ -682,8 +682,8 @@ pub(super) fn plane_line<T: Decide>(
 /// (`R − |d₀|`: negative, apart), the parallel gate (`R` in the zero
 /// band: the offset `d₀ ± R` decides lies or apart), then the belly's
 /// two roots or its graze, whose side `d₀`'s sign decides and whose
-/// curvature [`kappa`] reads. The roots stand `atan2(√(h·(R + |d₀|)),
-/// −d₀)` either side of `φ`, `h = R − |d₀|` the belly's depth: the value
+/// curvature [`kappa`] reads. The roots stand the azimuth of
+/// `(√(h·(R + |d₀|)), −d₀)` either side of `φ`, `h = R − |d₀|` the belly's depth: the value
 /// of `acos(−d₀/R)` with no subtraction from one near a graze. A belly in
 /// its gap is a window over the graze's reach ([`graze_window`]).
 pub(super) fn plane_conic<T: Decide>(
@@ -750,7 +750,8 @@ pub(super) fn plane_conic<T: Decide>(
             // `cos(θ − φ) = −d₀/R`: the half-chord's sine
             // `√(R² − d₀²) = √(h·(R + |d₀|))` is read from the depth.
             let sine = (depth * (r + d0.abs())).sqrt();
-            let delta = sine.atan2(T::zero() - d0);
+            let delta = geom::Azimuth::of(sine, T::zero() - d0)
+                .near(T::from_f64(core::f64::consts::FRAC_PI_2));
             let turn = geom_core::period::Period::angle();
             Ok(Pose::Isolated(Form(Formed::PlaneConic {
                 roots: [turn.near(phi + delta, near), turn.near(phi - delta, near)],
