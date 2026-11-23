@@ -94,3 +94,14 @@ Nightly 44989234943 (main `4d3402ecb1`'s kernel) against the 11-21 nightly 44870
 The per-row runs are in PR 7558's body.
 
 **The ruling's premise, corrected for one row.** The reply on 7505 said all 17 rows are refusals at ε 1e-12 and none is at the default ε. The window oracle is neither: it is a wrong answer, at every ε including the default (and the fuzzer is red on main at default ε on random seeds). It is pinned as CPAIR's red, not as accepted cost. Ev's ruling covers the 16 refusals.
+
+**Re-measured after ONEHOME's check-1 change (GREEN U13, 2026-11-23).** Main's PRs 7323/7349 (`onehome/check1-frame-half`) charge a frame's `f64` rounding where it is levered. On main after them, these 1e-12 rows read (probe runs 45244053101 and 45254555300), so main's own 1e-12 leg is presumably red on them until PR 7558 lands:
+- the tipped rods: 1.307e-12, re-pinned to (1.25, 1.35]e-12;
+- the torus rod: 1.738e-12, re-pinned to (1.65, 1.8]e-12;
+- the far-off carrier at back 300, every order: 1.536e-12, re-pinned to (1.45, 1.6]e-12.
+
+All three are still polar: mutant A finishes or builds each one.
+
+Seven band rims are back on BAND's own touch escalation, and four stay unadmitted. The section-ellipse table is retired: every pose builds.
+
+PR 7131's own pin `pcurve_cache::ruling_reading_rows::a_true_ruling_keeps_the_closed_form_on_both_nappes` (both jointly) read 1.112e-12 against (1.0, 1.1]e-12. It is re-pinned to (1.05, 1.2]e-12.
