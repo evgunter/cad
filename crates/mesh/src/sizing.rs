@@ -729,11 +729,7 @@ fn outer_loop_curves(
     crate::walk::loop_half_edges(body, face.outer, fk)?
         .into_iter()
         .map(|(hek, ek, _)| {
-            let curve = body
-                .get_edge(ek)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+            let curve = crate::walk::edge_curve(body, ek)?;
             Ok((hek, ek, curve))
         })
         .collect()

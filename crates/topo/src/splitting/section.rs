@@ -27,7 +27,7 @@ use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::live::{linked, proven};
+use crate::live::proven;
 use geom_brep::props::chord_bulge;
 use geom_core::Tol;
 
@@ -548,16 +548,10 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
     for he in body.loop_walk_of(first, l).closed_in(l, first) {
         let half = proven(&body.half_edges, he, EntityId::HalfEdge);
         let ek = half.edge;
-        let edge = linked(
-            &body.edges,
-            ek,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
+        let edge = body.linked_edge(ek, EntityId::HalfEdge(he), "edge");
         let corner = body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-        let forward = crate::live::claimed(he, ek, edge).plus;
-        let curve = body.edge_curve_linked(ek, edge).certified();
+        let forward = crate::live::claimed(he, ek, edge.record()).plus;
+        let curve = edge.certified();
         let carrier = match curve {
             None => HalfCarrier::Chord,
             Some(curve) => match curve.carrier() {
