@@ -470,9 +470,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// THAT arm serves THESE two surfaces as they stand.
 ///
 /// [`route`] answers per kind pair, and an implemented arm is
-/// configuration-scoped: coaxial cone×cylinder, axis-containing or
-/// axis-normal plane×torus, apex-through or axis-normal plane×cone,
-/// equal-radius crossing or parallel cylinder×cylinder. A consumer that
+/// configuration-scoped: coaxial cone×cylinder, apex-through or
+/// axis-normal plane×cone, equal-radius crossing or parallel
+/// cylinder×cylinder. A consumer that
 /// gates on the kind pair admits every other pose of those pairs as
 /// though a closed form were wired for it. This asks the arm itself —
 /// the pair's own section function, which runs its configuration
@@ -506,7 +506,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// with every Approx pairing over its fits). Cylinder×torus and
 /// torus×torus read the section value ([`crate::pair_section()`]),
 /// which serves every pose its pose decision classifies, a general one
-/// through its march. Every unimplemented pair answers
+/// through its march; plane×torus reads its closed-form arm, and a pose
+/// that arm routes to the general rung the section value. Every unimplemented pair answers
 /// [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.

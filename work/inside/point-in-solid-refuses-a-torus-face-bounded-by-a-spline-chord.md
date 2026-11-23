@@ -33,3 +33,20 @@ as `"pieces on a torus face"` at the compiled ε.
 point-in-solid reads a ray against a chorded torus face (its trim test
 on the face's projected images), and the row moves to a body held to
 an independent volume.
+
+## More evidence (ORBIT, `orbit/tilted-torus-rim`, 2026-11-23)
+
+The section value now marches a plane tilted against a torus's axis
+(`geom_brep::PlaneTorusPose`), so a plane face crossing a torus face
+obliquely leaves the torus face trimmed by a marched (spline) edge:
+
+- `crates/sweep/tests/germ_torus_doors.rs`
+  `subtract_and_intersect_reach_the_doors_union_does`: the
+  near-perpendicular bar's `B ∖ A` (the bar less the donut) stops at
+  `Pieces(Probe { …, source: PartialTorusFace { … } })`, pinned there;
+  its `A ∖ B` and `A ∩ B` build.
+- `crates/sweep/tests/germ_coplanar_conic.rs`
+  `every_op_refuses_or_answers_its_closed_form`: the outer-equator box
+  fixture's three ops build to their closed-form volumes, and
+  `point_in_solid` on each result refuses `PartialTorusFace` at every
+  witness, pinned as an outcome.

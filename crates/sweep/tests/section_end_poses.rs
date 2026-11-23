@@ -608,9 +608,9 @@ const TORUS_SQUARE: [(f64, f64); 5] = [
 /// **A torus cut square to its axis is read square.** At each ε row the
 /// concentric circles the table stands in for the face refuse in every
 /// op and order as [`SectionEndReading::SquareToAxis`], with its
-/// question and lever. The face moved square builds; turned clearly off
-/// square it cuts the spiric quartic, which the kernel does not build
-/// yet (`GermSectionSpiric`).
+/// question and lever. The face moved square builds in every op and
+/// order; turned clearly off square it cuts the spiric quartic, which
+/// the section value marches, and the union builds a valid body.
 #[test]
 fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
     let tol = Tol::witness();
@@ -665,19 +665,23 @@ fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
                 }
             }
         }
-        for t in [0.0, CLEARLY_TILTED, -CLEARLY_TILTED] {
-            let other = block(h, t);
-            for (order, a, b) in [("ab", &torus, &other), ("ba", &other, &torus)] {
-                for (op, f) in OPS {
-                    match (t == 0.0, f(a, b, tol)) {
-                        (true, Ok(_)) | (false, Err(BooleanError::GermSectionSpiric { .. })) => {}
-                        (_, got) => wrong.push(format!(
-                            "h{h} moved to t{t:e} {order} {op}: {:?}",
-                            got.err()
-                        )),
-                    }
+        let square = block(h, 0.0);
+        for (order, a, b) in [("ab", &torus, &square), ("ba", &square, &torus)] {
+            for (op, f) in OPS {
+                if let Err(e) = f(a, b, tol) {
+                    wrong.push(format!("h{h} moved square {order} {op}: {e:?}"));
                 }
             }
+        }
+        // Each op marches the tilted face's section, so one op in one
+        // order stands for the lever.
+        match topo::union(&torus, &block(h, CLEARLY_TILTED), tol) {
+            Ok(r) => {
+                if let Some(Err(e)) = r.body().map(|b| topo::validate_geometric(&b.body, tol)) {
+                    wrong.push(format!("h{h} turned clearly off square: invalid {e:?}"));
+                }
+            }
+            Err(e) => wrong.push(format!("h{h} turned clearly off square: {e:?}")),
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

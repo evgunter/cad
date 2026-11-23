@@ -553,7 +553,8 @@ fn a_seated_loop_has_no_start() {
 }
 
 /// **Every other kind pair is read elsewhere**, with `route`'s own arm,
-/// and `serves` says so.
+/// and `serves` says so; a plane against a torus is served, but its
+/// axis-aligned poses are the closed form's, read elsewhere too.
 #[test]
 fn every_other_pair_is_read_elsewhere() {
     let plane = Surface::Plane {
@@ -573,9 +574,10 @@ fn every_other_pair_is_read_elsewhere() {
         minor_radius: 0.5,
     };
     for (a, b) in [(&plane, &plane), (&plane, &torus), (&torus, &plane)] {
-        assert!(
-            !geom_brep::pair_section::serves(a.kind(), b.kind()),
-            "{:?} × {:?} is not served",
+        assert_eq!(
+            geom_brep::pair_section::serves(a.kind(), b.kind()),
+            a.kind() != b.kind(),
+            "{:?} × {:?}: served by kind",
             a.kind(),
             b.kind()
         );
@@ -1113,4 +1115,126 @@ fn on_arc(reading: geom_brep::SiteReading<f64>) -> geom_brep::SiteFoot<f64> {
         geom_brep::SiteReading::OnArc(foot) => foot,
         geom_brep::SiteReading::AtNode(n) => panic!("a site at node {n} of a section with none"),
     }
+}
+
+// ---------------------------------------------------------------------
+// A plane tilted against a torus.
+// ---------------------------------------------------------------------
+
+/// The plane at height `h` over the origin along the unit normal turned
+/// from `z` toward `x` by the sine `s`.
+fn tilted_plane(s: f64, h: f64) -> Surface<f64> {
+    let n = Vec3::new(s, 0.0, (1.0 - s * s).sqrt());
+    Surface::Plane {
+        frame: geom::Frame::new(Point3::origin() + n * h, n, Vec3::new(0.0, 1.0, 0.0)),
+    }
+}
+
+/// The ring torus `(2, 0.5)` about `z` through the origin.
+fn ring() -> Surface<f64> {
+    Surface::Torus {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    }
+}
+
+/// **A tilted plane counts its loops on the torus by its tube rows**,
+/// both orders: `s` the normal's tilt off the axis and `h` its height
+/// over the centre, the tube circles of the meridian plane through the
+/// normal stand `h ∓ 2s` from it. Cutting both (`2s < 0.5`), two loops
+/// round the axis; passing between them, two round the tube; cutting
+/// one, one null loop, whose witness lies on both surfaces; neither, and
+/// not between, none; touching one (`h = 2s + 0.5`), a tangency.
+#[test]
+fn a_tilted_plane_counts_its_loops_on_the_torus() {
+    use geom_brep::Components;
+    let torus = ring();
+    for (what, s, h, loops, winds) in [
+        ("round the axis", 0.1, 0.0, 2, true),
+        ("round the tube", 0.5, 0.0, 2, true),
+        ("one null loop", 0.5, 0.9, 1, false),
+        ("missing it", 0.5, 2.0, 0, false),
+    ] {
+        let plane = tilted_plane(s, h);
+        for (a, b, torus_first) in [(&plane, &torus, false), (&torus, &plane, true)] {
+            let section = built(a, b);
+            assert!(section.decided().is_empty(), "{what}: transverse");
+            let Components::Counted(listed) = section.components() else {
+                panic!("{what}: counted, got {:?}", section.components());
+            };
+            assert_eq!(listed.len(), loops, "{what}: the count");
+            for c in listed {
+                assert!(
+                    matches!(c.carrier, ClassCarrier::General),
+                    "{what}: the general rung's"
+                );
+                let on_torus = c.winds[usize::from(!torus_first)];
+                assert_eq!(on_torus, winds, "{what}: winds about the torus");
+                assert!(
+                    !c.winds[usize::from(torus_first)],
+                    "{what}: a plane has no channel"
+                );
+                if let Some(w) = c.witness {
+                    on_both(w, a, b, what);
+                }
+            }
+            if loops == 1 {
+                assert!(
+                    listed[0].witness.is_some(),
+                    "{what}: the null loop's witness"
+                );
+            }
+        }
+    }
+    let section = built(&tilted_plane(0.5, 1.5), &torus);
+    assert!(
+        matches!(
+            section.decided(),
+            [geom_brep::ZeroVerdict {
+                decision: geom_brep::SectionDecision::Tangency("pt_near_tube"),
+                ..
+            }]
+        ),
+        "touching the near tube circle: {:?}",
+        section.decided()
+    );
+}
+
+/// **A tilted plane's loops carry through the march**, matched to the
+/// count: two closed loops round the tube, one null loop, each a
+/// certified periodic cubic; and a plane square to the axis is the
+/// closed form's, read elsewhere.
+#[test]
+fn a_tilted_plane_carries_its_loops_through_the_march() {
+    let torus = ring();
+    for (s, h, loops) in [(0.5, 0.0, 2), (0.5, 0.9, 1)] {
+        let carried = built(&tilted_plane(s, h), &torus)
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("s {s}, h {h}: carries, got {e:?}"));
+        assert_eq!(carried.components().len(), loops, "s {s}, h {h}: the count");
+        for c in carried.components() {
+            assert!(
+                c.closed() && c.certificate.is_some() && matches!(c.carrier, Curve3::Periodic(_)),
+                "s {s}, h {h}: a closed certified loop"
+            );
+        }
+    }
+    assert!(
+        matches!(
+            geom_brep::pair_section(
+                &tilted_plane(0.0, 0.2),
+                &torus,
+                None,
+                None::<geom_core::NoLane>,
+                band()
+            ),
+            Ok(SectionRead::Elsewhere(_))
+        ),
+        "square to the axis, the closed form's"
+    );
 }

@@ -730,7 +730,7 @@ fn the_torus_waisted_union_builds_like_the_cylinder_control() {
 /// That used to be taken for "outside this face's trim", the root was
 /// stepped over, and the union came back as an assembly of two solids
 /// that overlap. Whatever the band does with this pose, it must not
-/// be that.
+/// be that: it refuses, or seams the two into one valid solid.
 #[test]
 fn a_near_perpendicular_bar_through_the_tube_never_comes_back_disjoint() {
     let d = geom_core::Vec3::new(
@@ -750,10 +750,19 @@ fn a_near_perpendicular_bar_through_the_tube_never_comes_back_disjoint() {
     for w in [1e-6, 1e-3].into_iter().filter(|&w| w > floor) {
         let b = finished("the bar", framed_bar(o, d, -4.6, -0.1, w), Tol::witness());
         if let Ok(r) = topo::union(&donut(), &b, Tol::witness()) {
-            panic!(
-                "a bar through the tube is not disjoint (w = {w}): {:?}",
-                r.body().map(|x| x.kind)
+            let body = r.body();
+            assert_eq!(
+                body.map(|x| x.kind),
+                Some(topo::BooleanResultKind::Seamed),
+                "a bar through the tube is not disjoint (w = {w})"
             );
+            if let Some(x) = body {
+                assert_eq!(
+                    topo::validate_geometric(&x.body, Tol::witness()),
+                    Ok(()),
+                    "the seamed union is valid (w = {w})"
+                );
+            }
         }
     }
 }
@@ -1144,9 +1153,11 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// reaches the same doors as their unions:
 ///
 /// - the near-perpendicular bar's tilted faces cut general spiric
-///   quartics, refused at the join's germ frame, or it stops at the
+///   quartics, which the section value marches, and each op builds a
+///   valid body within the bar's volume of its minuend, or stops at the
 ///   crossing layer's pierce door where the run's band puts its root
-///   there; the belly bar and the chord across the hole pass the join
+///   there; the bar less the donut stops at the piece sort, which reads
+///   no torus face a marched edge trims; the belly bar and the chord across the hole pass the join
 ///   and build their bodies (`germ_plane_torus_spiric` holds them to
 ///   the truth);
 /// - the slab's face-interior oval is a certified interior loop
@@ -1160,8 +1171,7 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 ///   sides (each `Out` the other) answer it, so each difference is its
 ///   minuend and the intersection nothing.
 ///
-/// The near-perpendicular bar, the slab, the two tori and the grazing
-/// cylinder refuse.
+/// The slab, the two tori and the grazing cylinder refuse.
 #[test]
 fn subtract_and_intersect_reach_the_doors_union_does() {
     use geom_core::{Affine3, Mat3, Vec3};
@@ -1182,9 +1192,9 @@ fn subtract_and_intersect_reach_the_doors_union_does() {
         1e-3,
     );
     let near = finished("the near-perpendicular bar", near, Tol::witness());
-    // Whether the bar passes the germ frame: then it passes the join;
-    // otherwise its faces cut general spiric quartics, or its root falls
-    // to the pierce door.
+    // Whether the bar passes the join and builds by `torus_door`;
+    // otherwise its faces cut general spiric quartics, and it builds or
+    // its root falls to the pierce door.
     for (name, b, passes) in [
         ("near-perpendicular bar", near, false),
         (
@@ -1212,15 +1222,39 @@ fn subtract_and_intersect_reach_the_doors_union_does() {
             }
             continue;
         }
-        for (op, r) in subtract_both_orders_and_intersect(&d, &b) {
-            let err = r.expect_err(op);
+        // The bar's volume, `w²` over its length, bounds what any op
+        // moves: each difference lies between its minuend less the bar
+        // and its minuend, and ∩ under the bar.
+        let (donut_v, bar_v) = (core::f64::consts::PI.powi(2), 1e-6 * 4.5);
+        for ((op, r), (lo, hi)) in subtract_both_orders_and_intersect(&d, &b).into_iter().zip([
+            (donut_v - bar_v, donut_v),
+            (0.0, bar_v),
+            (0.0, bar_v),
+        ]) {
+            let r = match r {
+                Err(BooleanError::CurvedPierceUnsupported { .. }) => continue,
+                // The piece sort's probe reads no torus face a marched
+                // edge trims
+                // (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`).
+                Err(BooleanError::Pieces(topo::PieceSortError::Probe {
+                    source: topo::PointInSolidError::PartialTorusFace { .. },
+                    ..
+                })) if op == "B ∖ A" => continue,
+                r => r.unwrap_or_else(|e| panic!("{name}, {op}: {e:?}")),
+            };
+            let body = r
+                .body()
+                .unwrap_or_else(|| panic!("{name}, {op}: the bar crosses the tube"));
+            assert_eq!(
+                topo::validate_geometric(&body.body, Tol::witness()),
+                Ok(()),
+                "{name}, {op}: tier 3"
+            );
+            let v = topo::test_support::pinned_volume(op, &body.body, Tol::witness()).volume;
+            let pad = 1e-9 * donut_v;
             assert!(
-                matches!(
-                    err,
-                    BooleanError::GermSectionSpiric { .. }
-                        | BooleanError::CurvedPierceUnsupported { .. }
-                ),
-                "{name}, {op}: {err:?}"
+                v > lo - pad && v < hi + pad,
+                "{name}, {op}: volume {v} outside [{lo}, {hi}]"
             );
         }
     }
