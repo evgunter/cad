@@ -384,6 +384,16 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// is the band's (a far-centred conic grazing the plane).
     fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T;
 
+    /// **This conic's belly across the plane `other` lies in**
+    /// ([`Self::belly_along`]): the plane stated at the point `other` is
+    /// placed by and its stored axis, read here so no reader outside this
+    /// module takes `other`'s placement. Held at its centre, that point is
+    /// the stored centre, which lies in the plane exactly; held on its
+    /// arc, the derived centre (`work/oneround/an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre.md`).
+    fn belly_across(&self, other: &dyn Conic<T>) -> T {
+        self.belly_along(other.frame().origin(), other.axis())
+    }
+
     /// **The parameter of `p` within half a turn of `span`'s middle**:
     /// its [direction](Self::azimuth) read [near](Azimuth::near) the
     /// middle.

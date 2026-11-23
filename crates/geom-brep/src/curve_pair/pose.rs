@@ -1929,10 +1929,7 @@ fn conic_conic<T: Decide>(
     let hb = height(&kb, ka.frame().origin(), ka.axis());
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
-    let (belly_a, belly_b) = (
-        ka.belly_along(kb.frame().origin(), kb.frame().axis()),
-        kb.belly_along(ka.frame().origin(), ka.frame().axis()),
-    );
+    let (belly_a, belly_b) = (ka.belly_across(kb), kb.belly_across(ka));
     let sides = [(swing_a, ha), (swing_b, hb)];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
