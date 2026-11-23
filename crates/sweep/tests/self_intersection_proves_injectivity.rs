@@ -988,6 +988,178 @@ fn two_stepped_rings_through_one_another_cross() {
     }
 }
 
+/// A cone that owns its apex, cut through its axis: the triangle
+/// `(0, 0), (1.1, 0), (0, 0.9)` revolved half a turn about `y`, at rest.
+/// Its cone face meets each cut plane along a ruling from the apex.
+fn half_cone<T: Scalar>() -> topo::AtRestBody<T> {
+    let profile = validated::<T>(&[ProfileLoop::polygon(
+        [(0.0, 0.0), (1.1, 0.0), (0.0, 0.9)].map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let turn = Revolution::Partial(T::from_f64(core::f64::consts::PI));
+    sweep::test_support::taken::<T>(
+        revolve(&profile, axis_y(), turn, tol()).unwrap().body,
+        tol(),
+    )
+    .expect("the half cone is a finished body")
+}
+
+/// The verdict door over every face of a finished body, reading the
+/// facts it carries ([`topo::AtRestBody::geometric`]).
+fn embedding_of_finished<T: Scalar + geom_core::Certifies>(
+    body: &topo::AtRestBody<T>,
+) -> topo::clearance::EmbeddingReport {
+    topo::clearance::embedded(
+        &body.geometric(),
+        body.faces().map(|(k, _)| k).collect(),
+        band(),
+        Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    )
+}
+
+/// `body` in a named pose, by the finished body's own move doors, so the
+/// facts it carries are the ones its finish kept and none is read again.
+fn posed<T: Scalar>(body: topo::AtRestBody<T>, pose: &str) -> topo::AtRestBody<T> {
+    use geom_core::{Affine3, Vec3};
+    use topo::FinishedBody;
+    let axis = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14.0_f64.sqrt());
+    let rigid = |m: Affine3<f64>| geom_core::test_support::rigid(&m.map(T::from_f64), tol());
+    match pose {
+        "as built" => body,
+        "turned about a generic axis" => body
+            .moved(
+                &rigid(Affine3::rotation_about_axis(Point3::origin(), axis, 0.7)),
+                tol(),
+            )
+            .expect("a turn keeps it finished"),
+        "a hundred units off" => body
+            .moved(
+                &rigid(Affine3::translation(Vec3::new(60.0, -80.0, 0.0))),
+                tol(),
+            )
+            .expect("a placement in the box keeps it finished"),
+        "mirrored" => {
+            let across = topo::Reflection::across(
+                Point3::new(0.1, -0.2, 0.3).map(T::from_f64),
+                axis.map(T::from_f64),
+                tol(),
+            )
+            .unwrap();
+            body.mirrored(&across, tol())
+                .expect("a mirror keeps it finished")
+        }
+        _ => unreachable!("{pose}"),
+    }
+}
+
+/// The poses a body row is read in.
+const POSES: [&str; 4] = [
+    "as built",
+    "turned about a generic axis",
+    "mirrored",
+    "a hundred units off",
+];
+
+/// **A stepped ring holds in every pose on the facts it carries.** The
+/// ring's creases, its seams and its narrow faces' runs are tier 3's,
+/// kept at its finish; turned, mirrored and placed a hundred units out
+/// by the finished body's own move doors, it is asked on those facts and
+/// none is read again. At both scalars.
+///
+/// Red if a class or a run is not a fact of the shape up to isometry: a
+/// mirror swaps an edge's two sides and turns its walk about, and a run
+/// read off coordinates would move with a placement.
+#[test]
+fn a_stepped_ring_holds_in_every_pose_on_its_carried_facts() {
+    for pose in POSES {
+        for (scalar, report) in [
+            (
+                "f64",
+                embedding_of_finished(&posed(stepped_ring::<f64>(), pose)),
+            ),
+            (
+                "Interval",
+                embedding_of_finished(&posed(stepped_ring::<Interval>(), pose)),
+            ),
+        ] {
+            println!("[verdict-read] the stepped ring {pose} at {scalar}: {report:?}");
+            assert!(
+                matches!(report.verdict, topo::clearance::Embedding::Embedded),
+                "the stepped ring {pose} at {scalar} is embedded: {report:?}"
+            );
+        }
+    }
+}
+
+/// **A cone that owns its apex, cut through its axis, refuses in every
+/// pose, as it did before the question read tier 3's facts.** Tier 3
+/// classes each ruling a convex crease and keeps one extent for it (the
+/// narrower face's run from the ruling's line, 0.70 against the cone's
+/// 1.39), which does not shrink toward the apex as the cone's curvature
+/// radius does; the apex is the key tier 3 placed it at. What refuses
+/// is the cell at the apex's collapsed side, which no reading here
+/// presents
+/// (`work/embed/a-cone-cell-presented-by-its-apex-side-is-signed-by-no-separator.md`).
+/// The exit moves with the pose, on the branch this one is cut from
+/// too: across a ruling as built and a hundred units out, out of depth
+/// turned about a generic axis.
+///
+/// Red if a pose certifies it while another refuses, and red the day
+/// the apex's side is presented: the row then pins it holding.
+#[test]
+fn a_cone_cut_through_its_axis_refuses_at_its_apex_in_every_pose() {
+    for pose in POSES {
+        for (scalar, report) in [
+            (
+                "f64",
+                embedding_of_finished(&posed(half_cone::<f64>(), pose)),
+            ),
+            (
+                "Interval",
+                embedding_of_finished(&posed(half_cone::<Interval>(), pose)),
+            ),
+        ] {
+            println!("[verdict-read] the half cone {pose} at {scalar}: {report:?}");
+            assert!(
+                matches!(report.verdict, topo::clearance::Embedding::Refused(_)),
+                "the half cone {pose} at {scalar} refuses: {report:?}"
+            );
+        }
+    }
+}
+
+/// **Two half cones through one another cross.** The half cone and a
+/// copy moved `0.2` along `x`, grafted in as a solid of its own: the
+/// copy's cone face and cut planes pass through the first's beside its
+/// rulings and its apex, where the row above reads tier 3's classes and
+/// extents. Nothing a departure reads parts two solids, so the verdict
+/// is a crossing. Red if it is anything else, at either scalar.
+#[test]
+fn two_half_cones_through_one_another_cross() {
+    fn folded<T: Scalar>() -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let cone = half_cone::<T>();
+        let mut folded = cone.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.2, 0.0, 0.0)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&cone, &rigid).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        folded
+    }
+    for (scalar, report) in [
+        ("f64", embedding(&folded::<f64>())),
+        ("Interval", embedding(&folded::<Interval>())),
+    ] {
+        println!("[verdict-read] two half cones at {scalar}: {report:?}");
+        assert!(
+            matches!(report.verdict, topo::clearance::Embedding::Crosses(_)),
+            "the two half cones cross at {scalar}: {report:?}"
+        );
+    }
+}
+
 /// **A quarter ball holds with its caps read at each pole**: a half
 /// disc revolved a quarter turn about its diameter. Each cap is a lens,
 /// the diameter and the semicircle meeting at both poles, so a cell

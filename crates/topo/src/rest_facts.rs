@@ -200,7 +200,10 @@ mod rows {
         for (face, _) in brick.faces() {
             assert!(facts.singular(face).is_empty(), "{face:?}");
             for (vertex, _) in brick.vertices() {
-                assert!(facts.vertex_run(face, vertex).is_none(), "{face:?} {vertex:?}");
+                assert!(
+                    facts.vertex_run(face, vertex).is_none(),
+                    "{face:?} {vertex:?}"
+                );
             }
         }
         // A run from an edge off the face is not kept.

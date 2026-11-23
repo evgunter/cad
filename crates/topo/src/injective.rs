@@ -14023,10 +14023,7 @@ mod margin_reach_rows {
             Some(C::Seam),
         ] {
             assert!(
-                matches!(
-                    fold_classed(phi(1.2), class),
-                    Outcome::Certified { .. }
-                ),
+                matches!(fold_classed(phi(1.2), class), Outcome::Certified { .. }),
                 "{class:?} above the band: {:?}",
                 fold_classed(phi(1.2), class)
             );
