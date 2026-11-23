@@ -7,6 +7,7 @@ opened: 2026-11-12
 priority: P1
 cost: M
 branch: sectarms/rim-pad-cells
+pr: 7499
 ---
 
 
