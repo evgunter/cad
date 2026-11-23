@@ -14132,6 +14132,163 @@ mod margin_reach_rows {
         );
     }
 
+    /// **A flat strip inside the band of the plate it is folded off
+    /// refuses.** A strip `1e-7` wide folded off a metre plate at a sine
+    /// of `5e-5`: its far edge stands `5e-12` from the plate, inside the
+    /// band everywhere. The extent is the strip's width, and the sine
+    /// times it is far inside the band, so no cell is signed and the
+    /// pair splits (to its budget, in a walk). Levered at the plate's
+    /// metre the same sine is five thousand times the band.
+    ///
+    /// Tier 3's check 4 levers at the farther face's run and reads this
+    /// edge a crease, so the question refuses a body check 4 passed: the
+    /// right verdict at the wrong door
+    /// (`work/restfront/check-4-levers-a-wedge-at-the-farther-faces-run-so-a-narrow-face-inside-the-band-reads-a-crease.md`).
+    /// Red if the extent is the plate's.
+    #[test]
+    fn a_flat_strip_inside_the_band_of_its_plate_refuses() {
+        let (width, sine) = (1e-7_f64, 5e-5_f64);
+        let phi = sine.asin();
+        let o = [0.0; 3];
+        let class = crate::EdgeClass::Crease(geom_brep::Convexity::Concave);
+        let x = boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (3, [1.0, 1.0, 0.0]),
+                (4, [0.0, 1.0, 0.0]),
+            ],
+        )
+        .with_class(key(1), class);
+        let y = boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (5, [1.0, width * phi.cos(), width * phi.sin()]),
+                (6, [0.0, width * phi.cos(), width * phi.sin()]),
+            ],
+        )
+        .with_class(key(1), class);
+        let (sx, sy) = (floor(), folded(phi));
+        let here = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let cells = [((0.4, 0.6), (0.0, 0.1)), ((0.4, 0.6), (0.0, width))];
+        let extent = extent_of(
+            &piece(1, &sx, &x, &here, cells[0]),
+            &piece(2, &sy, &y, &here, cells[1]),
+            &near,
+        )
+        .expect("an extent");
+        assert!(
+            (extent.length().hi() - width).abs() < 1e-15,
+            "the extent is the strip's width: {:?}",
+            extent.length()
+        );
+        assert!(width * sine < band().zero(), "the strip is inside the band");
+        let got = certify_pair(
+            &piece(1, &sx, &x, &here, cells[0]),
+            &piece(2, &sy, &y, &here, cells[1]),
+            &near,
+            band(),
+        );
+        assert!(matches!(got, Outcome::Split { .. }), "{got:?}");
+        assert!(
+            parts([iv0(sine)], iv0(1.0), Some(fixture_lever(iv0(1.0))), band()),
+            "the same sine parts at the plate's metre"
+        );
+    }
+
+    /// **A curling sliver inside the band of its plate refuses.** A
+    /// cylinder of radius `1e-3` leaves a metre plane through its ruling
+    /// at a sine of `1e-4`, curls back toward it, and its face ends
+    /// `1e-7` round, still leaving at `2e-8` and about `5e-12` from the
+    /// plane. The sliver runs `1e-7` from the shared ruling and the
+    /// plane a metre, so the extent is `1e-7`; its least sine over the
+    /// face is `2e-8`, and the two together are nowhere near the band.
+    /// Levered at the plane's metre that sine is twice the band and the
+    /// whole sliver is signed off a plane it never leaves the band of.
+    ///
+    /// Red if the extent is the plane's run.
+    #[test]
+    fn a_curling_sliver_inside_the_band_of_its_plate_refuses() {
+        let (r, s, phi) = (1e-3_f64, 1e-4_f64, 2e-8_f64);
+        let c = (1.0 - s * s).sqrt();
+        let n = v3([-c, s, 0.0]);
+        let foot = [r, 0.0, 0.0];
+        let cyl = Surface::Cylinder {
+            frame: geom::Frame::new(p3([0.0; 3]), v3([0.0, 0.0, 1.0]), v3([1.0, 0.0, 0.0])),
+            radius: iv0(r),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(p3(foot), n, v3([0.0, 0.0, 1.0])),
+        };
+        let u_far = -s + phi;
+        let ruling = || line(1, [1, 2], foot, [r, 0.0, 1.0]);
+        let far = [r * u_far.cos(), r * u_far.sin()];
+        let sliver = boundary(
+            vec![ruling()],
+            &[
+                (1, foot),
+                (2, [r, 0.0, 1.0]),
+                (3, [far[0], far[1], 1.0]),
+                (4, [far[0], far[1], 0.0]),
+            ],
+        );
+        // The plane's face runs a metre from the ruling, in the plane.
+        let plate = boundary(
+            vec![ruling()],
+            &[
+                (1, foot),
+                (2, [r, 0.0, 1.0]),
+                (5, [r - s, -c, 1.0]),
+                (6, [r - s, -c, 0.0]),
+            ],
+        );
+        let here = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let extent = extent_of(
+            &piece(1, &cyl, &sliver, &here, ((u_far, 0.0), (0.0, 1.0))),
+            &piece(2, &plane, &plate, &here, ((0.0, 1.0), (0.0, 1.0))),
+            &near,
+        )
+        .expect("an extent");
+        let width = extent.length().hi();
+        assert!(
+            (width - r * u_far.abs()).abs() < 1e-12,
+            "the extent is the sliver's width: {width:e}"
+        );
+        let p = Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: (u_far, 0.0),
+            y: (0.0, 1.0),
+            zero: Zero::Side(Side::XHi, along(1)),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let psi = Psi::Carrier(Implicit::Plane { o: p3(foot), n });
+        let read = |extent| signed(&psi, None, &p, None, Some(extent), band());
+        assert_eq!(read(extent), None, "undecided at the sliver's width");
+        assert!(
+            read(fixture_lever(iv0(1.0))).is_some(),
+            "signed at the plane's metre, which no extent reads"
+        );
+    }
+
     /// **A sine that changes sign over the rectangle decides nothing.** A
     /// cylinder beside its ruling at `u = 0`, half a radian wide, against
     /// a plane through that ruling it has already crossed a tenth of a
