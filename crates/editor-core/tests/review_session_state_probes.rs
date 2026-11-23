@@ -413,3 +413,39 @@ fn the_table_against_the_leaf_count() {
         }
     }
 }
+
+/// **The filleted bracket instanced as a part**: the leaf's receipt
+/// against the sum of its nodes' records, printed so that the run can
+/// be repeated under a registry the whole replay shares
+/// (`RSS_ROOT_ABSORB`, the mutant patch) and the two compared.
+#[test]
+fn the_bracket_instanced_and_the_receipt() {
+    let tol = Tol::witness();
+    let part = crate::m10_7_r2_probes_interval::bracket(1.0e1 * tol.eps(), tol).0;
+    let body = part
+        .ids()
+        .iter()
+        .copied()
+        .find(|id| matches!(part.node(*id), Some(editor_core::Node::Extrude { .. })))
+        .expect("the bracket has an extrude");
+    let part = fixture::place(part, body).0;
+    let (own, own_session) = leaf_with(&part, None, tol);
+    let (own_nodes, own_registrations) = sum_of_records(&own);
+    println!(
+        "own document: session {own_session:?}; nodes {own_nodes:?}; registrations {own_registrations}"
+    );
+    let pin = editor_core::content_pin(&part, tol).expect("the pin computes");
+    let doc_ref = editor_core::DocRef { id: part.id(), pin };
+    let doc = ProfileDoc::empty(editor_core::DocumentId::derive("review-bracket-assembly"), tol);
+    let (doc, _instance) = fixture::insert(doc, fixture::mated_instance(doc_ref));
+    let doc = fixture::assemble_world_copies(doc);
+    let (ev, session) = leaf_with(&doc, Some(Arc::new(OneDoc(part))), tol);
+    for id in &ev.order {
+        if let Some(NodeResult::Failed(e)) = ev.result(*id) {
+            println!("FAILED {id:?}: {:?}", e.kind);
+        }
+    }
+    let (nodes, registrations) = sum_of_records(&ev);
+    println!("instanced: session {session:?}; nodes {nodes:?}; registrations {registrations}");
+    assert!(session.decisions() > 0, "the instanced leaf decided");
+}
