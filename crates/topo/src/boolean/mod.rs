@@ -5569,6 +5569,31 @@ impl BooleanError {
             ),
             Self::JunctionEndUnread {
                 operand,
+                gap: JunctionEndGap::OpposedStretches,
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, at a point where two stretches of that join meet running opposite \
+                 ways, and the Boolean cannot read which side of the rim the edge leaves on. There \
+                 is no way through this in the kernel yet",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::ReflexCorner,
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, at the point where that join stops, and the other face turns \
+                 there through more than a straight angle (or not clearly less), so the Boolean \
+                 cannot read that the edge leaves it. Moving the edge's end off that corner, or \
+                 the corner off the rim, may let it through",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
                 gap: JunctionEndGap::Closed,
                 ..
             } => write!(
@@ -8180,6 +8205,13 @@ pub enum JunctionEndGap {
     Window,
     /// The edge is closed, both its ends at the one point on the rim.
     Closed,
+    /// The end lies where two stretches of the junction meet, ridden
+    /// opposite ways: the rim names no side of it.
+    OpposedStretches,
+    /// The end lies where the junction's touch stops, at a corner of the
+    /// other face not decided within π: the face may hold a sector on the
+    /// edge's own side of the rim.
+    ReflexCorner,
 }
 
 /// What the door's tangency check certified of a pair.

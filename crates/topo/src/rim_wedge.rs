@@ -547,44 +547,81 @@ impl<T: Real> Default for Touch<T> {
 pub(crate) enum OnTouch {
     /// Off every stretch of it.
     Off,
-    /// On a stretch, its ends included: A rides it with this sign there.
-    Inside(geom_core::Sign),
+    /// On a stretch: A rides it with `sign` there. `stops` where the end
+    /// is within the band of where the touch stops (a stretch's end no
+    /// other stretch carries on, or a touch that is a point).
+    Inside {
+        /// The sign A rides the stretch with.
+        sign: geom_core::Sign,
+        /// The end is where the touch stops.
+        stops: bool,
+    },
     /// On two stretches ridden opposite ways, where they meet.
     Opposed,
 }
 
 impl<T: Decide> Touch<T> {
     /// **Where `p`, a point decided on `rim`, lies against the touch**
-    /// (`junction_end_in_extent`, metered along the rim): on a closed
-    /// stretch of it (a touch that is a point included), or off it.
+    /// (`junction_end_in_extent`, metered along the rim): inside a
+    /// stretch, where the touch stops, or off it.
     ///
     /// # Errors
     ///
-    /// The first in-band reading of whether a stretch holds it.
+    /// The first in-band reading of where a stretch starts or stops.
     pub(crate) fn holds(
         &self,
         rim: Rim<T>,
         p: Point3<T>,
         band: Band,
     ) -> Result<OnTouch, Indeterminate> {
+        use geom_core::Sign::{Positive, Zero};
         let tau = geom::conic_period::<T>().length();
         let at = locus_param(Locus::Rim(rim), p);
         let meter = |m: T| {
             crate::validate::decide("junction_end_in_extent", Margin::of(m * rim.radius), band)
         };
-        let mut sign = None;
+        let (mut inside, mut starts, mut stops) = (Vec::new(), Vec::new(), Vec::new());
+        let mut point = false;
         for &(lo, hi, rides) in &self.pieces {
+            // A stretch all the way round has no end of its own.
+            if meter(tau - (hi - lo))? == Zero {
+                inside.push(rides);
+                continue;
+            }
             let past = at - lo - tau * ((at - lo) / tau).floor();
-            let within = !matches!(meter(hi - lo - past)?, geom_core::Sign::Negative)
-                || matches!(meter(tau - past)?, geom_core::Sign::Zero);
-            if within {
-                match sign {
-                    Some(s) if s != rides => return Ok(OnTouch::Opposed),
-                    _ => sign = Some(rides),
+            let from_start = meter(past)?;
+            let to_stop = meter(hi - lo - past)?;
+            let at_start = from_start == Zero || meter(tau - past)? == Zero;
+            match (at_start, from_start, to_stop) {
+                (true, _, Zero) => {
+                    starts.push(rides);
+                    point = true;
                 }
+                (true, _, _) => starts.push(rides),
+                (false, Positive, Zero) => stops.push(rides),
+                (false, Positive, Positive) => inside.push(rides),
+                _ => {}
             }
         }
-        Ok(sign.map_or(OnTouch::Off, OnTouch::Inside))
+        let Some(sign) = inside.first().or(starts.first()).or(stops.first()).copied() else {
+            return Ok(OnTouch::Off);
+        };
+        if !inside
+            .iter()
+            .chain(&starts)
+            .chain(&stops)
+            .all(|&s| s == sign)
+        {
+            return Ok(OnTouch::Opposed);
+        }
+        // An end where one stretch stops and the next starts is inside the
+        // touch; one where only a start or only a stop holds it, or a
+        // touch that is a point, is where the touch stops.
+        let carried = !inside.is_empty() || (!starts.is_empty() && !stops.is_empty() && !point);
+        Ok(OnTouch::Inside {
+            sign,
+            stops: !carried,
+        })
     }
 }
 

@@ -391,7 +391,12 @@ the spread less the edge's and the rim's bends over it, decided Positive
 than where that margin clears the band lies within the band of the
 target face's boundary, not necessarily at the vertex, and is the touch
 the vertex's own placement records. No window, or a side not held,
-refuses `JunctionEndUnread` with `Window`. The rest of the span is the
+refuses `JunctionEndUnread` with `Window`. An end where the glued
+stretch stops is read only where the target face's corner there is
+decided within π (`junction_end_corner`), since only then does that face
+lie on its own side of the rim's tangent; a reflex or undecided corner
+refuses with `ReflexCorner`, and an end where two stretches ridden
+opposite ways meet with `OpposedStretches`. The rest of the span is the
 root doors' as any span's, so a root of the carrier there is found and
 placed in the trim: a straight tube leaving a bend G1 does meet the
 bend's carrier again, off its face. A carrier or a surface the door has
