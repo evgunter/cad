@@ -243,8 +243,8 @@ fn waist(body: &Body<f64>) -> Vec<EdgeKey> {
     let rim = rim.expect("the union has a waist rim");
     assert_eq!(
         (named.len(), rim.len(), meridians),
-        (6, 2, 4),
-        "(Sphere, Sphere) names two waist arcs and four co-surface meridians"
+        (3, 1, 2),
+        "(Sphere, Sphere) names the waist rim and two co-surface meridians, one per ball"
     );
     rim
 }

@@ -391,10 +391,11 @@ fn one_request_builds_the_kernels_body() {
         .expect("the kernel door rolls all three in one request")
         .body;
 
-    assert_eq!(census(&sharp), (8, 14, 8));
+    // Each wall one band: three one-crossing bands of (1, 2, 1) each.
+    assert_eq!(census(&sharp), (4, 7, 5));
     assert_eq!(bands(&kernel).len(), 3, "three rims, three torus bands");
-    assert_eq!(census(&kernel), (12, 21, 11));
-    assert_eq!(census(&doc_body), (12, 21, 11));
+    assert_eq!(census(&kernel), (7, 13, 8));
+    assert_eq!(census(&doc_body), (7, 13, 8));
     assert_eq!(
         bands(&kernel),
         bands(&doc_body),
