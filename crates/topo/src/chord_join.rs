@@ -232,7 +232,7 @@ pub enum SectionPinMiss {
         check: geom_brep::CertCheck,
         /// The pin's diagnostics.
         diag: Indeterminate,
-        /// The carrier's resolution `K` times over, as the band read it.
+        /// The carrier's resolution, as the band one K-step finer read it.
         resolution: geom_core::MarginDiag,
     },
     /// An end pin read past the band, by a miss the carrier's
@@ -2243,8 +2243,8 @@ impl<T: Real> SectionChord<T> {
 }
 
 /// K name: a section chord's carrier's own resolution over its span
-/// ([`geom_brep::carrier_resolution::resolution`]), `K` times over,
-/// against the zero band (metres), where the gate refuses one of its
+/// ([`geom_brep::carrier_resolution::resolution`]) against the `ε/K`
+/// share of the band (metres), where the gate refuses one of its
 /// attachment pins: Zero reads an in-band pin as the input's
 /// ([`crate::validate::resolved_as`]).
 pub(crate) const SECTION_PIN_RESOLUTION: &str = "section_pin_resolution";
@@ -2490,7 +2490,7 @@ fn chord_spec<T: Decide>(
             let (t1, t2) = (ruling.param(p1), ruling.param(p2));
             // The ruling's speed: it meters a parameter span in metres
             // and makes the plane's `u_ref` unit.
-            let (ruling_hat, len) = ruling.dir.direction_and_length();
+            let (ruling_hat, len) = ruling.dir.get().direction_and_length();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
@@ -2776,7 +2776,7 @@ pub(crate) fn apex_section_ruling<T: Decide>(
         let Some(geom::Line { dir, .. }) = line.as_line() else {
             unreachable!("{face:?}: a cone's section ruling through its apex is a line")
         };
-        let z = apex.onto_nappe_of(dir, to);
+        let z = apex.onto_nappe_of(dir.get(), to);
         let into = apex.turn(from, z).min(apex.turn(z, to));
         match decide("germ_apex", Margin::levered(into, arm), band)
             .map_err(ApexRulingFault::Escalated)?
@@ -7887,7 +7887,10 @@ mod segment_curve_tests {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = FaceKey::from(KeyData::from_ffi(3));
         let surface = SurfaceKey::default();
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let line = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         let spec = |description| EdgeCurveSpec {
             description,
             carrier: line.clone(),

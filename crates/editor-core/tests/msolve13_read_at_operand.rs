@@ -188,7 +188,7 @@ fn fused(
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::spelled(vec![t1.into(), t2.into()]),
         },
     );
     let (doc, _) = place(doc, union, &s.opts);
@@ -334,7 +334,7 @@ fn a2_two_spellings_through_a_union_are_one_member() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::spelled(vec![t1.into(), t2.into()]),
         },
     );
     let (doc, _) = place(doc, union, &s.opts);
@@ -410,7 +410,7 @@ fn a_mate_read_below_a_placed_boolean_mints_nothing() {
     let (doc, fused) = insert(
         with_far,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
+            members: editor_core::Bodies::spelled(vec![t1.into(), far.into()]),
         },
     );
     let doc = place(doc, fused, &s.opts).0;
@@ -491,7 +491,7 @@ fn a3b_a_cut_taking_the_members_but_not_the_union_crosses_onto_the_instance() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::spelled(vec![t1.into(), t2.into()]),
         },
     );
     let (doc, _) = place(doc, union, &s.opts);
@@ -508,7 +508,7 @@ fn a3b_a_cut_taking_the_members_but_not_the_union_crosses_onto_the_instance() {
     for read in reads {
         let at = out
             .remainder
-            .operation_of(read.read)
+            .operation_of(read.read().read)
             .expect("each read is of a live operation");
         assert!(!cut.contains(&at), "the kept union reads the cut {at:?}");
     }
@@ -580,7 +580,7 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 fixture::copy(s.top, s.top_body),
                 one_copy(t1, s.top_body),
             ]),

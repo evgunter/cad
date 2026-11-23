@@ -28,14 +28,14 @@ fn rows() -> [(&'static str, AuthoredNode, &'static str); 3] {
         (
             "union",
             Node::Union {
-                members: Bodies::Spelled(vec![a.into(), b.into()]),
+                members: Bodies::spelled(vec![a.into(), b.into()]),
             },
             r#"{"Union":{"members":{"Spelled":[{"Node":"0:0000000000000001"},{"Node":"0:0000000000000002"}]}}}"#,
         ),
         (
             "intersect",
             Node::Intersect {
-                members: Bodies::Spelled(vec![a.into(), b.into()]),
+                members: Bodies::spelled(vec![a.into(), b.into()]),
             },
             r#"{"Intersect":{"members":{"Spelled":[{"Node":"0:0000000000000001"},{"Node":"0:0000000000000002"}]}}}"#,
         ),
@@ -45,7 +45,7 @@ fn rows() -> [(&'static str, AuthoredNode, &'static str); 3] {
                 from: a.into(),
                 tool: b.into(),
             },
-            r#"{"Subtract":{"from":{"Node":"0:0000000000000001"},"tool":{"Node":"0:0000000000000002"}}}"#,
+            r#"{"Subtract":{"from":{"Node":"0:0000000000000001"},"tool":{"Spelled":[{"Node":"0:0000000000000002"}]}}}"#,
         ),
     ]
 }

@@ -98,7 +98,7 @@ impl Slot {
             kind: EntityKind::Face,
             node: self.cut,
             path: vec![RoleSeg::From {
-                read: tool.read,
+                read: tool.reads().next().expect("a subtract with one tool").read,
                 of: self.wall(segment).into(),
             }],
         }
@@ -231,7 +231,7 @@ fn a_unions_slide_sweep_names_the_query_its_runs_part_at() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), bar.placement.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), bar.placement.into()]),
         },
     );
     let ev1 = run(&doc, None);

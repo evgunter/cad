@@ -1010,7 +1010,7 @@ fn assembled_in_space(doc: ProfileDoc, copies: &[RecipeNodeId]) -> (ProfileDoc, 
     insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     )
 }
@@ -1059,7 +1059,7 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
         doc,
         DocEdit::SetMembers {
             node: group,
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     );
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);

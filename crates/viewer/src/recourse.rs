@@ -460,10 +460,10 @@ fn node_act(kind: &NodeErrorKind) -> NodeAct {
         | K::NotFinished { .. }
         | K::UnfinishedLeaf { .. }
         | K::EmptyHalf { .. }
-        | K::HalfOfAFamily { .. }
         | K::MemberOutOfRange { .. }
         | K::MemberRefused { .. }
-        | K::IndicesUnrelated { .. }
+        | K::TwoBinders { .. }
+        | K::YieldsNothing { .. }
         | K::IndexCount { .. }
         | K::IndexCountOutOfRange { .. }
         | K::NoSuchPiece { .. }
@@ -483,7 +483,7 @@ fn node_act(kind: &NodeErrorKind) -> NodeAct {
         | K::CountOutOfRange { .. }
         | K::UnschedulableCycle
         | K::Naming { .. }
-        | K::UnionFoldStep { .. }
+        | K::FoldStep { .. }
         | K::Shell { .. }
         | K::ShellLaneUnsupported { .. }
         | K::WitnessBifurcation { .. }
@@ -706,7 +706,7 @@ mod tests {
         use crate::test_support::{PART_FILE, part_refused};
         let unresolved = |fault| PartFault::Unresolved {
             fault,
-            message: "the store's own words".to_owned(),
+            message: "the store's own words".into(),
         };
         let (mismatch, _) = part_refused(unresolved(ResolveFault::PinMismatch));
         let NodeErrorKind::Part { doc_ref, .. } = &mismatch else {
