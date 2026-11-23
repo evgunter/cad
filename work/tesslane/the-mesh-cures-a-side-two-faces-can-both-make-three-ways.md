@@ -27,8 +27,10 @@ Each lane predicts its neighbour, and each prediction is wrong somewhere: the fi
 
 **No lane reads anything about the faces across its edges.** Whether two faces both made a side is a fact that exists only where the patches join, and that is where it is acted on.
 
-1. **Detected at the join.** `tessellate::joined`'s census finds each straight side that more than one patch has as an inside edge: a side of two of that patch's triangles, not a chord of its boundary.
-2. **Split once, in every such patch.** Each patch that has the side inside splits it at the point of ITS OWN surface over the side's midpoint in its chart. Its two triangles on that side become four. Each half is held to that face's certificate and to the winding read (`[mesh.winding]`), as any triangle of the face is; one that fails refuses the face, typed, as it would have from its lane.
+1. **Detected at the join.** The census in `join::census`, on shared ids before any patch is placed, finds each straight side between two shared ids that a patch has inside (two of its triangles on it, not a chord of its own boundary) and that it splits:
+   - a side used past twice per chord carrying it, which joined is an edge of four triangles; and
+   - **the pair trigger** (ruled 2026-11-23): a side of a triangle all of whose corners are chord points the face F shares with one face G, where G has such a triangle toward F. Both faces then lay nothing but the points they share over one region (a cap thinner than δ against its plane), and their patches can cover it with the same points, a mesh enclosing nothing there.
+2. **Split once, in every such patch.** Each patch that splits the side splits it at the foot, on ITS OWN surface, of the side's straight midpoint, read back to its chart (`join::point_at`; one rule on cylinder, cone, sphere and ring torus, in place of the chart midpoint, the cone's development and the singular-end rule; a spindle sheet and a spline face, which have no foot in closed form, keep the chart midpoint). Its two triangles on that side become four. Each half is held to that face's certificate, on an analytic face to its fold, and to the winding read (`[mesh.winding]`), as any triangle of the face is; one that fails refuses the face, typed, as it would have from its lane.
 3. **Nothing is meshed again.** No lane is re-entered, there are no rounds, no patch is chosen to keep the side, and nothing reads the order faces are stored in.
 4. **A boundary does not give way.** Where one face's boundary chord carries the side, that face keeps it, and every patch that has it inside splits.
 5. **Two things beside it, needed under any cure:**
@@ -40,6 +42,8 @@ No clause of `crates/mesh/README.md` or `docs/DESIGN.md` changes. One sentence o
 
 ## Why a point of the face's own surface, and in every patch
 
+**What the split is for** is the mesh's shape where two patches meet: an edge of four triangles where two patches make one side, and, with the pair trigger, two patches covering one region with the points their faces share. It promises no volume: where the faces are closer than δ, the mesh encloses whatever their own points make of it, held to the certificate, not to the body's volume (`mesh::validate::check_volume`'s bound is δ times the area, vacuous there).
+
 The other consistent answer is the side's straight midpoint, split in every patch but one. Its halves are pieces of triangles already certified, so it needs no certificate and cannot refuse, but one patch must keep the side, chosen by storage order. A straight midpoint in every patch is not an answer: the two new points share a position and the same two corners, which is the edge of four triangles again for any reader that joins vertices by position.
 
 The two were measured against each other where they differ, on a body thinner than δ: the ball of radius 1.05 bored at radius 1 (a shell 0.05 thick, volume about 0.137), both arc signs, seam split and unsplit, δ 3 to 0.1. There both faces lay the same chords, so the mesh is one sheet counted twice.
@@ -50,18 +54,20 @@ The two were measured against each other where they differ, on a body thinner th
 | straight midpoint, all but one patch | zero to rounding on the split body (±10⁻¹⁶); +0.010 to +0.015 unsplit | 4 of 28 fail: the sign of a zero volume is rounding's |
 | own-surface point, every patch | +0.078 to +0.092 (58 to 67% of the body's) | 0 of 28 fail |
 
-A straight split leaves the two sheets on one set of chords. A point of each face's own surface moves each sheet toward its own face, so the wall reopens with the right sign. Today's walk cuts one face only, which is why its volume's sign follows which face that is.
+A straight split leaves the two sheets on one set of chords; a point of each face's own surface moves each sheet toward its own face. On these cells that gave the wall a positive volume; it is what was measured, not a theorem, and no page promises it. With the foot and the pair trigger the shell's row reads 0.523 to 0.897 of the body's volume on 84 cells in three placements (`split_rulings::a_shell_thinner_than_delta_meshes_split_or_unsplit`, its margin 0.45).
+
+**Why the foot.** Over every side the `mesh` suite's patches could be asked to split (the filed row on pieces that would fold), the chart midpoint folds a piece on 687 cone sides (the walk's and the trimmed lane's), 10 on the rectangle lane's cone, 75 on the trimmed sphere and 8 on the rectangle sphere; the foot folds none of them, 16 against 46 on a torus, and the same 6 on a cylinder, where the two are one point. At an apex or a pole the foot is the singular-end rule's point, and it reads no frame, so it does not depend on where a face's chart puts its pole. It is not what recovers the lost bodies: with the pair trigger on, the chart midpoint loses no body of the thin-cap class either (0 refusals, 0 flat, 126 of 636 cells within 5% of the foot's volume).
 
 Over the `mesh` suite at the default ε, with the three present rules off and the chord floor and fold cure on, the designers' probes counted 1,416 such splits over 59 meshes; the stage-1 count, with every pin of today's cut counts softened so that each row meshes all its bodies rather than stopping at the first moved pin, is 1,846 over 73 (below). No half folded against its parent, none farther than δ from its surface by sampled distance (worst 0.905 δ, none worse than its parent), no side left overused; two new points at one position only on the lens below, whose two faces are one sheet; six rows red, each a pin of today's cut counts or of a refusal's name.
 
-Positive volume on a body thinner than δ is what was measured on these cells, not a theorem, and no page promises it.
-
 ## What the measurements did not cover
 
-- The halves were held to sampled true distance, not to each lane's own certificate; the cone's and the torus's are more conservative.
-- The probes split at the surface foot of the 3-D midpoint, standing in for the midpoint in the face's chart; on a cone's development the two differ, and at an apex the chart coordinate has to be chosen.
-- Two spline faces can both make a side (`faces_that_bound_no_region::a_lens_of_two_short_arcs_meshes_at_a_coarse_delta`, with the present rules off). A spline surface has no closed-form foot, so its split point comes from the lane's polygon in the chart.
-- The halves did not meet the winding read; ε 1e-6 and 1e-12, the slow set and the other crates were not run; what the viewer's pick memo does with a patch that carries split points was not read.
+- The stage-1 halves were held to sampled true distance, not to each lane's own certificate; the build holds every piece to its face's certificate, and nothing measured refuses there.
+- Two spline faces can both make a side (`faces_that_bound_no_region::a_lens_of_two_short_arcs_meshes_at_a_coarse_delta`). A spline surface has no closed-form foot, so its split point is the chart midpoint, and its pieces are held to the certificate alone (no outward normal in closed form to read a fold against).
+- **The thin-cap class** (2026-11-23, the review of 24ee9a28fb): a face thinner than δ whose boundary is one closed chain shared with one neighbour. Measured on caps of a ball and of a ball less a box (heights 10⁻³ to 0.1, latitudes ±90° to 0, four azimuths), lenses of two spheres, a cylinder segment and a cone's tip, at δ ten times the thickness down to a tenth, δ 1 and 10⁹, three ε: 636 cells, none flat or negative under the pair trigger, the least at 0.363 of main's volume. A torus sliver did not build. Caps of other surfaces, faces bounded by two chains, and a class face against a spline neighbour were not measured.
+- **The three-face cap.** A cap that also meets a third face (the ball less a box, cut toward latitude ±45°, azimuth 300°, height 0.03) is outside what the trigger reaches: at δ 0.3 the sphere's triangles take a point of the third face's arc, so neither face lays a triangle of their shared points alone. It meshes positive at 0.238 of the body's volume (main's 0.656), pinned as measured in `sweep`'s `snowman::a_cap_thinner_than_delta_encloses_its_volume`.
+- **Trigger triangles with no inside side** (a patch of one triangle, all its corners shared with one face): a point at the foot of its centroid was measured behind a switch and fired on nothing in the `mesh` suite (13,998 calls), the class table or the bored ball; it was not run over `sweep`. It does not land; such a triangle keeps its three corners.
+- What `tessellate` owes a body thinner than δ is before the owner (PR 7592); this unit answers only where the patches join.
 
 ## Stage 1: measured (2026-11-23)
 

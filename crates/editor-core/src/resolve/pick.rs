@@ -2865,50 +2865,6 @@ mod tests {
         assert_eq!((memo.table_hits(), memo.table_misses()), (1, 1));
     }
 
-    /// The rod sliver of `mesh`'s trimmed-lane rows: a rod met by a slab
-    /// turned 0.05 about `y` whose edge sits 0.01 inside its wall, so its
-    /// cylinder face and the plane face across each make sides of one
-    /// section arc, which the tessellation splits where the patches join.
-    fn rod_sliver() -> Body<f64> {
-        use geom_core::{Affine3, Point2};
-        let tol = Tol::witness();
-        let disc = profile::Profile::new(
-            profile::SketchPlane::xy(),
-            vec![
-                profile::circle(Point2::new(0.0, 0.0), 1.0, tol)
-                    .expect("a unit circle")
-                    .into(),
-            ],
-        )
-        .validate(tol)
-        .expect("a disc");
-        let depth = sweep::Extrusion::Distance {
-            depth: 2.0,
-            side: sweep::ExtrudeSide::Along,
-        };
-        let rod = sweep::test_support::finished(
-            "the rod",
-            sweep::extrude(&disc, depth, tol)
-                .expect("the rod")
-                .body
-                .into_body(),
-            tol,
-        );
-        let pose = Affine3::translation(Vec3::new(0.99, 0.0, 1.0))
-            * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.05);
-        let slab = sweep::test_support::finished(
-            "the slab",
-            topo::transform_rigid(
-                &sweep::test_support::brick((0.0, 6.0), (-3.0, 3.0), (-0.4, 0.4), tol),
-                &geom_core::test_support::rigid(&pose, tol),
-            )
-            .expect("the slab placed"),
-            tol,
-        );
-        let met = topo::intersect(&rod, &slab, tol).expect("the sliver");
-        Body::clone(&met.body().expect("a sliver").body)
-    }
-
     /// **A patch split where the patches join is never served a stored
     /// table.** The rod sliver through one memo over three pictures, each
     /// face answered from the patch memo after the first and each split
@@ -2918,7 +2874,7 @@ mod tests {
     /// a build of every table makes.
     #[test]
     fn a_patch_split_where_the_patches_join_is_built_every_picture() {
-        let body = rod_sliver();
+        let body = sweep::test_support::rod_sliver(Tol::witness());
         let mut memo = PickMemo::new();
         for picture in 0..3 {
             let tess = tessellate_with(&body, 2e-2, Tol::witness(), &mut memo.patches)

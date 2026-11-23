@@ -5190,47 +5190,9 @@ pub(super) mod tests {
         }
     }
 
-    /// A sliver of a rod: the unit disc extruded 2 along `z`, met by a
-    /// slab turned 0.05 about `y` whose edge sits `0.01` inside the wall
-    /// at mid-height. The intersection's cylinder face is about two
-    /// lattice cells across, between two section-ellipse arcs whose plane
-    /// faces have no interior point, so each joins the points of its arc
-    /// freely.
+    /// The rod sliver (`sweep::test_support::rod_sliver`, its one home).
     pub(crate) fn a_rod_sliver() -> topo::Body<f64> {
-        use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-        let tol = Tol::witness();
-        let disc = profile::Profile::new(
-            profile::SketchPlane::xy(),
-            vec![
-                profile::circle(Point2::new(0.0, 0.0), 1.0, tol)
-                    .unwrap()
-                    .into(),
-            ],
-        )
-        .validate(tol)
-        .unwrap();
-        let depth = sweep::Extrusion::Distance {
-            depth: 2.0,
-            side: sweep::ExtrudeSide::Along,
-        };
-        let rod = sweep::test_support::finished(
-            "the rod",
-            sweep::extrude(&disc, depth, tol).unwrap().body.into_body(),
-            tol,
-        );
-        let pose = Affine3::translation(Vec3::new(0.99, 0.0, 1.0))
-            * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.05);
-        let slab = sweep::test_support::finished(
-            "the slab",
-            topo::transform_rigid(
-                &sweep::test_support::brick((0.0, 6.0), (-3.0, 3.0), (-0.4, 0.4), tol),
-                &geom_core::test_support::rigid(&pose, tol),
-            )
-            .unwrap(),
-            tol,
-        );
-        let met = topo::intersect(&rod, &slab, tol).unwrap();
-        topo::Body::clone(&met.body().expect("a sliver").body)
+        sweep::test_support::rod_sliver(geom_core::Tol::witness())
     }
 
     /// **A side two faces both make is split where the patches join, with
