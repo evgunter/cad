@@ -1348,6 +1348,10 @@ pub(crate) fn trim_window_short<T: Decide>(
 /// torn curve is not null scaffolding. The
 /// links hold at rest and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1403,11 +1407,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(conic_k) = *curve.carrier() else {
             return Ok(None);
         };
-        let (c_c, n_c, u_c) = (
-            conic_k.frame().origin(),
-            conic_k.frame().axis(),
-            conic_k.frame().u_ref(),
-        );
+        let (c_c, n_c, u_c) = (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
         let r_c = conic_k.radius();
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
@@ -3055,6 +3055,10 @@ fn crosses_by_turn<T: Decide>(
 /// far the edge is off its ruling or parallel (`bool_wall_turn_true`,
 /// below). The turn is read as a planar face's is ([`turned_inside`]): no
 /// path is walked.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn wall_crosses_by_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3122,7 +3126,7 @@ fn wall_crosses_by_turn<T: Decide>(
                 .value()
             }
             geom::Curve3::Circle(circle) => {
-                let (center, normal) = (circle.frame().origin(), circle.frame().axis());
+                let (center, normal) = (circle.frame().origin(), circle.axis());
                 let r = circle.radius();
                 r.abs() * normal.normalize().cross(axis.get()).norm()
                     + geom::Line { origin, dir: axis }.distance(center)
