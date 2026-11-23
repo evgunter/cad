@@ -53,7 +53,7 @@ pub(crate) fn blocks(tol: Tol, at: f64) -> DocSession {
 fn offered(session: &DocSession) -> Vec<(CheckFinding, Vec<Offer>)> {
     let report = session.checks().expect("the registry ran");
     assert!(report.pending.is_empty(), "the inline door settled");
-    let offers = finding_offers(session).expect("the landed run is the committed one");
+    let offers = finding_offers(session.current()).expect("the landed run is the committed one");
     report.findings.iter().cloned().zip(offers).collect()
 }
 
@@ -249,9 +249,9 @@ fn a_stale_run_offers_no_document_editing_op() {
     let outcome = session.perform(commit);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(session.current().is_none(), "the edit's run is outstanding");
-    assert_eq!(finding_offers(&session), None, "no finding offers");
+    assert_eq!(finding_offers(session.current()), None, "no finding offers");
     assert!(
-        viewer::test_support::product_commits(&session).is_empty(),
+        viewer::test_support::product_commits(session.current()).is_empty(),
         "no product fault offers"
     );
     assert!(
@@ -278,7 +278,7 @@ fn a_stale_run_offers_no_document_editing_op() {
     session.pump();
     assert!(session.current().is_some(), "landed, the run is current");
     assert!(
-        finding_offers(&session).is_some(),
+        finding_offers(session.current()).is_some(),
         "and offers are read off it"
     );
 }

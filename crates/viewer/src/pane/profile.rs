@@ -123,7 +123,8 @@ impl ViewerBehavior<'_> {
             .flat_map(|refused| crate::recourse::offers(crate::recourse::Failure::Refused(refused)))
         {
             if let crate::recourse::Offer::Lead(lead) = offer {
-                self.drafts.take_lead(lead, self.tools);
+                self.drafts
+                    .take_lead(lead, self.tools, self.session.committed_doc());
             }
         }
         true

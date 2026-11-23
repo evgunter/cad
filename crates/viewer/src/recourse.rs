@@ -79,6 +79,16 @@ pub enum Lead {
         /// The name to create.
         name: VarName,
     },
+    /// The placement editor on a copy whose target change a door held
+    /// over the copy's own constraints, its target set to the door's,
+    /// so the rows reading the old space are marked and the strike
+    /// offered.
+    HoldTarget {
+        /// The copy's placement.
+        placement: pncad::document::RecipeNodeId,
+        /// The target the door was asked for.
+        target: crate::session::PlaceTarget,
+    },
 }
 
 /// **An act a failure types that this viewer has no door for**, said
@@ -116,7 +126,8 @@ impl Offer {
         match self {
             Self::Commit(commit) => Some(&commit.label),
             Self::Lead(Lead::AssertGap { label, .. }) => Some(label),
-            Self::Lead(Lead::CreateVariable { .. }) | Self::Unoffered(_) => None,
+            Self::Lead(Lead::CreateVariable { .. } | Lead::HoldTarget { .. })
+            | Self::Unoffered(_) => None,
         }
     }
 
@@ -127,7 +138,8 @@ impl Offer {
         match self {
             Self::Commit(commit) => matches!(commit.op, SessionOp::AssertQuieting { .. }),
             Self::Lead(Lead::AssertGap { .. }) => true,
-            Self::Lead(Lead::CreateVariable { .. }) | Self::Unoffered(_) => false,
+            Self::Lead(Lead::CreateVariable { .. } | Lead::HoldTarget { .. })
+            | Self::Unoffered(_) => false,
         }
     }
 }
@@ -406,12 +418,19 @@ fn node_offers(kind: &NodeErrorKind, files: &crate::parts::PartFiles) -> Vec<Off
 }
 
 /// **A refused batch's offers**: the variable an expression named and
-/// no document declares, and the two saves a save that would give the
-/// document a second file in one folder offers.
+/// no document declares, the two saves a save that would give the
+/// document a second file in one folder offers, and the placement
+/// editor a door's held target change opens.
 fn refusal_offers(refusal: &Refusal) -> Vec<Offer> {
     match refusal {
         Refusal::Parse(error) => parse_offers(error),
         Refusal::Workspace(error) => workspace_offers(error),
+        Refusal::TargetHeld {
+            placement, target, ..
+        } => vec![Offer::Lead(Lead::HoldTarget {
+            placement: *placement,
+            target: target.clone(),
+        })],
         Refusal::DrivenByExpression { .. }
         | Refusal::NoSuchSlot { .. }
         | Refusal::NoSuchVariable(_)
@@ -440,7 +459,6 @@ fn refusal_offers(refusal: &Refusal) -> Vec<Offer> {
         | Refusal::BundleStale { .. }
         | Refusal::PlaceOnACopy { .. }
         | Refusal::SeveralSources { .. }
-        | Refusal::TargetHeld { .. }
         | Refusal::CopyInAnotherSpace { .. }
         | Refusal::SourceIsNamed { .. }
         | Refusal::Unspliced { .. }

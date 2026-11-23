@@ -418,7 +418,10 @@ impl ViewerBehavior<'_> {
         }
         match clicks.offered {
             Some(crate::widgets::Taken::Op(op)) => self.ops.push(op),
-            Some(crate::widgets::Taken::Lead(lead)) => self.drafts.take_lead(lead, self.tools),
+            Some(crate::widgets::Taken::Lead(lead)) => {
+                self.drafts
+                    .take_lead(lead, self.tools, self.session.committed_doc());
+            }
             None => {}
         }
         if clicks.edit {

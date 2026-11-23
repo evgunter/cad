@@ -618,7 +618,11 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             _ => None,
         })
         .expect("the blocks' rest carries its claim");
-    run(&mut touching, SessionOp::AssertQuieting { quieting }, "rests");
+    run(
+        &mut touching,
+        SessionOp::AssertQuieting { quieting },
+        "rests",
+    );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
         &mut session,

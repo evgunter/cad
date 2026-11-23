@@ -1532,11 +1532,17 @@ impl ViewerApp {
             // to learns its id here and nowhere else.
             let made = outcome.made;
             let committed = outcome.refusal.is_none();
-            // A door's target change held over the copy's own constraints
-            // opens the placement editor holding it.
-            if let Some(refusal) = &outcome.refusal {
-                self.tools
-                    .held_target(refusal, self.session.committed_doc());
+            // A refusal's leads are taken as it is heard: a door's target
+            // change held over the copy's own constraints opens the
+            // placement editor holding it, and an expression's unknown
+            // name opens the add-variable form on it.
+            for offer in outcome.refusal.iter().flat_map(|refused| {
+                crate::recourse::offers(crate::recourse::Failure::Refused(refused))
+            }) {
+                if let crate::recourse::Offer::Lead(lead) = offer {
+                    self.drafts
+                        .take_lead(lead, &mut self.tools, self.session.committed_doc());
+                }
             }
             // The placement editor opens on the placement a Place made,
             // and settles the draft whose change landed or was refused.
@@ -1626,20 +1632,14 @@ impl ViewerApp {
             }
             None => {}
         }
-        // A refusal's lead is taken as it is heard: the add-variable
-        // form opens on the name an expression read.
-        let mut commits = false;
-        for offer in offered {
-            match offer {
-                crate::recourse::Offer::Lead(lead) => self.drafts.take_lead(lead, &mut self.tools),
-                crate::recourse::Offer::Commit(_) => commits = true,
-                crate::recourse::Offer::Unoffered(_) => {}
-            }
-        }
         // A refusal that offers a save stands it up; a save, fork or
         // replacement that LANDED answers it; any other refusal leaves
-        // the standing one where it is.
-        if commits {
+        // the standing one where it is. Its leads were taken as each
+        // op's refusal was heard.
+        if offered
+            .iter()
+            .any(|offer| matches!(offer, crate::recourse::Offer::Commit(_)))
+        {
             self.standing_save = refusal;
         } else if answered_save_choice {
             self.standing_save = None;
@@ -1896,7 +1896,10 @@ impl ViewerApp {
             });
         match taken {
             Some(crate::widgets::Taken::Op(op)) => ops.push(op),
-            Some(crate::widgets::Taken::Lead(lead)) => self.drafts.take_lead(lead, &mut self.tools),
+            Some(crate::widgets::Taken::Lead(lead)) => {
+                self.drafts
+                    .take_lead(lead, &mut self.tools, self.session.committed_doc());
+            }
             None => {}
         }
         self.checks_shown = open;
@@ -7624,7 +7627,7 @@ mod properties_pane_tests {
 
         // The empty product's recourse: the door, on the drawn copy.
         driven.perform(SessionOp::Select(Selection::None));
-        let recourse = crate::test_support::product_commits(&driven.app.session);
+        let recourse = crate::test_support::product_commits(driven.app.session.current());
         let [
             crate::recourse::Commit {
                 label,
@@ -7643,7 +7646,7 @@ mod properties_pane_tests {
             "the recourse's door adds the copy"
         );
         assert!(
-            crate::test_support::product_commits(&driven.app.session).is_empty(),
+            crate::test_support::product_commits(driven.app.session.current()).is_empty(),
             "a product that gathers names no recourse"
         );
     }
@@ -7668,7 +7671,7 @@ mod properties_pane_tests {
                 && !painted.iter().any(|(run, _)| run == ADD_TO_THE_PRODUCT),
             "the stray copy is in the product, not offered again: {painted:?}"
         );
-        let recourse = crate::test_support::product_commits(&driven.app.session);
+        let recourse = crate::test_support::product_commits(driven.app.session.current());
         let [crate::recourse::Commit { label, .. }] = &recourse[..] else {
             panic!("the fault offers one action: {recourse:?}")
         };
@@ -14421,5 +14424,93 @@ mod index_seam_tests {
             !painted.contains(&NotIndexed::Absent.to_string()),
             "and does not say none is being built"
         );
+    }
+}
+
+/// **A failure's lead, taken**: the form it opens, and what it fills.
+#[cfg(test)]
+mod lead_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    /// **A failure's lead opens its form, filled with what the failure
+    /// determines**: an interference's pair opens the assertion tool on
+    /// a `Gap` bounded from above, seated with the pair as the kernel
+    /// minted it ([`crate::combine::AssertionTool::led`]); a variable to
+    /// create opens the add-variable form on its name, its dimension
+    /// left open. The two blocks overlap 2 mm along `x`.
+    ///
+    /// Red if the tool does not open, holds other seats, or the claim is
+    /// another measure or relation; or if the form opens elsewhere.
+    #[test]
+    fn a_lead_opens_its_form_filled_with_what_the_failure_determines() {
+        use crate::combine::{AssertionMeasure, AssertionTool, BoundChoice};
+        use crate::recourse::{Failure, Lead, Offer, Ran, offers};
+        use crate::test_support::{CLEARANCE_SIDE as SIDE, inserted, len, placed, rectangle};
+        use pncad::document::{Doc, Node, ProfileProgram};
+        use pncad::geom_core::Tol;
+
+        let tol = Tol::witness();
+        let mut doc = Doc::<ProfileProgram>::empty_derived("two-blocks-overlapping", tol);
+        for x in [0.0, SIDE - 0.002] {
+            let (with, profile) = inserted(&doc, rectangle([x, 0.0], SIDE, SIDE), tol);
+            let (with, block) = inserted(
+                &with,
+                Node::Extrude {
+                    profile: profile.into(),
+                    distance: len(0.01),
+                },
+                tol,
+            );
+            doc = placed(&with, block, tol).0;
+        }
+        let mut session = crate::session::DocSession::inline(doc, tol);
+        session.pump();
+        let current = session.current().expect("landed");
+        let leads: Vec<Lead> = current
+            .checks()
+            .expect("checked")
+            .findings
+            .iter()
+            .flat_map(|finding| offers(Failure::Run(current, Ran::Finding(finding))))
+            .filter_map(|offer| match offer {
+                Offer::Lead(lead) => Some(lead),
+                Offer::Commit(_) | Offer::Unoffered(_) => None,
+            })
+            .collect();
+        let [lead @ Lead::AssertGap { pair, .. }] = &leads[..] else {
+            panic!("the overlap leads to its Gap: {leads:?}")
+        };
+
+        let (mut drafts, mut tools) =
+            (crate::drafts::Drafts::default(), crate::tools::Tools::new());
+        drafts.take_lead(lead.clone(), &mut tools, session.committed_doc());
+        assert_eq!(
+            tools.assertion(),
+            Some(&AssertionTool::led(pair)),
+            "the assertion tool opens on the pair"
+        );
+        assert_eq!(
+            (drafts.assertion_measure, drafts.assertion_bound),
+            (AssertionMeasure::Gap, BoundChoice::AtMost),
+            "a Gap bounded from above, its value the person's"
+        );
+
+        let name = pncad::document::VarName::from_static("margin");
+        drafts.take_lead(
+            Lead::CreateVariable { name: name.clone() },
+            &mut tools,
+            session.committed_doc(),
+        );
+        assert!(drafts.new_variable_open, "the add-variable form opens");
+        assert_eq!(
+            (
+                drafts.new_variable_name.as_str(),
+                drafts.new_variable_dimension
+            ),
+            ("margin", None),
+            "on the name, its dimension left open"
+        );
+        assert_eq!(drafts.new_variable_offer, Some(name));
     }
 }

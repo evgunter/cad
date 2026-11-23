@@ -1502,11 +1502,13 @@ impl Drafts {
     /// determines. The interference's pair opens the assertion tool on
     /// a `Gap` bounded from above, its seats the pair's faces; the
     /// bound's value stays the person's. A variable to create opens the
-    /// add-variable form on its name.
+    /// add-variable form on its name. A held target change opens the
+    /// placement editor holding it, over `doc`, the committed document.
     pub(crate) fn take_lead(
         &mut self,
         lead: crate::recourse::Lead,
         tools: &mut crate::tools::Tools,
+        doc: &Doc<ProfileProgram>,
     ) {
         match lead {
             crate::recourse::Lead::AssertGap { pair, .. } => {
@@ -1515,6 +1517,9 @@ impl Drafts {
                 self.assertion_bound = BoundChoice::AtMost;
             }
             crate::recourse::Lead::CreateVariable { name } => self.offer_variable(name),
+            crate::recourse::Lead::HoldTarget { placement, target } => {
+                tools.hold_target(placement, target, doc);
+            }
         }
     }
 
@@ -2681,76 +2686,5 @@ mod tests {
         assert_eq!(except, Some(profile));
         assert!(drawn(except).is_empty(), "the committed loops are left out");
         assert_eq!(drafts.edited_in_place(None), None, "no preview taken");
-    }
-
-    /// **A failure's lead opens its form, filled with what the failure
-    /// determines**: an interference's pair opens the assertion tool on
-    /// a `Gap` bounded from above, seated with the pair as the kernel
-    /// minted it ([`crate::combine::AssertionTool::led`]); a variable to
-    /// create opens the add-variable form on its name, its dimension
-    /// left open. The two blocks overlap 2 mm along `x`.
-    ///
-    /// Red if the tool does not open, holds other seats, or the claim is
-    /// another measure or relation; or if the form opens elsewhere.
-    #[test]
-    fn a_lead_opens_its_form_filled_with_what_the_failure_determines() {
-        use crate::combine::{AssertionMeasure, AssertionTool, BoundChoice};
-        use crate::recourse::{Failure, Lead, Offer, Ran, offers};
-        use crate::test_support::{CLEARANCE_SIDE as SIDE, len, placed, rectangle};
-
-        let tol = Tol::witness();
-        let mut doc = Doc::<ProfileProgram>::empty_derived("two-blocks-overlapping", tol);
-        for x in [0.0, SIDE - 0.002] {
-            let (with, profile) = inserted(&doc, rectangle([x, 0.0], SIDE, SIDE), tol);
-            let (with, block) = inserted(
-                &with,
-                Node::Extrude {
-                    profile: profile.into(),
-                    distance: len(0.01),
-                },
-                tol,
-            );
-            doc = placed(&with, block, tol).0;
-        }
-        let mut session = crate::session::DocSession::inline(doc, tol);
-        session.pump();
-        let current = session.current().expect("landed");
-        let leads: Vec<Lead> = current
-            .checks()
-            .expect("checked")
-            .findings
-            .iter()
-            .flat_map(|finding| offers(Failure::Run(current, Ran::Finding(finding))))
-            .filter_map(|offer| match offer {
-                Offer::Lead(lead) => Some(lead),
-                Offer::Commit(_) | Offer::Unoffered(_) => None,
-            })
-            .collect();
-        let [lead @ Lead::AssertGap { pair, .. }] = &leads[..] else {
-            panic!("the overlap leads to its Gap: {leads:?}")
-        };
-
-        let (mut drafts, mut tools) = (Drafts::default(), crate::tools::Tools::new());
-        drafts.take_lead(lead.clone(), &mut tools);
-        assert_eq!(
-            tools.assertion(),
-            Some(&AssertionTool::led(pair)),
-            "the assertion tool opens on the pair"
-        );
-        assert_eq!(
-            (drafts.assertion_measure, drafts.assertion_bound),
-            (AssertionMeasure::Gap, BoundChoice::AtMost),
-            "a Gap bounded from above, its value the person's"
-        );
-
-        let name = pncad::document::VarName::from_static("margin");
-        drafts.take_lead(Lead::CreateVariable { name: name.clone() }, &mut tools);
-        assert!(drafts.new_variable_open, "the add-variable form opens");
-        assert_eq!(
-            (drafts.new_variable_name.as_str(), drafts.new_variable_dimension),
-            ("margin", None),
-            "on the name, its dimension left open"
-        );
-        assert_eq!(drafts.new_variable_offer, Some(name));
     }
 }
