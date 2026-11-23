@@ -72,11 +72,14 @@
 //!
 //! # The expression-driven refusal
 //!
-//! Setting a number into a slot that is DRIVEN — by a document
-//! variable or by arithmetic — is refused, with an affordance
-//! (the ratified micro-decision). [`SlotDriver`] is how a slot says
-//! which it is, using only public expression API: a bare literal is a
-//! leaf with no variable references, and anything else is driven.
+//! Dragging a slot that is DRIVEN — by a document variable or by
+//! arithmetic — is refused, with an affordance (G4's micro-decision,
+//! which names a drag); a range probe of one is refused the same way.
+//! A number TYPED there is not refused: it replaces the expression, as
+//! the same number typed with its unit as text does. [`SlotDriver`] is
+//! how a slot says which it is, using only public expression API: a
+//! bare literal is a leaf with no variable references, and anything
+//! else is driven.
 //!
 //! **What the affordance offers, measured against this substrate.**
 //! The typed expression API has a text door in BOTH directions —
@@ -552,9 +555,10 @@ pub fn authored_in(unit: Option<UnitDef>, written: f64) -> f64 {
 pub enum SlotDriver {
     /// A bare literal: editable in place.
     Literal,
-    /// An expression. Direct numeric editing is refused; `variables` are
-    /// the document variables it references, in first-seen order and
-    /// deduplicated — the affordance's navigation targets.
+    /// An expression. A drag is refused, and a typed number replaces
+    /// it; `variables` are the document variables it references, in
+    /// first-seen order and deduplicated — the affordance's navigation
+    /// targets.
     Expression {
         /// The variables this expression reads, first-read order, each
         /// as the document speaks it.
@@ -568,8 +572,8 @@ impl SlotDriver {
     /// A bare literal is a LEAF (no child at index 0) that references
     /// no variable. Everything else — a variable reference, or any
     /// arithmetic, however constant — is driven, which is the
-    /// conservative direction: refusing to overwrite a computed slot
-    /// is recoverable, silently flattening one to a number is not.
+    /// conservative direction: a drag that leaves a computed slot alone
+    /// is recoverable, one that silently flattens it to a number is not.
     pub fn of(doc: &Doc<ProfileProgram>, expr: &Formula) -> Self {
         let mut refs = Vec::new();
         expr.var_reads(&mut refs);
@@ -587,7 +591,8 @@ impl SlotDriver {
         }
     }
 
-    /// Whether this slot refuses a direct numeric edit.
+    /// Whether an expression drives this slot, so a drag over it is
+    /// refused.
     pub fn is_driven(&self) -> bool {
         matches!(self, Self::Expression { .. })
     }
@@ -1267,8 +1272,8 @@ pub fn field_edit(text: &str) -> FieldEdit {
 /// SOURCE rather than a number (a slot driven by an expression, a slot
 /// whose value did not evaluate) echoes that source, and the same
 /// comparison answers for it; a number typed over it is no echo of
-/// anything and takes its door, which is what makes a driven slot's
-/// refusal reachable.
+/// anything and takes its door, which is what lets a number replace a
+/// driven slot's expression.
 ///
 /// Whitespace is not part of what a field says: the parser trims
 /// before reading ([`field_edit`]), so this does too.
@@ -1478,10 +1483,12 @@ pub fn slot_edit(
 /// edit rather than applying it keeps this a pure function of the
 /// request, which is what lets a test assert on the emitted edit.
 ///
-/// `unit` is the display unit the new variable REMEMBERS. Callers pass
-/// the slot's existing one (`SlotRow::unit`), which is what makes an
-/// edit to the number leave the way it is written alone; the door that
-/// changes the unit is `SessionOp::SetSlotUnit`. A `Count` slot has no
+/// `unit` is the display unit the new variable REMEMBERS. A typed
+/// number's caller passes the unit its field showed it in (the slot's
+/// own, else the working notation's, [`rendering_unit`]) and a gesture
+/// the slot's own, which is what makes an edit to the number leave the
+/// way it is written alone; the door that changes the unit is
+/// `SessionOp::SetSlotUnit`. A `Count` slot has no
 /// unit to carry and the argument is ignored for it, which is not a
 /// silent drop: `Dimension::Count` has no row in the unit table at all,
 /// so there is nothing a caller could legitimately have passed.
@@ -1500,14 +1507,33 @@ pub fn slot_typed_edit(
     value: SlotValue,
     unit: Option<UnitDef>,
 ) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
-    let expr = match (value, unit) {
+    Ok(slot_formula_edit(
+        node,
+        slot,
+        typed_formula(slot, value, unit)?,
+    ))
+}
+
+/// **The literal a number typed at `slot` writes**, remembering `unit`
+/// — what [`slot_typed_edit`] puts in a slot the document holds and a
+/// profile editor's held field puts in its draft, so a typed number
+/// means one formula at both.
+///
+/// # Errors
+///
+/// [`slot_typed_edit`]'s.
+pub fn typed_formula(
+    slot: SlotId,
+    value: SlotValue,
+    unit: Option<UnitDef>,
+) -> Result<Formula, pncad::document::DimensionError> {
+    Ok(match (value, unit) {
         (SlotValue::Count(count), _) => Formula::count(count),
         (SlotValue::Continuous(v), None) => Formula::literal(v, slot.expr_dimension())?,
         (SlotValue::Continuous(v), Some(unit)) => {
             Formula::literal_with_unit(v, slot.expr_dimension(), unit)?
         }
-    };
-    Ok(slot_formula_edit(node, slot, expr))
+    })
 }
 
 /// **The edit that makes `slot` on `node` read `var`** — the slot-write
@@ -1975,8 +2001,8 @@ pub fn slot_literal(
         })?;
     // A display unit belongs to a LITERAL. An expression's value is
     // computed, so there is no authored notation to change — refused
-    // rather than silently flattened to the computed number, which is
-    // the same direction `SlotDriver` refuses a numeric edit in.
+    // rather than silently flattened to the computed number, the same
+    // direction `SlotDriver` refuses a drag in.
     expr.literal_value()
         .ok_or_else(|| SlotUnitFault::NotALiteral {
             node: doc.spoken(node),
