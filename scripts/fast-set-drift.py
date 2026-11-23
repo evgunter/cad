@@ -23,12 +23,14 @@ slow set.
 
 WHAT IT READS. Each PR run's default-eps step uploads its parallel junit
 report. The readings of a test are its passing times in those reports, and
-its median over the window is a screen, not its cost: U10 measured the
-gate's median reading at about RATIO (1.73) times the time alone, so a test
-whose median is at least BAR * RATIO * MARGIN, over at least MIN_READINGS
-readings, is a candidate. MARGIN covers a test whose own ratio is under the
-typical one. A candidate the `ci` profile no longer runs (moved to the slow
-set, renamed, removed since) is listed and not timed.
+its median over the window is a screen, not its cost: a test whose median is
+at least SCREEN, over at least MIN_READINGS readings, is a candidate. U10
+measured the gate's median at about 1.73 times the time alone, but that is
+the kernel shard's typical ratio: the first drift run read the app shard's
+at 1.12 to 1.5, so a screen above BAR would miss tests there. A contended
+reading is no faster than the same test alone, so SCREEN is BAR itself. A
+candidate the `ci` profile no longer runs (moved to the slow set, renamed,
+removed since) is listed and not timed.
 
 WHAT FAILS IT. A candidate re-timed alone (fast_set_alone.py: RUNS passes,
 the fastest) at BAR or more. Each is named with the slow-set line to add,
@@ -56,9 +58,7 @@ from pathlib import Path
 import fast_set_alone as alone
 
 BAR = 0.25
-RATIO = 1.73
-MARGIN = 0.75
-SCREEN = BAR * RATIO * MARGIN
+SCREEN = BAR
 MIN_READINGS = 3
 HOURS = 24
 ANNOTATED = 3
@@ -207,7 +207,7 @@ def judge(
     timed = [p for p in cands if p in runs_now]
     print(
         f"fast-set drift [{shard}]: {len(cands)} tests with {least}+ readings and a median "
-        f"of {SCREEN:.3f} s or more ({BAR} s x {RATIO} x {MARGIN}); {len(gone)} no longer in the "
+        f"of {SCREEN:.3f} s or more; {len(gone)} no longer in the "
         f"fast set; re-running {len(timed)} alone x{alone.RUNS}"
     )
     for b, n in gone:
@@ -270,7 +270,7 @@ def selftest() -> int:
         ("sweep::all", "a::always"): rs(0.8, 0.85, 0.9),
         ("sweep::all", "a::cheap_alone"): rs(0.5, 0.5, 0.5),
         ("sweep::all", "a::few_readings"): rs(2.0, 2.0),
-        ("topo", "b::under_screen"): rs(0.3, 0.31, 0.3),
+        ("topo", "b::under_screen"): rs(0.2, 0.24, 0.2),
         ("topo", "b::moved"): rs(1.0, 1.0, 1.0),
     }
     assert candidates(by) == sorted(
