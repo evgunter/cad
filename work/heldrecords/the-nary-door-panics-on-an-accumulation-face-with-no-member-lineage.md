@@ -7,6 +7,8 @@ opened: 2026-11-23
 priority: P0
 cost: M
 closed: 2026-11-23
+branch: heldrecords/nary-lineage
+pr: 7516
 ---
 
 
