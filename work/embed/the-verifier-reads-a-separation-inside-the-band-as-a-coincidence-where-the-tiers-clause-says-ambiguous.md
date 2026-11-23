@@ -103,7 +103,10 @@ Band raised to P1 because the gate's landing meets it.
 
 ## The witness body moved, 2026-11-22 (EMBED, lane strip)
 
-On PR 7334's fix pass, the ∩ of
+Two readings at two heads of `embed/strip` (PR 7334), through the gate:
+`Crosses` at `5953a2a38` (the first head), at a station pair 4.78e-10
+apart; `Embedded` at `a54717c96` (the end reading, the strip arm
+removed). On PR 7334's fix pass, the ∩ of
 `contact9_side_codes::a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`
 reads `Embedded` through the gate (`embed/strip-measure`). Its two faces
 share a 1 mm edge and part at 5e-8 rad. Its `Crosses` came from the

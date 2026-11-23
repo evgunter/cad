@@ -3249,7 +3249,10 @@ fn rectangle(w: f64, h: f64) -> Vec<(f64, f64)> {
 /// turned a hundred units out; extruded the other way; mirrored in its
 /// sketch's `x`; turned by 0.3 and by 0.785 in its sketch plane, so its
 /// thin faces' sides lie off their charts' axes; and at half the session
-/// box's extent and two units inside its wall.
+/// box's extent and two units inside its wall. A face turned in its own
+/// chart is pinned by `injective`'s
+/// `a_strip_end_turned_in_its_chart_presents_its_short_side`; the turns
+/// here read it through whole bodies.
 const POSES: [&str; 9] = [
     "plain",
     "turned",
