@@ -211,13 +211,10 @@ fn the_line_arm_has_no_cut_to_widen_at() {
 #[test]
 fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
     let (carrier64, carrier) = pair();
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        ..
-    }) = carrier
-    else {
+    let Curve3::Circle(the_circle @ geom::Circle { .. }) = carrier else {
         panic!("a circle fixture")
     };
+    let carrier_frame = the_circle.frame();
     let (center, axis, u_ref) = (
         carrier_frame.origin(),
         carrier_frame.axis(),

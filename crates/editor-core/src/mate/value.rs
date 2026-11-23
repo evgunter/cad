@@ -452,11 +452,6 @@ impl<T: SolveScalar> Chart<T> {
             .signed_permutation(orient.signed_permutation())
             .unwrap_or_else(|| unreachable!("an orientation is a permutation of the axes"));
         let n = from.get();
-        // The least turn, whose mint takes a pair that is one direction
-        // exactly to the identity, exactly, at every scalar.
-        // The mint's own identity predicate: its identity's axes are the
-        // target's own exactly, so no unit-norm check is spent on them.
-        let identity = from.is_exactly(d);
         let turn = {
             // The pole verdict and the conditioning, over the lever: the
             // one decided least-turn mint (`[placement.values]`); or, as a
@@ -479,8 +474,13 @@ impl<T: SolveScalar> Chart<T> {
                 geom_core::TurnError::NonFinite(_) => degenerate(),
                 _ => ChartRefusal::Pole,
             })?;
-            // The identity's axes are the target's own, exactly: nothing
-            // to normalize, so no check is spent on them.
+            // A pair one direction at every point the scalar stands for
+            // turns by the identity's own axes, exactly: nothing to
+            // normalize, so no check is spent on them.
+            let (f, t) = (from.get(), d.get());
+            let identity = [f.x - t.x, f.y - t.y, f.z - t.z]
+                .into_iter()
+                .all(SolveScalar::zero_everywhere);
             if identity || T::spins_by_frames() {
                 least
             } else {

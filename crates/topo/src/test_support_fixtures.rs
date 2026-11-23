@@ -2239,13 +2239,7 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     off: Vec3<T>,
     tol: Tol,
 ) -> (Body<T>, FaceKey) {
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame,
-            ..
-        },
-    ) = carrier
-    else {
+    let Curve3::Circle(conic_k) = carrier else {
         unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
     };
     let radius = conic_k.radius();
@@ -2253,10 +2247,10 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
     let seed = body.mvfs(p0, true).unwrap();
     let plane = body.add_surface(Surface::Plane {
-        frame: carrier_frame,
+        frame: conic_k.frame(),
     });
     let wall = body.add_surface(Surface::Cylinder {
-        frame: carrier_frame,
+        frame: conic_k.frame(),
         radius,
     });
     let arc = body
@@ -2633,7 +2627,8 @@ mod tests {
             .edges()
             .filter_map(
                 |(_, e)| match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                    Curve3::Circle(geom::Circle { frame, .. }) => {
+                    Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                        let frame = the_circle.frame();
                         let axis = frame.axis();
                         Some(axis.to_array())
                     }

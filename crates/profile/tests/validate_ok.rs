@@ -23,7 +23,7 @@ fn kinds(vp: &ValidatedProfile<f64>, li: usize) -> Vec<char> {
         .segments()
         .iter()
         .map(|s| match s.kind {
-            SegmentKind::Line => 'L',
+            SegmentKind::Line { .. } => 'L',
             SegmentKind::Arc {
                 turn: Sign::Positive,
                 ..
@@ -95,7 +95,7 @@ fn circle_as_two_arcs_is_the_minimal_closed_carrier() {
                 assert!((radius - 2.0).abs() < 1e-12);
                 assert_eq!(turn, Sign::Positive);
             }
-            SegmentKind::Line => panic!("circle segments must classify as arcs"),
+            SegmentKind::Line { .. } => panic!("circle segments must classify as arcs"),
         }
     }
 }
@@ -158,7 +158,7 @@ fn rounded_rectangle_alternates_lines_and_ccw_arcs() {
             assert!((centre.y - 0.5).abs() < 1e-12);
             assert!((radius - 0.5).abs() < 1e-12);
         }
-        SegmentKind::Line => panic!("corner must classify as an arc"),
+        SegmentKind::Line { .. } => panic!("corner must classify as an arc"),
     }
 }
 

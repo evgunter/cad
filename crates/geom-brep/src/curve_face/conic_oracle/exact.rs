@@ -305,8 +305,8 @@ pub struct Truth {
 #[allow(clippy::panic)]
 pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth {
     let (carrier_frame, (a, b)) = match *carrier {
-        geom::Curve3::Circle(circle) => (circle.frame, (circle.radius(), circle.radius())),
-        geom::Curve3::Ellipse(ellipse) => (ellipse.frame, (ellipse.semi_u(), ellipse.semi_v())),
+        geom::Curve3::Circle(circle) => (circle.frame(), (circle.radius(), circle.radius())),
+        geom::Curve3::Ellipse(ellipse) => (ellipse.frame(), (ellipse.semi_u(), ellipse.semi_v())),
         _ => panic!("the exact oracle reads circles and ellipses"),
     };
     let (anchor, form) = match *surface {
@@ -349,7 +349,26 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
     let [u, v, _] = polar(&carrier_frame);
     let big_a = scaled(u, Dd::of(a));
     let big_b = scaled(v, Dd::of(b));
-    let w = offset(carrier_frame.origin(), anchor);
+    // An ellipse held on its arc is its anchor less
+    // `A·cos θ₀ + B·sin θ₀`, exactly: the centre its frame holds is that
+    // difference rounded.
+    use geom::{CurveDatum, DatumValue};
+    let stored = match carrier.data().named(CurveDatum::Anchor) {
+        Some(DatumValue::Point(p)) => Some(p),
+        _ => None,
+    };
+    let w = match stored {
+        None => offset(carrier_frame.origin(), anchor),
+        Some(stored) => {
+            let from = offset(stored, anchor);
+            let (c0, s0) = match carrier.data().named(CurveDatum::Phase) {
+                Some(DatumValue::Direction(d)) => (d.x, d.y),
+                _ => panic!("an anchor is stored with its phase"),
+            };
+            let (back_a, back_b) = (scaled(big_a, Dd::of(c0)), scaled(big_b, Dd::of(s0)));
+            core::array::from_fn(|i| from[i].sub(back_a[i]).sub(back_b[i]))
+        }
+    };
     let one_plus = vec![Dd::of(1.0), Dd::ZERO, Dd::of(1.0)];
     // `q̃(t)` about the anchor `φ₀ = k·π/2`: the quarter turns carry
     // `(A, B)` to `(B, −A)`, exactly.

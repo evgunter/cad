@@ -1402,19 +1402,13 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             continue;
         };
         let (t0, t1) = curve.params();
-        let geom::Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_28,
-                ..
-            },
-        ) = *curve.carrier()
-        else {
+        let geom::Curve3::Circle(conic_k) = *curve.carrier() else {
             return Ok(None);
         };
         let (c_c, n_c, u_c) = (
-            carrier_frame_28.origin(),
-            carrier_frame_28.axis(),
-            carrier_frame_28.u_ref(),
+            conic_k.frame().origin(),
+            conic_k.frame().axis(),
+            conic_k.frame().u_ref(),
         );
         let r_c = conic_k.radius();
         let w = c_c - center;
@@ -3112,8 +3106,8 @@ fn wall_crosses_by_turn<T: Decide>(
                 geom_brep::ruling_miss(&start, (T::zero(), t1 - t0), geom_brep::Ruling::Axis(axis))
                     .value()
             }
-            geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                let (center, normal) = (frame.origin(), frame.axis());
+            geom::Curve3::Circle(circle) => {
+                let (center, normal) = (circle.frame().origin(), circle.frame().axis());
                 let r = circle.radius();
                 r.abs() * normal.normalize().cross(axis).norm()
                     + geom::Line { origin, dir: axis }.distance(center)

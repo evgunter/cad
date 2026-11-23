@@ -68,3 +68,15 @@ Reproduce (each reports the pin; the row itself is `<name>_row`):
 
 Each body finishes at 1e-12, its margin decided rather than the band
 loosened, and each pin comes out with its row green at every ε.
+
+## Another row on the same predicate (2026-11-22)
+
+`sweep::all a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta`
+is red at ε = 1e-12 on main (`d3d6534c3`, reproduced locally) on
+`props_chart_junction_closed`, check `Inventory`, margin
+2.8154559647670245e-12, `VolumeUncomputable` on the union. It is not
+named above. Its own row, with the payload, is
+`work/tesslie/main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12.md`;
+whether it is this row's junction reading or another cause is not
+established. (ONEROUND's `oneround/anchored-conic` lane, PR 7203, whose
+hosted run met it.)

@@ -286,19 +286,13 @@ fn cylinder_chart_pcurve_reads_the_carriers_chart_coordinates() {
 /// Builds the exact rational-quadratic NURBS 3-D form of an ellipse
 /// arc (Book §7.3, ≤ 90° segments) — the TEST oracle only.
 fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64> {
-    let Curve3::Ellipse(
-        conic_k @ geom::Ellipse {
-            frame: carrier_frame_14,
-            ..
-        },
-    ) = *e
-    else {
+    let Curve3::Ellipse(conic_k) = *e else {
         panic!("oracle needs an ellipse");
     };
     let (center, axis, u_ref) = (
-        carrier_frame_14.origin(),
-        carrier_frame_14.axis(),
-        carrier_frame_14.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let v_ref = axis.cross(u_ref);

@@ -119,3 +119,81 @@ tells this from the next most likely cause, the pairs having certified
 shallower by another separator.
 
 Any of the three changes above is what it needs.
+
+## A third sighting: a support plane against its corner patch across their arc (EMBED, lane `embed/tangent-corner`, PR 7320, 2026-11-23)
+
+`sweep::all self_intersection_proves_injectivity::a_support_face_c1_through_a_vertex_at_interval`:
+the rounded plate (`2 × 1.2 × 0.5`, corner radius `0.3`, every edge
+filleted at `0.1`) built at `Interval`, a cap plane and a corner
+patch (torus) asked alone through `topo::clearance::embedded`. On the
+landing tree (`embed/wave3-land` with PR 7329 in) the pair reads
+`Uncertified`, arm `Departure`, plane × torus across an edge, at the
+default ε and at `1e-6`. On the lane's head before that merge
+(`560e75596`) it held.
+
+- **Where it refuses** (a print in `sign_on`'s departure, taken on the
+  merged tree and removed): at mid-arc cells, not at the joint. The
+  plane is presented with the arc as a `Zero::Curve` with no run, the
+  torus with it as a `Zero::Side`, both under the graph separator, and
+  the sine of departure straddles zero on both down to the depth
+  floor: `(-1.8e-6, 2.2e-6)`, `(-7.1e-8, 2.8e-8)` on the plane,
+  `(-6.8e-8, 8.6e-9)` on the torus; where one is definite it is
+  `8e-8 .. 2e-7`. 1,256 of the plane's 1,313 such decisions and 1,697
+  of the torus's 2,406 answer nothing.
+- **The joint is read**: of the 72 decisions on a run through the
+  arc's end vertex, 66 decide; the 6 that do not are coarse cells.
+- **The sliver, counted on the head before the merge**: the same row
+  on `560e75596` with a print at `present_chart`'s sliver `Zero`:
+  170 sliver decisions in the row's run, 20 on each of four faces and
+  11 on each of four more of the plate's band, and the row passes.
+  With the sliver retired the row refuses. That is the count the
+  second witness above did not have; it was not broken down by pair.
+- **At `f64` the same bodies hold**
+  (`a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints`,
+  six `Embedded`).
+- **Why no one saw it**: without the run through a vertex the pair
+  refused earlier, at the joint, so its mid-arc cells were never
+  reached at `Interval`.
+
+Census tests that now get past `f64` and stop at this exit with the
+at-rest gate asking (measured on `75224e843`):
+`a_lattice_drawn_rounded_plate_fillets_whole`,
+`an_l_plates_rounded_corner_run_fillets_whole_at_interval`,
+`two_arcs_in_one_run_build`.
+
+## A second body: the three-arc disc's rim band (EMBED collinear-cover lane, 2026-11-23)
+
+`crates/sweep/tests/self_intersection_proves_injectivity.rs`
+`a_three_arc_discs_filleted_rim_holds_across_its_joints`: the disc of
+radius `0.5` whose circle is three arcs, its top rim filleted at `0.1`.
+At `f64` it holds in four poses. At `Interval`, on the landing tree
+(`5764e4b84` merged), every pose refuses at the top plane `1v1` against
+the band `9v1` across their circle `18v1`:
+`Uncertified { .., Departure }` as built (discharged 26,705, splits
+38,542), turned one radian about a generic axis (48,312 / 64,888) and
+a hundred units off (29,452 / 38,929);
+`Budget { Pairs { 65536 }, a: 1v1, b: 9v1 }` mirrored across a generic
+plane. The row pins the body as built at that refusal, by the owner's
+word on PR 7320
+(https://github.com/evgunter/cad/pull/7320#issuecomment-7093255162).
+
+**The probe that puts it on this row and not on
+`a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth`.**
+On `c76b74b2c` alone (the sliver still read) the same body holds at
+`Interval`, and a print at each sliver `Zero` and at `graph`'s `None`
+shows how: the band `9v1` is closed by the sliver 458 times, 237 at the
+top circle and 221 at the foot parallel on the wall, while the plane
+`1v1` ALREADY fails to read its graph there (`graph_read` is `None`
+7,039 times on `1v1`). So the plane's cell was never presented on
+either tree; the pair was certified by the band's side reading
+`Vacuous` through the sliver, and with the sliver gone nothing closes
+it. On the landing tree the depth stop is at plane cell
+`u ∈ (−0.396875, −0.395313)`, `v ∈ (−0.052344, −0.051563)` (the
+circle at about 187°, no joint near: the joints are at 0°, 120°, 240°)
+against band cell `u ∈ (1.17503, 1.17810)`, `v ∈ (π/2, 1.57693)`;
+`graph` exits 2,837 times in the run, and none of the cover's readers
+(`vacuous`, the clip merge, `sides_are_the_faces`) refuses.
+
+The foot parallel, the band against the wall, is tangent too and was
+closed by the same sliver (221 closures); the top circle refuses first,
+so what the wall's seam reads without it is not measured.

@@ -105,7 +105,7 @@ fn each_seam_strut_joins_its_canonical_vertexs_two_world_points() {
     let want = expected_struts();
     assert_eq!(lofted.seam_edges.len(), 1, "one loop");
     assert_eq!(lofted.seam_edges[0].len(), want.len(), "one strut a vertex");
-    for (j, &e) in lofted.seam_edges[0].iter().flatten().enumerate() {
+    for (j, &e) in lofted.seam_edges[0].iter().flatten().flatten().enumerate() {
         let mut got = edge_points(&lofted.body, e).map(bits);
         got.sort_unstable();
         assert_eq!(got, want[j], "strut {j}");
@@ -294,7 +294,7 @@ mod interval {
         .expect("the loft builds");
         let want = expected_struts();
         assert_eq!(lofted.seam_edges[0].len(), want.len());
-        for (j, &e) in lofted.seam_edges[0].iter().flatten().enumerate() {
+        for (j, &e) in lofted.seam_edges[0].iter().flatten().flatten().enumerate() {
             let mut got = edge_points(&lofted.body, e).map(bits);
             got.sort_unstable();
             assert_eq!(got, want[j], "strut {j} at Interval");

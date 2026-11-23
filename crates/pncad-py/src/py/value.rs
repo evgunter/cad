@@ -2356,7 +2356,8 @@ impl StructureNormalization {
     /// how far the snap moved a point of the surface's faces on `snapped`,
     /// how far the build moved a vertex from its printed point on
     /// `vertex_built`, how far the printed carrier stands off the built one
-    /// on `carrier_built`.
+    /// on `carrier_built`, how far a control point of the side moved on
+    /// `collapsed_side_made_one`.
     #[getter]
     fn moved_by(&self) -> Option<f64> {
         match &self.0.kind {
@@ -2364,7 +2365,10 @@ impl StructureNormalization {
             | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. }
             | pncad::step_import::NormalizationKind::Snapped { moved_by, .. }
             | pncad::step_import::NormalizationKind::VertexBuilt { moved_by }
-            | pncad::step_import::NormalizationKind::CarrierBuilt { moved_by } => Some(*moved_by),
+            | pncad::step_import::NormalizationKind::CarrierBuilt { moved_by }
+            | pncad::step_import::NormalizationKind::CollapsedSideMadeOne { moved_by } => {
+                Some(*moved_by)
+            }
             _ => None,
         }
     }

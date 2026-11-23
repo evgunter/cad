@@ -772,9 +772,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        200,
-        98,
-        "the 98 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        208,
+        95,
+        "the 95 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), \
          `present_chart` (22), the pose's four (17, below), \
          `present_plane` (14), `present_plane_corner` (7), `present_vertex_corner` (12), \
@@ -803,7 +803,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          against its extent, a line it takes only where its value `is_certified()` and places \
          by whole turns, which keeps it certified. `ends_on_collapse` reads \
          an edge's held coordinate (1) and its image's end (2) behind its own `is_certified()` \
-         ask, to hand them to the incidence decision. Of the other 102, \
+         ask, to hand them to the incidence decision. Of the other 109, \
          `reaching_its_singular_points`' 4 \
          read the ends of a singular latitude, a sphere pole's `±π/2` or a cone apex's `0`, to \
          compare the stored extent with it and move the extent to it: the constant's own \
@@ -814,8 +814,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `present_wall`'s wall curve's parameter enclosure stored as its `Params` (2), the \
          same parameters its curve already carries, the read behind \
          `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
-         `leaves_graph`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
-         the placement asks, are sound. The rest read the window's carrier and the face's boundary, which \
+         `leaving`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
+         the placement asks, are sound. `joints`' 4 are the hull of a joint's two readings, \
+         behind `forward`'s ask in `line_ends`. The run through a corner's vertex reads 7 more, none \
+         asking, each a refusal when not met: `line_onward` (3) the other edge's far \
+         coordinate against the columns' far end, one-sided so a bracket that holds nothing \
+         refuses, and its share of the columns, taken at its upper end and refused unless \
+         finite; `graph_read` (2) the hull of the other edge's reach into \
+         `R`, refused unless bounded; `graph_of` (2) the run's vertex's parameter, the span's \
+         end, which a piece `edge_piece` returns finite is then compared against, a piece \
+         past it or no number answering nothing. The rest read the window's carrier and the face's boundary, which \
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
          presentations' speed bounds also read an enclosure computed from them that may clamp, \
