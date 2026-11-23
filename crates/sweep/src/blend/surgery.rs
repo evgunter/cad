@@ -206,6 +206,7 @@
 //! [`SourceFaces::kef_minted`], the one face-destroying door of this
 //! file and of the two open bands under `open/`.
 
+use geom_core::UnitVec3;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use topo::construction::Construct;
@@ -804,7 +805,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     };
 
     // ---- Mutation, on a clone. From here on every step is an Euler
-    // operator or a certified setter; refusals map to Op/Certify. ----
+    // operator or a certified setter; refusals map to Op/PcurveMint. ----
     // **The one snapshot.** Every face the surgery may NOT kill is a
     // face of the body it was handed, so the set is read once, here,
     // before the clone — not re-assembled per phase from whatever that
@@ -972,10 +973,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;
     }
-    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::Certify {
-        site: "pcurve re-mint after surgery",
-        source,
-    })?;
+    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::PcurveMint { source })?;
 
     body.close_already_checked();
     let mut body = blended;
@@ -2591,8 +2589,8 @@ pub(super) fn piece_along<T: Decide + Bounds>(
     match *carrier {
         Curve3::Line(geom::Line { origin, dir }) => {
             let (la, lb) = (
-                (origin + dir * ta - c).dot(u),
-                (origin + dir * tb - c).dot(u),
+                (origin + dir.get() * ta - c).dot(u),
+                (origin + dir.get() * tb - c).dot(u),
             );
             Some((la.min(lb), la.max(lb)))
         }
@@ -3211,7 +3209,7 @@ fn strip_clearance<T: Decide + Bounds>(
         let t = point_of(body, chord.to)
             .ok_or_else(|| unresolved(EntityId::Vertex(chord.to), "a station's point"))?;
         let [x, y] = chord.feet;
-        let d = (t - o).normalize();
+        let d = UnitVec3::squared(t - o);
         let m = geom::Line { origin: o, dir: d }.offset(x).normalize();
         let corners = [o, t, x, y];
         let along = |u: Vec3<T>| {
@@ -3220,7 +3218,7 @@ fn strip_clearance<T: Decide + Bounds>(
                 .map(|p| (*p - o).dot(u))
                 .fold(T::zero(), |acc: T, h| acc.min(h))
         };
-        let (low_d, high_d) = (along(d), -along(-d));
+        let (low_d, high_d) = (along(d.get()), -along(-d.get()));
         let across = -along(-m);
         for &edge in &boundary {
             if opens.iter().any(|op| op.edge() == edge)
@@ -3248,7 +3246,7 @@ fn strip_clearance<T: Decide + Bounds>(
                 )
             };
             let (lo_m, hi_m) = reach(m).ok_or_else(unread)?;
-            let (lo_d, hi_d) = reach(d).ok_or_else(unread)?;
+            let (lo_d, hi_d) = reach(d.get()).ok_or_else(unread)?;
             let margin = (lo_m - across)
                 .max(-hi_m)
                 .max(lo_d - high_d)
@@ -3810,7 +3808,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
         for &(o, u) in wedge {
             windows = match carrier {
                 Clippable::Line(line) => {
-                    let (a, b) = ((line.origin - o).dot(u), line.dir.dot(u));
+                    let (a, b) = ((line.origin - o).dot(u), line.dir.get().dot(u));
                     windows
                         .into_iter()
                         .filter_map(|clip| {
@@ -3978,7 +3976,7 @@ impl<'a, T: Real> Clippable<'a, T> {
     /// Length per unit of parameter.
     fn speed(self) -> T {
         match self {
-            Self::Line(line) => line.dir.norm(),
+            Self::Line(line) => line.dir.get().norm(),
             Self::Circle(c) => c.radius(),
         }
     }
@@ -6151,7 +6149,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         ContactCarrier::Section { .. } | ContactCarrier::Generator
     );
     let plane = match &carrier {
-        ContactCarrier::Section(section) => Some(section.normal),
+        ContactCarrier::Section(section) => Some(section.normal.get()),
         _ => None,
     };
     let transverse = matches!(
@@ -6174,8 +6172,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         ContactCarrier::TrimLine(line) => placed(Curve3::Line(line))
             .ok_or_else(|| disagrees(EntityId::Edge(edge), "a trimline's end parameter"))?,
         ContactCarrier::Chord | ContactCarrier::SeamLine | ContactCarrier::Generator => {
-            let len = p0.distance(p1);
-            (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
+            let (chord, len) = geom::Line::chord(p0, p1);
+            (Curve3::Line(chord), T::zero(), len)
         }
         // ONE construction for the three arc kinds, deliberately: a corner
         // arc, a band's slit and a section are the same short arc about a stored
@@ -6365,10 +6363,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         },
         tol,
     )
-    // No split by refusal kind here any more: `EulerOpError` carries
-    // its own `Certification` arm, so the attachment gate's
-    // certification failure reaches the caller typed, inside the
-    // operator refusal that raised it.
+    // The attachment gate's certification failure reaches the caller
+    // typed, as the operator refusal's `DescriptionUncertified` arm.
     .map_err(|e| op("surgery contact edge", e))?;
     Ok(())
 }
@@ -6848,7 +6844,7 @@ mod tests {
         );
         // A segment: the nearest point is the clamped foot, not the
         // carrier's.
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_x());
         let (near, far) =
             piece_distance(&line, (1.0, 2.0), Point3::new(0.0, 1.0, 0.0)).expect("line");
         close(near, 2.0_f64.sqrt(), "a segment's near is its clamped foot");
@@ -6948,7 +6944,7 @@ mod tests {
             // `x + y = −8e-9`: `8e-9` below `x ≥ 0`'s part, in band, and
             // its window between the edges empty by `1.13e-8`, past it.
             let s = 0.5_f64.sqrt();
-            let diagonal = Curve3::line(p(0.0, -8e-9), v(s, -s));
+            let diagonal = Curve3::line(p(0.0, -8e-9), geom_core::UnitVec3::checked(v(s, -s)));
             close(
                 margin(
                     &one,
@@ -6962,7 +6958,7 @@ mod tests {
             );
             // Along the edge `x = 0`, 0.05 off the strip's end there: the
             // half of the strip's width, the layer it clears by.
-            let along = Curve3::line(p(-3e-9, -4e-9), v(-0.2, 1.0).normalize());
+            let along = Curve3::line(p(-3e-9, -4e-9), geom_core::UnitVec3::squared(v(-0.2, 1.0)));
             close(
                 margin(
                     &one,
@@ -7010,7 +7006,7 @@ mod tests {
                 (1e-10, band),
                 (1e-7, Band::new(1e-6, 1e-5).expect("the band at ε 1e-6")),
             ] {
-                let below = Curve3::line(p(-0.2, -0.27), v(1.0, 0.0));
+                let below = Curve3::line(p(-0.2, -0.27), geom_core::UnitVec3::checked(v(1.0, 0.0)));
                 let w = (T::zero(), T::from_f64(0.2 - short));
                 close(
                     margin(&one, &below, w, band, "below"),
@@ -7025,7 +7021,7 @@ mod tests {
                 d - 0.4,
                 "a touch of one wedge beside a refusal in the next, at the refusal's depth",
             );
-            let to_edge = Curve3::line(p(-0.2, 0.1), v(1.0, 0.0));
+            let to_edge = Curve3::line(p(-0.2, 0.1), geom_core::UnitVec3::checked(v(1.0, 0.0)));
             let w = (T::zero(), T::from_f64(0.2));
             close(
                 margin(&one, &to_edge, w, band, "to the edge"),

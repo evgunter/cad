@@ -146,22 +146,14 @@ REGISTER=(
   "crates/sweep/src/blend/battery.rs|screened_loop||1|audited: the discarded variant is refused by name, not passed over — a lone-vertex loop on a support face returns UnsupportedGeometry naming the loop, so predicate 2 never reports a face clear without having read it"
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
-  "crates/topo/src/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"
-  "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"
-  "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { continue|1|audited: the walk above refused every lone-vertex loop of this face, and the edge splits between the two walks add half-edges to its cycles only, so no Empty loop reaches this one"
   "crates/topo/src/boolean/ops.rs|pinched_at_cone_apex|else { continue|1|audited: a lone-vertex loop holds one vertex once, so it passes no vertex twice; the at-rest gate after this scan reads it as it reads every loop"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/rim_wedge.rs|face_boundary_arcs||1|unaudited"
-  "crates/topo/src/boolean/overlap.rs|loops||1|audited: the discarded variant is refused by name — a face holding a lone vertex answers OverlapRefusal::Unread, so no witness is read past it"
-  "crates/topo/src/solid_contain.rs|boundary_point||1|audited: the discarded variant is refused by name — an outer loop with no cycle has no boundary point, and the arm returns CorruptFace for the face"
-  "crates/topo/src/solid_contain.rs|sphere_chart_trim||1|unaudited"
-  "crates/topo/src/region.rs|boundary||1|audited: a lone-vertex RING holds no edge, so it has no edge for a path to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace on the line before, never passed over"
+  "crates/topo/src/rim_wedge.rs|rim_edges_convex||1|audited: a lone-vertex loop holds no edge, so it has none on the rim for the certificate to read; the rim itself was found among the face's edges (shared_rim), and an edge the walk meets that carries no certified curve answers false rather than passing over"
   "crates/topo/src/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own reading (sphere_chart_trim, region::boundary), and that walk is where a non-cycle is answered"
-  "crates/topo/src/boolean/vtxfac.rs|ring_vertex_in||1|audited: the discarded variant is refused by name — a face whose outer loop is a lone vertex bounds no region a ring vertex could be minted in, and the arm returns ClassificationInvariant naming it, so no face is passed over"
   "crates/topo/src/boolean/zip.rs|section_cycle||1|unaudited"
   "crates/topo/src/cell_region.rs|lift_boundary||1|audited: the lone vertex's point is a stop already, pushed on the line before, and it has no edge to lift"
-  "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
   # The face boundary walk's home: a lone-vertex loop holds no half-edge,
   # and every reader of a face's half-edges or edges through the home
   # (FaceView::cycles, FaceView::half_edges, FaceView::edges, and their
@@ -174,53 +166,34 @@ REGISTER=(
   "crates/topo/src/live.rs|half_edge||1|audited: a lone-vertex loop holds no half-edge and no edge, so it bounds no area and a reader of half-edges has nothing to walk; its vertex is still yielded by the walk (BoundaryMember::vertex, Body::member_point) to every reader of points"
   "crates/topo/src/live.rs|edges||1|audited: half_edge's disposition — a lone-vertex loop has no edge, so it is no edge of the face"
   "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
+  "crates/topo/src/live.rs|cycle_loops||1|audited: half_edge's disposition — a lone-vertex loop holds no half-edge, so a question asked of one loop's half-edges has nothing to read of it; a question about the region reads area_loops, which answers both lone shapes"
   "crates/topo/src/live.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_window hands back as no window; every caller reads the face out of its class"
   "crates/topo/src/link.rs|of_body_face||1|audited: answered as TouchUnread::LoneLoop — a lone vertex is no ring of the polygon reading; FaceSector::cleared, the arm beside it, reads the vertex as a point of the boundary"
-  "crates/topo/src/euler.rs|mef_lone||1|unaudited"
-  "crates/topo/src/euler.rs|mev_lone_plan||1|unaudited"
-  "crates/topo/src/euler_kill.rs|kvfs||1|unaudited"
-  "crates/topo/src/euler_ring.rs|mekr_both_empty||2|unaudited"
-  "crates/topo/src/euler_ring.rs|mekr_empty_ring||1|unaudited"
-  "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
+  "crates/topo/src/euler.rs|mef_lone||1|audited: a precondition refused by name, not a discard — the operator acts on a lone-vertex loop only, and refuses a cycle as EulerOpError::LoopNotEmpty naming the loop"
+  "crates/topo/src/euler.rs|mev_lone_plan||1|audited: a precondition refused by name, not a discard — the operator acts on a lone-vertex loop only, and refuses a cycle as EulerOpError::LoopNotEmpty naming the loop"
+  "crates/topo/src/euler_kill.rs|kvfs||1|audited: a precondition refused by name, not a discard — the operator acts on a lone-vertex loop only, and refuses a cycle as EulerOpError::LoopNotEmpty naming the loop"
+  "crates/topo/src/euler_ring.rs|mekr_both_empty||2|audited: a precondition refused by name, not a discard — the operator acts on a lone-vertex loop only, and refuses a cycle as EulerOpError::LoopNotEmpty naming the loop"
+  "crates/topo/src/euler_ring.rs|mekr_empty_ring||1|audited: a precondition refused by name, not a discard — the operator acts on a lone-vertex loop only, and refuses a cycle as EulerOpError::LoopNotEmpty naming the loop"
+  "crates/topo/src/euler_ring.rs|mekr_empty_target||1|audited: a precondition refused by name, not a discard — the operator acts on a lone-vertex loop only, and refuses a cycle as EulerOpError::LoopNotEmpty naming the loop"
+  "crates/topo/src/glue.rs|face_set_glue||1|audited: the discarded variant is an empty loop that the glue walk's empty-loop proof (an Empty loop the claims map holds is an error) shows no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
   "crates/topo/src/loop_winding.rs|planar_loop_winding_decided||1|audited: the discarded variant is answered by name, not passed over: the arm returns LoopWinding::Empty, which the merge's role pass reads as not positive and planar_loop_winding reads as no winding"
   # The survivor choice reads each member's rings for the faces they
   # border; a lone-vertex ring borders none, so passing it over answers
   # the question it asks.
   "crates/topo/src/merge_faces.rs|outermost_survivor||1|audited: the discarded variant is a lone-vertex ring, which has no half-edge and so borders no face; the question the walk asks (which member sits in this ring) has the answer none for it"
-  "crates/topo/src/movefac.rs|movefac||1|audited: the discarded variant is an empty loop that movefac's empty-loop proof (an Empty loop the claims map holds panics) shows no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
-  # The ONE per-loop rows walk: which half-edges of a loop a pcurve row
-  # can be keyed on. The tier-3 pcurve pass, `split_edge`'s row carry
-  # and the loop-re-parenting doors' drop all read it, and none of them
-  # discards a boundary of its own.
-  "crates/topo/src/props.rs|loop_edges||1|unaudited"
   "crates/topo/src/review_d18.rs|far_loop||1|audited: the discarded variant is a lone vertex — no half-edge to plant a namer on, and none a kill walks, so the far loop the witness tears must be a cycle"
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
   "crates/topo/src/seqgen.rs|mef_chords_candidates||1|unaudited"
-  # The generator's copy of the per-shell glue walk. Its arm is
-  # movefac's arm above, deliberately: the row enumerates the sites
-  # that operator will partition, so it must partition them the same
-  # way. Left `unaudited` because it does not carry the proof that
-  # audits movefac's (no half-edge claims the empty loop) — inheriting
-  # a disposition it has not earned would be the register's own
-  # failure mode — and because the duplication is the open question,
-  # filed as work/walks/shell-glue-relation-has-three-implementations.md.
-  "crates/topo/src/seqgen.rs|shell_component_faces||1|unaudited"
   "crates/topo/src/shell.rs|duplicate_in_loop||1|unaudited"
   "crates/topo/src/shell.rs|loop_points||1|unaudited"
   "crates/topo/src/shell.rs|loop_rekeyed||1|unaudited"
   "crates/topo/src/shell.rs|ring_rows||1|unaudited"
-  "crates/topo/src/splitting/containment.rs|carrier_loop||1|audited: the discard is answered as LoneLoop, and point_in_face, the one caller, answers an Empty outer loop (no region) and steps over an Empty ring (no area) before asking"
-  "crates/topo/src/splitting/containment.rs|certify_plane||1|audited: the discard is answered as LoneLoop, the answer carrier_loop gives the same loop on the line after it in point_in_loop"
-  "crates/topo/src/splitting/containment.rs|loop_points||1|audited: answered as LoneLoop — a lone vertex bounds no polygon to place a point in"
   "crates/topo/src/splitting/finish.rs|shell_side||1|audited: a blind spot, not a covered one — a lone-vertex loop holds the shell's only reading of that vertex, and skipping it can leave a shell whose one off-plane vertex is lone unplaced (refused Corrupt or UnclassifiableComponent, never misplaced); work/onecopy/a-shell-whose-only-off-plane-vertex-is-lone-is-unplaced.md"
   "crates/topo/src/splitting/finish.rs|section_plane_restatements||1|audited: an Empty loop holds no edge, so it has no description to restate; describe_section_boundary, which re-describes the same loops right after, steps over it the same way"
-  "crates/topo/src/splitting/section.rs|section_walk||1|audited: the discarded variant is answered — a lone-vertex loop refuses as SectionInvariant, the refusal join::loop_starts gives the same below loop"
-  "crates/topo/src/splitting/section_loops.rs|loop_edges|LoopBoundary::Empty { .. } => return|1|audited: the discarded variant is answered by name — a lone-vertex loop is read as an outline edge nothing decides, so outlines_disjoint answers false and the hole is left unplaced"
   "crates/topo/src/splitting/join.rs|certify_section_area||1|unaudited"
   "crates/topo/src/splitting/join.rs|loop_starts||1|unaudited"
   "crates/topo/src/validate.rs|tier1||1|unaudited"
-  "crates/topo/src/validate.rs|tier3_local_checks_marked||1|unaudited"
 )
 
 # The matchers, in one place. Anchored at the start of a record, because
@@ -298,6 +271,10 @@ GATE_REGISTER_FILE=
 gate() {
   gate_require_crate_sources
   local lineview winview report entries
+  # The two views go through files, not shell variables: the window view
+  # is hundreds of megabytes, and holding it in the shell was most of
+  # this gate's time.
+  lineview=$GATE_VIEW_FILE.lines; winview=$GATE_VIEW_FILE.windows
   if [ -n "$GATE_REGISTER_FILE" ]; then
     if ! entries=$(cat "$GATE_REGISTER_FILE" 2>/dev/null); then
       gate_error "$(gate_name): cannot read the register at $GATE_REGISTER_FILE, so there is nothing to check the tree against"
@@ -310,21 +287,21 @@ gate() {
   # matcher that did not run is not a clean scan; this gate reads
   # through awk rather than grep, so `gate_grep`'s marker cannot speak
   # for it and the check is written here instead.
-  if ! lineview=$(gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}"); then
+  if ! (gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}") > "$lineview"; then
     gate_error "$(gate_name): the shared Rust reader could not build the code-only line view, so what it did not match is unknown — that is not a pass"
     exit 1
   fi
-  if ! winview=$(gate_rust_code --skip-cfg-test --window "$WINDOW" "${GATE_SOURCE_FILES[@]}"); then
+  if ! (gate_rust_code --skip-cfg-test --window "$WINDOW" "${GATE_SOURCE_FILES[@]}") > "$winview"; then
     gate_error "$(gate_name): the shared Rust reader could not build the code-only window view, so what it did not match is unknown — that is not a pass"
     exit 1
   fi
-  if [ -z "$lineview" ] || [ -z "$winview" ]; then
+  if [ ! -s "$lineview" ] || [ ! -s "$winview" ]; then
     gate_error "$(gate_name): the shared Rust reader returned NOTHING over $GATE_SCAN_FILES source file(s) — the scan decided nothing, which is not a pass"
     exit 1
   fi
   gate_build_matchers
   export LBD_ANCHOR="$ANCHOR_RE" LBD_LET="$LET_RE" LBD_ARM="$ARM_RE"
-  if ! report=$(printf '%s\n' "$entries" "===" "$lineview" "===" "$winview" \
+  if ! report=$({ printf '%s\n' "$entries" "==="; cat "$lineview"; printf '===\n'; cat "$winview"; } \
     | gate_record_awk '
       BEGIN {
         ANCHOR = ENVIRON["LBD_ANCHOR"]

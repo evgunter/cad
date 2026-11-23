@@ -4,7 +4,7 @@ kind: issue
 title: engine-leaves.sh does not count an engine's items spelled Self:: inside an impl of an engine type written outside the engine
 status: open
 opened: 2026-11-03
-priority: P2
+priority: P3
 cost: E
 refs: [6451]
 ---
@@ -18,3 +18,5 @@ An inherent `impl crate::boolean::FaceUnread { ... }` block written in `crates/t
 Fix: inside an `impl` whose self type is an engine item, written in a file outside that engine, count each `Self::` occurrence as a site of that item, or refuse such an impl the way an alias is refused. Add a selftest plant of the shape.
 
 Moved from GUARD to CIW on 2026-11-20, by `git mv`, when GUARD merged into CIW: GUARD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P2 → P3 by CIW triage.** This is a gate matcher hole, caught once by review (PR 6451). Counting `Self::` inside a foreign impl is a token-pass change inside the existing `scripts/gates/engine_leaves.py` with negligible run-time cost. It does not drive fix cycles.

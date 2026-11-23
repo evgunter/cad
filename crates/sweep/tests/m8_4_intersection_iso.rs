@@ -222,13 +222,14 @@ fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::Surfac
             );
             Some(seam)
         }
-        Err(topo::EulerOpError::Certification {
+        Err(topo::EulerOpError::DescriptionUncertified {
             error:
                 geom_brep::CertifyError::Escalated {
                     check: geom_brep::CertCheck::PlaneNurbsHull,
                     cause,
                     ..
                 },
+            ..
         }) => {
             assert!(eps < 1e-13, "only the ε-fine cell refuses: {cause:?}");
             let geom_core::ErrorTextReading::Value(sup) =

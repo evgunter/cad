@@ -78,3 +78,6 @@ ONEROUND).
 
 Tier: dual (the verdict's shape is broad and hard to change later).
 Letter H.
+
+- 2026-11-23 — **Two of PR 7329's rows are this unit's to turn** (both of its reviewers, delta re-reads): `injective::margin_reach_rows::the_arm_counts_a_strips_run_along_its_edge` pins today's over-read (the arm counts a strip's run along its edge), and `the_reach_alone_signs_an_edge_check_4_classes_smooth` pins the question signing an edge check 4 classes smooth. Each goes red when the lever is the narrower face's run across the edge and the class is read from the verdict; this unit re-pins them and lists them among its pins. (EMBED orchestrator)
+

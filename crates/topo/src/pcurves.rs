@@ -148,10 +148,9 @@
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
 //! deterministic pipeline rather than reading stored bytes, and no
-//! pcurve-shaped field enters the schema. [`crate::transform`] takes
-//! the same posture as it already does for carriers and witnesses:
-//! construction-fresh re-derivation against the mapped geometry, never
-//! a mapped stored cache.
+//! pcurve-shaped field enters the schema. [`crate::mirror_body`] takes
+//! the same posture: its rows are re-derived against the mapped
+//! geometry, never a mapped stored cache.
 //!
 //! ## Stale rows: which ops maintain this map, and which do not
 //!
@@ -195,22 +194,29 @@
 //!
 //! **Maintains the map** — runs [`mint_pcurves`] on the result, and
 //! that pass CLEARS the map before re-minting. [`mint_pcurves_of`] is
-//! the same posture over a SUBSET, **for a producer that kills no
-//! half-edge**: it re-derives the rows of exactly the faces it wrote
-//! and leaves the rest as found, so no row it could have staled
-//! survives its return. It does NOT discharge the whole-body claim —
-//! a row on a dead half-edge is reachable from no face, so it survives
-//! that pass over every face of the body (the entry's own docs carry
-//! the case, pinned in `sweep`'s SHELL-10 probes). The two simultaneous
-//! offset doors are entitled to it because they perform no surgery. In
-//! this crate: the
+//! the same posture over a SUBSET, **sound once no row of a dead
+//! half-edge remains** (no half-edge died, or `drop_rows` disposed of
+//! the dead ones' rows first): it re-derives the rows of exactly the
+//! faces it wrote and leaves the rest as found, so no row it could have
+//! staled survives its return. It does NOT discharge the whole-body
+//! claim by itself — a row on a dead half-edge is reachable from no
+//! face, so it survives that pass over every face of the body (the
+//! entry's own docs carry the case, pinned in `sweep`'s SHELL-10
+//! probes). Its callers: the two simultaneous offset doors, which
+//! perform no surgery, and
+//! [`crate::Body::join_edges_within`](crate::construction::Construct::join_edges_within),
+//! which drops its dead half-edges' rows first. In this crate: the
 //! splitting lane (on each side it produces), the boolean pipeline (on
 //! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
 //! staged result before commit, when the input carried rows — as an
-//! input at rest does on every face whose chart mints), and
-//! [`crate::transform`] (on the same terms), and
-//! [`crate::shell`](mod@crate::shell) (on the
-//! assembled thin solid). **Downstream crates hold the same posture and
+//! input at rest does on every face whose chart mints),
+//! [`crate::mirror_body`] (on the same terms;
+//! [`crate::transform_rigid`] carries rows unchanged instead),
+//! [`crate::shell`](mod@crate::shell) (on the assembled thin solid),
+//! [`crate::Body::join_edges`](crate::construction::Construct::join_edges)
+//! (on the staged body, when the input carried rows), and
+//! `replace_face::offset_charts_staged`, behind
+//! [`crate::offset_surfaces_together`] (on the whole staged body). **Downstream crates hold the same posture and
 //! are part of the list**: `sweep`'s extrude, revolve and tube, loft,
 //! fillet build and fillet surgery, and `step_import`'s assembly all
 //! re-mint on the body they return.
@@ -471,6 +477,9 @@ mod kept_joint_tests;
 
 #[cfg(test)]
 mod lift_rows;
+
+#[cfg(test)]
+mod sheet_apex_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]

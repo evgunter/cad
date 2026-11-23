@@ -247,8 +247,8 @@ pub fn rest(
     to: impl Into<editor_core::Operand>,
 ) -> editor_core::Mate<Formula> {
     editor_core::Mate {
-        on: plane(on),
-        to: flip(plane(to)),
+        on: plane(on).into(),
+        to: flip(plane(to)).into(),
         orient: editor_core::Orientation::IDENTITY,
     }
 }
@@ -256,8 +256,8 @@ pub fn rest(
 /// **A mate equating two poses** as written, `on` reading the copy.
 pub fn mate(on: editor_core::Operand, to: editor_core::Operand) -> editor_core::Mate<Formula> {
     editor_core::Mate {
-        on,
-        to,
+        on: on.into(),
+        to: to.into(),
         orient: editor_core::Orientation::IDENTITY,
     }
 }
@@ -314,7 +314,7 @@ pub fn selections_in(pose: &editor_core::Operand) -> Vec<&editor_core::Operand> 
 /// an instance whose output a selection in it reads, else the one
 /// placement copying the body it reads.
 pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeNodeId {
-    for select in selections_in(&mate.on) {
+    for select in selections_in(&mate.on.read) {
         if let Some(at) = side_placement(doc, select) {
             return at;
         }
@@ -382,7 +382,7 @@ pub fn mates_space(
     constraints: &[editor_core::Constraint<Formula>],
 ) -> Option<VarId> {
     let mate = constraints.iter().find_map(editor_core::Constraint::mate)?;
-    doc.operand_space(&mate.to)
+    doc.operand_space(&mate.to.read)
 }
 
 /// **`constraints` written onto `placement` whole**
@@ -1021,7 +1021,10 @@ pub fn mate_members(doc: &ProfileDoc) -> Vec<(editor_core::MateRef, RecipeNodeId
 
 /// **The selections a pose variable's definition reads**, through every
 /// construction, in read order.
-pub fn face_reads(doc: &ProfileDoc, pose: VarId) -> Vec<VarId> {
+pub fn face_reads(
+    doc: &ProfileDoc,
+    pose: impl Into<editor_core::pose::RoleRead<VarId>>,
+) -> Vec<VarId> {
     fn walk(doc: &ProfileDoc, var: VarId, out: &mut Vec<VarId>) {
         if doc.selection(var).is_some() {
             out.push(var);
@@ -1034,7 +1037,7 @@ pub fn face_reads(doc: &ProfileDoc, pose: VarId) -> Vec<VarId> {
         }
     }
     let mut out = Vec::new();
-    walk(doc, pose, &mut out);
+    walk(doc, pose.into().read, &mut out);
     out
 }
 
@@ -1700,8 +1703,8 @@ pub fn authored(
     let kind = match &c.kind {
         editor_core::ConstraintKind::Mate(m) => {
             editor_core::ConstraintKind::Mate(editor_core::Mate {
-                on: editor_core::Operand::Var(m.on),
-                to: editor_core::Operand::Var(m.to),
+                on: editor_core::Operand::Var(m.on.read).into(),
+                to: editor_core::Operand::Var(m.to.read).into(),
                 orient: editor_core::Orientation::IDENTITY,
             })
         }
@@ -2342,8 +2345,8 @@ impl Recorder {
         self.constrain(
             copy,
             editor_core::Mate {
-                on: cap(),
-                to: cap(),
+                on: cap().into(),
+                to: cap().into(),
                 orient: editor_core::Orientation::IDENTITY,
             },
             vec![
@@ -2630,8 +2633,8 @@ impl Recorder {
             read,
             editor_core::Placed {
                 mates: vec![editor_core::Mate {
-                    on: own,
-                    to: frame,
+                    on: own.into(),
+                    to: frame.into(),
                     orient: editor_core::Orientation::IDENTITY,
                 }],
                 values: Vec::new(),
@@ -2667,8 +2670,9 @@ impl Recorder {
                     on: editor_core::Operand::Output {
                         node: revolve,
                         port: 1,
-                    },
-                    to,
+                    }
+                    .into(),
+                    to: to.into(),
                     orient,
                 }],
                 values: vec![

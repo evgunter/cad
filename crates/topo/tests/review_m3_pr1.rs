@@ -1390,7 +1390,7 @@ fn null_edge_cannot_be_laundered_through_set_edge_curve() {
         )
         .unwrap_err();
     assert!(
-        matches!(err, EulerOpError::Certification { .. }),
+        matches!(err, EulerOpError::DescriptionUncertified { .. }),
         "a null edge accepted a certified carrier: {err:?}"
     );
     assert_eq!(dump(&cube.body), before);

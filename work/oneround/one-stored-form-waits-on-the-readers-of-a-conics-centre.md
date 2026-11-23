@@ -1,12 +1,14 @@
 ---
 id: one-stored-form-waits-on-the-readers-of-a-conics-centre
-kind: issue
+kind: unit
 title: Every reader that rebuilds or restates a conic from its centre goes through the conic: the sites, and what each showed when the centre was a derived one
-status: open
+status: review
 opened: 2026-11-21
 priority: P1
 cost: H
 refs: [the-section-table-admits-a-curve-on-its-resolution, a-conics-points-are-restated-in-centre-form-outside-its-evaluator, a-section-conic-is-anchored-at-a-general-point-of-its-arc]
+branch: oneround/conic-readers
+pr: 7510
 ---
 
 
@@ -127,3 +129,60 @@ Ev's decision on PR 4812 and not one of these.
   `SelfTouchingTrimLoop`, which
   `a_slit_tip_on_a_curved_face_reads_its_full_turn::the_slit_block_meshes`
   now trips).
+
+## The unit (2026-11-23): `oneround/conic-readers`
+
+Letter H, tier dual (a concurrent pair). The unit changes what every
+reader of a conic may ask of it, across five crates, and a reader
+converted wrongly reads a conic an ulp of its semi-axis off with
+nothing red at compile: an interface decision that is hard to change
+later, and logic where believing a site takes more than reading it.
+
+**In scope.** The sentence PR 7258 put in the README: "Every reading
+of where a conic is goes through the conic."
+
+1. What the `Conic` reading offers, so that no reader outside
+   `crates/geom/src/curves/conic.rs` needs `frame().origin()` and the
+   sizes to say where the conic is: its point, its cover over a span,
+   its extent along a direction, its image in a chart or a plane, its
+   foot, and a map that keeps its placement. The unit finds out which
+   of these the families below need; it adds no reading nothing needs.
+2. The eight families of the table above, each site: the arc's cover,
+   the edge's extent bound, the chart-frame readers of a circle leg,
+   the edge's chart image, `param_near`, the two statements of one
+   circle compared by bit, the certified lane's readers at `Interval`,
+   the symbolic scalar's registration.
+3. The doors that rebuild a conic through a centre constructor (the
+   lists above, the two from `main` included): each keeps the
+   placement of what it was handed, or says at the site why its result
+   is another conic.
+4. A gate or a type that keeps it so: after the unit, a production
+   read of a conic's centre outside its module is either gone or on a
+   list with its reason, as the lever doors are.
+
+**Where it must show something, not assert it.** For the cone's
+section, the one conic held on its arc today, the cover and the chart
+image are stated from a derived centre
+(`the-arc-cover-misses-a-far-centred-arc-by-its-centres-rounding-and-the-depth-gap-decides-on-it`,
+`work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`):
+both close here, each judged against the curve the stored numbers
+state (the exact-rational oracle of
+`carrier_resolution::tests::a_far_centred_section_stands_at_the_scale_its_form_is_stored_at`).
+A conic held at its centre keeps its bits unless a reader was wrong
+about it, and every bit that moves is reported with its direction.
+
+**Out of scope.** The anchor at a general point of the arc and the
+readers that pair the parameter with `u_ref` / `v_ref`
+(`a-section-conic-is-anchored-at-a-general-point-of-its-arc`); the
+constructions that should hold their arc
+(`a-construction-whose-centre-runs-off-still-stores-a-centre`, which
+waits on this unit and on that row); what a stored frame's truth is
+(`work/onehome/a-stored-frame-reads-as-two-curves-a-rounding-of-the-size-apart.md`);
+`step-export`'s writer, which writes the derived centre by Ev's
+decision on PR 4812.
+
+**A design question, if one appears, is not the unit's to settle**:
+what the reading offers is bounded by the README's sentence and by
+what the families need. If two shapes of the interface are both
+viable and the choice binds the general-anchor row, the lane stops and
+asks.

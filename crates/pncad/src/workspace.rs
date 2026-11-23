@@ -41,12 +41,14 @@
 //!
 //! [`DocumentId::derive`]: crate::document::DocumentId::derive
 
+use editor_core::say;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::document::{
-    ContentPin, DocRef, DocumentId, Labelled, Labels, PartResolver, PersistError, ProfileDoc,
-    Recourse, ResolveFailure, ResolveFault, Staged, content_pin, header_document_id, load, save,
+    ContentPin, DocRef, DocumentId, HeldNodes, Labelled, LabelledBy, Labels, PartResolver,
+    PersistError, ProfileDoc, Recourse, ResolveFailure, ResolveFault, Speaker, Staged, content_pin,
+    header_document_id, load, save,
 };
 use geom_core::Tol;
 
@@ -237,7 +239,12 @@ impl core::fmt::Display for WorkspaceError {
 impl Staged for WorkspaceError {
     const STAGE: &'static str = "workspace";
 
-    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+    fn say_labelled(
+        &self,
+        f: &mut editor_core::Sentence,
+        labels: Labels,
+        by: Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Io { path, message, .. } => match labels {
                 Labels::Kept => write!(f, "io error at `{}`: {message}", path.display()),
@@ -262,21 +269,29 @@ impl Staged for WorkspaceError {
                 ),
             },
             Self::Header { path, error } => {
-                let error = Labelled(&**error, labels);
-                write!(f, "`{}` refused: {error}", path.display())
+                say!(
+                    f,
+                    format_args!("`{}` refused: ", path.display()),
+                    LabelledBy(&**error, labels, by)
+                )
             }
             Self::UnknownId { id } => {
                 write!(f, "no document with id {id}")
             }
             Self::Load { path, error } => {
-                let error = Labelled(&**error, labels);
-                write!(f, "`{}` refused to load: {error}", path.display())
+                say!(
+                    f,
+                    format_args!("`{}` refused to load: ", path.display()),
+                    LabelledBy(&**error, labels, by)
+                )
             }
-            Self::Pin { path, error } => write!(
+            Self::Pin { path, error } => say!(
                 f,
-                "`{}` loaded but its content pin would not compute: {}",
-                path.display(),
-                Labelled(&**error, labels)
+                format_args!(
+                    "`{}` loaded but its content pin would not compute: ",
+                    path.display()
+                ),
+                LabelledBy(&**error, labels, by)
             ),
             Self::PinMismatch {
                 id,
@@ -290,8 +305,11 @@ impl Staged for WorkspaceError {
                 Recourse(PIN_MISMATCH_RECOURSE)
             ),
             Self::Save { id, error } => {
-                let error = Labelled(&**error, labels);
-                write!(f, "document {id} refused to save: {error}")
+                say!(
+                    f,
+                    format_args!("document {id} refused to save: "),
+                    LabelledBy(&**error, labels, by)
+                )
             }
             Self::SaveWouldDuplicateId {
                 id,
@@ -705,14 +723,18 @@ impl WorkspaceError {
     /// refusal: the store's sentence without its stage word, since the
     /// part's own sentence names the stage ("the reference did not
     /// resolve"), then the way through for a resolver that takes its
-    /// scan as `scan` does.
-    pub fn resolve_failure(&self, scan: Scan) -> ResolveFailure {
+    /// scan as `scan` does. The refusal is of the part `part`'s file, so
+    /// each node it names is mentioned in that document.
+    pub fn resolve_failure(&self, scan: Scan, part: DocumentId) -> ResolveFailure {
+        let held = HeldNodes::of_nodes(part, []);
+        let mut message =
+            editor_core::sentence!(LabelledBy(self, Labels::Stripped, Speaker::held(&held)));
+        if let Some(ending) = resolve_recourse(self, scan) {
+            let _ = say!(&mut message, ". ", ending);
+        }
         ResolveFailure {
             fault: resolve_fault(self),
-            message: match resolve_recourse(self, scan) {
-                Some(ending) => format!("{}. {ending}", self.sentence()),
-                None => self.sentence().to_string(),
-            },
+            message,
         }
     }
 }
@@ -729,7 +751,8 @@ impl WorkspaceError {
 /// layer's to say (`resolve_recourse`).
 impl PartResolver for Workspace {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        Workspace::resolve(self, doc_ref, tol).map_err(|e| e.resolve_failure(Scan::AtOpen))
+        Workspace::resolve(self, doc_ref, tol)
+            .map_err(|e| e.resolve_failure(Scan::AtOpen, doc_ref.id))
     }
 }
 

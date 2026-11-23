@@ -60,6 +60,7 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::UnitVec3;
 use geom_core::period::{Exact, Extent, NotForward, Turn, TurnRows, TurnUndecided, Within};
 use geom_core::spline::SpanLocate;
 use geom_core::{
@@ -1924,7 +1925,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// it (U2's transience fence).
     pub fn line_between(p0: Point3<T>, p1: Point3<T>) -> Self {
         use geom_core::{Affine3, Point2};
-        let len = p0.distance(p1);
+        let (carrier, len) = geom::Line::chord(p0, p1);
         Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
                 crate::mapped::MappedSource::ExtrudedPoint {
@@ -1933,7 +1934,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     vec: p1 - p0,
                 },
             )),
-            carrier: Curve3::line(p0, (p1 - p0) / len),
+            carrier: Curve3::Line(carrier),
             param_start: T::zero(),
             param_end: len,
         }
@@ -1973,7 +1974,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(start - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: frame.axis(),
+                        dir: frame.axis_unit(),
                     },
                     angle: t1 - t0,
                 },
@@ -2158,7 +2159,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(p - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: Vec3::unit_z(),
+                        dir: UnitVec3::exact_z(),
                     },
                     // A whole revolution, an angle by construction.
                     angle: geom_core::period::Period::<T>::angle().length(),
@@ -3123,6 +3124,14 @@ impl<T: geom_core::Certifies> SplineFoot<T> {
 ///     ) -> Result<geom::SurfaceProjection<Dual64>, geom::SurfaceProjectionInconclusive> {
 ///         unimplemented!()
 ///     }
+///     fn chart_arm(
+///         self,
+///         _c: &geom::NurbsSurface<Dual64>,
+///         _p: Point3<Dual64>,
+///         _reach: Dual64,
+///     ) -> Result<f64, geom_brep::ChartArmRefusal> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
 pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
@@ -3135,6 +3144,17 @@ pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
         surface: &geom::NurbsSurface<T>,
         point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>;
+
+    /// [`NurbsLane::chart_arm`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn chart_arm(
+        self,
+        chart: &geom::NurbsSurface<T>,
+        p: Point3<T>,
+        reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal>;
 }
 
 impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
@@ -3145,6 +3165,15 @@ impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
         (self.surface_foot)(surface, point)
     }
+
+    fn chart_arm(
+        self,
+        chart: &geom::NurbsSurface<T>,
+        p: Point3<T>,
+        reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal> {
+        (self.chart_arm)(chart, p, reach)
+    }
 }
 
 impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
@@ -3153,6 +3182,15 @@ impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
         _surface: &geom::NurbsSurface<T>,
         _point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        match self {}
+    }
+
+    fn chart_arm(
+        self,
+        _chart: &geom::NurbsSurface<T>,
+        _p: Point3<T>,
+        _reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal> {
         match self {}
     }
 }
@@ -3461,32 +3499,45 @@ impl<T: Real> EdgeCurve<T> {
 
     /// **This edge under an isometry, its certificate carried**: the
     /// mapped `carrier`, `description` and `authority` on this edge's
-    /// own interval, with its turn and certificate verbatim.
+    /// interval scaled by `stretch`, with its turn and certificate
+    /// verbatim.
+    ///
+    /// `stretch` is the factor the map scaled the carrier's parameter by:
+    /// `one` for every carrier but a line whose image direction was
+    /// squared ([`geom_core::UnitVec3::through_isometry`]), whose
+    /// parameter, arc length along the squared direction, is the old one
+    /// times the length the image was divided by. The span is scaled to
+    /// match, so the edge's ends stay where its vertices are, and the
+    /// description's chart image is read on the same new parameter (the
+    /// caller's, [`crate::Pcurve::stretched`]).
     ///
     /// The certificate is `{samples, max_residual}`, a distance between
     /// the description and its carrier at the schedule's parameters, and
     /// the turn is the interval against one period. An isometry keeps
-    /// both, and a map keeps the carrier's parameter, so both are the
-    /// image's. That holds only where the three arguments are this
-    /// edge's data under one isometry, or under the family of isometries
-    /// a boxed motion encloses: then the data encloses the edge's image
-    /// under each member, every member keeps the distance and the turn,
-    /// and the carried certificate is each image's. Keeping that is the
-    /// caller's, and `topo`'s data map (`map_isometry`) is the one caller.
+    /// both. Under a stretch the schedule's parameters are the same
+    /// points, read on the stretched parameter, so both are the image's.
+    /// That holds only where the arguments are this edge's data under one
+    /// isometry, or under the family of isometries a boxed motion
+    /// encloses: then the data encloses the edge's image under each
+    /// member, every member keeps the distance and the turn, and the
+    /// carried certificate is each image's. Keeping that is the caller's,
+    /// and `topo`'s data map (`map_isometry`) is the one caller.
     #[must_use]
     pub fn carried(
         &self,
         carrier: Curve3<T>,
+        stretch: T,
         description: EdgeDescription<T>,
         authority: EdgeAuthority<T>,
     ) -> Self
     where
         T: SpanLocate,
     {
+        let (param_start, param_end) = (self.param_start * stretch, self.param_end * stretch);
         Self {
             description,
             authority,
-            reading: match reading_of(&carrier, (self.param_start, self.param_end)) {
+            reading: match reading_of(&carrier, (param_start, param_end)) {
                 Ok(reading) => reading,
                 // A map keeps the carrier's kind, its knots and the
                 // interval, so the view this edge was certified on
@@ -3494,8 +3545,8 @@ impl<T: Real> EdgeCurve<T> {
                 Err(e) => unreachable!("a mapped edge's carrier has no view over its span: {e}"),
             },
             stored: carrier,
-            param_start: self.param_start,
-            param_end: self.param_end,
+            param_start,
+            param_end,
             turn: self.turn,
             certificate: self.certificate,
             locus: None,
@@ -4568,24 +4619,12 @@ fn decide_turn<T: Decide>(
         // have a period is `Curve3::period`'s to say, so this arm restates
         // no kind list.
         //
-        // A line's span is forward in parameter, and then in metres where
-        // its `dir` is the zero vector: such a line names one point at
-        // every parameter, so no span on it is forward, and it refuses as
-        // `IntervalNotForward` (its metred margin is an exact zero) rather
-        // than certifying a direction its readers take as nonzero
-        // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
-        // The metres decision runs on that line alone, so every other
-        // line's span is decided once, as before.
-        (None, line) => {
+        // A line's span is forward in parameter, which is metres: its
+        // direction is a `UnitVec3`, so no line names one point at every
+        // parameter (a zero vector has no direction to mint, and squares
+        // to poison).
+        (None, _) => {
             forward(Margin::of(span))?;
-            if line.as_line().is_some_and(|geom::Line { dir, .. }| {
-                matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero))
-            }) {
-                forward(Margin::metered(
-                    span,
-                    geom::carrier_speed::speed_range(line).0,
-                ))?;
-            }
             None
         }
     })
@@ -6904,7 +6943,7 @@ mod tests {
         let seam = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::wrap(keys[0]),
-                carrier: Curve3::line(p0, Vec3::unit_z()),
+                carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
                 param_start: 0.0,
                 param_end: 3.0,
             },
@@ -6931,7 +6970,7 @@ mod tests {
         let iso = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, 0.0, len),
-                carrier: Curve3::line(q0, (q1 - q0) / len),
+                carrier: Curve3::line(q0, geom::stated_direction((q1 - q0) / len)),
                 param_start: 0.0,
                 param_end: len,
             },
@@ -7007,7 +7046,7 @@ mod tests {
         let derived = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::wrap(keys[0]),
-                carrier: Curve3::line(p0, Vec3::unit_z()),
+                carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
                 param_start: 0.0,
                 param_end: 3.0,
             },
@@ -7047,7 +7086,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
-            carrier: Curve3::line(p0, Vec3::unit_z()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 3.0,
         };
@@ -7158,7 +7197,7 @@ mod tests {
         let off = Vec3::zero();
         let iso_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, anchor, t1),
-            carrier: Curve3::line(q0 + off - dir * anchor, dir),
+            carrier: Curve3::line(q0 + off - dir * anchor, geom::stated_direction(dir)),
             param_start: anchor,
             param_end: t1,
         };
@@ -7508,94 +7547,6 @@ mod tests {
         .unwrap();
     }
 
-    /// **A line's span is forward in metres where its `dir` is the zero
-    /// vector.** A line of zero direction names one point at every
-    /// parameter, so its span of one parameter unit refuses as the caller's
-    /// stated interval, not forward on the zero side, where a
-    /// parameter-only read certified it (this row is red without the
-    /// guard). A line at speed two certifies a span of half a unit: that
-    /// row asks only that the guard over-refuse nothing, and no mutation of
-    /// the guard reddens it.
-    ///
-    /// At the interval scalar the guard reads the same door: an exact
-    /// `[0, 0]` direction refuses as the point's zero does, and a direction
-    /// whose enclosure straddles zero past the band's escalation is not decided,
-    /// so the metred span escalates rather than certifying.
-    #[test]
-    fn a_lines_span_is_forward_in_metres_where_its_dir_is_zero() {
-        use geom_core::{Affine3, Interval, Point2};
-        fn along<T: Decide>(dir: Vec3<T>, param_end: T) -> EdgeCurveSpec<T> {
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
-                    crate::mapped::MappedSource::ExtrudedPoint {
-                        point: Point2::new(T::zero(), T::zero()),
-                        place: Affine3::translation(Vec3::new(T::zero(), T::zero(), T::zero())),
-                        vec: dir * param_end,
-                    },
-                )),
-                carrier: Curve3::line(Point3::new(T::zero(), T::zero(), T::zero()), dir),
-                param_start: T::zero(),
-                param_end,
-            }
-        }
-        // One certifying door per scalar, each at its own concrete type.
-        macro_rules! certify_at {
-            ($name:ident: $t:ty) => {
-                fn $name(
-                    spec: EdgeCurveSpec<$t>,
-                    p1: Point3<$t>,
-                ) -> Result<EdgeCurve<$t>, CertifyError> {
-                    let zero = <$t as geom_core::Real>::zero();
-                    EdgeCurve::certify(
-                        spec,
-                        Point3::new(zero, zero, zero),
-                        p1,
-                        |_| None,
-                        geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
-                        band(),
-                        NurbsLane::certified(),
-                    )
-                }
-            };
-        }
-        certify_at!(certify: f64);
-        certify_at!(certify_interval: Interval);
-        let zero_refusal = |err: &CertifyError| {
-            matches!(
-                err,
-                CertifyError::StatedInterval {
-                    refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Zero(_)))
-                }
-            )
-        };
-        let err = certify(along(Vec3::zero(), 1.0), Point3::origin()).unwrap_err();
-        assert!(zero_refusal(&err), "{err:?}");
-        let fast = Vec3::new(2.0, 0.0, 0.0);
-        assert!(certify(along(fast, 0.5), Point3::new(1.0, 0.0, 0.0)).is_ok());
-
-        let iv = Interval::from_f64;
-        let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
-        let flat = Vec3::new(iv(0.0), iv(0.0), iv(0.0));
-        let err = certify_interval(along(flat, iv(1.0)), origin).unwrap_err();
-        assert!(zero_refusal(&err), "[0, 0]: {err:?}");
-        // A straddle past the escalation of the band in force, so its
-        // metred span reads neither zero nor positive at every ε.
-        let reach = 2.0 * band().escalate();
-        let wide = Interval::from_bounds(-reach, reach);
-        let straddling = Vec3::new(wide, iv(0.0), iv(0.0));
-        let err = certify_interval(along(straddling, iv(1.0)), origin).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                CertifyError::Escalated {
-                    check: CertCheck::ParamSpan,
-                    ..
-                }
-            ),
-            "straddling: {err:?}"
-        );
-    }
-
     #[test]
     fn wrong_cache_is_rejected() {
         // A carrier offset well beyond the escalation band (100·ε ≥ K·ε
@@ -7605,7 +7556,7 @@ mod tests {
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let mut spec = line_spec(p0, p1);
         let off = 100.0 * eps();
-        spec.carrier = Curve3::line(Point3::new(0.0, off, 0.0), Vec3::unit_x());
+        spec.carrier = Curve3::line(Point3::new(0.0, off, 0.0), geom_core::UnitVec3::exact_x());
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
@@ -7629,7 +7580,10 @@ mod tests {
         );
         // An in-band offset (3·ε) escalates instead of passing.
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::line(Point3::new(0.0, 3.0 * eps(), 0.0), Vec3::unit_x());
+        spec.carrier = Curve3::line(
+            Point3::new(0.0, 3.0 * eps(), 0.0),
+            geom_core::UnitVec3::exact_x(),
+        );
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
@@ -7684,7 +7638,7 @@ mod tests {
                 pair: SurfacePair::new(src_keys[0], src_keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7785,7 +7739,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7805,7 +7759,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.carrier = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.5, 0.0), // on z = 0, off y = 0
-            dir: Vec3::unit_x(),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let err = EdgeCurve::certify(
             bad,
@@ -7924,7 +7878,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7962,7 +7916,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -8003,7 +7957,7 @@ mod tests {
         let p1 = Point3::new(r, 0.0, 3.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
-            carrier: Curve3::line(p0, Vec3::unit_z()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 3.0,
         };
@@ -8021,7 +7975,7 @@ mod tests {
         let q0 = Point3::new(-r, 0.0, 0.0);
         let q1 = Point3::new(-r, 0.0, 3.0);
         let mut antipode = spec.clone();
-        antipode.carrier = Curve3::line(q0, Vec3::unit_z());
+        antipode.carrier = Curve3::line(q0, geom_core::UnitVec3::exact_z());
         let cut = EdgeCurve::certify(
             antipode,
             q0,
@@ -8047,7 +8001,7 @@ mod tests {
             Point3::new(r + 1.0, 0.0, 3.0),
         );
         let mut off = spec.clone();
-        off.carrier = Curve3::line(o0, Vec3::unit_z());
+        off.carrier = Curve3::line(o0, geom_core::UnitVec3::exact_z());
         assert!(
             EdgeCurve::certify(
                 off,
@@ -8159,7 +8113,7 @@ mod tests {
             CertifyError::IntersectionSameSurface { key: keys[0] }
         );
         let mut spline = on(p0, p1);
-        spline.carrier = Curve3::nurbs_placeholder();
+        spline.carrier = geom::test_support::nurbs_segment(p0, p1);
         assert_eq!(
             EdgeCurve::certify(
                 spline,
@@ -8177,11 +8131,11 @@ mod tests {
     }
 
     #[test]
-    fn nurbs_carrier_is_refused_and_nothing_panics_on_poison() {
+    fn a_nurbs_carrier_on_a_line_spec_refuses_and_poisoned_endpoints_escalate() {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::nurbs_placeholder();
+        spec.carrier = geom::test_support::nurbs_segment(p0, p1);
         assert_eq!(
             EdgeCurve::certify(
                 spec.clone(),
@@ -8226,7 +8180,7 @@ mod tests {
                     place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                     axis: geom::Line {
                         origin: center,
-                        dir: Vec3::unit_z(),
+                        dir: geom_core::UnitVec3::exact_z(),
                     },
                     angle: TAU,
                 },
@@ -10385,7 +10339,10 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(p0 + dir * (reach / 2.0)),
             },
-            carrier: Curve3::Line(geom::Line { origin: p0, dir }),
+            carrier: Curve3::Line(geom::Line {
+                origin: p0,
+                dir: geom::stated_direction(dir),
+            }),
             param_start: 0.0,
             param_end: 2.0 * reach,
         };
@@ -10676,7 +10633,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(on + Vec3::unit_z() * 0.5),
             },
-            carrier: Curve3::line(on, Vec3::unit_z()),
+            carrier: Curve3::line(on, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 1.0,
         };

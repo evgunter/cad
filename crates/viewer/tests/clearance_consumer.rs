@@ -51,7 +51,7 @@ fn scene(
 
 /// The world placement that draws `block`.
 fn drawn(session: &DocSession, block: RecipeNodeId) -> RecipeNodeId {
-    let [placement] = viewer::world::placements_of(session.committed_doc(), block)[..] else {
+    let [placement] = session.committed_doc().placements_of(block)[..] else {
         panic!("each block is placed once");
     };
     placement
@@ -274,7 +274,10 @@ fn a_cancelled_evaluation_leaves_its_row_saying_certifying_stopped() {
     assert!(!session.certifying(), "the premise: nothing is certifying");
     let row = cleared(&session, id);
     assert_eq!(row.state(), "not certified");
-    assert_eq!(row.sentence(), Some(viewer::tree::CERTIFY_STOPPED));
+    assert_eq!(
+        row.sentence().map(|said| said.to_string()).as_deref(),
+        Some(viewer::tree::CERTIFY_STOPPED)
+    );
 }
 
 /// **Each verdict reads as its equation**, the seats in the document's
@@ -295,7 +298,7 @@ fn a_cancelled_evaluation_leaves_its_row_saying_certifying_stopped() {
 fn each_certified_verdict_reads_as_its_equation_in_the_documents_words() {
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
-    let said = |id| session.doc().spoken(id).to_string();
+    let said = |id| viewer::tree::spelled(&session.doc().spoken(id));
     let (l, r) = (said(left), said(right));
     assert!(l.contains("\"left\""), "the premise: {l}");
     let cases = [
@@ -377,12 +380,14 @@ fn a_face_seat_reads_as_the_face_the_document_names() {
     session.pump();
     let row = cleared(&session, id);
     let doc = session.doc();
-    let wall = pncad::document::Speaker::of(doc)
-        .name(&face.name)
-        .to_string();
+    let wall = editor_core::test_support::text(pncad::document::Speaker::of(doc).name(&face.name));
     assert_eq!(
         row.equation(IN_MM),
-        format!("clearance({wall}, {}) ≥ 5 mm", doc.spoken(right)),
+        format!(
+            "clearance({wall}, {}) ≥ 5 mm",
+            viewer::tree::spelled(&doc.spoken(right)),
+            wall = pncad::document::sentence!(wall)
+        ),
     );
     assert_eq!(row.state(), "Holds", "{:?}", row.answer);
 }
@@ -449,12 +454,12 @@ fn a_refused_bound_reads_as_the_kernels_sentence_and_recourse() {
         assert_eq!(*got, name);
         assert_eq!(row.state(), "Refused");
         assert_eq!(
-            row.sentence(),
-            Some(sentence.as_str()),
+            row.sentence().as_ref(),
+            Some(sentence),
             "the sentence is drawn as said"
         );
         assert!(
-            sentence.contains("Recourse:"),
+            sentence.to_string().contains("Recourse:"),
             "{name} says what to do: {sentence}"
         );
     }
@@ -703,7 +708,9 @@ fn a_body_drawn_twice_is_refused_at_the_pick_in_the_tools_words() {
         matches!(refused, AssertionEvent::SeveralCopies { copies: 2, .. }),
         "{refused:?}"
     );
-    let said = pncad::document::Said(&refused, pncad::document::Speaker::of(&doc)).to_string();
+    let said = pncad::document::Said(&refused, pncad::document::Speaker::of(&doc))
+        .sentence()
+        .to_string();
     assert!(
         said.contains("\"left\"")
             && said.contains("pick a face of the copy you mean in the picture"),
@@ -761,10 +768,17 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
         row.answer
     );
     assert_eq!(row.state(), "Refused");
-    let sentence = row.sentence().expect("the refusal is said");
+    let said = row.sentence().expect("the refusal is said");
+    let sentence = said.to_string();
     assert!(
         sentence.contains("\"pattern gap\"") && sentence.contains("Recourse:"),
         "{sentence}"
+    );
+    assert!(
+        said.mentions()
+            .any(|mention| mention.node().map(|n| n.id()) == Some(by_body)
+                && mention.document() == Some(session.doc().id())),
+        "the assertion is a mention in the document on screen, a link: {said:?}"
     );
     // A landing whose only clearance is lifted owes no certified answer.
     let seam = Recording::default();
@@ -785,7 +799,7 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
         .find(|answer| answer.assertion == by_body)
         .expect("one answer per clearance");
     assert!(
-        matches!(&door.answer, ClearanceOutcome::OverMembers { sentence } if sentence.contains("Recourse:")),
+        matches!(&door.answer, ClearanceOutcome::OverMembers { sentence } if sentence.to_string().contains("Recourse:")),
         "{:?}",
         door.answer
     );
@@ -878,7 +892,9 @@ fn member_scene(
     }
     // A pattern moved into the world is drawn by its own node; a copy
     // of one, by the copy.
-    let drawn = viewer::world::placements_of(session.committed_doc(), pattern)
+    let drawn = session
+        .committed_doc()
+        .placements_of(pattern)
         .first()
         .copied()
         .unwrap_or(pattern);

@@ -1,16 +1,25 @@
 //! **Two faces apart in depth about an axis, a centre or a circle, and
 //! the directions those axes, centres and arcs aim across a pair** —
-//! arm 1's clear for a cross-solid pair no direction separates (nested
-//! walls, a cap inside a bore, a plug in a hole, a tube inside a tube),
-//! and the directions arm 1's turned-direction test reads besides its
-//! own.
+//! the gap that parts a pair no direction separates (nested walls, a
+//! cap inside a bore, a plug in a hole, a tube inside a tube), and the
+//! directions arm 1's turned-direction test reads besides its own.
+//!
+//! **Two readers.** The census's arm 1 clears a cross-solid pair on a
+//! gap ([`apart_in_depth`]). The clearance engine reads the same gaps
+//! ([`gaps_in_depth`]) at a face pair's root, against the bound it was
+//! asked, and discharges the root on one
+//! (`crate::clearance`'s `parted_in_depth`): the embedding certificate
+//! and every metric clearance bound rest on it. What a face proposes
+//! ([`face_read`]) and what is taken off a gap (the pads below) change
+//! both readers' answers.
 //!
 //! A reach box reads a face's extent in linear coordinates; this reads
 //! it in a radial one. A *depth* is the distance from an axis line, from
 //! a centre, or from a circle (a torus's core), and each is read for
 //! both faces of the pair. Where one face's greatest depth lies below
-//! the other's least, no point of one is a point of the other: the pair
-//! is apart. That is the verdict, and the only one.
+//! the other's least, no point of one is a point of the other, and the
+//! two are at least that gap apart. A gap is all that is read: no depth
+//! says two faces meet.
 //!
 //! **Which depths.** Each face of the pair proposes every site its cover
 //! is measured about ([`Cover::about`]: a cylinder wall's or a cone's
@@ -31,8 +40,9 @@
 //! reach boxes' gap takes, a tolerance: a placement misread within the
 //! band, and the boundary's vertices certified within ε of the face.
 //! Only a definite Positive clears; a Zero, a Negative, a bound that is
-//! not a number, an escalation or a face with no cover leaves the pair
-//! to arm 1's refusal. A pair that touches has no gap and is never
+//! not a number, an escalation or a face with no cover says nothing of
+//! the pair, which goes on to its reader's other arms (arm 1's refusal;
+//! the engine's cells). A pair that touches has no gap and is never
 //! cleared here.
 //!
 //! The same depths also aim directions ([`toward`]): the offset from an
@@ -41,14 +51,13 @@
 //! covers are measured about ([`Cover::about`]) aim more ([`across`]). That proposes; it decides nothing.
 
 use geom::cover::{Around, Cover, Site};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
+use geom_core::{Band, Decide, Point3, Vec3, is_finite_length};
 
 use crate::body::Body;
 use crate::boxes::sweep_pad;
 use crate::cover::{edge_end_point, face_cover, face_nearest};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
-use crate::validate::decide;
 
 /// K name: the gap between one face's least depth and the other's
 /// greatest, less both faces' pads (metres).
@@ -81,7 +90,7 @@ pub(super) enum Source<T: geom_core::Real> {
 }
 
 /// A face as the depth gap reads it ([`face_read`]).
-pub(super) struct Read<T: geom_core::Real> {
+pub(crate) struct Read<T: geom_core::Real> {
     /// The face's cover.
     pub(super) cover: Cover<T>,
     /// The boundary's straight edges by their ends, and its isolated
@@ -110,7 +119,7 @@ impl<T: geom_core::Real> Read<T> {
 ///
 /// Where `f` or a record on the walk from it does not resolve, as
 /// [`face_cover`]: a torn boundary is not one with no claim.
-pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<Read<T>> {
+pub(crate) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<Read<T>> {
     let face = body.proven_face(f);
     let cover = face_cover(body, f, band).ok()?;
     let mut depths: Vec<Proposed<T>> = cover
@@ -128,18 +137,14 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                 segments.push((point, point));
                 continue;
             }
-            BoundaryMember::Edge { ek, edge, .. } => (ek, edge),
+            BoundaryMember::Edge { edge, .. } => (edge.key(), edge),
         };
-        let Some(carrier) = body
-            .edge_curve_linked(ek, edge)
-            .certified()
-            .map(geom_brep::EdgeCurve::carrier)
-        else {
+        let Some(carrier) = edge.certified().map(geom_brep::EdgeCurve::carrier) else {
             continue;
         };
         let ends = (
-            edge_end_point(body, ek, edge.he_plus, "he_plus"),
-            edge_end_point(body, ek, edge.he_minus, "he_minus"),
+            edge_end_point(body, ek, edge.record().he_plus, "he_plus"),
+            edge_end_point(body, ek, edge.record().he_minus, "he_minus"),
         );
         if super::edge_line(body, ek).is_some() {
             segments.push(ends);
@@ -171,7 +176,7 @@ pub(super) fn split<T: Decide>(v: Vec3<T>, n: Vec3<T>) -> (Vec3<T>, T) {
 fn nearest_offset<T: Decide>(depth: Around<T>, p: Point3<T>, q: Point3<T>) -> Option<Vec3<T>> {
     let (u, w) = match depth {
         Around::Line(geom::Line { origin, dir: axis }) => {
-            let a = axis.normalize();
+            let a = axis.get().normalize();
             (split(p - origin, a).0, split(q - p, a).0)
         }
         Around::Point(center) => (p - center, q - p),
@@ -198,13 +203,14 @@ pub(super) fn greatest<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Op
     acc
 }
 
-/// Whether `lo − hi`, less both faces' pads, is definitely positive.
-pub(super) fn clears<T: Decide>(hi: T, lo: T, band: Band) -> bool {
-    let pad = T::from_f64(2.0 * sweep_pad(band));
-    matches!(
-        decide(DEPTH_GAP, Margin::of(lo - hi - pad), band),
-        Ok(Sign::Positive)
-    )
+/// `lo − hi`, less both faces' pads.
+fn gap<T: Decide>(hi: T, lo: T, band: Band) -> T {
+    lo - hi - T::from_f64(2.0 * sweep_pad(band))
+}
+
+/// Whether a gap is definitely positive.
+fn clears<T: Decide>(gap: T, band: Band) -> bool {
+    crate::validate::definitely_positive(DEPTH_GAP, gap, band)
 }
 
 /// An upper bound on `proposed`'s depth over the face read as `read`.
@@ -229,8 +235,49 @@ fn least_on<T: Decide>(
     greatest([Some(near)].into_iter())
 }
 
+/// **Each gap in depth between two faces**, read as `ra`, `rb`
+/// ([`face_read`]), each in its own body.
+///
+/// **Precondition: the two bodies' coordinates are one frame.** A
+/// read is a face's cover in its body's coordinates and carries no
+/// placement, so two bodies posed apart read as if they were not, and
+/// a gap between them is no bound. A caller that holds either face
+/// through a motion must not ask. Nothing here can check it: neither
+/// a read nor a body says what frame it is in.
+///
+/// For each depth either
+/// proposes and each order of the two, one face's least depth less the
+/// other's greatest, less both faces' pads, where both are read. A gap
+/// that is positive bounds the faces' separation from below; any other
+/// says nothing of the pair.
+///
+/// # Panics
+///
+/// As [`face_read`].
+pub(crate) fn gaps_in_depth<'r, T: Decide>(
+    (body_a, a, ra): (&'r Body<T>, FaceKey, &'r Read<T>),
+    (body_b, b, rb): (&'r Body<T>, FaceKey, &'r Read<T>),
+    band: Band,
+) -> impl Iterator<Item = T> + 'r {
+    ra.depths
+        .iter()
+        .chain(&rb.depths)
+        .flat_map(move |proposed| {
+            // A least bound costs a point placement, so it is read only
+            // against a greatest the other face has.
+            [((body_b, b, rb), ra), ((body_a, a, ra), rb)]
+                .into_iter()
+                .filter_map(move |((body, f, lo), hi)| {
+                    let hi = greatest_on(hi, proposed)?;
+                    let lo = least_on(body, f, lo, proposed, band)?;
+                    Some(gap(hi, lo, band))
+                })
+        })
+}
+
 /// **Whether the faces `a`, `b`, read as `ra`, `rb` ([`face_read`]),
-/// are apart in some depth** either proposes (module docs).
+/// are apart in some depth** either proposes (module docs): whether a
+/// gap of [`gaps_in_depth`] is definitely positive.
 ///
 /// # Panics
 ///
@@ -241,16 +288,7 @@ pub(super) fn apart_in_depth<T: Decide>(
     (b, rb): (FaceKey, &Read<T>),
     band: Band,
 ) -> bool {
-    ra.depths.iter().chain(&rb.depths).any(|proposed| {
-        // A least bound costs a point placement, so it is read only
-        // against a greatest the other face has.
-        let below = |lo: (FaceKey, &Read<T>), hi: &Read<T>| {
-            greatest_on(hi, proposed).is_some_and(|hi| {
-                least_on(body, lo.0, lo.1, proposed, band).is_some_and(|lo| clears(hi, lo, band))
-            })
-        };
-        below((b, rb), ra) || below((a, ra), rb)
-    })
+    gaps_in_depth((body, a, ra), (body, b, rb), band).any(|gap| clears(gap, band))
 }
 
 /// **The directions the depths of two faces, read as `ra` and `rb`
@@ -335,7 +373,7 @@ pub(super) fn across<T: Decide>(
             .iter()
             .filter_map(|proposed| match (proposed.depth, proposed.source) {
                 (Around::Line(geom::Line { dir: axis, .. }), Source::Arc(p, q)) => {
-                    unit(axis.normalize().cross(q - p))
+                    unit(axis.get().normalize().cross(q - p))
                 }
                 _ => None,
             })
@@ -346,11 +384,11 @@ pub(super) fn across<T: Decide>(
             Around::Line(geom::Line { origin: o, dir: a }),
             Around::Line(geom::Line { origin: p, dir: b }),
         ) => {
-            vec![off(p, o, a), off(o, p, b)]
+            vec![off(p, o, a.get()), off(o, p, b.get())]
         }
         (Around::Line(geom::Line { origin, dir: axis }), Around::Point(center))
         | (Around::Point(center), Around::Line(geom::Line { origin, dir: axis })) => {
-            vec![off(center, origin, axis)]
+            vec![off(center, origin, axis.get())]
         }
         (Around::Point(c), Around::Point(d)) => vec![unit(d - c)],
         _ => Vec::new(),
@@ -397,7 +435,7 @@ mod tests {
     fn z_axis() -> Around<f64> {
         Around::Line(geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            dir: v(0.0, 0.0, 2.0),
+            dir: geom_core::UnitVec3::squared(v(0.0, 0.0, 2.0)),
         })
     }
 
@@ -405,7 +443,7 @@ mod tests {
         Around::Circle(geom::cover::Core {
             axis: geom::Line {
                 origin: p(0.0, 0.0, 0.0),
-                dir: v(0.0, 0.0, 1.0),
+                dir: geom_core::UnitVec3::squared(v(0.0, 0.0, 1.0)),
             },
             radius,
         })
@@ -419,16 +457,22 @@ mod tests {
     fn a_gap_clears_only_past_the_pad() {
         let band = band();
         let pad = 2.0 * sweep_pad(band);
-        assert!(clears(0.85, 0.95, band), "0.1 clears");
+        assert!(clears(gap(0.85, 0.95, band), band), "0.1 clears");
         assert!(
-            !clears(0.95 - band.zero(), 0.95, band),
+            !clears(gap(0.95 - band.zero(), 0.95, band), band),
             "a band's width is a touch"
         );
-        assert!(!clears(0.95, 0.95, band), "no gap is a touch");
-        assert!(!clears(0.95 - 0.5 * pad, 0.95, band), "inside the pads");
-        assert!(!clears(0.95 - pad, 0.95, band), "exactly the pads, a Zero");
-        assert!(!clears(1.05, 0.95, band), "an overlap");
-        assert!(!clears(f64::NAN, 0.95, band), "not a number");
+        assert!(!clears(gap(0.95, 0.95, band), band), "no gap is a touch");
+        assert!(
+            !clears(gap(0.95 - 0.5 * pad, 0.95, band), band),
+            "inside the pads"
+        );
+        assert!(
+            !clears(gap(0.95 - pad, 0.95, band), band),
+            "exactly the pads, a Zero"
+        );
+        assert!(!clears(gap(1.05, 0.95, band), band), "an overlap");
+        assert!(!clears(gap(f64::NAN, 0.95, band), band), "not a number");
     }
 
     /// **A coaxial circle reads at its radius from both sides**, and one
@@ -614,7 +658,7 @@ mod tests {
         let (ra, rb) = (read(a), read(b));
         let axis = ra.cover.about()[0];
         assert!(
-            matches!(axis, Around::Line(geom::Line { origin, dir }) if origin.equals_exactly(p(0.0, 0.0, 0.0)) && dir.cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
+            matches!(axis, Around::Line(geom::Line { origin, dir }) if origin.equals_exactly(p(0.0, 0.0, 0.0)) && dir.get().cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
             "about its axis: {axis:?}"
         );
         assert_eq!(ra.cover.range_about(&axis), (1.0, 1.0), "the inner wall");
@@ -725,7 +769,10 @@ mod tests {
     }
     fn arc(c: Point3<f64>, n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>) -> Proposed<f64> {
         Proposed {
-            depth: Around::Line(geom::Line { origin: c, dir: n }),
+            depth: Around::Line(geom::Line {
+                origin: c,
+                dir: geom_core::UnitVec3::squared(n),
+            }),
             source: Source::Arc(from, to),
         }
     }
@@ -803,7 +850,10 @@ mod tests {
             }))])
         };
         let y = v(0.0, 1.0, 0.0);
-        let parallel = dirs(&wall(p(0.0, 0.0, 0.0), y), &wall(p(1.0, 0.7, 1.0), y * 2.0));
+        let parallel = dirs(
+            &wall(p(0.0, 0.0, 0.0), geom_core::UnitVec3::squared(y)),
+            &wall(p(1.0, 0.7, 1.0), geom_core::UnitVec3::squared(y * 2.0)),
+        );
         assert_eq!(parallel.len(), 2, "two offsets");
         assert!(
             parallel

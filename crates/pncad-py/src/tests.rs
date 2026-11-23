@@ -25,8 +25,7 @@ use std::path::Path;
 // The shared Rust-source lexer: `src/tags.rs` is READ by the tag-table
 // guard below, and a synthetic fixture beside it is read by the
 // guard's own guard. This is the tree's one answer to "is this text
-// code, prose or a literal"; `crates/test-utils/tests/reader_census.rs`
-// carries the line that says so.
+// code, prose or a literal".
 use test_utils::source::{
     ItemBody, balanced_end, boundary_after, boundary_before, code_and_literals, code_only,
     comments_only, ident, impl_head, item_body, line_start, plain_string_literal, skip_ws,
@@ -347,6 +346,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Measure => "MeasureUnavailable",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
             ErrorClass::Mc => "McRefusal",
+            ErrorClass::Range => "RangeRefusal",
             ErrorClass::StepHandle => "StepHandleError",
         }
     }
@@ -387,6 +387,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Measure,
         ErrorClass::AnalysisPolicy,
         ErrorClass::Mc,
+        ErrorClass::Range,
         ErrorClass::StepHandle,
     ] {
         assert_eq!(class.class_name(), expected(class));
@@ -678,6 +679,17 @@ fn picking_refusal_tags_are_stable() {
         }),
         "evaluation_of_another_document"
     );
+    assert_eq!(
+        crate::tags::range_refusal_tag(
+            &pncad::analysis::RangeRefusal::EvaluationOfAnotherDocument(
+                pncad::document::Mispaired {
+                    expected: pncad::document::DocumentId::derive("tag-expected"),
+                    found: pncad::document::DocumentId::derive("tag-found"),
+                }
+            )
+        ),
+        "evaluation_of_another_document"
+    );
 
     // The certified tie between faces, under the word the name-level
     // interrogation already answers with for "this denotes more than
@@ -870,6 +882,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &["placement", "constraints", "free"],
     );
     carries(&F::NotOnTheCopy { mate: m(1) }, &["mate"]);
+    carries(&F::NotTheDatumsOwn { mate: m(1) }, &["mate"]);
     carries(
         &F::KindsDiffer {
             mate: m(1),
@@ -2061,6 +2074,7 @@ fn node_error_tags_are_the_published_words() {
         NotFinished => "not_finished",
         UnfinishedLeaf => "unfinished_leaf",
         EmptyHalf => "empty_half",
+        HalfOfAFamily => "half_of_a_family",
         MemberOutOfRange => "member_out_of_range",
         MemberRefused => "member_refused",
         IndicesUnrelated => "indices_unrelated",
@@ -2078,7 +2092,7 @@ fn node_error_tags_are_the_published_words() {
         CountOutOfRange => "count_out_of_range",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
-        UnionFoldStep => "union_fold_step",
+        FoldStep => "fold_step",
         Shell => "shell",
         ShellLaneUnsupported => "shell_lane_unsupported",
         WitnessBifurcation => "witness_bifurcation",
@@ -2097,6 +2111,7 @@ fn node_error_tags_are_the_published_words() {
         MateOverconstrained => "mate_overconstrained",
         MateUnpinned => "mate_unpinned",
         MateNotOnTheCopy => "mate_not_on_the_copy",
+        MateNotTheDatumsOwn => "mate_not_the_datums_own",
         MateUnleverable => "mate_unleverable",
         MateKindsDiffer => "mate_kinds_differ",
         MateSideUnevaluated => "mate_side_unevaluated",
@@ -2445,9 +2460,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::DefinesNothing {
             input: sp(2),
-            slot: SlotId::Operand(OperandSlot::Cut),
+            slot: SlotId::Operand(OperandSlot::Cut(0)),
         },
-        &["input", "slot"],
+        &["input", "slot", "index"],
     );
 
     // A constraint's address answers with the ids it was given: the
@@ -3578,7 +3593,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
         restated: Vec::new(),
-        quietable: false,
+        quieting: None,
     };
     // One fold row reported with it: the payload counts it.
     let unproven = {
@@ -3586,7 +3601,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             row,
             residual,
             recourse,
-            quietable,
+            quieting,
             ..
         } = &unproven
         else {
@@ -3601,7 +3616,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             residual: residual.clone(),
             recourse: *recourse,
             restated: vec![(fold, (**residual).clone(), *recourse)],
-            quietable: *quietable,
+            quieting: quieting.clone(),
         }
     };
     carries(&unproven, &["reason", "relation", "site", "restated"]);
@@ -4108,6 +4123,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "value_spin"
                         | "section"
                         | "member"
+                        | "cut"
                         | "index"
                         | "measured"
                         | "cleared"
@@ -4439,7 +4455,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ball_does_not_fit",
             "band",
             "body_not_intact",
-            "certify",
             "chain_not_connected",
             "chain_not_g1",
             "chamfer_arm_unsupported",
@@ -4452,6 +4467,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
+            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -4569,6 +4585,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["label_fault_tag", "pin_refusal_tag"],
     },
     TagEntry {
+        function: "budget_kind_tag",
+        values: &["depth", "leaves", "resolution"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "census_contact_tag",
         values: &[
             "conformal_patch",
@@ -4626,6 +4647,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cusp",
             "meet",
             "on_carrier",
+            "rim_junction",
             "same_opposite",
             "same_oriented",
             "same_radius",
@@ -4695,12 +4717,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "iso_join",
             "plane_ladder",
             "profile_junction",
+            "rim_junction",
             "smooth_join",
             "sphere_on_torus_axis",
             "split_on",
             "tangent_witness",
             "vertex_fusion",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "difference_kind_tag",
+        values: &["builds_differently", "standing_change"],
         delegates: &[],
     },
     TagEntry {
@@ -4730,6 +4758,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "distribution_kind_tag",
         values: &["band", "normal", "truncated_normal", "uniform"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "drive_refusal_tag",
+        values: &["nothing_varies", "stopped", "witness_does_not_build"],
         delegates: &[],
     },
     TagEntry {
@@ -5139,6 +5172,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "corrupt",
             "empty_contains",
             "face",
+            "no_outline",
             "null_scaffold_edge",
             "poisoned",
             "resolution_finer_than_eps",
@@ -5247,6 +5281,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "expr",
             "extrude",
             "fillet",
+            "fold_step",
+            "half_of_a_family",
             "index_count",
             "index_count_out_of_range",
             "indices_unrelated",
@@ -5255,6 +5291,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_kinds_differ",
             "mate_no_chart",
             "mate_not_on_the_copy",
+            "mate_not_the_datums_own",
             "mate_overconstrained",
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
@@ -5308,7 +5345,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tube",
             "underflowed_direction",
             "unfinished_leaf",
-            "union_fold_step",
             "unresolved_read",
             "unschedulable_cycle",
             "witness_bifurcation",
@@ -5398,6 +5434,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body",
             "cleared",
             "cut",
+            "cuts",
             "face",
             "frame",
             "from",
@@ -5619,6 +5656,27 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "range_refusal_tag",
+        values: &[
+            "derivation",
+            "evaluation_of_another_document",
+            "more_than_one_axis_varies",
+            "not_a_continuous_param",
+            "seed_is_not_the_analyzed_axis",
+            "seed_not_a_bracket",
+            "slot_is_defined",
+            "structural_slot",
+            "unknown_node",
+            "unknown_slot",
+        ],
+        delegates: &["drive_refusal_tag"],
+    },
+    TagEntry {
+        function: "range_step_tag",
+        values: &["advanced", "finished", "stopped"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "reach_refusal_tag",
         values: &[
             "face_unbounded",
@@ -5643,6 +5701,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "subdivision_count",
         ],
         delegates: &["expr_dimension_error_tag"],
+    },
+    TagEntry {
+        function: "refusal_reason_tag",
+        values: &[
+            "bifurcation",
+            "budget",
+            "flip_crossing",
+            "infeasible",
+            "reads_no_variable",
+            "sliver_terminal",
+        ],
+        delegates: &[],
     },
     TagEntry {
         function: "replay_error_tag",
@@ -6210,6 +6280,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "unproven_tag",
+        values: &["flip_unfounded", "stalled", "unfinished"],
+        delegates: &["refusal_reason_tag"],
+    },
+    TagEntry {
         function: "update_error_tag",
         values: &["already_pinned", "no_such_reference"],
         delegates: &[],
@@ -6232,7 +6307,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
-            "component_euler_violation",
             "contact_contradicted",
             "curve_datum_undecided",
             "curved_sense_inverted",
@@ -6464,7 +6538,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_profile", 3),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 5),
+    ("evaluation_of_another_document", 6),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
     // the seat that reads one face, the entity's own word.
     ("face", 4),
@@ -6577,6 +6651,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // loft's kept section ids.
     ("repeated", 3),
     ("revolve", 2),
+    // One fact: a coincidence row's relation and the site it was
+    // decided at name one thing, two faces joined on a rim both end on
+    // (`topo::Relation::RimJunction` at `topo::DecisionSite::RimJunction`),
+    // as `coaxial` is one fact across the coincidence and snap maps.
+    ("rim_junction", 2),
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),
@@ -6608,8 +6687,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("split_lineage_cycle", 2),
     ("step_ids", 3),
     // One fact: an evaluation a door ran stopped short
-    // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
-    ("stopped", 2),
+    // (`editor_core::Stopped`), at the Monte-Carlo and split doors, at
+    // a drive's witness build and at one step of a range search.
+    ("stopped", 4),
     ("structure", 3),
     // As `coaxial`: the coincidence relation and the snap relation.
     ("tangent", 2),
@@ -6629,8 +6709,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // rigidity margin the decided door left undecided.
     ("undecided", 3),
     ("underflowed_direction", 2),
-    ("unknown_node", 6),
+    ("unknown_node", 7),
     ("unknown_param", 3),
+    // One fact at the edit door and the range query's admission: a
+    // node that carries no such slot.
+    ("unknown_slot", 2),
     // One fact three times: a reference to something no mint holds —
     // a program's step, a step handle, and (`pose_fault_tag`) a pose
     // definition's read.
@@ -8193,10 +8276,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 34,
+        literals: 35,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
-            holds: "the 35 class names, against a SECOND exhaustive match, so a new \
+            holds: "the 36 class names, against a SECOND exhaustive match, so a new \
                     class stops the build",
         }],
     },
@@ -10361,6 +10444,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "assemble",
     "assertion",
     "chamfer",
+    "datum",
     "extrude",
     "fillet",
     "hollow_tube",

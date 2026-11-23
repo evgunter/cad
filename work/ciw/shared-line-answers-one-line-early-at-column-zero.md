@@ -2,10 +2,11 @@
 id: shared-line-answers-one-line-early-at-column-zero
 kind: issue
 title: test_utils::source::line answers the previous line for an offset at column 0
-status: open
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: D
+closed: 2026-11-22
 ---
 
 ## What
@@ -40,3 +41,8 @@ LANE-4P's fix pass (PR 3165), writing a row that asserted the line of
 an unreadable `impl` head.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (stale). Fixed as proposed: `crates/test-utils/src/source.rs:456-458` is now
+`text[..at].matches('\n').count() + 1` (landed in 3b0675793d, PR 6793's review, 2026-11-16).

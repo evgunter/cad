@@ -98,22 +98,23 @@ pub use editor_core::{
     Recorded, Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
     apply_replayed, slot_admits,
 };
+// `OperandRead` is the element of `Doc::operand_reads`, and `ReadIndex`
+// what `Doc::read_index` answers: what a node reads, and what reads it.
 pub use editor_core::{
     ArcShape, AuthoredStep, PenRun, PenStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
     pen_run, shape_of_recorded, step_kernel,
 };
+pub use editor_core::{OperandRead, ReadIndex};
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
-// "Sketch on this face" (DM1): the profile, its extrude, the copy placed
-// on the face and the union, as one action (`Recording::sketch_on_face`
-// composes it into a longer one).
-pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // A profile drawn on a face (DM1): one profile node on the face's chart,
 // in the face's body's space, where the library and the viewer draw on a
 // face (`Recording::draw_on_face` composes it into a longer action), and
 // the chart it draws on, for a reader that reads it before drawing there.
+// A sketch on a face is this profile, an extrude of it by a signed depth
+// and a combine with the face's body.
 pub use editor_core::{
     DrawnOnFace, FaceUnread, OnFace, chart_on_face, draw_on_face, nearest_to_face,
 };
@@ -143,13 +144,14 @@ pub use editor_core::{
     Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
 };
 
-// How a sentence names a node: the kind noun and tag a person reads, the
-// speaker a refusal holding bare ids is said by, the nodes a door kept
-// beside a refusal it carries whole, and the full-width id a machine
-// channel prints.
+// How a sentence names a node: a sentence of words and mentions, the
+// one spelling of a mention, the speaker a refusal holding bare ids is
+// said by, the nodes a door kept beside a refusal it carries whole, and
+// the full-width id a machine channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
-    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, Lines, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode,
+    SaidVar, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said,
+    held_by, node_kind_noun, node_text, say, sentence, spoken_by, spoken_within, var_text,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
@@ -376,7 +378,7 @@ pub use editor_core::{
 // ([`Staged::sentence`]); the recourse label, and what an API door
 // given no part resolver says to do.
 pub use editor_core::{
-    Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
+    Labelled, LabelledBy, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
 };
 
 // Document identity and content pins.
@@ -494,8 +496,8 @@ pub use editor_core::{
 // between two copies' material is an `InterferenceFinding`: its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
 // `Unlocalized` with why), the assertion that quiets it, if any, and
-// whether one could (`quietable`): one no assertion could quiet refuses
-// at no severity. A pair the census could not look at is an
+// the faces one would be written over (`quieting`): one no assertion
+// could quiet refuses at no severity. A pair the census could not look at is an
 // `AtRestEvidence`, loud and never refusing. A part's own findings cross the seam with it, each
 // reported once, as the part's: `CarriedInterference`,
 // `CarriedAtRestFinding` and `CarriedCoincidence`, each with the `Route`
@@ -506,8 +508,14 @@ pub use editor_core::{
 pub use editor_core::{
     AtRestEvidence, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
-    PinnedDoc, Route, Unlocalized,
+    PinnedDoc, Route, RouteHop, Unlocalized,
 };
+// What a finding's assertion recourse determines, as data: the
+// `Quieting` an unproven coincidence carries (a `Gap` or `Distance`
+// over two `QuietingRef`s, `= 0`, with the edits that author it), and
+// the `OpposedPair` of faces an interference's quieting `Gap` is
+// written over.
+pub use editor_core::{CarriedAssertion, OpposedPair, Quieting, QuietingRef};
 
 // Split, inline and flatten: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
