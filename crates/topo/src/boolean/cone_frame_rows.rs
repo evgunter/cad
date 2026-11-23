@@ -16,7 +16,7 @@
 use super::BooleanError;
 use super::join::{
     FrameError, FrameExtent, frame_extent, frame_reading, frame_refusal, one_loop,
-    pair_section_frame, pair_section_frame_at,
+    pair_section_frame_at,
 };
 use crate::entity::FaceKey;
 use geom_brep::OpenConic;
@@ -82,7 +82,6 @@ fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> 
         one_loop(pair_section_frame_at(
             a,
             b,
-            at,
             FrameExtent::Cone(measured(at, wall_reach())),
             band(),
         ))
@@ -147,7 +146,7 @@ fn assert_conic_frame(got: &Frame, centre: Point3<f64>, normal: Vec3<f64>, what:
         "{what}: the frame's centre {c:?} is the conic's {centre:?}"
     );
     assert!(
-        a.normalize().cross(normal.normalize()).norm() < 1e-12,
+        a.get().normalize().cross(normal.normalize()).norm() < 1e-12,
         "{what}: the frame's axis {a:?} is the cutting plane's normal {normal:?}"
     );
 }
@@ -321,7 +320,6 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
         one_loop(pair_section_frame_at(
             p,
             &cone,
-            at,
             FrameExtent::Cone(measured(at, lever)),
             b,
         ))
@@ -428,8 +426,8 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     for (margin, want) in [(sliver, "pn_conic_type"), (4.0 * b.escalate(), "served")] {
         let p = turned(margin);
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
-            let (at, extent) = reading(a, c);
-            let got = one_loop(pair_section_frame_at(a, c, at, extent, b));
+            let (_, extent) = reading(a, c);
+            let got = one_loop(pair_section_frame_at(a, c, extent, b));
             let verdict = match &got {
                 Ok(Some(_)) => "served",
                 Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
@@ -453,7 +451,8 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
 /// tilt in the band reads the same: the pose's row (`pn_axis_normal`,
 /// `pc_rim_alignment`) is a lane choice, so in band takes the ellipse.
 /// The cone is the widening frustum, levered at the face's reach; the
-/// cylinder is a unit wall, levered at its radius.
+/// cylinder is a unit wall, its section the value's across a region of
+/// its radius about the reading point.
 #[test]
 fn a_near_circular_tilt_is_the_ellipses_frame_in_band_too() {
     let b = band();
@@ -478,13 +477,26 @@ fn a_near_circular_tilt_is_the_ellipses_frame_in_band_too() {
         ),
         radius: 1.0,
     };
-    let at = Point3::new(1.0, 0.5, 0.0);
+    let region = geom_brep::ExtentBall::fixture(Point3::new(1.0, 0.5, 0.0), 1.0);
     for margin in [clear, in_band] {
         let n = tilted(margin, 1.0);
         let p = plane([q.x, q.y, q.z], n);
         for (label, x, y) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
             let label = format!("{label}, tilt margin {margin:e}");
-            assert_conic_frame(&pair_section_frame(x, y, at, b), q, n, &label);
+            let read = geom_brep::pair_section(x, y, Some(region), None::<geom_core::NoLane>, b);
+            let got = match read {
+                Ok(geom_brep::SectionRead::Built(section)) => match section.counted() {
+                    Some([c]) => match &c.carrier {
+                        geom_brep::ClassCarrier::Closed(e @ geom::Curve3::Ellipse(_)) => {
+                            Ok(e.frame().map(|f| f.axis_line()))
+                        }
+                        other => panic!("{label}: the loop's carrier is {other:?}"),
+                    },
+                    other => panic!("{label}: the section lists {other:?}"),
+                },
+                other => panic!("{label}: {other:?}"),
+            };
+            assert_conic_frame(&got, q, n, &label);
         }
     }
 }
@@ -498,27 +510,12 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
     let b = band();
     let cone = widening();
     let p = plane([0.0, 0.3, 0.0], Vec3::new(0.0, 1.0, 0.0));
-    for extent in [
-        FrameExtent::Radii,
-        FrameExtent::Wall {
-            below: 1.0,
-            above: 1.0,
-            across: geom_core::test_support::fixture_lever(1.0),
-        },
-    ] {
-        let got = one_loop(pair_section_frame_at(
-            &p,
-            &cone,
-            on_wall(),
-            extent.clone(),
-            b,
-        ));
-        assert!(
-            matches!(got, Err(FrameError::Desync(_))),
-            "plane×cone under {extent:?}: got {}",
-            shape(&got)
-        );
-    }
+    let got = one_loop(pair_section_frame_at(&p, &cone, FrameExtent::Radii, b));
+    assert!(
+        matches!(got, Err(FrameError::Desync(_))),
+        "plane×cone under its radii: got {}",
+        shape(&got)
+    );
     let wall = geom::Surface::Cylinder {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
@@ -539,7 +536,6 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         let got = one_loop(pair_section_frame_at(
             a,
             c,
-            Point3::new(1.0, 0.3, 0.0),
             FrameExtent::Cone(measured(Point3::new(1.0, 0.3, 0.0), 1.0)),
             b,
         ));
@@ -688,20 +684,20 @@ fn a_germ_on_the_apex_line_pair_rides_its_own_line() {
     );
     let unit = |d: Vec3<f64>| d / d.norm();
     for k in 0..2 {
-        let d = unit(plus.dirs[k]);
+        let d = unit(plus.dirs[k].get());
         assert!(
             (d.x.abs() < 1e-12) && ((d.y / d.z).abs() - 2.0).abs() < 1e-12,
             "line {k}: along (0, 2, ±1), not {d:?}"
         );
         assert!(
-            unit(minus.dirs[1 - k]).cross(d).norm() < 1e-12,
+            unit(minus.dirs[1 - k].get()).cross(d).norm() < 1e-12,
             "line {k}: the flipped normal reads it as line {}",
             1 - k
         );
     }
     let read = |site, dir| line_of(&plus, (site, dir), band());
     for k in 0..2 {
-        let d = unit(plus.dirs[k]);
+        let d = unit(plus.dirs[k].get());
         for (what, site, dir) in [
             ("a site up the line", apex + d * 0.4, -d),
             ("a site on the far nappe", apex - d * 0.3, d),
@@ -926,12 +922,12 @@ fn the_mint_takes_the_pairs_held_reading() {
     for k in 0..2 {
         let d = lines.dirs[k];
         assert_eq!(
-            mint(&door, d).unwrap(),
+            mint(&door, d.get()).unwrap(),
             SectionPick::Line(k),
             "line {k}: the door's reading"
         );
         assert_eq!(
-            mint(&swapped, d).unwrap(),
+            mint(&swapped, d.get()).unwrap(),
             SectionPick::Line(1 - k),
             "line {k}: a held reading with its lines swapped"
         );
@@ -941,7 +937,7 @@ fn the_mint_takes_the_pairs_held_reading() {
         b,
         Ok(PkSection::Loop(geom::Line {
             origin: Point3::new(0.0, 0.0, 1.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         })),
     );
     let at_apex = super::join::germ_branch(
@@ -949,7 +945,7 @@ fn the_mint_takes_the_pairs_held_reading() {
         a,
         b,
         loci,
-        (Point3::origin(), lines.dirs[0]),
+        (Point3::origin(), lines.dirs[0].get()),
         band(),
     )
     .unwrap();

@@ -45,17 +45,15 @@ use std::borrow::Cow;
 use pncad::document::{AtRestEvidence, CheckEvidence};
 
 use crate::tags::{
-    at_rest_evidence_tag, coherence_condition_tag, coincidence_relation_tag, decision_site_tag,
-    product_error_tag, shell_classify_error_tag, unexaminable_tag, validation_error_tag,
+    at_rest_evidence_tag, coincidence_relation_tag, decision_site_tag, product_error_tag,
+    shell_classify_error_tag, validation_error_tag,
 };
 
 /// What one [`CheckEvidence`] arm carries, every field present.
 ///
 /// `reason` is a [`Cow`] so an arm whose sentence the kernel already
 /// owns can lend it; every arm today renders its own.
-// `PartialEq` without `Eq`: the record carries measured lengths, and
-// a float has no total equality to derive.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckEvidencePayload<'a> {
     /// Components actually found.
     pub actual: Option<u32>,
@@ -72,33 +70,6 @@ pub struct CheckEvidencePayload<'a> {
     /// **Why the at-rest check could not look**, as the branchable word
     /// ([`crate::tags::at_rest_evidence_tag`]), on `at_rest` alone.
     pub at_rest_variant: Option<&'static str>,
-    /// **The chart-coherence arm's own inner discriminant** — which of
-    /// the three conditions was measured
-    /// ([`crate::tags::coherence_condition_tag`]), or why one loop was
-    /// out of reach ([`crate::tags::unexaminable_tag`]).
-    ///
-    /// Two alphabets under one attribute, and they are DISJOINT, so a
-    /// caller who did not first branch on the arm gets an answer that
-    /// is right, and the arm remains readable off the word.
-    pub chart_variant: Option<&'static str>,
-    /// The chart-coherence measurement as a LENGTH, `gap * lever` — the
-    /// only unit the band is in, and the only one the finding is judged
-    /// in.
-    pub metres: Option<f64>,
-    /// That measurement's two factors: the disagreement in the chart's
-    /// own units (radians of u, or v's units by surface kind)...
-    pub gap: Option<f64>,
-    /// ...and the lever arm in metres per chart unit at the point the
-    /// gap is about. Zero on a chart axis, where an azimuth carries no
-    /// length at all.
-    pub lever: Option<f64>,
-    /// The band the measurement was judged against, per finding.
-    ///
-    /// It rides the finding rather than the report for the reason the
-    /// kernel states at [`pncad::topo::CoherenceFinding::eps`]: a
-    /// measurement read without the band it was judged at is a number
-    /// without a claim.
-    pub eps: Option<f64>,
     /// What an unproven coincidence decided between its cells
     /// ([`crate::tags::coincidence_relation_tag`]).
     pub relation: Option<&'static str>,
@@ -118,18 +89,13 @@ impl CheckEvidencePayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`CheckEvidence`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 13] {
+    pub fn presence(&self) -> [(&'static str, bool); 8] {
         let Self {
             actual,
             expected,
             reason,
             inner_variant,
             at_rest_variant,
-            chart_variant,
-            metres,
-            gap,
-            lever,
-            eps,
             relation,
             site,
             restated,
@@ -140,11 +106,6 @@ impl CheckEvidencePayload<'_> {
             ("reason", reason.is_some()),
             ("inner_variant", inner_variant.is_some()),
             ("at_rest_variant", at_rest_variant.is_some()),
-            ("chart_variant", chart_variant.is_some()),
-            ("metres", metres.is_some()),
-            ("gap", gap.is_some()),
-            ("lever", lever.is_some()),
-            ("eps", eps.is_some()),
             ("relation", relation.is_some()),
             ("site", site.is_some()),
             ("restated", restated.is_some()),
@@ -167,11 +128,6 @@ impl CheckEvidencePayload<'_> {
         reason: None,
         inner_variant: None,
         at_rest_variant: None,
-        chart_variant: None,
-        metres: None,
-        gap: None,
-        lever: None,
-        eps: None,
         relation: None,
         site: None,
         restated: None,
@@ -219,29 +175,6 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
             inner_variant: errors.first().map(validation_error_tag),
             ..none
         },
-        // The measurement, whole: the length it is judged as, the two
-        // factors it is the product of, and the band it was judged
-        // against. Four numbers rather than one because the finding
-        // carries four — `metres` alone cannot be re-derived from, and
-        // `metres` without `eps` is a number without a claim.
-        CheckEvidence::ChartCoherence { finding } => CheckEvidencePayload {
-            chart_variant: Some(coherence_condition_tag(finding.condition)),
-            metres: Some(finding.metres),
-            gap: Some(finding.gap),
-            lever: Some(finding.lever),
-            eps: Some(finding.eps),
-            ..none
-        },
-        // The DATA put this loop out of reach; `ChecksReport.skipped`
-        // is the other thing, and carries no finding at all.
-        CheckEvidence::ChartCoherenceUnexamined { unexamined } => CheckEvidencePayload {
-            chart_variant: Some(unexaminable_tag(unexamined.why)),
-            ..none
-        },
-        // The lane has no examination. Nothing was measured, so no
-        // attribute is set — the TAG is the whole answer, and it is
-        // the answer a caller must not read as a clean body.
-        CheckEvidence::ChartCoherenceUnavailable => none,
         // The tag is the whole answer: the subject is what was not used.
         CheckEvidence::Unused { .. } => none,
         // The row's two words, the residual's sentence as the reason

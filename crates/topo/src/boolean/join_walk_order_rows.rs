@@ -1,38 +1,34 @@
-//! **The boolean's turn order and the split's walk order are one order
-//! along a section conic.** The boolean ranks a germ's partners by
-//! [`along_sign`] — the half-turn ([`germ_arm`]), then the turn from
-//! the incumbent ([`super::travel`]); the split pairs a curved face's
-//! crossings in walk order ([`crate::splitting::join::conic_pairs_of_sites`],
-//! the eccentric anomaly through `sort_along_runs`). Each row feeds one
-//! set of sites on one conic to both, walking it either way, and asks
-//! for one cyclic order.
+//! **The boolean's foot order and the split's walk order are one order
+//! along a section conic.** The boolean ranks a germ's partners on a
+//! pair the section table carries by their foot parameters' travel along
+//! the carried component ([`along_facing`], through [`along_sign`]); the
+//! split pairs a curved face's crossings in walk order
+//! ([`crate::splitting::join::conic_pairs_of_sites`], the eccentric
+//! anomaly through `sort_along_runs`). Each row feeds one set of sites on
+//! one conic to both, walking it either way, and asks for one cyclic
+//! order. The conics are the section value's own: a circle on a sphere
+//! (plane × sphere) and tilted ellipses on a cylinder (plane × cylinder),
+//! carried ([`geom_brep::pair_section`]).
 //!
 //! The sites, listed counter-clockwise from the germ: one mid-arc; a
 //! pair thirty bands apart on the flank; a pair straddling the conic's
 //! own seam (`θ = ±π`, where the split's walk starts); a pair straddling
-//! the germ's half-turn (one `Ahead`, one `Behind`); and two behind.
-//! Each straddling pair sits fifteen bands either side, clear of the
-//! band's escalation edge ([`Band::escalate`]) and of the turn's
-//! off-conic slack. Every lane takes them in one scrambled insertion
-//! order, so none inherits the answer from its input.
+//! the germ's half-turn; a pair straddling the carried component's seam;
+//! and two behind. Each straddling pair sits fifteen bands either side,
+//! clear of the band's escalation edge ([`Band::escalate`]). Every lane
+//! takes them in one scrambled insertion order, so none inherits the
+//! answer from its input.
 //!
 //! Each set is read twice: on the conic, then with every site moved
 //! within the band off it, across it in the section plane and to
 //! alternate sides, so neighbours sit up to two band widths apart across
-//! the conic. That drives the turn's off-conic slack
-//! ([`super::off_conic_slack`]), which the split's walk does not read.
-//!
-//! The circle on a sphere is also the coaxial cylinder × sphere section
-//! the table carries ([`geom_brep::pair_section`]), so there the carried
-//! lane's foot parameter ([`along_facing`]) is held too, with a pair
-//! straddling the carried circle's own seam. No pair the table carries
-//! is an ellipse: the ellipse rows hold two orders, not three.
+//! the conic.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::section_table::SectionTable;
 use super::super::{BooleanError, HalfGerm, Locus};
-use super::{Faced, PartnerDistance, Turn, along_facing, along_sign, germ_arm, nearest_of};
+use super::{Faced, PartnerDistance, along_facing, along_sign, germ_arm, nearest_of};
 use crate::HalfEdgeKey;
 use crate::chord_join::JoinError;
 use geom::{Curve3, Surface};
@@ -46,8 +42,8 @@ fn band() -> Band {
 /// A site: its point and its unit tangent along the walk.
 type Site = (Point3<f64>, Vec3<f64>);
 
-/// The conic's axis line, through its centre: the frame its turn is
-/// read about.
+/// The conic's axis line, through its centre, which sites move across the
+/// conic by.
 fn frame(conic: &Curve3<f64>) -> geom::Line<f64> {
     match conic {
         Curve3::Ellipse(_) | Curve3::Circle(_) => conic.frame().map(|f| f.axis_line()),
@@ -131,17 +127,20 @@ fn ranked(mut left: Vec<(usize, PartnerDistance<f64>)>) -> Result<Vec<usize>, Bo
 /// One reading of a conic's sites by both lanes, each as a cycle of
 /// site indices from the germ: walked `sense` (`±1` of counter-clockwise),
 /// each site moved `off` band widths across the conic, to alternate
-/// sides. `walk` is the sites' own order that way; `partners` the
-/// non-germ sites in the lanes' insertion order.
+/// sides. `walk` is the sites' own order that way.
 struct Lanes {
     walk: Vec<usize>,
     split: Result<Vec<usize>, JoinError>,
-    turn: Result<Vec<usize>, BooleanError>,
-    germ: Site,
-    partners: Vec<(usize, Site)>,
+    foot: Result<Vec<usize>, BooleanError>,
 }
 
-fn lanes(wall: &Surface<f64>, conic: &Curve3<f64>, ts: &[f64], sense: f64, off: f64) -> Lanes {
+fn lanes(
+    (wall, section): (&Surface<f64>, &geom_brep::CarriedSection<f64>),
+    conic: &Curve3<f64>,
+    ts: &[f64],
+    sense: f64,
+    off: f64,
+) -> Lanes {
     let n = ts.len();
     let walk: Vec<usize> = if sense > 0.0 {
         (0..n).collect()
@@ -156,7 +155,7 @@ fn lanes(wall: &Surface<f64>, conic: &Curve3<f64>, ts: &[f64], sense: f64, off: 
     let site = |i: usize| {
         let (p, ahead) = at(conic, ts[i], sense);
         let side = if i.is_multiple_of(2) { off } else { -off };
-        let across = frame(conic).dir.cross(ahead).normalize();
+        let across = frame(conic).dir.get().cross(ahead).normalize();
         (p + across * (side * band().zero()), ahead)
     };
 
@@ -183,38 +182,20 @@ fn lanes(wall: &Surface<f64>, conic: &Curve3<f64>, ts: &[f64], sense: f64, off: 
         .filter(|&&i| i != 0)
         .map(|&i| (i, site(i)))
         .collect::<Vec<_>>();
-    let turned = partners
-        .iter()
-        .map(|&(i, (p, ahead))| {
-            let turn = Turn::facing(frame(conic), (g, dir), (p, -ahead), band())?
-                .expect("a partner facing back along the walk faces the germ");
-            let reach = PartnerDistance {
-                arm: germ_arm(Some(turn), band())?,
-                chord: (p - g).norm(),
-                turn: Some(turn),
-                along: None,
-            };
-            Ok((i, reach))
-        })
-        .collect::<Result<Vec<_>, BooleanError>>();
     Lanes {
         walk,
         split,
-        turn: turned.and_then(ranked),
-        germ: (g, dir),
-        partners,
+        foot: feet(section, (g, dir), &partners).and_then(ranked),
     }
 }
 
-/// One conic, walked each way, on it and off it: the split's walk, the
-/// boolean's turn, and (`carried`) the carried lane's foot parameter,
-/// against the sites' own order.
+/// One conic, walked each way, on it and off it: the split's walk and
+/// the carried lane's foot parameter, against the sites' own order.
 fn hold(
     name: &str,
-    wall: &Surface<f64>,
+    (wall, section): (&Surface<f64>, &geom_brep::CarriedSection<f64>),
     conic: &Curve3<f64>,
     ts: &[f64],
-    carried: Option<&geom_brep::CarriedSection<f64>>,
 ) {
     let walks = [(1.0, "ccw"), (-1.0, "cw")];
     for ((sense, way), (off, place)) in walks
@@ -222,29 +203,21 @@ fn hold(
         .flat_map(|w| [(w, (0.0, "on")), (w, (0.9, "off"))])
     {
         let way = &format!("{way} {place} the conic");
-        let read = lanes(wall, conic, ts, sense, off);
+        let read = lanes((wall, section), conic, ts, sense, off);
         let split = read
             .split
             .unwrap_or_else(|e| panic!("{name} {way}: the split's walk refused: {e:?}"));
-        let turn = read
-            .turn
-            .unwrap_or_else(|e| panic!("{name} {way}: the boolean's turn refused: {e:?}"));
+        let foot = read
+            .foot
+            .unwrap_or_else(|e| panic!("{name} {way}: the foot order refused: {e:?}"));
         assert_eq!(
-            turn, split,
-            "{name} {way}: the boolean's turn order and the split's walk order differ"
+            foot, split,
+            "{name} {way}: the carried lane's foot order and the split's walk order differ"
         );
         assert_eq!(
             split, read.walk,
             "{name} {way}: both lanes agree on an order that is not the sites' own"
         );
-        if let Some(section) = carried {
-            let foot = ranked(feet(section, read.germ, &read.partners))
-                .unwrap_or_else(|e| panic!("{name} {way}: the foot order refused: {e:?}"));
-            assert_eq!(
-                foot, split,
-                "{name} {way}: the carried lane's foot order and the split's walk order differ"
-            );
-        }
     }
 }
 
@@ -254,11 +227,13 @@ fn feet(
     section: &geom_brep::CarriedSection<f64>,
     (g, dir): Site,
     partners: &[(usize, Site)],
-) -> Vec<(usize, PartnerDistance<f64>)> {
+) -> Result<Vec<(usize, PartnerDistance<f64>)>, BooleanError> {
     let pillow = crate::fixtures::pillow(Tol::witness());
     let table = SectionTable::default();
     let mut halves = slotmap::SlotMap::<HalfEdgeKey, ()>::with_key();
-    let geom_brep::SiteReading::OnArc(foot) = section.site(g, band()).unwrap() else {
+    let geom_brep::SiteReading::OnArc(foot) =
+        section.site(g, band()).map_err(super::site_refusal)?
+    else {
         panic!("a site off every node")
     };
     let component = foot.component;
@@ -277,96 +252,63 @@ fn feet(
         .map(|&(i, (p, ahead))| {
             let to = germ(-ahead);
             let bodies = (&table, &pillow.body, &pillow.body);
-            let along = match along_facing(bodies, section, (&from, g), (&to, p), band()) {
-                Ok(Faced::Along(along)) => along,
-                Ok(_) => panic!("site {i}: a partner facing back does not face the germ"),
-                Err(e) => panic!("site {i}: {e:?}"),
+            let along = match along_facing(bodies, section, (&from, g), (&to, p), band())? {
+                Faced::Along(along) => along,
+                _ => panic!("site {i}: a partner facing back does not face the germ"),
             };
             let reach = PartnerDistance {
-                arm: germ_arm::<f64>(None, band()).unwrap(),
+                arm: germ_arm::<f64>(None, band())?,
                 chord: (p - g).norm(),
                 turn: None,
                 along: Some(along),
             };
-            (i, reach)
+            Ok((i, reach))
         })
         .collect()
 }
 
-/// A tilted ellipse on a cylinder (plane × cylinder): aspect 2, so the
-/// turn's flank reading and its off-conic slack are both live.
-#[test]
-fn a_tilted_ellipse_on_a_cylinder_walks_one_order_in_both_lanes() {
-    let origin = Point3::new(0.3, -0.2, 0.0);
-    let wall = Surface::Cylinder {
-        frame: geom::Frame::new(origin, Vec3::unit_z(), Vec3::unit_x()),
-        radius: 1.0,
-    };
-    let (s, c) = (60f64.to_radians().sin(), 60f64.to_radians().cos());
-    let normal = Vec3::new(s * 0.7f64.cos(), s * 0.7f64.sin(), c);
-    let plane = Surface::Plane {
-        frame: geom::Frame::new(
-            origin + Vec3::unit_z() * 0.5,
-            normal,
-            Vec3::unit_z().cross(normal).normalize(),
-        ),
-    };
-    let reach = geom_brep::Reach::fixture(origin, 4.0);
-    let conic = match geom_brep::plane_cylinder_section(&plane, &wall, &reach, band()).unwrap() {
-        geom_brep::PlaneCylinderSection::TiltedEllipse(c) => c,
-        other => panic!("{other:?}"),
-    };
-    hold("ellipse", &wall, &conic, &sites(&conic, 0.4, &[]), None);
-}
-
-/// A circle on a sphere (plane × sphere), the coaxial cylinder × sphere
-/// section's circle too, so the carried lane's foot order is held on it.
-#[test]
-fn a_circle_on_a_sphere_walks_one_order_in_all_three_lanes() {
-    let center = Point3::new(0.1, 0.2, -0.3);
-    let n = Vec3::new(1.0, -2.0, 2.0).normalize();
-    let u_ref = Vec3::unit_z().cross(n).normalize();
-    let sphere = Surface::Sphere {
-        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
-        radius: 1.5,
-    };
-    let plane = Surface::Plane {
-        frame: geom::Frame::new(center + n * 0.6, n, u_ref),
-    };
-    let conic = match geom_brep::plane_sphere_section(&plane, &sphere, band()).unwrap() {
-        geom_brep::PlaneSphereSection::Circle(c) => c,
-        other => panic!("{other:?}"),
-    };
-    let cylinder = Surface::Cylinder {
-        frame: geom::Frame::new(center, n, u_ref),
-        radius: (1.5f64 * 1.5 - 0.6 * 0.6).sqrt(),
-    };
+/// **The pair's section, carried, and its one loop**: `a` and `b` read
+/// on the section value over `region`, its one component's carrier the
+/// conic the sites lie on.
+fn carried(
+    a: &Surface<f64>,
+    b: &Surface<f64>,
+    region: geom_brep::ExtentBall<f64>,
+) -> (geom_brep::CarriedSection<f64>, Curve3<f64>) {
     let section =
-        match geom_brep::pair_section(&cylinder, &sphere, None, None::<geom_core::NoLane>, band())
+        match geom_brep::pair_section(a, b, Some(region), None::<geom_core::NoLane>, band())
             .unwrap()
         {
             geom_brep::SectionRead::Built(s) => s.carry(None::<geom_core::NoLane>, band()).unwrap(),
             geom_brep::SectionRead::Elsewhere(route) => panic!("{route:?}"),
         };
-    let geom_brep::SiteReading::OnArc(foot) = section.site(conic.eval(0.4), band()).unwrap() else {
-        panic!("a site off every node")
+    let [component] = section.components() else {
+        panic!("one loop: {:?}", section.components().len())
     };
-    let component = foot.component;
-    let carried_seam = section.components()[component].carrier.eval(0.0);
-    let split_conic = crate::chord_join::section_conic(conic.clone()).unwrap();
-    let ts = sites(&conic, 0.4, &[split_conic.param(carried_seam)]);
-    hold("circle", &sphere, &conic, &ts, Some(&section));
+    let conic = component.carrier.clone();
+    (section, conic)
 }
 
-/// An ellipse of aspect 30 on a cylinder (plane × cylinder), and the
-/// cylinder.
-fn steep() -> (Surface<f64>, Curve3<f64>) {
+/// The sites on `conic` from the germ at `t0`, with a pair straddling
+/// the carried component's own seam.
+fn sites_about_the_seam(
+    section: &geom_brep::CarriedSection<f64>,
+    conic: &Curve3<f64>,
+    t0: f64,
+) -> Vec<f64> {
+    let seam = section.components()[0].carrier.eval(0.0);
+    let split_conic = crate::chord_join::section_conic(conic.clone()).unwrap();
+    sites(conic, t0, &[split_conic.param(seam)])
+}
+
+/// A tilted plane and the unit wall about `z` through `origin`, the
+/// plane's normal `tilt` off the axis, and the region about them.
+fn tilted_cut(tilt: f64, reach: f64) -> (Surface<f64>, Surface<f64>, geom_brep::ExtentBall<f64>) {
     let origin = Point3::new(0.3, -0.2, 0.0);
     let wall = Surface::Cylinder {
         frame: geom::Frame::new(origin, Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
     };
-    let tilt = (1.0f64 / 30.0).acos();
     let normal = Vec3::new(
         tilt.sin() * 0.7f64.cos(),
         tilt.sin() * 0.7f64.sin(),
@@ -379,51 +321,83 @@ fn steep() -> (Surface<f64>, Curve3<f64>) {
             Vec3::unit_z().cross(normal).normalize(),
         ),
     };
-    let reach = geom_brep::Reach::fixture(origin, 64.0);
-    let conic = match geom_brep::plane_cylinder_section(&plane, &wall, &reach, band()).unwrap() {
-        geom_brep::PlaneCylinderSection::TiltedEllipse(c) => c,
-        other => panic!("{other:?}"),
+    let region = geom_brep::ExtentBall::fixture(origin, reach);
+    (plane, wall, region)
+}
+
+/// A tilted ellipse on a cylinder (plane × cylinder): aspect 2, so the
+/// flank is live.
+#[test]
+fn a_tilted_ellipse_on_a_cylinder_walks_one_order_in_both_lanes() {
+    let (plane, wall, region) = tilted_cut(60f64.to_radians(), 4.0);
+    let (section, conic) = carried(&plane, &wall, region);
+    assert!(matches!(conic, Curve3::Ellipse(_)), "{conic:?}");
+    let ts = sites_about_the_seam(&section, &conic, 0.4);
+    hold("ellipse", (&wall, &section), &conic, &ts);
+}
+
+/// A circle on a sphere (plane × sphere).
+#[test]
+fn a_circle_on_a_sphere_walks_one_order_in_both_lanes() {
+    let center = Point3::new(0.1, 0.2, -0.3);
+    let n = Vec3::new(1.0, -2.0, 2.0).normalize();
+    let sphere = Surface::Sphere {
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.5,
     };
-    (wall, conic)
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(center + n * 0.6, n, Vec3::unit_z().cross(n).normalize()),
+    };
+    let (section, conic) = carried(&plane, &sphere, geom_brep::ExtentBall::fixture(center, 2.0));
+    assert!(matches!(conic, Curve3::Circle(_)), "{conic:?}");
+    let ts = sites_about_the_seam(&section, &conic, 0.4);
+    hold("circle", (&sphere, &section), &conic, &ts);
+}
+
+/// An ellipse of aspect 30 on a cylinder (plane × cylinder), carried,
+/// and the cylinder.
+fn steep() -> (Surface<f64>, geom_brep::CarriedSection<f64>, Curve3<f64>) {
+    let (plane, wall, region) = tilted_cut((1.0f64 / 30.0).acos(), 64.0);
+    let (section, conic) = carried(&plane, &wall, region);
+    (wall, section, conic)
 }
 
 /// **Off the conic on a steep flank, the lanes may refuse but never
 /// order two ways.** An ellipse of aspect 30 on a cylinder, where
 /// `cot ψ` at the flank (`θ = π/4`) is about 15, so a site moved within
-/// the band across the conic moves the turn's reading
-/// ([`super::off_conic_slack`]) and the split's eccentric anomaly alike
-/// by many band widths. A flank pair `Δ` bands apart, moved to opposite
+/// the band across the conic moves its foot parameter and the split's
+/// eccentric anomaly alike by many band widths. A flank pair `Δ` bands apart, moved to opposite
 /// sides, between the germ and one more site: wherever a lane orders the
 /// four, it is the sites' own order, and the lanes agree; each pair
 /// that close may instead refuse. Far enough apart, both order.
 #[test]
 fn off_a_steep_flank_the_lanes_refuse_rather_than_order_two_ways() {
     use core::f64::consts::FRAC_PI_4;
-    let (wall, conic) = steep();
+    let (wall, section, conic) = steep();
     for bands in [12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 96.0, 128.0] {
         let ts = [-1.0, FRAC_PI_4, on(&conic, FRAC_PI_4, bands), 2.5];
         for sense in [1.0, -1.0] {
             for off in [0.9, -0.9] {
                 let at = format!("Δ {bands} bands, sense {sense:+}, off {off:+}");
-                let read = lanes(&wall, &conic, &ts, sense, off);
+                let read = lanes((&wall, &section), &conic, &ts, sense, off);
                 if let Ok(split) = &read.split {
                     assert_eq!(
                         split, &read.walk,
                         "{at}: the split's walk orders the sites otherwise"
                     );
                 }
-                if let Ok(turn) = &read.turn {
+                if let Ok(foot) = &read.foot {
                     assert_eq!(
-                        turn, &read.walk,
-                        "{at}: the boolean's turn orders the sites otherwise"
+                        foot, &read.walk,
+                        "{at}: the carried lane's foot orders the sites otherwise"
                     );
                 }
                 if bands >= 128.0 {
                     assert!(
-                        read.split.is_ok() && read.turn.is_ok(),
-                        "{at}: far apart, both lanes order: split {:?}, turn {:?}",
+                        read.split.is_ok() && read.foot.is_ok(),
+                        "{at}: far apart, both lanes order: split {:?}, foot {:?}",
                         read.split.err(),
-                        read.turn.err()
+                        read.foot.err()
                     );
                 }
             }
@@ -438,16 +412,16 @@ fn off_a_steep_flank_the_lanes_refuse_rather_than_order_two_ways() {
 /// refuses them as crossings that do not alternate
 /// ([`crate::chord_join::ConicCrossingsCase::NotAlternating`]), a claim
 /// about the face, where the cause is two sites the band cannot order.
-/// The turn escalates on the same pair (`bool_join_arc_clear`). Run:
+/// Run:
 /// `cargo nextest run -p topo off_a_steep_flank_the_walk_escalates --run-ignored only`.
 #[test]
 #[ignore = "disabled red: work/sectarms/the-splits-walk-decides-off-conic-sites-the-band-cannot-order.md"]
 fn off_a_steep_flank_the_walk_escalates_where_it_cannot_order() {
     use core::f64::consts::FRAC_PI_4;
-    let (wall, conic) = steep();
+    let (wall, section, conic) = steep();
     for bands in [12.0, 16.0] {
         let ts = [-1.0, FRAC_PI_4, on(&conic, FRAC_PI_4, bands), 2.5];
-        let read = lanes(&wall, &conic, &ts, 1.0, 0.9);
+        let read = lanes((&wall, &section), &conic, &ts, 1.0, 0.9);
         assert!(
             matches!(read.split, Err(JoinError::Escalated { .. })),
             "Δ {bands} bands: the walk's refusal is not an escalation: {:?}",

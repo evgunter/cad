@@ -331,7 +331,7 @@ import pncad
 try:
     Open.at((0 * mm, 0 * mm)).line_to((40 * mm, 0 * mm)).angle(0 * pncad.deg)
 except pncad.PathError as refused:
-    assert refused.variant == "junction_tangent"
+    assert refused.variant == "junction_turn_within_tolerance"
 else:
     raise AssertionError("an accidentally tangent corner must refuse")
 
@@ -2184,6 +2184,19 @@ What does NOT cross is the certified half — the E6 driver, the E4/E5
 stackup, the E10 reports — which answers at the certified scalar, and
 the binding evaluates at `f64`. The advisory lane is pure `f64` replay,
 so a caller with no certified scalar still gets the labeled estimate.
+
+One certified door does cross, because its answer is plain numbers:
+`RangeSearch(doc, RangeField.param(VarName("depth")))` proves over
+which interval around a field's current value the document is the same
+build, one replay per `step()`, with `answer()` readable after any of
+them; `certified_range(doc, field, max_replays=…)` runs it to a budget
+and `admit_range` says, with no geometry run, whether it can be asked.
+Each side of the answer keeps three things apart — how far the proof
+reaches (`proven_to`), how the side ends (`reached_seed_end`, or the
+point proven `different`), and ground the search did not decide
+(`not_decided`), which is not a bound. `CertifiedRange.pinned` names
+the parameters held at their nominals, the condition the answer holds
+under; a request that cannot be searched is a `RangeRefusal`.
 
 ## 4. The rest of the documentation
 

@@ -75,6 +75,9 @@ Place { source: @0, target: @1, constraints: [Constraint { id: ConstraintId(Mint
   #1 ValueSpin { constraint: ConstraintId(MintId { ordinal: 0, digest: 2 }) }
   @0 Operand(Source)
   @1 Operand(Space)
+Datum { target: @0, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Value(Value { coord: Slide(Some(Z)), by: #0 }) }] }
+  #0 ValueSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }) }
+  @0 Operand(Space)
 World
 Space
 Place { source: BodyRead { read: @0, at: [#0] }, target: @1, constraints: [] }

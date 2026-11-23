@@ -27,7 +27,8 @@
 //!
 //! Two members are NOT refused by the guard, and each is rowed for what
 //! answers instead: a slit bounded by two COINCIDENT edges satisfies the
-//! premise and still walks to zero width
+//! premise, but its loop stores no lift for the band's columns and cannot
+//! be minted one, so it refuses before the walk opens a column
 //! (`work/tesslie/two-coincident-edges-open-two-columns-that-are-one.md`),
 //! and the sphere cut along a whole great circle is taken by a door in
 //! front of the walk. The second one first:
@@ -257,7 +258,8 @@ fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {
         .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .expect("the body carries a face of that kind");
     let surface = body.face_surface(fk).unwrap();
-    let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
+    let (outer, _) =
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
     (
         geom_brep::props::require_iso_rectangle(surface, &outer, band).is_ok(),
         geom_brep::props::require_one_chart_branch(surface, &outer, band).is_ok(),
@@ -378,9 +380,8 @@ fn the_one_seam_sphere_is_the_wrap_strip_once_its_rows_are_minted() {
 /// `arc_of_circle` twice, V2 / E2 / F2). Both poles are junctions, so both
 /// traversals open — two openings on two EDGE KEYS — and
 /// [`mesh::TessellateError::SingleColumnCurvedFace`]'s premise is
-/// satisfied. The two edges state the same column, so the walked domain
-/// still has zero width, and the answer is the hole this unit refuses
-/// everywhere else. The rung the guard is missing is one that can tell
+/// satisfied. The two edges state the same column, so a walk of it would
+/// have zero width. The rung the guard is missing is one that can tell
 /// two coincident edges from two distinct ones; comparing the openings'
 /// `u_raw` bitwise would do it and would need no ε, but it is a
 /// coordinate comparison and not the loop's incidence, so it is not this
@@ -391,12 +392,15 @@ fn the_one_seam_sphere_is_the_wrap_strip_once_its_rows_are_minted() {
 /// are continuations, the loop opens one iso side, and the guard refuses
 /// it. The residue is the sphere's and the cone's.
 ///
-/// The two edges' chord points land on one point of the chart, two mesh
-/// ids on one CDT handle, and the curved lane refuses that typed
-/// ([`mesh::TessellateError::PinchWedge`]) in every profile, before the
-/// zero-width walk can mesh as a hole or panic at the census.
+/// The walk's band reads its columns off the loop's lift, and this body,
+/// built through the Euler doors, stores none: it refuses
+/// [`mesh::TessellateError::DomainUnread`] (a lift gap) in every profile,
+/// before the zero-width walk can mesh as a hole or panic at the census.
+/// Nor can it be minted: the mint's turn at each pole between two edges
+/// leaving along one direction has no decided width
+/// (`SingularMiss::EdgesCoincide`), so no lift exists for any lane to read.
 #[test]
-fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
+fn two_coincident_edges_have_no_lift_for_the_walk_to_read() {
     let tol = Tol::witness();
     let body = sphere_slit_on_two_coincident_edges();
     assert!(
@@ -408,29 +412,45 @@ fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
         (true, true),
         "both doors admit, as they do for every member of this class"
     );
-    let answered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        mesh::tessellate(&body, 0.05, tol)
-    }));
-    let said = match &answered {
-        Err(payload) => {
-            let text = payload
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
-                .unwrap_or_default();
-            format!("panic: {}", text.chars().take(13).collect::<String>())
+    let answer = |body: &Body<f64>| {
+        let answered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            mesh::tessellate(body, 0.05, tol)
+        }));
+        match &answered {
+            Err(payload) => {
+                let text = payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                    .unwrap_or_default();
+                format!("panic: {}", text.chars().take(13).collect::<String>())
+            }
+            Ok(Err(e)) => format!("refused: {e:?}"),
+            Ok(Ok(m)) => format!(
+                "Ok: patches {:?}, check_mesh {:?}",
+                m.patches
+                    .iter()
+                    .map(|p| p.triangles.len())
+                    .collect::<Vec<_>>(),
+                mesh::validate::check_mesh(m).map_err(|e| format!("{e:?}"))
+            ),
         }
-        Ok(Err(e)) => format!("refused: {e:?}"),
-        Ok(Ok(m)) => format!(
-            "Ok: patches {:?}, check_mesh {:?}",
-            m.patches
-                .iter()
-                .map(|p| p.triangles.len())
-                .collect::<Vec<_>>(),
-            mesh::validate::check_mesh(m).map_err(|e| format!("{e:?}"))
-        ),
     };
-    assert!(said.starts_with("refused: PinchWedge"), "{said}");
+    let said = answer(&body);
+    assert!(said.starts_with("refused: DomainUnread"), "{said}");
+    assert!(said.contains("Gap(LiftGap"), "{said}");
+    let mut minted = body.clone();
+    let mint = topo::mint_pcurves(&mut minted, tol);
+    assert!(
+        matches!(
+            mint,
+            Err(topo::pcurves::PcurveMintError::SingularTurn {
+                miss: topo::pcurves::SingularMiss::EdgesCoincide,
+                ..
+            })
+        ),
+        "the mint has no decided width for the two coincident edges: {mint:?}"
+    );
 }
 
 /// Whether `body` fails tier 3 on something other than check 11: a

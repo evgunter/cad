@@ -315,6 +315,95 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
     }
 }
 
+/// **[`composite_sup`] over the part of `curve`'s domain inside `trim`**:
+/// the composite is cut at the trim's ends ([`CurveCertData::with_breaks`],
+/// exact in ℝ, no control re-rounded), and the sup is the largest over
+/// the spans that lie inside `trim`. `NaN` where no span lies inside it,
+/// and on every refusal [`composite_sup`] refuses.
+fn composite_sup_within(
+    curve: &NurbsCurve3<f64>,
+    surface: &ImplicitSurface,
+    (t0, t1): (f64, f64),
+) -> f64 {
+    let coords = curve.certified_coords();
+    let cuts = [t0, t1];
+    let Ok(data) = CurveCertData::new(curve.knots_f64_interim(), curve.weights(), &coords) else {
+        return f64::NAN;
+    };
+    let Ok(form) = compose::implicit_composite(&data.with_breaks(&cuts), surface) else {
+        return f64::NAN;
+    };
+    let at = form.num.breaks();
+    let (mut worst, mut any) = (0.0_f64, false);
+    // Fixed ascending span order (D9).
+    for (i, sup) in form.span_sup_bounds().into_iter().enumerate() {
+        let (Some(&lo), Some(&hi)) = (at.get(i), at.get(i + 1)) else {
+            return f64::NAN;
+        };
+        if lo >= t0 && hi <= t1 {
+            worst = geom_core::interval::max_bound(worst, sup);
+            any = true;
+        }
+    }
+    if any { worst } else { f64::NAN }
+}
+
+/// **INV-C1 and INV-C2's conversion**, at `Interval` and read outward:
+/// the plane composite's sup (metres, for a unit normal) and the sphere
+/// composite's (metres²) into one bound on the distance from the circle
+/// `plane ∩ sphere` of radius `radius`. A NaN sup is NaI here, and its
+/// bound NaN.
+fn circle_distance_of(plane_sup: f64, sphere_sup: f64, radius: f64) -> Interval {
+    // Meters² → meters divided by the radius (the smallest the divisor
+    // `|P−c| + r` can be), then the two into one distance-to-the-circle
+    // bound. The lower-bound branch is valid only for `r − δ_s ≥ 0`
+    // (invariant docs); where `δ_s` passes `r` the root's radicand no
+    // longer bounds anything — it may even be positive again, past `2r`
+    // — so the lower bound is taken only while `r − δ_s` is certified
+    // positive, and otherwise is `0`, which makes `m ≥ r`: refusal at
+    // every band, not a silent wrong number.
+    let r = Interval::point(radius);
+    let delta_p = Interval::point(plane_sup.abs());
+    let delta_s = Interval::point(sphere_sup.abs()) / r;
+    let gap = r - delta_s;
+    let inner = gap.sqr() - delta_p.sqr();
+    let lower = if gap.lo() > 0.0 && inner.lo() > 0.0 {
+        inner.sqrt().lo()
+    } else {
+        0.0
+    };
+    let m = delta_s.mag().max((r - Interval::point(lower)).mag());
+    (Interval::point(m).sqr() + delta_p.sqr()).sqrt()
+}
+
+/// **The certified sup of the distance of `curve`'s part inside `trim`
+/// from the circle about `center` in the plane normal to the unit `axis`,
+/// of radius `radius`** (INV-C1, INV-C2; the circle read as exact, as
+/// the promotion reads its own). `NaN` where none is certified.
+pub(crate) fn circle_locus_within(
+    curve: &NurbsCurve3<f64>,
+    (center, axis, radius): (Point3<f64>, Vec3<f64>, f64),
+    trim: (f64, f64),
+) -> f64 {
+    let plane_sup = composite_sup_within(
+        curve,
+        &ImplicitSurface::Plane {
+            point: center.to_array(),
+            normal: axis.to_array(),
+        },
+        trim,
+    );
+    let sphere_sup = composite_sup_within(
+        curve,
+        &ImplicitSurface::Sphere {
+            center: center.to_array(),
+            radius,
+        },
+        trim,
+    );
+    circle_distance_of(plane_sup, sphere_sup, radius).mag()
+}
+
 /// A spline's chord from its first control to its last ([`chord_of`]).
 struct Chord {
     first: Point3<f64>,
@@ -409,7 +498,10 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineC
     if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
         return None;
     }
-    let line = Curve3::line(plus_zero_point(first), plus_zero(dir));
+    let line = Curve3::line(
+        plus_zero_point(first),
+        geom_core::UnitVec3::stated(plus_zero(dir))?,
+    );
     Some((line, residual, length))
 }
 
@@ -455,7 +547,13 @@ pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(
     if file.read(STEP_STRAIGHT_MAP, hull) != Read::Zero {
         return None;
     }
-    Some((Curve3::line(plus_zero_point(first), plus_zero(dir)), hull))
+    Some((
+        Curve3::line(
+            plus_zero_point(first),
+            geom_core::UnitVec3::stated(plus_zero(dir))?,
+        ),
+        hull,
+    ))
 }
 
 /// An upper bound on `|p − q|`, rounded outward.
@@ -500,6 +598,9 @@ pub(crate) fn try_circle(
     // surface recognizer's near-flat class, verbatim).
     let chord = s2 - s0;
     let Some((chord_dir, _)) = chord.checked_direction().ok() else {
+        return Ok(None);
+    };
+    let Some(chord_dir) = geom_core::UnitVec3::stated(chord_dir) else {
         return Ok(None);
     };
     let off = geom::Line {
@@ -586,28 +687,9 @@ pub(crate) fn arc_residual(
             radius,
         },
     );
-    // INV-C1 and INV-C2 at `Interval`, read outward: meters² → meters
-    // divided by the radius (the smallest the divisor `|P−c| + r` can
-    // be), then the two into one distance-to-the-circle bound. The
-    // lower-bound branch is valid only for `r − δ_s ≥ 0` (invariant
-    // docs); where `δ_s` passes `r` the root's radicand no longer bounds
-    // anything — it may even be positive again, past `2r` — so the lower
-    // bound is taken only while `r − δ_s` is certified positive, and
-    // otherwise is `0`, which makes `m ≥ r`: refusal at every band this
-    // estimator admits, not a silent wrong number. A NaN sup is NaI here,
-    // and its residual NaN fails every band.
+    // INV-C1 and INV-C2 at `Interval`, read outward.
     let r = Interval::point(radius);
-    let delta_p = Interval::point(plane_sup.abs());
-    let delta_s = Interval::point(sphere_sup.abs()) / r;
-    let gap = r - delta_s;
-    let inner = gap.sqr() - delta_p.sqr();
-    let lower = if gap.lo() > 0.0 && inner.lo() > 0.0 {
-        inner.sqrt().lo()
-    } else {
-        0.0
-    };
-    let m = delta_s.mag().max((r - Interval::point(lower)).mag());
-    let locus = (Interval::point(m).sqr() + delta_p.sqr()).sqrt();
+    let locus = circle_distance_of(plane_sup, sphere_sup, radius);
     let Turning { total, low, high } = turning(curve, center, axis, u_ref)?;
     let residual = if closed {
         if !one_turn(total) {
@@ -938,13 +1020,7 @@ mod tests {
     fn c1_the_rational_quadratic_circle_certifies_exactly() {
         let curve = rational_circle(0.005, false);
         let CurveRecognition::Promoted {
-            curve:
-                Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: carrier_frame_3,
-                        ..
-                    },
-                ),
+            curve: Curve3::Circle(circle),
             residual,
             kind,
             covers,
@@ -953,9 +1029,9 @@ mod tests {
             panic!("dm1's carrier class must certify");
         };
         let (center, axis, u_ref) = (
-            carrier_frame_3.origin(),
-            carrier_frame_3.axis(),
-            carrier_frame_3.u_ref(),
+            circle.frame().origin(),
+            circle.frame().axis(),
+            circle.frame().u_ref(),
         );
         let radius = circle.radius();
         assert_eq!(kind, PromotedCurveKind::Circle);
@@ -976,7 +1052,7 @@ mod tests {
     #[test]
     fn c2_winding_survives_the_promotion() {
         let CurveRecognition::Promoted {
-            curve: Curve3::Circle(geom::Circle { frame, .. }),
+            curve: Curve3::Circle(the_circle @ geom::Circle { .. }),
             ..
         } = recognize(
             &rational_circle(0.005, true),
@@ -985,7 +1061,7 @@ mod tests {
         else {
             panic!("the reversed circle must certify too");
         };
-        let axis = frame.axis();
+        let axis = the_circle.frame().axis();
         assert!((axis.z + 1.0).abs() < 1e-12, "reversed axis {axis:?}");
     }
 
@@ -1314,14 +1390,14 @@ mod tests {
             )
             .unwrap();
             let CurveRecognition::Promoted {
-                curve: Curve3::Circle(circle @ geom::Circle { frame, .. }),
+                curve: Curve3::Circle(circle),
                 residual,
                 ..
             } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
             else {
                 panic!("delta {delta:e} is inside the budget and must certify");
             };
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
             let r = circle.radius();
             let (a, b) = curve.domain();
             let mut worst = 0.0f64;
@@ -1393,7 +1469,7 @@ mod tests {
             Some((0.0, a.distance(b))),
             "a chord covers its segment"
         );
-        assert!((dir.x - 1.0).abs() < 1e-15, "dir {dir:?}");
+        assert!((dir.get().x - 1.0).abs() < 1e-15, "dir {dir:?}");
         let reversed = NurbsCurve3::new(knots, vec![b, a], vec![1.0, 1.0]).unwrap();
         let CurveRecognition::Promoted {
             curve: Curve3::Line(geom::Line { dir: rdir, .. }),
@@ -1402,7 +1478,7 @@ mod tests {
         else {
             panic!("the reversed chord certifies too");
         };
-        assert!((rdir.x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
+        assert!((rdir.get().x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
     }
 
     /// L2: **the segment obligation and the map, each pinned at its
@@ -1516,7 +1592,15 @@ mod tests {
                         residual,
                         ..
                     } => (
-                        [origin.x, origin.y, origin.z, dir.x, dir.y, dir.z].map(f64::to_bits),
+                        [
+                            origin.x,
+                            origin.y,
+                            origin.z,
+                            dir.get().x,
+                            dir.get().y,
+                            dir.get().z,
+                        ]
+                        .map(f64::to_bits),
                         residual,
                     ),
                     other => panic!("weights [{w}; 3] at ε = {eps:e} must promote: {other:?}"),
@@ -1594,7 +1678,7 @@ mod tests {
         else {
             panic!("the re-timing is 0.05/3, inside a 0.02 budget");
         };
-        assert!((dir.x - 1.0).abs() < 1e-15);
+        assert!((dir.get().x - 1.0).abs() < 1e-15);
         assert!(
             (residual - 0.05 / 3.0).abs() < 1e-12,
             "the residual IS the re-timing hull: {residual:e}"
@@ -1662,8 +1746,8 @@ mod tests {
             let mut worst = 0.0f64;
             for k in 0..=4096 {
                 let p = curve.eval(d0 + (d1 - d0) * f64::from(k) / 4096.0);
-                let t = (p - origin).dot(dir).clamp(0.0, len);
-                worst = worst.max(p.distance(origin + dir * t));
+                let t = (p - origin).dot(dir.get()).clamp(0.0, len);
+                worst = worst.max(p.distance(origin + dir.get() * t));
             }
             assert!(
                 worst <= residual,
@@ -2041,7 +2125,7 @@ mod r2_probes {
             .unwrap();
             let outcome = recognize(&curve, crate::interpret::FileBand::test(EPS_IN));
             let CurveRecognition::Promoted {
-                curve: Curve3::Circle(circle @ geom::Circle { frame, .. }),
+                curve: Curve3::Circle(circle),
                 residual,
                 ..
             } = outcome
@@ -2049,6 +2133,7 @@ mod r2_probes {
                 println!("R2-C[{i}] delta={delta:e}: stays NURBS");
                 continue;
             };
+            let frame = circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             let r = circle.radius();
             // Dense true deviation.

@@ -37,11 +37,8 @@ impl editor_core::ProfilePayload for Fake {
     ) -> Self {
         *self
     }
-    fn drawable_pieces(
-        &self,
-    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
-    {
-        Ok(std::collections::BTreeSet::new())
+    fn partition(&self) -> Result<editor_core::ProfilePartition, editor_core::ProgramRefusal> {
+        Ok(editor_core::ProfilePartition::default())
     }
 }
 type Doc = editor_core::Doc<Fake>;

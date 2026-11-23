@@ -218,9 +218,10 @@ fn assert_on_within(
     surfaces: &[&Surface<f64>],
     reach: f64,
 ) {
-    let Curve3::Ellipse(conic_k @ geom::Ellipse { frame, .. }) = *curve else {
+    let Curve3::Ellipse(conic_k) = *curve else {
         panic!("{what}: an ellipse, got {curve:?}");
     };
+    let frame = conic_k.frame();
     let center = frame.origin();
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     assert!(

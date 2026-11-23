@@ -468,12 +468,12 @@ fn a_save_taken_mid_gesture_writes_the_committed_document_not_the_preview() {
 
 /// **The other direction of the text door**: a slot that is a bare
 /// literal accepts a number today, and once an expression is written
-/// into it through `parse_formula` it starts REFUSING numbers with the
+/// into it through `parse_formula` it starts REFUSING a drag with the
 /// affordance. The unit's rows walk driven → expression; this walks
 /// literal → driven → refusal → navigate → variable edit → the slot
 /// follows.
 #[test]
-fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers() {
+fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_a_drag() {
     let tol = Tol::witness();
     let (doc, extrude, _moved) = slab(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -524,13 +524,12 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
         SlotValue::Continuous(0.015)
     );
 
-    // Now a number is refused, with the affordance's whole payload.
+    // Now a drag is refused, with the affordance's whole payload.
     let states = session.history().len();
     match session
-        .perform(SessionOp::SetSlot {
+        .perform(SessionOp::BeginGesture {
             node: extrude,
             slot: SlotId::Distance,
-            value: SlotValue::Continuous(0.001),
         })
         .refusal
     {
@@ -597,10 +596,9 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
     );
     assert!(matches!(
         session
-            .perform(SessionOp::SetSlot {
+            .perform(SessionOp::BeginGesture {
                 node: extrude,
                 slot: SlotId::Distance,
-                value: SlotValue::Continuous(0.001),
             })
             .refusal,
         Some(Refusal::DrivenByExpression { variables, .. }) if variables.is_empty()
@@ -678,12 +676,13 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             let allowed = match &row.status {
                 viewer::tree::RowStatus::Poisoned { through, .. } => format!(
                     "upstream failure at {} — that row carries the cause",
-                    session.doc().spoken(*through)
+                    viewer::tree::spelled(&session.doc().spoken(*through))
                 ),
-                _ => expected.clone(),
+                _ => expected.to_string(),
             };
             assert_eq!(
-                message, allowed,
+                message.to_string(),
+                allowed,
                 "an unexpected message appeared in the tree: {message}"
             );
         }

@@ -35,3 +35,27 @@ second intersect, which can re-chart too.
 Unmeasured: whether any at-rest document pairs a re-charted ball with
 an assertion. The fix reads the root through `naming.recharted` and
 takes every face of the input shell as the piece's sources.
+
+## 2026-11-23 — the input shell, read and then declined
+
+HELDRECORDS' `nary-lineage` PR (7516) replaced `FaceDescent::result_face`
+with `FaceDescent::source`. It returns a `topo::FaceSource`: the operand,
+the root in the keys the op ran on, and `inputs`, every input face a
+turned face stands for. The old door is gone.
+
+- `components` first entered every input face as a source. Its review
+  found that this widened two checks: `covered` would count an undecided
+  verdict on a face the component holds no area of, and the quieting rule
+  could match an assertion to a component it does not bound.
+- So `components` now names a piece only through a single input face. A
+  turned face of a shell of several faces leaves the pair's components
+  `None` (`Unlocalized::Unnamed`), the fail-loud reading. This is stricter
+  than before: a turned face that kept its key no longer names one lune
+  it may not lie in. The row's fix is therefore still owed: which faces
+  of the shell the turned piece holds (`topo::overlap`, as the holdings
+  read it).
+- The quieting step's `crossing` names a component by any input face's
+  solid. Every face of a shell lies in one solid, so this is the old
+  reading made right, not a widening.
+
+Still unmeasured on an at-rest document; no fixture turns a shell.

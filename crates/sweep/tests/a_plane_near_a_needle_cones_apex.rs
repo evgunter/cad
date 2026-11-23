@@ -101,13 +101,14 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
     let what = "α = 1°, tilt 1.2, spin 2";
     let (plane, _) = pose(1.0, 1e3, 1.2, 2.0, tol);
     let err = split(&needle(1.0, None, tol), &plane, tol).expect_err(what);
-    let SplitError::Join(JoinError::Euler(EulerOpError::Certification {
+    let SplitError::Join(JoinError::Euler(EulerOpError::DescriptionUncertified {
         error:
             CertifyError::Escalated {
                 check: CertCheck::Transversality,
                 cause,
                 ..
             },
+        ..
     })) = &err
     else {
         panic!("{what}: {err:?}");

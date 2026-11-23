@@ -321,10 +321,10 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
 
     def test_the_junction_checks(self):
         east = Open.at(ORIGIN).line_to((1 * m, 0 * m))
-        self.refuses("junction_tangent", lambda: east.angle(0 * deg))
+        self.refuses("junction_turn_within_tolerance", lambda: east.angle(0 * deg))
         self.refuses("junction_cusp", lambda: east.angle(180 * deg))
         # `turn(0)` lands in the tangent band by construction.
-        self.refuses("junction_tangent", lambda: east.turn(0 * deg))
+        self.refuses("junction_turn_within_tolerance", lambda: east.turn(0 * deg))
 
     def test_the_collinear_tangent_arc_close_refuses(self):
         # Carrier identity is no longer the reason (ruled 2026-09-02:
@@ -413,14 +413,14 @@ class TestTheSeamArrival(unittest.TestCase):
     The seam is the one joint whose arriving leg is authored last, so
     its declaration rides the target. Each closer below is shown in a
     pair: the undeclared close of the same figure refuses
-    `seam_tangent` at the call, and the declared one closes and
+    `seam_turn_within_tolerance` at the call, and the declared one closes and
     evaluates — the declaration, not the geometry, is what differs.
     """
 
     def closes_only_declared(self, close):
         with self.assertRaises(pncad.PathError) as caught:
             close(Start)
-        self.assertEqual(caught.exception.variant, "seam_tangent")
+        self.assertEqual(caught.exception.variant, "seam_turn_within_tolerance")
         loop = close(Start.arrives_tangent())
         doc = Doc()
         node = doc.insert(Node.profile(loop))
@@ -536,7 +536,7 @@ class TestTheSeamArrival(unittest.TestCase):
         tip = Open.at(ORIGIN).toward(0.0, 1.0).line(2 * m).line_to((1 * m, 2 * m))
         with self.assertRaises(pncad.PathError) as caught:
             tip.arc_onto(Start).toward(0.0, 1.0)
-        self.assertEqual(caught.exception.variant, "seam_tangent")
+        self.assertEqual(caught.exception.variant, "seam_turn_within_tolerance")
         loop = tip.arc_onto(Start.arrives_tangent())
         self.assertEqual(loop.vertex_count, 3)
 
@@ -546,7 +546,7 @@ class TestTheSeamArrival(unittest.TestCase):
         tip = Open.at(ORIGIN).line_to((2 * m, 0 * m))
         with self.assertRaises(pncad.PathError) as caught:
             tip.arc_onto((3 * m, 1 * m)).toward(0.0, 1.0)
-        self.assertEqual(caught.exception.variant, "junction_tangent")
+        self.assertEqual(caught.exception.variant, "junction_turn_within_tolerance")
         landed = tip.arc_onto((3 * m, 2 * m)).toward(0.0, 1.0)
         self.assertIsInstance(landed, pncad.PathDirectedPoint)
 

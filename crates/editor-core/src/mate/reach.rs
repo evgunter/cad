@@ -26,11 +26,13 @@
 //! that voice ([`ReachRefusal::MalformedBody`]); a bound that reads
 //! back non-finite refuses where it is read.
 
+use crate::Said;
+use crate::say;
 use geom_core::{Band, Decide, Point3};
 use topo::Body;
 use topo::entity::FaceKey;
 
-use crate::eval::measure::reach_of;
+use crate::eval::measure::{far_from, reach_of};
 
 /// Why a part's reach is not in hand. Named
 /// against the part alone; the solve carries it beside the instance
@@ -72,12 +74,13 @@ pub enum ReachRefusal {
     NoFiniteBound,
 }
 
-impl core::fmt::Display for ReachRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for ReachRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::PartUnresolved { fault } => write!(
+            Self::PartUnresolved { fault } => say!(
                 f,
-                "is not in hand, so the mate has no extent to lever a verdict over: {fault}"
+                "is not in hand, so the mate has no extent to lever a verdict over: ",
+                Said(&fault, by)
             ),
             Self::FaceUnbounded { kind, .. } => write!(
                 f,
@@ -104,6 +107,13 @@ impl core::fmt::Display for ReachRefusal {
                 geom_core::RANGE_ENDING
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for ReachRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -166,9 +176,24 @@ fn reach_from<T: Decide>(
     origin: Point3<T>,
     band: Band,
 ) -> Result<Option<T>, ReachRefusal> {
+    faces_reach_from(body, body.faces().map(|(key, _)| key), origin, band)
+}
+
+/// **The farthest any of `faces` of `body` stands from `origin`**, each
+/// as its cover reads it ([`reach_of`]); `None` for no face.
+///
+/// # Errors
+///
+/// As [`part_reach`], for the first of `faces` that refuses.
+pub(crate) fn faces_reach_from<T: Decide>(
+    body: &Body<T>,
+    faces: impl IntoIterator<Item = FaceKey>,
+    origin: Point3<T>,
+    band: Band,
+) -> Result<Option<T>, ReachRefusal> {
     let mut reach: Option<T> = None;
-    for (key, face) in body.faces() {
-        let Some(surface) = body.get_surface(face.surface) else {
+    for key in faces {
+        let Some(surface) = body.face_surface(key) else {
             return Err(ReachRefusal::MalformedBody { face: key });
         };
         let bound = reach_of(body, key, origin, band).ok_or(ReachRefusal::FaceUnbounded {
@@ -178,4 +203,74 @@ fn reach_from<T: Decide>(
         reach = Some(reach.map_or(bound, |r| r.max(bound)));
     }
     Ok(reach)
+}
+
+/// **How far a profile's loops stand from `origin`**, in its own
+/// coordinates: each segment as its cover reads it ([`far_from`]), a
+/// chord's, or an arc's over the window it spans. `None` for no loop.
+///
+/// # Errors
+///
+/// [`ReachRefusal::NoFiniteBound`] for a segment with no finite cover.
+pub(crate) fn loops_reach_from<T: Decide>(
+    validated: &profile::ValidatedProfile<T>,
+    origin: Point3<T>,
+) -> Result<Option<T>, ReachRefusal> {
+    use geom::cover::{Cover, ParamWindow};
+    let lift = |p: geom_core::Point2<T>| Point3::new(p.x, p.y, T::zero());
+    let mut reach: Option<T> = None;
+    for s in validated
+        .loops()
+        .iter()
+        .flat_map(profile::ValidatedLoop::segments)
+    {
+        let cover = match s.kind {
+            profile::SegmentKind::Arc {
+                arc,
+                turn,
+                radials: [start, _],
+            } => {
+                let up = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
+                let axis = if turn == geom_core::Sign::Negative {
+                    -up
+                } else {
+                    up
+                };
+                let frame = geom::Frame::new(
+                    lift(arc.centre),
+                    axis,
+                    geom_core::Vec3::new(start.x, start.y, T::zero()),
+                );
+                Cover::arc(
+                    &frame,
+                    (arc.radius, arc.radius),
+                    ParamWindow::new(T::zero(), arc.sweep.abs()),
+                )
+            }
+            profile::SegmentKind::Line { .. } => Cover::segment(lift(s.start), lift(s.end)),
+        }
+        .ok_or(ReachRefusal::NoFiniteBound)?;
+        let bound = far_from(&cover, origin);
+        reach = Some(reach.map_or(bound, |r| r.max(bound)));
+    }
+    Ok(reach)
+}
+
+/// **A reach as a lever reads it**: its upper bound, refused where that
+/// is not finite. The one reading every carried extent's lever takes (a
+/// placed copy, a sweep, a profile's loops, a traced face).
+///
+/// # Errors
+///
+/// The reach's own refusal; [`ReachRefusal::NoFiniteBound`].
+pub(crate) fn lever_reach<T: super::SolveScalar>(
+    reach: Result<T, ReachRefusal>,
+) -> Result<f64, ReachRefusal> {
+    reach.map(super::SolveScalar::upper).and_then(|hi| {
+        if hi.is_finite() {
+            Ok(hi)
+        } else {
+            Err(ReachRefusal::NoFiniteBound)
+        }
+    })
 }

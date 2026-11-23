@@ -18,7 +18,12 @@
 //!    the pair section for the pairs it serves), the tangent locus
 //!    ([`geom_brep::tangent_locus`], [`geom_brep::coaxial_tangent_circle`]),
 //!    the wall's own iso ([`geom_brep::boundary_iso_u`]), the surface's own
-//!    seam generator. A carrier the file band reads off the printed one
+//!    seam generator. The printed carrier is then read on the built one
+//!    over its trim ([`description_gap`]): certified by locus where an arm
+//!    of [`crate::on_built`] serves the pair (its tightness depends on
+//!    the pair, so a promoted carrier may certify tighter than the spline
+//!    it was promoted from), at its ends and middle where none does. A
+//!    printed carrier the file band reads off the built one
 //!    refuses as the file's (D7: data no description satisfies within
 //!    ε_in); a description the kernel cannot construct refuses
 //!    not-yet-supported, naming the lane.
@@ -40,15 +45,15 @@ use geom_brep::Pcurve;
 use geom_core::k_stats::decide;
 use geom_core::{Margin, Point3, Sign, Tol, Vec3};
 
-use crate::entities::{EdgeSpec, FaceSpec, SolidSpec};
+use crate::entities::{EdgeSpec, FaceSpec, SolidSpec, SurfaceRecord};
 use crate::error::{BuiltEntity, StepImportError};
 use crate::interpret::{FileBand, Read};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
-/// Whether a printed carrier lies on the description built for it: the
-/// farthest of its two ends and its middle from the built carrier, read at
-/// the file's band.
-pub(crate) const STEP_EDGE_ON_DESCRIPTION: &str = "step_edge_on_description";
+/// Whether a printed carrier lies on the description built for it: how
+/// far it stands off the built carrier over its trim ([`description_gap`]),
+/// read at the file's band.
+const STEP_EDGE_ON_DESCRIPTION: &str = "step_edge_on_description";
 
 /// Whether a printed vertex point lies where the build put its vertex,
 /// read at the file's band.
@@ -126,6 +131,8 @@ pub(crate) struct Shell<'a> {
     pub(crate) id: u64,
     /// The faces, in `CLOSED_SHELL` order.
     pub(crate) faces: &'a [FaceSpec],
+    /// The surface records the faces wear.
+    pub(crate) surfaces: &'a BTreeMap<u64, SurfaceRecord>,
     /// Every edge, keyed by `EDGE_CURVE` id.
     pub(crate) edges: BTreeMap<u64, Edge>,
     /// Every vertex's built point, keyed by `VERTEX_POINT` id.
@@ -346,6 +353,7 @@ pub(crate) fn build<'a>(
     Ok(Shell {
         id: solid.id,
         faces: &solid.faces,
+        surfaces: &solid.surfaces,
         edges,
         vertices,
         holders,
@@ -380,19 +388,6 @@ impl IsoMap {
             Pcurve::iso_row(self.fixed, (at(t0), at(t1)), (t0, t1))
         }
     }
-}
-
-/// [`choose`] of edge `id` alone: a unit test's reading of one edge's
-/// selection and carrier.
-#[cfg(test)]
-pub(crate) fn choose_edge(
-    solid: &SolidSpec,
-    id: u64,
-    tol: Tol,
-    file: FileBand,
-) -> Result<(), StepImportError> {
-    let sides = edge_faces(solid)?;
-    choose(solid, id, &solid.edges[&id], sides[&id], tol, file).map(|_| ())
 }
 
 /// Each edge's two faces, by index: the forward use's, then the reverse
@@ -519,10 +514,10 @@ fn choose(
     tol: Tol,
     file: FileBand,
 ) -> Result<Chosen, StepImportError> {
-    let (sa, sb) = (&solid.faces[plus].surface, &solid.faces[minus].surface);
+    let (sa, sb) = (solid.surface(plus), solid.surface(minus));
     let p_start = solid.vertices[&spec.start];
     let p_end = solid.vertices[&spec.end];
-    let one_record = surface_sig(sa) == surface_sig(sb);
+    let one_record = solid.faces[plus].record == solid.faces[minus].record;
     if let Some(chosen) = iso_of_wall(id, spec, (sa, sb), (p_start, p_end), one_record, file)? {
         return Ok(chosen);
     }
@@ -540,20 +535,37 @@ fn choose(
             what: "an edge whose printed carrier has no region over its interval",
         })?;
     // The pose readings are levered at how far the edge's two faces run,
-    // as a wedge between them is (`topo::wedge_reach`): the farthest two
-    // of their vertices stand apart, and the edge's own extent where that
-    // is longer (a closed edge's whole turn).
-    let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1)
-        .max(faces_reach(solid, [plus, minus]));
-    // A cone's pose readings are levered from its apex (the station of a
-    // coaxial cylinder's circles is a distance from it): the edge's own
-    // diameter is no reach from there.
-    let extent = [sa, sb].into_iter().fold(extent, |lever, s| match *s {
-        Surface::Cone { frame, .. } => {
-            let apex = frame.origin();
-            lever.max(region.lever_from(apex))
+    // from below for a reading that builds on its definite sign and from
+    // above for one that builds on its Zero ([`crate::reach::faces_run`]).
+    let run = crate::reach::faces_run(solid, &[plus, minus]).map_err(|unread| match unread {
+        crate::reach::NoRegion::Edge(edge) => StepImportError::Topology {
+            id: edge,
+            what: "an edge whose printed carrier has no region over its interval",
+        },
+        crate::reach::NoRegion::Face(face) => StepImportError::Topology {
+            id: face,
+            what: "a face whose surface reads no region of its boundary",
+        },
+        crate::reach::NoRegion::NoFace => {
+            unreachable!("an edge's two faces were named")
         }
-        _ => lever,
+    })?;
+    // A cone's pose readings are levered from its apex (the station of a
+    // coaxial cylinder's circles is a distance from it): no diameter is a
+    // reach from there, so each bound takes in the edge's reach from the
+    // apex on its own side ([`geom_brep::edge_reach_bounds`]). Only the
+    // half from below is consumed: no reader of `above` has a cone arm.
+    let apexes = [sa, sb].into_iter().filter_map(|s| match *s {
+        Surface::Cone { frame, .. } => Some(frame.origin()),
+        _ => None,
+    });
+    let extent = apexes.fold(run, |extent, apex| {
+        let reach =
+            geom_brep::edge_reach_bounds(&spec.carrier, span, apex, region.lever_from(apex));
+        geom_brep::LeverBounds::Between {
+            below: extent.below().max(reach.below()),
+            above: extent.above().max(reach.above()),
+        }
     });
     let spline = |s: &Surface<f64>| s.spline_chart().is_some();
     if spline(sa) || spline(sb) {
@@ -568,35 +580,6 @@ fn choose(
         );
     }
     analytic_pair(id, spec, (sa, sb), &region, extent, (file, eps_band))
-}
-
-/// The diameter of the box about the vertices the faces `faces` bound,
-/// as a lever: how far the two faces of an edge run. Read through the
-/// extent's own door ([`geom_brep::points_diameter`]) on the box's two
-/// far corners, whose distance is its diagonal.
-fn faces_reach(solid: &SolidSpec, faces: [usize; 2]) -> geom_core::Lever<f64> {
-    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-    for f in faces {
-        for l in &solid.faces[f].loops {
-            for u in &l.uses {
-                let e = &solid.edges[&u.edge];
-                for v in [e.start, e.end] {
-                    let p = solid.vertices[&v];
-                    for (i, c) in [p.x, p.y, p.z].into_iter().enumerate() {
-                        lo[i] = lo[i].min(c);
-                        hi[i] = hi[i].max(c);
-                    }
-                }
-            }
-        }
-    }
-    if !lo.iter().chain(&hi).all(|c| c.is_finite()) {
-        return geom_brep::points_diameter(&[]);
-    }
-    geom_brep::points_diameter(&[
-        Point3::new(lo[0], lo[1], lo[2]),
-        Point3::new(hi[0], hi[1], hi[2]),
-    ])
 }
 
 /// [`topo::section_near`] of the pair at `band`, through the printed
@@ -616,8 +599,17 @@ fn read_section(
     // construction reads no digit the file printed but its sense.
     let canonical;
     let seed = if plane_normals(sa, sb).is_some() {
-        let tangent = spec.carrier.deriv(geom::mid_param(spec.t0, spec.t1));
-        canonical = Curve3::line(Point3::origin(), tangent);
+        // A printed line's own direction, which its import adopted
+        // (`unit_direction`); another carrier's tangent squared, its sense
+        // all the seed reads.
+        let dir = match &spec.carrier {
+            Curve3::Line(line) => line.dir,
+            other => geom_core::UnitVec3::squared(other.deriv(geom::mid_param(spec.t0, spec.t1))),
+        };
+        canonical = Curve3::Line(geom::Line {
+            origin: Point3::origin(),
+            dir,
+        });
         (&canonical, (0.0, 0.0))
     } else {
         (&spec.carrier, (spec.t0, spec.t1))
@@ -642,7 +634,7 @@ fn spline_pair(
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     ends: (Point3<f64>, Point3<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     use topo::SectionVerdict as V;
@@ -668,7 +660,8 @@ fn spline_pair(
     if let Some(rim) = cap_row(id, spec, (sa, sb), ends, file, true)? {
         return Ok(rim);
     }
-    let read = |band| read_section(spec, (sa, sb), region, extent, band);
+    // The section builds on its pose readings' definite signs.
+    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
     // An escalation at the file's band is the file's ambiguity: its
     // statements do not decide the reading at their own precision.
     match read(file.band()).map_err(|source| ambiguous(id, &source, file))? {
@@ -741,7 +734,7 @@ fn spline_pair(
 }
 
 /// Whether two planes an edge lies on cross: the sine of their normals'
-/// angle levered at the edge's extent, read at the file's band.
+/// angle levered at the faces' run from below, read at the file's band.
 pub(crate) const STEP_PLANES_CROSS: &str = "step_planes_cross";
 
 /// Whether a wall's boundary row or column lies in a cap plane: the
@@ -755,11 +748,12 @@ fn analytic_pair(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     use topo::SectionVerdict as V;
-    let read = |band| read_section(spec, (sa, sb), region, extent, band);
+    // The section builds on its pose readings' definite signs.
+    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
     // An escalation at the file's band is the file's ambiguity: its
     // statements do not decide the reading at their own precision.
     let at_file = read(file.band()).map_err(|source| ambiguous(id, &source, file))?;
@@ -789,7 +783,7 @@ fn analytic_pair(
         // Two planes the file's band reads parallel meet in no line: the
         // file's statements are no description there.
         Err(V::Unsupported { .. }) if let Some(normals) = plane_normals(sa, sb) => {
-            let crossing = normals.0.cross(normals.1).norm() * extent.length();
+            let crossing = normals.0.cross(normals.1).norm() * extent.below().length();
             Err(file.refused(id, file.touching(STEP_PLANES_CROSS, crossing)))
         }
         Err(V::Unsupported { .. }) => {
@@ -837,9 +831,20 @@ fn served_pair(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
+    // A pair the value classifies but carries no component of refuses by
+    // that cause before any classification: neither the file nor the
+    // tolerance is what stops it.
+    if let Some(why) = geom_brep::pair_section::uncarried(sa.kind(), sb.kind()) {
+        return Err(unbuilt(
+            file,
+            id,
+            format!("the section of {}: {why}", pair_names(sa, sb)),
+            SECTION_LANE,
+        ));
+    }
     let ball = Some(region.ball());
     let classified =
         |band, at_file: bool| -> Result<Option<geom_brep::PairSection<f64>>, StepImportError> {
@@ -963,7 +968,7 @@ fn tangent(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     let locus = if geom_brep::tangent_locus_kinds(sa.kind(), sb.kind()) {
@@ -993,7 +998,12 @@ fn tangent(
             }
         }
     } else {
-        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent, band) {
+        // The one row here that reads the extent is the torus's axis fork
+        // (`pt_axis_in_plane`), which takes its Zero for the meridian
+        // pose: from above. A plane the file read tangent along a parallel
+        // stands normal to that axis, where the row is Positive at any
+        // extent past the band, so no import's outcome turns on the bound.
+        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent.above(), band) {
             Ok(circle) => Ok(circle),
             Err(geom_brep::SectionError::Escalated(source)) => Err(Err(source)),
             Err(e) => Err(Ok(e)),
@@ -1087,6 +1097,21 @@ fn one_surface(
     })
 }
 
+/// **A line direction the import built from a file's geometry, as the
+/// kernel's witness**: its bits where it is unit to rounding
+/// ([`geom_core::UnitVec3::stated`]), and otherwise a typed refusal
+/// naming `id`, as other bad file data refuses: the file boundary never
+/// hands the kernel a direction to poison.
+fn unit_direction(
+    id: u64,
+    dir: geom_core::Vec3<f64>,
+) -> Result<geom_core::UnitVec3<f64>, StepImportError> {
+    geom_core::UnitVec3::stated(dir).ok_or(StepImportError::MalformedRecord {
+        id,
+        expected: "a line direction unit to rounding",
+    })
+}
+
 /// **A deferred carrier built through its edge's built ends**: the
 /// segment between them, or the surface's generator through one of them
 /// that the printed carrier's middle lies on at the file's band (exactly
@@ -1112,7 +1137,7 @@ fn deferred_carrier(
         };
         // The plane's curve between two points is the segment; the printed
         // carrier only has to lie on it.
-        let segment = Curve3::line(p_start, dir);
+        let segment = Curve3::line(p_start, unit_direction(id, dir)?);
         if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&segment, spec)) != Read::Zero {
             return Err(unbuilt(
                 file,
@@ -1186,7 +1211,11 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
     match *surface {
         Surface::Cylinder { frame, radius, .. } => {
             let origin = frame.origin();
-            vec![Curve3::line(origin + radial * radius, axis)]
+            // A direction not unit to rounding has no generator to offer.
+            geom_core::UnitVec3::stated(axis)
+                .map(|axis| Curve3::line(origin + radial * radius, axis))
+                .into_iter()
+                .collect()
         }
         Surface::Cone {
             frame, half_angle, ..
@@ -1197,7 +1226,10 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
             // kernel's cone is the complete double-nappe locus).
             let (s, c) = half_angle.sin_cos();
             let c = if along < 0.0 { -c } else { c };
-            vec![Curve3::line(apex, axis * c + radial * s)]
+            geom_core::UnitVec3::stated(axis * c + radial * s)
+                .map(|ruling| Curve3::line(apex, ruling))
+                .into_iter()
+                .collect()
         }
         Surface::Sphere {
             frame: carrier_frame,
@@ -1355,25 +1387,37 @@ fn held_gap(built: &Curve3<f64>, spec: &EdgeSpec) -> f64 {
         .fold(0.0_f64, f64::max)
 }
 
-/// **D7 step 2's verification**: the printed carrier's ends and middle lie
-/// on the built one within the file's band, else the file's statements
-/// are no description there.
+/// **D7 step 2's verification**: the printed carrier lies on the built one
+/// within the file's band, else the file's statements are no description
+/// there. The gap read is [`description_gap`].
 fn on_description(
     id: u64,
     spec: &EdgeSpec,
     built: &Curve3<f64>,
     file: FileBand,
 ) -> Result<(), StepImportError> {
+    file.agree_at(id, STEP_EDGE_ON_DESCRIPTION, description_gap(spec, built))
+}
+
+/// **How far the printed carrier stands off `built` over its trim**: the
+/// whole-trim certificate ([`crate::on_built::printed_on`]) where an arm
+/// serves the pair, a non-finite one included, which reads as a miss in
+/// band; else, where no arm serves it, the farthest of the printed
+/// carrier's ends and middle from it, a sampled read
+/// (`work/exch/the-printed-on-built-certificate-has-no-arm-for-a-built-spline.md`).
+fn description_gap(spec: &EdgeSpec, built: &Curve3<f64>) -> f64 {
+    if let Some(bound) = crate::on_built::printed_on(spec, built) {
+        return bound;
+    }
     let c = &spec.carrier;
-    let gap = [
+    [
         c.eval(spec.t0),
         c.mid_point(spec.t0, spec.t1),
         c.eval(spec.t1),
     ]
     .into_iter()
     .map(|p| gap_to(built, p))
-    .fold(0.0_f64, f64::max);
-    file.agree_at(id, STEP_EDGE_ON_DESCRIPTION, gap)
+    .fold(0.0_f64, f64::max)
 }
 
 /// **A spline wall's own boundary column or row the printed carrier
@@ -1439,7 +1483,7 @@ fn iso_of_wall(
                 if !(column || both) {
                     continue;
                 }
-                match column_match(&spec.carrier, &iso, (p_start, p_end), file) {
+                match column_match(spec, &iso, (p_start, p_end), file) {
                     Some(ColumnMatch::Column) => {
                         if let Some((carrier, running)) =
                             column_carrier(id, net, (column, end), iso, spec, file)?
@@ -1464,7 +1508,8 @@ fn iso_of_wall(
                             column,
                             running: Running::Chord { from, to, len },
                         };
-                        return Ok(Some(chosen(wall, Curve3::line(origin, dir), map)));
+                        let line = Curve3::line(origin, unit_direction(id, dir)?);
+                        return Ok(Some(chosen(wall, line, map)));
                     }
                     None => {}
                 }
@@ -1479,8 +1524,9 @@ fn iso_of_wall(
 /// section does not build, such as one whose weights do not factor):
 /// beside a plane, the boundary row
 /// or column the plane holds (every control in it at the file's band, so
-/// the rational iso lies in it) and the printed edge lies on (its ends and
-/// middle, at the file's band). The wall's exact iso is the carrier, on its
+/// the rational iso lies in it) and the printed edge lies on, read at the
+/// file's band by the segment gap where the row is straight as a locus
+/// ([`segment_gap`]) and by [`description_gap`] otherwise. The wall's exact iso is the carrier, on its
 /// own parameter, or on the reversed wall's where the edge runs against
 /// it.
 fn cap_row(
@@ -1570,15 +1616,18 @@ fn cap_row(
                 // cap plane takes that section, which refuses it
                 // (`work/exch/a-retimed-straight-row-in-a-cap-plane-refuses-at-the-section.md`),
                 // so no committed file reaches the arm with one.
+                let straight = line_on_column(&iso, (p_start, p_end), file);
                 if let Some(LineOnColumn::Chord {
                     origin,
                     chord,
                     forward,
-                }) = line_on_column(&iso, (p_start, p_end), file)
+                }) = straight
                 {
                     let (dir, len) = chord.direction_and_length();
-                    let line = Curve3::line(origin, dir);
-                    if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&line, spec)) != Read::Zero {
+                    let line = Curve3::line(origin, unit_direction(id, dir)?);
+                    if file.read(STEP_EDGE_ON_DESCRIPTION, description_gap(spec, &line))
+                        != Read::Zero
+                    {
                         continue;
                     }
                     let (r0, r1) = running_domain;
@@ -1590,15 +1639,15 @@ fn cap_row(
                     };
                     return Ok(Some(chosen(wall, line, map)));
                 }
-                let c = &spec.carrier;
-                let held = [
-                    c.eval(spec.t0),
-                    c.mid_point(spec.t0, spec.t1),
-                    c.eval(spec.t1),
-                ]
-                .into_iter()
-                .map(|p| spline_foot(&iso, p).map_or(f64::INFINITY, |(_, d)| d))
-                .fold(0.0_f64, f64::max);
+                // A row straight as a locus is certified as the segment it
+                // covers; any other is read by the one gap, against itself.
+                let held = match straight {
+                    Some(LineOnColumn::Locus) => segment_gap(spec, &iso, (p_start, p_end), file),
+                    _ => None,
+                }
+                .unwrap_or_else(|| {
+                    description_gap(spec, &Curve3::Nurbs(std::sync::Arc::new(iso.clone())))
+                });
                 if file.read(STEP_EDGE_ON_DESCRIPTION, held) != Read::Zero {
                     continue;
                 }
@@ -1701,49 +1750,96 @@ enum ColumnMatch {
     },
 }
 
-/// **The iso rung's one LOCUS match** of an edge's printed carrier to a
-/// wall's column, and what the edge is then carried on. The match
-/// compares the printed carrier with the column, never an estimate of
-/// one with an estimate of the other; the carrier the edge gets reads
-/// only the column, which the body holds:
+/// **The iso rung's one LOCUS match** of an edge to a wall's column, and
+/// what the edge is then carried on. The column's own law chooses the
+/// carrier, and the printed carrier, of whatever kind, has only to lie on
+/// that carrier over its trim, certified ([`crate::on_built`]) and read
+/// Zero at the file's band; the printed carrier's kind chooses nothing:
 ///
-/// - a printed SPLINE matches a column it repeats bit for bit;
-/// - a printed CIRCLE (a promoted arc or full circle) matches a column
-///   whose locus and coverage are certified against THAT circle
-///   ([`circle_column_match`]), its ends the edge's vertices;
-/// - a printed LINE matches a straight column whose ends are its
-///   vertices ([`line_on_column`]).
+/// - a printed spline the column repeats bit for bit is the column;
+/// - a column whose ends are the edge's vertices and that reads as the
+///   straight MAP ([`line_on_column`], INV-C5) carries the edge on its
+///   line, with the affine chart image that map certifies;
+/// - one straight at the band but re-timed along it is the segment as a
+///   locus, carried on itself ([`segment_gap`]);
+/// - a curved one is certified against a circle: the printed one, or,
+///   under a printed spline, the column's own as a witness, with the
+///   spline certified on the arc the column covers
+///   ([`circle_column_match`]). Any other printed carrier on a curved
+///   column is withheld
+///   (`work/exch/the-printed-on-built-certificate-has-no-arm-for-a-built-spline.md`).
 ///
-/// The edge is carried on the column itself ([`column_carrier`]), except
-/// a line whose column reads as the straight MAP
-/// ([`crate::recognize_curve::straight_map`], INV-C5), which is carried
-/// on the line with the affine chart image that map certifies. `None`
-/// withholds the column.
+/// The edge is carried on the column itself ([`column_carrier`]) but for
+/// the straight map. `None` withholds the column.
 fn column_match(
-    printed: &Curve3<f64>,
+    spec: &EdgeSpec,
     iso: &geom::NurbsCurve3<f64>,
     ends: (Point3<f64>, Point3<f64>),
     file: FileBand,
 ) -> Option<ColumnMatch> {
-    match printed {
-        Curve3::Nurbs(n) => bitwise_iso_match(n, iso).then_some(ColumnMatch::Column),
-        Curve3::Circle(circle) => {
-            circle_column_match(iso, circle, ends, file).then_some(ColumnMatch::Column)
-        }
-        Curve3::Line(_) => match line_on_column(iso, ends, file)? {
-            LineOnColumn::Chord {
-                origin,
-                chord,
-                forward,
-            } => Some(ColumnMatch::Line {
-                origin,
-                chord,
-                forward,
-            }),
-            LineOnColumn::Locus => Some(ColumnMatch::Column),
-        },
-        _ => None,
+    if let Curve3::Nurbs(n) = &spec.carrier
+        && crate::on_built::bitwise_twin(n, iso)
+    {
+        return Some(ColumnMatch::Column);
     }
+    let on = |gap: Option<f64>| {
+        gap.is_some_and(|gap| file.read(STEP_EDGE_ON_DESCRIPTION, gap) == Read::Zero)
+    };
+    match line_on_column(iso, ends, file) {
+        Some(LineOnColumn::Chord {
+            origin,
+            chord,
+            forward,
+        }) => {
+            let line = Curve3::line(origin, geom_core::UnitVec3::chord(chord).0);
+            on(crate::on_built::printed_on(spec, &line)).then_some(ColumnMatch::Line {
+                origin,
+                chord,
+                forward,
+            })
+        }
+        Some(LineOnColumn::Locus) => {
+            on(segment_gap(spec, iso, ends, file)).then_some(ColumnMatch::Column)
+        }
+        None => match &spec.carrier {
+            Curve3::Circle(circle) => {
+                circle_column_match(iso, circle, ends, None, file).then_some(ColumnMatch::Column)
+            }
+            Curve3::Nurbs(printed) => {
+                let witness = column_circle(iso, ends, file)?;
+                circle_column_match(iso, &witness, ends, Some((printed, spec)), file)
+                    .then_some(ColumnMatch::Column)
+            }
+            _ => None,
+        },
+    }
+}
+
+/// **How far the printed carrier stands off a straight column it would be
+/// carried on as a locus** ([`LineOnColumn::Locus`]), a certified bound.
+/// The column covers the segment between its ends within the farthest of
+/// its controls from that segment, `δ`: each column point lies in its
+/// controls' hull, and its projection on the segment's line runs
+/// continuously from one end to the other, so every segment point has a
+/// column point within `δ`. The printed carrier lies within its own bound
+/// of that segment ([`crate::on_built::printed_on_segment`]), so within
+/// the sum of the two of the column. `None` where the column's ends are
+/// not the edge's vertices; a bound that certifies nothing is non-finite.
+fn segment_gap(
+    spec: &EdgeSpec,
+    iso: &geom::NurbsCurve3<f64>,
+    ends: (Point3<f64>, Point3<f64>),
+    file: FileBand,
+) -> Option<f64> {
+    let control = iso.control();
+    let (first, last) = (*control.first()?, *control.last()?);
+    ends_order((first, last), ends, file)?;
+    let spread = control
+        .iter()
+        .map(|&p| crate::on_built::point_segment_sup(p, (first, last)))
+        .fold(0.0_f64, geom_core::interval::max_bound);
+    let printed = crate::on_built::printed_on_segment(spec, (first, last));
+    Some(geom_core::interval::add_up(printed, spread))
 }
 
 /// What a straight column is to the edge whose ends it spans
@@ -1799,41 +1895,47 @@ fn line_on_column(
         });
     }
     iso.constant_weight()?;
-    let line = geom::Line {
-        origin: first,
-        dir: last - first,
-    };
+    let (line, length) = geom::Line::chord(first, last);
     control
         .iter()
         .all(|&p| {
             line.param(p).is_finite()
-                && zero(STEP_ISO_STRAIGHT, line.distance_within(p, (0.0, 1.0)))
+                && zero(STEP_ISO_STRAIGHT, line.distance_within(p, (0.0, length)))
         })
         .then_some(LineOnColumn::Locus)
 }
 
-/// **A wall's column whose locus and coverage are certified against the
-/// edge's printed circle** (a promoted spline's, or a `CIRCLE` the file
-/// states), its ends the edge's printed vertices ([`ends_order`]): the
-/// column's distance from the ARC of that circle it covers
-/// ([`crate::recognize_curve::arc_residual`], the promotion's own
-/// certificate, read against the printed circle's frame rather than an
-/// estimate of the column's) reads Zero at the file's band
+/// **A wall's column whose locus and coverage are certified against a
+/// circle**: the edge's printed circle (a promoted spline's, or a `CIRCLE`
+/// the file states), or, for a printed spline, the column's own circle as
+/// a witness ([`column_circle`]); its ends the edge's printed vertices
+/// ([`ends_order`]). The column's distance from the ARC of that circle it
+/// covers ([`crate::recognize_curve::arc_residual`], the promotion's own
+/// certificate) reads Zero at the file's band
 /// ([`STEP_ISO_CIRCLE`]), and it turns about the circle's axis in the
 /// edge's sense, or against it where its ends are the vertices the
 /// other way round (then it is about the axis reversed, and
 /// [`column_carrier`] carries the edge on the reversed column); a closed
 /// column on a self-loop is read both ways.
 ///
-/// **What carrying the edge on the column moves.** A promoted spline is
-/// within its residual of the circle (read Zero at promotion) and the
-/// column within this one, so the column lies within two band readings
-/// of the printed spline, by the triangle inequality (one, from a stated
-/// `CIRCLE`), reported as the edge's `CarrierBuilt` move.
+/// A printed spline (`printed`) must also cover the same arc: its own
+/// arc residual against the circle, turning from the edge's start in the
+/// circle's sense over its whole domain, summed with the column's, reads
+/// Zero ([`STEP_EDGE_ON_DESCRIPTION`]). The column covers the arc within
+/// its residual (its azimuth runs continuously over the arc), so every
+/// printed point lies within the sum of the column.
+///
+/// **What carrying the edge on the column moves.** A printed circle lies
+/// on the arc the column covers within the column's residual; a promoted
+/// spline lies within its promotion residual of that circle besides, and
+/// a printed spline read here within the sum above. The edge's
+/// `CarrierBuilt` reports the move measured at five samples
+/// ([`held_gap`]), not either bound.
 fn circle_column_match(
     iso: &geom::NurbsCurve3<f64>,
     circle: &geom::Circle<f64>,
     (p_start, p_end): (Point3<f64>, Point3<f64>),
+    printed: Option<(&geom::NurbsCurve3<f64>, &EdgeSpec)>,
     file: FileBand,
 ) -> bool {
     let (Some(&first), Some(&last)) = (iso.control().first(), iso.control().last()) else {
@@ -1849,24 +1951,73 @@ fn circle_column_match(
     // A closed column's ends read both ways round: it runs with the edge
     // about the circle's axis or against it about the reversed one.
     [
-        (order.forward, circle.frame.axis()),
-        (order.reversed, -circle.frame.axis()),
+        (order.forward, circle.frame().axis()),
+        (order.reversed, -circle.frame().axis()),
     ]
     .into_iter()
     .filter(|&(holds, _)| holds)
     .any(|(_, axis)| {
-        crate::recognize_curve::arc_residual(
-            iso,
-            (
-                circle.frame.origin(),
-                axis,
-                circle.frame.u_ref(),
-                circle.radius(),
-            ),
-            closed,
-        )
-        .is_some_and(|(residual, _)| file.read(STEP_ISO_CIRCLE, residual) == Read::Zero)
+        let arc = |curve: &geom::NurbsCurve3<f64>, axis: Vec3<f64>| {
+            crate::recognize_curve::arc_residual(
+                curve,
+                (
+                    circle.frame().origin(),
+                    axis,
+                    circle.frame().u_ref(),
+                    circle.radius(),
+                ),
+                closed,
+            )
+            .map(|(residual, _)| residual)
+        };
+        let Some(column) = arc(iso, axis).filter(|&r| file.read(STEP_ISO_CIRCLE, r) == Read::Zero)
+        else {
+            return false;
+        };
+        // A printed spline turns from the edge's start in the circle's
+        // own sense, over its whole domain.
+        printed.is_none_or(|(spline, spec)| {
+            let (lo, hi) = spline.domain();
+            spec.t0 <= lo
+                && spec.t1 >= hi
+                && arc(spline, circle.frame().axis()).is_some_and(|own| {
+                    let gap = geom_core::interval::add_up(own, column);
+                    file.read(STEP_EDGE_ON_DESCRIPTION, gap) == Read::Zero
+                })
+        })
     })
+}
+
+/// **The circle a curved column is certified against where the printed
+/// carrier is no circle**: the curve recognizer's estimate of the column
+/// ([`crate::recognize_curve::try_circle`]), a witness frame only, wound
+/// in the edge's sense (its axis reversed where the column runs from the
+/// edge's end). Both the column and the printed spline are then certified
+/// against it ([`circle_column_match`]). `None` where the column reads as
+/// no circle at the band.
+fn column_circle(
+    iso: &geom::NurbsCurve3<f64>,
+    ends: (Point3<f64>, Point3<f64>),
+    file: FileBand,
+) -> Option<geom::Circle<f64>> {
+    let (&first, &last) = (iso.control().first()?, iso.control().last()?);
+    let order = ends_order((first, last), ends, file)?;
+    let Ok(Some((Curve3::Circle(circle), _, _))) = crate::recognize_curve::try_circle(iso, file)
+    else {
+        return None;
+    };
+    if order.forward {
+        return Some(circle);
+    }
+    match Curve3::circle(
+        circle.frame().origin(),
+        -circle.frame().axis(),
+        circle.radius(),
+        circle.frame().u_ref(),
+    ) {
+        Curve3::Circle(reversed) => Some(reversed),
+        _ => None,
+    }
 }
 
 /// Which way round a wall's column's ends `(first, last)` are the edge's
@@ -1906,84 +2057,8 @@ struct EndsOrder {
 /// in metres, read at the file's band.
 pub(crate) const STEP_ISO_CIRCLE: &str = "step_iso_circle";
 
-/// The bitwise iso match: the carrier's knots, controls and weights are
-/// the iso's, bit for bit.
-fn bitwise_iso_match(carrier: &geom::NurbsCurve3<f64>, iso: &geom::NurbsCurve3<f64>) -> bool {
-    let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
-    carrier.knots_f64_interim().degree() == iso.knots_f64_interim().degree()
-        && carrier.knots_f64_interim().knots().len() == iso.knots_f64_interim().knots().len()
-        && carrier
-            .knots_f64_interim()
-            .knots()
-            .iter()
-            .zip(iso.knots_f64_interim().knots())
-            .all(|(a, b)| a.to_bits() == b.to_bits())
-        && carrier.control().len() == iso.control().len()
-        && carrier
-            .control()
-            .iter()
-            .zip(iso.control())
-            .all(|(a, b)| bits3(a) == bits3(b))
-        && carrier
-            .weights()
-            .iter()
-            .zip(iso.weights())
-            .all(|(a, b)| a.to_bits() == b.to_bits())
-}
-
-/// **A surface's exact structural signature**: variant tag and field bits,
-/// the key that restores writer-side surface sharing (bitwise identity, no
-/// ε). An analytic kind's fields are [`Surface::data`]'s, so a field a
-/// variant gains is a field of the key; a spline's are its degrees, knots,
-/// controls and weights, counts leading each section so two payloads of
-/// different shapes cannot alias by concatenation.
-pub(crate) fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
-    use geom::SurfaceData;
-    let p = |p: Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
-    let tag: u64 = match surface {
-        Surface::Plane { .. } => 0,
-        Surface::Cylinder { .. } => 1,
-        Surface::Cone { .. } => 2,
-        Surface::Sphere { .. } => 3,
-        Surface::Torus { .. } => 4,
-        Surface::Nurbs(_) => 5,
-        Surface::Approx(_) => 6,
-        Surface::Spindle { .. } => 7,
-    };
-    match surface.data() {
-        SurfaceData::Analytic(data) => core::iter::once(tag)
-            .chain(
-                data.into_iter()
-                    .flat_map(|(_, value)| value.scalars())
-                    .map(f64::to_bits),
-            )
-            .collect(),
-        // No import path mints one (STEP's OFFSET_SURFACE is not read):
-        // the tag aliases only with itself.
-        SurfaceData::Approx(_) => vec![tag],
-        SurfaceData::Nurbs(payload) => {
-            let (nu, nv) = payload.control_counts();
-            let (ku, kv) = (payload.knots_u_f64_interim(), payload.knots_v_f64_interim());
-            let mut sig = vec![
-                tag,
-                ku.degree() as u64,
-                kv.degree() as u64,
-                ku.knots().len() as u64,
-                kv.knots().len() as u64,
-                nu as u64,
-                nv as u64,
-            ];
-            sig.extend(ku.knots().iter().map(|k| k.to_bits()));
-            sig.extend(kv.knots().iter().map(|k| k.to_bits()));
-            sig.extend(payload.control().iter().flat_map(|q| p(*q)));
-            sig.extend(payload.weights().iter().map(|w| w.to_bits()));
-            sig
-        }
-    }
-}
-
 /// **A carrier's exact structural signature**: variant tag and field
-/// bits, as [`surface_sig`] is a surface's. Two carriers are the same
+/// bits. Two carriers are the same
 /// value exactly where their signatures are equal (the ledger's
 /// `CarrierBuilt` test). A periodic cubic is its own variant read through
 /// its debug form, which prints every datum round-trip exact; no import
@@ -2002,6 +2077,9 @@ fn carrier_sig(carrier: &Curve3<f64>) -> Vec<u64> {
                     unreachable!("a spline carrier's data is not analytic")
                 }
             };
+            // An ellipse stores its centre or its anchor, and the two
+            // read as one value: an anchor's walk is three scalars
+            // longer, its phase, and a signature is compared whole.
             core::iter::once(tag)
                 .chain(
                     data.into_iter()
@@ -2160,7 +2238,7 @@ fn build_vertices(
                 (None, Some(&b)) => (b, b),
                 (None, None) => continue,
             };
-            let surface = &solid.faces[sides[&id].0].surface;
+            let surface = solid.surface(sides[&id].0);
             c.carrier = Some(deferred_carrier(id, spec, surface, deferred, (a, b), file)?);
             progress = true;
         }
@@ -2201,11 +2279,10 @@ fn build_vertices(
 /// share one.
 fn one_surface_around<'a>(solid: &'a SolidSpec, faces: &[usize]) -> Option<&'a Surface<f64>> {
     let (&first, rest) = faces.split_first()?;
-    let surface = &solid.faces[first].surface;
-    let sig = surface_sig(surface);
+    let record = solid.faces[first].record;
     rest.iter()
-        .all(|&f| surface_sig(&solid.faces[f].surface) == sig)
-        .then_some(surface)
+        .all(|&f| solid.faces[f].record == record)
+        .then_some(solid.surface(first))
 }
 
 /// **A chart singularity the vertex's faces' generators cross at**: a
@@ -2336,17 +2413,14 @@ fn rooted(
             continue;
         };
         let (plus, minus) = sides[&e];
-        let held = [
-            surface_sig(&solid.faces[plus].surface),
-            surface_sig(&solid.faces[minus].surface),
-        ];
+        let held = [solid.faces[plus].record, solid.faces[minus].record];
         let spec = &solid.edges[&e];
         let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1);
         for &f in faces {
-            let surface = &solid.faces[f].surface;
-            if held.contains(&surface_sig(surface)) {
+            if held.contains(&solid.faces[f].record) {
                 continue;
             }
+            let surface = solid.surface(f);
             match root_on(surface, carrier, printed, extent, band) {
                 Ok(Ok(point)) => return Ok(Rooted::At(point)),
                 Ok(Err(topo::CornerVerdict::Unsupported { what })) => {
@@ -2499,10 +2573,13 @@ fn rebuilt_in_surface(
         .into_iter()
         .map(|f| gap_to(&carrier, p_start + dir * (len * f)))
         .fold(0.0_f64, f64::max);
-    if file.read(STEP_EDGE_ON_DESCRIPTION, off) == Read::Zero {
-        Curve3::line(p_start, dir)
-    } else {
-        carrier
+    // The printed carrier is kept where the segment does not hold, or its
+    // direction is not unit to rounding.
+    match geom_core::UnitVec3::stated(dir) {
+        Some(dir) if file.read(STEP_EDGE_ON_DESCRIPTION, off) == Read::Zero => {
+            Curve3::line(p_start, dir)
+        }
+        _ => carrier,
     }
 }
 
@@ -2567,10 +2644,63 @@ fn params(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod unit_direction_rows {
+    use super::{StepImportError, unit_direction};
+    use geom_core::Vec3;
+
+    /// **A built line direction is adopted as its bits, or refused typed,
+    /// naming the entity**: the file boundary never hands the kernel a
+    /// direction to poison. A unit direction keeps every bit; a chord, a
+    /// zero vector and a NaN refuse as `MalformedRecord` on the entity.
+    /// Red with the door squaring what it is handed.
+    #[test]
+    fn a_built_direction_is_adopted_or_refused_typed() {
+        let d = Vec3::new(0.6, 0.8, 0.0);
+        let got = unit_direction(7, d).unwrap().get();
+        assert_eq!(
+            [got.x.to_bits(), got.y.to_bits()],
+            [d.x.to_bits(), d.y.to_bits()]
+        );
+        for v in [
+            Vec3::new(3.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(f64::NAN, 0.0, 1.0),
+        ] {
+            assert!(
+                matches!(
+                    unit_direction(42, v),
+                    Err(StepImportError::MalformedRecord { id: 42, .. })
+                ),
+                "{v:?} refuses typed on its entity"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use geom_core::spline::KnotVector;
+
+    /// **A carrier's signature parts an ellipse held at a point as its
+    /// centre from one held there on its arc**: one frame and one pair of
+    /// semi-axes, two ellipses a semi-axis apart, two signatures. Red
+    /// where the signature reads fewer scalars than the walk yields.
+    #[test]
+    fn a_carriers_signature_parts_a_centre_from_an_anchor() {
+        let (at, axis, u) = (Point3::new(0.3, -1.2, 2.5), Vec3::unit_z(), Vec3::unit_x());
+        let centred = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(at, axis, u), 2.0, 0.75));
+        let anchored = Curve3::Ellipse(geom::Ellipse::anchored(at, axis, u, 2.0, 0.75));
+        assert!(centred.eval(1.0).distance(anchored.eval(1.0)) > 0.5);
+        assert_ne!(carrier_sig(&centred), carrier_sig(&anchored));
+        assert_eq!(carrier_sig(&anchored), carrier_sig(&anchored.clone()));
+        assert_eq!(
+            carrier_sig(&anchored).len(),
+            carrier_sig(&centred).len() + 3
+        );
+    }
 
     /// **The line arm's selection table** ([`line_on_column`]): forward
     /// vertex order answers the column's start control and its chord,
@@ -2722,25 +2852,25 @@ mod tests {
         let kv_piece = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let (p0, p1) = (piece.eval(0.0), piece.eval(1.0));
         assert!(
-            circle_column_match(&piece, &circle, (p0, p1), file),
+            circle_column_match(&piece, &circle, (p0, p1), None, file),
             "the split piece matches the printed circle"
         );
         // The same ends the other way round, on the circle as printed, name
         // the long way round from `p1` to `p0`: not the piece.
         assert!(
-            !circle_column_match(&piece, &circle, (p1, p0), file),
+            !circle_column_match(&piece, &circle, (p1, p0), None, file),
             "the complement is not the piece"
         );
         // On the circle printed the other way round (its axis reversed),
         // the edge from `p1` to `p0` IS the piece, run against it.
-        let reversed = circle.with_frame(circle.frame.reversed());
+        let reversed = circle.placed(geom::Frame::reversed);
         assert!(
-            circle_column_match(&piece, &reversed, (p1, p0), file),
+            circle_column_match(&piece, &reversed, (p1, p0), None, file),
             "a column run against the edge matches the reversed circle"
         );
         let (lifted, _) = lifted_arc.split_at(1.0).unwrap();
         assert!(
-            !circle_column_match(&lifted, &circle, (p0, p1), file),
+            !circle_column_match(&lifted, &circle, (p0, p1), None, file),
             "a column off the circle past the band does not match"
         );
         // Bowed: the piece's ends ON the circle, its middle control pushed
@@ -2748,16 +2878,16 @@ mod tests {
         // the ends read Zero and the turning holds, and the deciding read
         // is the residual's.
         let mut bowed_net = piece.control().to_vec();
-        let mid = bowed_net[1] - circle.frame.origin();
+        let mid = bowed_net[1] - circle.frame().origin();
         bowed_net[1] = bowed_net[1] + mid * (1e-9 / mid.norm());
         let bowed =
             geom::NurbsCurve3::new(kv_piece.clone(), bowed_net, piece.weights().to_vec()).unwrap();
         assert!(
-            !circle_column_match(&bowed, &circle, (p0, p1), file),
+            !circle_column_match(&bowed, &circle, (p0, p1), None, file),
             "a column bowed off the circle between its ends does not match"
         );
         assert!(
-            !circle_column_match(&piece, &circle, (on(4.0 * h), on(5.0 * h)), file),
+            !circle_column_match(&piece, &circle, (on(4.0 * h), on(5.0 * h)), None, file),
             "nor one whose ends are not the edge's"
         );
     }
@@ -2788,9 +2918,9 @@ mod tests {
             frame: geom::Frame::new(origin, axis, u_ref),
             radius: 1.0,
         };
-        let face = |id: u64, surface: Surface<f64>| FaceSpec {
+        let face = |id: u64| FaceSpec {
             id,
-            surface,
+            record: id + 100,
             sense: true,
             loops: Vec::new(),
             band: false,
@@ -2800,11 +2930,13 @@ mod tests {
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         );
-        let faces = vec![
-            face(10, wall),
-            face(11, cylinder(Point3::new(0.5, 1.0, 0.0), z, x)),
-            face(12, cylinder(Point3::new(0.0, 1.0, 1.0), x, y)),
+        let stated = [
+            (10, wall),
+            (11, cylinder(Point3::new(0.5, 1.0, 0.0), z, x)),
+            (12, cylinder(Point3::new(0.0, 1.0, 1.0), x, y)),
         ];
+        let faces = stated.iter().map(|&(id, _)| face(id)).collect();
+        let surfaces = crate::entities::records_of(stated.into_iter().map(|(id, s)| (id + 100, s)));
         let p = Point3::new(0.5, 0.0, 1.0);
         let segment = |a: Point3<f64>, b: Point3<f64>| {
             let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -2818,7 +2950,7 @@ mod tests {
             (
                 1,
                 (1, 2),
-                Curve3::line(p, z),
+                Curve3::line(p, geom::stated_direction(z)),
                 (0.0, 1.0),
                 Point3::new(0.5, 0.0, 2.0),
             ),
@@ -2863,6 +2995,7 @@ mod tests {
             faces,
             edges,
             vertices,
+            surfaces,
             band_seams: std::collections::BTreeSet::new(),
         };
         let mut moves = Vec::new();
@@ -2883,6 +3016,427 @@ mod tests {
             }) => assert_eq!(lane, ROOT_LANE, "the refusal names the root lane"),
             other => panic!("the vertex refuses not-yet-supported, never footed: {other:?}"),
         }
+    }
+
+    /// Two unit discs folded by `fold` along a chord `2w` long that each
+    /// is cut back to: face 0 in the plane `z = 0`, face 1 in the plane
+    /// turned `fold` about the chord, and edge 1, the chord. The faces'
+    /// only vertices are the chord's two ends; each face runs a whole
+    /// disc past them.
+    fn folded_discs(fold: f64) -> SolidSpec {
+        let w = 0.01_f64;
+        let c0 = (1.0 - w * w).sqrt();
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let (low, high) = (Point3::new(c0, -w, 0.0), Point3::new(c0, w, 0.0));
+        let phi = w.asin();
+        let pi = core::f64::consts::PI;
+        // The folded plane's normal, and its direction away from the chord.
+        let n = Vec3::new(fold.sin(), 0.0, fold.cos());
+        let away = Vec3::new(fold.cos(), 0.0, -fold.sin());
+        let disc = |centre: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>| {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(centre, axis, u_ref),
+                1.0,
+            ))
+        };
+        let edges = [
+            (
+                1,
+                (1, 2),
+                Curve3::line(low, geom::stated_direction(y)),
+                (0.0, 2.0 * w),
+            ),
+            (
+                2,
+                (2, 1),
+                disc(Point3::origin(), z, x),
+                (phi, 2.0 * pi - phi),
+            ),
+            (
+                3,
+                (1, 2),
+                disc(Point3::new(c0, 0.0, 0.0) + away * c0, n, away),
+                (phi - pi, pi - phi),
+            ),
+        ]
+        .into_iter()
+        .map(|(id, (start, end), carrier, (t0, t1))| {
+            (
+                id,
+                EdgeSpec {
+                    start,
+                    end,
+                    carrier,
+                    t0,
+                    t1,
+                    reversed: false,
+                    curve: None,
+                },
+            )
+        })
+        .collect();
+        let face = |id: u64, arc: u64| FaceSpec {
+            id,
+            record: id,
+            sense: true,
+            loops: vec![crate::entities::LoopSpec {
+                outer: true,
+                uses: [1, arc]
+                    .into_iter()
+                    .map(|edge| crate::entities::EdgeUse {
+                        edge,
+                        forward: true,
+                    })
+                    .collect(),
+            }],
+            band: false,
+        };
+        SolidSpec {
+            id: 1,
+            faces: vec![face(10, 2), face(11, 3)],
+            edges,
+            vertices: BTreeMap::from([(1, low), (2, high)]),
+            surfaces: crate::entities::records_of([(10, z), (11, n)].map(|(id, normal)| {
+                let frame = geom::Frame::new(Point3::new(c0, 0.0, 0.0), normal, y);
+                (id, Surface::Plane { frame })
+            })),
+            band_seams: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// **A crease between two faces is read over the faces' run, from
+    /// below, not over their vertices.** Two unit discs folded along a
+    /// 2 cm chord have the chord's ends for their only vertices, and
+    /// stand `2 + 2c₀ ≈ 4` m across, rim to rim. Folded by `1e-5` they
+    /// are `2e-5` apart at their far side, twenty times the file's
+    /// `1e-6`: two planes, and the chord is their crease. Folded by
+    /// `1e-7` they are one plane to the file over that run, and the
+    /// refusal's gap is the fold over it: never more than the fold over
+    /// the faces' true diameter, and most of it. Red against the
+    /// vertices or the edge's own length for the reach (the `1e-5` fold
+    /// then refuses as parallel planes), against one face's boundary for
+    /// both (a gap of `2e-7`), and against the region's box diagonal, a
+    /// bound from above, for the gap (`4.47e-7`) or for the decision.
+    #[test]
+    fn a_crease_is_read_over_its_faces_run() {
+        let read = |fold: f64| {
+            let solid = folded_discs(fold);
+            choose(
+                &solid,
+                1,
+                &solid.edges[&1],
+                (0, 1),
+                Tol::witness(),
+                FileBand::test(1e-6),
+            )
+        };
+        match read(1e-5) {
+            Ok(Chosen {
+                description: Description::Intersection,
+                carrier: Some(Curve3::Line(line)),
+                ..
+            }) => assert!(
+                line.dir.get().cross(Vec3::new(0.0, 1.0, 0.0)).norm() < 1e-12,
+                "the crease runs along the chord: {line:?}"
+            ),
+            other => panic!(
+                "two planes the faces' run tells apart meet in their crease: {:?}",
+                other.map(|c| c.carrier)
+            ),
+        }
+        match read(1e-7) {
+            Err(StepImportError::Interpretation {
+                refusal: crate::interpret::Refusal::Touching { reading, gap, .. },
+                ..
+            }) => {
+                assert_eq!(reading, STEP_PLANES_CROSS);
+                let across = 2.0 + 2.0 * (1.0 - 1e-4_f64).sqrt();
+                assert!(
+                    gap <= 1e-7 * across * (1.0 + 1e-9) && gap >= 1e-7 * 0.95 * across,
+                    "the fold over the two discs' run, never past their {across} m: {gap:e}"
+                );
+            }
+            other => panic!(
+                "one plane to the file over the faces' run: {:?}",
+                other.map(|c| c.carrier)
+            ),
+        }
+        // Folded by `2.4e-7` the planes read one within the file's band
+        // over the run from below (`9.6e-7`), where the region's box
+        // diagonal would read them in the band (`1.07e-6`).
+        assert!(
+            matches!(
+                read(2.4e-7),
+                Err(StepImportError::Interpretation {
+                    refusal: crate::interpret::Refusal::Touching { .. },
+                    ..
+                })
+            ),
+            "decided at the run from below"
+        );
+    }
+
+    /// **A pair of faces with no region refuses naming the edge at
+    /// fault**, whichever edge asked: with edge 2's interval unreadable,
+    /// edge 1, whose own carrier and interval are sound, answers with
+    /// edge 2's refusal. Red against the asking edge named.
+    #[test]
+    fn a_face_pair_with_no_region_names_the_edge_whose_carrier_does_not_read() {
+        let mut solid = folded_discs(1e-5);
+        solid.edges.get_mut(&2).unwrap().t0 = f64::NAN;
+        let refused = choose(
+            &solid,
+            1,
+            &solid.edges[&1],
+            (0, 1),
+            Tol::witness(),
+            FileBand::test(1e-6),
+        );
+        assert!(
+            matches!(refused, Err(StepImportError::Topology { id: 2, .. })),
+            "{:?}",
+            refused.map(|c| c.carrier)
+        );
+    }
+
+    /// **A plane's cut of a spline wall is read over the faces' run from
+    /// below.** The folded discs with the folded face's surface a
+    /// bilinear wall in its plane, 30 m long past the chord: the faces'
+    /// boundaries stand 4 m across and their region, which holds the
+    /// wall's net, over 30. The wall's column crosses the plane at the
+    /// fold, and the section's row is built on that crossing's definite
+    /// sign: a fold of `1e-6` is `4e-6` over the boundaries' run, in the
+    /// file's `1e-6` band, and refuses; a fold of `1e-5` builds the
+    /// chord. Red against the section read from above (the `1e-6` fold
+    /// reads `3.2e-5` over the region and builds).
+    #[test]
+    fn a_planes_cut_of_a_spline_wall_is_read_over_its_faces_run_from_below() {
+        let read = |fold: f64| {
+            let mut solid = folded_discs(fold);
+            let c0 = (1.0 - 1e-4_f64).sqrt();
+            let (y, z) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+            let away = Vec3::new(fold.cos(), 0.0, -fold.sin());
+            let mid = Point3::new(c0, 0.0, 0.0);
+            let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let control = vec![
+                mid - y * 2.0 - away * 0.5,
+                mid - y * 2.0 + away * 30.0,
+                mid + y * 2.0 - away * 0.5,
+                mid + y * 2.0 + away * 30.0,
+            ];
+            let wall = Surface::Nurbs(std::sync::Arc::new(
+                geom::NurbsSurface::new(k(), k(), control, vec![1.0; 4]).unwrap(),
+            ));
+            let plane = Surface::Plane {
+                frame: geom::Frame::new(mid, z, y),
+            };
+            solid.surfaces = crate::entities::records_of([(10, plane), (11, wall)]);
+            let run = crate::reach::faces_run(&solid, &[0, 1]).unwrap();
+            assert!(
+                run.below().length() < 4.0 && run.above().length() > 30.0,
+                "the bounds stand apart: {run:?}"
+            );
+            choose(
+                &solid,
+                1,
+                &solid.edges[&1],
+                (0, 1),
+                Tol::witness(),
+                FileBand::test(1e-6),
+            )
+        };
+        assert!(
+            matches!(
+                read(1e-5),
+                Ok(Chosen {
+                    description: Description::Intersection,
+                    carrier: Some(_),
+                    ..
+                })
+            ),
+            "a fold the boundaries' run tells from a graze builds the cut"
+        );
+        match read(1e-6) {
+            Err(StepImportError::NotYetSupported { what, .. }) => assert!(
+                what.contains("the spline-wall section refused"),
+                "the crossing is in the file's band over the boundaries' run: {what}"
+            ),
+            other => panic!(
+                "a crossing in the band over the run from below builds nothing: {:?}",
+                other.map(|c| c.carrier)
+            ),
+        }
+    }
+
+    /// A closed solid whose lid is the folded pair: two unit cylinders
+    /// about `z`, their axes `2c₀` apart so the walls cross along two
+    /// rulings 2 cm apart, capped below by one plane and above by two,
+    /// `z = 1` over the first lobe and a plane turned `fold` about the
+    /// chord over the second. Faces: the two lids (0, 1), the floor (2),
+    /// the two walls (3, 4). Edge 1 is the chord, the lids' crease, and
+    /// its ends are the lids' only shared vertices.
+    fn folded_lid(fold: f64) -> SolidSpec {
+        let (w, h) = (0.01_f64, 1.0_f64);
+        let c0 = (1.0 - w * w).sqrt();
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let cusp = |side: f64, height: f64| Point3::new(c0, side * w, height);
+        let vertices = BTreeMap::from([
+            (1, cusp(1.0, 0.0)),
+            (2, cusp(-1.0, 0.0)),
+            (3, cusp(1.0, h)),
+            (4, cusp(-1.0, h)),
+        ]);
+        let phi = w.asin();
+        let pi = core::f64::consts::PI;
+        let second = Point3::new(2.0 * c0, 0.0, 0.0);
+        // The folded lid's plane through the chord, and the ellipse the
+        // second wall cuts it in.
+        let n = Vec3::new(fold.sin(), 0.0, fold.cos());
+        let away = Vec3::new(fold.cos(), 0.0, -fold.sin());
+        let rim = |centre: Point3<f64>| {
+            Curve3::Circle(geom::Circle::new(geom::Frame::new(centre, z, x), 1.0))
+        };
+        let lid_rim = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(second + z * (h - c0 * fold.tan()), n, away),
+            1.0 / fold.cos(),
+            1.0,
+        ));
+        let (first_span, second_span) = ((phi, 2.0 * pi - phi), (phi - pi, pi - phi));
+        let edges = [
+            (
+                1,
+                (4, 3),
+                Curve3::line(cusp(-1.0, h), geom::stated_direction(y)),
+                (0.0, 2.0 * w),
+            ),
+            (2, (3, 4), rim(Point3::new(0.0, 0.0, h)), first_span),
+            (3, (4, 3), lid_rim, second_span),
+            (4, (1, 2), rim(Point3::origin()), first_span),
+            (5, (2, 1), rim(second), second_span),
+            (
+                6,
+                (1, 3),
+                Curve3::line(cusp(1.0, 0.0), geom::stated_direction(z)),
+                (0.0, h),
+            ),
+            (
+                7,
+                (2, 4),
+                Curve3::line(cusp(-1.0, 0.0), geom::stated_direction(z)),
+                (0.0, h),
+            ),
+        ]
+        .into_iter()
+        .map(|(id, (start, end), carrier, (t0, t1))| {
+            (
+                id,
+                EdgeSpec {
+                    start,
+                    end,
+                    carrier,
+                    t0,
+                    t1,
+                    reversed: false,
+                    curve: None,
+                },
+            )
+        })
+        .collect();
+        let face = |id: u64, bound: &[(u64, bool)]| FaceSpec {
+            id,
+            record: id,
+            sense: true,
+            loops: vec![crate::entities::LoopSpec {
+                outer: true,
+                uses: bound
+                    .iter()
+                    .map(|&(edge, forward)| crate::entities::EdgeUse { edge, forward })
+                    .collect(),
+            }],
+            band: false,
+        };
+        let plane = |origin: Point3<f64>, normal: Vec3<f64>| Surface::Plane {
+            frame: geom::Frame::new(origin, normal, y),
+        };
+        let wall = |origin: Point3<f64>| Surface::Cylinder {
+            frame: geom::Frame::new(origin, z, x),
+            radius: 1.0,
+        };
+        SolidSpec {
+            id: 1,
+            faces: vec![
+                face(10, &[(2, true), (1, true)]),
+                face(11, &[(3, true), (1, false)]),
+                face(12, &[(4, false), (5, false)]),
+                face(13, &[(4, true), (7, true), (2, false), (6, false)]),
+                face(14, &[(5, true), (6, true), (3, false), (7, false)]),
+            ],
+            surfaces: crate::entities::records_of([
+                (10, plane(Point3::new(c0, 0.0, h), z)),
+                (11, plane(Point3::new(c0, 0.0, h), n)),
+                (12, plane(Point3::origin(), -z)),
+                (13, wall(Point3::origin())),
+                (14, wall(second)),
+            ]),
+            edges,
+            vertices,
+            band_seams: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// **The folded lid imports whole.** Through the build, the
+    /// assembly and the at-rest gate, a solid whose two lids fold `1e-2`
+    /// along a 2 cm chord finishes as five faces and seven edges, read
+    /// from a file whose ε is `1e-3`. The lids stand 4 cm apart at their
+    /// far side, forty times that ε; over their vertices' reach, 2 cm,
+    /// the fold reads `2e-4`, a fifth of it. So the built body's own
+    /// readings, which lever the crease at its own extent, accept what
+    /// the import read over the lids' 4 m run. Folded `1e-4` the lids
+    /// are one plane to that file, and the crease refuses. Red against
+    /// the lids' vertices or the chord's own length for the import's
+    /// reach (the `1e-2` fold refuses as parallel planes).
+    ///
+    /// The fold and the file's ε are coarse so that the row holds at
+    /// every run ε: certification reads the crease's crossing over the
+    /// edge's own centimetre, which a finer fold leaves in a coarse
+    /// run's band, and a finer fold's crease is too ill-conditioned to
+    /// certify at a fine one.
+    #[test]
+    fn the_folded_lid_imports_whole_where_the_file_tells_its_lids_apart() {
+        let tol = Tol::witness();
+        let import = |fold: f64| {
+            let record = crate::entities::SolidRecord {
+                id: 1,
+                outer: folded_lid(fold),
+                voids: Vec::new(),
+            };
+            crate::assemble::build_one_solid(&record, tol, geom_core::FileCoincidence::new(1e-3))
+                .and_then(|(body, _, _)| crate::gate(body, Some(1), tol))
+        };
+        let done = import(1e-2).unwrap_or_else(|e| panic!("a 1e-2 fold: {e}"));
+        assert_eq!((done.faces().count(), done.edges().count()), (5, 7));
+        assert!(
+            matches!(
+                import(1e-4),
+                Err(StepImportError::Interpretation {
+                    id: 1,
+                    refusal: crate::interpret::Refusal::Touching {
+                        reading: STEP_PLANES_CROSS,
+                        ..
+                    },
+                    ..
+                })
+            ),
+            "one plane to the file over the lids' run"
+        );
     }
 
     /// **A wrap edge is the surface's own generator through the printed
@@ -2936,5 +3490,141 @@ mod tests {
             generators_through(&cylinder, Point3::new(1.0, 2.0, 9.0)).is_empty(),
             "a point on the axis reads no azimuth"
         );
+    }
+
+    /// **A curved column matches by its own law, whatever the printed
+    /// kind.** A quarter circle's column and its printed spline with the
+    /// knots doubled (the same locus and sense, other bits) match, as the
+    /// same locus printed as a circle does; the same spline run the other
+    /// way round its circle (the complement's sense), or trimmed short of
+    /// its domain, is withheld.
+    #[test]
+    fn a_curved_column_matches_its_printed_spline_by_locus_not_by_kind() {
+        use geom_core::spline::KnotVector;
+        let file = FileBand::test(1e-9);
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let net = |knots: Vec<f64>, control: Vec<Point3<f64>>| {
+            geom::NurbsCurve3::new(
+                KnotVector::clamped(knots, 2).unwrap(),
+                control,
+                vec![1.0, w, 1.0],
+            )
+            .unwrap()
+        };
+        let column = net(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], control.clone());
+        let reknotted = net(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0], control.clone());
+        let ends = (column.eval(0.0), column.eval(1.0));
+        let edge = |carrier: Curve3<f64>, (t0, t1): (f64, f64)| EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier,
+            t0,
+            t1,
+            reversed: false,
+            curve: None,
+        };
+        let spline = edge(
+            Curve3::Nurbs(std::sync::Arc::new(reknotted.clone())),
+            (0.0, 2.0),
+        );
+        let circle = edge(
+            Curve3::circle(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                1.0,
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            (0.0, core::f64::consts::FRAC_PI_2),
+        );
+        assert!(
+            matches!(
+                column_match(&circle, &column, ends, file),
+                Some(ColumnMatch::Column)
+            ),
+            "the printed circle matches"
+        );
+        assert!(
+            matches!(
+                column_match(&spline, &column, ends, file),
+                Some(ColumnMatch::Column)
+            ),
+            "the re-knotted spline of the same locus matches"
+        );
+        let short = edge(Curve3::Nurbs(std::sync::Arc::new(reknotted)), (0.0, 1.5));
+        assert!(
+            column_match(&short, &column, ends, file).is_none(),
+            "a spline trimmed short of its domain is withheld"
+        );
+        // The three-quarter arc the long way round between the same ends,
+        // as three rational quarters.
+        let long = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(0.0, -1.0, 0.0),
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(-1.0, 0.0, 0.0),
+                Point3::new(-1.0, 1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            vec![1.0, w, 1.0, w, 1.0, w, 1.0],
+        )
+        .unwrap();
+        let complement = edge(Curve3::Nurbs(std::sync::Arc::new(long)), (0.0, 3.0));
+        assert!(
+            column_match(&complement, &column, ends, file).is_none(),
+            "the arc the column does not cover is withheld"
+        );
+    }
+
+    /// **A straight column carries its own spread into the gap**: a
+    /// printed line exactly on the segment between a bowed column's ends
+    /// stands off the column by the bow, and the gap holds it.
+    #[test]
+    fn a_line_on_a_bowed_columns_segment_reads_the_bow() {
+        use geom_core::spline::KnotVector;
+        let file = FileBand::test(1e-9);
+        let bow = 1e-3;
+        let column = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(bow, 0.0, 0.3),
+                Point3::new(0.0, 0.0, 1.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap();
+        let (a, b) = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0));
+        let line = EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier: Curve3::line(a, geom_core::UnitVec3::exact_z()),
+            t0: 0.0,
+            t1: 1.0,
+            reversed: false,
+            curve: None,
+        };
+        let gap = segment_gap(&line, &column, (a, b), file).unwrap();
+        let samples: Vec<Point3<f64>> = (0..=4000)
+            .map(|k| column.eval(f64::from(k) / 4000.0))
+            .collect();
+        let true_sup = (0..=400)
+            .map(|k| line.carrier.eval(f64::from(k) / 400.0))
+            .map(|p| {
+                samples
+                    .iter()
+                    .map(|q| q.distance(p))
+                    .fold(f64::INFINITY, f64::min)
+            })
+            .fold(0.0, f64::max);
+        assert!(true_sup > 0.3 * bow, "the bow shows: {true_sup:e}");
+        assert!(gap >= true_sup, "sound: {gap:e} < {true_sup:e}");
     }
 }

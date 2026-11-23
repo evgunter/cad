@@ -395,10 +395,10 @@ pub fn conic_arc_aabb<T: Bounds>(
 /// arithmetic — brackets only — so no rounding to pad.
 ///
 /// **A net carrying poison ANYWHERE yields the poison box**, which
-/// overlaps everything: the placeholder curve (all-poison by
-/// construction) and equally a described net poisoned in one channel
-/// of one point. The screen is `net::any_poison`, whose docs carry why
-/// a box asks the wider question than the state discriminator does.
+/// overlaps everything, a net poisoned in one channel of one point as
+/// much as an all-poison one. The screen is `net::any_poison`, whose
+/// docs carry why a box asks the wider question than the state
+/// discriminator does.
 pub fn nurbs_curve_aabb<T: Bounds>(curve: &NurbsCurve3<T>) -> Aabb {
     if net::any_poison(curve.control()) {
         return Aabb::poison();

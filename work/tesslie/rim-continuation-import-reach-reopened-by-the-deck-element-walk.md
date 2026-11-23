@@ -2,8 +2,9 @@
 id: rim-continuation-import-reach-reopened-by-the-deck-element-walk
 kind: issue
 title: the pcurve re-mint no longer refuses a rim row stated a band apart, so RimContinuation's import-door reach is open again and unmeasured
-status: open
+status: closed
 opened: 2026-10-03
+closed: 2026-11-21
 priority: P2
 cost: M
 ---
@@ -39,3 +40,15 @@ needs the condition's verdict or can read the `4ε` joint bound.
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
 
 Moved from TESSWALK to TESSLIE on 2026-11-20, by `git mv`, when TESSWALK merged into TESSLIE: TESSWALK held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
+
+## Closed
+
+(2026-11-21, `tesslie/retire-coherence`.) Its subject is retired: the chart-coherence
+examination and its `RimContinuation`/`MeridianContinuation` conditions
+are removed (Ev's ruling on PR 7224), so there is no import-door reach
+left to measure. What the rows it cites still pin about the doors, the
+endpoint pin's escalation past the band and the re-mint admitting every
+gap the certifying doors build, is kept in
+`topo/tests/mesh12_rim_row_reach.rs` as
+`the_certifying_doors_build_a_two_level_rim_row_inside_the_endpoint_band`
+and `the_remint_admits_every_gap_the_certifying_doors_build`.

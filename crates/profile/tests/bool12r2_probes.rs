@@ -96,7 +96,10 @@ fn d_shape_forward(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
 fn r2_measurement_a_on_the_head() {
     let refused = stadium(false);
     println!("R2: undeclared stadium -> {refused:?}");
-    assert!(matches!(refused, Err(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        refused,
+        Err(PathError::SeamTurnWithinTolerance { .. })
+    ));
 
     let closed = stadium(true).expect("the constructed tangent seam closes");
     println!(
@@ -125,9 +128,12 @@ fn r2_the_declared_seams_hold_on_this_epsilon_leg() {
     validate_ok(&closed.loop_);
     assert!(matches!(
         d_shape_forward(false),
-        Err(PathError::SeamTangent { .. })
+        Err(PathError::SeamTurnWithinTolerance { .. })
     ));
-    assert!(matches!(stadium(false), Err(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        stadium(false),
+        Err(PathError::SeamTurnWithinTolerance { .. })
+    ));
     stadium(true).expect("the stadium closes on this leg");
 }
 
@@ -531,7 +537,10 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // authoring layer, which is where this belongs.
     let undeclared = ring(false);
     println!("R2: arc-first-side, undeclared -> {undeclared:?}");
-    assert!(matches!(undeclared, Err(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        undeclared,
+        Err(PathError::SeamTurnWithinTolerance { .. })
+    ));
 
     // AFTER THE RULING (Ev, in-chat, 2026-09-02): the lattice may not
     // consult the following carrier, so it closes declaring nothing and

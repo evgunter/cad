@@ -92,7 +92,7 @@ use core::cmp::Ordering;
 use core::fmt;
 use std::sync::Arc;
 
-use quantity::{Notation, UnitDef};
+use quantity::{Notation, UnitDef, UnitQuantity};
 
 use crate::tolerance::DEFAULT_EPS;
 use crate::{Readable, Real, fold_signed_zero};
@@ -136,13 +136,23 @@ impl fmt::Debug for Read {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Value(_) => "Value(..)",
-            Self::Enclosure { .. } => "Enclosure(..)",
+            Self::Enclosure { lo: _, hi: _ } => "Enclosure(..)",
             Self::Unreadable => "Unreadable",
         })
     }
 }
 
 impl Reading {
+    /// The reading's ends: a value twice, an enclosure's two, `None`
+    /// where nothing was measured.
+    pub(crate) fn ends(&self) -> Option<(f64, f64)> {
+        match self.0 {
+            Read::Value(v) => Some((v, v)),
+            Read::Enclosure { lo, hi } => Some((lo, hi)),
+            Read::Unreadable => None,
+        }
+    }
+
     /// A scalar that is one number. NaN is unreadable.
     #[must_use]
     pub fn value(x: f64) -> Self {
@@ -182,13 +192,29 @@ pub enum Dimension {
 }
 
 impl Dimension {
+    /// The quantity of the unit table a number of this dimension is
+    /// held in — the dimensions are that table's quantities, told.
+    pub const fn quantity(self) -> UnitQuantity {
+        match self {
+            Self::Length => UnitQuantity::Length,
+            Self::Angle => UnitQuantity::Angle,
+            Self::Dimensionless => UnitQuantity::Scalar,
+        }
+    }
+
+    /// The dimension a number held in `quantity` is told as —
+    /// [`Self::quantity`]'s inverse.
+    pub const fn of(quantity: UnitQuantity) -> Self {
+        match quantity {
+            UnitQuantity::Length => Self::Length,
+            UnitQuantity::Angle => Self::Angle,
+            UnitQuantity::Scalar => Self::Dimensionless,
+        }
+    }
+
     /// The unit of `notation` a number of this dimension is told in.
     const fn unit(self, notation: Notation) -> UnitDef {
-        match self {
-            Self::Length => notation.length.def(),
-            Self::Angle => notation.angle.def(),
-            Self::Dimensionless => quantity::ONE.def(),
-        }
+        notation.unit_of(self.quantity())
     }
 }
 
@@ -456,6 +482,11 @@ fn write_spelled(spelled: Option<Spelled>, f: &mut fmt::Formatter<'_>) -> fmt::R
 /// tell them apart.
 impl PartialEq for Quantity {
     fn eq(&self, other: &Self) -> bool {
+        let Self {
+            held: _,
+            dimension,
+            canonical_only,
+        } = self;
         let bits = |spelled: Option<Spelled>| {
             spelled.map(|spelled| {
                 let (lo, hi) = spelled.extent(false);
@@ -466,8 +497,8 @@ impl PartialEq for Quantity {
                 )
             })
         };
-        self.dimension == other.dimension
-            && self.canonical_only == other.canonical_only
+        *dimension == other.dimension
+            && *canonical_only == other.canonical_only
             && self.role() == other.role()
             && bits(self.spelled(0)) == bits(other.spelled(0))
     }

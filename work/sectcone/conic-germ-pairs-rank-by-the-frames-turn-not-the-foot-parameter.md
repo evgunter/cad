@@ -42,3 +42,13 @@ Landing this also retires SECTTAIL's
 `conic-germs-pair-order-is-unargued`. The bisector ellipses depend on
 the crossing-node question under
 `skew-cylinder-germ-pair-has-no-section-frame`.
+
+## Surveyed (SECTCONE, 2026-11-21)
+
+- **The bisector ellipses are already done.** They ride the carried lane with nodes on the value (PRs 6405 and 6466; `work/sectarms/skew-cylinder-germ-pair-has-no-section-frame.md`, closed 2026-11-04), so the crossing-node dependency above has fired.
+- **What remains:** plane × sphere, sphere × sphere, plane × cylinder, plane × torus and plane × cone.
+- **A consumer of `Turn` the row did not name:** the germs along a conic edge (`along_edge_conic`, `germ_branch`'s `Only` lane). They have no face-pair section, so retiring `Turn` needs a foot ordering on the edge's carrier.
+- **Cut into three units:**
+  - `the-plane-and-sphere-conic-pairs-on-the-section-value` (U1, dispatched);
+  - plane × torus (U2);
+  - plane × cone and the turn lane's deletion (U3, which waits on the cone's region and tangency lever from `the-cone-has-no-implicit-enclosure-or-metres-conversion`).

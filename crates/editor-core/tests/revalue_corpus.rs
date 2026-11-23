@@ -38,6 +38,7 @@ test_utils::gated_to![
     "crates/sweep/src/",
     "crates/editor-core/src/",
     "crates/editor-core/tests/corpus/",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -56,7 +57,9 @@ use crate::corpus;
 /// zero bands at every ε the CI runs: those bands scale with ε, and a
 /// move fixed in meters would sit inside a wide band at a coarse ε (an
 /// exact zero moved by it no longer flips) and outside a narrow one at a
-/// fine ε, so what a row pins would hold at one ε only.
+/// fine ε. So what flips, and where two builds part, is the same at every
+/// ε; how many margins change their bits under the move is not
+/// ([`holds_until_parting`]'s floors).
 fn step() -> f64 {
     1.0e-7 * (Tol::witness().eps() / geom_core::tolerance::DEFAULT_EPS)
 }
@@ -444,6 +447,31 @@ fn holds(
     );
 }
 
+/// A count pinned per ε row, each field named for the ε it holds at.
+struct PerRow {
+    at_1e6: usize,
+    at_1e9: usize,
+    at_1e12: usize,
+}
+
+impl PerRow {
+    /// The count for this run's ε row; any other ε has none and fails
+    /// loud rather than reading a neighbour's.
+    fn here(&self, name: &str) -> usize {
+        let eps = Tol::witness().eps();
+        let near = |e: f64| (eps / e - 1.0).abs() < 1.0e-3;
+        if near(1.0e-6) {
+            self.at_1e6
+        } else if near(1.0e-9) {
+            self.at_1e9
+        } else if near(1.0e-12) {
+            self.at_1e12
+        } else {
+            panic!("{name}: no count at eps = {eps:e}: measure one and add it")
+        }
+    }
+}
+
 /// **A gating row under [`Move::Apart`] for a document whose apart move
 /// parts**, read over the decisions before the parting: the coverage a
 /// row pinned [`Move::InStep`] lacks (a laundered quantity that depends
@@ -453,7 +481,24 @@ fn holds(
 /// and no decision before it flips. The floor counts the choices' margins
 /// that moved: the checks align apart ([`streams`]). Past it the row says nothing, which
 /// the document's in-step row covers.
-fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting: &str, item: &str) {
+///
+/// The builds take the same decisions at every ε row, so `in_step` (the
+/// decisions compared before the parting) and `checks` (the checks
+/// paired) are one pin for every row. How many margins move is not: a
+/// margin keeps its bits under the `100·ε` step at one ε and changes
+/// them at another, both residuals at rounding level (a carrier on its
+/// surface, a map's residual, an incidence read) and others (a chord's
+/// side, an arc's or a line's span, a radial chart read), so `moved` is
+/// floored per row.
+fn holds_until_parting(
+    name: &str,
+    (in_step, checks): (usize, usize),
+    moved: PerRow,
+    owed: &[(&str, &str)],
+    parting: &str,
+    item: &str,
+) {
+    let floor = moved.here(name);
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
@@ -472,6 +517,12 @@ fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting:
     assert_eq!(
         found.escalated, 0,
         "{name}: a decision the f64 channel escalated ({found:?})"
+    );
+    assert_eq!(
+        (found.compared, found.checks),
+        (in_step, checks),
+        "{name}: (decisions in step before the parting, checks paired) are not the pinned ones, \
+         which hold at every ε row ({found:?})"
     );
     assert!(
         found.moved >= floor,
@@ -502,12 +553,28 @@ fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting:
 }
 
 /// `plate_param` under the apart move, to the ray-schedule gate's exact
-/// zero it parts at.
+/// zero it parts at. Its parting came later when the least turn lost its
+/// identity shortcut: an identity chart decides its pole verdict and
+/// conditioning, in step at both builds. It came 3 sooner when a chart's
+/// spin was set from its frames at `Sym`, which decides no renormalized
+/// axis. Validation stopped reading an adjacent line pair's
+/// shared vertex (`profile::seg`'s `line_line`): the four corners, on
+/// both builds, lost 16 each of `chord_side`, `line_span` and
+/// `contact_at_shared_vertex`, so 48 fewer decisions are compared
+/// before the parting, at every ε row. The checks paired do not move.
+/// Fewer of the margins moved and re-valued: at the default ε 1994 ->
+/// 1990 (floor 1993 -> 1989), and at 1e-6 the row reads 1952 (floor 1955
+/// -> 1951). The 1e-12 row still clears its floor.
 #[test]
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        1993,
+        (3204, 7228),
+        PerRow {
+            at_1e6: 1951,
+            at_1e9: 1989,
+            at_1e12: 1802,
+        },
         &[],
         "point_in_loop_arm",
         "work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md",
@@ -519,12 +586,22 @@ fn revalue_plate_param_apart_to_its_parting() {
 /// mate, not the identity bundle, so it runs its map at `p0` as at `p1`
 /// (FORK-REST), and the two builds visit the separating axes in one
 /// order where `p0`'s exactly axis-aligned faces used to merge them
-/// (the owed item's `bool_pair_gap` swap).
+/// (the owed item's `bool_pair_gap` swap). Its parting came later, as
+/// `plate_param`'s did, when the least turn lost its identity shortcut.
+/// Then validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`): its four corners, on both
+/// builds, ask 24 fewer decisions before the parting, at
+/// every ε row; the checks paired do not move.
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        1462,
+        (2372, 3856),
+        PerRow {
+            at_1e6: 1414,
+            at_1e9: 1462,
+            at_1e12: 1402,
+        },
         &[],
         // PCERT E1c (every mint reads incidence first, PR 5889): the apart move now parts
         // at the read every mint makes first, before the radial decision.
@@ -1038,4 +1115,138 @@ fn reader_ties_at_the_nominal() {
             ties.len()
         );
     }
+}
+
+/// **A chart on a face tilted by a variable at zero moves with it**: a
+/// cylinder placed into a box's space spun about `x` by `a` at `0`, and a
+/// square drawn on its top cap's chart and extruded. At `a = 0` the cap's
+/// normal is the space's `z` in value alone, so a chart that read its
+/// least turn as the identity off that value would be constant in `a`:
+/// its margins, re-valued at a moved `a`, would stay where `p0` put them
+/// while the `p1` build's moved. Under the apart move every variable at
+/// zero moves by the step, so the row sees it: with the identity read off
+/// the value, `p0` takes the identity branch and `p1` the general one, the
+/// builds part, and the row falls back to the in-step move, which its
+/// pinned mode refuses.
+#[test]
+fn revalue_a_chart_on_a_cap_tilted_at_zero() {
+    use crate::fixture::{self, len};
+    use editor_core::{
+        BodyRead, CapEnd, Coord, Dimension, DocEdit, Formula, LoopProgram, Node, OnFace, Operand,
+        ProfileProgram, TargetAxis, VarDecl, VarName,
+    };
+    let doc = ProfileDoc::empty_derived("revalue_zero_tilt", Tol::witness());
+    let name = VarName::new("a").expect("a name");
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: name.clone(),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+        },
+    );
+    let a = Formula::named(name, Dimension::Angle);
+    let (doc, outline) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::polygon_expr([
+                [len(-3.0), len(-0.5)],
+                [len(-2.0), len(-0.5)],
+                [len(-2.0), len(0.5)],
+                [len(-3.0), len(0.5)],
+            ])],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, block) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: outline.into(),
+            distance: len(0.5),
+        },
+    );
+    let (doc, disc) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Circle {
+                centre: [len(0.0), len(0.0)],
+                radius: len(1.0),
+            }],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, upright) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: disc.into(),
+            distance: len(1.0),
+        },
+    );
+    let space = fixture::space(&doc, block);
+    let placed = editor_core::Placed {
+        mates: Vec::new(),
+        values: vec![
+            (Coord::Spin(Some(TargetAxis::X)), a),
+            (Coord::Spin(Some(TargetAxis::Y)), fixture::ang(0.0)),
+            (Coord::Spin(Some(TargetAxis::Z)), fixture::ang(0.0)),
+            (Coord::slide(TargetAxis::X), len(0.0)),
+            (Coord::slide(TargetAxis::Y), len(0.0)),
+            (Coord::slide(TargetAxis::Z), len(0.0)),
+        ],
+    };
+    let (doc, cylinder) = fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::from(upright)),
+            Operand::Var(space),
+            placed.bundle(),
+        ),
+    );
+    let ev = editor_core::evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let top = fixture::fname(upright, editor_core::RoleSeg::Cap(CapEnd::End));
+    let cap = editor_core::all_faces(&ev, cylinder)
+        .into_iter()
+        .find(|n| n.path == top.path)
+        .expect("the copy's top cap");
+    let drawn = editor_core::draw_on_face(
+        &doc,
+        BodyRead::plain(Operand::output(cylinder, 0)),
+        cap,
+        vec![LoopProgram::polygon_expr([
+            [len(-0.2), len(-0.2)],
+            [len(0.2), len(-0.2)],
+            [len(0.2), len(0.2)],
+            [len(-0.2), len(0.2)],
+        ])],
+        OnFace {
+            slides: [len(0.0), len(0.0)],
+            traced: Vec::new(),
+            ..OnFace::nearest()
+        },
+        &EvalOptions::default(),
+        &CancelToken::new(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the square is drawn on the cap: {e}"));
+    let (doc, _) = fixture::insert(
+        drawn.doc,
+        Node::Extrude {
+            profile: drawn.profile.into(),
+            distance: len(0.3),
+        },
+    );
+    let found = compare("a chart on a cap tilted at zero", &doc);
+    eprintln!("REVALUE zero tilt: {found:?}");
+    assert_eq!(found.drifted, 0, "{found:?}");
+    assert_eq!(found.mode, Some(Move::Apart), "{found:?}");
+    assert!(found.laundered.is_empty(), "{found:?}");
+    assert!(found.flips.is_empty(), "{found:?}");
+    assert!(found.moved > 0, "{found:?}");
 }

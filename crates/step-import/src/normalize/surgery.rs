@@ -362,7 +362,7 @@ mod tests {
     fn square(cuts: &[(u64, u64, u64)]) -> (SolidSpec, Vec<Vec<EdgeUse>>) {
         let line = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let spec = |start, end| EdgeSpec {
             start,
@@ -388,6 +388,7 @@ mod tests {
             faces: Vec::new(),
             edges,
             vertices,
+            surfaces: BTreeMap::new(),
             band_seams: BTreeSet::new(),
         };
         (solid, vec![vec![fwd(10), fwd(11), fwd(12), fwd(13)]])
@@ -474,13 +475,7 @@ mod tests {
         let (t0, t1) = (1.5 * PI, 2.5 * PI);
         let face = |id, forward| FaceSpec {
             id,
-            surface: geom::Surface::Plane {
-                frame: geom::Frame::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 1.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                ),
-            },
+            record: 900,
             sense: true,
             loops: vec![LoopSpec {
                 outer: true,
@@ -504,6 +499,16 @@ mod tests {
                 },
             )]),
             vertices: BTreeMap::from([(1, circle.eval(t0)), (2, circle.eval(t1))]),
+            surfaces: crate::entities::records_of([(
+                900,
+                geom::Surface::Plane {
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                },
+            )]),
             band_seams: BTreeSet::new(),
         };
         let q = Point3::new(FRAC_PI_4.cos(), FRAC_PI_4.sin(), 0.0);

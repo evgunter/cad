@@ -53,6 +53,8 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
 
+#[path = "a_boxed_rectangle_validates.rs"]
+mod a_boxed_rectangle_validates;
 #[path = "a_far_arcs_lens_reads_its_own_width.rs"]
 mod a_far_arcs_lens_reads_its_own_width;
 #[path = "arc_fillet.rs"]
@@ -73,6 +75,8 @@ mod bool11_probes;
 mod chain_shape_pieces;
 #[path = "chain_shape_random.rs"]
 mod chain_shape_random;
+#[path = "deferred_refusal_step.rs"]
+mod deferred_refusal_step;
 #[path = "fillet_constructions.rs"]
 mod fillet_constructions;
 #[path = "fillet_decided_tangency.rs"]
@@ -128,6 +132,8 @@ mod guided_replay;
 mod hairpin_fillet_radius;
 #[path = "interval_lane.rs"]
 mod interval_lane;
+#[path = "junction_turn_lever.rs"]
+mod junction_turn_lever;
 #[path = "lift_census.rs"]
 mod lift_census;
 #[path = "onarc_probe.rs"]

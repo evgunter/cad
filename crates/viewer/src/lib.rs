@@ -56,11 +56,25 @@
 /// the at-rest one; this is that door's one spelling.
 #[must_use]
 pub fn shown(refusal: &impl pncad::geom_brep::recourse::Ended) -> String {
-    refusal.ended(pncad::geom_brep::recourse::Reading::AtRest.into())
+    refusal.ended(shown_at())
+}
+
+/// [`shown`], as the sentence a session refusal says, each node it
+/// names a mention said by `by` (`frame::refusal_message`).
+#[must_use]
+pub fn shown_said(
+    refusal: &session::Refusal,
+    by: pncad::document::Speaker<'_>,
+) -> pncad::document::Sentence {
+    refusal.said(by, Some(shown_at()))
+}
+
+/// The reading [`shown`] and [`shown_said`] end a refusal at.
+fn shown_at() -> pncad::geom_brep::recourse::ReadAt {
+    pncad::geom_brep::recourse::Reading::AtRest.into()
 }
 
 pub mod blend;
-pub mod bounds;
 pub mod camera;
 pub mod combine;
 pub mod display;
@@ -84,6 +98,8 @@ pub mod platform;
 pub mod prefs;
 pub mod props;
 pub mod readout;
+pub mod recourse;
+pub mod relations;
 pub mod scene;
 pub mod screen;
 pub mod seats;
@@ -166,7 +182,10 @@ pub use display::{
 pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
-pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+pub use input::{
+    Action, Binding, Held, InputMap, Navigation, PickAction, PointerButton, ViewportEvent,
+    ViewportSize,
+};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
     MATE_KINDS, MateChoice, MatePick, MateProposal, MateRow, MateSeat, MateTool, MateToolError,
@@ -183,11 +202,11 @@ pub use pickindex::{
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{MemberFault, MemberValues, Reading, SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
-pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
+pub use seats::{EdgeRole, Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
-    BoundsReading, DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing,
-    NodeKindWanted, OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp,
-    Standing, VertexSelection,
+    DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing, NodeKindWanted,
+    OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp, Standing,
+    VertexSelection,
 };
 pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};

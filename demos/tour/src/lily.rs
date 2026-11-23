@@ -160,8 +160,7 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand, PairRefusalSite,
-    SectionUnbuilt,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, SectionUnbuilt,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -1453,7 +1452,7 @@ pub const ARCH_R: f64 = 0.052;
 /// shoulder). Two reasons, and the first is a live refusal: the
 /// authoring algebra will not take a leg that departs along its
 /// predecessor's tangent when the departure is spelled in COORDINATES
-/// — `PathError::JunctionTangent`, one recourse named, the structural
+/// — `PathError::JunctionTurnWithinTolerance`, one recourse named, the structural
 /// `.tangent()` verb (pinned by
 /// `review_probes::the_globes_tangent_cone_neck_is_refused_by_the_junction_gate`).
 /// The second is the shape: 70° sits INSIDE the tangent cone, so the
@@ -2236,44 +2235,23 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
     println!("   wall 1 — RETIRED: the stem's two arcs glue into one stem");
 
-    // 2. The flower grows OUT OF the pedicel, and it is now authored
-    //    so that it CAN: the neck cone's rim and the arch tube's
-    //    terminal meridian circle are one circle, asserted above off
-    //    both stored carriers. There is no transverse curve here to
-    //    have a closed form for.
-    //
-    //    The crossing layer passes the weld circle: the lantern's neck
-    //    rim lies on the arch's torus wall as its terminal meridian
-    //    circle, and the carrier ladder decides the neck cone distinct
-    //    from the torus, so the circle is an edge lying on the wall.
-    //    The planar pair the throat disk and the arch's cap form is
-    //    decided on its zero. What refuses is the interior-loop guard,
-    //    on the neck cone against the arch's torus wall: the section
-    //    certificate has no arm for a cone against a torus that is not
-    //    coaxial with it, so it cannot certify that the two walls meet
-    //    in no loop the join did not cut.
-    wall(
-        2,
-        "weld the lantern onto the arch (cone x the arch's end cap, \
-         meeting on one shared circle)",
-        pncad::topo::union(lant, arch, tol),
-        |e| {
-            // The pair refused is the neck cone against the arch's
-            // torus wall (`review_probes::the_weld_refuses_at_the_cone_torus_pair`).
-            matches!(
-                e,
-                BooleanError::CurvedPairUnsupported {
-                    site: PairRefusalSite::InteriorLoopGuard,
-                    operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
-                    ..
-                }
-            )
-        },
-        "join flower to stem — the section certificate has no arm for the \
-         neck cone against the arch's torus wall",
+    // Wall 2 — RETIRED, kept live. The flower grows out of the pedicel:
+    //    the neck cone's rim and the arch tube's terminal meridian circle
+    //    are one circle, asserted above off both stored carriers. The
+    //    crossing layer passes it as an edge lying on the torus wall,
+    //    the throat disk and the arch's cap are decided on their zero,
+    //    and the interior-loop guard reads the neck cone against the
+    //    arch's torus wall through the section value's cone × torus
+    //    pose, marched, so the union builds. The scene still ships the
+    //    flower and the arch as two pieces; welding them is the scene's
+    //    own change to make.
+    let welded = pncad::topo::union(lant, arch, tol).expect("the lantern welds onto the arch");
+    assert_eq!(
+        welded.body().map(|b| b.body.shells().count()),
+        Some(1),
+        "the welded flower is one shell"
     );
+    println!("   wall 2 — RETIRED: the lantern welds onto the arch");
 
     // 3. The lily's leaves DO leave their own plane now — each blade
     //    is a lanceolate section swept along an arching spine. What is

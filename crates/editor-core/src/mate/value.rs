@@ -119,17 +119,17 @@ enum Seat<T: geom_core::Real> {
 /// The one spin turns about the target's own direction, so a flip on
 /// either side of a mate moves no spin.
 #[must_use]
-pub fn flipped<P>(doc: &crate::doc::Doc<P>, pose: crate::VarId) -> bool {
-    use crate::pose::{PoseDef, PoseRole, RoleRead};
+pub fn flipped<P>(doc: &crate::doc::Doc<P>, pose: crate::pose::RoleRead<crate::VarId>) -> bool {
+    use crate::pose::PoseDef;
     let mut odd = false;
-    let mut at = pose;
+    if !pose.keeps_sense() {
+        return false;
+    }
+    let mut at = pose.read;
     while let Some(def) = doc.var(at).and_then(|v| v.def().pose()) {
         odd ^= matches!(def, PoseDef::Flip { .. });
         match def.kept() {
-            Some(RoleRead {
-                read,
-                role: None | Some(PoseRole::Normal | PoseRole::Direction),
-            }) => at = *read,
+            Some(kept) if kept.keeps_sense() => at = kept.read,
             _ => break,
         }
     }
@@ -255,19 +255,19 @@ pub fn spin_as_chain_turn<R>(charted: Charted<'_>, chain: &[Coord<R>]) -> Option
 /// own direction**: [`flipped`] over an operand — a pose variable read
 /// as [`flipped`] reads it, a pose definition walked the same way.
 #[must_use]
-pub fn side_flipped<P>(doc: &crate::doc::Doc<P>, side: &crate::Operand) -> bool {
-    use crate::pose::{PoseDef, PoseRole, RoleRead};
-    match side {
-        crate::Operand::Var(var) => flipped(doc, *var),
+pub fn side_flipped<P>(
+    doc: &crate::doc::Doc<P>,
+    side: &crate::pose::RoleRead<crate::Operand>,
+) -> bool {
+    use crate::pose::PoseDef;
+    if !side.keeps_sense() {
+        return false;
+    }
+    match &side.read {
+        crate::Operand::Var(var) => flipped(doc, crate::pose::RoleRead::plain(*var)),
         crate::Operand::Pose(def) => {
             let here = matches!(**def, PoseDef::Flip { .. });
-            let kept = match def.kept() {
-                Some(RoleRead {
-                    read,
-                    role: None | Some(PoseRole::Normal | PoseRole::Direction),
-                }) => side_flipped(doc, read),
-                _ => false,
-            };
+            let kept = def.kept().is_some_and(|read| side_flipped(doc, read));
             here != kept
         }
         _ => false,
@@ -336,7 +336,7 @@ impl<T: SolveScalar> Chart<T> {
 
     /// **The chart of a mate equating `on` with `to`**, as [`Self::of`]
     /// reads it, its refusal naming no mate: what a placement and a
-    /// face's chart ([`face_chart`]) both read.
+    /// face's chart ([`FaceChart`]) both read.
     ///
     /// # Errors
     ///
@@ -351,6 +351,40 @@ impl<T: SolveScalar> Chart<T> {
         arm: Arm,
         band: Band,
         tol: geom_core::Tol,
+    ) -> Result<Option<Self>, ChartFault> {
+        Self::read_as(on, to, to_flipped, orient, arm, band, Some(tol))
+    }
+
+    /// **[`Self::read`] as a selection**: its least turn's pole verdict
+    /// alone, under [`FACE_CHART_SELECTION_POLE`], with no conditioning
+    /// ([`RigidMotion::least_turn_selected`]): a read made before the
+    /// extent it is consumed over exists, whose conditioning the carriage
+    /// that consumes it decides (the geom-core README, "Float rounding").
+    /// The same turn, every bit.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::read`].
+    pub(crate) fn selected(
+        on: &PoseValue<T>,
+        to: &PoseValue<T>,
+        orient: Orientation,
+        arm: Arm,
+        band: Band,
+    ) -> Result<Option<Self>, ChartFault> {
+        Self::read_as(on, to, false, orient, arm, band, None)
+    }
+
+    /// [`Self::read`], its conditioning decided against `tol`'s rounding
+    /// reach, or none ([`Self::selected`]).
+    fn read_as(
+        on: &PoseValue<T>,
+        to: &PoseValue<T>,
+        to_flipped: bool,
+        orient: Orientation,
+        arm: Arm,
+        band: Band,
+        tol: Option<geom_core::Tol>,
     ) -> Result<Option<Self>, ChartFault> {
         let Some((d, copy_d, seat)) = Self::sides(on, to) else {
             return Ok(None);
@@ -390,9 +424,10 @@ impl<T: SolveScalar> Chart<T> {
 
     /// **The chart of the two directions**: the least turn carrying where
     /// `orient` puts the copy's mated direction onto `d`, decided over
-    /// `lever` (its pole verdict and its conditioning,
-    /// [`RigidMotion::least_turn`]), refusing [`ChartRefusal::Pole`]
-    /// where either refuses.
+    /// `lever` (its pole verdict and, against `tol`, its conditioning,
+    /// [`RigidMotion::least_turn`]; with no `tol` its pole verdict alone,
+    /// [`RigidMotion::least_turn_selected`]), refusing
+    /// [`ChartRefusal::Pole`] where either refuses.
     #[allow(clippy::too_many_arguments)]
     fn charted(
         d: UnitVec3<T>,
@@ -403,7 +438,7 @@ impl<T: SolveScalar> Chart<T> {
         arm: Arm,
         lever: geom_core::Lever<T>,
         band: Band,
-        tol: geom_core::Tol,
+        tol: Option<geom_core::Tol>,
     ) -> Result<Self, ChartRefusal> {
         let degenerate = || {
             ChartRefusal::Kind(Box::new(NodeErrorKind::PoseDegenerate {
@@ -417,29 +452,35 @@ impl<T: SolveScalar> Chart<T> {
             .signed_permutation(orient.signed_permutation())
             .unwrap_or_else(|| unreachable!("an orientation is a permutation of the axes"));
         let n = from.get();
-        // The least turn, whose mint takes a pair that is one direction
-        // exactly to the identity, exactly, at every scalar.
-        // The mint's own identity predicate: its identity's axes are the
-        // target's own exactly, so no unit-norm check is spent on them.
-        let identity = from.is_exactly(d);
         let turn = {
             // The pole verdict and the conditioning, over the lever: the
-            // one decided least-turn mint (`[placement.values]`).
-            let least = RigidMotion::least_turn(
-                from,
-                d,
-                geom_core::linalg::Point3::origin(),
-                lever,
-                "mate_chart_pole",
-                band,
-                tol,
-            )
+            // one decided least-turn mint (`[placement.values]`); or, as a
+            // selection, the pole verdict alone.
+            let about = geom_core::linalg::Point3::origin();
+            let least = match tol {
+                Some(tol) => {
+                    RigidMotion::least_turn(from, d, about, lever, "mate_chart_pole", band, tol)
+                }
+                None => RigidMotion::least_turn_selected(
+                    from,
+                    d,
+                    about,
+                    lever,
+                    FACE_CHART_SELECTION_POLE,
+                    band,
+                ),
+            }
             .map_err(|e| match e {
                 geom_core::TurnError::NonFinite(_) => degenerate(),
                 _ => ChartRefusal::Pole,
             })?;
-            // The identity's axes are the target's own, exactly: nothing
-            // to normalize, so no check is spent on them.
+            // A pair one direction at every point the scalar stands for
+            // turns by the identity's own axes, exactly: nothing to
+            // normalize, so no check is spent on them.
+            let (f, t) = (from.get(), d.get());
+            let identity = [f.x - t.x, f.y - t.y, f.z - t.z]
+                .into_iter()
+                .all(SolveScalar::zero_everywhere);
             if identity || T::spins_by_frames() {
                 least
             } else {
@@ -955,7 +996,7 @@ pub fn read_back<R>(
             arm,
             geom_core::Lever::session_box(),
             band,
-            tol,
+            Some(tol),
         )
         .ok()
     });
@@ -1040,7 +1081,7 @@ impl ValueAt for MateRef {
     }
 }
 
-/// **One of a face's chart's values** ([`face_chart`]): its spin, or
+/// **One of a face's chart's values** ([`FaceChart`]): its spin, or
 /// one of its two slides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum FaceValue {
@@ -1462,78 +1503,228 @@ pub fn face_chart_slides(orient: Orientation) -> [TargetAxis; 2] {
     }
 }
 
-/// **A face's chart** ([`crate::pose::PoseDef::FaceChart`]; D10
-/// `[placement]`): the motion a plane placement onto `to`, the face's
-/// plane in its space, places its copy at under `orient`, `spin` (its
-/// number and the fraction of a turn it is written as) and `slides`
-/// (along [`face_chart_slides`]). The copy's mated pose is its own `xy`
-/// facing its own `z`, a start cap flipped to look up its `z` as DM1's
-/// placement mates one, so the frame's `z` is the face's outward normal.
+/// The site a face's chart's least turn is decided under where it is
+/// selected before the extent it is consumed over exists
+/// ([`Chart::selected`]): its pole verdict over the session box.
+pub(crate) const FACE_CHART_SELECTION_POLE: &str = "face_chart_selection_pole";
+
+/// **A face's chart, undecided** ([`crate::pose::PoseDef::FaceChart`];
+/// D10 `[placement]`): what the motion a plane placement onto `to`, the
+/// face's plane in its space, places its copy at is computed from, under
+/// `orient`, its spin (its number and the fraction of a turn it is
+/// written as) and its slides (along [`face_chart_slides`]). The copy's
+/// mated pose is its own `xy` facing its own `z`, a start cap flipped to
+/// look up its `z` as DM1's placement mates one, so the frame's `z` is
+/// the face's outward normal.
 ///
-/// It is computed by the placement's own code, called and never spelled
-/// again: the chart's arm ([`super::solve::arm_of`], over no copy's
-/// reach, so its slides and the face's distance from the origin), its
-/// chart ([`Chart::read`]), the mate's coset
-/// ([`super::solve::fold_cosets`]) and the values settled on it
-/// ([`settle`]), the four a placement's fold calls on the same reads.
-///
-/// # Errors
-///
-/// [`crate::pose::PoseConstruction::FaceChartBackwards`] within the band
-/// about the least turn's pole, naming the orientation to write;
-/// [`crate::pose::PoseConstruction::FaceChartUnleverable`] for an arm
-/// past the format's reach; a direction the band cannot mint; a motion's
-/// overflow.
-pub(crate) fn face_chart<T: SolveScalar>(
+/// It decides nothing alone: what stands in it is carried over its own
+/// reach, as a placement's copy is. The first carriage mints its motion
+/// ([`Self::mint`]); every later one decides its verdict alone
+/// ([`MintedChart::carries`]).
+#[derive(Debug, Clone)]
+pub(crate) struct FaceChart<T: geom_core::Real> {
     to: PoseValue<T>,
     orient: Orientation,
-    (spin, turns): (T, Option<crate::expr::Ratio>),
+    spin: (T, Option<crate::expr::Ratio>),
     slides: [T; 2],
-    band: Band,
-    tol: geom_core::Tol,
-) -> Result<RigidMotion<T>, NodeErrorKind> {
-    use crate::pose::PoseConstruction;
-    let refuse = |construction| NodeErrorKind::PoseDegenerate { construction };
-    let to = super::solve::tightened(to);
-    let on = PoseValue::Plane {
-        normal: UnitVec3::exact_z(),
-        offset: T::zero(),
-    };
-    let [a, b] = face_chart_slides(orient);
-    let value = |value, coord, by, turns| ReadValue {
-        value,
-        coord,
-        by,
-        turns,
-        line: None,
-    };
-    let values = [
-        value(FaceValue::Spin, Coord::SPIN, spin, turns),
-        value(FaceValue::Slide(a), Coord::slide(a), slides[0], None),
-        value(FaceValue::Slide(b), Coord::slide(b), slides[1], None),
-    ];
-    let mates = [(&on, &to)];
-    let arm = super::solve::arm_of(0.0, mates, &values).map_err(|refusal| match refusal {
-        super::LeverRefusal::OutOfRange { parts, datum } => {
-            refuse(PoseConstruction::FaceChartUnleverable { parts, datum })
+}
+
+/// **A face's chart, minted at its first carriage**: its inputs and the
+/// one motion they place a copy at. No later carriage mints another.
+#[derive(Debug, Clone)]
+pub(crate) struct MintedChart<T: geom_core::Real> {
+    chart: FaceChart<T>,
+    motion: std::sync::Arc<RigidMotion<T>>,
+}
+
+impl<T: SolveScalar> FaceChart<T> {
+    /// The chart onto `to` under `orient`, `spin` and `slides`.
+    pub(crate) fn new(
+        to: PoseValue<T>,
+        orient: Orientation,
+        spin: (T, Option<crate::expr::Ratio>),
+        slides: [T; 2],
+    ) -> Self {
+        Self {
+            to: super::solve::tightened(to),
+            orient,
+            spin,
+            slides,
         }
-        other => unreachable!("an arm refuses out of range alone: {other:?}"),
-    })?;
-    let chart = match Chart::read(&on, &to, false, orient, arm, band, tol) {
-        Ok(Some(chart)) => chart,
-        Ok(None) => unreachable!("a plane mate fixes a direction"),
-        Err(ChartFault::Backwards { write }) => {
-            return Err(refuse(PoseConstruction::FaceChartBackwards {
-                orient,
-                write,
-            }));
+    }
+
+    /// The copy's mated plane, its own `xy`.
+    fn on() -> PoseValue<T> {
+        PoseValue::Plane {
+            normal: UnitVec3::exact_z(),
+            offset: T::zero(),
         }
-        Err(ChartFault::Kind(kind)) => return Err(*kind),
-    };
-    let Some(coset) = super::solve::fold_cosets(mates).map_err(NodeErrorKind::Motion)? else {
-        unreachable!("one mate meets the unconstrained coset")
-    };
-    settle(coset, &values, Some(chart))
+    }
+
+    /// The chart's values, as a placement's fold reads its own.
+    fn values(&self) -> [ReadValue<T, FaceValue>; 3] {
+        let [a, b] = face_chart_slides(self.orient);
+        let value = |value, coord, by, turns| ReadValue {
+            value,
+            coord,
+            by,
+            turns,
+            line: None,
+        };
+        [
+            value(FaceValue::Spin, Coord::SPIN, self.spin.0, self.spin.1),
+            value(FaceValue::Slide(a), Coord::slide(a), self.slides[0], None),
+            value(FaceValue::Slide(b), Coord::slide(b), self.slides[1], None),
+        ]
+    }
+
+    /// **The chart, decided over what reaches `reach`** from its origin:
+    /// the placement's arm ([`super::solve::arm_of`], over `reach`, the
+    /// slides and the face's distance from the origin) and its chart
+    /// ([`Chart::read`]), whose least turn's pole verdict and conditioning
+    /// are every decision the chart's arm enters.
+    fn decided(
+        &self,
+        reach: Result<f64, super::LeverRefusal>,
+        band: Band,
+        tol: geom_core::Tol,
+    ) -> Result<Chart<T>, NodeErrorKind> {
+        use crate::pose::PoseConstruction;
+        let refuse = |construction| NodeErrorKind::PoseDegenerate { construction };
+        let unleverable = |refusal| {
+            refuse(PoseConstruction::FaceChartUnleverable {
+                refusal: Box::new(refusal),
+            })
+        };
+        let on = Self::on();
+        let arm = super::solve::arm_of(
+            reach.map_err(unleverable)?,
+            [(&on, &self.to)],
+            &self.values(),
+        )
+        .map_err(unleverable)?;
+        match Chart::read(&on, &self.to, false, self.orient, arm, band, tol) {
+            Ok(Some(chart)) => Ok(chart),
+            Ok(None) => unreachable!("a plane mate fixes a direction"),
+            Err(ChartFault::Backwards { write }) => {
+                Err(refuse(PoseConstruction::FaceChartBackwards {
+                    orient: self.orient,
+                    write,
+                }))
+            }
+            Err(ChartFault::Kind(kind)) => Err(*kind),
+        }
+    }
+
+    /// **The chart's motion, selected before what it carries exists**: a
+    /// trace reads its faces through the turn before the profile's loops
+    /// resolve, so the turn is a selection (the geom-core README, "Float
+    /// rounding"): its pole verdict alone ([`Chart::selected`]), over the
+    /// session box's reach about the frame's origin through the
+    /// placement's arm ([`super::solve::arm_of`]), and its conditioning
+    /// left to the carriages that consume it ([`MintedChart::carries`]).
+    /// The origin stands `|o| = √(offset² + |s|²)` from the space's (the
+    /// face's plane's foot, and the slides across it), which needs no
+    /// turn. The same motion [`Self::mint`] makes, every bit.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::mint`], less the conditioning's.
+    pub(crate) fn select(self, band: Band) -> Result<MintedChart<T>, NodeErrorKind> {
+        use crate::pose::PoseConstruction;
+        let refuse = |construction| NodeErrorKind::PoseDegenerate { construction };
+        let unleverable = |refusal| {
+            refuse(PoseConstruction::FaceChartUnleverable {
+                refusal: Box::new(refusal),
+            })
+        };
+        let on = Self::on();
+        let foot = super::solve::pose_origin(&self.to) - Point3::origin();
+        let origin = (foot.norm_squared()
+            + self.slides[0] * self.slides[0]
+            + self.slides[1] * self.slides[1])
+            .sqrt()
+            .upper();
+        let extent = geom_core::Lever::<f64>::session_box().length();
+        let reach = 3f64.sqrt() * extent + origin;
+        let arm =
+            super::solve::arm_of(reach, [(&on, &self.to)], &self.values()).map_err(unleverable)?;
+        let chart = match Chart::selected(&on, &self.to, self.orient, arm, band) {
+            Ok(Some(chart)) => chart,
+            Ok(None) => unreachable!("a plane mate fixes a direction"),
+            Err(ChartFault::Backwards { write }) => {
+                return Err(refuse(PoseConstruction::FaceChartBackwards {
+                    orient: self.orient,
+                    write,
+                }));
+            }
+            Err(ChartFault::Kind(kind)) => return Err(*kind),
+        };
+        self.settled(chart)
+    }
+
+    /// The coset and the values settled on `chart`, the motion.
+    fn settled(self, chart: Chart<T>) -> Result<MintedChart<T>, NodeErrorKind> {
+        let on = Self::on();
+        let Some(coset) =
+            super::solve::fold_cosets([(&on, &self.to)]).map_err(NodeErrorKind::Motion)?
+        else {
+            unreachable!("one mate meets the unconstrained coset")
+        };
+        let motion = settle(coset, &self.values(), Some(chart))?;
+        Ok(MintedChart {
+            chart: self,
+            motion: std::sync::Arc::new(motion),
+        })
+    }
+
+    /// **The chart's motion, minted at its first carriage**, of what
+    /// reaches `reach`: decided as [`MintedChart::carries`] decides, then the
+    /// mate's coset ([`super::solve::fold_cosets`]) and the values settled
+    /// on it ([`settle`]), the calls a placement's fold makes.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::pose::PoseConstruction::FaceChartBackwards`] within the
+    /// band about the least turn's pole, naming the orientation to write;
+    /// [`crate::pose::PoseConstruction::FaceChartUnleverable`] for a
+    /// carried body with no reach, or an arm past the format's reach; a
+    /// direction the band cannot mint; a motion's overflow.
+    pub(crate) fn mint(
+        self,
+        reach: Result<f64, super::LeverRefusal>,
+        band: Band,
+        tol: geom_core::Tol,
+    ) -> Result<MintedChart<T>, NodeErrorKind> {
+        let chart = self.decided(reach, band, tol)?;
+        self.settled(chart)
+    }
+}
+
+impl<T: geom_core::Real> MintedChart<T> {
+    /// The motion its first carriage minted.
+    pub(crate) fn motion(&self) -> &std::sync::Arc<RigidMotion<T>> {
+        &self.motion
+    }
+}
+
+impl<T: SolveScalar> MintedChart<T> {
+    /// **Whether the chart carries what reaches `reach`** from its origin:
+    /// its verdict over that reach alone. The settle reads no arm on a
+    /// face's chart (its slides run along carried target axes, exactly),
+    /// so the chart's own decisions are all a carriage owes.
+    ///
+    /// # Errors
+    ///
+    /// As [`FaceChart::mint`], less a motion's.
+    pub(crate) fn carries(
+        &self,
+        reach: Result<f64, super::LeverRefusal>,
+        band: Band,
+        tol: geom_core::Tol,
+    ) -> Result<(), NodeErrorKind> {
+        self.chart.decided(reach, band, tol).map(drop)
+    }
 }
 
 /// **The turn about the line through `at` along `d` that takes a copy
@@ -1612,7 +1803,7 @@ mod tests {
             Arm::of(0.5, 0.0).unwrap(),
             geom_core::Lever::session_box(),
             band,
-            geom_core::Tol::witness(),
+            Some(geom_core::Tol::witness()),
         )
         .expect("a chart off the pole");
         let value = |k: u32, coord, by| ReadValue {
@@ -1706,7 +1897,7 @@ mod tests {
             Arm::of(0.5, 0.0).unwrap(),
             geom_core::Lever::session_box(),
             band,
-            geom_core::Tol::witness(),
+            Some(geom_core::Tol::witness()),
         )
         .expect("a chart off the pole");
         assert!(
@@ -1804,7 +1995,7 @@ mod tests {
             Arm::of(0.5, 0.0).unwrap(),
             geom_core::Lever::session_box(),
             band,
-            geom_core::Tol::witness(),
+            Some(geom_core::Tol::witness()),
         )
         .expect("a chart off the pole");
         let deriv = |v: Vec3<Dual<f64>>| [v.x.deriv, v.y.deriv, v.z.deriv];
@@ -1849,7 +2040,7 @@ mod tests {
             Arm::of(arm, 0.0).unwrap(),
             geom_core::test_support::fixture_lever(T::from_computed(arm)),
             band,
-            geom_core::Tol::witness(),
+            Some(geom_core::Tol::witness()),
         )
         .ok();
         (chart, [n, d, w])

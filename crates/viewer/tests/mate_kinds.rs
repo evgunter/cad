@@ -168,6 +168,10 @@ fn the_cursors_rule_admits_what_the_chosen_kind_reads() {
             !rule.admits(PickedKind::Profile),
             "{kind:?}: no mate reads a profile, so the rule {rule:?} offers none"
         );
+        assert!(
+            kind == VarKind::Direction || rule.admits(PickedKind::Datum),
+            "{kind:?}: a datum is a far side through its role, so the rule {rule:?} offers it"
+        );
     }
     assert_eq!(
         viewer::matetool::reads(VarKind::Plane),
@@ -520,6 +524,7 @@ fn a_cylinder_face_mated_as_a_direction_runs_parallel() {
 /// vertex fills on each side, written `PoseDef::Through`. The two posts
 /// are one part, so the commit draws post_b's corner on post_a's and its
 /// edge on post_a's edge: every freedom is fixed, and no value is left.
+/// An offset on its far side then stands it off along the edge.
 #[test]
 fn a_frame_mated_on_a_frame_coincides() {
     use pncad::document::{Operand, pose::PoseDef};
@@ -588,7 +593,7 @@ fn a_frame_mated_on_a_frame_coincides() {
         .expect("two frames propose");
     let mate = &proposal.mates[0].mate;
     assert!(
-        matches!(&mate.on, Operand::Pose(def) if matches!(**def, PoseDef::Through { .. })),
+        matches!(&mate.on.read, Operand::Pose(def) if matches!(**def, PoseDef::Through { .. })),
         "the on side is a frame through an axis and a point: {:?}",
         mate.on
     );
@@ -608,6 +613,30 @@ fn a_frame_mated_on_a_frame_coincides() {
     );
     let moved = edge_where(&index, bench.post_b, |p| near(p.x, s) && near(p.y, 0.0));
     assert!(moved.len() >= 2, "post_b's edge is drawn on post_a's");
+
+    // An offset on the frame's far side slides it along its own `z`,
+    // the edge's line: the corner moves along the edge, by the offset,
+    // up: the sign this edge's own direction gives its `z`.
+    const OFFSET: f64 = 0.005;
+    let mut tool = MateTool::edit(session.doc(), bench.post_b).expect("post_b is a placement");
+    tool.set_offset(0, Some(common::len(OFFSET)));
+    let proposal = common::proposed(&session, &tool, choice(VarKind::Frame, false))
+        .expect("the frame stood off proposes");
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let index = asm::index_of(&session);
+    let legs = index.vertex_legs_for(b_vertex, &DisplayView::none());
+    let [from, to] = *legs.first().expect("a drawn vertex is marked");
+    let off = Point3::new(
+        (from.x + to.x) / 2.0,
+        (from.y + to.y) / 2.0,
+        (from.z + to.z) / 2.0,
+    );
+    assert!(
+        near(off.x, 0.0) && near(off.y, 0.0) && near(off.z - top, OFFSET),
+        "post_b's corner stands off post_a's along the edge: {off:?}"
+    );
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 

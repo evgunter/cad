@@ -24,8 +24,9 @@
 //! everything on this page is `pub(crate)`, so an intra-doc link from a
 //! public module page does not resolve.)
 //!
-//! [`FieldWriting`] and the drag speeds are the same kind of decision
-//! one level down: how many of a unit one pixel of drag is worth.
+//! [`FieldWriting`] is the same kind of decision one level down: the
+//! unit a field is written in and how many of it one pixel of drag is
+//! worth.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -151,82 +152,23 @@ pub(crate) const MIN_CIRCLE_SPLIT: usize = 2;
 /// a typed number can make and never rewrites a count it was handed.
 pub(crate) const MAX_CIRCLE_SPLIT: usize = 1024;
 
-/// One drag tick of a LENGTH field, in metres — half a millimetre.
-/// The creation forms' and the property panel's alike ([`drag_tick`]
-/// is where the panel picks it), so one gesture over a length cannot
-/// come to mean two different steps.
-pub(crate) const FIELD_DRAG_SPEED: f64 = 0.0005;
-
-/// One drag tick of an ANGLE field, in radians — a third of a degree,
-/// so a full turn is a drag of a few hundred pixels rather than of
-/// several screens.
-///
-/// A separate constant because the unit is: dragging a radian field at
-/// the metre field's speed moves it by 0.0005 rad per pixel, which is
-/// a quarter-turn per three thousand pixels.
-pub(crate) const ANGLE_DRAG_SPEED: f64 = 0.005;
-
-/// One drag tick of a DIMENSIONLESS field — a direction or a normal
-/// component, whose useful range is roughly [-1, 1].
-///
-/// The length speed applied here made these fields effectively
-/// undraggable: at 0.0005 per pixel, moving a component from 0 to 1
-/// took two thousand pixels of drag. A hundredth per pixel spans the
-/// whole range in one comfortable gesture, and the exact value stays a
-/// keyboard edit either way.
-pub(crate) const UNIT_DRAG_SPEED: f64 = 0.01;
-
-/// One drag tick of a COUNT field — instances are whole, so the field
-/// is dragged in tenths of one and lands on integers.
-pub(crate) const COUNT_DRAG_SPEED: f64 = 0.1;
-
-/// **The drag tick a slot of `dimension` is scrubbed at**, in
-/// CANONICAL units — the property panel's pick from the same four
-/// constants the creation forms choose between by hand.
-///
-/// A dimension branch and not one number, because the useful range of
-/// a slot is its dimension's: half a millimetre per pixel is a good
-/// length tick and a terrible angle one — at 0.0005 rad it takes
-/// twelve thousand pixels to drag a full turn, which is the same
-/// arithmetic [`ANGLE_DRAG_SPEED`] exists to answer for the forms.
-/// A `Count` never reaches here (its slots are structural, and the
-/// panel steps those in whole units), so it takes the count tick for
-/// completeness rather than for use.
-pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
-    match dimension {
-        Dimension::Length => FIELD_DRAG_SPEED,
-        Dimension::Angle => ANGLE_DRAG_SPEED,
-        Dimension::Scalar => UNIT_DRAG_SPEED,
-        Dimension::Count => COUNT_DRAG_SPEED,
-    }
-}
-
-/// **How ONE PANEL FIELD is written**: the unit it shows and authors
-/// in, and the tick it is scrubbed at, taken together off the row it is
-/// drawn for.
+/// **How ONE FIELD is written**: the unit it shows and authors in, and
+/// the tick it is scrubbed at ([`props::drag_tick`]), in that unit.
 ///
 /// The two are one value because they are one decision. A tick is a
 /// number of whatever the field says, so a tick chosen without the unit
 /// is half a millimetre applied to a field showing metres — the same
 /// gesture made a thousand times coarser by a change of notation.
 ///
-/// **The two panel fields this answers for are the SLOT field
-/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT VARIABLE's
-/// (`ViewerBehavior::properties_ui`'s `Selection::Variable` arm)** — the
-/// two a user drags to move the same kind of number. It is not the
-/// creation forms' answer: those hold canonical drafts and pick their
-/// tick from the four constants by hand at each field
-/// ([`crate::widgets::named_field`] and its callers). The RULE has one home,
-/// this module, which holds the four constants and [`drag_tick`]
-/// beside this type; what is still open is those hand-picked call
-/// sites, which sit in `widgets`, [`crate::pane::create`] and
-/// [`crate::pane::properties`] (`work/formwords/drag-tick-has-three-homes.md`).
+/// The panel fields build one off the row they are drawn for; a
+/// creation form's draft has no row behind it, so the form builds one
+/// off the dimension it already knows and the working notation
+/// (`crate::widgets::named_field`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s
     /// answer, so a computed slot and a written literal agree. `None`
-    /// is the field that names no notation at all (a count, a bare
-    /// scalar).
+    /// is the field that names no notation at all (a count).
     pub unit: Option<UnitDef>,
     /// One drag tick, IN [`Self::unit`] — 0.5 for a millimetre field,
     /// 0.0005 for the same field written in metres.
@@ -240,19 +182,19 @@ impl FieldWriting {
     /// that remembers nothing in the working `notation`.
     pub fn of(dimension: Dimension, stored: Option<UnitDef>, notation: props::Notation) -> Self {
         let unit = props::rendering_unit(dimension, stored, notation);
-        // A COUNT field steps by one whatever it is written in: what it
-        // holds is a count, and a tenth of an instance is not a value
-        // it can take. Read off the dimension and not off a
-        // structurality flag beside it — `SlotId::is_structural` is
-        // itself defined as "the dimension is Count"
-        // ([`props::SlotValue::of`] argues this at length), so a second
-        // argument would only be a way for the two to disagree.
-        let tick = if dimension == Dimension::Count {
-            1.0
-        } else {
-            props::shown_in(unit, drag_tick(dimension))
-        };
-        Self { unit, tick }
+        Self {
+            unit,
+            tick: props::shown_in(unit, props::drag_tick(Some(dimension))),
+        }
+    }
+
+    /// A field whose dimension is not chosen yet: the bare number, at
+    /// [`props::drag_tick`]'s tick for no dimension.
+    pub const fn unpicked() -> Self {
+        Self {
+            unit: None,
+            tick: props::drag_tick(None),
+        }
     }
 
     /// One canonical value as this field SHOWS it.

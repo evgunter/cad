@@ -121,8 +121,6 @@ mod mesh11r1_probes;
 mod mesh11r2_probes;
 #[path = "mesh7r1_probes.rs"]
 mod mesh7r1_probes;
-#[path = "mesh8_corpus_coherence.rs"]
-mod mesh8_corpus_coherence;
 #[path = "mesh8r1_probes.rs"]
 mod mesh8r1_probes;
 #[path = "mesh8r2_probes.rs"]
@@ -133,6 +131,8 @@ mod newell_probes;
 mod patch_memo;
 #[path = "perf1_torus_sizing.rs"]
 mod perf1_torus_sizing;
+#[path = "placed_balls.rs"]
+mod placed_balls;
 #[path = "prisms.rs"]
 mod prisms;
 #[path = "probe_review.rs"]
@@ -145,8 +145,6 @@ mod quadric_pair_sections;
 mod r1_probe_bool_route;
 #[path = "r1_probe_hash.rs"]
 mod r1_probe_hash;
-#[path = "r1_probes_issue1362.rs"]
-mod r1_probes_issue1362;
 #[path = "r1_probes_issue303.rs"]
 mod r1_probes_issue303;
 #[path = "r2_bool_door.rs"]
@@ -155,8 +153,6 @@ mod r2_bool_door;
 mod r2_bytes;
 #[path = "r2_cert9_probes.rs"]
 mod r2_cert9_probes;
-#[path = "r2_mesh1_probes.rs"]
-mod r2_mesh1_probes;
 #[path = "r2_mesh2_probes.rs"]
 mod r2_mesh2_probes;
 #[path = "r2_mesh6_probes.rs"]
@@ -244,8 +240,9 @@ test_utils::every_suite_file_is_aggregated!();
 ///   `gap_is_noise`'s, counted in `walk.rs`: this file hands the band
 ///   to a predicate rather than comparing against it, which is why it
 ///   carries six carriers and no operation.
-/// - **`trimmed.rs` — 1 carrier, 1 `pad`.** `d / tol.eps.pad(bound)`
-///   in the deviation probe. **Not a bar**: ε is a continuous addend
+/// - **`trimmed.rs` — 3 carriers, 1 `pad`.** Two hand-offs to
+///   `cert::verdict` (the emit pass's and `walk_face`'s), and
+///   `d / tol.eps.pad(bound)` in the deviation probe. **Not a bar**: ε is a continuous addend
 ///   in a denominator, so it scales `worst_ratio` — a `pub`
 ///   measurement field — at every call, monotonically. The block is
 ///   absent from a default build (`budget` feature). The one token and
@@ -265,12 +262,6 @@ test_utils::every_suite_file_is_aggregated!();
 ///   and the issue-896 guard's own `coincident(gap)`, asking whether
 ///   a junction × pole pair the classification passes over coincides.
 ///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
-///
-///   The band that `topo::coherence` reads is NOT on this inventory
-///   and cannot be: it is that crate's own `f64`, not an `Eps`, and
-///   this row walks `crates/mesh/src` alone. The two spellings are
-///   held together by `walk::tests::the_two_spellings_of_the_band_
-///   agree` instead.
 ///
 /// **Six terminal reads across the crate** — `walk.rs`'s five plus
 /// `trimmed.rs`'s `pad`, which is the whole of the read column and
@@ -421,15 +412,18 @@ fn the_eps_inventory_is_pinned() {
     // (file, ε CARRIER tokens, one READ count per op above).
     // `cert.rs`'s one read is the certificate verdict's
     // (`cert::verdict`): whether the rounding allowance is small beside
-    // ε, so that it may be applied; `curved.rs` and `trimmed.rs` each
-    // carry the band one more step, to hand it to that verdict.
+    // ε, so that it may be applied. `cert.rs` carries the band two steps
+    // more (`cert::FaceVerdict::read`, the one reading of a face's
+    // triangles, takes it and hands it to that verdict); `curved.rs`
+    // carries it one step to hand it to `read`, and `trimmed.rs` two (its
+    // emit pass's and its walk's, `walk_face`).
     const PINNED: [(&str, usize, [usize; 4]); 7] = [
-        ("cert.rs", 2, [0, 0, 1, 0]),
+        ("cert.rs", 4, [0, 0, 1, 0]),
         ("curved.rs", 7, [0, 0, 0, 0]),
         ("memo.rs", 4, [0, 0, 0, 0]),
         ("sizing.rs", 2, [0, 0, 0, 0]),
         ("tessellate.rs", 2, [0, 0, 0, 0]),
-        ("trimmed.rs", 2, [0, 0, 0, 1]),
+        ("trimmed.rs", 3, [0, 0, 0, 1]),
         ("walk.rs", 9, [1, 3, 1, 0]),
     ];
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -511,3 +505,5 @@ mod r2_sense_e2e;
 
 #[path = "route_rows.rs"]
 mod route_rows;
+#[path = "the_one_slit_band.rs"]
+mod the_one_slit_band;

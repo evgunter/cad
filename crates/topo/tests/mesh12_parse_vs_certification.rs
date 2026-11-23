@@ -93,21 +93,23 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
     );
     match r {
         Ok(_) => Disp::Admit,
-        Err(EulerOpError::Certification {
+        Err(EulerOpError::DescriptionUncertified {
             error:
                 CertifyError::StatedInterval {
                     refused: geom_brep::StatedSpan::Winding(reading),
                 },
+            ..
         }) => match reading {
             geom_brep::WindingReading::InBand(_) => Disp::RefuseInBand,
             geom_brep::WindingReading::Exceeded => Disp::Refuse,
         },
-        Err(EulerOpError::Certification {
+        Err(EulerOpError::DescriptionUncertified {
             error:
                 CertifyError::Escalated {
                     check: CertCheck::ParamWinding,
                     ..
                 },
+            ..
         }) => Disp::Escalate,
         Err(e) => Disp::Other(format!("{e:?}")),
     }

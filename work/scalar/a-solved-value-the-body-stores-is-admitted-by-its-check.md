@@ -24,3 +24,9 @@ The rule is `crates/geom-core/README.md`, DL5.2's two paragraphs after the table
 
 - The check inside the door is the one each site ran by hand: a site whose hand check differs in kind (a pairwise agreement, a window bound) is a finding before it is a port.
 - At `Interval`, a wide family refuses at the door. Pin one row per site where it does, so the refusal is typed and named, not a later certification failure.
+
+## Note from `a-place-is-an-f64-argument-answered-on-the-value-channel`
+
+A place is handed to `geom`'s place-taking evaluators as an `f64` (`crates/geom/src/places.rs`: `eval_at`, `deriv_at`, `eval_in_span_at`, `project_at`), which exist only at a scalar that carries no tangent. Their one step to the scalar, `at_place`, is private to that module and is `T::from_computed(x)`: at `Sym` a place has to be its own unknown, or a re-valuation reads at a point chosen for the nominal values (pinned by `ssi::one_arc::tests::a_window_ends_parameter_enters_as_a_computed_value` and the projection sweep pins in `geom`). So it is a second caller of `from_computed` beside this unit's door. It is private, so no caller can spell a solved value through it. The gate this unit adds either names `geom::places::at_place` as the second caller or gives a place its own `Sym` spelling.
+
+The modules that keep a place's step inside their own evaluator (`topo::spline_trim`'s split point and inserted cut point, `edge_nurbs::Schedule::station`) are further `from_computed` callers of the same kind; the gate's list would name them too.

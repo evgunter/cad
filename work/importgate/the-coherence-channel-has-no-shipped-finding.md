@@ -2,10 +2,12 @@
 id: the-coherence-channel-has-no-shipped-finding
 kind: issue
 title: the import coherence channel's handling of a finding is read through no shipped body
-status: open
+status: closed
 opened: 2026-10-29
 priority: P3
 cost: M
+closed: 2026-11-21
+pr: 7307
 ---
 
 
@@ -39,3 +41,9 @@ the wild corpus at each band first; the corpus-quiet row says it is
 nothing today.
 
 - 2026-11-02 — moved from FOREIGN to IMPORTGATE by `git mv` when FOREIGN merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and FOREIGN had fallen far under it).
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. So the channel this row is about no longer exists, and the row has nothing left to close over; its owner can close it.
+
+## Closed (TESSLIE orchestrator, PR 7307, 2026-11-21)
+
+The channel this row is about no longer exists. Ev ruled on PR 7224 that the chart-coherence examination retires, and PR 7307 deletes it: `ImportOptions::examine_chart_coherence`, `StepImport::Solid::coherence` and the `coherence_channel` tests. No shipped finding can be owed to a channel that is gone. The ruling and its reasons are in `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`.

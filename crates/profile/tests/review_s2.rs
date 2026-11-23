@@ -554,8 +554,19 @@ fn build_corner(
 }
 
 /// [`build_corner`] at any scalar and band: the oracle's f64 data read
-/// into `T`, the same lattice calls.
+/// into `T`, the same lattice calls, refused as the corner's own
+/// refusal, whichever step raised it.
 fn build_corner_at<T: profile::ArcCarrierScalar>(
+    corner: Point2<f64>,
+    leg_in: OracleLeg,
+    leg_out: OracleLeg,
+    r: f64,
+    w: Tol,
+) -> Result<ProfileLoop<T>, PathError<T>> {
+    authored_corner_at(corner, leg_in, leg_out, r, w).map_err(|e| e.refusal().clone())
+}
+
+fn authored_corner_at<T: profile::ArcCarrierScalar>(
     corner: Point2<f64>,
     leg_in: OracleLeg,
     leg_out: OracleLeg,

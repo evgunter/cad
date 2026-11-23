@@ -1,12 +1,11 @@
 //! Reduction step (ch. 14 `splitgenerate`, re-derived): the operand
 //! gate (F5 → the C5 table, M5 PR 5), the cached vertex-vs-plane
 //! trilean sweep (F6), and crossing insertion through the certified
-//! `split_edge` lane — with the conic crossing-root lane for
-//! circle/ellipse carriers.
+//! `split_edge` lane, at the meetings the curve × face crossing reading
+//! finds.
 
-use geom_brep::curve_face::plane_crossing::{
-    ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane,
-};
+use geom_brep::curve_face::{CrossWhy, OnSpan, Pose, PoseRefusal, cross};
+use geom_brep::curve_pair::{MeetFault, Span};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 use slotmap::SecondaryMap;
 
@@ -40,8 +39,8 @@ use geom::cover::BoxAxes;
 /// axes, so whether a cut clears a face is a fact about the two of
 /// them and not about how the body is turned.
 ///
-/// Edge carriers: `Line`, `Circle` and `Ellipse` pass. A `Spiric` or
-/// `Nurbs` carrier refuses typed only when the plane may meet it
+/// Edge carriers: `Line`, `Circle`, `Ellipse` and `Spiric` pass. A
+/// spline carrier refuses typed only when the plane may meet it
 /// ([`edge_clears`]). A face whose surface key, or an edge whose curve
 /// key, does not resolve is a torn body and panics (the operand is a
 /// public body, at rest), and so does a null edge: every door that
@@ -77,14 +76,16 @@ pub(super) fn carrier_gate<T: Decide>(
             }
         }
     }
-    for (edge_key, edge) in body.edges() {
-        match body.edge_curve_linked(edge_key, edge) {
+    for view in body.edge_views() {
+        let edge_key = view.key();
+        match view.curve() {
             CurveGeom::Certified(curve) => match curve.carrier() {
-                geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {}
-                // No crossing-root arm reads a spiric or a spline.
-                geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_)
-                | geom::Curve3::Periodic(_) => {
+                geom::Curve3::Line(_)
+                | geom::Curve3::Circle(..)
+                | geom::Curve3::Ellipse(..)
+                | geom::Curve3::Spiric { .. } => {}
+                // No crossing-root arm reads a spline.
+                geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                     if !edge_clears(body, edge_key, plane, band, &frame) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
@@ -107,11 +108,8 @@ pub(super) fn carrier_gate<T: Decide>(
 /// reaches may beat. `frame` is the plane's
 /// ([`BoxAxes::aimed`] at its normal).
 ///
-/// `edge` is one this call's caller read out of the body: the gate's
-/// arena walk over the at-rest operand, or `insert_crossings`' snapshot
-/// of it, where only `split_edge`s of other snapshot edges stand
-/// between, and they remove no edge and rewrite no other edge's halves.
-/// So `edge` is proven, and its halves and their faces are links, which
+/// `edge` is one the gate's arena walk read out of the at-rest operand,
+/// so it is proven, and its halves and their faces are links, which
 /// panic on a miss ([`crate::live::OPERATORS_KEEP_LINKS`]).
 fn edge_clears<T: Decide>(
     body: &Body<T>,
@@ -181,17 +179,29 @@ pub(super) fn classify_vertices<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     band: Band,
-) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
+) -> Result<RecordedSides, SplitReduceError> {
     let tips = crate::sector_shape::SlitTips::of(body);
-    classify_vertices_margined(body, plane, &tips, band).map(|(sides, on, _)| (sides, on))
+    classify_vertices_margined(body, plane, &tips, band)
+        .map(|(sides, on, _, on_plane)| (sides, on, on_plane))
 }
 
-/// Each vertex's side, the ON vertices in arena order, and the margin
-/// each ON vertex was decided Zero on ([`classify_vertices_margined`]).
+/// Each vertex's side, the ON vertices in arena order, and the vertices
+/// whose offset from the plane was decided Zero ([`classify_vertices`]).
+pub(super) type RecordedSides = (
+    SecondaryMap<VertexKey, PlaneSide>,
+    Vec<VertexKey>,
+    SecondaryMap<VertexKey, ()>,
+);
+
+/// Each vertex's side, the ON vertices in arena order, the margin each
+/// ON vertex was decided Zero on, and the vertices whose offset from the
+/// plane was decided Zero, the record [`insert_crossings`] reads ahead of
+/// the crossing reading ([`classify_vertices_margined`]).
 pub(super) type MarginedSides = (
     SecondaryMap<VertexKey, PlaneSide>,
     Vec<VertexKey>,
     SecondaryMap<VertexKey, geom_core::MarginDiag>,
+    SecondaryMap<VertexKey, ()>,
 );
 
 /// [`classify_vertices`], with the margin each ON vertex was decided
@@ -224,6 +234,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
         offsets.insert(vertex_key, side_of(decided.sign));
     }
     let mut sides = offsets.clone();
+    let on_plane: SecondaryMap<VertexKey, ()> = zero.iter().map(|z| (z.0, ())).collect();
     let mut on_vertices = Vec::new();
     let mut on_margins = SecondaryMap::new();
     let section_plane = || {
@@ -280,54 +291,61 @@ pub(super) fn classify_vertices_margined<T: Decide>(
         }
         sides.insert(vertex_key, side_of(decided.sign));
     }
-    Ok((sides, on_vertices, on_margins))
+    Ok((sides, on_vertices, on_margins, on_plane))
 }
 
-/// Crossing insertion (M1 fix — even-crossing completeness):
+/// **Crossing insertion**: every edge's carrier read against the plane
+/// by the curve × face crossing reading ([`cross()`]), independent of the
+/// vertex sides:
 ///
-/// - **Line carriers** keep the M3 rule BIT-IDENTICALLY: a crossing
-///   iff the cached endpoint verdicts are strictly opposite (complete
-///   for lines — the affine distance has one root, and an ON endpoint
-///   IS that root), split at the exact interpolation
-///   `t = t₀ + (t₁ − t₀)·d₁/(d₁ − d₂)` (comparison-free; safe: the
-///   strict-opposite-signs decision bounds the denominator away from
-///   zero).
-/// - **Conic carriers** use the root-based lane
-///   ([`plane_crossing_lane`]), INDEPENDENT of endpoint verdicts:
-///   same-side endpoints with a belly crossing the plane twice get
-///   BOTH crossing vertices; an ON endpoint with one interior
-///   crossing gets it; grazes land as single ON contacts for the
-///   sector classification. Two roots split the parent then its
-///   trailing child (ascending — the second root lives on the child's
-///   span).
-/// - **Spiric and spline carriers** have no crossing lane. One passes
-///   uncut only where [`edge_clears`] certifies its whole locus on one
-///   side of the plane, the carrier gate's own test; any other refuses
-///   [`SplitReduceError::CurvedEdgeUnsupported`]. Same-side endpoints
-///   are not enough: a spline's belly can cross between them.
+/// - `Lies` and `Apart` insert nothing: an edge in the plane has its
+///   ends ON through the vertex sides.
+/// - Each meeting strictly inside the span, a crossing or the pose's
+///   touch, splits the edge, ascending: the first split leaves the parent
+///   with `[t₀, tₐ]` and mints the trailing child `[tₐ, t₁]`, on which
+///   the next lies. A touch leaves a same-side ON contact for the sector
+///   classification (the graze net).
+/// - The vertex sides are a record ([`classify_vertices`]), read ahead of
+///   the crossing reading. A line's residual is affine, so a line with an
+///   end recorded ON the plane has its one root there and is not read. A
+///   vertex whose offset from the plane is decided zero holds
+///   the carrier's root at that end: a meeting there, or a window the
+///   placement reads at it, and nothing is inserted there.
+/// - Vertex sides decided opposite past the band, while the reading
+///   finds no meeting inside the span and none at an end, contradict
+///   each other ([`MeetFault::Contradiction`]): a kernel fault, never a
+///   pose.
+/// - A spline carrier's span has no closed pose
+///   ([`PoseRefusal::Enclosed`]): it is read by the ring composite at
+///   this scalar (`AtRestPolicy::spline_face_crossings`), and refuses
+///   where the scalar has none.
+/// - Any window is [`SplitReduceError::CrossingEscalated`].
 ///
-/// Both crossing lanes are certified by `split_edge` itself (the
-/// span's place of the parameter (`curve_pair::Span::place_param_read`) + full child re-certification —
-/// the honest lane the raw book formula lacks). New vertices are ON by
-/// the decision that placed them: a crossing root lies on the plane, and
-/// a graze root within ε of it by `curve_face_pose_belly_graze`'s Zero.
-/// Their verdicts are cached without re-measuring. Returns each piece
-/// a split minted with the edge it was split from, `(new edge,
+/// Every split is certified by `split_edge` itself (the span's place of
+/// the parameter and the children's re-certification). New vertices are
+/// ON by the decision that placed them: a crossing root lies on the
+/// plane, and a touch within the band of it by the pose's `Tangent`.
+/// Their verdicts are cached without re-measuring. Returns each piece a
+/// split minted with the edge it was split from, `(new edge,
 /// divided-from edge)` in mint order, each checked as it was minted
 /// ([`SplitReduceError::LineageRow`] where an earlier row names it).
 pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     plane: &SplitPlane<T>,
-    sides: &mut SecondaryMap<VertexKey, PlaneSide>,
-    on_vertices: &mut Vec<VertexKey>,
+    (sides, on_vertices, on_plane): (
+        &mut SecondaryMap<VertexKey, PlaneSide>,
+        &mut Vec<VertexKey>,
+        &SecondaryMap<VertexKey, ()>,
+    ),
     tol: Tol,
 ) -> Result<crate::lineage::SplitEdgeDivisions, SplitReduceError> {
     let mut pieces =
         crate::lineage::SplitEdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(None));
     let band = geom_core::Band::linear(tol)?;
+    let surface = plane.surface();
     // Snapshot: splitting adds edges; only operand edges can cross (a
     // split child's remaining crossing is handled through the parent's
-    // precomputed root list below).
+    // root list below).
     let snapshot: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in snapshot {
         let start = |body: &Body<T>, he, slot| {
@@ -343,65 +361,49 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         let u = start(body, edge.he_plus, "he_plus");
         let v = start(body, edge.he_minus, "he_minus");
         // The snapshot's record is the live one: no `split_edge` before
-        // this one touched this edge. So the curve is a link, and its
-        // miss panics (`live::OPERATORS_KEEP_LINKS`).
-        let curve = match body.edge_curve_linked(edge_key, &edge) {
+        // this one touched this edge. So the edge resolves and its curve
+        // is a link, and a miss panics (`live::OPERATORS_KEEP_LINKS`).
+        let curve = match body.proven_edge(edge_key).curve() {
             CurveGeom::Certified(c) => c.clone(),
             CurveGeom::NullScaffold(_) => unreachable!(
                 "{edge_key:?} is a null edge, and every door reaching here holds its body tier-2 \
                  clean, which refuses a null edge at rest"
             ),
         };
-        let (t0, t1) = curve.params();
-        let roots: Vec<T> = match plane_crossing_lane(
-            curve.carrier(),
-            t0,
-            t1,
-            plane.origin,
-            plane.normal.get(),
-            band,
-        ) {
-            // No root to insert: a conic in the plane has its endpoints
-            // ON through the vertex sides.
-            PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane | ConicPlaneMeet::Miss) => {
-                continue;
-            }
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => roots,
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
-                return Err(SplitReduceError::CrossingEscalated {
-                    edge: edge_key,
-                    fault,
-                });
-            }
-            // It passes only behind a box the plane cannot meet, read
-            // here as at the gate, so its whole locus is on one side.
-            PlaneCrossingLane::Unlaned => {
-                if edge_clears(body, edge_key, plane, band, &BoxAxes::aimed(plane.normal)) {
-                    continue;
-                }
-                return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
-            }
-            PlaneCrossingLane::Line => {
-                // Endpoint verdicts strictly opposite ⇒ one
-                // interpolated root.
-                let crossing = matches!(
-                    (sides[u], sides[v]),
-                    (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above)
-                );
-                if !crossing {
-                    continue;
-                }
-                let dist = |vk: VertexKey| {
-                    let p = body.resolve_vertex_point(vk, crate::live::Proven);
-                    geom::plane_offset(plane.origin, plane.normal.get(), p)
-                };
-                let (d1, d2) = (dist(u), dist(v));
-                vec![t0 + (t1 - t0) * (d1 / (d1 - d2))]
-            }
+        let params = curve.params();
+        let refused = |fault| SplitReduceError::CrossingEscalated {
+            edge: edge_key,
+            fault,
         };
-        // Insert ascending: the first split leaves the parent with
-        // [t₀, tₐ] and mints the trailing child [tₐ, t₁]; the second
-        // root (if any) lives on that CHILD.
+        let recorded = on_plane.contains_key(u) || on_plane.contains_key(v);
+        let opposite_sides = matches!(
+            (sides[u], sides[v]),
+            (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above)
+        );
+        // A line's residual is affine: an end recorded ON the plane is its
+        // one root.
+        if matches!(curve.carrier(), geom::Curve3::Line(_))
+            && (sides[u] == PlaneSide::On || sides[v] == PlaneSide::On)
+        {
+            continue;
+        }
+        let (roots, at_end) = match edge_roots(curve.carrier(), params, &surface, recorded, band) {
+            Ok(None) => continue,
+            Ok(Some(found)) => found,
+            Err(fault) => return Err(refused(fault)),
+        };
+        // Sides decided opposite past the band: both offsets read off the
+        // plane, not a section's side of a vertex on it.
+        let opposite = !recorded && opposite_sides;
+        if opposite && roots.is_empty() && !at_end {
+            return Err(refused(CrossWhy::Method {
+                door: geom_brep::curve_face::Door::PlaneCrossing,
+                fault: MeetFault::Contradiction {
+                    readings: "an edge's vertices decided on opposite sides of the split plane, \
+                               and its carrier meeting the plane nowhere on its span",
+                },
+            }));
+        }
         let mut target = edge_key;
         for t in roots {
             // Any refusal here (in practice the certification lane's
@@ -425,13 +427,277 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     Ok(pieces)
 }
 
+/// **An edge's meetings with the split plane** ([`insert_crossings`]):
+/// `None` where the carrier lies in the plane or is apart from it; else
+/// the parameters strictly inside the span, ascending, and whether a
+/// meeting sits at an end. With an end `recorded` on the plane, a
+/// placement window at an end (a root in band of it, or two roots in band
+/// of each other there: the window's centre the span reads at an end or
+/// in band of one) is that vertex's, read by its record, and the
+/// meetings outside the windows stand. A spline span is read by the ring composite at this
+/// scalar, whose meetings are interior by its own placement.
+fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
+    carrier: &geom::Curve3<T>,
+    params: (T, T),
+    surface: &geom::Surface<T>,
+    recorded: bool,
+    band: Band,
+) -> Result<Option<(Vec<T>, bool)>, CrossWhy> {
+    let read = |meetings: Vec<geom_brep::curve_face::Meeting<T>>, at_end: bool| {
+        let mut roots = Vec::new();
+        let mut at_end = at_end;
+        for m in meetings {
+            match m.on_span {
+                OnSpan::Inside { t } => roots.push(t),
+                OnSpan::End(_) => at_end = true,
+            }
+        }
+        Some((roots, at_end))
+    };
+    match cross(&Span::new(carrier, params), surface, band) {
+        Ok(found) => match found.pose {
+            Pose::Lies => Ok(None),
+            // No meeting: sides decided opposite across it contradict it.
+            Pose::Apart => Ok(Some((Vec::new(), false))),
+            Pose::Tangent(_) | Pose::Isolated(_) | Pose::Through(_) => {
+                Ok(read(found.meetings, false))
+            }
+        },
+        Err(refusal) => {
+            // A placement window, a root in band of an end or two roots in
+            // band of each other, whose centre the span reads at an end or
+            // in band of one: the recorded vertex's.
+            let span = Span::new(carrier, params);
+            let at_an_end = |w: &geom_brep::curve_face::Undecided<T, CrossWhy>| {
+                matches!(
+                    w.why,
+                    CrossWhy::Method {
+                        fault: MeetFault::Escalated(_)
+                            | MeetFault::Unsettled(geom_brep::roots::Unsettled::Tangency),
+                        door: geom_brep::curve_face::Door::PlaneCrossing,
+                    }
+                ) && !matches!(
+                    span.place_param(geom::mid_param(w.window.0, w.window.1), band),
+                    Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::Past)
+                )
+            };
+            if recorded && refusal.windows.iter().all(&at_an_end) {
+                return Ok(read(refusal.found, true));
+            }
+            let Some(why) = refusal
+                .windows
+                .iter()
+                .find(|w| !(recorded && at_an_end(w)))
+                .map(|w| w.why)
+            else {
+                unreachable!("a crossing refusal holds a window")
+            };
+            match (why, carrier) {
+                (CrossWhy::Pose(PoseRefusal::Enclosed), geom::Curve3::Nurbs(net)) => {
+                    let door = geom_brep::curve_face::Door::SplineComposite;
+                    match T::spline_face_crossings(net, params, surface, band) {
+                        Some(Ok(roots)) => Ok(Some((roots, false))),
+                        Some(Err(refusal)) => Err(CrossWhy::Method {
+                            door,
+                            fault: composite_fault(refusal),
+                        }),
+                        None => Err(why),
+                    }
+                }
+                _ => Err(why),
+            }
+        }
+    }
+}
+
+/// The ring composite's refusal, as a meeting reading's.
+fn composite_fault(refusal: geom_brep::curve_face::composite::CompositeRefusal) -> MeetFault {
+    use geom_brep::curve_face::composite::CompositeRefusal;
+    match refusal {
+        CompositeRefusal::Escalated(diag) => MeetFault::Escalated(diag),
+        CompositeRefusal::Unsettled(why) => MeetFault::Unsettled(why),
+        CompositeRefusal::FaceDegenerate(pose) | CompositeRefusal::Unread(pose) => {
+            MeetFault::Unsupported { pose }
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_brep::curve_face::plane_crossing::{
-        ConicPlaneMeet, ConicRootFault, PlaneCrossingLane, plane_crossing_lane,
-    };
+    use geom_brep::curve_face::plane_crossing::ConicRootFault;
+    use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung, cross};
+    use geom_brep::curve_pair::Span;
     use geom_core::{Band, Point3, Vec3};
+
+    /// **Vertex sides decided opposite where the carrier meets the plane
+    /// nowhere contradict.** A unit cube with one top corner's point moved
+    /// up to `z = 2`, off its edges' carriers, against the plane
+    /// `z = 1.5`: each edge at that corner has its ends decided either side
+    /// of the plane, while its stored line stays below it, a root past the
+    /// span or parallel to the plane. The split refuses
+    /// [`MeetFault::Contradiction`](geom_brep::curve_pair::MeetFault::Contradiction),
+    /// a kernel fault; reading the sides' interpolation instead would
+    /// split the edge at a root its carrier does not have.
+    #[test]
+    fn sides_opposite_with_no_crossing_contradict() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let top = body
+            .vertices
+            .iter()
+            .map(|(_, v)| v.point)
+            .find(|&k| {
+                let p = body.points[k];
+                p.x > 0.5 && p.y > 0.5 && p.z > 0.5
+            })
+            .unwrap();
+        body.points[top].z = 2.0;
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 0.0, 1.5),
+            Vec3::unit_z(),
+            tol,
+        );
+        let (mut sides, mut on, on_plane) = super::classify_vertices(&body, &plane, band).unwrap();
+        let got = super::insert_crossings(&mut body, &plane, (&mut sides, &mut on, &on_plane), tol);
+        assert!(
+            matches!(
+                got,
+                Err(crate::SplitReduceError::CrossingEscalated {
+                    fault: CrossWhy::Method {
+                        fault: geom_brep::curve_pair::MeetFault::Contradiction { .. },
+                        ..
+                    },
+                    ..
+                })
+            ),
+            "the sides contradict the carrier: {got:?}"
+        );
+    }
+
+    /// **Sides decided opposite across a carrier apart from the plane
+    /// contradict.** A unit cube with both ends of its edge over `(1, 1)`
+    /// moved to `z = 1.2`, against the plane `z = 1.1`: that edge has both
+    /// ends above and its line below, apart and on one side. Each of the
+    /// four edges leaving those corners keeps its line in `z = 0` or
+    /// `z = 1`, apart from the plane, with one end above it and one below.
+    /// Those are the only edges whose sides are opposite, and their pose is
+    /// `Apart`: [`MeetFault::Contradiction`](geom_brep::curve_pair::MeetFault::Contradiction),
+    /// on an edge whose line is parallel to the plane, never an edge passed
+    /// over.
+    #[test]
+    fn sides_opposite_across_an_apart_carrier_contradict() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let moved: Vec<_> = body
+            .vertices
+            .iter()
+            .map(|(_, v)| v.point)
+            .filter(|&k| {
+                let p = body.points[k];
+                p.x > 0.5 && p.y > 0.5
+            })
+            .collect();
+        assert_eq!(moved.len(), 2, "the edge over (1, 1)");
+        for k in moved {
+            body.points[k].z = 1.2;
+        }
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 0.0, 1.1),
+            Vec3::unit_z(),
+            tol,
+        );
+        let (mut sides, mut on, on_plane) = super::classify_vertices(&body, &plane, band).unwrap();
+        let lines: Vec<_> = body
+            .edge_views()
+            .map(|e| (e.key(), e.certified().map(|c| c.carrier().clone())))
+            .collect();
+        let got = super::insert_crossings(&mut body, &plane, (&mut sides, &mut on, &on_plane), tol);
+        let Err(crate::SplitReduceError::CrossingEscalated {
+            edge,
+            fault:
+                CrossWhy::Method {
+                    fault: geom_brep::curve_pair::MeetFault::Contradiction { .. },
+                    ..
+                },
+        }) = got
+        else {
+            panic!("the sides contradict the apart carrier: {got:?}")
+        };
+        let Some((_, Some(geom::Curve3::Line(line)))) = lines.iter().find(|(k, _)| *k == edge)
+        else {
+            panic!("{edge:?} is a line edge of the cube")
+        };
+        assert!(
+            line.dir.get().z.abs() < 1e-12,
+            "{edge:?} lies parallel to the plane"
+        );
+    }
+
+    /// **A root in band of a vertex on the plane is the vertex's; one in
+    /// band of a vertex off it refuses.** A unit cylinder-wall sheet over
+    /// `u ∈ [4.2, 4.4]`, and a plane through `0.5ε` off its corner `P` at
+    /// `u = 4.2`, at a slope of `0.15` along the rim there: each rim
+    /// crosses the plane about `3.3ε` from `P` by its chord, in the band's
+    /// gap, a window at the rim's start. With `P` on the plane by its
+    /// offset the window is `P`'s record and nothing is inserted. With
+    /// `P`'s point moved `100Kε` off the plane (so its offset is decided
+    /// off it) and the carrier left where it was, the same window has no
+    /// record to read it, and the split refuses on it.
+    #[test]
+    fn a_window_at_a_vertex_on_the_plane_is_the_vertexs_and_elsewhere_refuses() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let u0: f64 = 4.2;
+        let p = Point3::new(u0.cos(), u0.sin(), 0.0);
+        let n = (Vec3::new(-u0.sin(), u0.cos(), 0.0) * 0.15
+            + Vec3::new(u0.cos(), u0.sin(), 0.0) * (1.0f64 - 0.15 * 0.15).sqrt())
+        .normalize();
+        let plane = crate::test_support_fixtures::split_plane(p + n * (0.5 * band.zero()), n, tol);
+        let read = |moved: bool| {
+            let mut body = crate::body::Body::<f64>::new();
+            crate::test_support_fixtures::unit_cyl_sheet(
+                &mut body,
+                None,
+                (u0, u0 + 0.2),
+                (0.0, 1.0),
+                true,
+                tol,
+            );
+            if moved {
+                let k = body
+                    .vertices
+                    .iter()
+                    .map(|(_, v)| v.point)
+                    .find(|&k| (body.points[k] - p).norm() < 1e-9)
+                    .unwrap();
+                body.points[k] = p + n * (100.0 * band.escalate());
+            }
+            let (mut sides, mut on, on_plane) =
+                super::classify_vertices(&body, &plane, band).unwrap();
+            let edges = body.edges().count();
+            super::insert_crossings(&mut body, &plane, (&mut sides, &mut on, &on_plane), tol)
+                .map(|_| body.edges().count() - edges)
+        };
+        let on = read(false);
+        assert!(matches!(on, Ok(0)), "P on the plane: {on:?}");
+        let off = read(true);
+        assert!(
+            matches!(
+                off,
+                Err(crate::SplitReduceError::CrossingEscalated {
+                    fault: CrossWhy::Method {
+                        fault: geom_brep::curve_pair::MeetFault::Escalated(_),
+                        ..
+                    },
+                    ..
+                })
+            ),
+            "P off the plane: {off:?}"
+        );
+    }
 
     /// **A graze's side decided zero keeps its margin, and each door that
     /// reads the fault ends on it.** A circle of radius 2ε in a plane
@@ -459,18 +725,25 @@ mod tests {
                     2.0 * e,
                     2.0 * e,
                 );
-                let normal = Vec3::new(0.0, 0.0, nz);
-                let got = plane_crossing_lane(
-                    &geom::Curve3::Ellipse(conic),
-                    0.0,
-                    core::f64::consts::TAU,
+                let plane = crate::test_support_fixtures::split_plane(
                     Point3::origin(),
-                    normal,
+                    Vec3::new(0.0, 0.0, nz),
+                    geom_core::Tol::witness(),
+                );
+                let carrier = geom::Curve3::Ellipse(conic);
+                let got = cross(
+                    &Span::new(&carrier, (0.0, core::f64::consts::TAU)),
+                    &plane.surface(),
                     band,
                 );
-                let PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(
-                    fault @ ConicRootFault::BellyGraze(diag),
-                ))) = got
+                let fault = match &got {
+                    Err(refusal) => refusal.windows[0].why,
+                    Ok(read) => panic!("{label}: {read:?}"),
+                };
+                let CrossWhy::Pose(PoseRefusal::InBand {
+                    rung: PoseRung::BellyGraze,
+                    diag,
+                }) = fault
                 else {
                     panic!("{label}: {got:?}");
                 };
@@ -503,7 +776,10 @@ mod tests {
                     "{label}: the split's lever: {split}"
                 );
                 let boolean = crate::BooleanError::Escalated {
-                    decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
+                    decision: BooleanDecision::of_conic_root(
+                        ConicRootFault::BellyGraze(diag),
+                        DeclarationRead::Moot,
+                    ),
                     diag,
                 }
                 .render(geom_brep::recourse::Reading::Build);
@@ -656,9 +932,10 @@ mod thin_ellipse_rows {
                 major,
                 tol,
             );
-            let (mut sides, mut on) = super::classify_vertices(&body, &plane, band).unwrap();
+            let (mut sides, mut on, on_plane) =
+                super::classify_vertices(&body, &plane, band).unwrap();
             let edges = body.edges().count();
-            super::insert_crossings(&mut body, &plane, &mut sides, &mut on, tol)
+            super::insert_crossings(&mut body, &plane, (&mut sides, &mut on, &on_plane), tol)
                 .map(|_| body.edges().count() - edges)
         };
         // The chord past the band; its gap at the floor, `s/1000`, at a
@@ -699,14 +976,14 @@ mod torn_rows {
             tol,
         );
         let (edge, curve) = body.edges().next().map(|(k, e)| (k, e.curve)).unwrap();
-        let (mut sides, mut on) = super::classify_vertices(&body, &plane, band).unwrap();
+        let (mut sides, mut on, on_plane) = super::classify_vertices(&body, &plane, band).unwrap();
         body.curves.remove(curve);
         let named = format!("{}'s curve names", EntityId::Edge(edge));
         assert_torn_op_panics("carrier_gate", &mut body, &[&named, ROW_FOUR], |b| {
             super::carrier_gate(b, &plane, band)
         });
         assert_torn_op_panics("insert_crossings", &mut body, &[&named, ROW_FOUR], |b| {
-            super::insert_crossings(b, &plane, &mut sides, &mut on, tol)
+            super::insert_crossings(b, &plane, (&mut sides, &mut on, &on_plane), tol)
         });
     }
 

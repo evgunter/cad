@@ -2,10 +2,13 @@
 id: a-real-junction-on-a-short-leg-refuses-as-tangent
 kind: issue
 title: JunctionTangent and SeamTangent name tangency at a real angle on a short leg: their levered turn margin cannot tell a short arm from a small turn
-status: open
+status: closed
 opened: 2026-11-06
 priority: P1
 cost: M
+closed: 2026-11-22
+pr: 7260
+branch: profile/junction-turn-names-its-factors
 ---
 
 ## Finding
@@ -60,3 +63,23 @@ PR 6544's review drove `JunctionTangent` to refuse "tangent at any
 precision" at a 64° junction on legs of 1.05ε and 1.1ε. So legs of at least ε
 reach it without any leg-length gate answering first. That is the property that
 made the fillet turn-gate row P0.
+
+## Closed (2026-11-22, PR 7260)
+
+The junction and seam arms follow the fillet door's repair: the kinds
+are `JunctionTurnWithinTolerance` and `SeamTurnWithinTolerance`, both
+carrying `profile::LeveredTurn { sin_turn, align, lever, lever_of }`,
+the payload the fillet door's `TurnWithinTolerance` now holds too. The
+sentence states the turn's sine and cosine and the arm it was levered
+over, and offers lengthening the shorter leg first. The seam's in-band
+ending has the seam's own recourse. No decision moved. The Python tags
+are `junction_turn_within_tolerance` and `seam_turn_within_tolerance`.
+`docs/PATHS-DESIGN.md` §4 item 1 states the gate as the margin
+`sin φ · arm` (Ev's sign-off on the PR, 2026-11-21).
+
+Left on their own rows: the cusp twin
+(`a-real-near-reversal-on-a-short-leg-refuses-as-a-cusp`), a declared
+seam arrival read over the first leg
+(`a-declared-seam-arrival-reads-its-turn-over-the-first-leg-and-names-it-the-arriving-legs`),
+and the recourse sentences' one skeleton
+(`the-levered-turn-recourses-are-one-skeleton-spelled-four-ways`).

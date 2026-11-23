@@ -2,12 +2,13 @@
 id: face-boundary-walks-spell-the-linked-prelude-by-hand
 kind: issue
 title: Face boundary walks spell the linked member prelude by hand
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-11-22
 priority: P3
 cost: E
-pr: 4099
-branch: topo/face-boundary-walks-one-home
+pr: 7418
+branch: walks/ebundle
 refs: [4078]
 ---
 
@@ -133,3 +134,18 @@ INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
 longer stands. Its one site went with the REST zip: `boolean/rest.rs`
 is gone from main, `patch_faces` with it. Nothing in this row waits on
 D10.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` walk is gone.
+
+## Closed (WALKS E-bundle, 2026-11-22)
+
+PR 4099 merged the bulk on 2026-10-06, and PRs 6460 and 6552 the face
+loop doors (`FaceView::boundary`, `boundary_by_loop`). PR 7418 moved
+the last site: `boolean/records.rs` `incident` reads a vertex on a
+face's loops as `face.boundary().any(|m| m.vertex() == v)`, which
+answers a lone-vertex loop by its vertex as before. The two
+"Remaining" sites are gone from main: `pcurves.rs` has no
+`face_loop_walks`, and `offset_together.rs` no longer walks a face's
+loops. A re-sweep for `closed("loop"` and `face_loops_linked(` finds
+only single-loop walks, test code and `live.rs`' own doors;
+`movefac.rs`' hand walk stays by design (above).

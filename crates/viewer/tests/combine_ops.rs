@@ -41,7 +41,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use pncad::select::SplitHalf;
-use viewer::combine::{BooleanTool, PatternOutputChoice, PatternTool, SplitTool, denotes_body};
+use viewer::combine::{BooleanTool, PatternOutputChoice, PatternTool, SplitTool};
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
@@ -683,7 +683,7 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
     tools.open(ToolKind::Split);
     feed(&mut tools, &session, &y_wall);
     let tool = tools.split().expect("the split tool is open");
-    assert_eq!(tool.target(), Some(block), "the face pick seats its body");
+    assert_eq!(tool.body(), Some(block), "the face pick seats its body");
     assert_eq!(tool.face(), Some(&y_wall), "and is the plane");
     let op = tool.op().expect("a target and a plane are held");
     assert!(tools.commits_open_tool(&op), "the split is the tool's edit");
@@ -700,7 +700,7 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
     // target stays.
     feed(&mut tools, &session, &x_wall);
     let tool = tools.split().expect("the split tool is open");
-    assert_eq!(tool.target(), Some(block), "a re-pick keeps the target");
+    assert_eq!(tool.body(), Some(block), "a re-pick keeps the target");
     assert_eq!(tool.face(), Some(&x_wall), "and moves the plane");
 
     // Re-picked after commit, through the operand slot door.
@@ -2468,15 +2468,15 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     split.pick(session.committed_doc(), a);
     assert!(matches!(
         split.op(),
-        Err(SeatError::NoFace {
-            role: viewer::seats::FaceRole::SplitPlane
+        Err(SeatError::NoPlane {
+            role: viewer::seats::PlaneRole::Split
         })
     ));
     split.pick_plane(session.committed_doc(), end_cap(a));
     assert!(matches!(
         split.op(),
         Ok(SessionOp::AddSplit {
-            plane: viewer::session::SplitPlane::Face(_),
+            plane: viewer::session::ToolPlane::Face(_),
             ..
         })
     ));
@@ -2556,7 +2556,7 @@ fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
         ToolKind::Blend => tools.blend().is_some(),
         ToolKind::Part => tools.part().is_some(),
         ToolKind::Mirror => tools.mirror().is_some(),
-        ToolKind::Clearance => tools.clearance().is_some(),
+        ToolKind::Assertion => tools.assertion().is_some(),
     })
 }
 
@@ -2686,7 +2686,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             // about the body seat.
             Seat::MirrorBody => SessionOp::AddMirror {
                 body: filled(Seat::MirrorBody).into(),
-                plane: viewer::session::FaceSelection {
+                plane: viewer::session::ToolPlane::Face(viewer::session::FaceSelection {
                     name: pncad::prelude::StableName {
                         kind: pncad::prelude::EntityKind::Face,
                         node: body,
@@ -2694,14 +2694,16 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                     },
                     node: body,
                     body: 0,
-                },
+                }),
             },
             // The other seat a body of the right kind, so the refusal
             // is about the seat under test.
-            Seat::ClearedFirst | Seat::ClearedSecond => SessionOp::AddClearance {
-                a: viewer::session::ClearedSeat::Body(filled(Seat::ClearedFirst).into()),
-                b: viewer::session::ClearedSeat::Body(filled(Seat::ClearedSecond).into()),
-                bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+            Seat::AssertedFirst | Seat::AssertedSecond => SessionOp::AddAssertion {
+                a: viewer::session::AssertedSeat::Body(filled(Seat::AssertedFirst).into()),
+                b: viewer::session::AssertedSeat::Body(filled(Seat::AssertedSecond).into()),
+                claim: viewer::session::AssertedClaim::Clearance(
+                    pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+                ),
             },
             Seat::PatternBody => SessionOp::AddPattern {
                 input: filled(Seat::PatternBody).into(),
@@ -2770,7 +2772,7 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     split.pick_plane(doc, end_cap(a));
     split.pick(doc, profile);
     assert_eq!(
-        split.target(),
+        split.body(),
         Some(profile),
         "an unroutable pick lands where the plain rule puts it",
     );
@@ -2982,7 +2984,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Split,
             SessionOp::AddSplit {
                 target: (RecipeNodeId::new(0, tagged(1))).into(),
-                plane: viewer::session::SplitPlane::Face(end_cap(RecipeNodeId::new(0, tagged(1)))),
+                plane: viewer::session::ToolPlane::Face(end_cap(RecipeNodeId::new(0, tagged(1)))),
             },
         ),
         (
@@ -3040,33 +3042,11 @@ fn a_tool_closes_on_its_own_committed_edit() {
     }
 }
 
-/// **The body seat is the operand door's body slot**, and this row is
-/// what holds that rather than the prose at
-/// [`viewer::combine::denotes_body`].
-///
-/// The check drives the REAL door: each candidate node is offered as a
-/// `Node::Shell`'s target, a slot that reads one `Body`, and the edit
-/// door's answer is the verdict — a kind refusal (`SlotVarKind`, or
-/// `AmbiguousOutput` for a node of two bodies named alone) means the
-/// door refused the candidate as an operand, and acceptance means it
-/// did not. Both directions are asserted as one equality: a kind the
-/// seat admits that the door refuses is a lie the user meets at the
-/// commit, and a kind the seat refuses that the door would take is
-/// silent capability loss.
-///
-/// **What it does not reach**, stated rather than implied: six of the
-/// twenty-two node kinds are absent. `Mate`, `Measure` and `Assertion`
-/// need substrate this row does not build (a solved assembly, a
-/// measured expression) and define no body; `InstantiatePart` needs a
-/// resolver with a sibling document on disk, so its body is exercised
-/// by the assembly suites instead; the two tube kinds define a body
-/// and evaluate through their own doors, exercised by
-/// `lib_tube_node`. The sixteen that ARE here — `Part` counted once
-/// for its two selectors — include every kind whose classification is
-/// load-bearing for this unit.
-#[test]
-fn the_body_seat_is_the_operand_doors_body_slot() {
-    let tol = Tol::witness();
+/// **One candidate per node kind `the_body_seat_is_the_operand_doors_body_slot`
+/// can build**, every one in a single document beside the substrate it
+/// is built out of: no candidate reads another, so none changes
+/// another's answer. The document and each candidate by name.
+fn body_seat_candidates(tol: Tol) -> (Doc<ProfileProgram>, Vec<(&'static str, RecipeNodeId)>) {
     let mut doc = Doc::empty_derived("operand-door", tol);
     // The substrate every candidate is built out of.
     let (next, profile) = common::inserted(&doc, common::square(0.02), tol);
@@ -3110,7 +3090,8 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     doc = next;
     let (next, body_b) = crate::fixture::slid(doc, body, extruded_b, [0.1, 0.0, 0.0]);
     doc = next;
-    let (next, other) = crate::fixture::slid(doc, body, body, [0.01, 0.002, 0.002]);
+    // Offset so the subtraction leaves walls a shell of them can hollow.
+    let (next, other) = crate::fixture::slid(doc, body, body, [0.01, 0.005, 0.004]);
     doc = next;
     // The split's tool: a plane read off the body's own geometry.
     let plane = crate::fixture::plane_on(&doc, body, [0.0, 0.0, 0.005], [0.0, 0.0, 1.0]);
@@ -3122,6 +3103,11 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     doc = next;
     let pattern_index = common::family_index(&doc, pattern_of_body);
     let pattern_name = doc.var_name(pattern_index).cloned().expect("a named index");
+    // A transform of the family: a placement of a family is a family
+    // under the same index, evaluated once per member.
+    let (next, moved_pattern) =
+        crate::fixture::slid(doc, pattern_of_body, pattern_of_body, [0.0, 0.05, 0.0]);
+    doc = next;
 
     // A real edge of the box, for the two blends: an empty blend
     // selection is an AUTHORING refusal, so a minimal fillet has to
@@ -3143,7 +3129,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     // One candidate per node kind this row can build, with the seat's
     // answer beside it. The seat's answer is READ, never restated: a
     // kind that moves sides moves in one place.
-    let candidates: Vec<(&str, AuthoredNode)> = vec![
+    let candidates: Vec<(&'static str, AuthoredNode)> = vec![
         ("profile", common::square(0.01)),
         (
             "extrude",
@@ -3185,8 +3171,10 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                 members: Bodies::Spelled(vec![body.into(), body_b.into()]),
             },
         ),
+        // Its members stand clear of each other, so it is the typed
+        // empty boolean: a body at the seat, ∅ under these values.
         (
-            "intersect",
+            "empty intersect",
             Node::Intersect {
                 members: Bodies::Spelled(vec![body.into(), body_b.into()]),
             },
@@ -3266,17 +3254,46 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         ),
     ];
 
-    for (name, node) in candidates {
-        let (with_candidate, candidate) = common::inserted(&doc, node, tol);
-        let admitted = denotes_body(&with_candidate, candidate);
-        let probe = pncad::document::apply(
-            &with_candidate,
-            &pncad::document::DocEdit::InsertNode {
-                node: Box::new(Node::shell(candidate, common::len(0.001), Vec::new())),
-                fresh: Vec::new(),
-            },
-            tol,
-        );
+    let mut named: Vec<(&'static str, RecipeNodeId)> = candidates
+        .into_iter()
+        .map(|(name, node)| (name, common::insert_into(&mut doc, node, tol)))
+        .collect();
+    named.push(("transform of a pattern", moved_pattern));
+    (doc, named)
+}
+
+/// **The body seat is the operand door's body slot**, and this row is
+/// what holds that rather than the prose at
+/// [`viewer::session::admits`].
+///
+/// The check drives the REAL door: each candidate node is offered as a
+/// `Node::Shell`'s target, a slot that reads one `Body`, and the edit
+/// door's answer is the verdict — a kind refusal (`SlotVarKind`, or
+/// `AmbiguousOutput` for a node of two bodies named alone) means the
+/// door refused the candidate as an operand, and acceptance means it
+/// did not. Both directions are asserted as one equality: a kind the
+/// seat admits that the door refuses is a lie the user meets at the
+/// commit, and a kind the seat refuses that the door would take is
+/// silent capability loss. Evaluation is held to the same answer by
+/// `the_body_seats_admissions_evaluate_as_bodies`.
+///
+/// **What it does not reach**, stated rather than implied: six of the
+/// twenty-two node kinds are absent. `Mate`, `Measure` and `Assertion`
+/// need substrate this row does not build (a solved assembly, a
+/// measured expression) and define no body; `InstantiatePart` needs a
+/// resolver with a sibling document on disk, so its body is exercised
+/// by the assembly suites instead; the two tube kinds define a body
+/// and evaluate through their own doors, exercised by
+/// `lib_tube_node`. The sixteen that ARE here — `Part` counted once
+/// for its two selectors — include every kind whose classification is
+/// load-bearing for this unit.
+#[test]
+fn the_body_seat_is_the_operand_doors_body_slot() {
+    let tol = Tol::witness();
+    let (doc, candidates) = body_seat_candidates(tol);
+    for (name, candidate) in candidates {
+        let admitted = viewer::session::admits(&doc, candidate, NodeKindWanted::Body);
+        let probe = shelled(&doc, candidate, tol);
         let refused_as_operand = matches!(
             probe,
             Err(EditError::SlotVarKind { .. } | EditError::AmbiguousOutput { .. })
@@ -3288,6 +3305,110 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             probe.err()
         );
     }
+}
+
+/// **What the body seat admits evaluates where a body slot reads it**:
+/// each candidate of `the_body_seat_is_the_operand_doors_body_slot` the
+/// seat admits is shelled, the document evaluated once without a panic,
+/// and each candidate evaluates and its shell receives it as a body.
+/// The two exceptions are the candidate's own, and exact: the sweep
+/// refuses at its frontier and poisons its shell, and the empty
+/// intersection is the typed ∅, which its shell refuses as an empty
+/// operand. A shell that received a body may still refuse its own
+/// geometry (`NodeErrorKind::Shell`, a loft's faces say); any other
+/// refusal of a shell is a seat the evaluator disagrees with, the lie
+/// that row names, met one step later.
+#[test]
+fn the_body_seats_admissions_evaluate_as_bodies() {
+    let tol = Tol::witness();
+    let (mut doc, candidates) = body_seat_candidates(tol);
+    let mut shells = Vec::new();
+    for (name, candidate) in candidates {
+        if viewer::session::admits(&doc, candidate, NodeKindWanted::Body) {
+            let applied =
+                shelled(&doc, candidate, tol).expect("the door takes what the seat admits");
+            let shell = applied.record.minted.expect("an insert mints its node");
+            shells.push((name, candidate, shell));
+            doc = applied.doc;
+        }
+    }
+    for wanted in ["transform of a pattern", "empty intersect", "sweep"] {
+        assert!(
+            shells.iter().any(|&(name, _, _)| name == wanted),
+            "the seat admits the {wanted}"
+        );
+    }
+    let mut landed = DocSession::inline(doc, tol);
+    let pumped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| landed.pump()));
+    assert!(pumped.is_ok(), "evaluating what the seat admitted panicked");
+    let eval = landed.evaluation().expect("the inline seam landed");
+    let said = |result: Option<&NodeResult<f64>>| {
+        result.map(|result| match result {
+            NodeResult::Ok(_) => "Ok".to_string(),
+            NodeResult::Failed(error) => format!("{:?}", error.kind),
+            NodeResult::Poisoned { through } => format!("poisoned through {through:?}"),
+        })
+    };
+    for (name, candidate, shell) in shells {
+        let (own, read) = (eval.result(candidate), eval.result(shell));
+        let as_expected = match name {
+            "sweep" => {
+                matches!(
+                    own,
+                    Some(NodeResult::Failed(NodeError {
+                        kind: NodeErrorKind::CurvedSolidFrontier { .. },
+                        ..
+                    }))
+                ) && matches!(read, Some(NodeResult::Poisoned { through }) if *through == candidate)
+            }
+            "empty intersect" => {
+                matches!(own, Some(NodeResult::Ok(_)))
+                    && matches!(
+                        read,
+                        Some(NodeResult::Failed(NodeError {
+                            kind: NodeErrorKind::EmptyOperand { input },
+                            ..
+                        })) if *input == candidate
+                    )
+            }
+            _ => {
+                matches!(own, Some(NodeResult::Ok(_)))
+                    && matches!(
+                        read,
+                        Some(
+                            NodeResult::Ok(_)
+                                | NodeResult::Failed(NodeError {
+                                    kind: NodeErrorKind::Shell(_),
+                                    ..
+                                })
+                        )
+                    )
+            }
+        };
+        assert!(
+            as_expected,
+            "the seat admits a {name} that evaluates as {:?}, its shell as {:?}",
+            said(own),
+            said(read)
+        );
+    }
+}
+
+/// `candidate` offered to the edit door as a `Node::Shell`'s target, a
+/// slot that reads one `Body`.
+fn shelled(
+    doc: &Doc<ProfileProgram>,
+    candidate: RecipeNodeId,
+    tol: Tol,
+) -> Result<pncad::document::Applied<ProfileProgram>, EditError> {
+    pncad::document::apply(
+        doc,
+        &pncad::document::DocEdit::InsertNode {
+            node: Box::new(Node::shell(candidate, common::len(0.001), Vec::new())),
+            fresh: Vec::new(),
+        },
+        tol,
+    )
 }
 
 /// **An open tool narrows what the cursor may pick to what that tool
@@ -3309,12 +3430,12 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
     for kind in ToolKind::ALL {
         tools.open(kind);
         let want = match kind {
-            // The mirror's and the split's plane is a face, and their
-            // body is picked by one too; the clearance tool seats
-            // faces, and bodies from the tree.
-            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split | ToolKind::Clearance => {
-                PickKinds::FacesOnly
-            }
+            // The mirror's and the split's plane is a face or a datum,
+            // and their body is picked by a face too; the placement
+            // editor's far side may be a datum.
+            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split => PickKinds::FacesAndDatums,
+            // The assertion tool seats faces, and bodies from the tree.
+            ToolKind::Assertion => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
             ToolKind::Boolean | ToolKind::Transform | ToolKind::Pattern | ToolKind::Part => {
                 PickKinds::FacesAndEdges
@@ -3874,11 +3995,11 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
         );
         let held = match kind {
             ToolKind::Boolean => tools.boolean().and_then(|t| t.picks().first().copied()),
-            ToolKind::Split => tools.split().and_then(|t| t.target()),
+            ToolKind::Split => tools.split().and_then(|t| t.body()),
             // The placement editor opened on the copy's placement.
             ToolKind::Transform => tools.mate().and_then(|t| t.door()).map(|d| d.placement),
             ToolKind::Pattern => tools.pattern().and_then(|t| t.input()),
-            ToolKind::Mirror => tools.mirror().and_then(|t| t.input()),
+            ToolKind::Mirror => tools.mirror().and_then(|t| t.body()),
             // Seats a split or a pattern, never a body: its own row
             // below picks one.
             ToolKind::Part => continue,
@@ -3886,7 +4007,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             // a profile and an axis, which a face pick never is.
             ToolKind::Mate | ToolKind::Blend => continue,
             // A face pick seats the face itself, not its body.
-            ToolKind::Clearance => continue,
+            ToolKind::Assertion => continue,
         };
         assert_eq!(
             held,
@@ -3949,7 +4070,7 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
         &[SessionOp::Select(picked)],
     );
     let tool = tools.split().expect("open");
-    assert_eq!(tool.target(), Some(split));
+    assert_eq!(tool.body(), Some(split));
     assert_eq!(
         tool.seats().read(0),
         Some(pncad::document::Operand::output(
@@ -4710,8 +4831,8 @@ fn every_seat_reads_a_member_exactly_where_its_door_takes_one() {
             | Seat::PatternBody
             | Seat::PartInstance
             | Seat::MirrorBody
-            | Seat::ClearedFirst
-            | Seat::ClearedSecond => None,
+            | Seat::AssertedFirst
+            | Seat::AssertedSecond => None,
         };
         if let Some(spec) = spec {
             let mut session = crate::common::inline_without_door(doc.clone(), tol);
@@ -4779,4 +4900,103 @@ fn a_pick_on_a_pattern_of_a_world_copy_seats_the_pattern() {
         BooleanSpec::Union(vec![pattern.into(), other.into()]),
         "the member's pick seats the pattern, read whole since the product reads it"
     );
+}
+
+/// **A transform of a pattern is a body at every body seat, and
+/// evaluation takes what the seat admitted**: box → pattern × 2 →
+/// transform, a pick on the transform's member 1 offered to each seat
+/// wanting a body, through the gate its commit asks. A placement of a
+/// family reaches the family's index, so it is evaluated once per
+/// member, and each of these seats' operations meets one body per
+/// member — red if the gate refuses the transform, or admits a read
+/// the evaluator then refuses.
+#[test]
+fn a_transform_of_a_pattern_seats_where_evaluation_takes_it() {
+    let tol = Tol::witness();
+    let (session, body, pattern) = box_and_pattern(tol);
+    let (doc, moved) = crate::fixture::slid(
+        session.committed_doc().clone(),
+        pattern,
+        pattern,
+        [0.0, A[1] * 2.0, 0.0],
+    );
+    assert!(
+        viewer::session::admits(&doc, moved, NodeKindWanted::Body),
+        "the body gate admits the transform named alone"
+    );
+    for seat in Seat::ALL {
+        if seat.wants() != NodeKindWanted::Body {
+            continue;
+        }
+        let mut seats = viewer::seats::Seats::one(seat);
+        seats.pick_at(&doc, moved, Some(1));
+        let read = seats
+            .body_read(0)
+            .unwrap_or_else(|| panic!("the {} seat holds the transform", seat.name()));
+        let want = if seat.reads_member() {
+            member(moved, 1)
+        } else {
+            moved.into()
+        };
+        assert_eq!(read, want, "the {} seat reads the transform", seat.name());
+        // The gate its commit asks of that read: a member's read is
+        // gated as a family, a whole read as a body.
+        let gate = if read.is_indexed() {
+            NodeKindWanted::Instances
+        } else {
+            NodeKindWanted::Body
+        };
+        assert!(
+            viewer::session::admits_read(&doc, &read.read, gate),
+            "the {} seat's {gate:?} gate admits its read",
+            seat.name()
+        );
+        let mut session = crate::common::inline_without_door(doc.clone(), tol);
+        let op = match seat {
+            Seat::Member => SessionOp::AddBoolean {
+                spec: BooleanSpec::Union(vec![read, body.into()]),
+            },
+            Seat::SubtractFrom => SessionOp::AddBoolean {
+                spec: BooleanSpec::Subtract {
+                    from: read,
+                    tool: body.into(),
+                },
+            },
+            Seat::SubtractTool => SessionOp::AddBoolean {
+                spec: BooleanSpec::Subtract {
+                    from: body.into(),
+                    tool: read,
+                },
+            },
+            Seat::SplitTarget => SessionOp::AddSplit {
+                plane: common::cut_across(&session, read.read.clone(), A[2] / 4.0),
+                target: read.read,
+            },
+            // The pattern door refuses a family read whole at its seat
+            // (`IndicesUnrelated`), a refusal of the edit, not of the
+            // value: `work/doors/the-split-mirror-and-pattern-seats-read-a-picked-members-whole-family.md`.
+            // The mirror's plane and the clearance seats' faces are
+            // picks of their own; their body seat is the same gate.
+            Seat::PatternBody | Seat::MirrorBody | Seat::AssertedFirst | Seat::AssertedSecond => {
+                continue;
+            }
+            Seat::PartInstance => unreachable!("not a body seat"),
+        };
+        let out = session.perform(op);
+        assert!(
+            out.refusal.is_none(),
+            "the {} door: {:?}",
+            seat.name(),
+            out.refusal
+        );
+        let made = out.made.expect("an authoring op made a node");
+        session.pump();
+        let eval = session.evaluation().expect("the inline seam landed");
+        assert!(
+            eval.result(made).and_then(NodeResult::error).is_none(),
+            "the {} seat admitted what evaluation refuses: {:?}",
+            seat.name(),
+            eval.result(made).and_then(NodeResult::error)
+        );
+    }
 }

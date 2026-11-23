@@ -33,10 +33,7 @@ fn ledger(name: &str, eps_in: Option<f64>) -> Vec<step_import::StructureNormaliz
         env!("CARGO_MANIFEST_DIR")
     );
     let text = std::fs::read_to_string(path).unwrap();
-    let options = ImportOptions {
-        eps_in,
-        ..ImportOptions::default()
-    };
+    let options = ImportOptions { eps_in };
     match import_step(&text, &options, Tol::witness()) {
         Ok(StepImport::Solid { normalizations, .. }) => normalizations,
         Ok(StepImport::Wireframe { .. }) => panic!("{name}: a solid"),

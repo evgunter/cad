@@ -24,7 +24,6 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFin
     let cfg = ChecksConfig {
         connectedness: Severity::Off,
         at_rest: Severity::Off,
-        chart_coherence: Advisory::Off,
         unproven_coincidence: Advisory::Warn,
         unused: Advisory::Off,
         ..ChecksConfig::default()
@@ -1443,11 +1442,12 @@ fn a_profile_junction_on_one_carrier_refuses_at_evaluation() {
         Some(editor_core::NodeErrorKind::ProfileReplay {
             loop_: 0,
             error:
-                profile::ReplayError {
-                    step: 2,
+                error @ profile::ReplayError {
                     kind: profile::ReplayErrorKind::Path(e),
+                    ..
                 },
-        }) if e.kind() == profile::PathErrorKind::JunctionTangent => {}
+        }) if error.step() == 2
+            && e.kind() == profile::PathErrorKind::JunctionTurnWithinTolerance => {}
         other => panic!("the junction refuses as tangent at step 2, got {other:?}"),
     }
 }
@@ -2043,7 +2043,7 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. Both
-/// of `die_composed`'s two and 28 of `die_composed_tour`'s 42 prove as
+/// of `die_composed`'s two and 29 of `die_composed_tour`'s 42 prove as
 /// theorems, and the rest stay unproven. The angle reductions read
 /// `geom_core::period::Period::at_or_above`, and the extruded pips' caps
 /// and rims are their sketch frames turned, so the margins are forms the
@@ -2064,7 +2064,7 @@ fn the_door_proves_two_thirds_of_the_composed_dies_joints() {
     // `met`: the vertex identities the dies' booleans decide at a point
     // minted on an edge, each a `Meet` of the cells it lies in (measured:
     // a pip's meridian seam edge against a face of the die).
-    for (name, proved, rows, met) in [("die_composed", 2, 4, 2), ("die_composed_tour", 28, 84, 42)]
+    for (name, proved, rows, met) in [("die_composed", 2, 4, 2), ("die_composed_tour", 29, 84, 42)]
     {
         let cd = crate::corpus::documents()
             .into_iter()
@@ -3524,8 +3524,8 @@ fn measure_the_stage6_axis_identities() {
                         side,
                     };
                     let (Some(on), Some(to)) = (
-                        axis_of(side(editor_core::MateSide::On), mate.on),
-                        axis_of(side(editor_core::MateSide::To), mate.to),
+                        axis_of(side(editor_core::MateSide::On), mate.on.read),
+                        axis_of(side(editor_core::MateSide::To), mate.to.read),
                     ) else {
                         continue;
                     };
@@ -4251,12 +4251,13 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                             .map(geom_brep::EdgeCurve::carrier)
                             .expect("an edge has a carrier")
                         {
-                            Curve3::Circle(geom::Circle { frame, .. }) => {
+                            Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                                let frame = the_circle.frame();
                                 let (center, axis) = (frame.origin(), frame.axis());
                                 line_on(center, Some(axis))
                             }
                             Curve3::Line(geom::Line { origin, dir }) => {
-                                line_on(*origin, Some(*dir))
+                                line_on(*origin, Some(dir.get()))
                             }
                             other => {
                                 panic!("{}: an edge read about the axis on {other:?}", cd.name)

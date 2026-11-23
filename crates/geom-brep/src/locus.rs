@@ -12,8 +12,8 @@ use crate::dihedral::{decide, decide_reported};
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
     ParallelAxes, PlaneCylinder, RuledFrame, RuledSection, cylinder_axes_parallel_reported,
-    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, ruled_frame, ruled_gap,
-    ruled_parallel, ruled_section,
+    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, ruled_gap, ruled_parallel,
+    ruled_section,
 };
 use geom_core::k_stats::decide_across_reported;
 
@@ -277,7 +277,7 @@ fn closed_form_locus<T: Decide>(
                 frame: plane_frame, ..
             },
         ) => {
-            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis_unit());
             let (q, n) = (plane_frame.origin(), plane_frame.axis());
             let pc = PlaneCylinder {
                 q,
@@ -286,7 +286,7 @@ fn closed_form_locus<T: Decide>(
                 a: axis,
                 r: radius,
             };
-            let frame = ruled_frame(&pc, reach);
+            let frame = reach.ruled_pivot_lever(&pc);
             let plane_first = matches!(a, Surface::Plane { .. });
             let read = plane_cylinder_locus(&pc, &frame, band);
             let pending = Pending::PlaneCylinder {
@@ -312,11 +312,11 @@ fn closed_form_locus<T: Decide>(
             let (o2, a2) = (cylinder_frame.origin(), cylinder_frame.axis());
             let line1 = geom::Line {
                 origin: o1,
-                dir: cylinder_frame_2.axis(),
+                dir: cylinder_frame_2.axis_unit(),
             };
             let line2 = geom::Line {
                 origin: o2,
-                dir: cylinder_frame.axis(),
+                dir: cylinder_frame.axis_unit(),
             };
             let axes = parallel_axes_at(reach, line1, line2);
             let swing = parallel_swing(reach, line1, line2, axes.d);
@@ -576,7 +576,7 @@ impl<T: Decide> Section<T> {
         band: Band,
     ) -> Option<Self> {
         // `r·|a × n|`: the wall's reach across the locus, a length.
-        let across = UnitVec3::new(pc.a.cross(pc.n) * pc.r, ACROSS, band).ok()?;
+        let across = UnitVec3::new(pc.a.get().cross(pc.n) * pc.r, ACROSS, band).ok()?;
         let tilt = frame.c.abs() * reach.lever_from(frame.o).length();
         Some(Self {
             at: across.get().dot(frame.o - Point3::origin()),

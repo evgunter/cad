@@ -32,6 +32,10 @@ use bvh::{Aabb, Bvh, Ray};
 use geom_core::{Point3, Vec3};
 use test_utils::{fuzz, vacuity::Exposure};
 
+/// The query site every call in this file marks under.
+const SITE: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("bvh_test", "the test's query");
+
 /// An exact rational `n / d` with `d > 0`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Q {
@@ -218,7 +222,7 @@ fn candidates_are_a_superset_of_the_exact_integer_truth() {
             seen.note("draws containing a zero-extent (plane) box");
         }
         let r = ray_of(o, d);
-        let got = tree.ray(&r);
+        let got = tree.ray(SITE, &r);
 
         for i in 0..n {
             let Some((entry, _)) = exact_hit_interval(o, d, lo[i], hi[i]) else {
@@ -342,8 +346,8 @@ fn permutation_invariance_of_the_candidate_answer() {
         }
         let permuted: Vec<Aabb> = perm.iter().map(|&o| boxes[o]).collect();
 
-        let base = Bvh::build(&boxes).ray(&r);
-        let other = Bvh::build(&permuted).ray(&r);
+        let base = Bvh::build(&boxes).ray(SITE, &r);
+        let other = Bvh::build(&permuted).ray(SITE, &r);
 
         // Same multiset of (old index, t_enter bits).
         let mut a: Vec<(usize, u64)> = base.iter().map(|c| (c.item, c.t_enter.to_bits())).collect();
@@ -409,7 +413,7 @@ fn interleaved_ties_come_back_in_ascending_index_order() {
     };
     let boxes: Vec<Aabb> = (0..200).map(near).collect();
     let tree = Bvh::build(&boxes);
-    let out = tree.ray(&ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+    let out = tree.ray(SITE, &ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
     assert_eq!(out.len(), 200, "every box is on the ray");
     let nearer: Vec<usize> = out.iter().take(100).map(|c| c.item).collect();
     let farther: Vec<usize> = out.iter().skip(100).map(|c| c.item).collect();
@@ -437,7 +441,7 @@ fn identical_boxes_come_back_in_ascending_index_order() {
     // thing that can order the answer is the index tie-break.
     let boxes = vec![boxed([1.0, -1.0, -1.0], [2.0, 1.0, 1.0]); 64];
     let tree = Bvh::build(&boxes);
-    let out = tree.ray(&ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+    let out = tree.ray(SITE, &ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
     let items: Vec<usize> = out.iter().map(|c| c.item).collect();
     assert_eq!(items, (0..64).collect::<Vec<_>>(), "ties ascend by index");
     let first = out[0].t_enter;
@@ -457,7 +461,7 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
     let tree = Bvh::build(&[unit]);
     // In the z = 1 face plane, travelling +x, entering at x = 0.
     let in_face = ray([-3.0, 0.5, 1.0], [1.0, 0.0, 0.0]);
-    let out = tree.ray(&in_face);
+    let out = tree.ray(SITE, &in_face);
     assert_eq!(out.len(), 1, "a ray in a face plane still meets the box");
     assert!(
         out[0].t_enter <= 3.0,
@@ -466,7 +470,7 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
     );
     // Along the edge x = 1, z = 1, travelling +y.
     let along_edge = ray([1.0, -3.0, 1.0], [0.0, 1.0, 0.0]);
-    let out = tree.ray(&along_edge);
+    let out = tree.ray(SITE, &along_edge);
     assert_eq!(out.len(), 1, "a ray along an edge still meets the box");
     assert!(
         out[0].t_enter <= 3.0,
@@ -475,7 +479,11 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
     );
     // Grazing a single corner.
     let corner = ray([1.0, 1.0, -3.0], [0.0, 0.0, 1.0]);
-    assert_eq!(tree.ray(&corner).len(), 1, "a corner graze is a candidate");
+    assert_eq!(
+        tree.ray(SITE, &corner).len(),
+        1,
+        "a corner graze is a candidate"
+    );
 }
 
 /// The empty tree and an empty candidate answer are not an error.
@@ -487,9 +495,15 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
 #[test]
 fn empty_inputs_answer_empty() {
     let tree = Bvh::build(&[]);
-    assert!(tree.ray(&ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0])).is_empty());
+    assert!(
+        tree.ray(SITE, &ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]))
+            .is_empty()
+    );
     let tree = Bvh::build(&[boxed([10.0, 10.0, 10.0], [11.0, 11.0, 11.0])]);
-    assert!(tree.ray(&ray([0.0, 0.0, 0.0], [-1.0, 0.0, 0.0])).is_empty());
+    assert!(
+        tree.ray(SITE, &ray([0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]))
+            .is_empty()
+    );
 }
 
 /// **The conservative-superset contract's undocumented precondition.**
@@ -527,7 +541,7 @@ fn overflow_in_the_slab_subtraction_drops_a_true_intersection() {
     );
     assert!(t >= b.min_y && t <= b.max_y, "y({t}) is inside the box");
     assert_eq!(
-        tree.ray(&r).len(),
+        tree.ray(SITE, &r).len(),
         1,
         "a truly met box must stay a candidate"
     );

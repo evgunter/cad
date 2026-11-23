@@ -2,11 +2,13 @@
 id: the-volume-readings-interval-re-derivation-re-asks-a-closed-forms-premises-on-the-value-channel
 kind: issue
 title: The volume reading's Interval re-derivation re-asks a closed form's premises on the value channel, so a cylinder wall the body's own scalar proves on its rim refuses props_rim_fit over a box
-status: dispatched
+status: closed
 opened: 2026-11-15
 priority: P0
 cost: M
 branch: boxfinish/volume-premises
+pr: 7344
+closed: 2026-11-23
 ---
 
 
@@ -61,3 +63,29 @@ other premises behave the same on a cone, sphere and torus wall.
   band finishes its volume role walk at `Sym<Interval>`, and the volume
   it reads contains every member's.
 - At `f64` and plain `Interval` nothing moves, or each move is listed.
+
+## Closed
+
+PR 7344 (2026-11-23). At a scalar whose witness is exact, a curved
+closed-form face's term in the volume reading is the walk's own sums
+(`topo::props::walked_closed_form`); a plane and every rounding scalar
+keep the lifted run (`lifted_closed_form`). A boxed seamless cylinder,
+torus and placed sphere read a volume that holds their members where
+they refused `props_rim_fit`.
+
+Not closed by this, each with its own file:
+
+- The tour's cut plate over its box stops one step earlier, at the
+  walk's `props_meridian_on_surface`:
+  `a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root`
+  (PR 7370). The plate's re-measure on main is
+  `tier-3-at-every-box-replay-leaf-multiplies-the-decisions`'s and the
+  switch row's closing test.
+- The readings are loose (a torus `[12.8, 39.5]` for members 23 to 29),
+  and the plane's term could be read off the walk too:
+  `check-7s-volume-reading-is-loose-over-a-box`.
+- A premise false at every member of a box refuses as undecided:
+  `work/sym/a-margin-whose-form-is-a-nonzero-constant-escalates-over-a-box.md`.
+- Other decisions taken on lifted values:
+  `a-lifted-copy-reads-exact-structure-on-the-value-channel-in-three-lanes`
+  (the lane's sweep row, with its dispositions).

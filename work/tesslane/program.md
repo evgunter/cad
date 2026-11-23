@@ -7,7 +7,7 @@ opened: 2026-11-14
 group: kernel/mesh
 prefix: tesslane/
 tag: (TESSLANE orchestrator)
-paths: [crates/mesh/*, crates/topo/src/coherence.rs]
+paths: [crates/mesh/*]
 keep_out: [successor of TESS and TESSSIZE which merged here on 2026-11-14 (docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md), crates/mesh is shared whole with TESSLIE TESSWALK TESSWORD and CHORD so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled, a C0 crease inside a face is being retired at its source by Ev's ruling on PR 5913 (DESIGN [topology]) so no row here generalises a crease arm, props/quad/ and patch_bound.rs and certify.rs are other programs' (ENCL holds patch_bound.rs), the tess-budget document and tools/tess-meter are INSTR's, demos/tour pins are re-pinned in the moving PR with what moved and why, the guide page docs/guide/meshing.md is LIB's, D9's byte-identical replay is ratified ground - a mesh byte that moves is re-baselined with the cause named and never weighed against the change]
 ---
 

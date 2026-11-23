@@ -235,6 +235,11 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             ),
         )),
         ChartRegionError::Corrupt,
+        ChartRegionError::NoOutline(crate::NoOutline {
+            face: FaceKey::default(),
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
     ];
     v.push(ChartRegionError::ChartDivergence {
         detail: "two descriptions that do not read bit-identical — no one chart holds both",
@@ -1059,6 +1064,11 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         MassPropsError::NullScaffoldEdge {
             edge: EdgeKey::default(),
         },
+        MassPropsError::NoOutline(crate::NoOutline {
+            face,
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
         MassPropsError::ResolutionFinerThanEps {
             resolution: 1e-10,
             eps: 1e-9,
@@ -1486,14 +1496,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             edge,
             shell_plus: shell,
             shell_minus: shell,
-        },
-        ValidationError::ComponentEulerViolation {
-            shell,
-            seed: face,
-            vertices: 2,
-            edges: 2,
-            faces: 1,
-            rings: 0,
         },
         ValidationError::MissingProvenance {
             entity: EntityId::Face(face),

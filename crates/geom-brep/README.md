@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube); `crates/geom-brep/src/row_contact.rs` (a shared row's contact class on analytic charts) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` and `pcurves/` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`, `pose`, `cross`), `curve_face/{pose,cross}.rs`, and its doors `curve_face/{plane_crossing,line_quadric,conic_quadric,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`, `pose`, `cross`), `curve_face/{pose,cross}.rs`, and its doors `curve_face/{plane_crossing,line_quadric,conic_quadric,circle_torus,ellipse_torus,circle_roots,spiric_plane,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | The carrier ladder (CONTACT-DESIGN C4's `Rest` table) | `crates/geom-brep/src/carrier_eq.rs` (`carrier_eq`, `CarrierDesc`, the kind-generalized ladder and the face-pair door's reading), `plane_eq.rs` (`oriented_plane_eq`, its planar arm); the face-pair door that reads it over two faces is `crates/topo/src/boolean/carrier_pair.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
@@ -121,14 +121,14 @@ its distance from the world origin,
 and on the cone a part the lever does not decide positive (one reaching
 the apex) reads `√|f|` instead: `f` is the product of the distances
 from the meridian half-plane's two generator lines, both on the implicit
-cone. The search's limbs convert the torus per span of the carrier
-too, bounding the residual its limb 1 reads,
-`m = F/(2r·(A + 2Rρ))` for the quartic `F = A² − 4R²ρ²` with
-`A = |q|² + R² − r²`, by `sup|F∘C|` over `2r` times
-`inf A∘C + √(inf A∘C² − sup F∘C)`, `A∘C` its own composite over the
-same spans and floored by `R² − r²` (`ssi::certify`); the cone has no
-such conversion at the search, which is why its rung-3 arms are
-unretired. At a
+cone. The search reads limb 2 through the same reader, against the
+surface's whole carrier rather than a face's
+(`pcurve_cache::Limb2Locus::Carrier`): a pair's section is a section of
+carriers (C5), so it reads a cone as the double cone, whose lever is
+`ρ cos α + |z| sin α`, taking the lesser of that reading and `√|f|`.
+The coefficients are enclosures built at the lane scalar, a cone's
+sine and cosine taken of its angle crossed in first, so a widened
+operand is read as the family it is. At a
 parameter-family scalar the limb is decided by the scalar like any
 margin (E12): its symbolic identity is the residual of the carrier's own
 description against the operand, per span, with the carrier's parameter
@@ -348,7 +348,7 @@ jet system solved by SVD, Frenet choice of free coefficients, Newton
 refinement; all f64, libm-only, fixed iteration order). Each side
 enters the section through the one exact description it has: its
 implicit residual where it has one in metres (plane, cylinder, sphere,
-torus), else its chart (NURBS). The pair is one system on
+cone, torus), else its chart (NURBS). The pair is one system on
 `ℝ³ × ∏ Dᵢ`, the point eliminated wherever a chart side exists, so the
 trace shape is decided by the sides: two residuals, an implicit pair in
 ℝ³ (2×3 SVD; `cylinder_sphere_ssi`); a residual and a chart, one
@@ -518,11 +518,15 @@ step; it is the point decisions' clamp, the region decisions' lever,
 the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
-the bounded domain is *excluded* (an implicit residual bounded away from
-zero by enclosure, the boundary pass's mean-value enclosure of a strip
-or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
-or in a boundary contact's certified region), or refined to the named
-floor, where the op refuses
+the bounded domain is *excluded*, *accounted* or refined. A cell is
+excluded where an implicit residual is bounded away from zero by
+enclosure; the boundary pass's mean-value enclosure of a strip or
+corner cell the plane misses counts too. On a cone cell that reaches
+the axis or the apex's plane the quadric `cos²α·ρ² − sin²α·h²` is read
+instead of the residual, since it has the double cone's sign. A cell
+is *accounted* where it is contained in a found branch's tube or in a
+boundary contact's certified region. Any other cell is refined down to
+the named floor, where the op refuses
 `SsiError::ExhaustivenessInconclusive`. Where the pose counts the
 section's components (C5), exhaustiveness closes by that count: the
 march, seeded at the counted witnesses (an open arc's lies between its
@@ -891,7 +895,8 @@ pose has one, and otherwise the pair's **critical gap**, a certified
 sweep of a one-parameter distance between the two surfaces' spines,
 never a root formula; in band, it escalates. A pair of a NURBS face and a
 surface with an implicit residual `f` (plane, cylinder, sphere, torus;
-the cone once its residual is enclosed) decides its tangency and
+the cone once that pair has a cone partner form, which its ℝ³ tube
+enclosure does not give it) decides its tangency and
 coincidence once, in its classification, on the composite `φ = f∘S`
 over the NURBS face's knot rectangle, before any march, and every
 reader reads that verdict: the hull of `φ` decides apart and
@@ -978,11 +983,27 @@ topology: two edges joined at a vertex meet there because their ends meet.
 Two curves on one surface record are not a curve pair to this table.
 Their 3D gap is identically zero in the model, so a contact decision on
 it reads only the construction's rounding against the band. They meet
-where one crosses the other's plane, through the plane door
-(`curve_face::plane_crossing`), at a root on the curve's own section of
-that plane, read through the surface's chart: the co-surface arm
-(`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
-harmonic (`pose::height`). A curve on a surface is built from chart
+where one crosses the other's plane, through the curve × face arm for
+that curve against that plane (`curve_face::cross`), at a root on the
+curve's own section of that plane, read through the surface's chart:
+the co-surface arm (`curve_pair::on_surface`), whose plane door
+(`curve_face::plane_crossing`) shares `meet`'s transverse harmonic
+(`pose::height`). Which curve crosses which plane is fixed per pair of
+curve families, at write time, by one table in the arm, its *direction
+table*, on the transversality rule: the plane is that of a curve whose
+plane is transversal to the surface all along that curve, and a meeting
+is kept only where it lies on both curves' own sections. A pair whose
+curves' planes both touch the surface somewhere along their curves has
+its row fixed all the same, and escalates in band there. On a plane
+record, and in a sketch plane, two curves both lie in the surface, so
+no plane of either is transversal to it: they meet by the table's own
+in-plane arms (two lines; a line and a conic by the conic's distance
+from the line; two circles; two ellipses), entered with coplanarity
+given by the type that holds the pair (two edges of one plane record,
+or two segments of one sketch plane) and never read, each candidate a
+root in a parameter that is settled by its place on each span. A span
+there keeps its ends as its holder has them, a profile's stored
+vertices or a face's vertex positions. A curve on a surface is built from chart
 coordinates on a surface record: its key, and its surface as stored or
 on another chart of it. An edge carries its face's record, and the arm
 refuses a pair on two records whichever way it reads the pair. That the
@@ -990,8 +1011,13 @@ key and the surface are one record's stays the caller's: the region
 doors and the sphere cut-in read both off one face, and the planar loop
 walk names its own premise for the ray's plane. Every consumer holding
 two curves on one surface reads that arm (the region doors' landings,
-the sphere cut-in, the planar loop walk's ray against a conic arc), and
-none hands the pair to `meet`.
+the sphere cut-in, the planar loop walks' rays against a line, conic or
+spiric arc, profile validation's pair pass, the at-rest
+ring-against-outer contact reading, the census's pairs on one plane
+record), and none hands the pair to `meet`. A pose proves two spans
+apart from where each can lie (its cover's distance range from the
+other carrier) before a carrier reading in the band escalates, and a
+meeting says whether it crosses or touches.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
@@ -1066,7 +1092,8 @@ march's states and through samples inside the box settled onto the
 section, its span ending at the node's point with the named ray as its
 end tangent, and C2's tube certifies it to the node.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
-pairs through the section value (`pair_section`), classified, then
+pairs, and the closed-form conic pairs plane×sphere, sphere×sphere and
+plane×cylinder, through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
@@ -1131,7 +1158,8 @@ the tangency, decided on the pose, the arcs where it is positive the
 components, a cone's apex on the other surface a closed-form margin
 (its residual there), whose Zero is a node or a touch, and for two cylinders
 the margins above its extremes. Each torus pair's pose
-(`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
+(`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`,
+`ConeTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
 (which holds the whole section; the smaller ball for two tori), and decides the
@@ -1145,7 +1173,10 @@ ladder reads the same decision for two torus faces it reads undeclared. A
 sphere, a cylinder and a torus are the points at distance `ρ` from a
 spine (a point, a line, a core circle), and two of them are tangent
 exactly where a critical value of the spine-to-spine distance equals
-`ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`. A coaxial partner's spine distance is
+`ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`. A cone is its own spine at `ρ = 0`, and a
+point's distance from the double cone is critical at its feet on the
+two whole lines of the cone in its meridian plane, signed
+`ρ cos α ∓ h sin α`, so its levels are both `r`. A coaxial partner's spine distance is
 constant, and its gap is the closed-form tube row read across the
 coaxial slack. A sphere's spine is a point, whose critical distances
 from the core circle are its two meridian ones, so its gap is closed
@@ -1163,7 +1194,7 @@ on `(D²)′` shrunk by its own rounding before anything divides it, so a
 slope within its rounding of zero reads no sign however small `D` is,
 and what is left, over the most `D` reaches, bounds the sine of the
 crossing, levered by the core radius. Where the core crosses a torus
-partner's axis `D` has a kink, and no cell holding one clears on its
+or a cone partner's axis `D` has a kink, and no cell holding one clears on its
 slope: a tangency on a kink always escalates, unless it is the least
 distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap
 the symmetric poses (coaxial, parallel, square) count their components
@@ -1171,13 +1202,42 @@ in closed form, the coaxial ones as circles and the rest the general
 rung's, marched by `carry` over a ball that holds the whole section
 (`PairPose::ball`: the sphere, else the torus's `|x − c| ≤ R + r`, the
 smaller of two tori's), every branch closing inside it; a general
-sphere × torus pose is the sphere arm's, marched; a general cylinder or
-torus pose has no closed-form count of its components, and its
+sphere × torus pose is the sphere arm's, marched; a general cylinder,
+cone or torus pose has no closed-form count of its components, and its
 components are the march's (`Components::Marched`), which the general
-rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches
-past a transverse gap. `implemented` covers the whole operation.
-Every other pair refuses: the cone pairs blocked on the cone's metres
-conversion (C2 limb 2).
+rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`,
+`ssi::cone_torus_ssi`) marches past a transverse gap. `implemented` covers the whole operation.
+The conic pairs' poses are their closed-form doors' (`PlaneSpherePose`,
+`SphereSpherePose`, `PlaneCylinderPose`): each circle or tilted ellipse
+is one loop whose carrier is the whole closed curve, plane×cylinder's
+rulings are cut by the region as two parallel walls' are, a tangency
+is its touch point or tangent ruling with no carrier and the deciding
+row its verdict, and none is marched.
+A cone against a cylinder or a cone (`ConeRuledPose`) is classified
+on the sweep along the cone's rulings over the region, both nappes at
+once: a ruling along an asymptotic direction of the partner reads its
+sheet by the root form that stays finite, the other sheet leaving the
+region as an open component with cut ends; a double root of the
+discriminant is a tangency only where the rulings' clearance ceiling
+over it is decided `Zero`, the sweep's margin being a floor on that
+clearance; and an apex on the partner is divided out of the rulings'
+quadratic, its node's arcs ending at it. Two cones through one apex,
+and two on parallel axes of one aperture, are not built here. Its
+components are the general rung's, and carrying them refuses typed,
+since no march carries them: the pair has no march door. A crossing
+tangency is a node, its arcs one node-joined set.
+A cone off a torus's axis (`ConeTorusPose`) reads its apex
+against the torus before its gap, the apex's residual there a
+closed-form margin whose Zero is a node or a touch by the cone's form
+on the torus's tangent plane, and a ruling in that plane refuses;
+neither is marched, since the ℝ³ march ends no branch at a node, and
+the pair's value refuses them as not built. Past a clear apex the gap
+is the sweep, its transverse components the march's
+(`ssi::cone_torus_ssi`); a parallel axis is that general pose too. A
+gap undecided beside an apex within a sixty-fourth of the tube radius
+of the torus escalates as the apex's question, the near-node's. A
+coaxial cone is `cone_torus_section`'s closed form, which the value
+reads elsewhere. A cone against a sphere refuses.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
@@ -1251,7 +1311,20 @@ kind. A door takes typed operands. The plane door has one entry point;
 dropping a root at an end of the span is the consumer's choice on the
 answer's end hit, not the door's. Every door is here (DESIGN's
 Layering row): `plane_crossing`, `line_quadric`, `conic_quadric`,
-`circle_torus`, `ellipse_torus`, `composite` and `spline_face`. A span
+`circle_torus`, `ellipse_torus`, `spiric_plane`, `composite` and
+`spline_face`. The spiric × plane door reads a spiric span by its
+*section reduction*: the span is one oval of its torus cut by the
+spiric's own plane, so it meets a plane not parallel to that one only
+on the line where the two planes meet, which the line × torus door reads
+against the spiric's own torus over the stretch of the line on the
+oval's side of the axis's projection on the spiric's plane, each root's minor angle the span's parameter.
+It reads the count again on the two lines of the spiric's plane that
+stand the band's escalation above and below the cutting plane, and
+refuses as a tangency where either differs: an oval with one extreme of
+its height within the band of the cutting plane, a near miss or a shallow
+dip. An oval wholly within the band on one side of the cutting plane
+keeps a count of none on all three lines and reads as a miss.
+A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached
 only where the surface-pair pose decides that pose; where it declines
@@ -1313,10 +1386,11 @@ span against a spline face is unbuilt. Of the analytic arms, the
 plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
 a conic's roots against the plane), the line × quadric door
 (`curve_face::line_quadric`), the conic × quadric door
-(`curve_face::conic_quadric`) and the conic × torus doors
+(`curve_face::conic_quadric`), the conic × torus doors
 (`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
-shared half-angle root cores `curve_face::circle_roots`) are built
-here, each keeping its method; their classes are the pose's
+shared half-angle root cores `curve_face::circle_roots`) and the spiric
+× plane door (`curve_face::spiric_plane`, over the line × quadric door)
+are built here, each keeping its method; their classes are the pose's
 (`curve_face::pose`, the rows `curve_face_pose_*`, decided in that one
 module), and `curve_face::cross` reads the pose then the door's method,
 placing each root against the span's ends and ordering the meetings
@@ -1569,7 +1643,9 @@ implemented.
 
 **C9 — Enclosures run on the in-repo interval backend.** Every enclosure
 certification needs is transcendental-free (implicit residuals are
-polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
+polynomial in the stored data — a cone stores its opening as its slope
+`k = tan α`, so its form is `ρ² − k²h²` and its metres lever's one
+irrational is `√(1 + k²)` — de Boor is ring arithmetic, hull bounds are convexity facts),
 so certification arithmetic is IEEE-754's correctly rounded operations —
 `±`, `×`, `÷`, integer powers and `√` — and no transcendental, over
 `geom_core::Interval` — the evaluation scalar itself, a newtype over

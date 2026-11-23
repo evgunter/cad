@@ -5,7 +5,7 @@ title: The placeholder question is asked through two doors across topo: NetState
 status: open
 opened: 2026-09-14
 priority: P1
-cost: E
+cost: M
 ---
 
 
@@ -66,3 +66,16 @@ Sweep: `is_placeholder()` and `NetState::Placeholder` over `crates/`,
 which cannot match a site composing `net::is_placeholder` or
 `net::any_poison` directly (`geom`'s own `net.rs`, the implementation,
 is excluded).
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Still live; about 27 production `is_placeholder()` sites now against the row's ~20 (new: clearance, props/quad_lane, ring_path spline_wall and sector_face, geom-brep dihedral_side, mesh chart_table, step-export writer, step-import build; gone from pcurves, props top level, pcurve_cache, mesh trimmed, step-import adopt). The described-net row the `!is_placeholder()`-as-described sites deferred to is closed, so those sites (geom-brep certify.rs, step-import build.rs, geom's `matches!` guards) have no other owner. Re-priced M; weighed as fork F2.
+## The question to Ev (2026-11-22, fork F2)
+
+Two designers weighed it independently and converged: the two (in fact four) doors exist only because "this face has no surface yet" is stored as an in-band all-NaN NURBS net. Their recommendation: tag the body's surface SLOT in `topo` (undescribed | described `Surface`), retire `NetState`, `net_state`, both `is_placeholder`s, `Surface::is_placeholder_chart` and the placeholder constructors, and leave one finiteness predicate (NaN and ±∞) as the only question asked of a net. That reverses geom's crate-doc "three states" doctrine and possibly an earlier retirement of a unit variant, and is moderately hard to reverse, so it goes to Ev. The curve placeholder (no producer outside tests) is deleted regardless, by `walks/curve-placeholder`.
+
+## Decided (Ev, 2026-11-22, PR 7423)
+
+"cool. yes it seems good to have some kind of 'in progress surface' enum that can be a real surface or a placeholder." The enum is the body's surface SLOT in `topo` (described `Surface` | pending), not a variant of geom's `Surface`: one typed refusal where a face's surface is handed to geometry; `NetState`, `net_state`, both `is_placeholder`s, `is_placeholder_chart` and the placeholder constructors retire; one finiteness predicate (NaN and ±∞) is the only question asked of a net.
+
+- 2026-11-23 — `walks/curve-placeholder` (PR 7433) takes the curve half: `NurbsCurve3::placeholder`, `NurbsCurve3::is_placeholder` and `Curve3::nurbs_placeholder` are deleted with every reader arm (`topo::transform`'s `map_carrier`, `step-export`'s carrier gate). The surface slot Ev decided above is still to build, so the row stays open for it.

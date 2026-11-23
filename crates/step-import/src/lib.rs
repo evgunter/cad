@@ -54,10 +54,12 @@
 //!    the description fixes it (built carriers crossing a surface, a
 //!    pole or an apex), else, where the description leaves it free along
 //!    one built carrier, at the foot of its printed point on that
-//!    carrier, each interval by the carrier's own inverse. No curve or
-//!    point the file printed is a cache. Surfaces attach (bitwise-identical records
-//!    share one kernel surface key, restoring the writer-side key
-//!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
+//!    carrier, each interval by the carrier's own inverse; each printed
+//!    carrier is read on its built one over its trim, certified by locus
+//!    where [`on_built`] has an arm for the pair and at its ends and
+//!    middle where it has none. No curve or point the file printed is a cache. Surfaces attach (one
+//!    kernel surface key per surface record: the faces citing one entity
+//!    share it), `same_sense` lands as [`topo::Face::sense`] honored, not
 //!    healed, and the one built description is **certified** by the
 //!    kernel's own gates at ε; a smooth join the must-carry rule answers
 //!    with the pair alone refuses not-yet-supported. Pcurve
@@ -136,33 +138,6 @@
 //! What interpretation moves is on the result's move ledger
 //! ([`StepImport::normalizations`]), never in the body. Certification
 //! of everything built runs at the run's ε like native geometry.
-//!
-//! # Chart coherence: a measurement, not a gate
-//!
-//! [`ImportOptions::examine_chart_coherence`] asks
-//! [`topo::examine_chart_coherence`] about the body that ships and
-//! carries its report at [`StepImport::Solid::coherence`]. The
-//! examination measures how far two of the FILE's own statements
-//! about one chart coordinate disagree — a carrier's midpoint azimuth
-//! against its own endpoint vertex's, two edges of one rim row, two
-//! edges of one meridian column — each as a gap times a lever arm, in
-//! metres, against the band. This is the door where defective source
-//! coordinates actually arrive. Its recorded witness was a
-//! pole-crossing meridian arc (`tests/fixtures/halfcap/`), whose carrier
-//! midpoint sat a half-turn from its own endpoint; import now makes the
-//! pole a vertex ([`NormalizationKind::ChartSingularityVertex`]), so no
-//! committed file ships a finding.
-//!
-//! **Three things this channel is not.** It is not a gate: the at-rest
-//! validator above has already run and passed by the time the
-//! examination is asked, and a body with findings ships exactly as one
-//! without them does — nothing in the import acceptance decision reads
-//! it. It is not the ε_in lane: the band is the run's ambient ε, the
-//! same tolerance everything else built here certifies at, and each
-//! finding carries the band it was judged against. And it is not on by
-//! default, because the examination has no shape door and would report
-//! a lane boundary (a trimmed curved face's loops) to callers who
-//! asked no question.
 //!
 //! # Fail loud (D4 ¶5)
 //!
@@ -271,6 +246,7 @@ mod geometry;
 mod interpret;
 mod knot_split;
 mod normalize;
+mod on_built;
 mod one_record;
 mod parse;
 mod reach;
@@ -449,6 +425,16 @@ pub enum NormalizationKind {
     /// and a torus band's winding × sense pair selects which of the
     /// two v-intervals between its rims the face covers.
     SeamlessPeriodicBand,
+    /// **A net side the file states one point, made exactly that
+    /// point** (`[import]` healing, `[extensibility]`): every control
+    /// point of a side of a NURBS face's knot rectangle reads as one at
+    /// the file's band, so the side is made its first control point in
+    /// file order, and the kernel reads it as the chart singularity it
+    /// is. One record per side; its census pair is the face's, unchanged.
+    CollapsedSideMadeOne {
+        /// The farthest a control point of the side moved (metres).
+        moved_by: f64,
+    },
     /// A **NURBS surface promoted to an analytic kind** (D7 stage 1,
     /// ruling #256): the patch's residual against the fitted analytic
     /// surface CERTIFIED at ε_in, so the face is adopted on the
@@ -579,9 +565,11 @@ pub enum NormalizationKind {
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,
     /// #327): the carrier's locus residual against the analytic curve
     /// read Zero at the file's band, and it covers that curve's arc,
-    /// segment or full turn between its ends in the curve's sense, so
-    /// the edges on it read the analytic carrier ([`CurvePromotion`] is
-    /// this record read off the ledger). The promotion is the CURVE's:
+    /// segment or full turn between its ends in the curve's sense
+    /// ([`CurvePromotion`] is this record read off the ledger). On a
+    /// solid it is evidence: each edge on it is built from its own
+    /// description and the promoted curve certified on that carrier, as
+    /// any printed carrier is. The promotion is the CURVE's:
     /// it is recorded unless every edge that reads the curve is carried on
     /// a spline the body holds instead (a wall's own column), each such
     /// edge reporting that through its own `CarrierBuilt`. An edge built
@@ -790,27 +778,6 @@ pub struct ImportOptions {
     /// the file's declaration. Must be finite and strictly positive
     /// when given ([`StepImportError::InvalidEpsOverride`]).
     pub eps_in: Option<f64>,
-    /// **Ask for the chart-coherence examination** of the shipped body
-    /// ([`topo::examine_chart_coherence`]), reported at
-    /// [`StepImport::Solid::coherence`]. Default `false`.
-    ///
-    /// **Off by default, which is the examination's own posture rather
-    /// than timidity about its cost.** It has no shape door in front
-    /// of it: a curved face whose outer loop carries a conic or spline
-    /// trim carrier states none of the three conditions, so its loops
-    /// land in [`topo::CoherenceReport::unexamined`] as a LANE
-    /// BOUNDARY rather than a defect. A channel that is on for every
-    /// caller reports that lane boundary to callers who asked no
-    /// question, and a report that fires everywhere is not a report.
-    /// The registry resident on this same kernel door
-    /// (`editor_core`'s `CheckId::ChartCoherence`) ships `Off` for the
-    /// same reason.
-    ///
-    /// **It decides nothing.** A finding is a MEASUREMENT of how far
-    /// two of the file's own statements about one chart coordinate
-    /// disagree; no file imports or refuses differently for this flag,
-    /// and the at-rest gate never reads it.
-    pub examine_chart_coherence: bool,
 }
 
 /// A successful import: what the file's shape representation supports.
@@ -878,50 +845,6 @@ pub enum StepImport {
         /// here and expensive to retrofit, so it is kept whether or
         /// not the file states an assembly at all.
         instances: Vec<PlacedInstance>,
-        /// **The chart-coherence examination of `body`**, when
-        /// [`ImportOptions::examine_chart_coherence`] asked for one:
-        /// [`topo::examine_chart_coherence`]'s report, whole and
-        /// unfiltered, run on the body that ships at the import's
-        /// `tol`.
-        ///
-        /// This is the door where defective source COORDINATES
-        /// arrive. Every condition it states is a gap between two of
-        /// the FILE's own statements about one chart coordinate,
-        /// measured in metres against the band — a meridian arc whose
-        /// carrier midpoint sat a half-turn from its own endpoint was
-        /// the recorded witness, before import made the pole it crossed
-        /// a vertex.
-        ///
-        /// **`None` is CONFIGURATION and `unexamined` is DATA, and
-        /// they are two different facts.** `None` says the caller did
-        /// not ask, which nothing about the file changes and which
-        /// setting the option reverses; `Some(report)` whose
-        /// `unexamined` is non-empty says the examination RAN and the
-        /// body put a loop out of its reach, which no option changes.
-        /// Spelling the unasked state as an empty report would fold
-        /// the two — a caller who never asked would read identically
-        /// to a body with nothing to report, which is the one thing
-        /// this channel may not say. The kernel door draws the same
-        /// line about its own two lists at
-        /// [`topo::CoherenceReport::unexamined`], and the `Option` is
-        /// how it survives the crossing.
-        ///
-        /// **There is deliberately no `StepImport::coherence()`
-        /// accessor** beside [`StepImport::normalizations`] and its
-        /// neighbours. Those fold a wireframe into an empty slice
-        /// honestly — a wireframe really did apply no normalizations —
-        /// but this crate can be in THREE states about chart
-        /// coherence: not asked, examined, and no body to examine at
-        /// all. An accessor returning `Option<&CoherenceReport>` would
-        /// spell the first and the third the same way. The variant is
-        /// where the third one lives, so a caller matches the variant.
-        ///
-        /// **Nothing gates on it.** The at-rest gate above has already
-        /// run and passed by the time this is measured; a body with
-        /// findings ships exactly as a body without them does. A
-        /// finding is a measurement, and reading it as a verdict is
-        /// reading intent into a number.
-        coherence: Option<topo::CoherenceReport>,
         /// **The contacts between the body's solids**: one record per
         /// touch the at-rest census found between two of `body`'s
         /// solids, each citing its row in `coincidences` and confirmed
@@ -1050,9 +973,10 @@ pub fn import_step(
             // one component representation are N entries over the same
             // solid index, and each is a body of its OWN — fresh
             // topology, fresh arena keys, no structure shared between
-            // copies. Sharing was never on the table: a `SolidSpec`'s
-            // maps are keyed by the file's entity ids, so two copies
-            // assembled into one arena would collide id for id.
+            // copies. Nothing is shared between them because nothing is
+            // shared between any two shells: each solid and each void is
+            // built alone, in a body of its own, and grafted under fresh
+            // keys.
             //
             // Each placement is the motion its placement pair minted
             // (`build_axes`, then `B ∘ A⁻¹` composed as motions), so it is
@@ -1223,24 +1147,11 @@ pub fn import_step(
             // aggregate census sweeps every entity of every instance.
             let (body, contacts, coincidences) = gate3(body, tol)?;
             normalizations.retain(|n| promotion_carried(n, &holders));
-            // **The chart-coherence channel** — after the gate, on the
-            // body that ships, and consuming nothing. The door is a
-            // pure function of (body, ε) that refuses nothing and
-            // returns a measurement; running it here rather than on
-            // some intermediate is what makes the report a statement
-            // about the value the caller receives. It is called
-            // directly, with no lane trait in front of it: every door
-            // in this crate is monomorphic at `f64`, so there is no
-            // scalar for which the examination could be absent.
-            let coherence = options
-                .examine_chart_coherence
-                .then(|| topo::examine_chart_coherence(&body, tol));
             Ok(StepImport::Solid {
                 body,
                 eps_in,
                 normalizations,
                 instances: record,
-                coherence,
                 contacts,
                 coincidences,
             })

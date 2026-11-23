@@ -69,8 +69,8 @@
 #             WORD and not the path, because a re-export may name the
 #             trait alone (`pub use self::Certification`) or the module
 #             alone (`pub use …::interval::certification;`). A re-export
-#             of `EulerOpError::Certification` would cry wolf; none
-#             exists. Read over each `;`-terminated statement of the
+#             of an enum variant named `Certification` would cry wolf;
+#             none exists. Read over each `;`-terminated statement of the
 #             line view rather than the statement view, which cuts a
 #             braced group at its `{` and would hand the `pub use` and
 #             the name it re-exports to two different records;
@@ -251,6 +251,7 @@ CERT_IMPORTERS=(
   crates/geom/src/curves/second_derivative.rs
   crates/mesh/src/chords.rs
   crates/mesh/src/nurbs_cert.rs
+  crates/step-import/src/on_built.rs
   crates/step-import/src/recognize_curve.rs
   crates/topo/src/props/quad_lane.rs
 )
@@ -585,8 +586,8 @@ plant_home_undeclared() {
 # a rule reads appears here in a place that is not code, not production,
 # or not that token: prose, a trailing comment, a string literal, longer
 # names, a deref and a product, a test module — and, in the unlisted
-# file, the two live collisions the key was chosen around
-# (`EulerOpError::Certification`, a `certification:` field) plus
+# file, the two collisions the key was chosen around (an enum variant
+# named `Certification`, a `certification:` field) plus
 # everything a listed file may not do, which an unlisted file may.
 plant_near_misses() {
   {

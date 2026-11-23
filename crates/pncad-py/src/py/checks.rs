@@ -29,8 +29,8 @@
 //! # The knobs are two types, and that is DS6's waiver rule
 //!
 //! `connectedness` and `at_rest` take a `Severity`
-//! (`Off`/`Warn`/`Error`); `chart_coherence` and
-//! `unproven_coincidence` take an `Advisory` (`Off`/`Warn`). DS6 lets
+//! (`Off`/`Warn`/`Error`); `unproven_coincidence` and `unused` take
+//! an `Advisory` (`Off`/`Warn`). DS6 lets
 //! a check offer `error` **iff** it ships a per-finding acknowledgment
 //! record with a staleness direction. Connectedness has one —
 //! `expected_components`, whose unconsumed entries come back as
@@ -75,7 +75,6 @@ use super::value::{Body, Evaluation};
 )]
 pub(crate) enum CheckId {
     Connectedness,
-    ChartCoherence,
     UnprovenCoincidence,
     AtRest,
     Unused,
@@ -126,7 +125,6 @@ pub(crate) enum Advisory {
 fn check_id(check: d::CheckId) -> CheckId {
     match check {
         d::CheckId::Connectedness => CheckId::Connectedness,
-        d::CheckId::ChartCoherence => CheckId::ChartCoherence,
         d::CheckId::UnprovenCoincidence => CheckId::UnprovenCoincidence,
         d::CheckId::AtRest => CheckId::AtRest,
         d::CheckId::Unused => CheckId::Unused,
@@ -166,7 +164,6 @@ impl CheckId {
     fn to_kernel(self) -> d::CheckId {
         match self {
             Self::Connectedness => d::CheckId::Connectedness,
-            Self::ChartCoherence => d::CheckId::ChartCoherence,
             Self::UnprovenCoincidence => d::CheckId::UnprovenCoincidence,
             Self::AtRest => d::CheckId::AtRest,
             Self::Unused => d::CheckId::Unused,
@@ -220,9 +217,8 @@ pub(crate) struct ChecksConfig(pub(crate) d::ChecksConfig);
 
 #[pymethods]
 impl ChecksConfig {
-    /// The DS6 defaults are the no-argument form: the three residents
-    /// of the default pass at `Warn`, the chart-coherence examination
-    /// `Off`, nothing expected, nothing refused.
+    /// The DS6 defaults are the no-argument form: every resident at
+    /// `Warn`, nothing expected, nothing refused.
     ///
     /// `expected_components` is a list of `(placement, output_ix,
     /// expected)` triples — the connectedness resident's
@@ -236,11 +232,10 @@ impl ChecksConfig {
     /// would report "checked and fine" about a number the caller did
     /// not state.
     #[new]
-    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn, at_rest = Severity::Warn, unused = Advisory::Warn))]
+    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, unproven_coincidence = Advisory::Warn, at_rest = Severity::Warn, unused = Advisory::Warn))]
     fn new(
         connectedness: Severity,
         expected_components: Option<Vec<(NodeId, u32, u32)>>,
-        chart_coherence: Advisory,
         unproven_coincidence: Advisory,
         at_rest: Severity,
         unused: Advisory,
@@ -256,7 +251,6 @@ impl ChecksConfig {
         Ok(Self(d::ChecksConfig {
             connectedness: connectedness.to_kernel(),
             expected_components: expected,
-            chart_coherence: chart_coherence.to_kernel(),
             unproven_coincidence: unproven_coincidence.to_kernel(),
             at_rest: at_rest.to_kernel(),
             unused: unused.to_kernel(),
@@ -267,16 +261,6 @@ impl ChecksConfig {
     #[getter]
     fn connectedness(&self) -> Severity {
         Severity::from_kernel(self.0.connectedness)
-    }
-
-    /// The chart-coherence resident's knob — an `Advisory`, so
-    /// `Error` is not spellable here either, and `Off` by default:
-    /// the resident reads every face of every rest body and reports a
-    /// trimmed face's loops as out of its reach, so it is asked for
-    /// rather than paid for on every run.
-    #[getter]
-    fn chart_coherence(&self) -> Advisory {
-        Advisory::from_kernel(self.0.chart_coherence)
     }
 
     /// The `unproven-coincidence` lint's knob — an `Advisory`: an
@@ -326,10 +310,9 @@ impl ChecksConfig {
     fn __repr__(&self) -> String {
         format!(
             "ChecksConfig(connectedness={:?}, expected_components={}, \
-             chart_coherence={:?}, unproven_coincidence={:?}, at_rest={:?}, unused={:?})",
+             unproven_coincidence={:?}, at_rest={:?}, unused={:?})",
             self.0.connectedness,
             self.0.expected_components.len(),
-            self.0.chart_coherence,
             self.0.unproven_coincidence,
             self.0.at_rest,
             self.0.unused
@@ -460,56 +443,18 @@ impl CheckEvidence {
         }
     }
 
-    /// The chart-coherence arm's own inner word: which condition was
-    /// measured on `chart_coherence` (`meridian_closure`,
-    /// `rim_continuation`, `meridian_continuation`), and why a loop
-    /// was out of reach on `chart_coherence_unexamined` (`corrupt`,
-    /// `empty_loop`, `null_scaffold_edge`, `non_iso_carrier`).
-    ///
-    /// One attribute for two alphabets, which `boolean_variant`
-    /// refuses — and for that field's own stated reason, which does
-    /// not reach here: these two alphabets share no spelling, so the
-    /// word answers a caller that has not branched on `variant`, and
-    /// answers it correctly.
-    ///
-    /// **An unexamined loop is not a skipped check.**
-    /// `ChecksReport.skipped` lists checks a CONFIGURATION turned off;
-    /// these words name loops the DATA put out of reach, on a check
-    /// that ran.
+    /// The assertion that would quiet an unproven coincidence, on
+    /// `unproven_coincidence` alone, and `None` where no assertion says
+    /// the row: then the finding names the construction alone and
+    /// `enforce_checks` refuses it at no severity.
     #[getter]
-    fn chart_variant(&self) -> Option<&'static str> {
-        self.payload().chart_variant
-    }
-
-    /// The chart-coherence measurement as a length in metres, on
-    /// `chart_coherence` alone — `gap * lever`, the only unit the band
-    /// is in and the one the finding is judged in.
-    #[getter]
-    fn metres(&self) -> Option<f64> {
-        self.payload().metres
-    }
-
-    /// That measurement's disagreement in the chart's own units, on
-    /// `chart_coherence`: radians of u, or v's units by surface kind.
-    #[getter]
-    fn gap(&self) -> Option<f64> {
-        self.payload().gap
-    }
-
-    /// That measurement's lever arm in metres per chart unit, on
-    /// `chart_coherence`. Zero on a chart axis, where an azimuth
-    /// carries no length.
-    #[getter]
-    fn lever(&self) -> Option<f64> {
-        self.payload().lever
-    }
-
-    /// The band this measurement was judged against, on
-    /// `chart_coherence`. It rides the finding rather than the report:
-    /// `metres` read without it is a number without a claim.
-    #[getter]
-    fn eps(&self) -> Option<f64> {
-        self.payload().eps
+    fn quieting(&self) -> Option<Quieting> {
+        match &self.0 {
+            d::CheckEvidence::UnprovenCoincidence { quieting, .. } => quieting
+                .clone()
+                .map(|claim| Quieting(claim, Arc::clone(&self.1))),
+            _ => None,
+        }
     }
 
     /// What an unproven coincidence decided between its cells, on
@@ -621,7 +566,7 @@ impl CheckEvidence {
 /// caller's `Severity` and the caller's `enforce_checks` call.
 ///
 /// `str()` renders it the way the library renders a finding, recourse
-/// included, each placement spoken (kind, label and tag) from the document
+/// included, each placement spoken (its label and tag, or its kind and tag with no label) from the document
 /// the checks ran over, the one the evaluation is of; `repr()` keeps
 /// the full id. Two findings are equal when they are the same finding
 /// over the same document; labels are not compared.
@@ -748,7 +693,9 @@ impl CheckFinding {
     /// checks ran over. The recourse is in that story; nothing is
     /// appended here.
     fn __str__(&self) -> String {
-        d::Said(&self.finding, d::Speaker::of(&*self.doc)).to_string()
+        d::Said(&self.finding, d::Speaker::of(&*self.doc))
+            .sentence()
+            .to_string()
     }
 
     /// The same finding over the same document; labels are not
@@ -781,6 +728,138 @@ impl CheckFinding {
             self.finding.check,
             check_evidence_tag(&self.finding.evidence)
         )
+    }
+}
+
+/// One reference of a `Quieting`'s measure, as the measure reads it:
+/// the entity `name` names in the body `read` reads, read as that cell
+/// or as the pose `pose` read off it; or, with no `name`, the variable
+/// `read` itself (the plane a split cuts with).
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct QuietingRef {
+    read: Var,
+    name: Option<String>,
+    pose: Option<&'static str>,
+}
+
+impl QuietingRef {
+    /// The reference, each variable as `var` hands it out.
+    pub(crate) fn of(
+        py: Python<'_>,
+        var: &dyn Fn(d::VarId) -> Var,
+        r: &d::QuietingRef,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            read: var(r.read()),
+            name: r
+                .name()
+                .map(|name| super::doc::name_text(py, name))
+                .transpose()?,
+            pose: r.pose().map(crate::errors::var_kind_tag),
+        })
+    }
+}
+
+#[pymethods]
+impl QuietingRef {
+    /// The variable read: the body the entity is selected in, or the
+    /// variable the measure reads as it is.
+    #[getter]
+    fn read(&self) -> Var {
+        self.read
+    }
+
+    /// The entity's name in that body's table, as opaque text; `None`
+    /// for a variable read as it is.
+    #[getter]
+    fn name(&self) -> Option<String> {
+        self.name.clone()
+    }
+
+    /// The kind of the pose read off the cell, `axis` or `point`; `None`
+    /// for the cell itself.
+    #[getter]
+    fn pose(&self) -> Option<&'static str> {
+        self.pose
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        (self.read.0, &self.name, self.pose) == (other.read.0, &other.name, other.pose)
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (self.read.0, &self.name, self.pose).hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "QuietingRef(read=Var({}), name={:?}, pose={:?})",
+            self.read.0.full(),
+            self.name,
+            self.pose
+        )
+    }
+}
+
+/// The assertion that would quiet an unproven coincidence:
+/// `measure(references) = 0`, a `gap` or a `distance` over the row's
+/// two cells as that measure reads them, in the document the checks ran
+/// over. The kernel mints it only where the rule that decides which
+/// holding assertion quiets the row takes it, so the row is quiet once
+/// `Doc.assert_quieting` has authored it.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Quieting(d::Quieting, Arc<d::ProfileDoc>);
+
+impl Quieting {
+    /// The claim, and the document the checks that minted it ran over.
+    pub(crate) fn minted(&self) -> (&d::Quieting, &d::ProfileDoc) {
+        (&self.0, &self.1)
+    }
+}
+
+#[pymethods]
+impl Quieting {
+    /// The measure related to zero: `gap` or `distance`.
+    #[getter]
+    fn measure(&self) -> &'static str {
+        self.0.measure().verb()
+    }
+
+    /// The measure's two references, in its order: a `gap`'s outer then
+    /// inner.
+    #[getter]
+    fn references(&self, py: Python<'_>) -> PyResult<(QuietingRef, QuietingRef)> {
+        let var = |id| Var::of(&self.1, id);
+        let reference = |r| QuietingRef::of(py, &var, r);
+        let [a, b] = self.0.references();
+        Ok((reference(a)?, reference(b)?))
+    }
+
+    /// The claim in words, each cell by its name as the document the
+    /// checks ran over speaks it, a split's unnamed tool by the name
+    /// `Doc.assert_quieting` gives it.
+    fn __str__(&self) -> String {
+        self.0.said(d::Speaker::of(&*self.1)).to_string()
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1.id() == other.1.id()
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (&self.0, self.1.id()).hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Quieting({})", self.0.said(d::Speaker::TAG))
     }
 }
 
@@ -897,7 +976,7 @@ impl ChecksReport {
     /// The report, each placement spoken from the document the checks ran
     /// over.
     fn __str__(&self) -> String {
-        self.report.spoken(&*self.doc)
+        self.report.spoken(&*self.doc).to_string()
     }
 
     /// The same findings and skips over the same document (the
@@ -1032,7 +1111,7 @@ pub(crate) fn run_checks(
             report,
             doc: evaluation.doc_shared(),
         })
-        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc())))
+        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc()).to_string()))
 }
 
 /// A mispaired `(doc, evaluation)` as this door's own refusal.
@@ -1131,6 +1210,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ChecksConfig>()?;
     m.add_class::<CheckEvidence>()?;
     m.add_class::<CheckFinding>()?;
+    m.add_class::<Quieting>()?;
+    m.add_class::<QuietingRef>()?;
     m.add_class::<CarriedCoincidence>()?;
     m.add_class::<ChecksReport>()?;
     m.add_function(wrap_pyfunction!(run_checks, m)?)?;

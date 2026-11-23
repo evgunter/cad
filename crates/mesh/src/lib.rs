@@ -135,13 +135,11 @@
 //!   `PolygonOrientation::of_face` and refuses one wound against its face,
 //!   and reads each triangle against the face's outward normal
 //!   (`geom_brep::implicit_outward_normal`);
-//! - `walk::wrap_strip` places a wrap strip's far side by the loop's
-//!   stored lift (`topo::Body::loop_lift`), whose joint at the far tip is
-//!   the turn topo read off the bit there, its loop walking one edge both
-//!   ways and so having no order to read;
-//! - the pole-to-pole band's azimuth below reads the loop's area
-//!   vector, which is on the outward side, against the chart's frame
-//!   turned to that side (`geom_brep::OutwardNormal::from_chart`).
+//! - `walk::wrap_strip` and the pole-to-pole band (`walk::band_columns`)
+//!   place their columns by the loop's stored lift
+//!   (`topo::Body::loop_lift`), whose joint at each pole is the turn topo
+//!   read off the bit there: the strip walks one edge both ways and has
+//!   no order to read, and the band has no rim to continue from.
 //!
 //! The walk assigns each iso side's constant coordinate once per ISO
 //! SIDE — not per point, and (since #653) not per edge either, so a
@@ -194,13 +192,9 @@
 //!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
-//! bands (no rim in the loop) disambiguate their azimuth half via the
-//! loop's 3-D area vector, taken into the chart frame by the face's
-//! `sense` (negated on a reversed face) — see [`walk`]. (That
-//! threading replaced the former "assumes outward-oriented shells"
-//! assumption; the band is
-//! the same face kind whose flux sign `geom_brep::props::curved`
-//! cannot read off any rim, and it takes the same fix.)
+//! bands (no rim in the loop) take their azimuth branches off the loop's
+//! stored lift, whose joint at each pole is the face's turn there — see
+//! [`walk`].
 //!
 //! # Determinism (D9)
 //!
@@ -336,6 +330,7 @@ mod nurbs_cert;
 mod nurbs_cert_fuzz;
 mod planar;
 mod region;
+mod ruled_walk;
 // The sizing vocabulary is this crate's own: nothing in the module is
 // `pub`, and its shared names are `pub(crate)`. The module itself is
 // `mod` rather than `pub mod` so that `dead_code` reports one the crate

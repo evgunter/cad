@@ -144,6 +144,7 @@
 //!   "The half-angle ladder, and the subdivision that answers").
 
 use geom::Conic;
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{CircleRoots, DoorRefusal, door_half_angle_roots, door_refusal};
@@ -283,7 +284,9 @@ pub(super) fn torus_method<T: Decide>(
 }
 
 /// A torus's centre, axis and radii, or `None` for another kind.
-fn torus_data<T: geom_core::Real>(torus: &geom::Surface<T>) -> Option<(Point3<T>, Vec3<T>, T, T)> {
+fn torus_data<T: geom_core::Real>(
+    torus: &geom::Surface<T>,
+) -> Option<(Point3<T>, UnitVec3<T>, T, T)> {
     match *torus {
         geom::Surface::Torus {
             frame,
@@ -291,7 +294,7 @@ fn torus_data<T: geom_core::Real>(torus: &geom::Surface<T>) -> Option<(Point3<T>
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some((center, axis, major_radius, minor_radius))
         }
         _ => None,
@@ -312,14 +315,14 @@ pub(super) struct Axes<T: geom_core::Real> {
 /// [`Axes`] of `circle` against the torus `(center, axis)`.
 pub(super) fn axes<T: Decide>(
     circle: &geom::Circle<T>,
-    (t_center, t_axis): (Point3<T>, Vec3<T>),
+    (t_center, t_axis): (Point3<T>, UnitVec3<T>),
 ) -> Axes<T> {
-    let tilt = circle.radius() * circle.frame.axis().cross(t_axis).norm();
+    let tilt = circle.radius() * circle.frame().axis().cross(t_axis.get()).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
         dir: t_axis,
     }
-    .param_and_offset(circle.frame.origin());
+    .param_and_offset(circle.frame().origin());
     Axes {
         tilt,
         h0,
@@ -363,10 +366,10 @@ pub(super) fn meridian<T: Decide>(
 ) -> T {
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
     let rounding = rounding_charge(
-        (circle.frame.origin() - origin).norm() + (t_center - origin).norm() + major_radius,
+        (circle.frame().origin() - origin).norm() + (t_center - origin).norm() + major_radius,
     );
     meridian_deviation(
-        circle.frame.axis(),
+        circle.frame().axis(),
         circle.radius(),
         axes.w_perp,
         axes.offset,
@@ -383,7 +386,7 @@ pub(super) fn meridian<T: Decide>(
 /// ring's `floor` on `|F|` per metre.
 fn circle_walk<T: Decide>(
     circle: &geom::Circle<T>,
-    (t_center, t_axis, major_radius, minor_radius): (Point3<T>, Vec3<T>, T, T),
+    (t_center, t_axis, major_radius, minor_radius): (Point3<T>, UnitVec3<T>, T, T),
     (t0, t1): (T, T),
     torus: &geom::Surface<T>,
     floor: T,
@@ -613,7 +616,7 @@ pub(super) fn contours<T: Decide>(
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let rho_max = radius + offset;
     let middle = geom::mid_param(t0, t1);
-    let (u_ref, v_ref) = (circle.frame.u_ref(), circle.frame.v_ref());
+    let (u_ref, v_ref) = (circle.frame().u_ref(), circle.frame().v_ref());
     Contours {
         depth: (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius),
         charge_h,

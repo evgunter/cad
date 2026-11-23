@@ -1,12 +1,13 @@
 ---
 id: the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause
 kind: issue
-title: The injectivity check's sliver concession reads a strip inside the band as holding nothing, where DESIGN's finished-body clause says a reading inside the band refuses as ambiguous
-status: open
+title: The injectivity check's sliver reads a cell that reaches past a shared line by rounding as holding none of its face, and certifies the pair with neither face read; it retires once the departure reading is metered at the faces' reach
+status: dispatched
 opened: 2026-11-13
-priority: P1
-cost: M
-design: true
+priority: P0
+cost: H
+pr: 7329
+branch: embed/remeter
 ---
 
 
@@ -52,6 +53,64 @@ Decide whether the sliver is consistent with the clause.
   `present_line_corner`'s pins, and the tour walk.
 
 Until this is decided, no new reader adopts the sliver.
+
+## Fork `embed-sliver`: the sliver retires
+
+Three designers, three rounds (`docs/DESIGN-FORK-LOG.md`, row 285);
+the clause is `docs/DESIGN.md` `[topology.tiers]`.
+
+**The premise above is corrected.** The sliver decides on `Zero`, a
+width of at most ε, never on a width inside the band, so it is not the
+reading the clause refuses. Measured (below): every one of its 96
+`Zero` decisions in a sweep is at rounding scale, on a cell that lies
+across the shared line from its face, with the other face unpresented,
+so the pair certifies with neither face read.
+
+**What it is evidence of.** `sign_on` decides a departure by the rate
+times the presentation rectangle's own span. A thin rectangle cannot
+pass whatever the faces do, a narrower cell makes it worse, and a sweep
+cell is not a lever the kernel admits. The sliver waves those cells
+through. It is also a `Zero` taken from a cell bound, which PR 6821
+rules out.
+
+**The final state (Ev, PR 7095, 2026-11-19 to 2026-11-21).** The
+sliver retires at all three of its readers, with no refusal in its
+place. The departure reading keeps its margin, metered at the reach of
+the faces it governs and never at a cell: Ev asked whether that margin
+tolerates geometry being ε off, and it does (two faces each ε off over
+their reach r meet at an angle uncertain by about ε/r, so a wedge that
+opens by less than about 2ε at the faces' far side could really open
+the other way). It is one reading with tier 3's wedge check
+(`crates/topo/src/edge_wedge.rs`, check 4: "bounded away from the ends
+by θ = ε/r", levered at the faces' extent, read at stations along the
+edge), not a second answer to the same question.
+`Presentation::Vacuous` means only that the cell lies off the face.
+The sliver's funnel site, its entry in the module's "ε concessions" and
+the rows that assert `Vacuous` through it go.
+
+**The unit.**
+1. The margin is metered at the faces' reach, by the lever
+   `edge_wedge` reads. Measured by proxy before the ruling (the rate's
+   sign decided at the least band, the sliver left on): no verdict
+   moves in the tour or the suites, and 40 tour bodies take fewer
+   pairs. `a_rod_less_a_tilted_slab_holds_across_its_curved_corners`
+   pins a count that moves (14 corner certificates to 18). The banded
+   form itself was not measured; the designers put its margins on
+   these bodies at 0.1 to 0.4 m against 1e-8 m.
+2. All three slivers go with it (`present_line_corner`,
+   `present_plane_corner`, `present_chart`). `chute`, the stepped ring
+   and `tiltedcut_above` hold without them, each pair by the carrier
+   arm with the thin rectangle read.
+3. The filleted drum's `Interval` half then refuses
+   (`the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam`,
+   three changes each of which closes it). It is a test and no demo,
+   so Ev let it go: its row is pinned at its refusal, with the exit
+   named, until that row's fix lands.
+
+The touch concession (`few_ulps`, in `vacuous` and `present_chart`) is
+the same compensation at chart scale and does not retire here: at 0,
+with the sliver gone, `hollowring`, `hollowtorus` and `teapotlid`
+refuse.
 
 ## Measured: what holds only through the sliver (EMBED, lane sliver-measure, 2026-11-17)
 
@@ -591,3 +650,55 @@ So no cell was built where the old rectangle certifies wrongly. The
 measurement lane also found this reader's sliver decides `Zero` in no
 sweep. If the fork keeps the sliver, read this reader over the
 plane corner's `R`, which needs no extra argument.
+
+## Measured: six valid bodies refused on a plane rectangle ~1e-16 wide (EMBED, lane embed/trace-cylinder, 2026-11-21)
+
+These are cause 8 of the cylinder trace of the per-solid census
+(`measure/gate/census-c2a0c41f40.json` on `embed/gate-measure`, the
+plane/cylinder edge bucket), measured on `embed/trace-cylinder-measure`
+with `CV_TRACE=1` (the `CVG` rows print `sign_on`'s side reading). All
+six are at f64 and end at `Budget(Depth { max_cell_depth: 40 })`,
+reported `Uncertified { arm: Departure }`.
+
+| binary | test | refusing pair (plane, cylinder, shared edge) |
+|---|---|---|
+| `sweep::all` | `blend4_r1_probes::p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form` | `7v7`, `21v1`, `37v1` |
+| `sweep::all` | `band_open_mixed_chain_shapes::arcs_of_a_half_turn_or_more_build` | `1v1`, `12v1`, `24v1` |
+| `sweep::all` | `band_open_mixed_chain_shapes::a_hole_over_a_wide_arcs_band_refuses_and_one_clear_of_it_builds` | `1v1`, `14v1`, `30v1` |
+| `sweep::all` | `blend_operand_gate::the_counterclockwise_wedge_blends_outward_at_both_doors` | `1v1`, `16v1`, `15v1` |
+| `sweep::all` | `review_blend4_r2_probes::r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path` | `1v1`, `20v1`, `13v1` |
+| `editor-core::all` | `review_m6_5_pr2_probes::p3_totality_holds_for_a_triangular_prism` | `1v1`, `16v1`, `15v1` |
+
+**The shape.** At the refusing cell pair the plane is presented
+`Of(Side(YLo))`, its rectangle clipped to a sliver beside the shared
+line: `y ∈ (0, w)` with `w` from 5.0e-17 to 6.3e-16. The partner
+cylinder is presented `Of(Side)` along the same edge. Under the plane
+and the graph separator `sign_on` reads the plane's side as
+`across = ∇ψ·f_y × span`, with span = `w`. That is about `w` itself, far
+inside the departure row's band, so `departs = None`. The sliver did not
+read the rectangle `Vacuous`.
+
+- `blend4_r1_probes::p1…`:
+  - plane cell `x ∈ (0.249268, 0.250732)`, `w = 4.20e-16`.
+  - Plane separator: plane `across = 6.04e-16` (None), cylinder
+    `across = 9.09e-4` over a span of `6.14e-3` (`Negative`).
+  - Graph separator: `6.08e-16` (None) and `9.15e-4` (`Negative`).
+- `review_m6_5_pr2_probes::p3…`:
+  - `w = 1.21e-16`.
+  - Plane separator: plane `across = 6.52e-17` (None), cylinder
+    `-2.82e-4` (`Negative`).
+  - Graph separator: `2.84e-16` (None), cylinder `-1.227e-3`.
+- `blend_operand_gate::…`: `w = 6.32e-16`; plane `across = 9.55e-16`
+  (None), cylinder `-4.91e-4` (`Negative`).
+- **Not the width alone in two.** In `arcs_of_a_half_turn_or_more_build`
+  and `a_hole_over_a_wide_arcs_band_refuses…` (`w = 5.05e-17`, plane
+  `across = -4.06e-20`), the cylinder side ALSO reads None: its `across`
+  is `[-1.32e-5, 1.89e-6]` over a span of `1.23e-2`, straddling zero,
+  under both separators. A wider plane reading alone would not certify
+  those two.
+- `review_blend4_r2_probes::r2…` (36 s) was traced without the `CVG`
+  print: the same two presentations, plane `w = 5.6e-16`.
+
+So in four of the six, the plane's rate times the sliver's own width is
+the only failing reading. In two, the cylinder's departure straddles as
+well. The bodies are valid, built as their tests' ordinary results.

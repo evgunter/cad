@@ -46,6 +46,9 @@ use viewer::pickindex::PickIndex;
 use crate::common::corpus_pick::{FlatReference, over_every_landing, too_wide, wide_aim};
 use editor_core::test_support::det_and_conditioning;
 
+const TEST_RAY: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("viewer_test_ray", "the triangles a test ray may hit");
+
 #[derive(Default)]
 struct Tally {
     rays: usize,
@@ -83,7 +86,14 @@ struct Tally {
 /// its first edit, `tube_arc` and `hollow_tube_elbow`, open and after
 /// their first edits, moved: grazes 147,955 → 147,952, refused
 /// candidates 17,532 → 16,824, rays with a refusal 8,358 → 8,244.
-const PINNED: (usize, usize, usize, usize) = (451_512, 147_856, 16_596, 8_142);
+///
+/// RE-PINNED when the curved lane's CDT came to run in the lattice
+/// metric (`tesslane/one-slit-band`): grazes 147,850 → 147,844, three in
+/// `tube_arc` after its first edit and three in `hollow_tube_elbow`
+/// open, whose torus patches take other diagonals. The 147,856 →
+/// 147,850 before it is main's, not this change's
+/// (`work/green/main-red-the-viewers-pick-tally-reads-six-grazes-short-of-its-pin.md`).
+const PINNED: (usize, usize, usize, usize) = (451_512, 147_844, 16_596, 8_142);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
@@ -95,7 +105,7 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
         let mut refused_here = 0usize;
         for flat in &reference.parts {
             let ray = flat.local(&ray);
-            for cand in flat.tree.ray(&ray) {
+            for cand in flat.tree.ray(TEST_RAY, &ray) {
                 let tri = &flat.corners[cand.item];
                 let cross = crossing(&ray, tri);
                 if cross.is_none() {

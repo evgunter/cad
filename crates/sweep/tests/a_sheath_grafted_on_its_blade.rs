@@ -151,12 +151,13 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                     ..
                 } if matches!(
                     **cause,
-                    EulerOpError::Certification {
+                    EulerOpError::DescriptionUncertified {
                         error: geom_brep::CertifyError::NotTransverse {
                             sample: geom_brep::certify::NOT_A_SAMPLE,
                             lever: None,
                             verdict: geom_brep::recourse::Refused::Zero(_),
                         },
+                        ..
                     }
                 )
             ),

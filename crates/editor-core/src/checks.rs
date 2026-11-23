@@ -1,8 +1,6 @@
 //! The advisory-check registry (DISCIPLINES-DESIGN DS6, grade 4) and
-//! its five residents: the connectedness check (LONGTERM-IDEAS
-//! I1(0b)), the chart-coherence examination
-//! (`topo::examine_chart_coherence`, read per rest body and default
-//! `Off`), the unused check (D10 `[operations]`: what the person made
+//! its four residents: the connectedness check (LONGTERM-IDEAS
+//! I1(0b)), the unused check (D10 `[operations]`: what the person made
 //! and nothing uses, read off the recipe, [`Doc::unused`]), the
 //! unproven-coincidence check (D10: each coincidence a
 //! node decided from values that the coincidence door,
@@ -32,8 +30,7 @@
 //! - **`skipped` is CONFIGURATION, and a check that could not look
 //!   says so as a FINDING.** The two are never folded. A resident
 //!   whose subject put something out of its reach — a shell whose
-//!   orientation would not read, a loop the chart-coherence door could
-//!   not walk — reports that with its own typed evidence, because
+//!   orientation would not read — reports that with its own typed evidence, because
 //!   "the caller turned me off" and "the data would not let me look"
 //!   are two answers and only the first is reversible by changing the
 //!   configuration.
@@ -50,6 +47,8 @@
 //! new check is a new variant, and the compiler enumerates every match
 //! site that must learn about it. There is no dynamic registration.
 
+use crate::say;
+use crate::sentence;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -64,6 +63,7 @@ use crate::node::RecipeNodeId;
 use crate::product;
 
 pub mod at_rest;
+pub mod quieting;
 
 /// The closed set of checks. A new check = a new variant; every match
 /// over this enum is a site the compiler then walks you to.
@@ -74,20 +74,6 @@ pub enum CheckId {
     /// counted as `Outer` shells ([`topo::classify_shells`]); internal
     /// voids are boundary, not components, and are never counted.
     Connectedness,
-    /// The chart-coherence examination
-    /// ([`topo::examine_chart_coherence`]): a curved face's CARRIERS
-    /// and its VERTICES disagree, in metres, about a chart coordinate
-    /// they both state.
-    ///
-    /// A MEASUREMENT and never a verdict — the door decides nothing,
-    /// this resident refuses nothing, and a body can be tier-3 green
-    /// and report, or tier-3 refused and stay quiet.
-    ///
-    /// **Defined at the `f64` lane only** ([`ChartCoherenceLane`]).
-    /// A lane without an examination says so as a finding
-    /// ([`CheckEvidence::ChartCoherenceUnavailable`]) rather than
-    /// reporting a clean body it never read.
-    ChartCoherence,
     /// The `unproven-coincidence` lint (D10): a coincidence an
     /// operation decided from values that the door
     /// ([`crate::coincide::prove`]) does not prove structural. It holds
@@ -123,13 +109,6 @@ impl CheckId {
             // bounded by the kernel's own intersection, and a pair it
             // could not decide is reported as exactly that.
             Self::AtRest => CheckKind::Certified,
-            // Certified: the gap, the lever arm and their product are
-            // closed forms over the body's own stated coordinates, and
-            // the band is an exact `<` against eps. What the finding
-            // asserts is that the two statements differ by this many
-            // metres, which is a theorem about the data — never that
-            // the body is wrong, which it does not say.
-            Self::ChartCoherence => CheckKind::Certified,
             // Certified in the direction it stays SILENT: a row it does
             // not report is one the door proved structural. What it
             // reports is the absence of that proof, which is exactly
@@ -154,9 +133,8 @@ impl CheckId {
     /// [`run_checks_on`] can refuse [`ChecksError::Product`] on one that
     /// does. Order decides only which refusal is reported: a refusal
     /// discards the whole report, every resident's findings with it.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 4] = [
         Self::Connectedness,
-        Self::ChartCoherence,
         Self::Unused,
         Self::UnprovenCoincidence,
         Self::AtRest,
@@ -173,10 +151,6 @@ impl CheckId {
             Self::Connectedness => false,
             // Each census rides the gathered product.
             Self::AtRest => true,
-            // The examination is over one body at rest, read per placement
-            // output exactly as connectedness is; no product, nothing
-            // to gather.
-            Self::ChartCoherence => false,
             // The rows ride each node's value, and the at-rest census's
             // ride the gathered product.
             Self::UnprovenCoincidence => true,
@@ -190,11 +164,6 @@ impl fmt::Display for CheckId {
         match self {
             Self::Connectedness => f.write_str("connectedness"),
             Self::AtRest => f.write_str("at-rest"),
-            // ONE token, like its two neighbours: `ChecksReport`'s
-            // skipped list is space-separated, so a two-word name
-            // would make the list unreadable at the boundary between
-            // two entries.
-            Self::ChartCoherence => f.write_str("chart-coherence"),
             Self::UnprovenCoincidence => f.write_str("unproven-coincidence"),
             Self::Unused => f.write_str("unused"),
         }
@@ -260,62 +229,6 @@ impl Advisory {
     }
 }
 
-/// **Which decision lanes carry a chart-coherence examination.**
-///
-/// [`topo::examine_chart_coherence`] reads a body's stored POINTS and
-/// carriers as lengths in metres, and a [`topo::Body`]'s geometry
-/// arenas are parameterised by the lane's scalar. The door is written
-/// at `f64`, so the examination exists at `f64` and nowhere else; the
-/// registry is generic over the lane, so it needs this to ask.
-///
-/// **`None` is a fact about the LANE, not a quiet pass.** The
-/// resident turns it into
-/// [`CheckEvidence::ChartCoherenceUnavailable`], one finding per rest
-/// body, because a lane that cannot look and reports nothing renders
-/// identically to a body with nothing to report — the F6 posture the
-/// rest of this module already takes.
-///
-/// **Why every lane but `f64` answers `None`.** The examination is
-/// written at `f64` ([`topo::examine_chart_coherence`] takes a
-/// `&Body<f64>`), so the absence is LANE-0's class, *the derivation is
-/// not written at this scalar*, and not *this scalar may not certify*.
-/// `Sym` and `Dual` have no impl at all, so the resident's pass cannot be
-/// instantiated at them: a static exclusion, not a `None`.
-pub trait ChartCoherenceLane: geom_core::Real {
-    /// This lane's chart-coherence examination of `body` at `tol`, or
-    /// `None` when the lane has none.
-    fn examine_chart_coherence(body: &topo::Body<Self>, tol: Tol) -> Option<topo::CoherenceReport>;
-}
-
-impl ChartCoherenceLane for f64 {
-    fn examine_chart_coherence(body: &topo::Body<Self>, tol: Tol) -> Option<topo::CoherenceReport> {
-        Some(topo::examine_chart_coherence(body, tol))
-    }
-}
-
-#[cfg(feature = "probe")]
-impl ChartCoherenceLane for geom_core::Probe {
-    fn examine_chart_coherence(
-        _body: &topo::Body<Self>,
-        _tol: Tol,
-    ) -> Option<topo::CoherenceReport> {
-        // Not written at this scalar (the examination takes a
-        // `Body<f64>`): the trait's LANE-0 absence, not a refusal to certify.
-        None
-    }
-}
-
-impl ChartCoherenceLane for geom_core::interval::Interval {
-    fn examine_chart_coherence(
-        _body: &topo::Body<Self>,
-        _tol: Tol,
-    ) -> Option<topo::CoherenceReport> {
-        // Not written at this scalar (the examination takes a
-        // `Body<f64>`): the trait's LANE-0 absence, not a refusal to certify.
-        None
-    }
-}
-
 /// Per-run check configuration (the [`crate::EvalOptions`] mold: a
 /// plain argument to the door, no ambient state, nothing persisted).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -328,30 +241,6 @@ pub struct ChecksConfig {
     /// resident's acknowledgment mechanism: a deliberately disjoint
     /// body is EXPECTED disjoint, stated as data, and stays clean.
     pub expected_components: BTreeMap<(RecipeNodeId, u32), u32>,
-    /// [`CheckId::ChartCoherence`]'s severity — [`Advisory`], NOT
-    /// [`Severity`], on the same DS6 `iff`: this resident ships no
-    /// per-finding acknowledgment record with a staleness direction,
-    /// so `Error` is unrepresentable rather than asked-not-to-be-used.
-    ///
-    /// **Default `Off`, and that is the one default on this type that
-    /// is not `Warn`.** Two measured reasons, neither of them taste:
-    ///
-    /// - the examination has no shape door, so a chart-bearing face
-    ///   whose outer loop carries a conic or spline trim carrier puts
-    ///   every one of its loops in
-    ///   [`CheckEvidence::ChartCoherenceUnexamined`] — two per body on
-    ///   an ordinary trimmed cylinder
-    ///   (`mesh::mesh8_corpus_coherence`). That is a correct report of
-    ///   a lane boundary and it is not actionable, and a resident that
-    ///   fires on ordinary bodies by default is not a report;
-    /// - it reads every face of every rest body on every run, and this
-    ///   registry is an advisory pass whose per-resident cost is
-    ///   measured and pinned. Nothing has measured this one, so it
-    ///   does not join the default pass.
-    ///
-    /// Turning it on is one field, and `Off` is VISIBLY off
-    /// ([`ChecksReport::skipped`]).
-    pub chart_coherence: Advisory,
     /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`], so
     /// `Error` is unrepresentable. An assertion quiets a row, an
     /// operation's or an at-rest one, under [`mod@at_rest`]'s contact rule,
@@ -380,7 +269,6 @@ impl Default for ChecksConfig {
         Self {
             connectedness: Severity::Warn,
             expected_components: BTreeMap::new(),
-            chart_coherence: Advisory::Off,
             unproven_coincidence: Advisory::Warn,
             at_rest: Severity::Warn,
             unused: Advisory::Warn,
@@ -395,7 +283,6 @@ impl ChecksConfig {
         match check {
             CheckId::Connectedness => self.connectedness,
             CheckId::AtRest => self.at_rest,
-            CheckId::ChartCoherence => self.chart_coherence.severity(),
             CheckId::UnprovenCoincidence => self.unproven_coincidence.severity(),
             CheckId::Unused => self.unused.severity(),
         }
@@ -468,48 +355,6 @@ pub enum CheckEvidence {
         /// The entry's stated component count.
         expected: u32,
     },
-    /// One chart-coherence measurement, carried whole
-    /// ([`topo::CoherenceFinding`]: the condition, the gap in chart
-    /// units, the lever arm, their product in metres, and the band it
-    /// was judged at).
-    ///
-    /// The kernel's own value rides here rather than being unpacked
-    /// into fields, on the [`CheckEvidence::Escalated`] precedent: it
-    /// is `Clone + PartialEq`, so it can, and a consumer that wants
-    /// the coordinate gets the kernel's own struct rather than this
-    /// layer's restatement of it.
-    ChartCoherence {
-        /// The measurement.
-        finding: topo::CoherenceFinding,
-    },
-    /// One loop of a chart-bearing face the examination COULD NOT
-    /// READ, carried whole ([`topo::Unexamined`]).
-    ///
-    /// **This is data, and [`ChecksReport::skipped`] is
-    /// configuration.** The two are not the same fact and are not
-    /// folded: `skipped` says a caller set this check's severity to
-    /// `Off` and nothing was looked at ON PURPOSE, reversible by
-    /// changing the configuration; this says the check RAN and the
-    /// body put a loop out of its reach, which no configuration
-    /// changes. The kernel door states the same distinction about its
-    /// own two lists at [`topo::CoherenceReport::unexamined`], and
-    /// this arm is how it survives the crossing: an unexamined loop
-    /// arrives as a FINDING (the F6 posture the `Escalated` and
-    /// `Unsupported` arms already take one resident over), never as a
-    /// skipped check and never as silence.
-    ChartCoherenceUnexamined {
-        /// The loop, the face owning it, and why.
-        unexamined: topo::Unexamined,
-    },
-    /// This evaluation's decision lane carries no chart-coherence
-    /// examination ([`ChartCoherenceLane`]), so this body's chart
-    /// coordinates were never read.
-    ///
-    /// One finding per rest body rather than a clean report (F6): a
-    /// lane that cannot look and says nothing is indistinguishable
-    /// from a body with nothing to report, which is the one thing this
-    /// resident may not be.
-    ChartCoherenceUnavailable,
     /// A coincidence the finding's node decided from values that the
     /// door does not prove structural ([`crate::coincide::prove`]).
     UnprovenCoincidence {
@@ -532,13 +377,12 @@ pub enum CheckEvidence {
             crate::coincide::Residual,
             crate::coincide::Recourse,
         )>,
-        /// Whether an assertion could quiet the row
-        /// ([`at_rest::row_quietable`]): some measure says what it
-        /// decided, and that measure over its two cells reads zero. A
-        /// row no assertion could quiet never refuses
-        /// ([`Self::never_refuses`]), and its recourse names the
-        /// construction alone.
-        quietable: bool,
+        /// The assertion that would quiet the row
+        /// ([`at_rest::quieting`]): some measure says what it decided,
+        /// and that measure over its two cells reads zero. A row with
+        /// none never refuses ([`Self::never_refuses`]), and its
+        /// recourse names the construction alone.
+        quieting: Option<quieting::Quieting>,
     },
     /// An overlap of two arrivals' material at rest, quiet or loud
     /// ([`at_rest::InterferenceFinding`]).
@@ -587,19 +431,19 @@ impl CheckEvidence {
     /// **Whether this finding is outside what the document can yet say**
     /// (CHECKS DS6): a pair the census could not look at
     /// ([`Self::could_not_look`]), an overlap no assertion could quiet
-    /// ([`at_rest::InterferenceFinding::quietable`]): one the kernel
+    /// ([`at_rest::InterferenceFinding::quieting`]): one the kernel
     /// could not intersect, or one whose bounding faces offer no pair an
     /// assertion the quieting rule accepts could be written over; or a
     /// coincidence no assertion could quiet
-    /// ([`at_rest::row_quietable`]). Loud, and refused by
+    /// ([`at_rest::quieting`]). Loud, and refused by
     /// [`enforce_checks`] at no severity: a refusal there would have no
     /// recourse but changing geometry.
     #[must_use]
     pub fn never_refuses(&self) -> bool {
         match self {
-            Self::UnprovenCoincidence { quietable, .. } => !quietable,
-            Self::Interference { finding } => !finding.quietable,
-            Self::CarriedInterference { finding } => !finding.finding.quietable,
+            Self::UnprovenCoincidence { quieting, .. } => quieting.is_none(),
+            Self::Interference { finding } => finding.quieting.is_none(),
+            Self::CarriedInterference { finding } => finding.finding.quieting.is_none(),
             Self::CarriedCoincidence { finding } => finding.finding.evidence.never_refuses(),
             other => other.could_not_look(),
         }
@@ -660,10 +504,13 @@ pub enum FindingSubject {
 
 /// A copy as a finding says it: its placement's output, and its member
 /// where the placement defines several.
-fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'_>) -> String {
+fn copy_said(
+    copy: crate::checks::at_rest::CopyRef,
+    by: crate::spoken::Speaker<'_>,
+) -> crate::Sentence {
     match copy.member {
         0 => by.read(copy.var),
-        member => format!("{} member {member}", by.read(copy.var)),
+        member => sentence!(by.read(copy.var), format_args!(" member {member}")),
     }
 }
 
@@ -681,13 +528,15 @@ fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
 // - CarriedInterference and CarriedCoincidence end in the part's
 //   recourse, naming the part, since only the part can act on it.
+// And a quiet finding, interference or coincidence, carried or not,
+// offers nothing: an assertion already says it.
 impl crate::finding::Finding for SaidFinding<'_> {
-    fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn subject(&self, f: &mut crate::Sentence) -> fmt::Result {
         write!(f, "check {}: ", self.0.check)?;
         self.about(f)
     }
 
-    fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn story(&self, f: &mut crate::Sentence) -> fmt::Result {
         let Self(finding, by) = *self;
         self.evidence_story(f)?;
         match (finding.quiet, &finding.evidence) {
@@ -697,26 +546,46 @@ impl crate::finding::Finding for SaidFinding<'_> {
             (Some(_), CheckEvidence::CarriedInterference { .. }) => {
                 f.write_str("; quiet: an assertion of the part's says so")
             }
-            (Some(assertion), CheckEvidence::CarriedCoincidence { finding }) => write!(
+            (Some(assertion), CheckEvidence::CarriedCoincidence { finding }) => say!(
                 f,
-                "; quiet: the part's {} says so",
-                crate::spoken::Speaker::of(&**finding.doc.get()).node_as(assertion, "assertion")
+                "; quiet: the part's ",
+                crate::spoken::Speaker::of(&**finding.doc.get()).node_as(assertion, "assertion"),
+                " says so"
             ),
             (Some(assertion), _) => {
-                write!(f, "; quiet: {} says so", by.node_as(assertion, "assertion"))
+                say!(
+                    f,
+                    "; quiet: ",
+                    by.node_as(assertion, "assertion"),
+                    " says so"
+                )
             }
         }?;
-        // A part's finding is acted on in the part: its recourse, there.
+        // A part's finding is acted on in the part: its recourse, there,
+        // where it is loud.
+        if finding.quiet.is_some() {
+            return Ok(());
+        }
         match &finding.evidence {
-            CheckEvidence::CarriedInterference { finding } => write!(
+            // A carried finding holds no part document to speak its
+            // faces by, so they are said by their tags.
+            CheckEvidence::CarriedInterference { finding } => say!(
                 f,
-                " — the overlap is the part's, so act in document {}: {INTERFERENCE_RECOURSE}",
-                finding.route.of
+                format_args!(
+                    " — the overlap is the part's, so act in document {}: ",
+                    finding.route.of
+                ),
+                interference_recourse(
+                    finding.finding.quieting.as_ref(),
+                    crate::spoken::Speaker::TAG
+                )
             ),
-            CheckEvidence::CarriedCoincidence { finding } => write!(
+            CheckEvidence::CarriedCoincidence { finding } => say!(
                 f,
-                " — the row is the part's, so act in document {}: {}",
-                finding.route.of,
+                format_args!(
+                    " — the row is the part's, so act in document {}: ",
+                    finding.route.of
+                ),
                 SaidFinding(
                     &finding.finding,
                     crate::spoken::Speaker::of(&**finding.doc.get())
@@ -727,45 +596,58 @@ impl crate::finding::Finding for SaidFinding<'_> {
         }
     }
 
-    fn recourse(&self) -> &str {
+    fn recourse(&self) -> crate::Sentence {
         self.recourse_words()
     }
 }
 
-/// What to do about an overlap of two arrivals, in the document whose
-/// arrivals they are.
-const INTERFERENCE_RECOURSE: &str = "Recourse: move the two apart, combine them with a boolean \
-     if they are one body, or, for a fit meant to interfere, assert a negative Gap between the \
-     two faces that bound the overlap";
+/// **What to do about an overlap of two arrivals**, in the document
+/// whose arrivals they are, rendered from the pair an assertion would
+/// quiet it over ([`quieting::OpposedPair`]): the assertion is offered,
+/// over those two faces, only where the finding carries them.
+fn interference_recourse(
+    pair: Option<&quieting::OpposedPair>,
+    by: crate::spoken::Speaker<'_>,
+) -> crate::Sentence {
+    match pair {
+        Some(pair) => crate::sentence!(
+            "Recourse: move the two apart, combine them with a boolean if they are one body, \
+             or, for a fit meant to interfere, assert a negative Gap between ",
+            pair.said(by)
+        ),
+        None => crate::Sentence::from(
+            "Recourse: move the two apart, or combine them with a boolean if they are one body",
+        ),
+    }
+}
 
 impl SaidFinding<'_> {
     /// What the finding is about, by the speaker.
-    fn about(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn about(&self, f: &mut crate::Sentence) -> fmt::Result {
         let Self(finding, by) = *self;
         match finding.subject {
-            FindingSubject::Node(node) => write!(f, "{}", by.node_as(node, "node")),
+            FindingSubject::Node(node) => say!(f, by.node_as(node, "node")),
             FindingSubject::Output {
                 placement,
                 output_ix,
             } => {
-                write!(
+                say!(
                     f,
-                    "{} output {}",
                     by.node_as(placement, "placement"),
-                    output_ix
+                    format_args!(" output {output_ix}")
                 )
             }
             FindingSubject::Census { read } | FindingSubject::Var(read) => {
-                f.write_str(&by.read(read))
+                say!(f, by.read(read))
             }
             FindingSubject::Copies { a, b } => {
-                write!(f, "copies {} and {}", copy_said(a, by), copy_said(b, by))
+                say!(f, "copies ", copy_said(a, by), " and ", copy_said(b, by))
             }
         }
     }
 
     /// What the evidence says was found.
-    fn evidence_story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn evidence_story(&self, f: &mut crate::Sentence) -> fmt::Result {
         let Self(finding, by) = *self;
         match &finding.evidence {
             CheckEvidence::Connectedness { actual, expected } => write!(
@@ -811,54 +693,6 @@ impl SaidFinding<'_> {
                  placement output. Recourse: remove the ChecksConfig::expected_components \
                  entry, or fix the placement"
             ),
-            CheckEvidence::ChartCoherence { finding } => {
-                let what = match finding.condition {
-                    topo::CoherenceCondition::MeridianClosure { .. } => {
-                        "a meridian edge's carrier midpoint and one of its own endpoint \
-                         vertices state azimuths"
-                    }
-                    topo::CoherenceCondition::RimContinuation { .. } => {
-                        "two edges carrying one rim row state row coordinates"
-                    }
-                    topo::CoherenceCondition::MeridianContinuation { .. } => {
-                        "two edges carrying one meridian column state azimuths"
-                    }
-                };
-                write!(
-                    f,
-                    "{what} {:e} m apart (band {:e} m)",
-                    finding.metres, finding.eps
-                )
-            }
-            CheckEvidence::ChartCoherenceUnexamined { unexamined } => {
-                f.write_str("a loop of a chart-bearing face could not be examined: ")?;
-                match unexamined.why {
-                    // The read's name is the kernel's own word for it
-                    // and is what a consumer branches on; the typed
-                    // value rides in the evidence beside this sentence.
-                    topo::Unexaminable::Corrupt { at } => write!(
-                        f,
-                        "its structure did not resolve ({at:?}), which is a tier-1 defect \
-                         rather than a coherence one"
-                    ),
-                    topo::Unexaminable::LoneLoop { .. } => f.write_str(
-                        "it is a lone vertex, construction scaffolding with no edge, so it \
-                         states no coordinate to compare",
-                    ),
-                    topo::Unexaminable::NullScaffoldEdge { .. } => f.write_str(
-                        "an edge of it carries construction scaffolding rather than a \
-                         certified curve, so it states no coordinate to compare",
-                    ),
-                    topo::Unexaminable::NonIsoCarrier { .. } => f.write_str(
-                        "the face's outer loop carries a conic or spline trim carrier, so \
-                         its boundary is not a chart iso curve and none of the three \
-                         conditions is about it",
-                    ),
-                }
-            }
-            CheckEvidence::ChartCoherenceUnavailable => f.write_str(
-                "this evaluation's lane does not examine chart coherence, so nothing was read",
-            ),
             CheckEvidence::UnprovenCoincidence {
                 row,
                 residual,
@@ -866,22 +700,24 @@ impl SaidFinding<'_> {
                 ..
             } => {
                 let cell = |c: &crate::coincide::NamedCell| match c {
-                    crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
+                    crate::coincide::NamedCell::Entity { name, .. } => sentence!(by.name(name)),
                     crate::coincide::NamedCell::Tool { input, role } => match role {
-                        Some(role) => format!("the {role} of {}", by.read(*input)),
-                        None => format!("the plane of {}", by.read(*input)),
+                        Some(role) => sentence!(format_args!("the {role} of "), by.read(*input)),
+                        None => sentence!("the plane of ", by.read(*input)),
                     },
                     crate::coincide::NamedCell::Piece { profile, piece } => {
                         crate::names::words::piece(piece, *profile, by)
                     }
                 };
-                write!(
+                say!(
                     f,
-                    "{}, decided from values ({}, margin {:e}), is not proven structural: \
-                     {residual}",
                     crate::coincide::statement_words(row, cell),
-                    crate::coincide::site_words(row.site),
-                    row.margin,
+                    format_args!(
+                        ", decided from values ({}, margin {:e}), is not proven structural: \
+                         {residual}",
+                        crate::coincide::site_words(row.site),
+                        row.margin,
+                    )
                 )?;
                 if let Some(axes) = &residual.axes {
                     axes_words(f, axes, by)?;
@@ -897,10 +733,10 @@ impl SaidFinding<'_> {
             }
             CheckEvidence::Interference { finding } => interference_words(f, finding, by),
             CheckEvidence::CarriedInterference { finding } => {
-                write!(
+                say!(
                     f,
-                    "{} reports an overlap between its own arrivals: ",
-                    crate::spoken::Said(&finding.route, by)
+                    crate::spoken::Said(&finding.route, by),
+                    " reports an overlap between its own arrivals: "
                 )?;
                 interference_words(f, &finding.finding, crate::spoken::Speaker::TAG)
             }
@@ -909,85 +745,68 @@ impl SaidFinding<'_> {
                     &finding.finding,
                     crate::spoken::Speaker::of(&**finding.doc.get()),
                 );
-                write!(
+                say!(
                     f,
-                    "{} leaves a coincidence of its own unproven, at ",
-                    crate::spoken::Said(&finding.route, by)
+                    crate::spoken::Said(&finding.route, by),
+                    " leaves a coincidence of its own unproven, at "
                 )?;
                 part.about(f)?;
                 f.write_str(": ")?;
                 part.evidence_story(f)
             }
             CheckEvidence::AtRest { evidence } => {
-                write!(
+                say!(
                     f,
-                    "the census could not look: {}",
+                    "the census could not look: ",
                     crate::spoken::Said(evidence, by)
                 )
             }
             CheckEvidence::Unused { named } => {
                 f.write_str("used by nothing")?;
                 if !named.is_empty() {
-                    let names: Vec<String> = named.iter().map(|&var| by.read(var)).collect();
-                    write!(f, ", its outputs named {} with it", names.join(", "))?;
+                    let names =
+                        crate::Sentence::joined(named.iter().map(|&var| by.read(var)), ", ");
+                    say!(f, ", its outputs named ", names, " with it")?;
                 }
                 f.write_str(": not the product, not an assertion, and nothing reads it")
             }
         }
     }
 
-    fn recourse_words(&self) -> &'static str {
+    fn recourse_words(&self) -> crate::Sentence {
+        let by = self.1;
+        let told = crate::Sentence::from;
         match &self.0.evidence {
-            CheckEvidence::Connectedness { .. } => {
+            CheckEvidence::Connectedness { .. } => told(
                 "Recourse: a stray component usually means a boolean that missed its operand \
                  or an instance placed nowhere; if it is deliberate, state the expected count \
-                 in ChecksConfig::expected_components"
+                 in ChecksConfig::expected_components",
+            ),
+            // A quiet finding is one an assertion already says: it
+            // offers nothing.
+            CheckEvidence::Interference { .. } | CheckEvidence::UnprovenCoincidence { .. }
+                if self.0.quiet.is_some() =>
+            {
+                told("")
             }
-            CheckEvidence::Interference { .. } => INTERFERENCE_RECOURSE,
-            CheckEvidence::Unused { .. } => "Recourse: use it, or delete it",
-            CheckEvidence::ChartCoherence { .. } => {
-                "a MEASUREMENT, not a refusal: judge the metres against the band; an \
-                 imported part usually wants re-exporting at more digits, and a minted one \
-                 is a kernel finding"
+            CheckEvidence::Interference { finding } => {
+                interference_recourse(finding.quieting.as_ref(), by)
             }
-            CheckEvidence::ChartCoherenceUnexamined { unexamined } => match unexamined.why {
-                topo::Unexaminable::Corrupt { .. } => {
-                    "the body's structural validation names the defect this read could not \
-                     get past"
-                }
-                // Tier 1 admits a lone loop; tier 2 names it at rest
-                // (`ScaffoldingEmptyLoop`).
-                topo::Unexaminable::LoneLoop { .. } => {
-                    "the body's closed-solid validation names this loop as construction \
-                     scaffolding left at rest"
-                }
-                // A scaffolding edge and a trimmed face are lane
-                // boundaries, not defects: the report names them so
-                // the quiet is accounted for, and there is nothing to
-                // act on.
-                topo::Unexaminable::NullScaffoldEdge { .. }
-                | topo::Unexaminable::NonIsoCarrier { .. } => "",
-            },
-            CheckEvidence::ChartCoherenceUnavailable => {
-                "Recourse: evaluate the document at f64 to measure it, or turn this check \
-                 off rather than reading its silence as a clean body"
-            }
+            CheckEvidence::Unused { .. } => told("Recourse: use it, or delete it"),
             CheckEvidence::UnprovenCoincidence {
-                recourse,
-                quietable,
-                ..
-            } => recourse.words(*quietable),
+                recourse, quieting, ..
+            } => recourse.words(quieting.as_ref(), by),
             // The story ends in the part's own recourse, in the part.
             CheckEvidence::CarriedInterference { .. }
-            | CheckEvidence::CarriedCoincidence { .. } => "",
+            | CheckEvidence::CarriedCoincidence { .. } => told(""),
             // The first finding's own sentence carries its recourse.
             CheckEvidence::NotAtRest { .. }
             | CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
-            | CheckEvidence::StaleExpectation { .. } => "",
+            | CheckEvidence::StaleExpectation { .. } => told(""),
             // The kernel's verdict, the gather's refusal and the part's
             // row each end in their own recourse.
-            CheckEvidence::AtRest { .. } => "",
+            CheckEvidence::AtRest { .. } => told(""),
         }
     }
 }
@@ -999,27 +818,28 @@ impl SaidFinding<'_> {
 /// mates reach, whichever cell the row names first; a radius never
 /// read is said so.
 fn axes_words(
-    f: &mut fmt::Formatter<'_>,
+    f: &mut crate::Sentence,
     axes: &crate::coincide::Axes,
     by: crate::spoken::Speaker<'_>,
 ) -> fmt::Result {
     use crate::coincide::Component;
-    let one = |f: &mut fmt::Formatter<'_>| match axes.reached {
+    let one = |f: &mut crate::Sentence| match axes.reached {
         [Some(a), Some(b)] if a == b => {
-            write!(f, "; the axes are one, both reading {}", by.read(a))
+            say!(f, "; the axes are one, both reading ", by.read(a))
         }
         _ => f.write_str("; the axes are one"),
     };
     match axes.left {
         Component::Axis => {
             let axis = |i: usize| match axes.reached[i] {
-                Some(pose) => format!("reads {}", by.read(pose)),
-                None => "is its own".to_owned(),
+                Some(pose) => sentence!("reads ", by.read(pose)),
+                None => crate::Sentence::from("is its own"),
             };
-            write!(
+            say!(
                 f,
-                "; the axes are two: the first cell's {}, the second's {}",
+                "; the axes are two: the first cell's ",
                 axis(0),
+                ", the second's ",
                 axis(1)
             )?;
             let edit = [(0, 1), (1, 0)].into_iter().find_map(|(i, j)| {
@@ -1029,14 +849,14 @@ fn axes_words(
             });
             match edit {
                 Some((pose, copy, reader)) => {
-                    write!(
+                    say!(
                         f,
-                        ". Edit, for the axis: mate {}'s axis onto {}",
+                        ". Edit, for the axis: mate ",
                         by.read(copy),
-                        by.read(pose)
+                        sentence!("'s axis onto ", by.read(pose))
                     )?;
                     match reader {
-                        Some(reader) => write!(f, ", which {} reads", by.read(reader)),
+                        Some(reader) => say!(f, ", which ", by.read(reader), " reads"),
                         None => Ok(()),
                     }
                 }
@@ -1063,20 +883,20 @@ fn axes_words(
 /// An interference finding's story: the two arrivals, and where they
 /// overlap.
 fn interference_words(
-    f: &mut fmt::Formatter<'_>,
+    f: &mut crate::Sentence,
     finding: &at_rest::InterferenceFinding,
     by: crate::spoken::Speaker<'_>,
 ) -> fmt::Result {
-    write!(
+    say!(
         f,
-        "{} and {} overlap",
         copy_said(finding.a, by),
-        copy_said(finding.b, by)
+        sentence!(" and ", copy_said(finding.b, by), " overlap")
     )?;
     match &finding.overlap {
         at_rest::Overlap::Bounded { faces } => {
-            let names: Vec<String> = faces.iter().map(|s| by.name(&s.face).to_string()).collect();
-            write!(f, ", bounded by {}", names.join(", "))
+            let names =
+                crate::Sentence::joined(faces.iter().map(|s| sentence!(by.name(&s.face))), ", ");
+            say!(f, ", bounded by ", names)
         }
         at_rest::Overlap::Unlocalized(why) => {
             f.write_str(", and the kernel could not bound the overlap: ")?;
@@ -1103,21 +923,109 @@ fn interference_words(
 struct SaidFinding<'a>(&'a CheckFinding, crate::spoken::Speaker<'a>);
 
 impl crate::spoken::Say for CheckFinding {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         crate::finding::compose(f, &SaidFinding(self, by))
+    }
+}
+
+/// **The assertion a loud finding carries** ([`CheckFinding::carried_assertion`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarriedAssertion<'a> {
+    /// An unproven coincidence's claim, authored whole.
+    Claim(&'a quieting::Quieting),
+    /// An interference's opposed pair, a `Gap` over which, its bound
+    /// the author's, quiets it.
+    Pair(&'a quieting::OpposedPair),
+}
+
+impl CheckFinding {
+    /// **The assertion this finding carries**, the one source of
+    /// whether it offers one: a loud unproven coincidence's claim or a
+    /// loud interference's pair. `None` for a quiet finding (an
+    /// assertion already says it), for one that carries none, and for a
+    /// part's carried finding, which is answered in the part.
+    #[must_use]
+    pub fn carried_assertion(&self) -> Option<CarriedAssertion<'_>> {
+        if self.quiet.is_some() {
+            return None;
+        }
+        match &self.evidence {
+            CheckEvidence::UnprovenCoincidence { quieting, .. } => {
+                quieting.as_ref().map(CarriedAssertion::Claim)
+            }
+            CheckEvidence::Interference { finding } => {
+                finding.quieting.as_ref().map(CarriedAssertion::Pair)
+            }
+            CheckEvidence::Connectedness { .. }
+            | CheckEvidence::Escalated { .. }
+            | CheckEvidence::Unsupported { .. }
+            | CheckEvidence::NotAtRest { .. }
+            | CheckEvidence::StaleExpectation { .. }
+            | CheckEvidence::CarriedInterference { .. }
+            | CheckEvidence::CarriedCoincidence { .. }
+            | CheckEvidence::AtRest { .. }
+            | CheckEvidence::Unused { .. } => None,
+        }
+    }
+
+    /// **The finding's sentence beside a control that authors the
+    /// assertion it carries**, said by `by`: its recourse names every
+    /// act but that assertion, which the control is
+    /// ([`CheckEvidence::UnprovenCoincidence`]'s `quieting`,
+    /// [`at_rest::InterferenceFinding::quieting`]). A finding that
+    /// carries none is said whole.
+    #[must_use]
+    pub fn said_beside_its_assertion(&self, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
+        crate::spoken::Said(&Beside(self), by).sentence()
+    }
+}
+
+/// A finding to be said beside the control that authors its
+/// assertion ([`CheckFinding::said_beside_its_assertion`]).
+struct Beside<'a>(&'a CheckFinding);
+
+impl crate::spoken::Say for Beside<'_> {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+        crate::finding::compose(f, &BesideItsAssertion(SaidFinding(self.0, by)))
+    }
+}
+
+/// A finding said with its recourse less the assertion a control
+/// beside it authors.
+struct BesideItsAssertion<'a>(SaidFinding<'a>);
+
+impl crate::finding::Finding for BesideItsAssertion<'_> {
+    fn subject(&self, f: &mut crate::Sentence) -> fmt::Result {
+        self.0.subject(f)
+    }
+
+    fn story(&self, f: &mut crate::Sentence) -> fmt::Result {
+        self.0.story(f)
+    }
+
+    fn recourse(&self) -> crate::Sentence {
+        let SaidFinding(finding, by) = self.0;
+        match (finding.carried_assertion(), &finding.evidence) {
+            (
+                Some(CarriedAssertion::Claim(_)),
+                CheckEvidence::UnprovenCoincidence { recourse, .. },
+            ) => recourse.words_beside_its_claim(by),
+            (Some(CarriedAssertion::Pair(_)), _) => interference_recourse(None, by),
+            (Some(CarriedAssertion::Claim(_)) | None, _) => self.0.recourse(),
+        }
     }
 }
 
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
 /// The findings, each said by `by`, one per line ([`crate::finding::render_list`]).
 fn say_findings(
-    f: &mut fmt::Formatter<'_>,
+    f: &mut crate::Sentence,
     findings: &[CheckFinding],
     by: crate::spoken::Speaker<'_>,
 ) -> fmt::Result {
@@ -1153,7 +1061,7 @@ pub struct ChecksReport {
 }
 
 impl crate::spoken::Say for ChecksReport {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         if self.findings.is_empty() {
             write!(f, "checks: no findings")?;
         } else {
@@ -1179,7 +1087,7 @@ impl crate::spoken::Say for ChecksReport {
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for ChecksReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1234,8 +1142,8 @@ impl ChecksReport {
     ///
     /// When `doc` is not the document the checks were run over.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        crate::spoken::Said(self, self.speaker(doc)).to_string()
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
+        crate::spoken::Said(self, self.speaker(doc)).sentence()
     }
 }
 
@@ -1305,12 +1213,12 @@ impl From<crate::ident::Mispaired> for ChecksError {
 }
 
 impl crate::spoken::Say for ChecksError {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         match self {
             Self::Placement(standing) => {
-                write!(
+                say!(
                     f,
-                    "checks: {}",
+                    "checks: ",
                     crate::spoken::Said(&standing.of_placement(), by)
                 )
             }
@@ -1322,7 +1230,7 @@ impl crate::spoken::Say for ChecksError {
             ),
             Self::Product {
                 refusal: Some(refusal),
-            } => write!(f, "checks: {}", crate::spoken::Said(refusal, by)),
+            } => say!(f, "checks: ", crate::spoken::Said(refusal, by)),
             Self::Product { refusal: None } => write!(
                 f,
                 "checks: an enabled check reads the document's product, and none was taken. {}",
@@ -1336,7 +1244,7 @@ impl crate::spoken::Say for ChecksError {
 /// The sentence where no document is at hand: each node by its tag.
 impl fmt::Display for ChecksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1345,7 +1253,7 @@ impl ChecksError {
     /// it**: each node, a placement's or the gather's, as `doc` holds it now
     /// ([`crate::Doc::spoken`]).
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -1365,7 +1273,7 @@ pub struct CheckRefusal {
 }
 
 impl crate::spoken::Say for CheckRefusal {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         write!(
             f,
             "{} check finding(s) at Error severity:",
@@ -1378,7 +1286,7 @@ impl crate::spoken::Say for CheckRefusal {
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1390,8 +1298,8 @@ impl CheckRefusal {
     ///
     /// When `doc` is not the document the refused report was run over.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        crate::spoken::Said(self, self.speaker(doc)).to_string()
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
+        crate::spoken::Said(self, self.speaker(doc)).sentence()
     }
 
     /// **The speaker for this refusal's placements**: each as `doc` holds it
@@ -1500,7 +1408,7 @@ impl<T: topo::AtRestPolicy + Decide> Subject<'_, T> {
 /// nothing — the evaluation is read, never rebuilt (DS3 by
 /// construction).
 ///
-/// Subjects are the body-denoting outputs of `doc.placements()`, each
+/// Subjects are the body-denoting outputs of `doc.copies()`, each
 /// checked per `(placement, output_ix)`. For the connectedness check, the
 /// component count of a subject is its number of definitely-`Outer`
 /// shells ([`topo::classify_shells`]) — an internal void is boundary,
@@ -1532,7 +1440,7 @@ impl<T: topo::AtRestPolicy + Decide> Subject<'_, T> {
 /// to its member budget.
 pub fn run_checks<
     P: crate::ProfilePayload,
-    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane + topo::CertifiedPolicy,
+    T: at_rest::LocalizeLane + CertifiedBounds + topo::CertifiedPolicy,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1571,7 +1479,7 @@ pub fn run_checks<
 /// [`Subject::Product`] must have been gathered from that same
 /// document. Both go through [`crate::ident::mispaired`], the one
 /// predicate that spells the comparison, before any resident runs —
-/// because a resident reading `doc.placements()` against a foreign `ev`
+/// because a resident reading `doc.copies()` against a foreign `ev`
 /// finds a value for every placement and reports about the wrong geometry.
 ///
 /// # Errors
@@ -1586,7 +1494,7 @@ pub fn run_checks<
 /// coincidence door.
 pub fn run_checks_on<
     P: crate::ProfilePayload,
-    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane + topo::CertifiedPolicy,
+    T: at_rest::LocalizeLane + CertifiedBounds + topo::CertifiedPolicy,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1617,7 +1525,7 @@ pub fn run_checks_on<
 /// As [`run_checks_on`].
 pub fn run_checks_at_rest_on<
     P: crate::ProfilePayload,
-    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane + topo::CertifiedPolicy,
+    T: at_rest::LocalizeLane + CertifiedBounds + topo::CertifiedPolicy,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1644,11 +1552,6 @@ pub fn run_checks_at_rest_on<
         report.skipped.push(CheckId::Connectedness);
     } else {
         connectedness(doc, ev, cfg, tol, &mut report)?;
-    }
-    if cfg.severity(CheckId::ChartCoherence) == Severity::Off {
-        report.skipped.push(CheckId::ChartCoherence);
-    } else {
-        chart_coherence(doc, ev, tol, &mut report)?;
     }
     if cfg.severity(CheckId::Unused) == Severity::Off {
         report.skipped.push(CheckId::Unused);
@@ -1790,8 +1693,8 @@ pub(crate) struct DoorRow {
     /// The assertion that quiets it ([`at_rest::quiet_row`]), if one
     /// does.
     pub quiet: Option<RecipeNodeId>,
-    /// Whether one could ([`at_rest::row_quietable`]).
-    pub quietable: bool,
+    /// The assertion that would ([`at_rest::quieting`]).
+    pub quieting: Option<quieting::Quieting>,
 }
 
 /// **The rows the `unproven-coincidence` resident asks the door
@@ -1842,7 +1745,7 @@ pub(crate) fn door_rows<P: crate::ProfilePayload, T: crate::mate::SolveScalar + 
     let judged = |row: &crate::coincide::NamedCoincidence| DoorRow {
         row: row.clone(),
         quiet: at_rest::quiet_row(doc, ev, row, tol),
-        quietable: at_rest::row_quietable(doc, ev, row, tol),
+        quieting: at_rest::quieting(doc, ev, row, tol),
     };
     ev.order
         .iter()
@@ -1960,7 +1863,7 @@ fn door_findings<P: crate::ProfilePayload>(
                     residual: Box::new(residual.clone()),
                     recourse: *recourse,
                     restated: Vec::new(),
-                    quietable: asked.quietable,
+                    quieting: asked.quieting.clone(),
                 },
                 quiet: asked.quiet,
             });
@@ -1992,7 +1895,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + topo::C
     // Entries not yet consumed by a subject; whatever remains after
     // the walk is stale (an expectation with no subject).
     let mut unconsumed = cfg.expected_components.clone();
-    for placement in doc.placements() {
+    for placement in doc.copies() {
         let value = ev.usable(placement).map_err(ChecksError::Placement)?;
         let Some(sources) = product::sources_of(value) else {
             continue;
@@ -2100,75 +2003,6 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + topo::C
     Ok(())
 }
 
-/// The chart-coherence resident's pass: [`topo::examine_chart_coherence`]
-/// over each rest body, with BOTH of that door's lists carried across
-/// — and carried across as two different facts.
-///
-/// # The two lists, and the one fold this door must not make
-///
-/// [`topo::CoherenceReport`] is `{ findings, unexamined }` and
-/// [`ChecksReport`] is `{ findings, skipped }`. The shapes rhyme and
-/// the meanings do not: `skipped` is CONFIGURATION (a check a caller
-/// set to `Off`), `unexamined` is DATA (a loop the body put out of the
-/// door's reach). Nothing in `unexamined` reaches `skipped` here. Each
-/// entry becomes its own finding
-/// ([`CheckEvidence::ChartCoherenceUnexamined`]), which is what the
-/// connectedness resident already does with its own could-not-look
-/// arms (`Escalated`, `Unsupported`) and is the F6 posture: a check
-/// that could not look says so, and never by staying quiet.
-///
-/// # Order (D9)
-///
-/// Placements in document order, and within one copy the door's own
-/// total order — its findings, then its unexamined loops. A pure function of the
-/// evaluation and eps, as the door itself is.
-fn chart_coherence<
-    P: crate::ProfilePayload,
-    T: Decide + ChartCoherenceLane + topo::AtRestPolicy,
->(
-    doc: &Doc<P>,
-    ev: &Evaluation<T>,
-    tol: Tol,
-    report: &mut ChecksReport,
-) -> Result<(), ChecksError> {
-    for placement in doc.placements() {
-        let value = ev.usable(placement).map_err(ChecksError::Placement)?;
-        let Some(sources) = product::sources_of(value) else {
-            continue;
-        };
-        for (output_ix, body, _contacts, _rows) in sources {
-            let at = |evidence| CheckFinding {
-                check: CheckId::ChartCoherence,
-                subject: FindingSubject::Output {
-                    placement,
-                    output_ix,
-                },
-                evidence,
-                quiet: None,
-            };
-            let Some(examined) = T::examine_chart_coherence(body.body(), tol) else {
-                report
-                    .findings
-                    .push(at(CheckEvidence::ChartCoherenceUnavailable));
-                continue;
-            };
-            report.findings.extend(
-                examined
-                    .findings
-                    .into_iter()
-                    .map(|finding| at(CheckEvidence::ChartCoherence { finding })),
-            );
-            report.findings.extend(
-                examined
-                    .unexamined
-                    .into_iter()
-                    .map(|unexamined| at(CheckEvidence::ChartCoherenceUnexamined { unexamined })),
-            );
-        }
-    }
-    Ok(())
-}
-
 /// The `unused` check: [`Doc::unused`]'s tips, its operations then its
 /// variables, each operation with the outputs the person named, which
 /// its finding speaks for. A part's are the part's, and none is
@@ -2252,7 +2086,7 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
                 continue;
             }
         };
-        let reading = at_rest::reading(product, tol);
+        let reading = at_rest::reading(doc, product, tol);
         for interference in reading.interference {
             let quiet = interference.quiet;
             let evidence = CheckEvidence::Interference {

@@ -223,3 +223,5 @@ now refuses at append (`lineage::Substitutions`, as
 `BooleanError::LineageRow`).
 
 - 2026-11-02 — moved from TOPOTAIL to TOPO by `git mv` when TOPOTAIL merged into TOPO, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and TOPOTAIL had fallen far under it).
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `Unexaminable::Corrupt` family's row is gone with its file.

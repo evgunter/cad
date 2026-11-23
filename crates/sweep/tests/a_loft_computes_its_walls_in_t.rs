@@ -56,7 +56,7 @@ fn arc_wall<T: topo::AtRestPolicy + geom_core::spline::SpanLocate>(
 ) -> geom::NurbsSurface<T> {
     match lofted
         .body
-        .face_surface(lofted.side_faces[0][1][0])
+        .face_surface(lofted.side_faces[0][1][0].unwrap())
         .expect("a described face")
     {
         Surface::Nurbs(n) => n.as_ref().clone(),
@@ -74,7 +74,7 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
     };
     let built_at_b1 = arc_wall(&loft::<f64>(b1));
     let at_b1 = |s: ParamSymbol| (s == symbol).then_some(b1);
-    let (((weights, corner, rim_theorems), distinct, winding_zeros), _) =
+    let (((weights, corner, rim_theorems), build_reads, winding_nodes), _) =
         with_session(budget, || {
             let (lofted, decisions) = record(|| loft::<S>(S::param(symbol, b0)));
             let wall = arc_wall(&lofted);
@@ -97,25 +97,22 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
                 .filter(|d| revalue(d.node, &none).is_none())
                 .collect();
             let rim_theorems: Vec<bool> = rim_zeros.iter().map(|d| d.proven).collect();
-            let distinct = rim_zeros
-                .iter()
-                .map(|d| d.node)
-                .collect::<std::collections::BTreeSet<_>>()
-                .len();
+            let build_reads = reads_per_theorem(rim_zeros.iter().map(|d| d.node));
             // The `loop_windings` door walks the wall's loop again: its
             // rows the arc-rim lane choice certified are not certified twice.
-            let face = lofted.side_faces[0][1][0];
+            let face = lofted.side_faces[0][1][0].unwrap();
             let chart = lofted.body.face_surface(face).expect("a described face");
             let band = geom_core::Band::linear(Tol::witness()).expect("a witness band forms");
             let (windings, read) = record(|| topo::loop_windings(&lofted.body, face, chart, band));
             windings.expect("the arc wall's loop winds");
-            let winding_zeros = read
+            let winding_nodes: Vec<_> = read
                 .iter()
                 .filter(|d| d.predicate == "pcurve_iso_boundary")
                 .filter(|d| d.sign == Some(geom_core::Sign::Zero))
                 .filter(|d| revalue(d.node, &none).is_none())
-                .count();
-            ((weights, corner, rim_theorems), distinct, winding_zeros)
+                .map(|d| d.node)
+                .collect();
+            ((weights, corner, rim_theorems), build_reads, winding_nodes)
         });
     let want: Vec<Option<u64>> = built_at_b1
         .weights()
@@ -131,22 +128,48 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
         Some(built_at_b1.control()[pole(&built_at_b1, 1, 0)].x.to_bits()),
         "the wall's tangent-intersection pole re-values with the bulge"
     );
-    assert_eq!(
-        rim_theorems,
-        vec![true; 11],
+    assert!(
+        !rim_theorems.is_empty() && rim_theorems.iter().all(|&proven| proven),
         "every Zero the arc rims' checks answer over the bulge, the weight margin `w − cos(h/2)` \
-         among them, is a symbolic Zero; each check is read once per build, but the stated rim \
-         image's, read by its edge certificate and again by the mint"
+         among them, is a symbolic Zero: {rim_theorems:?}"
+    );
+    // The build walks the wall's loop once to mint it, the walk the
+    // loop-winding door takes, and the stated rim image's edge
+    // certificate reads its checks once more. So each theorem is read by
+    // the build as often as by the winding walk, or once more, and the
+    // "once more" is the one stated rim image's.
+    let winding_reads = reads_per_theorem(winding_nodes.iter().copied());
+    let mut extra = 0;
+    let mut wrong = Vec::new();
+    for (node, &built) in &build_reads {
+        let walked = winding_reads.get(node).copied().unwrap_or(0);
+        if walked == 0 || built < walked || built > walked + 1 {
+            wrong.push((node, built, walked));
+        }
+        extra += built.saturating_sub(walked);
+    }
+    assert!(
+        wrong.is_empty() && winding_reads.len() == build_reads.len(),
+        "each rim theorem is read by the winding door once per check, in the walk's lane \
+         choice, and by the build as often or once more (its edge certificate): \
+         (theorem, build, winding) {wrong:?}"
     );
     assert_eq!(
-        winding_zeros, 10,
-        "the loop-winding door reads each arc rim's checks once, in the walk's lane choice"
+        extra, 1,
+        "the build reads exactly the one stated rim image's checks again at its edge \
+         certificate: build {build_reads:?} against winding {winding_reads:?}"
     );
-    assert_eq!(
-        distinct, 7,
-        "the 11 Zeros are 7 distinct theorems (a node is content-addressed, so a check read \
-         again moves the count above, not this)"
-    );
+}
+
+/// How many times each theorem was read, by its node.
+fn reads_per_theorem<N: Ord>(
+    nodes: impl Iterator<Item = N>,
+) -> std::collections::BTreeMap<N, usize> {
+    let mut reads = std::collections::BTreeMap::new();
+    for node in nodes {
+        *reads.entry(node).or_insert(0) += 1;
+    }
+    reads
 }
 
 /// At `Dual` the same wall carries the bulge's derivative: its interior
@@ -455,7 +478,9 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
         if zs.len() > degree + 1 {
             // The case's hypothesis: the body's walls carry the computed
             // interior knot.
-            let Some(Surface::Nurbs(net)) = nominal.body.face_surface(nominal.side_faces[0][0][0])
+            let Some(Surface::Nurbs(net)) = nominal
+                .body
+                .face_surface(nominal.side_faces[0][0][0].unwrap())
             else {
                 panic!("{what}: a lofted wall is a NURBS surface")
             };
@@ -609,6 +634,7 @@ fn wall_bits<
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .flat_map(|f| {
             match lofted
                 .body
@@ -685,7 +711,7 @@ fn wall_values<
     f: impl Fn(T) -> R,
 ) -> Vec<R> {
     let mut out = Vec::new();
-    for face in lofted.side_faces.iter().flatten().flatten() {
+    for face in lofted.side_faces.iter().flatten().flatten().flatten() {
         match lofted
             .body
             .body_of()
@@ -858,7 +884,7 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
     // The height moves the poles and nothing of the weights: a weight
     // that carried any derivative at all would make the walls rational
     // in the height.
-    for face in swept.side_faces.iter().flatten().flatten() {
+    for face in swept.side_faces.iter().flatten().flatten().flatten() {
         let Surface::Nurbs(n) = swept.body.face_surface(*face).expect("a described face") else {
             panic!("a swept wall is a NURBS surface");
         };

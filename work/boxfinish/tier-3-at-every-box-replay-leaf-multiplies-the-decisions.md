@@ -217,3 +217,50 @@ and `4`).
 The ray-readings unit (`an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`)
 re-poses the two readings that are slowest here; what its change does
 to their cost is measured in its PR.
+
+## Measured (2026-11-22, M7): with the check gone, what is left of a finish
+
+M7 (`boxfinish/probe-switch-off` at `ca8ec03c8c`, `probe/M7-REPORT.md`;
+main `ae076e0507` merged, the switch's box arm off) skipped by hand what
+SYM's row now removes (the two walks after a definite numeric sign) and
+re-took this row's tables on one binary, the skip on and off.
+
+- **No verdict changed** over 13,636 rows; only the skipped walk's own
+  counters and `frozen` moved.
+- **A finish that refuses nothing:** a six-face slab 52 → 33 ms, a
+  cylinder-walled body 796 → 71 ms, a revolved circle 2.66 → 1.0 s.
+  What is left on the first two is building margins, not deciding.
+- **M4's table:** every row is inside 1.0 s but two.
+
+  | row | check on | check off |
+  |---|---|---|
+  | docm9 (three rows) | 0.42 to 0.52 s | 0.22 to 0.30 s |
+  | m10_3 `driving_writes_nothing` | 0.46 s | 0.26 s |
+  | m10_5 clearance (two rows), m10_5_r2 combs | 1.02 to 1.20 s | 0.34 to 0.40 s |
+  | m10_8 `the_a0_set_is_a0_alone` | 5.34 s | **1.61 s** |
+  | sweep `a_revolved_circles_latitude_over_a_centre_box_is_exact` | 3.40 s | **1.33 s** |
+
+- **The revolved circle's remainder is the decision path's own.** Its
+  slow decisions (`curve_pair_span_end_chord` 454 ms over 100 decisions,
+  `bool_torus_region_component` 310 ms, `bool_torus_region_corner`
+  116 ms) are numerically indeterminate, the tier is asked, and it does
+  not prove; the time goes in building forms of one to two thousand
+  terms that are kept, not in products then refused. That is SYM's
+  (`work/sym/an-indeterminate-torus-margin-builds-forms-of-a-thousand-terms-and-proves-nothing.md`).
+- **The tour:** 95 → 56 s wall. The finishes' share of leaf time does
+  not move (34.7% → 33.6%): the plate no leaf changes is still finished
+  1023 times, 22 s of a 215 s drive, and the holes' 2046 refusing
+  finishes are another 50 s.
+- **The enclosure check SYM's unit adds would not have fired:** 9.97
+  million symbolic Zeros at `Sym<Interval>`, none with an enclosure
+  excluding 0.
+
+**So, of this row's three things:** the first is in flight (SYM's row,
+`boxfinish/decide-path-check`) and removes most of the cost; the third
+(the repeated edge-door decisions) stays small and by design; the
+second is now the largest thing left and has its own row,
+`a-drive-finishes-a-body-again-in-every-leaf-whose-box-does-not-move-it`,
+a design question being weighed. The a0 row's 1.6 s is four finishes
+per leaf on a plate whose blank no leaf changes; the revolved circle's
+1.3 s is SYM's row above. This row stays parked until SYM's unit lands
+and its tables are re-taken on main.

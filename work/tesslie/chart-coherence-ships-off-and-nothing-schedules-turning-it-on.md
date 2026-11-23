@@ -2,8 +2,9 @@
 id: chart-coherence-ships-off-and-nothing-schedules-turning-it-on
 kind: issue
 title: the chart-coherence resident defaults Off, which answers the no-consumer row with a check nobody runs — two measurements decide whether it turns on
-status: dispatched
+status: closed
 opened: 2026-09-12
+closed: 2026-11-21
 refs: [2408]
 priority: P1
 cost: M
@@ -124,3 +125,13 @@ Ev, on PR 7224: *"nice find, sounds great!"*. That approves the recommendation b
 - Every finding it ever made was a non-iso carrier read as iso, an off-surface carrier, or a pole-crossing arc. The mint or tier 3 refuses the last two.
 
 The full write-up and the designers' census are in PR 7224's body; the exact-iso row it was about lived on PR 7197's branch and never reached main. PR 7197 (the door change) and PR 7224 close unmerged: the retirement supersedes them. This row closes with the unit that removes the examination.
+
+## Closed
+
+(2026-11-21, `tesslie/retire-coherence`.) Closed by Ev's ruling on PR 7224: the
+chart-coherence examination retires rather than turning on. The
+retirement PR removes `topo::examine_chart_coherence` and its report
+types, `CheckId::ChartCoherence` and its `ChecksConfig::chart_coherence`
+knob, `ImportOptions::examine_chart_coherence` and
+`StepImport::Solid::coherence`, and their Python bindings and tags. So
+there is no default left to decide.

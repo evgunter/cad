@@ -31,10 +31,12 @@ pub(crate) struct SplineWall<T: Real> {
     /// The chart with its parameters swapped, whose rows are the chart's
     /// curves of constant `v`.
     swapped: Arc<geom::NurbsSurface<T>>,
-    /// The chart's value channel, which a foot is sought on: a foot's
-    /// parameters are structure, and the distance that admits them is
-    /// read at `T` ([`Self::paths`]).
-    values: Arc<geom::NurbsSurface<f64>>,
+    /// The chart at `f64` (`SpanLocate::value_channel`), which a foot is
+    /// sought on: the search is structure found at `f64`, and the
+    /// distance that admits a foot is read on the chart without its
+    /// tangent ([`Self::paths`]). At `f64` it is a second copy of the
+    /// chart; elsewhere it is the one `f64` copy a search needs.
+    shadow: Arc<geom::NurbsSurface<f64>>,
 }
 
 /// Which of the chart's parameters a piece holds fixed.
@@ -60,7 +62,7 @@ impl<T: Decide> SplineWall<T> {
         let wall = Self {
             chart: chart.clone(),
             swapped: Arc::new(chart.transposed()),
-            values: Arc::new(chart.map_scalar(T::value_channel)),
+            shadow: Arc::new(chart.map_scalar(T::value_channel)),
         };
         let (u, v) = (
             chart.knot_values_u().domain().0,
@@ -87,7 +89,7 @@ impl<T: Decide> SplineWall<T> {
             p.y.value_channel(),
             p.z.value_channel(),
         );
-        self.values.project(p).ok().map(|foot| (foot.u, foot.v))
+        self.shadow.project(p).ok().map(|foot| (foot.u, foot.v))
     }
 
     /// The outward normal of a face of sense `sense` at the foot the
@@ -125,8 +127,9 @@ impl<T: Decide> SplineWall<T> {
         let (Some(a), Some(b)) = (self.foot(from), self.foot(to)) else {
             return Ok(Vec::new());
         };
+        let on_chart = self.chart.value_view();
         let on_wall = |p: Point3<T>, (u, v): (f64, f64)| {
-            let off = self.chart.eval(T::from_computed(u), T::from_computed(v)) - p;
+            let off = on_chart.eval_at(u, v) - p.map(Real::without_tangent);
             decide("split_ring_path_wall_foot", Margin::of(off.norm()), band)
                 .map(|sign| sign == Sign::Zero)
         };

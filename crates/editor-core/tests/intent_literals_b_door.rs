@@ -60,8 +60,9 @@ fn on_the_world(body: RecipeNodeId) -> editor_core::Mate<Formula> {
         on: crate::fixture::plane(crate::fixture::head(crate::fixture::fname(
             body,
             RoleSeg::Cap(CapEnd::Start),
-        ))),
-        to: moved(body, len(0.3)),
+        )))
+        .into(),
+        to: moved(body, len(0.3)).into(),
         orient: editor_core::Orientation::IDENTITY,
     }
 }
@@ -404,7 +405,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             &DocEdit::AddConstraint {
                 placement: target,
                 mate: Box::new(editor_core::Mate {
-                    to: moved(b, form.formula(editor_core::Dimension::Length)),
+                    to: moved(b, form.formula(editor_core::Dimension::Length)).into(),
                     ..on_the_world(b)
                 }),
                 fresh: Vec::new(),
@@ -465,10 +466,8 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
             hidden: reader(self.hidden, Dimension::Length),
         }
     }
-    fn drawable_pieces(
-        &self,
-    ) -> Result<BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal> {
-        Ok(BTreeSet::new())
+    fn partition(&self) -> Result<editor_core::ProfilePartition, editor_core::ProgramRefusal> {
+        Ok(editor_core::ProfilePartition::default())
     }
 }
 

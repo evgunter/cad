@@ -134,8 +134,9 @@
 //! hyperbola, and the edge is its exact rational-quadratic arc between
 //! the moved corners, on the branch the old edge's middle stands beside
 //! ([`geom_brep::ConicBranch::arc`]); it rests where the plane×cone
-//! section states the bounds that retire its tube, and an arc that does
-//! not certify refuses as [`ReplaceFaceError::TogetherConicArc`]. The kind is the
+//! section states the bounds that retire its tube or where that tube
+//! certifies, and an arc whose tube cannot certify it refuses as
+//! [`ReplaceFaceError::TogetherConicArc`]. The kind is the
 //! section's, whatever the old carrier's was: a cavity's cap offset off
 //! the axis turns a meridian circle into a spiric, and the lift that
 //! puts it back turns the spiric into a circle. The old carrier
@@ -282,7 +283,7 @@
 //! As in the planar door, a dimensionless quantity's lever is the
 //! geometry being judged and never the request: the profile solve's
 //! `|det|` — a sine between two unit 2-D normals — is levered by the
-//! ARC LENGTHS of the corner's own incident edges, and the azimuth
+//! arms of the corner's own incident edges ([`corner_arms`]), and the azimuth
 //! solve's two roots
 //! are separated by a LENGTH that is metered as one. A corner asked to
 //! move nothing is answered before any meter runs. This is also what
@@ -295,6 +296,7 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::UnitVec3;
 use geom_core::k_stats::decide;
 use geom_core::ladder::{FreeOf, Uncarried, Undecided, argmin_decided};
 use geom_core::{
@@ -306,7 +308,7 @@ use crate::attach::Rechart;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::proven;
 use crate::offset_restate::chart_moves;
 use crate::offset_together::{ChartMove, unmoved_in_scope, unplaced_in_scope};
 use crate::replace_face::ReplaceFaceError;
@@ -577,7 +579,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     // generator pair where the plane holds the moved apex, and a
     // hyperbola where it stands off it. Read here, before any corner is
     // solved, so a section the pose leaves undecided refuses first.
-    for (edge, edge_data) in body.edges() {
+    for view in body.edge_views() {
+        let (edge, edge_data) = (view.key(), view.record());
         if !scope.holds_edge(edge) {
             continue;
         }
@@ -594,20 +597,14 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         }
         // The edge stage refuses a moved edge with no carrier in these
         // words too; it is refused here so that it never reaches a solve.
-        if body
-            .edge_curve_linked(edge, edge_data)
-            .certified()
-            .is_none()
-        {
+        if view.certified().is_none() {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to move",
             });
         }
-        let region = crate::replace_face::region_reach(
-            edge,
-            crate::cover::edge_cover_linked(body, edge, edge_data),
-        )?;
+        let region =
+            crate::replace_face::region_reach(edge, crate::cover::edge_cover_linked(body, view))?;
         let section = cone_cap_section(edge, cone, cap, &region, band)?;
         cone_sections.insert(edge, section);
     }
@@ -713,7 +710,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
     let mut conic_arcs: Vec<(EdgeKey, geom_brep::OpenConic)> = Vec::new();
-    for (edge, edge_data) in body.edges() {
+    for view in body.edge_views() {
+        let (edge, edge_data) = (view.key(), view.record());
         if !scope.holds_edge(edge) {
             continue;
         }
@@ -730,7 +728,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         let old_point =
             |v: VertexKey| body.point_of(v, proven(&body.vertices, v, EntityId::Vertex));
         let (q_start, q_end) = (old_point(start), old_point(end));
-        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+        let Some(curve) = view.certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to move",
@@ -1041,7 +1039,7 @@ fn axial_frame<T: Real>(
             surface @ (Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. }) => surface.axis_line().map(geom::Line::unit),
+            | Surface::Torus { .. }) => surface.axis_line(),
             Surface::Plane { .. } => None,
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {
@@ -1132,7 +1130,7 @@ fn classify<T: Decide>(
     let on_axis = |p: Point3<T>| {
         centre_on_axis(frame, p, band).map_err(|source| ReplaceFaceError::Escalated { source })
     };
-    let parallel = |v: Vec3<T>| v.normalize().cross(frame.axis.dir).norm();
+    let parallel = |v: Vec3<T>| v.normalize().cross(frame.axis.dir.get()).norm();
     Ok(match surface {
         Surface::Plane {
             frame: carrier_frame,
@@ -1148,7 +1146,10 @@ fn classify<T: Decide>(
                 // else cuts the body obliquely to its own axis of
                 // revolution — a corner this reduction has no
                 // coordinates for.
-                if !sine(n.dot(frame.axis.dir).abs(), "offset_axial_axis_parallel")? {
+                if !sine(
+                    n.dot(frame.axis.dir.get()).abs(),
+                    "offset_axial_axis_parallel",
+                )? {
                     return Err(not_axial(
                         "a plane neither normal to the axis nor parallel to it",
                     ));
@@ -1221,16 +1222,20 @@ fn classify<T: Decide>(
     })
 }
 
-/// The ARC LENGTH of every edge ending at a vertex — the lengths this
-/// door's conditioning is levered by.
+/// The arm of every edge ending at a vertex — the lengths this door's
+/// conditioning is levered by.
 ///
-/// The planar door levers by each edge's CHORD, which is the same
-/// length there because a planar body's edges are straight. Here they
-/// are not: a full revolve's rim arc runs half a turn and a chart with
-/// ONE seam closes on itself, whose chord is exactly zero — and a zero
-/// arm makes every meter read `Zero` and calls a perfectly transversal
-/// corner degenerate. Measured on the revolved TUBE, which refused that
-/// way before this. The arc length is the length that was always meant.
+/// A line reads its chord ([`geom_brep::edge_extent_inf`]), as in the
+/// planar door, where the extent's bounds from below and from above
+/// agree. An ellipse, a spiric or a spline reads its extent from below
+/// (the chord, its fold and its sampled pairs), though the verdicts
+/// levered here act on every sign, which asks for both bounds.
+///
+/// A circle reads its arc length. A full revolve's rim arc runs half a
+/// turn and a chart with ONE seam closes on itself, whose chord is
+/// exactly zero — and a zero arm makes every meter read `Zero` and calls
+/// a perfectly transversal corner degenerate. Measured on the revolved
+/// TUBE, which refused that way before the arc length.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -1238,14 +1243,8 @@ fn corner_arms<T: Decide>(
     let mut out = Vec::new();
     for he in body.vertex_orbit_linked(vertex) {
         let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let edge = linked(
-            &body.edges,
-            key,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let Some(curve) = body.edge_curve_linked(key, edge).certified() else {
+        let edge = body.linked_edge(key, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = edge.certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge: key,
                 what: "it has no curve to move",
@@ -1253,22 +1252,13 @@ fn corner_arms<T: Decide>(
         };
         let (t0, t1) = curve.params();
         out.push(match curve.carrier() {
-            // A line's parameter IS arc length, so its span is its chord;
-            // a circle's is an angle levered by its own radius. Anything
-            // else falls back to the endpoints' chord, which is what the
-            // carrier can say.
-            Curve3::Line(_) => {
-                // Unsourced lever: a length read off the parameter span, not the edge's end
-                // points; the end points' distance rounds differently.
-                Lever::unsourced((t1 - t0).abs())
-            }
             Curve3::Circle(circle) => {
                 let radius = circle.radius();
                 // Unsourced lever: the arc's length, an angular span times its radius, is
                 // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
                 Lever::unsourced((t1 - t0).abs() * radius)
             }
-            other => geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0)),
+            carrier => geom_brep::edge_extent_inf(carrier, t0, t1),
         });
     }
     Ok(out)
@@ -1616,10 +1606,10 @@ fn solve_corner<T: Decide>(
         // to a line's `t = 0` anchor.
         [] => Ok(frame.place(rho, h, e_old)),
         [(m, c)] => {
-            let w = frame.axis.dir.cross(e_old);
+            let w = frame.axis.dir.get().cross(e_old);
             let a_co = rho * m.dot(e_old);
             let b_co = rho * m.dot(w);
-            let rhs = c - m.dot(vec_of(frame.axis.origin)) - m.dot(frame.axis.dir) * h;
+            let rhs = c - m.dot(vec_of(frame.axis.origin)) - m.dot(frame.axis.dir.get()) * h;
             let amp = Vec3::new(a_co, b_co, T::zero()).norm();
             // The two azimuths are `φ₀ ± Δ`, and the points they name are
             // `2ρ·sin Δ` apart — a LENGTH, which dies exactly as the
@@ -1746,8 +1736,8 @@ fn cap_pair_corner<T: Decide>(
     // pair's transversality is the sine between their cross-section
     // normals, levered by the corner's own arms exactly as the profile
     // pairs' is: the solve divides by it, so it is decided first.
-    let mp0 = m0 - frame.axis.dir * m0.dot(frame.axis.dir);
-    let mp1 = m1 - frame.axis.dir * m1.dot(frame.axis.dir);
+    let mp0 = m0 - frame.axis.dir.get() * m0.dot(frame.axis.dir.get());
+    let mp1 = m1 - frame.axis.dir.get() * m1.dot(frame.axis.dir.get());
     let (n0, n1) = (mp0.norm(), mp1.norm());
     // The divisors are certified UPSTREAM, not here: `m0`/`m1` are unit
     // meridian normals whose axial component `classify` decided Zero at
@@ -1755,7 +1745,7 @@ fn cap_pair_corner<T: Decide>(
     // each cross-section projection keeps norm ~1 — a certified
     // distance from zero this division stands on, cited rather than
     // re-decided (one derivation, the module's own law).
-    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.axis.dir);
+    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.axis.dir.get());
     for &arm in arms {
         match decide(
             "offset_axial_cap_pair",
@@ -1773,7 +1763,7 @@ fn cap_pair_corner<T: Decide>(
         }
     }
     let e1 = mp0 / n0;
-    let e2 = frame.axis.dir.cross(e1);
+    let e2 = frame.axis.dir.get().cross(e1);
     let rhs0 = c0 - m0.dot(vec_of(frame.axis.origin));
     let rhs1 = c1 - m1.dot(vec_of(frame.axis.origin));
     let alpha = rhs0 / n0;
@@ -2161,11 +2151,10 @@ fn mint_carrier<T: Decide>(
     // sphere's great circle, a torus's meridian circle — and each
     // certifies its own posture.
     if ca.old_key == cb.old_key {
-        if let Curve3::Circle(geom::Circle {
-            frame: seam_frame, ..
-        }) = old
-            && latitude_posture(frame, seam_frame.axis_line(), band)?.is_none()
+        if let Curve3::Circle(seam) = old
+            && latitude_posture(frame, seam.frame().axis_line(), band)?.is_none()
         {
+            let seam_frame = seam.frame();
             let (axis, u_ref) = (seam_frame.axis(), seam_frame.u_ref());
             return Ok(latitude_circle(frame, p_start, axis, u_ref));
         }
@@ -2205,12 +2194,9 @@ fn mint_carrier<T: Decide>(
                     frame: sphere_frame,
                     ..
                 },
-                Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: seam_frame, ..
-                    },
-                ),
+                Curve3::Circle(circle),
             ) => {
+                let seam_frame = &circle.frame();
                 let cc = seam_frame.origin();
                 let center = sphere_frame.origin();
                 let radius = circle.radius();
@@ -2241,12 +2227,9 @@ fn mint_carrier<T: Decide>(
                     major_radius,
                     ..
                 },
-                Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: seam_frame, ..
-                    },
-                ),
+                Curve3::Circle(circle),
             ) => {
+                let seam_frame = &circle.frame();
                 let cc = seam_frame.origin();
                 let center = torus_frame.origin();
                 let radius = circle.radius();
@@ -2354,11 +2337,13 @@ fn mint_carrier<T: Decide>(
         };
         return match decide(
             "offset_axial_generator_sense",
-            Margin::levered(old_dir.normalize().dot(dir.normalize()), frame.extent),
+            Margin::levered(old_dir.normalize().dot(dir.get().normalize()), frame.extent),
             band,
         ) {
             Ok(Sign::Positive) => Ok(Curve3::Line(geom::Line { origin, dir })),
-            Ok(Sign::Negative) => Ok(Curve3::line(origin, Vec3::zero() - dir)),
+            // The reversed direction, `0 − dir` as it was spelled, its
+            // zeros positive ([`UnitVec3::reversed`]).
+            Ok(Sign::Negative) => Ok(Curve3::line(origin, dir.reversed())),
             Ok(Sign::Zero) => Err(refuse(
                 "a generator edge whose moved line stands square to its old one",
             )),
@@ -2466,8 +2451,9 @@ fn mint_carrier<T: Decide>(
         // the two normals says whether the parameter runs the old way.
         // A cosine of unit vectors, levered at the body's extent.
         let normal_of = |c: &Curve3<T>| match c {
-            Curve3::Circle(geom::Circle { frame, .. })
-            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.axis().normalize()),
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                c.frame().map(|frame| frame.axis().normalize())
+            }
             Curve3::Spiric { frame, .. } => {
                 let u_ref = frame.u_ref();
                 Some(u_ref.normalize())
@@ -2524,10 +2510,9 @@ fn mint_carrier<T: Decide>(
             .offset(p_start);
             Ok(Curve3::line(*origin + delta, *dir))
         }
-        Curve3::Circle(geom::Circle {
-            frame: circle @ carrier_frame,
-            ..
-        }) => {
+        Curve3::Circle(circle_5) => {
+            let circle = circle_5.frame();
+            let carrier_frame = circle;
             let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
@@ -2543,35 +2528,61 @@ fn mint_carrier<T: Decide>(
 }
 
 /// A re-chart refused because an arc this door minted on a cone does not
-/// certify, read as the door's own refusal: the re-chart names the edge
-/// whose re-description does not certify, and an arc's tube is retired
-/// only where the plane×cone section states the bounds (C2) — a cone has
-/// no tube enclosure otherwise — so the arc it names refuses as
-/// [`ReplaceFaceError::TogetherConicArc`]. Any other refusal stands.
+/// certify at its uniqueness tube, read as the door's own refusal: the
+/// re-chart names the edge whose re-description does not certify, and an
+/// arc whose plane×cone section states no bounds (C2) owes the tube, so
+/// the arc it names refuses as [`ReplaceFaceError::TogetherConicArc`]
+/// where the tube decided it could not certify the arc ([`tube_failed`]).
+/// Any other refusal stands with its own ending.
 fn uncertified_arc<T: Real>(
     error: ReplaceFaceError<T>,
     arcs: &[(EdgeKey, geom_brep::OpenConic)],
 ) -> ReplaceFaceError<T> {
     let ReplaceFaceError::Op {
         error:
-            crate::EulerOpError::RechartFalsifies {
-                edge,
-                error:
-                    geom_brep::CertifyError::AnalyticRung3(
-                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                            operand: geom::SurfaceKind::Cone,
-                        },
-                    ),
-                ..
+            crate::EulerOpError::DescriptionUncertified {
+                edge: crate::EdgeSubject::Keyed(edge),
+                error: geom_brep::CertifyError::AnalyticRung3(refusal),
             },
         ..
     } = &error
     else {
         return error;
     };
+    if !tube_failed(refusal) {
+        return error;
+    }
     match arcs.iter().find(|(arc, _)| arc == edge) {
         Some(&(edge, conic)) => ReplaceFaceError::TogetherConicArc { edge, conic },
         None => error,
+    }
+}
+
+/// **Whether an edge's tube refusal says the tube could not certify the
+/// arc**: no enclosure of an operand, every rung's enclosure refused
+/// somewhere, a decided straddle, or a decided one-arc shortfall. A
+/// band escalation (`Escalated`, a one-arc proof left undecided) is the
+/// input's ambiguity at the tolerance and keeps its own ending, and so
+/// do an empty ladder (the extent's recourse), a silent ladder with
+/// nothing refused and a degenerate tube, which are no reading of the arc.
+fn tube_failed(refusal: &geom_brep::AnalyticRung3Refusal) -> bool {
+    use geom_brep::AnalyticRung3Refusal as A;
+    use geom_brep::edge_nurbs::TubeRefusal;
+    match refusal {
+        A::NoTubeEnclosure { .. } | A::TubeStraddles { .. } => true,
+        A::TubeNotOneArc { cause, .. } => {
+            !matches!(cause, geom_brep::ssi::OneArcRefusal::Undecided(_))
+        }
+        A::Tube(TubeRefusal::ProbeSilent { refused, .. }) => *refused > 0,
+        A::Tube(TubeRefusal::LadderEmpty { .. } | TubeRefusal::Degenerate(_))
+        | A::Escalated { .. }
+        | A::Limb { .. }
+        | A::KernelLimit { .. }
+        | A::Stalled { .. }
+        | A::NoOffsetBound { .. }
+        | A::CarrierEnclosure(_)
+        | A::Unsupported { .. }
+        | A::OutsideVocabulary => false,
     }
 }
 
@@ -2695,7 +2706,7 @@ fn latitude_posture<T: Decide>(
             "a circular edge between two charts whose centre is off the axis",
         ));
     }
-    let tilt = axis.normalize().cross(frame.axis.dir).norm();
+    let tilt = axis.get().normalize().cross(frame.axis.dir.get()).norm();
     match decide(
         "offset_axial_latitude_tilt",
         Margin::levered(tilt, frame.extent),
@@ -2815,16 +2826,17 @@ fn param_on<T: Decide>(
     let t = match carrier {
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
-            let n = axis.normalize();
+            let n = UnitVec3::squared(axis);
             let axis_line = geom::Line {
                 origin: center,
                 dir: n,
             };
             let ray = |x: Point3<T>| axis_line.offset(x);
             let (a, b) = (ray(q), ray(p));
-            anchor + a.cross(b).dot(n).atan2(a.dot(b))
+            anchor + a.cross(b).dot(n.get()).atan2(a.dot(b))
         }
         _ => carrier.param_near(p, anchor).ok_or_else(unread)?,
     };
@@ -3075,11 +3087,12 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle(circle @ geom::Circle { frame, .. }) = carrier else {
+                        let Curve3::Circle(circle) = carrier else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));
                         };
+                        let frame = circle.frame();
                         let center = frame.origin();
                         let radius = circle.radius();
                         let centre = flat(center);
@@ -3176,7 +3189,7 @@ fn reauthor<T: Decide>(
                     None => p,
                     Some(theta) => geom_core::Affine3::rotate_point_about_axis(
                         axis.origin,
-                        axis.dir,
+                        axis.dir.get(),
                         -theta,
                         p,
                     ),
@@ -3252,11 +3265,11 @@ fn azimuth_turn_as<T: Decide>(
     match decide(name, Margin::of(off), band) {
         Ok(Sign::Zero) => Ok(None),
         Ok(_) => {
-            let a = dir.normalize();
+            let a = UnitVec3::squared(dir.get());
             let axis_line = geom::Line { origin, dir: a };
             let radial = |p: Point3<T>| axis_line.offset(p);
             let (from, to) = (radial(old), radial(moved));
-            Ok(Some(a.dot(from.cross(to)).atan2(from.dot(to))))
+            Ok(Some(a.get().dot(from.cross(to)).atan2(from.dot(to))))
         }
         Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
@@ -3309,6 +3322,131 @@ fn clamp_unit<T: Real>(x: T) -> T {
 mod tests {
     use super::*;
     use crate::test_support_fixtures::geometric_cube;
+
+    /// **A cone arc's tube refusal reads as the door's own only where the
+    /// tube could not certify the arc** ([`tube_failed`]): each refusal
+    /// handed to [`uncertified_arc`] on an edge the door minted, which
+    /// becomes [`ReplaceFaceError::TogetherConicArc`] or stands as handed.
+    /// Red if a band escalation, an empty or silent-unrefused ladder, or
+    /// a degenerate tube is folded into the conic arc's not-yet, or if a
+    /// refused or straddling tube is not; and the edge must be one the
+    /// door minted.
+    #[test]
+    fn a_cone_arcs_tube_refusal_is_the_doors_own_only_where_the_tube_failed() {
+        use geom_brep::AnalyticRung3Refusal as A;
+        use geom_brep::edge_nurbs::TubeRefusal;
+        use geom_brep::recourse::Refused;
+        use geom_brep::ssi::OneArcRefusal;
+        use geom_core::{Indeterminate, MarginDiag};
+        let undecided = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("ssi_tube_one_arc"),
+            terminal_sliver: false,
+        };
+        let straddle = Refused::Negative {
+            margin: MarginDiag::value(-1e-3),
+        };
+        let rows = [
+            (
+                "no enclosure",
+                A::NoTubeEnclosure {
+                    operand: SurfaceKind::Cone,
+                },
+                true,
+            ),
+            (
+                "every rung refused",
+                A::Tube(TubeRefusal::ProbeSilent {
+                    rungs: 3,
+                    refused: 3,
+                }),
+                true,
+            ),
+            (
+                "a decided straddle",
+                A::TubeStraddles {
+                    verdict: straddle,
+                    boxes: 4,
+                },
+                true,
+            ),
+            (
+                "a decided one-arc shortfall",
+                A::TubeNotOneArc {
+                    rungs: 1,
+                    cause: OneArcRefusal::Short,
+                },
+                true,
+            ),
+            (
+                "an undecided one-arc proof",
+                A::TubeNotOneArc {
+                    rungs: 1,
+                    cause: OneArcRefusal::Undecided(undecided),
+                },
+                false,
+            ),
+            (
+                "a tube escalation",
+                A::Escalated {
+                    operand: None,
+                    limb: geom_brep::Rung3Limb::Tube,
+                    cause: undecided,
+                },
+                false,
+            ),
+            (
+                "an empty ladder",
+                A::Tube(TubeRefusal::LadderEmpty {
+                    extent: 1e-9,
+                    floor: 1e-8,
+                }),
+                false,
+            ),
+            (
+                "a silent ladder with nothing refused",
+                A::Tube(TubeRefusal::ProbeSilent {
+                    rungs: 3,
+                    refused: 0,
+                }),
+                false,
+            ),
+        ];
+        let arc = EdgeKey::default();
+        let arcs = [(arc, geom_brep::OpenConic::Hyperbola)];
+        for (name, refusal, conic) in rows {
+            let refused = |edge| ReplaceFaceError::<f64>::Op {
+                edge: None,
+                error: crate::EulerOpError::DescriptionUncertified {
+                    edge: crate::EdgeSubject::Keyed(edge),
+                    error: geom_brep::CertifyError::AnalyticRung3(refusal),
+                },
+            };
+            let got = uncertified_arc(refused(arc), &arcs);
+            assert_eq!(
+                matches!(got, ReplaceFaceError::TogetherConicArc { .. }),
+                conic,
+                "{name}: {got:?}"
+            );
+        }
+        let other = uncertified_arc(
+            ReplaceFaceError::<f64>::Op {
+                edge: None,
+                error: crate::EulerOpError::DescriptionUncertified {
+                    edge: crate::EdgeSubject::Keyed(EdgeKey::default()),
+                    error: geom_brep::CertifyError::AnalyticRung3(A::NoTubeEnclosure {
+                        operand: SurfaceKind::Cone,
+                    }),
+                },
+            },
+            &[],
+        );
+        assert!(
+            matches!(other, ReplaceFaceError::Op { .. }),
+            "an edge the door did not mint stands: {other:?}"
+        );
+    }
 
     /// The unit cube re-charted as a quarter-revolve wedge about `z`:
     /// `x = 0` and `y = 0` contain the axis, the caps are normal to it,
@@ -3476,7 +3614,7 @@ mod tests {
             place: Affine3::translation(Vec3::new(lift(x), lift(y), lift(z))),
             axis: geom::Line {
                 origin: Point3::new(lift(1.0 + x), lift(2.0 + y), lift(z)),
-                dir: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+                dir: geom_core::UnitVec3::exact_z(),
             },
             angle: lift(core::f64::consts::TAU),
         })
@@ -3498,7 +3636,15 @@ mod tests {
             place,
             axis: geom::Line {
                 origin: place.transform_point(Point3::new(lift(0.5), lift(1.0), lift(0.0))),
-                dir: place.transform_vec(Vec3::new(lift(1.0), lift(0.4), lift(0.0))),
+                // `(1, 0.4, 0)` over its length, lifted, then turned by the
+                // rigid `place`.
+                dir: {
+                    let len = 1.16_f64.sqrt();
+                    geom_core::UnitVec3::checked(Vec3::new(1.0 / len, 0.4 / len, 0.0))
+                        .map_scalar(&lift)
+                        .through_isometry(place.linear)
+                        .0
+                },
             },
             angle: lift(1.9),
         })
@@ -3537,7 +3683,7 @@ mod tests {
             ),
             axis: geom::Line {
                 origin: p3(axis.origin),
-                dir: v3(axis.dir),
+                dir: axis.dir.map_scalar(iv),
             },
             angle: iv(angle),
         })
@@ -3590,7 +3736,7 @@ mod tests {
     ) -> geom_brep::MappedCurve<T> {
         let carrier = Curve3::line(
             Point3::new(T::zero(), T::zero(), T::zero()),
-            Vec3::new(T::one(), T::zero(), T::zero()),
+            geom_core::UnitVec3::exact_x(),
         );
         reauthor(
             mapped,
@@ -3605,21 +3751,24 @@ mod tests {
     /// `rim`'s placed point turned `theta` about its own axis — a start
     /// corner an offset moved round the axis.
     fn turned<T: Decide>(rim: &Rim<T>, theta: T) -> Point3<T> {
-        Affine3::rotate_point_about_axis(rim.axis.origin, rim.axis.dir, theta, placed(rim))
+        Affine3::rotate_point_about_axis(rim.axis.origin, rim.axis.dir.get(), theta, placed(rim))
     }
 
     /// The turn main read off a moved start: the azimuth about the axis
     /// from the radial of its start sample — the placed point under the
     /// rotation by `0·angle` — to the corner's.
     fn main_turn<T: Decide>(rim: &Rim<T>, corner: Point3<T>) -> T {
-        let a = rim.axis.dir.normalize();
+        let a = rim.axis.dir.get().normalize();
         let radial = |p: Point3<T>| {
             let v = p - rim.axis.origin;
             v - a * v.dot(a)
         };
-        let start =
-            Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir, T::zero() * rim.angle)
-                .transform_point(placed(rim));
+        let start = Affine3::rotation_about_axis(
+            rim.axis.origin,
+            rim.axis.dir.get(),
+            T::zero() * rim.angle,
+        )
+        .transform_point(placed(rim));
         let (from, to) = (radial(start), radial(corner));
         a.dot(from.cross(to)).atan2(from.dot(to))
     }
@@ -3627,7 +3776,8 @@ mod tests {
     /// Main's reading of a start turned by `phi`: the turn composed into
     /// the placement and the corner read back through that composite.
     fn composed_reading<T: Decide>(rim: &Rim<T>, phi: T, p: Point3<T>) -> (Point3<T>, Affine3<T>) {
-        let plane = Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir, phi) * rim.place;
+        let plane =
+            Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir.get(), phi) * rim.place;
         (plane.inverse().transform_point(p), plane)
     }
 
@@ -3762,7 +3912,7 @@ mod tests {
             for k in 0..200 {
                 let theta = -3.0 + 6.0 * f64::from(k) / 199.0;
                 let corner = turned(&rim, theta);
-                let a = n.normalize();
+                let a = n.get().normalize();
                 let radial = |p: Point3<f64>| {
                     let v = p - q;
                     v - a * v.dot(a)
@@ -3788,7 +3938,7 @@ mod tests {
                 let off = |x: f64, y: f64| {
                     let f = Affine3::rotate_point_about_axis(
                         lift(q),
-                        Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                        Vec3::new(iv(n.get().x), iv(n.get().y), iv(n.get().z)),
                         iv(phi),
                         place_iv.transform_point(Point3::new(iv(x), iv(y), iv(0.0))),
                     );

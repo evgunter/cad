@@ -36,6 +36,9 @@ use viewer::session::{DocSession, SessionOp};
 use crate::corpus;
 use editor_core::test_support::{AXES, aimed};
 
+const TEST_RAY: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("viewer_test_ray", "the triangles a test ray may hit");
+
 // ---------------------------------------------------------------
 // The single-level reference.
 // ---------------------------------------------------------------
@@ -147,7 +150,12 @@ impl FlatReference {
         let mut hits = Vec::new();
         for (part, flat) in self.parts.iter().enumerate() {
             let ray = &flat.local(ray);
-            let mut items: Vec<usize> = flat.tree.ray(ray).into_iter().map(|c| c.item).collect();
+            let mut items: Vec<usize> = flat
+                .tree
+                .ray(TEST_RAY, ray)
+                .into_iter()
+                .map(|c| c.item)
+                .collect();
             items.sort_unstable();
             for item in items {
                 let Some(span) = ray_triangle(ray, &flat.corners[item]) else {

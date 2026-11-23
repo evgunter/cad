@@ -390,14 +390,14 @@ pub fn answered(name: &'static str, sign: Sign) {
 /// after queries that handed on different candidates are not on one
 /// path, and the marks are what shows it (`editor_core::resolve`'s first
 /// turn reads them). Nothing where no frame is open.
-pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize>) {
+pub fn mark_candidates(site: QuerySite, items: impl IntoIterator<Item = usize>) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             let role = current_role();
             let before = top.recorded.verdicts.len();
             let mark = |item| Mark {
                 before,
-                site: name,
+                site: site.0,
                 item,
                 role,
             };
@@ -419,13 +419,13 @@ pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize
 /// `true` means is the site's, as a predicate's sign is), so two runs
 /// whose tests answered differently part there ([`mark_candidates`] for
 /// a query that hands on a list). Nothing where no frame is open.
-pub fn mark_outcome(name: &'static str, outcome: bool) -> bool {
+pub fn mark_outcome(site: TestSite, outcome: bool) -> bool {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             let before = top.recorded.verdicts.len();
             top.recorded.marks.push(Mark {
                 before,
-                site: name,
+                site: site.0,
                 item: MarkItem::Outcome(outcome),
                 role: current_role(),
             });
@@ -960,9 +960,10 @@ pub fn decide_reported<T: Decide, A: MarginTerms>(
 /// units, never a convenience door.
 ///
 /// **Standing rule (the debt lane is tracked as issue #214): no new
-/// `decide_flagged` site ships without a ledger row in
-/// `docs/predicate-dimension-audit.md`.** Two assertions in
-/// `flagged_census.rs` carry it over `crates/*/src`. Fixtures
+/// `decide_flagged` site ships without citing a row that exists in
+/// `docs/predicate-dimension-audit.md`.** An assertion in
+/// `flagged_census.rs` carries it over `crates/*/src`; a new site under
+/// an existing row is not a red, so the row's argument has to cover it. Fixtures
 /// and demos are outside the scan and cite a prose reason rather than a
 /// row.
 ///
@@ -1342,12 +1343,84 @@ pub struct Mark {
     /// How many verdicts its frame held when it was recorded: it stands
     /// before the verdict at that index.
     pub before: usize,
-    /// The enumeration that examined it (a static name, as a predicate's).
-    pub site: &'static str,
+    /// The query or test that wrote it ([`Site`]).
+    pub site: Site,
     /// What it records ([`MarkItem`]).
     pub item: MarkItem,
     /// The role of the decisions the candidate feeds ([`checking`]).
     pub role: Role,
+}
+
+/// **Where a mark is written**: one query or one test, at the one call
+/// that asks it, so two callers of one door are two sites. `name` is
+/// routing, as a predicate's static name is; `words` say what is asked,
+/// for a sentence. Built through [`QuerySite`] or [`TestSite`], which
+/// set `kind` and are what the two mark doors take, so no mark is
+/// written without words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Site {
+    /// The static name (routing).
+    pub name: &'static str,
+    /// What the site asks: for a query, a noun phrase naming what it
+    /// searches for ("the faces whose boxes overlap the edge's box");
+    /// for a test, the clause it answers ("a cell is surely clear of
+    /// the band").
+    pub words: &'static str,
+    /// Which door writes it.
+    pub kind: SiteKind,
+}
+
+/// The door a [`Site`] writes through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SiteKind {
+    /// A query that hands on a list ([`mark_candidates`]).
+    Query,
+    /// A test that answers yes or no ([`mark_outcome`]).
+    Test,
+}
+
+/// **A query's [`Site`]**, the argument [`mark_candidates`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuerySite(Site);
+
+impl QuerySite {
+    /// The site `name`, searching for `words` (a noun phrase).
+    #[must_use]
+    pub const fn new(name: &'static str, words: &'static str) -> Self {
+        Self(Site {
+            name,
+            words,
+            kind: SiteKind::Query,
+        })
+    }
+
+    /// The site.
+    #[must_use]
+    pub const fn site(self) -> Site {
+        self.0
+    }
+}
+
+/// **A test's [`Site`]**, the argument [`mark_outcome`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TestSite(Site);
+
+impl TestSite {
+    /// The site `name`, answering whether `words` (a clause).
+    #[must_use]
+    pub const fn new(name: &'static str, words: &'static str) -> Self {
+        Self(Site {
+            name,
+            words,
+            kind: SiteKind::Test,
+        })
+    }
+
+    /// The site.
+    #[must_use]
+    pub const fn site(self) -> Site {
+        self.0
+    }
 }
 
 /// **What one [`Mark`] records**, by the kind of door that wrote it.
@@ -2051,6 +2124,19 @@ impl Real for Probe {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    /// The probe itself: it records the decisions its value meets.
+    type Value = Self;
+
+    fn without_tangent(self) -> Self {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
+
     fn from_f64(x: f64) -> Self {
         Self(x)
     }
@@ -2090,6 +2176,14 @@ impl Real for Probe {
 
     fn sqrt(self) -> Self {
         Self(Real::sqrt(self.0))
+    }
+
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        Self(f64::difference_dot(
+            q.map(|x| x.0),
+            o.map(|x| x.0),
+            n.map(|x| x.0),
+        ))
     }
 
     fn abs(self) -> Self {

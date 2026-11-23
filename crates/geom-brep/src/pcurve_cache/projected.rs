@@ -183,6 +183,7 @@
 //! line's are closed forms of their coefficients and certify at every
 //! `Decide` scalar.
 
+use geom_core::UnitVec3;
 use std::sync::Arc;
 
 use geom::{ChartAngle, ChartChannels, Curve3, NurbsCurve3, Quarter, Surface};
@@ -269,11 +270,12 @@ impl<T: Real> ProjectedChart<T> {
         }
     }
 
-    /// The stored nappe, on a cone.
-    pub(crate) fn nappe(&self) -> Option<Nappe> {
+    /// The locus a part is read against: a cone chart's stored nappe,
+    /// and every other chart's whole carrier.
+    pub(crate) fn locus(&self) -> Locus {
         match self {
-            Self::Cone { nappe, .. } => Some(*nappe),
-            _ => None,
+            Self::Cone { nappe, .. } => Locus::Nappe(*nappe),
+            _ => Locus::Carrier,
         }
     }
 }
@@ -1431,26 +1433,36 @@ fn nappe_of<T: Decide>(mid: T, band: Band) -> Result<Nappe, PcurveCertifyError> 
     }
 }
 
-/// The nappe a carrier whose middle sits at height `mid` in the chart
-/// frame lies on, on a cone ([`chart_at`]'s), and `None` on every other
-/// analytic chart: what [`Meters::of`] reads besides the surface.
+/// **What a part's metres are read against** ([`Meters`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Locus {
+    /// The surface's whole carrier: on a cone the double cone (a section
+    /// of carriers, C5), on every other chart the surface itself.
+    Carrier,
+    /// One nappe of a cone: a cone face's locus.
+    Nappe(Nappe),
+}
+
+/// A face's locus on its chart: on a cone the nappe a carrier whose
+/// middle sits at height `mid` in the chart frame lies on
+/// ([`chart_at`]'s), on every other analytic chart its carrier.
 ///
 /// # Errors
 ///
 /// [`chart_at`]'s on a cone; [`PcurveCertifyError::UnsupportedChart`]
 /// off an analytic chart.
-pub(crate) fn nappe_at<T: Decide>(
+pub(crate) fn face_locus<T: Decide>(
     surface: &Surface<T>,
     mid: impl FnOnce() -> T,
     band: Band,
-) -> Result<Option<Nappe>, PcurveCertifyError> {
+) -> Result<Locus, PcurveCertifyError> {
     match surface {
-        Surface::Cone { .. } => Ok(Some(nappe_of(mid(), band)?)),
+        Surface::Cone { .. } => Ok(Locus::Nappe(nappe_of(mid(), band)?)),
         Surface::Plane { .. }
         | Surface::Cylinder { .. }
         | Surface::Sphere { .. }
         | Surface::Torus { .. }
-        | Surface::Spindle { .. } => Ok(None),
+        | Surface::Spindle { .. } => Ok(Locus::Carrier),
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
         }),
@@ -1614,7 +1626,7 @@ pub(crate) fn project_ending<T: Decide>(
             let (t0, t1) = span.unwrap_or_else(|| super::own_interval(carrier));
             FramedCarrier::Line {
                 point: to_frame(point - origin, &e),
-                dir: to_frame(dir, &e),
+                dir: to_frame(dir.get(), &e),
                 origin: t0,
                 span: t1 - t0,
             }
@@ -1897,35 +1909,19 @@ pub(crate) fn part_reach(
     (rho, far, z)
 }
 
-/// Which locus a cone part's metres bound is read against
-/// ([`Meters::part_bound`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ConeLocus {
-    /// The stored nappe: the generator lever's reading, and the apex root
-    /// only where that lever does not read ([`Meters::certified`]), since
-    /// the root bounds the distance from the DOUBLE cone and must not
-    /// undercut the nappe's own reading.
-    Nappe,
-    /// The double cone (the carrier's complete locus): both readings bound
-    /// its distance, so the lesser is taken.
-    Double,
-}
-
 impl Meters<geom_core::Interval> {
     /// **A part's metres bound** — the one cell-to-metres step: a part
     /// whose `|f|` is at most `f_sup`, whose `ρ` ranges over
     /// `(rho_lo, rho_hi)` and whose `z` over `z`, read through
     /// [`Self::certified`] with each lever decided positive where its
-    /// `lower` end is, and its reading's `upper` end taken. On a cone read
-    /// against [`ConeLocus::Double`] the apex root is a second bound, and
-    /// the lesser holds. `NaN` where an input is not finite, `+∞` where no
-    /// reading reads (a torus or sheet lever not decided positive).
+    /// `lower` end is, and its reading's `upper` end taken. `NaN` where an
+    /// input is not finite, `+∞` where no reading reads (a torus or sheet
+    /// lever not decided positive).
     pub(crate) fn part_bound(
         self,
         f_sup: f64,
         (rho_lo, rho_hi): (f64, f64),
         z: (f64, f64),
-        locus: ConeLocus,
         lower: impl Fn(geom_core::Interval) -> f64,
         upper: impl Fn(geom_core::Interval) -> f64,
     ) -> f64 {
@@ -1938,18 +1934,12 @@ impl Meters<geom_core::Interval> {
             return f64::NAN;
         }
         let point = |x: f64| geom_core::Interval::from_bounds(x, x);
-        let f = point(f_sup);
-        let read = self
-            .certified(f, (point(rho_lo), point(rho_hi)), z, |lever| {
-                lower(lever) > 0.0
-            })
-            // `+∞` off the cone and the sheet only: on them the apex
-            // reading always reads.
-            .map_or(f64::INFINITY, &upper);
-        match (locus, self.apex_root(f)) {
-            (ConeLocus::Double, Some(root)) => geom_core::interval::min_bound(read, upper(root)),
-            _ => read,
-        }
+        self.certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
+            lower(lever) > 0.0
+        })
+        // `+∞` off the cone and the sheet only: on them the apex reading
+        // always reads.
+        .map_or(f64::INFINITY, upper)
     }
 }
 
@@ -2047,13 +2037,14 @@ pub(super) fn hull_sector<T: Decide>(
     Ok(())
 }
 
-/// `(σz)_min` over a part whose `z` ranges over `z`, on `nappe`: a
-/// bound the hull walk computed, so at `Sym` an unknown.
-fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
-    if nappe == Nappe::Opening {
-        T::from_computed(z.0)
-    } else {
-        T::zero() - T::from_computed(z.1)
+/// `(σz)_min` over a part whose `z` ranges over `z`, on a nappe, and
+/// `|z|_min` on the double cone: a bound the hull walk computed, so at
+/// `Sym` an unknown.
+fn axial_floor<T: Real>(z: (f64, f64), locus: Locus) -> T {
+    match locus {
+        Locus::Nappe(Nappe::Opening) => T::from_computed(z.0),
+        Locus::Nappe(Nappe::Mirror) => T::zero() - T::from_computed(z.1),
+        Locus::Carrier => T::from_computed(abs_z(z).0),
     }
 }
 
@@ -2096,24 +2087,27 @@ pub(crate) enum Lever {
 
 /// A chart's conversion between its canonical form's magnitude `|f|`
 /// and the distance from it in metres ([`net_incidence`]'s list), at
-/// scalar `S`: the twin's own scalars, and on a cone the stored nappe.
+/// scalar `S`: the twin's own scalars, and on a cone the [`Locus`] read
+/// against.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Meters<S> {
     Plane,
     Cylinder { radius: S },
     Sphere { radius: S },
-    Cone { sin: S, cos: S, nappe: Nappe },
+    Cone { sin: S, cos: S, locus: Locus },
     Torus { major: S, minor: S },
     Spindle { major: S, minor: S },
 }
 
 impl<S: Real> Meters<S> {
     /// The conversion for `twin`, its scalars crossed into `S` by
-    /// `cross`, on a cone of the stored `nappe`; `None` off an analytic
-    /// chart.
+    /// `cross`, on a cone against `locus`; `None` off an analytic chart. The cone's half-angle is crossed
+    /// before its sine and cosine are taken, so at an enclosure `S` they
+    /// enclose the stored angle's, never a lane scalar's rounding of
+    /// them.
     pub(crate) fn of<U: Real>(
         twin: &Surface<U>,
-        nappe: Option<Nappe>,
+        locus: Locus,
         cross: impl Fn(U) -> S,
     ) -> Option<Self> {
         Some(match *twin {
@@ -2125,15 +2119,8 @@ impl<S: Real> Meters<S> {
                 radius: cross(radius),
             },
             Surface::Cone { half_angle, .. } => {
-                let Some(nappe) = nappe else {
-                    unreachable!("a cone's conversion is read on a nappe")
-                };
-                let (sin, cos) = half_angle.sin_cos();
-                Self::Cone {
-                    sin: cross(sin),
-                    cos: cross(cos),
-                    nappe,
-                }
+                let (sin, cos) = crate::implicit::cone_sin_cos(half_angle, cross);
+                Self::Cone { sin, cos, locus }
             }
             Surface::Torus {
                 major_radius,
@@ -2176,9 +2163,11 @@ impl<S: Real> Meters<S> {
     /// - on a sheet, the least of [`Self::over`], [`Self::sheet_at_height`]
     ///   and [`Self::sheet_apex_reach`] that read, each a bound on the
     ///   part's distance from this sheet; the apex reach always reads;
+    /// - on the double cone the lesser of [`Self::over`] and
+    ///   [`Self::apex_root`], both bounds on its distance;
     /// - elsewhere [`Self::over`], else [`Self::apex_root`]; `None` where
     ///   neither reads. The cone's apex reading is the double cone's
-    ///   distance, which must not undercut the nappe's own reading away
+    ///   distance, which must not undercut a nappe's own reading away
     ///   from the apex.
     pub(crate) fn certified(
         self,
@@ -2187,25 +2176,49 @@ impl<S: Real> Meters<S> {
         z: (f64, f64),
         positive: impl Fn(S) -> bool,
     ) -> Option<S> {
-        let over = self
-            .over(
-                f,
-                rho,
-                z,
-                |lever, _| if positive(lever) { Ok(lever) } else { Err(()) },
-            )
-            .ok();
+        let over = self.over(
+            f,
+            rho,
+            z,
+            |lever, _| if positive(lever) { Ok(lever) } else { Err(()) },
+        );
         match self {
             Self::Spindle { major, minor } => Some(
-                [over, Self::sheet_at_height(major, minor, rho, z, &positive)]
-                    .into_iter()
-                    .flatten()
-                    .fold(
-                        Self::sheet_apex_reach(major, minor, rho.1, z),
-                        |least, d| least.min(d),
-                    ),
+                [
+                    over.ok(),
+                    Self::sheet_at_height(major, minor, rho, z, &positive),
+                ]
+                .into_iter()
+                .flatten()
+                .fold(
+                    Self::sheet_apex_reach(major, minor, rho.1, z),
+                    |least, d| least.min(d),
+                ),
             ),
-            _ => over.or_else(|| self.apex_root(f)),
+            _ => self.settled(f, over, || self.apex_root(f)).ok(),
+        }
+    }
+
+    /// **A part's reading from [`Self::over`]'s**, the one rule the hull's
+    /// reading ([`Self::certified`]) and the decided bound
+    /// ([`net_incidence`]) both take: where `over` did not read, the
+    /// `fallback` (the apex reading); on the double cone the lesser of
+    /// `over` and `√|f|`, each a bound on its distance.
+    pub(crate) fn settled<E>(
+        self,
+        f: S,
+        over: Result<S, E>,
+        fallback: impl FnOnce() -> Option<S>,
+    ) -> Result<S, E> {
+        match self {
+            Self::Cone {
+                locus: Locus::Carrier,
+                ..
+            } => {
+                let root = f.sqrt();
+                Ok(over.map_or(root, |over| over.min(root)))
+            }
+            _ => over.or_else(|refusal| fallback().ok_or(refusal)),
         }
     }
 
@@ -2300,7 +2313,7 @@ impl<S: Real> Meters<S> {
         positive: impl Fn(S, Lever) -> Result<S, E>,
     ) -> Result<S, E> {
         let axial = match self {
-            Self::Cone { nappe, .. } => axial_floor(z, nappe),
+            Self::Cone { locus, .. } => axial_floor(z, locus),
             _ => S::zero(),
         };
         self.over_at(f, rho, axial, z, positive)
@@ -2508,7 +2521,7 @@ pub(crate) fn window_of<T: Decide>(
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),
-    nappe: Option<Nappe>,
+    locus: Locus,
     twin: &Surface<T>,
     d: T,
     band: Band,
@@ -2521,7 +2534,7 @@ pub(super) fn net_incidence<T: Decide>(
     let mut incidence = T::zero();
     let mut rho_floor: Option<T> = None;
     let window = window_of(hull, (t0, t1))?.parts;
-    let Some(meters) = Meters::of(twin, nappe, |x| x) else {
+    let Some(meters) = Meters::of(twin, locus, |x| x) else {
         unreachable!("a projected chart is analytic")
     };
     for (j, span) in hull.spans.iter().enumerate() {
@@ -2550,31 +2563,28 @@ pub(super) fn net_incidence<T: Decide>(
         // `T`, and decides each lever at the band, escalating where the
         // band cannot tell, where `part_bound` reads interval enclosures
         // and takes a lever positive only where its lower end is.
-        let disp = meters
-            .over(
-                f,
-                (rho, T::from_computed(span.rho_hi)),
-                span.z,
-                |lever, which| {
-                    let channel = match which {
-                        Lever::Divisor => SectorChannel::Lever,
-                        Lever::Side => SectorChannel::Side,
-                    };
-                    require_positive_as(
-                        "pcurve_projected_lever",
-                        lever,
-                        band,
-                        PcurveCheck::Sector,
-                        j,
-                        sector_refused(j, channel),
-                    )
-                },
-            )
-            .or_else(|refusal| {
-                apex.then(|| meters.apex_part(f, span))
-                    .flatten()
-                    .ok_or(refusal)
-            })?;
+        let over = meters.over(
+            f,
+            (rho, T::from_computed(span.rho_hi)),
+            span.z,
+            |lever, which| {
+                let channel = match which {
+                    Lever::Divisor => SectorChannel::Lever,
+                    Lever::Side => SectorChannel::Side,
+                };
+                require_positive_as(
+                    "pcurve_projected_lever",
+                    lever,
+                    band,
+                    PcurveCheck::Sector,
+                    j,
+                    sector_refused(j, channel),
+                )
+            },
+        );
+        let disp = meters.settled(f, over, || {
+            apex.then(|| meters.apex_part(f, span)).flatten()
+        })?;
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {
@@ -2651,6 +2661,12 @@ pub(crate) struct OffsetRead<T> {
     /// in metres ([`Offset::Miss`]'s `floor`); `0` where they stopped
     /// on the bound.
     pub(crate) floor: f64,
+    /// Where the reading did not clear the band, on the carrier's
+    /// parameter: on an [`Offset::Miss`] the break it stopped on, as a
+    /// point, always the first entry; then every part whose bound does
+    /// not clear. A selection of where a search refines, never a
+    /// decision.
+    pub(crate) uncleared: Vec<crate::ssi::certify::RefusedSpan>,
 }
 
 /// How far above the net's rounding limb 2's bound may lie and still be
@@ -2706,7 +2722,7 @@ pub(crate) fn round_floored(sup: f64, before: Option<f64>, rounding: f64, band: 
 pub(crate) fn offset_rounds<T: Decide>(
     hull: impl Fn(&[f64]) -> Result<(ProjectedHull, NetSize), PcurveCertifyError>,
     window: (T, T),
-    nappe: Option<Nappe>,
+    locus: Locus,
     twin: &Surface<T>,
     band: Band,
 ) -> Result<OffsetRead<T>, PcurveCertifyError> {
@@ -2718,7 +2734,7 @@ pub(crate) fn offset_rounds<T: Decide>(
     // The stored carrier is the net itself, so the radial floor's
     // fidelity term is zero; limb 2 reads the incidence alone.
     let bound = |hull: &ProjectedHull| {
-        net_incidence(hull, window, nappe, twin, T::zero(), band, true)
+        net_incidence(hull, window, locus, twin, T::zero(), band, true)
             .map(|(incidence, _)| incidence)
     };
     // The last round's bound, replaced on every call before the stop
@@ -2732,21 +2748,31 @@ pub(crate) fn offset_rounds<T: Decide>(
         round_floored(h.sup, before, h.data.1.rounding, band)
     };
     Ok(match subdivide_until(round, band, floored)? {
-        Subdivided::Bound(hull) => OffsetRead {
-            offset: Offset::Bound(bound(&hull.data.0)?),
-            size: hull.data.1,
-            upper: f64::NAN,
-            floor: 0.0,
-        },
-        Subdivided::Value { hull, floor, .. } => OffsetRead {
-            offset: Offset::Miss {
-                floor: T::from_computed(floor),
-                bound: bound(&hull.data.0),
-            },
-            size: hull.data.1,
-            upper: f64::NAN,
-            floor,
-        },
+        Subdivided::Bound(hull) => {
+            let mut uncleared = Vec::new();
+            hull.uncleared(band, &mut uncleared);
+            OffsetRead {
+                offset: Offset::Bound(bound(&hull.data.0)?),
+                size: hull.data.1,
+                upper: f64::NAN,
+                floor: 0.0,
+                uncleared,
+            }
+        }
+        Subdivided::Value { hull, at, floor } => {
+            let mut uncleared = vec![crate::ssi::certify::RefusedSpan { lo: at, hi: at }];
+            hull.uncleared(band, &mut uncleared);
+            OffsetRead {
+                offset: Offset::Miss {
+                    floor: T::from_computed(floor),
+                    bound: bound(&hull.data.0),
+                },
+                size: hull.data.1,
+                upper: f64::NAN,
+                floor,
+                uncleared,
+            }
+        }
     })
 }
 
@@ -2763,7 +2789,7 @@ pub(crate) fn offset_cleared<T: Decide>(
     hull: ProjectedHull,
     size: NetSize,
     window: (T, T),
-    nappe: Option<Nappe>,
+    locus: Locus,
     twin: &Surface<T>,
     band: Band,
 ) -> Result<Option<OffsetRead<T>>, PcurveCertifyError> {
@@ -2772,12 +2798,13 @@ pub(crate) fn offset_cleared<T: Decide>(
         return Ok(None);
     }
     let (hull, size) = round.data;
-    let (incidence, _) = net_incidence(&hull, window, nappe, twin, T::zero(), band, true)?;
+    let (incidence, _) = net_incidence(&hull, window, locus, twin, T::zero(), band, true)?;
     Ok(Some(OffsetRead {
         offset: Offset::Bound(incidence),
         size,
         upper: f64::NAN,
         floor: 0.0,
+        uncleared: Vec::new(),
     }))
 }
 
@@ -3151,7 +3178,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 hull_sector::<T>(&hull.pieces[k], k, &image.chart, band)?;
             }
             let (incidence, rho_floor) =
-                net_incidence(&hull, (t0, t1), image.chart.nappe(), &twin, d, band, false)?;
+                net_incidence(&hull, (t0, t1), image.chart.locus(), &twin, d, band, false)?;
             (incidence, d, rho_floor)
         }
         (FramedCarrier::Conic { centre, a, b, .. }, Curve3::Circle(..) | Curve3::Ellipse(..)) => {
@@ -3161,7 +3188,7 @@ pub(super) fn projected_envelope<T: Decide>(
             let (Some(Lane::Conic), Some(conic), Some(meters)) = (
                 lane_of(carrier, &twin),
                 carrier.conic(),
-                Meters::of(&twin, image.chart.nappe(), |x| x),
+                Meters::of(&twin, image.chart.locus(), |x| x),
             ) else {
                 return Err(refuse(
                     "a conic's projected image is written for a sphere, cylinder, cone or torus",
@@ -3184,7 +3211,10 @@ pub(super) fn projected_envelope<T: Decide>(
                 conic,
                 geom::Line {
                     origin: o,
-                    dir: e[2],
+                    // `e[2]`, the twin's frame axis, as the witness it is.
+                    dir: twin
+                        .frame()
+                        .map_or_else(|| UnitVec3::squared(e[2]), |f| f.axis_unit()),
                 },
             ));
             let rho_floor = (rho_twin - d).max(T::zero());
@@ -3224,7 +3254,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 ));
             };
             let (rho_lo, _, _) = met_floors(image, &met, (t0, t1), band)?;
-            let (p, l) = (to_frame(at0 - o, &e), to_frame(along, &e));
+            let (p, l) = (to_frame(at0 - o, &e), to_frame(along.get(), &e));
             // The stored line's gap from the re-derived one is affine in
             // `t`, so its sup over the edge is at an end.
             let gap = |t: T| (point - p + (dir - l) * t).norm();
@@ -3240,7 +3270,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 // its box.
                 LineChart::Cone { sin, cos } => {
                     let Some(meters @ Meters::Cone { .. }) =
-                        Meters::of(&twin, image.chart.nappe(), |x| x)
+                        Meters::of(&twin, image.chart.locus(), |x| x)
                     else {
                         return Err(refuse(
                             "the image's inverse is written for another chart kind",
@@ -3772,15 +3802,19 @@ mod tests {
             let (incidence, floor) = net_incidence(
                 &hull,
                 (S::zero(), S::one()),
-                None,
+                Locus::Carrier,
                 &plane,
                 S::from_f64(0.25),
                 band,
                 false,
             )
             .expect("the plane's part is certified");
-            let z = [Nappe::Opening, Nappe::Mirror]
-                .map(|nappe| revalue(axial_floor::<S>((0.5, 2.0), nappe).node(), &none));
+            let z = [Nappe::Opening, Nappe::Mirror].map(|nappe| {
+                revalue(
+                    axial_floor::<S>((0.5, 2.0), Locus::Nappe(nappe)).node(),
+                    &none,
+                )
+            });
             (
                 sector,
                 revalue(incidence.node(), &none),

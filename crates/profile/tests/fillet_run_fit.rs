@@ -32,7 +32,7 @@ fn validated(c: &ClosedLoop<f64>, what: &str) -> ValidatedProfile<f64> {
 /// The predicate an in-band escalation names, or a panic naming what
 /// came instead.
 fn escalated_on(r: Result<ClosedLoop<f64>, PathError<f64>>, what: &str) -> &'static str {
-    match r {
+    match r.map_err(|e| e.refusal().clone()) {
         Err(PathError::Escalated { source, .. }) => source
             .predicate
             .unwrap_or_else(|| panic!("{what}: the escalation names its predicate")),

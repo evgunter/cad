@@ -54,6 +54,7 @@ from pncad import (
     DocEdit,
     DocRef,
     Coord,
+    EditError,
     Formula,
     FreeValue,
     FreeVar,
@@ -157,9 +158,8 @@ class TestTheConnectednessResident(unittest.TestCase):
         assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         self.assertEqual(report.findings, [])
-        # The chart-coherence resident is Off by default and says so:
-        # "not checked" is an answer this report carries.
-        self.assertEqual(report.skipped, [CheckId.ChartCoherence])
+        # Every resident runs by default, so nothing is skipped.
+        self.assertEqual(report.skipped, [])
         self.assertEqual(len(report), 0)
 
     def test_an_interior_void_is_boundary_and_not_a_component(self):
@@ -285,12 +285,12 @@ class TestTheReportGateSplit(unittest.TestCase):
         report = run_checks(doc, ev, off)
         self.assertEqual(report.findings, [])
         self.assertEqual(
-            report.skipped, [CheckId.Connectedness, CheckId.ChartCoherence]
+            report.skipped, [CheckId.Connectedness]
         )
         both = ChecksConfig(connectedness=Severity.Off, at_rest=Severity.Off)
         self.assertEqual(
             run_checks(doc, ev, both).skipped,
-            [CheckId.Connectedness, CheckId.ChartCoherence, CheckId.AtRest],
+            [CheckId.Connectedness, CheckId.AtRest],
         )
 
 
@@ -298,7 +298,6 @@ class TestTheRegistryVocabulary(unittest.TestCase):
     def test_every_resident_carries_its_honesty_label(self):
         self.assertEqual(CheckId.Connectedness.kind, CheckKind.Certified)
         self.assertEqual(CheckId.AtRest.kind, CheckKind.Certified)
-        self.assertEqual(CheckId.ChartCoherence.kind, CheckKind.Certified)
         self.assertEqual(str(CheckId.Connectedness), "connectedness")
         self.assertEqual(str(CheckId.AtRest), "at-rest")
 
@@ -338,7 +337,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
-        spoken = 'check connectedness: Place "joined" ('
+        spoken = 'check connectedness: "joined" ('
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
@@ -626,6 +625,62 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
 
+    def test_a_finding_carries_the_assertion_that_quiets_it(self):
+        """The glue's finding carries its claim, a `gap` over its two
+        cells `= 0`; the claim's edits applied, the same row is quiet
+        under the assertion they author. A finding with no claim offers
+        none. Red if the value is dropped at the seam, its references
+        are not the row's cells, or its edits author another claim."""
+        doc = Doc()
+        lower = slab(doc, 0.0, 1.0)
+        upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5, on=lower)
+        glued = doc.insert(Node.union([lower, upper]))
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            at_rest=Severity.Off,
+            unproven_coincidence=Advisory.Warn,
+            unused=Advisory.Off,
+        )
+
+        def glue(report):
+            (finding,) = [
+                f for f in report.findings if f.evidence.site == "plane_ladder"
+            ]
+            return finding
+
+        finding = glue(run_checks(doc, evaluate(doc), cfg))
+        self.assertIsNone(finding.quiet)
+        claim = finding.evidence.quieting
+        self.assertIsNotNone(claim)
+        self.assertEqual(claim.measure, "gap")
+        self.assertEqual(
+            [(r.read, r.name, r.pose) for r in claim.references],
+            [(read, name, None) for read, name in finding.evidence.coincidence.cells],
+        )
+        self.assertIn(f"assert {claim}", str(finding))
+
+        self.assertEqual(claim, glue(run_checks(doc, evaluate(doc), cfg)).evidence.quieting)
+        self.assertEqual(len({claim, claim}), 1, "a claim hashes as it compares")
+        other = Doc()
+        with self.assertRaises(EditError) as foreign:
+            other.assert_quieting(claim)
+        self.assertEqual(foreign.exception.variant, "evaluation_of_another_document")
+        assertion = doc.assert_quieting(claim)
+        quieted = glue(run_checks(doc, evaluate(doc), cfg))
+        self.assertEqual(quieted.node, glued)
+        self.assertEqual(quieted.quiet, assertion)
+        self.assertIn("quiet:", str(quieted))
+        self.assertNotIn("Recourse", str(quieted), "a quiet finding offers nothing")
+        # An arm with no claim answers `None`, as every payload does.
+        unused = run_checks(doc, evaluate(doc), ChecksConfig(unused=Advisory.Warn))
+        self.assertTrue(
+            all(
+                f.evidence.quieting is None
+                for f in unused.findings
+                if f.check != CheckId.UnprovenCoincidence
+            )
+        )
+
     def test_a_parts_unproven_rest_is_reported_through_its_instance(self):
         """The resting part, instanced: the instantiating document
         reports each of the part's five unproven rows once, the part's
@@ -705,7 +760,7 @@ class TestAProfileJunctionTheDoorDecides(unittest.TestCase):
         tip = Open.at((0 * m, 0 * m)).line_to((10 * m, 0 * m))
         with self.assertRaises(pncad.PathError) as caught:
             tip.line_to((10.001 * m, 1e-10 * m))
-        self.assertEqual(caught.exception.variant, "junction_tangent")
+        self.assertEqual(caught.exception.variant, "junction_turn_within_tolerance")
 
 
 if __name__ == "__main__":

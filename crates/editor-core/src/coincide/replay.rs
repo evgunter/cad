@@ -350,7 +350,7 @@ const SWEPT_ALONG: &str = "replay_swept_along_the_traced_axis";
 /// **Whether a traced sweep runs along the face its piece leaves**, the
 /// heading the trace statement leaves to the replay
 /// ([`super::Traced::HeadingUnread`]): the face, read as the profile
-/// reads it ([`crate::eval::traced_faces`]), on a cylinder whose axis,
+/// reads it through its decided frame (`crate::eval::traced_faces_of`), on a cylinder whose axis,
 /// carried into the sketch's coordinates, has no component across the
 /// sketch's `z`, the heading every extrude of the profile sweeps along.
 /// Each component is decided Zero and discharged by the tier, so the
@@ -369,10 +369,7 @@ fn swept_along(
     band: Band,
     tol: Tol,
 ) -> bool {
-    let Some(crate::Node::Profile(program)) = doc.node(heading.profile) else {
-        return false;
-    };
-    let Ok(faces) = crate::eval::traced_faces(doc, ev, program, tol) else {
+    let Some(Ok(faces)) = crate::eval::traced_faces_of(doc, ev, heading.profile, tol) else {
         return false;
     };
     let Some(across) = faces.get(heading.face).and_then(axis_in_sketch) else {
@@ -685,9 +682,8 @@ fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
         .filter_map(|he| {
             let he = body.get_half_edge(he)?;
             match body
-                .get_edge(he.edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(topo::CurveGeom::certified)
+                .edge(he.edge)
+                .and_then(topo::EdgeView::certified)
                 .map(geom_brep::EdgeCurve::carrier)
             {
                 Some(geom::Curve3::Circle(circle)) => {

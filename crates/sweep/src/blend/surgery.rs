@@ -206,6 +206,7 @@
 //! [`SourceFaces::kef_minted`], the one face-destroying door of this
 //! file and of the two open bands under `open/`.
 
+use geom_core::UnitVec3;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use topo::construction::Construct;
@@ -216,6 +217,7 @@ use geom::{Conic as _, Curve3};
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, SmoothJoin, SurfacePair, must_carry_description,
 };
+use geom_core::k_stats::TestSite;
 use geom_core::period::Within;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::construction::{FaceSurface, MefSite, MekrSite};
@@ -803,7 +805,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     };
 
     // ---- Mutation, on a clone. From here on every step is an Euler
-    // operator or a certified setter; refusals map to Op/Certify. ----
+    // operator or a certified setter; refusals map to Op/PcurveMint. ----
     // **The one snapshot.** Every face the surgery may NOT kill is a
     // face of the body it was handed, so the set is read once, here,
     // before the clone — not re-assembled per phase from whatever that
@@ -971,10 +973,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;
     }
-    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::Certify {
-        site: "pcurve re-mint after surgery",
-        source,
-    })?;
+    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::PcurveMint { source })?;
 
     body.close_already_checked();
     let mut body = blended;
@@ -2450,7 +2449,7 @@ pub(super) fn strip_reading<T: Decide + Bounds>(
         let d = within(lo, hi);
         depth = Some(depth.map_or(d, |x| x.min(d)));
     }
-    if let Some(d) = depth.filter(|d| super::reach::sure(*d, band)) {
+    if let Some(d) = depth.filter(|d| super::reach::sure(STRIP_DEPTH, *d, band)) {
         return Some(CycleReading::Inside(T::zero() - d));
     }
     let mut deepest: Option<T> = None;
@@ -2458,10 +2457,11 @@ pub(super) fn strip_reading<T: Decide + Bounds>(
     for &p in witnesses {
         let x = (p - o).dot(m);
         let d = within(x, x);
-        if super::reach::sure(d, band) {
+        if super::reach::sure(WITNESS_DEPTH, d, band) {
             deepest = Some(deepest.map_or(d, |y| y.max(d)));
         }
-        out |= super::reach::sure(x, band) || super::reach::sure(T::zero() - x - across, band);
+        out |= super::reach::sure(WITNESS_OFFSET, x, band)
+            || super::reach::sure(WITNESS_ACROSS, T::zero() - x - across, band);
     }
     Some(match deepest.filter(|_| out) {
         Some(d) => CycleReading::Crossing(T::zero() - d),
@@ -2561,7 +2561,7 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
             (line.at(ta) - c).norm().max((line.at(tb) - c).norm()),
         )),
         Curve3::Ellipse(ref e) => {
-            let (d, major) = ((e.frame.origin() - c).norm(), geom::Conic::speed_hi(e));
+            let (d, major) = ((e.frame().origin() - c).norm(), geom::Conic::speed_hi(e));
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => carrier.as_circle().map(|k| k.arc_distance((ta, tb), c)),
@@ -2589,13 +2589,13 @@ pub(super) fn piece_along<T: Decide + Bounds>(
     match *carrier {
         Curve3::Line(geom::Line { origin, dir }) => {
             let (la, lb) = (
-                (origin + dir * ta - c).dot(u),
-                (origin + dir * tb - c).dot(u),
+                (origin + dir.get() * ta - c).dot(u),
+                (origin + dir.get() * tb - c).dot(u),
             );
             Some((la.min(lb), la.max(lb)))
         }
         Curve3::Ellipse(ref e) => {
-            let f = e.frame;
+            let f = e.frame();
             let unit = geom::Circle::new(f, T::one());
             let (p, q) = geom::Conic::along(e, u);
             let lifted = f.u_ref() * p + f.v_ref() * q;
@@ -2667,7 +2667,7 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
     }
 
     fn arc_past(&self, t: T, q: Point3<T>) -> T {
-        self.frame.azimuth(q).near(t + T::pi()) - t
+        self.frame().azimuth(q).near(t + T::pi()) - t
     }
 
     /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
@@ -2689,8 +2689,8 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(ta) - c).norm(),
             (self.point_at(tb) - c).norm(),
         );
-        let (o, radius) = (self.frame.origin(), self.radius());
-        let axis = self.frame.axis_line();
+        let (o, radius) = (self.frame().origin(), self.radius());
+        let axis = self.frame().axis_line();
         let h = (axis.foot(c) - o).norm();
         let plane = axis.offset(c);
         let rho = plane.norm();
@@ -2728,9 +2728,9 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(ta) - c).dot(u),
             (self.point_at(tb) - c).dot(u),
         );
-        let (o, radius) = (self.frame.origin(), self.radius());
+        let (o, radius) = (self.frame().origin(), self.radius());
         let mid = (o - c).dot(u);
-        let plane = u - self.frame.axis() * u.dot(self.frame.axis());
+        let plane = u - self.frame().axis() * u.dot(self.frame().axis());
         let nu = plane.norm();
         let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
         if nu.lo() <= 0.0 {
@@ -3209,7 +3209,7 @@ fn strip_clearance<T: Decide + Bounds>(
         let t = point_of(body, chord.to)
             .ok_or_else(|| unresolved(EntityId::Vertex(chord.to), "a station's point"))?;
         let [x, y] = chord.feet;
-        let d = (t - o).normalize();
+        let d = UnitVec3::squared(t - o);
         let m = geom::Line { origin: o, dir: d }.offset(x).normalize();
         let corners = [o, t, x, y];
         let along = |u: Vec3<T>| {
@@ -3218,7 +3218,7 @@ fn strip_clearance<T: Decide + Bounds>(
                 .map(|p| (*p - o).dot(u))
                 .fold(T::zero(), |acc: T, h| acc.min(h))
         };
-        let (low_d, high_d) = (along(d), -along(-d));
+        let (low_d, high_d) = (along(d.get()), -along(-d.get()));
         let across = -along(-m);
         for &edge in &boundary {
             if opens.iter().any(|op| op.edge() == edge)
@@ -3246,7 +3246,7 @@ fn strip_clearance<T: Decide + Bounds>(
                 )
             };
             let (lo_m, hi_m) = reach(m).ok_or_else(unread)?;
-            let (lo_d, hi_d) = reach(d).ok_or_else(unread)?;
+            let (lo_d, hi_d) = reach(d.get()).ok_or_else(unread)?;
             let margin = (lo_m - across)
                 .max(-hi_m)
                 .max(lo_d - high_d)
@@ -3520,12 +3520,12 @@ impl<T: Decide + Bounds> StripLevel<T> {
             match body.get_surface(fd.surface) {
                 Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
                 Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
-                    let u = rim_circle.frame.axis();
+                    let u = rim_circle.frame().axis();
                     (
                         ci,
                         Some(u),
                         T::zero(),
-                        (rim_circle.frame.origin() - ci).dot(u),
+                        (rim_circle.frame().origin() - ci).dot(u),
                     )
                 }
                 Some(_) => {
@@ -3562,7 +3562,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 // as many equal pieces as keep each below it; a piece not
                 // read certainly below takes the whole circle.
                 Some(c) => {
-                    let o = c.frame.origin();
+                    let o = c.frame().origin();
                     for (ta, tb) in arc_pieces(t0, t1).unwrap_or_default() {
                         window.push(vec![
                             (o, rim_carrier.deriv(ta).normalize()),
@@ -3685,7 +3685,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
             };
             let m = whole.max(m);
             match part.touch {
-                Some(t) if !sure(m, band) => touch = least(touch, m.max(t)),
+                Some(t) if !sure(WEDGE_MARGIN, m, band) => touch = least(touch, m.max(t)),
                 _ => definite = least(definite, m),
             }
         }
@@ -3766,7 +3766,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
     /// where there is neither.
     fn settle(definite: Option<T>, touch: Option<T>, band: Band) -> Option<Reading<T>> {
         match (definite, touch) {
-            (Some(d), Some(t)) if sure(d, band) => Some(Reading::Touch {
+            (Some(d), Some(t)) if sure(SETTLE_DEFINITE, d, band) => Some(Reading::Touch {
                 clear: Some(d),
                 touch: t,
             }),
@@ -3808,7 +3808,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
         for &(o, u) in wedge {
             windows = match carrier {
                 Clippable::Line(line) => {
-                    let (a, b) = ((line.origin - o).dot(u), line.dir.dot(u));
+                    let (a, b) = ((line.origin - o).dot(u), line.dir.get().dot(u));
                     windows
                         .into_iter()
                         .filter_map(|clip| {
@@ -3858,7 +3858,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
     fn graze(clip: Clip<T>, into: T, band: Band) -> Option<Clip<T>> {
         if into.lo() >= 0.0 {
             Some(clip)
-        } else if sure(-into, band) {
+        } else if sure(GRAZE_CLEAR, -into, band) {
             None
         } else {
             Some(Clip {
@@ -3894,24 +3894,24 @@ impl<T: Decide + Bounds> StripLevel<T> {
         (o, u): (Point3<T>, Vec3<T>),
         band: Band,
     ) -> Vec<Clip<T>> {
-        let plane = u - c.frame.axis() * u.dot(c.frame.axis());
+        let plane = u - c.frame().axis() * u.dot(c.frame().axis());
         let reach = c.radius() * plane.norm();
-        let k = (c.frame.origin() - o).dot(u);
+        let k = (c.frame().origin() - o).dot(u);
         if windows.is_empty() || (k - reach).hi() >= 0.0 {
             return windows;
         }
         let into = k + reach;
-        if sure(-into, band) {
+        if sure(ARC_CLEAR, -into, band) {
             return Vec::new();
         }
-        let touch = (!sure(into, band)).then_some(-into);
+        let touch = (!sure(ARC_INTO, into, band)).then_some(-into);
         let alpha = (-k / reach).max(-T::one()).min(T::one()).acos();
         let mid = |x: T| geom_core::mid_param(x.lo(), x.hi());
         let turns = |x: f64| x / core::f64::consts::TAU;
         let mut clipped = Vec::with_capacity(2 * windows.len());
         for clip in windows {
             let (lo, hi) = clip.window;
-            let phi = c.frame.azimuth(c.frame.origin() + plane).near(lo);
+            let phi = c.frame().azimuth(c.frame().origin() + plane).near(lo);
             let (c0, c1) = (phi - alpha, phi + alpha);
             #[allow(clippy::cast_possible_truncation)]
             let (first, last) = (
@@ -3976,7 +3976,7 @@ impl<'a, T: Real> Clippable<'a, T> {
     /// Length per unit of parameter.
     fn speed(self) -> T {
         match self {
-            Self::Line(line) => line.dir.norm(),
+            Self::Line(line) => line.dir.get().norm(),
             Self::Circle(c) => c.radius(),
         }
     }
@@ -6149,7 +6149,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         ContactCarrier::Section { .. } | ContactCarrier::Generator
     );
     let plane = match &carrier {
-        ContactCarrier::Section(section) => Some(section.normal),
+        ContactCarrier::Section(section) => Some(section.normal.get()),
         _ => None,
     };
     let transverse = matches!(
@@ -6172,8 +6172,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         ContactCarrier::TrimLine(line) => placed(Curve3::Line(line))
             .ok_or_else(|| disagrees(EntityId::Edge(edge), "a trimline's end parameter"))?,
         ContactCarrier::Chord | ContactCarrier::SeamLine | ContactCarrier::Generator => {
-            let len = p0.distance(p1);
-            (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
+            let (chord, len) = geom::Line::chord(p0, p1);
+            (Curve3::Line(chord), T::zero(), len)
         }
         // ONE construction for the three arc kinds, deliberately: a corner
         // arc, a band's slit and a section are the same short arc about a stored
@@ -6363,10 +6363,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         },
         tol,
     )
-    // No split by refusal kind here any more: `EulerOpError` carries
-    // its own `Certification` arm, so the attachment gate's
-    // certification failure reaches the caller typed, inside the
-    // operator refusal that raised it.
+    // The attachment gate's certification failure reaches the caller
+    // typed, as the operator refusal's `DescriptionUncertified` arm.
     .map_err(|e| op("surgery contact edge", e))?;
     Ok(())
 }
@@ -6510,6 +6508,44 @@ fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
         );
     }
 }
+
+/// The surgery's calls of `reach::sure`, one site per call.
+const STRIP_DEPTH: TestSite = TestSite::new(
+    "blend_surgery_strip_depth",
+    "a cycle's every piece lies surely within the strip",
+);
+const WITNESS_DEPTH: TestSite = TestSite::new(
+    "blend_surgery_witness_depth",
+    "a cycle's witness lies surely within the strip",
+);
+const WITNESS_OFFSET: TestSite = TestSite::new(
+    "blend_surgery_witness_offset",
+    "a strip witness lies surely ahead of the strip's start",
+);
+const WITNESS_ACROSS: TestSite = TestSite::new(
+    "blend_surgery_witness_across",
+    "a strip witness lies surely past the strip's far side",
+);
+const WEDGE_MARGIN: TestSite = TestSite::new(
+    "blend_surgery_wedge_margin",
+    "a wedge part's margin reads surely clear",
+);
+const SETTLE_DEFINITE: TestSite = TestSite::new(
+    "blend_surgery_settle_definite",
+    "a definite reading beside a touch is surely positive",
+);
+const GRAZE_CLEAR: TestSite = TestSite::new(
+    "blend_surgery_graze_clear",
+    "a clip's clearance reads surely positive",
+);
+const ARC_CLEAR: TestSite = TestSite::new(
+    "blend_surgery_arc_clear",
+    "an arc lies surely clear of the reach",
+);
+const ARC_INTO: TestSite = TestSite::new(
+    "blend_surgery_arc_into",
+    "an arc reaches surely into the band",
+);
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -6808,7 +6844,7 @@ mod tests {
         );
         // A segment: the nearest point is the clamped foot, not the
         // carrier's.
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_x());
         let (near, far) =
             piece_distance(&line, (1.0, 2.0), Point3::new(0.0, 1.0, 0.0)).expect("line");
         close(near, 2.0_f64.sqrt(), "a segment's near is its clamped foot");
@@ -6908,7 +6944,7 @@ mod tests {
             // `x + y = −8e-9`: `8e-9` below `x ≥ 0`'s part, in band, and
             // its window between the edges empty by `1.13e-8`, past it.
             let s = 0.5_f64.sqrt();
-            let diagonal = Curve3::line(p(0.0, -8e-9), v(s, -s));
+            let diagonal = Curve3::line(p(0.0, -8e-9), geom_core::UnitVec3::checked(v(s, -s)));
             close(
                 margin(
                     &one,
@@ -6922,7 +6958,7 @@ mod tests {
             );
             // Along the edge `x = 0`, 0.05 off the strip's end there: the
             // half of the strip's width, the layer it clears by.
-            let along = Curve3::line(p(-3e-9, -4e-9), v(-0.2, 1.0).normalize());
+            let along = Curve3::line(p(-3e-9, -4e-9), geom_core::UnitVec3::squared(v(-0.2, 1.0)));
             close(
                 margin(
                     &one,
@@ -6970,7 +7006,7 @@ mod tests {
                 (1e-10, band),
                 (1e-7, Band::new(1e-6, 1e-5).expect("the band at ε 1e-6")),
             ] {
-                let below = Curve3::line(p(-0.2, -0.27), v(1.0, 0.0));
+                let below = Curve3::line(p(-0.2, -0.27), geom_core::UnitVec3::checked(v(1.0, 0.0)));
                 let w = (T::zero(), T::from_f64(0.2 - short));
                 close(
                     margin(&one, &below, w, band, "below"),
@@ -6985,7 +7021,7 @@ mod tests {
                 d - 0.4,
                 "a touch of one wedge beside a refusal in the next, at the refusal's depth",
             );
-            let to_edge = Curve3::line(p(-0.2, 0.1), v(1.0, 0.0));
+            let to_edge = Curve3::line(p(-0.2, 0.1), geom_core::UnitVec3::checked(v(1.0, 0.0)));
             let w = (T::zero(), T::from_f64(0.2));
             close(
                 margin(&one, &to_edge, w, band, "to the edge"),

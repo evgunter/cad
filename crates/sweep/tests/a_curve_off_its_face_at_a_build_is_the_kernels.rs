@@ -62,7 +62,8 @@ fn seam<T: Decide + Bounds>(body: &Body<T>) -> EdgeKey {
             body.get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)
                 .is_some_and(|c| match c.carrier() {
-                    Curve3::Circle(geom::Circle { frame, .. }) => {
+                    Curve3::Circle(circle @ geom::Circle { .. }) => {
+                        let frame = circle.frame();
                         let axis = frame.axis();
                         axis.y.hi().abs() < 0.5
                     }
@@ -111,12 +112,12 @@ fn refused<T: Decide + AtRestPolicy + Bounds>(declared: bool) -> CertifyError {
         } else {
             description
         },
-        carrier: Curve3::line(start, (end - start) / len),
+        carrier: Curve3::line(start, geom_core::UnitVec3::chord(end - start).0),
         param_start: T::zero(),
         param_end: len,
     };
     match body.set_edge_curve(edge, spec, Tol::witness()) {
-        Err(EulerOpError::Certification { error }) => error,
+        Err(EulerOpError::DescriptionUncertified { error, .. }) => error,
         other => panic!(
             "{}: a chord off its sphere refuses at the mint: {other:?}",
             T::NAME

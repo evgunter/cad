@@ -166,6 +166,12 @@ pub enum TessellateError {
     /// stores no lift, or a ringed spline face's trim is not read in its
     /// chart. This is the lane's one refusal of a loop that does not
     /// close: the door's cause, carried whole.
+    ///
+    /// The curved lane reads the same door for a rimless loop, a wrap
+    /// strip or a pole-to-pole band, whose columns are its lift's
+    /// (`walk::wrap_strip`, `walk::band_columns`): such a face on a body
+    /// whose rows were never minted (built through the Euler doors and
+    /// not passed through `topo::mint_pcurves`) refuses here too.
     DomainUnread {
         /// The offending face.
         face: FaceKey,
@@ -413,12 +419,10 @@ pub enum TessellateError {
     /// in every profile.
     ///
     /// **Decided on the traversal kinds.** No coordinate, area, triangle
-    /// count or ε is read. The kinds themselves are
-    /// `topo::chart_iso::classify_kind`'s, which splits circle carriers
-    /// on `|axis · chart.axis| > 0.5`; that split is structural only
-    /// because the shape door (`curved::iso_rectangle_shape`) has
-    /// certified every carrier as a rim or a meridian carrier before the
-    /// route hands the face to the walk.
+    /// count or ε is read. The kinds themselves are the shape door's
+    /// (`curved::iso_rectangle_shape`): it certifies each carrier a rim
+    /// or a meridian, at the band, before the route hands the face to
+    /// the walk, and the walk reads that answer.
     ///
     /// **Reachable by input, and invalid (D2 addendum row 1).** A chart
     /// singularity inside a face is a vertex of it: a loop of rims only
@@ -686,6 +690,18 @@ pub enum TessellateError {
         /// where the face's lift holds no row for one of the two.
         turn: Option<topo::Deck>,
     },
+    /// A meridian of a pole-to-pole band whose own azimuth stands more than
+    /// a quarter turn from the column its lifted image is at
+    /// (`walk::band_columns`). The image and the azimuth read one meridian
+    /// down two float paths, so they differ by rounding and whole turns
+    /// alone; a gross residual is the body's chart rows contradicting the
+    /// edge (a wrong twin flag, an image of another edge). No door mints one.
+    LiftedColumnOff {
+        /// The refused face.
+        face: FaceKey,
+        /// The meridian edge whose image stands off it.
+        edge: EdgeKey,
+    },
 }
 
 /// Why the trimmed lane refuses a face's shape about a singular row of
@@ -822,12 +838,8 @@ impl TessellateError {
                          chart's period"
                     }
                     R::OuterEmpty => {
-                        "its outer loop is one vertex with no edge while the face holds \
-                         rings, so there is no region to place them in"
-                    }
-                    R::RingEmpty { .. } => {
-                        "a ring of it is one vertex with no edge, which bounds no region \
-                         and has no place in the chart; remove the lone vertex"
+                        "its outer loop is one vertex with no edge, so the face has no \
+                         outline and bounds no region to mesh"
                     }
                     R::NoShift { .. } => {
                         "no whole number of the chart's periods moves a ring of it inside \
@@ -1136,6 +1148,12 @@ impl TessellateError {
                      (`topo::mint_pcurves`)"
                 )
             }
+            Self::LiftedColumnOff { .. } => write!(
+                f,
+                "tessellate: a meridian of a face's pole-to-pole band stands more than a \
+                 quarter turn from where the face's stored chart image of it lies, so the \
+                 body's chart rows contradict the edge; re-mint them (`topo::mint_pcurves`)"
+            ),
         }
     }
 }

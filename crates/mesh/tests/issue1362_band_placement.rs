@@ -1,15 +1,15 @@
 //! Issue 1362's end-to-end gate: a rimless pole-to-pole band walked
 //! through the PUBLIC doors must mesh the same body wherever that body
-//! sits. `walk`'s band_u arm picks each meridian's `2πk` branch from
-//! the loop's 3-D area vector, so a fold that reads cancellation noise
-//! at a large placement does not refuse — it meshes the complementary
-//! half of the sphere and hands back a WATERTIGHT mesh whose volume is
-//! wrong by orders of magnitude. That is the failure this row exists
-//! to catch, and it is silent by construction: `check_mesh` passes.
+//! sits. `walk`'s band arm places each meridian on the `2πk` branch the
+//! loop's stored lift puts its image on; a branch read off any quantity
+//! that drifts with placement would not refuse — it would mesh the
+//! complementary half of the sphere and hand back a WATERTIGHT mesh whose
+//! volume is wrong by orders of magnitude. That is the failure this row
+//! exists to catch, and it is silent by construction: `check_mesh` passes.
 //!
-//! The reachable corner, which the unit rows alone do not demonstrate:
-//! the door is an ABSOLUTE test (coordinate ulp against ε) while the
-//! defect is a RATIO test (placement over body size). A SMALL body at a
+//! The reachable corner: the door is an ABSOLUTE test (coordinate ulp
+//! against ε) while a placement-dependent read is a RATIO test (placement
+//! over body size). A SMALL body at a
 //! MODERATE distance clears one and trips the other — `r = 1e-6` at
 //! `d = 1e3` has `ulp(1e3) ≈ 1.1e-13` yet a ratio of ~1.7e9.
 //!
@@ -31,7 +31,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 
 /// The ball of radius `r` centred at `(d, d, d)`: a half-disc revolved
 /// a full turn, so BOTH faces are rimless pole-to-pole bands and both
-/// take their columns from `walk`'s area-vector fold. Built through the
+/// take their columns from the loop's lift. Built through the
 /// public doors only; a typed refusal is returned, never unwrapped.
 fn placed_ball(r: f64, d: f64) -> Result<topo::Body<f64>, String> {
     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(d, d, d)));
@@ -91,11 +91,8 @@ fn volume_or_typed(r: f64, d: f64, label: &str) -> Option<f64> {
 /// (`ulp(1e3)/1e-6 ≈ 1.1e-7` relative per coordinate), so agreement
 /// beyond that is not available from the inputs.
 ///
-/// Under the world-origin-anchored fold this row does not merely drift:
-/// the area vector at this placement is pure cancellation noise, the
-/// meridians take the wrong `2πk` branch, and the still-watertight mesh
-/// measures ~2.3e-34 m³ against an exact 4.19e-18 m³ — sixteen orders,
-/// with no refusal anywhere.
+/// A meridian on the wrong `2πk` branch here leaves the mesh watertight
+/// and its volume off by orders, with no refusal anywhere.
 #[test]
 fn a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin() {
     let r = 1.0e-6;

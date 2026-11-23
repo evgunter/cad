@@ -2,10 +2,11 @@
 id: a-plane-faces-corner-that-is-not-strictly-convex-is-read-at-no-depth
 kind: issue
 title: present_plane reads a two-line corner only where it is strictly convex, so a vertex on a straight run of a plane face's boundary, or a reflex corner, is read by no presentation at any depth and a valid body refuses at its door
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P0
 cost: M
+branch: embed/corner-pieces
 ---
 
 

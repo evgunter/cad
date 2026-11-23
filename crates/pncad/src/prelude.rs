@@ -273,9 +273,11 @@ pub use ::profile::{
 //   along; this is the fillet constructor's, one door over, with the
 //   same shape and different conditions. Carrying one of the two and
 //   not the other is the inconsistency, not the reach.
-// - `TurnLever` is `PathNoCornerReason::TurnWithinTolerance`'s: which
-//   length the corner's turn was levered by — the shorter leg's arm or
-//   the anchors' separation — and so which length the caller moves.
+// - `LeveredTurn` is the payload of `PathNoCornerReason::TurnWithinTolerance`
+//   and of `PathError`'s junction and seam turn refusals: a turn's sine
+//   and cosine and the length it was levered by. `TurnLever` is its
+//   lever kind — the shorter leg's arm or the anchors' separation — and
+//   so which length the caller moves.
 //
 // **`Step` is NOT here, and that is measured — the `MappedCurve`
 // argument in group 4 read on a value rather than on a refusal.** It
@@ -303,7 +305,7 @@ pub use ::profile::{
 // re-derives.
 pub use ::profile::{
     ArcCheck, ArcRead, ContactKind, EscalatedAt, EscalationSite, FilletLeg, FilletLegCarrier, Gate,
-    NoCornerReason, RecordedDirection, SegmentRef, TurnLever,
+    LeveredTurn, NoCornerReason, RecordedDirection, SegmentRef, TurnLever,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -680,49 +682,11 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // twice — and on an admitted body whose volume is not measurable at
 // this ε, reading it raises the measurement refusal with the
 // bracket the measurement held (`ImportReport.enclosure`).
-//
-// **`StepImport::Solid::coherence` is the one field whose type is not
-// step-import's**, and the curated-type rule reaches through it
-// anyway: it is `topo`'s `CoherenceReport`, handed across whole
-// rather than restated, so a caller able to hold the answer must be
-// able to spell the answer's vocabulary. `CoherenceFinding` is the
-// measurement and `CoherenceCondition` says which of the three
-// conditions it is about; `Unexamined` is a loop out of the door's
-// reach and `Unexaminable` is why. Both discriminants are closed
-// enums the kernel put there to be MATCHED, and a prelude carrying
-// the report without them would hand a caller a value it could only
-// print.
-//
-// **`StructureRead` is NOT here**, one level further in: it is
-// `Unexaminable::Corrupt`'s payload, saying which arena read failed
-// on a loop whose structure did not resolve. Its own recourse routes
-// out of this vocabulary entirely — a corrupt loop is a tier-1
-// defect and `validate` is the door that names it — so a consumer
-// that wants the read is already holding a validation refusal, and
-// one matching `Corrupt { at }` here binds `at` without naming the
-// type. Reachable at `pncad::topo::StructureRead`, one module hop,
-// which is this prelude's rule for a name the corpus reaches for
-// less than corpus-wide.
-//
-// **The falsifier**: a curated consumer that BRANCHES on which read
-// failed rather than handing the loop to `validate`. The moment one
-// does, the eight arms are eight different facts a prelude caller
-// acts on differently and the rung is a discriminant like the two
-// above it, not a detail of a defer. Today the only consumer in tree
-// renders it — `editor_core`'s resident reaches a user with `{at:?}`
-// — which is the second-vocabulary hazard `topo`'s own module names
-// and not a branch. Stated so the next curation pass re-measures
-// rather than re-deriving.
-//
-// The report has no Python half: the binding's import door asks for
-// no examination, and `pncad-py`'s surface census carries that as a
-// `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
     PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation, StepImport, StepImportError,
     StructureNormalization, import_step,
 };
-pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};
 // `StlError` is the writers' own refusal type — what `write_ascii` and
 // `write_binary` return. The option errors beside it
 // (`BinaryHeaderError`, `SolidNameError`) refuse at option

@@ -55,6 +55,11 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_brep::curve_face::conic_quadric`, `ellipse_torus`, `circle_torus`,
   `reduce` (harmonic rungs): `rounding_charge(h.terms) / h.per`, a
   harmonic residual's noise over its per-metre rate.
+- `geom_brep::curve_face::pose` (the first-harmonic lane, moved there
+  from `conic_quadric`): `fn conic_quadric`'s circle × sphere extremes
+  charged the frame's defect (`lo`/`hi.with_charge(h.frame_error)`),
+  and `lane`'s first-harmonic extremes, each within the harmonics'
+  noise plus the second harmonic's amplitude (`extreme`).
 - `geom_brep::pair_section::gap` (`e_r1`, `e_r2` over `rho`) and
   `pair_section::ruling` (`tilt`).
 
@@ -74,6 +79,16 @@ re-posing that empties a file lowers or drops its row in the same change.
   and `window`'s polynomials read locally since PR 6525),
   `geom_brep::half_angle`,
   `geom_brep::chart_singularity`, `topo::sector_shape`.
+- `geom_brep::curve_pair::pose::Level::jet_at`: the level `X²/A² + Y²/B² − 1`
+  is read exact by `pose::window` and by the coplanar subdivision. It
+  charges nothing, but it is the same debt: it divides by the squared
+  semi-axes, so its rounding as a length grows with the aspect, which
+  the admission rule does not cover. Measured under PR 7221 at 0.77
+  (height) and 1.5 (level times `L`) zero bands on the far needle; the
+  thin far `b` pose is unbuilt; PR 6565's touch arm reads the same jet.
+  Whether a definite verdict goes wrong at an admitted (ε, K) is not
+  known without a probe. So it has its own row at P1:
+  `the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect`.
 - `geom_brep::props::curved::require_turn_read`: a sign of an exact norm
   of two cancelling tangents, which a charge holds off zero; owed a
   decision at the band, levered.
@@ -98,9 +113,10 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_brep::ssi::certify::frame_direction` (`FRAME_ROUNDING`, `pose`):
   a frame direction lifted to an enclosure is read at its midpoint where
   each component is at most 16 ulps wide, and refused as a family past
-  that; owed with the midpoint read itself, which goes when the ring
-  composite takes enclosure-valued coefficients
-  (`work/onehome/composite-form-takes-enclosure-valued-coefficients.md`).
+  that; owed with the midpoint read itself. The ring composite's
+  reading of it is gone (2026-11-21, the search's limb 2 reads through
+  the edge certificate's enclosure-valued reader); the chart tube's
+  partner form (`chart_partner_form`) is its one reader now.
 - `geom_brep::pair_section::spline_implicit::bracket`,
   `pair_section::torus` (`decide`, `sphere_gap`),
   `pair_section::torus_arms` (`square_pose`, `square_folds`).

@@ -171,7 +171,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     // on, so it records no turn of its own; one is set on its log. That
     // flip is on no path and upstream of nothing in the first scene,
     // so the first scene's fragments are answered by their own
-    // evidence: the group-size fact.
+    // evidence: where the first cut's runs part.
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, tr1, cut1) = slot(doc, 0.0);
     let (doc, tr2, cut2) = slot(doc, 100.0);
@@ -189,35 +189,11 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
         flips.iter().any(|(n, _)| *n == cut2),
         "the unrelated edit records a flip at the second cut: {flips:?}"
     );
-    // The first bar's walls (`block`'s profile runs counter-clockwise
-    // from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 3 is x = x0).
-    let Some(Node::Place { source, .. }) = doc.node(tr1.placement) else {
-        panic!("slot() places the bar");
-    };
-    let bar1 = &doc
-        .operation_of(source.read)
-        .expect("the placement reads a live bar");
-    let wall = |segment| StableName {
-        kind: EntityKind::Face,
-        node: *bar1,
-        path: vec![RoleSeg::Lateral(
-            crate::fixture::piece(&doc, *bar1, 0, segment).into(),
-        )],
-    };
     let Some(Node::Subtract {
         tool: tool_read, ..
     }) = doc.node(cut1)
     else {
         panic!("slot() cuts the plate with a subtract");
-    };
-    // A seam's side: the bar's wall as the cut's table carries it in.
-    let cutter = |segment| StableName {
-        kind: EntityKind::Face,
-        node: cut1,
-        path: vec![RoleSeg::From {
-            read: tool_read.read,
-            of: wall(segment).into(),
-        }],
     };
     let mut vanished = 0;
     for name in &names {
@@ -232,26 +208,13 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
             continue;
         }
         vanished += 1;
-        // Landing short of the cap's far edge, the bar's y = y0 wall
-        // starts crossing the cap, and both its x walls leave the cap's
-        // near rim edge.
-        // The cutters are read in name order.
-        let (gone, new) = match name.kind {
-            EntityKind::Face => (vec![], vec![cutter(0)]),
-            _ => {
-                let mut gone = vec![cutter(1), cutter(3)];
-                gone.sort();
-                (gone, vec![])
-            }
-        };
-        assert_eq!(
-            diagnosis((&doc2, &ev2), (&doc, &ev1), name),
-            Diagnosis::GroupResized {
-                node: cut1,
-                was: 2,
-                now: 1,
-                cutters: editor_core::GroupCutters::Read { gone, new },
-            },
+        // The first cut's own runs part where its box query hands on
+        // other candidates, and that is named at the first cut.
+        assert!(
+            matches!(
+                diagnosis((&doc2, &ev2), (&doc, &ev1), name),
+                Diagnosis::Parted { node, site, .. } if node == cut1 && site.name == "bool_glue_pairs"
+            ),
             "{name:?}"
         );
     }

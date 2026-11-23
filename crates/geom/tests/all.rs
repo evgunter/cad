@@ -74,6 +74,8 @@ mod curves_arc_window_adversarial;
 mod curves_boxes;
 #[path = "curves/compose.rs"]
 mod curves_compose;
+#[path = "curves/cover_box_against_the_whole_span_eval.rs"]
+mod curves_cover_box_against_the_whole_span_eval;
 #[path = "curves/curvo_oracle.rs"]
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
@@ -220,6 +222,8 @@ mod surfaces_span_window_pairing;
 mod surfaces_stretch_floor;
 #[path = "surfaces/stretch_sup.rs"]
 mod surfaces_stretch_sup;
+#[path = "surfaces/value_views.rs"]
+mod surfaces_value_views;
 
 test_utils::every_suite_file_is_aggregated!();
 #[path = "curves/n3r2_c24_meter.rs"]

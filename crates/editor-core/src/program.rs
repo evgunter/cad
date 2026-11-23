@@ -158,8 +158,8 @@ macro_rules! document_vocabulary {
         /// and no gate will report drift there. The trade was taken
         /// deliberately — the macro closes a SILENT failure class and
         /// formatting drift is visible to any reader — but it is a real
-        /// cost and it is not detected. Filed:
-        /// `work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`.
+        /// cost and it is not detected. A gate for it was weighed and declined
+        /// (`work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`, closed).
         #[doc(hidden)]
         pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
             &[$((stringify!($name), <$name>::ALL_NAMES)),*];
@@ -755,18 +755,71 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn mint_step_ids(&mut self, _mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         Ok(())
     }
-    /// **Every authored step's piece this program's structure can
-    /// draw** — [`ProfileProgram::structure`], read off the
-    /// program alone. Empty for a payload with no program. Required, so
-    /// a payload that holds a program cannot answer that it draws
-    /// nothing by omission.
+    /// **The partition this program's structure draws at generic
+    /// values** — [`ProfileProgram::partition`], read off the program
+    /// alone. Empty for a payload with no program. Required, so a
+    /// payload that holds a program cannot answer that it draws nothing
+    /// by omission.
     ///
     /// # Errors
     ///
     /// [`ProfileProgram::structure`]'s refusals.
-    fn drawable_pieces(
-        &self,
-    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal>;
+    fn partition(&self) -> Result<ProfilePartition, ProgramRefusal>;
+}
+
+/// **The partition a program's structure draws at generic values**
+/// (REFERENCES.md DM7): its pieces, the walls a sweep builds over its
+/// runs (`names/README.md`, N1 "Swept walls over a run"), and the
+/// corners between them, where the sweep's struts and vertices are.
+/// It is read off the program's shape ([`profile::ChainShape`]) and no
+/// value: a run is a maximal chain of pieces each of which continues
+/// the one before by construction, spelled in drawing order, and a
+/// piece counts as drawn where a `Zero` fit could leave it undrawn. A
+/// run that is a whole loop of two pieces or more, a split circle,
+/// keeps its stations, as the sweep does: one wall per piece, and a
+/// corner at each.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProfilePartition {
+    pieces: std::collections::BTreeSet<crate::ProfileEdgeRef>,
+    walls: std::collections::BTreeSet<crate::PieceRun>,
+    corners: std::collections::BTreeSet<crate::ProfileVertexRef>,
+}
+
+impl ProfilePartition {
+    /// The pieces the structure draws.
+    pub(crate) fn pieces(&self) -> &std::collections::BTreeSet<crate::ProfileEdgeRef> {
+        &self.pieces
+    }
+
+    /// One loop's pieces, in drawing order, each with whether it
+    /// continues the one before it (the last, for the first).
+    fn add_loop(&mut self, drawn: &[(crate::ProfileEdgeRef, bool)]) {
+        let n = drawn.len();
+        let whole = n >= 2 && drawn.iter().all(|&(_, on)| on);
+        let starts: Vec<usize> = (0..n).filter(|&k| whole || !drawn[k].1).collect();
+        for (i, &first) in starts.iter().enumerate() {
+            let end = starts.get(i + 1).copied().unwrap_or(starts[0] + n);
+            let mut run: Vec<usize> = (first..end).map(|k| k % n).collect();
+            // N1's spelling, `LoopAnchor::run`'s: by drawing order, so a
+            // run wrapping through the loop's start begins at its first
+            // piece after the start vertex.
+            run.sort_unstable();
+            self.walls.extend(crate::PieceRun::new(
+                run.into_iter().map(|k| drawn[k].0).collect(),
+            ));
+            self.corners.insert(drawn[first].0.start());
+        }
+        self.pieces.extend(drawn.iter().map(|&(piece, _)| piece));
+    }
+
+    /// Whether this partition holds what `referent` denotes.
+    pub(crate) fn denotes(&self, referent: &crate::names::Referent) -> bool {
+        match referent {
+            crate::names::Referent::Piece(piece) => self.pieces.contains(piece),
+            crate::names::Referent::Wall(run) => self.walls.contains(run),
+            crate::names::Referent::Corner(vertex) => self.corners.contains(vertex),
+        }
+    }
 }
 
 /// A typed program refusal (`EditError`'s payload, and
@@ -893,7 +946,15 @@ impl core::fmt::Display for ProgramRefusal {
                 step,
                 rendered,
                 ..
-            } => write!(f, "loop {loop_} step {step}: {rendered}"),
+            } => {
+                // A refusal about an earlier step than the one raising
+                // it opens on the step it names, so it is not named twice.
+                if rendered.starts_with(&format!("step {step}'s ")) {
+                    write!(f, "loop {loop_}: {rendered}")
+                } else {
+                    write!(f, "loop {loop_} step {step}: {rendered}")
+                }
+            }
             Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
             Self::Unminted => f.write_str(
                 "the program carries no step ids, so its pieces have no names; a document's \
@@ -2421,24 +2482,51 @@ impl ProfileProgram {
     /// [`ProgramRefusal::Unminted`], [`ProgramRefusal::StepIds`], and
     /// [`ProfileProgram::lattice`]'s.
     pub fn structure(&self) -> Result<Vec<Vec<crate::ProfileEdgeRef>>, ProgramRefusal> {
+        Ok(self
+            .drawn()?
+            .into_iter()
+            .map(|drawn| drawn.into_iter().map(|(piece, _)| piece).collect())
+            .collect())
+    }
+
+    /// **The partition this program's structure draws at generic
+    /// values** ([`ProfilePartition`]), its pieces spelled as
+    /// [`ProfileProgram::structure`] spells them.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileProgram::structure`]'s.
+    pub fn partition(&self) -> Result<ProfilePartition, ProgramRefusal> {
+        let mut partition = ProfilePartition::default();
+        for drawn in self.drawn()? {
+            partition.add_loop(&drawn);
+        }
+        Ok(partition)
+    }
+
+    /// Per loop, the pieces its structure draws in drawing order, each
+    /// with whether it continues the one before by construction.
+    fn drawn(&self) -> Result<Vec<Vec<(crate::ProfileEdgeRef, bool)>>, ProgramRefusal> {
         if !self.carries_step_ids() {
             return Err(ProgramRefusal::Unminted);
         }
         self.check_id_shape().map_err(ProgramRefusal::StepIds)?;
-        self.shape()?
+        Ok(self
+            .shape()?
             .into_iter()
             .zip(&self.ids)
             .map(|(shape, ids)| {
-                Ok(shape
+                shape
                     .pieces
                     .into_iter()
                     .map(|p| crate::ProfileEdgeRef::Piece {
                         step: ids[p.step],
                         role: p.role,
                     })
-                    .collect())
+                    .zip(shape.continues)
+                    .collect()
             })
-            .collect()
+            .collect())
     }
 
     /// Every loop's shape, in loop order.
@@ -2569,21 +2657,24 @@ impl ProfileProgram {
         let mut loops = Vec::with_capacity(resolved.len());
         let mut records = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
-            let (lp, record) = profile::replay_recording(steps, tol).map_err(|e| match e.kind {
-                profile::ReplayErrorKind::Transition { state, verb } => {
-                    ProgramRefusal::Transition {
-                        loop_: program_index(li),
-                        step: program_index(e.step),
-                        state,
-                        verb,
+            let (lp, record) = profile::replay_recording(steps, tol).map_err(|e| {
+                let step = program_index(e.step());
+                match e.kind {
+                    profile::ReplayErrorKind::Transition { state, verb } => {
+                        ProgramRefusal::Transition {
+                            loop_: program_index(li),
+                            step,
+                            state,
+                            verb,
+                        }
                     }
+                    profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
+                        loop_: program_index(li),
+                        step,
+                        kind: source.kind(),
+                        rendered: source.to_string(),
+                    },
                 }
-                profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
-                    loop_: program_index(li),
-                    step: program_index(e.step),
-                    kind: source.kind(),
-                    rendered: source.to_string(),
-                },
             })?;
             loops.push(lp);
             records.push(record);
@@ -2929,10 +3020,8 @@ impl ProfilePayload for ProfileProgram {
     fn lattice(&self) -> Result<(), ProgramRefusal> {
         ProfileProgram::lattice(self)
     }
-    fn drawable_pieces(
-        &self,
-    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
-        Ok(self.structure()?.into_iter().flatten().collect())
+    fn partition(&self) -> Result<ProfilePartition, ProgramRefusal> {
+        ProfileProgram::partition(self)
     }
     fn loops(&self) -> Option<&[LoopProgram]> {
         Some(&self.loops)

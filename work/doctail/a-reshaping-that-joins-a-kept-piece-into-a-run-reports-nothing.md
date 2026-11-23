@@ -2,11 +2,11 @@
 id: a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing
 kind: issue
 title: A SetProgram that joins a kept piece's wall into a run (a station inserted after it) strands the single-piece wall name without reporting it
-status: parked
+status: closed
 opened: 2026-11-09
 priority: P0
 cost: M
-blocked_on: [7082, 7075]
+closed: 2026-11-20
 ---
 
 
@@ -76,3 +76,55 @@ band, which would bring ε back into DM7's structural comparison
 against `[recipe.doors]`. #7082 proposes validation's per-joint carrier
 verdict as the one home, read at generic values for the structural
 strand report.
+
+## Unparked (2026-11-20)
+
+The rulings it waited on are merged: #7075 and #7116 (the value-free
+door, which compares what each program's structure draws) and Ev's
+`[ev]` PR #7082 (`959ecfe`), whose DM7 text in
+`crates/editor-core/REFERENCES.md` ("What a reshaping strands") is the
+source: the door compares the partition the old and the new program's
+structure draws at generic values, its pieces, runs and corners, read
+off the program's shape with no value, and judges each held name whole.
+
+## Closed
+
+The shape walk (`profile::chain_shape`, `crates/profile/src/path/shape.rs`)
+answers, per piece, whether the step order constructs it onto the
+carrier of the piece before (`ChainShape::continues`): a straight
+segment departing along a straight segment's own ray (a line off a leg
+end, `.tangent()` then a line, `continue_to`, a fillet's run in off its
+leg), every station of a `circle` or a `circle_split`, and both joints
+of a lone arc closed by a `tangent_arc_to` off its own tangent, which
+is that arc's circle again. Every other joint is a corner: no other
+verb reads an incoming arc's circle, so any other arc-to-arc
+continuation on one circle is a value coincidence. `chain_shape_random`
+holds the answer against the replay's constructed joints in three
+ways. A static row covers each construction. A counterexample search
+over chains built around one continuation of each kind asserts it
+reached every kind. The random chains of the table's verbs are steered
+toward continuations; for arcs that search is two-way, and a
+coincidence is told from a miss by redrawing the chain's values.
+
+`ProfileProgram::partition` (`ProfilePartition`) reads the pieces, the
+walls a sweep builds over each run (spelled as a wall name spells it;
+a split circle keeps its stations) and the corners off that shape, and
+replaces `ProfilePayload::drawable_pieces`. `StableName::referents`
+reads each locator segment whole: `Lateral`, `RimEdge`, `Band`,
+`BandPi`, `Meridian` and `AxisEdge` as their run; `LateralEdge`,
+`CapVertex`, `BandRim`, `BandRimPi`, `MeridianVertex` and `Pole` as a
+corner; a loft's pairings as pieces. The `SetProgram` door reports a
+held name with a referent on kept steps that the old partition holds and
+the new one does not, as `Took::Piece` where a piece went undrawn, else
+`Took::Run` or `Took::Corner`. `MaintenanceNet` keeps such a strand only
+where the action's start document draws what the name denotes and its
+end document does not.
+
+The pinned rows are lifted as
+`edit_set_program::a_fillet_inserted_after_a_kept_leg_reports_the_legs_wall`
+(plus a clockwise loop and a revolve), beside
+`edit_set_program::a_reshaping_that_joins_or_breaks_a_run_reports_it_whole`;
+`edit_set_program::a_fillet_moved_off_a_corner_reports_exactly_what_it_takes`
+stays green. The axis edge and pole cases the harness cannot hold end
+to end are
+`work/doctail/an-axis-edge-or-pole-a-reshaping-takes-is-reported-nowhere-end-to-end.md`.

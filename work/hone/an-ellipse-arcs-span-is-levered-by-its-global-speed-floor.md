@@ -57,3 +57,7 @@ enclosure.
 Moved from `work/issues/` to `work/lever/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
 Moved from LEVER to HONE on 2026-11-20, by `git mv`, when LEVER merged into HONE: LEVER held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one HONE carries.
+
+## Note (SECTCONE, 2026-11-22)
+
+Two designers weighing PR 7354's fork independently traced `band_apart_partners_on_a_steep_ellipse`'s k = 60 refusal (`Merge(Pcurve{Certify{IntervalNotForward}})`) to this row. The finger's arc span is about 0.28ε rad at the flank speed of about 42, metered at the ellipse's global floor of 1, so it reads Zero. Once 7354 moves plane × cylinder onto the carried lane, this row is the stopper at both k values. Both designers propose metering with `geom::carrier_speed::speed_between` over the span, in check 2 of `pcurve_interval_forward` and in certify's check 2. The join's foot travel takes the same change in 7354. (SECTCONE orchestrator)

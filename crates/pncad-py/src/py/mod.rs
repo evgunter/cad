@@ -13,6 +13,7 @@ mod pick;
 mod place;
 mod pose;
 mod quantity;
+mod range;
 mod readback;
 mod refactor;
 mod resolve;
@@ -333,7 +334,7 @@ pyo3::create_exception!(
      product slot's read, on `stranded_product`; `None` where the arm \
      does not carry them).\n\n\
      Its message names each node as the evaluation's own document \
-     holds it (kind, label and tag): the document the gather was taken \
+     holds it (its label and tag, or its kind and tag with no label): the document the gather was taken \
      of. `node` and `through` carry the full ids.\n\n\
      A product is the body the document's product slot reads, \
      gathered whole or not at all — there are no partial products."
@@ -560,6 +561,34 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    RangeRefusal,
+    PncadError,
+    "A certified range could not be searched. Carries `variant` (the \
+     stable tag), and `lo`, `hi`, `analyzed`, `param`, `node`, `slot`, \
+     `cause` and `varying` — the arms' payloads, present on every arm \
+     and `None` where that arm does not carry one.\n\n\
+     Decided before any geometry runs: the seed does not bracket the \
+     field's current value (`seed_not_a_bracket`, the offsets asked for \
+     as `lo` and `hi`); the document declares no such continuous \
+     parameter (`not_a_continuous_param`, `param`); it has no such node \
+     (`unknown_node`, `node`) or the node carries no such slot \
+     (`unknown_slot`, `node` and `slot`); the slot is a count, which \
+     selects between shapes and has no interval (`structural_slot`); or \
+     the slot reads a variable defined by a formula, which has no \
+     interval of its own (`slot_is_defined`). A `built` evaluation of \
+     another document is `evaluation_of_another_document` at the \
+     kernel's door; this door raises ValueError for it first.\n\n\
+     From the nominal build: a node does not build, so there is no \
+     build to prove an interval the same as (`witness_does_not_build`, \
+     `node` and `cause`), or the build was stopped (`stopped`).\n\n\
+     `derivation` (`cause`), `seed_is_not_the_analyzed_axis` (`lo`, \
+     `hi` and `analyzed`) and `more_than_one_axis_varies` (`varying`) \
+     are the kernel's guards on its own derived document, and \
+     `nothing_varies` is the driver's for a box with no axis, which a \
+     seeded search always has; reading one is a kernel defect."
+);
+pyo3::create_exception!(
+    pncad,
     AnalysisPolicyError,
     PncadError,
     "An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is \
@@ -723,6 +752,7 @@ fn raise_typed(
         ErrorClass::Measure => MeasureUnavailable::new_err(message),
         ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
         ErrorClass::Mc => McRefusal::new_err(message),
+        ErrorClass::Range => RangeRefusal::new_err(message),
         ErrorClass::StepHandle => StepHandleError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
@@ -829,6 +859,7 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::Measure
         | ErrorClass::AnalysisPolicy
         | ErrorClass::Mc
+        | ErrorClass::Range
         | ErrorClass::StepHandle => None,
     }
 }
@@ -894,6 +925,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("MeasureUnavailable", py.get_type::<MeasureUnavailable>())?;
     m.add("AnalysisPolicyError", py.get_type::<AnalysisPolicyError>())?;
     m.add("McRefusal", py.get_type::<McRefusal>())?;
+    m.add("RangeRefusal", py.get_type::<RangeRefusal>())?;
     m.add("StepHandleError", py.get_type::<StepHandleError>())?;
 
     quantity::register(m)?;
@@ -915,6 +947,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     mesh::register(m)?;
     value::register(m)?;
     analysis::register(m)?;
+    range::register(m)?;
     measure::register(m)?;
     trace::register(m)?;
 

@@ -43,10 +43,10 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, Evaluation, Formula, LoopProgram, Node, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation,
-    RecordedProgramError, SlotId, SpokenNode, StepArg, StepId, StepShape, TraceCrossing,
-    TracePassage, TraceRefusal, TraceSense, ValuePayload, WrittenLoopFault, resolve_written_loops,
+    DimensionError, Doc, Evaluation, Formula, LoopProgram, Node, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    SpokenNode, StepArg, StepId, StepShape, TraceCrossing, TracePassage, TraceRefusal, TraceSense,
+    ValuePayload, WrittenLoopFault, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Point3, Tell, Tol, Vec2};
 use pncad::profile::path::program::{FilletConstruction, replay_drawn};
@@ -59,7 +59,7 @@ use pncad::profile::{
 use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
-use crate::props::Notation;
+use crate::props::{Notation, WorkingNotation as _};
 use crate::session::refuse::{NodeKindWanted, admits};
 
 /// **A step of `verb` with the editor's starting numbers** — what
@@ -171,11 +171,11 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
     }
 }
 
-/// **`notation` over every argument `program` holds** — each `Length`
-/// argument written in its length unit, each `Angle` one in its angle
-/// unit, and every other argument (a bulge, a director component) left
-/// with the one spelling a dimensionless number has — except where
-/// `noted` names the unit the argument at `(step, arg)` is written in.
+/// **`notation` over every argument `program` holds** — each argument
+/// recorded in the unit `notation` writes its dimension in (a length in
+/// its length unit, an angle in its angle unit, a bulge or a director
+/// component in the dimensionless row) — except where `noted` names the
+/// unit the argument at `(step, arg)` is written in.
 ///
 /// Asked of the PROGRAM, through its own argument enumeration, rather
 /// than of the steps: which roles a step holds is the document layer's
@@ -192,10 +192,8 @@ fn recorded_notation(
             recorded.set(step, arg, unit)?;
             continue;
         }
-        match arg.dimension() {
-            Dimension::Length => recorded.set(step, arg, notation.length.def())?,
-            Dimension::Angle => recorded.set(step, arg, notation.angle.def())?,
-            Dimension::Scalar | Dimension::Count => {}
+        if let Some(unit) = notation.unit(arg.dimension()) {
+            recorded.set(step, arg, unit)?;
         }
     }
     Ok(recorded)
@@ -502,16 +500,12 @@ impl HeldStep {
         Ok(step)
     }
 
-    /// **`step` written over this step** — what a row's fields write
-    /// back. Every argument at a role this step also has keeps its
-    /// formula where the view did not move it: a literal whose value is
-    /// `step`'s, or an expression whose `reading` is (a driven field is
-    /// locked, so its number is the reading; with no reading, it is
-    /// kept). The view is a function of the formula, so a number it did
-    /// not move IS the argument as written. Every other argument is a
-    /// literal of `step`'s number, in the unit its field showed it in:
-    /// the unit the literal it replaces is written in, else the one
-    /// `noted` names for its role, else `notation`'s.
+    /// **`step` written over this step** — what a row's fields and
+    /// controls write back. An expression is always kept (only an entry
+    /// typed into its field writes over one), and so is a literal `step`
+    /// did not move; every other argument is a literal of `step`'s
+    /// number, in the unit the literal it replaces is written in, else
+    /// the one `noted` names for its role, else `notation`'s.
     ///
     /// # Errors
     ///
@@ -519,7 +513,6 @@ impl HeldStep {
     pub fn written(
         &self,
         step: Step<f64>,
-        reading: &dyn Fn(StepArg) -> Option<f64>,
         notation: Notation,
         noted: &dyn Fn(StepArg) -> Option<UnitDef>,
     ) -> Result<Self, RecordedProgramError> {
@@ -536,18 +529,16 @@ impl HeldStep {
         };
         let mut now = Self::fresh(step, notation, &shown)?.node();
         for slot in now.slots() {
-            let (SlotId::Profile { arg, .. }, Some(old)) = (slot, was.expr(slot)) else {
+            let (SlotId::Profile { .. }, Some(old)) = (slot, was.expr(slot)) else {
                 continue;
             };
             let Some(new) = now.expr_mut(slot) else {
                 unreachable!("`Node::slots` is the domain of `Node::expr_mut`")
             };
-            let number = new.literal_value().map(f64::to_bits);
-            let unmoved = match old.literal_value() {
-                Some(value) => number == Some(value.to_bits()),
-                None => reading(arg).is_none_or(|value| number == Some(value.to_bits())),
-            };
-            if unmoved {
+            let kept = old
+                .literal_value()
+                .is_none_or(|value| new.literal_value().map(f64::to_bits) == Some(value.to_bits()));
+            if kept {
                 *new = old.clone();
             }
         }
@@ -901,13 +892,18 @@ pub enum HeldRefusal {
 impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAProfile { node } => write!(f, "{node} is not a profile"),
+            Self::NotAProfile { node } => write!(
+                f,
+                "{node} is not a profile",
+                node = crate::tree::spelled(node)
+            ),
             Self::Unwritten { node, slots } => {
                 let labels: Vec<String> = slots.iter().map(|slot| slot.label()).collect();
                 write!(
                     f,
                     "{node} lists {} and carries no expression for it",
-                    labels.join(", ")
+                    labels.join(", "),
+                    node = crate::tree::spelled(node)
                 )
             }
         }
@@ -1394,11 +1390,23 @@ impl Tell for PreviewError {
                 step,
                 rendered,
                 ..
-            } => write!(
-                f,
-                "loop {loop_} step {step}: {}",
-                rendered.told_in(notation)
-            ),
+            } => {
+                // A refusal about an earlier step than the one raising
+                // it opens on the step it names, so it is not named twice.
+                let names_its_step = rendered
+                    .told_in(notation)
+                    .to_string()
+                    .starts_with(&format!("step {step}'s "));
+                if names_its_step {
+                    write!(f, "loop {loop_}: {}", rendered.told_in(notation))
+                } else {
+                    write!(
+                        f,
+                        "loop {loop_} step {step}: {}",
+                        rendered.told_in(notation)
+                    )
+                }
+            }
         }
     }
 }
@@ -1542,19 +1550,22 @@ pub fn drawn(
         .iter()
         .filter_map(|replayed| replayed.as_ref().err())
         .flat_map(|refused| match &refused.kind {
-            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerOfPair {
-                corners, ..
-            }) => corners.iter().map(|c| c.at).collect(),
-            // The turn refusal names its corner where the door derived
-            // one before its turn gate (the arc door).
-            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerForFillet {
-                reason:
-                    PathNoCornerReason::TurnWithinTolerance {
-                        corner: Some(at), ..
-                    },
-                ..
-            }) => vec![*at],
-            _ => Vec::new(),
+            ReplayErrorKind::Path(source) => match source.refusal() {
+                pncad::profile::PathError::NoCornerOfPair { corners, .. } => {
+                    corners.iter().map(|c| c.at).collect()
+                }
+                // The turn refusal names its corner where the door
+                // derived one before its turn gate (the arc door).
+                pncad::profile::PathError::NoCornerForFillet {
+                    reason:
+                        PathNoCornerReason::TurnWithinTolerance {
+                            corner: Some(at), ..
+                        },
+                    ..
+                } => vec![*at],
+                _ => Vec::new(),
+            },
+            ReplayErrorKind::Transition { .. } => Vec::new(),
         })
         .collect();
     (
@@ -1653,7 +1664,7 @@ fn preview_replayed(
             Some(Err(close)) => Some(close),
             None => None,
         };
-        let drawn = prefix_loop(steps, error.step, tol).map(|prefix| {
+        let drawn = prefix_loop(steps, error.raised_at(), tol).map(|prefix| {
             let own_close = prefix.closes && prefix.steps == steps.len();
             let said = match &close {
                 Some(
@@ -1742,15 +1753,18 @@ fn preview_replayed(
 /// drew which piece.
 ///
 /// The close is `line_to Start`, re-spelled the way the lattice spells
-/// the same leg for each refusal that says it is tangent, one
-/// declaration per kind, until it replays: `continue_to` where it runs
-/// straight on from the last leg (`JunctionTangent`), and a start
-/// declared tangent where it arrives continuing the entry's first side
-/// (`SeamTangent`). A close that does both takes both. Only a decided
-/// tangency is re-spelled: an escalation is the kernel declining to
-/// say whether the close runs straight on, and another spelling that
-/// happens to replay is not an answer to that. Any other refusal is
-/// said in `line_to Start`'s words.
+/// the same leg for each refusal whose turn is zero at tolerance, one
+/// declaration per kind, until it replays: `continue_to` where it may
+/// run straight on from the last leg (`JunctionTurnWithinTolerance`),
+/// and a start declared tangent where it may arrive continuing the
+/// entry's first side (`SeamTurnWithinTolerance`). A close that does
+/// both takes both. Each re-spelling is checked by the replay, so a
+/// real angle over a short leg that the declared spelling does not fit
+/// still refuses in `line_to Start`'s words. Only a decided zero turn
+/// is re-spelled: an escalation is the kernel declining to say whether
+/// the close runs straight on, and another spelling that happens to
+/// replay is not an answer to that. Any other refusal is said in
+/// `line_to Start`'s words.
 fn replay_provisionally_closed(
     steps: &[Step<f64>],
     tol: Tol,
@@ -1782,8 +1796,8 @@ fn replay_provisionally_closed(
     let mut kind = kind_of(&first);
     loop {
         match kind {
-            Some(PathErrorKind::JunctionTangent) if !straight_on => straight_on = true,
-            Some(PathErrorKind::SeamTangent) if !seam_declared => seam_declared = true,
+            Some(PathErrorKind::JunctionTurnWithinTolerance) if !straight_on => straight_on = true,
+            Some(PathErrorKind::SeamTurnWithinTolerance) if !seam_declared => seam_declared = true,
             _ => return Err(first),
         }
         match closed_by(straight_on, seam_declared) {
@@ -1844,9 +1858,10 @@ fn loop_start(steps: &[Step<f64>]) -> Option<Point2<f64>> {
 ///    against a carrier nobody wrote.
 ///
 /// Walked back one step at a time because the tip a refusal leaves can
-/// be one no close may leave: a fused step's arc arrival is refused AT
+/// be one no close may leave: a fused step's arc arrival is refused by
 /// the binder that completes it, and the prefix up to that binder ends
-/// on an arrival no `line_to` completes.
+/// on an arrival no `line_to` completes. `stop` is the step that raised
+/// the refusal ([`ReplayError::raised_at`]), which the replay reached.
 fn prefix_loop(steps: &[Step<f64>], stop: usize, tol: Tol) -> Option<Prefix> {
     let start = loop_start(steps);
     (1..=stop.min(steps.len())).rev().find_map(|end| {
@@ -1935,20 +1950,26 @@ fn drew_only_its_leg(prefix: &[Step<f64>], tol: Tol) -> Option<ConstructedLoop<f
     only_its_leg.then_some(replayed)
 }
 
-/// **One committed profile, flattened for drawing**: the node it is,
-/// the plane its evaluation placed it on, and its loops.
+/// **One committed outline, flattened for drawing**: a profile, or a
+/// datum's square (D10 `[placement.datums]`) — the node it is, the
+/// plane it is drawn on where the picture shows it, and its loops.
 #[derive(Clone, Debug)]
 pub struct CommittedProfile {
-    /// The profile node this draws.
+    /// The profile or datum node this draws.
     pub node: RecipeNodeId,
     /// The plane the landed value is on — the VALUE's, not a second
     /// lookup of the frame the node names, for
-    /// [`ProfilePreview::plane`]'s reason.
+    /// [`ProfilePreview::plane`]'s reason — carried to where the picture
+    /// shows its space ([`committed`]).
     pub plane: SketchPlane<f64>,
-    /// One closed polyline per loop, in the value's canonical order
-    /// (outer first). Every one ends `LoopEnd::Closed`: a validated profile
-    /// has no open chain.
+    /// One polyline per loop, in the value's canonical order (outer
+    /// first). A profile's every one ends `LoopEnd::Closed`: a validated
+    /// profile has no open chain. A datum's square closes and its two
+    /// axes do not ([`DATUM_HALF`]).
     pub loops: Vec<PreviewLoop>,
+    /// Whether this is a datum's square rather than a profile's loops:
+    /// what a pick of it is ([`crate::pickindex::PickedKind::Datum`]).
+    pub datum: bool,
 }
 
 /// **What the landed evaluation's profiles came to as drawings**: the
@@ -1985,6 +2006,13 @@ pub struct CommittedProfiles {
 /// its own replay of the node in the preview lane, and a loop drawn
 /// both as it was committed and as it is being changed would show two
 /// shapes where there is one.
+///
+/// Each datum is drawn too ([`datum_drawing`]), as a display aid. A
+/// profile or datum in a space the picture shows only through copies
+/// ([`crate::world::shown_spaces`]) is drawn where each copy shows it,
+/// as the bodies of that space are: one drawing per copy, carried by
+/// the copy's motion ([`shown_placings`]). The viewport draws and the
+/// pick index measures these same drawings.
 pub fn committed(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
@@ -1992,17 +2020,112 @@ pub fn committed(
     except: Option<RecipeNodeId>,
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
+    let shown = crate::world::shown_spaces(doc);
     for node in doc.ids() {
         if Some(node) == except {
             continue;
         }
-        match drawing(doc, evaluation, chord, node) {
-            Some(Ok(drawn)) => out.drawn.push(drawn),
-            Some(Err(())) => out.undrawn.push(node),
-            None => {}
+        let drawn = match datum_drawing(doc, evaluation, node) {
+            Some(drawn) => drawn,
+            None => match drawing(doc, evaluation, chord, node) {
+                Some(Ok(drawn)) => drawn,
+                Some(Err(())) => {
+                    out.undrawn.push(node);
+                    continue;
+                }
+                None => continue,
+            },
+        };
+        for placing in shown_placings(doc, evaluation, &shown, doc.node_space(node)) {
+            let Ok(frame) = placing.compose(drawn.plane.frame()) else {
+                continue;
+            };
+            out.drawn.push(CommittedProfile {
+                plane: SketchPlane::from_frame(frame),
+                ..drawn.clone()
+            });
         }
     }
     out
+}
+
+/// **Where the picture shows the space `space`**: the identity where it
+/// shows the space itself (or the node stands in none), else each
+/// copy out of it, carried on through the copies showing the copy's own
+/// space; the identity where nothing shows it, so a drawing in a space
+/// no body is drawn in still stands where its space is.
+fn shown_placings(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    shown: &std::collections::BTreeSet<pncad::document::VarId>,
+    space: Option<pncad::document::VarId>,
+) -> Vec<pncad::geom_core::RigidMotion<f64>> {
+    let identity = pncad::geom_core::RigidMotion::identity;
+    let Some(space) = space.filter(|space| !shown.contains(space)) else {
+        return vec![identity()];
+    };
+    let through: Vec<_> = doc
+        .copies()
+        .into_iter()
+        .filter(|&copy| doc.copied_read(copy).and_then(|read| doc.space_of(read)) == Some(space))
+        .flat_map(|copy| {
+            let motion = evaluation
+                .value(copy)
+                .and_then(|value| value.motion)
+                .unwrap_or_else(identity);
+            shown_placings(doc, evaluation, shown, doc.node_space(copy))
+                .into_iter()
+                .filter_map(move |outer| outer.compose(motion).ok())
+        })
+        .collect();
+    if through.is_empty() {
+        vec![identity()]
+    } else {
+        through
+    }
+}
+
+/// **Half the side of the square a datum is drawn as**, metres: a
+/// display aid's size, not the document's.
+pub const DATUM_HALF: f64 = 0.01;
+
+/// **A datum's picture** (D10 `[placement.datums]`), a display aid in
+/// its space: its xy plane as a square about its origin, its x and y
+/// axes across it, drawn on the plane its frame is, so the pick index
+/// measures a cursor against the same outline. `None` for a node that
+/// is no datum or has no value.
+fn datum_drawing(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    node: RecipeNodeId,
+) -> Option<CommittedProfile> {
+    if !doc.node(node)?.is_datum() {
+        return None;
+    }
+    let pncad::document::ValuePayload::Datum(frame) = &evaluation.value(node)?.payload else {
+        return None;
+    };
+    let h = DATUM_HALF;
+    let open = |points: Vec<[f64; 2]>| PreviewLoop {
+        vertices: (0..points.len()).collect(),
+        points,
+        end: LoopEnd::Unfinished(None),
+    };
+    let square = PreviewLoop {
+        points: vec![[-h, -h], [h, -h], [h, h], [-h, h]],
+        vertices: vec![0, 1, 2, 3],
+        end: LoopEnd::Closed,
+    };
+    Some(CommittedProfile {
+        node,
+        plane: SketchPlane::from_frame(*frame),
+        loops: vec![
+            square,
+            open(vec![[0.0, 0.0], [h, 0.0]]),
+            open(vec![[0.0, 0.0], [0.0, h]]),
+        ],
+        datum: true,
+    })
 }
 
 /// `node`'s drawing: `None` for a node that is no profile or has no
@@ -2025,7 +2148,7 @@ fn drawing(
         .iter()
         .map(|lp| {
             let arcs = lp.segments().iter().map(|s| match s.kind {
-                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Line { .. } => None,
                 pncad::profile::SegmentKind::Arc { arc, .. } => Some(arc),
             });
             flatten(lp.vertices(), arcs, chord).map(|(points, vertices)| PreviewLoop {
@@ -2041,6 +2164,7 @@ fn drawing(
                 node,
                 plane: *profile.validated.plane(),
                 loops,
+                datum: false,
             })
             .map_err(|_| ()),
     )
@@ -2109,11 +2233,10 @@ pub fn tip_state_at(steps: &[Step<f64>], at: usize, tol: Tol) -> Option<TipState
     }
     match replay(prefix, tol) {
         Ok(_) => Some(TipState::Closed),
-        Err(ReplayError {
-            step,
-            kind: ReplayErrorKind::Transition { state, verb: None },
-        }) if step == at => Some(state),
-        Err(_) => None,
+        Err(e) => match e.kind {
+            ReplayErrorKind::Transition { state, verb: None } if e.raised_at() == at => Some(state),
+            _ => None,
+        },
     }
 }
 
@@ -2213,13 +2336,13 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
     match error.kind {
         ReplayErrorKind::Transition { state, verb } => PreviewError::Transition {
             loop_,
-            step: error.step,
+            step: error.step(),
             state,
             verb,
         },
         ReplayErrorKind::Path(ref source) => PreviewError::Geometry {
             loop_,
-            step: error.step,
+            step: error.step(),
             kind: source.kind(),
             rendered: pncad::geom_core::Sentence::new(source.clone()),
         },
@@ -2602,7 +2725,7 @@ mod tests {
                 PreviewError::Geometry {
                     loop_: 0,
                     step: 1,
-                    kind: PathErrorKind::JunctionTangent,
+                    kind: PathErrorKind::JunctionTurnWithinTolerance,
                     rendered: String::new().into(),
                 },
                 Tone::Actionable,
@@ -2697,9 +2820,10 @@ mod tests {
 
     /// **A fused step refused at its binder draws the chain before the
     /// fused step.** `fillet_arc` with a radius arrival leaves the tip
-    /// an arrival awaiting its binders, and the refusal lands on the
-    /// second binder (step 5); neither prefix ending on that arrival
-    /// can be closed, so the walk back ends before the fused step.
+    /// an arrival awaiting its binders, and the second binder (step 5)
+    /// raises the refusal, which is the fused step's own (step 3);
+    /// neither prefix ending on that arrival can be closed, so the walk
+    /// back ends before the fused step.
     ///
     /// Red if [`super::prefix_loop`] tries only `steps[..k]`: the
     /// preview is then an `Err` and draws nothing.
@@ -2720,8 +2844,15 @@ mod tests {
         ]);
         let (drawn, refused) = refused_loop(vec![steps]);
         assert!(
-            matches!(refused, PreviewError::Geometry { step: 5, .. }),
-            "the fillet refuses at the binder that completes its arrival: {refused}"
+            matches!(
+                &refused,
+                PreviewError::Geometry { step: 3, rendered, .. }
+                    if rendered
+                        .to_string()
+                        .starts_with("step 3's fillet, not resolved at step 5: ")
+            ),
+            "the fillet refuses at its own step, raised by the binder that completes its \
+             arrival: {refused}"
         );
         assert_eq!(
             vertex_points(&drawn),
@@ -2968,8 +3099,8 @@ mod tests {
     /// A last leg onto the start point is drawn as the close it is and
     /// says the end-of-program refusal: only its spelling is
     /// unfinished. A pending fillet is not drawn against the close,
-    /// and the chain says the close's refusal, of the kind the kernel
-    /// gives it.
+    /// and the chain says the close's refusal of it, of the kind the
+    /// kernel gives it, at the fillet's step.
     ///
     /// Red if the chain draws nothing, draws more or fewer legs than
     /// were written, says another refusal, or says it loud.
@@ -2991,12 +3122,21 @@ mod tests {
                     verb: None,
                     ..
                 } if *step == steps.len() => None,
+                // The close's refusal of the pending fillet, at the
+                // fillet's step, naming the close, not a step number
+                // nobody wrote.
                 PreviewError::Geometry {
                     loop_: 0,
                     step,
                     kind,
-                    ..
-                } if *step == steps.len() => Some(*kind),
+                    rendered,
+                } if *step == steps.len() - 2
+                    && rendered.to_string().starts_with(&format!(
+                        "step {step}'s fillet, not resolved at the close: "
+                    )) =>
+                {
+                    Some(*kind)
+                }
                 other => panic!("{steps:?}: {other}"),
             };
             assert_eq!(said, fixture.said, "{steps:?}");

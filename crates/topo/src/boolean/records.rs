@@ -19,8 +19,8 @@ use super::{
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
-use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
-use crate::live::{linked, proven};
+use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
+use crate::live::linked;
 
 /// **A contact record's two cells**, in canonical order: the lesser
 /// cell first by [`Cell`]'s order (vertex < edge < face, then key), so
@@ -259,16 +259,9 @@ pub(crate) fn incident<T: Real>(body: &Body<T>, cells: [Cell; 2]) -> bool {
         [Cell::Vertex(v), Cell::Edge(e)] => {
             half_edges(e).is_some_and(|hs| hs.iter().any(|(_, h)| h.start == v))
         }
-        [Cell::Vertex(v), Cell::Face(f)] => body.face(f).is_some_and(|face| {
-            face.loops().any(|(_, l, _)| match l.boundary {
-                LoopBoundary::Empty { vertex } => vertex == v,
-                LoopBoundary::Cycle { first } => body
-                    .loop_walk(first)
-                    .closed("loop", first)
-                    .into_iter()
-                    .any(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start == v),
-            })
-        }),
+        [Cell::Vertex(v), Cell::Face(f)] => body
+            .face(f)
+            .is_some_and(|face| face.boundary().any(|m| m.vertex() == v)),
         [Cell::Edge(e), Cell::Face(f)] => {
             body.get_face(f).is_some()
                 && half_edges(e)
@@ -993,7 +986,12 @@ mod tests {
         assert_eq!(
             cited,
             [0, 1]
-                .map(|record| vec![Backing::Carried { input: 1, record }])
+                .map(|record| {
+                    vec![Backing::Carried {
+                        input: crate::Operand::B.input(),
+                        record,
+                    }]
+                })
                 .to_vec()
         );
         assert_eq!(

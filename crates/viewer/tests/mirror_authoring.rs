@@ -1,5 +1,6 @@
-//! **The mirror tool, replayed headlessly**: a body and a picked face
-//! through the selection stream the viewport feeds, one committed
+//! **The mirror tool, replayed headlessly**: a body and a picked face,
+//! or a plane variable the document holds, through the selection
+//! stream the viewport feeds, one committed
 //! action — the image, and the symmetric part, the body or the copy
 //! picked unioned with its image where it stands (Ev, PR 6353) — its
 //! typed refusals, and the saved document read back.
@@ -177,12 +178,8 @@ fn a_copy_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     let wall = face_toward(&session, 1.0);
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
     let tool = tools.mirror().expect("open");
-    assert_eq!(
-        tool.input(),
-        Some(copy),
-        "a pick on the copy seats the copy"
-    );
-    assert_eq!(tool.plane(), Some(&wall), "and its face is the plane");
+    assert_eq!(tool.body(), Some(copy), "a pick on the copy seats the copy");
+    assert_eq!(tool.face(), Some(&wall), "and its face is the plane");
 
     let outcome = session.perform(mirror_op(&tools));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -396,7 +393,7 @@ fn a_mirror_on_one_of_two_copies_is_that_copys_part_alone() {
     let part = part.expect("the picked copy becomes its part");
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::placements_of(doc, block),
+        doc.placements_of(block),
         [first, second],
         "both copies still place the block"
     );
@@ -468,7 +465,7 @@ fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
     let wall = displayed_face_at(&session, &index, &along_x(1.0, 0.0, z + SMALL[2] / 2.0));
     assert_eq!(wall.node, small_copy, "the ray met the seated copy's wall");
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
-    assert_eq!(tools.mirror().and_then(|t| t.input()), Some(small_copy));
+    assert_eq!(tools.mirror().and_then(|t| t.body()), Some(small_copy));
     let (_, part) = mirror_in(&mut session, mirror_op(&tools));
     let part = part.expect("the seated copy becomes its part");
     assert_drawn(
@@ -508,11 +505,11 @@ fn an_unplaced_body_becomes_its_symmetric_part() {
     let world = common::world(session.committed_doc());
     let outcome = session.perform(SessionOp::AddMirror {
         body: loose.into(),
-        plane: FaceSelection {
+        plane: viewer::session::ToolPlane::Face(FaceSelection {
             name: own_cap(loose),
             node: loose,
             body: 0,
-        },
+        }),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
@@ -552,7 +549,7 @@ fn the_mirrors_label_lands_on_the_mirror_whether_its_body_is_placed_or_not() {
         };
         let op = SessionOp::AddMirror {
             body: block.into(),
-            plane,
+            plane: viewer::session::ToolPlane::Face(plane),
         };
         assert!(op.selects_what_it_makes(), "placed {placed}");
         let label =
@@ -628,11 +625,11 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let tools = mirror_tool_picking(&session, &[own, far.clone()]);
     let tool = tools.mirror().expect("open");
     assert_eq!(
-        tool.input(),
+        tool.body(),
         Some(stand_in),
         "the second face keeps the body"
     );
-    assert_eq!(tool.plane(), Some(&far), "and re-picks the plane");
+    assert_eq!(tool.face(), Some(&far), "and re-picks the plane");
 
     let at = corners(&mut session, copy)
         .iter()
@@ -714,11 +711,12 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
         "a tree pick of the drawn copy seats the body"
     );
     match tools.mirror().expect("open").op() {
-        Err(SeatError::NoFace { role }) => {
+        Err(error @ SeatError::NoPlane { role }) => {
+            assert_eq!(role, viewer::seats::PlaneRole::Mirror, "the plane is named");
             assert_eq!(
-                role,
-                viewer::seats::FaceRole::MirrorPlane,
-                "the plane is named"
+                error.to_string(),
+                "no mirror plane picked yet: pick a face or a datum",
+                "the refusal names both kinds of plane the seat takes"
             );
         }
         other => panic!("no plane held yet refuses typed, not {other:?}"),
@@ -732,7 +730,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
         &[SessionOp::Select(Selection::Face(wall))],
     );
     assert_eq!(
-        tools.mirror().and_then(|t| t.input()),
+        tools.mirror().and_then(|t| t.body()),
         Some(torus),
         "a face pick with a body held re-picks the plane alone"
     );
@@ -790,7 +788,7 @@ fn a_deleted_body_drops_the_seat_and_the_plane() {
         .count();
     assert_eq!((seat, plane), (1, 1), "one drop each: {notices:?}");
     let tool = tools.mirror().expect("still open");
-    assert_eq!((tool.input(), tool.plane()), (None, None), "both are empty");
+    assert_eq!((tool.body(), tool.face()), (None, None), "both are empty");
     assert!(
         tools
             .reconcile(session.doc(), session.landed_pair())
@@ -824,8 +822,8 @@ fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
         .map(|(_, plane)| plane.to_owned())
         .unwrap_or_else(|| panic!("the line holds the plane: {line:?}"));
     let (block_said, copy_said) = (
-        session.doc().spoken(block).to_string(),
-        session.doc().spoken(copy).to_string(),
+        viewer::tree::spelled(&session.doc().spoken(block)),
+        viewer::tree::spelled(&session.doc().spoken(copy)),
     );
     assert!(
         plane.starts_with("the side wall ")
@@ -873,11 +871,11 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         &mut session,
         SessionOp::AddMirror {
             body: b.into(),
-            plane: FaceSelection {
+            plane: viewer::session::ToolPlane::Face(FaceSelection {
                 name: own_cap(b),
                 node: b,
                 body: 0,
-            },
+            }),
         },
     );
     session.pump();
@@ -914,7 +912,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         &mut session,
         SessionOp::AddMirror {
             body: a.into(),
-            plane: image_face,
+            plane: viewer::session::ToolPlane::Face(image_face),
         },
         "a plane on another space's image",
     );
@@ -925,7 +923,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         &mut session,
         SessionOp::AddMirror {
             body: a.into(),
-            plane: b_wall,
+            plane: viewer::session::ToolPlane::Face(b_wall),
         },
         "a face clicked on another space's drawn copy",
     );
@@ -939,7 +937,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
             )
             .is_empty()
     );
-    assert_eq!(tools.mirror().and_then(|t| t.input()), Some(b));
+    assert_eq!(tools.mirror().and_then(|t| t.body()), Some(b));
     refused(
         &mut session,
         mirror_op(&tools),
@@ -957,8 +955,8 @@ fn a_click_on_a_copy_seats_the_copy_and_says_the_plane_on_it() {
     let wall = face_toward(&session, 1.0);
     let wall_copy = wall.node;
     let tools = mirror_tool_picking(&session, &[wall]);
-    let said = session.doc().spoken(block).to_string();
-    let copy = session.doc().spoken(wall_copy).to_string();
+    let said = viewer::tree::spelled(&session.doc().spoken(block));
+    let copy = viewer::tree::spelled(&session.doc().spoken(wall_copy));
     let line = tools
         .mirror()
         .expect("open")
@@ -1040,4 +1038,570 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
         same_points(&built, &want),
         "the image is the lower half below z = 0: {built:?} vs {want:?}"
     );
+}
+
+/// **The unplaced block split along the plane `plane` reads off it,
+/// the split's plane variable named `name`**: the session, the block,
+/// the split and the variable. The split is the plane's first reader;
+/// naming the variable is what lets a second read it (VR7).
+fn split_with_named_plane(
+    plane: impl FnOnce(&DocSession, RecipeNodeId) -> viewer::session::ToolPlane,
+    name: &str,
+    tol: Tol,
+) -> (
+    DocSession,
+    RecipeNodeId,
+    RecipeNodeId,
+    pncad::document::VarId,
+) {
+    let (mut session, block) = unplaced_block(tol);
+    let plane = plane(&session, block);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: block.into(),
+            plane,
+        },
+    );
+    session.pump();
+    let Some(Node::Split { tool, .. }) = session.committed_doc().node(split) else {
+        panic!("the split")
+    };
+    let var = tool.read;
+    let outcome = session.perform(SessionOp::RenameVar {
+        var,
+        name: Some(pncad::document::VarName::new(name).expect("a name")),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    (session, block, split, var)
+}
+
+/// **The mirror tool across the plane variable `var`**: the split's
+/// lower half seated by a pick of its floor, the plane then re-picked
+/// as the variable. Asserts the tool holds the variable, the commit
+/// reads it `through` the role a frame is read through, and the image
+/// is the lower half reflected across the cut at `z = MID_Z`, to
+/// `within` metres.
+fn mirror_the_lower_half_across(
+    mut session: DocSession,
+    (block, split): (RecipeNodeId, RecipeNodeId),
+    var: pncad::document::VarId,
+    through: Option<pncad::document::pose::PoseRole>,
+    within: f64,
+) {
+    let index = plate_index(&session);
+    let floor = displayed_face_at(&session, &index, &common::up_at(0.0, 0.0));
+    assert_eq!(floor.node, split, "the ray met the split drawn as itself");
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mirror);
+    let picks = [
+        SessionOp::Select(Selection::Face(floor.clone())),
+        SessionOp::Select(Selection::Variable(var)),
+    ];
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &picks,
+    );
+    let tool = tools.mirror().expect("open");
+    assert!(
+        matches!(
+            tool.plane(),
+            Some(viewer::combine::HeldPlane::Defined { var: held, through: role })
+                if held.id() == var && *role == through
+        ),
+        "the variable re-picks the plane: {:?}",
+        tool.plane()
+    );
+    assert_eq!(tool.face(), None, "and no face is held");
+    let op = mirror_op(&tools);
+    let SessionOp::AddMirror {
+        plane: viewer::session::ToolPlane::Read(read),
+        ..
+    } = &op
+    else {
+        panic!("the commit reads the variable, not {op:?}")
+    };
+    assert_eq!(
+        (&read.read, read.role),
+        (&Operand::Var(var), through),
+        "the plane is the variable, read through its role"
+    );
+    let (image, _) = mirror_in(&mut session, op);
+    let Some(Node::Mirror { plane, .. }) = session.committed_doc().node(image) else {
+        panic!("the image")
+    };
+    assert_eq!(
+        (plane.read, plane.role),
+        (var, through),
+        "the stored mirror reads the split's own variable, not a copy of it"
+    );
+    let built = corners(&mut session, image);
+    let lower: Vec<[f64; 3]> = corners(&mut session, block)
+        .into_iter()
+        .map(|[x, y, z]| [x, y, z.min(MID_Z)])
+        .collect();
+    let want = reflected_in_z(&lower, MID_Z);
+    let close = built.len() == want.len()
+        && built
+            .iter()
+            .zip(&want)
+            .all(|(g, w)| g.iter().zip(w).all(|(a, b)| (a - b).abs() <= within));
+    assert!(
+        close,
+        "the image is the lower half reflected across z = {MID_Z}: {built:?} vs {want:?}"
+    );
+}
+
+/// `points` reflected across the plane `z = at`, sorted.
+fn reflected_in_z(points: &[[f64; 3]], at: f64) -> Vec<[f64; 3]> {
+    let mut out: Vec<[f64; 3]> = points
+        .iter()
+        .map(|&[x, y, z]| [x, y, 2.0 * at - z])
+        .collect();
+    out.sort_by(|a, b| a.partial_cmp(b).expect("finite points"));
+    out
+}
+
+/// **A `Plane` variable the document holds is a mirror plane**: the
+/// split's own cut, named, picked as a variable after a face seats the
+/// body, is read as it is, and the image of the lower half stands
+/// where the upper half did.
+///
+/// Red if the mirror tool drops a variable pick, the commit reads a
+/// face, or the image is not reflected across the cut.
+#[test]
+fn a_named_plane_variable_is_a_mirror_plane() {
+    let tol = Tol::witness();
+    let (session, block, split, var) = split_with_named_plane(
+        |session, block| common::cut_across(session, block, MID_Z),
+        "cut",
+        tol,
+    );
+    assert_eq!(
+        session
+            .committed_doc()
+            .var(var)
+            .map(pncad::document::Var::kind),
+        Some(pncad::document::VarKind::Plane),
+        "the premise: the split's cut is a Plane variable"
+    );
+    mirror_the_lower_half_across(session, (block, split), var, None, 1e-12);
+}
+
+/// **A `Frame` variable the document holds is a mirror plane, read
+/// through its `xy`**: a frame standing on the block at mid-height,
+/// first read by a split through its `xy`, named, and picked as the
+/// mirror's plane, is read through the same role.
+///
+/// Red if the mirror tool drops a frame pick, reads it plainly (a
+/// frame is no plane), or the image is not reflected across its `xy`.
+#[test]
+fn a_named_frame_variable_is_a_mirror_plane_through_its_xy() {
+    let tol = Tol::witness();
+    let (session, block, split, var) = split_with_named_plane(
+        |session, block| {
+            viewer::session::ToolPlane::Read(editor_core::test_support::plane_on_frame(
+                session.committed_doc(),
+                block,
+                [0.0, 0.0, MID_Z],
+                [0.0, 0.0, 1.0],
+                tol,
+            ))
+        },
+        "datum",
+        tol,
+    );
+    assert_eq!(
+        session
+            .committed_doc()
+            .var(var)
+            .map(pncad::document::Var::kind),
+        Some(pncad::document::VarKind::Frame),
+        "the premise: the split reads a Frame variable"
+    );
+    // A frame read off the body's axes stands there to the rounding of
+    // the turns it is built from (`plane_on_frame`).
+    mirror_the_lower_half_across(
+        session,
+        (block, split),
+        var,
+        Some(pncad::document::pose::PoseRole::Xy),
+        1e-9,
+    );
+}
+
+/// **A plane variable in another space refuses at the insert door**:
+/// the second block's cut, named, read by a mirror of the first block,
+/// reached through the tool's variable pick, refuses naming the two
+/// spaces and lands nothing — the variable door is held to the same
+/// space rule as a face.
+///
+/// Red if the mirror commits a plane read in a space other than its
+/// body's.
+#[test]
+fn a_plane_variable_in_another_space_is_refused() {
+    let tol = Tol::witness();
+    let (mut session, a) = block(tol);
+    let b = common::xy_box_in(&mut session, BLOCK);
+    let (doc, b_copy) = common::world_copy(session.committed_doc(), b, tol);
+    let mut session = common::inline_without_door(
+        drawn::pinned(doc, b_copy, &drawn::translated([0.0, 0.1, 0.0])),
+        tol,
+    );
+    session.pump();
+    let plane = common::cut_across(&session, b, MID_Z);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: b.into(),
+            plane,
+        },
+    );
+    session.pump();
+    let Some(Node::Split { tool, .. }) = session.committed_doc().node(split) else {
+        panic!("the split")
+    };
+    let var = tool.read;
+    let renamed = session.perform(SessionOp::RenameVar {
+        var,
+        name: Some(pncad::document::VarName::new("cut_b").expect("a name")),
+    });
+    assert!(renamed.refusal.is_none(), "{:?}", renamed.refusal);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    assert_ne!(doc.node_space(a), doc.node_space(b), "two spaces");
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mirror);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[
+            SessionOp::Select(Selection::Node(a)),
+            SessionOp::Select(Selection::Variable(var)),
+        ],
+    );
+    let op = mirror_op(&tools);
+    let before = session.committed_doc().clone();
+    let out = session.perform(op);
+    assert!(
+        matches!(
+            out.refusal.as_ref(),
+            Some(Refusal::Edit(error))
+                if matches!(error.as_ref(), EditError::SpaceMismatch { .. })
+        ),
+        "a plane variable of another space refuses naming the spaces, not {:?}",
+        out.refusal
+    );
+    eprintln!(
+        "said: {}",
+        out.refusal
+            .as_ref()
+            .map(ToString::to_string)
+            .unwrap_or_default()
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing lands");
+}
+
+/// **A mirror over a variable undoes, redoes, survives a rename and
+/// fails typed once its variable is gone**: undo takes the mirror and
+/// its union away bit-for-bit, redo brings back a mirror reading the
+/// same variable, a rename leaves it reading the same id and standing
+/// where it stood, and deleting the variable leaves it failing on its
+/// own row, which a further undo restores.
+#[test]
+fn a_mirror_over_a_variable_undoes_redoes_and_outlives_a_rename() {
+    let tol = Tol::witness();
+    let (mut session, block, split, var) = split_with_named_plane(
+        |session, block| common::cut_across(session, block, MID_Z),
+        "cut",
+        tol,
+    );
+    let before = session.committed_doc().clone();
+    let op = SessionOp::AddMirror {
+        body: Operand::output(split, pncad::select::SplitHalf::Below.port()),
+        plane: viewer::session::ToolPlane::Read(pncad::document::pose::RoleRead::plain(
+            Operand::Var(var),
+        )),
+    };
+    let _ = block;
+    let (image, _) = mirror_in(&mut session, op);
+    let stood = corners(&mut session, image);
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    session.pump();
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "undo takes it away"
+    );
+    let redone = session.perform(SessionOp::Redo);
+    assert!(redone.refusal.is_none(), "{:?}", redone.refusal);
+    session.pump();
+    let Some(Node::Mirror { plane, .. }) = session.committed_doc().node(image) else {
+        panic!("redo brings the mirror back under its id")
+    };
+    assert_eq!(plane.read, var, "reading the same variable");
+    assert_eq!(
+        corners(&mut session, image),
+        stood,
+        "and standing where it stood"
+    );
+
+    let renamed = session.perform(SessionOp::RenameVar {
+        var,
+        name: Some(pncad::document::VarName::new("datum").expect("a name")),
+    });
+    assert!(renamed.refusal.is_none(), "{:?}", renamed.refusal);
+    session.pump();
+    let Some(Node::Mirror { plane, .. }) = session.committed_doc().node(image) else {
+        panic!("the mirror")
+    };
+    assert_eq!(plane.read, var, "a rename keeps the id");
+    assert_eq!(corners(&mut session, image), stood, "and the image");
+
+    let deleted = session.perform(SessionOp::DeleteVar { var });
+    eprintln!("delete: {:?}", deleted.refusal);
+    if deleted.refusal.is_none() {
+        session.pump();
+        let eval = session.evaluation().expect("landed");
+        assert!(
+            matches!(eval.nodes.get(&image), Some(NodeResult::Failed(_))),
+            "a mirror whose variable is gone fails on its own row: {:?}",
+            eval.nodes.get(&image)
+        );
+        let back = session.perform(SessionOp::Undo);
+        assert!(back.refusal.is_none(), "{:?}", back.refusal);
+        session.pump();
+        assert_eq!(corners(&mut session, image), stood, "undo restores it");
+    }
+}
+
+/// **A held variable that is deleted is dropped from the mirror, said
+/// once**, as the split's is (`PlaneEvent::DefinedLost`).
+#[test]
+fn a_deleted_variable_drops_the_mirror_plane() {
+    let tol = Tol::witness();
+    let (mut session, _, _split, var) = split_with_named_plane(
+        |session, block| common::cut_across(session, block, MID_Z),
+        "cut",
+        tol,
+    );
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mirror);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[
+            SessionOp::Select(Selection::Face(displayed_face_at(
+                &session,
+                &plate_index(&session),
+                &common::up_at(0.0, 0.0),
+            ))),
+            SessionOp::Select(Selection::Variable(var)),
+        ],
+    );
+    assert!(tools.mirror().and_then(|t| t.plane()).is_some(), "held");
+    let deleted = session.perform(SessionOp::DeleteVar { var });
+    assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+    tools.respeak(session.doc());
+    session.pump();
+    let notices = tools.reconcile(session.doc(), session.landed_pair());
+    let lost = notices
+        .iter()
+        .filter(|n| matches!(n, ToolNotice::Mirror(PlaneEvent::DefinedLost { .. })))
+        .count();
+    assert_eq!(lost, 1, "one drop: {notices:?}");
+    assert!(
+        tools.mirror().and_then(|t| t.plane()).is_none(),
+        "and none held"
+    );
+    assert!(
+        matches!(
+            tools.mirror().expect("open").op(),
+            Err(SeatError::NoPlane { .. })
+        ),
+        "the commit names the missing plane again"
+    );
+}
+
+/// **Picks a plane seat does not take leave it as it was**, for both
+/// tools: a variable that is no pose (a declared length) neither
+/// replaces a held face nor seats a body; a variable picked before any
+/// body holds the plane alone; an edge pick seats its body and keeps
+/// the plane.
+#[test]
+fn a_non_pose_variable_is_no_plane_for_either_tool() {
+    let tol = Tol::witness();
+    let (mut session, block, _split, var) = split_with_named_plane(
+        |session, block| common::cut_across(session, block, MID_Z),
+        "cut",
+        tol,
+    );
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: pncad::document::VarName::new("w").expect("a name"),
+        value: pncad::document::FreeVar::continuous(Dimension::Length, 0.002),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    let length = session.committed_doc().var_named("w").expect("w");
+    let index = plate_index(&session);
+    let floor = displayed_face_at(&session, &index, &common::up_at(0.0, 0.0));
+    let _ = block;
+    for kind in [ToolKind::Mirror, ToolKind::Split] {
+        let mut tools = Tools::new();
+        tools.open(kind);
+        let notices = tools.feed(
+            session.committed_doc(),
+            Err(viewer::pickcache::NotIndexed::Absent),
+            &[
+                SessionOp::Select(Selection::Face(floor.clone())),
+                SessionOp::Select(Selection::Variable(length)),
+            ],
+        );
+        assert!(
+            matches!(
+                &notices[..],
+                [ToolNotice::Mirror(PlaneEvent::NotAPlane { var, .. })
+                    | ToolNotice::Split(PlaneEvent::NotAPlane { var, .. })]
+                    if var.id() == length
+            ),
+            "{kind:?}: the length is declined, said once: {notices:?}"
+        );
+        let face = match kind {
+            ToolKind::Mirror => tools.mirror().and_then(|t| t.face()).cloned(),
+            _ => tools.split().and_then(|t| t.face()).cloned(),
+        };
+        assert_eq!(
+            face.as_ref(),
+            Some(&floor),
+            "{kind:?}: a length keeps the face"
+        );
+
+        let mut tools = Tools::new();
+        tools.open(kind);
+        let _ = tools.feed(
+            session.committed_doc(),
+            Err(viewer::pickcache::NotIndexed::Absent),
+            &[SessionOp::Select(Selection::Variable(var))],
+        );
+        let op = match kind {
+            ToolKind::Mirror => tools.mirror().expect("open").op(),
+            _ => tools.split().expect("open").op(),
+        };
+        assert!(
+            matches!(op, Err(SeatError::Empty { .. })),
+            "{kind:?}: a variable alone seats no body: {op:?}"
+        );
+    }
+}
+
+/// **A mirror reading the split's still-anonymous plane** — a second
+/// reader of a variable one node already reads (VR7) — refuses typed
+/// at the commit, and lands nothing.
+#[test]
+fn a_mirror_over_an_anonymous_plane_variable_refuses_typed() {
+    let tol = Tol::witness();
+    let (mut session, block) = unplaced_block(tol);
+    let plane = common::cut_across(&session, block, MID_Z);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: block.into(),
+            plane,
+        },
+    );
+    session.pump();
+    let Some(Node::Split { tool, .. }) = session.committed_doc().node(split) else {
+        panic!("the split")
+    };
+    let var = tool.read;
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mirror);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[
+            SessionOp::Select(Selection::Face(displayed_face_at(
+                &session,
+                &plate_index(&session),
+                &common::up_at(0.0, 0.0),
+            ))),
+            SessionOp::Select(Selection::Variable(var)),
+        ],
+    );
+    assert!(tools.mirror().and_then(|t| t.plane()).is_some(), "held");
+    {
+        let op = mirror_op(&tools);
+        let before = session.committed_doc().clone();
+        let out = session.perform(op);
+        eprintln!(
+            "anonymous: {:?} / {}",
+            out.refusal,
+            out.refusal
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default()
+        );
+        assert!(out.refusal.is_some(), "a second reader refuses");
+        assert!(session.committed_doc().bit_eq(&before), "nothing lands");
+    }
+}
+
+/// **A face picked after a variable seats the body and keeps the
+/// variable**, for both tools: with no body held, the variable is the
+/// plane and the face fills only the empty body seat; once the body is
+/// held, a further face pick re-picks the plane.
+///
+/// Red if a face pick drops a held variable while seating the body, or
+/// a face picked with the body held does not re-pick the plane.
+#[test]
+fn a_face_after_a_variable_seats_the_body_and_keeps_the_variable() {
+    let tol = Tol::witness();
+    let (session, _block, split, var) = split_with_named_plane(
+        |session, block| common::cut_across(session, block, MID_Z),
+        "cut",
+        tol,
+    );
+    let index = plate_index(&session);
+    let floor = displayed_face_at(&session, &index, &common::up_at(0.0, 0.0));
+    assert_eq!(floor.node, split, "the premise: the floor is the split's");
+    for kind in [ToolKind::Mirror, ToolKind::Split] {
+        let mut tools = Tools::new();
+        tools.open(kind);
+        let feed = |tools: &mut Tools, pick: Selection| {
+            let notices = tools.feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &[SessionOp::Select(pick)],
+            );
+            assert!(notices.is_empty(), "{kind:?}: taken: {notices:?}");
+        };
+        let held = |tools: &Tools| match kind {
+            ToolKind::Mirror => {
+                let tool = tools.mirror().expect("open");
+                (tool.body(), tool.plane().cloned())
+            }
+            _ => {
+                let tool = tools.split().expect("open");
+                (tool.body(), tool.plane().cloned())
+            }
+        };
+        feed(&mut tools, Selection::Variable(var));
+        feed(&mut tools, Selection::Face(floor.clone()));
+        let (body, plane) = held(&tools);
+        assert_eq!(body, Some(split), "{kind:?}: the face seats its body");
+        assert!(
+            matches!(
+                &plane,
+                Some(viewer::combine::HeldPlane::Defined { var: held, .. }) if held.id() == var
+            ),
+            "{kind:?}: and the variable stays the plane: {plane:?}"
+        );
+        feed(&mut tools, Selection::Face(floor.clone()));
+        let (_, plane) = held(&tools);
+        assert!(
+            matches!(&plane, Some(viewer::combine::HeldPlane::Face(_))),
+            "{kind:?}: with the body held, a face re-picks the plane: {plane:?}"
+        );
+    }
 }

@@ -68,3 +68,17 @@ Reproduce (each reports the pin; the row itself is `<name>_row`):
 
 Each body finishes at 1e-12, its margin decided rather than the band
 loosened, and each pin comes out with its row green at every ε.
+
+## Another row on the same predicate (2026-11-22)
+
+`sweep::all a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta`
+is red at ε = 1e-12 on main (`d3d6534c3`, reproduced locally) on
+`props_chart_junction_closed`, check `Inventory`, margin
+2.8154559647670245e-12, `VolumeUncomputable` on the union. It is not
+named above. Its own row, with the payload, is
+`work/tesslie/main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12.md`;
+whether it is this row's junction reading or another cause is not
+established. (ONEROUND's `oneround/anchored-conic` lane, PR 7203, whose
+hosted run met it.)
+
+**Since PR 7131 (GREEN U12, 2026-11-23).** `union_fold_face_face_touch::a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line` now stops at back 300 (`props_cylinder_circle_off_axis`, hi 1.195e-12), before the back-900 stop this row pins, so the pin is red in nightly 44989234943. Cause: the polar read. 7131's mutant A alone restores the back-900 stop, and F1X or F1F alone does not. The refusal is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (PR 7402's branch until it merges), with probe runs 45083192761 (green at `e4d679d37e`), 45083200534 (red at `9bc9d6517b`) and 45083184695 (mutants). GREEN pins nothing until Ev rules on that count.

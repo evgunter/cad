@@ -536,6 +536,26 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// turn's `sin π` (`-1.2246467991473532E-16`) where it was the sketch
 /// normal negated, paired with that placement's direction (a pair a
 /// rounding off square).
+///
+/// **Regenerated when the writer cited one surface entity per surface
+/// key** (`[import]`, "Records follow the file"): nine fixtures, each
+/// face whose key an earlier face wore citing that face's entity, and the
+/// ids after it shifted. Surface entities: `ball` 2 → 1, `boss_union`
+/// 10 → 8, `composed_die` 89 → 68, `cone` 3 → 2, `cut_cylinder` 4 → 3,
+/// `die_pips` 48 → 27, `donut` 2 → 1, `kiss_assembly` 22 → 19,
+/// `lily_lantern` 6 → 4; no face, point or edge moved. `composed_die`
+/// also carries a move main's writer had made and the fixture had not:
+/// 12 `DIRECTION`s `(0.0, 0.0, 1.0)` written `(-0.0, 0.0, 1.0)`, the
+/// last commits of the carrier-frames row (PR 7131) after its own
+/// regeneration. The sign of a zero component is one real number either
+/// way, and nothing reads it: the importer folds it at translation.
+///
+/// **Regenerated when the Rodrigues arm spelled its last term
+/// `k × (k × v)/(1 + c)`** (`least_turn_rodrigues`, so that a pair one
+/// direction turns by the identity through the arithmetic): the same 5
+/// lines in `swept_elbow`, each a 6.1e-17 component moved by an ulp or
+/// two. The arm's former spelling on the same head writes every fixture
+/// back byte for byte.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {
@@ -606,8 +626,8 @@ fn committed_fixtures_are_byte_golden() {
 /// applied rather than a judgement asserted: a gap inside ε is only
 /// actionable if some site assumes BITWISE membership of a vertex in a
 /// surface, and a search of the kernel finds none — the bitwise
-/// comparisons that exist are surface-to-surface (`surface_sig`'s
-/// dedup), curve-to-curve (`bitwise_iso_match`) and vertex-to-vertex
+/// comparisons that exist are curve-to-curve
+/// (`step_import::on_built::bitwise_twin`) and vertex-to-vertex
 /// (the boolean zip's coincidence requirement). This row is the
 /// record.
 #[test]

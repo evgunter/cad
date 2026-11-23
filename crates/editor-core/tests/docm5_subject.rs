@@ -142,8 +142,8 @@ fn an_empty_world_is_the_empty_product_subject() {
     assert_eq!(wrapped.findings, Vec::new(), "and it is clean");
     assert_eq!(
         wrapped.skipped,
-        vec![CheckId::ChartCoherence],
-        "with the one default-Off resident named, and nothing else"
+        Vec::new(),
+        "every resident runs by default, so nothing is skipped"
     );
 }
 
@@ -292,11 +292,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
     assert_eq!(
         report.skipped,
-        vec![
-            CheckId::ChartCoherence,
-            CheckId::UnprovenCoincidence,
-            CheckId::AtRest
-        ],
+        vec![CheckId::UnprovenCoincidence, CheckId::AtRest],
         "and the skip is visible"
     );
 
@@ -316,11 +312,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
     assert_eq!(
         report.skipped,
-        vec![
-            CheckId::ChartCoherence,
-            CheckId::UnprovenCoincidence,
-            CheckId::AtRest
-        ]
+        vec![CheckId::UnprovenCoincidence, CheckId::AtRest]
     );
 }
 
@@ -573,8 +565,7 @@ fn the_registry_gathers_once_and_the_door_under_it_never_does() {
 /// what their prose says they do not. The view keeps every code byte
 /// at its own offset and blanks comments and literals, so a real
 /// `Arc<Product<T>>` is still seen exactly where it is written while a
-/// sentence naming one stops answering for it. This site's ledger row
-/// is in `crates/test-utils/tests/reader_census.rs`.
+/// sentence naming one stops answering for it.
 #[test]
 fn nothing_clones_or_shares_the_product() {
     for (path, source) in [
@@ -613,8 +604,7 @@ fn nothing_clones_or_shares_the_product() {
 /// a gather named after code on a line whose comment trails it, and
 /// one named inside a string literal. Neither appears in the two files
 /// this reads; the lines it matches are byte-identical to the raw
-/// ones. This site's ledger row is in
-/// `crates/test-utils/tests/reader_census.rs`.
+/// ones.
 ///
 /// ALL THREE SPELLINGS: `product`, `product_named` and
 /// `product_recorded` are one implementation with fields dropped, so a

@@ -48,6 +48,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "quantity",
  "rayon",
 ]
 
@@ -107,6 +108,10 @@ version = "0.0.0"
 dependencies = [
  "geom-core",
 ]
+
+[[package]]
+name = "quantity"
+version = "0.0.0"
 
 [[package]]
 name = "rayon"

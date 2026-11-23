@@ -26,7 +26,7 @@ the M7-4 record. Findings where the two disagree are in **Deltas**, at the end.
 | `adafruit/64_Halfsize_Breadboard.step` | adafruit | ↑ `64 Halfsize Breadboard/…step` | MIT | **yes** | **YES** | imports |
 | `adafruit/805_slide_switch.step` | adafruit | ↑ `805 slide switch/805 slide switch.step` | MIT | **yes** | **YES** | imports |
 | `adafruit/931_OLED_128x32_I2C.step` | adafruit | ↑ `931 OLED 128x32 I2C/…step` | MIT | **yes** | **YES** | imports |
-| `nist/nist_ftc_09_asme1_rd.stp` | nist | NIST MBE PMI Validation & Conformance Testing test cases | US Gov work, **PD-equivalent** | courtesy only | **YES** | imports; no-endorsement line required |
+| `nist/nist_ftc_09_asme1_rd.stp` | nist | NIST MBE PMI Validation & Conformance Testing test cases | US Gov work, **PD-equivalent** | courtesy only | **YES** | refuses (an in-band tangency, `step_snap_relation`); no-endorsement line required |
 | `nist/nist_ftc_11_asme1_rb.stp` | nist | ↑ same project | US Gov work, **PD-equivalent** | courtesy only | **YES** | imports since the M7-5 band-seam re-mint (#252); no-endorsement line required |
 | `occ-oss/cq_red_cube_blue_cylinder.step` | occ-oss | `CadQuery/cadquery` → `tests/testdata/red_cube_blue_cylinder.step` | Apache-2.0 | **yes** | **YES** | imports since #252; Onshape header (D4) |
 | `occ-oss/b123d_nema17_bracket.step` | occ-oss | `gumyr/build123d` → `docs/topology_selection/examples/nema-17-bracket.step` | Apache-2.0 | **yes, incl. upstream NOTICE** | **YES** (moot) | refuses today; **see D1** |
@@ -40,11 +40,10 @@ Source URLs: `github.com/adafruit/Adafruit_CAD_Parts` · `github.com/CadQuery/ca
 `nist.gov/ctl/smart-connected-systems-division/smart-connected-manufacturing-systems-group/mbe-pmi-0`
 
 **Verdict distribution: 9 render-OK · 7 of those require attribution · 4
-EXCLUDED (all stepcode).** Of the 9 cleared, 8 import today (the 5 Adafruit
-files, both NIST files and the CadQuery cube — the last two joined at the M7-5
-band-seam re-mint, #252); only `b123d_nema17_bracket` still refuses, so **the
-montage is exactly those 8** — `demos/wild`'s pinned cell set — and it clears
-cleanly. `sg1-c5-214.stp` is the only file this audit removes from a montage the
+EXCLUDED (all stepcode).** Of the 9 cleared, 7 import today (the 5 Adafruit
+files, `nist_ftc_11_asme1_rb` and the CadQuery cube); `b123d_nema17_bracket`
+and `nist_ftc_09_asme1_rd` refuse, so **the montage is exactly those 7** —
+`demos/wild`'s pinned cell set — and it clears cleanly. `sg1-c5-214.stp` is the only file this audit removes from a montage the
 kernel could otherwise produce.
 
 ## What each license says about a committed render

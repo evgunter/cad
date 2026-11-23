@@ -255,8 +255,6 @@ mod merge_skip;
 mod mesh12_parse_vs_certification;
 #[path = "mesh12_rim_row_reach.rs"]
 mod mesh12_rim_row_reach;
-#[path = "mesh8_coherence.rs"]
-mod mesh8_coherence;
 #[path = "missed_ray_side.rs"]
 mod missed_ray_side;
 #[path = "narrow_needle_containment.rs"]

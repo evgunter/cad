@@ -178,7 +178,7 @@ impl<T: Real> Frame<T> {
     pub fn axis_line(&self) -> Line<T> {
         Line {
             origin: self.origin(),
-            dir: self.axis(),
+            dir: self.axis_unit(),
         }
     }
 
@@ -322,12 +322,15 @@ impl Frame<f64> {
 /// bare `(origin, normal)` reads this.
 #[must_use]
 pub fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> T {
-    (q - origin).dot(normal)
+    T::difference_dot(
+        [q.x, q.y, q.z],
+        [origin.x, origin.y, origin.z],
+        [normal.x, normal.y, normal.z],
+    )
 }
 
-/// [`plane_offset`] with a first-order bound on its own rounding, its
-/// inputs exact ([`geom_core::running`]): the value is bit-identical to
-/// [`plane_offset`]'s, so a door that decides on one charges the other.
+/// The plain formula `(q − origin)·normal` with a first-order bound on
+/// its own rounding, its inputs exact ([`geom_core::running`]).
 #[must_use]
 pub fn plane_offset_rounded<T: Real>(
     origin: Point3<T>,

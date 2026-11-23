@@ -136,7 +136,7 @@ pub(crate) fn compute_chords(
     let mut counts: HashMap<EdgeKey, usize> = HashMap::new();
     let mut holders = HashMap::new();
     for (ek, _) in body.edges() {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
         let target = edge_target(body, routes, ek, delta)?;
@@ -192,12 +192,12 @@ pub(crate) fn compute_chords(
     // The short-loop floor (module docs): raised through `tighten`, so a
     // raised count still lands on every crease joint.
     for (ek, floor) in short_loop_floors(body, &counts) {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, floor)?;
         counts.insert(ek, n);
     }
     for (ek, _) in body.edges() {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
         let n = counts[&ek];
@@ -416,7 +416,9 @@ fn tighten(
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::hash_map::Entry::Vacant(e) => {
                 let surface = crate::tessellate::face_surface(body, s.face)?;
-                e.insert(FaceLattice::of(body, s.face, surface, lane, delta, bounds)?)
+                e.insert(FaceLattice::of(
+                    body, routes, s.face, surface, lane, delta, bounds,
+                )?)
             }
         };
         let Some(lattice) = lattice.as_ref() else {
@@ -488,12 +490,12 @@ struct FaceLattice {
 
 /// Which image of a half-edge a face's lane reads.
 enum Reads {
-    /// The curved lane walks its boundary by the iso classification
-    /// (`topo::chart_iso::classify_kind`) on the face's chart and reads no
-    /// stored row, so the rule reads the classifier's image too
+    /// The curved lane walks its boundary at the iso family the shape
+    /// door certified for each half-edge (`crate::curved::Rectangle`) and
+    /// reads no stored row, so the rule reads that image too
     /// (`work/tesslane/rectangle-faces-move-to-the-chart-lane.md` retires
     /// this reader).
-    Iso(topo::chart::Chart<f64>),
+    Iso(crate::curved::Rectangle),
     /// The trimmed lane's analytic arms read the stored row: a rim's, a
     /// meridian's or a ruling's harmonic image, a tilted circle's projected
     /// one, a section conic's focal-section one, a spiric's. On a chart
@@ -533,6 +535,7 @@ impl FaceLattice {
     ///   run.
     fn of(
         body: &Body<f64>,
+        routes: &crate::tessellate::Routes,
         fk: topo::FaceKey,
         surface: &geom::Surface<f64>,
         lane: crate::tessellate::Lane,
@@ -544,15 +547,15 @@ impl FaceLattice {
         Ok(match lane {
             Lane::Planar => None,
             Lane::Curved => {
-                let Some(chart) = topo::chart::Chart::of(surface) else {
-                    unreachable!("Chart::of answers every curved-lane surface: {surface:?}")
-                };
+                let rectangle = routes.rectangle(fk).ok_or(TessellateError::MissingEntity {
+                    what: "a curved-lane face the doors gave no rectangle (router defect)",
+                })?;
                 Some(Self {
                     steps: AnalyticRow::of(body, fk, surface)?.steps(target),
-                    reads: Reads::Iso(chart),
+                    reads: Reads::Iso(rectangle.clone()),
                 })
             }
-            Lane::Trimmed => {
+            Lane::Trimmed | Lane::Walked => {
                 // The spline row borrows the face's cell table, which this
                 // pass is the one to assemble (`face_bound`).
                 if let Some(payload) = surface.spline_chart() {
@@ -595,19 +598,19 @@ impl FaceLattice {
         let (cache, joints) = match self.reads {
             // The iso image of a circle, exactly: a rim's carrier
             // parameter is its azimuth, a meridian's its minor angle or
-            // latitude. The classifier is total on circles; its `None`
-            // is for conic and spline carriers, surfaced typed rather than
-            // defaulted so a widened classifier cannot pick a direction.
-            Reads::Iso(ref chart) => {
-                let speeds = match topo::chart_iso::classify_kind(chart, curve) {
-                    Some(topo::chart_iso::TravKind::Rim { .. }) => (1.0, 0.0),
-                    Some(topo::chart_iso::TravKind::Meridian { .. }) => (0.0, 1.0),
+            // latitude. The family is the one the shape door certified
+            // for this half-edge; a half-edge it was not asked about is
+            // surfaced typed rather than defaulted, so no direction is
+            // picked for it.
+            Reads::Iso(ref rectangle) => {
+                let speeds = match rectangle.side(hek) {
+                    Some(geom_brep::IsoFamily::V) => (1.0, 0.0),
+                    Some(geom_brep::IsoFamily::U) => (0.0, 1.0),
                     None => {
-                        return Err(refuse(
-                            "an edge a curved-lane face's lattice reads that the iso-curve \
-                             classifier left unclassified — neither rim nor meridian, so no \
-                             grid direction sizes its chords",
-                        ));
+                        return Err(TessellateError::MissingEntity {
+                            what: "a half-edge the shape door did not certify reached a \
+                                   curved-lane face's lattice (router defect)",
+                        });
                     }
                 };
                 return Ok(Ask { speeds, joints: 1 });
@@ -823,17 +826,6 @@ fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     }
 }
 
-/// An edge's certified curve.
-fn certified(body: &Body<f64>, ek: EdgeKey) -> Result<&geom_brep::EdgeCurve<f64>, TessellateError> {
-    let edge = body
-        .get_edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    body.get_curve_geom(edge.curve)
-        .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-        .certified()
-        .ok_or(TessellateError::NullScaffoldEdge { edge: ek })
-}
-
 /// **The short-loop floor**: the counts a loop's edges are raised to
 /// where its traversals' chords sum to fewer than three, `⌈3/k⌉` for a
 /// loop of `k` traversals, so every loop draws a polygon of at least
@@ -896,7 +888,7 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::nurbs_cert::tests::Domination;
     use crate::sizing::{
@@ -999,6 +991,18 @@ mod tests {
 
     /// The chord pass over `body`, its vertex ids minted first.
     fn chords_of(body: &Body<f64>, delta: f64) -> ChordPass {
+        witness_pass(body, delta).0
+    }
+
+    /// **The chord pass a witness run makes over `body` at `delta`**: the
+    /// pass, the shared positions (the vertices' points in arena order,
+    /// then the chord points it mints) and the face bounds it assembled,
+    /// on the witness route table. The setup a unit row of one face's
+    /// polygon reads.
+    pub(crate) fn witness_pass(
+        body: &Body<f64>,
+        delta: f64,
+    ) -> (ChordPass, Vec<geom_core::Point3<f64>>, FaceBounds) {
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
         for (vk, p) in body.vertex_points() {
@@ -1008,7 +1012,9 @@ mod tests {
         }
         let mut bounds = FaceBounds::new();
         let routes = crate::tessellate::Routes::witness(body);
-        compute_chords(body, delta, &routes, &vids, &mut positions, &mut bounds).unwrap()
+        let pass =
+            compute_chords(body, delta, &routes, &vids, &mut positions, &mut bounds).unwrap();
+        (pass, positions, bounds)
     }
 
     /// For every side of every edge of `body` whose lattice the rule reads:
@@ -1043,7 +1049,8 @@ mod tests {
                     panic!("a refused face")
                 };
                 let Some(lattice) =
-                    FaceLattice::of(body, s.face, surface, lane, delta, &mut bounds).unwrap()
+                    FaceLattice::of(body, &routes, s.face, surface, lane, delta, &mut bounds)
+                        .unwrap()
                 else {
                     continue;
                 };

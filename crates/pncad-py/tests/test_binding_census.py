@@ -588,6 +588,15 @@ BOUND_AS = {
     "CopyRef": ("InterferenceFinding.a", "InterferenceFinding.a_member"),
     "Overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "Unlocalized": "InterferenceFinding.unlocalized",
+    # What a finding's assertion recourse determines. An interference's
+    # pair of faces is a tuple of the finding's own `FaceSite`s; a
+    # coincidence's claim is `Quieting`, authored as one action by
+    # `Doc.assert_quieting`.
+    "OpposedPair": "InterferenceFinding.quieting",
+    # Which of the two a loud finding carries: `CheckEvidence.quieting`
+    # or `InterferenceFinding.quieting`, each `None` where it carries
+    # none.
+    "CarriedAssertion": ("CheckEvidence.quieting", "InterferenceFinding.quieting"),
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.
@@ -726,23 +735,6 @@ BOUND_AS = {
     "Constraint": "Doc.bundle",
     "ConstraintKind": "Doc.bundle",
     # An instance's value: its copies' bodies are `Value.bodies`.
-    # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
-    # `StepImport::Solid::coherence` hands a Rust caller the kernel's
-    # report whole and its discriminants are closed enums meant to be
-    # matched. Python receives the same facts through the OTHER
-    # consumer of the same kernel door — `CheckId::ChartCoherence`,
-    # whose evidence rows publish them — so each of the three below is
-    # the `NodeErrorKind` row's shape again, a curated type flattened
-    # onto its carrier's attributes.
-    #
-    # `CoherenceCondition` and `Unexaminable` share `chart_variant`
-    # because the tag alphabets are disjoint by construction and
-    # `tags.rs` says so; `CoherenceFinding`'s four numbers are four
-    # attributes of the same evidence row and `metres` is the one the
-    # claim is about.
-    "CoherenceCondition": "CheckEvidence.chart_variant",
-    "Unexaminable": "CheckEvidence.chart_variant",
-    "CoherenceFinding": "CheckEvidence.metres",
     "UnevaluatedReason": "Verdict.reason",
     "PI": "pi_rad",
     # `DistributionField` names WHICH offset of a distribution a fault
@@ -1156,10 +1148,13 @@ BOUND_AS = {
     # THE "PLACE PART" GESTURE: the identity bundle — `Doc.place` with
     # no constraints.
     "stand": "Doc.place",
-    # "Sketch on this face", one recorded action answering its four
-    # nodes.
-    "sketch_on_face": "Doc.sketch_on_face",
-    "SketchOutcome": "Doc.sketch_on_face",
+    # A profile drawn on a face, one recorded action answering the
+    # profile: `OnFace`'s orientation, spin, slides and traced faces are
+    # its keyword arguments, and the outcome is the document it leaves
+    # and the id it answers.
+    "draw_on_face": "Doc.draw_on_face",
+    "DrawnOnFace": "Doc.draw_on_face",
+    "OnFace": "Doc.draw_on_face",
     # A takeover, one recorded action answering the names it moved.
     "take_over": "Doc.take_over",
     "TakeOverOutcome": "Doc.take_over",
@@ -1459,7 +1454,7 @@ BOUND_AS = {
     # loops-in-hand seat to spell the Rust door at: `Node.polygon`
     # names a frame and mints a node, and the refusals it can raise are
     # the same PATHS refusals, tagged (`polygon_too_few_vertices`,
-    # `junction_tangent`).
+    # `junction_turn_within_tolerance`).
     "polygon": "Node.polygon",
     "revolve": "Node.revolve",
     "save": "Doc.save",
@@ -1510,6 +1505,33 @@ BOUND_AS = {
     # the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
+    # --- the certified range's doors and the two enums its answer
+    # reads as words. The search itself, its field, its seed and its
+    # answer types cross name for name (`src/py/range.rs`).
+    #
+    # `admit` and `Step` are the kernel module's own short names, which
+    # only read beside `range::`; Python has no such prefix, so the
+    # door says what it admits and a step's outcome is the word
+    # `RangeSearch.step` returns.
+    "admit": "admit_range",
+    "Step": "RangeSearch.step",
+    # The search's budget crosses as `RangeSearch`'s two keywords,
+    # `max_depth` and `max_replays`, with the leaf dials the kernel's
+    # defaults; `max_depth`'s default is `RangeBudget::for_seed`.
+    "RangeBudget": "RangeSearch",
+    # Why a side is undecided crosses as the word on `NotDecided.reason`,
+    # with `replays` and `width` its two payloads.
+    "Unproven": "NotDecided.reason",
+    # The schedule's one constant is a fact about the search's cost, read
+    # in the module docs; nothing a caller passes or reads names it.
+    "STALL_LEVELS": "RangeSearch",
+    # How a side ends: `SideEnd::Seed` is `reached_seed_end`, and
+    # `SideEnd::Different` is the `ProvenDifferent` on `different`. A
+    # side that has not ended has neither, which is `end() == None`.
+    "SideEnd": "RangeSide.reached_seed_end",
+    # What a proven difference is, as the word on `kind`; the node a
+    # standing change names rides on `ProvenDifferent.node`.
+    "DifferenceKind": "ProvenDifferent.kind",
 }
 
 # The family tags a NOT_BOUND entry may carry. A `gap:` entry names the
@@ -1669,19 +1691,6 @@ FAMILIES: dict[str, str] = {
         "entry, and one Python row asking a reversed loop for a step's "
         "edges and naming the wall each addresses."
     ),
-    # A PROFILE DRAWN ON A FACE arrived with its door: DOCTAIL's
-    # `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` landed
-    # `editor_core::draw_on_face` and the face's chart it draws on, and
-    # the binding is
-    # `work/pydoor/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
-    "B-DRAW-ON-FACE": (
-        "the drawn-on-face door — `draw_on_face`, its `OnFace` "
-        "(orientation, spin, two slides, traced faces) and its "
-        "`DrawnOnFace` outcome. Closing it needs a `Doc` method taking "
-        "the face, the loops and those four, a `pncad.pyi` entry, and "
-        "one Python row drawing on a bottom cap and extruding a boss "
-        "and a pocket."
-    ),
     # THE FIFTH ARRIVED WITH ITS DOOR TOO, and it is the one whose
     # PYTHON half is the measurement. EDIT's
     # `recorded-program-arguments-carry-no-notation` landed the kernel
@@ -1713,6 +1722,17 @@ FAMILIES: dict[str, str] = {
     # since nothing bound folds the rows. `crates/pncad-py/*` is
     # LIB's ground; `work/pydoor/python-has-no-maintenance-net-door`
     # carries the finding.
+    "B-READS": (
+        "what a node reads and what reads it — `Doc::operand_reads` "
+        "(each read a node's operand seats make, as `OperandRead`) and "
+        "`Doc::read_index` (the whole document's reads and read-by, as "
+        "`ReadIndex`), which the viewer's Properties draw as links. "
+        "Python has no node-payload reader, so it cannot compose either "
+        "caller-side. Closing it needs a `Doc.reads(node)` / "
+        "`Doc.read_by(node)` door, `pncad.pyi` entries, and one Python "
+        "row asserting the inverse law on a corpus document "
+        "(work/pydoor/python-cannot-ask-what-a-node-reads-or-what-reads-it.md)."
+    ),
     "B-MAINT-NET": (
         "the net of a sequence of accepted edits' maintenance rows — "
         "`MaintenanceNet`, pushed one applied edit at a time and "
@@ -1880,8 +1900,7 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `AtRestBody`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `CurveSelector`, `Structural`,
-#: `ChartCoherenceLane`):
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `CurveSelector`, `Structural`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
@@ -2069,13 +2088,13 @@ FAMILIES: dict[str, str] = {
 #: was real missing surface — the read-back carried the bool and
 #: Python could not read it, so the outward normal was unformable.
 #:
-#: What it binds: `Doc.sketch_on_face(body, face, outline, distance,
-#: spin)` — a body, an opaque face name and an angle — beside
-#: `Evaluation.face_carrier_kind` and `Pose.sense`. The positive form
-#: is `tests/test_face_frame.py`, where the three meet: the sketch's
-#: origin is the pose's, its normal is `sense * axis`, its +x is
-#: `u_ref` turned by the spin about that normal, and the face whose
-#: kind reads `Torus` is the face the sketch refuses.
+#: What it binds: `Doc.draw_on_face(body, face, outline, ...)` — a
+#: body, an opaque face name, and the chart's orientation, spin and
+#: slides — beside `Evaluation.face_carrier_kind` and `Pose.sense`.
+#: The positive form is `tests/test_face_frame.py`, where the three
+#: meet: the sketch's normal is `sense * axis`, its axes are the
+#: nearest orientation's turned by the spin about that normal, and the
+#: face whose kind reads `Torus` is the face the sketch refuses.
 #: **B-NOTATION is CLOSED and no longer a `gap` id here**
 #: (LIB-B-NOTATION), and it is the first family whose roster was
 #: HONEST about its own entries: it cited two names, `WrittenLength`
@@ -2357,17 +2376,6 @@ NOT_BOUND = {
     "BinaryOptions": SHAPE,
     "BlendRefusal": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
-    # The two CONTAINERS of the chart-coherence vocabulary whose three
-    # discriminants sit in `BOUND_AS` above. Python never holds
-    # either: the registry resident flattens the report into one
-    # `CheckFinding` per finding and one per unexamined loop, so the
-    # facts cross as rows of `ChecksReport.findings` rather than as a
-    # report object, and `Unexamined`'s face and loop are arena keys,
-    # which do not cross at all. The import door's own channel is
-    # unbound on the Python side for the reason `surface_census.rs`
-    # records against `examine_chart_coherence`.
-    "CoherenceReport": SHAPE,
-    "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
     "Dimension": SHAPE,
     # The sealed trait over the slot forms (`Formula`, `Expr`): a
@@ -2420,6 +2428,23 @@ NOT_BOUND = {
     # A space as a refusal speaks it: the world, its name, or the node
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
+    # A sentence as a value: its words and mentions, and the pieces a
+    # door writes it from. Python reads a
+    # refusal's sentence as the message text, each mention spelled; a
+    # mention's node rides as the payload's `NodeId`.
+    "Mention": SHAPE,
+    "Mentioned": SHAPE,
+    "Put": SHAPE,
+    "Run": SHAPE,
+    "SaidName": SHAPE,
+    "SaidNode": SHAPE,
+    "SaidVar": SHAPE,
+    "Sentence": SHAPE,
+    "say": SHAPE,
+    "sentence": SHAPE,
+    "display_said": SHAPE,
+    "node_text": SHAPE,
+    "var_text": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     # The names a deciding predicate's decisions are recorded under:
     # each `Settle` constructor fixes its own, which its docstring
@@ -2476,6 +2501,13 @@ NOT_BOUND = {
     # Python's document keeps no edit log and a save file holds none,
     # so the replay door has no Python shape to bind.
     "apply_replayed": SHAPE,
+    # A stranded name's carrier: Python reads which store holds the name
+    # off the `Maintenance` row's own variant (`Strand` is a payload's,
+    # `StrandedSelection` a selection's, `StrandedAppearance` the
+    # appearance store's), so the carrier is never a separate value.
+    "NameCarrier": SHAPE,
+    "OperandRead": f"{GAP}: B-READS one read a node's operand seat makes, and the node it reaches",
+    "ReadIndex": f"{GAP}: B-READS the whole document's reads and read-by, built in one walk",
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
@@ -2695,6 +2727,16 @@ NOT_BOUND = {
     # the same reason, and its fault.
     "resolve_written_loops": INTERIOR,
     "WrittenLoopFault": INTERIOR,
+    # The face's chart read before anything is drawn there, and the
+    # orientation it writes nearest the face with why none reads: the
+    # viewer's trace preview, for the same reason. A chart seats only a
+    # profile's frame (`face_chart_unseated` anywhere else), and
+    # `Doc.draw_on_face` writes it, with the nearest orientation where
+    # `orient=None`; a face that reads no orientation is the chart's own
+    # refusal at `evaluate`.
+    "chart_on_face": INTERIOR,
+    "nearest_to_face": INTERIOR,
+    "FaceUnread": INTERIOR,
     "v2": SHAPE,
     "v3": SHAPE,
     "write_step": SHAPE,
@@ -2738,6 +2780,8 @@ NOT_BOUND = {
     # document a carried finding is spoken over (`CarriedCoincidence.finding`).
     "PinnedDoc": INTERIOR,
     "Route": INTERIOR,
+    # One hop of a `Route`: the instance and the document holding it.
+    "RouteHop": INTERIOR,
     # The answers of `Doc::expr_reach` and `Doc::member_envs` (D10
     # `[repetition]`), the reads a reader that evaluates an expression
     # itself makes. Python evaluates through `evaluate`, which makes both
@@ -2748,15 +2792,6 @@ NOT_BOUND = {
     "Reached": INTERIOR,
     "MemberEnv": INTERIOR,
     "Chamfered": INTERIOR,
-    # A lane trait, one registry over: a trait naming
-    # WHICH decision lanes carry a chart-coherence examination, written
-    # as a bound on the two registry doors. Python's `run_checks` is
-    # monomorphic at the `f64` lane, so a Python caller never chooses
-    # one and never needs to name the trait; what it does see is the
-    # lane's ANSWER, as the `chart_coherence` / `chart_coherence_
-    # unexamined` / `chart_coherence_unavailable` words on
-    # `CheckEvidence.variant`.
-    "ChartCoherenceLane": INTERIOR,
     "ContactRecords": INTERIOR,
     # What a contact record cites (D1 (ii)): its `ContactRecords`
     # carrier is interior, so the citation rides behind the same door.
@@ -2820,9 +2855,12 @@ NOT_BOUND = {
     "FilletLeg": INTERIOR,
     "FilletLegCarrier": INTERIOR,
     "SegmentRef": INTERIOR,
-    # `PathNoCornerReason::TurnWithinTolerance`'s lever: the reason
-    # itself crosses nowhere (`no_corner_for_fillet` is the whole
-    # word), so its lever kind does not either.
+    # `PathNoCornerReason::TurnWithinTolerance`'s and the junction and
+    # seam turn refusals' payload, and its lever kind: Python carries
+    # those refusals by tag and sentence (`no_corner_for_fillet`,
+    # `junction_turn_within_tolerance`, `seam_turn_within_tolerance`),
+    # so their payload does not cross either.
+    "LeveredTurn": INTERIOR,
     "TurnLever": INTERIOR,
     "ContentBits": INTERIOR,
     # `BlendError::ConvexitySignFlip`'s payload, and part of the
@@ -3136,6 +3174,14 @@ NOT_BOUND = {
     # answered this moves with it, because a caller replaying draws in
     # Python would then need exactly this reduction to compare.
     "summarize": INTERIOR,
+    # **The document a range search replays**, and the door that
+    # derives it: the input with the field's variable widened to the
+    # seed and every other spread cleared. The search derives it for
+    # itself, and the two things a caller reads off it are on the
+    # answer — `CertifiedRange.nominal` and `CertifiedRange.pinned`,
+    # the spreads the derivation cleared.
+    "DerivedRange": INTERIOR,
+    "derive": INTERIOR,
     # **The gathered-product doors, one family, and they are what the
     # binding CALLS.** `Product` is the document's product with
     # everything the gather knows about it, `product_recorded` is the
@@ -3418,16 +3464,6 @@ NOT_BOUND = {
     # kernel-side: the door exists, succeeds, and answers a closed
     # four-variant tag.
     "edge_carrier_kind": f"{GAP}: B-EDGE-KIND the named edge's stored carrier tag",
-    # --- gap: a profile drawn on a face -----------------------------
-    # The editor-core door landed with DOCTAIL's face-chart unit; its
-    # Python binding is the pydoor unit that retires `Doc.sketch_on_face`
-    # for it.
-    "draw_on_face": f"{GAP}: B-DRAW-ON-FACE the drawn-on-face door",
-    "DrawnOnFace": f"{GAP}: B-DRAW-ON-FACE the door's outcome",
-    "OnFace": f"{GAP}: B-DRAW-ON-FACE where the profile stands on the face",
-    "chart_on_face": f"{GAP}: B-DRAW-ON-FACE the chart the door draws on, read before drawing",
-    "FaceUnread": f"{GAP}: B-DRAW-ON-FACE why no orientation reads off a face",
-    "nearest_to_face": f"{GAP}: B-DRAW-ON-FACE the orientation the door writes",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a
@@ -3484,9 +3520,19 @@ NOT_BOUND = {
     # disposition is argued here rather than inferred.
     #
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
-    # shape: a Python surface that evaluates at a certified scalar. On
-    # that day these are doors a caller can reach and every one of them
-    # owes a spelling or a `gap:`.
+    # shape: a Python surface that HOLDS a certified evaluation — a
+    # box, a leaf, a report. On that day these are doors a caller can
+    # reach and every one of them owes a spelling or a `gap:`.
+    #
+    # THE CERTIFIED RANGE IS NOT THAT DAY, and it is bound
+    # (`RangeSearch`, `src/py/range.rs`). It evaluates at the certified
+    # scalar INSIDE the kernel and answers in plain numbers, so nothing
+    # below crosses with it as a value. Four of these names lend it
+    # words and stay this row's: `DriveConfig`'s two budget counts are
+    # the `max_depth=` and `max_replays=` keywords, `RefusalReason` and
+    # `BudgetKind` are the words on `NotDecided.reason` and
+    # `NotDecided.budget`, and `DriveRefusal` is the word on
+    # `RangeRefusal.variant` for a nominal that does not build.
     #
     # A witness's parameter point is the same: offsets per variable
     # over a box, carried only by a decided clearance, which an `f64`
@@ -3539,6 +3585,7 @@ NOT_BOUND = {
     "Stackup": SHAPE,
     "StackupRefusal": SHAPE,
     "Unavailable": SHAPE,
+    "Unsettled": SHAPE,
     "WorstCase": SHAPE,
     "assertion_at": SHAPE,
     "drive": SHAPE,
@@ -3661,9 +3708,6 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::Unsupported": "CheckEvidence.variant",
     "CheckEvidence::NotAtRest": "CheckEvidence.variant",
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
     "CheckEvidence::Unused": "CheckEvidence.variant",
     "ChecksError::Placement": "ChecksError.variant",
@@ -3847,6 +3891,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
+    "MateFault::NotTheDatumsOwn": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::Backwards": "MateFault.variant",
@@ -3875,10 +3920,10 @@ MEMBERS_BOUND_AS = {
     "ParseError::WrongArity": "ParseError.variant",
     "ParseError::UnknownParam": "ParseError.variant",
     "ParseError::Dimension": "ParseError.variant",
-    "PathError::JunctionTangent": "PathError.variant",
+    "PathError::JunctionTurnWithinTolerance": "PathError.variant",
     "PathError::JunctionCusp": "PathError.variant",
     "PathError::CuspDoublesBackOverLeg": "PathError.variant",
-    "PathError::SeamTangent": "PathError.variant",
+    "PathError::SeamTurnWithinTolerance": "PathError.variant",
     "PathError::SeamArrivalOffDirection": "PathError.variant",
     "PathError::SeamArrivalLeverTooShort": "PathError.variant",
     "PathError::ContinuationTargetOffRay": "PathError.variant",
@@ -3912,6 +3957,9 @@ MEMBERS_BOUND_AS = {
     "PathError::Structure": "PathError.variant",
     "PathError::UnderdeterminedLeg": "PathError.variant",
     "PathError::OverdeterminedJunction": "PathError.variant",
+    # A refusal a later step raises about an earlier one: `variant` is
+    # its refusal's tag, and the message names the step that raised it.
+    "PathError::Deferred": "PathError.variant",
     "PersistError::NonFinite": "PersistError.variant",
     "PersistError::ProfileProgram": "PersistError.variant",
     "PersistError::Distribution": "PersistError.variant",
@@ -4039,6 +4087,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::OverusedSide": "TessellateError.variant",
     "TessellateError::SphereTrimShape": "TessellateError.variant",
     "TessellateError::WrapStripTurn": "TessellateError.variant",
+    "TessellateError::LiftedColumnOff": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",
     # The one door that reports MANY faults at once, so the word rides
@@ -4151,7 +4200,6 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SolidWithoutShells": "ValidationFinding.variant",
     "ValidationError::ShellWithoutFaces": "ValidationFinding.variant",
     "ValidationError::EdgeAcrossShells": "ValidationFinding.variant",
-    "ValidationError::ComponentEulerViolation": "ValidationFinding.variant",
     "ValidationError::MissingProvenance": "ValidationFinding.variant",
     "ValidationError::LeakedProvenance": "ValidationFinding.variant",
     "ValidationError::ScaffoldingEmptyLoop": "ValidationFinding.variant",
@@ -4183,6 +4231,20 @@ MEMBERS_BOUND_AS = {
     "McRefusal::NoSamples": "McRefusal.variant",
     "McRefusal::NominalDoesNotBuild": "McRefusal.variant",
     "McRefusal::Stopped": "McRefusal.variant",
+    # A range request's refusals, each the word on `variant` with its
+    # payload on the attributes the class lists. `Drive` carries the
+    # driver's refusal and answers in the driver's word.
+    "RangeRefusal::SeedNotABracket": "RangeRefusal.variant",
+    "RangeRefusal::NotAContinuousParam": "RangeRefusal.variant",
+    "RangeRefusal::UnknownNode": "RangeRefusal.variant",
+    "RangeRefusal::UnknownSlot": "RangeRefusal.variant",
+    "RangeRefusal::StructuralSlot": "RangeRefusal.variant",
+    "RangeRefusal::SlotIsDefined": "RangeRefusal.variant",
+    "RangeRefusal::Derivation": "RangeRefusal.variant",
+    "RangeRefusal::SeedIsNotTheAnalyzedAxis": "RangeRefusal.variant",
+    "RangeRefusal::MoreThanOneAxisVaries": "RangeRefusal.variant",
+    "RangeRefusal::EvaluationOfAnotherDocument": "RangeRefusal.variant",
+    "RangeRefusal::Drive": "RangeRefusal.variant",
     # --- an arm or a field that crosses as a DOOR ------------------
     # An analyzed axis's DIMENSION, which is the parameter's own — the
     # field is `dim` in the kernel and the reader is `dimension`, the

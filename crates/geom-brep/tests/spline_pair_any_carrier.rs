@@ -47,7 +47,10 @@ fn flat_wall() -> NurbsSurface<f64> {
 
 /// The off-iso diagonal on the flat wall, `t ∈ [0, 1]`.
 fn diagonal() -> Curve3<f64> {
-    Curve3::line(Point3::new(0.1, 0.1, 0.0), Vec3::new(0.6, 0.8, 0.0))
+    Curve3::line(
+        Point3::new(0.1, 0.1, 0.0),
+        geom::stated_direction(Vec3::new(0.6, 0.8, 0.0)),
+    )
 }
 
 /// The vertical plane through the diagonal.
@@ -78,30 +81,20 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
             vec![carrier.eval(t0), carrier.eval(t1)],
             vec![1.0, 1.0],
         ),
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_20,
-                ..
-            },
-        ) => {
+        Curve3::Circle(circle) => {
             let (center, axis, u_ref) = (
-                carrier_frame_20.origin(),
-                carrier_frame_20.axis(),
-                carrier_frame_20.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1))
         }
-        Curve3::Ellipse(
-            ellipse @ geom::Ellipse {
-                frame: carrier_frame_19,
-                ..
-            },
-        ) => {
+        Curve3::Ellipse(ellipse) => {
             let (center, axis, u_ref) = (
-                carrier_frame_19.origin(),
-                carrier_frame_19.axis(),
-                carrier_frame_19.u_ref(),
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1))
@@ -516,7 +509,10 @@ fn bumped_wall(peak: f64) -> NurbsSurface<f64> {
 /// with the bound it read. The line and its spline twin alike.
 #[test]
 fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
-    let line = Curve3::line(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let line = Curve3::line(
+        Point3::new(0.0, 0.5, 0.0),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let plane = Surface::Plane {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.5, 0.0),
@@ -577,7 +573,10 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
 /// carrier's miss (`HullValueChart`), never [`SsiLimb::ImageMiss`].
 #[test]
 fn a_carrier_definitely_off_the_wall_at_a_break_refuses_on_its_own_miss() {
-    let line = Curve3::line(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let line = Curve3::line(
+        Point3::new(0.0, 0.5, 0.0),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let plane = Surface::Plane {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.5, 0.0),
@@ -653,13 +652,14 @@ fn scallops(n: usize, h: f64) -> Curve3<f64> {
     ))
 }
 
-/// **A bound on the plane is about the carrier alone.** Scallops on the
+/// **A miss from the plane is about the carrier alone.** Scallops on the
 /// plane `z = 0` at every knot, bulging off it between them, refuse at
 /// limb 2 against the PLANE, the first operand the lane certifies: the
-/// limb is [`SsiLimb::HullSup`], the analytic one, and its words name
-/// an analytic surface and no image.
+/// reader's parts break each scallop at its middle, where the carrier is
+/// measured off the plane, so the limb is [`SsiLimb::HullValue`], the
+/// analytic one, and its words name a measured miss and no image.
 #[test]
-fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
+fn a_plane_side_scallop_refuses_on_the_carriers_measured_miss() {
     let plane = Surface::Plane {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
@@ -681,13 +681,13 @@ fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
     };
     assert_eq!(
         *limb,
-        SsiLimb::HullSup,
-        "the plane's bound, the carrier read alone"
+        SsiLimb::HullValue,
+        "the plane's measured miss, the carrier read alone"
     );
     let words = refusal.to_string();
     assert!(
-        words.contains("from an analytic surface") && !words.contains("image"),
-        "the words name the analytic surface and no image: {words}"
+        words.contains("measured the declared carrier") && !words.contains("image"),
+        "the words name the carrier's measured miss and no image: {words}"
     );
 }
 
@@ -695,8 +695,8 @@ fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
 /// whose square root's argument reaches zero at `v = π` (offset equal
 /// to the inner radius), on its plane `x = 3/2` and over the flat wall
 /// `z = 0` it crosses, is refused at limb 2 by the carrier-enclosure
-/// door, naming the kind and the span that holds `π`, not as malformed
-/// enclosure data.
+/// door, naming the kind and the span of the reader's grid that holds
+/// `π`, not as malformed enclosure data.
 #[test]
 fn a_carrier_the_door_cannot_enclose_is_refused_by_kind_and_span() {
     let spiric = Curve3::Spiric {
@@ -732,9 +732,11 @@ fn a_carrier_the_door_cannot_enclose_is_refused_by_kind_and_span() {
     };
     assert_eq!(kind, geom::CurveKind::Spiric, "named by kind");
     let pi = core::f64::consts::PI;
+    // The reader's first net cuts a closed form at most a 32nd of a turn
+    // of its angle apart: the 0.3 window is two spans of 0.15.
     assert!(
-        span.0 <= pi && pi <= span.1 && span.1 - span.0 < 0.3 / 16.0,
-        "named by the span holding π, one span of the grid: {span:?}"
+        span.0 <= pi && pi <= span.1 && span.0 == 3.0 && (span.1 - 3.15).abs() < 1e-12,
+        "named by the span holding π, the first of the window's two: {span:?}"
     );
 }
 

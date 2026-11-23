@@ -2,7 +2,8 @@
 """Fail the per-PR gate when a fast-set test is slow.
 
     check-fast-set-times.py --new-since <base> > new-tests.txt
-        print the `pkg:ident` tokens of the Rust lines HEAD adds to <base>
+        print the `pkg:ident` tokens of the Rust lines HEAD adds to <base>,
+        and the `pkg:fn:` / `pkg:file:` tokens of the files it edits
     check-fast-set-times.py <label> <nextest rc> [new-tests.txt]
         read the `ci` profile's junit report and fail on a slow passing test
     check-fast-set-times.py --selftest
@@ -35,6 +36,13 @@ stricter bar. What this cannot see: a test whose name no added line spells
 test (`rows_at!(at_f32, f32)`), a module renamed through `#[path]`, or a
 name a macro assembles (`paste!`). Those meet BAR.
 
+WHAT COUNTS AS EDITED is slow_set.py's reading, not this bar's: for every
+Rust file the diff edits and HEAD holds, `pkg:fn:<name>` for each `fn` it
+defines and `pkg:file:<module>` for the module it stands for (`file_module`).
+A Rust file whose string literals spell the file name of a non-Rust file the
+diff edits counts as edited too. Those tokens select slow-set tests
+(`slow_set.is_edited`); they never make a test new here.
+
 The report is the one nextest-failures.py reads and deletes, so this runs
 first. It exits 0 when nothing is slow, 1 when a test is, and 2 when it
 cannot read a report nextest's rc 0 says exists.
@@ -49,9 +57,10 @@ import sys
 import tempfile
 import tomllib
 import xml.etree.ElementTree as ET
-from pathlib import Path
+from collections.abc import Callable
+from pathlib import Path, PurePosixPath
 
-from slow_set import is_new
+from slow_set import is_new, selected
 
 PROFILE = "ci"
 BAR = 1.0
@@ -59,6 +68,7 @@ NEW_BAR = 0.5
 ANNOTATED = 3
 CONFIG = ".config/nextest.toml"
 IDENT_RE = re.compile(r"\b[a-z_][A-Za-z0-9_]*\b")
+FN_RE = re.compile(r"\bfn\s+([A-Za-z_][A-Za-z0-9_]*)")
 MOD_RE = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)")
 
 
@@ -118,24 +128,95 @@ def added_tokens(diff: str, root: Path) -> set[str]:
     return tokens
 
 
-def new_since(base: str) -> int:
-    diff = subprocess.run(
-        [
-            "git",
-            "diff",
-            "--no-renames",
-            "--no-color",
-            "-U0",
-            base,
-            "HEAD",
-            "--",
-            "*.rs",
-        ],
-        check=True,
+def file_module(path: str) -> str:
+    """The module name a Rust file stands for: its stem, its directory's name
+    for a `mod.rs` or a `tests.rs` below the crate root, `tests` for the
+    crate root's own `tests.rs`, and `lib` for `lib.rs`."""
+    p = PurePosixPath(path)
+    if p.stem == "mod" or (p.stem == "tests" and p.parent.name != "src"):
+        return p.parent.name
+    return p.stem
+
+
+def spells_a_name(names: list[str]) -> re.Pattern[str]:
+    """A line whose string literal spells one of `names`: a `"` opens the
+    run the name ends."""
+    return re.compile("|".join(f'"[^"]*{re.escape(n)}' for n in names))
+
+
+def edited_tokens(
+    paths: list[str],
+    root: Path,
+    read: Callable[[str], str | None],
+    referrers: Callable[[list[str]], list[str]],
+) -> set[str]:
+    """`pkg:fn:name` for every `fn` defined in a Rust file the diff edits,
+    and `pkg:file:module` for the module that file stands for. A Rust file
+    whose string literals spell the name of a non-Rust file the diff edits
+    (`include_str!("golden.txt")`, a fixture path) counts as edited too.
+    `read(path)` is the file at HEAD, `None` when the diff deletes it."""
+    rust = {p for p in paths if p.endswith(".rs")}
+    data = {PurePosixPath(p).name for p in paths if not p.endswith(".rs")}
+    rust.update(referrers(sorted(data)))
+    tokens: set[str] = set()
+    cache: dict[Path, str | None] = {}
+    for path in sorted(rust):
+        text = read(path)
+        pkg = _package_of(root / path, cache)
+        if text is None or not pkg:
+            continue
+        tokens.add(f"{pkg}:file:{file_module(path)}")
+        tokens.update(f"{pkg}:fn:{n}" for n in FN_RE.findall(text))
+    return tokens
+
+
+def _git(root: Path, *args: str, ok: tuple[int, ...] = (0,)) -> str | None:
+    """git's stdout in `root`, paths unquoted; `None` on an exit code in
+    `ok` other than 0, and a raise on any other."""
+    out = subprocess.run(
+        ["git", "-c", "core.quotepath=off", *args],
+        cwd=root,
         capture_output=True,
         text=True,
-    ).stdout
-    print(" ".join(sorted(added_tokens(diff, Path.cwd()))))
+        errors="replace",
+    )
+    if out.returncode not in ok:
+        raise RuntimeError(f"git {args[0]} exited {out.returncode}: {out.stderr.strip()}")
+    return out.stdout if out.returncode == 0 else None
+
+
+def _git_referrers(root: Path) -> Callable[[list[str]], list[str]]:
+    def referrers(names: list[str]) -> list[str]:
+        if not names:
+            return []
+        pats = (a for n in names for a in ("-e", n))
+        out = _git(root, "grep", "-I", "-F", *pats, "HEAD", "--", "*.rs", ok=(0, 1)) or ""
+        spelled = spells_a_name(names)
+        hits = (line.split(":", 2)[1:] for line in out.splitlines())
+        return sorted({path for path, text in hits if spelled.search(text)})
+
+    return referrers
+
+
+def diff_tokens(base: str, root: Path) -> set[str]:
+    """Every token `--new-since` prints, for the diff `base..HEAD` of the
+    checkout at `root`. Packages are read from the checkout's own
+    `Cargo.toml`s, which is why the far end is HEAD and nothing else."""
+
+    def diff(*args: str) -> str:
+        return _git(root, "diff", "--no-renames", "--no-color", *args) or ""
+
+    paths = diff("--name-only", base, "HEAD").splitlines()
+    return added_tokens(diff("-U0", base, "HEAD", "--", "*.rs"), root) | edited_tokens(
+        paths,
+        root,
+        lambda path: _git(root, "show", f"HEAD:{path}", ok=(0, 128)),
+        _git_referrers(root),
+    )
+
+
+def new_since(base: str) -> int:
+    print(" ".join(sorted(diff_tokens(base, Path.cwd()))))
     return 0
 
 
@@ -307,8 +388,105 @@ def selftest() -> int:
         assert "binary_id(geom::all) & test(=fit::added_row)" in fix(
             "geom::all", "fit::added_row"
         )
+        edited_selftest(root)
     print("check-fast-set-times: selftest ok")
     return 0
+
+
+# A slow test's pinned count moves on a line that does not spell its name; a
+# table it reads moves in the same file; a golden it `include_str!`s moves
+# with no Rust line at all; a file the diff deletes holds no test.
+EDITED_DIFF = """diff --git a/crates/geom/tests/all/census.rs b/crates/geom/tests/all/census.rs
+--- a/crates/geom/tests/all/census.rs
++++ b/crates/geom/tests/all/census.rs
+@@ -4 +4 @@
+-    assert_eq!(refused, 12);
++    assert_eq!(refused, 10);
+"""
+EDITED_FILES = {
+    "crates/geom/tests/all/census.rs": (
+        "const ROSTER: &[(&str, usize)] = &[(\"a\", 1)];\n"
+        "#[test]\nfn every_read_is_counted() {\n    let refused = 10;\n"
+        "    assert_eq!(refused, 10);\n}\n"
+    ),
+    "crates/topo/src/chord/tests.rs": "#[test]\nfn reads_its_golden() {\n"
+    '    let g = include_str!("golden/chord_rows.txt");\n}\n',
+    "crates/topo/src/lib.rs": "#[test]\nfn at_the_root() {}\n",
+}
+
+
+def git_selftest(root: Path) -> None:
+    """`diff_tokens` through real git: the reads `--new-since` makes."""
+
+    def git(*args: str) -> None:
+        _git(root, "-c", "user.name=t", "-c", "user.email=t@t", *args)
+
+    files = {**EDITED_FILES, "crates/topo/src/chord/golden/chord_rows.txt": "1\n"}
+    for rel, text in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text.replace("10", "12"))
+    git("init", "-q")
+    git("add", "-A")
+    git("commit", "-qm", "base")
+    git("tag", "base")
+    (root / "crates/topo/src/chord/golden/chord_rows.txt").write_text("2\n")
+    git("commit", "-qam", "re-cut the golden")
+    got = diff_tokens("base", root)
+    assert got == {"topo:file:chord", "topo:fn:reads_its_golden"}, (
+        f"a golden's re-cut reaches the file that reads it: {got}"
+    )
+    census = "crates/geom/tests/all/census.rs"
+    (root / census).write_text(EDITED_FILES[census])
+    (root / "crates/geom/tests/all/\u00e9t\u00e9.rs").write_text("fn summer_row() {}\n")
+    git("add", "-A")
+    git("commit", "-qm", "move the pin")
+    got = diff_tokens("HEAD~1", root)
+    assert "geom:fn:every_read_is_counted" in got and not any(":file:chord" in t for t in got), got
+    assert {"geom:file:\u00e9t\u00e9", "geom:fn:summer_row", "geom:summer_row"} <= got, (
+        f"a non-ASCII path is read unquoted, by both readers: {got}"
+    )
+
+
+def edited_selftest(root: Path) -> None:
+    paths = [
+        "crates/geom/tests/all/census.rs",
+        "crates/topo/src/chord/golden/chord_rows.txt",
+        "crates/topo/src/gone.rs",
+        "docs/x.md",
+    ]
+
+    def referrers(names: list[str]) -> list[str]:
+        assert names == ["chord_rows.txt", "x.md"], names
+        spelled = spells_a_name(names)
+        return [p for p, text in EDITED_FILES.items() if spelled.search(text)]
+
+    edited = edited_tokens(paths, root, EDITED_FILES.get, referrers)
+    assert edited == {
+        "geom:file:census",
+        "geom:fn:every_read_is_counted",
+        "topo:file:chord",
+        "topo:fn:reads_its_golden",
+    }, edited
+    assert file_module("crates/topo/src/lib.rs") == "lib"
+    assert file_module("crates/topo/src/tests.rs") == "tests", "the root's `tests` module"
+    assert file_module("crates/topo/src/chord/tests.rs") == "chord"
+    assert file_module("crates/topo/src/chord/mod.rs") == "chord"
+    root_tests = edited_tokens(["crates/topo/src/tests.rs"], root, lambda _: "", lambda _: [])
+    assert selected([("topo", "tests::made_by_macro"), ("topo", "made_by_macro")], root_tests) == [
+        ("topo", "tests::made_by_macro")
+    ], f"an edit to src/tests.rs selects the tests under `tests::` ({root_tests})"
+    slow = [
+        ("geom::all", "census::every_read_is_counted"),
+        ("geom::all", "other::every_read_is_counted_elsewhere"),
+        ("topo", "chord::tests::reads_its_golden"),
+        ("topo", "at_the_root"),
+    ]
+    git_selftest(root)
+    added = added_tokens(EDITED_DIFF, root)
+    assert selected(slow, added) == [], "the edit spells no slow test's name"
+    assert selected(slow, added | edited) == slow[0:1] + slow[2:3], (
+        "the edited test and the golden's reader are selected, and nothing else"
+    )
 
 
 if __name__ == "__main__":

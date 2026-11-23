@@ -128,18 +128,14 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                 segments.push((point, point));
                 continue;
             }
-            BoundaryMember::Edge { ek, edge, .. } => (ek, edge),
+            BoundaryMember::Edge { edge, .. } => (edge.key(), edge),
         };
-        let Some(carrier) = body
-            .edge_curve_linked(ek, edge)
-            .certified()
-            .map(geom_brep::EdgeCurve::carrier)
-        else {
+        let Some(carrier) = edge.certified().map(geom_brep::EdgeCurve::carrier) else {
             continue;
         };
         let ends = (
-            edge_end_point(body, ek, edge.he_plus, "he_plus"),
-            edge_end_point(body, ek, edge.he_minus, "he_minus"),
+            edge_end_point(body, ek, edge.record().he_plus, "he_plus"),
+            edge_end_point(body, ek, edge.record().he_minus, "he_minus"),
         );
         if super::edge_line(body, ek).is_some() {
             segments.push(ends);
@@ -171,7 +167,7 @@ pub(super) fn split<T: Decide>(v: Vec3<T>, n: Vec3<T>) -> (Vec3<T>, T) {
 fn nearest_offset<T: Decide>(depth: Around<T>, p: Point3<T>, q: Point3<T>) -> Option<Vec3<T>> {
     let (u, w) = match depth {
         Around::Line(geom::Line { origin, dir: axis }) => {
-            let a = axis.normalize();
+            let a = axis.get().normalize();
             (split(p - origin, a).0, split(q - p, a).0)
         }
         Around::Point(center) => (p - center, q - p),
@@ -335,7 +331,7 @@ pub(super) fn across<T: Decide>(
             .iter()
             .filter_map(|proposed| match (proposed.depth, proposed.source) {
                 (Around::Line(geom::Line { dir: axis, .. }), Source::Arc(p, q)) => {
-                    unit(axis.normalize().cross(q - p))
+                    unit(axis.get().normalize().cross(q - p))
                 }
                 _ => None,
             })
@@ -346,11 +342,11 @@ pub(super) fn across<T: Decide>(
             Around::Line(geom::Line { origin: o, dir: a }),
             Around::Line(geom::Line { origin: p, dir: b }),
         ) => {
-            vec![off(p, o, a), off(o, p, b)]
+            vec![off(p, o, a.get()), off(o, p, b.get())]
         }
         (Around::Line(geom::Line { origin, dir: axis }), Around::Point(center))
         | (Around::Point(center), Around::Line(geom::Line { origin, dir: axis })) => {
-            vec![off(center, origin, axis)]
+            vec![off(center, origin, axis.get())]
         }
         (Around::Point(c), Around::Point(d)) => vec![unit(d - c)],
         _ => Vec::new(),
@@ -397,7 +393,7 @@ mod tests {
     fn z_axis() -> Around<f64> {
         Around::Line(geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            dir: v(0.0, 0.0, 2.0),
+            dir: geom_core::UnitVec3::squared(v(0.0, 0.0, 2.0)),
         })
     }
 
@@ -405,7 +401,7 @@ mod tests {
         Around::Circle(geom::cover::Core {
             axis: geom::Line {
                 origin: p(0.0, 0.0, 0.0),
-                dir: v(0.0, 0.0, 1.0),
+                dir: geom_core::UnitVec3::squared(v(0.0, 0.0, 1.0)),
             },
             radius,
         })
@@ -614,7 +610,7 @@ mod tests {
         let (ra, rb) = (read(a), read(b));
         let axis = ra.cover.about()[0];
         assert!(
-            matches!(axis, Around::Line(geom::Line { origin, dir }) if origin.equals_exactly(p(0.0, 0.0, 0.0)) && dir.cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
+            matches!(axis, Around::Line(geom::Line { origin, dir }) if origin.equals_exactly(p(0.0, 0.0, 0.0)) && dir.get().cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
             "about its axis: {axis:?}"
         );
         assert_eq!(ra.cover.range_about(&axis), (1.0, 1.0), "the inner wall");
@@ -725,7 +721,10 @@ mod tests {
     }
     fn arc(c: Point3<f64>, n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>) -> Proposed<f64> {
         Proposed {
-            depth: Around::Line(geom::Line { origin: c, dir: n }),
+            depth: Around::Line(geom::Line {
+                origin: c,
+                dir: geom_core::UnitVec3::squared(n),
+            }),
             source: Source::Arc(from, to),
         }
     }
@@ -803,7 +802,10 @@ mod tests {
             }))])
         };
         let y = v(0.0, 1.0, 0.0);
-        let parallel = dirs(&wall(p(0.0, 0.0, 0.0), y), &wall(p(1.0, 0.7, 1.0), y * 2.0));
+        let parallel = dirs(
+            &wall(p(0.0, 0.0, 0.0), geom_core::UnitVec3::squared(y)),
+            &wall(p(1.0, 0.7, 1.0), geom_core::UnitVec3::squared(y * 2.0)),
+        );
         assert_eq!(parallel.len(), 2, "two offsets");
         assert!(
             parallel

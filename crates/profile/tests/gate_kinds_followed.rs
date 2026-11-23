@@ -72,15 +72,18 @@ fn guided(refusal: &StructureRefusal) -> Option<Door> {
 }
 
 fn path<V>(result: Result<V, PathError<f64>>) -> Door {
-    match result {
-        Ok(_) => Door::Built,
-        Err(e @ PathError::Escalated { site, gate, .. }) => Door::Escalated {
-            gate,
-            site: Some(site),
+    let e = match result {
+        Ok(_) => return Door::Built,
+        Err(e) => e,
+    };
+    match e.refusal() {
+        PathError::Escalated { site, gate, .. } => Door::Escalated {
+            gate: *gate,
+            site: Some(*site),
             text: e.to_string(),
         },
-        Err(PathError::Structure(r)) => guided(&r).unwrap_or_else(|| Door::Refused(r.to_string())),
-        Err(other) => Door::Refused(format!("{other:?}")),
+        PathError::Structure(r) => guided(r).unwrap_or_else(|| Door::Refused(r.to_string())),
+        other => Door::Refused(format!("{other:?}")),
     }
 }
 
@@ -144,17 +147,18 @@ fn guided_line_circle(eps0: f64) -> Door {
     match replay_guided(&steps, &structure, tol()) {
         Ok(_) => Door::Built,
         Err(e) => match &e.kind {
-            profile::ReplayErrorKind::Path(PathError::Structure(r)) => {
-                guided(r).unwrap_or_else(|| Door::Refused(e.to_string()))
-            }
-            profile::ReplayErrorKind::Path(PathError::Escalated { gate, site, .. }) => {
-                Door::Escalated {
+            profile::ReplayErrorKind::Path(source) => match source.refusal() {
+                PathError::Structure(r) => {
+                    guided(r).unwrap_or_else(|| Door::Refused(e.to_string()))
+                }
+                PathError::Escalated { gate, site, .. } => Door::Escalated {
                     gate: *gate,
                     site: Some(*site),
                     text: e.to_string(),
-                }
-            }
-            _ => Door::Refused(e.to_string()),
+                },
+                _ => Door::Refused(e.to_string()),
+            },
+            profile::ReplayErrorKind::Transition { .. } => Door::Refused(e.to_string()),
         },
     }
 }
@@ -346,7 +350,7 @@ const DRIVEN: &[Driven] = &[
     Driven {
         id: "a junction's turn",
         gate: Gate::PathJunctionTurn,
-        lever: "for tangency onto a new carrier use .tangent()",
+        lever: "if smooth, declare it: .tangent()",
         offers: false,
         run: |e| {
             path(

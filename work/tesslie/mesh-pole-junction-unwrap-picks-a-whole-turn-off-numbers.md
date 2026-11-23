@@ -2,12 +2,12 @@
 id: mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers
 kind: issue
 title: the mesh walk's pole-junction unwrap picks a branch off numbers, unswept against the same-edge rule
-status: dispatched
+status: parked
 opened: 2026-10-14
 priority: P1
 cost: M
 refs: [the-period-jump-has-no-ruling]
-branch: tesslie/lift-turns
+blocked_on: [a-horns-cusp-reads-as-its-upper-apex-so-a-face-below-it-turns-the-wrong-way]
 ---
 
 
@@ -64,3 +64,26 @@ Moved from TESSWALK to TESSLIE on 2026-11-20, by `git mv`, when TESSWALK merged 
 ## Re-banded P1 (2026-11-20, PR 7202 review)
 
 A second derivation of a whole-turn branch the stored lift already holds, the reason `singular-turn-spells-the-chart-winding-rule-by-hand` stayed P1, and against the ruling on `the-period-jump-has-no-ruling` (PR 4975) that a whole turn is never read off numbers.
+
+## Measured against the lift; parked (TESSLIE lift-turns, 2026-11-21)
+
+Every `unwrap_tie` call over the mesh and sweep suites was compared with
+the loop's stored lift: the column's offset from traversal 0, walk
+against lift (`LiftedRow::entry_exit_points`), agreeing when the two
+differ by less than half a turn. 21527 agree, 2 disagree, 32 read a loop
+with no lift (the d9 golden corpus and four probe rows, all Euler-built).
+
+- **No call is at a pole junction.** Every call opens a meridian column
+  after a RIM junction, where `prev_u` is the rim's end azimuth and the
+  copy about it is within a quarter turn: continuity, never the tie
+  zone. In a rim-anchored loop the meridian-to-meridian pole junction is
+  the closing side's column (`anchor`), which `unwrap_tie` does not read.
+  The arm this row is about has no witness
+  (`no-suite-body-reaches-a-pole-junction-off-the-closing-side`).
+- **Both disagreements are the lift's**, not the walk's: the lower needle
+  of `crates/sweep/tests/the_football_revolves.rs` (two rows, both
+  volume-checked and passing) stores a lift that winds the chart once at
+  the horn's cusp. Reading the lift there would mesh the complement.
+
+So the walk is not converted while the stored lift is wrong on the only
+pole-cusp faces the suites hold. Parked on CHARTTAIL's cusp row.

@@ -19,7 +19,7 @@ use geom::Surface;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use topo::{
-    AtRestBody, Body, CurveGeom, Edge, EdgeKey, FaceKey, LoopBoundary, LoopKey, ShellKey,
+    AtRestBody, Body, EdgeCurve, EdgeKey, EdgeView, FaceKey, LoopBoundary, LoopKey, ShellKey,
     ShellRole, VertexKey, classify_shells_of,
 };
 
@@ -55,47 +55,11 @@ fn surface_kind(surface: &Surface<f64>) -> &'static str {
     }
 }
 
-/// The certified carrier of `edge`, refusing null scaffolding with the
+/// The certified curve of `edge`, refusing null scaffolding with the
 /// typed mid-surgery error.
-fn certified_carrier<'a>(
-    body: &'a Body<f64>,
-    edge_key: EdgeKey,
-    edge: &Edge,
-) -> Result<&'a Curve3<f64>, StepExportError> {
-    let geom = body
-        .get_curve_geom(edge.curve)
-        .ok_or(StepExportError::Corrupt {
-            what: "edge curve key does not resolve",
-        })?;
-    match geom {
-        CurveGeom::Certified(curve) => Ok(curve.carrier()),
-        CurveGeom::NullScaffold(_) => Err(StepExportError::NullScaffoldEdge { edge: edge_key }),
-    }
-}
-
-/// The subset's carrier gate: `carrier` back for anything the curve
-/// printers emit, the typed refusal for the "no description yet" NURBS
-/// placeholder — the curve-side twin of the mvfs surface placeholder,
-/// and the one live [`StepExportError::UnsupportedCurve`] case. A
-/// DESCRIBED NURBS carrier prints as `B_SPLINE_CURVE_WITH_KNOTS` and
-/// passes.
-///
-/// The gate is a function of the carrier alone, so the arm it guards
-/// is drivable without a body: no certification admits a placeholder
-/// carrier, so no `Body` in this build reaches it through the emitter.
-pub(crate) fn printable_carrier(
-    carrier: &Curve3<f64>,
-    edge_key: EdgeKey,
-) -> Result<&Curve3<f64>, StepExportError> {
-    if let Curve3::Nurbs(payload) = carrier
-        && payload.is_placeholder()
-    {
-        return Err(StepExportError::UnsupportedCurve {
-            edge: edge_key,
-            kind: "nurbs placeholder",
-        });
-    }
-    Ok(carrier)
+fn certified_curve(edge: EdgeView<'_, f64>) -> Result<&EdgeCurve<f64>, StepExportError> {
+    edge.certified()
+        .ok_or(StepExportError::NullScaffoldEdge { edge: edge.key() })
 }
 
 /// The Part 21 emitter: id allocation and record accumulation.
@@ -359,12 +323,9 @@ impl<'a> Writer<'a> {
         if let Some(&id) = self.shared.edge_curves.get(&edge_key) {
             return Ok(id);
         }
-        let edge = self
-            .body
-            .get_edge(edge_key)
-            .ok_or(StepExportError::Corrupt {
-                what: "edge key does not resolve",
-            })?;
+        let edge = self.body.edge(edge_key).ok_or(StepExportError::Corrupt {
+            what: "edge key does not resolve",
+        })?;
         let (start_vertex, end_vertex) =
             self.body
                 .edge_vertices(edge_key)
@@ -375,14 +336,14 @@ impl<'a> Writer<'a> {
             self.vertex_point(start_vertex)?,
             self.vertex_point(end_vertex)?,
         );
-        let carrier = printable_carrier(certified_carrier(self.body, edge_key, edge)?, edge_key)?;
+        let carrier = certified_curve(edge)?.carrier();
         // The curve printers — one closed match over `Curve3`, every
         // arm an EXACT native AP214 entity (crate docs, "the analytic
         // subset"). Everything around this match is carrier-agnostic.
         let curve = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let cp = self.cartesian_point(origin, "line origin")?;
-                let d = self.direction(dir, "line direction")?;
+                let d = self.direction(dir.get(), "line direction")?;
                 // Magnitude 1.0: `dir` is unit by convention, so the
                 // STEP line parameter stays arc length in meters,
                 // matching the kernel parameterization.
@@ -394,10 +355,12 @@ impl<'a> Writer<'a> {
             // for field, including the seam at `u_ref` (θ = 0) and the
             // right-hand winding about `axis`. Exact, native, no
             // parameter remapping.
-            Curve3::Circle(conic_k @ geom::Circle { frame, .. }) => {
+            Curve3::Circle(conic_k) => {
                 let radius = conic_k.radius();
-                let placement =
-                    self.axis2_placement(&frame, ["circle centre", "circle axis", "circle u_ref"])?;
+                let placement = self.axis2_placement(
+                    &conic_k.frame(),
+                    ["circle centre", "circle axis", "circle u_ref"],
+                )?;
                 let r = fmt_real(radius, "circle radius")?;
                 self.emit(&format!("CIRCLE('', #{placement}, {r})"))
             }
@@ -411,12 +374,12 @@ impl<'a> Writer<'a> {
             // be an equally exact but strictly worse encoding, hiding
             // the axes every reader wants and reparameterizing the
             // curve for nothing.
-            Curve3::Ellipse(conic_k @ geom::Ellipse { frame, .. }) => {
+            Curve3::Ellipse(conic_k) => {
                 let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                 // STEP's `semi_axis_1` lies along the placement's
                 // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(
-                    &frame,
+                    &conic_k.frame(),
                     [
                         "ellipse centre",
                         "ellipse axis",
@@ -437,7 +400,7 @@ impl<'a> Writer<'a> {
                 offset,
                 ..
             } => {
-                let (t0, t1) = self.edge_params(edge_key, edge)?;
+                let (t0, t1) = certified_curve(edge)?.params();
                 let (spline, bound) = self.spiric_spline(
                     carrier,
                     edge_key,
@@ -457,9 +420,6 @@ impl<'a> Writer<'a> {
                     spline.weights(),
                 )?
             }
-            // The placeholder is already refused by
-            // `printable_carrier` above, so what reaches here is a
-            // described net.
             Curve3::Nurbs(ref payload) => self.b_spline_curve(
                 payload.knots_f64_interim(),
                 payload.control(),
@@ -478,21 +438,6 @@ impl<'a> Writer<'a> {
         let id = self.emit(&format!("EDGE_CURVE('', #{start}, #{end}, #{curve}, .T.)"));
         self.shared.edge_curves.insert(edge_key, id);
         Ok(id)
-    }
-
-    /// The edge's certified parameter interval — the span the spiric
-    /// lane approximates over (every other printer emits an unbounded
-    /// native entity and needs none).
-    fn edge_params(&self, edge_key: EdgeKey, edge: &Edge) -> Result<(f64, f64), StepExportError> {
-        match self.body.get_curve_geom(edge.curve) {
-            Some(CurveGeom::Certified(curve)) => Ok(curve.params()),
-            Some(CurveGeom::NullScaffold(_)) => {
-                Err(StepExportError::NullScaffoldEdge { edge: edge_key })
-            }
-            None => Err(StepExportError::Corrupt {
-                what: "edge curve key does not resolve",
-            }),
-        }
     }
 
     /// [`spiric_export_spline`] with this writer's own budget — the
@@ -749,7 +694,8 @@ impl<'a> Writer<'a> {
 
     /// `ADVANCED_FACE` for a kernel face: the surface printer first
     /// (so an out-of-subset face refuses by its surface, the primary
-    /// fact, not incidentally by a boundary carrier), then bounds
+    /// fact, not incidentally by a boundary carrier), once per surface
+    /// key, so faces wearing one surface cite one entity; then bounds
     /// (outer first, rings in stored order), then `same_sense`.
     ///
     /// **`same_sense` IS [`topo::Face::sense`]** (M5 S10). This is not
@@ -783,6 +729,7 @@ impl<'a> Writer<'a> {
             })?;
         let outer = face.outer;
         let rings = face.rings.clone();
+        let surface_key = face.surface;
         // The S10 orientation bit, emitted as `same_sense` (fn docs:
         // the two are the same predicate), turned over on a void's face.
         let same_sense = if face.sense != reversed { ".T." } else { ".F." };
@@ -807,6 +754,7 @@ impl<'a> Writer<'a> {
             })
         };
         let surface_id = match *surface {
+            _ if let Some(&id) = self.shared.surfaces.get(&surface_key) => id,
             Surface::Plane { .. } => {
                 let placement = self
                     .axis2_placement(&frame()?, ["plane origin", "plane normal", "plane u_ref"])?;
@@ -918,6 +866,7 @@ impl<'a> Writer<'a> {
                 });
             }
         };
+        self.shared.surfaces.insert(surface_key, surface_id);
         let mut bounds = Vec::with_capacity(1 + rings.len());
         bounds.push(self.face_bound(outer, true, reversed)?);
         for ring in rings {
@@ -1328,52 +1277,6 @@ mod tests {
             ),
             "rational record: {}",
             w.data
-        );
-    }
-
-    /// The "no description yet" NURBS carrier refuses typed rather
-    /// than printing poison — the curve-side twin of the mvfs surface
-    /// placeholder, and the one live `UnsupportedCurve` case.
-    ///
-    /// The refusal is DRIVEN here, not described: `printable_carrier`
-    /// is the gate [`Writer::edge_curve`] runs, on the same carrier,
-    /// and this reaches around nothing. No body can supply the
-    /// witness instead — a placeholder carrier fails
-    /// `EdgeCurve::certify` with `CertifyError::Unimplemented`, so no
-    /// certified curve in any build holds one — which is why the gate
-    /// is a function of the carrier alone.
-    #[test]
-    fn the_carrier_placeholder_refuses_typed() {
-        let placeholder = Curve3::<f64>::nurbs_placeholder();
-        let Curve3::Nurbs(ref payload) = placeholder else {
-            panic!("the placeholder is a NURBS curve");
-        };
-        assert!(payload.is_placeholder());
-
-        let edge = EdgeKey::default();
-        match printable_carrier(&placeholder, edge) {
-            Err(StepExportError::UnsupportedCurve { edge: named, kind }) => {
-                assert_eq!(named, edge, "the refusal names the edge it was asked about");
-                assert_eq!(kind, "nurbs placeholder");
-            }
-            other => panic!("expected UnsupportedCurve, got {other:?}"),
-        }
-
-        // The DESCRIBED twin passes the same gate: what refuses is the
-        // placeholder, never every NURBS carrier — the described net
-        // prints as B_SPLINE_CURVE_WITH_KNOTS.
-        let described = Curve3::Nurbs(
-            NurbsCurve3::new(
-                KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
-                vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
-                vec![1.0, 1.0],
-            )
-            .expect("a validated degree-1 net")
-            .into(),
-        );
-        assert!(
-            printable_carrier(&described, edge).is_ok(),
-            "a described NURBS carrier is printable"
         );
     }
 }

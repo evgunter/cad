@@ -186,11 +186,11 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcForm, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ChainShape,
-    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, EscalatedAt, FormLowered,
-    FormTarget, LegFit, LineTarget, OntoTarget, Open, OrderFault, PartialPath, PathError,
-    PathErrorKind, PathNoCornerReason, PointLeg, Radius, Recourse, ShapeFault, ShapeFaultKind,
-    Start, StepForm, Sweep, TangentArcTarget, TurnLever, Via, chain_shape, chain_states, circle,
-    circle_split, rectangle,
+    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, Deferral, EscalatedAt, FormLowered,
+    FormTarget, LegFit, LeveredTurn, LineTarget, OntoTarget, Open, OrderFault, PartialPath,
+    PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Recourse, ShapeFault,
+    ShapeFaultKind, Start, StepForm, Sweep, TangentArcTarget, TurnLever, Via, chain_shape,
+    chain_states, circle, circle_split, rectangle,
 };
 pub use seg::ArcRead;
 /// The path door's read-back rounding bounds and its magnitude
@@ -240,9 +240,9 @@ pub enum Segment<T: Real> {
 
 /// **The unit directions a segment's construction made**: a line's
 /// director, from its start to its end, or an arc's radial at each end,
-/// from its centre to that vertex. A sweep that needs a segment's
-/// direction reads it here and never divides the difference of two
-/// vertices by its own length.
+/// from its centre to that vertex, as a loop carries them into
+/// validation; a validated segment holds them in the arms of its
+/// [`SegmentKind`].
 ///
 /// Redundant with the vertices and the carrier, and never trusted:
 /// [`Profile::validate`] checks one a table carries against its vertices,
@@ -254,8 +254,7 @@ pub enum Segment<T: Real> {
 /// ℓ and turns by at most `ε/ℓ`; it is stored as written. No at-rest
 /// check reads a stored direction's length, so a director stored as a
 /// plane's normal is a unit only at its chord's lever. A table that
-/// carries none has them decided once, at validate, from its vertices
-/// ([`ValidatedSegment::directions`]).
+/// carries none has them decided once, at validate, from its vertices.
 #[derive(Clone, Copy, Debug)]
 pub enum SegmentDirections<T: Real> {
     /// A line's unit director, start to end.

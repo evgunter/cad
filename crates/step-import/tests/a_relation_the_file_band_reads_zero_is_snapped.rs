@@ -32,7 +32,6 @@ fn write(body: &AtRestBody<f64>) -> String {
 fn import(text: &str) -> Result<StepImport, StepImportError> {
     let options = ImportOptions {
         eps_in: Some(EPS_IN),
-        ..ImportOptions::default()
     };
     step_import::import_step(text, &options, tol())
 }
@@ -902,4 +901,85 @@ fn a_fillets_offset_is_read_at_its_faces() {
         (moved_by - want).abs() < 5e-2 * want,
         "the plain fillet's move, {want:e}: {moved_by:e}"
     );
+}
+
+/// **A tangent edge printed as a crossing line is read off the ruling the
+/// snap makes exact.** A writer that states the fillet's radius `g` long
+/// (the cylinder biting each plane by `g`, tangent at the file's band)
+/// and prints the edge on the plane `x = 2` as one of the pair's two
+/// crossing lines, `d = √(2rg + g²)` along the plane from the ruling,
+/// leaves the build reading that line `d` off its description, give or
+/// take the axis's own move `g` where the run's band moves it: in the
+/// file's band for a 1 or 2 nm bite (`d` ≈ 45–63 µm), past it for 2 µm
+/// (`d` ≈ 2 mm). This is the file's inconsistency under D7's O(ε_in)
+/// bound
+/// (`work/importgate/a-tangent-edge-printed-as-a-crossing-line-refuses-at-the-build.md`).
+#[test]
+fn a_tangent_edge_printed_as_a_crossing_line_is_read_off_its_ruling() {
+    let text = filleted();
+    let [cylinder] = records(&text, "CYLINDRICAL_SURFACE")[..] else {
+        panic!("one cylinder record")
+    };
+    // The line origin and the two vertices of the edge on x = 2 at y = 1.
+    let on_ruling: Vec<u64> = records(&text, "CARTESIAN_POINT")
+        .into_iter()
+        .filter(|&p| {
+            let head = format!("#{p} = CARTESIAN_POINT('', (");
+            let line = text.lines().find(|l| l.starts_with(&head)).unwrap();
+            line.contains("(2.0, 1.0, ")
+        })
+        .collect();
+    assert_eq!(on_ruling.len(), 3, "the ruling's three points");
+    let lines: Vec<u64> = records(&text, "LINE")
+        .into_iter()
+        .filter(|&l| {
+            on_ruling
+                .iter()
+                .any(|p| text.contains(&format!("#{l} = LINE('', #{p},")))
+        })
+        .collect();
+    let [ruling] = lines[..] else {
+        panic!("one line through the ruling: {lines:?}")
+    };
+    let [edge] = records(&text, "EDGE_CURVE")
+        .into_iter()
+        .filter(|&e| {
+            let head = format!("#{e} = EDGE_CURVE(");
+            let line = text.lines().find(|l| l.starts_with(&head)).unwrap();
+            line.contains(&format!(", #{ruling}, "))
+        })
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("one edge on the ruling")
+    };
+    for (g, in_band) in [(1e-9_f64, true), (2e-9, true), (2e-6, false)] {
+        let d = (2.0 * g + g * g).sqrt();
+        let file = on_ruling
+            .iter()
+            .fold(nudge_last(&text, cylinder, g), |t, &p| {
+                nudge_point(&t, p, 1, d)
+            });
+        match import(&file) {
+            Err(StepImportError::Interpretation {
+                id,
+                refusal:
+                    refusal @ (InterpretationRefusal::MissInBand { reading, miss }
+                    | InterpretationRefusal::EvidenceMiss { reading, miss }),
+                ..
+            }) => {
+                assert_eq!((id, reading), (edge, "step_edge_on_description"), "g {g:e}");
+                assert_eq!(
+                    matches!(refusal, InterpretationRefusal::MissInBand { .. }),
+                    in_band,
+                    "g {g:e}: in the band {in_band}, got {refusal:?}"
+                );
+                assert!(
+                    (miss - d).abs() <= g * (1.0 + 1e-6),
+                    "g {g:e}: the printed line lies d = {d:e} off the ruling, within the \
+                     axis's move: {miss:e}"
+                );
+            }
+            other => panic!("g {g:e}: the printed line read off its ruling, got {other:?}"),
+        }
+    }
 }

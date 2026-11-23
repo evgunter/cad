@@ -2,13 +2,12 @@
 id: axis-source-lowered-bytes-carry-no-minter-namespace
 kind: issue
 title: AxisSource's opaque lowered base carries no minter tag, so a recipe encoding and an import encoding can collide
-status: parked
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: M
-design: true
 refs: [axis-per-component-source-beside-geom-source]
-blocked_on: [step-import-discards-the-entity-ids-that-are-its-identity-channel]
+closed: 2026-11-22
 ---
 
 
@@ -33,3 +32,7 @@ On step 2 (EXCH's import adoption). Until an importer stamps axis
 rows, the recipe layer is the only minter, so a tag has one value and
 nothing to disambiguate; the decision belongs to the unit that adds the
 second minter, and has to land no later than it.
+
+## Closed as moot (2026-11-22, EXPORT, on Ev's ruling in PR 7331)
+
+`AxisSource` and every minter of lowered bytes are gone: the stamp channel was retired in INTENT stage 4 unit E, under PR 4322. The row it was parked on, EXPORT's `step-import-discards-the-entity-ids-that-are-its-identity-channel`, was ruled by Ev on PR 7331: no import identity stamp is built, so nothing mints an import encoding that could collide. Closed by the EXPORT orchestrator. ORIGIN can re-open it if it reads the ruling differently.

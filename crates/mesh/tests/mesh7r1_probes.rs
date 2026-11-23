@@ -37,7 +37,8 @@ use topo::{Body, FaceKey};
 fn door_verdict(body: &Body<f64>, fk: FaceKey) -> Result<(), geom_brep::props::PropsError> {
     let face = body.get_face(fk).unwrap();
     let surface = body.face_surface(fk).unwrap();
-    let (outer, _) = topo::props::loop_edges(body, face.outer).unwrap();
+    let (outer, _) =
+        topo::props::loop_edges(body.cycle_loop(face.outer).expect("a cycle loop")).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     geom_brep::props::require_iso_rectangle(surface, &outer, band)
 }
@@ -475,10 +476,7 @@ fn report_band_arm_under_the_runs_eps() {
 /// `CertificateExceeded` — a refusal about the chord budget standing
 /// in for a refusal about the premise — is reachable here.
 ///
-/// The π itself is still REPORTED rather than asserted on, by
-/// `topo::examine_chart_coherence` (issue 868), and
-/// `topo/tests/mesh8_coherence.rs` is where this body's half-turn is
-/// pinned as a value. The refusal's own rows are
+/// The refusal's own rows are
 /// `mesh/tests/mesh11_arc_branch.rs`; this one keeps the SEAM the
 /// review found — shape door yes, branch door no, on one face.
 #[test]

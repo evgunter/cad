@@ -266,10 +266,10 @@ impl<T: Decide> region::Course<T> for LegShape<T> {
         }
     }
 
-    fn span(&self, end: Option<T>, edge: &Edge<T>) -> ((T, T), bool) {
+    fn span(&self, end: Option<T>) -> ((T, T), bool) {
         match self {
-            Self::Parallel(round) => round.span(end, edge),
-            Self::Ruling(line) => line.span(end, edge),
+            Self::Parallel(round) => round.span(end),
+            Self::Ruling(line) => line.span(end),
         }
     }
 }

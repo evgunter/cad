@@ -4,7 +4,7 @@ kind: issue
 title: topo's suites spell the box wrapper n ways, of which the scaled probe box is five
 status: open
 opened: 2026-09-16
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -66,3 +66,5 @@ should read the unit-cube row first, because both answers land in the
 same door.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** All five wrappers remain (`probe_census.rs:23`, `probe_s5_sectors.rs:82`, `rim_dim_boolean_twins.rs:89`, `rim_dim_review_probes.rs:49,117`). This is test-helper deduplication.

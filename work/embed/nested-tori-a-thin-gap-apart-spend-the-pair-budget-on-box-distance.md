@@ -2,10 +2,12 @@
 id: nested-tori-a-thin-gap-apart-spend-the-pair-budget-on-box-distance
 kind: issue
 title: Two nested tori a thin gap apart, sharing nothing in M, are separated only by box distance, so three valid f64 torus cavities run out of pairs
-status: open
+status: dispatched
 opened: 2026-11-18
 priority: P0
 cost: M
+pr: 7119
+branch: embed/nested-tori
 ---
 
 Traced by lane `embed/cavity-trace` (2026-11-18) for

@@ -215,7 +215,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   precondition read the two walls' angle at the 1.6e-6 m edge's own
 ///   length, where they read as one ("tangent planes coincide"); at the
 ///   walls' extent they cross clearly.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
     // -- tests/fixtures/wild/stepcode/TAIL_TURBINE.stp -----------------
     // Its cylinder × sphere section, at its own ε_in: the edge across the
     // marched loop's start at the default and fine bands, its sibling's
@@ -266,6 +266,19 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         Refused(NEARPOLAR_RIM_IN_BAND),
     ),
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    // -- tests/fixtures/declined/cyl_declined_loose.step --------------
+    // The declined rim nudged 8e-11 m: at the fine band the circle
+    // composite reads its stand-off about 2.7 times over and refuses
+    // in band, where three samples read it Zero
+    // (`work/exch/the-printed-on-built-certificate-reads-curved-pairs-loosely.md`).
+    (CYL_DECLINED_LOOSE, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
+    (CYL_DECLINED_LOOSE, 1e-6, "file", Pass(1, 1, 3, 3, 2)),
+    (
+        CYL_DECLINED_LOOSE,
+        1e-12,
+        "file",
+        Refused(CYL_DECLINED_LOOSE_IN_BAND),
+    ),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Pass(1, 1, 6, 12, 8)),
     // Read at an ε_in of 1e-6, a rim vertex 1.6e-6 m from the seam
@@ -355,6 +368,8 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const CYL_DECLINED_LOOSE: &str = "tests/fixtures/declined/cyl_declined_loose.step";
+const CYL_DECLINED_LOOSE_IN_BAND: &str = "(step_edge_on_description), in the band it is read at";
 /// FTC11's rim vertex beside the seam azimuth, read in the file's band.
 const FTC11_SEAM_VERTEX_IN_BAND: &str = "(step_band_seam_vertex) lies in the";
 pub(crate) const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp";
@@ -418,17 +433,13 @@ const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
      the tolerance below 1e-10 m";
 
-/// `nist_ftc_09`'s refusal at every band. Its five fillet cylinders bite
-/// into their planes by 1.5 to 13 µm, tangent at the file's band
-/// (ε_in ≈ 34 µm) and crossing at the run's, and the snap catalogue makes
-/// each tangency exact (`snap.rs`'s
-/// `nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them`).
-/// The writer printed each of those edges as a crossing line of the pair
-/// as it wrote it, `√(2·r·gap)` from the ruling, so the first, `#4950`,
-/// lies 180 µm off its description: in the file's band, the file's
-/// ambiguity.
-const NIST09_PRINTED_OFF_ITS_TANGENCY: &str = "entity #4950: the file's statements miss each \
-     other by 0.0001802051876711938 m (step_edge_on_description), in the band it is read at";
+/// `nist_ftc_09`'s refusal at every band. Its cylinder `#5130` bites
+/// parallel planes `#5116` and `#5144` by 56.8 µm, in the file's band
+/// (ε_in ≈ 34 µm), so whether it is tangent is the file's ambiguity, refused
+/// at the snap (`snap.rs`'s
+/// `nist09s_cylinder_5130_reads_tangent_in_the_files_band_and_refuses_at_the_snap`).
+const NIST09_TANGENCY_IN_BAND: &str = "entity #5130: the distance 5.6844521718398856e-5 m \
+     (step_snap_relation) lies in the band the file is read at";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
@@ -475,6 +486,21 @@ const CORPUS: &[(&str, Disposition)] = &[
     (
         "tests/fixtures/closed-rim/cyl_single.step",
         Pass(1, 1, 3, 3, 2),
+    ),
+    // -- tests/fixtures/declined/ -------------------------------------
+    // Edges curve recognition declines, read on their descriptions
+    // (`an_edge_is_read_on_its_description_whatever_recognition_says`).
+    (
+        "tests/fixtures/declined/cyl_declined.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/declined/cyl_declined_loose.step",
+        EpsSensitive,
+    ),
+    (
+        "tests/fixtures/declined/side_column_declined.step",
+        Pass(1, 1, 6, 12, 8),
     ),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
     // two sub-arcs and each elliptic cone rim two arcs, and a knot on an
@@ -810,7 +836,7 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp",
-        Refused(NIST09_PRINTED_OFF_ITS_TANGENCY),
+        Refused(NIST09_TANGENCY_IN_BAND),
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp",
@@ -1145,10 +1171,7 @@ fn every_corpus_import_passes_the_shared_gate() {
         let text = std::fs::read_to_string(root.join(rel))
             .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
         for &(eps_tag, eps_in) in eps_in_rows_for(rel) {
-            let options = ImportOptions {
-                eps_in,
-                ..ImportOptions::default()
-            };
+            let options = ImportOptions { eps_in };
             let who = format!("{rel} @ eps {eps_tag}");
             let Some(want) = expected(rel, row, eps_tag) else {
                 // Off the pinned ambient matrix. The disposition of an

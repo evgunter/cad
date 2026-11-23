@@ -2,12 +2,14 @@
 id: the-pole-to-pole-band-reads-its-columns-off-the-area-vector-beside-the-lift
 kind: issue
 title: the walk's pole-to-pole band places its columns off the loop's area vector beside the stored lift
-status: dispatched
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: M
 refs: [singular-turn-spells-the-chart-winding-rule-by-hand, mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers]
-branch: tesslie/lift-turns
+branch: tesslie/wrap-strip-period
+closed: 2026-11-21
+pr: 7303
 ---
 
 Found by `tesslie/wrap-strip-period`'s sweep (2026-11-20), which moved
@@ -44,3 +46,14 @@ lane do.
 ## Re-banded P1 (2026-11-20, PR 7202 review)
 
 A second derivation of a whole-turn branch the stored lift already holds, the reason `singular-turn-spells-the-chart-winding-rule-by-hand` stayed P1, and against the ruling on `the-period-jump-has-no-ruling` (PR 4975) that a whole turn is never read off numbers.
+
+## Closed (TESSLIE, PR 7303, 2026-11-21)
+
+`walk::band_columns` takes each meridian's whole-turn branch from its lifted image, through `trimmed::face_domain` and `walk::lifted_rows`, the one home it shares with `wrap_strip`. `loop_area`, `mid_az`, the outward-frame read and the walk's last `face.sense` read are retired. A column more than a quarter turn from its image refuses `LiftedColumnOff`.
+
+This closed a live wrong answer. A band wider than about half a turn, with a meridian SPLIT (the trigger: placement is not needed), meshed Ok and watertight as its complementary sliver, e.g. −0.0006 against 4.188 for a sphere band at 2π−1e-3. The same held on lemon and apple spindle sheets and on reverted voids. Two reviewers' probes, 18,348 and 1,160 configurations, are all correct on the branch; main was wrong on 1,892 and 32 of them. Pinned against props by `a_split_band_wider_than_a_half_turn_meshes_its_own_volume`, `a_placed_band_wider_than_a_half_turn_meshes_its_own_volume`, and volume assertions on `a_multiply_carried_iso_side_…`.
+
+Follow-ups:
+- `the-band-columns-twin-read-back-has-no-witness` (P3).
+- `an-unminted-rimless-band-now-refuses-where-it-meshed` (P3).
+- The sibling `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers` is parked on CHARTTAIL's cusp row.

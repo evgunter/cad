@@ -1,5 +1,5 @@
 //! D7 adoption (Leg C, phases B–C): loop→face designation, surface
-//! attachment with key sharing, `same_sense` honored verbatim, and the
+//! attachment by record, `same_sense` honored verbatim, and the
 //! certification of every edge's built description by the kernel's
 //! own gates.
 //!
@@ -10,10 +10,9 @@
 //! ring-designated loop to its own face (`mfkrh`), then each file
 //! face's rings are demoted onto its outer loop's face (`kfmrh`) —
 //! pure topology, no certification, ending with exactly the file's
-//! loop→face partition. Surfaces then attach: **bitwise-identical
-//! surface records share one kernel surface key** (`FaceSurface::
-//! Shared`), restoring the writer-side sharing that the per-face
-//! record emission flattened — this is what makes a seam edge's
+//! loop→face partition. Surfaces then attach: **each surface record is
+//! one kernel surface key**, worn by every face that names it
+//! (`FaceSurface::Shared`) — this is what makes a seam edge's
 //! same-surface-both-sides state visible to the build. `same_sense`
 //! is stated beside the surface exactly as read (the corpus's reversed
 //! faces are deliberate kernel output — honored, never healed).
@@ -50,7 +49,7 @@ use topo::construction::FaceSurface;
 use topo::{Body, FaceKey, HalfEdgeKey, LoopKey};
 
 use crate::assemble::Assembled;
-use crate::build::{Description, Shell, Side, surface_sig};
+use crate::build::{Description, Shell, Side};
 use crate::error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
 use geom_core::Tol;
 
@@ -254,8 +253,9 @@ fn rotate_loop_firsts(
     Ok(())
 }
 
-/// Phase B's attachment: surfaces (deduped to shared keys) and the
-/// `same_sense` bit, in `CLOSED_SHELL` face order.
+/// Phase B's attachment: each surface record once, on its own key, worn
+/// by every face that names it, with the face's `same_sense` bit, in
+/// `CLOSED_SHELL` face order.
 fn attach_surfaces(
     body: &mut Body<f64>,
     solid: &Shell<'_>,
@@ -267,22 +267,21 @@ fn attach_surfaces(
         source: source.from_driver(),
         file,
     };
-    let mut seen: std::collections::BTreeMap<Vec<u64>, topo::SurfaceKey> =
+    let mut attached: std::collections::BTreeMap<u64, topo::SurfaceKey> =
         std::collections::BTreeMap::new();
     for (spec, &fk) in solid.faces.iter().zip(face_keys) {
-        let sig = surface_sig(&spec.surface);
-        let surface = match seen.get(&sig) {
+        let surface = match attached.get(&spec.record) {
             Some(&key) => FaceSurface::Shared {
                 key,
                 sense: spec.sense,
             },
             None => FaceSurface::New {
-                surface: spec.surface.clone(),
+                surface: solid.surfaces[&spec.record].surface.clone(),
                 sense: spec.sense,
             },
         };
-        let attached = body.set_face_surface(fk, surface).map_err(op_err)?;
-        seen.insert(sig, attached);
+        let key = body.set_face_surface(fk, surface).map_err(op_err)?;
+        attached.insert(spec.record, key);
     }
     Ok(())
 }
@@ -541,8 +540,8 @@ fn mapped_self_description(
     nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
-        Curve3::Line(geom::Line { origin, dir }) if nurbs_rim => {
-            line_frame(*origin, *dir).map(|place| {
+        Curve3::Line(geom::Line { origin, dir }) if nurbs_rim => line_frame(*origin, dir.get())
+            .map(|place| {
                 MappedCurve::whole(MappedSource::PlacedSegment {
                     segment: geom_brep::SketchSegment::Line {
                         a: Point2::new(t0, 0.0),
@@ -550,15 +549,15 @@ fn mapped_self_description(
                     },
                     place,
                 })
-            })
-        }
+            }),
         Curve3::Line(_) => Some(MappedCurve::whole(MappedSource::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
         })),
-        Curve3::Circle(geom::Circle { frame, .. }) => {
-            let (center, axis) = (frame.origin(), frame.axis());
+        Curve3::Circle(circle @ geom::Circle { .. }) => {
+            let frame = circle.frame();
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some(MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: Point2::new(0.0, 0.0),
                 place: Affine3::translation(p_start - Point3::origin()),
@@ -619,89 +618,15 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     clippy::unreachable
 )]
 mod tests {
-    use geom::NurbsSurface;
-    use geom_core::spline::KnotVector;
 
     use super::*;
 
-    /// A degree-1×2 loft-wall-shaped surface whose control net is a
-    /// function of `dx` — two nets differing in one control coordinate.
-    fn wall(dx: f64) -> Surface<f64> {
-        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    /// A degree-1×2 loft-wall-shaped surface.
+    fn wall() -> Surface<f64> {
+        let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let control = vec![
-            Point3::new(dx, 0.0, 0.0),
-            Point3::new(dx, 0.0, 1.0),
-            Point3::new(dx, 0.0, 2.0),
-            Point3::new(dx + 1.0, 0.0, 0.0),
-            Point3::new(dx + 1.0, 0.0, 1.0),
-            Point3::new(dx + 1.0, 0.0, 2.0),
-        ];
-        let payload = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
-        Surface::Nurbs(std::sync::Arc::new(payload))
-    }
-
-    /// **The M7-3 surface_sig pin (spec §1 item 2).** Two DISTINCT
-    /// NURBS walls must get distinct signatures — the tag-only arm
-    /// (`vec![5u64]`) would silently share one surface key across
-    /// every wall of a body (the silent-wrong-body class) — while a
-    /// bitwise-identical record must still share (the dedup that
-    /// restores writer-side key sharing).
-    #[test]
-    fn distinct_nurbs_walls_get_distinct_signatures() {
-        let a = surface_sig(&wall(0.0));
-        let b = surface_sig(&wall(1.0));
-        assert_ne!(a, b, "distinct NURBS walls must not share a surface key");
-        assert_eq!(
-            a,
-            surface_sig(&wall(0.0)),
-            "bitwise-identical NURBS records must share one key"
-        );
-    }
-
-    /// The signature is a function of every stated field family:
-    /// weights and knots move it too, not just control points (a
-    /// rational wall differing only in weights is a different
-    /// surface).
-    #[test]
-    fn weights_and_knots_reach_the_signature() {
-        let base = wall(0.0);
-        let Surface::Nurbs(payload) = &base else {
-            unreachable!()
-        };
-        let mut weights = payload.weights().to_vec();
-        weights[1] = 2.0;
-        let reweighted = Surface::Nurbs(std::sync::Arc::new(
-            NurbsSurface::new(
-                payload.knots_u_f64_interim().clone(),
-                payload.knots_v_f64_interim().clone(),
-                payload.control().to_vec(),
-                weights,
-            )
-            .unwrap(),
-        ));
-        assert_ne!(surface_sig(&base), surface_sig(&reweighted));
-        let kv3 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let refined = Surface::Nurbs(std::sync::Arc::new(
-            NurbsSurface::new(
-                payload.knots_u_f64_interim().clone(),
-                kv3,
-                vec![Point3::new(0.0, 0.0, 0.0); 8],
-                vec![1.0; 8],
-            )
-            .unwrap(),
-        ));
-        assert_ne!(surface_sig(&base), surface_sig(&refined));
-    }
-
-    /// REVIEW PROBE (V1): transposed nets — shape (2,3) at degrees
-    /// (1,2) vs shape (3,2) at degrees (2,1) with the identical
-    /// control multiset must not collide.
-    #[test]
-    fn probe_transposed_nets_distinct() {
-        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-        let pts = [
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(0.0, 0.0, 1.0),
             Point3::new(0.0, 0.0, 2.0),
@@ -709,65 +634,8 @@ mod tests {
             Point3::new(1.0, 0.0, 1.0),
             Point3::new(1.0, 0.0, 2.0),
         ];
-        let a = Surface::Nurbs(std::sync::Arc::new(
-            NurbsSurface::new(ku.clone(), kv.clone(), pts.to_vec(), vec![1.0; 6]).unwrap(),
-        ));
-        let transposed = vec![pts[0], pts[3], pts[1], pts[4], pts[2], pts[5]];
-        let b = Surface::Nurbs(std::sync::Arc::new(
-            NurbsSurface::new(kv, ku, transposed, vec![1.0; 6]).unwrap(),
-        ));
-        assert_ne!(
-            surface_sig(&a),
-            surface_sig(&b),
-            "transposed nets with identical multisets must not collide"
-        );
-    }
-
-    /// REVIEW PROBE (V1): a single interior knot moved, every count
-    /// equal.
-    #[test]
-    fn probe_single_knot_value_distinct() {
-        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let kva = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let kvb = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.625, 1.0, 1.0, 1.0], 2).unwrap();
-        let pts = vec![Point3::new(0.0, 0.0, 0.0); 8];
-        let a = Surface::Nurbs(std::sync::Arc::new(
-            NurbsSurface::new(ku.clone(), kva, pts.clone(), vec![1.0; 8]).unwrap(),
-        ));
-        let b = Surface::Nurbs(std::sync::Arc::new(
-            NurbsSurface::new(ku, kvb, pts, vec![1.0; 8]).unwrap(),
-        ));
-        assert_ne!(
-            surface_sig(&a),
-            surface_sig(&b),
-            "one knot value apart must not collide"
-        );
-    }
-
-    /// REVIEW PROBE (V1): u/v knot vectors swapped between two square
-    /// nets with equal lengths and degrees — the concatenated knot
-    /// stream carries the same values in a different order.
-    #[test]
-    fn probe_uv_knot_swap_distinct() {
-        let k01 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let k02 = KnotVector::clamped(vec![0.0, 0.0, 2.0, 2.0], 1).unwrap();
-        let pts = vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0),
-            Point3::new(1.0, 0.0, 0.0),
-            Point3::new(1.0, 1.0, 0.0),
-        ];
-        let a = Surface::Nurbs(std::sync::Arc::new(
-            NurbsSurface::new(k01.clone(), k02.clone(), pts.clone(), vec![1.0; 4]).unwrap(),
-        ));
-        let b = Surface::Nurbs(std::sync::Arc::new(
-            NurbsSurface::new(k02, k01, pts, vec![1.0; 4]).unwrap(),
-        ));
-        assert_ne!(
-            surface_sig(&a),
-            surface_sig(&b),
-            "swapped u/v knot vectors must not collide"
-        );
+        let payload = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        Surface::Nurbs(std::sync::Arc::new(payload))
     }
 
     /// **The must-carry rung offers only what the rule asks for.** A unit
@@ -800,10 +668,7 @@ mod tests {
             radius: 1.0,
         };
         let floor = plane(geom_core::Vec3::new(0.0, 1.0, 0.0));
-        let carrier = Curve3::line(
-            Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
-        );
+        let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let rung = |a: &Surface<f64>, b: &Surface<f64>, sagitta: f64| {
             let reach = geom_brep::points_lever_from(
                 Point3::new(0.0, 0.0, 0.5),
@@ -846,7 +711,7 @@ mod tests {
             "a crossing is not offered the pair"
         );
         assert!(
-            rung(&wall(0.0), &cylinder, band.zero() / 100.0).is_none(),
+            rung(&wall(), &cylinder, band.zero() / 100.0).is_none(),
             "a spline record is not read by the rule"
         );
     }

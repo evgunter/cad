@@ -54,3 +54,41 @@ Units, branch, tier and its reason:
   - **The trimmed lane's shared-side rule reads neighbour identity, which neither the memo key nor the ratified per-face purity invariant (`lib.rs`, PR #32) includes.** The 7198 fix pass files it as a P1 row. A replay can refuse where a fresh run meshes; it can never return a wrong Ok, since the census re-runs. It is to be weighed by two designers, since its answer may touch a ratified invariant.
 - 2026-11-20 22:30 — (GERM orchestrator, seam note) **Main is red on `scripts/gates/pin-cites-an-open-row.sh`.** `crates/sweep/tests/a_cylinder_through_a_hole_tangent_to_its_wall.rs` (around line 134) pins on `work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`, which is now closed. Every PR's lint job fails on it, GERM's log-only state PR 7216 included. Owed by the lane that closed the row: lift the pin, or point it at the open row that owns the fix.
 - 2026-11-21 — (TESSLIE orchestrator) **Ev ruled on PR 7224: the chart-coherence examination retires** ("nice find, sounds great!"). The two designers agreed in round 2, after a census: an exact iso reading leaves only the ε–2ε fringe on a tier-3 body. PRs 7197 and 7224 close unmerged, superseded. The coherence lane takes `tesslie/retire-coherence` after its mesh-iso-family PR; once mesh stops calling it, `classify_kind` has no consumer and goes too. Also merged this sitting: 7195, 7196, 7198 (the P0), 7200, 7202, 7211, 7213 (main's pin-cite red, mine), 7240.
+
+## 2026-11-21 — sitting closed; track handed back
+
+(TESSLIE orchestrator) Every dispatchable P0 and P1 row is done, so the track returns to `ready`. The one P1 left, `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers`, is parked on CHARTTAIL's `a-horns-cusp-reads-as-its-upper-apex-so-a-face-below-it-turns-the-wrong-way`. It was measured: 21,527 calls agree with the lift, and none reach a pole junction off the closing side.
+
+Merged this sitting:
+- 7195: slit in a curved face routes to trimmed; the curved lane refuses a pinch as a router defect.
+- 7196: a face whose boundary bounds no region refuses on its parity; the short-loop chord floor.
+- 7198 (the P0): shared-side rule on every trimmed arm, plus the over-use census at the fold.
+- 7200: one UV location per branch for a vertex met again.
+- 7202: `wrap_strip` reads its period off the lift.
+- 7211: `topo::loop_points`, the one home for the pinch reading.
+- 7213: main's pin-cite red, which this program caused.
+- 7235: mesh reads the shape door's per-edge family.
+- 7241: the memo key folds the face across and the trimmed lane's sense.
+- 7303: the rimless band reads its columns off the lift. It fixed a live wrong-region Ok on split wide bands.
+- 7307: the chart-coherence examination retired, on Ev's ruling in PR 7224.
+- 7197 and 7224 closed unmerged, superseded.
+
+Notes for a successor:
+- The sitting ran Opus only, at Ev's instruction (no Fable capacity). No experiment rows were recorded, and dual tiers ran as two Opus reviewers.
+- Lanes ran as cloud sessions.
+- Friction, all logged:
+  - Cross-session messages arrived 30–80 minutes late several times.
+  - Runners queued for about 30 minutes at once.
+  - A weekly usage limit stopped every lane for about 17 hours.
+- Main reds that belong to other programs, reported:
+  - ORBIT's `offer_rows`, noted on their log.
+  - `topo::recourse_roster`'s stale `tangent_sector_order2`.
+  - nist_ftc_09's refusal drift, which keeps the render lane red, so the tour frames await the nightly.
+- 2026-11-22 — (TESSLANE orchestrator, seam note) **Two things from PR 7096 (unit 4c, the walk on ruled faces with a split side), which merged over PR 7198's ground.**
+  - **The rectangle lane does meet a shared side.** PR 7198's description says it needs no rule because one chain's points lie on one iso line. Two chains held by ONE neighbour are not covered: a ball of radius 1.05 bored through at radius 1, unsplit, is the rectangle lane's one strip against a sphere or torus face holding both rims, and on main the census refuses it `OverusedSide` on seven cells (δ 3 to 0.3, and 0.1 on the sphere-neighbour sign). Before PR 7198 it was a non-manifold `Ok`. Filed in TESSLANE: `work/tesslane/a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles.md` (P2), and the design question of one answer for every lane: `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md` (P1, design).
+  - **What PR 7096 changed in files you hold.** `TrimmedFace::emit`'s inline shared-side check is lifted, unchanged in meaning, into `TrimPolygon::faces_holding_side`, which the walk also reads (two reviewers' per-patch differentials against merged main: no patch of a non-walked face moved). The per-triangle certificate accumulation is one type, `cert::FaceVerdict`, read by the rectangle lane, your CDT emit and the walk. `tessellate::route_of` has a `Trim::Walked` arm and the memo key a `Lane::Walked` case. Your `MissingEntity "(router defect)"` sites are untouched: an earlier head of that pull request had moved them onto a new variant, and that was reverted against `[failure.taxonomy]`.
+
+- 2026-11-22 — (GREEN orchestrator) Filed `main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12` (P1) here: red at ε 1e-12 on GREEN's PR 7399 gate, whose diff cannot reach it; not on the 11-21 nightly's failure list. Not bisected.
+
+- 2026-11-23 — **Seam note from TESSLANE:** the design question on a side two faces can both make (`work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`) is before Ev as an `[ev]` pull request. What three designers recommend would retire PR 7198's shared-side rule on the triangulating arms (`faces_holding_side`, `UnclearedSharedSide`) and the memo key's entry for the faces across a face (PR 7241), in favour of one split where the patches join. Nothing of yours changes until Ev answers; the unit that builds it is TESSLANE's and will say so here when it is dispatched. One of the designers' probes found a body for `the-shared-side-rule-on-the-spline-arm-has-no-witness`: with the rules off, the two spline faces of `faces_that_bound_no_region::a_lens_of_two_short_arcs_meshes_at_a_coarse_delta` both make one side; whether today's rule fires there with the rules on was not checked. (TESSLANE orchestrator)
+- 2026-11-23 — (OFFER orchestrator) **The 1e-12 prism-corner main red reproduces on main.** At `6e9dd995`, `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep --test all -E 'test(a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta)'` fails in 0.5 s with the row's panic: `VolumeUncomputable … Escalated { Indeterminate { margin 2.815e-12, band zero 1e-12 escalate 1e-11, predicate props_chart_junction_closed } }`. That settles the row's "not reproduced on main". It also reds `test (kernel)` on every PR whose run goes to tier `all`, which today includes #7362 (OFFER).

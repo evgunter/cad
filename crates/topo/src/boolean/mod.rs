@@ -195,6 +195,7 @@ pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
 
+use geom_core::UnitVec3;
 use geom_core::{
     Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag,
     NOT_YET_ENDING, Point3, Real, Sign, Tol,
@@ -236,9 +237,9 @@ pub use edge_join::{
 pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
 pub use nary::{
-    Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
-    NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep, NaryTaken, nary_boolean,
-    nary_boolean_apart, nary_placed,
+    Apart, FaceDescent, FaceSource, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement,
+    NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep, NaryTaken,
+    nary_boolean, nary_boolean_apart, nary_placed,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use ops::refused_face_kind;
@@ -493,18 +494,13 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_side"
         | "point_in_arc_loop_advance"
         | "point_in_arc_loop_arm"
-        | "point_in_arc_loop_reach"
         | "point_in_arc_loop_conic_span"
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_advance"
-        | "point_in_arc_loop_conic_in_plane"
         | "point_in_arc_loop_spiric_end"
         | "point_in_arc_loop_spiric_clear"
         | "point_in_arc_loop_spiric_on"
         | "point_in_arc_loop_spiric_leaf"
-        | "point_in_arc_loop_spiric_side"
-        | "point_in_arc_loop_spiric_turn"
-        | "point_in_arc_loop_spiric_advance"
         | "point_in_arc_loop_spline_end"
         | "point_in_arc_loop_spline_clear"
         | "point_in_arc_loop_spline_on"
@@ -844,7 +840,7 @@ impl Mints {
     /// The division list's refusal where `split`'s child is not one the
     /// split minted: an earlier split names it.
     pub(crate) fn push(&mut self, split: EdgeSplit) -> Result<(), crate::lineage::RowRefusal> {
-        let side = usize::from(split.operand == Operand::B);
+        let side = split.operand.index();
         self.divisions[side].push((split.child, split.parent))?;
         self.vertices[side].push((split.vertex, split.by));
         Ok(())
@@ -856,7 +852,7 @@ impl Mints {
         operand: Operand,
     ) -> impl Iterator<Item = (crate::entity::EdgeKey, VertexKey, crate::entity::EdgeKey)> + '_
     {
-        let side = usize::from(operand == Operand::B);
+        let side = operand.index();
         debug_assert_eq!(
             self.divisions[side].rows().len(),
             self.vertices[side].len(),
@@ -877,17 +873,17 @@ impl Mints {
         operand: Operand,
         edge: crate::entity::EdgeKey,
     ) -> crate::entity::EdgeKey {
-        self.divisions[usize::from(operand == Operand::B)].root(edge)
+        self.divisions[operand.index()].root(edge)
     }
 
     /// Records `v`, minted inside face `face` of `operand`'s clone.
     pub(crate) fn push_in_face(&mut self, operand: Operand, v: VertexKey, face: FaceKey) {
-        self.in_faces[usize::from(operand == Operand::B)].push((v, face));
+        self.in_faces[operand.index()].push((v, face));
     }
 
     /// The face of `operand`'s clone `v` was minted inside, where it was.
     pub(crate) fn minted_in(&self, operand: Operand, v: VertexKey) -> Option<FaceKey> {
-        self.in_faces[usize::from(operand == Operand::B)]
+        self.in_faces[operand.index()]
             .iter()
             .find(|&&(w, _)| w == v)
             .map(|&(_, face)| face)
@@ -907,7 +903,7 @@ impl Mints {
     /// The cell of the other operand's clone whose crossing minted `v`
     /// on an edge of `operand`'s, where a split minted it.
     pub(crate) fn minted_by(&self, operand: Operand, v: VertexKey) -> Option<Cell> {
-        self.vertices[usize::from(operand == Operand::B)]
+        self.vertices[operand.index()]
             .iter()
             .find(|&&(w, _)| w == v)
             .map(|&(_, by)| by)
@@ -928,7 +924,7 @@ impl Mints {
     /// Where `operand`'s splits stand now: [`Self::pieces_since`] reads
     /// the splits made after it.
     pub(crate) fn mark(&self, operand: Operand) -> SplitMark {
-        SplitMark(self.vertices[usize::from(operand == Operand::B)].len())
+        SplitMark(self.vertices[operand.index()].len())
     }
 
     /// [`Self::pieces`] of `edge` as it stood at `mark`: the pieces the
@@ -1311,7 +1307,7 @@ impl<T: Real> Glue<T> {
             let mut held = slot
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            held[usize::from(operand == Operand::B)] = Some(clone());
+            held[operand.index()] = Some(clone());
         }
     }
 }
@@ -1563,7 +1559,7 @@ impl<T: crate::props::AtRestPolicy> Default for GluedPairs<T> {
 /// by the operand whose face it is.
 pub(crate) fn unreadable_extent(face: geom_brep::PairSide) -> BooleanError {
     BooleanError::InvalidInput {
-        operand: face.of([Operand::A, Operand::B]),
+        operand: face.of(Operand::BOTH),
         what: "a glued face's consumed extent cannot be read (its box has no claim to make, \
                or its boundary cannot be walked)",
     }
@@ -2194,13 +2190,11 @@ fn tangent_struts<T: Real>(
     body: &Body<T>,
 ) -> Vec<(FaceKey, geom::SurfaceKind, FaceKey, geom::SurfaceKind)> {
     let mut out = Vec::new();
-    for (ek, edge) in body.edges() {
+    for view in body.edge_views() {
+        let (ek, edge) = (view.key(), view.record());
         let sides = crate::readback::edge_sides_of(body, ek, edge);
         let (f1, f2) = sides.faces();
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = view.certified() else {
             continue;
         };
         if matches!(
@@ -3843,10 +3837,10 @@ pub enum BooleanError {
     /// - **Cone**: not gated up front, as the torus. The germ-pair JOIN
     ///   dispatch — `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names: a
-    ///   plane against a plane, cylinder, sphere or cone, and a sphere
-    ///   pair (on its radical plane); a pair the section table carries
-    ///   (two cylinders, a cylinder and a sphere) rides its carried
-    ///   components. Its catch-all raises
+    ///   plane against a plane, cylinder, sphere or cone; a pair the
+    ///   section table carries (two cylinders, a cylinder or a plane
+    ///   and a sphere, two spheres, a plane and a cylinder) rides its
+    ///   carried components. Its catch-all raises
     ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
     ///   and a torus germ the table does not carry lands there too; a
     ///   cone against a curved face refuses one door earlier, at its
@@ -3854,11 +3848,9 @@ pub enum BooleanError {
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general
-    ///   SECTION-FRAME dispatch — additionally names
-    ///   `(Sphere, Sphere)` and `(Cylinder, Cylinder)` (as a proven
-    ///   STRAIGHT locus, or its own pinch door); `(Cylinder, Sphere)` is
-    ///   matched on its section (`boolean::section_table`), not on a
-    ///   frame. But neither a frame nor a section is a join arm: they
+    ///   SECTION-FRAME dispatch — names the plane×torus and plane×cone
+    ///   frames; every pair the section value builds is matched on its
+    ///   section (`boolean::section_table`), not on a frame. But neither a frame nor a section is a join arm: they
     ///   place the germs for the matcher, which is a strictly smaller
     ///   thing than a seam lane, and do not move this refusal.
     ///
@@ -3990,8 +3982,8 @@ pub enum BooleanError {
     /// crossing a face: their spheres touch within the tolerance, the
     /// smaller inside the larger (a decided zero), at a touch the section
     /// certificate does not certify off either face. Whatever the faces
-    /// share lies off every edge, so the join's sphere-pair arm (the
-    /// radical plane, `join::bool_connect`) had no chord to run. Spheres
+    /// share lies off every edge, so the join's carried lane
+    /// (`join::bool_connect`) had no chord to run. Spheres
     /// that cross, in a circle the certificate certifies inside both
     /// faces (its R-loop), are not refused: each sphere is re-cut so an
     /// edge of it reaches the circle (a closed ball re-charted with its
@@ -6734,6 +6726,12 @@ const UNREAD_FIRST_FACE: BooleanError = BooleanError::ClassificationInvariant {
     what: "a wall's second face is read before its first",
 };
 
+/// [`boolean_reduce_declared_strategy`]'s equal cylinder wall pairs.
+const WALL_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "bool_wall_pairs",
+    "the cylinder wall pairs whose boxes meet, read for their nodes",
+);
+
 /// [`boolean_reduce`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
@@ -6890,7 +6888,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     rereads.get(&(operand, c.vertex)).copied(),
                     planes.get(&(operand, c.vertex)).copied(),
                     charts.get(&(operand, c.vertex, c.face)).copied(),
-                    &tips[usize::from(operand == Operand::B)],
+                    &tips[operand.index()],
                     band,
                     second,
                 ) {
@@ -7080,7 +7078,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 
     // The nodes of the equal cylinder pairs' sections, each a ring in
     // both walls (`node::mint_nodes`).
-    let walls = glue::overlapping_pairs(a_operand, b_operand, node::is_wall, band)?;
+    let walls = glue::overlapping_pairs(WALL_PAIRS, a_operand, b_operand, node::is_wall, band)?;
     for ring in node::mint_nodes(
         &declared.sections,
         (&mut a, &mut b),
@@ -7573,7 +7571,7 @@ impl<T: Real> Default for NullEdges<T> {
     fn default() -> Self {
         Self {
             records: Vec::new(),
-            copies: [Operand::A, Operand::B].map(|operand| {
+            copies: Operand::BOTH.map(|operand| {
                 crate::lineage::NullEdgeCopies::new(crate::lineage::LineageRows::NullEdgeCopies(
                     operand,
                 ))
@@ -7594,7 +7592,7 @@ impl<T: Real> NullEdges<T> {
         minted: impl IntoIterator<Item = BoolNullEdgeRecord<T>>,
     ) -> Result<(), BooleanError> {
         for r in minted {
-            let copies = &mut self.copies[usize::from(r.operand == Operand::B)];
+            let copies = &mut self.copies[r.operand.index()];
             for end in [r.attr.below_end, r.attr.above_end] {
                 if end != r.at_vertex {
                     copies.push((end, r.at_vertex))?;
@@ -8260,7 +8258,7 @@ fn verify_tangency<T: Decide>(
                     geom::Curve3::Line(geom::Line { origin, dir }) => {
                         crate::rim_wedge::Locus::Line(geom::Line {
                             origin,
-                            dir: dir.normalize(),
+                            dir: UnitVec3::squared(dir.get()),
                         })
                     }
                     _ => {
@@ -8293,7 +8291,8 @@ fn verify_tangency<T: Decide>(
                 let (rim, identity) = crate::rim_wedge::shared_rim(a, fa, b, fb, band)
                     .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
                     .ok_or(Unsupported)?;
-                let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+                let circle =
+                    geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
                 (
                     circle,
                     T::zero(),
@@ -8413,7 +8412,7 @@ fn route_rim<T: Decide>(
     let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
@@ -8493,7 +8492,7 @@ fn witness_span<T: Decide>(
             .ok_or(invalid("declared face's boundary is unwalkable"))?;
         let cover = crate::cover::face_cover(body, f, band)
             .map_err(|_| invalid("a face of the pair has no cover to meter the tangent witness"))?;
-        let (lo, hi) = cover.range_along(line.dir / line.dir.norm_squared());
+        let (lo, hi) = cover.range_along(line.dir.get() / line.dir.get().norm_squared());
         Ok((lo + at, hi + at))
     };
     let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
@@ -9129,7 +9128,7 @@ mod tests {
         let a = sheet(Point3::origin(), -Vec3::unit_y(), near);
         let b_in = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), near);
         let b_short = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), (2.2, 3.0));
-        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let kind = geom::SurfaceKind::Cylinder;
         for (what, b, want) in [
             ("both trims hold the ruling", &b_in, true),
@@ -9176,7 +9175,7 @@ mod tests {
         };
         let a = sheet(Point3::origin(), -Vec3::unit_y());
         let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y());
-        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let kind = geom::SurfaceKind::Cylinder;
         let got = locus_through_both_faces(
             [

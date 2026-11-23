@@ -395,6 +395,34 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     outcome.made.expect("an authoring op made a node")
 }
 
+/// **A boss drawn on `face` and extruded `depth` off it**: `chain` drawn
+/// on the face's chart (`SessionOp::DrawOnFace`), then extruded
+/// (`SessionOp::AddExtrude`), each its own action ([`session_insert`])
+/// and neither landed. Answers the profile and the extrude.
+pub fn drawn_boss(
+    session: &mut DocSession,
+    face: FaceSelection,
+    chain: pncad::trace::Chain,
+    depth: f64,
+) -> (RecipeNodeId, RecipeNodeId) {
+    let profile = session_insert(
+        session,
+        SessionOp::DrawOnFace {
+            face,
+            traced: Vec::new(),
+            chains: vec![chain],
+        },
+    );
+    let boss = session_insert(
+        session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(depth),
+        },
+    );
+    (profile, boss)
+}
+
 /// **Add an instance of the part `id` through the session**, pump the
 /// seam, and answer the instance node — [`session_insert`] over
 /// `SessionOp::AddInstance`, the step every assembly-authoring suite
@@ -470,7 +498,7 @@ fn mate_elsewhere(
     match op {
         SessionOp::AddMate {
             placement, mate, ..
-        } => off(*placement, &mate.to),
+        } => off(*placement, &mate.to.read),
         SessionOp::SetBundle {
             placement,
             target,
@@ -479,7 +507,7 @@ fn mate_elsewhere(
         } => constraints
             .iter()
             .filter_map(|c| c.mate())
-            .find_map(|mate| off(*placement, &mate.to))
+            .find_map(|mate| off(*placement, &mate.to.read))
             .filter(|&(_, space)| *target != viewer::session::PlaceTarget::space(space)),
         _ => None,
     }
@@ -653,13 +681,13 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
 /// up from the start cap of the extrude `body` is built from, which is
 /// the plane square to `z` at `by` in that extrude's coordinates. A
 /// plane read as a caller writes one
-/// ([`viewer::session::SplitPlane::Read`]): the cap's plane slid into
+/// ([`viewer::session::ToolPlane::Read`]): the cap's plane slid into
 /// the body along its normal ([`plane_inside`]).
 pub fn cut_across(
     session: &DocSession,
     body: impl Into<pncad::document::Operand>,
     by: f64,
-) -> viewer::session::SplitPlane {
+) -> viewer::session::ToolPlane {
     use pncad::document::{Node, Operand};
     let mut on = body.into();
     let doc = session.committed_doc();
@@ -701,14 +729,14 @@ pub fn cut_across(
 /// **The plane `depth` metres inside the plane face `face`**, facing
 /// into the body: the face's plane turned over, so its normal points
 /// inward and a split's `above` side is the body's, then slid along it.
-pub fn plane_inside(face: pncad::document::Operand, depth: f64) -> viewer::session::SplitPlane {
+pub fn plane_inside(face: pncad::document::Operand, depth: f64) -> viewer::session::ToolPlane {
     use pncad::document::Operand;
     use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
     let plane = Operand::Pose(Box::new(PoseDef::Plane { face }));
     let inward = Operand::Pose(Box::new(PoseDef::Flip {
         pose: RoleRead::plain(plane),
     }));
-    viewer::session::SplitPlane::Read(RoleRead::plain(Operand::Pose(Box::new(PoseDef::Slide {
+    viewer::session::ToolPlane::Read(RoleRead::plain(Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(inward.clone()),
         along: RoleRead::through(inward, PoseRole::Normal),
         by: len(depth),
@@ -965,10 +993,10 @@ pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
 }
 
 /// **The placements of `body` into the world**, in document order: the
-/// copies of it ([`viewer::world::placements_of`]) whose copy stands
+/// copies of it ([`Doc::placements_of`](pncad::document::Doc::placements_of)) whose copy stands
 /// there ([`viewer::world::world_copy`]).
 pub fn world_placements(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> Vec<RecipeNodeId> {
-    viewer::world::placements_of(doc, body)
+    doc.placements_of(body)
         .into_iter()
         .filter(|&copy| viewer::world::world_copy(doc, copy).is_some())
         .collect()

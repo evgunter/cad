@@ -19,7 +19,7 @@ use pncad::workspace::WorkspaceError;
 use viewer::docio::{self, DocIoError};
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp, Step,
+    DocSession, FaceSelection, Hovered, RangeTarget, Refusal, Selection, SessionOp, Step,
 };
 
 fn distance(
@@ -107,7 +107,7 @@ fn a_document_round_trips_through_save_and_open() {
 /// use, so the fields that reset owns are covered at both doors and
 /// not at one. `frame_policy.rs` already holds the landed half for
 /// this door; what is new here is the selection, the hover and the
-/// range probe, which nothing asserted `Open` drops.
+/// `range?` reading, which nothing asserted `Open` drops.
 #[test]
 fn opening_a_document_drops_what_the_previous_one_answered() {
     let tol = Tol::witness();
@@ -134,13 +134,13 @@ fn opening_a_document_drops_what_the_previous_one_answered() {
         node: profile,
         body: 0,
     }))));
-    let probed = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Variable {
+    let ranged = session.perform(SessionOp::ProveRange {
+        target: RangeTarget::Variable {
             var: common::thickness_var(session.committed_doc()),
         },
     });
-    assert!(probed.refusal.is_none(), "{:?}", probed.refusal);
-    assert!(session.bounds().is_some(), "a probe landed");
+    assert!(ranged.refusal.is_none(), "{:?}", ranged.refusal);
+    assert!(session.range().is_some(), "a range run started");
     assert!(session.landed_pair().is_some(), "a run landed");
 
     assert!(
@@ -156,7 +156,7 @@ fn opening_a_document_drops_what_the_previous_one_answered() {
     );
     assert!(session.hover().is_none(), "so does a hover");
     assert!(
-        session.bounds().is_none(),
+        session.range().is_none(),
         "a range is a statement about one document"
     );
     assert!(
@@ -265,7 +265,7 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     );
     assert!(
         rows.iter()
-            .any(|row| row.spoken.kind() == Some("Revolve") && row.placed),
+            .any(|row| row.spoken.kind() == Some("Revolve") && !row.placements.is_empty()),
         "the revolve carries the world badge: the gallery places it"
     );
 
@@ -511,15 +511,18 @@ fn saving_as_a_new_document_from_the_refusal_forks_at_the_chosen_name() {
         .perform(SessionOp::Save(copy.clone()))
         .refusal
         .expect("beside the original, a save refuses");
-    let choice = refusal.save_choice().expect("the refusal offers a choice");
+    let commits = viewer::test_support::refusal_commits(&refusal);
+    let [over, fork] = &commits[..] else {
+        panic!("the refusal offers its two saves: {commits:?}")
+    };
     assert!(
-        matches!(choice.over(), SessionOp::Save(ref path) if *path == file),
+        matches!(over.op, SessionOp::Save(ref path) if *path == file),
         "one way on saves over the original"
     );
-    assert_eq!(choice.over_label(), "Save over plate.pncad");
-    assert_eq!(choice.fork_label(), "Save copy.pncad as a new document");
+    assert_eq!(over.label, "Save over plate.pncad");
+    assert_eq!(fork.label, "Save copy.pncad as a new document");
 
-    let forked = session.perform(choice.fork());
+    let forked = session.perform(fork.op.clone());
     assert!(
         forked.refusal.is_none(),
         "the fork lands: {:?}",

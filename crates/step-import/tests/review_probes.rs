@@ -627,33 +627,19 @@ fn e5_closed_forms() {
 #[test]
 fn h8_eps_in_not_consumed() {
     let text = fixture("cube", "step");
-    let coarse = import_step(
-        &text,
-        &ImportOptions {
-            eps_in: Some(1.0),
-            ..ImportOptions::default()
-        },
-        Tol::witness(),
-    );
+    let coarse = import_step(&text, &ImportOptions { eps_in: Some(1.0) }, Tol::witness());
     assert!(
         matches!(coarse, Err(StepImportError::Interpretation { .. })),
         "a 1 m ε_in refuses the unit cube at interpretation: {coarse:?}"
     );
     let eps = 1e-30;
-    let import = import_step(
-        &text,
-        &ImportOptions {
-            eps_in: Some(eps),
-            ..ImportOptions::default()
-        },
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| {
-        panic!(
-            "eps_in {eps} must not affect certification: {e_at}",
-            e_at = e.render()
-        )
-    });
+    let import = import_step(&text, &ImportOptions { eps_in: Some(eps) }, Tol::witness())
+        .unwrap_or_else(|e| {
+            panic!(
+                "eps_in {eps} must not affect certification: {e_at}",
+                e_at = e.render()
+            )
+        });
     let StepImport::Solid { body, eps_in, .. } = import else {
         panic!("wireframe?")
     };

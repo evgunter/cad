@@ -42,6 +42,10 @@ pub(crate) fn band_at(eps_in: f64, run_eps: f64, k: f64) -> Option<Band> {
 /// (a NURBS patch or carrier promoted to an analytic one): Zero promotes.
 pub(crate) const STEP_RECOGNIZED_RESIDUAL: &str = "step_recognized_residual";
 
+/// A NURBS net side's spread, the farthest its control points lie from
+/// the side's first: Zero makes the side that one point.
+pub(crate) const STEP_COLLAPSED_SIDE: &str = "step_collapsed_side";
+
 /// A recognition estimator's conditioning (a span, a sagitta, a radius,
 /// a chord): Zero determines no candidate; in band and apart go on to
 /// the certificate, which does not rest on the answer.

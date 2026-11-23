@@ -92,9 +92,10 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1,
-F42 ×1, F44 ×1, F45 ×1 — 6 shipped sites, tracked as issue #214 and pinned by
-`geom-core/tests/flagged_census.rs`: no new site ships without a row
-here, and the count only moves together with this section).
+F42 ×1, F44 ×1, F45 ×1 — 6 shipped sites, tracked as issue #214 and held by
+`geom-core/tests/flagged_census.rs`: no new site ships without citing a
+row that exists here. The count is this prose's, not a pin: a site
+added under an existing row reds nothing).
 
 **The metric door is two doors, and the rate carries its own bound
 direction.** `Margin::metered(span, rate)` takes an
@@ -368,8 +369,8 @@ Not "it is guarded" and not "dating it is enough": a gate would have to
 fix the family-matching convention in code, and that convention is the
 judgement this section is careful to expose rather than freeze. A green
 gate would assert a reading, not a fact. What *is* mechanical is
-already elsewhere — `geom-core/tests/flagged_census.rs` pins the
-`decide_flagged` count, and the K sweep recomputes the emitted-name set
+already elsewhere — `geom-core/tests/flagged_census.rs` holds every
+`decide_flagged` site to an existing row, and the K sweep recomputes the emitted-name set
 on every merge. The 25 are scheduled as their own unit (§D's **D46**),
 which is what actually moves the number.
 
@@ -384,6 +385,9 @@ which is what actually moves the number.
 | geom-brep/src/intersect.rs `plane_torus_section` (SHELL axial-closed; through `geom::spiric_regime`) | pt_spiric_off_axis / pt_spiric_two_ovals / pt_spiric_two_ovals_floor | `d`, the axis-parallel plane's stand-off, then `(R − r) − \|d\|` — the length the two-oval regime closes by, decided before the spiric is minted — read with `pt_axis_in_plane`'s sin×extent beside it (`decide_across`) | m | OK (new in SHELL axial-closed) |
 | topo/src/boolean/slit.rs `spiric_on_curved` (through `geom::spiric_regime`) | bool_rider_spiric_off_axis | a spiric carrier's `offset` — a length; `Zero` leaves the carrier unread | m | OK |
 | topo/src/boolean/slit.rs `spiric_on_curved` (through `geom::spiric_regime`) | bool_rider_spiric_regime / bool_rider_spiric_regime_floor | `(R − r) − \|offset\|` of a spiric carrier, at no swing (`decide_across`) | m | OK |
+| geom-brep/src/curve_face/pose.rs `spiric_plane` (through `geom::spiric_regime`) | curve_face_pose_spiric_off_axis / curve_face_pose_spiric_two_ovals / curve_face_pose_spiric_two_ovals_floor | a spiric span's `offset`, then `(R − r) − \|offset\|`, at no swing (`decide_across`): outside the two-oval convention the arm refuses as a fault | m | OK |
+| geom-brep/src/curve_face/pose.rs `spiric_plane` | curve_face_pose_plane_parallel / curve_face_pose_plane_offset | the tilt `\|û × n̂\|` of the spiric's plane off the plane, levered by the oval's reach `R + r`; then the spiric's plane's height off the plane, to within that levered tilt | m | OK |
+| geom-brep/src/curve_face/spiric_plane.rs `on_the_oval` | spiric_plane_oval_side | a root on the torus of a line of the spiric's plane: its offset along `axis × û` from the axis's projection on that plane, at least `√((R − r)² − offset²)` from zero on either oval | m | OK |
 | topo/src/boolean/slit.rs `carrier_on_surface` (through `geom_brep::variety::Variety::of` → `geom::RingTorus::of_at`) | bool_rider_torus_tube / bool_rider_ring_torus | a torus face's `r`, then `R − r`: the certificate holds only on a ring | m | OK |
 | topo/src/boolean/reduce.rs `spline_off_carrier` (through `Variety::of` → `geom::RingTorus::of_at`) | bool_spline_sheet_torus_tube / bool_spline_sheet_ring_torus | a torus carrier's `r`, then `R − r` | m | OK |
 | geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_frame_orthogonal | `axis · u_ref`, a cosine of unit vectors, levered at `major_radius + minor_radius` (the farthest point the frame places) | m | OK (new in CURVED-SPIRIC) |
@@ -705,9 +709,7 @@ which is what actually moves the number.
 | face_normal.rs (`cone_point`) | cone_off_axis / cone_at_apex | a point's distance off a cone's axis, and from its apex (m), through `Margin::norm3` | m | OK (SPLITDOOR; `cone_off_axis` was `bool_cone_off_axis`) |
 | face_normal.rs (`face_outward_normal_at_foot`) | foot_off_locus | a point's distance off a cylinder's axis or from a sphere's centre (`Margin::norm3`), and its height over a cone's apex plane along the axis (`Margin::of`), in m | m | OK (CLEAVE) |
 | splitting/classify.rs (`split_vertex_side`) | split_vertex_side | plane residual | m | OK |
-| geom-brep curve_face/plane_crossing.rs (`conic_plane_candidates`, `span_roots`, `span_plane_meet`, `span_place`) | curve_face_pose_plane_parallel / curve_face_pose_belly_graze / curve_face_pose_graze_side / curve_face_cross_apart / curve_face_cross_order (a span place is `curve_pair::Span::place_param`'s, below) | plane residual; rooted amplitude; the roots' chord (`_roots_apart`), then their parameter gap × the span's sup speed (`_root_order`) | m | OK |
-| geom-brep curve_face/plane_crossing.rs (`span_plane_meet`'s graze, `graze_reaches_span`) | plane_crossing_graze_reach | a graze extremum's parameter distance into the span widened by its root spread `acos(1 − z/r)`, × the smaller semi-axis (`conic_meter`) | m | OK |
-| geom-brep curve_face/plane_crossing.rs (`span_plane_meet`'s line arm) | plane_crossing_line_parallel | a line's slope across the plane `d̂·n̂` × the span's length: the change in its signed distance across the span | m | OK |
+| geom-brep curve_face/plane_crossing.rs and curve_face/pose.rs, curve_face/cross.rs (the plane arm's pose, `place`) | curve_face_pose_plane_parallel / curve_face_pose_belly_graze / curve_face_pose_graze_side / curve_face_cross_apart / curve_face_cross_order (a span place is `curve_pair::Span::place_param`'s, below) | plane residual; rooted amplitude; the roots' chord (`_roots_apart`), then their parameter gap × the span's sup speed (`_root_order`) | m | OK |
 | splitting/classify.rs `reach_clears` | split_gate_box_side | an unarmed entity's reach, read in the plane's own frame, against the plane: its gap from the plane's offset along the unit normal, less the sweep pad (metres) | m | OK |
 | cover.rs `sphere_window` | cover_sphere_axis | a sphere's polar axis, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
 | cover.rs `sphere_window` | cover_sphere_seam_unit | a sphere's seam direction, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
@@ -718,12 +720,11 @@ which is what actually moves the number.
 | splitting/containment.rs (`certify_plane`) | point_in_loop_normal / point_in_loop_plane / point_in_loop_query | (\|n\| − 1) levered by the loop's reach from its first vertex; a vertex's, conic centre's or control point's offset `(p − o)·n̂` off the plane, and a conic's or spiric's plane tilt `\|axis × n̂\|` levered by its larger semi-axis (a spiric's by `R + r + \|offset\|`); the query's offset `(q − o)·n̂` | m | OK (CLEAVE) |
 | splitting/containment.rs (the frame gate) | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | ray_walk.rs (via `containment.rs`'s `ARC_LOOP_ROWS`) | point_in_arc_loop_segment/boundary/side/advance | the point_in_loop rows over an arc-bearing loop's STRAIGHT edges (`on_segment` per chord edge, `ray_crossings` masked to chord edges): distances; m²/m advance | m | OK (ATREST-9) |
-| splitting/containment.rs (`point_in_loop`) | point_in_arc_loop_arm / point_in_arc_loop_reach | the frame gate, as point_in_loop_arm with the curved edges' reach in the extent; the reach row is a spiric piece's (below) | m | OK (ATREST-9; reach row CONTACT-4) |
-| splitting/containment.rs (`ConicArc`, `conic_crossings`) | point_in_arc_loop_conic_span / _straddle / _advance / _in_plane | `_span` / `_straddle`: (τ − width) through the turn rule (geom-brep's table, `Period::turn`) at `Exact(radius)` on a circle and `Bounded(turn_defect_speed_lo, turn_defect_speed_hi)` on an ellipse, read for "not over" (an undecided turn is kept as an arc only where `TurnUndecided::not_over_at_sup` admits it; any other escalates); a ray's crossing is the co-surface arm's (`geom_brep::curve_pair::on_surface`, the plane door's `plane_crossing_*` rows, the root's place on the arc's span among them): `_advance` the root's distance `(y − q)·d` along the unit ray, `_in_plane` an arc's offset from the ray's square plane it is parallel to (only on the projected read) | m | OK (ATREST-9) |
+| splitting/containment.rs (`point_in_loop`) | point_in_arc_loop_arm | the frame gate, as point_in_loop_arm with the curved edges' reach in the extent | m | OK (ATREST-9) |
+| splitting/containment.rs (`ConicArc`, `arc_crossings`) | point_in_arc_loop_conic_span / _straddle / _advance | `_span` / `_straddle`: (τ − width) through the turn rule (geom-brep's table, `Period::turn`) at `Exact(radius)` on a circle and `Bounded(turn_defect_speed_lo, turn_defect_speed_hi)` on an ellipse, read for "not over" (an undecided turn is kept as an arc only where `TurnUndecided::not_over_at_sup` admits it; any other escalates); a ray's crossing is the co-surface arm's (`geom_brep::curve_pair::on_surface`, the crossing reading's `curve_face_pose_*` and `curve_face_cross_*` rows, the meeting's place on the arc's span and an arc's offset from the ray's square plane it is parallel to among them): `_advance` the meeting's distance `(y − q)·d` along the unit ray | m | OK (ATREST-9) |
 | splitting/spiric_arc.rs (`PiecedArc::contact` on a `SpiricArc`, through `LoopEdge::contact`) | point_in_arc_loop_spiric_end / _clear / _on / _leaf; bool_contact_spiric_end / _clear / bool_contact_spiric / _leaf | the distance from the point to an end of the arc; `|q − P(v_m)| − S·h`, a piece's ball's clearance from the point; `|q − P(v_m)|`; `S·h`, the ball's own radius | m | OK (CLEAVE) |
-| splitting/spiric_arc.rs (`PiecedArc::crossings` on a `SpiricArc`) | point_in_arc_loop_spiric_side / _turn / _advance (and point_in_arc_loop_reach) | `(P(v) − q)·n`, a piece end's offset from the ray line; `|s(v_b) − s(v_a)| − 2·A·h²` (A in m/rad², h in rad; `S` and `A` over the piece's own window, `geom::spiric_rate_bounds`); `(c − q)·d ∓ S·h`; the ball's in-plane clearance from the ray less `S·h` | m | OK (CLEAVE) |
 | splitting/spline_arc.rs (`PiecedArc::contact` on a `SplineArc`, through `LoopEdge::contact`) | point_in_arc_loop_spline_end / _clear / _on / _leaf; bool_contact_spline_end / _clear / bool_contact_spline / _leaf | the distance from the point to an end of the arc; `|q − c| − ρ`, a piece's control ball's clearance from the point (`c` its Bézier net's bounding-box centre, `ρ` its farthest control point's distance from `c`); `|q − c_0|`, the distance to the piece's start point; `ρ`, the ball's own radius | m | OK (SPLICE) |
-| splitting/spline_arc.rs (`PiecedArc::crossings` on a `SplineArc`) | point_in_arc_loop_spline_side / _turn / _advance | `(c_k − q)·n`, a control point's offset from the ray line; `s_{k+1} − s_k`, a step of those offsets along the control polygon; `(c_k − q)·d`, a control point's advance along the ray | m | OK (SPLICE) |
+| splitting/spline_arc.rs (`PiecedCrossing::crossings` on a `SplineArc`) | point_in_arc_loop_spline_side / _turn / _advance | `(c_k − q)·n`, a control point's offset from the ray line; `s_{k+1} − s_k`, a step of those offsets along the control polygon; `(c_k − q)·d`, a control point's advance along the ray | m | OK (SPLICE) |
 | splitting/containment.rs (`LoopEdge::contact`, the boundary pre-pass) | curve_carrier_gap / curve_carrier_clear / curve_carrier_straddle / curve_pair_span_end_chord / curve_pair_span_end_side / curve_pair_span_end_straddle | a conic arc's boundary reading, `geom`'s on-carrier reading and the span's reading of its ends at the point's foot (the `bool_contact_arc_span` row above); every distance in metres, the side metered by the carrier's greatest speed | m | OK (CONTACT-4) |
 | splitting/neighborhood.rs (`wide_entries`) | split_bisector_side | bisector·n̂ × arm (a conic edge's departure is the one bound-side reading's, `topo::bound_side`: `enters_material{,_arm}`, then `conic_flat` / `conic_bend` / `conic_bend_side`) | m | OK |
 | chord_join.rs (`apex_section_ruling`; the split's `apex_germ`, the Boolean's `vtxfac::pierce_apex_germ`) | germ_apex | the signed chord between two rulings' points a unit out from a cone's apex (`ConeApex::turn`), the lesser from each bound of the cut's sub-sector, levered by its arm (m): a section ruling lies inside it | m | OK (SPLITDOOR) |
@@ -774,7 +775,6 @@ which is what actually moves the number.
 | ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_crest | the height along the axis of the centre of the tube's top or bottom circle (a parallel of radius `R`), `±r` on the torus | m | OK (GERM) |
 | ring_path.rs (`path_parity`) | split_ring_path_crest_graze | a parallel piece's radius less `R`: whether it runs along the cylinder `ρ = R` the top and bottom circles are read across, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (GERM) |
 | ring_path.rs (`path_parity`) | split_ring_path_crest_side | `ρ − R` at a segment piece's end: its side of the cylinder `ρ = R`, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (GERM) |
-| ring_path.rs (`path_parity`) | split_ring_path_meets_plane | the gap `r·√(A² + B²) − \|D\|`: a circle piece's reach across a loop conic's plane less its centre's offset from it, the plane's displacement that flips the meeting, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_segment_side | a ruling segment's end's offset from a loop conic's plane, `n̂·(p − c)`, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (TANG) |
 | ring_path.rs (`segment_misses`) | split_ring_path_segment_apart | where a segment's end lies on a loop conic's plane: the segment's midpoint's distance from the arc (from the arc of the circle of radius `b` over the conic's span, less `\|a − b\|`), less half its length, shrunk toward zero by the path's resolution (its points' spread, and its conic arcs' far-carrier charge through `carrier_resolution`) (`charge`, `path_resolution`); decided positive, the segment misses the arc | m | OK (GERM) |
 | ring_path.rs (`misses_in_plane`) | split_ring_path_coplanar_apart | where a circle piece's meeting with a loop conic's plane is in the band: the gap between the piece's circle and the annulus `min(a, b)..max(a, b)` about the conic's centre, by the centres' distance (`max(d − r − max, min − r − d, r − max − d)`), shrunk toward zero by the path's resolution (its points' spread, and its conic arcs' far-carrier charge through `carrier_resolution`) (`charge`, `path_resolution`); decided positive, the two miss whatever their planes | m | OK (GERM) |
@@ -1160,7 +1160,7 @@ Flagged, NOT fixed here (dispositions):
   the executed evidence for why the shape mattered — and because
   `flagged_census.rs` reads these headings and would call a citation to
   a vanished row a string. Nothing cites it now: the count above went
-  from 8 to 7, and `LEDGER_FLAGGED_SITES` with it.
+  from 8 to 7.
 - **F14** (added by the clause-(i) migration)
   `editor-core/eval/wire.rs` `turns_off`: `|θ| − k·τ` is **radians**
   against the linear band. The revolve's full-circle coincidence check
@@ -1234,7 +1234,7 @@ Flagged, NOT fixed here (dispositions):
   requested clearance, in METRES against the linear band; the second is
   the same shape at `c = 0`. Honest metres on both sides, so **neither
   site is flagged** and neither takes `decide_flagged` — this row is
-  the disposition, and `LEDGER_FLAGGED_SITES` does not move. It is
+  the disposition. It is
   written here rather than left implicit because the two sites are new
   names in the K roster and a reader asking "what dimension is a
   clearance margin" should find the answer in the ledger.

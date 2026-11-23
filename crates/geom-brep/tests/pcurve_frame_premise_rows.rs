@@ -45,7 +45,10 @@ fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
             .iter()
             .all(|m| m.margin > 0.0)
     );
-    let ruling = Curve3::line(Point3::origin() + u_ref * radius + axis * far, axis);
+    let ruling = Curve3::line(
+        Point3::origin() + u_ref * radius + axis * far,
+        geom::stated_direction(axis),
+    );
     let lift = |x: f64| Interval::from_f64(x);
     let (si, ci) = (cyl.map_scalar(lift), ruling.map_scalar(lift));
     let by_incidence = |lane: &str, e: &PcurveCertifyError| {

@@ -5,7 +5,7 @@ that produce findings and never change a body (DESIGN
 `[intent.checked]`). The registry and its residents are
 `src/checks.rs` and `src/checks/` (`run_checks`, `enforce_checks`,
 `CheckId`, `CheckKind`, `Severity`, `Advisory`); the sink is
-`src/finding.rs`. The residents are `Connectedness`, `ChartCoherence`,
+`src/finding.rs`. The residents are `Connectedness`,
 `Unused`, DESIGN `[operations]`'s finding of what the person made and
 nothing uses, `UnprovenCoincidence`, DESIGN `[coincidence.door]`'s
 lint, and `AtRest`, DESIGN `[assertions]`'s at-rest check.
@@ -142,11 +142,27 @@ centre on an axis, two axes meeting, or two axes one, where the two
 axes read parallel; a `Gap` or a `Distance` between a split's tool and
 its vertex. Only `= 0` quiets, since a bound is a tolerance; and only an
 opposed pair's `Gap` quiets an interference. A finding refuses only
-where such an assertion could hold, which the rule evaluates
-(`row_quietable`). A row no
-assertion says (a blend turn's two feet, two radii written apart, a
-profile junction, a blend's joint) is loud, refuses at no severity, and
-its recourse names the construction alone (`coincide::Recourse::words`).
+where such an assertion could hold, and then it carries that assertion
+as data: the rule that matches a holding assertion mints the one that
+would quiet the row (`checks::at_rest::quieting`), keeping only an
+assertion the matching rule's own test reads as the row's cells: the
+measure, its two references as it reads them, `= 0`, with the edits
+that author it (`Quieting`), and the recourse is worded from it
+(`coincide::Recourse::words`). An interference carries the opposed pair
+of faces its `Gap` is written over (`InterferenceFinding::quieting`),
+the bound being the author's, and the two references an author writes
+it over, kept only where the rule reads them back as those faces and
+every member of the assertion they make could hold it: a family's
+copy by the name its member wraps. A row whose
+cells are family members carries the one assertion whose reads reach
+the families' index, one member of each family at a time, which quiets
+each member's row by its own member (DESIGN `[assertions]`,
+"Families"), and only where every member of that assertion reads zero.
+A row no assertion says (a blend turn's two feet, two radii written
+apart, a profile junction, a blend's joint, two members of one family)
+or one whose family assertion some member would violate is loud,
+refuses at no severity, and its recourse names the construction alone.
+A quiet finding offers nothing.
 
 **The unused resident: `CheckId::Unused`.** Kind Certified, it reads
 the recipe alone (`Doc::unused`), nothing evaluated and no subject

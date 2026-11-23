@@ -22,7 +22,7 @@
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`]) only when the
 //!    plane may meet its padded reach box; one behind a box that
 //!    clears passes through the split whole. Edge carriers
-//!    `Line`/`Circle`/`Ellipse` pass; `Spiric` and `Nurbs` refuse
+//!    `Line`/`Circle`/`Ellipse`/`Spiric` pass; a spline refuses
 //!    ([`SplitReduceError::CurvedEdgeUnsupported`]) on the same
 //!    reach-scoped terms.
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
@@ -79,7 +79,7 @@ mod section_loops;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 
-use geom_brep::curve_face::plane_crossing::ConicRootFault;
+use geom_brep::curve_face::CrossWhy;
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3, Vec3};
 
@@ -116,6 +116,116 @@ pub struct SplitPlane<T: Real> {
     pub origin: Point3<T>,
     /// The unit normal; Above is the side it points to.
     pub normal: UnitVec3<T>,
+}
+
+impl<T: Real> SplitPlane<T> {
+    /// The plane as a surface, for the curve × face reading, charted in
+    /// the plane's own frame ([`geom::cover::BoxAxes::aimed`], the frame
+    /// the carrier gate reads reaches in).
+    pub(in crate::splitting) fn surface(&self) -> geom::Surface<T> {
+        geom::Surface::Plane {
+            frame: geom::Frame::new(
+                self.origin,
+                self.normal.get(),
+                geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+            ),
+        }
+    }
+
+    /// The plane's frame for reading loops in it: its axis the normal,
+    /// bit for bit, and its `u_ref` the one [`Self::surface`] charts
+    /// with.
+    pub(in crate::splitting) fn frame(&self) -> geom::Frame<T> {
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+            self.origin,
+            self.normal,
+            geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+        ))
+    }
+}
+
+/// **What an edge's crossing window asks**, as the split ends it
+/// ([`SplitReduceError::CrossingEscalated`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CrossingReading {
+    /// A decision: `None` a pose rung, which asks whether the plane
+    /// coincides with the carrier and takes the split's levers (`parallel`
+    /// where it asks whether the carrier runs parallel to the plane),
+    /// else the crossing decision a root's placement makes (the lever
+    /// split).
+    Decision {
+        crossing: Option<geom_brep::edge_crossing::CrossingDecision>,
+        parallel: bool,
+    },
+    /// Readings that contradict, or a carrier misread: a kernel fault.
+    Fault(&'static str),
+    /// A window no margin reads: a carrier no lane reads at this scalar,
+    /// or a limit of the lane's.
+    Unread,
+}
+
+impl CrossingReading {
+    /// What the reading decides, as a clause with no colon or dash of
+    /// its own.
+    fn subject(self) -> &'static str {
+        match self {
+            Self::Decision {
+                crossing: Some(decision),
+                ..
+            } => decision.subject(),
+            Self::Decision {
+                crossing: None,
+                parallel: true,
+            } => "whether a curved edge's plane is parallel to the plane that cuts it",
+            Self::Decision {
+                crossing: None,
+                parallel: false,
+            } => "whether a plane cuts a curved edge, grazes it or misses it",
+            Self::Fault(_) | Self::Unread => "where the split plane crosses an edge",
+        }
+    }
+}
+
+/// **The reading a crossing window is** ([`CrossingReading`]). A pose
+/// rung in band asks whether the plane coincides with the carrier. A
+/// placement in the band's gap is a crossing decision: a root against an
+/// end of the span ([`MeetFault::Escalated`], `OnEdge`) or two roots the
+/// band cannot order ([`MeetFault::Touch`], `Order`).
+///
+/// [`MeetFault::Escalated`]: geom_brep::curve_pair::MeetFault::Escalated
+/// [`MeetFault::Touch`]: geom_brep::curve_pair::MeetFault::Touch
+fn window_reading(why: CrossWhy) -> CrossingReading {
+    use geom_brep::curve_face::{PoseRefusal, PoseRung};
+    use geom_brep::curve_pair::MeetFault;
+    use geom_brep::edge_crossing::CrossingDecision;
+    match why {
+        CrossWhy::Pose(PoseRefusal::InBand { rung, .. }) => CrossingReading::Decision {
+            crossing: None,
+            parallel: matches!(rung, PoseRung::PlaneParallel | PoseRung::AxisParallel),
+        },
+        CrossWhy::Pose(PoseRefusal::Fault(what)) => CrossingReading::Fault(what),
+        CrossWhy::Pose(
+            PoseRefusal::Meter { .. }
+            | PoseRefusal::Enclosed
+            | PoseRefusal::Unbuilt(_)
+            | PoseRefusal::Torus(_),
+        ) => CrossingReading::Unread,
+        CrossWhy::Method { fault, .. } => match fault {
+            MeetFault::Escalated(_) => CrossingReading::Decision {
+                crossing: Some(CrossingDecision::OnEdge),
+                parallel: false,
+            },
+            MeetFault::Touch(_) => CrossingReading::Decision {
+                crossing: Some(CrossingDecision::Order),
+                parallel: false,
+            },
+            MeetFault::Contradiction { readings } => CrossingReading::Fault(readings),
+            MeetFault::Desync => CrossingReading::Fault("a carrier read by an arm not its own"),
+            MeetFault::Unsettled(_) | MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } => {
+                CrossingReading::Unread
+            }
+        },
+    }
 }
 
 /// Which reading of where the split plane leaves the faces round a
@@ -331,21 +441,24 @@ pub enum SplitReduceError {
         /// Its surface kind (the table row).
         kind: geom::SurfaceKind,
     },
-    /// The plane may meet an edge on a `Spiric` or `Nurbs` carrier, which
-    /// no crossing lane reads (`Line`, `Circle` and `Ellipse` carriers
-    /// all pass). An edge clears behind its own reach box or the box of
+    /// The plane may meet an edge on a spline carrier, which no crossing
+    /// lane reads (`Line`, `Circle`, `Ellipse` and `Spiric` carriers all
+    /// pass). An edge clears behind its own reach box or the box of
     /// either face it bounds.
     CurvedEdgeUnsupported {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A rung of a conic edge's plane-crossing root lane escalated: the
-    /// operand/plane pair is ill-conditioned at this ε (F6).
+    /// The crossing reading of an edge against the plane left a window
+    /// ([`geom_brep::curve_face::cross()`]): a pose rung or a root's
+    /// placement in the band (the operand/plane pair is ill-conditioned at
+    /// this ε), a carrier no lane reads at this scalar, or readings that
+    /// contradict ([`window_reading`]).
     CrossingEscalated {
         /// The crossing edge.
         edge: EdgeKey,
-        /// Which rung escalated, with its diagnostics.
-        fault: ConicRootFault,
+        /// Why the stretch was not read.
+        fault: CrossWhy,
     },
     /// The split plane is tangent to a curved face at an ON vertex
     /// (the local normal is plane-parallel) AND the second-order
@@ -675,7 +788,7 @@ impl SplitReduceError {
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
-                "the split plane may meet an edge on a spline (NURBS) or spiric curve, which \
+                "the split plane may meet an edge on a spline (NURBS) curve, which \
                  the split cannot take yet. Recourse: move the split plane clear of the \
                  bounding boxes of that edge and the faces beside it"
             ),
@@ -684,14 +797,35 @@ impl SplitReduceError {
             // between the plane and the conic takes the split's levers,
             // since a split takes no declaration.
             Self::CrossingEscalated { fault, .. } => {
-                let diag = fault.diag();
-                // The coincidence lever is the same at every door; a
-                // crossing decision's ending is read at this one.
-                let ending = match fault.decision() {
-                    None => Some(geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None)),
-                    Some(decision) => at.map(|at| decision.ending_of(&diag, at)),
-                };
-                geom_brep::recourse::undecided_at(&diag, fault.subject(), ending).fmt(f)
+                let reading = window_reading(*fault);
+                match (fault.diag(), reading) {
+                    (Some(diag), CrossingReading::Decision { crossing, .. }) => {
+                        // The coincidence lever is the same at every door;
+                        // a crossing decision's ending is read at this one.
+                        let ending = match crossing {
+                            None => {
+                                Some(geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None))
+                            }
+                            Some(decision) => at.map(|at| decision.ending_of(&diag, at)),
+                        };
+                        geom_brep::recourse::undecided_at(&diag, reading.subject(), ending).fmt(f)
+                    }
+                    (_, CrossingReading::Fault(readings)) => {
+                        write!(f, "{}: {readings}", reading.subject())?;
+                        geom_brep::recourse::defect_ended(f, at)
+                    }
+                    (_, CrossingReading::Decision { .. } | CrossingReading::Unread) => {
+                        write!(f, "{} could not be read", reading.subject())?;
+                        match at {
+                            Some(_) => write!(
+                                f,
+                                ". {}",
+                                geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None)
+                            ),
+                            None => Ok(()),
+                        }
+                    }
+                }
             }
             Self::TangencyUnsupported { .. } => write!(
                 f,
@@ -875,7 +1009,7 @@ pub(crate) fn carrier_gate_and_sides<T: geom_core::Decide>(
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
     let band = geom_core::Band::linear(tol)?;
     classify::carrier_gate(body, plane, band)?;
-    classify::classify_vertices(body, plane, band)
+    classify::classify_vertices(body, plane, band).map(|(sides, on, _)| (sides, on))
 }
 
 /// **`split_reduce`** — the reduction + neighborhood-classification
@@ -919,10 +1053,14 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
 
     classify::carrier_gate(&body, plane, band)?;
     let tips = crate::sector_shape::SlitTips::of(&body);
-    let (mut sides, mut on_vertices, on_margins) =
+    let (mut sides, mut on_vertices, on_margins, on_plane) =
         classify::classify_vertices_margined(&body, plane, &tips, band)?;
-    let edge_pieces =
-        classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
+    let edge_pieces = classify::insert_crossings(
+        &mut body,
+        plane,
+        (&mut sides, &mut on_vertices, &on_plane),
+        tol,
+    )?;
 
     let mut null_edges = Vec::new();
     let mut apex_germs = SecondaryMap::new();
@@ -1247,7 +1385,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             section_cones::fuse_section_cones(body, side, &mut result.naming, tol)?;
             // On this run's own output: a refusal discards it.
-            finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
+            finish::end_maximal(body, side, &mut result.naming, plane.frame(), tol)?;
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;

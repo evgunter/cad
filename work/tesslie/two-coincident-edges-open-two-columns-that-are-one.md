@@ -97,3 +97,18 @@ the CDT, after the walk.
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
 
 Moved from TESSWALK to TESSLIE on 2026-11-20, by `git mv`, when TESSWALK merged into TESSLIE: TESSWALK held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
+
+## The walk no longer reaches the zero-width state (TESSLIE lift-turns, PR 7303, 2026-11-21)
+
+A rimless band's columns are read off the loop's stored lift now, through
+the face's domain read (`mesh::walk::band_columns` over
+`trimmed::face_domain`). The body above, built through the Euler doors,
+stores none, so `tessellate` refuses it `DomainUnread` (a lift gap) in
+every profile before the walk opens a column. Nor can it be given one:
+`topo::mint_pcurves` refuses it `SingularTurn { miss: EdgesCoincide }`,
+since two edges leaving a pole along one direction give the turn there no
+decided width. Both are pinned by
+`loops_with_no_rim::two_coincident_edges_have_no_lift_for_the_walk_to_read`.
+So the zero-width walk this row describes is unreached on any body the
+mesh lane reads, minted or not; the carrier-identity rung it names is
+still absent from the walk, but its one witness no longer reaches it.

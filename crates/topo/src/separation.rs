@@ -117,6 +117,17 @@ use crate::boolean::BooleanError;
 use crate::boxes::{face_box, sweep_pad};
 use crate::entity::SolidKey;
 
+/// [`Separation`]'s query, a placed instance's faces against another's.
+const PLACED_FACES: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "separation_placed_faces",
+    "the prototype faces whose boxes meet another placement's face box",
+);
+/// [`SolidSeparation::certify`]'s query.
+const SOLID_FACES: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "separation_solid_faces",
+    "the other solid's faces whose boxes meet a face's",
+);
+
 /// The prototype's separation certificate machinery: its padded face
 /// boxes, their hull, and the one tree over them.
 ///
@@ -210,9 +221,12 @@ impl Separation {
         // where the one tree lives: carry j's boxes back through
         // `M_i⁻¹ ∘ M_j` and query.
         let rel = relative(&maps[i], &maps[j]);
-        self.boxes
-            .iter()
-            .any(|b| !self.tree.overlapping(&image(b, &rel)).is_empty())
+        self.boxes.iter().any(|b| {
+            !self
+                .tree
+                .overlapping(PLACED_FACES, &image(b, &rel))
+                .is_empty()
+        })
     }
 }
 
@@ -480,7 +494,7 @@ impl SolidSeparation {
             return Err(pair);
         }
         for b in &x.boxes {
-            if !y.tree.overlapping(b).is_empty() {
+            if !y.tree.overlapping(SOLID_FACES, b).is_empty() {
                 return Err(pair);
             }
         }

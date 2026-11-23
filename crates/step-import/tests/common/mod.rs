@@ -152,21 +152,15 @@ pub fn arena_census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
 /// (1, 1, 1), the corpus's only touching assembly, is recorded by the
 /// shared tier-3′ gate as a contact between its two instances
 /// (`topo::record_at_rest`).
-///
-/// `examine` is [`step_import::ImportOptions::examine_chart_coherence`],
-/// which every caller but the coherence-channel suite leaves `false`.
-pub fn own_import_options(examine: bool) -> step_import::ImportOptions {
-    step_import::ImportOptions {
-        examine_chart_coherence: examine,
-        ..step_import::ImportOptions::default()
-    }
+pub fn own_import_options() -> step_import::ImportOptions {
+    step_import::ImportOptions::default()
 }
 
 /// Imports a fixture's committed `.step`, panicking on refusal (the
 /// suites' entry point for files that must import).
 pub fn import_fixture(name: &str) -> step_import::StepImport {
     let text = fixture(name, "step");
-    step_import::import_step(&text, &own_import_options(false), Tol::witness())
+    step_import::import_step(&text, &own_import_options(), Tol::witness())
         .unwrap_or_else(|e| panic!("importing {name}: {e_at}", e_at = e.render()))
 }
 
@@ -342,4 +336,38 @@ pub fn structural(
             )
         })
         .collect()
+}
+
+/// Each surface key of `body` worn by more than one face: its wearers,
+/// each with its sense, in key order.
+pub fn shared_surfaces(body: &Body<f64>) -> Vec<Vec<(topo::FaceKey, bool)>> {
+    let mut by: std::collections::BTreeMap<_, Vec<(topo::FaceKey, bool)>> =
+        std::collections::BTreeMap::new();
+    for (k, f) in body.faces() {
+        by.entry(f.surface).or_default().push((k, f.sense));
+    }
+    by.into_values().filter(|w| w.len() > 1).collect()
+}
+
+/// Each face of `body` named by its corners: its vertices' points,
+/// rounded to the micrometre, sorted. A name a round trip through a
+/// file keeps.
+pub fn corner_names(body: &Body<f64>) -> std::collections::BTreeMap<topo::FaceKey, Vec<[i64; 3]>> {
+    let mut out: std::collections::BTreeMap<topo::FaceKey, Vec<[i64; 3]>> =
+        std::collections::BTreeMap::new();
+    for (v, p) in body.vertex_points() {
+        for f in body.faces_of_vertex(v).unwrap_or_default() {
+            out.entry(f).or_default().push(micrometres([p.x, p.y, p.z]));
+        }
+    }
+    for corners in out.values_mut() {
+        corners.sort_unstable();
+        corners.dedup();
+    }
+    out
+}
+
+/// A point rounded to the micrometre.
+pub fn micrometres(p: [f64; 3]) -> [i64; 3] {
+    p.map(|c| (c * 1e6).round() as i64)
 }

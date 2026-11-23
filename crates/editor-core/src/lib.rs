@@ -57,13 +57,10 @@ pub mod placement;
 pub mod pose;
 pub mod product;
 pub mod program;
-/// The certified locally-valid range of ONE field — the on-demand
-/// query whose answer is meant to REPLACE the sampling probe's
-/// reading, in a consumer nothing in this tree has built yet
-/// (`work/offer/certify-affordance-on-the-bounds-panel`,
-/// `work/pydoor/certified-range-has-no-python-door`). The certificate IS
-/// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
-/// be the sampler it exists to improve on.
+/// The certified locally-valid range of ONE field: a resumable search
+/// that proves, by replaying intervals under [`mod@drive`]'s leaf
+/// protocol, how far the field can move with the document the same
+/// build. A query that fell back to `f64` would be a sampler.
 pub mod range;
 mod ratio;
 pub mod refactor;
@@ -110,15 +107,17 @@ pub use appearance::{
     AppearanceKey, AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord,
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
+pub use checks::CarriedAssertion;
 pub use checks::at_rest::{
     AtRestEvidence, AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
-    PinnedDoc, Route, Unlocalized,
+    PinnedDoc, Route, RouteHop, Unlocalized,
 };
+pub use checks::quieting::{OpposedPair, Quieting, QuietingRef};
 pub use checks::{
-    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
+    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
+    ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity, Subject,
+    enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
 pub use coincide::{
     CitedInput, NamedCell, NamedCoincidence, Proof, Residual, RowOrigin, Rung, Unreplayed,
@@ -126,20 +125,20 @@ pub use coincide::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, Unused,
-    VarName,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, NameCarrier,
+    OperandRead, ReadIndex, Unused, VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
-    RefusalReason, RefusedLeaf, StructureFlip, drive,
+    RefusalReason, RefusedLeaf, StructureFlip, Unsettled, drive,
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
     FaceUnread, IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured,
-    OnFace, ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue,
-    SourceFault, Took, apply, apply_replayed, cascade_delete_order, chart_on_face, draw_on_face,
-    measure, nearest_to_face, sketch_on_face, slot_admits,
+    OnFace, ProductReadFault, Recorded, Recording, SlotValue, SourceFault, Took, apply,
+    apply_replayed, cascade_delete_order, chart_on_face, draw_on_face, measure, nearest_to_face,
+    slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
@@ -154,8 +153,9 @@ pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged};
 pub use spoken::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
-    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
+    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said, held_by,
+    node_kind_noun, node_text, spoken_by, spoken_within, var_text,
 };
 
 pub use expr::{
@@ -219,13 +219,16 @@ pub use product::{
     product, product_named, product_recorded,
 };
 pub use program::{
-    DrawnOn, LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramRefusal, ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation,
-    RecordedProgramError, SlotPayload, StepIdFault, StepSegmentsError, TraceCrossing, TracePassage,
-    TraceSense, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    DrawnOn, LoopProgram, ProfileDoc, ProfilePartition, ProfilePayload, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramResolveFault, ProgramStep, ProgramTarget,
+    RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault, StepSegmentsError,
+    TraceCrossing, TracePassage, TraceSense, WrittenLoopFault, resolve_loops,
+    resolve_written_loops,
 };
 pub use range::{
-    CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
+    Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
+    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unproven,
+    certified_range,
 };
 pub use refactor::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, NamedUncarried, NodeMap, RemapError,

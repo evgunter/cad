@@ -279,12 +279,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Qualifier": ("argued", "NOT_CARRIED, the naming interior (crates/pncad/tests/all.rs)"),
     "RecipeEditRef": ("argued", "the telemetry half, deliberately interior, "
                                 "crates/pncad/src/select.rs"),
-    # `Unexaminable::Corrupt`'s payload, one rung under the
-    # chart-coherence vocabulary the prelude carries for
-    # `StepImport::Solid::coherence`. The `BandField` row's shape; the
-    # argument and its falsifier are written once, at the carry
-    # decision the pointer names, and this row does not restate them.
-    "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     # `CensusUnsupportedCause`'s shape: the argument sits beside the
     # declaration, and the carry is the façade crate's row.
     # `ValidationError::ChartSingularityNotAVertex`'s `lies`: where the
@@ -413,85 +407,40 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Stopped": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
                           "once, beside `Stop` and `Evaluation`; the general rule is at "
                           "the payload-rule header of crates/pncad/src/document.rs"),
+    # A failure's class is the evaluation vocabulary too — `NodeErrorKind::class`'s
+    # answer, carried beside `NodeErrorKind` on `document`; the analysis list's
+    # drive refusal carries it as `Unsettled::Failed`'s `class`, the failure
+    # without its payload.
+    "NodeErrorClass": ("argued", "the evaluation vocabulary is `document`'s and is "
+                                 "spelled once, beside `NodeErrorKind`; the general rule "
+                                 "is at the payload-rule header of "
+                                 "crates/pncad/src/document.rs"),
+    # A slot's address is the recipe's vocabulary, carried beside `Node` on
+    # `document`; the analysis list's range field and its refusals name the
+    # slot they were asked about with it.
+    "SlotId": ("argued", "the recipe vocabulary is `document`'s and is spelled once, "
+                         "beside `Node`; the general rule is at the payload-rule "
+                         "header of crates/pncad/src/document.rs"),
 }
 
 
 # --- reading Rust ----------------------------------------------------------
 
-# A string literal's opening token: an optional `b` byte prefix, an optional
-# `r` raw prefix and its hash run. Matched only where the preceding character
-# cannot be part of an identifier, so the `b` of `numb"…"` is not read as a
-# byte-string prefix.
-_STRING_OPEN = re.compile(r'(b?r?)(#*)"')
-# A char literal, which is what separates `'a'` from the lifetime `'a`.
-_CHAR_LITERAL = re.compile(r"'(\\.|[^\\'\n])'")
+sys.path.insert(0, str(Path(__file__).resolve().parent / "gates"))
+import rust_strip  # noqa: E402  (the gates' one Rust lexer)
 
 
 def code_only(src: str) -> str:
-    """`src` with every comment and string literal blanked, newlines kept.
+    """`src` with every comment and string and char literal blanked,
+    newlines kept (`rust_strip.blank`).
 
     Blanked rather than cut so a byte offset still names its line. The façade
     lists argue at length about types they deliberately do NOT export, and a
     scan that read prose would count a name a comment mentions as carried; the
     same holds one level down, where a doc comment on a refusal names the very
     payload types this sweep is looking for.
-
-    Rust's lexical forms that can hide a `//`, a brace or a type name are all
-    handled: line comments, NESTED block comments, strings with escapes, raw
-    strings with any hash count, byte strings, and char literals. A `'` that
-    does not open a char literal is a lifetime and is left alone.
     """
-    out = list(src)
-    i, n = 0, len(src)
-
-    def blank(start: int, end: int) -> None:
-        for k in range(start, min(end, n)):
-            if out[k] != "\n":
-                out[k] = " "
-
-    def ident_char(k: int) -> bool:
-        return 0 <= k < n and (src[k].isalnum() or src[k] == "_")
-
-    while i < n:
-        if src.startswith("//", i):
-            j = src.find("\n", i)
-            j = n if j < 0 else j
-            blank(i, j)
-            i = j
-        elif src.startswith("/*", i):
-            depth, j = 1, i + 2
-            while j < n and depth:
-                if src.startswith("/*", j):
-                    depth, j = depth + 1, j + 2
-                elif src.startswith("*/", j):
-                    depth, j = depth - 1, j + 2
-                else:
-                    j += 1
-            blank(i, j)
-            i = j
-        elif (m := _STRING_OPEN.match(src, i)) and not ident_char(i - 1):
-            if "r" in m.group(1):
-                close = '"' + m.group(2)
-                j = src.find(close, m.end())
-                j = n if j < 0 else j + len(close)
-            else:
-                j = m.end()
-                while j < n:
-                    if src[j] == "\\":
-                        j += 2
-                    elif src[j] == '"':
-                        j += 1
-                        break
-                    else:
-                        j += 1
-            blank(i, j)
-            i = j
-        elif m := _CHAR_LITERAL.match(src, i):
-            blank(i, m.end())
-            i = m.end()
-        else:
-            i += 1
-    return "".join(out)
+    return rust_strip.blank(src)
 
 
 # A bare-`pub` type declaration. `pub(crate)` and `pub(super)` do not match —

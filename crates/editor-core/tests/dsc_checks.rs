@@ -18,7 +18,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use test_utils::refusal::tagged;
 
 use std::collections::BTreeMap;
 
@@ -27,7 +26,7 @@ use editor_core::{
     ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
     enforce_checks, run_checks, subject_body,
 };
-use fixture::{ang, insert, len, on_frame, square};
+use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -114,7 +113,7 @@ fn checks(doc: &editor_core::ProfileDoc, cfg: &ChecksConfig) -> ChecksReport {
 fn disjoint_union_is_one_finding() {
     let (doc, placement) = disjoint_union();
     let report = checks(&doc, &ChecksConfig::default());
-    assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
+    assert_eq!(report.skipped, Vec::new());
     assert_eq!(
         report.findings,
         vec![CheckFinding {
@@ -151,7 +150,7 @@ fn stated_expectation_clears_the_finding() {
     };
     let report = checks(&doc, &cfg);
     assert_eq!(report.findings, vec![]);
-    assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
+    assert_eq!(report.skipped, Vec::new());
 }
 
 #[test]
@@ -201,10 +200,7 @@ fn off_is_visibly_skipped() {
     assert_eq!(report.findings, vec![]);
     // "Not checked" is an answer the report carries, distinct from
     // "checked and fine".
-    assert_eq!(
-        report.skipped,
-        vec![CheckId::Connectedness, CheckId::ChartCoherence]
-    );
+    assert_eq!(report.skipped, vec![CheckId::Connectedness]);
     assert!(report.to_string().contains("skipped"), "{report}");
     // Off never reaches enforcement: nothing was found, nothing
     // refuses.
@@ -463,7 +459,7 @@ fn overlapping_placements_are_one_interference_finding_naming_both() {
     // overlaps, and the check bounds the overlap.
     let (doc, a, b) = two_placements(0.5);
     let report = checks(&doc, &ChecksConfig::default());
-    assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
+    assert_eq!(report.skipped, Vec::new());
     let found = at_rest(&report);
     let [finding] = found.as_slice() else {
         panic!("one interference finding: {report}")
@@ -489,7 +485,7 @@ fn placements_moved_apart_are_clean() {
     let (doc, _, _) = two_placements(3.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.findings, Vec::new());
-    assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
+    assert_eq!(report.skipped, Vec::new());
 }
 
 #[test]
@@ -582,10 +578,7 @@ fn at_rest_off_is_visibly_skipped_and_independent() {
         ..ChecksConfig::default()
     };
     let report = checks(&doc, &cfg);
-    assert_eq!(
-        report.skipped,
-        vec![CheckId::ChartCoherence, CheckId::AtRest]
-    );
+    assert_eq!(report.skipped, vec![CheckId::AtRest]);
     assert_eq!(at_rest(&report), Vec::new());
 
     // The other direction: turning connectedness off leaves the
@@ -597,10 +590,7 @@ fn at_rest_off_is_visibly_skipped_and_independent() {
         ..ChecksConfig::default()
     };
     let report = checks(&doc, &cfg);
-    assert_eq!(
-        report.skipped,
-        vec![CheckId::Connectedness, CheckId::ChartCoherence]
-    );
+    assert_eq!(report.skipped, vec![CheckId::Connectedness]);
     assert_eq!(at_rest(&report).len(), 1, "{report}");
 
     // **And `Off` means the subject is never derived**, which is the
@@ -634,7 +624,6 @@ fn at_rest_off_is_visibly_skipped_and_independent() {
         report.skipped,
         vec![
             CheckId::Connectedness,
-            CheckId::ChartCoherence,
             CheckId::UnprovenCoincidence,
             CheckId::AtRest
         ]
@@ -682,10 +671,9 @@ fn the_registry_order_is_every_check() {
             // Before the residents that read a subject, so a refusal
             // of one that reads none is reported ahead of a product
             // refusal; either refusal discards the whole report.
-            CheckId::ChartCoherence => 1,
-            CheckId::Unused => 2,
-            CheckId::UnprovenCoincidence => 3,
-            CheckId::AtRest => 4,
+            CheckId::Unused => 1,
+            CheckId::UnprovenCoincidence => 2,
+            CheckId::AtRest => 3,
         };
         assert_eq!(
             CheckId::ALL[position],
@@ -695,13 +683,13 @@ fn the_registry_order_is_every_check() {
     }
     assert_eq!(
         CheckId::ALL.len(),
-        5,
+        4,
         "a variant added without a place in `ALL` is a resident the \
          registry would never gather for"
     );
     // ChecksReport's skipped list is SPACE-separated, so a check whose
     // rendered name carries a space makes two entries indistinguishable
-    // from one. Red-capable: a name of "chart coherence" fires this.
+    // from one. Red-capable: a name of "unproven coincidence" fires this.
     for check in CheckId::ALL {
         let name = check.to_string();
         assert!(
@@ -712,7 +700,6 @@ fn the_registry_order_is_every_check() {
     // The one resident that reads a subject is the one the registry
     // gathers for.
     assert!(!CheckId::Connectedness.reads_subject());
-    assert!(!CheckId::ChartCoherence.reads_subject());
     assert!(CheckId::UnprovenCoincidence.reads_subject());
     assert!(CheckId::AtRest.reads_subject());
     // The order's own invariant, stated as a predicate rather than as
@@ -751,234 +738,4 @@ fn at_rest_findings_are_certified_and_deterministic() {
     let (doc, _, _) = two_placements(0.5);
     let cfg = ChecksConfig::default();
     assert_eq!(checks(&doc, &cfg), checks(&doc, &cfg));
-}
-
-// ---------------------------------------------------------------
-// The chart-coherence resident (topo::examine_chart_coherence)
-// ---------------------------------------------------------------
-
-/// A washer: a rectangle off the axis revolved a full turn — two
-/// cylinder bands and two plane annuli, so the body carries
-/// chart-bearing faces for the examination to read.
-fn washer() -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = fixture::on_frame(
-        ProfileDoc::empty_derived("dsc-checks-washer", Tol::witness()),
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    );
-    let (doc, washer) = insert(
-        doc,
-        fixture::revolve_about(
-            p,
-            (0.0, 0.0),
-            crate::fixture::along_y(),
-            ang(std::f64::consts::TAU),
-        ),
-    );
-    fixture::place(doc, washer)
-}
-
-/// Only the chart-coherence resident, at `knob`.
-fn coherence_only(knob: Advisory) -> ChecksConfig {
-    ChecksConfig {
-        connectedness: Severity::Off,
-        at_rest: Severity::Off,
-        chart_coherence: knob,
-        ..ChecksConfig::default()
-    }
-}
-
-/// INVARIANT: the resident RUNS, it reads the kernel door, and it
-/// carries BOTH of that door's lists — its findings and its unexamined
-/// loops — into the report, one finding each.
-///
-/// The cross-check is against the door called directly on the same
-/// body, so a resident that dropped either list (or read a different
-/// body) reds here rather than reporting a quiet subject.
-#[test]
-fn the_chart_coherence_resident_carries_the_whole_kernel_report() {
-    let (doc, placement) = washer();
-    let ev = run(&doc);
-    let report = run_checks(
-        &doc,
-        &ev,
-        &coherence_only(Advisory::Warn),
-        &editor_core::Stop::default(),
-        Tol::witness(),
-    )
-    .expect("the examination reads the evaluation and needs no product");
-
-    let (body, _) = subject_body(&ev, placement, 0).expect("the revolve denotes one body");
-    let door = topo::examine_chart_coherence(body.body(), Tol::witness());
-
-    let measured = report
-        .findings
-        .iter()
-        .filter(|f| matches!(f.evidence, CheckEvidence::ChartCoherence { .. }))
-        .count();
-    let unreadable = report
-        .findings
-        .iter()
-        .filter(|f| matches!(f.evidence, CheckEvidence::ChartCoherenceUnexamined { .. }))
-        .count();
-    assert_eq!(
-        (measured, unreadable),
-        (door.findings.len(), door.unexamined.len()),
-        "the resident's two finding classes are the door's two lists, one for one"
-    );
-    assert!(
-        report
-            .findings
-            .iter()
-            .all(|f| f.check == CheckId::ChartCoherence
-                && f.subject
-                    == editor_core::FindingSubject::Output {
-                        placement,
-                        output_ix: 0
-                    }),
-        "every finding is attributed to the rest body it was measured on"
-    );
-    assert!(
-        !report.skipped.contains(&CheckId::ChartCoherence),
-        "a resident that RAN is not a skipped check, whatever it found"
-    );
-}
-
-/// INVARIANT: `Off` is the configuration answer and it is VISIBLY off
-/// — the one thing that tells a reader the examination did not run.
-///
-/// Red-capable in both directions: a resident that ran anyway would
-/// leave `skipped` empty, and one whose `Off` branch reported nothing
-/// at all would be indistinguishable from a clean body.
-#[test]
-fn chart_coherence_off_is_a_skipped_check_and_nothing_else() {
-    let (doc, _) = washer();
-    let ev = run(&doc);
-    let report = run_checks(
-        &doc,
-        &ev,
-        &coherence_only(Advisory::Off),
-        &editor_core::Stop::default(),
-        Tol::witness(),
-    )
-    .expect("nothing runs, nothing refuses");
-    assert_eq!(
-        report.skipped,
-        vec![
-            CheckId::Connectedness,
-            CheckId::ChartCoherence,
-            CheckId::AtRest
-        ],
-        "every Off resident is named, in registry order"
-    );
-    assert!(report.findings.is_empty());
-}
-
-/// INVARIANT: **a loop the DATA put out of reach and a check the
-/// CONFIGURATION turned off reach the user as different things.**
-///
-/// `topo::CoherenceReport { findings, unexamined }` and
-/// `ChecksReport { findings, skipped }` have the same shape and
-/// different meanings, and folding the two would report "we chose not
-/// to look" and "we could not look" as one answer. This row is what
-/// reds if they are ever folded: the two reports below share not one
-/// word of rendering, and neither can be spelled as the other.
-#[test]
-fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
-    let could_not_look = ChecksReport {
-        document: editor_core::DocumentId(1),
-        findings: vec![CheckFinding {
-            check: CheckId::ChartCoherence,
-            subject: editor_core::FindingSubject::Output {
-                placement: RecipeNodeId::new(0, tagged(3)),
-                output_ix: 0,
-            },
-            evidence: CheckEvidence::ChartCoherenceUnexamined {
-                unexamined: topo::Unexamined {
-                    face: topo::FaceKey::default(),
-                    r#loop: topo::LoopKey::default(),
-                    why: topo::Unexaminable::NonIsoCarrier {
-                        edge: topo::EdgeKey::default(),
-                    },
-                },
-            },
-            quiet: None,
-        }],
-        skipped: Vec::new(),
-        pending: Vec::new(),
-    };
-    let chose_not_to = ChecksReport {
-        document: editor_core::DocumentId(1),
-        findings: Vec::new(),
-        skipped: vec![CheckId::ChartCoherence],
-        pending: Vec::new(),
-    };
-
-    let data = could_not_look.to_string();
-    let config = chose_not_to.to_string();
-    assert!(
-        data.contains("could not be examined") && data.contains("checks: 1 finding(s)"),
-        "an unreadable loop is a FINDING and says why: {data}"
-    );
-    assert!(
-        !data.contains("skipped"),
-        "and it is never reported as a skipped check: {data}"
-    );
-    assert!(
-        config.contains("checks skipped (severity Off): chart-coherence")
-            && config.contains("checks: no findings"),
-        "an Off check is a skipped CHECK and produces no finding: {config}"
-    );
-    assert!(
-        !config.contains("could not be examined"),
-        "and never borrows the data half's words: {config}"
-    );
-}
-
-/// INVARIANT: a measurement renders its metres, its two factors and
-/// the band it was judged against — the band because `metres` read
-/// without it is a number without a claim.
-#[test]
-fn a_coherence_measurement_renders_its_length_and_its_band() {
-    let finding = CheckFinding {
-        check: CheckId::ChartCoherence,
-        subject: editor_core::FindingSubject::Output {
-            placement: RecipeNodeId::new(0, tagged(4)),
-            output_ix: 1,
-        },
-        evidence: CheckEvidence::ChartCoherence {
-            finding: topo::CoherenceFinding {
-                face: topo::FaceKey::default(),
-                r#loop: topo::LoopKey::default(),
-                edge: topo::EdgeKey::default(),
-                condition: topo::CoherenceCondition::MeridianClosure {
-                    vertex: topo::VertexKey::default(),
-                },
-                gap: std::f64::consts::PI,
-                lever: 1.0e-9,
-                metres: std::f64::consts::PI * 1.0e-9,
-                eps: 1.0e-12,
-            },
-        },
-        quiet: None,
-    };
-    let rendered = finding.to_string();
-    assert!(
-        rendered.contains("check chart-coherence: placement 000000000004 output 1"),
-        "{rendered}"
-    );
-    assert!(
-        rendered.contains("carrier midpoint") && rendered.contains("3.14159"),
-        "the condition and the length it measured: {rendered}"
-    );
-    assert!(
-        rendered.contains("band 1e-12"),
-        "the band it was judged at: {rendered}"
-    );
-    assert!(
-        rendered.contains("MEASUREMENT, not a refusal"),
-        "the recourse says what a finding is and is not: {rendered}"
-    );
 }

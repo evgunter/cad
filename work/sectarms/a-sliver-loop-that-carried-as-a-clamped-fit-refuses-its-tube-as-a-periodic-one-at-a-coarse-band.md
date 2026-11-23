@@ -329,3 +329,18 @@ rewrites the row.
 - `pair_section::wiring::close_rings_carry_counted`'s pin names
   `boxes: 206`; the periodic fit's chain has 208 (filed as
   `main-red-since-pr-7052-the-recourse-roster-and-a-close-rings-pin`).
+- Three sweep and topo rows carry the same pose `(0.2, 0.699)` and
+  refuse the same `TubeStraddles { boxes: 437 }` at ε = 1e-6 (GREEN,
+  2026-11-22, `work/green/main-red-seven-sweep-and-topo-rows-red-at-1e-6-since-11-17.md`):
+  `sweep` `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`
+  (every op, at the germ section),
+  `cylinder_sphere_frame::every_segment_joins_neighbouring_sites_along_its_loop`
+  (the matcher on that pose) and `topo`
+  `ring_path::spline_fuzz::a_path_across_a_carried_loop_reads_the_membership_parity`
+  (`PairSection::carry` itself). On hosted CI at ε = 1e-6 all three
+  pass at PR 7052's first parent `fa4e9ba921` and fail at its merge
+  `6c2430e888`, and fail on main `12a43a7e68`. Each is pinned to
+  that refusal at 1e-6 (the first by `test_utils::pinned_red::row`, the
+  other two by an in-line check on the pose, as
+  `pair_section::a_seated_loop_has_no_start` does), so it goes red the
+  day the pose carries.

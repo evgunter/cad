@@ -56,7 +56,6 @@ fn frame_at(p: &geom::Surface<f64>, lever: f64) -> Loops {
         pair_section_frame_at(
             a,
             b,
-            Point3::new(BIG_R, 0.0, 0.0),
             FrameExtent::Reach(geom_core::test_support::fixture_lever(lever)),
             band(),
         )
@@ -129,7 +128,13 @@ fn assert_frame(got: SectionLoop<f64>, centre: Point3<f64>, axis: Vec3<f64>, wha
         got.axis.origin
     );
     assert!(
-        got.axis.dir.normalize().cross(axis.normalize()).norm() <= eps,
+        got.axis
+            .dir
+            .get()
+            .normalize()
+            .cross(axis.normalize())
+            .norm()
+            <= eps,
         "{what}: axis {:?}, want {axis:?}",
         got.axis
     );
@@ -245,7 +250,7 @@ fn on_oval(d: f64, sigma: f64, v: f64) -> (Point3<f64>, Vec3<f64>) {
 
 /// The turn of `tangent` at `p` about `axis`.
 fn turn(axis: geom::Line<f64>, p: Point3<f64>, tangent: Vec3<f64>) -> f64 {
-    axis.dir.dot((p - axis.origin).cross(tangent))
+    axis.dir.get().dot((p - axis.origin).cross(tangent))
 }
 
 /// **The spiric ovals turn about where the core circle crosses the
@@ -441,7 +446,6 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
         let got = pair_section_frame_at(
             &torus,
             &p,
-            Point3::new(big_r, 0.0, 0.0),
             FrameExtent::Reach(geom_core::test_support::fixture_lever(REACH)),
             b,
         );
@@ -523,7 +527,7 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
         );
     }
     let torus = donut();
-    let got = pair_section_frame_at(&p, &torus, Point3::origin(), FrameExtent::Radii, b);
+    let got = pair_section_frame_at(&p, &torus, FrameExtent::Radii, b);
     assert!(
         matches!(got, Err(FrameError::Desync(_))),
         "plane×torus under its radii: got {}",

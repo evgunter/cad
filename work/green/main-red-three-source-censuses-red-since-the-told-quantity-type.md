@@ -2,9 +2,12 @@
 id: main-red-three-source-censuses-red-since-the-told-quantity-type
 kind: issue
 title: Main red (slow set): hand_written_impl_census (two rows) and pncad-py's prose_census are red since PR 7159 (the told-quantity type)
-status: open
+status: closed
 opened: 2026-11-21
 priority: P1
+cost: E
+refs: [7267]
+closed: 2026-11-21
 ---
 
 
@@ -28,3 +31,7 @@ Found by ONEROUND's lane (2026-11-21) on main `71068072`, `cargo nextest run -p 
 ## Owed (SCALAR, the PR's program)
 
 The two `told.rs` impls destructured exhaustively, as the row's message says, and `told.rs` added to `IMPL_FILES_TODAY`; the four `program.rs` lines out of the prose census's undecided list, if the sites are decided now because the sentences no longer render a payload through `Debug` (not checked here). The same merge's behaviour reds are on `work/scalar/main-red-offer-rows-false-offers-since-the-told-quantity-type.md`.
+
+## 2026-11-21: closed (SCALAR)
+
+`told.rs`'s `impl Debug for Read` binds `Enclosure { lo: _, hi: _ }` and `impl PartialEq for Quantity` destructures `Self { held: _, dimension, canonical_only }` (`canonical_only` came with PR 7229); `told.rs` is on `IMPL_FILES_TODAY`. The four `program.rs` sites are decided: `Refused`'s and `Takes`'s sentences spell `identifier()` and render no payload through `Debug`, so they leave `UNDECIDED` (main's `4985847554` dropped the same four lines; the merge takes it).

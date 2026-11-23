@@ -200,10 +200,13 @@ fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
 #[test]
 fn arc_interior_across_the_axis_is_typed() {
     // A clockwise semicircle from (0, −1) to (0, 1) bulging through
-    // (−1, 0): endpoints on the axis, apex definitely across it.
+    // (−1, 0), closed by a box out to x = 2: endpoints on the axis,
+    // apex definitely across it from the box.
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -1.0), -1.0),
         (Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(2.0, 1.0), 0.0),
+        (Point2::new(2.0, -1.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
@@ -228,19 +231,13 @@ fn full_circle(cx: f64, cy: f64, r: f64, phase: f64) -> ProfileLoop<f64> {
 /// or not an end of it is on the axis, so each of these refuses
 /// `ArcCrossesAxis`.
 ///
-/// - A full circle wholly across the axis, touching it at its one vertex
-///   (`R = −r`, centre `(−1, 0)`): no sheet exists for it.
 /// - A full lemon circle (`R = −0.5, r = 1`) whose vertex is an apex.
 /// - The lemon's long arc between its two apexes, through `x < 0`,
-///   closed along the axis.
+///   closed by a box out to `x = 2`.
 #[test]
 fn an_arc_through_its_least_radius_crosses_the_axis_whatever_its_ends() {
     let h = 0.75_f64.sqrt();
     for (what, lp) in [
-        (
-            "a circle wholly across the axis",
-            full_circle(-1.0, 0.0, 1.0, 0.0),
-        ),
         (
             "a full lemon circle from its apex",
             full_circle(-0.5, 0.0, 1.0, PI / 3.0),
@@ -250,6 +247,8 @@ fn an_arc_through_its_least_radius_crosses_the_axis_whatever_its_ends() {
             bulge_loop(vec![
                 (Point2::new(0.0, -h), -(PI / 3.0).tan()),
                 (Point2::new(0.0, h), 0.0),
+                (Point2::new(2.0, h), 0.0),
+                (Point2::new(2.0, -h), 0.0),
             ]),
         ),
     ] {

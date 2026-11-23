@@ -519,6 +519,18 @@ fn lift_vec<T: Decide>(v: Vec2<T>) -> Vec3<T> {
     Vec3::new(v.x, v.y, T::zero())
 }
 
+/// A pen's heading in the body's coordinates: the sketch heading,
+/// checked ([`geom_core::UnitVec3::checked`]), then carried by the face's
+/// rigid sketch frame ([`geom_core::UnitVec3::through_isometry`]). The
+/// heading is a `profile::path::Dir` the replay minted, a normalization
+/// (or a literal axis), so in interval arithmetic it encloses a unit
+/// vector.
+fn heading_in_body<T: Decide>(face: &TracedFace<T>, heading: Vec2<T>) -> geom_core::UnitVec3<T> {
+    geom_core::UnitVec3::checked(lift_vec(heading))
+        .through_isometry(face.sketch_to_body.linear())
+        .0
+}
+
 /// The frame plane's point and normal, in the body's coordinates.
 fn plane_in_body<T: Decide>(face: &TracedFace<T>) -> (Point3<T>, Vec3<T>) {
     (
@@ -571,6 +583,26 @@ fn carrier_fault(fault: TraceFault) -> TraceStepFault {
     }
 }
 
+/// Where the written crossing stands among `crossings`, where it is
+/// among them: what a piece takes ([`kernel::ray_crossings_to`]).
+fn taken<T: geom_core::Real>(
+    crossing: TraceCrossing,
+) -> impl Fn(&[kernel::Crossing<T>]) -> Option<usize> {
+    let passage = match crossing.passage {
+        TracePassage::Enter => Passage::Enter,
+        TracePassage::Leave => Passage::Leave,
+    };
+    move |crossings: &[kernel::Crossing<T>]| {
+        let nth = (crossing.nth as usize).checked_sub(1)?;
+        crossings
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.passage == passage)
+            .nth(nth)
+            .map(|(at, _)| at)
+    }
+}
+
 /// The written crossing among `crossings`, or how many there were.
 fn pick<T: geom_core::Real>(
     crossings: Vec<kernel::Crossing<T>>,
@@ -604,13 +636,14 @@ fn ray_to<T: Decide>(
 ) -> Result<kernel::Crossing<T>, TraceStepFault> {
     let surface = traced(face, band)?;
     let origin = face.sketch_to_body.transform_point(lift(pen));
-    let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
-    let crossings = kernel::ray_crossings(
+    let dir = heading_in_body(face, heading);
+    let crossings = kernel::ray_crossings_to(
         surface,
         face.sense,
         &geom::Ray::new(origin, dir),
         reach_of(face, origin).map_err(TraceStepFault::Uncovered)?,
         band,
+        taken(crossing),
     )
     .map_err(carrier_fault)?;
     pick(crossings, crossing)
@@ -640,8 +673,8 @@ fn arc_to<T: Decide>(
         radius,
         map.transform_vec(lift_vec(radial_hat)),
     );
-    let crossings =
-        kernel::circle_crossings(surface, face.sense, circle, band).map_err(carrier_fault)?;
+    let crossings = kernel::circle_crossings_to(surface, face.sense, circle, band, taken(crossing))
+        .map_err(carrier_fault)?;
     let hit = pick(crossings, crossing)?;
     let at = face.body_to_sketch.transform_point(hit.point);
     Ok((Point2::new(at.x, at.y), hit.outward))
@@ -728,7 +761,7 @@ pub fn trace_marks(
             ),
         ] {
             let origin = face.sketch_to_body.transform_point(lift(from));
-            let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
+            let dir = heading_in_body(face, heading);
             let reach = reach_of(face, origin).map_err(TraceStepFault::Uncovered)?;
             let Ok(crossings) = kernel::ray_crossings(
                 surface,

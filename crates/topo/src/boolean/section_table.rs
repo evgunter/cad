@@ -26,9 +26,9 @@
 //! every met face pair on it, `join::surface_pair_reach`), not one
 //! face's: the pair's frame or its apex line pair
 //! ([`SectionTable::plane_cone`]). The germ mint and the join's frame
-//! read take it. The value does not build the pair (neither a plane
-//! nor a cone is served), so no section of it is held among the
-//! sections, and the two maps never hold one pair.
+//! read take it. The value does not build the pair
+//! ([`geom_brep::pair_section::serves`]), so no section of it is held
+//! among the sections, and the two maps never hold one pair.
 //!
 //! A pair the value classifies without a march is classified when the
 //! table is built; a spline wall against an implicit partner is held
@@ -158,7 +158,7 @@ pub(crate) struct GermFoot<T: Real> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ApexLines<T: Real> {
     pub(crate) apex: geom_core::Point3<T>,
-    pub(crate) dirs: [geom_core::Vec3<T>; 2],
+    pub(crate) dirs: [geom_core::UnitVec3<T>; 2],
     pub(crate) lever: geom_core::Lever<T>,
 }
 

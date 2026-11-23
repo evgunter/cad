@@ -77,7 +77,7 @@ use super::boundary::{
 use super::certify::ChartWindow;
 use super::enclose::{
     Box3, ChartPhi, NurbsBoxes, UvWindow, implicit_enclosure, implicit_gradient_enclosure,
-    refused_box,
+    implicit_sign_enclosure, refused_box,
 };
 use super::exhaust::UvRect;
 use super::section::{SectionReader, sign};
@@ -791,10 +791,10 @@ fn link<'p, T: CertifiedBounds>(
 }
 
 /// The pcurve's point at a parameter the walk chose in `f64` (a
-/// window's end): a computed value, so at `Sym` an unknown. `None` off
-/// the pcurve's spans.
+/// window's end): a place. `None` off the
+/// pcurve's spans.
 fn pcurve_at<T: CertifiedBounds>(pcurve: &NurbsCurve2<T>, t: f64) -> Option<Point2<T>> {
-    Some(pcurve.span_at(t)?.eval_in_span(T::from_computed(t)))
+    Some(pcurve.span_at(t)?.eval_in_span_at(t))
 }
 
 /// **The chart chain's solution set is one arc, and it spans the
@@ -979,7 +979,9 @@ fn face_walk<T: CertifiedBounds>(
 ) -> Option<()> {
     let (i, j) = ((k + 1) % 3, (k + 2) % 3);
     let walked = bisect_within([(x, 0u32)], pieces, |(x, depth)| {
-        if sign(implicit_enclosure(s1, x)).is_some() || sign(implicit_enclosure(s2, x)).is_some() {
+        if sign(implicit_sign_enclosure(s1, x)).is_some()
+            || sign(implicit_sign_enclosure(s2, x)).is_some()
+        {
             return Step::Settled;
         }
         match krawczyk(s1, s2, x, (i, j)) {

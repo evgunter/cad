@@ -181,7 +181,7 @@ use crate::validate::decide;
 /// edge, refused here ([`SplitReduceError::KnifeEdge`]).
 ///
 /// A wall's rows read its face extent off its cover, as the split's
-/// chords through the same wall do (`chord_join::wall_face_section`).
+/// chords through the same wall do (`chord_join::section_reach`).
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -445,9 +445,8 @@ impl<T: Decide> ParallelFace<T> {
 /// Whether `edge` is a straight line: the shape of the contact a plane
 /// tangent to a cylinder or a cone makes, along a ruling.
 fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
-    let curve = proven(&body.edges, edge, EntityId::Edge).curve;
-    body.get_curve_geom(curve)
-        .and_then(crate::null::CurveGeom::certified)
+    body.proven_edge(edge)
+        .certified()
         .is_some_and(|c| !c.carrier().is_curved())
 }
 
@@ -1240,5 +1239,72 @@ mod tests {
             .render(geom_brep::recourse::Reading::Build);
             assert!(text.ends_with(want.as_str()), "{label}: {text}");
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod edge_view_review_probes {
+    use crate::entity::EntityId;
+    use crate::geometry::CurveKey;
+    use crate::test_support_fixtures::declined_cube;
+    use geom_core::Tol;
+
+    /// Claim 3: a torn curve link is not read as an answer by `straight`.
+    #[test]
+    fn straight_panics_on_a_torn_curve_link() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().unwrap().0;
+        assert!(super::straight(&body, edge), "a cube edge is straight");
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
+        let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = super::straight(&body, edge);
+        }));
+        assert!(
+            msg.contains(&format!("{}'s curve names", EntityId::Edge(edge))),
+            "{msg}"
+        );
+    }
+
+    /// Claim 1/2: the doors' miss behaviour.
+    #[test]
+    fn doors_miss_as_documented() {
+        let body = declined_cube::<f64>(Tol::witness()).body;
+        let stale = crate::entity::EdgeKey::default();
+        assert!(body.edge(stale).is_none());
+        assert!(
+            body.stored_curve(stale).is_err(),
+            "stored_curve stays typed"
+        );
+        let he = body.half_edges().next().unwrap().0;
+        let msg = crate::surgery::tests::panic_message(|| {
+            let _ = body.linked_edge(stale, EntityId::HalfEdge(he), "edge");
+        });
+        assert!(
+            msg.contains(&format!("{}", EntityId::HalfEdge(he))),
+            "{msg}"
+        );
+        let msg = crate::surgery::tests::panic_message(|| {
+            let _ = body.proven_edge(stale);
+        });
+        assert!(msg.contains(&format!("{}", EntityId::Edge(stale))), "{msg}");
+    }
+
+    /// `validate::wraps` is tier 2's reading too (`closed_by_tier`
+    /// through `wrap_tips`), on a body tier 1 may refuse: a torn curve
+    /// link reads "not a wrap" there, and tier 1 reports the link.
+    #[test]
+    fn wraps_reads_a_torn_curve_link_as_no() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().unwrap().0;
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
+        assert!(
+            !crate::validate::wraps(&body, edge),
+            "no wrap, and no panic"
+        );
+        assert!(
+            crate::validate::validate_closed(&body).is_err(),
+            "tier 1 reports the torn link"
+        );
     }
 }

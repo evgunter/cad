@@ -1,7 +1,7 @@
 //! M2 PR 6 adversarial review — walk state machine and tie rules
 //! (assignments 4 and 5): wedge angles near π, axis-touching wedges,
 //! pole junctions on partial revolves, downward (mirror-nappe) cone
-//! walls, pole-to-pole band area-vector disambiguation, and the
+//! walls, pole-to-pole bands' branches off the loop's lift, and the
 //! outward-shell assumption through the public API.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -168,7 +168,7 @@ fn survives_near_full_wedge_pole_junction_unwrap() {
 #[test]
 fn survives_sphere_wedges_pole_to_pole_bands() {
     // Sphere wedge bands: two profile-copy meridians + two poles, no
-    // rim — the area-vector azimuth-half rule under many angles.
+    // rim — the lift's branches under many angles.
     for theta in [0.2, PI / 2.0, PI - 0.02, PI, PI + 1.0, 2.0 * PI - 0.08] {
         let body = rev(half_disc(), Revolution::Partial(theta));
         for delta in [0.3, 0.05] {
@@ -220,7 +220,7 @@ fn survives_many_segment_dome_wedges() {
 
 #[test]
 fn survives_outward_shell_assumption_via_public_api() {
-    // The area-vector rule assumes outward-oriented shells. Feed the
+    // A band's branches are the face's side, read off its lift. Feed the
     // public API deliberately CW (inward-looking) profiles — the
     // profile layer canonicalizes, so every constructible body must
     // still mesh with positive signed volume.

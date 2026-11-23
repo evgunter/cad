@@ -118,7 +118,10 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
         .unwrap()
         .line_to(Start.arrives_tangent(), t);
     assert!(
-        matches!(forward_line_to, Err(PathError::JunctionTangent { .. })),
+        matches!(
+            forward_line_to,
+            Err(PathError::JunctionTurnWithinTolerance { .. })
+        ),
         "{forward_line_to:?}"
     );
     // Reverse, with `continue_to` instead of `line_to`: the closing leg
@@ -206,7 +209,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_closes_constructed_and_validates
     };
     // Undeclared: the seam refuses as before.
     assert!(
-        matches!(fan(false), Err(PathError::SeamTangent { .. })),
+        matches!(fan(false), Err(PathError::SeamTurnWithinTolerance { .. })),
         "{:?}",
         fan(false)
     );
@@ -289,12 +292,12 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
 }
 
 // ------------------------------------------------------------------
-// Claim 6/12: `SeamTangent`'s recourse from the sharp-arc closer.
+// Claim 6/12: `SeamTurnWithinTolerance`'s recourse from the sharp-arc closer.
 // ------------------------------------------------------------------
 
 /// **R1 MINOR, FIXED by giving the verb the spelling.** The seam-flag
 /// flip on `arc_to_start` makes a tangent sharp-arc seam refuse
-/// `SeamTangent`, whose message names `Start.arrives_tangent()` — a
+/// `SeamTurnWithinTolerance`, whose message names `Start.arrives_tangent()` — a
 /// target `arc_to` could not take. Rather than fork the message by
 /// closer, `Bulge` gained the declaration: the bulge already fixes the
 /// arc's end tangent, so the CHECK form applies unchanged. This row now
@@ -322,7 +325,7 @@ fn r1_the_sharp_arc_seam_is_told_to_use_a_target_it_cannot_take() {
         .unwrap()
         .arc_to(Bulge { p: Start, b: 1.0 }, t);
     let err = match refused {
-        Err(e @ PathError::SeamTangent { .. }) => e,
+        Err(e @ PathError::SeamTurnWithinTolerance { .. }) => e,
         other => panic!("{other:?}"),
     };
     let msg = err.to_string();
@@ -395,7 +398,7 @@ fn r1_the_levered_verdict_holds_at_arm_ten_and_the_margin_is_signed() {
 /// end tangent `Start.dir = east` is the unit semicircle about `(0,1)`
 /// — whose START tangent at `(0,2)` is WEST, i.e. exactly the incoming
 /// straight's direction. So the departure the construction derives is
-/// tangent to the incoming leg: undeclared, `JunctionTangent`;
+/// tangent to the incoming leg: undeclared, `JunctionTurnWithinTolerance`;
 /// declared, identity of the two tangencies at a corner-less junction.
 /// The PR's deviation reason holds: measured here with the algebra's
 /// own classifier on the derived departure.
@@ -421,7 +424,7 @@ fn r1_the_construct_from_arrival_form_would_derive_a_tangent_departure_on_the_st
         .unwrap()
         .angle(PI, t);
     assert!(
-        matches!(refused, Err(PathError::JunctionTangent { .. })),
+        matches!(refused, Err(PathError::JunctionTurnWithinTolerance { .. })),
         "{refused:?}"
     );
 }
@@ -467,7 +470,7 @@ fn r1_the_lift_layer_lifts_the_all_tangent_loop_the_algebra_authors() {
 /// arriving leg is the later-authored one and the entry cannot carry
 /// `.cusp()` (§2's entry rule), so the reader is sent to a spelling the
 /// seam does not have — the exact defect the PR corrected for the
-/// tangent arm (`JunctionTangent` → `SeamTangent`) and left in the cusp
+/// tangent arm (`JunctionTurnWithinTolerance` → `SeamTurnWithinTolerance`) and left in the cusp
 /// arm, at both `seam_arrival_check` and `junction_check(seam = true)`.
 #[test]
 fn r1_the_seam_cusp_names_a_departure_recourse() {
