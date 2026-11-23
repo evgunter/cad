@@ -3675,6 +3675,7 @@ MEMBERS_BOUND_AS = {
     # A re-target of the copy the product slot reads makes one appear.
     "Maintenance::ProductOutsideWorld": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
+    "Maintenance::YieldRemoved": "Maintenance.variant",
     "Maintenance::ValueDropped": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
@@ -3905,6 +3906,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::Dimension": "PersistError.variant",
+    "PersistError::IndexBeforeBinders": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
