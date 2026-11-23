@@ -490,3 +490,23 @@ pub fn check_mesh_acceptance(body: &Body<f64>, delta: f64, exact: Option<(f64, f
 
     mesh
 }
+
+/// **A body holding stations is construction state** (tier 3's check
+/// 11, maximal edges): the at-rest gate refuses it with one
+/// `JoinableVertexAtRest` per station and nothing else, so no door that
+/// reads a finished body (props, a boolean's operands) takes it. Returns
+/// the number of stations.
+#[track_caller]
+pub fn construction_state(body: &Body<f64>) -> usize {
+    let findings = topo::finish(body.clone(), Tol::witness())
+        .map(|_| ())
+        .expect_err("a body holding stations is not at rest")
+        .into_findings();
+    assert!(
+        findings
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::JoinableVertexAtRest { .. })),
+        "the gate refuses the stations and nothing else: {findings:?}"
+    );
+    findings.len()
+}
