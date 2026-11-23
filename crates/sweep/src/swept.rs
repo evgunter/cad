@@ -829,7 +829,7 @@ pub(crate) fn turn_negates(turn: Sign) -> bool {
 /// **What it touches: nothing.** `Curve3::circle_at` over the spec's
 /// own carrier and span is the node the certifier evaluates; the
 /// placed carrier end is built here and thrown away.
-fn register_placed_carrier_end<T: Real>(
+fn register_placed_carrier_ends<T: Real>(
     carrier: &Curve3<T>,
     param_end: T,
     place: Placing<T>,

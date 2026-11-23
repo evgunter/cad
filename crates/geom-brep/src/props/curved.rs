@@ -7436,6 +7436,8 @@ mod ruling_on_wall_rows {
             }
         }
         assert_eq!(read, 3 * 4 * 6, "every row of the table read");
+    }
+}
 
 #[cfg(test)]
 mod pole_plane_rows {

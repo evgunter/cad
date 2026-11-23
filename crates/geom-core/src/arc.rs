@@ -267,7 +267,11 @@ impl<T: Real> Arc2<T> {
     /// offset makes.
     pub fn on_turned_radial(self, radial: Vec2<T>) -> Point2<T> {
         let (sin, cos) = (self.sweep.sin(), self.sweep.cos());
-        self.centre + Vec2::new(u.x * cos - u.y * sin, u.x * sin + u.y * cos) * self.radius
+        self.centre
+            + Vec2::new(
+                radial.x * cos - radial.y * sin,
+                radial.x * sin + radial.y * cos,
+            ) * self.radius
     }
 
     /// **Registers a tangency at a foot** ([`Real::register_equal`]),

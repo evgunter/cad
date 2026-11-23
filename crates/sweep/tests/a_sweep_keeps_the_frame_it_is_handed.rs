@@ -1129,7 +1129,7 @@ fn wide_box() -> f64 {
 /// stage and a word its refusal carries.
 const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
     ("circle", ["finished", ""], ["finish", "VolumeUncomputable"]),
-    ("split circle", ["finished", ""], ["door", "MappedSource"]),
+    ("split circle", ["finished", ""], ["door", "EndpointEnd"]),
     ("bulge", ["finished", ""], ["validation", "gate: ArcSpan"]),
     (
         "bulge cw",
@@ -1179,9 +1179,10 @@ const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
 /// Over a wide box the circle alone passes the door, and its
 /// finish stops at the volume reading's rim premise
 /// (`work/boxfinish/the-volume-readings-interval-re-derivation-re-asks-a-closed-forms-premises-on-the-value-channel.md`).
-/// The split circle's door refuses its mapped-source residual (its
-/// recorded radials are rounded sines and cosines, a unit to rounding
-/// and not through the tier), and every verb drawn beside a line stops
+/// The split circle's door refuses a minted edge's description at its
+/// far end (its recorded radials are rounded sines and cosines, a unit
+/// to rounding and not through the tier), and every verb drawn beside a
+/// line stops
 /// in validation's span readers
 /// (`work/boxfinish/a-bulge-arc-beside-a-line-stops-in-validations-span-readers-over-a-box.md`),
 /// the onto arc in its first leg's direction.

@@ -1602,6 +1602,7 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
             assert!(arcs > 0, "{verb} stores an arc");
         });
     }
+}
 
 /// **The value channel keeps each arc's radial at the end it was
 /// recorded at.** A quarter arc's two radials differ, so a channel that
