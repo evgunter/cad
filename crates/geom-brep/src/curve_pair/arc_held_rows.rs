@@ -472,3 +472,39 @@ fn an_arc_held_edges_plane_reads_a_line_against_it() {
         );
     }
 }
+
+/// **The plane door reads an arc-held ellipse's own plane as its plane**,
+/// and the plane `30ε` above it as missed. The base read the conic's
+/// height against the plane from its derived centre and answered
+/// `Roots([])` for its own plane from `a = 1e9` at `1e-9`, `1e7` at
+/// `1e-12`.
+#[test]
+fn the_plane_door_reads_an_arc_held_ellipses_own_plane() {
+    use crate::curve_face::plane_crossing::{
+        ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane,
+    };
+    let thirty = 30.0 * band().zero();
+    for a in [1e7, 1e9] {
+        let f = near(a);
+        let lane = |lift: f64| {
+            plane_crossing_lane(
+                &f.carrier,
+                f.span.0,
+                f.span.1,
+                f.e.point_at(0.0) + f.n * lift,
+                f.n,
+                band(),
+            )
+        };
+        let own = lane(0.0);
+        assert!(
+            matches!(own, PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane)),
+            "a = {a:e}, its own plane: {own:?}"
+        );
+        let above = lane(thirty);
+        assert!(
+            matches!(above, PlaneCrossingLane::Conic(ConicPlaneMeet::Miss)),
+            "a = {a:e}, 30ε above: {above:?}"
+        );
+    }
+}
