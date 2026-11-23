@@ -249,6 +249,9 @@ window. Dual: it fixes the answer shape U4b–U4d and U5 build on, which is hard
   refuses alone, and `conic_clearance` goes.
 - `bool_line_cylinder_clearance` goes: the pose's discriminant decides that line's class exactly.
 - The straddle arm's `NoInterior` with no window becomes `Contradiction` (§2.3).
+- Whether the walk drops a piece wholly off the arc at its split, unwalked (§2.2), is decided here. U4a
+  walks such a piece until it settles or refuses, because the wrappers' `CircleRoots` report the roots
+  round the whole turn; once the wrappers retire, nothing reads the count off the arc.
 
 **Retires**: `line_quadric_roots`, `conic_quadric_roots`, `circle_torus_roots`, `ellipse_torus_roots`
 and their only-a-wrapper doc lines; `carrier_touch::off_face` and `clusters`; `composite_count`'s and
