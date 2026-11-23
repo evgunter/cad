@@ -270,7 +270,7 @@ pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeN
     let union = insert_into(
         &mut doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(reads),
+            members: pncad::document::Bodies::spelled(reads),
         },
         tol,
     );

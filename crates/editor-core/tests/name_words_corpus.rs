@@ -100,7 +100,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// a node stores, an id minted earlier, or a document the corpus gains
 /// re-pins it; the PR that moves it says which words moved, and that
 /// with each tag masked no other did where that is so.
-const SAID_DIGEST: u64 = 0x1bd0_e2a7_9b08_1dfe;
+const SAID_DIGEST: u64 = 0x5e4c_b3f6_2abb_5c63;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -546,10 +546,10 @@ fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) ->
             tool: b.into(),
         },
         BooleanOp::Union => Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
         BooleanOp::Intersect => Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     })
 }
@@ -614,7 +614,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         name: editor_core::VarName::from_static("j"),
         def: editor_core::VarDecl::Index {
             count: Formula::count(2),
-            within: Some(Formula::var(i, editor_core::Dimension::Count)),
+            after: Some(Formula::var(i, editor_core::Dimension::Count)),
         },
     });
     let j = r.doc.var_named("j").expect("the inner index");

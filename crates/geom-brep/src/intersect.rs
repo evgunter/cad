@@ -2521,16 +2521,10 @@ pub fn plane_cone_section<T: Decide>(
                     },
                 ),
             ),
-            // Unsourced lever: no lever. The plane's stand-off from the apex over the sine it is
-            // read across is a computed distance that enters `Margin::of` (`work/oneround/unsourced-levers-with-no-door-that-names-them.md`).
-            Sign::Zero => (
-                PN_APEX_TANGENT_REACH,
-                Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
-            ),
-            // Unsourced lever: no lever, as `pn_apex_tangent_reach`'s, over the discriminant.
+            Sign::Zero => (PN_APEX_TANGENT_REACH, Margin::of(apex_start(size, steep))),
             Sign::Negative => (
                 PN_APEX_POINT_REACH,
-                Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
+                Margin::of(apex_start(size, discr.abs())),
             ),
         };
         if decide_magnitude(name, bound, band).map_err(SectionError::Escalated)? == Magnitude::Zero
@@ -2655,6 +2649,16 @@ pub fn plane_cone_section<T: Decide>(
     }
 }
 
+/// **Where the real plane's section starts from the apex** along a
+/// direction whose sine against the plane is `sine`: `size`, the
+/// plane's stand-off from the apex read as `|δ̂| + e_δ` (step 2, the
+/// rounded gap's magnitude), over that sine. `sine` is positive on the
+/// arm that asks: the steepest generator's `M`, and the discriminant `D`
+/// or `|D|` on the side of the apex outcome it was decided definite on.
+fn apex_start<T: geom_core::Real>(size: T, sine: T) -> T {
+    size / sine
+}
+
 /// **How far [`PlaneConeSection::ApexLinePair`] stands from the real
 /// plane's section over what `reach` consumes** (step 2b): the lesser of
 /// the far start `|δ|/D`, read at the apex, and the bound over the
@@ -2750,11 +2754,8 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
 ) -> Margin<T> {
     let zero = T::zero();
     let size = gap.magnitude();
-    // Unsourced lever: no lever. The plane's stand-off from the apex over `d` is plain
-    // arithmetic inside the bound (`work/oneround/unsourced-levers-with-no-door-that-names-them.md`).
-    let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
-    // Unsourced lever: no lever, as `far`'s, over `m`.
-    let near = Margin::levered(T::one() / m, geom_core::Lever::unsourced(size)).value();
+    let far = apex_start(size, d);
+    let near = apex_start(size, m);
     let crate::extent::GeneratorReach {
         window: (lo, hi),
         sin_cos: (sin_a, cos_a),
@@ -2788,12 +2789,7 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
     let sigma_sq = d * m / sin_a.powi(2);
     let floor = T::from_f64(f64::MIN_POSITIVE);
     let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
-    // Unsourced lever: no lever, as `far`'s, over the pair's own divisor.
-    let offset = Margin::levered(
-        T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
-        geom_core::Lever::unsourced(size),
-    )
-    .value();
+    let offset = T::from_f64(2.0) * size / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt());
     // The seam's tilt `τ/u` (step 5): `6` where `width ≥ 16u`, else whole.
     let tau = (seam_width - T::from_f64(8.0 * f64::EPSILON))
         .select_le_zero(T::from_f64(2.0 / f64::EPSILON), T::from_f64(6.0));

@@ -949,7 +949,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, apart) = common::inserted(
         &doc,
         Node::Intersect {
-            members: Bodies::Spelled(vec![near.into(), far_placed.into()]),
+            members: Bodies::spelled(vec![near.into(), far_placed.into()]),
         },
         tol,
     );
