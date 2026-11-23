@@ -35,11 +35,11 @@ fn roots(q: Point3<f64>, d: Vec3<f64>) -> Result<QuarticRoots<f64>, RootRefusal>
     line_torus_roots(
         geom::Line {
             origin: q,
-            dir: d.normalize(),
+            dir: geom_core::UnitVec3::squared(d),
         },
         geom::Line {
             origin: centre(),
-            dir: axis(),
+            dir: geom::stated_direction(axis()),
         },
         R_MAJOR,
         R_MINOR,
@@ -314,10 +314,13 @@ fn a_far_ray_reaches_the_count_disagreement() {
     );
     let band = Band::new(1e-9, 1e-8).unwrap();
     let roots = line_torus_roots(
-        geom::Line { origin: q, dir: d },
+        geom::Line {
+            origin: q,
+            dir: geom::stated_direction(d),
+        },
         geom::Line {
             origin: centre(),
-            dir: axis(),
+            dir: geom::stated_direction(axis()),
         },
         1e6,
         1e4,

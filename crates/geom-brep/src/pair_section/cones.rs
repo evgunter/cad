@@ -209,7 +209,7 @@ pub(crate) const SPHERE_RADIUS_NOT_POSITIVE: &str = "a sphere's radius is not de
 
 /// [`read`] of a length `datum` across its rounding `swing`, the floor
 /// row `floor` deciding the side where the far row is clear.
-fn read_across<T: Decide>(
+fn read_across_as<T: Decide>(
     decision: ConeDecision,
     floor: &'static str,
     datum: T,
@@ -441,7 +441,7 @@ impl<T: Decide> ConeRuledPose<T> {
         // charge at their sum.
         let at = (c - Point3::origin()).norm() + (cone.apex - Point3::origin()).norm();
         let swing = geom_core::rounding_charge(at.max(radius)) * T::from_f64(2.0);
-        if read_across(
+        if read_across_as(
             ConeDecision::SphereOnAxis,
             "kc_sphere_on_axis_floor",
             rho,
@@ -468,7 +468,7 @@ impl<T: Decide> ConeRuledPose<T> {
             // The line `apex + t·v`, `v = cos α·â ± sin α·ê`, at distance
             // `|ρ cos α ∓ h sin α|` from the centre.
             let g = rho * co - side * h * s;
-            let decided = read_across(
+            let decided = read_across_as(
                 ConeDecision::SphereTangency,
                 "kc_sphere_tangency_floor",
                 g.abs() - radius,
@@ -534,7 +534,7 @@ impl<T: Decide> ConeRuledPose<T> {
         let o = frame.origin();
         let axis = geom::Line {
             origin: o + d * d.dot(cone.apex - o),
-            dir: d,
+            dir: frame.axis_unit(),
         };
         let slack =
             geom_core::rounding_charge((o - Point3::origin()).norm() + (cone.apex - o).norm());
@@ -588,7 +588,8 @@ impl<T: Decide> ConeRuledPose<T> {
             Form::cone(
                 geom::Line {
                     origin: c.apex,
-                    dir: c.axis,
+                    // `Frame::square`'s axis, a normalization: checked.
+                    dir: geom_core::UnitVec3::checked(c.axis),
                 },
                 c.sc.1,
             )
@@ -766,7 +767,16 @@ impl<T: Real> RuledCone<T> {
             return (p - at).norm() - r;
         }
         match (self.partner.radius(), self.partner_cos()) {
-            (Some(r), _) => geom::Line { origin: at, dir: d }.distance(p) - r,
+            // `d` is the partner line's own unit direction, as `Form`
+            // took it ([`Form::cylinder`]): checked, its bits kept.
+            (Some(r), _) => {
+                geom::Line {
+                    origin: at,
+                    dir: geom_core::UnitVec3::checked(d),
+                }
+                .distance(p)
+                    - r
+            }
             (None, Some(cos)) => {
                 let sin = (T::one() - cos.powi(2)).max(T::zero()).sqrt();
                 let (h, rho) = ((p - at).dot(d), ((p - at) - d * (p - at).dot(d)).norm());

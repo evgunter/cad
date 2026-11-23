@@ -65,6 +65,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Table("Meter"),
     NameCarrier::Const("SQUARE_ORDER"),
     NameCarrier::Const("RADII"),
+    // The cone × torus pose's apex rows (`pair_section/cone_torus.rs`).
+    NameCarrier::Const("APEX_ON_TORUS"),
+    NameCarrier::Const("APEX_FORM"),
     NameCarrier::Const("POSE_AXES_PARALLEL"),
     NameCarrier::Const("POSE_AXIS_ALONG_PLANE"),
     NameCarrier::Const("POSE_PLANES_FACING"),
@@ -93,6 +96,9 @@ const CARRIERS: &[NameCarrier] = &[
     // The forwarders that hand on their callers' names, declared so
     // those names are read.
     NameCarrier::Call("apart_in_order_as"),
+    // The cone pair's lengths read across their rounding
+    // (`pair_section/cones.rs`).
+    NameCarrier::Call("read_across_as"),
     NameCarrier::Call("stops"),
     NameCarrier::Call("probe_pick"),
     NameCarrier::Call("span_incidence_as"),

@@ -396,6 +396,7 @@
 //! blanket gate could only refuse. The conservative refusal they were
 //! known for — a cube standing in a donut's hole — is W0 or W2 here.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use crate::contain::FaceContainment;
@@ -875,7 +876,7 @@ fn torus_pair<T: Decide>(t: &geom::Surface<T>, p: &geom::Surface<T>, band: Band)
     if geom::require_ring_torus(big_r, r, band).is_err() {
         return Section::Intractable;
     }
-    let a = axis.normalize();
+    let a = UnitVec3::squared(axis);
     match *p {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
@@ -962,8 +963,8 @@ fn torus_plane<T: Decide>(
 ) -> Section<T> {
     let geom::Line { origin: c, dir: a } = axis;
     let h = n.dot(p0 - c);
-    let na = n.dot(a);
-    let (s, in_pi) = meridian(c, a, n);
+    let na = n.dot(a.get());
+    let (s, in_pi) = meridian(c, a.get(), n);
     // In Π, with x along ê = n⊥/s and y along a: the tube circle T_σ is
     // centred (σR, 0), radius r, and the plane is the line
     // s·x + n_a·y = h, whose unit normal is (s, n_a); `d` is the
@@ -1065,7 +1066,7 @@ pub(super) fn torus_plane_loops<T: Decide>(
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let (a, n) = (axis.dir.normalize(), n.normalize());
+    let (a, n) = (axis.dir.get().normalize(), n.normalize());
     let (_, s) = perp_to(n, a);
     match plane_cut(big_r, r, n.dot(p0 - axis.origin), s, band) {
         PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
@@ -1119,7 +1120,7 @@ fn cone_pair<T: Decide>(
                 },
                 geom::Line {
                     origin,
-                    dir: d.normalize(),
+                    dir: UnitVec3::squared(d),
                 },
                 |_| T::zero(),
                 reach.ball(),
@@ -1136,7 +1137,7 @@ fn cone_pair<T: Decide>(
                     &cone,
                     geom::Line {
                         origin,
-                        dir: d.normalize(),
+                        dir: UnitVec3::squared(d),
                     },
                     rc,
                     reach,
@@ -1156,7 +1157,7 @@ fn cone_pair<T: Decide>(
                 },
                 geom::Line {
                     origin: apex2,
-                    dir: d.normalize(),
+                    dir: UnitVec3::squared(d),
                 },
                 // The apexes' gap is read off `apex2` itself, which the turn
                 // onto the first axis moves along it by its station from the
@@ -1176,7 +1177,7 @@ fn cone_pair<T: Decide>(
                     [(
                         "section_cone_coaxial_apexes",
                         "section_cone_coaxial_apexes_floor",
-                        (apex2 - apex).dot(cone.a).abs(),
+                        (apex2 - apex).dot(cone.a.get()).abs(),
                     )],
                     slack,
                     band,
@@ -1207,7 +1208,7 @@ fn cone_pair<T: Decide>(
 /// `(sin α, cos α)`, and the unit seam direction square to the axis.
 struct Cone<T: Real> {
     apex: Point3<T>,
-    a: Vec3<T>,
+    a: UnitVec3<T>,
     alpha: T,
     sc: (T, T),
     u_ref: Vec3<T>,
@@ -1218,7 +1219,10 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
         let frame = geom::Frame::new(apex, axis, u_ref).square();
         Self {
             apex,
-            a: frame.axis,
+            // The square frame's axis, `a/|a|` (`Frame::square`): a
+            // normalization, so in interval arithmetic it encloses the
+            // unit axis.
+            a: UnitVec3::checked(frame.axis),
             alpha,
             sc: alpha.sin_cos(),
             u_ref: frame.u_ref,
@@ -1229,7 +1233,7 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
     /// `r` (unit, `⊥ a`): `t > 0` along it is the `v > 0` nappe.
     fn generator(&self, r: Vec3<T>) -> Vec3<T> {
         let (s, c) = self.sc;
-        self.a * c + r * s
+        self.a.get() * c + r * s
     }
 
     /// A point's signed distance from the double carrier, in metres.
@@ -1255,7 +1259,11 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
         ruling::Chart {
             base: self.apex,
             offset: ruling::Swing::fixed(zero),
-            dir: ruling::Swing::round([self.a * c, self.u_ref * s, self.a.cross(self.u_ref) * s]),
+            dir: ruling::Swing::round([
+                self.a.get() * c,
+                self.u_ref * s,
+                self.a.get().cross(self.u_ref) * s,
+            ]),
             reach_speed: lever * s,
             lever: lever + lever,
         }
@@ -1316,7 +1324,7 @@ fn cone_cylinder<T: Decide>(
 ) -> Section<T> {
     let geom::Line { origin: o, dir: d } = wall;
     let (_, c) = cone.sc;
-    let (off, dist) = perp_to(cone.apex - o, d);
+    let (off, dist) = perp_to(cone.apex - o, d.get());
     let foot = cone.apex - off;
     let lever = reach.lever_from(cone.apex).length();
     if let Err(tan) = signs_as([("section_cone_cylinder_apex", dist - rc)], band) {
@@ -1325,7 +1333,7 @@ fn cone_cylinder<T: Decide>(
     match sign_as(
         "section_cone_cylinder_aperture",
         Margin::levered(
-            d.dot(cone.a).abs() - c,
+            d.get().dot(cone.a.get()).abs() - c,
             reach.ball().twice_lever_from(cone.apex),
         ),
         band,
@@ -1341,7 +1349,7 @@ fn cone_cylinder<T: Decide>(
     let wall = ruling::Chart {
         base: foot,
         offset: ruling::Swing::round([zero, f1 * rc, f2 * rc]),
-        dir: ruling::Swing::fixed(d),
+        dir: ruling::Swing::fixed(d.get()),
         reach_speed: rc,
         lever: lever + lever,
     };
@@ -1400,7 +1408,8 @@ fn cone_cone<T: Decide>(
         let lever = reach.lever_from(one.apex).max(reach.lever_from(two.apex));
         let mut lines = 0;
         for a2 in [two.a, -two.a] {
-            let m = geom_brep::cone_cone_apex_meeting((one.a, one.sc.1), (a2, two.sc.1));
+            let m =
+                geom_brep::cone_cone_apex_meeting((one.a.get(), one.sc.1), (a2.get(), two.sc.1));
             match sign_as(RULINGS, Margin::levered(m.disc, lever), band) {
                 Some(Sign::Positive) => lines += 2,
                 Some(Sign::Negative) => {}
@@ -1463,7 +1472,7 @@ fn cone_plane_pair<T: Decide>(
     band: Band,
 ) -> Section<T> {
     let delta = one.apex - two.apex;
-    let w = one.a * one.a.dot(delta) - delta * one.sc.1.powi(2);
+    let w = one.a.get() * one.a.get().dot(delta) - delta * one.sc.1.powi(2);
     let mid = two.apex + delta * T::from_f64(0.5);
     match cone_plane(one, mid, w.normalize(), reach, band) {
         Section::Components { parts, single } => Section::Components {
@@ -1506,7 +1515,7 @@ fn cone_plane<T: Decide>(
 ) -> Section<T> {
     let (s, _) = cone.sc;
     let lever = reach.ball().lever_from_point_and_plane(cone.apex, (p0, n));
-    let na = n.dot(cone.a);
+    let na = n.dot(cone.a.get());
     match sign_as(
         "section_cone_plane_aperture",
         Margin::levered(na.abs() - s, lever),
@@ -1542,7 +1551,7 @@ fn cone_plane<T: Decide>(
                 Some(Sign::Negative) => -n,
                 _ => return Section::Tangent("section_cone_plane_facing"),
             };
-            let (across, width) = perp_to(facing, cone.a);
+            let (across, width) = perp_to(facing, cone.a.get());
             let r = match sign_as(
                 "section_cone_plane_meridian",
                 Margin::levered(width, lever),
@@ -1592,7 +1601,7 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         Ok([out]) => out,
         Err(tan) => return tan.into(),
     };
-    let (across, offset) = perp_to(delta, cone.a);
+    let (across, offset) = perp_to(delta, cone.a.get());
     let r = match sign_as("section_cone_sphere_axis", Margin::of(offset), band) {
         Some(Sign::Positive) => across / offset,
         Some(Sign::Zero) => cone.u_ref,
@@ -1690,7 +1699,8 @@ fn cone_parallel_cylinder<T: Decide>(
     };
     let foot = cone.apex + toward * (e - rc);
     let h = (e - rc).abs() * c / s;
-    let part = |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a * h));
+    let part =
+        |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a.get() * h));
     Section::Components {
         parts: vec![part(h), part(-h)],
         single: false,

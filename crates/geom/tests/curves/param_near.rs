@@ -363,7 +363,7 @@ fn at_the_half_turn_boundary_the_answer_is_a_parameter_within_half_a_turn() {
 fn the_line_arm_is_the_projection_and_ignores_the_anchor() {
     let line = Curve3::line(
         Point3::new(0.5, -1.0, 2.0),
-        Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
+        geom::stated_direction(Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)),
     );
     for t in [-4.0, 0.0, 0.25, 17.0] {
         let p = line.eval(t);

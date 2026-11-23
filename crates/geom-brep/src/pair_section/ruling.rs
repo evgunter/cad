@@ -805,7 +805,7 @@ impl<T: Real> Form<T> {
     pub(crate) fn cylinder(axis: geom::Line<T>, r: T) -> Self {
         Self {
             at: axis.origin,
-            d: axis.dir,
+            d: axis.dir.get(),
             kappa: T::one(),
             beta: T::zero() - T::one(),
             gamma: T::zero() - r.powi(2),
@@ -821,7 +821,7 @@ impl<T: Real> Form<T> {
     pub(crate) fn cone(axis: geom::Line<T>, cos: T) -> Self {
         Self {
             at: axis.origin,
-            d: axis.dir,
+            d: axis.dir.get(),
             kappa: T::zero() - cos.powi(2),
             beta: T::one(),
             gamma: T::zero(),
@@ -3491,7 +3491,7 @@ mod tests {
             partner: Form::cylinder(
                 geom::Line {
                     origin: Point3::new(origin.0, origin.1, origin.2),
-                    dir: Vec3::unit_x(),
+                    dir: geom_core::UnitVec3::exact_x(),
                 },
                 r,
             ),
@@ -3549,7 +3549,7 @@ mod tests {
             partner: Form::cylinder(
                 geom::Line {
                     origin: Point3::new(0.0, 0.0, 1.0),
-                    dir: Vec3::unit_x(),
+                    dir: geom_core::UnitVec3::exact_x(),
                 },
                 0.2,
             ),
