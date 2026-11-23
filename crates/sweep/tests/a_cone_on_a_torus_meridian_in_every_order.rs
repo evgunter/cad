@@ -198,21 +198,35 @@ fn a_coaxial_cone_against_the_torus_ends_as_pinned() {
         axis_y(),
         tol,
     );
+    let mut got = Vec::new();
     for (name, a, b) in [("torus first", &t, &k), ("cone first", &k, &t)] {
-        for (op, got) in [
+        for (op, run) in [
             ("∪", topo::union(a, b, tol)),
             ("∩", topo::intersect(a, b, tol)),
             ("∖", topo::subtract(a, b, tol)),
         ] {
-            let outcome = match &got {
-                Ok(_) => "builds".to_owned(),
-                Err(e) => format!("{e:?}"),
-            };
-            println!("{name} {op}: {outcome}");
             assert!(
-                !matches!(got, Err(topo::BooleanError::JoinDesync { .. })),
-                "{name} {op}: a coaxial cone × torus is no desync: {outcome}"
+                !matches!(run, Err(topo::BooleanError::JoinDesync { .. })),
+                "{name} {op}: a coaxial cone × torus is no desync: {run:?}"
             );
+            let outcome = match &run {
+                Ok(_) => "builds".to_owned(),
+                Err(e) => format!("{e:?}")
+                    .split([' ', '{', '('])
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned(),
+            };
+            got.push(format!("{name} {op}: {outcome}"));
         }
     }
+    let pinned: Vec<String> = ["torus first", "cone first"]
+        .iter()
+        .flat_map(|name| {
+            ["∪", "∩", "∖"]
+                .iter()
+                .map(move |op| format!("{name} {op}: GermFrameUnsupported"))
+        })
+        .collect();
+    assert_eq!(got, pinned, "the coaxial pair's outcomes");
 }
