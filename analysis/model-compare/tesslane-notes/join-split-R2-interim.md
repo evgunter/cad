@@ -1,0 +1,9 @@
+PR 7573 review, INTERIM at ~70 min (head 24ee9a28fb). No MAJOR demonstrated so far. Verdict leaning APPROVE-WITH-FIXES.
+
+Executed so far: own per-patch differential instrument (wrapper around tessellate_impl logging position-bit hash per patch per call, keyed test/call#/δ), applied identically to merge-base dd8e70198d and head; `mesh` whole incl. slow set at ε 1e-9: main 559/559, head 564/564 green (+1 probe each). Diff: 0 bodies lost; gained = needle funnel 3e-5, near-pole tube ×3, rod sliver, unsplit bored ball; one refusal renamed (needle funnel 2e-4 UnclearedSharedSide→FoldedTriangle). Own thin-shell probe (balls r 1.05/1.02/1.01/1.003/1.2, r2 bored 1.99, r0.5 bored 0.499, both signs, δ 3→0.003, 112 cells): head meshes all, check_mesh Ok, signed volume >0, worst sampled distance to surface 0.97δ; main refuses most OverusedSide.
+
+Findings so far:
+- MINOR (claim 1/11, DEMONSTRATED): bodies whose bytes move and are not on the PR's step list: reach_probes a_cone_face_keeps_no_side_its_plane_neighbour_can_make (24 calls), a_rod_sliver_keeps_no_side_its_plane_neighbour_can_make (7), crossing_rods_keep_no_side_a_neighbour_can_make (8), a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side, a_ringless_cone_face_near_its_apex_meshes_sound; needle funnel at δ 1e-3 (2806→2810 tris on faces 1,2). Step 4 names only spline walls.
+- MINOR (Q4, BY-INSPECTION): row docs still cite the retired shared-side cure: reach_probes.rs:1390,2012,2084,2161; winding_rows.rs:228; sweep tests/tilted_sphere_pair.rs:634.
+- MINOR (claim 3, BY-INSPECTION): rectangle lane (curved.rs, Book::splits(false)) and planar Midpoint read no fold on split pieces, yet the filed item a-side-the-join-could-split-... measures folding pieces on rectangle cone/torus/cylinder (10/32/6 sides) and says such a piece "refuses that face, typed" — on those lanes it would pass silently.
+Continuing: ε 1e-6/1e-12 and sweep diffs, mutants, memo-flip probe, editor-core/clippy, CI.
