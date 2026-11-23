@@ -3990,7 +3990,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assemble", "assertion", "bolt_circle", "chamfer",
-                "circular_pattern", "clearance", "drawn_profile", "extrude",
+                "circular_pattern", "clearance", "datum", "drawn_profile",
+                "extrude",
                 "fillet", "grid",
                 "hollow_tube", "instantiate_part", "intersect",
                 "linear_pattern", "loft", "measure", "mirror", "place",

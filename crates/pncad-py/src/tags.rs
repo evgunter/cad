@@ -1073,6 +1073,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateOverconstrained => "mate_overconstrained",
         C::MateUnpinned => "mate_unpinned",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
+        C::MateNotTheDatumsOwn => "mate_not_the_datums_own",
         C::MateUnleverable => "mate_unleverable",
         C::MateKindsDiffer => "mate_kinds_differ",
         C::MateSideUnevaluated => "mate_side_unevaluated",
