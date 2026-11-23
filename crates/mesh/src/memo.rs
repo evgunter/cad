@@ -786,14 +786,7 @@ impl FaceInputs {
             let walk = loop_half_edges(body, lk, fk)?;
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
-                let edge = body
-                    .get_edge(ek)
-                    .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-                let curve = body
-                    .get_curve_geom(edge.curve)
-                    .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-                    .certified()
-                    .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
+                let curve = crate::walk::edge_curve(body, ek)?;
                 let ids = chords
                     .ids
                     .get(&ek)
@@ -881,6 +874,7 @@ impl FaceInputs {
             Lane::Planar => 0,
             Lane::Curved => 1,
             Lane::Trimmed => 2,
+            Lane::Walked => 3,
         });
         w.f64(self.chordal);
         w.f64(self.eps);
@@ -888,7 +882,7 @@ impl FaceInputs {
         let (curved, trimmed) = match self.lane {
             Lane::Planar => (false, false),
             Lane::Curved => (true, false),
-            Lane::Trimmed => (false, true),
+            Lane::Trimmed | Lane::Walked => (false, true),
         };
         // The dispatch reads the surface's kind on every lane; the
         // curved and trimmed lanes read its fields.
@@ -1122,8 +1116,13 @@ impl KeyWriter {
                 self.nurbs3(p.whole_loop());
                 self.datum(geom::DatumValue::Scalar(p.base_span().0));
             }
+            // An ellipse stores one point, its centre or its anchor, and
+            // the two read as one value: the datum's name parts them.
             CurveData::Analytic(data) => {
-                for (_, value) in data {
+                for (datum, value) in data {
+                    if datum == geom::CurveDatum::Anchor {
+                        self.tag(datum.name().as_bytes());
+                    }
                     self.datum(value);
                 }
             }
@@ -1412,7 +1411,7 @@ mod tests {
                     offset: 0.05,
                 },
             ),
-            ("nurbs", Curve3::nurbs_placeholder()),
+            ("nurbs", geom::test_support::poisoned_nurbs_segment()),
         ];
         let tags: Vec<(&str, u8)> = kinds
             .iter()
@@ -1804,6 +1803,42 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **The key parts an ellipse held at a point as its centre from one
+    /// held there on its arc.** With one axis, reference direction and
+    /// pair of semi-axes they are different ellipses (the second's centre
+    /// is a semi-axis back from the point). The key is a stream with no
+    /// length of its own, and the second's walk is the first's with the
+    /// anchor's phase after it; so the key marks an anchor by its datum's
+    /// name, and the second's key is not the first's followed by that
+    /// phase. Red where the mark is dropped. That the walk yields the
+    /// phase is `geom`'s
+    /// `the_walk_names_an_arc_held_ellipses_anchor_and_phase`.
+    #[test]
+    fn the_curve_key_parts_a_centre_from_an_anchor() {
+        use geom_core::{Point3, Vec3};
+        let key = |c: &Curve3<f64>| {
+            let mut w = KeyWriter::default();
+            w.curve3(c);
+            w.0
+        };
+        let (at, axis, u) = (Point3::new(0.3, -1.2, 2.5), Vec3::unit_z(), Vec3::unit_x());
+        let centred = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(at, axis, u), 2.0, 0.75));
+        let anchored = Curve3::Ellipse(geom::Ellipse::anchored(at, axis, u, 2.0, 0.75));
+        assert!(
+            centred.eval(1.0).distance(anchored.eval(1.0)) > 0.5,
+            "two ellipses"
+        );
+        assert_ne!(key(&centred), key(&anchored), "an ellipse");
+        let mut followed = KeyWriter::default();
+        followed.curve3(&centred);
+        followed.datum(geom::DatumValue::Direction(Vec3::new(1.0, 0.0, 0.0)));
+        assert_ne!(
+            followed.0,
+            key(&anchored),
+            "the mark parts them, not the stream's length"
+        );
     }
 
     /// **The key reads every scalar the curve walk yields** — the

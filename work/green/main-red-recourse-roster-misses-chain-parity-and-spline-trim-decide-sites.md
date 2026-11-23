@@ -29,3 +29,11 @@ such a change past its PR is
 ## Two dead carriers (2026-11-22, seen on `oneround/box-region`'s gate)
 
 The same row also reports `a declared carrier matched nothing in src: Const(NEST)` and `… Const(REACH)`. Main's `0639e45a` removed `const NEST` from topo's source. `REACH` survives only as a test fixture's length (`boolean/torus_frame_rows.rs:48`, `injective.rs:4911`), which is no name. The two `CARRIERS` entries in `crates/topo/tests/recourse_roster.rs` go, or are re-pointed at what replaced them. Seen on PR 7225's hosted slow-set step, which ran the roster because the PR edits the file; reproduced on that branch merged with main `706a250d`, and none of the four lines touches the PR's code.
+
+## Two more unlisted sites (2026-11-23, PR 7225's gate on main `43295779`)
+
+The row also reports two indirect sites in `crates/topo/src/pcurves/collapsed_side_rows.rs`, which PR 7325's merge `ba685969` (`charttail/collapsed-column`) added:
+- `joint: DescribedChart::of(surface).unwrap()`;
+- `joint_at: DescribedChart::of(surface).unwrap()`.
+
+`spline_trim.rs`'s line is gone on that main; `chain_parity.rs`'s and the two dead carriers (`NEST`, `REACH`) stand.

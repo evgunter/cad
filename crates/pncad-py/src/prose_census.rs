@@ -155,8 +155,6 @@ use std::path::{Path, PathBuf};
 // reads two views of every file — structure from the code-only one,
 // the format string from the one that keeps literals — and spells no
 // comment, quote, bracket or generic-list scanner of its own.
-// `crates/test-utils/tests/reader_census.rs` carries the line that
-// says so.
 use test_utils::source::{
     angle_end, balanced_end, code_and_literals, code_only, crate_dir, rust_sources, top_level_split,
 };
@@ -1806,7 +1804,9 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[];
 /// The blind spot, written down WITH ITS REASON.
 ///
 /// A site here is one this census could not decide. It is not a pass:
-/// the row over this list fails when a site arrives that is not on it
+/// the row over this list
+/// (`every_site_this_census_cannot_decide_is_named_with_its_reason`)
+/// fails when a site arrives that is not on it
 /// and when a line no longer names a site, so the population cannot
 /// grow in silence — which is the only property a blind spot can
 /// honestly be given.

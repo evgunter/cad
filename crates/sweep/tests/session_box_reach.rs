@@ -27,6 +27,18 @@ use sweep::test_support::{brick, finished, revolved_about_y};
 #[test]
 fn a_bar_cutting_a_large_torus_inside_the_box_builds() {
     let tol = Tol::witness();
+    let Some(body) = bar_cut_torus(tol) else {
+        return;
+    };
+    assert!(
+        topo::validate_geometric(&body, tol).is_ok(),
+        "the cut passes the finished-body gate"
+    );
+}
+
+/// The cut [`a_bar_cutting_a_large_torus_inside_the_box_builds`] makes,
+/// unfinished, or `None` at the ε its pinned red stands at.
+fn bar_cut_torus(tol: Tol) -> Option<topo::Body<f64>> {
     let (big_r, r) = (700.0, 50.0);
     let torus = revolved_about_y(
         vec![
@@ -47,19 +59,19 @@ fn a_bar_cutting_a_large_torus_inside_the_box_builds() {
         brick::<f64>((100.0, 400.0), (200.0, 400.0), (400.0, 800.0), tol),
         tol,
     );
-    let Some(cut) = test_utils::kernel_limit::pinned(
+    let cut = test_utils::kernel_limit::pinned(
         topo::intersect(&torus, &bar, tol),
         tol.eps(),
         &[1e-12],
         "the in-box cut",
-    ) else {
-        return;
-    };
-    let body = cut.body().expect("the cut is a body");
-    assert!(
-        topo::validate_geometric(&body.body, tol).is_ok(),
-        "the cut passes the finished-body gate"
-    );
+    )?;
+    Some(
+        cut.body()
+            .expect("the cut is a body")
+            .body
+            .clone()
+            .into_body(),
+    )
 }
 
 /// A cylinder of radius `r` about `(cx, cy)`, its circle four quarter
@@ -553,5 +565,192 @@ fn a_body_at_the_boxs_edge_is_in_it() {
                 x + 0.5
             );
         }
+    }
+}
+
+/// **A ring-torus face a cut leaves reads its whole tube, so the piece,
+/// in the box, refuses as a limit by the tube** (reviewers r1 and r2 of
+/// PR 7225's fix pass). The bar's cut of the `R = 700`, `r = 50` torus
+/// ([`bar_cut_torus`]) is bounded by spiric edges, whose chart images
+/// are not harmonic, so its torus faces read no chart window and cover
+/// the torus whole (`topo::cover`'s torus arm). Moved 300 m along `x` the
+/// piece reaches 743.3 m and the tube 1050 m: refused as the limit 50 m
+/// past, at the gate and at the placing door; moved 200 m, the tube
+/// reaches 950 m and it is admitted. The cut's plane faces, bounded by
+/// the same spiric edges, read within the bar: a spiric edge's cover is
+/// its arc's rectangle in its section plane met with the tube, and only
+/// the torus face reads the tube whole. *Breaks if* a torus face comes
+/// to read a window from such edges (then the row's 300 m case admits,
+/// and the row is the measure of it), or a plane face bounded by them
+/// reads the tube.
+#[test]
+fn a_ring_torus_face_a_cut_leaves_reads_its_whole_tube() {
+    let tol = Tol::witness();
+    let Some(home) = bar_cut_torus(tol) else {
+        return;
+    };
+    let band = geom_core::Band::linear(tol).unwrap();
+    for (dx, want) in [(300.0, ("Unshown", 50.0)), (200.0, ("Ok", 0.0))] {
+        let at = geom_core::RigidMotion::translation(Vec3::new(dx, 0.0, 0.0)).unwrap();
+        let image = topo::transform_rigid(&home, &at).unwrap();
+        for (door, (class, margin)) in [
+            ("gate", gate_class(&image, tol)),
+            ("placing door", door_class(&home, &at, tol)),
+        ] {
+            assert!(
+                class == want.0 && (margin - want.1).abs() < 1e-6,
+                "{door}, moved {dx} m: read {class} {margin}, want {want:?}"
+            );
+        }
+    }
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    for (face, _) in home.faces() {
+        let kind = topo::readback::face_carrier_kind(&home, face).unwrap();
+        let (lo, hi) = topo::face_cover(&home, face, band).unwrap().range_along(x);
+        match kind {
+            geom::SurfaceKind::Torus => assert!(
+                (lo + 750.0).abs() < 1e-6 && (hi - 750.0).abs() < 1e-6,
+                "the torus face reads the whole tube: [{lo}, {hi}]"
+            ),
+            _ => assert!(
+                lo >= 100.0 - 1e-6 && hi <= 400.0 + 1e-6,
+                "a {kind:?} face of the cut reads within the bar: [{lo}, {hi}]"
+            ),
+        }
+    }
+}
+
+/// **A spindle face reads its whole tube, so a lemon in the box refuses
+/// as a limit by it.** A lemon revolved from the arc through `(0, ±30)`
+/// of bulge 0.5 (radius 37.5, its centre 22.5 m behind the axis, so the
+/// sheet's `R = −22.5`) reaches 15 m off its axis; its tube reaches
+/// `|R| + r = 60` m. Moved 980 m along `x` the lemon reaches 995 m and
+/// the tube 1040 m: refused as the limit 40 m past, at the gate and at
+/// the placing door, as it is admitted at the origin. *Breaks if* a
+/// spindle face comes to read less than its tube (then the row is the
+/// measure of it), or the limit is refused as past.
+#[test]
+fn a_lemon_in_the_box_reads_its_whole_tube() {
+    let tol = Tol::witness();
+    let lemon = sweep::test_support::try_revolved_about_y_at::<f64>(
+        vec![
+            (Point2::new(0.0, -30.0), 0.5),
+            (Point2::new(0.0, 30.0), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    )
+    .expect("the lemon revolves");
+    for (dx, want) in [(0.0, ("Ok", 0.0)), (980.0, ("Unshown", 40.0))] {
+        let at = geom_core::RigidMotion::translation(Vec3::new(dx, 0.0, 0.0)).unwrap();
+        let image = topo::transform_rigid(&lemon, &at).unwrap();
+        for (door, (class, margin)) in [
+            ("gate", gate_class(&image, tol)),
+            ("placing door", door_class(&lemon, &at, tol)),
+        ] {
+            assert!(
+                class == want.0 && (margin - want.1).abs() < 1e-6,
+                "{door}, moved {dx} m: read {class} {margin}, want {want:?}"
+            );
+        }
+    }
+}
+
+/// **A slender cone face reads no apex where its lift is decided, cut
+/// or not**: a ring revolved from `(0.09, 0)`, `(0.1, 0)`, `(0.1001,
+/// 0.1)`, `(0.09, 0.1)`, whose outer wall tapers 0.1 mm over 0.1 m (its
+/// apex 100 m off), and the same ring cut by a slab tilted 1.2 rad about
+/// `x`, which leaves the wall bounded by plane sections. Each is turned
+/// so its axis runs along `x`, its apex toward `+x`, and moved to
+/// `x = 980`: it lies within `[979.9, 980]` along `x`, its apex at 1080 m. Each is admitted, at
+/// the gate and at the placing door: the cone face's cover is its
+/// boundary's hull, its apex out (`topo::cover`'s cone arm). *Breaks if*
+/// the cone arm keeps a decided face's apex (then both refuse as the
+/// limit 80 m past).
+#[test]
+fn a_slender_cone_face_reads_no_apex_cut_or_not() {
+    let tol = Tol::witness();
+    let ring = sweep::test_support::try_revolved_about_y_at::<f64>(
+        vec![
+            (Point2::new(0.09, 0.0), 0.0),
+            (Point2::new(0.1, 0.0), 0.0),
+            (Point2::new(0.1001, 0.1), 0.0),
+            (Point2::new(0.09, 0.1), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    )
+    .expect("the ring revolves");
+    let slab = brick::<f64>((-0.2, 0.2), (-0.2, 0.2), (-0.01, 0.01), tol);
+    let tilt = geom_core::RigidMotion::translation(Vec3::new(0.0, 0.05, 0.0))
+        .unwrap()
+        .compose(
+            geom_core::RigidMotion::rotation(unit(Vec3::new(1.0, 0.0, 0.0), tol), 1.2).unwrap(),
+        )
+        .unwrap();
+    let slab = finished(
+        "the slab",
+        topo::transform_rigid(&slab, &tilt).unwrap(),
+        tol,
+    );
+    let cut = topo::intersect(&finished("the ring", ring.clone(), tol), &slab, tol)
+        .expect("the slab cuts the ring");
+    let cut = cut
+        .body()
+        .expect("the cut is a body")
+        .body
+        .clone()
+        .into_body();
+    // The apex lies at `(0, −100, 0)`; a quarter turn about `z` takes it
+    // to `(100, 0, 0)`, then the move to `x = 980`.
+    let at = geom_core::RigidMotion::translation(Vec3::new(980.0, 0.0, 0.0))
+        .unwrap()
+        .compose(
+            geom_core::RigidMotion::rotation(
+                unit(Vec3::new(0.0, 0.0, 1.0), tol),
+                core::f64::consts::FRAC_PI_2,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    for (what, home) in [("the ring", &ring), ("the cut ring", &cut)] {
+        let image = topo::transform_rigid(home, &at).unwrap();
+        for (door, (class, _)) in [
+            ("gate", gate_class(&image, tol)),
+            ("placing door", door_class(home, &at, tol)),
+        ] {
+            assert_eq!(class, "Ok", "{what}, {door}: in the box");
+        }
+    }
+}
+
+/// **An approximated surface's face reads its fit's net**: the 2 × 2 × 1
+/// block whose top cap wears the certified `Approx` of its plane
+/// (`common::approx::box_with_approx_cap`, the only `Approx` face this
+/// tree builds; no door mints one) covers the cap by the fit's net,
+/// which here spans the cap exactly. So the body stands at the box's
+/// wall: moved to reach 999.5 m along `x` it is admitted, at the gate
+/// and at the placing door, and the cap's cover along `x` is the net's
+/// `[0, 2]`. *Breaks if* the cap comes to read anything but its fit's
+/// net (a whole-carrier refusal reads as uncovered here).
+#[test]
+fn an_approximated_cap_reads_its_fits_net() {
+    let tol = Tol::witness();
+    let (home, cap) = crate::common::approx::box_with_approx_cap(0.1, 1e-9);
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (lo, hi) = topo::face_cover(&home, cap, band)
+        .unwrap()
+        .range_along(Vec3::new(1.0, 0.0, 0.0));
+    assert!(
+        lo.abs() < 1e-6 && (hi - 2.0).abs() < 1e-6,
+        "the fit's net: [{lo}, {hi}]"
+    );
+    let at = geom_core::RigidMotion::translation(Vec3::new(997.5, 0.0, 0.0)).unwrap();
+    let image = topo::transform_rigid(&home, &at).unwrap();
+    for (door, (class, _)) in [
+        ("gate", gate_class(&image, tol)),
+        ("placing door", door_class(&home, &at, tol)),
+    ] {
+        assert_eq!(class, "Ok", "{door}: at the wall, in the box");
     }
 }

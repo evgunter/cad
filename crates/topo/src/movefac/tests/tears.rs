@@ -5,10 +5,11 @@
 //! premise; any other panic fails the measurement.
 
 // A counterexample search over the labelling's walks and the proofs
-// they call: the operator, `Body::require_run_of`, the cycle walk it
-// proves, and the fixtures it tears.
+// they call: the operator, the glue walk it reads, the cycle walk and
+// mate hop that walk proves, and the fixtures it tears.
 test_utils::gated_to![
     "crates/topo/src/movefac.rs",
+    "crates/topo/src/glue.rs",
     "crates/topo/src/euler.rs",
     "crates/topo/src/body.rs",
     "crates/topo/src/fixtures.rs",

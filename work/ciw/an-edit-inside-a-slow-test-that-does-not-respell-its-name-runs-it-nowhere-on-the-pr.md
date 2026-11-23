@@ -2,10 +2,11 @@
 id: an-edit-inside-a-slow-test-that-does-not-respell-its-name-runs-it-nowhere-on-the-pr
 kind: issue
 title: an edit inside a slow test, or to its helpers, that does not re-spell its name runs it nowhere on the PR
-status: open
+status: closed
 opened: 2026-10-28
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -149,3 +150,17 @@ Signed (DOCTAIL first-turn lane).
 - The PR listed every such row and ran them locally instead.
 
 This is the shape the row names, a golden changed with no name re-spelled, met on a re-baseline.
+
+## Closed
+
+2026-11-22, CIW triage (stale). - Fixed by PR 7359 (`425990a7be`, 11-22). `is_edited` selects every slow
+row of an edited file (`slow_set.py:145-159`). Its witnesses (PRs 5911,
+6128, 6343, 6818, 6931, 6934, 6956, 6985 and 7225) all edit the row's
+own file. `work/ciw/log.md` has the 11-21 crossing entry.
+- Residue:
+- a helper in another file or a data file named by a built string goes
+to GREEN's two open P3 rows;
+- behaviour through `src` (PR 7114) goes to the P1 reform;
+- ε goes to `a-slow-rows-eps-pins-…`.
+- GREEN noted that the hosted step has not yet run on a PR that edits a
+slow file. Check the first such run's log.

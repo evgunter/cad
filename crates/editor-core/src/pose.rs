@@ -13,6 +13,8 @@
 //! [`Subgroup`] the mates fold is the one a pose is known up to, read
 //! here once ([`crate::VarKind::symmetry`] names its family).
 
+use crate::Said;
+use crate::say;
 use geom_core::linalg::{Point3, RigidMotion, UnitVec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 use geom_core::{Decide, Real};
@@ -1216,8 +1218,8 @@ pub enum PoseConstruction {
     FaceChartUnseated,
 }
 
-impl core::fmt::Display for PoseConstruction {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for PoseConstruction {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::Through => {
                 "the frame through an axis and a point has no x direction: the point lies on \
@@ -1240,9 +1242,10 @@ impl core::fmt::Display for PoseConstruction {
                 );
             }
             Self::FaceChartUnleverable { refusal } => {
-                return write!(
+                return say!(
                     f,
-                    "the face's chart's turn cannot be levered over what it carries: {refusal}"
+                    "the face's chart's turn cannot be levered over what it carries: ",
+                    Said(&refusal, by)
                 );
             }
             Self::FaceChartUnseated => {
@@ -1251,6 +1254,13 @@ impl core::fmt::Display for PoseConstruction {
                  writing its spin and slides there, or read the face as a plane"
             }
         })
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for PoseConstruction {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

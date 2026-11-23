@@ -144,7 +144,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopK
 use crate::euler::{EulerOpError, FaceSurface, MefSite, NewCurve};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
-use crate::live::{Proven, linked, proven};
+use crate::live::Proven;
 use crate::null::CurveGeom;
 use crate::ring_path::{Carrier, LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
@@ -2299,7 +2299,7 @@ fn section_pin_refusal<T: Decide>(
     band: Band,
 ) -> JoinError {
     use geom_brep::CertCheck as C;
-    let EulerOpError::Certification { error } = &refusal else {
+    let EulerOpError::DescriptionUncertified { error, .. } = &refusal else {
         return refusal.into();
     };
     let Some(rho) =
@@ -3586,14 +3586,8 @@ fn between_edge_is_section<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, JoinError> {
     let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-    let edge = linked(
-        &body.edges,
-        he_data.edge,
-        EntityId::Edge,
-        EntityId::HalfEdge(he),
-        "edge",
-    );
-    let CurveGeom::Certified(curve) = body.edge_curve_linked(he_data.edge, edge) else {
+    let edge = body.linked_edge(he_data.edge, EntityId::HalfEdge(he), "edge");
+    let CurveGeom::Certified(curve) = edge.curve() else {
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
@@ -4026,8 +4020,8 @@ fn run_loop_arcs<T: Decide>(
     let mut arcs = Vec::with_capacity(run.len());
     for &he in run {
         let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
-        let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-        let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+        let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = data.certified() else {
             continue;
         };
         let arc = match (carrier, curve.carrier()) {
@@ -4095,8 +4089,8 @@ fn edge_midpoints<T: Decide>(
 ) -> Result<Vec<Point3<T>>, JoinError> {
     let mut points = Vec::with_capacity(edges.len());
     for &edge in edges {
-        let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-        if let Some(curve) = body.edge_curve_linked(edge, data).certified() {
+        let data = body.proven_edge(edge);
+        if let Some(curve) = data.certified() {
             let (t0, t1) = curve.params();
             points.push(curve.carrier().mid_point(t0, t1));
         }
@@ -4338,13 +4332,12 @@ impl<T: Decide> IslandReading<T> {
             ));
         };
         let h = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-        let edge = body.get_edge(h.edge).ok_or_else(|| corrupt_edge(h.edge))?;
-        let curve = body
-            .edge_curve_linked(h.edge, edge)
+        let edge = body.linked_edge(h.edge, EntityId::HalfEdge(he), "edge");
+        let curve = edge
             .certified()
             .ok_or(invariant("a closed loop's edge carries no certified curve"))?;
         let (t0, t1) = curve.params();
-        let forward = if he == edge.he_plus {
+        let forward = if he == edge.record().he_plus {
             T::one()
         } else {
             -T::one()
@@ -4620,11 +4613,11 @@ fn along_edge_spec<T: Decide>(
             })
     };
     let (p1, p2) = (point(u1)?, point(u2)?);
-    let e = body.get_edge(edge).ok_or(JoinError::SectionInvariant {
+    let e = body.edge(edge).ok_or(JoinError::SectionInvariant {
         face,
         what: "the segment's edge no longer resolves",
     })?;
-    let CurveGeom::Certified(curve) = body.edge_curve_linked(edge, e) else {
+    let CurveGeom::Certified(curve) = e.curve() else {
         return Err(JoinError::SectionInvariant {
             face,
             what: "the segment's edge carries no certified curve",
@@ -4691,9 +4684,9 @@ fn closed_edge_spec<T: Decide>(
 ) -> Result<Option<EdgeCurveSpec<T>>, JoinError> {
     let invariant = |what| JoinError::SectionInvariant { face, what };
     let e = body
-        .get_edge(edge)
+        .edge(edge)
         .ok_or(invariant("the segment's edge no longer resolves"))?;
-    let CurveGeom::Certified(curve) = body.edge_curve_linked(edge, e) else {
+    let CurveGeom::Certified(curve) = e.curve() else {
         return Err(invariant("the segment's edge carries no certified curve"));
     };
     if !copies_closed_edge(curve.carrier()) {
@@ -4791,8 +4784,8 @@ fn closed_chord_runs_forward<T: Decide>(
         };
         let null = edge_of(next)?;
         let is_null = body
-            .get_edge(null)
-            .is_some_and(|n| body.edge_curve_linked(null, n).null_scaffold().is_some());
+            .edge(null)
+            .is_some_and(|n| n.curve().null_scaffold().is_some());
         Ok(d.parent_loop == split && is_null && edge_of(prev)? == null)
     };
     let own = match (between_nulls(e.he_plus)?, between_nulls(e.he_minus)?) {
@@ -4846,8 +4839,8 @@ pub(crate) fn null_site<T: Decide>(
         let v = site[i];
         body.get_vertex(v).ok_or(StaleSite)?;
         for k in body.edges_of_vertex_linked(v) {
-            let e = proven(&body.edges, k, EntityId::Edge);
-            let Some(attr) = body.edge_curve_linked(k, e).null_scaffold() else {
+            let e = body.proven_edge(k);
+            let Some(attr) = e.curve().null_scaffold() else {
                 continue;
             };
             for w in [attr.below_end, attr.above_end] {
@@ -5866,12 +5859,8 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Join
     };
     for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
         let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
-        let curve = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?.curve;
-        if body
-            .get_curve_geom(curve)
-            .and_then(CurveGeom::null_scaffold)
-            .is_none()
-        {
+        let edge = body.edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+        if edge.curve().null_scaffold().is_none() {
             return Ok(false);
         }
     }
@@ -7897,7 +7886,7 @@ mod cone_window_rows {
     /// (`boxes::tests::cone_wall`), read from a corner: the window is
     /// `[z0, z1]` to rounding at every span, past three quarters of a turn
     /// too, since the patch's loop closes in the chart and so leaves the
-    /// apex out (`cover::cone_may_hold_apex`). A window that
+    /// apex out (`cover::cone_hull_may_miss_apex`). A window that
     /// misses any of the face lets the arm serve a line pair over points
     /// nearer the apex than it reads.
     #[test]

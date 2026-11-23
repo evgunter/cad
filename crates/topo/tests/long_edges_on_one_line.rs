@@ -38,8 +38,9 @@ fn a_bar_past_the_box_along_one_axis_is_refused_by_the_session_box() {
         geom_brep::EdgeCurveSpec::line_between(near, far),
         tol,
     );
-    let Err(topo::EulerOpError::Certification {
+    let Err(topo::EulerOpError::DescriptionUncertified {
         error: geom_brep::CertifyError::OutsideSessionBox { margin },
+        ..
     }) = &got
     else {
         panic!("the box's refusal at the edge's certification: {got:?}");

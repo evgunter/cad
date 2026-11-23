@@ -191,7 +191,8 @@ fn probe_d_huge_offset_tiny_face() {
     // band at 1e-9 and 1e-12 and no two spellings of a point agree.
     let said = format!("{got:?}");
     assert!(
-        said.starts_with("Err(Op { source: Certification { error: OutsideSessionBox {")
+        (said.starts_with("Err(Op { source: DescriptionUncertified {")
+            && said.contains("error: OutsideSessionBox {"))
             && !said.contains("ResidualExceeded"),
         "huge-offset: past the session box, the extrude refuses at its first edge's \
          certification with the box's refusal, not a residual: {said}"

@@ -313,6 +313,7 @@ pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
     let findings: Vec<ValidationError> = FindingFamily::ALL
         .into_iter()
         .filter_map(|family| geom_core::k_stats::checking(|| family.asked_again(image, band)).err())
+        .flatten()
         .collect();
     if findings.is_empty() {
         Ok(())
@@ -777,13 +778,13 @@ impl FindingFamily {
     }
 
     /// **This family's question, asked of an isometry's image**
-    /// ([`Self::under_isometry`]): its finding where it finds one, and
+    /// ([`Self::under_isometry`]): its findings where it finds any, and
     /// nothing asked of a family up to isometry.
     pub(crate) fn asked_again<T: geom_core::Decide>(
         self,
         image: &Body<T>,
         band: geom_core::Band,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), Vec<ValidationError>> {
         match self.under_isometry() {
             None => Ok(()),
             Some(AskedAgain::SessionBox) => crate::session_box::in_session_box(image, band),
@@ -925,7 +926,6 @@ impl ValidationError {
             | Self::SolidWithoutShells { .. }
             | Self::ShellWithoutFaces { .. }
             | Self::EdgeAcrossShells { .. }
-            | Self::ComponentEulerViolation { .. }
             | Self::MissingProvenance { .. }
             | Self::LeakedProvenance { .. }
             | Self::NullScaffoldShared { .. }

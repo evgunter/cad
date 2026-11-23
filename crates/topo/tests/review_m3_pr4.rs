@@ -763,8 +763,10 @@ fn a_cone_relabelled_brick_clear_of_the_other_operand_is_refused_at_rest() {
 /// relabelled to the placeholder NURBS net does not finish. The
 /// at-rest gate refuses it on that face and nothing else: the session
 /// box, which cannot bound a face whose net bounds no region, names the
-/// face, alone, before tier 3's checks run, and says its surface may
-/// not be described yet.
+/// face, alone, before tier 3's checks run, and says it has no surface
+/// described yet. What the checks then say of it (the placeholder, and a
+/// `DescriptionNotAdjacent` for each of its four edges) is
+/// `tier3_tests::a_placeholder_wall_draws_its_surface_and_its_four_edges`.
 #[test]
 fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness());
@@ -785,7 +787,7 @@ fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     };
     assert_eq!(*named, face, "the placeholder net is named on its face");
     assert!(
-        errors[0].to_string().contains("may not be described yet"),
+        errors[0].to_string().contains("no surface described yet"),
         "{}",
         errors[0]
     );

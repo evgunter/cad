@@ -38,7 +38,7 @@ use crate::curves::boxes::ArcWindow;
 use crate::{CurveKind, Frame, Line, SurfaceKind};
 
 mod readings;
-pub use readings::{SPLINE_PIECES, is_direction};
+pub use readings::{Apex, SPLINE_PIECES, is_direction};
 #[cfg(test)]
 mod tests;
 

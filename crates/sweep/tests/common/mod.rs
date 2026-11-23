@@ -955,7 +955,8 @@ pub fn refused_by_the_session_box<T, E: geom_brep::recourse::Ended + core::fmt::
         .and_then(|(_, rest)| rest.split_once(',')?.0.parse::<f64>().ok())
         .unwrap_or_else(|| panic!("{what}: the door refuses by the session box: {debug}"));
     let want = geom_core::tolerance::SESSION_BOX_EXTENT - reach;
-    let at_an_edge = debug.contains("Certification { error: OutsideSessionBox");
+    let at_an_edge =
+        debug.contains("DescriptionUncertified {") && debug.contains("error: OutsideSessionBox");
     assert!(
         if at_an_edge {
             margin >= want - 1e-9 * reach && margin < 0.0

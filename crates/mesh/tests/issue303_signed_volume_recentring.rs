@@ -49,7 +49,8 @@ fn refused_by_the_session_box(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f
     );
     let said = format!("{got:?}");
     assert!(
-        said.starts_with("Err(Op { source: Certification { error: OutsideSessionBox {")
+        (said.starts_with("Err(Op { source: DescriptionUncertified {")
+            && said.contains("error: OutsideSessionBox {"))
             && !said.contains("ResidualExceeded"),
         "{label}: past the session box, refused by it at its first edge: {said}"
     );

@@ -45,9 +45,8 @@ pub(crate) fn nested_indent(ui: &egui::Ui, level: usize) -> f32 {
 }
 
 /// **What one feature-tree row reads as, drawn**: its headline
-/// ([`tree::headline`]) — a labelled node's label with its kind and tag
-/// muted beside it, an unlabelled node's kind, tag and which one of its
-/// kind it is — and the world badge.
+/// ([`tree::headline`]) — the node as every sentence spells it, with
+/// which one of its kind it is muted beside it — and the world badge.
 ///
 /// **The kind alone is not a name.** A tree of rows reading `Extrude`
 /// twice asks a person to tell two extrudes apart by clicking; the tag
@@ -70,14 +69,21 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
         job.append(" ", 0.0, voice(egui::Color32::PLACEHOLDER));
         job.append(&muted, 0.0, voice(ui.visuals().weak_text_color()));
     }
-    if row.placed {
-        job.append(
-            &format!(" {GLYPH_WORLD}"),
-            0.0,
-            voice(egui::Color32::PLACEHOLDER),
-        );
+    if let Some(badge) = placed_badge(row.placements.len()) {
+        job.append(&badge, 0.0, voice(egui::Color32::PLACEHOLDER));
     }
     ui.selectable_label(selected, job)
+}
+
+/// **The placed badge for a body `copies` placements copy**: the world
+/// glyph, with the count beside it once there is more than one; nothing
+/// for a body nothing places.
+fn placed_badge(copies: usize) -> Option<String> {
+    match copies {
+        0 => None,
+        1 => Some(format!(" {GLYPH_WORLD}")),
+        n => Some(format!(" {GLYPH_WORLD}{n}")),
+    }
 }
 
 /// **One feature-tree row, drawn**: its line — the label, the instance
@@ -551,7 +557,7 @@ mod tests {
                 Some("InstantiatePart"),
             ),
             which: Some(file.to_owned()),
-            placed: false,
+            placements: Vec::new(),
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,
@@ -601,7 +607,7 @@ mod tests {
                 Some("Extrude"),
             ),
             which: None,
-            placed: true,
+            placements: vec![RecipeNodeId::new(0, test_utils::refusal::tagged(2))],
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,
@@ -628,7 +634,7 @@ mod tests {
     #[test]
     fn a_placed_row_carries_which_it_is_and_the_world_badge() {
         let mut row = instance_row_of(2, "bracket.pncad");
-        row.placed = true;
+        row.placements = vec![RecipeNodeId::new(0, test_utils::refusal::tagged(3))];
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
         });
@@ -638,6 +644,21 @@ mod tests {
             )),
             "{drawn}"
         );
+    }
+
+    /// The badge counts the placements once there are two: the number
+    /// beside the glyph is the length of the row's placement list.
+    #[test]
+    fn a_body_placed_twice_counts_its_placements_on_the_badge() {
+        let mut row = instance_row_of(2, "bracket.pncad");
+        row.placements = vec![
+            RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
+            RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
+        ];
+        let drawn = painted_text(|ui| {
+            row_label(ui, &row, false);
+        });
+        assert!(drawn.contains(&format!("{GLYPH_WORLD}2")), "{drawn}");
     }
 
     /// A mate row refused because its placer (node 3) did not
@@ -650,7 +671,7 @@ mod tests {
                 Some("Mate"),
             ),
             which: None,
-            placed: false,
+            placements: Vec::new(),
             status: RowStatus::Failed {
                 message: FAILURE.to_owned(),
                 carried: Vec::new(),
@@ -1043,7 +1064,7 @@ mod tests {
                 Some("Split"),
             ),
             which: None,
-            placed: false,
+            placements: Vec::new(),
             status: RowStatus::Ok,
             repair_at: None,
             readout: Some(Readout::Empty(readout)),
@@ -1368,8 +1389,8 @@ mod tests {
         let id = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
         let row = |answer| TreeRow {
             readout: Some(Readout::Clearance(Cleared {
-                a: "Extrude \"left\" (0009)".to_owned(),
-                b: "Extrude \"right\" (000a)".to_owned(),
+                a: "\"left\" (0009)".to_owned(),
+                b: "\"right\" (000a)".to_owned(),
                 bounds: ClearanceBounds::AtLeast(Bound::Value(crate::props::Computed {
                     canonical: 0.02,
                     dimension: pncad::document::Dimension::Length,
@@ -1386,7 +1407,7 @@ mod tests {
             face_b: pncad::topo::FaceKey::default(),
             bodies: [(id, 0); 2],
         }));
-        let equation = "clearance(Extrude \"left\" (0009), Extrude \"right\" (000a)) ≥ 0.02 m";
+        let equation = "clearance(\"left\" (0009), \"right\" (000a)) ≥ 0.02 m";
         for (answer, state, detail, loud) in [
             (
                 violated,
@@ -1628,7 +1649,7 @@ mod tests {
                 Some("InstantiatePart"),
             ),
             which: Some(crate::test_support::PART_FILE.to_owned()),
-            placed: false,
+            placements: Vec::new(),
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,

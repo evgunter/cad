@@ -233,7 +233,8 @@ fn r1_e2e_l_prism_near_far() {
         );
         let said = format!("{e:?}");
         assert!(
-            said.starts_with("Err(Op { source: Certification { error: OutsideSessionBox {")
+            (said.starts_with("Err(Op { source: DescriptionUncertified {")
+                && said.contains("error: OutsideSessionBox {"))
                 && !said.contains("ResidualExceeded"),
             "L prism at {offset:e}: refused by the session box at its first edge: {said}"
         );

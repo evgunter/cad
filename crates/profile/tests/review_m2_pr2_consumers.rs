@@ -154,7 +154,7 @@ fn pr3_dry_run_joins_are_definitely_smooth_or_definitely_corner() {
         let len = seg.start.distance(seg.end);
         let unit = chord / len;
         match seg.kind {
-            SegmentKind::Line => unit,
+            SegmentKind::Line { .. } => unit,
             SegmentKind::Arc { .. } => {
                 // Tangent-chord angle = theta/2 = 2*atan(b): rotate the
                 // chord by -theta/2... for CCW (b>0) the tangent at the
@@ -176,7 +176,7 @@ fn pr3_dry_run_joins_are_definitely_smooth_or_definitely_corner() {
         let len = seg.start.distance(seg.end);
         let unit = chord / len;
         match seg.kind {
-            SegmentKind::Line => unit,
+            SegmentKind::Line { .. } => unit,
             SegmentKind::Arc { .. } => {
                 let half_theta = stored_sweep(seg) / 2.0;
                 let (s, c) = half_theta.sin_cos();
@@ -222,6 +222,6 @@ fn pr3_dry_run_joins_are_definitely_smooth_or_definitely_corner() {
 fn stored_sweep(seg: &profile::ValidatedSegment<f64>) -> f64 {
     match seg.kind {
         SegmentKind::Arc { arc, .. } => arc.sweep,
-        SegmentKind::Line => 0.0,
+        SegmentKind::Line { .. } => 0.0,
     }
 }

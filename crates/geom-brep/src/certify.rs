@@ -2031,9 +2031,10 @@ impl<T: Real> EdgeCurveSpec<T> {
         T: SpanLocate,
     {
         use geom_core::{Affine3, Point2, Point3};
-        let Curve3::Circle(geom::Circle { frame, .. }) = carrier else {
+        let Curve3::Circle(the_circle @ geom::Circle { .. }) = carrier else {
             return None;
         };
+        let frame = the_circle.frame();
         let center = frame.origin();
         let start = carrier.eval(t0);
         Some(Self {
@@ -3203,6 +3204,14 @@ impl<T: geom_core::Certifies> SplineFoot<T> {
 ///     ) -> Result<geom::SurfaceProjection<Dual64>, geom::SurfaceProjectionInconclusive> {
 ///         unimplemented!()
 ///     }
+///     fn chart_arm(
+///         self,
+///         _c: &geom::NurbsSurface<Dual64>,
+///         _p: Point3<Dual64>,
+///         _reach: Dual64,
+///     ) -> Result<f64, geom_brep::ChartArmRefusal> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
 pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
@@ -3215,6 +3224,17 @@ pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
         surface: &geom::NurbsSurface<T>,
         point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>;
+
+    /// [`NurbsLane::chart_arm`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn chart_arm(
+        self,
+        chart: &geom::NurbsSurface<T>,
+        p: Point3<T>,
+        reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal>;
 }
 
 impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
@@ -3225,6 +3245,15 @@ impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
         (self.surface_foot)(surface, point)
     }
+
+    fn chart_arm(
+        self,
+        chart: &geom::NurbsSurface<T>,
+        p: Point3<T>,
+        reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal> {
+        (self.chart_arm)(chart, p, reach)
+    }
 }
 
 impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
@@ -3233,6 +3262,15 @@ impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
         _surface: &geom::NurbsSurface<T>,
         _point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        match self {}
+    }
+
+    fn chart_arm(
+        self,
+        _chart: &geom::NurbsSurface<T>,
+        _p: Point3<T>,
+        _reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal> {
         match self {}
     }
 }
@@ -6974,20 +7012,6 @@ mod tests {
         );
     }
 
-    /// **`spec`'s carrier spelled as a spline**: the degree-1 spline
-    /// through its points at its span's ends, over the same span. Its net
-    /// is finite, so the session box reads its cover and the checks then
-    /// meet a spline as a spline; [`Curve3::nurbs_placeholder`]'s net is
-    /// all poison, which the box refuses first (`SessionBoxUncovered`).
-    fn spline_of(spec: &EdgeCurveSpec<f64>) -> Curve3<f64> {
-        let (a, b) = (spec.param_start, spec.param_end);
-        let knots = geom_core::spline::KnotVector::clamped(vec![a, a, b, b], 1).unwrap();
-        let net = vec![spec.carrier.eval(a), spec.carrier.eval(b)];
-        Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(knots, net, vec![1.0; 2]).unwrap(),
-        ))
-    }
-
     // ------------------------------------------------------------------
     // **D2's bit-diff row**: the collapse's effect on
     // `Certificate.max_residual`, MEASURED per fixture rather than
@@ -8349,7 +8373,7 @@ mod tests {
             CertifyError::IntersectionSameSurface { key: keys[0] }
         );
         let mut spline = on(p0, p1);
-        spline.carrier = spline_of(&spline);
+        spline.carrier = geom::test_support::nurbs_segment(p0, p1);
         assert_eq!(
             EdgeCurve::certify(
                 spline,
@@ -8367,7 +8391,7 @@ mod tests {
     }
 
     #[test]
-    fn nurbs_carrier_is_refused_and_nothing_panics_on_poison() {
+    fn a_nurbs_carrier_on_a_line_spec_refuses_and_poison_is_the_boxs_to_refuse() {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let certify = |spec: EdgeCurveSpec<f64>, a, b| {
@@ -8384,12 +8408,12 @@ mod tests {
         };
         // A spline carrier outside an `Intersection` is not implemented.
         let mut spec = line_spec(p0, p1);
-        spec.carrier = spline_of(&spec);
+        spec.carrier = geom::test_support::nurbs_segment(p0, p1);
         assert_eq!(certify(spec, p0, p1), CertifyError::Unimplemented);
-        // The placeholder's net is all poison: the session box has no
-        // cover of the edge, refused first and by its cause, a defect.
+        // A net that carries poison bounds no region: the session box has
+        // no cover of the edge, refused first and by its cause, a defect.
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::nurbs_placeholder();
+        spec.carrier = geom::test_support::poisoned_nurbs_segment();
         let err = certify(spec, p0, p1);
         assert!(
             matches!(

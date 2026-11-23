@@ -497,11 +497,11 @@ const PLATE_MAX_TERMS: usize = 38;
 /// The pinned lines are main's reading; each move of them, with its
 /// cause, is recorded on the work row that re-pinned it.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 32611 frozen 36 digest 40af3d43df93ab87eccbb22df9831784\n\
-     Plain/Assertion calls 1095 forms 15845 frozen 0 digest ea13b6793cb3646075bafbbe8d598ed2\n\
-     Early/Decision calls 308 forms 22700 frozen 0 digest cb567f470b41795672a23c4e561f8bfc\n\
-     Early/Assertion calls 1095 forms 16094 frozen 0 digest fd47fbeeb3cf76b1a18ae0d8368ba601\n\
-     Door/Decision calls 574 forms 17689 frozen 0 digest fa7459542929cc153afd26603b3006d9";
+     Plain/Decision calls 979 forms 33088 frozen 36 digest 31fb251685a25f6dd4e64ad589614a59\n\
+     Plain/Assertion calls 1051 forms 12382 frozen 0 digest a01596a758cfd219a6555788e99c7344\n\
+     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
+     Early/Assertion calls 1051 forms 12832 frozen 0 digest 99106532df35a733d0abd865fa36b18b\n\
+     Door/Decision calls 554 forms 12524 frozen 0 digest 72499981d74faf912ef1ee14a49486e2";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

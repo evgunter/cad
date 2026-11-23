@@ -242,8 +242,9 @@ fn a_one_solid_file_past_the_session_box_refuses_at_its_first_edge() {
             matches!(
                 &e,
                 StepImportError::Assembly {
-                    source: topo::EulerOpError::Certification {
-                        error: geom_brep::CertifyError::OutsideSessionBox { .. }
+                    source: topo::EulerOpError::DescriptionUncertified {
+                        error: geom_brep::CertifyError::OutsideSessionBox { .. },
+                        ..
                     },
                     ..
                 }
