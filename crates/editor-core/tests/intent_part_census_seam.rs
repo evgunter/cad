@@ -433,7 +433,7 @@ impl editor_core::PartResolver for Versions {
             .cloned()
             .ok_or_else(|| editor_core::ResolveFailure {
                 fault: editor_core::ResolveFault::Unresolved,
-                message: "no such version".to_string(),
+                message: "no such version".into(),
             })
     }
 }

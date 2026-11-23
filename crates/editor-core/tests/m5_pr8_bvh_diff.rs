@@ -131,7 +131,7 @@ fn corpus_boolean_operands_superset_pin() {
                 Some(Node::Subtract {
                     from,
                     tool: editor_core::Bodies::Spelled(tools),
-                }) if tools.len() == 1 => (from, &tools[0]),
+                }) if tools.len() == 1 => (from, tools[0].read()),
                 Some(
                     Node::Union {
                         members: editor_core::Bodies::Spelled(members),
@@ -141,7 +141,7 @@ fn corpus_boolean_operands_superset_pin() {
                         members: editor_core::Bodies::Spelled(members),
                         ..
                     },
-                ) if members.len() == 2 => (&members[0], &members[1]),
+                ) if members.len() == 2 => (members[0].read(), members[1].read()),
                 _ => continue,
             };
             let (body_a, body_b) = (

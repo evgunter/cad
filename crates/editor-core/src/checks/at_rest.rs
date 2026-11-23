@@ -386,12 +386,14 @@ where
 /// whatever pose that is; and, where it is a selection of one name in a
 /// body read plainly or a pose read directly off one
 /// (`eval::read_directly_off`), that selection and pose. An indexed read
-/// is no selection the rule reads.
+/// is no selection the rule reads, but for a member read at its binder's
+/// own key (`xs[k]` inside `{k in xs: …}`, [`Doc::reads_own_member`]),
+/// which is the member the assertion stands at, as a plain read is.
 fn reference<P: crate::ProfilePayload>(doc: &Doc<P>, var: VarId) -> Vec<QuietingRef> {
     let selected = |var: VarId| {
         let select = doc
             .selection(var)
-            .filter(|select| !select.body.is_indexed())?;
+            .filter(|select| !select.body.is_indexed() || doc.reads_own_member(&select.body))?;
         let [name] = select.names.as_slice() else {
             return None;
         };

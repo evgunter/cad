@@ -46,7 +46,7 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
     let (doc, rested) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![plate.into(), rod.into()]),
+            members: Bodies::spelled(vec![plate.into(), rod.into()]),
         },
     );
     let (doc, far) = block_on(doc, plate, (10.0, 11.0), (10.0, 11.0), 0.0, 1.0);
@@ -54,7 +54,7 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
     let (doc, joined) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![rested.into(), far.into()]),
+            members: Bodies::spelled(vec![rested.into(), far.into()]),
         },
     );
     let (doc, drilled) = insert(
