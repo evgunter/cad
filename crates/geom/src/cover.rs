@@ -35,7 +35,7 @@ use bvh::Aabb;
 use geom_core::{Bounds, Point3, Real, UnitVec3, Vec3};
 
 use crate::curves::boxes::ArcWindow;
-use crate::{CurveKind, Frame, Line, SurfaceKind};
+use crate::{Conic, CurveKind, Ellipse, Frame, Line, SurfaceKind};
 
 mod readings;
 pub use readings::SPLINE_PIECES;
@@ -354,6 +354,11 @@ struct Arc<T: Real> {
     semi_u: T,
     semi_v: T,
     window: ParamWindow<T>,
+    /// The ellipse the arc is read through where it is held on its arc
+    /// ([`Cover::arc_of`]): its support and its distances are then
+    /// stated from its points, and `frame` is its frame at the centre it
+    /// derives, read for directions alone.
+    on: Option<Ellipse<T>>,
 }
 
 /// **An arc's mean circle as a site reads it** ([`Arc::circle_about`]):
@@ -662,10 +667,35 @@ impl<T: Real> Cover<T> {
                 semi_u,
                 semi_v,
                 window,
+                on: None,
             }))
         };
         (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite())
             .then(|| piece(window).meet(piece(ParamWindow::new(T::zero(), T::tau()))))
+    }
+
+    /// **The arc of `ellipse` over `window`, stated from its points**
+    /// ([`Conic::cover_over`], which hands an ellipse held on its arc
+    /// here): the support is the ellipse's own extent, and the distances
+    /// are read off its points and their chords, so a short arc beside
+    /// the anchor is covered at its own scale however far its centre
+    /// lies. `None` for a datum that is not a finite number.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
+    pub(crate) fn arc_of(ellipse: Ellipse<T>, window: ParamWindow<T>) -> Option<Self> {
+        let frame = Conic::frame(&ellipse);
+        let (semi_u, semi_v) = ellipse.semi_axes();
+        (finite_frame(&frame) && finite(&[semi_u, semi_v]) && window.finite()).then(|| {
+            Self::piece(Piece::Arc(Arc {
+                frame,
+                semi_u,
+                semi_v,
+                window,
+                on: Some(ellipse),
+            }))
+        })
     }
 
     /// **The whole circle** `core` names ([`Core`]): its turn's region,
@@ -1301,6 +1331,7 @@ impl<T: Real> Tube<T> {
             semi_u: self.major,
             semi_v: self.major,
             window: ParamWindow::new(T::zero(), T::tau()),
+            on: None,
         }
     }
 
@@ -1420,6 +1451,10 @@ impl<T: Real> Frustum<T> {
 
 impl<T: Real> Arc<T> {
     fn support(&self, e: Vec3<T>) -> T {
+        if let Some(ellipse) = &self.on {
+            let window = ArcWindow::new(self.window.lo, self.window.hi);
+            return ellipse.extent_along(&window, Point3::origin(), e).1;
+        }
         let (_, hi) = ArcWindow::new(self.window.lo, self.window.hi).extent(
             vec_of(self.frame.origin()).dot(e),
             self.semi_u * self.frame.u_ref().dot(e),
@@ -1433,8 +1468,46 @@ impl<T: Real> Arc<T> {
     /// [`Arc::far`]): no squared form, which cancels where the site is
     /// near the arc, and on a short arc far from its centre.
     fn range(&self, site: &Site<T>) -> (T, T) {
+        if let Some(ellipse) = &self.on {
+            return self.chord_range(ellipse, site);
+        }
         let c = self.circle_about(site);
         (self.near(&c), self.far(&c, site))
+    }
+
+    /// **The distance range of an arc read through its points**
+    /// ([`Arc::on`]), over the four pieces [`Arc::far`] cuts. A piece
+    /// lies in the parallelogram on its chord shifted by its bulge
+    /// `(1 − cos h)·(x(m) − c)`, which is `−(1 − cos h)·x″(m)` and reads
+    /// no position. So every point of it is within the bulge's length of
+    /// its chord, and the site is no nearer than the chord's nearest
+    /// point less that length; the farthest is at a corner, as there.
+    fn chord_range(&self, ellipse: &Ellipse<T>, site: &Site<T>) -> (T, T) {
+        let (lo, hi) = (self.window.lo, self.window.hi);
+        let turn = T::tau();
+        let quarter = ((hi - lo).max(T::zero() - turn).min(turn)) * T::from_f64(0.25);
+        let half = quarter * T::from_f64(0.5);
+        let shift = T::one() - half.abs().cos();
+        let point = |t: T| ellipse.point_at(t);
+        let starts = [
+            lo,
+            lo + quarter,
+            lo + quarter + quarter,
+            lo + quarter + quarter + quarter,
+        ];
+        starts
+            .into_iter()
+            .fold(None, |range: Option<(T, T)>, s0| {
+                let s1 = s0 + quarter;
+                let bulge = -ellipse.second_derivative_at(s0 + half) * shift;
+                let (x0, x1) = (point(s0), point(s1));
+                let near = (segment_range(x0, x1, site).0 - bulge.norm()).max(T::zero());
+                let far = [x0, x0 + bulge, x1, x1 + bulge]
+                    .into_iter()
+                    .fold(T::zero(), |far, p| far.max(site.distance(p)));
+                Some(range.map_or((near, far), |(n, f)| (n.min(near), f.max(far))))
+            })
+            .unwrap_or((T::zero(), T::zero()))
     }
 
     /// **The circle the arc is read against from `site`.**
@@ -1584,12 +1657,34 @@ impl<T: Real> Arc<T> {
     /// The whole conic's ball: its centre, out to the Gram bound on its
     /// frame's two semi-axis vectors.
     fn ball(&self) -> Ball<T> {
+        if let Some(ellipse) = &self.on {
+            return self.chord_ball(ellipse);
+        }
         let (p, q) = (
             self.frame.u_ref() * self.semi_u,
             self.frame.v_ref() * self.semi_v,
         );
         let r = gram_top(p.norm_squared(), q.norm_squared(), p.dot(q));
         (self.frame.origin(), r)
+    }
+}
+
+impl<T: Real> Arc<T> {
+    /// **The ball of an arc read through its points** ([`Arc::on`]):
+    /// about its middle's point, out to the farthest the arc runs from
+    /// it. A point `δ` of parameter from the middle is a chord of the
+    /// unit circle `2·sin(|δ|/2)` long, which the ellipse's map
+    /// stretches by at most its larger semi-axis; past half a turn
+    /// either way the chord is the diameter.
+    fn chord_ball(&self, ellipse: &Ellipse<T>) -> Ball<T> {
+        let half = T::from_f64(0.5);
+        let (lo, hi) = (self.window.lo, self.window.hi);
+        let reach = ((hi - lo) * half).abs().min(T::pi());
+        let chord = T::from_f64(2.0) * (reach * half).sin();
+        (
+            ellipse.point_at(crate::mid_param(lo, hi)),
+            ellipse.speed_hi() * chord,
+        )
     }
 }
 

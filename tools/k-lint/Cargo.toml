@@ -35,3 +35,10 @@ profile = { path = "../../crates/profile", features = ["probe", "test-support"] 
 # LEAF with zero dependencies of its own, so it adds one path entry and
 # nothing else to this excluded crate's surface.
 test-utils = { path = "../../crates/test-utils" }
+
+# The root `clippy.toml` lists the doors that hand out a conic's centre
+# frame; the workspace arms that list for its production code only
+# (`scripts/gates/conic-centre-reads.sh`), and this root, a consumer
+# outside it, reads them as a caller would.
+[lints.clippy]
+disallowed_methods = "allow"

@@ -303,6 +303,10 @@ pub struct Truth {
 ///
 /// On any other carrier or surface: the oracle reads these kinds only.
 #[allow(clippy::panic)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth {
     let (carrier_frame, (a, b)) = match *carrier {
         geom::Curve3::Circle(circle) => (circle.frame(), (circle.radius(), circle.radius())),

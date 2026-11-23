@@ -50,6 +50,7 @@
 //! in this crate (G4's ratified micro-decision in GUI-DESIGN, and
 //! `mesh`'s own δ-is-not-ε contract).
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 /// **A refusal as the viewer shows it**: ended at rest
 /// (`pncad::geom_brep::recourse::Ended`). The viewer draws and measures
 /// a body it holds, so the one reading a nested ending takes here is

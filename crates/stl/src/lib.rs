@@ -70,6 +70,7 @@
 //! consumers wanting fine δ should budget accordingly — the mesh's
 //! `ResolutionOverflow` cap bounds allocation, not wall-clock.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 mod ascii;
 mod binary;
 pub mod options;

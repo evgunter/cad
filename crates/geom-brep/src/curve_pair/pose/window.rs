@@ -204,8 +204,12 @@ impl<T: Decide> Window<'_, T> {
     /// `a`'s height above `b`'s plane and its first three derivatives at
     /// `θ`, read locally as the level is ([`Level`]): on a conic
     /// `P″ = −(P − c)` and `P‴ = −P′`.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn height_jet(&self, theta: T) -> [T; 4] {
-        let (n, centre) = (self.b.frame().axis(), self.b.frame().origin());
+        let (n, centre) = (self.b.axis(), self.b.frame().origin());
         let (p, dp) = self.a.jet_at(theta);
         let slope = dp.dot(n);
         let bend = (self.a.frame().origin() - p).dot(n);
@@ -695,7 +699,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let j = Joint {
             point: a.eval(joint),
@@ -839,7 +843,7 @@ mod rows {
             span_a: (0.0, FRAC_PI_2),
             b: &kb,
             span_b: &span_b,
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let level = super::super::level_on(&ka, &kb);
         let piece = (2.5e-5, 5e-5);
@@ -986,7 +990,7 @@ mod rows {
                     &b,
                     (-core::f64::consts::PI, core::f64::consts::PI),
                 ),
-                height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+                height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
             };
             let level = super::super::level_on(&ka, &kb);
             let past_zero = window
@@ -1033,7 +1037,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
             let joint = Joint {
@@ -1186,7 +1190,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let j = Joint {
             point: a.eval(0.0),
@@ -1248,7 +1252,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
         let along = w.along_b(5e-6, 5e-6, &foot);
@@ -1307,7 +1311,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let mut l = 400.0_f64;
         for _ in 0..64 {

@@ -748,6 +748,10 @@ fn reach_as<T: Decide>(
 
 /// The sense in which a circle edge's PARAMETER runs about the rim's
 /// axis: `Positive` with it, `Negative` against.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn curve_sense<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     locus: Locus<T>,
@@ -788,6 +792,10 @@ fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool
 /// kind, whose crossings this read does not solve. Candidates are
 /// solved in closed form, then kept where they decide on the locus and
 /// strictly inside the edge.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn crossings<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     locus: Locus<T>,
@@ -875,7 +883,7 @@ fn crossings<T: Decide>(
             Ok(Some(kept))
         }
         (geom::Curve3::Circle(arc), _) => {
-            let (center, axis) = (arc.frame().origin(), arc.frame().axis());
+            let (center, axis) = (arc.frame().origin(), arc.axis());
             let radius = arc.radius();
             let (ce, ae, re) = (center, axis, radius);
             let e1 = {
@@ -957,6 +965,10 @@ fn crossings<T: Decide>(
 
 /// Whether a boundary curve rides `locus`: a circle decided the rim's
 /// own, or a line segment whose two ends lie on the locus line.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn rides<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     locus: Locus<T>,
@@ -964,11 +976,7 @@ fn rides<T: Decide>(
 ) -> Result<bool, Indeterminate> {
     match (locus, curve.carrier()) {
         (Locus::Rim(rim), geom::Curve3::Circle(circle)) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             same_circle(
                 Rim {
@@ -1031,16 +1039,17 @@ pub(crate) fn face_boundary_arcs<T: Real>(
 }
 
 /// The circle carriers of a face's boundary edges.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| match *c.carrier() {
             geom::Curve3::Circle(circle) => {
-                let (center, axis, u_ref) = (
-                    circle.frame().origin(),
-                    circle.frame().axis(),
-                    circle.frame().u_ref(),
-                );
+                let (center, axis, u_ref) =
+                    (circle.frame().origin(), circle.axis(), circle.u_ref());
                 let radius = circle.radius();
                 Some(Rim {
                     center,

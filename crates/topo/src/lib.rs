@@ -125,6 +125,7 @@
 //! # run().unwrap();
 //! ```
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // A comment on a `mod` declaration below is `//`, never `///`: an outer
 // doc comment merges into the module's own `//!` docs and makes rustdoc
 // resolve their intra-doc links in this file's scope instead of theirs.

@@ -26,6 +26,7 @@
 //! that line are ordinary Rust that the default workspace build
 //! compiles and tests.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // One check finding's evidence as Python reads its attributes off
 // it: exhaustive over the kernel enum, Python-independent so the
 // default build compiles the drift alarm and can construct the arms

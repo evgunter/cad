@@ -107,6 +107,10 @@ fn chord_direction<T: Real>(body: &Body<T>, l: LoopKey, points: &[Point3<T>]) ->
 /// The principal direction (`u_ref`) of the section conic the cycle at
 /// `first` is, when that cycle is one edge on a section conic that is no
 /// placeholder ([`crate::chord_join::lone_site_placeholder`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn whole_conic_principal<T: Real>(
     body: &Body<T>,
     first: crate::entity::HalfEdgeKey,
@@ -390,6 +394,10 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
 
 /// The conic's whole carrier lies definitely on one side of the line
 /// through `p`, `q` (both in the conic's plane).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn line_clears_conic<T: Decide>(
     p: Point3<T>,
     q: Point3<T>,
@@ -402,7 +410,7 @@ fn line_clears_conic<T: Decide>(
     {
         return false;
     }
-    let m = c.frame().axis().cross(along.normalize());
+    let m = c.axis().cross(along.normalize());
     let (p_m, q_m) = c.along(m);
     let reach = (p_m.powi(2) + q_m.powi(2)).sqrt();
     positive(
@@ -426,6 +434,10 @@ fn line_clears_conic<T: Decide>(
 /// spans in metres. `σ` is padded up by a few ulps so the bound stays an
 /// upper bound under rounding; the triangle inequality in `|c′| ± σ`
 /// is the one remaining slack (exact for concentric conics).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::Band) -> bool {
     let lever = e.speed_lo();
     if !positive("split_nest_conic_conic", lever, band) {

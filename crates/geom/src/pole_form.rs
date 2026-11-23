@@ -44,6 +44,10 @@ pub fn half_turn<T: Real>(w: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 /// turn, for a caller that normalizes what it mints (signed zeros, for
 /// one). Only a line or a circle has a pole-form twin; anything else
 /// answers `None`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn half_turn_curve<T: Real>(
     carrier: &Curve3<T>,
     axis: crate::Line<T>,
@@ -57,9 +61,9 @@ pub fn half_turn_curve<T: Real>(
         Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(place(o), turn(dir))),
         Curve3::Circle(c) => Some(Curve3::circle(
             place(c.frame().origin()),
-            turn(c.frame().axis()),
+            turn(c.axis()),
             c.radius(),
-            turn(c.frame().u_ref()),
+            turn(c.u_ref()),
         )),
         _ => None,
     }

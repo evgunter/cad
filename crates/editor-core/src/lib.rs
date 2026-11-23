@@ -16,6 +16,7 @@
 //! parameter, never a re-model); [`ProfileDoc`] is the canonical
 //! instantiation at the profile crate's public description type.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod analysis;
 pub mod appearance;
 pub mod checks;

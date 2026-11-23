@@ -154,6 +154,7 @@
 //! `geom_core::k_stats::decide` (M2 PR 7) — a `Probe`-lane run records
 //! every decision under its predicate name.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod extrude;
 pub mod loft;
 pub mod revolve;
