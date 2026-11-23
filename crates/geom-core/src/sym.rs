@@ -4735,7 +4735,8 @@ pub struct Sym<T> {
     /// not make the number its expression's evaluation: [`Sym::param`]
     /// binds one symbol at whatever value each call is handed (two calls
     /// at two values are one symbol at two numbers), and an opaque minted
-    /// before a session can share a node with one the session mints.
+    /// before a session can share a node with one the session mints
+    /// (`work/sym/an-opaque-minted-before-a-session-shares-a-name-with-the-sessions-first.md`).
     /// The enclosure check on a proven zero (`discharge_checked`) stands
     /// on the number being the expression's wherever neither happens.
     value: T,
