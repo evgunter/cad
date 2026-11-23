@@ -1,0 +1,78 @@
+//! SCRATCH reproduction (never committed): `curve_pair::meet` answers
+//! "no meeting" for a line through a point of an arc-held ellipse.
+use geom::{Conic, Curve3, Ellipse};
+use geom_brep::curve_pair::{Span, meet};
+use geom_core::{Band, Point3, Tol, Vec3};
+
+fn ellipse(a: f64) -> Ellipse<f64> {
+    // The stored numbers `plane_cone_section` mints for a cone of
+    // half-angle 1.3 (the probe's ladder), semi-axes a and 0.3 a.
+    Ellipse::anchored(
+        Point3::new(1.3, -0.7, 0.4),
+        Vec3::new(0.5522240050794545, 0.3110026418424273, 0.7735153553621528),
+        Vec3::new(0.6816514125372342, -0.702621773621506, -0.20414209516648582),
+        a,
+        0.3 * a,
+    )
+}
+
+#[test]
+fn a_line_through_a_point_of_an_arc_held_ellipse_meets_it() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut report = Vec::new();
+    for a in [1e4, 1e5, 1e6, 1e7, 1e8, 1e9] {
+        let e = ellipse(a);
+        let theta = 0.3 / (0.3 * a); // 0.3 m of arc from the anchor
+        let p = e.point_at(theta);
+        let tan = e.derivative_at(theta).normalize();
+        // In the ellipse's plane, square to the arc.
+        let d = e.frame().axis().cross(tan).normalize();
+        let line = Curve3::line(p - d * 2.0, d);
+        let carrier = Curve3::Ellipse(e);
+        let half = 10.0 / (0.3 * a);
+        let got = meet(
+            &Span::new(&line, (0.0, 4.0)),
+            &Span::new(&carrier, (theta - half, theta + half)),
+            band,
+        );
+        report.push(format!(
+            "a={a:e} eps={:e}: {}",
+            band.zero(),
+            match &got {
+                Ok(m) => format!("Ok, {} meeting(s)", m.points.len()),
+                Err(r) => format!("refused: {:?}", r.fault),
+            }
+        ));
+    }
+    println!("{}", report.join("\n"));
+    assert!(
+        report.iter().all(|l| !l.contains("Ok, 0")),
+        "a certified miss of a line through a point of the arc:\n{}",
+        report.join("\n")
+    );
+}
+
+#[test]
+fn sweep2_cheap_suspects() {
+    use geom_brep::curve_face::plane_crossing::plane_crossing_lane;
+    let band = Band::linear(Tol::witness()).unwrap();
+    let eps = band.zero();
+    for a in [1e4, 1e5, 1e6, 1e7, 1e8, 1e9] {
+        let e = ellipse(a);
+        let theta = 0.3 / (0.3 * a);
+        let p = e.point_at(theta);
+        let n = e.frame().axis();
+        let carrier = Curve3::Ellipse(e);
+        let mut row = format!("SW a={a:e} eps={eps:e}:");
+        // a point half the band's gap off the arc, along the plane normal: neither On nor Off is decidable
+        for (name, delta) in [("on-arc", 0.0), ("0.5eps", 0.5 * eps), ("5eps", 5.0 * eps), ("30eps", 30.0 * eps)] {
+            let got = carrier.on_carrier(p + n * delta, theta, band);
+            row += &format!(" on_carrier[{name}]={}", match got { Ok(geom::OnCarrier::On { .. }) => "On", Ok(geom::OnCarrier::Off) => "Off", Err(_) => "refused" });
+        }
+        // the ellipse's own plane, stated through its stored point
+        let half = 10.0 / (0.3 * a);
+        let lane = plane_crossing_lane(&carrier, theta - half, theta + half, e.point_at(0.0), n, band);
+        row += &format!(" own-plane={}", format!("{lane:?}").chars().take(40).collect::<String>());
+        println!("{row}");
+    }
+}
