@@ -367,12 +367,12 @@ mod mint;
 mod site;
 mod tier3;
 
+pub(crate) use complete::complete_pcurves;
 pub use decision::*;
 pub use lift::*;
 pub use mint::*;
 pub use site::*;
 pub use tier3::*;
-pub(crate) use complete::complete_pcurves;
 
 #[path = "pcurves_rings.rs"]
 mod rings;

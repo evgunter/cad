@@ -591,8 +591,7 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     /// decisions off the log as the leaf's rule says
     /// ([`Self::MOVE_LOGS_ITS_ASK`]).
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
-        T::leaf(moved_body(self, iso).map_err(MoveError::Map)?, tol)
-            .map_err(MoveError::NotFinished)
+        T::leaf(moved_body(self, iso).map_err(MoveError::Map)?, tol).map_err(MoveError::NotFinished)
     }
 }
 

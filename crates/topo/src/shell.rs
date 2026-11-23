@@ -3754,7 +3754,6 @@ mod cavity_torus_endings {
     }
 }
 
-
 /// The half-edges of `r#loop` in cycle order. Every loop the seamed
 /// band reads bounds a face of a finished wall or is a ring the glue
 /// just made of one, so it is a cycle.

@@ -453,12 +453,16 @@ impl<T: Decide> Body<T> {
         // moves either drops them; one that restates both keeps them.
         for (edge, _, curve) in &written.rows {
             let e = proven(&self.edges, *edge, EntityId::Edge);
-            let kept = self.edge_curve_linked(*edge, e).certified().is_some_and(|old| {
-                let ((a0, a1), (b0, b1)) = (old.params(), curve.params());
-                old.carrier().same_content_by(curve.carrier(), T::same_value)
-                    && T::same_value(a0, b0)
-                    && T::same_value(a1, b1)
-            });
+            let kept = self
+                .edge_curve_linked(*edge, e)
+                .certified()
+                .is_some_and(|old| {
+                    let ((a0, a1), (b0, b1)) = (old.params(), curve.params());
+                    old.carrier()
+                        .same_content_by(curve.carrier(), T::same_value)
+                        && T::same_value(a0, b0)
+                        && T::same_value(a1, b1)
+                });
             if !kept {
                 dropped.extend([e.he_plus, e.he_minus]);
             }

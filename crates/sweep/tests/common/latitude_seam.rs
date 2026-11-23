@@ -344,8 +344,8 @@ pub fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
         .expect("the door takes it");
     // The finish completes the rows the door left for it, as the shell
     // completes its cavity before it is grafted.
-    let cavity = topo::finish(cavity, Tol::witness())
-        .unwrap_or_else(|e| panic!("cavity tier 3: {e:?}"));
+    let cavity =
+        topo::finish(cavity, Tol::witness()).unwrap_or_else(|e| panic!("cavity tier 3: {e:?}"));
     topo::FinishedBody::into_body(cavity)
 }
 

@@ -850,28 +850,22 @@ pub mod test_support {
         body.finished(what, tol)
     }
 
-    /// **Tier 3 over `body` with its rows completed**, as the finish asks
-    /// it ([`crate::AtRestPolicy::finish`]): a construction door leaves
-    /// each row current or absent, and [`crate::validate_geometric`], a
-    /// pure check, reads an absent one as missing. Its findings as that
-    /// check spells them, completion's among them.
+    /// **`body`'s finish, its findings as [`crate::validate_geometric`]
+    /// spells them**: a construction door leaves each row current or
+    /// absent, and that check, a pure one, reads an absent one as
+    /// missing, where the finish ([`crate::AtRestPolicy::finish`])
+    /// completes it first.
     ///
     /// # Errors
     ///
-    /// Tiers 1 and 2's findings, completion's, or tier 3's.
-    pub fn validate_completed<T>(
+    /// The finish's findings.
+    pub fn validate_completed<T: crate::AtRestPolicy>(
         body: &Body<T>,
         tol: geom_core::Tol,
-    ) -> Result<(), Vec<crate::ValidationError>>
-    where
-        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
-    {
-        let mut completed =
-            crate::finish::complete(body.clone(), tol).map_err(|e| e.as_slice().to_vec())?;
-        let refused = completed.take_refused();
-        let body = completed.into_body();
-        let verdict = crate::validate_geometric(&body, tol).map_err(crate::NotFinished::new);
-        crate::finish::with_refusals(verdict, refused).map_err(|e| e.as_slice().to_vec())
+    ) -> Result<(), Vec<crate::ValidationError>> {
+        crate::finish(body.clone(), tol)
+            .map(drop)
+            .map_err(|e| e.as_slice().to_vec())
     }
 
     /// **`body` with its rows completed**, the finish's first act
@@ -1636,8 +1630,7 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 pub use finish::finishes_on_this_thread;
 pub use finish::{
     Completed, FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay,
-    finish,
-    session_box_at, take,
+    finish, session_box_at, take,
 };
 pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;

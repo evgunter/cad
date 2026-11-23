@@ -175,8 +175,8 @@ pub fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
         Tol::witness(),
     )
     .expect("the vessel's corners solve");
-    let cavity = topo::test_support::completed(cavity, Tol::witness())
-        .expect("the cavity's rims mint");
+    let cavity =
+        topo::test_support::completed(cavity, Tol::witness()).expect("the cavity's rims mint");
     (quarter, cavity)
 }
 

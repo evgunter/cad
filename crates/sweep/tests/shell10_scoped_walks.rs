@@ -120,7 +120,11 @@ fn the_axial_door_leaves_the_other_solids_rows_as_it_found_them() {
     assert_eq!(rows_of(&after, bx), box_rows, "its rows, bit for bit");
     assert_eq!(deep_dump(&after, bx), box_deep, "and the solid itself");
     let completed = topo::test_support::completed(after, tol()).expect("the rows complete");
-    assert_eq!(rows_of(&completed, bx), box_rows, "completion keeps the box's rows");
+    assert_eq!(
+        rows_of(&completed, bx),
+        box_rows,
+        "completion keeps the box's rows"
+    );
     assert!(
         !rows_of(&completed, ves).is_empty(),
         "completion derives the vessel's"

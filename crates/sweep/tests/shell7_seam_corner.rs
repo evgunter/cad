@@ -304,7 +304,11 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
             e_at = e.render(geom_brep::recourse::Reading::Build)
         )
     });
-    assert_eq!(topo::test_support::validate_completed(&moved, tol()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::test_support::validate_completed(&moved, tol()),
+        Ok(()),
+        "tier 3"
+    );
     // The door ends with the join: the image stands between the two
     // half-seams on one generator of the moved wall, so the join takes
     // it, and the seam is whole again on the moved wall.

@@ -2921,12 +2921,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         .into_iter()
         .chain(join)
         .chain(finish)
-        .chain([
-            (
-                "Pieces".to_owned(),
-                SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
-            ),
-        ])
+        .chain([(
+            "Pieces".to_owned(),
+            SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
+        )])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))
         .chain(boolean_join)
         .collect()

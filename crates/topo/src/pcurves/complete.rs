@@ -35,8 +35,8 @@ use geom_core::predicate::Band;
 
 use super::{
     DescribedChart, PcurveMintError, SiteImage, WalkFail, WalkItem, Walked, certify_walked,
-    derive_face, derive_image, entry_vertex, first_owed, half_edge_carrier, is_plus,
-    joint_refusal, not_owed, stored_edge, stored_reach, stored_rows, walk_cycle,
+    derive_face, derive_image, entry_vertex, first_owed, half_edge_carrier, is_plus, joint_refusal,
+    not_owed, stored_edge, stored_reach, stored_rows, walk_cycle,
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey};

@@ -140,7 +140,8 @@ fn a_rim_in_the_caps_chart_is_restated_as_the_section_with_the_minted_wall() {
         "the hand-stated image is a conventional form on a corner"
     );
     let minted = offset_the_wall(&mut body, wall);
-    topo::test_support::validate_completed(&body, Tol::witness()).expect("the offset drum is tier-3 valid");
+    topo::test_support::validate_completed(&body, Tol::witness())
+        .expect("the offset drum is tier-3 valid");
     let description = description_of(&body, rim).description();
     assert!(
         matches!(
@@ -168,7 +169,8 @@ fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
             angle: std::f64::consts::PI,
         })));
     let minted = offset_the_wall(&mut body, wall);
-    topo::test_support::validate_completed(&body, Tol::witness()).expect("the offset drum is tier-3 valid");
+    topo::test_support::validate_completed(&body, Tol::witness())
+        .expect("the offset drum is tier-3 valid");
     let curve = description_of(&body, rim);
     assert!(
         matches!(
