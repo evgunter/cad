@@ -764,12 +764,12 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
 }
 
 fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
-    definite(row, Margin::of(x), band)
+    definite_as(row, Margin::of(x), band)
 }
 
 /// A margin's definite sign at `row`, or `None` where it is zero, in
 /// band or does not certify.
-fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
+fn definite_as(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
     match decide(row, margin, band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => None,
@@ -779,7 +779,7 @@ fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<S
 /// The definite sign of a sine levered at `arm`, decided at the
 /// departure's site, or `None`.
 fn levered_sign(sine: Interval, arm: Lever<Interval>, band: Band) -> Option<Sign> {
-    definite(
+    definite_as(
         SELF_INTERSECTION_DEPARTURE,
         Margin::levered(sine, arm),
         band,
@@ -2840,8 +2840,8 @@ fn on_sphere(carrier: &Curve3<Interval>, centre: Point3<Interval>, radius: Inter
         return false;
     };
     let r2 = radius.powi(2);
-    let off = c.frame.origin() - centre;
-    let on_axis = off.cross(c.frame.axis());
+    let off = c.frame().origin() - centre;
+    let on_axis = off.cross(c.frame().axis());
     let rest = off.dot(off) + c.radius().powi(2) - r2;
     let small = |x: Interval, tol: f64| x.is_certified() && x.lo() >= -tol && x.hi() <= tol;
     let (length, area) = (few_ulps(radius.hi()), few_ulps(r2.hi()));
@@ -3047,10 +3047,10 @@ fn pose_circles(
         }
         match out
             .iter_mut()
-            .find(|(_, a, _)| one_line(*a, c.frame.axis()))
+            .find(|(_, a, _)| one_line(*a, c.frame().axis()))
         {
             Some((es, ..)) => es.push(i),
-            None => out.push((vec![i], c.frame.axis(), c.frame.u_ref())),
+            None => out.push((vec![i], c.frame().axis(), c.frame().u_ref())),
         }
     }
     out
@@ -3906,30 +3906,20 @@ impl Curved {
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_25,
-                ..
-            },
-        ) => {
+        Curve3::Circle(circle) => {
             let (center, axis, u_ref) = (
-                carrier_frame_25.origin(),
-                carrier_frame_25.axis(),
-                carrier_frame_25.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             (center, axis, radius, radius, u_ref)
         }
-        Curve3::Ellipse(
-            ellipse @ geom::Ellipse {
-                frame: carrier_frame_24,
-                ..
-            },
-        ) => {
+        Curve3::Ellipse(ellipse) => {
             let (center, axis, u_ref) = (
-                carrier_frame_24.origin(),
-                carrier_frame_24.axis(),
-                carrier_frame_24.u_ref(),
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, semi_u, semi_v, u_ref)
@@ -5077,11 +5067,11 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
     };
     match (ce, co) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
-            plane(&a.frame, &b.frame) && one_value(a.radius(), b.radius(), false)
+            plane(&a.frame(), &b.frame()) && one_value(a.radius(), b.radius(), false)
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
-            plane(&a.frame, &b.frame)
-                && one_line(a.frame.u_ref(), b.frame.u_ref())
+            plane(&a.frame(), &b.frame())
+                && one_line(a.frame().u_ref(), b.frame().u_ref())
                 && one_value(a.semi_u(), b.semi_u(), false)
                 && one_value(a.semi_v(), b.semi_v(), false)
         }
@@ -5089,19 +5079,27 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
     }
 }
 
-/// [`one_conic`] on two carriers as a point-scalar body stores them:
-/// frames that place one plane ([`one_stated_plane`]), and the same
-/// radius, or the same semi-axes (`u_ref` equal or opposed follows from
-/// the frames).
+/// [`one_conic`] on two carriers as a point-scalar body stores them: two
+/// circles whose stored frames place one plane ([`one_stated_plane`]) and
+/// whose radii are one; two ellipses stated alike
+/// ([`Curve3::same_content`]: one placement, held at one point and phase,
+/// one pair of semi-axes) with one `v` beside, which that comparison does
+/// not read. An ellipse held on its arc derives its centre from its
+/// anchor, rounded, so two of them may round to one centre from two
+/// anchors whose true centres differ: their frames, read at the centre,
+/// are no stored fact, and only their stored content is.
 fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
     match (e, o) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
-            one_stated_plane(&a.frame, &b.frame) && a.radius() == b.radius()
+            one_stated_plane(&a.frame(), &b.frame()) && a.radius() == b.radius()
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
-            one_stated_plane(&a.frame, &b.frame)
-                && a.semi_u() == b.semi_u()
-                && a.semi_v() == b.semi_v()
+            e.same_content(o)
+                && a.frame()
+                    .motion()
+                    .v()
+                    .get()
+                    .equals_exactly(b.frame().motion().v().get())
         }
         _ => false,
     }
@@ -7182,14 +7180,14 @@ fn sign_on(
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
     let grad_norm = psi.gradient_norm();
-    let sine = |axis: Axis| {
+    let leaving = |axis: Axis| {
         let f = match axis {
             Axis::U => fx,
             Axis::V => fy,
         };
         psi.rate(image, f) / (grad_norm * f.norm())
     };
-    let departs = |s: Side| levered_sign(sine(s.axis()) * at(s.into()), arm?, band);
+    let departs = |s: Side| levered_sign(leaving(s.axis()) * at(s.into()), arm?, band);
     match &p.zero {
         Zero::None => interval_sign_as(
             centred(psi, p, p.x, p.y)?,
@@ -7742,11 +7740,10 @@ fn planes_through(
         run: None,
     };
     let conic = |r: &Rim| match r.arc.as_ref()? {
-        (
-            Curve3::Circle(geom::Circle { frame, .. })
-            | Curve3::Ellipse(geom::Ellipse { frame, .. }),
-            _,
-        ) => Some((frame.origin(), frame.axis())),
+        (conic @ (Curve3::Circle(_) | Curve3::Ellipse(_)), _) => {
+            let frame = conic.frame()?;
+            Some((frame.origin(), frame.axis()))
+        }
         _ => None,
     };
     if !rims.is_empty()
@@ -13063,7 +13060,7 @@ mod presentation_rows {
             l.origin = thin(l.origin);
         }
         if let Some((Curve3::Circle(c), _)) = &mut b.edges[1].arc {
-            *c = geom::Circle::new(c.frame, iv0(r));
+            *c = geom::Circle::new(c.frame(), iv0(r));
         }
         let local = Local {
             edges: vec![0, 1],
@@ -14338,7 +14335,7 @@ mod presentation_rows {
             }
         };
         let lifted_w = |r: &Rim| match r.arc.as_ref() {
-            Some((Curve3::Circle(c), _)) => c.frame.axis(),
+            Some((Curve3::Circle(c), _)) => c.frame().axis(),
             _ => panic!("a circle"),
         };
         let a = rim(frame(o, u, v, w), true);
@@ -14398,6 +14395,64 @@ mod presentation_rows {
                 &rim(frame(o, y, Vec3::new(-1.0, 0.0, 0.0), z), true)
             ),
             "exactly rigid frames with one axis and two u are one circle, by their lifts"
+        );
+    }
+
+    /// **Two stored ellipses are one only where stated alike**
+    /// ([`one_stated_conic`]): an ellipse is one with itself restated;
+    /// two held on their arcs, anchored `2⁻⁶⁰` apart with a semi-axis of
+    /// 100 toward the centre, derive one centre to the bit and one frame
+    /// there, yet are two ellipses (their centres `2⁻⁶⁰` apart), and are
+    /// not one; two stated alike but for `v`, which the stated-content
+    /// comparison does not read, are not one. Red if the frames at the
+    /// derived centre are compared, or `v` is not.
+    #[test]
+    fn two_stored_ellipses_are_one_only_where_stated_alike() {
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let rim = |e: geom::Ellipse<f64>| {
+            let c = Curve3::Ellipse(e);
+            Rim {
+                key: edge(1),
+                arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+                stated: Some(c),
+                ends: [vertex(1), vertex(2)],
+                uses: Vec::new(),
+            }
+        };
+        let near = geom::Ellipse::anchored(Point3::origin(), z, x, 100.0, 1.0);
+        let off = 2f64.powi(-60);
+        let far = geom::Ellipse::anchored(Point3::new(off, 0.0, 0.0), z, x, 100.0, 1.0);
+        assert!(
+            one_stated_plane(&near.frame(), &far.frame()),
+            "one frame at one derived centre: {:?} {:?}",
+            near.frame(),
+            far.frame()
+        );
+        assert!(one_conic(&rim(near), &rim(near)), "restated alike");
+        assert!(
+            !one_conic(&rim(near), &rim(far)),
+            "anchored apart is another ellipse"
+        );
+        let frame = |v: Vec3<f64>| {
+            let map = geom_core::Affine3 {
+                linear: geom_core::Mat3::from_cols(x, v, z),
+                translation: Vec3::new(0.3, -1.1, 2.9),
+            };
+            geom::Frame::of_motion(
+                &geom_core::RigidMotion::check_rigid(&map).expect("rigid within its rounding"),
+            )
+        };
+        let tilted_v = Vec3::new(y.x, y.y, y.z + 1e-17);
+        assert!(
+            !one_conic(
+                &rim(geom::Ellipse::new(frame(y), 2.0, 1.0)),
+                &rim(geom::Ellipse::new(frame(tilted_v), 2.0, 1.0))
+            ),
+            "v a rounding off is another ellipse"
         );
     }
 
@@ -18414,8 +18469,11 @@ mod posed_rows {
     /// not close. Red if the wrap goes unchecked.
     #[test]
     fn a_cap_holding_its_poses_pole_is_granted_no_extent() {
-        for sense in [true, false] {
-            let p = on_sphere([if sense { 1.0 } else { -1.0 }, 0.1, 0.1]);
+        // Each cap with a point of the hemisphere it holds, stated per
+        // case: the cap `x ≥ A` towards `+x`, the larger cap `x ≤ A`
+        // towards `−x`. A fixture's coordinate, no face normal.
+        for (sense, towards) in [(true, 1.0), (false, -1.0)] {
+            let p = on_sphere([towards, 0.1, 0.1]);
             assert_eq!(
                 holding(&x_cap(sense), p),
                 vec![None],
@@ -18680,10 +18738,10 @@ mod posed_rows {
         let c = *c.as_circle().expect("a circle");
         b.edges[1].arc = Some((
             Curve3::circle(
-                c.frame.origin(),
-                c.frame.axis(),
+                c.frame().origin(),
+                c.frame().axis(),
                 c.radius() + iv0(1e-9),
-                c.frame.u_ref(),
+                c.frame().u_ref(),
             ),
             span,
         ));

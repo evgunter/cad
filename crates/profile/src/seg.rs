@@ -28,7 +28,7 @@ use geom_core::{
     Vec2,
 };
 
-use crate::validate::{ArcCheck, RecordedDirection};
+use crate::validate::{ArcCheck, RecordedDirection, SegmentKind};
 use crate::{Segment, SegmentDirections};
 
 /// The left normal: `v` rotated +90° counterclockwise, (−y, x).
@@ -871,24 +871,43 @@ pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
     }
 }
 
-/// **The directions a validated segment records**: the ones its
-/// construction or its table recorded, `recorded`, where they are of the
-/// kind `s` reads as; otherwise decided here, once, from what the
-/// segment holds — a line's chord unit (`s.unit`, under the
-/// `vertex_separation` decision already taken), an arc's centre-to-vertex
-/// units over its rim at each end.
-pub(crate) fn validated_directions<T: Decide>(
+/// **A validated segment's kind, with the directions it records**: the
+/// ones its construction or its table recorded, `recorded`, where they
+/// are of the kind `s` reads as; otherwise decided here, once, from what
+/// the segment holds — a line's chord unit (`s.unit`, under the
+/// `vertex_separation` decision already taken), an arc's
+/// centre-to-vertex units over its rim at each end. An arc that reads
+/// as a line keeps no carrier, and its recorded radials go with it.
+///
+/// An arc recorded with a line's director is no input this sees:
+/// [`check_directions`] refuses a table whose directions are not of its
+/// segment's kind (`RecordedDirection::Kind`) before any segment is
+/// read, and a constructed loop records each segment's own kind.
+pub(crate) fn validated_kind<T: Decide>(
     s: &Seg<T>,
     recorded: Option<SegmentDirections<T>>,
-) -> SegmentDirections<T> {
+) -> SegmentKind<T> {
+    let minted_line = || SegmentKind::Line {
+        director: mint_director(s.chord, s.unit),
+    };
+    let arc = |g: &ArcGeom<T>, radials| SegmentKind::Arc {
+        arc: g.arc,
+        turn: g.turn,
+        radials,
+    };
+    let minted_radials = |g: &ArcGeom<T>| [mint_radial(g.arc, s.a), mint_radial(g.arc, s.b)];
     match (&s.kind, recorded) {
-        (SegKind::Line, Some(d @ SegmentDirections::Line(_)))
-        | (SegKind::Arc(_), Some(d @ SegmentDirections::Arc { .. })) => d,
-        (SegKind::Line, _) => SegmentDirections::Line(mint_director(s.chord, s.unit)),
-        (SegKind::Arc(g), _) => SegmentDirections::Arc {
-            start: mint_radial(g.arc, s.a),
-            end: mint_radial(g.arc, s.b),
-        },
+        (SegKind::Line, Some(SegmentDirections::Line(director))) => SegmentKind::Line { director },
+        (SegKind::Line, None | Some(SegmentDirections::Arc { .. })) => minted_line(),
+        (SegKind::Arc(g), Some(SegmentDirections::Arc { start, end })) => arc(g, [start, end]),
+        (SegKind::Arc(g), None) => arc(g, minted_radials(g)),
+        (SegKind::Arc(g), Some(SegmentDirections::Line(_))) => {
+            debug_assert!(
+                false,
+                "an arc recorded with a line's director is refused upstream"
+            );
+            arc(g, minted_radials(g))
+        }
     }
 }
 
@@ -1810,7 +1829,7 @@ fn touches_only_near_the_shared_end<T: Decide>(host: &Seg<T>, other: &Seg<T>, ba
     matches!(
         decide(
             Gate::CollinearOverlap,
-            Margin::of(along.extent() + along.noise),
+            Margin::of(along.overlap().upper_end()),
             band
         ),
         Ok(Sign::Zero | Sign::Negative)
@@ -1834,7 +1853,7 @@ fn collinear_overlap<T: Decide>(
     let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
     let lower = decide_reported(
         Gate::CollinearOverlap,
-        Margin::of(along.extent() - along.noise),
+        Margin::of(along.overlap().lower_end()),
         band,
     )?;
     if lower.sign == Sign::Positive {
@@ -1842,7 +1861,7 @@ fn collinear_overlap<T: Decide>(
     }
     let upper = decide_reported(
         Gate::CollinearOverlap,
-        Margin::of(along.extent() + along.noise),
+        Margin::of(along.overlap().upper_end()),
         band,
     )?;
     Ok(match (lower.sign, upper.sign) {
