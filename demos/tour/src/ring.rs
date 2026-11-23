@@ -102,11 +102,7 @@ use pncad::prelude::{
     CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
     PI as HALF_TURN, ProfileProgram, RecipeNodeId, apply, evaluate,
 };
-// The prefix data lives with the unit TABLE, one hop away from the
-// prelude — the scene converts its own constants with the same factor
-// the table pairs with `mm`, so the two cannot drift.
 use pncad::profile::{ConstructedLoop, SketchPlane};
-use pncad::quantity::MILLI;
 use pncad::sweep::{CavityOrigin, Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
@@ -115,8 +111,8 @@ use crate::{SceneBody, TourStop, View};
 // **This scene is authored in MILLIMETRES**, and its document says so.
 //
 // The `_MM` constants are what a person designing this ring would
-// write; the canonical metres beside them are derived through the unit
-// table's own factor, so the analytic oracle below (which works in m
+// write; the canonical metres beside them are read through the unit's
+// one door, so the analytic oracle below (which works in m
 // and m³) and the recipe cannot drift apart. The document's literals
 // then REMEMBER `mm`, so the panel opens on `300`, `70`, `50` rather
 // than on `0.3`, `0.07`, `0.05`.
@@ -127,17 +123,23 @@ use crate::{SceneBody, TourStop, View};
 
 /// The ring's mean radius: axis to tube centre.
 const R_MM: f64 = 300.0;
-const R: f64 = R_MM * MILLI;
+fn r() -> f64 {
+    (R_MM * MM).meters()
+}
 /// The tube's outer radius.
 const RO_MM: f64 = 70.0;
-const RO: f64 = RO_MM * MILLI;
+fn ro() -> f64 {
+    (RO_MM * MM).meters()
+}
 /// The tube's bore radius. `RO - RI` is the 20 mm wall.
 const RI_MM: f64 = 50.0;
-const RI: f64 = RI_MM * MILLI;
+fn ri() -> f64 {
+    (RI_MM * MM).meters()
+}
 
 /// One concentric circle of the section, centred on the tube axis.
 fn section(radius: f64, tol: Tol) -> ConstructedLoop<f64> {
-    pncad::profile::circle(p2(R, 0.0), radius, tol)
+    pncad::profile::circle(p2(r(), 0.0), radius, tol)
         .expect("a positive section radius")
         .into()
 }
@@ -241,7 +243,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // anything, and nothing here mentions a cavity.
     let annulus = validated(
         SketchPlane::xy(),
-        vec![section(RO, tol), section(RI, tol)],
+        vec![section(ro(), tol), section(ri(), tol)],
         tol,
     )
     .expect("the annulus validates: a hole strictly inside its outer");
@@ -281,9 +283,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let ring_at_rest = crate::booleans::at_rest(&ring.body, tol);
     let props = pncad::topo::mass_properties(&ring_at_rest, tol, crate::printed())
         .expect("mass properties");
-    let v_solid = 2.0 * PI * PI * R * RO * RO;
-    let v_want = 2.0 * PI * PI * R * (RO * RO - RI * RI);
-    let a_want = 4.0 * PI * PI * R * (RO + RI);
+    let v_solid = 2.0 * PI * PI * r() * ro() * ro();
+    let v_want = 2.0 * PI * PI * r() * (ro() * ro() - ri() * ri());
+    let a_want = 4.0 * PI * PI * r() * (ro() + ri());
     assert!(
         ((props.enclosure.volume - v_want) / v_want).abs() < 1e-12,
         "V = {} vs the closed form {v_want}",
@@ -306,7 +308,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .collect();
     assert_eq!(voids.len(), 1, "one cavity, one Void shell");
     assert_eq!(voids[0].shell, bore, "the Void shell is the named cavity");
-    let v_bore = 2.0 * PI * PI * R * RI * RI;
+    let v_bore = 2.0 * PI * PI * r() * ri() * ri();
     assert!(
         ((voids[0].enclosure.volume + v_bore) / v_bore).abs() < 1e-12,
         "bore volume {} vs the closed form -{v_bore}",

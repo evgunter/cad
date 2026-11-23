@@ -192,7 +192,7 @@ fn bare_placement() -> (ProfileDoc, RecipeNodeId) {
     let (doc, nothing) = insert(
         ProfileDoc::empty_derived("wire_band_cause", Tol::witness()),
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(Vec::new()),
+            members: editor_core::Bodies::spelled(Vec::new()),
         },
     );
     insert(

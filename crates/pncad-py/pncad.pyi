@@ -3648,10 +3648,11 @@ class VarDecl:
         """An INDEX `k = index(count)` (D10 `[repetition]`): a count
         taking each value `0 .. count`, so a placement whose values read
         it is a family of `count` members. `within` names the index this
-        one is declared within (a grid's outer). `declare_var` refuses a
-        count of another dimension or a `within` that is no index
-        (`index`); a reader of two indices neither within the other
-        refuses `indices_unrelated`."""
+        one follows in one binder (a grid's first); an index within none
+        opens a binder of its own. `declare_var` refuses a count of
+        another dimension, a `within` that is no index, or one another
+        index already follows (`index`); one node reading the indices of
+        two binders refuses `two_binders`."""
     @staticmethod
     def source(body: _BodyArg) -> VarDecl:
         """A SOURCE `bracket = B` (VARIABLES VR4): a body variable defined
@@ -4110,6 +4111,21 @@ class DocEdit:
         Refuses typed on a variable the document does not hold
         (`unknown_var`) and on an anonymous one, whose lifecycle is its
         readers' (`delete_anonymous_var`)."""
+    @staticmethod
+    def set_yields(binder: Var | VarName, yields: Sequence[Var | VarName]) -> DocEdit:
+        """Write what a binder yields (D10 `[repetition]`), whole and in
+        order: `binder` is its first index, each of `yields` a variable
+        inside it (a pattern's copy, `Doc.output(row, 0)`) that every
+        reader outside reads as a family. A binder that yields nothing
+        refuses at evaluation (`yields_nothing`).
+
+        Refuses typed (`yields`) an index that opens no binder
+        (`not_a_binder`), a yield that is an index (`yield_is_index`), is
+        listed twice (`yield_twice`), is another binder's
+        (`yield_elsewhere`) or reads none of the binder's indices
+        (`yield_outside`), empty yields (`no_yields`), and one that
+        leaves a reader reading a
+        family at a seat for one body (`slot_var_kind`)."""
     @staticmethod
     def bind_v_degree_param(node: NodeId, name: VarName) -> DocEdit:
         """Bind `node`'s STRUCTURAL v-degree slot to the document
