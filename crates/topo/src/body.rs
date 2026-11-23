@@ -896,11 +896,13 @@ impl<T: Real> Body<T> {
     /// [a foreign half-edge key passes through them](self#key-validity-stale-vs-foreign)
     /// rather than being caught.
     ///
-    /// **`None` is the only refusal this door can make**, so a caller
-    /// whose own refusal names which key went stale — the half-edge's,
-    /// or the loop it points at — keeps its own walk: collapsing it here
-    /// would replace a refusal that identifies an entity with one that
-    /// does not.
+    /// **`None` is the only refusal this door can make**, and a caller
+    /// attaches its own context to it. A caller that needs the loop key
+    /// itself keeps its own walk, and so does one whose refusal differs
+    /// per hop in kind: the stale key named as data (`splitting::join`'s
+    /// `he_face`), or the populations [`Body::solid_of_face`] sets out.
+    /// An internal-breach refusal that names the failed hop only in its
+    /// message text is no reason to.
     #[must_use]
     pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
         self.get_loop(self.get_half_edge(he)?.parent_loop)
@@ -1468,7 +1470,7 @@ impl<T: Real> Body<T> {
     /// state, and a stale key or a broken orbit is not.
     ///
     /// **`None` is the only refusal this door can make**, so a caller
-    /// whose refusal names WHICH hop failed keeps its own walk
+    /// whose refusal differs per hop in kind keeps its own walk
     /// ([`Body::face_of_half_edge`] states the rule).
     #[must_use]
     pub fn edges_of_vertex(&self, vertex: VertexKey) -> Option<Vec<EdgeKey>> {

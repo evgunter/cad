@@ -33,8 +33,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, DocEdit, EvalOptions, NamePat, NamingError, Node, NodeErrorKind, NodeResult,
-    ProfileDoc, RecipeNodeId, SelectRefusal, Selector, evaluate, select_where,
+    CancelToken, EvalOptions, NamePat, NamingError, Node, NodeErrorKind, NodeResult, ProfileDoc,
+    RecipeNodeId, SelectRefusal, Selector, evaluate, select_where,
 };
 use fixture::{desc, insert};
 use geom_core::tolerance::{DEFAULT_K, Tolerance};
@@ -131,26 +131,35 @@ fn child_band_row() {
         failed.kind
     );
 
-    // DOOR 4 — and the authoring door refuses even earlier, the same
-    // way: a profile's path validation builds a band before the
-    // document will accept the node at all.
-    let refused = doc
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(Node::Profile(desc(vec![vec![
-                    (0.0, 0.0),
-                    (1.0, 0.0),
-                    (1.0, 1.0),
-                    (0.0, 1.0),
-                ]]))),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .expect_err("a profile cannot be authored where no band exists");
+    // DOOR 4 — the authoring door reads no tolerance (`[recipe.doors]`),
+    // so a profile is admitted where no band exists, and its evaluation
+    // refuses it carrying the same `BandError`.
+    let (with_profile, profile) = insert(
+        doc.clone(),
+        Node::Profile(desc(vec![vec![
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+        ]])),
+    );
+    let profile_ev = evaluate::<f64>(
+        &with_profile,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let Some(NodeResult::Failed(failed)) = profile_ev.nodes.get(&profile) else {
+        panic!(
+            "the profile must FAIL here: {:?}",
+            profile_ev.nodes.get(&profile)
+        );
+    };
     assert!(
-        format!("{refused:?}").contains(&inner),
-        "the profile door relabelled its band failure: {refused:?}"
+        format!("{:?}", failed.kind).contains(&inner) || failed.kind.to_string().contains(&inner),
+        "the profile's evaluation relabelled its band failure: {:?}",
+        failed.kind
     );
 
     // WHICH IS WHY the names doors' own band arms are NOT reachable

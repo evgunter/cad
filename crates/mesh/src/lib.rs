@@ -83,21 +83,19 @@
 //! now carries at every site that names `check_mesh` as a backstop.
 //!
 //! **Invariant (ratified via PR #32, and the memo-key contract): per-face
-//! tessellation is a pure function of (face surface, loops — each
-//! edge's carrier, interval, direction and lineage identity
-//! — per-edge chord points and parameters, the stored pcurves, δ, and
-//! the ambient ε and k).** A face whose inputs are unchanged
+//! tessellation is a pure function of the inputs its lane reads.** The
+//! one list of those inputs, per lane, is [`memo`]'s docs (*The key, per
+//! lane*), and [`memo::PatchMemo`]'s key folds exactly that list; this
+//! page does not restate it. A face whose inputs are unchanged
 //! re-tessellates identically and its patch can be reused across
-//! rebuilds. [`fn@tessellate_with`] is that consumer: [`memo::PatchMemo`]
-//! keys each face by the bits its lane reads (stated per lane in
-//! [`memo`]'s docs) and places a stored patch through the same fold the
-//! lane's fresh one takes, so its mesh is byte-identical to
-//! [`fn@tessellate`]'s. The chord points themselves are a pure function of
-//! (edge carrier + interval, endpoint vertex points, each adjacent
-//! face's lattice and the half-edge's image on it, δ) — adjacent faces
-//! enter only through their target and the one chord rule in
-//! [`chords`], which that module states.
-//!
+//! rebuilds. [`fn@tessellate_with`] is that consumer: it keys each face by
+//! those bits and places a stored patch through the same fold the lane's
+//! fresh one takes, so its mesh is byte-identical to [`fn@tessellate`]'s.
+//! A neighbour enters a face's inputs only as that list says: through
+//! the shared chord points, which the one chord rule in [`chords`] sizes
+//! from both faces, and on the trimmed lane as the identity of the face
+//! across each edge, never as the neighbour's own geometry.
+
 //! # Structure kept, structure dropped
 //!
 //! - **Per-face patch separability** (ratified): [`Mesh`] keeps one
@@ -137,12 +135,11 @@
 //!   `PolygonOrientation::of_face` and refuses one wound against its face,
 //!   and reads each triangle against the face's outward normal
 //!   (`geom_brep::implicit_outward_normal`);
-//! - `walk::wrap_strip` places a wrap strip's far side by
-//!   `PolygonOrientation::of_face`, its loop walking one edge both ways and
-//!   so having no order to read;
-//! - the pole-to-pole band's azimuth below reads the loop's area
-//!   vector, which is on the outward side, against the chart's frame
-//!   turned to that side (`geom_brep::OutwardNormal::from_chart`).
+//! - `walk::wrap_strip` and the pole-to-pole band (`walk::band_columns`)
+//!   place their columns by the loop's stored lift
+//!   (`topo::Body::loop_lift`), whose joint at each pole is the turn topo
+//!   read off the bit there: the strip walks one edge both ways and has
+//!   no order to read, and the band has no rim to continue from.
 //!
 //! The walk assigns each iso side's constant coordinate once per ISO
 //! SIDE — not per point, and (since #653) not per edge either, so a
@@ -174,12 +171,15 @@
 //! patch whose walk IDENTIFIES a vertex — a pole corner or a wrap
 //! edge's double traversal, one set rather than two cases
 //! (`curved::identified_ids`, issue 897) — and a second re-derivation
-//! at the end of `tessellate` counts each chord segment's uses across
-//! the whole mesh, which is the CROSS-FACE half no per-patch census
-//! can see. **That makes the WRAP half of the pole-fan argument
-//! mechanical**, on the same footing as the pole half: the two entries
-//! of a wrap edge never share one interior column.
-//! Both censuses are `#[cfg(debug_assertions)]`, which cargo's release
+//! where `tessellate` joins the patches (`tessellate::joined`) counts
+//! the uses of every side between two shared ids across the whole mesh,
+//! which is the CROSS-FACE half no per-patch census can see. **That makes
+//! the WRAP half of the pole-fan argument mechanical**, on the same
+//! footing as the pole half: the two entries of a wrap edge never share
+//! one interior column. A side used past two triangles per chord carrying
+//! it refuses there, typed, in every profile
+//! ([`TessellateError::OverusedSide`]); a chord segment used fewer times,
+//! and the per-patch census, are `#[cfg(debug_assertions)]`, which cargo's release
 //! default would drop — so whether a release build carries more than
 //! the floor is a manifest setting, and the root `Cargo.toml`
 //! currently sets `debug-assertions = true` for `[profile.release]` (a
@@ -192,13 +192,9 @@
 //!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
-//! bands (no rim in the loop) disambiguate their azimuth half via the
-//! loop's 3-D area vector, taken into the chart frame by the face's
-//! `sense` (negated on a reversed face) — see [`walk`]. (That
-//! threading replaced the former "assumes outward-oriented shells"
-//! assumption; the band is
-//! the same face kind whose flux sign `geom_brep::props::curved`
-//! cannot read off any rim, and it takes the same fix.)
+//! bands (no rim in the loop) take their azimuth branches off the loop's
+//! stored lift, whose joint at each pole is the face's turn there — see
+//! [`walk`].
 //!
 //! # Determinism (D9)
 //!
@@ -333,6 +329,7 @@ mod nurbs_cert;
 #[cfg(test)]
 mod nurbs_cert_fuzz;
 mod planar;
+mod region;
 // The sizing vocabulary is this crate's own: nothing in the module is
 // `pub`, and its shared names are `pub(crate)`. The module itself is
 // `mod` rather than `pub mod` so that `dead_code` reports one the crate

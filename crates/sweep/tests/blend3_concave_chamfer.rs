@@ -116,18 +116,24 @@ fn the_chamfered_cavity() {
 /// stored sense bit — read, never sampled.
 fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
     let f = body.get_face(face).expect("a minted face");
-    let Some(Surface::Plane { normal, .. }) = body.face_surface(face) else {
+    let Some(Surface::Plane {
+        frame: carrier_frame,
+        ..
+    }) = body.face_surface(face)
+    else {
         panic!("every face this carve mints is a plane");
     };
-    OutwardNormal::from_chart(*normal, f.sense).vec()
+    let normal = carrier_frame.axis();
+    OutwardNormal::from_chart(normal, f.sense).vec()
 }
 
 /// A point on a face's carrier plane.
 fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
-    let Some(Surface::Plane { origin, .. }) = body.face_surface(face) else {
+    let Some(Surface::Plane { frame, .. }) = body.face_surface(face) else {
         panic!("every face this carve mints is a plane");
     };
-    *origin
+
+    frame.origin()
 }
 
 /// **THE ORIENTATION ROW: every minted face faces the VOID.**
@@ -194,8 +200,8 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
 
 /// **THE DIFFERENTIAL, retired by issue 644's widening: both verbs
 /// now carve this fixture.** This suite once pinned the fillet's
-/// refusal here — `MixedConvexity { convex: 0 }`, the vocabulary's
-/// poor-fit name for the uniform concave trihedron — as the boundary
+/// refusal here — a mixed-convexity tag with no convex edge, the
+/// vocabulary's poor-fit name for the uniform concave trihedron — as the boundary
 /// the chamfer's widening did not move. The convexity-parametric
 /// fillet corner then moved it deliberately: the concave rolling
 /// ball's own carve, census, volume and orientation rows live in the

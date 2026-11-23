@@ -107,7 +107,7 @@ fn cylinder_face(body: &Body<f64>, radius: f64) -> FaceKey {
 fn plane_face(body: &Body<f64>, y: f64) -> FaceKey {
     body.faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-9)
+            matches!(body.face_surface(*fk), Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no planar face at y = {y}"))
@@ -149,7 +149,10 @@ fn circle_radii(body: &Body<f64>) -> Vec<f64> {
                 .and_then(CurveGeom::certified)?
                 .carrier()
             {
-                Curve3::Circle(geom::Circle { radius, .. }) => Some(*radius),
+                Curve3::Circle(circle) => {
+                    let radius = circle.radius();
+                    Some(radius)
+                }
                 _ => None,
             }
         })
@@ -265,9 +268,10 @@ fn a_planar_cap_offsets_at_both_signs() {
             )
         });
 
-        let Some(Surface::Plane { origin, .. }) = body.face_surface(face) else {
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(face) else {
             panic!("the cap is still a plane")
         };
+        let origin = frame.origin();
         assert!(
             (origin.y - (0.6 + d)).abs() < 1e-15,
             "d = {d}: the plane moved along its own normal, got {origin:?}"
@@ -383,14 +387,12 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
         .expect("the cone moves between its untouched cylinders");
     let cone = body.face_surface(face).cloned().expect("the moved cone");
     let geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = cone
     else {
         panic!("the moved face is a cone")
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     let on_cone = |p: geom_core::Point3<f64>| {
         let w = p - apex;
         let h = w.dot(axis);
@@ -412,7 +414,8 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
             .get_curve_geom(body.get_edge(h.edge).expect("a live edge").curve)
             .and_then(topo::CurveGeom::certified)
             .expect("a certified rim");
-        if let geom::Curve3::Circle(geom::Circle { radius, .. }) = *curve.carrier() {
+        if let geom::Curve3::Circle(circle) = *curve.carrier() {
+            let radius = circle.radius();
             assert!(
                 cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
                 "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"

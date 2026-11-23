@@ -131,7 +131,7 @@ struct Minted<T: geom_core::Real> {
     certified: Result<(), PcurveCertifyError>,
 }
 
-fn mint<T: Decide>(
+fn mint<T: geom_core::Certifies>(
     lane: FittedLane<T>,
     carrier: &Curve3<f64>,
     span: (f64, f64),
@@ -210,7 +210,7 @@ fn bends_and_refines<T: Decide>(name: &str, minted: &Minted<T>, chain: usize, ce
     );
 }
 
-fn the_bending_carriers_refine<T: Decide>(lane: FittedLane<T>) {
+fn the_bending_carriers_refine<T: geom_core::Certifies>(lane: FittedLane<T>) {
     // A one-span quadratic's chain at the image's degree: one cubic span.
     bends_and_refines(
         "the ring's spline arc",
@@ -238,7 +238,7 @@ fn the_bending_carriers_refine_at_interval() {
 
 /// A carrier whose chain's image follows it keeps that chain, and
 /// certifies.
-fn straight_feet_keep_their_chain<T: Decide>(lane: FittedLane<T>) {
+fn straight_feet_keep_their_chain<T: geom_core::Certifies>(lane: FittedLane<T>) {
     let line = Curve3::line(Point3::new(0.1, 0.0, 0.2), Vec3::new(0.6, 0.0, 0.8));
     let spline = Curve3::Nurbs(Arc::new(
         NurbsCurve3::new(
@@ -344,7 +344,7 @@ fn uneven_line_at(share: f64) -> f64 {
 /// is within `IMAGE_MISS` of the band. A line on the uneven wall whose
 /// miss is 0.6 of that share keeps its chain, and one at 1.6 of it takes
 /// a knot: halving the share reds the first, doubling it the second.
-fn the_threshold_is_the_images_share<T: Decide>(lane: FittedLane<T>) {
+fn the_threshold_is_the_images_share<T: geom_core::Certifies>(lane: FittedLane<T>) {
     // `IMAGE_MISS`, pinned here as a value: a row that read the constant
     // would move with it.
     let share = 1.0 / 16.0;
@@ -385,7 +385,7 @@ fn the_threshold_is_the_images_share_at_interval() {
 /// norms the excess is `√(0.9² + 0.3²) − 0.9 ≈ 0.05` ε, under the share,
 /// and the image would keep its chain; read as vectors it is the chain's
 /// 0.3 ε, and the image takes a knot.
-fn a_miss_beside_a_standoff_takes_a_knot<T: Decide>(lane: FittedLane<T>) {
+fn a_miss_beside_a_standoff_takes_a_knot<T: geom_core::Certifies>(lane: FittedLane<T>) {
     let l = uneven_line_at(0.3);
     let r = core::f64::consts::FRAC_1_SQRT_2;
     let off = Curve3::line(

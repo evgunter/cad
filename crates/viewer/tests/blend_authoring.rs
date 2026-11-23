@@ -596,7 +596,12 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None);
     assert!(
-        blend(&tools).fillet_op(len(BLEND)).is_none(),
+        matches!(
+            blend(&tools).fillet_op(len(BLEND)),
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
+        ),
         "and a tool holding no edges has no op to commit"
     );
 }
@@ -810,11 +815,21 @@ fn an_empty_set_has_no_op_and_refuses_at_the_insert() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     assert!(
-        blend(&tools).fillet_op(len(BLEND)).is_none(),
+        matches!(
+            blend(&tools).fillet_op(len(BLEND)),
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
+        ),
         "no fillet op"
     );
     assert!(
-        blend(&tools).chamfer_op(len(BLEND)).is_none(),
+        matches!(
+            blend(&tools).chamfer_op(len(BLEND)),
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
+        ),
         "no chamfer op"
     );
 
@@ -1269,7 +1284,15 @@ fn an_emptied_set_releases_its_target() {
     assert!(pick(&mut tools, &session, &one).is_empty());
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None, "an empty set holds no target");
-    assert!(blend(&tools).fillet_op(len(BLEND)).is_none(), "and no op");
+    assert!(
+        matches!(
+            blend(&tools).fillet_op(len(BLEND)),
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
+        ),
+        "and no op"
+    );
     // And the next click starts wherever the user aims it.
     assert!(pick(&mut tools, &session, &other).is_empty());
     assert_eq!(blend(&tools).target(), Some(whole(&session, second)));
@@ -1376,7 +1399,7 @@ fn axis_cylinder(session: &mut DocSession) -> RecipeNodeId {
 /// draws one circle: the index answers the circle for either arc, a
 /// click on it holds both arcs as one pick, a second click drops both,
 /// and the fillet one click commits builds a tier-3 valid body rather
-/// than refusing `UnsupportedCorner { SeamVertex }` at the seam vertex.
+/// than refusing `UnbuiltEnd::Seam` at the seam vertex.
 #[test]
 fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
     use pncad::select::RoleSeg;

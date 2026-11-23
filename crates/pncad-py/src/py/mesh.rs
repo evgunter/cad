@@ -94,6 +94,9 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     let projected = match err {
         T::InvalidChordalTolerance { value } => float(*value).map(|v| fields[1] = ("value", v)),
         T::ResolutionOverflow { count } => float(*count).map(|v| fields[1] = ("value", v)),
+        // The triangles on the side; the faces are keys.
+        #[allow(clippy::cast_precision_loss)]
+        T::OverusedSide { uses, .. } => float(*uses as f64).map(|v| fields[1] = ("value", v)),
         T::StepNotPositive { step, .. } => float(*step).map(|v| fields[1] = ("value", v)),
         T::CertificateExceeded {
             bound, requested, ..
@@ -130,10 +133,10 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         T::UnsupportedCurvedDomain { max_distance, .. } => {
             float(*max_distance).map(|v| fields[1] = ("value", v))
         }
-        // The shape door's refusal is props' own, and its prose names
-        // the structural expectation that failed (`props_rim_level`,
-        // an incidence name); that sentence is the payload a caller can
-        // act on, so it rides as the note. The band arm's payload is
+        // The route's refusal is props' own, and its prose names the
+        // decision or the premise that failed (an escalated predicate, an
+        // incidence name); that sentence is the payload a caller can act
+        // on, so it rides as the note. The band arm's payload is
         // the run's configuration failure, likewise a sentence.
         T::UnsupportedCurvedShape { source, .. } => {
             fields[4] = (
@@ -193,9 +196,12 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         | T::Triangulation { .. }
         | T::SelfTouchingTrimLoop { .. }
         | T::PinchWedge { .. }
+        | T::BoundaryBoundsNoRegion { .. }
         | T::TrimLoopOrientation { .. }
         | T::FoldedTriangle { .. }
-        | T::BoundaryEar { .. } => Ok(()),
+        | T::UnclearedSharedSide { .. }
+        | T::WrapStripTurn { .. }
+        | T::LiftedColumnOff { .. } => Ok(()),
     };
     if let Err(failed) = projected {
         return failed;

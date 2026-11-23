@@ -39,11 +39,10 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol};
 use topo::construction::{Construct, MevSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::BlendError;
 use super::admit::{RequestedBoundary, StationKind};
 use super::arms::{BallSection, EdgeBlend, radial_about};
 use super::battery::{Link, same_supports};
@@ -53,8 +52,9 @@ use super::open::end_face::feet_in_order;
 use super::surgery::{
     ContactCarrier, Described, ExpectedSource, SplitFragments, certified_curve, disagrees,
     halves_of, host_side_half, op, point_of, seam_split_param, split_fragment, stored_piece,
-    unbuilt_chain, unbuilt_geometry, unbuilt_run_out, unresolved, unwalked,
+    unbuilt_chain, unbuilt_end, unbuilt_geometry, unresolved, unwalked,
 };
+use super::{BlendError, UnbuiltEnd};
 
 /// **What a junction is, read once for every admission**: the face its
 /// two links share (the HOST), each link's other support (its MATE,
@@ -122,7 +122,7 @@ pub(super) fn shape<T: Decide>(
     if outward_of(body, host).is_none() {
         return Err(unbuilt_chain(named, JUNCTION_HOST_CURVED));
     }
-    let mate = |l: &Link<T>| if l.face_a == host { l.face_b } else { l.face_a };
+    let mate = |l: &Link<T>| l.across(host);
     let mates = [mate(arriving), mate(leaving)];
     let incident = fan_at(body.edges_of_vertex(vertex))
         .ok_or_else(|| unwalked(EntityId::Vertex(vertex), "a junction's edge orbit"))?;
@@ -304,46 +304,41 @@ pub(super) fn band_chart<T: Decide>(
     Ok(match (&l.blend.surface, at) {
         (
             &Surface::Torus {
-                center,
-                axis,
+                frame: torus_frame,
                 major_radius,
                 minor_radius,
                 ..
             },
             _,
         ) => {
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
             let radial = radial_about(center, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Torus {
-                center,
-                axis,
+                frame: geom::Frame::new(center, axis, -radial),
                 major_radius,
                 minor_radius,
-                u_ref: -radial,
             }
         }
         (
             &Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame,
                 half_angle,
                 ..
             },
             _,
         ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
             let radial = radial_about(apex, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Cone {
-                apex,
-                axis,
+                frame: geom::Frame::new(apex, axis, -radial),
                 half_angle,
-                u_ref: -radial,
             }
         }
         (
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius,
                 ..
             },
@@ -353,12 +348,11 @@ pub(super) fn band_chart<T: Decide>(
                 section: Section::Circle(section),
             }),
         ) => {
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
             let mid = (*host_foot - section.centre) + (*mate_foot - section.centre);
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, -(mid - axis * mid.dot(axis)).normalize()),
                 radius,
-                u_ref: -(mid - axis * mid.dot(axis)).normalize(),
             }
         }
         (s, _) => s.clone(),
@@ -513,11 +507,6 @@ pub(super) fn record<T: Real>(
     rec.dead.vertices.push(vertex);
 }
 
-/// The refusal when a straight link is too short for its two ends.
-pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link ending at a junction or a turn \
-     is shorter than its two ends' feet need, which cross or coincide on its trimline; reduce the \
-     radius or setback";
-
 /// **A straight link's feet in order, on each support, where one of its
 /// ends is a junction, a mixed corner or a turn's foot** (`fillet3_cut_off_feet`,
 /// decided by [`feet_in_order`], as two cut-offs' feet on a shared rim
@@ -537,7 +526,7 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link ending at a juncti
 /// trim's window ends, so it is not read here. Nor is a turn's `Mitre`
 /// station, the trimlines' crossing on the shared face: a link too short
 /// for it lands that foot past its far end, which the cut-off's foot
-/// door refuses (`end_face::FOOT_INSIDE_A_FACE`), and a mitre chord that
+/// door refuses (`UnbuiltEnd::FootInsideAFace`), and a mitre chord that
 /// crosses a far foot on a long link is the strip screen's, which reads
 /// the face first (`blend_band_reach_chain_ends`'s trapezoid row refuses
 /// `FaceClearanceUncertified` there, and would refuse here instead).
@@ -557,7 +546,7 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link ending at a juncti
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] ([`JUNCTION_FEET_CROSS`]);
+/// [`BlendError::UnbuiltEnd`] ([`UnbuiltEnd::FeetCross`] on the link);
 /// [`BlendError::Escalated`] in band.
 pub(super) fn feet_clear<T: Decide + Bounds>(
     body: &Body<T>,
@@ -592,10 +581,7 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
             let d = (at(chord.to)? - at(chord.from)?).normalize();
             let span = (chord.feet[1] - chord.feet[0]).dot(d);
             if !feet_in_order(chord.edge, Margin::of(span), band)? {
-                return Err(unbuilt_run_out(
-                    EntityId::Edge(chord.edge),
-                    JUNCTION_FEET_CROSS,
-                ));
+                return Err(unbuilt_end(UnbuiltEnd::FeetCross { edge: chord.edge }));
             }
         }
     }
@@ -620,33 +606,41 @@ pub(super) fn rim_trim_circles<T: Real>(
     first_is_a: bool,
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: pc, .. },
-        radius: pr,
-    }) = *first_trim
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: carrier_frame,
+            ..
+        },
+    ) = *first_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: sc, .. },
-        radius: sr,
-    }) = *other_trim
+    let pc = carrier_frame.origin();
+    let pr = conic_k.radius();
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: carrier_frame,
+            ..
+        },
+    ) = *other_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let sc = carrier_frame.origin();
+    let sr = conic_k.radius();
     Ok(((pc, pr), (sc, sr)))
 }
 
 /// A rim edge's stored circle carrier, read once.
 pub(super) struct RimCarrier<T: Real> {
-    pub(super) axis: Vec3<T>,
-    pub(super) u_ref: Vec3<T>,
+    /// The stored circle's frame, which the band's arcs carry.
+    pub(super) frame: geom::Frame<T>,
     pub(super) t0: T,
     pub(super) t1: T,
     /// Whether the host-side half is the edge's `he_plus`.
@@ -670,7 +664,7 @@ pub(super) fn rim_carrier<T: Decide>(
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { axis, u_ref, .. },
+        frame: carrier_frame,
         ..
     }) = *c.carrier()
     else {
@@ -682,8 +676,7 @@ pub(super) fn rim_carrier<T: Decide>(
     };
     let (t0, t1) = c.params();
     Ok(RimCarrier {
-        axis,
-        u_ref,
+        frame: carrier_frame,
         t0,
         t1,
         plus_on_host: ed.he_plus == host_half,
@@ -700,7 +693,7 @@ pub(super) fn scaled<T: Real>(
     radius: T,
     forward: bool,
 ) -> (Curve3<T>, T, T) {
-    let circle = Curve3::circle(center, rc.axis, radius, rc.u_ref);
+    let circle = Curve3::Circle(geom::Circle::new(rc.frame.with_origin(center), radius));
     if forward {
         (circle, rc.t0, rc.t1)
     } else {
@@ -802,12 +795,13 @@ mod tests {
     use profile::{SketchPlane, test_support::bulge_loop};
 
     use super::super::BlendError;
+    use super::super::UnbuiltEnd;
     use super::super::admit::{
         AdmittedOpen, Foot, OpenBand, PlannedStation, RequestedBoundary, StationKind,
     };
     use super::super::battery::{BlendRequest, run_battery};
     use super::super::open::planar::{cut_off_plan, junction_plan};
-    use super::{JUNCTION_FEET_CROSS, feet_clear};
+    use super::feet_clear;
 
     /// **[`feet_clear`] reads a straight link's two feet in order.** The
     /// L-plate's run (a line along `y = 0` cut off square at `x = 0`, a
@@ -928,7 +922,7 @@ mod tests {
         assert!(
             matches!(
                 &got,
-                Err(BlendError::UnsupportedRunOut { detail, .. }) if *detail == JUNCTION_FEET_CROSS
+                Err(BlendError::UnbuiltEnd(UnbuiltEnd::FeetCross { .. }))
             ),
             "a junction's foot past the cut-off's refuses, got {got:?}"
         );

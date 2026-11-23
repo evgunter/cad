@@ -488,7 +488,7 @@ fn a_snapshot_holding_a_float_literal_is_unreadable() {
         VarDecl::defined(Formula::mul(named("w"), Formula::ratio(2, 1).unwrap()).unwrap()),
     );
     let h = doc.var_named("h").unwrap();
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     let (header, body) = text.split_once('\n').unwrap();
     let mut body: serde_json::Value = serde_json::from_str(body).unwrap();
     body["snapshot"]["vars"][h.0.to_string()]["def"] = serde_json::json!({
@@ -627,10 +627,9 @@ fn a_bare_number_inside_a_formula_is_exact_or_refused() {
 }
 
 /// `h := w * 0.5±σ`, its number written through `Formula::scalar` with a
-/// distribution, survives save and load: the log replays to the
-/// document, with the same variables and the spread on the minted one.
-/// Breaks if the wire rebuilds a dimensionless quantity as the constant
-/// its value spells (the distribution then has no leaf and is dropped).
+/// distribution, survives save and load: the loaded document has the
+/// same variables and the spread on the minted one. Breaks if the wire
+/// drops the minted variable's distribution.
 #[test]
 fn a_toleranced_number_in_a_definition_survives_save_and_load() {
     let doc = ProfileDoc::empty(
@@ -651,10 +650,9 @@ fn a_toleranced_number_in_a_definition_survives_save_and_load() {
         name: n("h"),
         def: VarDecl::defined(Formula::mul(named("w"), half).unwrap()),
     };
-    let live = step(&snapshot, edit.clone()).doc;
-    let text = save(&snapshot, std::slice::from_ref(&edit), Tol::witness()).unwrap();
+    let live = step(&snapshot, edit).doc;
+    let text = save(&live, Tol::witness()).unwrap();
     let loaded = load(&text, Tol::witness()).unwrap();
-    assert_eq!(loaded.edits, vec![edit]);
     let spreads = |doc: &ProfileDoc| {
         doc.var_ids()
             .into_iter()
@@ -666,8 +664,8 @@ fn a_toleranced_number_in_a_definition_survives_save_and_load() {
             })
             .collect::<Vec<_>>()
     };
-    assert_eq!(loaded.doc.var_ids().len(), live.var_ids().len());
-    assert_eq!(spreads(&loaded.doc), spreads(&live));
+    assert_eq!(loaded.var_ids().len(), live.var_ids().len());
+    assert_eq!(spreads(&loaded), spreads(&live));
     assert!(spreads(&live).contains(&Some(spread)));
 }
 

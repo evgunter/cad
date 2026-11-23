@@ -147,15 +147,23 @@ struct Side {
 }
 
 /// **A cup's faces, carried through a blend of size `0.005`, go with
-/// one of `0.1` and vanish on a clearance flip**, under a fillet and
-/// under a chamfer, on both sides. At `0.005` the band is clear of the
-/// cup; at `0.1` the cup lies wholly inside the band's region and the
-/// carve takes it, at `ΔV = ∓(A·L − π·a²·ℓ)`. Every face of the cup — its
-/// two half-walls and its floor or top — resolved at the blend node
-/// before the edit and resolves `Vanished` after it, its cause a
-/// `Positive → Negative` flip of a clearance verdict.
+/// one of `0.1`, and vanish where the blend's reach parts**, under a
+/// fillet and under a chamfer, on both sides. At `0.005` the band is
+/// clear of the cup; at `0.1` the cup lies wholly inside the band's
+/// region and the carve takes it, at `ΔV = ∓(A·L − π·a²·ℓ)`. Every face
+/// of the cup (its two half-walls and its floor or top) resolved at the
+/// blend node before the edit and resolves `Vanished` after it.
+///
+/// The two runs part before any clearance turns: the surgery's strip
+/// reading (`sweep::blend::surgery::strip_reading`, its depth test
+/// marked) reads the cup's pieces surely within the strip in one run and
+/// not in the other, so the readings that follow differ in kind. That is
+/// a parting at a mark, not a flip
+/// ([`editor_core::resolve::Parting::Mark`]), so no clearance verdict is
+/// named, and the diagnosis names the test and the step at the blend
+/// node.
 #[test]
-fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_verdict() {
+fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_where_the_blends_reach_parts() {
     let (dimpled, sub) = dimpled_block();
     let (bossed, union) = bossed_die();
     let sides = [
@@ -293,6 +301,31 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_ver
                 (dv - want).abs() < 1e-12,
                 "{what} ({verb}): ΔV {dv} vs {want}"
             );
+            let path = |ev: &editor_core::Evaluation<f64>| {
+                let v = ev.value(blend).expect("the blend builds");
+                (v.verdicts.clone(), v.marks.clone())
+            };
+            let ((v1, m1), (v2, m2)) = (path(&ev1), path(&ev2));
+            let turn = editor_core::first_turn(
+                editor_core::resolve::Path {
+                    verdicts: &v1,
+                    marks: &m1,
+                },
+                editor_core::resolve::Path {
+                    verdicts: &v2,
+                    marks: &m2,
+                },
+            );
+            let Some((site, step)) = turn.mark() else {
+                panic!(
+                    "{what} ({verb}): the blend's two runs part at a mark before any choice \
+                     turns, got {turn:?}"
+                );
+            };
+            assert_eq!(
+                site.name, "blend_surgery_strip_depth",
+                "{what} ({verb}): at the strip reading's depth test"
+            );
             for n in &carried {
                 assert!(
                     table(&ev2, blend).lookup(n).is_none(),
@@ -320,16 +353,14 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_ver
                         f.error
                     );
                 };
-                assert!(
-                    matches!(
-                        diagnosis,
-                        editor_core::Diagnosis::PredicateFlip {
-                            predicate: "fillet3_face_clearance" | "fillet3_ring_clearance",
-                            from: geom_core::Sign::Positive,
-                            to: geom_core::Sign::Negative,
-                        }
-                    ),
-                    "{what} ({verb}): the face vanishes on a clearance flip, got {diagnosis:?}"
+                assert_eq!(
+                    diagnosis,
+                    editor_core::Diagnosis::Parted {
+                        node: blend,
+                        site,
+                        step,
+                    },
+                    "{what} ({verb}): the blend's runs part, so the parting is named"
                 );
             }
         }

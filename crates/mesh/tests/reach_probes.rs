@@ -60,10 +60,6 @@ pub(super) enum Got {
     /// `trimmed::tessellate_trimmed`'s read of `topo::Body::face_lift`,
     /// with the door's cause by its name (`RingPlacementError::name`).
     Unread(SurfaceKind, &'static str),
-    /// `UnsupportedCurvedShape { NotIsoRectangle { "props_rim_level" } }`
-    /// from `curved::require_iso_rectangle_face`, its source raised by
-    /// `geom_brep::props`' `require_rims_at_extremes`.
-    NotIsoRectangle(SurfaceKind),
     /// `Triangulation` on a face of this chart.
     Triangulation(SurfaceKind),
     /// `UnresolvedWinding` on a face of this chart, from `tessellate`'s
@@ -163,13 +159,6 @@ pub(super) fn got_enclosing(body: &Body<f64>, solid: &Body<f64>, delta: f64) -> 
             Got::ConicImageOnly(carrier_of(body, edge))
         }
         Err(E::DomainUnread { face, cause }) => Got::Unread(kind_of(body, face), cause.name()),
-        Err(E::UnsupportedCurvedShape {
-            face,
-            source:
-                geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "props_rim_level",
-                },
-        }) => Got::NotIsoRectangle(kind_of(body, face)),
         Err(E::Triangulation { face }) => Got::Triangulation(kind_of(body, face)),
         Err(E::CertificateExceeded { face, .. }) => Got::CertificateExceeded(kind_of(body, face)),
         Err(E::FoldedTriangle { face }) => Got::Folded(kind_of(body, face)),
@@ -291,13 +280,14 @@ fn outward(surface: &geom::Surface<f64>, sense: bool, p: Point3<f64>) -> Option<
     use geom::Surface as S;
     let radial = |w: Vec3<f64>, axis: Vec3<f64>| w - axis * w.dot(axis);
     let n = match *surface {
-        S::Cylinder { origin, axis, .. } => radial(p - origin, axis),
+        S::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            radial(p - origin, axis)
+        }
         S::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let w = p - apex;
             let r = radial(w, axis);
             // Off the axis on either nappe: the chart's `−(radial(u)·cos α
@@ -306,19 +296,21 @@ fn outward(surface: &geom::Surface<f64>, sense: bool, p: Point3<f64>) -> Option<
             let tilt = if w.dot(axis) < 0.0 { -1.0 } else { 1.0 };
             r * (half_angle.cos() / r.norm()) - axis * (tilt * half_angle.sin())
         }
-        S::Sphere { center, .. } => p - center,
+        S::Sphere { frame, .. } => {
+            let center = frame.origin();
+            p - center
+        }
         S::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         }
         | S::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let w = p - center;
             let r = radial(w, axis);
             w - r * (major_radius / r.norm())
@@ -341,18 +333,14 @@ fn distance(surface: &geom::Surface<f64>, p: Point3<f64>) -> Option<f64> {
         (h, (w - axis * h).norm())
     };
     Some(match *surface {
-        S::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (split(p - origin, axis).1 - radius).abs(),
+        S::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (split(p - origin, axis).1 - radius).abs()
+        }
         S::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (h, rho) = split(p - apex, axis);
             let (s, c) = (half_angle.sin(), half_angle.cos());
             // The meridian section is two rays from the apex,
@@ -365,21 +353,23 @@ fn distance(surface: &geom::Surface<f64>, p: Point3<f64>) -> Option<f64> {
                 .into_iter()
                 .fold(f64::INFINITY, f64::min)
         }
-        S::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+        S::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            ((p - center).norm() - radius).abs()
+        }
         S::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | S::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (h, rho) = split(p - center, axis);
             ((rho - major_radius).hypot(h) - minor_radius).abs()
         }
@@ -538,7 +528,7 @@ pub(super) fn klein_elbow(r: f64) -> Body<f64> {
 /// and a torus wall bounded by spirics, whose half-edges store
 /// `Pcurve::Spiric`. The trimmed lane meshes the wall from its chart row
 /// at every δ, and the mesh is the body's ([`geometry`]). Every plane cap
-/// a spiric bounds is the planar lane's (`tessellate::lane_of` sends every
+/// a spiric bounds is the planar lane's (`tessellate::route_of` sends every
 /// plane there).
 #[test]
 fn a_spiric_bounded_torus_wall_meshes_on_the_torus_row() {
@@ -717,9 +707,10 @@ fn nappes(body: &Body<f64>) -> Vec<f64> {
     let points: std::collections::HashMap<_, _> = body.vertex_points().collect();
     body.faces()
         .filter_map(|(fk, face)| {
-            let geom::Surface::Cone { apex, axis, .. } = *body.face_surface(fk)? else {
+            let geom::Surface::Cone { frame, .. } = *body.face_surface(fk)? else {
                 return None;
             };
+            let (apex, axis) = (frame.origin(), frame.axis());
             let topo::LoopBoundary::Cycle { first } = body.get_loop(face.outer)?.boundary else {
                 return None;
             };
@@ -1022,7 +1013,7 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
 /// **A torus wall holding a spiric ring meshes on the torus row.** The
 /// donut `(2, 0.5)` about `y` and the bar through its tube (`sweep`'s
 /// `germ_plane_torus_spiric`, pose B2): the unions and the donut less the
-/// bar keep the ovals as rings of torus faces, which `lane_of` sends to
+/// bar keep the ovals as rings of torus faces, which the route sends to
 /// the trimmed lane, and the lane triangulates each face's outer loop
 /// less its ring. The other three ops put the spirics on an outer loop.
 /// The bar's face `y = 0.25` is the tube's latitude `π/6`, so at
@@ -1195,51 +1186,27 @@ fn a_slab_cut_by_an_ulp_tilted_ball_meshes_its_volume() {
     );
 }
 
-/// **A bar through a pipe's wall**, the three bars of
+/// **A bar through a pipe's wall meshes in every op**, the three bars of
 /// `work/tesslane/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`
 /// and the brick turned 0.3 rad about `x` (`sweep`'s `verbs_germarms`).
-/// The notched walls refuse at the curved lane's shape door
-/// (`require_iso_rectangle_face`, on `props_rim_level`); the holed
-/// walls, rings of rulings and arcs or of ellipse arcs alike, mesh on
-/// the trimmed lane's cylinder arm. ∩ and bar ∖ pipe mesh, the turned
-/// bar's through the trimmed lane's cylinder arm.
+/// The notched walls, an iso domain that is no rectangle, are decided so
+/// at the curved lane's shape door (`props_rim_level`) and routed to the
+/// trimmed lane's cylinder arm; the holed walls, rings of rulings and
+/// arcs or of ellipse arcs alike, go there for their rings. ∩ and
+/// bar ∖ pipe mesh, the turned bar's through the same arm.
 #[test]
-fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
+fn a_notched_or_holed_pipe_wall_meshes() {
     let pipe = finished("the pipe", rod(1.0, -2.0, 4.0), tol());
     let deltas = [5e-3, 1e-3, 2e-4];
-    let notch = Got::NotIsoRectangle(SurfaceKind::Cylinder);
-    let ring = Got::Meshed;
-    let by = |wall: &Got| {
-        [
-            wall.clone(),
-            wall.clone(),
-            Got::Meshed,
-            Got::Meshed,
-            wall.clone(),
-            Got::Meshed,
-        ]
-    };
-    for (what, x, y, z, wall) in [
-        (
-            "the bar through",
-            (-1.1, 1.1),
-            (-0.3, 0.3),
-            (-0.3, 0.3),
-            &notch,
-        ),
-        (
-            "the bar half in",
-            (0.5, 1.1),
-            (-0.3, 0.3),
-            (-0.3, 0.3),
-            &notch,
-        ),
+    let meshed = core::array::from_fn(|_| Got::Meshed);
+    for (what, x, y, z) in [
+        ("the bar through", (-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3)),
+        ("the bar half in", (0.5, 1.1), (-0.3, 0.3), (-0.3, 0.3)),
         (
             "the bar off the axis",
             (-1.1, 1.1),
             (0.15, 0.7),
             (-0.4, 0.1),
-            &ring,
         ),
     ] {
         let bar = finished("the bar", brick::<f64>(x, y, z, tol()), tol());
@@ -1248,7 +1215,7 @@ fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
             &pipe,
             &bar,
             &deltas,
-            &by(wall),
+            &meshed,
         );
     }
     let turned = posed(
@@ -1261,8 +1228,64 @@ fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
         &pipe,
         &turned,
         &deltas,
-        &by(&ring),
+        &meshed,
     );
+}
+
+/// **A sphere face notched by parallels and meridians meshes on the
+/// sphere row.** The `z`-poled ball less a quarter-turn wedge of a box
+/// whose two side planes hold the axis — once from below the south pole
+/// to a parallel, across the chart's seam and beside it, and once from a
+/// parallel past the north pole: the ball's face keeps a re-entrant
+/// corner at the parallel, bounded by rims and meridians alone. The
+/// shape door decides that face is no rectangle (`props_rim_level`), so
+/// it goes to the trimmed lane's sphere arm, and every op meshes at
+/// every δ and is the body's ([`geometry`]). The cone and the torus have
+/// no such row: the boolean refuses a box through either wall
+/// (`CurvedPierceUnsupported`), so no door builds their notch.
+#[test]
+fn a_notched_sphere_face_meshes_on_the_sphere_row() {
+    let ball = finished(
+        "the ball",
+        ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    let band = geom_core::Band::linear(tol()).expect("the probes' band");
+    for (what, z, turn) in [
+        ("from below, across the seam", (-2.0, 0.3), -0.785),
+        ("from below, beside the seam", (-2.0, 0.3), 0.3),
+        ("from above", (0.3, 2.0), 2.0),
+    ] {
+        let wedge = posed(
+            "the wedge",
+            brick((0.0, 3.0), (0.0, 3.0), z, tol()),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn),
+        );
+        let cut = op_of(&ball, &wedge, "A ∖ B");
+        let notched = cut
+            .faces()
+            .filter(|(fk, f)| {
+                let surface = cut.face_surface(*fk).expect("a live face");
+                f.rings.is_empty()
+                    && surface.kind() == SurfaceKind::Sphere
+                    && geom_brep::props::require_iso_rectangle(
+                        surface,
+                        &topo::props::loop_edges(&cut, f.outer).expect("a loop").0,
+                        band,
+                    ) == Err(geom_brep::props::PropsError::NotIsoRectangle {
+                        what: "props_rim_level",
+                    })
+            })
+            .count();
+        assert!(notched > 0, "{what}: the cut keeps a notched sphere face");
+        assert_six(
+            &format!("{what} (A the ball)"),
+            &ball,
+            &wedge,
+            &[5e-3, 1e-3, 2e-4],
+            &core::array::from_fn(|_| Got::Meshed),
+        );
+    }
 }
 
 /// **A needle funnel cut `10⁻⁵` above its apex refuses typed: this row
@@ -1271,7 +1294,7 @@ fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
 /// The funnel of rim radius `0.02` cut by the tilted plane of
 /// [`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`] through
 /// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`
-/// and `3·10⁻⁵` and `BoundaryEar` at `2·10⁻⁴`, the half below meshes, and
+/// and `3·10⁻⁵` and `UnclearedSharedSide` at `2·10⁻⁴`, the half below meshes, and
 /// a cut at `10⁻³` meshes both halves. No mesh is returned where it
 /// refuses. Off the default ε a split that refuses or leaves no half is
 /// printed and skipped, and each cell's answer is printed, not held.
@@ -1281,7 +1304,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [1e-3, 2e-4, 3e-5];
     // The half above the cut at `h = 10⁻⁵`, at each δ.
-    let refused = ["FoldedTriangle", "BoundaryEar", "FoldedTriangle"];
+    let refused = ["FoldedTriangle", "UnclearedSharedSide", "FoldedTriangle"];
     let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     for h in [1e-3, 1e-5] {
         let body = finished(
@@ -1312,7 +1335,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                 let refusal = match mesh::tessellate(half, delta, tol()) {
                     Ok(_) => None,
                     Err(E::FoldedTriangle { .. }) => Some("FoldedTriangle"),
-                    Err(E::BoundaryEar { .. }) => Some("BoundaryEar"),
+                    Err(E::UnclearedSharedSide { .. }) => Some("UnclearedSharedSide"),
                     Err(e) => panic!("{what}, δ = {delta:e}: {e:?}"),
                 };
                 let want = if h > 1e-5 || side != "above" {
@@ -1871,8 +1894,7 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 /// ε `10⁻⁶` and `10⁻¹²` as at the default. Some poses are past what the
 /// boolean builds there, and refuse to: at `10⁻⁶`, the cone at
 /// `s = 0.01` (`Escalated`, on `PierceCurvature`) and `10⁻³`
-/// (`CurvedPierceUnsupported`) and the torus pose (`Escalated`); at
-/// `10⁻¹²`, the cone at `s ≤ 0.03` (`CurvedPierceUnsupported`).
+/// (`CurvedPierceUnsupported`) and the torus pose (`Escalated`).
 #[test]
 fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
     let ringed = |want: [Got; 3]| -> Vec<(&'static str, f64, Got)> {
@@ -1890,15 +1912,11 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
     let unsupported = "CurvedPierceUnsupported";
     for (s, refuses, want) in [
         (0.1, refused_at(&[]), meshed()),
-        (0.03, refused_at(&[(1e-12, unsupported)]), meshed()),
-        (
-            0.01,
-            refused_at(&[(1e-6, "Escalated"), (1e-12, unsupported)]),
-            meshed(),
-        ),
+        (0.03, refused_at(&[]), meshed()),
+        (0.01, refused_at(&[(1e-6, "Escalated")]), meshed()),
         (
             1e-3,
-            refused_at(&[(1e-6, unsupported), (1e-12, unsupported)]),
+            refused_at(&[(1e-6, unsupported)]),
             core::array::from_fn(|_| Got::Unread(SurfaceKind::Cone, "undecided")),
         ),
     ] {
@@ -1972,8 +1990,7 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
 /// edge of four triangles in a mesh `tessellate` returned; the arm's
 /// shared-side cure keeps the cone face off it
 /// ([`a_cone_face_keeps_no_side_its_plane_neighbour_can_make`] holds the
-/// family). The same at ε `10⁻⁶`; at `10⁻¹²` the boolean refuses the
-/// pose (`CurvedPierceUnsupported`).
+/// family). The same at ε `10⁻⁶` and `10⁻¹²`.
 #[test]
 fn a_ringless_cone_face_near_its_apex_meshes_sound() {
     let (a, b) = t1_toward_the_apex(0.03);
@@ -1981,7 +1998,7 @@ fn a_ringless_cone_face_near_its_apex_meshes_sound() {
         "T1's box at s = 0.03",
         &a,
         &b,
-        refused_at(&[(1e-12, "CurvedPierceUnsupported")]),
+        refused_at(&[]),
         &[("A ∩ B", 5e-3, Got::Meshed), ("B ∩ A", 5e-3, Got::Meshed)],
     );
 }
@@ -2029,6 +2046,140 @@ fn a_cone_face_met_on_its_axis_meshes_at_every_delta() {
                     Got::Meshed,
                     "the box's edge on the cone's axis, s = {s}, {op}, δ = {delta:e}"
                 );
+            }
+        }
+    }
+}
+
+/// **A rod's sliver keeps no side its plane neighbours can make.** The
+/// rod `rod(r, 0, 2)` met by `brick((0, 6), (−3, 3), (−0.4, 0.4))` turned
+/// `0.05` about `y` and moved to `(r·(1 − s), 0, 1)`: the intersection's
+/// cylinder face is a strip a lattice cell or two across between two
+/// section-ellipse arcs, and each arc's plane face has no interior point,
+/// so it joins the points of its arc freely. With the cylinder arm
+/// reading the ear alone, each cell here meshed with an edge of four
+/// triangles (`check_mesh`'s `NonManifoldEdge { count: 4 }`), one plane
+/// face and the cylinder face each using one chord of an arc as an
+/// interior edge; the trimmed lane's shared-side cure (`mesh::trimmed`,
+/// `attempt`) keeps the cylinder face off every such side.
+#[test]
+fn a_rod_sliver_keeps_no_side_its_plane_neighbour_can_make() {
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.05);
+    for (r, s, deltas) in [
+        (1.0, 1e-2, &[2e-2, 5e-3][..]),
+        (1.0, 1e-3, &[2e-2, 5e-3][..]),
+        (0.2, 1e-2, &[2e-2, 5e-3, 1e-3][..]),
+    ] {
+        let rod = posed("the rod", rod(r, 0.0, 2.0), Affine3::identity());
+        let slab = posed(
+            "the slab",
+            brick((0.0, 6.0), (-3.0, 3.0), (-0.4, 0.4), tol()),
+            Affine3::translation(Vec3::new(r * (1.0 - s), 0.0, 1.0)) * turn,
+        );
+        let what = format!("the rod of radius {r} met {s:e} inside its wall");
+        match topo::intersect(&rod, &slab, tol())
+            .as_ref()
+            .map(|m| m.body())
+        {
+            Ok(Some(body)) => assert_at_every(&what, &body.body, deltas, &Got::Meshed),
+            // Off the default ε the boolean may not build a sliver.
+            other => {
+                let other = format!("{:?}", other.map(|b| b.is_some()));
+                assert!(
+                    tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+                    "{what}: a body at the default ε, got {other}"
+                );
+                eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
+            }
+        }
+    }
+}
+
+/// **A ball less a half-space a hair under its pole keeps no side its
+/// plane face can make.** The unit ball less `brick((−3, 3), (−3, 3),
+/// (−6, 0))` moved to `z = 1 − 3·10⁻³` and then turned `0.8` about `y`:
+/// the cap's sphere face is a cell or two across under one circle, whose
+/// plane face joins the circle's points freely. With the sphere arm
+/// reading the ear alone it meshed at δ `2·10⁻²` with an edge of four
+/// triangles.
+#[test]
+fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
+    let ball = posed(
+        "the ball",
+        ball_poled_z(1.0, Vec3::zero(), tol()),
+        Affine3::identity(),
+    );
+    let half = posed(
+        "the half-space",
+        brick((-3.0, 3.0), (-3.0, 3.0), (-6.0, 0.0), tol()),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.8)
+            * Affine3::translation(Vec3::new(0.0, 0.0, 1.0 - 3e-3)),
+    );
+    let what = "the ball less a half-space 3e-3 under its pole";
+    match topo::subtract(&ball, &half, tol())
+        .as_ref()
+        .map(|m| m.body())
+    {
+        Ok(Some(body)) => assert_at_every(what, &body.body, &[2e-2], &Got::Meshed),
+        other => {
+            let other = format!("{:?}", other.map(|b| b.is_some()));
+            assert!(
+                tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+                "{what}: a body at the default ε, got {other}"
+            );
+            eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
+        }
+    }
+}
+
+/// **Two crossing rods keep no side a neighbour can make.** A rod
+/// `rod(r, −2, 4)` met by a second `rod(r′, −2, 4)` turned `θ` about `y`:
+/// each cylinder face of the result is bounded by arcs of the two rods'
+/// intersection curve, and the face across each arc joins its points
+/// freely at a coarse δ. With the cylinder arm reading the ear alone each
+/// cell here meshed with an edge of four triangles; the shared-side cure
+/// (`mesh::trimmed`, `attempt`) keeps every face off such a side.
+#[test]
+fn crossing_rods_keep_no_side_a_neighbour_can_make() {
+    for (r, r2, theta, op, deltas) in [
+        (1.0, 0.999, FRAC_PI_2, "A ∖ B", &[0.5, 0.1, 2e-2][..]),
+        (1.0, 0.999, 1.2, "A ∖ B", &[0.5, 0.1, 2e-2][..]),
+        (0.3, 0.3, 0.5, "A ∩ B", &[0.1, 2e-2][..]),
+    ] {
+        let a = posed("a rod", rod(r, -2.0, 4.0), Affine3::identity());
+        let b = posed(
+            "a rod across it",
+            rod(r2, -2.0, 4.0),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), theta),
+        );
+        let what = format!("rods of radius {r} and {r2} crossing at {theta}, {op}");
+        let run = if op == "A ∩ B" {
+            topo::intersect(&a, &b, tol())
+        } else {
+            topo::subtract(&a, &b, tol())
+        };
+        match run.as_ref().map(|m| m.body()) {
+            // The volume a full reading takes off the B-rep costs seconds
+            // on these bodies, so it is read once, at δ 0.1; the other δ
+            // are held to the class's own question, `check_mesh`.
+            Ok(Some(body)) => {
+                let body = &body.body;
+                assert_eq!(got(body, 0.1), Got::Meshed, "{what}, δ = 0.1");
+                for &delta in deltas.iter().filter(|&&d| d != 0.1) {
+                    let mesh = mesh::tessellate(body, delta, tol())
+                        .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: meshes, got {e:?}"));
+                    mesh::validate::check_mesh(&mesh)
+                        .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e:?}"));
+                }
+            }
+            // Off the default ε the boolean may not build the pair.
+            other => {
+                let other = format!("{:?}", other.map(|b| b.is_some()));
+                assert!(
+                    tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+                    "{what}: a body at the default ε, got {other}"
+                );
+                eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
             }
         }
     }

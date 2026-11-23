@@ -205,10 +205,10 @@ impl<T: Decide> Window<'_, T> {
     /// `θ`, read locally as the level is ([`Level`]): on a conic
     /// `P″ = −(P − c)` and `P‴ = −P′`.
     fn height_jet(&self, theta: T) -> [T; 4] {
-        let (n, centre) = (self.b.frame().axis, self.b.frame().origin);
+        let (n, centre) = (self.b.frame().axis(), self.b.frame().origin());
         let (p, dp) = self.a.jet_at(theta);
         let slope = dp.dot(n);
-        let bend = (self.a.frame().origin - p).dot(n);
+        let bend = (self.a.frame().origin() - p).dot(n);
         [(p - centre).dot(n), slope, bend, T::zero() - slope]
     }
 
@@ -327,6 +327,16 @@ impl<T: Decide> Window<'_, T> {
                 }
             }
         }
+        // The on reading is an upper bound on `d`, the distance to `b`'s
+        // carrier, so any point of the carrier serves as its anchor, and
+        // the foot is the whole carrier's, not the span's
+        // ([`Span::foot`]): the window asks whether a point lies within
+        // the zero of `b`'s carrier ("No second meeting" reads its chain
+        // on the carrier), and a point on the carrier past `b`'s span is
+        // one whose foot leaves the span, which the ends, read first, met
+        // or escalated. The span's foot gap is never below the carrier's
+        // distance, so it could only lose on readings, and answers the
+        // span's question, which (i) off and the span walk ask.
         let foot = self.span_b.carrier().foot(q, self.foot_seed(q));
         let gap = foot.gap() + reach;
         let close = (h.hi.powi(2) + d_hi.powi(2)).sqrt();
@@ -685,7 +695,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
         };
         let j = Joint {
             point: a.eval(joint),
@@ -829,7 +839,7 @@ mod rows {
             span_a: (0.0, FRAC_PI_2),
             b: &kb,
             span_b: &span_b,
-            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
         };
         let level = super::super::level_on(&ka, &kb);
         let piece = (2.5e-5, 5e-5);
@@ -976,7 +986,7 @@ mod rows {
                     &b,
                     (-core::f64::consts::PI, core::f64::consts::PI),
                 ),
-                height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+                height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
             };
             let level = super::super::level_on(&ka, &kb);
             let past_zero = window
@@ -1023,7 +1033,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
             let joint = Joint {
@@ -1176,7 +1186,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
         };
         let j = Joint {
             point: a.eval(0.0),
@@ -1238,7 +1248,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
         let along = w.along_b(5e-6, 5e-6, &foot);
@@ -1297,7 +1307,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
         };
         let mut l = 400.0_f64;
         for _ in 0..64 {

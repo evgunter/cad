@@ -32,7 +32,7 @@ fn validated(c: &ClosedLoop<f64>, what: &str) -> ValidatedProfile<f64> {
 /// The predicate an in-band escalation names, or a panic naming what
 /// came instead.
 fn escalated_on(r: Result<ClosedLoop<f64>, PathError<f64>>, what: &str) -> &'static str {
-    match r {
+    match r.map_err(|e| e.refusal().clone()) {
         Err(PathError::Escalated { source, .. }) => source
             .predicate
             .unwrap_or_else(|| panic!("{what}: the escalation names its predicate")),
@@ -270,7 +270,7 @@ fn k() -> f64 {
 
 /// **A run just past the band builds and then escalates a span check.**
 /// Pinned red on
-/// `work/round/a-fillet-run-just-past-the-band-builds-and-then-escalates-a-span.md`:
+/// `work/profile/a-fillet-run-just-past-the-band-builds-and-then-escalates-a-span.md`:
 /// at d = 1.05·Kε the fit decides the run Positive and builds it, and
 /// validation's `arc_span` on the leg and the fillet arc, which meet
 /// across that short run, escalates — bare and after `.tangent()`, at

@@ -307,7 +307,7 @@ fn a_refused_creation_applies_no_label() {
             distance: common::len(0.01),
         },
         SessionOp::AddProfile {
-            loops: vec![common::circle_at([0.0, 0.0], 0.0)],
+            loops: vec![common::unclosed_loop()],
         },
     ];
     for op in refused {
@@ -510,8 +510,8 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     };
     run(
         &mut session,
-        SessionOp::AddDrawnProfile {
-            plane: pick(pncad::prelude::StableName {
+        SessionOp::DrawOnFace {
+            face: pick(pncad::prelude::StableName {
                 kind: pncad::prelude::EntityKind::Face,
                 node: cylinder,
                 path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::Start)],
@@ -572,7 +572,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         &mut session,
         SessionOp::AddMirror {
             body: block.into(),
-            plane: FaceSelection {
+            plane: viewer::session::ToolPlane::Face(FaceSelection {
                 name: pncad::prelude::StableName {
                     kind: pncad::prelude::EntityKind::Face,
                     node: block,
@@ -580,18 +580,44 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
                 },
                 node: block,
                 body: 0,
-            },
+            }),
         },
         "image",
     );
     run(
         &mut session,
-        SessionOp::AddClearance {
-            a: viewer::session::ClearedSeat::Body(block.into()),
-            b: viewer::session::ClearedSeat::Body(block.into()),
-            bounds: pncad::document::ClearanceBounds::AtLeast(len(0.001)),
+        SessionOp::AddAssertion {
+            a: viewer::session::AssertedSeat::Body(block.into()),
+            b: viewer::session::AssertedSeat::Body(block.into()),
+            claim: viewer::session::AssertedClaim::Clearance(
+                pncad::document::ClearanceBounds::AtLeast(len(0.001)),
+            ),
         },
         "gap",
+    );
+    // A value claim writes two nodes, the measure and the assertion, and
+    // the label lands on the assertion.
+    let cap = |end| FaceSelection {
+        name: pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Face,
+            node: block,
+            path: vec![pncad::prelude::RoleSeg::Cap(end)],
+        },
+        node: block,
+        body: 0,
+    };
+    run(
+        &mut session,
+        SessionOp::AddAssertion {
+            a: viewer::session::AssertedSeat::Face(cap(pncad::prelude::CapEnd::Start)),
+            b: viewer::session::AssertedSeat::Face(cap(pncad::prelude::CapEnd::End)),
+            claim: viewer::session::AssertedClaim::Value {
+                measure: pncad::document::MeasureVerb::Gap,
+                relation: pncad::document::AssertionRelation::AtLeast,
+                bound: len(0.001),
+            },
+        },
+        "measured",
     );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(

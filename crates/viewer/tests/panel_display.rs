@@ -245,8 +245,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
 
     // A Scalar names the DIMENSIONLESS row: the empty symbol, factor
     // exactly 1.0. It is a row so that no literal has to decline to
-    // name a notation — and the picker still offers nothing for it,
-    // because a choice between one option is not a choice.
+    // name a notation, and it is the only unit a scalar has.
     let dimensionless =
         rendering_unit(Dimension::Scalar, None, Notation::DEFAULT).expect("the dimensionless row");
     assert_eq!(dimensionless.symbol(), "");
@@ -256,7 +255,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
         Some(""),
         "a scalar literal names it too"
     );
-    assert!(props::unit_options(Dimension::Scalar).is_empty());
+    assert_eq!(props::unit_options(Dimension::Scalar), [dimensionless]);
     // A Count has no unit at all: an instance count is a number, and
     // the table has no row for it.
     assert_eq!(
@@ -281,14 +280,12 @@ fn the_unit_options_are_the_tables_rows_of_that_dimension() {
         .map(|u| u.symbol())
         .collect();
     for row in pncad::quantity::UNITS {
-        // The dimensionless row is the ONE the picker does not offer,
-        // and deliberately: it is the only unit a `Scalar` can be
-        // written in, and a choice between one option is not a choice.
-        // It exists so that a literal can NAME its notation, not so
-        // that a user can pick it.
+        // The dimensionless row is a `Scalar`'s only unit; that a
+        // picker offers nothing for it is the chooser's rule
+        // (`widgets::unit_choices`), not the table's.
         if row.quantity() == pncad::quantity::UnitQuantity::Scalar {
             assert_eq!(row.symbol(), "");
-            assert!(props::unit_options(Dimension::Scalar).is_empty());
+            assert_eq!(props::unit_options(Dimension::Scalar), [row]);
             continue;
         }
         let listed = lengths.contains(&row.symbol()) || angles.contains(&row.symbol());
@@ -956,10 +953,10 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     );
 
     // Each dimension keeps its own tick, and a count keeps whole
-    // numbers: the mistakes `drag_tick`'s branch and the `Count` arm
-    // exist to answer. "Each" is `Dimension::ALL`, so the claim is
-    // about the lattice rather than about the dimensions a list
-    // written here happens to name.
+    // numbers: the mistakes `props::drag_tick`'s per-dimension tick
+    // and its count tick of one exist to answer. "Each" is
+    // `Dimension::ALL`, so the claim is about the lattice rather than
+    // about the dimensions a list written here happens to name.
     let canonical = |dimension| FieldWriting::of(dimension, None, Notation::CANONICAL).tick;
     let ticks: Vec<f64> = Dimension::ALL.iter().map(|dim| canonical(*dim)).collect();
     for (i, tick) in ticks.iter().enumerate() {
@@ -975,8 +972,8 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
 /// **A field's own render, typed back, is not an edit** — the guard,
 /// over the band where it has something to refuse.
 ///
-/// The band is the render's, not the parser's: `readout::number`
-/// spells the shortest text that reads back on the render's own grid,
+/// The band is the render's, not the parser's: `readout::field_number`
+/// spells its number on the told grid,
 /// so a field can be showing a text that names its value only to
 /// within that grid. That text is also what an `egui::DragValue`
 /// commits when focus leaves it, so a field that took its own render
@@ -999,7 +996,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
     for (dimension, canonical) in cases {
         let unit = rendering_unit(dimension, None, Notation::DEFAULT);
         let showing = props::shown_in(unit, canonical);
-        let text = viewer::readout::number(showing);
+        let text = viewer::readout::field_number(showing);
         let read: f64 = text
             .parse()
             .unwrap_or_else(|_| panic!("{showing} renders as {text}, which is not a number"));
@@ -1014,7 +1011,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
         );
         // And a number the user actually moved still is.
         assert!(
-            !props::echoed(&viewer::readout::number(showing * 2.0), &text),
+            !props::echoed(&viewer::readout::field_number(showing * 2.0), &text),
             "{dimension}: a number nobody echoed is an edit"
         );
     }
@@ -1036,7 +1033,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
 #[test]
 fn no_delta_from_the_render_is_small_enough_to_be_an_echo() {
     let showing = 1000.0_f64;
-    let rendered = viewer::readout::number(showing);
+    let rendered = viewer::readout::field_number(showing);
     assert!(
         props::echoed(&rendered, &rendered),
         "the render itself is the echo"
@@ -1451,4 +1448,34 @@ fn a_defined_variable_reading_an_index_reads_per_member() {
             Ok(SlotValue::Continuous(0.002))
         ]
     );
+}
+
+/// **No count names a unit, so every count field steps by one.**
+/// `FieldWriting::of` no longer special-cases a `Count`: its tick is
+/// the count tick through `shown_in(unit, ..)`, which is one only while
+/// `unit` is `None`. That holds because nothing a count row reads a
+/// unit from can carry one — the literal door (which the loader and
+/// the Python bindings both reach) refuses a count in every table row,
+/// a count's lone number remembers none, and a lone ratio is a scalar.
+/// Red if any of those doors comes to let a count name a unit.
+#[cfg(feature = "app")]
+#[test]
+fn no_count_names_a_unit_so_every_count_field_steps_by_one() {
+    use pncad::document::{Dimension, Formula};
+    use viewer::app::FieldWriting;
+    for row in pncad::quantity::UNITS {
+        assert!(
+            Formula::literal_with_unit(1.0, Dimension::Count, row).is_err(),
+            "a count is refused written in {:?}",
+            row.symbol()
+        );
+        assert_eq!(
+            FieldWriting::of(Dimension::Count, None, Notation::DEFAULT.with(row)).tick,
+            1.0,
+            "a count steps by one in every notation"
+        );
+    }
+    let count = Formula::count(3);
+    assert_eq!(count.dim(), Dimension::Count);
+    assert_eq!(count.display_unit(), None, "a lone count names no unit");
 }

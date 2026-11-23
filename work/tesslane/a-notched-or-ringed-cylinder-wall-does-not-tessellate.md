@@ -2,11 +2,12 @@
 id: a-notched-or-ringed-cylinder-wall-does-not-tessellate
 kind: issue
 title: A cylinder wall notched by rulings and an arc, or carrying a hole, builds and measures but does not tessellate
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
-blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers]
+closed: 2026-11-17
+pr: 7041
 ---
 
 
@@ -101,3 +102,9 @@ D-section's window (`sweep`'s `shell_curved_mouth`) and `cone_join_lane`'s
 T1 ops. The notch is what is left, and it is unit 4's
 (`a-curved-face-is-routed-by-its-domain-not-its-carriers`): bars 1 and 2
 still refuse `NotIsoRectangle` at the curved lane's shape door.
+
+## Closed (2026-11-17, PR 7041)
+
+The notch meshes. A face bounded by rims and rulings that is no rectangle is decided `props_rim_level` at the shape door and routed to the chart lane (`tessellate::route_of`), which reads its domain from the body's stored images. Bars 1 and 2 mesh in every op at δ 5·10⁻³, 10⁻³ and 2·10⁻⁴ and pass `reach_probes::geometry` (`reach_probes::a_notched_or_holed_pipe_wall_meshes`); a ball less a quarter-turn wedge, the same shape on a sphere, meshes too (`a_notched_sphere_face_meshes_on_the_sphere_row`). No triangle of no area over the 30 notched bodies at nine δ.
+
+Left, each filed: where a notch's corner sits on the wall's seam, the rectangle face beside it refuses `CertificateExceeded` at every δ, on main as here (`a-seam-cornered-cylinder-notchs-rectangle-neighbour-exceeds-its-certificate`); a notched face sizes with the chart lane's headroom, not at δ (`a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line`).

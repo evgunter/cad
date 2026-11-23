@@ -100,9 +100,9 @@ pub(crate) fn unit_square() -> LoopProgram<Formula> {
 }
 
 /// **The slab**: a square extruded by a depth that is a document
-/// parameter. A depth is a size, so over a box that straddles zero the
-/// extrude refuses below its coincidence zone as definitely as inside
-/// it — a half-line the driver prices `Budget` at the floor
+/// parameter. A depth is signed, so over a box that straddles zero the
+/// extrude builds on both sides and refuses definitely only in its
+/// coincidence zone, which the driver prices `Budget` at the floor
 /// (`work/verdict/coincidence-zone-priced-budget-at-the-floor.md`).
 pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
@@ -800,12 +800,12 @@ fn the_verdict_is_bit_identical_across_repeats_and_schedules() {
     )
     .unwrap();
     // Not a vacuous comparison: hundreds of splits and a full frontier
-    // of leaves, compared row for row. It is NOT a drive with certified
-    // leaves — at 256 leaves this fixture certifies none, because the
-    // band and the refusing half-line keep every box indeterminate past
-    // the frontier bound. What this row pins is that the same subdivision comes
-    // out identical twice and under both schedules, and refusals are
-    // rows like any other.
+    // of leaves, compared row for row. It is hardly a drive with
+    // certified leaves: at 256 leaves the band and the coincidence zone
+    // keep nearly every box indeterminate past the frontier bound. What
+    // this row pins is that the same subdivision comes out identical
+    // twice and under both schedules, and refusals are rows like any
+    // other.
     assert!(seq.receipt().splits > 8, "{:?}", seq.receipt());
     assert!(
         seq.receipt().certified + seq.receipt().refused > 8,
@@ -880,7 +880,7 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     let named: Vec<_> = flips
         .iter()
         .flat_map(|e| e.verdicts.nodes.values())
-        .flat_map(|d| &d.flips)
+        .flat_map(|d| d.flip)
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
@@ -979,8 +979,8 @@ fn certification_reads_the_vector_and_nothing_else() {
         assert_ne!(leaf.verdict_vector_key, mutated.key());
     }
     // The strict comparison is what gates, and it is strictly stronger
-    // than the population engine that NAMES flips: a reordering the
-    // populations cannot see moves this key.
+    // than the first-turn reading that NAMES flips: a reordering that
+    // turns no sign moves this key.
     assert_eq!(v.witness_vector().key(), witness.key());
 }
 
@@ -1051,11 +1051,10 @@ fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
 /// `K = 10` is 22.5%, and the sliver mass has to be that, up to the
 /// leaves straddling the band's four edges. What the depth budget may
 /// still price `Budget` here is where the extrude refuses DEFINITELY —
-/// the coincidence zone `(−ε, ε)`, `DegenerateExtrusion`, and the
-/// definitely negative depths below it, `NegativeDepth`, together
-/// `[−20ε, ε)`, 26.25% of the box — which this driver refines to the
-/// floor. That region is a different class from this row's and is
-/// bounded here, not claimed.
+/// the coincidence zone `(−ε, ε)`, `DegenerateExtrusion`, 2.5% of the
+/// box — which this driver refines to the floor. A definitely negative
+/// depth builds the pocket's tool. The zone is a different class from
+/// this row's and is bounded here, not claimed.
 #[test]
 fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() {
     let doc = slab(20.0 * eps(), 40.0 * eps());
@@ -1101,11 +1100,12 @@ fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() 
         "the band's share of the box is sliver mass: sliver {sliver_mass}, budget \
          {budget_mass}, band share {band_share}; classes {classes:?}"
     );
-    let refusing_share = 21.0 * eps() / (80.0 * eps());
+    let refusing_share = 2.0 * eps() / (80.0 * eps());
     assert!(
         budget_mass <= refusing_share + 1e-3,
-        "only where the depth definitely refuses, and the band's edge leaves, may reach the \
-         depth floor: budget mass {budget_mass}, refusing share {refusing_share}"
+        "only the coincidence zone, where the depth definitely refuses, and the band's edge \
+         leaves may reach the depth floor: budget mass {budget_mass}, refusing share \
+         {refusing_share}"
     );
 }
 

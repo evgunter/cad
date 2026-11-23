@@ -445,7 +445,7 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. })) if (center.z - 1.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (frame.origin().z - 1.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -459,15 +459,16 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
             .unwrap()
             .carrier()
         {
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) => [
-                center.x.to_bits(),
-                center.y.to_bits(),
-                center.z.to_bits(),
-                radius.to_bits(),
-            ],
+            geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+                let center = frame.origin();
+                let radius = circle.radius();
+                [
+                    center.x.to_bits(),
+                    center.y.to_bits(),
+                    center.z.to_bits(),
+                    radius.to_bits(),
+                ]
+            }
             other => panic!("an arc, got {other:?}"),
         };
         assert!(
@@ -553,13 +554,12 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
         ) {
             Err(BlendRefusal {
                 error:
-                    BlendError::UnsupportedRunOut {
-                        at: topo::EntityId::Vertex(vertex),
-                        detail,
-                    },
+                    BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::RunOut {
+                        vertex, odd: None, ..
+                    }),
                 ..
             }) => assert!(
-                ends.contains(&vertex) && detail == sweep::blend::battery::PARTIAL_TANGENT_RUN,
+                ends.contains(&vertex),
                 "{name}: refused at an end as a tangent run requested in part, not at a junction"
             ),
             other => panic!("{name}: the open chain refuses at its run-out, got {other:?}"),

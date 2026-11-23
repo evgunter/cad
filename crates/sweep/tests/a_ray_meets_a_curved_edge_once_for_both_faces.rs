@@ -1,7 +1,7 @@
 //! **A ray within the band of a curved edge meets it once, for both
 //! faces it bounds** (D10, Booleans): half a crossing for each face, at
 //! the carrier crossing of each it stands for, decided once from where
-//! the ray passes the edge (`topo::boolean::solid_contain::curved_edges`).
+//! the ray passes the edge (`topo::solid_contain::curved_edges`).
 //! The curved half of the edge-meeting ray
 //! (`work/flush/a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim.md`).
 //!
@@ -26,8 +26,8 @@ use topo::{Body, ContactRecords};
 use super::curved_edge_corpus::{Truth, corpus, fast, kinked_bore, revolved, robust};
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/solid_contain.rs",
-    "crates/topo/src/boolean/solid_contain/curved_edges.rs",
+    "crates/topo/src/solid_contain.rs",
+    "crates/topo/src/solid_contain/curved_edges.rs",
     "crates/sweep/tests/curved_edge_corpus.rs",
 ];
 
@@ -438,7 +438,7 @@ fn aimed_bodies(tol: Tol) -> Vec<(&'static str, Body<f64>)> {
 /// there the edge reading and the face's own trim read one distance
 /// either side of the band's edge by their rounding, and on the frustum
 /// the trim sets the ray aside
-/// (`work/flushtail/a-uniform-ray-about-a-curved-edge-is-still-set-aside-on-a-faces-own-boundary.md`,
+/// (`work/honejoin/a-uniform-ray-about-a-curved-edge-is-still-set-aside-on-a-faces-own-boundary.md`,
 /// "a region read whose metric differs from the edge reading's at the
 /// band's edge"): a lost read, counted against the floor. At least 40%
 /// of each body's rays read `Out` (50–75% at ε 1e-9, 1e-6 and 1e-12).

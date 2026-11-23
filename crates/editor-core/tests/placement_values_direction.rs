@@ -462,17 +462,15 @@ fn the_new_forms_persist() {
         ]),
     );
     at.expect("the bundle places");
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("the document loads");
-    let again = editor_core::persist::save(&loaded.snapshot, &loaded.edits, Tol::witness())
-        .expect("it saves again");
+    let again = editor_core::persist::save(&loaded, Tol::witness()).expect("it saves again");
     assert_eq!(text, again, "the saved text round-trips");
     let coords: Vec<Coord> = loaded
-        .snapshot
         .placements()
         .into_iter()
         .filter_map(|p| {
-            loaded.snapshot.node(p).and_then(|n| match n {
+            loaded.node(p).and_then(|n| match n {
                 Node::Place { constraints, .. } => Some(constraints.clone()),
                 _ => None,
             })

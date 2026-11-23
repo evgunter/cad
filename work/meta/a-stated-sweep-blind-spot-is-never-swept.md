@@ -62,7 +62,7 @@ declined its discipline clause on 2026-10-26,
 was derived FROM, so the next lane looks with the wrong instrument.
 Here the pattern matches its instance correctly and the lane says
 truthfully what else it cannot see. And
-`work/vdoc/sweep-blind-spots-the-precheck-sweep-could-not-see.md`
+`work/chrome/sweep-blind-spots-the-precheck-sweep-could-not-see.md`
 preserves one sweep's blind spots as a file so they outlive a
 directory — a record, not a rule.
 

@@ -99,6 +99,8 @@ mod axis_rows_read_as_one_sum;
 mod certify_turn_rule;
 #[path = "computed_values_enter_as_unknowns.rs"]
 mod computed_values_enter_as_unknowns;
+#[path = "cone_pair_section.rs"]
+mod cone_pair_section;
 #[path = "coplanar_ellipses_one_locus.rs"]
 mod coplanar_ellipses_one_locus;
 #[path = "curved_torus_arc_residual.rs"]
@@ -113,8 +115,8 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "edge_extent_bounds.rs"]
 mod edge_extent_bounds;
-#[path = "ellipse_signed_semi_axis_gate.rs"]
-mod ellipse_signed_semi_axis_gate;
+#[path = "ellipse_semi_axis_order_gate.rs"]
+mod ellipse_semi_axis_order_gate;
 #[path = "end_samples_read_the_carrier.rs"]
 mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
@@ -165,6 +167,8 @@ mod onb_wall_frame_interval;
 mod onpair_plane_nurbs;
 #[path = "pair_section.rs"]
 mod pair_section;
+#[path = "patch_distance_sup_fuzz.rs"]
+mod patch_distance_sup_fuzz;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
 #[path = "plane_cone_arc.rs"]
@@ -340,6 +344,8 @@ mod cert_n2r2_class3_probes;
 #[path = "cert_n2r2_class56_probes.rs"]
 mod cert_n2r2_class56_probes;
 
+#[path = "incidence_at_the_shape_door.rs"]
+mod incidence_at_the_shape_door;
 #[path = "iso_rectangle_door.rs"]
 mod iso_rectangle_door;
 #[path = "kstats_escalation_channel.rs"]

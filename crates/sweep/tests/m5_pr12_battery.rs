@@ -18,7 +18,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, blend_sense, run_battery};
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::{BlendError, UnbuiltEnd};
 use sweep::test_support::{ball_poled_y, block, circle_arcs_at_z, disc_of_arcs, realized};
 use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
@@ -339,8 +339,8 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let bottom = body
         .faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(geom::Surface::Plane { normal, .. })
-                if normal.z.abs() > 0.9)
+            matches!(body.face_surface(*fk), Some(geom::Surface::Plane { frame, .. })
+                if frame.axis().z.abs() > 0.9)
         })
         .map(|(k, _)| k)
         .expect("a horizontal face");
@@ -473,8 +473,9 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
 
 /// The notch's reflex vertical edge ends at vertices where two convex
 /// edges meet it, the odd one. Requested with one of those convex edges
-/// it refuses `MixedConvexity { convex: 2 }`, naming no run-out policy:
-/// the mixed corner's own rule is not built.
+/// it refuses the run-out at the corner, naming the pair edge it leaves
+/// out and the reflex edge as the odd one: the fillet's band would stop
+/// where its edge runs smoothly into the cut-off arc.
 #[test]
 fn p6_mixed_convexity_corner_refuses_the_odd_edge_with_another() {
     let body = notched();
@@ -506,13 +507,14 @@ fn p6_mixed_convexity_corner_refuses_the_odd_edge_with_another() {
         size: 0.1,
     };
     match run_battery(&req, band()) {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            policy,
+        Err(BlendError::UnbuiltEnd(UnbuiltEnd::RunOut {
+            unrequested,
+            odd: Some(odd),
             ..
-        }) => {
-            assert_eq!(convex, 2);
-            assert_eq!(policy, None);
+        })) => {
+            assert_eq!(odd.edge, reflex);
+            assert_eq!(odd.convexity, Convexity::Concave);
+            assert!(unrequested != reflex && unrequested != rim);
         }
         other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
     }

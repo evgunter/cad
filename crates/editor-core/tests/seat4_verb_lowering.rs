@@ -63,11 +63,6 @@ const D: f64 = 0.125;
 /// spellings and both lowering paths.
 fn both_blends() -> BothBlends {
     let mut r = corpus::Recorder::new();
-    // The saved SNAPSHOT is the empty document and the log is
-    // everything (the recorder's convention), so a load replays the
-    // whole recipe through `apply`'s doors — which is what makes the
-    // round-trip a test of the wire spelling of every node.
-    let snapshot = r.doc.clone();
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square],
@@ -82,19 +77,14 @@ fn both_blends() -> BothBlends {
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
     let chamfered = r.insert(Node::chamfer(cube, len(D), edges));
     BothBlends {
-        snapshot,
         doc: r.doc,
-        edits: r.edits,
         blends: [filleted, chamfered],
     }
 }
 
-/// The two-blend fixture: what to save, what to evaluate, and the two
-/// blend nodes' ids.
+/// The two-blend fixture: the document and the two blend nodes' ids.
 struct BothBlends {
-    snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     blends: [RecipeNodeId; 2],
 }
 
@@ -107,16 +97,13 @@ struct BothBlends {
 #[test]
 fn a_fillet_and_chamfer_document_round_trips_byte_identical() {
     let fixture = both_blends();
-    let first =
-        persist::save(&fixture.snapshot, &fixture.edits, tol()).expect("the document saves");
+    let first = persist::save(&fixture.doc, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
-    assert_eq!(loaded.edits, fixture.edits, "the edit log did not survive");
     assert!(
-        loaded.doc.bit_eq(&fixture.doc),
-        "the replayed document is not bit-identical to the authored one"
+        loaded.bit_eq(&fixture.doc),
+        "the loaded document is not bit-identical to the authored one"
     );
-    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
-        .expect("the loaded document re-saves");
+    let second = persist::save(&loaded, tol()).expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "a fillet+chamfer document does not round-trip byte-identically"
@@ -203,8 +190,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x7cbe_7b29_671d_8995_u64),
-        ("die_chamfer", 0x38b5_7ede_f05c_4b6d),
+        ("die_fillet", 0xa968_a45c_16ee_6213_u64),
+        ("die_chamfer", 0x89c5_5513_1c2e_99d3),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -238,12 +225,13 @@ fn a_boolean_document_round_trips_byte_identical() {
         .into_iter()
         .find(|d| d.name == "crossing_slots")
         .expect("the document is registered");
-    let snapshot = ProfileDoc::empty_derived("seat5_boolean_roundtrip", tol());
-    let first = persist::save(&snapshot, &doc.edits, tol()).expect("the document saves");
+    let first = persist::save(&doc.doc, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
-    assert_eq!(loaded.edits, doc.edits, "the edit log did not survive");
-    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
-        .expect("the loaded document re-saves");
+    assert!(
+        loaded.bit_eq(&doc.doc),
+        "the loaded document is not bit-identical to the registered one"
+    );
+    let second = persist::save(&loaded, tol()).expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "a boolean document does not round-trip byte-identically"
@@ -296,9 +284,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xb23a_a372_91fe_158a_u64),
-        ("heat_sink", 0x2165_3b85_6f75_fdab),
-        ("kiss_carry", 0xf9a0_fd68_642d_b9cc),
+        ("crossing_slots", 0x1ed8_c7ce_aa81_8bd8_u64),
+        ("heat_sink", 0xec88_26b3_7f36_9d63),
+        ("kiss_carry", 0xc20e_4e75_0612_0ae6),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -463,7 +451,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         // walls' origins moved back to where their fitted centroids
         // stood, to rounding; the caps' stay at their sketch origins.
         got,
-        0x2dc5_d456_0ce3_02b2,
+        0xda0e_717e_22a2_9f24,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

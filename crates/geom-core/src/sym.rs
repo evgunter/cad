@@ -1233,6 +1233,9 @@ enum SymOp {
     Acos,
     Atan,
     Floor,
+    /// `x − sin x` ([`Real::less_sin`]): one function, so one atom,
+    /// re-valued through the door that valued it.
+    LessSin,
     Atan2,
     Min,
     Max,
@@ -1289,6 +1292,7 @@ impl SymOp {
             Self::Opaque => 24,
             Self::Select => 25,
             Self::Free => 26,
+            Self::LessSin => 27,
         }
     }
 
@@ -1307,7 +1311,8 @@ impl SymOp {
             | Self::Asin
             | Self::Acos
             | Self::Atan
-            | Self::Floor => 1,
+            | Self::Floor
+            | Self::LessSin => 1,
             Self::Add
             | Self::Sub
             | Self::Mul
@@ -3407,7 +3412,8 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
         | SymOp::Tan
         | SymOp::Asin
         | SymOp::Atan
-        | SymOp::Floor => Some(Form::zero()),
+        | SymOp::Floor
+        | SymOp::LessSin => Some(Form::zero()),
         SymOp::Cos => Some(Form::poly(Poly::one())),
         // acos 0 = π/2 — expressible, because π is an indeterminate of
         // the form rather than a number.
@@ -3666,7 +3672,8 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         | SymOp::Asin
         | SymOp::Acos
         | SymOp::Atan
-        | SymOp::Floor => atom1(node.op, sess),
+        | SymOp::Floor
+        | SymOp::LessSin => atom1(node.op, sess),
         SymOp::Atan2 | SymOp::Min | SymOp::Max | SymOp::Copysign => {
             if a.tainted(b) {
                 return Some(Form::poison());
@@ -5258,7 +5265,33 @@ impl<T: Real> Neg for Sym<T> {
     }
 }
 
+/// `F` over a symbolic scalar: what [`Real::view`] at `Sym<T>` hands to
+/// `T`'s, so a `Sym`'s view borrows wherever its numeric channel's does.
+struct SymOf<F>(core::marker::PhantomData<F>);
+
+impl<F: crate::value_view::OverScalar> crate::value_view::OverScalar for SymOf<F> {
+    type At<S: Real> = F::At<Sym<S>>;
+
+    fn map<S: Real, U: Real>(x: &F::At<Sym<S>>, f: impl Fn(S) -> U) -> F::At<Sym<U>> {
+        F::map(x, |s: Sym<S>| Sym {
+            value: f(s.value),
+            node: s.node,
+        })
+    }
+}
+
 impl<T: Real> Real for Sym<T> {
+    /// **Never the same: no certificate is read by its support at the
+    /// symbolic tier.** A derivation here mints fresh unknowns (a hull
+    /// bound enters as [`Sym::opaque`]), so deriving again on the same
+    /// support does not give the same nodes, and the decision record a
+    /// derivation writes is this tier's purpose: a read would drop it.
+    /// Every certificate at `Sym` is derived where it is asked.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **The LANE SCALAR's.** A `Sym<T>` carries `T`'s value channel
     /// unchanged — the tier reads no value and widens no enclosure —
     /// so a comparison at `Sym<T>` proves exactly what one at `T`
@@ -5272,12 +5305,37 @@ impl<T: Real> Real for Sym<T> {
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
 
+    /// The symbolic scalar over its numeric channel's value: the
+    /// identity over the unknowns is what a decision at it reads, so it
+    /// is kept, node for node. Over `f64` or `Interval` that is the
+    /// scalar itself.
+    type Value = Sym<T::Value>;
+
+    fn without_tangent(self) -> Sym<T::Value> {
+        Sym {
+            value: self.value.without_tangent(),
+            node: self.node,
+        }
+    }
+
+    /// The numeric channel's view, node for node: borrowed where it is.
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Sym<T::Value>>> {
+        T::view::<SymOf<F>>(x)
+    }
+
     fn from_f64(x: f64) -> Self {
         Self::literal(T::from_f64(x), x)
     }
 
     fn from_computed(x: f64) -> Self {
         Self::opaque(T::from_computed(x))
+    }
+
+    /// The lane scalar's.
+    fn told_reading(&self) -> crate::told::Reading {
+        self.value.told_reading()
     }
 
     fn zero() -> Self {
@@ -5349,6 +5407,10 @@ impl<T: Real> Real for Sym<T> {
     fn sin_cos(self) -> (Self, Self) {
         let (s, c) = self.value.sin_cos();
         (self.unary(s, SymOp::Sin, 0), self.unary(c, SymOp::Cos, 0))
+    }
+
+    fn less_sin(self) -> Self {
+        self.unary(self.value.less_sin(), SymOp::LessSin, 0)
     }
 
     /// The `Sin` node over `τ/12`, valued `1/2`: the tier folds a

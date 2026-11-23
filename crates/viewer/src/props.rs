@@ -137,10 +137,7 @@ use pncad::document::{
     RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName, VectorSlot, eval,
     eval_count, spoken_by,
 };
-use pncad::prelude::{M, PI, RAD};
-use pncad::quantity::{
-    self, AngleUnit, LengthUnit, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength,
-};
+use pncad::quantity::{LengthUnit, UnitDef, UnitQuantity, WrittenAngle, WrittenLength};
 
 /// **Which way [`one_figure_length`] rounds.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -258,30 +255,51 @@ impl SlotValue {
     }
 }
 
-/// Every unit a value of `dimension` may be written in — the picker's
-/// options, read off the closed table so a unit added to `quantity`
-/// appears here the day it lands.
+/// **The drag tick of a field holding a value of `dimension`**, in
+/// CANONICAL units (metres, radians) — the one home of how far a pixel
+/// of drag moves a field, and of the whole-number rule. `None` is a
+/// field whose dimension is not chosen yet: a bare number.
+///
+/// A tick per dimension and not one number, because the useful range
+/// of a field is its dimension's: half a millimetre per pixel is a
+/// good length tick, and at 0.0005 rad a full turn is twelve thousand
+/// pixels of drag.
+pub const fn drag_tick(dimension: Option<Dimension>) -> f64 {
+    match dimension {
+        // Half a millimetre.
+        Some(Dimension::Length) => 0.0005,
+        // A third of a degree: a full turn is a few hundred pixels.
+        Some(Dimension::Angle) => 0.005,
+        // A direction or a normal component, whose useful range is
+        // about [-1, 1]: a hundredth spans it in one gesture.
+        Some(Dimension::Scalar) | None => 0.01,
+        // One. A count holds whole numbers, and a field steps by its
+        // tick: an arrow key adds one tick and rounds, so an integer
+        // field at a tick below a half stays where it was, and a float
+        // field dragged below one lands between integers.
+        Some(Dimension::Count) => 1.0,
+    }
+}
+
+/// Every unit a value of `dimension` may be written in, read off the
+/// closed table (`UnitQuantity::units`) so a unit added to `quantity`
+/// appears here the day it lands: none for a count, and the one
+/// dimensionless row for a bare scalar.
 pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
-    let wanted = match dimension {
-        Dimension::Length => UnitQuantity::Length,
-        Dimension::Angle => UnitQuantity::Angle,
-        Dimension::Scalar | Dimension::Count => return Vec::new(),
-    };
-    UNITS
+    dimension
+        .quantity()
         .into_iter()
-        .filter(|row| row.quantity() == wanted)
+        .flat_map(UnitQuantity::units)
         .collect()
 }
 
-/// **The working notation**: the length unit and the angle unit a
-/// value nobody wrote is read in, and every creation form writes its
-/// literals in.
+pub use pncad::quantity::Notation;
+
+/// **The working notation**, as the chrome uses a [`Notation`]: the
+/// unit a value nobody wrote is read in, and the literals every
+/// creation form writes.
 ///
-/// One per PERSON, not per document. A recipe's literals remember the
-/// notation each was written in, and that is the document's; a value
-/// the kernel computed — a driven slot's, a measure's, both numbers of
-/// an assertion's verdict — was written by nobody, and reads in the
-/// notation of whoever is reading it. So it is held by the session
+/// It is held by the session
 /// (`crate::session::DocSession::notation`), persisted through
 /// [`crate::prefs::Prefs`] by unit symbol, and never enters the
 /// document. The creation forms' unit pickers are its control: a
@@ -290,40 +308,12 @@ pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
 ///
 /// A literal's own remembered unit always wins over it
 /// ([`rendering_unit`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Notation {
-    /// Every `Length` reads and is written in this.
-    pub length: LengthUnit,
-    /// Every `Angle` reads and is written in this.
-    pub angle: AngleUnit,
-}
-
-impl Notation {
-    /// The notation a person who has chosen none works in: metres and
-    /// half turns (`pi rad`).
-    pub const DEFAULT: Self = Self {
-        length: M,
-        angle: PI,
-    };
-
-    /// The canonical spellings — metres and radians, said out loud.
-    pub const CANONICAL: Self = Self {
-        length: M,
-        angle: RAD,
-    };
-
+pub trait WorkingNotation: Copy {
     /// The unit a value of `dimension` reads in: this notation's for a
     /// length or an angle, the dimensionless row for a bare scalar,
     /// and `None` for a count, which is a number rather than a
     /// quantity.
-    pub fn unit(self, dimension: Dimension) -> Option<UnitDef> {
-        match dimension {
-            Dimension::Length => Some(self.length.def()),
-            Dimension::Angle => Some(self.angle.def()),
-            Dimension::Scalar => Some(quantity::ONE.def()),
-            Dimension::Count => None,
-        }
-    }
+    fn unit(self, dimension: Dimension) -> Option<UnitDef>;
 
     /// A `Length` literal from an already-canonical value, remembering
     /// this notation (`WrittenLength::canonical_in`: a form's draft
@@ -333,25 +323,21 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite value (the literal door's refusal).
-    pub fn length_literal(self, metres: f64) -> Result<Formula, DimensionError> {
-        Formula::written_length(WrittenLength::canonical_in(metres, self.length))
-    }
+    fn length_literal(self, metres: f64) -> Result<Formula, DimensionError>;
 
     /// An `Angle` literal — [`Self::length_literal`]'s twin.
     ///
     /// # Errors
     ///
     /// A non-finite value.
-    pub fn angle_literal(self, radians: f64) -> Result<Formula, DimensionError> {
-        Formula::written_angle(WrittenAngle::canonical_in(radians, self.angle))
-    }
+    fn angle_literal(self, radians: f64) -> Result<Formula, DimensionError>;
 
     /// Three `Length` literals — a point, a translation.
     ///
     /// # Errors
     ///
     /// A non-finite component.
-    pub fn length_literals(self, v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
+    fn length_literals(self, v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
         Ok([
             self.length_literal(v[0])?,
             self.length_literal(v[1])?,
@@ -364,8 +350,22 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite component.
-    pub fn point_literals(self, p: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
+    fn point_literals(self, p: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
         Ok([self.length_literal(p[0])?, self.length_literal(p[1])?])
+    }
+}
+
+impl WorkingNotation for Notation {
+    fn unit(self, dimension: Dimension) -> Option<UnitDef> {
+        dimension.quantity().map(|measured| self.unit_of(measured))
+    }
+
+    fn length_literal(self, metres: f64) -> Result<Formula, DimensionError> {
+        Formula::written_length(WrittenLength::canonical_in(metres, self.length))
+    }
+
+    fn angle_literal(self, radians: f64) -> Result<Formula, DimensionError> {
+        Formula::written_angle(WrittenAngle::canonical_in(radians, self.angle))
     }
 }
 
@@ -405,16 +405,16 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// table's eight rows, so it is a multiplication UP by up to three
 /// decades, and a canonical length above `f64::MAX * MILLI`
 /// (`1.7976931348623156e305` m) has no millimetre value — the quotient
-/// is `inf`, which [`render_number`] spells `inf` and
-/// [`crate::readout::number`] spells `inf` too. A text reading
+/// is `inf`, which [`render_number`] spells `inf`. A text reading
 /// infinity names no value, and the value it was asked about is one
-/// the document holds perfectly well.
+/// the document holds perfectly well. ([`crate::readout::computed`]
+/// is handed the canonical value and tells such a length in metres.)
 ///
 /// **The other end is the same question and is not symmetric.** One
 /// row's factor is above one — `pi rad`, at π — so a canonical angle
 /// of exactly `5e-324` rad divides to `0.0`, and a text reading zero
-/// is a hundred percent away from the value it claims to be, which is
-/// the first thing [`crate::readout::number`] refuses. It is
+/// is a hundred percent away from the value it claims to be, which
+/// no told number is (its grid has no floor). It is
 /// one value rather than a band because π is barely above one: two
 /// subnormals up, the quotient is a subnormal again. Measured, not
 /// reasoned: `5e-324 / π == 0.0` and `1e-323 / π == 5e-324`.
@@ -431,9 +431,11 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// value is a number and the unit is a unit, and the value written in
 /// that unit is neither.
 pub fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
-    let written = in_written(canonical, unit);
-    let names_the_value = written.is_finite() && (written != 0.0 || canonical == 0.0);
-    names_the_value.then_some(written)
+    // The unit's own question (`UnitDef::number_of`, which a told
+    // quantity asks too), and this door's addition: a value that is
+    // not finite is no number to show in any unit.
+    unit.number_of(canonical)
+        .filter(|written| written.is_finite())
 }
 
 /// What a render says where [`written`] answers `None` — the one
@@ -454,23 +456,22 @@ pub fn no_reading(unit: UnitDef) -> String {
 /// A canonical value as text a person reads, written in `unit` and
 /// carrying its symbol.
 ///
-/// **The crate's render ([`crate::readout::number`]) over
-/// [`written`]**, which is the pairing every chrome sentence that
-/// writes a canonical value in a display unit wants: the shortest
-/// spelling that reads back, of a value that exists. Where the value
-/// does not exist it is [`no_reading`], never `inf`.
+/// **The crate's render of a value nobody wrote
+/// ([`crate::readout::computed`])**: told on the grid in `unit`, and
+/// in the canonical unit, under its own word, where `unit` cannot say
+/// the value at all ([`written`]'s `None`). A value that is not
+/// finite names no quantity in any unit and is [`no_reading`], never
+/// `inf`.
 ///
 /// `render_number` is deliberately not the render here. That one is a
 /// FIELD's — exact round-tripping digits, because the text a
 /// field shows is the text an edit starts from — and a sentence is not
 /// a commit path.
 pub fn written_text(canonical: f64, unit: UnitDef) -> String {
-    match written(canonical, unit) {
-        Some(value) => match (crate::readout::number(value), unit.symbol()) {
-            (number, "") => number,
-            (number, symbol) => format!("{number} {symbol}"),
-        },
-        None => no_reading(unit),
+    if canonical.is_finite() {
+        crate::readout::computed(canonical, unit)
+    } else {
+        no_reading(unit)
     }
 }
 
@@ -486,7 +487,7 @@ pub fn from_written(written: f64, unit: UnitDef) -> f64 {
 /// value as such a field shows it.
 ///
 /// `None` is not a missing answer here: it is the field that is a
-/// number rather than a quantity (a count, a bare scalar), whose shown
+/// number rather than a quantity (a count), whose shown
 /// number is its canonical one. Spelled once because both panel fields
 /// need it and a hand-written `map_or` at each is the same identity
 /// written twice, free to become two.
@@ -523,17 +524,18 @@ pub fn shown_value(unit: Option<UnitDef>, canonical: f64) -> Result<f64, UnitDef
 /// value as text a person reads, in the notation such a field shows.
 ///
 /// `None` means what it means in [`shown_in`]: the field is a number
-/// rather than a quantity, so there is no conversion to make and no
-/// symbol to carry, and the render is [`crate::readout::number`]
-/// alone. A value cannot fail to be nameable in no notation, which is
-/// why this answers a `String` where [`written`] answers an `Option`.
+/// rather than a quantity (a count), so there is no conversion to make
+/// and no symbol to carry, and it is spelled exactly
+/// (`geom_core::Readable`): every count is a different value. A value
+/// cannot fail to be nameable in no notation, which is why this
+/// answers a `String` where [`written`] answers an `Option`.
 ///
 /// Spelled here rather than as a `map_or` at each caller for
 /// [`shown_in`]'s own reason: a hand-written `map_or` is the same
 /// identity written twice, free to become two.
 pub fn shown_text(unit: Option<UnitDef>, canonical: f64) -> String {
     unit.map_or_else(
-        || crate::readout::number(canonical),
+        || pncad::geom_core::Readable(canonical).to_string(),
         |unit| written_text(canonical, unit),
     )
 }
@@ -1179,8 +1181,8 @@ pub fn field_source(row: &SlotRow) -> Option<String> {
 /// in an editable field or in a sentence quoting one: the value fields
 /// here, and the numbers the create pane writes into an edit
 /// ([`crate::pane::create`]). The other is
-/// [`crate::readout::number`], which spells a number to fit a FIXED
-/// WIDTH and trades digits for it — right for the View pane's δ field,
+/// [`crate::readout::computed`], which tells a value nobody wrote on
+/// the told grid and trades digits for it — right for a readout,
 /// wrong for a coordinate a reader compares against what the panel
 /// shows.
 pub fn render_number(value: f64) -> String {
@@ -1244,7 +1246,7 @@ pub fn field_edit(text: &str) -> FieldEdit {
 /// rendered and writes the parse back when focus leaves, so clicking
 /// into a field and clicking away again hands the chrome's own render
 /// straight back at it. That text is accepted within the render's own
-/// accuracy ([`crate::readout::reads_back`], through
+/// accuracy ([`crate::readout::names`], through
 /// `crate::widgets::number_text`), so writing it back can move the
 /// value by up to that much AND cost an undo step for a click nobody
 /// meant as one. `readout`'s own words: the number a value moves to on
@@ -1666,63 +1668,41 @@ pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
 /// [`slot_edit`] already has, for its reason: the two are independent
 /// facts about the thing being authored, and deriving one from the
 /// other is how a form comes to author a value it did not mean.
-/// `None` is the field that names no notation (a `Count`, a bare
-/// `Scalar`), and the canonical declaration is right for it.
-///
-/// **Minted through `FreeVar::written_length` /
-/// `written_angle`, which are TOTAL**: each takes a typed view that is
-/// an index into a row of its own quantity, so the unit measures the
-/// dimension by construction and there is no pairing left for the
-/// declaration to get wrong.
+/// `None` is the field that names no notation (a `Count`), and the
+/// canonical declaration is right for it.
 ///
 /// **A unit that does not measure `dimension` is a caller's mistake
-/// and says so.** `UnitDef::as_length`/`as_angle` answer `None` for
-/// it, and the two readings of that `None` — "there is no notation to
-/// name here" and "a notation was offered that this dimension cannot
-/// be written in" — are not the same fact. Quietly minting the
-/// canonical declaration for the second would store a notation nobody
-/// asked for and report success, which is the confident wrong answer
-/// this codebase refuses; the pairing has no run-time recourse at this
-/// seat, so it is `unreachable!` rather than a `Result` nobody could
-/// act on. The one caller reaches it through
-/// `ViewerBehavior::new_variable_unit`, which answers off the same
-/// dimension.
+/// and says so.** The pairing is judged by the declaration's own
+/// notation door (`FreeVar::with_display_unit`), and its refusal here
+/// is not a fact about the document: quietly minting the canonical
+/// declaration would store a notation nobody asked for and report
+/// success, and the pairing has no run-time recourse at this seat, so
+/// it is `unreachable!` rather than a `Result` nobody could act on. The
+/// one caller hands over the unit `crate::forms::FieldWriting::of`
+/// wrote the field in, which is read off the same dimension.
 ///
-/// **No multiply.** `WrittenLength::canonical_in` attaches the
-/// notation to an already-canonical value, which is the form's shape:
-/// the draft behind a form field is canonical whatever the picker
-/// says (`crate::widgets::unit_field`), so applying the factor here
-/// would apply it twice.
+/// **No multiply.** The declaration attaches the notation to an
+/// already-canonical value, which is the form's shape: the draft behind
+/// a form field is canonical whatever the picker says
+/// (`crate::widgets::named_field`), so applying the factor here would
+/// apply it twice.
 pub fn doc_variable(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) -> FreeVar {
     let value = match value {
         SlotValue::Count(value) => return FreeVar::Count { value },
         SlotValue::Continuous(value) => value,
     };
-    // No notation offered at all: the canonical declaration is the
-    // whole of what there is to mint.
+    let canonical = FreeVar::continuous(dimension, value);
     let Some(unit) = unit else {
-        return FreeVar::continuous(dimension, value);
+        return canonical;
     };
-    let written = match dimension {
-        Dimension::Length => unit
-            .as_length()
-            .map(|unit| FreeVar::written_length(WrittenLength::canonical_in(value, unit))),
-        Dimension::Angle => unit
-            .as_angle()
-            .map(|unit| FreeVar::written_angle(WrittenAngle::canonical_in(value, unit))),
-        // A dimension with no written door — a bare `Scalar` — has one
-        // unit and the canonical declaration already names it, so
-        // being handed it is no mistake and nothing to refuse.
-        Dimension::Scalar | Dimension::Count => {
-            return FreeVar::continuous(dimension, value);
-        }
-    };
-    written.unwrap_or_else(|| {
-        unreachable!(
-            "a {dimension} variable was offered {}, which does not measure it",
-            unit.symbol()
-        )
-    })
+    canonical
+        .with_display_unit(UnitSym::from_def(&unit))
+        .unwrap_or_else(|refusal| {
+            unreachable!(
+                "a {dimension} variable was offered {}: {refusal}",
+                unit.symbol()
+            )
+        })
 }
 
 /// The edit that changes how a standing variable's value is WRITTEN,
@@ -2139,25 +2119,21 @@ mod written_tests {
         );
     }
 
-    /// **The render says the notation cannot name it, and never spells
-    /// `inf`** — which is the whole of this class: `inf` is a text
+    /// **A value the notation cannot name reads in the canonical unit,
+    /// under its own word, and never spells `inf`**: `inf` is a text
     /// that reads back as no value at all, offered for a value the
     /// document holds perfectly well.
     #[test]
     fn a_render_of_an_unnameable_value_is_not_an_infinity() {
         let mm = MM.def();
         assert_eq!(no_reading(mm), "no mm reading");
-        assert_eq!(written_text(1.0e306, mm), no_reading(mm));
-        assert!(
-            !written_text(1.0e306, mm).contains("inf"),
-            "the render spelled the product instead of refusing it"
-        );
+        assert_eq!(written_text(1.0e306, mm), "1e306 m");
         assert_eq!(
             written_text(5.0e-324, PI.def()),
-            no_reading(PI.def()),
-            "and the other end is the same refusal, not a zero"
+            "5e-324 rad",
+            "and the other end is told the same way, not as a zero"
         );
-        // The ordinary case is a number and its symbol, unchanged.
+        // The ordinary case is a number and its symbol.
         assert_eq!(written_text(0.025, mm), "25 mm");
         assert_eq!(written_text(1.5, M.def()), "1.5 m");
     }

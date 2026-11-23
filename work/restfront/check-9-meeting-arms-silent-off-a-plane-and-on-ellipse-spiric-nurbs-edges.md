@@ -16,7 +16,7 @@ arms that see a ring crossing or touching its outer loop at a point no
 vertex carries: arm 4 (`validate::circle_pair`, both loops whole
 circles) and arm 5 (`validate::segments_meet`, every other pair of
 `Line` and `Circle` edges, trims tested by the line span and by
-`boolean::contain::point_on_arc`). Both run in the plane of the outer
+`contain::point_on_arc`). Both run in the plane of the outer
 loop's face (`validate::ring_outer_meeting`). Silent, and named at
 check 9's banner and in `validate_geometric`'s not-yet-checked list:
 
@@ -99,3 +99,11 @@ spiric or spline edge then reads `OutlineEdge::Undecided`, which answers
 not disjoint, so the split is covered). A lofted or swept operand's spline
 edges on a planar face's loops are the shape that reaches the silent arms.
 
+
+## The ellipse half moves to PLANAR (2026-11-22)
+
+Ev's plane ruling (PR 7290) reads check 9's edge pairs on a plane face
+through C5's plane instance, whose arms include line × ellipse,
+circle × ellipse and ellipse × ellipse. So an `Ellipse` edge on a planar
+face is read by `work/planar/check-9-reads-ring-against-outer-through-the-plane-instance.md`.
+This row keeps the non-planar faces and the spiric and NURBS edges.

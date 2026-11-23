@@ -259,7 +259,7 @@ fn an_anonymous_variable_read_only_by_an_unread_definition_refuses_at_load() {
     let plus = Formula::add(named("w"), Formula::length_in(5.0, quantity::MM).unwrap()).unwrap();
     let (doc, _, blend) = filleted(doc, 0.0, plus);
     let formula = radius(&doc, blend);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     load(&text, Tol::witness()).expect("and loads");
     // The blend re-pointed at `w`, by hand: the formula's variable is
     // left read by nothing.
@@ -501,11 +501,10 @@ fn a_split_carries_a_variable_read_twice_as_one() {
             .bit_eq(doc.var(source).expect("held")),
         "its definition, spread included, bit for bit"
     );
-    let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
+    let text = save(&out.part, Tol::witness()).expect("the part saves");
     assert!(
         load(&text, Tol::witness())
             .expect("and loads")
-            .doc
             .bit_eq(&out.part)
     );
 }
@@ -845,7 +844,7 @@ fn the_load_door_reads_every_slots_variable() {
     let doc = empty("intent-literals-c-load");
     let (doc, point) = insert(doc, ring(len(1.0), len(0.1)));
     let doc = declare(&doc, "n", VarDecl::Free(FreeVar::Count { value: 3 }));
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let at = |wire: &mut serde_json::Value, var: VarId| {
         wire["snapshot"]["nodes"][point.0.to_string()]["Tube"]["minor_radius"] =
             serde_json::json!(var);
@@ -891,7 +890,7 @@ fn the_load_door_reads_every_slots_variable() {
     let (doc, pattern) = crate::fixture::member(doc, xs, 1);
     let doc = declare(&doc, "w", length(0.5));
     let w = doc.var_named("w").expect("declared");
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let measured = crate::wire::doctored(&text, |wire| {
         wire["snapshot"]["nodes"][pattern.0.to_string()]["Place"]["source"]["at"][0] =
             serde_json::json!(w.0);

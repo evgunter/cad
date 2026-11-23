@@ -94,16 +94,22 @@ fn r1_arcs_ending_past_a_pole_across_the_whole_band() {
         ),
         "four escalation widths past the pole is a definite crossing"
     );
-    // The indeterminate rung is the one the unit argues about and does
-    // not execute: a margin between the two thresholds ADMITS.
-    assert_eq!(
-        require_one_chart_branch(
-            &sphere(),
-            &split_past_the_pole(0.5 * (zero + esc) / RS),
-            band()
+    // The indeterminate rung: a margin between the two thresholds is a
+    // pole the band cannot place, and the door says so with its cause
+    // rather than answer one branch, so its `Ok` means decided.
+    let indeterminate = require_one_chart_branch(
+        &sphere(),
+        &split_past_the_pole(0.5 * (zero + esc) / RS),
+        band(),
+    );
+    assert!(
+        matches!(
+            &indeterminate,
+            Err(PropsError::Escalated { cause, .. })
+                if cause.predicate == Some("props_meridian_pole")
         ),
-        Ok(()),
-        "an indeterminate membership margin admits, as the doc claims"
+        "an indeterminate membership margin escalates under the pole's name: \
+         {indeterminate:?}"
     );
 }
 
@@ -152,7 +158,7 @@ fn r1_the_multi_wrap_span_splits_the_two_doors() {
     let winding = |r: &Result<(), PropsError>| {
         matches!(
             r,
-            Err(PropsError::NotIsoRectangle {
+            Err(PropsError::SpanUncertified {
                 what: "props_meridian_span_winding"
             })
         )
@@ -195,10 +201,8 @@ fn r1_the_multi_wrap_span_splits_the_two_doors() {
 #[test]
 fn r1_the_cone_arm_does_not_read_a_stray_line_as_a_generator() {
     let cone = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     // A line NOWHERE near the cone, whose foot-point parameter happens
     // to fall inside its stored span.

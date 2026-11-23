@@ -94,8 +94,7 @@ fn a_document_round_trips_through_save_and_open() {
         "the refused undo moved nothing"
     );
     let text = std::fs::read_to_string(&file).expect("the saved file reads");
-    let loaded = pncad::document::load(&text, tol).expect("the saved file loads");
-    assert!(loaded.edits.is_empty(), "the file carries no edit log");
+    pncad::document::load(&text, tol).expect("the saved file loads");
 
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
@@ -234,12 +233,7 @@ fn the_restamped_fixture_is_what_the_serializer_writes_at_this_eps() {
     let tol = Tol::witness();
     let restamped = gallery_ring_at(tol);
     let loaded = pncad::document::load(&restamped, tol).expect("the re-stamped fixture loads");
-    assert!(
-        loaded.edits.is_empty(),
-        "the gallery ships state, not a log"
-    );
-    let rewritten =
-        pncad::document::save(&loaded.snapshot, &loaded.edits, tol).expect("and saves back");
+    let rewritten = pncad::document::save(&loaded, tol).expect("and saves back");
     assert_eq!(
         rewritten, restamped,
         "re-stamping ε reproduced the serializer's own output at this ε, \

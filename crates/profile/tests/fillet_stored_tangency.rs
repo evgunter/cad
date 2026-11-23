@@ -137,14 +137,18 @@ fn corners() -> [Corner; 3] {
 /// instead — including its sibling, which is a different situation with
 /// different levers and must not be mistaken for it.
 fn flattened_refusal(err: &PathError<f64>, what: &str) -> (&'static str, f64, f64, f64, f64) {
-    match err {
+    match err.refusal() {
         PathError::FilletArcFlattenedInStorage {
             turn,
             radius,
             arc_length,
             predicate,
             margin,
-        } => (*predicate, *margin, *turn, *radius, *arc_length),
+        } => {
+            let [margin, turn, radius, arc_length] =
+                [margin, turn, radius, arc_length].map(crate::common::told);
+            (*predicate, margin, turn, radius, arc_length)
+        }
         other => panic!("{what}: expected the flattening refusal, got {other}"),
     }
 }
@@ -152,7 +156,7 @@ fn flattened_refusal(err: &PathError<f64>, what: &str) -> (&'static str, f64, f6
 /// The refusals the stored-form read itself produces: the two losses
 /// and the undecided twin that stands for either.
 fn is_stored_form_refusal(err: &PathError<f64>) -> bool {
-    match err {
+    match err.refusal() {
         PathError::FilletArcFlattenedInStorage { .. }
         | PathError::FilletCarrierBelowSceneResolution { .. } => true,
         PathError::Escalated { source, .. } => matches!(
@@ -175,7 +179,7 @@ fn is_stored_form_refusal(err: &PathError<f64>) -> bool {
 /// arriving from somewhere else is a finding rather than a pass.
 fn is_typed_door_refusal(err: &PathError<f64>) -> bool {
     matches!(
-        err,
+        err.refusal(),
         PathError::FilletArcFlattenedInStorage { .. }
             | PathError::FilletCarrierBelowSceneResolution { .. }
             | PathError::Escalated { .. }

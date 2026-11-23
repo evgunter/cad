@@ -10,8 +10,8 @@
 //!
 //! # The strict door (V1, wire.rs's rule at the program layer)
 //!
-//! Nothing here can mint a `profile::ProfileLoop`. Evaluation (and the
-//! authoring-time check) RESOLVES the expressions at `f64` and hands
+//! Nothing here can mint a `profile::ProfileLoop`. Evaluation RESOLVES
+//! the expressions at `f64` and hands
 //! the resolved steps to `profile::replay` — the driver, hence the
 //! typed binders and every check they carry. Deserialization rebuilds
 //! THIS type (through `Expr`'s dimension doors); the only path from
@@ -151,7 +151,7 @@ macro_rules! document_vocabulary {
         /// Closing the general case needs a walk over the file's
         /// declarations, which is a text scan, which is what this macro
         /// replaced and for a reason. Filed:
-        /// `work/census/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        /// `work/bind/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
         ///
         /// **Cost, stated:** rustfmt does not format the body of a macro
         /// invocation, so every declaration below is outside its reach
@@ -656,7 +656,7 @@ pub trait SlotPayload<S> {
 }
 
 /// What `Node<P>` needs from a profile payload so slot addressing and
-/// the authoring-time check stay generic (`Doc<P>` keeps its fake test
+/// the lattice check stay generic (`Doc<P>` keeps its fake test
 /// payloads — the defaults are the slot-free, check-free behavior the
 /// retired opaque payload had). `Serialize`, because the insert door
 /// mints a node's id from the node's bytes, payload included
@@ -709,12 +709,15 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn reads(&self, var: VarId) -> bool {
         self.rows().into_iter().any(|(_, &e)| e == var)
     }
-    /// The authoring-time check (VQ9): resolve + replay + validate
-    /// under the CURRENT parameter environment, refusing typed at the
-    /// edit door. The evaluation-time twin re-checks under every
-    /// binding that is ever evaluated. A payload with no program has
-    /// nothing to check.
-    fn check(&self, _env: &VarEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
+    /// **The program's lattice of verbs** ([`ProfileProgram::lattice`]),
+    /// the one question the edit door and the load door ask a program
+    /// (`[recipe.doors]`): no value moves it. A payload with no program
+    /// has nothing to ask.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal::Transition`].
+    fn lattice(&self) -> Result<(), ProgramRefusal> {
         Ok(())
     }
     /// **The loop programs this payload holds**, program order — the
@@ -752,23 +755,75 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn mint_step_ids(&mut self, _mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         Ok(())
     }
-    /// **Every authored step's piece this program draws** under `env`
-    /// — [`ProfileProgram::pieces`], the one answer to which pieces a
-    /// program draws, flattened over its loops. Empty for a payload
-    /// with no program. Required, so a payload that holds a program
-    /// cannot answer that it draws nothing by omission.
+    /// **The partition this program's structure draws at generic
+    /// values** — [`ProfileProgram::partition`], read off the program
+    /// alone. Empty for a payload with no program. Required, so a
+    /// payload that holds a program cannot answer that it draws nothing
+    /// by omission.
     ///
     /// # Errors
     ///
-    /// [`ProfileProgram::pieces`]'s refusals, for the same causes.
-    fn drawn_pieces(
-        &self,
-        env: &VarEnv<f64>,
-        tol: Tol,
-    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal>;
+    /// [`ProfileProgram::structure`]'s refusals.
+    fn partition(&self) -> Result<ProfilePartition, ProgramRefusal>;
 }
 
-/// A typed authoring-time program refusal (VQ9; `EditError`'s payload).
+/// **The partition a program's structure draws at generic values**
+/// (REFERENCES.md DM7): its pieces, the walls a sweep builds over its
+/// runs (`names/README.md`, N1 "Swept walls over a run"), and the
+/// corners between them, where the sweep's struts and vertices are.
+/// It is read off the program's shape ([`profile::ChainShape`]) and no
+/// value: a run is a maximal chain of pieces each of which continues
+/// the one before by construction, spelled in drawing order, and a
+/// piece counts as drawn where a `Zero` fit could leave it undrawn. A
+/// run that is a whole loop of two pieces or more, a split circle,
+/// keeps its stations, as the sweep does: one wall per piece, and a
+/// corner at each.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProfilePartition {
+    pieces: std::collections::BTreeSet<crate::ProfileEdgeRef>,
+    walls: std::collections::BTreeSet<crate::PieceRun>,
+    corners: std::collections::BTreeSet<crate::ProfileVertexRef>,
+}
+
+impl ProfilePartition {
+    /// The pieces the structure draws.
+    pub(crate) fn pieces(&self) -> &std::collections::BTreeSet<crate::ProfileEdgeRef> {
+        &self.pieces
+    }
+
+    /// One loop's pieces, in drawing order, each with whether it
+    /// continues the one before it (the last, for the first).
+    fn add_loop(&mut self, drawn: &[(crate::ProfileEdgeRef, bool)]) {
+        let n = drawn.len();
+        let whole = n >= 2 && drawn.iter().all(|&(_, on)| on);
+        let starts: Vec<usize> = (0..n).filter(|&k| whole || !drawn[k].1).collect();
+        for (i, &first) in starts.iter().enumerate() {
+            let end = starts.get(i + 1).copied().unwrap_or(starts[0] + n);
+            let mut run: Vec<usize> = (first..end).map(|k| k % n).collect();
+            // N1's spelling, `LoopAnchor::run`'s: by drawing order, so a
+            // run wrapping through the loop's start begins at its first
+            // piece after the start vertex.
+            run.sort_unstable();
+            self.walls.extend(crate::PieceRun::new(
+                run.into_iter().map(|k| drawn[k].0).collect(),
+            ));
+            self.corners.insert(drawn[first].0.start());
+        }
+        self.pieces.extend(drawn.iter().map(|&(piece, _)| piece));
+    }
+
+    /// Whether this partition holds what `referent` denotes.
+    pub(crate) fn denotes(&self, referent: &crate::names::Referent) -> bool {
+        match referent {
+            crate::names::Referent::Piece(piece) => self.pieces.contains(piece),
+            crate::names::Referent::Wall(run) => self.walls.contains(run),
+            crate::names::Referent::Corner(vertex) => self.corners.contains(vertex),
+        }
+    }
+}
+
+/// A typed program refusal (`EditError`'s payload, and
+/// [`ProfileProgram::pieces`]'s).
 ///
 /// The resolve and validate classes carry their causes UNALTERED
 /// (`EvalError`/`ProfileError` are `PartialEq`, as `EditError`
@@ -786,8 +841,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
 /// for a reader.** A consumer asking WHICH geometry refusal fired
 /// matches that variant's `kind` and never the string.
 /// The full typed error remains the EVALUATION surface's contract
-/// (`NodeErrorKind` carries it unaltered); the edit door is the early
-/// ergonomic mirror. REPORTED shape, not silent (LIB-SWITCH §10).
+/// (`NodeErrorKind` carries it unaltered).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramRefusal {
     /// A program expression failed to resolve at f64 (unknown param,
@@ -811,9 +865,23 @@ pub enum ProgramRefusal {
         /// The ill-typed verb, `None` for end-of-program.
         verb: Option<profile::Verb>,
     },
+    /// The steps walk the lattice, and the replay refuses their order
+    /// at every value (`profile::OrderFault`): an arc leg off a
+    /// fillet's open arrival, a far-end anchor with none open, a seam
+    /// fillet over an arc first side, a chain closed by its first leg,
+    /// a `circle_split` count outside `2..=u32::MAX`.
+    Order {
+        /// The loop.
+        loop_: u32,
+        /// The offending step.
+        step: u32,
+        /// Which refusal — the typed half.
+        kind: profile::PathErrorKind,
+        /// The replay's own sentence for it.
+        rendered: String,
+    },
     /// The chain is well-typed but the geometry refuses under the
-    /// current binding (V1 class 2 — legal at rest; the CURRENT env
-    /// refuses it at the door for fail-loud-early ergonomics).
+    /// binding asked (V1 class 2 — legal at rest).
     Geometry {
         /// The loop whose replay refused.
         loop_: u32,
@@ -826,8 +894,8 @@ pub enum ProgramRefusal {
         /// scalar payloads `kind` drops; never an interface.
         rendered: String,
     },
-    /// The replayed loops refused profile validation under the current
-    /// binding (also V1 class 2).
+    /// The replayed loops refused profile validation under the binding
+    /// asked (also V1 class 2).
     Validate(profile::ProfileError),
     /// The program carries no step ids, so its pieces have no names:
     /// ids are minted by the document's insert door, and a program
@@ -872,7 +940,21 @@ impl core::fmt::Display for ProgramRefusal {
                 step,
                 rendered,
                 ..
-            } => write!(f, "loop {loop_} step {step}: {rendered}"),
+            }
+            | Self::Order {
+                loop_,
+                step,
+                rendered,
+                ..
+            } => {
+                // A refusal about an earlier step than the one raising
+                // it opens on the step it names, so it is not named twice.
+                if rendered.starts_with(&format!("step {step}'s ")) {
+                    write!(f, "loop {loop_}: {rendered}")
+                } else {
+                    write!(f, "loop {loop_} step {step}: {rendered}")
+                }
+            }
             Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
             Self::Unminted => f.write_str(
                 "the program carries no step ids, so its pieces have no names; a document's \
@@ -886,14 +968,15 @@ impl core::fmt::Display for ProgramRefusal {
 
 impl core::error::Error for ProgramRefusal {}
 
-/// The sentence for a step order the chain lattice refuses, shared by
-/// [`ProgramRefusal::Transition`] and the persist door's
-/// [`crate::ProgramFault::Lattice`]: [`profile::Refused`]'s clause,
+/// The sentence for a step order the chain lattice refuses,
+/// [`ProgramRefusal::Transition`]'s at the edit and load doors alike:
+/// [`profile::Refused`]'s clause,
 /// where, and its recourse in the chain's vocabulary. The verb is the
 /// transition table's, which is the [`ProgramStep`] variant's name for
-/// every step but [`ProgramStep::AlongTrace`] (it lowers to `Toward`;
-/// a program holding one runs from the pen, so this door never checks
-/// it).
+/// every step but those found from the pen, named by the verb they
+/// lower to ([`crate::step_handle::step_kernel`]); the pen's own
+/// refusals ([`crate::trace::pen_order`]) stand ahead of the lattice's
+/// at those steps.
 pub(crate) fn write_lattice(
     f: &mut core::fmt::Formatter<'_>,
     loop_: u32,
@@ -2114,9 +2197,9 @@ impl ProfileProgram {
     /// **Whether a step of this program lowers against the pen**: a
     /// trace, or a written coordinate along a heading
     /// ([`crate::trace`]). Such a program resolves only in an
-    /// evaluation, which replays the prefix, so the doors that resolve
-    /// outside one — the authoring check, the pieces a program draws —
-    /// leave it to evaluation.
+    /// evaluation, which replays the prefix; the doors, which resolve
+    /// nothing, judge its pen steps by their order alone
+    /// ([`ProfileProgram::lattice`]).
     #[must_use]
     pub fn runs_from_the_pen(&self) -> bool {
         self.loops.iter().any(LoopProgram::runs_from_the_pen)
@@ -2341,31 +2424,123 @@ impl ProfileProgram {
         Ok(out)
     }
 
-    /// The authoring-time check's body (VQ9): resolve under `env`,
-    /// replay every loop, validate the assembled profile — all under
-    /// the run tolerance (VQ6: the same `Tolerance::get()` evaluation
-    /// pins). Used by the edit door; evaluation re-runs the same
-    /// ladder per binding with full typed errors. A program that lowers
-    /// against the pen ([`Self::runs_from_the_pen`]) is checked where
-    /// the pen is, at evaluation.
+    /// **One loop's shape**: its steps as the kernel walks them
+    /// ([`crate::step_handle::step_kernel`]) through
+    /// [`profile::chain_shape`], and each step found from the pen judged
+    /// at the state the walk leaves it ([`crate::trace::pen_fault`]). No
+    /// value is read, so no binding, member or tolerance moves it.
+    fn loop_shape(li: usize, lp: &LoopProgram) -> Result<profile::ChainShape, ProgramRefusal> {
+        let loop_ = program_index(li);
+        let shapes = lp.shape();
+        // A pen step's lowering runs before the replay reaches it, so
+        // its refusal stands ahead of the walk's at the same step.
+        if let Some(refusal) = crate::trace::pen_fault(&shapes, loop_) {
+            return Err(ProgramRefusal::Trace(refusal));
+        }
+        let forms: Vec<profile::StepForm> = shapes
+            .iter()
+            .copied()
+            .map(crate::step_handle::step_kernel)
+            .collect();
+        let walked = profile::chain_shape(&forms);
+        walked.map_err(|fault| match fault.kind {
+            profile::ShapeFaultKind::Lattice { verb } => ProgramRefusal::Transition {
+                loop_,
+                step: program_index(fault.step),
+                state: fault.state,
+                verb,
+            },
+            profile::ShapeFaultKind::Order(order) => ProgramRefusal::Order {
+                loop_,
+                step: program_index(fault.step),
+                kind: order.kind(),
+                rendered: order.to_string(),
+            },
+        })
+    }
+
+    /// **The program's step order**, the one question the edit door and
+    /// the load door ask a program (`[recipe.doors]`): every loop's
+    /// shape ([`ProfileProgram::loop_shape`]), which no value moves.
     ///
     /// # Errors
     ///
-    /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`],
-    /// [`ProgramRefusal::Geometry`] or [`ProgramRefusal::Validate`].
-    pub fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
-        if self.runs_from_the_pen() {
-            return Ok(());
-        }
-        self.validated(env, tol).map(|_| ())
+    /// [`ProgramRefusal::Transition`], [`ProgramRefusal::Order`] or
+    /// [`ProgramRefusal::Trace`] at the first loop that refuses.
+    pub fn lattice(&self) -> Result<(), ProgramRefusal> {
+        self.shape().map(|_| ())
     }
 
-    /// The check's ladder, keeping what it recorded ([`Replayed`]):
-    /// what [`ProfileProgram::pieces`] names the canonical positions
-    /// from. Recording changes nothing about what is computed
-    /// (`profile::replay_recording` is `replay` bit for bit plus the
-    /// account, and `validate_recording` is `validate` plus its record),
-    /// so this and [`ProfileProgram::check`] cannot disagree.
+    /// **The pieces each loop's structure can draw**, per loop in
+    /// drawing order, each spelled with the id its step was minted
+    /// (`names/README.md`, "N1, the profile pieces"). A piece absent
+    /// here is absent at every value; one present may still go undrawn
+    /// at some (a run that fits `Zero`).
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal::Unminted`], [`ProgramRefusal::StepIds`], and
+    /// [`ProfileProgram::lattice`]'s.
+    pub fn structure(&self) -> Result<Vec<Vec<crate::ProfileEdgeRef>>, ProgramRefusal> {
+        Ok(self
+            .drawn()?
+            .into_iter()
+            .map(|drawn| drawn.into_iter().map(|(piece, _)| piece).collect())
+            .collect())
+    }
+
+    /// **The partition this program's structure draws at generic
+    /// values** ([`ProfilePartition`]), its pieces spelled as
+    /// [`ProfileProgram::structure`] spells them.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileProgram::structure`]'s.
+    pub fn partition(&self) -> Result<ProfilePartition, ProgramRefusal> {
+        let mut partition = ProfilePartition::default();
+        for drawn in self.drawn()? {
+            partition.add_loop(&drawn);
+        }
+        Ok(partition)
+    }
+
+    /// Per loop, the pieces its structure draws in drawing order, each
+    /// with whether it continues the one before by construction.
+    fn drawn(&self) -> Result<Vec<Vec<(crate::ProfileEdgeRef, bool)>>, ProgramRefusal> {
+        if !self.carries_step_ids() {
+            return Err(ProgramRefusal::Unminted);
+        }
+        self.check_id_shape().map_err(ProgramRefusal::StepIds)?;
+        Ok(self
+            .shape()?
+            .into_iter()
+            .zip(&self.ids)
+            .map(|(shape, ids)| {
+                shape
+                    .pieces
+                    .into_iter()
+                    .map(|p| crate::ProfileEdgeRef::Piece {
+                        step: ids[p.step],
+                        role: p.role,
+                    })
+                    .zip(shape.continues)
+                    .collect()
+            })
+            .collect())
+    }
+
+    /// Every loop's shape, in loop order.
+    fn shape(&self) -> Result<Vec<profile::ChainShape>, ProgramRefusal> {
+        self.loops
+            .iter()
+            .enumerate()
+            .map(|(li, lp)| Self::loop_shape(li, lp))
+            .collect()
+    }
+
+    /// Resolve under `env`, replay every loop and validate the assembled
+    /// profile, keeping what it recorded ([`Replayed`]): what
+    /// [`ProfileProgram::pieces`] names the canonical positions from.
     fn validated(&self, env: &VarEnv<f64>, tol: Tol) -> Result<Replayed, ProgramRefusal> {
         let (replayed, records) = self.replay_records(env, tol)?;
         // A profile is 2-D, its plane its own `xy`: what this door
@@ -2393,7 +2568,9 @@ impl ProfileProgram {
     ///
     /// # Errors
     ///
-    /// [`ProfileProgram::check`]'s; [`ProgramRefusal::Unminted`] for a
+    /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`],
+    /// [`ProgramRefusal::Geometry`], [`ProgramRefusal::Validate`] and
+    /// [`ProgramRefusal::Trace`] at `env`; [`ProgramRefusal::Unminted`] for a
     /// program whose steps carry no ids
     /// ([`ProfileProgram::carries_step_ids`]); and
     /// [`ProgramRefusal::StepIds`] for ids not shaped one list per
@@ -2480,21 +2657,24 @@ impl ProfileProgram {
         let mut loops = Vec::with_capacity(resolved.len());
         let mut records = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
-            let (lp, record) = profile::replay_recording(steps, tol).map_err(|e| match e.kind {
-                profile::ReplayErrorKind::Transition { state, verb } => {
-                    ProgramRefusal::Transition {
-                        loop_: program_index(li),
-                        step: program_index(e.step),
-                        state,
-                        verb,
+            let (lp, record) = profile::replay_recording(steps, tol).map_err(|e| {
+                let step = program_index(e.step());
+                match e.kind {
+                    profile::ReplayErrorKind::Transition { state, verb } => {
+                        ProgramRefusal::Transition {
+                            loop_: program_index(li),
+                            step,
+                            state,
+                            verb,
+                        }
                     }
+                    profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
+                        loop_: program_index(li),
+                        step,
+                        kind: source.kind(),
+                        rendered: source.to_string(),
+                    },
                 }
-                profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
-                    loop_: program_index(li),
-                    step: program_index(e.step),
-                    kind: source.kind(),
-                    rendered: source.to_string(),
-                },
             })?;
             loops.push(lp);
             records.push(record);
@@ -2837,15 +3017,11 @@ impl ProfilePayload for ProfileProgram {
         }
     }
 
-    fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
-        ProfileProgram::check(self, env, tol)
+    fn lattice(&self) -> Result<(), ProgramRefusal> {
+        ProfileProgram::lattice(self)
     }
-    fn drawn_pieces(
-        &self,
-        env: &VarEnv<f64>,
-        tol: Tol,
-    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
-        Ok(self.pieces(env, tol)?.edges.into_iter().flatten().collect())
+    fn partition(&self) -> Result<ProfilePartition, ProgramRefusal> {
+        ProfileProgram::partition(self)
     }
     fn loops(&self) -> Option<&[LoopProgram]> {
         Some(&self.loops)

@@ -148,6 +148,17 @@ pub fn circle_at(centre: [f64; 2], radius: f64) -> LoopProgram<Formula> {
     }])
 }
 
+/// A chain that never closes, as [`shape`] lowers it: the lattice
+/// refuses it at every value, so it is the edit door's to refuse.
+pub fn unclosed_loop() -> LoopProgram<Formula> {
+    shape(&[
+        pncad::profile::Step::At(pncad::geom_core::Point2::origin()),
+        pncad::profile::Step::LineTo(pncad::profile::Target::Point(
+            pncad::geom_core::Point2::new(0.01, 0.0),
+        )),
+    ])
+}
+
 /// A `width` by `height` rectangle on `centre`, as [`shape`] lowers it.
 pub fn rectangle_at(centre: [f64; 2], width: f64, height: f64) -> LoopProgram<Formula> {
     shape(&[pncad::profile::Step::Rectangle {
@@ -314,10 +325,10 @@ pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 /// committed document fixture is loadable at exactly one of its
 /// points and refuses at the others.
 ///
-/// So the fixture is re-stamped with THIS run's ε before it is opened.
-/// The new ε line comes from `save` itself, via a throwaway document
-/// at the process tolerance: spelling a float the way the serializer
-/// spells it is the serializer's job, not this file's.
+/// So the fixture is re-stamped with THIS run's ε before it is opened,
+/// by the one re-stamp every suite shares
+/// (`editor_core::test_support::restamped_at`), whose new ε line comes
+/// from `save` itself.
 ///
 /// **What this function does NOT do is check its own work.** The real
 /// claim (a re-stamped fixture is byte-for-byte what the exporter
@@ -326,25 +337,7 @@ pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 /// which puts the bytes back through `save` rather than through this
 /// function's own arithmetic.
 pub fn gallery_ring_at(tol: Tol) -> String {
-    let probe: Doc<ProfileProgram> = Doc::empty_derived("gui3-epsilon-probe", tol);
-    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
-    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = probe_text
-        .lines()
-        .find(|line| is_epsilon(line))
-        .expect("a saved document records its ε");
-    assert_eq!(
-        GALLERY_RING.lines().filter(|l| is_epsilon(l)).count(),
-        1,
-        "the fixture must carry exactly one ε line"
-    );
-    let mut text: String = GALLERY_RING
-        .lines()
-        .map(|line| if is_epsilon(line) { wanted } else { line })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    text.push('\n');
-    text
+    editor_core::test_support::restamped_at(GALLERY_RING, tol)
 }
 
 // --- session helpers for the op-vocabulary suites -------------------
@@ -660,13 +653,13 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
 /// up from the start cap of the extrude `body` is built from, which is
 /// the plane square to `z` at `by` in that extrude's coordinates. A
 /// plane read as a caller writes one
-/// ([`viewer::session::SplitPlane::Read`]): the cap's plane slid into
+/// ([`viewer::session::ToolPlane::Read`]): the cap's plane slid into
 /// the body along its normal ([`plane_inside`]).
 pub fn cut_across(
     session: &DocSession,
     body: impl Into<pncad::document::Operand>,
     by: f64,
-) -> viewer::session::SplitPlane {
+) -> viewer::session::ToolPlane {
     use pncad::document::{Node, Operand};
     let mut on = body.into();
     let doc = session.committed_doc();
@@ -708,14 +701,14 @@ pub fn cut_across(
 /// **The plane `depth` metres inside the plane face `face`**, facing
 /// into the body: the face's plane turned over, so its normal points
 /// inward and a split's `above` side is the body's, then slid along it.
-pub fn plane_inside(face: pncad::document::Operand, depth: f64) -> viewer::session::SplitPlane {
+pub fn plane_inside(face: pncad::document::Operand, depth: f64) -> viewer::session::ToolPlane {
     use pncad::document::Operand;
     use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
     let plane = Operand::Pose(Box::new(PoseDef::Plane { face }));
     let inward = Operand::Pose(Box::new(PoseDef::Flip {
         pose: RoleRead::plain(plane),
     }));
-    viewer::session::SplitPlane::Read(RoleRead::plain(Operand::Pose(Box::new(PoseDef::Slide {
+    viewer::session::ToolPlane::Read(RoleRead::plain(Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(inward.clone()),
         along: RoleRead::through(inward, PoseRole::Normal),
         by: len(depth),

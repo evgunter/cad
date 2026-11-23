@@ -130,20 +130,20 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
             value: MetaValue::map(record).expect("a shallow value"),
         },
     );
-    let text = save(&doc, &[], tol).expect("the document saves");
+    let text = save(&doc, tol).expect("the document saves");
     let loaded = load(&text, tol).expect("the document loads back");
-    assert!(loaded.doc == doc, "the loaded document is the saved one");
+    assert!(loaded == doc, "the loaded document is the saved one");
     assert_eq!(
-        save(&loaded.doc, &[], tol).expect("the loaded document saves"),
+        save(&loaded, tol).expect("the loaded document saves"),
         text,
         "and saves the same text"
     );
     assert_eq!(
-        content_pin(&loaded.doc, tol).unwrap(),
+        content_pin(&loaded, tol).unwrap(),
         content_pin(&doc, tol).unwrap(),
         "and pins the same"
     );
-    let stored = &crate::fixture::painted(&loaded.doc, &name)
+    let stored = &crate::fixture::painted(&loaded, &name)
         .expect("the record loads")
         .metadata["probe"];
     let MetaValue::Map(entries) = stored else {

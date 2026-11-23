@@ -8,11 +8,9 @@ use geom_core::k_stats::{self, Detached};
 use geom_core::{Band, Point3, Tol};
 use topo::{Body, FaceKey};
 
-use rayon::prelude::*;
-
 use crate::budget;
 use crate::chords::{compute_chords, edge_ends};
-use crate::curved::tessellate_curved;
+use crate::curved::{Shape, tessellate_curved};
 use crate::memo::{FaceInputs, FaceMemo, PatchKeys, PatchMemo, Placement};
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
@@ -144,6 +142,9 @@ impl Patch {
 /// [`crate::validate::check_mesh`] is the backstop for that, and
 /// **this function does not call it**: it is available to a caller,
 /// and the acceptance suites run it, but nothing on this path does.
+/// What this path does census is the sides two faces' patches can share:
+/// one used past two triangles per chord carrying it refuses
+/// [`TessellateError::OverusedSide`].
 ///
 /// # Errors
 ///
@@ -153,7 +154,8 @@ impl Patch {
 /// carriers, a curved face whose loops have no reading in one sheet of
 /// its chart, a curved face whose iso domain is not its own UV
 /// rectangle, empty loops, dangling keys, resolution
-/// overflow, certificate failure, CDT insertion failure.
+/// overflow, certificate failure, CDT insertion failure, a side the
+/// joined patches use past two triangles per chord.
 pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
     tessellate_impl(body, chordal, tol, None).map(|(mesh, _)| mesh)
 }
@@ -179,14 +181,22 @@ pub struct Tessellation {
 /// otherwise — the incremental re-tessellation door the crate's
 /// memo-key contract exists for.
 ///
-/// The chord pass runs as in [`tessellate`] (it is per edge and
-/// cheap); per face the lane is skipped on a memo hit and the stored
-/// patch is placed by the same fold. The mesh is byte-identical to
+/// Every face's route and the chord pass run as in [`tessellate`] (the
+/// key folds the face's lane, and the chord pass is per edge and cheap);
+/// per face the lane is skipped on a memo hit and the stored patch is
+/// placed by the same fold. The mesh is byte-identical to
 /// [`tessellate`]'s: a hit is by the full key bytes, and the key is
 /// every input the lane reads (`crate::memo`'s module docs state it
-/// per lane). What a hit does NOT run is the lane's own per-patch
-/// census and, with the `budget` feature, its recording; the
-/// cross-face census at the end runs either way.
+/// per lane). What a hit does NOT run is the lane itself, its per-patch
+/// census and, with the `budget` feature, its recording; the cross-face
+/// census at the end runs either way. On a hit the route's doors and its
+/// split-side fact record nothing for the face (they are spliced only
+/// where the lane runs); a trimmed face's domain read, the route's or
+/// the face's own before its key is formed (`Route::ready`), is recorded
+/// on a hit as on a miss, since the read keys the patch as the lane's
+/// own read did.
+/// So a hit's stream is the chord pass's and each trimmed face's domain
+/// read.
 ///
 /// The memo's lifetime is the caller's: [`PatchMemo::end_picture`]
 /// after every picture is what keeps it one picture's size.
@@ -213,10 +223,9 @@ pub(crate) enum Lane {
     /// `curved::tessellate_curved`: the iso-rectangle walk plus UV
     /// grid on a swept analytic chart.
     Curved,
-    /// `trimmed::tessellate_trimmed`: the pcurve-driven lane, on a
-    /// face that is no iso-rectangle of its analytic chart (a ring, a
-    /// trim carrier, a tilted circle on a sphere, a straight side holding
-    /// a point) or on any NURBS chart.
+    /// `trimmed::tessellate_trimmed`: the chart lane, on every face
+    /// that is no iso-rectangle of its chart, on a ruled rectangle whose
+    /// straight side holds a point, and on any NURBS chart.
     Trimmed,
 }
 
@@ -237,69 +246,335 @@ pub(crate) enum Lane {
 /// certifies against the DESCRIPTION is a separate statement, and this
 /// pass makes the plain one.
 ///
-/// Structural routing: a curved face with a ring is no iso-rectangle,
-/// and the trimmed lane, which reads every loop of a face's domain, takes
-/// it. So does a face whose outer loop has a conic/B-spline trim carrier
-/// (M5 PR 11). The converse does NOT follow: this is a test on carrier
-/// KINDS, and iso carriers (`Line`, `Circle`) can bound a
-/// NON-rectangular domain — a keyway or milled flat on a cylinder is
-/// exactly that shape, and nothing on this path screens loop SHAPE. So
-/// an iso boundary reaching `tessellate_curved` is a routing decision,
-/// not a guarantee about the domain; the domain itself is checked
-/// there, by the numbered list of questions `curved`'s module header
-/// carries — which is the one home of what they are and in what order.
-/// Two of them are the WALK's rather than a door's
-/// (`walk::require_a_meridian` and `walk::require_two_columns`), which
-/// is why this dispatch can hand an iso boundary over without deciding
-/// anything about its shape.
+/// **An analytic curved face is routed on its domain**, by the first of
+/// these facts that answers, each named by its predicate so a citation
+/// survives a fact inserted before it:
 ///
-/// One shape is decided here: a cylinder or cone face whose straight
-/// side holds a point between its ends, which the rectangle lane's ruled
-/// arms cannot take (`walk::splits_a_straight_side`, the one reader of
-/// `band` here). Such a face is the trimmed lane's.
-pub(crate) fn lane_of(
+/// - **A ring** (`face.rings`): a face holding one is no rectangle, and
+///   is the trimmed lane's, which reads every loop of its domain.
+/// - **A pinch** ([`crate::walk::pinches`]): an outer loop that passes
+///   one point record at two distinct vertices — a slit's parted end, or
+///   both ends of a slit run the full height of a full turn. The curved
+///   lane's walk places each junction by inverting its POSITION through
+///   the chart, so two vertices at one position get one chart place, and
+///   which side of the slit each copy lies on is a fact of the loop's
+///   topology that no position carries. The trimmed lane places each
+///   vertex by its own stored chart image, so the face is that lane's,
+///   whether or not its domain is an iso rectangle (the full-height slit's
+///   is). The body states the two vertices one point by giving them one
+///   point record, so the route reads that and no distance.
+/// - **A non-iso chart image** ([`geom_brep::Pcurve::is_non_iso_form`]):
+///   a face whose outer loop stores a chart image of a form no iso line
+///   takes (a projected circle, a focal section, a spiric, a fitted or
+///   general spline) is no iso rectangle, and is the trimmed lane's. The
+///   form is what the mint chose when its class reading showed none of
+///   the chart's iso classes, so the route reads that stored fact and
+///   asks no door.
+/// - **The doors** ([`crate::curved::iso_rectangle_shape`]) route every
+///   other face. A face they certify an iso-parameter rectangle on one
+///   chart branch is the curved lane's, and carries their answer as a
+///   value ([`crate::curved::Rectangle`]), which is the only way into
+///   that lane. A face they decide is none — a notch, an arc through a
+///   pole — is the trimmed lane's only where that lane can read its
+///   domain (`topo::Body::face_lift`); where it cannot, the doors' own
+///   verdict is the refusal, with its recourse. A face the doors cannot
+///   decide, or whose stored data contradicts itself, refuses
+///   [`TessellateError::UnsupportedCurvedShape`] with their cause: no
+///   lane is taken because a door could not answer.
+/// - **A split straight side** ([`crate::walk::splits_a_straight_side`]):
+///   a rectangle the doors certify on a ruled chart (a cylinder or a
+///   cone) whose straight side holds a point between its ends — a ruling
+///   split into several edges, or a cone side run through its apex — is
+///   the trimmed lane's: the curved lane's theorem for a ruled face holds
+///   every triangle between two neighbouring rulings, and that point is a
+///   boundary point off its grid. The doors' [`crate::curved::Rectangle`]
+///   is dropped here unspent, so the token still means what it says (the
+///   doors certified a rectangle) and the curved lane is still reached
+///   through it alone; what the route adds is that the lane is handed
+///   only a ruled rectangle with bare sides, and the lane's own guard
+///   (`curved::SIDE_CHORD_POINT`) refuses one that reaches it otherwise.
+///
+/// Read once per face per run, by [`Routes::of`], and handed to the
+/// chord pass, the sizing and the lanes, so no two of them can answer
+/// it differently.
+///
+/// The route reads a face's domain ([`read_domain`]) where the doors
+/// decided it no rectangle, since a domain the chart lane cannot read
+/// makes that face no lane's; every other trimmed face's is read at its
+/// turn ([`Route::ready`]). Answers the route and, where it read the
+/// domain, the K-funnel recording of that read apart from the doors': a
+/// memo hit records the domain read, which keys the patch as the lane's
+/// own read does, and not the doors', which ran in place of the lane's.
+pub(crate) fn route_of(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
     band: Band,
-) -> Result<Lane, TessellateError> {
+) -> Result<(Route, Option<Detached>), TessellateError> {
     Ok(match *surface {
-        Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
-        Surface::Plane { .. } => Lane::Planar,
-        _ if has_ring(body, fk)? => Lane::Trimmed,
-        _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
-        Surface::Sphere { .. } if crate::trimmed::has_tilted_circle(body, fk)? => Lane::Trimmed,
-        _ if crate::walk::splits_a_straight_side(body, fk, surface, band)? => Lane::Trimmed,
-        _ => Lane::Curved,
+        Surface::Nurbs(_) | Surface::Approx(_) => (Route::Trimmed(Trim::Structural), None),
+        Surface::Plane { .. } => (Route::Planar, None),
+        _ => {
+            let face = body
+                .get_face(fk)
+                .ok_or(TessellateError::MissingEntity { what: "face" })?;
+            if !face.rings.is_empty() || crate::walk::pinches(body, face.outer)? {
+                return Ok((Route::Trimmed(Trim::Structural), None));
+            }
+            let off_iso = crate::walk::loop_half_edges(body, face.outer, fk)?
+                .into_iter()
+                .any(|(hek, _, _)| {
+                    body.pcurve(hek)
+                        .is_some_and(|c| c.pcurve().is_non_iso_form())
+                });
+            if off_iso {
+                return Ok((Route::Trimmed(Trim::Structural), None));
+            }
+            match crate::curved::iso_rectangle_shape(body, fk, face.outer, surface, band)? {
+                Shape::Rectangle(rectangle) => {
+                    if crate::walk::splits_a_straight_side(body, fk, surface)? {
+                        // The split-straight-side fact: the token goes unspent.
+                        (Route::Trimmed(Trim::Structural), None)
+                    } else {
+                        (Route::Curved(rectangle), None)
+                    }
+                }
+                Shape::NoRectangle(verdict) => {
+                    let (lift, read) =
+                        k_stats::detached(|| read_domain(body, fk, band, Some(verdict)));
+                    match lift {
+                        Ok(lift) => (Route::Trimmed(Trim::Read(lift)), Some(read)),
+                        Err(refusal) => {
+                            k_stats::splice(read);
+                            return Err(refusal);
+                        }
+                    }
+                }
+            }
+        }
     })
 }
 
-/// Whether face `fk` holds a ring. A curved face with one is no swept
-/// rectangle, whatever its carriers, so the dispatch sends it to the
-/// trimmed lane, which reads its every loop.
-fn has_ring(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
-    body.get_face(fk)
-        .map(|face| !face.rings.is_empty())
-        .ok_or(TessellateError::MissingEntity { what: "face" })
+/// **A face's route**: its lane, with what the route knows of it. The
+/// curved lane runs on the doors' "rectangle" answer; the trimmed lane on
+/// the face's domain, which [`Route::ready`] reads at the face's turn.
+pub(crate) enum Route {
+    Planar,
+    Curved(crate::curved::Rectangle),
+    Trimmed(Trim),
 }
 
-/// A face's lane with what it runs on: the trimmed lane carries the
-/// face's domain, read once (`trimmed::face_domain`), which the memo key
-/// folds and the lane triangulates.
-enum Route {
-    Planar,
-    Curved,
-    Trimmed(topo::pcurves::FaceLift<f64>),
+/// A trimmed face's domain, as far as the route has it.
+pub(crate) enum Trim {
+    /// A fact of the face sends it to the trimmed lane before or past
+    /// the doors (a ring, a stored image of a non-iso form, a ruled
+    /// rectangle whose straight side holds a point, a spline chart); its
+    /// domain is read at its turn ([`Route::ready`]).
+    Structural,
+    /// The doors decided the face no rectangle, and the route read its
+    /// domain ([`route_of`]).
+    Read(topo::pcurves::FaceLift<f64>),
+}
+
+/// **The one read of a trimmed face's domain** (`trimmed::face_domain`),
+/// which the memo key folds and the lane triangulates, with what its
+/// miss answers. Where the doors decided the face no rectangle (their
+/// `verdict`), a domain stored with no image is the lane's refusal, and
+/// one whose loops have no reading in one sheet of the chart (an arc
+/// through a pole, a loop that winds it) is a face no lane takes: the
+/// doors' verdict, with its recourse, is the answer. Every other miss is
+/// the lane's refusal.
+fn read_domain(
+    body: &Body<f64>,
+    fk: FaceKey,
+    band: Band,
+    verdict: Option<geom_brep::props::PropsError>,
+) -> Result<topo::pcurves::FaceLift<f64>, TessellateError> {
+    crate::trimmed::face_domain(body, fk, band).map_err(|unread| match verdict {
+        Some(verdict)
+            if !matches!(
+                &unread,
+                TessellateError::DomainUnread { cause, .. }
+                    if matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
+            ) =>
+        {
+            TessellateError::UnsupportedCurvedShape {
+                face: fk,
+                source: verdict,
+            }
+        }
+        _ => unread,
+    })
 }
 
 impl Route {
+    /// **The route, ready to run**: a trimmed face's domain, read here
+    /// where the route did not read it ([`read_domain`]).
+    ///
+    /// # Errors
+    ///
+    /// The read's miss.
+    pub(crate) fn ready(
+        self,
+        body: &Body<f64>,
+        fk: FaceKey,
+        band: Band,
+    ) -> Result<Ready, TessellateError> {
+        Ok(match self {
+            Self::Planar => Ready::Planar,
+            Self::Curved(rectangle) => Ready::Curved(rectangle),
+            Self::Trimmed(Trim::Read(lift)) => Ready::Trimmed(lift),
+            Self::Trimmed(Trim::Structural) => Ready::Trimmed(read_domain(body, fk, band, None)?),
+        })
+    }
+}
+
+/// A route with what its lane runs on: [`Route::ready`]'s answer.
+pub(crate) enum Ready {
+    Planar,
+    Curved(crate::curved::Rectangle),
+    Trimmed(topo::pcurves::FaceLift<f64>),
+}
+
+impl Ready {
+    /// The lane this runs.
+    fn lane(&self) -> Lane {
+        match self {
+            Self::Planar => Lane::Planar,
+            Self::Curved(_) => Lane::Curved,
+            Self::Trimmed(_) => Lane::Trimmed,
+        }
+    }
+
     /// The trimmed lane's domain; `None` on the other lanes, which read
     /// none.
     fn domain(&self) -> Option<&topo::pcurves::FaceLift<f64>> {
         match self {
             Self::Trimmed(lift) => Some(lift),
-            Self::Planar | Self::Curved => None,
+            Self::Planar | Self::Curved(_) => None,
         }
+    }
+}
+
+/// One face's entry in [`Routes`]: the lane it was routed to, or the
+/// route's refusal, which the run reports at that face's turn.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Routed {
+    To(Lane),
+    Refused,
+}
+
+/// One face as [`Routes::of`] routed it: the face, its route or the
+/// route's refusal, and the K-funnel recordings the route made: the
+/// doors' and the split-side fact's (spliced where the lane runs), and
+/// the domain read's where the route read the domain (spliced on every
+/// run).
+pub(crate) struct FaceRoute {
+    pub(crate) face: FaceKey,
+    pub(crate) route: Result<Route, TessellateError>,
+    pub(crate) asked: Detached,
+    pub(crate) read: Option<Detached>,
+}
+
+/// **Every face's lane, read once per run** ([`route_of`]), in face-arena
+/// order, with the K-funnel recording each face's read made. The fold
+/// splices it in at that face's turn, before the face's own work: the
+/// doors' and the split-side fact's where the lane runs, the domain
+/// read's on a memo hit as well ([`FaceRoute`]).
+pub(crate) struct Routes {
+    faces: HashMap<FaceKey, Entry>,
+}
+
+/// One face's entry in [`Routes`]: its lane, a curved-lane face's
+/// carrying the doors' answer, which the chord rule reads beside the
+/// walk ([`Routes::rectangle`]), or the route's refusal.
+enum Entry {
+    Planar,
+    Curved(crate::curved::Rectangle),
+    Trimmed,
+    Refused,
+}
+
+impl Routes {
+    /// Routes every face of `body` at `band`: the table, and each face's
+    /// route with its recording, in arena order.
+    pub(crate) fn of(body: &Body<f64>, band: Band) -> (Self, Vec<FaceRoute>) {
+        let routed: Vec<_> = body
+            .faces()
+            .map(|(face, _)| {
+                let (route, asked) = k_stats::detached(|| {
+                    face_surface(body, face).and_then(|surface| route_of(body, face, surface, band))
+                });
+                let (route, read) = match route {
+                    Ok((route, read)) => (Ok(route), read),
+                    Err(error) => (Err(error), None),
+                };
+                FaceRoute {
+                    face,
+                    route,
+                    asked,
+                    read,
+                }
+            })
+            .collect();
+        let faces = routed
+            .iter()
+            .map(|r| {
+                let entry = match &r.route {
+                    Ok(Route::Planar) => Entry::Planar,
+                    Ok(Route::Curved(rectangle)) => Entry::Curved(rectangle.clone()),
+                    Ok(Route::Trimmed(_)) => Entry::Trimmed,
+                    Err(_) => Entry::Refused,
+                };
+                (r.face, entry)
+            })
+            .collect();
+        (Self { faces }, routed)
+    }
+
+    /// Face `fk`'s doors' answer, where it routed to the curved lane.
+    pub(crate) fn rectangle(&self, fk: FaceKey) -> Option<&crate::curved::Rectangle> {
+        match self.faces.get(&fk) {
+            Some(Entry::Curved(rectangle)) => Some(rectangle),
+            _ => None,
+        }
+    }
+
+    /// Face `fk`'s entry.
+    ///
+    /// # Errors
+    ///
+    /// [`TessellateError::MissingEntity`] for a face the table did not
+    /// route: a key no live face of the body holds.
+    pub(crate) fn lane(&self, fk: FaceKey) -> Result<Routed, TessellateError> {
+        match self.faces.get(&fk) {
+            Some(Entry::Planar) => Ok(Routed::To(Lane::Planar)),
+            Some(Entry::Curved(_)) => Ok(Routed::To(Lane::Curved)),
+            Some(Entry::Trimmed) => Ok(Routed::To(Lane::Trimmed)),
+            Some(Entry::Refused) => Ok(Routed::Refused),
+            None => Err(TessellateError::MissingEntity { what: "face" }),
+        }
+    }
+
+    /// The table alone, at the witness tolerance's band: what a unit
+    /// test of one pass reads in place of a run's.
+    #[cfg(test)]
+    #[allow(clippy::expect_used)]
+    pub(crate) fn witness(body: &Body<f64>) -> Self {
+        Self::of(
+            body,
+            Band::linear(Tol::witness()).expect("the witness band"),
+        )
+        .0
+    }
+
+    /// This table with face `fk` routed to the curved lane on
+    /// `rectangle`, for a row whose subject is what that lane does with a
+    /// face the route would not hand it.
+    #[cfg(test)]
+    pub(crate) fn with_curved(mut self, fk: FaceKey, rectangle: crate::curved::Rectangle) -> Self {
+        self.faces.insert(fk, Entry::Curved(rectangle));
+        self
     }
 }
 
@@ -356,9 +631,9 @@ fn tessellate_impl(
     let ambient = tol;
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
-    // `Band::linear` prescribes, for props' predicates
-    // (`SizingTols::band` names the sites; the dispatch and the chord
-    // pass ask the shape door through `lane_of`). Eager on purpose: a run whose
+    // `Band::linear` prescribes, and read by the route's doors and domain
+    // read, the walk's wrap strip and the trimmed lane's singular
+    // vertices (`SizingTols::band`). Eager on purpose: a run whose
     // ε cannot form a band refuses every body alike, the all-planar
     // ones included, rather than meshing until the first curved face
     // (`TessellateError::Band` says why).
@@ -377,22 +652,19 @@ fn tessellate_impl(
     // shared by both passes that need them (`chords::FaceBounds`).
     let mut bounds = FaceBounds::new();
 
+    // Every face's route, read once, before anything sizes a face.
+    let (routes, routed) = Routes::of(body, band);
     // Chord pass: per-edge polylines, computed once (crate docs);
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
-    let tol = SizingTols {
-        delta: chordal,
-        eps,
-        band,
-    };
-    let chords = compute_chords(body, &tol, &vids, &mut positions, &mut bounds)?;
+    let chords = compute_chords(body, chordal, &routes, &vids, &mut positions, &mut bounds)?;
     // Every id a face can SHARE with another face is now minted:
     // topology vertices, then chord points, then (per face, below) that
     // face's own interior grid. So a shared id is exactly an id below
     // this mark — which is what the census at the end of this function
     // tests with an integer compare rather than a lookup, and what
-    // makes `positions[..shared_below]` the whole of what a face reads
-    // from outside itself.
+    // makes `positions[..shared_below]` the whole of the mesh positions
+    // a face reads from outside itself.
     let shared_below = positions.len();
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
@@ -421,10 +693,12 @@ fn tessellate_impl(
     // is where every order-dependent thing happens — the mesh arena,
     // the memo's counters and entries, and the budget meter's rows.
     //
-    // What a face reads is `positions[..shared_below]` and nothing else
-    // it does not own (above), the chord pass has finished writing
-    // `bounds` (`nurbs_cert::FaceBounds`), and the memo is read through
-    // its pure half (`PatchMemo::lookup`).
+    // Of what other faces' work writes, a face reads only finished
+    // values: the mesh positions `positions[..shared_below]` (above),
+    // the chord pass's ids, parameters and holders, and `bounds`
+    // (`nurbs_cert::FaceBounds`), which the chord pass has finished
+    // writing; the memo is read through its pure half
+    // (`PatchMemo::lookup`). What each lane reads is `memo`'s list.
     //
     // ERRORS. The refusal a caller sees is the first in ARENA order,
     // never the first the map finished. The price is that every face is
@@ -443,126 +717,128 @@ fn tessellate_impl(
     // 54.1 MB — +18 % where it shows, on a figure the mesh value itself
     // dominates. A body with MANY faces pays less, not more: the
     // patches are smaller.
-    let faces: Vec<FaceKey> = body.faces().map(|(fk, _)| fk).collect();
+    let tol = SizingTols {
+        delta: chordal,
+        eps,
+        band,
+    };
+    let (faces, recorded): (Vec<_>, Vec<_>) = routed
+        .into_iter()
+        .map(|r| ((r.face, r.route), (r.asked, r.read)))
+        .unzip();
     // The meter's arming as a value: a lane runs on a worker thread,
     // which nobody armed (`budget`'s module docs).
     let arming = budget::arming();
     let reader = memo.as_deref();
     let work: Vec<FaceWork<'_>> = {
         let shared = &positions[..shared_below];
-        faces
-            .par_iter()
-            .map(|&fk| {
-                // ONE wrapper for both of the tessellation's
-                // thread-local channels, because they are one problem:
-                // a channel the CALLER owns and the worker does not.
-                // The budget meter's per-face rows
-                // (`budget::record`) and the K-funnel's verdicts,
-                // escalations and `probe` samples
-                // (`k_stats::detached`) are both recorded into
-                // thread-locals by the lane, both travel back in this
-                // face's slot, and the fold hands both on in arena
-                // order — so an armed meter and a `Bracket` around
-                // `tessellate` see what a serial walk would have
-                // written, element for element, at any thread count.
-                //
-                // NO PORTABILITY GATE (`geom_core::sym::
-                // decisions_are_thread_portable`, which the evaluator's
-                // node map and `topo::props`' face walks read), and the
-                // reason is this crate's scalar policy: `mesh` takes
-                // `&Body<f64>` and instantiates nothing else, so a
-                // lane's decisions never reach `Sym::sign_within`. Both
-                // halves of that test are writes from there — the
-                // session (the decision itself and its receipt) and the
-                // shape report (a row per decision, session or not) —
-                // so neither can arise here.
-                let (((memo_work, place), meter), decided) = k_stats::detached(|| {
-                    budget::record(arming, || {
-                        let surface = match face_surface(body, fk) {
-                            Ok(surface) => surface,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        let lane = match lane_of(body, fk, surface, tol.band) {
-                            Ok(lane) => lane,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        // The trimmed lane's domain, read from the door once,
-                        // here, and handed to the memo key and the lane
-                        // alike (`trimmed::face_domain`); its miss is the
-                        // lane's refusal.
-                        let route = match lane {
-                            Lane::Trimmed => match crate::trimmed::face_domain(body, fk, &tol) {
-                                Ok(lift) => Route::Trimmed(lift),
-                                Err(error) => return (None, Err(error)),
-                            },
-                            Lane::Planar => Route::Planar,
-                            Lane::Curved => Route::Curved,
-                        };
-                        // The lanes, each over `shared` — the whole of what
-                        // a face reads from outside itself.
-                        //
-                        // The planar lane derives its chart frame from the
-                        // face's own boundary (planar.rs module docs, #284)
-                        // — the stored plane axes are deliberately not
-                        // passed: imported axes carry translator noise that
-                        // projects valid boundaries below spade's
-                        // coordinate domain.
-                        let run = || match &route {
-                            Route::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
-                                body,
-                                fk,
-                                surface,
-                                &chords,
-                                shared,
-                                &tol,
-                                &bounds,
-                                lift,
-                                crate::trimmed::BOUNDARY_CLEARANCE,
-                            ),
-                            Route::Planar => tessellate_planar(body, fk, &chords.ids, shared),
-                            Route::Curved => {
-                                tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
-                            }
-                        };
-                        let Some(memo) = reader else {
-                            return (None, run().map(Placement::Lane));
-                        };
-                        let inputs = match FaceInputs::gather(
+        k_stats::par_map(faces, |(fk, route)| {
+            // ONE wrapper for both of the tessellation's
+            // thread-local channels, because they are one problem:
+            // a channel the CALLER owns and the worker does not.
+            // The budget meter's per-face rows
+            // (`budget::record`) and the K-funnel's verdicts,
+            // escalations and `probe` samples
+            // (`k_stats::detached`) are both recorded into
+            // thread-locals by the lane, both travel back in this
+            // face's slot, and the fold hands both on in arena
+            // order — so an armed meter and a `Bracket` around
+            // `tessellate` see what a serial walk would have
+            // written, element for element, at any thread count.
+            //
+            // NO PORTABILITY GATE (`geom_core::sym::
+            // decisions_are_thread_portable`, which the evaluator's
+            // node map and `topo::props`' face walks read), and the
+            // reason is this crate's scalar policy: `mesh` takes
+            // `&Body<f64>` and instantiates nothing else, so a
+            // lane's decisions never reach `Sym::sign_within`. Both
+            // halves of that test are writes from there — the
+            // session (the decision itself and its receipt) and the
+            // shape report (a row per decision, session or not) —
+            // so neither can arise here.
+            let (((memo_work, place), meter), decided) = k_stats::detached(|| {
+                budget::record(arming, || {
+                    let surface = match face_surface(body, fk) {
+                        Ok(surface) => surface,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    // The trimmed lane's domain, read once and handed to
+                    // the memo key and the lane alike (`Route::ready`).
+                    let route = match route.and_then(|route| route.ready(body, fk, tol.band)) {
+                        Ok(route) => route,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    let lane = route.lane();
+                    // The lanes, each over `shared`, the mesh positions
+                    // it shares (what else each reads is `memo`'s list).
+                    //
+                    // The planar lane derives its chart frame from the
+                    // face's own boundary (planar.rs module docs, #284)
+                    // — the stored plane axes are deliberately not
+                    // passed: imported axes carry translator noise that
+                    // projects valid boundaries below spade's
+                    // coordinate domain.
+                    let run = || match &route {
+                        Ready::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
                             body,
                             fk,
-                            lane,
                             surface,
                             &chords,
                             shared,
-                            chordal,
-                            ambient,
-                            route.domain(),
-                        ) {
-                            Ok(inputs) => inputs,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        let lookup = match memo.lookup(&inputs).answered() {
-                            Ok((placement, work)) => return (Some(work), Ok(placement)),
-                            Err(lookup) => lookup,
-                        };
-                        match run() {
-                            Ok(patch) => {
-                                let (placement, work) = lookup.ran(patch);
-                                (Some(work), Ok(placement))
-                            }
-                            Err(error) => (Some(lookup.refused()), Err(error)),
+                            &tol,
+                            &bounds,
+                            lift,
+                            crate::trimmed::BOUNDARY_CLEARANCE,
+                        ),
+                        Ready::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                        Ready::Curved(rectangle) => tessellate_curved(
+                            body,
+                            fk,
+                            surface,
+                            rectangle,
+                            &chords.ids,
+                            shared,
+                            &tol,
+                        ),
+                    };
+                    let Some(memo) = reader else {
+                        return (None, run().map(Placement::Lane));
+                    };
+                    let inputs = match FaceInputs::gather(
+                        body,
+                        fk,
+                        lane,
+                        surface,
+                        &chords,
+                        shared,
+                        chordal,
+                        ambient,
+                        route.domain(),
+                    ) {
+                        Ok(inputs) => inputs,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    let lookup = match memo.lookup(&inputs).answered() {
+                        Ok((placement, work)) => return (Some(work), Ok(placement)),
+                        Err(lookup) => lookup,
+                    };
+                    match run() {
+                        Ok(patch) => {
+                            let (placement, work) = lookup.ran(patch);
+                            (Some(work), Ok(placement))
                         }
-                    })
-                });
-                FaceWork {
-                    face: fk,
-                    meter,
-                    decided,
-                    memo: memo_work,
-                    place,
-                }
-            })
-            .collect()
+                        Err(error) => (Some(lookup.refused()), Err(error)),
+                    }
+                })
+            });
+            FaceWork {
+                face: fk,
+                meter,
+                decided,
+                memo: memo_work,
+                place,
+            }
+        })
     };
 
     // The fold (idiom 2), in face-arena order, and in TWO passes over
@@ -579,10 +855,19 @@ fn tessellate_impl(
     let mut patches = Vec::with_capacity(work.len());
     let mut pending: Vec<Option<FaceMemo>> = Vec::with_capacity(work.len());
     let mut refusal = None;
-    for face in work {
+    for (face, (asked, read)) in work.into_iter().zip(recorded) {
         // Both channels, in arena order, up to AND INCLUDING the face
         // that refuses: the serial walk recorded whatever the refusing
-        // face decided before it refused, and nothing after it.
+        // face decided before it refused, and nothing after it. A face's
+        // route is read before its lane runs, so it is spliced first:
+        // its doors where the lane runs (a memo hit runs no lane), its
+        // domain read on every run (`tessellate_with`).
+        if !matches!(face.place, Ok(Placement::Memo { .. })) {
+            k_stats::splice(asked);
+        }
+        if let Some(read) = read {
+            k_stats::splice(read);
+        }
         k_stats::splice(face.decided);
         budget::absorb(face.meter);
         pending.push(face.memo);
@@ -631,110 +916,156 @@ fn tessellate_impl(
         return Err(error);
     }
 
-    let mesh = Mesh {
-        positions,
-        patches,
-        boundaries,
-    };
+    // The one place patches become the mesh. No lane-produced body is
+    // known to reach the census inside it (the trimmed lane's shared-side
+    // cure clears every one measured), so its rows drive `joined` itself
+    // on a real mesh (`side_census`), and this call is held by reading.
+    #[allow(clippy::cast_possible_truncation)]
+    let mesh = joined(
+        Mesh {
+            positions,
+            patches,
+            boundaries,
+        },
+        shared_below as u32,
+    )?;
+    Ok((mesh, keys))
+}
 
-    // D2 addendum row 5, and the CROSS-FACE half of the class
-    // `curved`'s per-patch re-derivation cannot see: that census reads
-    // ONE patch's identified edges, so a boundary the two adjacent
-    // faces failed to identify with each other is outside its
-    // footprint by construction (issue 897 says so, and it is right).
-    // Re-derive it here, over the only ids two faces can share — the
-    // chord segments of the body's own edges — and over nothing else.
-    //
-    // WHY NOT `check_mesh`, which is the oracle for the non-manifold
-    // shape of this class, and names the emptiness shape too
-    // (`MeshError::EmptyPatch` for a face that emits no triangle,
-    // `NoTriangles` where no face emits one): it was the first
-    // candidate and it was MEASURED against this one. What this census
-    // is the only witness of is therefore narrower than the class —
-    // `tessellate` runs the census and does not run `check_mesh`, so in
-    // a debug build this is what sees the state without the caller
-    // asking, and in release nothing here sees it at all.
-    //
-    // THE PRICE ARGUMENT IS NARROWER THAN IT LOOKS, and is stated at
-    // its real width. On sub-millisecond bodies the round-to-round
-    // spread swamps both columns, and a reading there is not evidence
-    // either way. The rows that decide are the donut's — 648 to
-    // 16 080 triangles over δ = 0.1 to 0.004, dev profile with this
-    // crate at opt-level 2, median of four warm rounds whose spread
-    // is under 2 %: `check_mesh` costs 7 % to 8 % of `tessellate`,
-    // this census 0.1 % to 0.4 %. That gap is the price argument, and
-    // it is the whole of it.
-    //
-    // The rest is FOOTPRINT, which does not depend on the clock:
-    // `check_mesh` censuses every edge of every patch — overwhelmingly
-    // patch-interior grid edges that no cross-face question is about —
-    // and re-checks winding and degeneracy, which are other rows'
-    // classes. This census reads the chord segments and nothing else,
-    // so its footprint IS the class:
-    // an unidentified shared boundary makes each side's copy a
-    // one-use segment, short of two uses per chord. The narrower guard
-    // is not a second copy of the oracle; it is the class's own
-    // question, and `check_mesh` remains available to a caller.
+/// **The faces' patches as the body's mesh**, once the census of the
+/// sides where they meet has read them. Two patches can share a triangle
+/// side only between two shared ids (topology vertices and chord points,
+/// below `shared_below`), so the census reads those sides and nothing
+/// else: its footprint is the cross-face question, where `check_mesh`
+/// reads every edge of every patch, overwhelmingly patch-interior ones,
+/// and re-checks winding and degeneracy, which are other rows' classes.
+/// It reads ids and counts, no tolerance.
+///
+/// A side of more than two triangles per chord carrying it is an edge
+/// that is not manifold, whichever lane made it: two faces across one
+/// chord chain that both use a chord between two of its points as an
+/// interior edge use it twice each, and no patch sees that alone. It
+/// refuses [`TessellateError::OverusedSide`].
+fn joined(mesh: Mesh, shared_below: u32) -> Result<Mesh, TessellateError> {
+    let polylines: Vec<&[u32]> = mesh
+        .boundaries
+        .iter()
+        .map(|b| b.points.as_slice())
+        .collect();
+    let uses = side_uses(
+        &polylines,
+        mesh.patches.iter().map(|p| p.triangles.as_slice()),
+        shared_below,
+    );
+    if let Some((side, uses)) = overused_side(&uses) {
+        return Err(TessellateError::OverusedSide {
+            faces: faces_using(&mesh, side),
+            uses,
+        });
+    }
+    // D2 addendum row 5: a shared boundary the two adjacent faces failed
+    // to identify with each other leaves each side's copy short of two
+    // uses per chord, which `curved`'s per-patch re-derivation cannot see
+    // (issue 897). Debug builds re-derive it here, over the same counts.
     #[cfg(debug_assertions)]
     {
-        let polylines: Vec<&[u32]> = chords.ids.values().map(Vec::as_slice).collect();
-        let patch_triangles: Vec<&[[u32; 3]]> = mesh
-            .patches
-            .iter()
-            .map(|p| p.triangles.as_slice())
-            .collect();
-        #[allow(clippy::cast_possible_truncation)]
-        let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below as u32);
+        let bad = unpaired_chord_segment(&uses);
         debug_assert!(
             bad.is_none(),
             "chord segment {:?} is an edge of {} face triangles, not two per chord \
              carrying it. The census counts and cannot say why. Known causes: the faces meeting on that edge \
-             emitted the segment under different ids, a face there emitted no \
-             triangle along it, or a patch used it more than once (issue 897)",
+             emitted the segment under different ids, or a face there emitted no \
+             triangle along it (issue 897)",
             bad.map(|(e, _)| e),
             bad.map_or(0, |(_, n)| n)
         );
     }
-
-    Ok((mesh, keys))
+    Ok(mesh)
 }
 
-/// The chord segment that is NOT used by exactly two face triangles
-/// per chord carrying it, if any — the cross-face identification
-/// re-derivation (issue 897).
+/// **The triangle uses of every side between two shared ids**, across
+/// the patches, with the chords carrying each side as a segment: per
+/// side, `(chords, uses)`.
+///
+/// `shared_below` is the first id minted after the chord pass. Ids are
+/// minted topology-vertices-then-chords-then-per-face-grid (D9's
+/// determinism order, at the top of [`tessellate`]), so an id at or
+/// above the mark is one face's private grid point: a side with such an
+/// end is one patch's alone and is never counted. Testing that first is
+/// what keeps this scan an integer compare on the overwhelming majority
+/// of triangle sides rather than a map probe.
+fn side_uses<'a>(
+    polylines: &[&[u32]],
+    patches: impl IntoIterator<Item = &'a [[u32; 3]]>,
+    shared_below: u32,
+) -> HashMap<(u32, u32), (usize, usize)> {
+    let mut uses: HashMap<(u32, u32), (usize, usize)> = HashMap::new();
+    for ids in polylines {
+        for w in ids.windows(2) {
+            uses.entry(crate::walk::edge_key(w[0], w[1])).or_default().0 += 1;
+        }
+    }
+    for &t in patches.into_iter().flatten() {
+        for (a, b) in crate::walk::sides(t) {
+            // `a < b` (`edge_key`): both ends are shared when `b` is.
+            if b < shared_below {
+                uses.entry((a, b)).or_default().1 += 1;
+            }
+        }
+    }
+    uses
+}
+
+/// **The least side used by more than two triangles per chord carrying
+/// it** (two where no chord carries it), with its use count.
+///
+/// A chord segment is a side of each face along its edge once, so two
+/// uses per chord; two coincident edges between one vertex pair (two
+/// solids touching along a line) are one id pair carried twice, which
+/// their four faces use four times. That body's mesh is the open
+/// question of
+/// `work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`,
+/// and this census leaves it as it was. Any other side is a triangle side
+/// inside a patch, two uses in all: past that, two patches both use it
+/// as an interior edge, or one patch uses it past its own two.
+fn overused_side(uses: &HashMap<(u32, u32), (usize, usize)>) -> Option<((u32, u32), usize)> {
+    uses.iter()
+        .filter(|&(_, &(chords, n))| n > 2 * chords.max(1))
+        .map(|(&side, &(_, n))| (side, n))
+        .min()
+}
+
+/// The faces whose patches hold a triangle with side `side`, in arena
+/// order (the patches').
+fn faces_using(mesh: &Mesh, (a, b): (u32, u32)) -> Vec<FaceKey> {
+    mesh.patches
+        .iter()
+        .filter(|p| {
+            p.triangles
+                .iter()
+                .any(|&t| crate::walk::sides(t).contains(&(a, b)))
+        })
+        .map(|p| p.face)
+        .collect()
+}
+
+/// The least chord segment used by fewer than two face triangles per
+/// chord carrying it, if any: the cross-face identification
+/// re-derivation (issue 897), on [`side_uses`]' counts.
 ///
 /// Every edge of the body carries a chord polyline whose segments the
 /// two faces meeting on that edge both insert as CDT constraints, so
 /// each segment is a triangle edge twice per chord carrying it: once
 /// per side, or twice within one patch where a `Seam` edge is traversed
-/// both ways by the same face.
-///
-/// **That is chord pairing, not watertightness.** Watertight is
-/// [`crate::validate::check_mesh`]'s question, every edge of exactly two
-/// triangles, and the two differ on one body: two coincident edges
-/// between the same two vertices (two solids touching along a line,
-/// whose contact ends at one vertex each way). Their chords are one id
-/// pair twice, which their four faces use four times; this census
-/// counts that as paired, and `check_mesh` refuses it as
-/// `NonManifoldEdge`
-/// (`work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+/// both ways by the same face. A use past that is [`overused_side`]'s,
+/// refused typed before this runs.
 ///
 /// A count of 1 on a single chord is the class this guard exists for —
 /// the two sides emitted the segment under DIFFERENT ids, so neither
-/// copy pairs up. It is not the only state the count catches: a face
-/// that emits no triangle along the segment leaves 1 (its neighbour's)
-/// or 0, and a patch that uses a segment more than once pushes it past
-/// two per chord. The count cannot tell causes apart, so the report
-/// states the count, the expected two per chord, and the causes known —
-/// without claiming the list is complete.
-///
-/// `shared_below` is the first id minted after the chord pass. Ids are
-/// minted topology-vertices-then-chords-then-per-face-grid (D9's
-/// determinism order, at the top of [`tessellate`]), so an id at or
-/// above the mark is one face's private grid point and can never be a
-/// chord segment endpoint. Testing that first is what keeps this scan
-/// an integer compare on the overwhelming majority of triangle edges
-/// rather than a map probe.
+/// copy pairs up. A face that emits no triangle along the segment leaves
+/// 1 (its neighbour's) or 0 too. The count cannot tell causes apart, so
+/// the report states the count, the expected two per chord, and the
+/// causes known — without claiming the list is complete.
 ///
 /// **PRECONDITION: the body is CLOSED, and that is the caller's, not
 /// this census's.** [`tessellate`]'s contract says the input is a
@@ -757,11 +1088,15 @@ fn tessellate_impl(
 /// refuses `SingleColumnCurvedFace` (the torus face bounded by one
 /// meridian circle,
 /// `a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column`), a
-/// slit on two coincident edges refuses `PinchWedge`
-/// (`two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers`,
-/// `a_slit_between_the_tips_is_not_the_strip`), and the one-face ball,
+/// slit on two coincident edges has no lift for the band's columns and
+/// refuses `DomainUnread`
+/// (`two_coincident_edges_have_no_lift_for_the_walk_to_read`), a slit face
+/// between the one-face ball's tips refuses `SingleColumnCurvedFace`
+/// (`a_slit_between_the_tips_is_not_the_strip`), a planar lamina bounded
+/// by two coincident edges refuses `BoundaryBoundsNoRegion`
+/// (`mesh/tests/faces_that_bound_no_region.rs`), and the one-face ball,
 /// its wrap edge whole or split, is placed as the wrap strip
-/// (`a_split_wrap_edge_is_one_strip`). A walk that put the strip's two
+/// (`a_split_wrap_edge_is_one_strip_whichever_half_the_walk_opens_on`). A walk that put the strip's two
 /// sides on one column again is what this census would catch.
 ///
 /// **The route is documented, not demonstrated, and the difference is
@@ -774,37 +1109,14 @@ fn tessellate_impl(
 /// body is yet known to reach it. The probe is kept as the record of
 /// that attempt: it pins where the door actually stops, which is the
 /// honest state of the precondition claim.
-///
-/// **This reads no tolerance.** It is a census of ids and counts;
-/// `Eps` has no role in it, and a band would be the wrong instrument
-/// for a question whose answer is an integer.
 #[cfg(debug_assertions)]
 fn unpaired_chord_segment(
-    polylines: &[&[u32]],
-    patch_triangles: &[&[[u32; 3]]],
-    shared_below: u32,
+    uses: &HashMap<(u32, u32), (usize, usize)>,
 ) -> Option<((u32, u32), usize)> {
-    // Per segment: (chords carrying it, triangle uses).
-    let mut uses: HashMap<(u32, u32), (usize, usize)> = HashMap::new();
-    for ids in polylines {
-        for w in ids.windows(2) {
-            uses.entry(crate::walk::edge_key(w[0], w[1])).or_default().0 += 1;
-        }
-    }
-    for t in patch_triangles.iter().copied().flatten() {
-        for k in 0..3 {
-            let (a, b) = (t[k], t[(k + 1) % 3]);
-            if a < shared_below
-                && b < shared_below
-                && let Some((_, n)) = uses.get_mut(&crate::walk::edge_key(a, b))
-            {
-                *n += 1;
-            }
-        }
-    }
     uses.iter()
-        .find(|&(_, &(chords, n))| n != 2 * chords)
-        .map(|(&e, &(_, n))| (e, n))
+        .filter(|&(_, &(chords, n))| chords > 0 && n < 2 * chords)
+        .map(|(&side, &(_, n))| (side, n))
+        .min()
 }
 
 // GATED ON THE GUARD IT TESTS: every row here calls
@@ -825,14 +1137,21 @@ mod tests {
 
     use super::*;
 
+    fn unpaired(
+        poly: &[&[u32]],
+        patches: &[&[[u32; 3]]],
+        mark: u32,
+    ) -> Option<((u32, u32), usize)> {
+        unpaired_chord_segment(&side_uses(poly, patches.iter().copied(), mark))
+    }
+
     /// Every edge use within one patch, so a row can show the patch is
     /// internally clean while the pair of patches is not.
     fn per_patch_max_use(tris: &[[u32; 3]]) -> usize {
         let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
-        for t in tris {
-            for k in 0..3 {
-                let (a, b) = (t[k], t[(k + 1) % 3]);
-                *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+        for &t in tris {
+            for side in crate::walk::sides(t) {
+                *uses.entry(side).or_insert(0) += 1;
             }
         }
         uses.values().copied().max().unwrap_or(0)
@@ -845,7 +1164,7 @@ mod tests {
         let poly: [&[u32]; 1] = [&[0, 1, 2]];
         let tris = [[0, 1, 9], [1, 2, 9], [1, 0, 10], [2, 1, 10]];
         assert_eq!(
-            unpaired_chord_segment(&poly, &[&tris], 3),
+            unpaired(&poly, &[&tris], 3),
             None,
             "two faces that identified the boundary leave every segment at two uses"
         );
@@ -858,9 +1177,9 @@ mod tests {
         // emitted nothing along it.
         let poly: [&[u32]; 2] = [&[0, 1], &[0, 1]];
         let tris = [[0, 1, 9], [1, 0, 10], [0, 1, 11], [1, 0, 12]];
-        assert_eq!(unpaired_chord_segment(&poly, &[&tris], 2), None);
+        assert_eq!(unpaired(&poly, &[&tris], 2), None);
         assert_eq!(
-            unpaired_chord_segment(&poly, &[&tris[..3]], 2),
+            unpaired(&poly, &[&tris[..3]], 2),
             Some(((0, 1), 3)),
             "a face missing along a doubled chord is caught"
         );
@@ -872,7 +1191,7 @@ mod tests {
         // counts uses, not sides, which is what makes this legal.
         let poly: [&[u32]; 1] = [&[0, 1]];
         let tris = [[0, 1, 9], [1, 0, 10]];
-        assert_eq!(unpaired_chord_segment(&poly, &[&tris], 2), None);
+        assert_eq!(unpaired(&poly, &[&tris], 2), None);
     }
 
     #[test]
@@ -886,7 +1205,7 @@ mod tests {
         assert!(per_patch_max_use(&a) <= 2, "patch A is internally clean");
         assert!(per_patch_max_use(&b) <= 2, "patch B is internally clean");
         let poly: [&[u32]; 1] = [&[0, 1, 2]];
-        let bad = unpaired_chord_segment(&poly, &[&a, &b], 9);
+        let bad = unpaired(&poly, &[&a, &b], 9);
         assert!(
             matches!(bad, Some((_, 1))),
             "an unidentified shared boundary leaves each side's copy at ONE use, got {bad:?}"
@@ -897,7 +1216,7 @@ mod tests {
     fn a_segment_no_face_emitted_at_all_is_caught() {
         // The other side of `n != 2`: a hole rather than a mismatch.
         let poly: [&[u32]; 1] = [&[0, 1]];
-        assert_eq!(unpaired_chord_segment(&poly, &[&[]], 2), Some(((0, 1), 0)));
+        assert_eq!(unpaired(&poly, &[&[]], 2), Some(((0, 1), 0)));
     }
 
     #[test]
@@ -907,14 +1226,8 @@ mod tests {
         // two halves of the row differ only in the mark.
         let poly: [&[u32]; 1] = [&[0, 1]];
         let tris = [[0, 1, 9]];
-        assert_eq!(
-            unpaired_chord_segment(&poly, &[&tris], 1),
-            Some(((0, 1), 0))
-        );
-        assert_eq!(
-            unpaired_chord_segment(&poly, &[&tris], 2),
-            Some(((0, 1), 1))
-        );
+        assert_eq!(unpaired(&poly, &[&tris], 1), Some(((0, 1), 0)));
+        assert_eq!(unpaired(&poly, &[&tris], 2), Some(((0, 1), 1)));
     }
 }
 
@@ -1014,5 +1327,91 @@ mod patch_tests {
             ]],
         };
         assert_eq!(patch.census_ids(&shared), vec![[2, 3, 4]]);
+    }
+
+    mod side_census {
+        //! The side census where the patches join: a side of more than two
+        //! triangles per chord carrying it refuses, on every profile.
+
+        use super::super::*;
+
+        fn overused(
+            poly: &[&[u32]],
+            patches: &[&[[u32; 3]]],
+            mark: u32,
+        ) -> Option<((u32, u32), usize)> {
+            overused_side(&side_uses(poly, patches.iter().copied(), mark))
+        }
+
+        #[test]
+        fn two_faces_using_one_chord_of_a_chain_as_an_interior_edge_overuse_it() {
+            // Chain 0-1-2-3 between two faces, each with no interior point:
+            // both triangulate the four points with the diagonal 0-2, which
+            // each patch uses twice, as any interior edge. Every chord
+            // segment is used once a side.
+            let a = [[0, 1, 2], [0, 2, 3]];
+            let b = [[2, 1, 0], [3, 2, 0]];
+            let poly: [&[u32]; 1] = [&[0, 1, 2, 3]];
+            assert_eq!(overused(&poly, &[&a, &b], 4), Some(((0, 2), 4)));
+            // With the second face on the other diagonal, every side is two
+            // triangles'.
+            let c = [[3, 1, 0], [3, 2, 1]];
+            assert_eq!(overused(&poly, &[&a, &c], 4), None);
+        }
+
+        #[test]
+        fn two_coincident_chords_on_one_id_pair_are_not_overused_at_four_uses() {
+            let poly: [&[u32]; 2] = [&[0, 1], &[0, 1]];
+            let tris = [[0, 1, 9], [1, 0, 10], [0, 1, 11], [1, 0, 12]];
+            assert_eq!(overused(&poly, &[&tris], 2), None);
+            let five = [[0, 1, 9], [1, 0, 10], [0, 1, 11], [1, 0, 12], [0, 1, 13]];
+            assert_eq!(overused(&poly, &[&five], 2), Some(((0, 1), 5)));
+        }
+
+        /// **A body's own patches join; with one face's triangles copied
+        /// into another patch they do not.** The cube's mesh as `tessellate`
+        /// makes it, its patches handed to the join with a second copy of the
+        /// first face's triangles in the second face's patch: each side of
+        /// those triangles is then a side of more triangles than its chords
+        /// allow.
+        #[test]
+        fn a_mesh_whose_patches_overuse_a_side_does_not_join() {
+            let tol = geom_core::Tol::witness();
+            let body = sweep::test_support::cube::<f64>(1.0, tol);
+            let mesh = crate::tessellate(&body, 0.1, tol).expect("the cube meshes");
+            let shared_below = 1 + mesh
+                .boundaries
+                .iter()
+                .flat_map(|b| b.points.iter().copied())
+                .max()
+                .expect("the cube has edges");
+            let faces = [mesh.patches[0].face, mesh.patches[1].face];
+            let mut overused = mesh.clone();
+            let copy = overused.patches[0].triangles.clone();
+            overused.patches[1].triangles.extend(copy);
+            assert!(
+                joined(mesh, shared_below).is_ok(),
+                "the cube's own patches join"
+            );
+            match joined(overused, shared_below) {
+                Err(TessellateError::OverusedSide { faces: got, uses }) => {
+                    assert!(
+                        faces.iter().all(|f| got.contains(f)),
+                        "the patch copied from and the one copied into: {got:?}"
+                    );
+                    assert!(uses > 2, "{uses} uses");
+                }
+                other => panic!("a copied face's sides refuse OverusedSide, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn a_side_with_a_private_end_is_never_counted() {
+            // Three triangles on 0-9 are one patch's own business at mark 9,
+            // and an overuse at mark 10.
+            let tris = [[0, 9, 1], [9, 0, 2], [0, 9, 3]];
+            assert_eq!(overused(&[], &[&tris], 9), None);
+            assert_eq!(overused(&[], &[&tris], 10), Some(((0, 9), 3)));
+        }
     }
 }

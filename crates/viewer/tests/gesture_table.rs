@@ -276,7 +276,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddSplit {
             target: node.into(),
-            plane: viewer::session::SplitPlane::Face(FaceSelection {
+            plane: viewer::session::ToolPlane::Face(FaceSelection {
                 name: face(node),
                 node,
                 body: 0,
@@ -373,8 +373,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             target: viewer::session::PlaceTarget::space(VarId::WORLD),
             constraints: pncad::document::stand().bundle(),
         },
-        SessionOp::AddDrawnProfile {
-            plane: FaceSelection {
+        SessionOp::DrawOnFace {
+            face: FaceSelection {
                 name: face(node),
                 node,
                 body: 0,
@@ -392,7 +392,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddMirror {
             body: node.into(),
-            plane: viewer::session::FaceSelection {
+            plane: viewer::session::ToolPlane::Face(viewer::session::FaceSelection {
                 name: pncad::prelude::StableName {
                     kind: pncad::prelude::EntityKind::Face,
                     node,
@@ -400,12 +400,18 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 },
                 node,
                 body: 0,
-            },
+            }),
         },
-        SessionOp::AddClearance {
-            a: viewer::session::ClearedSeat::Body(node.into()),
-            b: viewer::session::ClearedSeat::Body(node.into()),
-            bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+        // A value claim, the op's two-node arm: the measure and the
+        // assertion over its output.
+        SessionOp::AddAssertion {
+            a: viewer::session::AssertedSeat::Body(node.into()),
+            b: viewer::session::AssertedSeat::Body(node.into()),
+            claim: viewer::session::AssertedClaim::Value {
+                measure: pncad::document::MeasureVerb::Gap,
+                relation: pncad::document::AssertionRelation::Equal,
+                bound: Formula::zero(Dimension::Length),
+            },
         },
     ]
 }
@@ -516,7 +522,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // other one.
         SessionOp::SetProduct { .. } => (56, false),
         // An insert door, fenced with every other one.
-        SessionOp::AddDrawnProfile { .. } => (57, false),
+        SessionOp::DrawOnFace { .. } => (57, false),
         // The fork re-identifies every state of the history the drag
         // previews against.
         SessionOp::SaveAsNewDocument(_) => (58, false),
@@ -528,7 +534,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // other one.
         SessionOp::RepointPlacements { .. } => (62, false),
         // An insert door, fenced with every other one.
-        SessionOp::AddClearance { .. } => (45, false),
+        SessionOp::AddAssertion { .. } => (45, false),
     }
 }
 
@@ -1030,7 +1036,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::SketchOnFace { .. }
-        | SessionOp::AddDrawnProfile { .. }
+        | SessionOp::DrawOnFace { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -1038,7 +1044,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddClearance { .. }
+        | SessionOp::AddAssertion { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }

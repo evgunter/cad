@@ -12,7 +12,7 @@ cost: M
 Filed by `pcert/spline-chart-incidence`. `geom-brep/src/pcurve_cache/spline_incidence.rs`
 (a carrier's incidence on a spline chart) and `topo/src/spline_trim.rs`
 (a point against a spline face's trim, and the cells the boolean's carrier walk
-in `topo/src/boolean/spline_region.rs` reads) each cut the chart into Bézier cells and walk them
+in `topo/src/spline_region.rs` reads) each cut the chart into Bézier cells and walk them
 by a hull lower bound and a chart-point upper bound. Differences worth one home:
 
 - Both cuts now refine the homogeneous net through the kernel's insertion plans
@@ -24,7 +24,7 @@ by a hull lower bound and a chart-point upper bound. Differences worth one home:
   rounding, and the charge is **written twice**: `splice/spline-region-charge`
   (`work/splice/spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor.md`)
   copied `Control`, `blend`, `refined`, `point_rounding` and the floor's
-  `rounding_charge` into `topo/src/boolean/spline_region.rs` (now `topo/src/spline_trim.rs`) instead of moving
+  `rounding_charge` into `topo/src/spline_region.rs` (now `topo/src/spline_trim.rs`) instead of moving
   them to one home, because a live PCERT branch
   (`pcert/spline-certificate-door`) was editing `spline_incidence.rs` at the
   time. topo's copy also charges the trim's pieces (`Piece::bbox`) and holds
@@ -55,3 +55,5 @@ Move the cells, the cut and the floor to one home in geom-brep and read them fro
 both.
 
 2026-11-14 (`tesslane/spline-ring-door`): topo's cells (`bezier_cells`, `Patch`, `refined`, `blend`, `point_rounding`) and the trim's `Piece` now live at the crate root, `topo/src/spline_trim.rs`, beside the trim that meters by them; the boolean's carrier walk reads them from there. Their one home in geom-brep is still this row's.
+
+**Note from `a-place-is-an-f64-argument-answered-on-the-value-channel` (PR 7250).** The two `refined` copies answer an inserted knot the held runs do not hold differently: `spline_trim`'s enters it as a computed value (`T::from_computed(v)`), `spline_incidence`'s as NaN, the poison. Both are right for their callers: `spline_incidence` inserts only the chart's own breakpoints, so an unheld knot there is a defect and poisons the row; `spline_trim`'s is also called by `bezier_pieces`, which inserts a pcurve image's span ends `a`, `b`, places the image is cut at. One home has to keep that difference as a parameter (held breakpoints only, or breakpoints and cut points). Both walks now run only at a scalar that carries no tangent (`Decide<Value = T>`), with their places handed to `eval_at`.

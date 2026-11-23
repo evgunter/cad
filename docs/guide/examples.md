@@ -2,7 +2,7 @@
 
 This project does not keep a folder of toy snippets. The examples
 *are* the test corpus: the demo tour renders real parts, and the
-editor-core corpus documents are replayed and measured by CI. Both are
+editor-core corpus documents are built and measured by CI. Both are
 kept honest by assertions, so nothing here can drift away from the
 kernel it documents.
 
@@ -66,7 +66,7 @@ the PATHS lattice and so classifies every corner at authoring; raw
 
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
-| `bracket` | `bracket.rs` | A PATHS outline (polyline + constructive `fillet`) lifted into a recipe document by `LoopProgram::from_recorded` and extruded; `Node::Split` across both legs, its section chords named by their ends | The closed-form volume; the halves partition the body; chamfering the split half's chords by name refuses `UnsupportedRunOut` (a live wall) |
+| `bracket` | `bracket.rs` | A PATHS outline (polyline + constructive `fillet`) lifted into a recipe document by `LoopProgram::from_recorded` and extruded; `Node::Split` across both legs, its section chords named by their ends | The closed-form volume; the halves partition the body; chamfering the split half's chords by name builds, each chord's band cut off where it meets a side wall |
 | `plate`, `vase`, `sheave`, `chute` | `bodies.rs` | The body ops on public API: a genus-2 holed plate, full and partial revolves, plane+cylinder+cone+torus on one part | — |
 | `rocker` | `rocker.rs` | The complete fillet-corner taxonomy: arc×line, line×line, line×arc, arc×arc, through the PATHS fused fillet verbs (`fillet_arc`, `arc_fillet`, `arc_fillet_arc`, plus the plain line×line seam); and a keyhole's convex creases rounded after the extrude by `fillet_edges` | Not a corner typed by hand — every one is DERIVED from its two carriers; each declaration verified, `TangencyContradicted` on a lie. Branch choice read back with `ValidatedLoop::blend_arcs`. The 3-D creases are selected by description (`query` kind predicates on the keyhole's struts), the volume checked against the closed form |
 | `diefillet`, `diepips`, `diecomposed` | `diefillet.rs` | Rolling-ball `fillet_edges`; a 21-ball closed-group cut; M6 in-place composition surgery | Sequential pip cuts would present a trimmed sphere as an operand — refused typed. A tilted ball pole makes plane×sphere non-polar — refused typed |
@@ -98,9 +98,12 @@ lattice — the junction checks are local and all four corners are sharp
 
 18 documents in 16 modules — `islands` registers three, every other
 module registers one. Where the tour shows *kernel* usage, these
-show **recipe** usage: each one is a `Vec<DocEdit>` edit log replayed
-onto an empty document, never a hand-built graph — so each is also a
-worked example of the surface Python speaks.
+show **recipe** usage: each one is authored through the edit doors, a
+`DocEdit` at a time from an empty document, never a hand-built graph —
+so each is also a worked example of the surface Python speaks. The one
+exception is `die_composed_tour`, which the corpus loads from the save
+file the demo tour writes: a save holds the document's state, not the
+edits that authored it.
 
 Two properties make them a trustworthy example set. Several carry an
 exact **dyadic mass pin**, so the arithmetic is checked to the bit,

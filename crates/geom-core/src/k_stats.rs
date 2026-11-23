@@ -125,9 +125,9 @@
 //! gated on it.** The K-telemetry sink is `SINK`, which *is*
 //! feature-gated; the frame stack merely shares this funnel because
 //! this is where decisions pass. Its consumer is production editor-core
-//! code — `resolve::vdiff` reads `NodeValue::verdicts` to compare
-//! per-predicate sign populations and emit `NodeVerdictDelta`'s flips
-//! and divergences, and `drive::classify` reads a node's escalations
+//! code — `resolve::vdiff` reads `NodeValue::verdicts` to find the
+//! first choice two runs of a node take differently, and
+//! `drive::classify` reads a node's escalations
 //! to tell a terminal sliver from a refinable indeterminacy without
 //! matching on the op's error enum. Putting it behind `probe` would not
 //! reduce recording; it would hand both consumers empty logs in every
@@ -228,9 +228,10 @@
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
-use std::collections::BTreeMap;
 
-use crate::predicate::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Sign, SizedPass};
+use crate::predicate::{
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, MarginTerms, Sign, SizedPass,
+};
 use crate::real::Real;
 // Only `Probe`'s impls name this.
 #[cfg(feature = "probe")]
@@ -262,62 +263,182 @@ thread_local! {
     /// life of the thread, so a guard can tell its own frame from any
     /// frame that later occupies its depth.
     static NEXT_FRAME_ID: Cell<u64> = const { Cell::new(0) };
-    /// The family the verdicts decided now are recorded under, if any
-    /// ([`in_family`]).
-    static FAMILY: Cell<Option<&'static str>> = const { Cell::new(None) };
-    /// Each predicate's name under a family, minted once per thread
-    /// ([`family_name`]).
-    static FAMILY_NAMES: RefCell<BTreeMap<(&'static str, &'static str), &'static str>> =
-        const { RefCell::new(BTreeMap::new()) };
+    /// The role the verdicts decided now are recorded in ([`checking`]):
+    /// [`Role::Choice`] unless a caller that only checks has said so.
+    static ROLE: Cell<Role> = const { Cell::new(Role::Choice) };
 }
 
-/// **Runs `work` with every verdict it records named under `family`**:
-/// a predicate decided inside it reaches the verdict channel as
-/// `family` followed by its own name (a name already in the family is
-/// left as it is). For an instrument a flip among whose decisions can
-/// change whether it reads, never what it reads (`topo`'s ray caster), so
-/// that a reader of the verdict log can tell them apart from the
-/// decisions of the operation that ran it (`editor_core::resolve`'s N5
-/// passes over them). Only the verdict
-/// channel is renamed: an escalation keeps the name its refusal is
-/// typed by, and a K sample the name its population is counted under.
-/// The symbolic recorder tags the decisions taken inside it with the
-/// family (`sym::revalue::Decision::family`), for the same reader's sake.
+/// **What a decision does where it is taken**: whether another sign
+/// can change what the node builds or names, or can only make it refuse.
+/// Every verdict carries one ([`Verdict::role`]), stamped where it is
+/// recorded from the scope the caller opened ([`checking`]), so the
+/// distinction is stated by the code that uses the outcome and is never
+/// read off a predicate's name, its module, or a list kept elsewhere.
 ///
-/// The family is this thread's for the call, an inner one replacing it
-/// until it returns, and [`map_detached`] hands it to its workers. A
-/// panic inside `work` restores the outer family on unwind.
-pub fn in_family<R>(family: &'static str, work: impl FnOnce() -> R) -> R {
-    struct Restore(Option<&'static str>);
+/// The role is the caller's use of the outcome, not the predicate's:
+/// one predicate is a choice where a reader builds from its sign and a
+/// check where a validator reads it off a body already built
+/// (`geom_brep::DIHEDRAL_SIGN` is both).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Role {
+    /// Another sign can change what the node builds or names. The
+    /// default: a decision is a choice unless its caller says otherwise.
+    #[default]
+    Choice,
+    /// Another sign can only make the node refuse: a reading taken off a
+    /// body already built (the at-rest doors), or an instrument whose
+    /// answer is the same from wherever it reads (the side reader's rays).
+    Check,
+}
+
+/// **Runs `work` with every decision it takes recorded as a
+/// [`Role::Check`]**: for a caller whose use of every outcome inside it
+/// can only make the node refuse. A check scope is not reopened as a
+/// choice by anything inside it, since a decision taken inside a check
+/// only feeds that check: this sets the role to `Check` whatever it was,
+/// and nothing but a scope's own exit, or a parallel job taking its own
+/// spawner's role ([`par_map`]), sets it back. There is no public door
+/// that sets a role: a job's role is captured inside [`par_map`] from
+/// the thread that maps, never handed in.
+///
+/// The role is this thread's for the call, [`par_map`] hands it to
+/// its workers, and a panic inside `work` restores the outer role on
+/// unwind. Only the verdict channel, the marks and the symbolic recorder
+/// read it: an escalation is a refusal whatever the role of its reading,
+/// and a K sample is counted under its predicate's name alone.
+pub fn checking<R>(work: impl FnOnce() -> R) -> R {
+    with_role(Role::Check, work)
+}
+
+/// `work` with `role` this thread's role exactly, the outer one restored
+/// on exit and on unwind. Private: [`checking`] and [`par_map`]'s job
+/// wrapper are its only callers, so a choice is set only where a job's
+/// spawner was in one.
+fn with_role<R>(role: Role, work: impl FnOnce() -> R) -> R {
+    struct Restore(Role);
     impl Drop for Restore {
         fn drop(&mut self) {
-            FAMILY.with(|f| f.set(self.0));
+            ROLE.with(|r| r.set(self.0));
         }
     }
-    let _restore = Restore(FAMILY.with(|f| f.replace(Some(family))));
+    let _restore = Restore(ROLE.with(Cell::get));
+    ROLE.with(|r| r.set(role));
     work()
 }
 
-/// The family verdicts are recorded under on this thread, if any
-/// ([`in_family`]); the symbolic recorder tags its decisions with it
-/// (`sym::revalue::Decision::family`).
-pub(crate) fn current_family() -> Option<&'static str> {
-    FAMILY.with(Cell::get)
+/// **`work` recorded as `role`, for a reader that states its use of an
+/// outcome as a value**: a [`checking`] scope for [`Role::Check`], and
+/// the caller's own scope unchanged for [`Role::Choice`], so a check
+/// stays a check (`geom_brep::edge_wedge_over_as`'s side).
+pub fn recorded_as<R>(role: Role, work: impl FnOnce() -> R) -> R {
+    match role {
+        Role::Check => checking(work),
+        Role::Choice => work(),
+    }
 }
 
-/// `predicate`'s name under `family`: the family followed by the name,
-/// minted once per thread for each pair (the names a family can hold
-/// are the kernel's static predicate names, a bounded set).
-fn family_name(family: &'static str, predicate: &'static str) -> &'static str {
-    if predicate.starts_with(family) {
-        return predicate;
-    }
-    FAMILY_NAMES.with(|names| {
-        *names
-            .borrow_mut()
-            .entry((family, predicate))
-            .or_insert_with(|| Box::leak(format!("{family}{predicate}").into_boxed_str()))
-    })
+/// **A parallel map over work that records decisions, the one home of
+/// a recorded parallel map**: `run` over each item on rayon's workers,
+/// the results in the items' order, each job recorded in the role of the
+/// thread that maps. A rayon worker blocked inside a check-scoped
+/// `collect` steals other work from the pool meanwhile, so the thread a
+/// job runs on can be in any role; the job's own decisions are its
+/// spawner's, so the job SETS that role, never combines it with the
+/// running thread's (`k_stats_roles::a_stolen_job_runs_in_its_spawners_role`).
+///
+/// Frames are the caller's to keep, as for any map: a job that records
+/// wraps its work in [`detached`] ([`map_detached`]) or opens its own
+/// bracket. `scripts/gates/parallel-maps-carry-the-role.sh` refuses a
+/// rayon map anywhere else in the workspace's sources.
+pub fn par_map<P, R>(items: P, run: impl Fn(P::Item) -> R + Send + Sync) -> Vec<R>
+where
+    P: rayon::iter::IntoParallelIterator,
+    P::Iter: rayon::iter::IndexedParallelIterator,
+    R: Send,
+{
+    use rayon::prelude::*;
+    let role = current_role();
+    items
+        .into_par_iter()
+        .map(|item| with_role(role, || run(item)))
+        .collect()
+}
+
+/// **Records `sign` under `name` as a verdict of this thread's role**,
+/// for an answer its caller builds from that is a function of decisions
+/// the funnel recorded as checks, so that no verdict states it
+/// (`topo`'s side reader: its rays are checks, which side they read is
+/// not). Inside a check scope it is a check like the rest.
+///
+/// Nothing is classified here and no margin is read, so no escalation
+/// and no K sample is recorded: the decisions the answer was read off
+/// carry those. The caller owes the argument that the answer is not
+/// stated by any verdict it recorded otherwise; a second record of a
+/// decided sign would read as two choices.
+pub fn answered(name: &'static str, sign: Sign) {
+    record_verdict(Verdict {
+        predicate: name,
+        sign,
+        role: current_role(),
+    });
+}
+
+/// **Marks the candidates one pruning query handed on**, in the order
+/// it handed them, then the query's end ([`Mark`]): for an enumeration
+/// that steers which decisions are taken next and decides nothing
+/// itself (`bvh`'s box queries). Two runs whose decisions read alike
+/// after queries that handed on different candidates are not on one
+/// path, and the marks are what shows it (`editor_core::resolve`'s first
+/// turn reads them). Nothing where no frame is open.
+pub fn mark_candidates(site: QuerySite, items: impl IntoIterator<Item = usize>) {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            let role = current_role();
+            let before = top.recorded.verdicts.len();
+            let mark = |item| Mark {
+                before,
+                site: site.0,
+                item,
+                role,
+            };
+            top.recorded.marks.extend(
+                items
+                    .into_iter()
+                    .map(|i| mark(MarkItem::Candidate(u32::try_from(i).unwrap_or(u32::MAX)))),
+            );
+            top.recorded.marks.push(mark(MarkItem::End));
+        }
+    });
+}
+
+/// **Marks the outcome of one unlogged test that steers what is decided
+/// next**, and hands it back: a box test written at its call site (a
+/// hull overlap that skips a pair) or an unlogged threshold (the blend
+/// reach's `sure`), which decides nothing a verdict states. One [`Mark`]
+/// per test, [`MarkItem::Outcome`] holding the test's own answer (what
+/// `true` means is the site's, as a predicate's sign is), so two runs
+/// whose tests answered differently part there ([`mark_candidates`] for
+/// a query that hands on a list). Nothing where no frame is open.
+pub fn mark_outcome(site: TestSite, outcome: bool) -> bool {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            let before = top.recorded.verdicts.len();
+            top.recorded.marks.push(Mark {
+                before,
+                site: site.0,
+                item: MarkItem::Outcome(outcome),
+                role: current_role(),
+            });
+        }
+    });
+    outcome
+}
+
+/// The role a decision taken now is recorded in ([`checking`]); the
+/// symbolic recorder tags its decisions with it
+/// (`sym::revalue::Decision::role`).
+pub(crate) fn current_role() -> Role {
+    ROLE.with(Cell::get)
 }
 
 /// One open bracket's frame: what it has recorded, and the id its guard
@@ -340,9 +461,9 @@ struct Frame {
 /// miss the other, and an outcome cannot reach one channel of the
 /// frame and miss the other: a definite sign is a [`Verdict`], an
 /// indeterminate one an [`Escalation`], in one decision order.
-fn classify<T: Decide>(
+fn classify<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: T,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     // The name is SCOPED to this classification: it is restored on the
@@ -373,6 +494,7 @@ fn classify<T: Decide>(
         Ok(decided) => record_verdict(Verdict {
             predicate: name,
             sign: decided.sign,
+            role: current_role(),
         }),
         Err(source) => {
             record_escalation(*source);
@@ -438,10 +560,7 @@ fn identity_pass(name: &str) -> bool {
 /// Pushes one definite decision onto the innermost open frame — the
 /// only write to the verdict channel. With no frame open the verdict is
 /// recorded nowhere, which is what a decision outside every bracket is.
-fn record_verdict(mut verdict: Verdict) {
-    if let Some(family) = current_family() {
-        verdict.predicate = family_name(family, verdict.predicate);
-    }
+fn record_verdict(verdict: Verdict) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             top.recorded.verdicts.push(verdict);
@@ -488,11 +607,11 @@ fn record_escalation(source: Indeterminate) -> Indeterminate {
 /// Both outcomes of one gated decision reach the frame: the funnel's
 /// definite verdict, because the classifier really did decide, and the
 /// gate's escalation beside it. The verdict channel is therefore
-/// unchanged by gating, which is what keeps the verdict-diff engine's
-/// populations comparable across this seam.
-fn classify_gated<T: Decide, R>(
+/// unchanged by gating, which is what keeps two runs' verdict logs
+/// comparable across this seam.
+fn classify_gated<T: Decide, A: MarginTerms, R>(
     name: &'static str,
-    margin: T,
+    margin: Margin<T, A>,
     band: Band,
     passes: SizedPass,
     admits: fn(Sign) -> Option<R>,
@@ -502,9 +621,9 @@ fn classify_gated<T: Decide, R>(
 
 /// [`classify_gated`], keeping the reporting margin a passing verdict
 /// was decided on.
-fn classify_gated_reported<T: Decide, R>(
+fn classify_gated_reported<T: Decide, A: MarginTerms, R>(
     name: &'static str,
-    margin: T,
+    margin: Margin<T, A>,
     band: Band,
     passes: SizedPass,
     admits: fn(Sign) -> Option<R>,
@@ -660,7 +779,7 @@ pub fn check_unlogged<T: Decide>(
     band: Band,
     ledger_row: &'static str,
 ) -> Result<Sign, Indeterminate> {
-    unlogged(ledger_row, || classify(name, margin, band)).map(|d| d.sign)
+    unlogged(ledger_row, || classify(name, Margin::of(margin), band)).map(|d| d.sign)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
@@ -690,12 +809,12 @@ pub fn check_unlogged<T: Decide>(
 ///
 /// The [`Indeterminate`] from [`Decide::sign_within`], with `name`
 /// attached.
-pub fn decide<T: Decide>(
+pub fn decide<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    classify(name, margin.value(), band).map(|d| d.sign)
+    classify(name, margin, band).map(|d| d.sign)
 }
 
 /// **[`decide`] for a decision on a size the user may intend that
@@ -708,9 +827,9 @@ pub fn decide<T: Decide>(
 /// # Errors
 ///
 /// [`decide`]'s, its reading tagged with `passes`.
-pub fn decide_passing<T: Decide>(
+pub fn decide_passing<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
     passes: SizedPass,
 ) -> Result<Sign, Indeterminate> {
@@ -735,7 +854,10 @@ pub fn decide_passing<T: Decide>(
 /// # Errors
 ///
 /// [`decide`]'s, at the least band: an enclosure that holds zero.
-pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, Indeterminate> {
+pub fn prove<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+) -> Result<Sign, Indeterminate> {
     decide(name, margin, Band::least())
 }
 
@@ -786,8 +908,12 @@ pub enum Pick {
 /// band it is passed (F31's `Period::near` mark walk and
 /// `Azimuth::near`'s cut side) is the compound form: that reader runs
 /// inside [`unlogged`] under its row, at [`Band::least`].
-pub fn choose<T: Decide>(name: &'static str, margin: Margin<T>, ledger_row: &'static str) -> Pick {
-    match check_unlogged(name, margin.value(), Band::least(), ledger_row) {
+pub fn choose<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+    ledger_row: &'static str,
+) -> Pick {
+    match unlogged(ledger_row, || classify(name, margin, Band::least())).map(|d| d.sign) {
         Ok(Sign::Positive) => Pick::Positive,
         Ok(Sign::Negative) => Pick::Negative,
         Ok(Sign::Zero) | Err(_) => Pick::Tie,
@@ -805,12 +931,12 @@ pub fn choose<T: Decide>(name: &'static str, margin: Margin<T>, ledger_row: &'st
 /// # Errors
 ///
 /// As [`decide`].
-pub fn decide_reported<T: Decide>(
+pub fn decide_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
-    classify(name, margin.value(), band)
+    classify(name, margin, band)
 }
 
 /// The classify seam's **finding lane** — [`decide`] for a shipped
@@ -853,7 +979,7 @@ pub fn decide_flagged<T: Decide>(
     // from the source text by `geom-core/tests/flagged_census.rs`, which
     // is where a citation can be checked against the document it cites.
     let _ = ledger_row;
-    classify(name, margin, band).map(|d| d.sign)
+    classify(name, Margin::of(margin), band).map(|d| d.sign)
 }
 
 /// [`decide_flagged`], keeping the reporting margin the classifier
@@ -872,7 +998,7 @@ pub fn decide_flagged_reported<T: Decide>(
     ledger_row: &'static str,
 ) -> Result<Decided, Indeterminate> {
     let _ = ledger_row;
-    classify(name, margin, band)
+    classify(name, Margin::of(margin), band)
 }
 
 /// **The collapsed-arm gate**: [`decide`] for a predicate whose
@@ -910,21 +1036,15 @@ pub fn decide_flagged_reported<T: Decide>(
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-positive sign, an [`Indeterminate`]
 /// carrying the decided margin under `name`.
-pub fn decide_positive<T: Decide>(
+pub fn decide_positive<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    classify_gated(
-        name,
-        margin.value(),
-        band,
-        SizedPass::Positive,
-        |sign| match sign {
-            Sign::Positive => Some(()),
-            Sign::Zero | Sign::Negative => None,
-        },
-    )
+    classify_gated(name, margin, band, SizedPass::Positive, |sign| match sign {
+        Sign::Positive => Some(()),
+        Sign::Zero | Sign::Negative => None,
+    })
 }
 
 /// **The mirrored gate**: [`decide_positive`] for a predicate whose
@@ -940,21 +1060,15 @@ pub fn decide_positive<T: Decide>(
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-negative sign, an [`Indeterminate`]
 /// carrying the decided margin under `name`.
-pub fn decide_negative<T: Decide>(
+pub fn decide_negative<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    classify_gated(
-        name,
-        margin.value(),
-        band,
-        SizedPass::Negative,
-        |sign| match sign {
-            Sign::Negative => Some(()),
-            Sign::Zero | Sign::Positive => None,
-        },
-    )
+    classify_gated(name, margin, band, SizedPass::Negative, |sign| match sign {
+        Sign::Negative => Some(()),
+        Sign::Zero | Sign::Positive => None,
+    })
 }
 
 use crate::predicate::NonzeroSign;
@@ -971,22 +1085,16 @@ use crate::predicate::NonzeroSign;
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite `Zero`, an [`Indeterminate`] carrying the
 /// decided margin under `name`.
-pub fn decide_nonzero<T: Decide>(
+pub fn decide_nonzero<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
-    classify_gated(
-        name,
-        margin.value(),
-        band,
-        SizedPass::NonZero,
-        |sign| match sign {
-            Sign::Positive => Some(NonzeroSign::Positive),
-            Sign::Negative => Some(NonzeroSign::Negative),
-            Sign::Zero => None,
-        },
-    )
+    classify_gated(name, margin, band, SizedPass::NonZero, |sign| match sign {
+        Sign::Positive => Some(NonzeroSign::Positive),
+        Sign::Negative => Some(NonzeroSign::Negative),
+        Sign::Zero => None,
+    })
 }
 
 /// [`decide_nonzero`], keeping the reporting margin the passing sign was
@@ -996,22 +1104,16 @@ pub fn decide_nonzero<T: Decide>(
 /// # Errors
 ///
 /// As [`decide_nonzero`].
-pub fn decide_nonzero_reported<T: Decide>(
+pub fn decide_nonzero_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
-    classify_gated_reported(
-        name,
-        margin.value(),
-        band,
-        SizedPass::NonZero,
-        |sign| match sign {
-            Sign::Positive => Some(NonzeroSign::Positive),
-            Sign::Negative => Some(NonzeroSign::Negative),
-            Sign::Zero => None,
-        },
-    )
+    classify_gated_reported(name, margin, band, SizedPass::NonZero, |sign| match sign {
+        Sign::Positive => Some(NonzeroSign::Positive),
+        Sign::Negative => Some(NonzeroSign::Negative),
+        Sign::Zero => None,
+    })
 }
 
 /// A definite sign a [`decide_magnitude`] decision can reach. `Negative`
@@ -1054,9 +1156,9 @@ pub enum Magnitude {
 /// # Panics
 ///
 /// On a definite `Negative`, which the precondition rules out.
-pub fn decide_magnitude<T: Decide>(
+pub fn decide_magnitude<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Magnitude, Indeterminate> {
     decide_magnitude_reported(name, margin, band).map(|(magnitude, _)| magnitude)
@@ -1073,12 +1175,12 @@ pub fn decide_magnitude<T: Decide>(
 /// # Panics
 ///
 /// As [`decide_magnitude`].
-pub fn decide_magnitude_reported<T: Decide>(
+pub fn decide_magnitude_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(Magnitude, MarginDiag), Indeterminate> {
-    let Decided { sign, margin } = classify(name, margin.value(), band)?;
+    let Decided { sign, margin } = classify(name, margin, band)?;
     match sign {
         Sign::Zero => Ok((Magnitude::Zero, margin)),
         Sign::Positive => Ok((Magnitude::Positive, margin)),
@@ -1184,16 +1286,20 @@ pub fn gate_measured<T: Real>(
     Ok(value)
 }
 
-/// One recorded predicate decision: the funnel's static name and the
-/// definite sign it classified to. Scalar-independent by construction
-/// (the N4 invariant's currency: same verdicts ⇒ same names at f64 AND
-/// Interval); float-free, so verdict vectors compare exactly.
+/// One recorded predicate decision: the funnel's static name, the
+/// definite sign it classified to, and what the decision does where it
+/// was taken. Scalar-independent by construction (the N4 invariant's
+/// currency: same verdicts ⇒ same names at f64 AND Interval);
+/// float-free, so verdict vectors compare exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Verdict {
     /// The predicate that decided (the funnel's static name).
     pub predicate: &'static str,
     /// The definite sign it returned.
     pub sign: Sign,
+    /// Whether its sign could change what the node builds or only
+    /// whether it refuses ([`Role`], stamped from [`checking`]).
+    pub role: Role,
 }
 
 /// One recorded indeterminate outcome: the funnel's static name and
@@ -1225,15 +1331,135 @@ impl Escalation {
     }
 }
 
+/// **One candidate an enumeration examined** ([`mark_candidates`]): a sign-less
+/// record of which item a pruning query handed on, so that a reader of
+/// the log can tell two runs that examined the same candidates from two
+/// whose pruning differed while their decisions read alike. It decides
+/// nothing, so it is no [`Verdict`]: it rides beside them, keyed to its
+/// place among them ([`Mark::before`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mark {
+    /// How many verdicts its frame held when it was recorded: it stands
+    /// before the verdict at that index.
+    pub before: usize,
+    /// The query or test that wrote it ([`Site`]).
+    pub site: Site,
+    /// What it records ([`MarkItem`]).
+    pub item: MarkItem,
+    /// The role of the decisions the candidate feeds ([`checking`]).
+    pub role: Role,
+}
+
+/// **Where a mark is written**: one query or one test, at the one call
+/// that asks it, so two callers of one door are two sites. `name` is
+/// routing, as a predicate's static name is; `words` say what is asked,
+/// for a sentence. Built through [`QuerySite`] or [`TestSite`], which
+/// set `kind` and are what the two mark doors take, so no mark is
+/// written without words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Site {
+    /// The static name (routing).
+    pub name: &'static str,
+    /// What the site asks: for a query, a noun phrase naming what it
+    /// searches for ("the faces whose boxes overlap the edge's box");
+    /// for a test, the clause it answers ("a cell is surely clear of
+    /// the band").
+    pub words: &'static str,
+    /// Which door writes it.
+    pub kind: SiteKind,
+}
+
+/// The door a [`Site`] writes through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SiteKind {
+    /// A query that hands on a list ([`mark_candidates`]).
+    Query,
+    /// A test that answers yes or no ([`mark_outcome`]).
+    Test,
+}
+
+/// **A query's [`Site`]**, the argument [`mark_candidates`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuerySite(Site);
+
+impl QuerySite {
+    /// The site `name`, searching for `words` (a noun phrase).
+    #[must_use]
+    pub const fn new(name: &'static str, words: &'static str) -> Self {
+        Self(Site {
+            name,
+            words,
+            kind: SiteKind::Query,
+        })
+    }
+
+    /// The site.
+    #[must_use]
+    pub const fn site(self) -> Site {
+        self.0
+    }
+}
+
+/// **A test's [`Site`]**, the argument [`mark_outcome`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TestSite(Site);
+
+impl TestSite {
+    /// The site `name`, answering whether `words` (a clause).
+    #[must_use]
+    pub const fn new(name: &'static str, words: &'static str) -> Self {
+        Self(Site {
+            name,
+            words,
+            kind: SiteKind::Test,
+        })
+    }
+
+    /// The site.
+    #[must_use]
+    pub const fn site(self) -> Site {
+        self.0
+    }
+}
+
+/// **What one [`Mark`] records**, by the kind of door that wrote it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkItem {
+    /// A candidate a query handed on, by the query's own index
+    /// ([`mark_candidates`]).
+    Candidate(u32),
+    /// The end of one query's candidates ([`mark_candidates`]).
+    End,
+    /// One unlogged test's answer ([`mark_outcome`]).
+    Outcome(bool),
+}
+
 /// Everything one [`Bracket`] recorded: both channels of its frame, in
-/// decision order. Empty by default, which is also what an empty frame
-/// is.
+/// decision order, and the candidates its enumerations examined among
+/// them. Empty by default, which is also what an empty frame is.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Recorded {
     /// The definite decisions, in decision order.
     pub verdicts: Vec<Verdict>,
     /// The indeterminate outcomes, in decision order.
     pub escalations: Vec<Escalation>,
+    /// The candidates examined, each placed among the verdicts
+    /// ([`Mark::before`]).
+    pub marks: Vec<Mark>,
+}
+
+impl Recorded {
+    /// Appends `other`'s channels after this record's, its marks placed
+    /// after this record's verdicts.
+    pub fn extend(&mut self, other: &Self) {
+        let offset = self.verdicts.len();
+        self.marks.extend(other.marks.iter().map(|m| Mark {
+            before: m.before + offset,
+            ..*m
+        }));
+        self.verdicts.extend_from_slice(&other.verdicts);
+        self.escalations.extend_from_slice(&other.escalations);
+    }
 }
 
 /// The verdict-log bracket: a guard whose lifetime IS one frame on
@@ -1476,9 +1702,8 @@ pub fn splice(recording: Detached) {
 /// refusal already made — because refining the box cannot change an
 /// outcome the escalation never decided, and the sliver would name a
 /// cause the op did not refuse for. What stays is everything the run
-/// DECIDED: the verdicts, which the verdict-diff engine's populations
-/// are built from, and the samples, which are the K stream. Neither
-/// population moves across this door; only the escalation log does, and
+/// DECIDED: the verdicts, which the verdict-diff engine reads, and the
+/// samples, which are the K stream. Neither moves across this door; only the escalation log does, and
 /// it then carries the escalations the op's outcome rests on.
 ///
 /// The caller owes the argument that the outcome is superseded, at its
@@ -1489,39 +1714,97 @@ pub fn splice_superseded(recording: Detached) {
     splice_channels(recording, false);
 }
 
-/// **Appends a recording's verdicts and escalations to this thread's
-/// open frame**, for a pass the caller does not run because it knows
-/// what that pass decides: the frame then holds what running it would
-/// have recorded.
+/// **Appends a recording's channels to this thread's open frame**, for
+/// a pass the caller does not run because it knows what that pass
+/// decides: the frame then holds what running it would have recorded,
+/// every verdict with the role it was recorded in.
 ///
 /// The caller owes that knowledge at its own site, held by a row that
 /// runs the pass and compares the two logs. No margin is measured, so
 /// no sample reaches the sink.
+///
+/// **A certificate read by its support** is one such caller: it relogs,
+/// in place of the one derivation it stands for, that derivation's
+/// record as [`Replayable::here`] states it in this scope. That is not
+/// the double splice [`Detached`] guards against, which would move one
+/// recording onto a frame twice; a read relogs once, exactly where
+/// deriving would have recorded. The recording scalar (`Probe`) reads no
+/// certificate, so a read never stands for a derivation that would have
+/// sampled. Its row is geom-brep's `a_read_records_what_a_derivation_records`.
 pub fn relog(recorded: &Recorded) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
-            top.recorded.verdicts.extend_from_slice(&recorded.verdicts);
-            top.recorded
-                .escalations
-                .extend_from_slice(&recorded.escalations);
+            top.recorded.extend(recorded);
         }
     });
+}
+
+/// **A derivation's record, held with the role it was taken in**, for a
+/// certificate that stands for that derivation and replays it in its
+/// place ([`relog`]). A verdict's and a mark's role is the scope's it
+/// was taken in ([`checking`]), not the derivation's own, so a record is
+/// a derivation's in another scope only where the roles agree.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Replayable {
+    recorded: Recorded,
+    taken_as: Role,
+}
+
+/// `work`, run under its own frame, its record spliced where this
+/// thread's decisions go, and handed back with the role it was taken in
+/// for a certificate to keep and [`relog`] in place of deriving again.
+pub fn run_replayable<R>(work: impl FnOnce() -> R) -> (R, Replayable) {
+    let taken_as = current_role();
+    let (out, recording) = detached(work);
+    let record = Replayable {
+        recorded: recording.recorded().clone(),
+        taken_as,
+    };
+    splice(recording);
+    (out, record)
+}
+
+impl Replayable {
+    /// **This record as the derivation it stands for would record it
+    /// here, where that is exact**: verbatim in the role it was taken
+    /// in, and every verdict and mark a [`Role::Check`] inside a check
+    /// scope, which records every decision taken in it as a check.
+    /// `None` in a choice scope for a record taken in a check scope,
+    /// whose own checks a choice scope would not record as checks: a
+    /// reader there derives again.
+    #[must_use]
+    pub fn here(&self) -> Option<Recorded> {
+        match (current_role(), self.taken_as) {
+            (now, then) if now == then => Some(self.recorded.clone()),
+            (Role::Check, Role::Choice) => {
+                let mut checks = self.recorded.clone();
+                for v in &mut checks.verdicts {
+                    v.role = Role::Check;
+                }
+                for m in &mut checks.marks {
+                    m.role = Role::Check;
+                }
+                Some(checks)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The one body behind [`splice`] and [`splice_superseded`]: they differ
 /// only in whether the escalation channel travels.
 fn splice_channels(recording: Detached, escalations: bool) {
     let Detached {
-        recorded,
+        mut recorded,
         #[cfg(feature = "probe")]
         samples,
     } = recording;
+    if !escalations {
+        recorded.escalations.clear();
+    }
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
-            top.recorded.verdicts.extend(recorded.verdicts);
-            if escalations {
-                top.recorded.escalations.extend(recorded.escalations);
-            }
+            top.recorded.extend(&recorded);
         }
     });
     #[cfg(feature = "probe")]
@@ -1554,20 +1837,12 @@ pub fn map_detached<I: Sync, R: Send>(
     items: &[I],
     run: impl Fn(&I) -> R + Send + Sync,
 ) -> Vec<(R, Detached)> {
-    use rayon::prelude::*;
     debug_assert!(
         crate::sym::decisions_are_thread_portable(),
         "map_detached reached with a symbolic session or shape report installed: the caller \
          owes the serial walk here (`sym::decisions_are_thread_portable`)"
     );
-    let family = current_family();
-    items
-        .par_iter()
-        .map(|item| match family {
-            Some(family) => in_family(family, || detached(|| run(item))),
-            None => detached(|| run(item)),
-        })
-        .collect()
+    par_map(items, |item| detached(|| run(item)))
 }
 
 /// How many brackets are open on this thread — the tests' witness that
@@ -1831,6 +2106,14 @@ impl core::ops::Neg for Probe {
 
 #[cfg(feature = "probe")]
 impl Real for Probe {
+    /// **Never the same**: the recording scalar's K samples are its
+    /// purpose, so no certificate is read by its support here; each is
+    /// derived where it is asked, and records its margins.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **INEXACT**, `f64`'s verbatim: the recording scalar's value
     /// channel IS an `f64` and every comparison it makes is that
     /// `f64`'s.
@@ -1840,12 +2123,29 @@ impl Real for Probe {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    /// The probe itself: it records the decisions its value meets.
+    type Value = Self;
+
+    fn without_tangent(self) -> Self {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
+
     fn from_f64(x: f64) -> Self {
         Self(x)
     }
 
     fn from_computed(x: f64) -> Self {
         Self(x)
+    }
+
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::value(self.0)
     }
 
     /// The recording scalar's value channel IS an `f64`, so the
@@ -1896,6 +2196,10 @@ impl Real for Probe {
     fn sin_cos(self) -> (Self, Self) {
         let (s, c) = Real::sin_cos(self.0);
         (Self(s), Self(c))
+    }
+
+    fn less_sin(self) -> Self {
+        Self(Real::less_sin(self.0))
     }
 
     fn tan(self) -> Self {
@@ -2104,15 +2408,18 @@ mod tests {
             vec![
                 Verdict {
                     predicate: "vlog_a",
-                    sign: Sign::Positive
+                    sign: Sign::Positive,
+                    role: Role::Choice,
                 },
                 Verdict {
                     predicate: "vlog_b",
-                    sign: Sign::Negative
+                    sign: Sign::Negative,
+                    role: Role::Choice,
                 },
                 Verdict {
                     predicate: "vlog_c",
-                    sign: Sign::Zero
+                    sign: Sign::Zero,
+                    role: Role::Choice,
                 },
             ]
         );

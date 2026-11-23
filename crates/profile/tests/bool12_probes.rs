@@ -146,19 +146,19 @@ fn the_undeclared_d_shape_seams_keep_refusing() {
     assert!(
         matches!(
             d_shape_forward(Closer::Undeclared),
-            Err(PathError::SeamTangent { .. })
+            Err(PathError::SeamTurnWithinTolerance { .. })
         ),
         "{:?}",
         d_shape_forward(Closer::Undeclared)
     );
     // FORWARD, `line_to(Start)`: the closing leg departs a subdivision
     // vertex with a DERIVED direction, so the departure junction
-    // refuses first — an ordinary `JunctionTangent`, exactly as it does
+    // refuses first — an ordinary `JunctionTurnWithinTolerance`, exactly as it does
     // mid-chain (BOOL-11's addendum). The seam is never reached.
     assert!(
         matches!(
             d_shape_forward(Closer::UndeclaredLineTo),
-            Err(PathError::JunctionTangent { .. })
+            Err(PathError::JunctionTurnWithinTolerance { .. })
         ),
         "{:?}",
         d_shape_forward(Closer::UndeclaredLineTo)
@@ -168,7 +168,7 @@ fn the_undeclared_d_shape_seams_keep_refusing() {
     assert!(
         matches!(
             d_shape_reverse(Closer::Undeclared),
-            Err(PathError::SeamTangent { .. })
+            Err(PathError::SeamTurnWithinTolerance { .. })
         ),
         "{:?}",
         d_shape_reverse(Closer::Undeclared)
@@ -230,13 +230,13 @@ fn the_stadium_closes_with_the_declared_tangent_arrival() {
 fn the_undeclared_stadium_seam_keeps_refusing() {
     // MEASURED BEFORE THE BUILD, and the measurement is why this row
     // exists: the undeclared G1 seam refused, but under the DEPARTURE's
-    // name (`JunctionTangent`), because the two arc closers passed
+    // name (`JunctionTurnWithinTolerance`), because the two arc closers passed
     // `seam: false`. Every seam ARRIVAL now goes through the seam arm,
     // so the refusal names the fact — and its recourse names the
     // declaration, which is a spelling only the seam has.
     let refused = stadium(false);
     assert!(
-        matches!(refused, Err(PathError::SeamTangent { .. })),
+        matches!(refused, Err(PathError::SeamTurnWithinTolerance { .. })),
         "{refused:?}"
     );
     let msg = refused.unwrap_err().to_string();
@@ -354,6 +354,7 @@ fn the_declared_arrival_is_banded_on_both_sides() {
     let refused = tilted_close(100.0 * k_eps, 1.0);
     match refused {
         Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
             assert!(
                 (margin.abs() - 100.0 * k_eps).abs() < 1e-9 * k_eps.max(1.0),
                 "margin {margin} is not the authored miss {}",
@@ -394,6 +395,7 @@ fn the_levered_threshold_does_not_drift_with_leg_length() {
             Err(PathError::SeamArrivalOffDirection {
                 margin, arm: lever, ..
             }) => {
+                let (margin, lever) = (crate::common::told(&margin), crate::common::told(&lever));
                 assert!(
                     (margin.abs() - 100.0 * k_eps).abs() < 1e-9 * k_eps.max(1.0),
                     "arm {arm}: margin {margin}"
@@ -415,6 +417,7 @@ fn the_levered_threshold_does_not_drift_with_leg_length() {
     let long = tilted_close(100.0 * eps, 1000.0);
     match long {
         Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
             assert!(
                 (margin.abs() - 100.0 * eps).abs() <= 1e-2 * 100.0 * eps,
                 "margin {margin} is not the authored displacement"
@@ -474,10 +477,13 @@ fn the_declaration_is_what_separates_the_two_seam_spellings() {
     assert!(d_shape_forward(Closer::Declared).is_ok());
     assert!(matches!(
         d_shape_forward(Closer::Undeclared),
-        Err(PathError::SeamTangent { .. })
+        Err(PathError::SeamTurnWithinTolerance { .. })
     ));
     assert!(stadium(true).is_ok());
-    assert!(matches!(stadium(false), Err(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        stadium(false),
+        Err(PathError::SeamTurnWithinTolerance { .. })
+    ));
 }
 
 /// The seam flag flipped on BOTH arc closers, so the SHARP arc seam
@@ -510,7 +516,7 @@ fn a_sharp_arc_seam_that_arrives_tangent_refuses_as_a_seam() {
             .arc_to(Bulge { p: Start, b }, t)
     };
     assert!(
-        matches!(close(1.0), Err(PathError::SeamTangent { .. })),
+        matches!(close(1.0), Err(PathError::SeamTurnWithinTolerance { .. })),
         "{:?}",
         close(1.0)
     );

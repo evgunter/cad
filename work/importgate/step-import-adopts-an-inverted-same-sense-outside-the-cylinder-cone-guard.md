@@ -85,3 +85,5 @@ EXCH's independently is whether import should derive the material side
 rather than adopt it on the classes the kernel cannot check — the
 cylinder/cone guard is precedent that import already does so where it
 can.
+
+- 2026-11-17 — evidence from the review of PR 7084 (`importgate/knot-place`). With `sense` flipped on `ridge_u.step`'s two top faces after its C⁰-knot split (the file states `.T.`), `topo::validate_geometric` returned `Ok(())`, the mesh was watertight, and the volume read 2.6. The shared gate accepts a spline face with inverted sense. That PR's rows now assert each piece keeps the file's sense (`a_foreign_carrier_splits_at_each_c0_knot::walls_keep_sense`, `knot_split::tests::parts`), which the gate itself does not.

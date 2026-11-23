@@ -4,6 +4,8 @@ kind: issue
 title: geom: a spiric oval's turn centre k_σ and its closed-form ball are derived in topo's join from Curve3::Spiric's fields
 status: open
 opened: 2026-10-11
+priority: P3
+cost: E
 ---
 
 

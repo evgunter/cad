@@ -69,15 +69,9 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             let u = dir.normalize();
             (w - u * w.dot(u)).norm()
         }
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            radius,
-        }) => {
+        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            let radius = circle.radius();
             let w = q - center;
             let h = w.dot(axis);
             let rho = (w - axis * h).norm();
@@ -87,6 +81,20 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             panic!("no independent distance to a {:?}", c.kind())
         }
     }
+}
+
+/// A polished pair's places on its two spans, each read once with its
+/// record held apart, as the walk's stop hands them to
+/// [`super::Found::read_pair`].
+fn places(
+    a: &Span<'_, f64>,
+    b: &Span<'_, f64>,
+    c: super::Candidate<f64>,
+) -> (super::PlaceRead, super::PlaceRead) {
+    (
+        super::PlaceRead::of(a, c.ta, band()),
+        super::PlaceRead::of(b, c.tb, band()),
+    )
 }
 
 /// **The table is total, and its closed arms are the line, circle and
@@ -2423,16 +2431,17 @@ fn circles_on_one_sphere_meet_at_the_certified_scalar() {
     let band = Band::new(1e-12, 1e-11).unwrap();
     let i = Interval::from_f64;
     let lift = |c: &Curve3<f64>| {
-        let Curve3::Circle(geom::Circle { frame, radius }) = *c else {
+        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = *c else {
             unreachable!("a circle")
         };
+        let radius = conic_k.radius();
         let v = |v: Vec3<f64>| Vec3::new(i(v.x), i(v.y), i(v.z));
-        let o = frame.origin;
+        let o = frame.origin();
         Curve3::circle(
             Point3::new(i(o.x), i(o.y), i(o.z)),
-            v(frame.axis),
+            v(frame.axis()),
             i(radius),
-            v(frame.u_ref),
+            v(frame.u_ref()),
         )
     };
     let mid = |x: Interval| geom::bracket_mid((geom_core::Bounds::lo(x), geom_core::Bounds::hi(x)));
@@ -2517,9 +2526,9 @@ fn the_walk_offers_an_endless_span_no_end_reads() {
 /// apart in their plane, `p = (10⁻⁶, 0, 0)` on the first and the origin
 /// on the second, states a window ([`super::polish::bound`]) whose floor
 /// is zero (the gap lies along the carriers) and whose reach is about
-/// `10⁻⁶`. Its point is on the first span and off the second by more
-/// than the band, so read as its point alone it is no meeting; read with
-/// its window it straddles the floor against the gap at the pair
+/// `10⁻⁶`. Read as its pair ([`super::Found::read_pair`]), its gap is
+/// past the band, so with no window it is no meeting; with its window it
+/// straddles the floor against the gap at the pair
 /// (`curve_pair_meet_window`) and escalates, never prunes. With the
 /// second span moved past the origin by far more than the reach, the
 /// window's whole run lies past that span and it prunes.
@@ -2554,14 +2563,15 @@ fn a_window_read_off_short_of_its_reach_escalates() {
     let read = |b: &Span<'_, f64>, bound| {
         let a = Span::new(&x, (-1.0, 1.0));
         let mut found = super::Found::default();
-        found.read(&a, b, candidate(bound), band());
+        let c = candidate(bound);
+        found.read_pair(&a, b, c, places(&a, b, c), band());
         found.finish(&a, b, None, band())
     };
     let across = Span::new(&y, (-1.0, 1.0));
     let got = read(&across, None);
     assert!(
         matches!(&got, Ok(m) if m.points.is_empty()),
-        "its point alone: {got:?}"
+        "its pair alone: {got:?}"
     );
     let got = read(&across, Some(bound));
     assert!(
@@ -2633,19 +2643,21 @@ fn a_candidate_with_no_window_reads_as_its_point_alone() {
     }
 }
 
-/// **The run arm reads a keel's wall past a bore's rim with main's
-/// answer.** A line down the keel's wall crosses the plane of the bore's
-/// rim at the rim's own end, `2.2143` rad, and just past it
-/// (`a_keel_on_a_bores_ruling`'s near-tangent pose, as `meet` met it).
-/// The polished pair lies on the line, past the rim's arc; the window's
-/// reach is far longer than its distance past the end, so the reach
-/// cannot clear it. The polished pair's gap is in the zero band and the
-/// rim's end is clear of the line past the escalation and twice the
-/// bend, so no pair of the run lies on the arc (`pose`'s module docs,
-/// "The run"): no meeting, as main read it on its convergence meter.
-/// With no bend bounded, the same candidate escalates.
+/// **A keel's wall past a bore's rim is cleared by its held end's
+/// floor, with main's answer.** A line down the keel's wall crosses the
+/// plane of the bore's rim at the rim's own end, `2.2143` rad, and just
+/// past it (`a_keel_on_a_bores_ruling`'s near-tangent pose, as `meet` met
+/// it). The polish is held to the spans, so the pair stops at the rim's
+/// end, `1.7·10⁻⁸` from the line, past the band's escalation. The gap
+/// there runs along the rim's tangent, so the two-sided floor across both
+/// tangents is nothing; but every pair of the window has the rim's side
+/// on the arc into its span, which runs away from the line, so the floor
+/// read across the line's tangent with the rim's arc a half-line is the
+/// whole gap less the bend (`pose`'s module docs, "A held end's floor"):
+/// no meeting, as main read it on its convergence meter and then by the
+/// run arm. With no floor, the same pair escalates.
 #[test]
-fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
+fn a_keel_wall_past_a_bores_rim_is_cleared_by_its_held_ends_floor() {
     let wall = Curve3::line(
         Point3::new(1.0, -1.710_783_078_032_602_8e-8, 2.75),
         Vec3::new(0.0, 0.0, -1.0),
@@ -2671,19 +2683,23 @@ fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
     let Some(c) = cs.into_iter().find(|c| c.bound.is_some()) else {
         panic!("a polished candidate")
     };
-    let no_bend = super::Candidate {
+    assert_eq!(
+        c.tb, 2.214_296_488_955_094_7,
+        "held at the rim's end: {c:?}"
+    );
+    let no_floor = super::Candidate {
         bound: c.bound.map(|w| super::WindowBound {
-            bend: f64::INFINITY,
+            floor: f64::NEG_INFINITY,
             ..w
         }),
         ..c
     };
     let mut found = super::Found::default();
-    found.read(&a, &b, no_bend, band());
+    super::posed(&mut found, &a, &b, no_floor, band());
     let got = found.finish(&a, &b, None, band());
     assert!(
         matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
-        "with no bend bounded: {got:?}"
+        "with no floor: {got:?}"
     );
 }
 
@@ -2723,17 +2739,13 @@ fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
             }
         };
         let mut found = super::Found::default();
-        found.read(
-            &a,
-            &b,
-            super::Candidate {
-                point: at,
-                ta: -2e-8,
-                tb: 0.0,
-                bound: Some(bound),
-            },
-            band(),
-        );
+        let c = super::Candidate {
+            point: at,
+            ta: -2e-8,
+            tb: 0.0,
+            bound: Some(bound),
+        };
+        found.read_pair(&a, &b, c, places(&a, &b, c), band());
         found.finish(&a, &b, None, band())
     };
     let escalated = |got: &Result<Meetings<f64>, super::MeetRefusal<f64>>| matches!(got, Err(r) if matches!(r.fault, MeetFault::Escalated(_)));
@@ -2746,4 +2758,855 @@ fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
     );
     let got = read(0.75_f64.sqrt(), false);
     assert!(escalated(&got), "with no bend bounded: {got:?}");
+}
+
+/// **A line leaving an arc's end nearly along its tangent meets it there
+/// by the one-sided window.** A unit circle's arc ending at `X = (1, 0,
+/// 0)`, and a segment from `X` at `10⁻⁴` rad above the arc's tangent,
+/// running on the other way from the arc. The line crosses the circle's
+/// plane at `X`, where the pose polishes it: the pair is `X` on both,
+/// held at both spans' ends. The tangents part by `10⁻⁴`, so the
+/// two-sided basin, `sin φ` less twice the turn over the window, is not
+/// proved; but every pair of the window lies along the half-tangents
+/// into the spans, which part by nearly `180°`, and the one-sided window
+/// bounds its reach (`pose`'s module docs, "The one-sided window"). The
+/// ends read first found the meeting at `X`, which rings the pair: one
+/// meeting, at both ends. Read two-sided alone, the pose refuses on its
+/// basin.
+#[test]
+fn a_line_leaving_an_arcs_end_along_its_tangent_meets_there_by_the_one_sided_window() {
+    let tilt: f64 = 1e-4;
+    let arc = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let end = arc.eval(0.0);
+    let leaving = line(end.to_array(), [0.0, tilt.cos(), tilt.sin()]);
+    let (a, b) = (
+        Span::new(&leaving, (0.0, 1.0)),
+        Span::new(&arc, (-1.0, 0.0)),
+    );
+    let m = meet(&a, &b, band()).unwrap();
+    assert!(
+        matches!(m.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+        "one meeting at both ends: {m:?}"
+    );
+}
+
+/// **A crossing off an arc's span reads no window.** A unit circle's arc
+/// over `(0.2, 0.8)` rad, and a segment square to the circle's plane
+/// through the circle at `1.4` rad, `0.6` rad past the arc's end, about
+/// `0.59` m from it. The ball of `ℓ + e = 2·10⁻⁸` m about the crossing is
+/// clear of the arc by its walk (`Span::clear_by`), so the
+/// window, the region on the spans, holds no pair, and the pose reads
+/// none (`curve_carrier_piece_clear_by`): no meeting. Read
+/// with the region on the arc, the polish holds the pair at the arc's
+/// end `0.6` m from the crossing, where the basin, `sin φ` less twice the
+/// turn over that run, is not proved, and the pose refuses.
+#[test]
+fn a_crossing_off_an_arcs_span_reads_no_window() {
+    let arc = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let through = arc.eval(1.4);
+    let square = line(through.to_array(), [0.0, 0.0, 1.0]);
+    let (a, b) = (Span::new(&arc, (0.2, 0.8)), Span::new(&square, (-1.0, 1.0)));
+    for (a, b) in [(&a, &b), (&b, &a)] {
+        let m = meet(a, b, band()).unwrap();
+        assert!(m.points.is_empty(), "no meeting: {m:?}");
+    }
+}
+
+/// The full review's case for the off-span guard: a circle of radius
+/// `r = 10⁻⁴` m about the origin in the `z = 0` plane, its arc `(π − 0.3,
+/// π + 0.3)` about `(−r, 0, 0)`, and a segment crossing the plane at
+/// `(−r + d, 0, 0)` and rising `e/ℓ` per metre towards `−x`, so it passes
+/// `e·d/ℓ` over `(−r, 0, 0)`, `e` the band's escalation. The crossing's
+/// foot on the circle is `(r, 0, 0)`, `2.84` rad of arc (`2.84·10⁻⁴` m)
+/// from the arc. In metres the arc's end is `1.14r` from the crossing,
+/// inside the ball of `ℓ + e` about it.
+fn over_an_arcs_far_side(
+    (d, ell): (f64, f64),
+    band: Band,
+) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
+    let r = 1e-4;
+    let rise = band.escalate() / ell;
+    let arc = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let over = line([-r + d, 0.0, 0.0], [-1.0, 0.0, rise]);
+    let (a, b) = (
+        Span::new(&over, (-3.0 * r, 3.0 * r)),
+        Span::new(&arc, (PI - 0.3, PI + 0.3)),
+    );
+    [meet(&a, &b, band), meet(&b, &a, band)]
+}
+
+/// **A segment over an arc's far side, inside the zero band, is never
+/// read as no meeting.** The full review's case
+/// ([`over_an_arcs_far_side`], `d = 1.15r`, `ℓ = 1.3r`) at the bands `(10⁻⁹,
+/// 1.05·10⁻⁹)` and `(10⁻⁹, 1.2·10⁻⁹)`: the segment passes `9.29·10⁻¹⁰` m
+/// (and `1.06·10⁻⁹` m) over the arc's middle, so the pair meets or the
+/// pose refuses; it never reads no meeting. Red where the off-span guard
+/// reads the start's parameter distance at the least speed, `2.84·10⁻⁴`
+/// m, against the region, `2.6·10⁻⁴` m: in metres the arc is `1.14r` from
+/// the crossing, inside the ball of `ℓ + e` (`Span::clear_by`).
+#[test]
+fn a_segment_over_an_arcs_far_side_in_the_zero_band_is_never_no_meeting() {
+    let r = 1e-4;
+    for escalate in [1.05e-9, 1.2e-9] {
+        let band = Band::new(1e-9, escalate).unwrap();
+        let [first, second] = over_an_arcs_far_side((1.15 * r, 1.3 * r), band);
+        for (order, got) in [("segment first", first), ("arc first", second)] {
+            assert!(
+                !matches!(&got, Ok(m) if m.points.is_empty()),
+                "escalate {escalate}, {order}: no meeting read: {got:?}"
+            );
+        }
+    }
+}
+
+/// **A segment over an arc's far side inside the escalation band refuses
+/// or meets.** [`over_an_arcs_far_side`] at the shipping band `(10⁻⁹,
+/// 10⁻⁸)`, `d = 1.1r` and `ℓ = 1.3r`: the segment passes `8.46·10⁻⁹` m
+/// over the arc's middle, between the zero and the escalation, so the
+/// pair never reads no meeting. Red under the same guard as
+/// [`a_segment_over_an_arcs_far_side_in_the_zero_band_is_never_no_meeting`].
+#[test]
+fn a_segment_over_an_arcs_far_side_in_the_escalation_band_is_never_no_meeting() {
+    let r = 1e-4;
+    let [first, second] = over_an_arcs_far_side((1.1 * r, 1.3 * r), band());
+    for (order, got) in [("segment first", first), ("arc first", second)] {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.is_empty()),
+            "{order}: no meeting read: {got:?}"
+        );
+    }
+}
+
+/// **A crossing whose foot on a thin ellipse lies far from it is read by
+/// the ball about the crossing.** The meet oracle's draw 1721 (seed
+/// `0x601115d67dc12df3`, effort 20, the shallow family): a segment
+/// passing within the zero band of an ellipse of semi-axes `0.369` and
+/// `0.0017`. The crossing's foot on the ellipse, where the polish starts,
+/// is at `0.416` rad, `1.36` rad past the ellipse's span; the ball of the
+/// window about that foot is clear of the span, but the meeting lies in
+/// the ball of `ℓ + e` about the crossing, which is not. The pair meets
+/// or the pose refuses, in either order; it never reads no meeting. Red
+/// where the guard reads the ball about the second carrier's start.
+#[test]
+fn a_crossing_whose_foot_on_a_thin_ellipse_is_far_is_read_by_the_ball_about_it() {
+    let segment = Curve3::line(
+        Point3::new(
+            -2.039_633_426_038_924,
+            -0.995_972_943_460_762_7,
+            -1.860_142_371_212_321_5,
+        ),
+        Vec3::new(
+            -0.887_113_993_102_562,
+            -0.019_566_488_067_895_276,
+            -0.461_135_463_596_454_13,
+        ),
+    );
+    let thin = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(
+                -0.828_141_776_510_814_9,
+                -1.080_527_770_428_637_1,
+                -1.220_265_462_034_935_4,
+            ),
+            Vec3::new(
+                0.461_126_207_144_500_64,
+                -0.080_406_063_711_237_68,
+                -0.883_684_041_953_339_4,
+            ),
+            Vec3::new(
+                -0.406_828_854_691_622_94,
+                0.865_888_628_586_523_3,
+                -0.291_079_312_000_788,
+            ),
+        ),
+        0.368_635_757_026_020_3,
+        0.001_683_987_557_222_959_5,
+    ));
+    let (a, b) = (
+        Span::new(
+            &segment,
+            (-1.857_733_710_570_704_8, -0.093_244_569_165_410_02),
+        ),
+        Span::new(&thin, (-1.775_551_102_998_633_3, -0.942_491_638_652_538_3)),
+    );
+    for got in [meet(&a, &b, band()), meet(&b, &a, band())] {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.is_empty()),
+            "no meeting read: {got:?}"
+        );
+    }
+}
+
+/// **A shallow segment stopping short of a circle under its carrier is
+/// cleared by its held end's floor.** A segment rising `0.05` per metre
+/// along `x` through the origin, the `z = 0` plane's crossing, its span
+/// stopping at `x = 5·10⁻⁸`; and a unit circle in that plane passing
+/// `(1.5·10⁻⁷, 0, 0)` square to `x`. The circle passes `7.5·10⁻⁹` m under
+/// the segment's carrier, past the segment's end, so the polished pair
+/// holds the segment at its end: the gap there, `10⁻⁷` m, runs along the
+/// segment, and `|w·n̂|`, `7.5·10⁻⁹` m, is in the escalation band. The
+/// held end's floor reads it across the circle's tangent with the
+/// segment a half-line back into its span: `10⁻⁷` m less the bend, no
+/// meeting, in either order. Red with the first side's held floor off.
+#[test]
+fn a_shallow_segment_stopping_short_of_a_circle_is_cleared_by_its_held_ends_floor() {
+    let (rise, under_at, end): (f64, f64, f64) = (0.05, 1.5e-7, 5e-8);
+    let shallow = line([0.0; 3], [1.0, 0.0, rise]);
+    let under = circle([1.0 + under_at, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let (a, b) = (
+        Span::new(&shallow, (-1.0, end * rise.hypot(1.0))),
+        Span::new(&under, (PI - 0.5, PI + 0.5)),
+    );
+    assert!((under.eval(PI) - Point3::new(under_at, 0.0, 0.0)).norm() < 1e-15);
+    for got in [meet(&a, &b, band()), meet(&b, &a, band())] {
+        let m = got.unwrap();
+        assert!(m.points.is_empty(), "no meeting: {m:?}");
+    }
+}
+
+/// **A held end whose span comes round within the window reads it
+/// two-sided.** The keel's wall and the bore's rim of
+/// [`a_keel_wall_past_a_bores_rim_is_cleared_by_its_held_ends_floor`],
+/// the rim's arc now running round from its end at `2.2143` rad to
+/// within `10⁻⁶` rad of it, `3.75·10⁻⁸` m: the crossing lies in the gap,
+/// `1.7·10⁻⁸` m past the stop and `2·10⁻⁸` m short of the start, and the
+/// window about it holds arcs of the rim on both sides of the gap. The
+/// held end's floor reads one side of its end alone, so it is not read
+/// (`curve_pair_pose_held_one_piece`), and the two-sided floor, across a
+/// gap along the rim's tangent, reads nothing: the pair escalates, the
+/// safe direction, where the held floor would have cleared the window on
+/// one of its two pieces.
+#[test]
+fn a_held_end_whose_span_comes_round_within_the_window_reads_it_two_sided() {
+    let wall = Curve3::line(
+        Point3::new(1.0, -1.710_783_078_032_602_8e-8, 2.75),
+        Vec3::new(0.0, 0.0, -1.0),
+    );
+    let rim = Curve3::circle(
+        Point3::new(1.037_500_008_874_687_3, -1.774_937_458_641_49e-8, 2.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        0.037_500_008_874_691_515,
+        Vec3::new(0.599_999_621_346_698_8, 0.800_000_283_989_836, 0.0),
+    );
+    let stop = 2.214_296_488_955_094_7;
+    let (a, b) = (
+        Span::new(&wall, (-1.25, 0.75)),
+        Span::new(&rim, (stop + 1e-6 - TAU, stop)),
+    );
+    let got = meet(&a, &b, band());
+    assert!(
+        matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+        "the window in two pieces escalates: {got:?}"
+    );
+}
+
+/// **A candidate with a window read at its point is a desync.** A
+/// polished pair states a window and is read as that pair
+/// ([`super::Found::read_pair`], [`super::Found::read_posed`]); the point
+/// read takes the ends, witnesses and exact roots, whose point speaks for
+/// itself. Handed one with a window, it holds a desync at its point, and
+/// the answer refuses on it.
+#[test]
+fn a_candidate_with_a_window_read_at_its_point_is_a_desync() {
+    let (x, y) = (
+        line([0.0; 3], [1.0, 0.0, 0.0]),
+        line([0.0; 3], [0.0, 1.0, 0.0]),
+    );
+    let (a, b) = (Span::new(&x, (-1.0, 1.0)), Span::new(&y, (-1.0, 1.0)));
+    let mut found = super::Found::default();
+    found.read(
+        &a,
+        &b,
+        super::Candidate {
+            point: Point3::new(0.5, 0.0, 0.0),
+            ta: 0.5,
+            tb: 0.0,
+            bound: Some(super::polish::undecided()),
+        },
+        band(),
+    );
+    let got = found.finish(&a, &b, None, band());
+    assert!(
+        matches!(&got, Err(r) if matches!(r.fault, MeetFault::Desync)),
+        "{got:?}"
+    );
+}
+
+/// **A pose read with the spans swapped reads the pair at the first
+/// carrier's point.** A circle's arc and a line segment, the circle
+/// first (the meet oracle's draw 49 under seed `0x1738ccf5186d46b7`): the
+/// pose reads the line against the circle's plane, so its polished pair
+/// comes back flipped, its point the line's. Read as a pair, the gap is
+/// from the first carrier's point at its parameter to the second's, so
+/// the pair's point is the circle's. Their least distance is `3.42·10⁻⁹`
+/// m (a dense search), inside the escalation band, so the pair escalates
+/// in either order (`curve_pair_walk_pair_gap`), and any meeting found
+/// lies on both carriers within the band's zero. Read at the line's
+/// point, the pair's gap reads zero from that point to itself, and a
+/// meeting `3.4·10⁻⁹` off the circle is answered.
+#[test]
+fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point() {
+    let circle = Curve3::Circle(geom::Circle::new(
+        geom::Frame::new(
+            Point3::new(
+                0.133_145_488_046_633_8,
+                -2.074_020_603_639_783_5,
+                -3.302_042_264_002_020_4,
+            ),
+            Vec3::new(
+                -0.657_131_251_160_850_5,
+                0.592_632_918_800_665,
+                0.465_794_742_672_756_9,
+            ),
+            Vec3::new(
+                -0.715_945_656_916_274_5,
+                -0.297_411_903_979_507_73,
+                -0.631_639_118_258_209_2,
+            ),
+        ),
+        0.776_092_476_588_328_4,
+    ));
+    let line = Curve3::line(
+        Point3::new(
+            2.151_062_836_563_022,
+            -1.868_833_724_593_999_4,
+            -3.663_965_499_381_238_3,
+        ),
+        Vec3::new(
+            -0.876_296_707_642_925,
+            0.058_777_680_981_946_19,
+            0.478_172_839_455_101_75,
+        ),
+    );
+    let (a, b) = (
+        Span::new(&circle, (-3.411_413_515_132_779, -2.298_345_592_838_532)),
+        Span::new(&line, (0.460_055_357_913_058_6, 3.084_883_767_727_332_4)),
+    );
+    for (order, got) in [
+        ("circle first", meet(&a, &b, band())),
+        ("line first", meet(&b, &a, band())),
+    ] {
+        assert!(
+            matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+            "{order}: not escalated: {got:?}"
+        );
+        let found = match &got {
+            Ok(m) => &m.points,
+            Err(r) => &r.found,
+        };
+        for m in found {
+            let off = distance(&circle, m.point).max(distance(&line, m.point));
+            assert!(
+                off <= band().zero(),
+                "{order}: a meeting {off:e} off a carrier: {got:?}"
+            );
+        }
+    }
+}
+
+/// **A segment across both branches of a thin ellipse, its one crossing
+/// of the plane between them, is never read as one meeting.** An
+/// ellipse of semi-axes `1` and `b = 4·10⁻⁴` m in the `z = 0` plane, and a
+/// segment along `y` through its centre rising `2·10⁻⁶` per metre: it
+/// crosses the plane once, at the centre, and passes `±8·10⁻¹⁰` m from
+/// the two branches, `2b` apart, inside the zero band of both. The ball of
+/// `ℓ + e` about the crossing, `ℓ = 5·10⁻³` m, holds both branches, which
+/// lie `2` m apart along the ellipse: the window's second carrier read as
+/// an arc from the polished pair is not its chord. The pair meets twice
+/// or refuses, in either order.
+#[test]
+fn a_segment_across_both_branches_of_a_thin_ellipse_is_never_one_meeting() {
+    let b = 4e-4;
+    let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, b);
+    let across = line([0.0; 3], [0.0, 1.0, 2e-6]);
+    let (sa, sb) = (
+        Span::new(&across, (-1e-2, 1e-2)),
+        Span::new(&thin, (-PI, PI)),
+    );
+    for (order, got) in [
+        ("segment first", meet(&sa, &sb, band())),
+        ("ellipse first", meet(&sb, &sa, band())),
+    ] {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.len() < 2),
+            "{order}: fewer than two meetings read: {got:?}"
+        );
+    }
+}
+
+/// **A segment across a thin ellipse's vertex meets it at a root, not at
+/// the extreme between its two.** Two ellipses of semi-axes `~10⁻⁴` and
+/// `~10⁻⁸` m, and a segment nearly in the ellipse's plane, `h` over it,
+/// crossing it near its major vertex (the delta review's cases 1410 and
+/// 1021, true distances `6.57·10⁻¹¹` and `2.95·10⁻¹⁰` m). In the plane the
+/// segment crosses both branches, whose points the band cannot split
+/// (`curve_pair_pose_root_gap` reads zero). Between the two roots the
+/// vertex, its radius of curvature `b²/a ≈ 10⁻¹²` m, takes the ellipse
+/// `~10⁻⁸` m off the line, past the band, so the pair is read at its roots,
+/// on both carriers. At the band `(10⁻⁹, 10⁻⁸)` it meets once, in either
+/// order, within the band's zero of the segment (the point is the
+/// ellipse's own, at a root). At `(10⁻⁹, 1.05·10⁻⁹)` case 1021, whose
+/// slant's swing is proved below the zero, meets so, and case 1410, whose
+/// swing is not, refuses (`curve_pair_pose_slant_tight`, module docs, "One
+/// meeting to a part"). It never reads no meeting: red where the two roots
+/// are one touch at the extreme and that touch is read at its own point,
+/// main's reading, its point off the segment.
+#[test]
+fn a_segment_across_a_thin_ellipses_vertex_meets_it_at_a_root() {
+    let (tight, wide) = (Band::new(1e-9, 1.05e-9).unwrap(), band());
+    for (slanted, (a, b, span_b, tp, h, psi, len, span_a)) in [
+        (
+            true,
+            (
+                1.237_105_813_627_213_6e-4_f64,
+                1.271_740_623_280_322_8e-8,
+                (-0.364_737_545_254_126_1, 0.113_832_612_465_155_19),
+                0.025_188_254_926_288_012_f64,
+                6.568_256_938_995_103e-11,
+                4.330_477_594_017_474_f64,
+                1.718_855_939_666_199_8e-6,
+                (-1.006_498_565_508_213_4e-6, 6.843_763_647_487_737e-7),
+            ),
+        ),
+        (
+            false,
+            (
+                3.253_973_551_187_656e-4,
+                3.445_361_057_969_92e-8,
+                (-0.735_646_227_281_412_5, 0.528_524_751_652_512_8),
+                0.009_417_137_441_319_778,
+                2.945_053_589_198_488_5e-10,
+                2.232_695_454_957_603,
+                2.768_962_141_790_441_3e-4,
+                (-0.000_115_225_579_162_314_02, 0.000_421_974_107_942_566_43),
+            ),
+        ),
+    ] {
+        let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+        let through = [a * tp.cos(), b * tp.sin(), h];
+        let dir = [psi.cos(), psi.sin(), h / len];
+        let seg = line(through, dir);
+        let (sa, sb) = (Span::new(&seg, span_a), Span::new(&thin, span_b));
+        for (order, got) in [
+            ("segment first", meet(&sa, &sb, tight)),
+            ("ellipse first", meet(&sb, &sa, tight)),
+        ] {
+            let slant = MeetFault::Unsettled(Unsettled::Meter {
+                row: "curve_pair_pose_slant_tight",
+            });
+            if slanted {
+                assert!(
+                    matches!(&got, Err(r) if r.fault == slant),
+                    "a = {a:e}, {order}: the slant refused: {got:?}"
+                );
+            } else {
+                assert!(
+                    matches!(&got, Ok(m) if m.points.len() == 1
+                        && distance(&seg, m.points[0].point) <= tight.zero()),
+                    "a = {a:e}, {order}: one meeting within the zero: {got:?}"
+                );
+            }
+        }
+        for (order, got) in [
+            ("segment first", meet(&sa, &sb, wide)),
+            ("ellipse first", meet(&sb, &sa, wide)),
+        ] {
+            let Ok(m) = &got else {
+                panic!("a = {a:e}, {order}: refused: {got:?}");
+            };
+            assert_eq!(m.points.len(), 1, "a = {a:e}, {order}: {got:?}");
+            let p = m.points[0].point;
+            let off = distance(&seg, p);
+            assert!(
+                off <= wide.zero(),
+                "a = {a:e}, {order}: the meeting {off:e} off the segment"
+            );
+        }
+    }
+}
+
+/// **A segment slanted over a thin ellipse's vertex at a tight band
+/// refuses on its slant.** The probe's draw 7969 (seed 1): an ellipse of
+/// semi-axes `7.7·10⁻⁵` and `7·10⁻⁹` m, and a segment `5.4·10⁻¹⁰` m over a
+/// point of it near its vertex, nearly in its plane (the tilt reads level),
+/// at the band `(10⁻⁹, 1.038·10⁻⁹)`. In the plane the residual's extreme is
+/// `9.9·10⁻¹⁰`, in the zero band: a touch. The line lies over the plane by
+/// a slant, so at the extreme the distance is `√(R² + H²) ≈ 1.13·10⁻⁹`,
+/// past the escalation, and at each of the residual's two roots, `2.3·10⁻⁹`
+/// m apart, it is the slant alone, `5.4·10⁻¹⁰`: two meetings. The slant's
+/// swing is not proved below the zero and the band's `e/z` is below
+/// `2.33`, so the pair refuses before any candidate is read
+/// (`curve_pair_pose_slant_tight`, module docs, "One meeting to a part"),
+/// in either order. Red with that gate off: both roots are read, and the
+/// second's gap, in an enclosure the thin ellipse's carrier cannot narrow
+/// past the band, escalates (`curve_carrier_straddle`).
+#[test]
+fn a_segment_slanted_over_a_thin_ellipses_vertex_refuses_at_a_tight_band() {
+    let band = Band::new(1e-9, 1.037_893_055_681_901_7e-9).unwrap();
+    let (a, b, tp, h, psi, len) = (
+        7.746_858_770_958_64e-5_f64,
+        7.046_761_348_332_281e-9,
+        -0.016_917_715_640_598_61_f64,
+        5.416_570_518_273_72e-10,
+        3.241_691_953_463_229_f64,
+        2.045_945_765_717_882e-6,
+    );
+    let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+    let seg = line(
+        [a * tp.cos(), b * tp.sin(), h],
+        [psi.cos(), psi.sin(), h / len],
+    );
+    let (sa, sb) = (
+        Span::new(
+            &seg,
+            (-5.830_182_073_260_333e-7, 1.388_844_419_437_708_8e-6),
+        ),
+        Span::new(&thin, (tp - 0.5, tp + 0.5)),
+    );
+    for (order, got) in [
+        ("segment first", meet(&sa, &sb, band)),
+        ("ellipse first", meet(&sb, &sa, band)),
+    ] {
+        assert!(
+            matches!(&got, Err(r) if r.fault == MeetFault::Unsettled(Unsettled::Meter {
+                row: "curve_pair_pose_slant_tight",
+            })),
+            "{order}: the slant refused: {got:?}"
+        );
+    }
+}
+
+/// **A line touching a circle in its plane meets it once, at the
+/// extreme.** The unit circle and the line `y = 1 − 5·10⁻¹⁰` in its
+/// plane: the residual's extreme, `5·10⁻¹⁰`, is in the zero band, the
+/// line has no slant, and the touch is the extreme's own point, `(0, 1)`
+/// to within the zero, read once in either order, as before the slant was
+/// read. Unmoved by the stretch's reading.
+#[test]
+fn a_line_touching_a_circle_in_its_plane_meets_it_once_at_the_extreme() {
+    let unit = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let touching = line([-1.0, 1.0 - 5e-10, 0.0], [1.0, 0.0, 0.0]);
+    let (c, l) = (
+        Span::new(&unit, (0.5, 2.5)),
+        Span::new(&touching, (0.0, 2.0)),
+    );
+    for (order, got) in [
+        ("circle first", meet(&c, &l, band())),
+        ("line first", meet(&l, &c, band())),
+    ] {
+        let m = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert_eq!(m.points.len(), 1, "{order}: {m:?}");
+        let p = m.points[0].point;
+        assert!(
+            (p - Point3::new(0.0, 1.0, 0.0)).norm() < 1e-4,
+            "{order}: at {p:?}"
+        );
+    }
+}
+
+/// **Two crossings of a thin ellipse's branches the band can tell apart,
+/// with the line between them within the gap of it, escalate.** An
+/// ellipse of semi-axes `10⁻⁴` and `10⁻⁶` m, and a segment in its plane
+/// square to its major axis where its branches lie `1.5·10⁻⁸` m apart: it
+/// crosses each, two meetings past the escalation of each other, and
+/// halfway between them the segment is `7.5·10⁻⁹` m from either branch,
+/// in the band's gap: one stretch of the segment or two is not decided,
+/// and the pair escalates (`curve_pair_meet_stretch`), in either order.
+#[test]
+fn two_crossings_of_a_thin_ellipses_branches_the_band_tells_apart_escalate() {
+    let (a, b) = (1e-4_f64, 1e-6_f64);
+    let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+    // `2b sin t = 1.5·10⁻⁸` apart, at `x = a cos t`.
+    let t = (7.5e-9 / b).asin();
+    let square = line([a * t.cos(), 0.0, 0.0], [0.0, 1.0, 0.0]);
+    let (e, s) = (
+        Span::new(&thin, (-0.5, 0.5)),
+        Span::new(&square, (-1e-6, 1e-6)),
+    );
+    for (order, got) in [
+        ("ellipse first", meet(&e, &s, band())),
+        ("segment first", meet(&s, &e, band())),
+    ] {
+        assert!(
+            matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+            "{order}: not escalated: {got:?}"
+        );
+    }
+}
+
+/// The full review's touch whose zero set parts about its two roots: a
+/// circle of radius `10⁻³` m about the origin in `z = 0`, its span
+/// `π/2 ± 1`, and a segment along `x` through `(0, r − 0.9·10⁻⁹,
+/// 0.9·10⁻⁹)`, its span `±2·10⁻³`. The residual's near extreme,
+/// `−0.9·10⁻⁹`, is in the zero band, so the pose reads a touch; with the
+/// slant the extreme is `1.27·10⁻⁹` m off, and the two roots, at
+/// `x ≈ ±1.34·10⁻⁶`, each `0.9·10⁻⁹` m off.
+fn a_touch_parted_about_its_roots(
+    band: Band,
+) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
+    let r = 1e-3;
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let l = line([0.0, r - 0.9e-9, 0.9e-9], [1.0, 0.0, 0.0]);
+    let (sl, sc) = (
+        Span::new(&l, (-2e-3, 2e-3)),
+        Span::new(&c, (FRAC_PI_2 - 1.0, FRAC_PI_2 + 1.0)),
+    );
+    [meet(&sl, &sc, band), meet(&sc, &sl, band)]
+}
+
+/// **A touch whose zero set parts about its roots meets at both.**
+/// [`a_touch_parted_about_its_roots`] at the band `(10⁻⁹, 1.05·10⁻⁹)`:
+/// the extreme between the roots is past the escalation, so the two are
+/// two meetings, in either order. Red where a touch reads one root.
+#[test]
+fn a_touch_parted_about_its_roots_meets_at_both() {
+    let band = Band::new(1e-9, 1.05e-9).unwrap();
+    for (order, got) in ["segment first", "circle first"]
+        .into_iter()
+        .zip(a_touch_parted_about_its_roots(band))
+    {
+        let m = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert_eq!(m.points.len(), 2, "{order}: two meetings: {m:?}");
+        for p in &m.points {
+            assert!(
+                (p.point.x.abs() - 1.34e-6).abs() < 2e-8,
+                "{order}: at a root: {p:?}"
+            );
+        }
+    }
+}
+
+/// **A touch whose zero set parts about its roots, the extreme between
+/// them in the escalation band, escalates.** [`a_touch_parted_about_its_roots`]
+/// at the band `(10⁻⁹, 10⁻⁸)`: the two roots' meetings lie on one stretch
+/// whose point between them is in the band (C5,
+/// `curve_pair_meet_stretch`), in either order. Red where a touch reads
+/// one root, which answers one meeting.
+#[test]
+fn a_touch_parted_about_its_roots_in_the_band_escalates() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    for (order, got) in ["segment first", "circle first"]
+        .into_iter()
+        .zip(a_touch_parted_about_its_roots(band))
+    {
+        assert!(
+            matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+            "{order}: escalates: {got:?}"
+        );
+    }
+}
+
+/// The dense probe's draws 4009 and 3534: an ellipse, thin enough that its
+/// two branches near the vertex lie within the zero band of each other, a
+/// segment over it, and the ellipse's span starting where the segment
+/// passes its lower branch. The parameters are `(a, b, tp, h, ψ, slope)`,
+/// the segment's span, the ellipse's and the band's escalation; the band's
+/// zero is `10⁻⁹`.
+type EndBeside = ((f64, f64, f64, f64, f64, f64), (f64, f64), (f64, f64), f64);
+
+const ENDS_BESIDE: [EndBeside; 2] = [
+    (
+        (
+            2.787_675_995_494_126_4e-4,
+            2.652_877_017_520_002e-9,
+            0.017_491_853_781_884_382,
+            3.983_433_183_545_985_3e-10,
+            5.543_433_140_289_637,
+            3.636_210_170_338_833_8e-6,
+        ),
+        (-4.404_556_639_837_989_4e-5, 4.000_262_738_647_992e-5),
+        (-0.017_214_096_000_831_052, 0.237_233_763_601_089_75),
+        1.141_210_283_307_668e-9,
+    ),
+    (
+        (
+            3.028_392_812_942_928_7e-5,
+            1.051_763_246_728_499_9e-10,
+            -0.080_179_951_251_481_8,
+            5.167_982_586_682_236e-10,
+            3.157_872_755_428_347_2,
+            2.510_686_135_774_541_7e-5,
+        ),
+        (-1.936_647_351_942_556_5e-5, 5.923_051_467_095_790_4e-6),
+        (-0.556_556_645_285_915_6, 0.072_380_780_941_249_42),
+        1.000_476_734_340_513_8e-9,
+    ),
+];
+
+/// **A root's meeting beside a span end's meeting is never dropped.** The
+/// two draws of [`ENDS_BESIDE`]: the ellipse's span starts within the zero
+/// band of the segment, the end's meeting, and the residual's root on the
+/// other branch, `1.4·10⁻⁹` m from it past the escalation, is a second
+/// meeting, the distance between them rising to `~10⁻⁸` m. Both roots are
+/// read (module docs, "The spans' ends, and deflation"). The root on the
+/// end's side lies just past the ellipse's span, `1.2·10⁻⁹` m from the
+/// end's meeting, outside its ring. It reads its gap in the band
+/// (`curve_carrier_gap`, draw 4009), or its place past the span against a
+/// gap read zero (`curve_pair_meet_window_contact`, draw 3534), and the
+/// pair refuses. Never fewer than two meetings, in either order. Red where
+/// the found end meeting is taken for a root and its reflection
+/// `2θ_hi − θ_J` offered, main's deflation: that lands beside the end on
+/// the other branch and rings onto it, and one meeting is answered.
+#[test]
+fn a_roots_meeting_beside_a_span_ends_meeting_is_read() {
+    for ((a, b, tp, h, psi, slope), span_l, span_k, escalate) in ENDS_BESIDE {
+        let band = Band::new(1e-9, escalate).unwrap();
+        let k = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+        let l = line(
+            [a * tp.cos(), b * tp.sin(), h],
+            [psi.cos(), psi.sin(), slope],
+        );
+        let (sl, sk) = (Span::new(&l, span_l), Span::new(&k, span_k));
+        for (order, got) in [
+            ("segment first", meet(&sl, &sk, band)),
+            ("ellipse first", meet(&sk, &sl, band)),
+        ] {
+            assert!(
+                !matches!(&got, Ok(m) if m.points.len() < 2),
+                "a = {a:e}, {order}: fewer than two meetings: {got:?}"
+            );
+        }
+    }
+}
+
+/// **A segment ending at a near tangency reads its end's meeting once.** A
+/// circle of radius `10⁻³` m and a line in its plane `10⁻¹⁴` m inside it,
+/// the segment ending over the tangency: its end meets the circle there,
+/// and the residual's two roots, `±4.5·10⁻⁹` m along, both lie within the
+/// escalation of that meeting and ring onto it. One meeting, at the end,
+/// in either order.
+#[test]
+fn a_segment_ending_at_a_near_tangency_reads_its_ends_meeting_once() {
+    let r = 1e-3;
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let l = line([0.0, r - 1e-14, 0.0], [1.0, 0.0, 0.0]);
+    let (sl, sc) = (
+        Span::new(&l, (0.0, 1e-4)),
+        Span::new(&c, (FRAC_PI_2 - 0.5, FRAC_PI_2 + 0.5)),
+    );
+    for (order, got) in [
+        ("segment first", meet(&sl, &sc, band())),
+        ("circle first", meet(&sc, &sl, band())),
+    ] {
+        let m = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert_eq!(m.points.len(), 1, "{order}: one meeting: {m:?}");
+        assert!(
+            m.points[0].point.x.abs() < 1e-9,
+            "{order}: at the end: {m:?}"
+        );
+    }
+}
+
+/// A segment between a thin ellipse's branches, from 3d's full review: the
+/// ellipse in `z = 0` of semi-axes `a` and `b`, ended over `(−π, π)` or
+/// endless, and the segment `o + s·d̂`, its span `(s₀, s₁)`.
+fn between_branches(
+    (a, b, endless): (f64, f64, bool),
+    (o, d, span): ([f64; 3], [f64; 3], (f64, f64)),
+    band: Band,
+) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
+    let k = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+    let l = line(o, d);
+    let sk = Span::new(&k, (-PI, PI));
+    let sk = if endless { sk.endless() } else { sk };
+    let sl = Span::new(&l, span);
+    [meet(&sl, &sk, band), meet(&sk, &sl, band)]
+}
+
+/// A pose for [`between_branches`]: the ellipse's semi-axes and whether
+/// its span is endless, and the segment's origin, direction and span.
+type BetweenPose = ((f64, f64, bool), ([f64; 3], [f64; 3], (f64, f64)));
+
+/// The review's segment within the zero of a thin ellipse's branch
+/// (`a = 0.108`, `b = 2.9·10⁻⁵`), its least distance `8.35·10⁻¹⁰` m.
+const BETWEEN_NEAR: BetweenPose = (
+    (0.108_414_812_545_136_91, 2.923_990_457_646_519_8e-5, false),
+    (
+        [
+            -0.047_230_398_955_089_5,
+            5.922_683_356_092_924e-6,
+            3.160_679_294_130_166_7e-10,
+        ],
+        [
+            4.773_547_637_167_243e-4,
+            0.999_999_885_742_704_6,
+            2.543_633_518_027_999e-5,
+        ],
+        (-2.952_255_572_265_591e-5, 3.866_968_497_781_044e-5),
+    ),
+);
+
+/// The review's segments across both branches of a wider ellipse
+/// (`a = 1`), each meeting it twice, the two meetings apart past the band:
+/// (i) on an endless ellipse, (ii) on an ended one.
+const BETWEEN_TWICE: [BetweenPose; 2] = [
+    (
+        (1.0, 1.084_401_731_610_84e-2, true),
+        (
+            [0.009_225_004_908_217_026, 1.347_379_850_411_214e-4, 0.0],
+            [
+                -0.201_311_626_097_252_53,
+                0.979_527_247_807_879_4,
+                3.651_219_422_512_194e-8,
+            ],
+            (-0.017_734_429_318_869_867, 0.027_055_915_598_815_886),
+        ),
+    ),
+    (
+        (1.0, 1.847_622_951_437_222_6e-2, false),
+        (
+            [-0.103_162_797_900_067_53, 0.001_209_878_119_474_769_7, 0.0],
+            [
+                0.679_150_641_167_506_5,
+                0.733_998_914_578_055_7,
+                3.128_064_322_160_38e-8,
+            ],
+            (-0.031_246_318_019_771_79, 0.038_004_926_856_199_75),
+        ),
+    ),
+];
+
+/// **A segment between a thin ellipse's branches, within the zero of one,
+/// is never read as no meeting.** [`BETWEEN_NEAR`]'s pose: the ball about
+/// the crossing holds both branches, `2b` apart in metres and half the
+/// ellipse apart in arc. The span outside the angles about the polished
+/// pair is not clear of the ball, so the arc is read as the half turn, and
+/// the basin refuses, in either order. Red with the walk off (the angles
+/// about the pair taken to hold the window): the basin passes on the near
+/// branch's curvature, and the pair is read no meeting.
+#[test]
+fn a_segment_between_a_thin_ellipses_branches_is_never_read_as_no_meeting() {
+    let (k, l) = BETWEEN_NEAR;
+    for (order, got) in ["segment first", "ellipse first"]
+        .into_iter()
+        .zip(between_branches(k, l, band()))
+    {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.is_empty()),
+            "{order}: no meeting read: {got:?}"
+        );
+    }
+}
+
+/// **A segment across both branches of an ellipse is never read as one
+/// meeting.** [`BETWEEN_TWICE`]'s two poses at the bands `(10⁻⁹, 10⁻⁸)` and
+/// `(10⁻⁹, 1.05·10⁻⁹)`: two meetings, half the ellipse apart in arc, both in
+/// the ball about the crossing. The basin refuses, in either order. Red
+/// with the walk off: the basin passes, and one meeting is read for two.
+#[test]
+fn a_segment_across_both_branches_of_an_ellipse_is_never_read_as_one_meeting() {
+    for escalate in [1e-8, 1.05e-9] {
+        let band = Band::new(1e-9, escalate).unwrap();
+        for (n, (k, l)) in BETWEEN_TWICE.into_iter().enumerate() {
+            for (order, got) in ["segment first", "ellipse first"]
+                .into_iter()
+                .zip(between_branches(k, l, band))
+            {
+                assert!(
+                    !matches!(&got, Ok(m) if m.points.len() < 2),
+                    "pose {n}, escalate {escalate:e}, {order}: fewer than two meetings: {got:?}"
+                );
+            }
+        }
+    }
 }
