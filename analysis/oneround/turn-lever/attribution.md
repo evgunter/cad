@@ -79,11 +79,12 @@ door's own faces' tags.
 So `disagreement.md`'s "poisoned nets" are placeholder seeds as `m-a.md`
 says, plus a Dual-lane artefact.
 
-**The Dual finding is not an instrument artefact for the run itself.** M-b
-counted the Dual turn pairs at the bound from above as escalations. So on
-Dual, a cover's far distance carries a NaN derivative, and every-sign
-consumers there would escalate on covered faces. Where the NaN comes from (a
-`sqrt` at 0 in the distance read, or the cover's `max`) was not chased.
+**Whether a NaN derivative alone makes a decision escalate on Dual was not
+established.** M-b's Dual pairs at the bound from above escalated on the turn,
+but the turn's poison can be the site mint's, which is poison in its value
+too. If it does escalate, every-sign consumers on Dual would refuse on covered
+faces. Where the NaN derivative comes from (a `sqrt` at 0 in the distance
+read, or the cover's `max`) was not chased.
 
 ## 5. Reads with both faces covered and the bound from above poison
 
