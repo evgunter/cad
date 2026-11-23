@@ -160,3 +160,35 @@ fn a_circle_through_a_point_of_an_arc_held_ellipse_meets_it() {
         }
     }
 }
+
+/// **At `Interval` a window part not decided empty is read**: a unit
+/// circle across a mid-sized arc-held ellipse a half or two radians from
+/// its anchor, where the root's enclosure is wider than its arc. The
+/// window passed over a part whose width straddled zero and answered `Ok`
+/// with no meeting; now it meets or refuses.
+#[test]
+fn an_interval_window_reads_a_part_it_has_not_decided_empty() {
+    let band = band();
+    let i = <Interval as Real>::from_f64;
+    for (a, theta) in [(1e4, 0.5), (1e6, 2.0)] {
+        let e = section(a);
+        let carrier = Curve3::Ellipse(e).map_scalar(i);
+        {
+            let p = e.point_at(theta);
+            let tan = e.derivative_at(theta).normalize();
+            let across = e.axis().cross(tan).normalize();
+            let w = (across * 0.7_f64.cos() + e.axis() * 0.7_f64.sin()).normalize();
+            let in_plane = tan.cross(w.cross(tan)).normalize();
+            let circle = Curve3::circle(p - in_plane, tan, 1.0, in_plane).map_scalar(i);
+            let got = meet(
+                &Span::new(&carrier, (i(theta - 0.1), i(theta + 0.1))),
+                &Span::new(&circle, (i(-1.0), i(1.0))),
+                band,
+            );
+            assert!(
+                !matches!(&got, Ok(m) if m.points.is_empty() && m.shared.is_none()),
+                "a = {a:e}, θ = {theta}: a circle through the ellipse's point read apart at Interval"
+            );
+        }
+    }
+}

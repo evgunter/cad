@@ -1142,4 +1142,28 @@ mod tests {
             .unwrap();
         assert!(matches!(touch, CoSurface::Touch), "{touch:?}");
     }
+
+    /// **An arc-held ellipse's plane is stated at a point of its edge**:
+    /// that point lies on the plane the conic states, where its derived
+    /// centre, a megametre off, lies `1e-7` m from it.
+    #[test]
+    fn an_arc_held_edges_plane_is_stated_on_the_edge() {
+        use geom::Conic;
+        let e = geom::Ellipse::anchored(
+            Point3::new(1.3, -0.7, 0.4),
+            Vec3::new(0.5522240050794545, 0.3110026418424273, 0.7735153553621528),
+            Vec3::new(0.6816514125372342, -0.702621773621506, -0.20414209516648582),
+            1e9,
+            3e8,
+        );
+        let carrier = Curve3::Ellipse(e);
+        let (at, normal, _) = OnSurface::edge(key(), &carrier, (-1e-9, 1e-9))
+            .plane()
+            .unwrap();
+        assert!(
+            e.height_of(at).abs() <= 1e-15 && (normal - e.axis()).norm() == 0.0,
+            "the plane at {at:?} stands {:e} off the ellipse's",
+            e.height_of(at)
+        );
+    }
 }
