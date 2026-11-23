@@ -85,10 +85,7 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
             )
         })
     };
-    assert!(
-        named(&with_pending),
-        "the pending face is refused at rest"
-    );
+    assert!(named(&with_pending), "the pending face is refused at rest");
     assert!(
         !named(&with_masquerade),
         "the poisoned net is a description, so the pending slot's verdict is \

@@ -2170,7 +2170,7 @@ fn spline_floor<T: Decide>(
         }
         Err(SplineNormalError::StaleFace) => crate::contain::driver_face_stale(f),
         // The chart was read as a spline above, so the point door's arm
-        // and the placeholder's are a chart with no one normal here.
+        // and a pending face's are a chart with no one normal here.
         Err(SplineNormalError::NotSpline | SplineNormalError::PlaceholderChart) => Ok(None),
         Err(SplineNormalError::At(why)) => match why.refusal() {
             Ok(_) => Ok(None),

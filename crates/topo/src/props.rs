@@ -8588,8 +8588,8 @@ mod at_rest_policy_tests {
     use crate::test_support_fixtures::identity_map;
     use geom_core::{Decide, Point3, Tol};
 
-    /// The `mvfs` seed body: its face surface is the placeholder, which
-    /// a body at rest may not carry (`Body::mvfs` docs) — the cheapest
+    /// The `mvfs` seed body: its face surface is pending, which a body
+    /// at rest may not carry (`Body::mvfs` docs) — the cheapest
     /// scalar-generic refusing subject.
     fn refusing_body<T: Decide>() -> Body<T> {
         let mut b = Body::new();

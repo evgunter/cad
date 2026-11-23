@@ -647,7 +647,7 @@ impl<T: Decide> Body<T> {
     /// and a [`Reading::Keys`] door has no band: such an edge is
     /// returned, since neither reading vouches for it.
     ///
-    /// A side landing on the "no chart yet" placeholder is not asked:
+    /// A side landing on a pending face is not asked:
     /// there is no chart to vouch on, and no description can name it.
     /// What carries no certificate is not asked by either reading:
     /// scaffold and null edges, and an empty loop's lone vertex. The
@@ -822,8 +822,8 @@ impl<T: Decide> Body<T> {
     /// a minting door mints with one half on each side, does — unless
     /// `one_payload` (a certificate is a function of the payload it was
     /// taken on, and the move re-reads that payload), or the landing is
-    /// chartless ([`Landing::chartless`]: a face wearing the "no chart
-    /// yet" placeholder has no chart for a certificate to vouch on, and
+    /// chartless ([`Landing::chartless`]: a pending face has no chart for
+    /// a certificate to vouch on, and
     /// no description can name it, so that side asks nothing). Scaffold
     /// and null edges carry no certificate: they neither strand nor
     /// vouch, and are not asked. `face` is the face the refusal names.
@@ -3829,7 +3829,7 @@ mod tests {
     /// none names the new key. `mfkrh` and `mfkrh_minting` each name all
     /// four, in cycle order, and write nothing; through the lift `mfkrh`
     /// lands and tier 3 reports the promoted face's residuals at rest.
-    /// `mfkrh_plug` takes the same ring: its placeholder is chartless,
+    /// `mfkrh_plug` takes the same ring: its pending face is chartless,
     /// and nothing is asked to vouch on a face with no chart.
     #[test]
     fn mfkrh_onto_a_far_plane_is_refused_unvouched_where_a_chart_is_taken() {
@@ -3867,7 +3867,7 @@ mod tests {
         let plugged = body.mfkrh_plug(ring, sense);
         assert!(
             plugged.is_ok(),
-            "the plug's placeholder is chartless, so nothing is asked to vouch on it: {plugged:?}"
+            "the plug's pending face is chartless, so nothing is asked to vouch on it: {plugged:?}"
         );
     }
 
@@ -4235,7 +4235,7 @@ mod tests {
     /// front face killed into the cap: on the cap's own plane, the
     /// front's three other edges land on a chart none of them names, and
     /// `kef` refuses them unvouched; with the cap first moved onto the
-    /// "no chart yet" placeholder, which none of its edges names, the
+    /// pending slot, which none of its edges names, the
     /// same kill is taken, since nothing vouches on a face with no chart.
     #[test]
     fn a_kill_onto_a_chartless_face_asks_nothing_to_vouch_on_it() {
@@ -4392,15 +4392,15 @@ mod tests {
     }
 
     /// **`mfkrh_plug` refuses only a strand, and its lever is the door
-    /// that takes a chart.** The plug refuses a ring its placeholder
+    /// that takes a chart.** The plug refuses a ring its pending face
     /// strands (the hole's rim, whose edges' `Intersection`s name the
     /// top), writing nothing; the move the refusal names, `mfkrh` onto
     /// the chart the ring's edges name — here the demoting face's own,
     /// `Inherit` — is taken. A ring whose edges are images in the cap's
-    /// chart (the demoted membrane) strands nothing on the placeholder,
+    /// chart (the demoted membrane) strands nothing on the pending face,
     /// and nothing is asked to vouch on a chartless face: the plug takes
     /// it, and so does the describing door moving the membrane, so
-    /// promoted, onto a placeholder with no re-descriptions.
+    /// promoted, onto a pending slot with no re-descriptions.
     #[test]
     fn mfkrh_plug_refuses_a_strand_and_asks_nothing_on_its_chartless_face() {
         let (mut body, _, ring) = holed_top();
@@ -4640,7 +4640,7 @@ mod tests {
     }
 
     /// **A chartless landing still asks the strand**: with the cap on
-    /// the "no chart yet" placeholder, the half's rim edges, images in
+    /// a pending slot, the half's rim edges, images in
     /// the half's own chart, are stranded by the kill all the same, so
     /// `kef` refuses them as stranded and its twin listing nothing
     /// refuses them undescribed.
@@ -4677,24 +4677,24 @@ mod tests {
         );
     }
 
-    /// **The describing door moving a face onto an existing placeholder
+    /// **The describing door moving a face onto an existing pending
     /// key asks nothing**: the promoted membrane, its edges images in
-    /// the cap's chart, shared onto a "no chart yet" key already in the
+    /// the cap's chart, shared onto a pending key already in the
     /// arena, listing nothing, lands there.
     #[test]
-    fn the_describing_door_onto_a_shared_placeholder_key_asks_nothing() {
+    fn the_describing_door_onto_a_shared_pending_key_asks_nothing() {
         let (mut body, top, membrane) = brick_with_inlay();
         let (ring, _) = demoted(&mut body, top, membrane);
         let made = body.mfkrh(ring, FaceSurface::Inherit).unwrap();
-        let placeholder = body.add_pending_surface();
+        let pending = body.add_pending_surface();
         let sense = sense(&body, made.face);
         let moved = body.set_face_surfaces_describing(
-            vec![Rechart::shared(placeholder, made.face, sense)],
+            vec![Rechart::shared(pending, made.face, sense)],
             &[],
             tol(),
         );
         assert!(moved.is_ok(), "{moved:?}");
-        assert_eq!(surf(&body, made.face), placeholder);
+        assert_eq!(surf(&body, made.face), pending);
     }
 
     /// **Every re-chart door's refusals render**, each leading with the

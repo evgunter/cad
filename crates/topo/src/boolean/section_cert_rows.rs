@@ -556,7 +556,7 @@ fn bump() -> Surface<f64> {
 /// either side and either orientation, is apart before any reading; a
 /// plane that cuts the net and one that touches its top row are read
 /// whole (`section_cert_spline_rows`), which a scalar with no march door
-/// does not; a placeholder's poison net is refused at the hull, with or
+/// does not; a net that is not finite is refused at the hull, with or
 /// without a door (R-reach). Two spline patches are read whole too
 /// (`section_cert_spline_pair_rows`), so with no door they are R-lane.
 /// Red against W0 reading any one point clear rather than all (the cut

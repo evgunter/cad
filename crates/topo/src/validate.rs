@@ -2732,7 +2732,7 @@ pub enum ValidationError {
     /// A finished body an isometry could not move
     /// ([`crate::FinishedBody::moved`]): the data map met a state the
     /// gate refuses (a reference that does not resolve, a null scaffold,
-    /// a placeholder net), which a finished body never holds.
+    /// a pending surface), which a finished body never holds.
     Unmovable {
         /// What the map met, as a clause.
         found: &'static str,
@@ -4662,8 +4662,8 @@ impl ValidationError {
             ),
             Self::UncertifiableSurface { .. } => write!(
                 f,
-                "a face has no real surface yet, only the placeholder a construction starts \
-                 from"
+                "a face has no surface yet: it is still pending the description a \
+                 construction gives it"
             ),
             Self::PoisonedSurfaceDescription { .. } => write!(
                 f,
@@ -15578,7 +15578,7 @@ mod tests {
 
     /// **The gate is shut on a non-planar face, in BOTH directions.**
     /// A body the arm refuses while its face carries a plane goes
-    /// silent when the same face carries the `Nurbs` placeholder — the
+    /// silent when the same face carries a pending slot — the
     /// residue, and the control beside it is what makes the silence a
     /// measurement rather than a vacuum.
     #[test]

@@ -29,8 +29,8 @@
 //! rules that read no values; a curved run whose surgery the inventory
 //! stops is left on that record unmerged. Which face survives the surgery does not enter: a plug in
 //! another member's hole is read like any other member
-//! ([`MergedGroup::kept`]). A face on the `mvfs` seed's placeholder
-//! surface is a THIRD kind ([`MergeKind::Placeholder`]): the door
+//! ([`MergedGroup::kept`]). A face whose surface slot is pending
+//! is a THIRD kind ([`MergeKind::Placeholder`]): the door
 //! takes a census of them ([`MergeCoplanarOutcome::placeholders`]) and
 //! glues none.
 //!
@@ -152,7 +152,7 @@ pub struct MergeCoplanarOutcome {
     /// that would close its chart's full period is recorded here
     /// through either entry point.
     pub skipped: Vec<SkippedMerge>,
-    /// Faces whose surface is the placeholder
+    /// Faces whose surface is pending
     /// ([`MergeKind::Placeholder`]), in face-arena order — named so a
     /// caller holding a body still under construction can see why
     /// nothing happened to them, instead of reading `Ok` as "nothing
@@ -1805,7 +1805,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// # The placeholder is a third kind, not a curved one
     ///
-    /// A face whose surface is the `mvfs` seed's placeholder
+    /// A face whose surface slot is pending
     /// ([`MergeKind::Placeholder`]) describes no locus, so it is
     /// neither a planar run nor a curved one: the door names every
     /// such face in [`MergeCoplanarOutcome::placeholders`], a run of
@@ -3126,12 +3126,12 @@ mod tests {
     //
     // A group's regime must be asserted, never inherited from an
     // accident of the fixture: `declined_cube`'s faces sit on the `mvfs`
-    // NURBS placeholder, which has no regime at all — the door sets
+    // pending slot, which has no regime at all — the door sets
     // the whole cube aside and no surgery runs. These two build the
     // regime deliberately, out of planes.
 
-    /// The unit cube with the `mvfs` placeholder overwritten IN PLACE
-    /// by a real plane, so every face shares one plane key: the
+    /// The unit cube with the `mvfs` pending slot described IN PLACE
+    /// as a real plane, so every face shares one plane key: the
     /// structural rung groups the whole cube and, being planar and
     /// undeclared, it runs under [`GroupRegime::RefusesTheCall`].
     fn structural_planar_cube(tol: Tol) -> Body<f64> {
@@ -3239,7 +3239,7 @@ mod tests {
         kind: MergeKind::Curved,
     };
 
-    /// Re-describes the fixture's one shared placeholder key as the
+    /// Describes the fixture's one shared pending key as the
     /// unit cylinder, in place: one curved same-key run over the whole
     /// body, the recording regime's fixture.
     fn describe_shared_key_curved(body: &mut Body<f64>) {
@@ -3250,9 +3250,9 @@ mod tests {
             .expect("the pending key resolves") = unit_cylinder().into();
     }
 
-    /// Re-describes the fixture's one shared placeholder key as a
-    /// real plane, in place — the key is overwritten rather than
-    /// replaced because a fresh key would orphan the placeholder and
+    /// Describes the fixture's one shared pending key as a real plane,
+    /// in place — the key is described rather than replaced because a
+    /// fresh key would orphan the pending slot and
     /// the entry gate refuses an orphaned surface.
     fn describe_shared_key(body: &mut Body<f64>) {
         let key = body.faces().next().expect("faces").1.surface;
@@ -3721,7 +3721,7 @@ mod tests {
     /// a coplanar membrane face covering the opening — the holed
     /// box's construction stopped one step before the tube is grown.
     /// Built entirely by Euler operators, so it is a tier-1/tier-2
-    /// valid body. Its faces stay on the `mvfs` placeholder key; a row
+    /// valid body. Its faces stay on the `mvfs` pending key; a row
     /// that runs the surgery on it describes that key first.
     ///
     /// The shared rim edges have their top-face half in the top
@@ -4177,8 +4177,8 @@ mod tests {
         let tol = Tol::witness();
         let mut body = declined_cube::<f64>(tol).body;
         let (rep, other) = adjacent_pair(&body);
-        // Both surfaces are set here: the fixture's faces carry the
-        // mvfs placeholder, and the row is about KINDS, not about
+        // Both surfaces are set here: the fixture's faces are pending
+        // since mvfs, and the row is about KINDS, not about
         // which kind a fixture happens to leave behind.
         let plane = body.add_surface(Surface::Plane {
             frame: geom::Frame::new(
@@ -4252,7 +4252,7 @@ mod tests {
     }
 
     /// **A run of placeholders is set aside, not run.** The contract
-    /// of [`crate::test_support_fixtures::declined_cube`]'s six faces on their one placeholder key is
+    /// of [`crate::test_support_fixtures::declined_cube`]'s six faces on their one pending key is
     /// [`GroupContract::SetAside`] — no regime, because a placeholder
     /// is neither of the two kinds the regimes are written for — and
     /// the door names the faces.

@@ -20,7 +20,7 @@ use geom_core::Tol;
 /// motion). Returns (body, shell, top_face, promoted_inner_face).
 fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::FaceKey) {
     // Declined is what the surgery below wants: every face on the one
-    // `mvfs` placeholder, so the ring planting and the shell motions are
+    // `mvfs` pending slot, so the ring planting and the shell motions are
     // read at tiers 1-2 and no geometry enters.
     let cube = declined_cube::<f64>(Tol::witness());
     let mut body = cube.body;

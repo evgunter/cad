@@ -749,7 +749,7 @@ fn a_plane_off_the_apex_reads_one_loop() {
 }
 
 /// The cone wall about `z` with its apex at the origin (its lamina twin,
-/// which the fixture leaves on the seed's placeholder, put on the cone
+/// which the fixture leaves pending, put on the cone
 /// too, so the body moves) and the brick whose face `x = 0` holds the
 /// apex: its section the lines along `(0, ±1, 1)`.
 fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {

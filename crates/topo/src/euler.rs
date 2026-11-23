@@ -149,10 +149,9 @@
 //!
 //! - `mvfs`/`mev` insert the given [`Point3`] as a new point (only
 //!   vertex-creating operators carry coordinates — Mäntylä ch. 11).
-//!   `mvfs`'s seed face gets the [`Surface::Nurbs`]
-//!   representable-unimplemented placeholder — the honest "no
-//!   description yet" state (a sweep's seed face becomes a cap whose
-//!   plane exists only later; attach it via
+//!   `mvfs`'s seed face gets a pending surface slot
+//!   ([`crate::SurfaceSlot::Pending`]) — "no description yet" (a sweep's
+//!   seed face becomes a cap whose plane exists only later; attach it via
 //!   [`Body::set_face_surface`](crate::construction::Construct::set_face_surface)). Legal mid-construction; the tier-3
 //!   validator rejects it at rest.
 //! - `mev`/`mef`/`mekr` certify their curve spec with `he_plus`'s
@@ -327,7 +326,7 @@ pub enum RechartDoor {
     /// ring.
     Mfkrh,
     /// [`Body::mfkrh_plug`](crate::construction::Construct::mfkrh_plug): mints a face from a ring on a fresh
-    /// placeholder chart, which asks only the strand. Its caller picks
+    /// pending slot, which asks only the strand. Its caller picks
     /// no chart, so its lever is the door: [`Body::mfkrh`](crate::construction::Construct::mfkrh), which takes
     /// one.
     MfkrhPlug,
@@ -464,8 +463,8 @@ impl RechartDoor {
                  certifies each re-description it is handed against the new chart"
             ),
             Self::MfkrhPlug => format!(
-                "{name}: the face it would mint from face {face:?} lies on a fresh placeholder \
-                 chart that {named} not name. Recourse: promote the ring with mfkrh onto a \
+                "{name}: the face it would mint from face {face:?} lies on a fresh pending \
+                 slot that {named} not name. Recourse: promote the ring with mfkrh onto a \
                  chart its certified edges name"
             ),
             Self::RingMove => format!(
@@ -628,9 +627,8 @@ pub struct MvfsCreated {
     pub vertex: VertexKey,
     /// The new point carrying the given coordinates.
     pub point: PointKey,
-    /// The face's surface: the `Surface::Nurbs` "no description yet"
-    /// placeholder (module docs, geometry policy) — attach the real
-    /// surface via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest.
+    /// The face's surface slot, pending (module docs, geometry policy) —
+    /// attach the real surface via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest.
     pub surface: SurfaceKey,
 }
 

@@ -65,8 +65,8 @@ pub enum PairUnread {
     /// there is no description to compare.
     OutsideInventory,
     /// The face's consumed extent cannot be read ([`pair_extent`]): its
-    /// key does not resolve, its box has no claim to make (a NURBS
-    /// placeholder, a boundary edge with no sound box), or the ball
+    /// key does not resolve, its box has no claim to make (a pending
+    /// face, a net that is not finite, a boundary edge with no sound box), or the ball
     /// around it does not read.
     Extent(PairSide),
 }

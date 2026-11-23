@@ -283,11 +283,11 @@ pub(crate) fn carrier_surface<T: Real>(
 /// let mut body = Body::<f64>::new();
 /// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
 ///
-/// // A seed face carries the "no description yet" placeholder, which
-/// // fixes no frame — and the door says so rather than inventing one.
+/// // A seed face has no surface yet, so it fixes no frame — and the
+/// // door says so rather than inventing one.
 /// assert!(matches!(
 ///     face_pose(&body, seed.face),
-///     Err(ReadbackError::NoCanonicalFrame { .. })
+///     Err(ReadbackError::PendingSurface { .. })
 /// ));
 ///
 /// // Attach a real plane, and the door hands back what was attached.

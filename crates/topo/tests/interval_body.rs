@@ -150,6 +150,6 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         !errs
             .iter()
             .any(|e| matches!(e, ValidationError::UncertifiableSurface { .. })),
-        "the placeholder's verdict is a different state's answer: {errs:?}",
+        "the pending slot's verdict is a different state's answer: {errs:?}",
     );
 }

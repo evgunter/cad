@@ -648,7 +648,7 @@ fn ring_move_between_faces_on_one_surface_carries_every_row() {
 }
 
 /// `mfkrh` is the third loop re-parenting, and its default sugar always
-/// changes chart: the placeholder surface is a fresh key, so the
+/// changes chart: the pending slot is a fresh key, so the
 /// promoted ring arrives rowless rather than carrying four cylinder
 /// rows onto a face that is not a described surface at all.
 #[test]
@@ -656,7 +656,7 @@ fn mfkrh_plug_drops_the_promoted_rings_rows() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once on the placeholder, whose dropped rows are the row.
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once on the pending slot, whose dropped rows are the row.
     let made = s
         .body
         .lifting_rechart_refusals_for_tests(|b| b.mfkrh_plug(ring, true))

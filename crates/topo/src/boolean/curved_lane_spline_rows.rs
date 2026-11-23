@@ -283,8 +283,8 @@ fn upper_cone() -> (Body<f64>, FaceKey) {
     (b, patch)
 }
 
-/// Puts `face`'s lamina twin, which the wall fixtures leave on the
-/// seed's placeholder, on `face`'s carrier under sense `true`, and
+/// Puts `face`'s lamina twin, which the wall fixtures leave pending,
+/// on `face`'s carrier under sense `true`, and
 /// returns it.
 fn twin_on_the_carrier(b: &mut Body<f64>, face: FaceKey) -> FaceKey {
     let carrier = b.proven_face(face).surface().unwrap().clone();

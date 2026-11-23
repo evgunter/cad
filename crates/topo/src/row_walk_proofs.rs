@@ -20,7 +20,7 @@
 //!
 //! The fixture is a [`CylKey::Bare`] wall sheet split along a ruling: two
 //! curved faces on one cylinder carrying four rows each, and the seed
-//! face on its `mvfs` placeholder, a chart that mints nothing. Each torn
+//! face pending since `mvfs`, which mints nothing. Each torn
 //! row tears the wall's loop and names the split face's loop as the one
 //! whose rows the door must leave alone.
 
@@ -45,7 +45,7 @@ fn tol() -> Tol {
 /// The minted split sheet ([module docs](self)).
 pub(crate) struct Sheet {
     pub body: Body<f64>,
-    /// The seed face, on the placeholder chart: no rows.
+    /// The seed face, pending: no rows.
     pub seed: FaceKey,
     /// The wall's half on the `he1` side of the split: four rows.
     pub wall: FaceKey,

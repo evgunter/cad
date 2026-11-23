@@ -198,7 +198,7 @@ impl PcurveMintError {
     /// an undecided reading's "not yet", as the at-rest table ends it
     /// (`validate::classify_pcurve`); and the lever of a refusal a lever
     /// answers (a joint too near a pole, a band the tolerance cannot form,
-    /// a placeholder chart). `None` for a torn arm (a key that does not
+    /// a face with no surface yet). `None` for a torn arm (a key that does not
     /// resolve, a null carrier, a loop that does not meet or close, a row
     /// missing, misstated or unminted): on a body the kernel built, the
     /// door's defect.
@@ -351,7 +351,8 @@ const JOINT_WITHOUT_ROOM_RECOURSE: &str = "Recourse: ask about a face whose loop
 pub(crate) const SINGULAR_TURN_RECOURSE: &str = "Recourse: open the face's corner at that point, so its \
      two edges leave it along different directions on one side of it";
 
-/// The recourse for a placeholder chart, whichever enum refuses it.
+/// The recourse for a face with no surface yet, whichever enum refuses
+/// it.
 pub(crate) const PLACEHOLDER_RECOURSE: &str = geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE;
 
 /// A described chart the loop walk and its meters ([`chart_u_arm`],
@@ -400,8 +401,7 @@ fn chart_mints<T: Real>(chart: DescribedChart<'_, T>) -> bool {
         // exact line images (`Pcurve::IsoLine`); an ARC cap rim on a
         // rational wall has an exact image too — the same boundary
         // line, on the chart's own rational-quadratic parameter
-        // (`Pcurve::IsoArc`). The placeholder is not a described chart
-        // and never reaches here; it mints nothing. An approximating
+        // (`Pcurve::IsoArc`). An approximating
         // surface's chart is its fit's, described by construction.
         Surface::Nurbs(_) | Surface::Approx(_) => true,
     }
@@ -1392,13 +1392,9 @@ pub(crate) fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool
 /// [`singular_at`]: super::singular_at
 pub(super) fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
     // `chart_stretch_sup` refuses only the cone, whose arm grows with
-    // `v` and which no caller asks here, and the placeholder, which a
-    // [`DescribedChart`] is not.
+    // `v` and which no caller asks here.
     let Ok((sup_u, _)) = geom_brep::chart_stretch_sup(chart.surface()) else {
-        unreachable!(
-            "chart_u_arm is asked on a plane or spline chart only, and DescribedChart::of \
-             excludes the placeholder"
-        )
+        unreachable!("chart_u_arm is asked on a plane or spline chart only")
     };
     sup_u
 }

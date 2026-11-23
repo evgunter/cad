@@ -96,8 +96,8 @@ fn chi(body: &Body<f64>) -> i64 {
 
 /// Plants a detached closed box component on `face` of a tier-2 body:
 /// strut + kemr (empty ring) + grow a hexahedron + mfkrh promotion of
-/// the last wall. Structural geometry (chord lines, Nurbs placeholder
-/// planes are NOT used: mef_chord mints placeholder surfaces) - fine
+/// the last wall. Structural geometry (chord lines; planes are NOT
+/// used: the faces stay pending) - fine
 /// for tiers 1-2 topology probes. Returns the promoted (detached
 /// component's) face.
 fn plant_detached_box(
@@ -183,7 +183,7 @@ fn plant_detached_box(
 
 /// [`common::declined_cube`] at `f64`, reduced to the two things this
 /// suite's rows take: the body, and the seed whose face survives as the
-/// top cap. Chord lines and one placeholder surface, so tiers 1-2 only.
+/// top cap. Chord lines and one pending surface slot, so tiers 1-2 only.
 fn declined_cube_and_seed() -> (Body<f64>, topo::construction::MvfsCreated) {
     let c = common::declined_cube::<f64>(Tol::witness());
     (c.body, c.seed)

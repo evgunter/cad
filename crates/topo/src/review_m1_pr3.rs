@@ -122,7 +122,7 @@ fn build_box(body: &mut Body<f64>, tol: Tol) -> BoxBuilt {
     // The hole recipes the three callers plant pierce this box's FACES,
     // at the face coordinates 0.0 and 2.0 — flatly off a unit cube's
     // faces — and cross its section at 0.5 and 1.5. `Declined` puts all
-    // six faces on the one NURBS placeholder, so no geometric tier can
+    // six faces on the one pending slot, so no geometric tier can
     // check a ring's vertex against the plane it is supposed to lie in:
     // normalising this box would leave every hole mis-sited and every
     // row still green. `carve_hole` carries the assertion that is the

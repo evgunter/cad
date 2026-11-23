@@ -813,7 +813,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 )
                 .map_err(|e| match e {
                     SplineNormalError::At(refusal) => refused(refusal),
-                    // A placeholder chart has no locus: the kind has no arm.
+                    // A pending face has no surface: the kind has no arm.
                     SplineNormalError::PlaceholderChart => unbuilt(),
                     SplineNormalError::StaleFace | SplineNormalError::NotSpline => {
                         BooleanError::ClassificationInvariant {

@@ -30,7 +30,10 @@ fn doors_that_panic(body: &crate::Body<f64>, tol: Tol) -> Vec<(String, String)> 
         }
     };
     door("validate", panicked(|| crate::validate::validate(body)));
-    door("validate_closed", panicked(|| crate::validate::validate_closed(body)));
+    door(
+        "validate_closed",
+        panicked(|| crate::validate::validate_closed(body)),
+    );
     door(
         "validate_geometric",
         panicked(|| crate::validate::validate_geometric(body, tol)),
@@ -76,8 +79,14 @@ fn doors_that_panic(body: &crate::Body<f64>, tol: Tol) -> Vec<(String, String)> 
             "face_carrier_kind",
             panicked(|| crate::readback::face_carrier_kind(body, f)),
         );
-        door("face_pose", panicked(|| crate::readback::face_pose(body, f)));
-        door("face_cover", panicked(|| crate::cover::face_cover(body, f, band)));
+        door(
+            "face_pose",
+            panicked(|| crate::readback::face_pose(body, f)),
+        );
+        door(
+            "face_cover",
+            panicked(|| crate::cover::face_cover(body, f, band)),
+        );
     }
     out
 }
@@ -95,25 +104,30 @@ fn no_door_panics_on_an_all_pending_prism() {
     assert!(panics.is_empty(), "doors that panicked: {panics:#?}");
 }
 
-/// **No door panics on a finished brick with one face re-charted
-/// pending**, and the at-rest check names that face.
+/// **A finished face cannot be re-charted pending**: its edges'
+/// descriptions name its surface, so moving the face off it strands
+/// them, and the door refuses typed, naming each edge, with the body
+/// unchanged.
 #[test]
-fn no_door_panics_on_a_brick_with_a_face_recharted_pending() {
-    use crate::construction::{Construct as _, FaceSurface};
+fn a_described_face_is_not_recharted_pending() {
+    use crate::construction::FaceSurface;
     let tol = Tol::witness();
-    let mut b =
-        crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let face = b.faces().map(|(k, _)| k).next().unwrap();
-    let sense = b.get_face(face).unwrap().sense;
-    b.set_face_surface(face, FaceSurface::Pending { sense })
-        .expect("re-charting a face pending moves no described boundary onto a chart");
-    assert!(b.proven_face(face).slot().is_pending());
-    let panics = doors_that_panic(&b, tol);
-    assert!(panics.is_empty(), "doors that panicked: {panics:#?}");
-    let errors = crate::validate::validate_geometric(&b, tol).expect_err("a pending face at rest");
+    let brick = crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let face = brick.faces().map(|(k, _)| k).next().unwrap();
+    let sense = brick.get_face(face).unwrap().sense;
+    let mut b = brick.clone();
+    let refused = b.set_face_surface(face, FaceSurface::Pending { sense });
     assert!(
-        errors.contains(&crate::ValidationError::UncertifiableSurface { face }),
-        "check 1 names the pending face: {errors:?}"
+        matches!(
+            &refused,
+            Err(crate::EulerOpError::RechartStrandsDescriptions { edges, .. }) if edges.len() == 4
+        ),
+        "the four rim edges are named: {refused:?}"
+    );
+    assert_eq!(
+        format!("{b:?}"),
+        format!("{brick:?}"),
+        "the body is unchanged"
     );
 }
 

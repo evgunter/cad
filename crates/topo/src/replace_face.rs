@@ -338,7 +338,7 @@ pub enum ReplaceFaceError<T: Real> {
     ///
     /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     PlaceholderSurface {
-        /// The face carrying the placeholder.
+        /// The pending face.
         face: FaceKey,
     },
     /// **The apex-window predicate.** The face's `v`-window, shifted by

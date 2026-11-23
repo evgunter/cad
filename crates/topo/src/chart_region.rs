@@ -5377,10 +5377,11 @@ mod tests {
         let (arm_u, arm_v) = arm_values(certified_arms(&sphere, -0.5, 0.5, band())).unwrap();
         assert!((arm_u - 0.5_f64.cos()).abs() < 1e-15, "got {arm_u}");
         assert_eq!(arm_v, 1.0);
-        // A pole-reaching window, and a spline chart, still refuse typed.
+        // A pole-reaching window, and a net that is not finite, still
+        // refuse typed.
         for (surface, v_hi, chart) in [
             (sphere, core::f64::consts::FRAC_PI_2, "sphere"),
-            (geom::test_support::unit_patch(), 0.5, "NURBS"),
+            (crate::fixtures::poisoned_net(|_| true), 0.5, "NURBS"),
         ] {
             match arm_values(certified_arms(&surface, -0.5, v_hi, band())) {
                 Err(ChartRegionError::ArmUnbounded { chart: c }) => assert_eq!(c, chart),

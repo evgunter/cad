@@ -59,8 +59,7 @@
 //!
 //! # The audit's residuals (P3)
 //!
-//! The `Nurbs` placeholder refuses as [`crate::transform_rigid`] does,
-//! and a row the re-mint refuses refuses [`TransformError::Pcurve`].
+//! A row the re-mint refuses refuses [`TransformError::Pcurve`].
 //! Every chart image has a mirror image, a spiric's included
 //! (`map_isometry`'s `reflected_image`).
 

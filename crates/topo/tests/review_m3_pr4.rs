@@ -759,17 +759,16 @@ fn a_cone_relabelled_brick_clear_of_the_other_operand_is_refused_at_rest() {
     assert_cone_face_refuses_at_rest(b, face);
 }
 
-/// Shape (iii) READINESS at the operand: a brick with one face
-/// relabelled to the placeholder NURBS net does not finish. The
-/// at-rest gate refuses it on that face and nothing else: one
-/// `UncertifiableSurface` naming the face (the placeholder net), and
-/// one `DescriptionNotAdjacent` for each of its four boundary edges,
-/// whose lines lie on no surface the net describes.
+/// Shape (iii) READINESS at the operand: a brick with one face moved
+/// onto a pending slot does not finish. The at-rest gate refuses it on
+/// that face and nothing else: one `UncertifiableSurface` naming the
+/// face, and one `DescriptionNotAdjacent` for each of its four boundary
+/// edges, whose lines lie on no surface the face wears.
 #[test]
-fn a_placeholder_nurbs_wall_is_refused_at_rest() {
+fn a_pending_wall_is_refused_at_rest() {
     let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let (face, _) = b.faces().next().unwrap();
-    // Lifts RechartStrandsDescriptions: the NURBS wall is the at-rest gate's input; its edges are not the row.
+    // Lifts RechartStrandsDescriptions: the pending wall is the at-rest gate's input; its edges are not the row.
     b.set_face_surface_unvouched_for_tests(
         face,
         topo::construction::FaceSurface::Pending { sense: true },
@@ -777,13 +776,12 @@ fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     .unwrap();
     let (edges, _) = face_boundary(&b, face);
     assert_eq!(edges.len(), 4);
-    let errors =
-        topo::finish(b, Tol::witness()).expect_err("a placeholder NURBS wall does not finish");
+    let errors = topo::finish(b, Tol::witness()).expect_err("a pending wall does not finish");
     assert_eq!(errors.len(), 5, "one surface and four edges: {errors:?}");
     assert_eq!(
         errors[0],
         topo::ValidationError::UncertifiableSurface { face },
-        "the placeholder net is named on its face: {errors:?}"
+        "the pending face is named: {errors:?}"
     );
     assert_eq!(not_adjacent_edges(&errors), edges, "{errors:?}");
 }

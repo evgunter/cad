@@ -354,7 +354,7 @@ pub enum FaceGeometry {
     /// path). `n + 2` surface keys for an `n`-corner profile.
     Certified,
     /// Every `mef` inherits, and the seed face is left as `mvfs` made
-    /// it: one placeholder surface key for the whole prism.
+    /// it: one pending surface key for the whole prism.
     Declined,
 }
 
@@ -571,7 +571,7 @@ pub fn prism_ops<T: geom_core::Decide + crate::props::AtRestPolicy>(
     }
     // The seed face survives as the top cap (outward +z ⇒ profile
     // order viewed from above). Under `Declined` it keeps the `mvfs`
-    // placeholder every other face inherited, so the whole prism sits on
+    // pending slot every other face inherited, so the whole prism sits on
     // one surface key.
     if faces == FaceGeometry::Certified {
         body.set_face_surface(
@@ -612,7 +612,7 @@ pub fn geometric_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(tol: To
 /// ([`FaceGeometry::Declined`], whose doc is where the reason that arm
 /// exists is written): the same operators, the same chord carriers, the
 /// same keys in the same order, and all six faces on the one `mvfs`
-/// placeholder surface.
+/// pending slot.
 ///
 /// It is a separate door rather than a `bool` at the call site for the
 /// same reason the description step is: a reader must be able to see
@@ -1509,8 +1509,8 @@ impl CylFrame {
 /// Not a style choice: the seed face's surface slot is READ, and the
 /// two readings want opposite things. A sheet built [`CylKey::OnSeed`]
 /// presents TWO faces on the cylinder — the seed and the wall — and a
-/// sheet built [`CylKey::Bare`] presents one, leaving the seed face on
-/// the NURBS placeholder its `mvfs` minted. `crate::census`'s
+/// sheet built [`CylKey::Bare`] presents one, leaving the seed face
+/// pending since `mvfs`. `crate::census`'s
 /// conformal arm pairs coincident cylinder faces and wants the second;
 /// the split rows walk the seed face's own chart and want the first.
 #[derive(Clone, Copy, Debug)]
@@ -1519,11 +1519,11 @@ pub enum CylKey {
     /// sheet is that face's complement and the two share the key.
     OnSeed,
     /// Mint the cylinder as a bare arena key and leave the seed face
-    /// on its `mvfs` placeholder. The wall face is then the body's
+    /// pending. The wall face is then the body's
     /// only face on the cylinder.
     Bare,
-    /// Share a key an earlier sheet minted; the seed face keeps its
-    /// placeholder as under [`CylKey::Bare`].
+    /// Share a key an earlier sheet minted; the seed face stays
+    /// pending as under [`CylKey::Bare`].
     Shared(crate::geometry::SurfaceKey),
 }
 
@@ -2689,7 +2689,7 @@ mod tests {
         assert_eq!(
             on_cylinder(&bare),
             1,
-            "Bare: the wall alone, the seed face left on its mvfs placeholder"
+            "Bare: the wall alone, the seed face left pending"
         );
         assert_eq!(
             bare.get_face(wall).unwrap().surface,
