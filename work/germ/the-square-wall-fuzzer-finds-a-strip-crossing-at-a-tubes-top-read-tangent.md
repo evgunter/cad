@@ -44,3 +44,5 @@ PR 7354's CI hit this row at seed `0x505cee7548d8cc42` (`CAD_FUZZ_EFFORT=1`), ru
 
 - `R 0.021898704449694648, r 0.018203982349515643, (e, z0, rc) (-0.06811568974321162, -0.021356084056413805, 0.06083591524589301), tilt 1.598e-16`: R-tan at `Degeneracy { tangent: 0.008280659414815934, top: 1.1733392035750967e-12 }`, `Tangent("section_torus_square_wall_fold_half")`;
 - `R 0.8637907423392572, r 0.18053832653197224, (e, z0, rc) (-0.7884287255576242, 0.19244301189147156, 0.07629649472069315), tilt 5.373e-14`: R-tan at `Degeneracy { tangent: 0.050161778987343975, top: 1.5452916724001398e-12 }`, the same predicate.
+
+2026-11-23 — HELDRECORDS `nary-lineage` lane (PR 7516, head fe80aa31ec): red locally at `CAD_FUZZ_SEED=0x2f68e664d3d325c9 CAD_FUZZ_EFFORT=1`, 2 mismatches, both "a strip crossing at a tube circle's top … Tangent("section_torus_square_wall_fold_half")" (R 15.451, r 3.026; R 0.946, r 0.717).

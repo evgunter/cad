@@ -136,7 +136,11 @@ fn toggles_ui(
 
 /// A space as its toggle names it: as a sentence does, capitalised.
 fn space_label(doc: &Doc<ProfileProgram>, space: VarId) -> String {
-    crate::tools::capitalised(&doc.spoken_space(space).to_string())
+    crate::tools::capitalised(
+        &pncad::document::Said(&doc.spoken_space(space), pncad::document::Speaker::TAG)
+            .sentence()
+            .to_string(),
+    )
 }
 
 /// The camera's state as the View pane's two lines, read in the working

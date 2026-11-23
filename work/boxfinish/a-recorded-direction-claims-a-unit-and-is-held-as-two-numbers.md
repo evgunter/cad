@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-22
 priority: P1
 cost: H
-blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions, the-axis-mint-asks-for-proof-only-where-the-value-reads-zero, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
+blocked_on: [the-axis-mint-asks-for-proof-only-where-the-value-reads-zero, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
 ---
 
 

@@ -609,55 +609,54 @@ pub enum Recourse {
 }
 
 impl Recourse {
-    /// **The recourse as a sentence's ending**, `sayable` whether an
-    /// assertion could quiet the row (`checks::at_rest::row_quietable`):
-    /// the assertion is offered only where one can say the row, and a
-    /// row no assertion says (a blend turn's two feet, two radii written
-    /// apart, a cell no measure reads) names the construction alone
-    /// (`[intent.checked]`).
+    /// **The recourse as a sentence's ending**, rendered from the
+    /// assertion that would quiet the row
+    /// ([`crate::checks::quieting::Quieting`]), said by `by`: the
+    /// assertion is offered, as the claim it is, only where the finding
+    /// carries one, and a row no assertion says (a blend turn's two
+    /// feet, two radii written apart, a cell no measure reads) names the
+    /// construction alone (`[intent.checked]`).
     #[must_use]
-    pub const fn words(self, sayable: bool) -> &'static str {
-        // Each reason once, behind the assertion where one can say the
-        // row and behind the construction where none can.
-        macro_rules! either {
-            ($why:literal) => {
-                if sayable {
-                    concat!("Recourse: assert the coincidence at its site; ", $why)
-                } else {
-                    concat!(
-                        "Recourse: build the cells as one construction the door reads; ",
-                        $why
-                    )
-                }
-            };
-        }
-        macro_rules! one_construction {
-            ($($or:literal)?) => {
-                concat!(
-                    "Recourse: build the cells as one construction of the same variables, so \
-                     the coincidence holds whatever their values"
-                    $(, $or)?
-                )
-            };
-        }
+    pub fn words(
+        self,
+        quieting: Option<&crate::checks::quieting::Quieting>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> crate::Sentence {
+        const ONE_CONSTRUCTION: &str = "Recourse: build the cells as one construction of the \
+                                        same variables, so the coincidence holds whatever their \
+                                        values";
+        let claim = quieting.map(|q| q.said(by));
+        // Each reason once, behind the assertion where one says the row
+        // and behind the construction where none does.
+        let either = |why: &str| match &claim {
+            Some(claim) => crate::sentence!("Recourse: assert ", claim, format_args!("; {why}")),
+            None => crate::Sentence::from(
+                format!("Recourse: build the cells as one construction the door reads; {why}")
+                    .as_str(),
+            ),
+        };
         match self {
-            Self::OneConstruction if sayable => one_construction!(", or assert it at its site"),
-            Self::OneConstruction => one_construction!(),
+            Self::OneConstruction => match &claim {
+                Some(claim) => crate::sentence!(ONE_CONSTRUCTION, ", or assert ", claim),
+                None => crate::Sentence::from(ONE_CONSTRUCTION),
+            },
             Self::Assert => {
-                either!("the door cannot read what decided it as a function of the variables")
+                either("the door cannot read what decided it as a function of the variables")
             }
-            Self::Budget => either!(
-                "what decided it, read as a function of the variables, outgrew the door's budget"
+            Self::Budget => either(
+                "what decided it, read as a function of the variables, outgrew the door's budget",
             ),
             Self::ReadTheAxis => {
                 "Recourse: draw the profile on the face the traced face's sweep was drawn on or a \
                  face mated flat onto its cap, or on a frame whose z is read off the traced face's \
                  axis, which no turn's rounding tilts, so the sweep runs along the face and keeps \
                  the tangency the profile draws whatever the values"
+                    .into()
             }
             Self::MemberBudget => {
                 "Recourse: raise the evaluation's member budget, or lower a count, so the replay \
                  reaches the row"
+                    .into()
             }
         }
     }
@@ -691,14 +690,19 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
 /// ([`NamedCoincidence::meet`]).
 pub(crate) fn statement_words(
     row: &NamedCoincidence,
-    cell: impl Fn(&NamedCell) -> String,
-) -> String {
+    cell: impl Fn(&NamedCell) -> crate::Sentence,
+) -> crate::Sentence {
     match row.cells.as_slice() {
-        [a, b] => format!("{} {} {}", cell(a), relation_words(row.relation), cell(b)),
-        [init @ .., last] if !init.is_empty() => format!(
-            "{} and {} share one point",
-            init.iter().map(&cell).collect::<Vec<_>>().join(", "),
-            cell(last)
+        [a, b] => crate::sentence!(
+            cell(a),
+            format_args!(" {} ", relation_words(row.relation)),
+            cell(b)
+        ),
+        [init @ .., last] if !init.is_empty() => crate::sentence!(
+            crate::Sentence::joined(init.iter().map(&cell), ", "),
+            " and ",
+            cell(last),
+            " share one point"
         ),
         _ => unreachable!("a coincidence row holds two cells or more: {row:?}"),
     }

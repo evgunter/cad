@@ -660,7 +660,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         );
         let refused = attached.expect_err(&format!("{label}: the attachment gate refuses"));
         assert!(
-            matches!(refused, topo::EulerOpError::Certification { .. }),
+            matches!(refused, topo::EulerOpError::DescriptionUncertified { .. }),
             "{label}: the refusal is the certification's, got {refused:?}"
         );
         validate_geometric(&body, tol())

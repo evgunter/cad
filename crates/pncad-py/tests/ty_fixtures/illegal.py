@@ -405,16 +405,20 @@ rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
 # three states" and "what kind of entity" are different questions.
 tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error
 
-# A sketch on a face. The SPIN is an angle slot, so a bare number
-# cannot mean radians by convention...
-doc.sketch_on_face(solid, "a face", circle((0 * m, 0 * m), 1 * m), 1 * m, 0.3)  # ty: error
+# A profile drawn on a face. The SPIN is an angle slot, so a bare
+# number cannot mean radians by convention...
+doc.draw_on_face(solid, "a face", circle((0 * m, 0 * m), 1 * m), spin=0.3)  # ty: error
 
-# ...and a length cannot stand for an angle.
-doc.sketch_on_face(solid, "a face", circle((0 * m, 0 * m), 1 * m), 1 * m, 1 * m)  # ty: error
+# ...and a length cannot stand for an angle, nor an angle for a slide.
+doc.draw_on_face(solid, "a face", circle((0 * m, 0 * m), 1 * m), spin=1 * m)  # ty: error
+doc.draw_on_face(solid, "a face", circle((0 * m, 0 * m), 1 * m), slides=(1 * rad, 1 * m))  # ty: error
 
 # The face is opaque TEXT, never the `NodeId` that minted it — the
 # same confusion the read doors refuse, on the authoring side.
-doc.sketch_on_face(solid, solid, circle((0 * m, 0 * m), 1 * m), 1 * m)  # ty: error
+doc.draw_on_face(solid, solid, circle((0 * m, 0 * m), 1 * m))  # ty: error
+
+# The depth is no argument of the drawing: the extrude after it takes it.
+doc.draw_on_face(solid, "a face", circle((0 * m, 0 * m), 1 * m), 1 * m)  # ty: error
 
 # The carrier-kind read answers the `SurfaceKind` enum, not the tag as
 # a string: "which surface variant" is a value to compare, not prose

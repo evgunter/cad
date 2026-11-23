@@ -2,11 +2,12 @@
 id: viewer-disabled-control-population-has-no-gate
 kind: issue
 title: The viewer's disabled-control population is a measurement with nothing reading it
-status: open
+status: closed
 opened: 2026-09-19
 refs: [measurements-have-no-mechanical-guard]
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 Filed by a VNEWS census lane (`work/vnews/a-disabled-control-says-why-
@@ -103,3 +104,7 @@ charter (`work/unread/plan.md`). Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). It proposes a new per-PR gate with a site-keyed allowlist. Every new `add_enabled` would red until a row is added, which is a fix cycle with no recorded defect it would have caught. The population has shrunk from 30 to 22 sites (`git grep -c add_enabled crates/viewer/src`), so nothing is drifting. The gates step is already 5-11 min per PR.

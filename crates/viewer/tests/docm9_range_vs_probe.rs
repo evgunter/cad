@@ -12,8 +12,7 @@ use std::collections::BTreeSet;
 
 use crate::common;
 
-use editor_core::drive::DriveConfig;
-use editor_core::range::{RangeField, RangeSeed, certified_range};
+use editor_core::range::{RangeBudget, RangeField, RangeSeed, certified_range};
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, Node,
     NodeResult, ProfileDoc, RecipeNodeId, VarName, evaluate,
@@ -117,16 +116,13 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
             lo: SEED_LO,
             hi: 0.5,
         },
-        &DriveConfig {
-            max_depth: 24,
-            max_leaves: 2048,
-            ..DriveConfig::default()
-        },
+        &RangeBudget::new(24, 2048),
+        None,
         &pncad::document::Stop::default(),
         tol(),
     )
     .expect("the slab's depth certifies");
-    let (clo, chi) = range.certified_interval();
+    let (clo, chi) = range.proven_interval();
     assert!(clo < chi, "the certificate is non-empty: [{clo}, {chi}]");
 
     // (1) THE SUBSET CLAIM, against the probe's own validity test.
@@ -162,8 +158,8 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
     );
     // The certificate's frontier is the DRIVER's floor, bounded by the
     // two mechanisms that set it — the run's ambiguity band and the
-    // drive's resolution over this seed — rather than by a number.
-    let resolution = (0.5 - SEED_LO) / 2f64.powi(24);
+    // search's resolution on this side — rather than by a number.
+    let resolution = -SEED_LO / 2f64.powi(24);
     assert!(
         clo < 100.0 * resolution.max(tol().eps()),
         "the frontier is the driver's stopping point, not the boundary: {clo}"

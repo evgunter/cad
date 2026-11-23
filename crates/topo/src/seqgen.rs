@@ -145,10 +145,13 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Point3, Sign, Tol};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey};
+use crate::entity::{
+    EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
+};
 use crate::euler::{MefSite, MevSite};
 use crate::euler_kill::MergedMember;
 use crate::euler_ring::{KemrResult, MekrSite};
+use crate::glue::{FaceSetComponents, LoopClaims, face_set_glue};
 use crate::iso::canonical_form;
 use crate::readback::{EulerCounts, euler_counts};
 
@@ -177,9 +180,9 @@ pub(crate) enum OpChoice {
     Kef(HalfEdgeKey, Door),
     Kvfs(SolidKey),
     /// The non-Euler public mutator (`ring_move(ring, to_face)`).
-    /// ring_move's tier-1 preservation is the demotion claim's least
-    /// obvious case (the separating-curve argument; see its docs in
-    /// `crate::euler_ring`).
+    /// ring_move's tier-1 preservation is by the records (see its docs
+    /// in `crate::euler_ring`); what it leaves χ is the per-component
+    /// theorem's ([`crate::euler_theorem`]).
     RingMove(LoopKey, FaceKey, Door),
     /// `split_edge(edge, t)`. The parameter is derived from the edge's
     /// own certified interval by [`split_site`], not carried here, so
@@ -511,23 +514,11 @@ impl Ledger {
     /// are the only ops that may move it and a ledger that stopped
     /// saying so would stop noticing.
     ///
-    /// Derived h is NOT required to be non-negative: `mfkrh` applied to
-    /// a ring that never plugged a handle (a kemr-planted floating ring)
-    /// legitimately drives it negative — the promotion disconnects the
-    /// shell's surface into two components while keeping one shell
-    /// entity, so eq. 9.2's h stops meaning "genus of a connected
-    /// closed surface" and starts double-counting components. A legal
-    /// tier-1 intermediate (like empty loops and struts), and one
-    /// `movefac` pays back: distributing the components into real
-    /// shells raises `s`, and eq. 9.2 raises the derived `h` with it
-    /// ([`OpChoice::Movefac`]'s vector is `h +1, s +1` for that
-    /// reason). The
-    /// component-aware per-shell form (per component
-    /// v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per shell the sum is
-    /// 2(c − Σgᵢ)) was ratified at M1 PR 5, corrected by PR 4, and
-    /// is implemented as the validator's pass 11
-    /// (`crate::validate`); this ledger keeps the per-body eq. 9.2 view
-    /// because the generator tracks the operator algebra, not surfaces.
+    /// The derived h may go negative on a tier-1 transient
+    /// ([`EulerCounts::h`]); `movefac` pays it back
+    /// ([`OpChoice::Movefac`]'s vector is `h +1, s +1`). The
+    /// per-component form is the theorem checked last
+    /// ([`crate::euler_theorem`]).
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
         let counts = euler_counts(body);
         let EulerCounts { v, e, f, r, s } = counts;
@@ -540,14 +531,14 @@ impl Ledger {
         }
         // Eq. 9.2 rearranged: h = s − (v − e + f − r) / 2, with the
         // parity checked before the halving by the door itself.
-        let derived_h = counts.genus().map_err(|refusal| refusal.to_string())?;
+        let derived_h = counts.h().map_err(|refusal| refusal.to_string())?;
         if derived_h != self.h {
             return Err(format!(
-                "genus mismatch: derived h = {derived_h}, ledger h = {}",
+                "h mismatch: derived h = {derived_h}, ledger h = {}",
                 self.h
             ));
         }
-        Ok(())
+        crate::euler_theorem::check_component_theorem(body)
     }
 }
 
@@ -910,57 +901,39 @@ fn any_movefac(body: &Body<f64>, _tol: Tol) -> bool {
 }
 
 fn movefac_sites(body: &Body<f64>) -> impl Iterator<Item = ShellKey> + '_ {
+    let claims = LoopClaims::of(body);
     body.shells()
-        .filter(move |&(shell, _)| shell_components(body, shell) >= 2)
+        .filter(move |&(shell, _)| shell_glue(body, &claims, shell).count >= 2)
         .map(|(shell, _)| shell)
 }
 
-/// The number of connected components of `shell`'s incidence complex,
-/// under the relation `movefac` partitions on and the validator's
-/// pass 11 enumerates: a face glues all its loops, a cycle loop glues
-/// across each edge via `mate`, and an empty-loop face is its own
-/// dartless component.
+/// The number of connected components of `shell`'s incidence complex
+/// under the glue relation `movefac` partitions on
+/// ([`crate::glue::face_set_glue`]).
 pub(crate) fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
-    shell_component_faces(body, shell).len()
+    shell_glue(body, &LoopClaims::of(body), shell).count
 }
 
-/// [`shell_components`]' components themselves, labelled as `movefac`
-/// labels them: seeded in the shell's face-list order, each listing its
-/// faces in that order. Component `k` is the one `movefac`'s result
-/// puts in its `k`-th shell.
+/// [`shell_components`]' components themselves, as `movefac` reads
+/// them: seeded in the shell's face-list order, each listing its faces
+/// in that order. Component `k` is the one `movefac`'s result puts in
+/// its `k`-th shell.
 fn shell_component_faces(body: &Body<f64>, shell: ShellKey) -> Vec<Vec<FaceKey>> {
     let faces = &body.get_shell(shell).expect("shell resolves").faces;
-    let mut label: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
-    let mut count = 0;
-    for &seed in faces {
-        if label.contains_key(seed) {
-            continue;
-        }
-        label.insert(seed, count);
-        let mut pending = vec![seed];
-        while let Some(face_key) = pending.pop() {
-            let face = body.proven_face(face_key);
-            for (_, loop_data, _) in face.loops() {
-                let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                    continue; // empty loop: glues only its vertex
-                };
-                for member in body.loop_cycle(first).expect("valid body: cycle closes") {
-                    let mate = body.mate(member).expect("valid body: mate resolves");
-                    let mate_loop = body.get_half_edge(mate).expect("half resolves").parent_loop;
-                    let neighbor = body.get_loop(mate_loop).expect("loop resolves").face;
-                    if label.insert(neighbor, count).is_none() {
-                        pending.push(neighbor);
-                    }
-                }
-            }
-        }
-        count += 1;
-    }
-    let mut components = vec![Vec::new(); count];
-    for &face in faces {
-        components[label[face]].push(face);
-    }
-    components
+    shell_glue(body, &LoopClaims::of(body), shell).components(faces)
+}
+
+/// `shell`'s glue, for a body the generator built through the
+/// operators: a torn record, or a hop off the shell, panics naming it.
+fn shell_glue(body: &Body<f64>, claims: &LoopClaims, shell: ShellKey) -> FaceSetComponents {
+    let faces = &body.get_shell(shell).expect("shell resolves").faces;
+    let glue = face_set_glue(body, claims, faces, EntityId::Shell(shell));
+    assert!(
+        glue.leaving.is_empty(),
+        "seqgen: shell {shell:?}'s glue walk leaves it: {:?}",
+        glue.leaving
+    );
+    glue
 }
 
 /// The re-make of `movefac(shell)`, read BEFORE the partition: `f1`,
@@ -1081,11 +1054,10 @@ const SPLIT_FRACTION: f64 = geom_core::GOLDEN_SECTION;
 /// carrier (the self-loop circles `mef_chord` mints included), which
 /// a `line_between` guess would not be.
 fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
-    let edge_data = body.get_edge(edge)?;
+    let curve = body.proven_edge(edge).certified()?;
     let (start, end) = body.edge_vertices(edge)?;
     let p0 = *body.get_point(body.get_vertex(start)?.point)?;
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
-    let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
     let band = Band::linear(tol).ok()?;
     if let Err(error) = curve.recertify(
         p0,
@@ -1262,9 +1234,8 @@ fn assert_unlisted_members_answer_to_the_gate(
         .filter(|&(i, _)| unlisted(i))
         .map(|(_, m)| m)
         .find(|m| {
-            let curve = body.get_edge(m.edge).expect("a member resolves").curve;
-            body.get_curve_geom(curve)
-                .and_then(crate::null::CurveGeom::certified)
+            body.proven_edge(m.edge)
+                .certified()
                 .expect("the walk mints no null edge")
                 .recertify(
                     m.start,
@@ -1352,7 +1323,7 @@ fn next_point(counter: &mut u32) -> Point3<f64> {
 /// own endpoints — the at-rest question [`split_site`] asks of a split
 /// candidate, asked here of a fan site's moved run.
 fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
-    let Some(edge_data) = body.get_edge(edge) else {
+    let Some(view) = body.edge(edge) else {
         return false;
     };
     let Some((start, end)) = body.edge_vertices(edge) else {
@@ -1364,11 +1335,7 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
     ) else {
         return false;
     };
-    let (Some(curve), Ok(band)) = (
-        body.get_curve_geom(edge_data.curve)
-            .and_then(crate::null::CurveGeom::certified),
-        Band::linear(tol),
-    ) else {
+    let (Some(curve), Ok(band)) = (view.certified(), Band::linear(tol)) else {
         return false;
     };
     let Some(reach) = crate::edge_wedge_reach(body, edge) else {
@@ -1513,7 +1480,9 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
 fn fusion_remake_shell(body: &Body<f64>, f1: FaceKey, f2: FaceKey) -> Option<ShellKey> {
     let shell1 = body.get_face(f1)?.shell;
     let shell2 = body.get_face(f2)?.shell;
-    if shell_components(body, shell1) != 1 || shell_components(body, shell2) != 1 {
+    let claims = LoopClaims::of(body);
+    if shell_glue(body, &claims, shell1).count != 1 || shell_glue(body, &claims, shell2).count != 1
+    {
         return None;
     }
     let solid = body.get_shell(shell2)?.solid;

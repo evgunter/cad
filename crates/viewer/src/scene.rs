@@ -295,7 +295,11 @@ impl SceneError {
                 unit.symbol()
             ),
             Self::NoProduct(error, held) => {
-                write!(f, "{}", Said(error.as_ref(), Speaker::held(held)))
+                write!(
+                    f,
+                    "{}",
+                    Said(error.as_ref(), Speaker::held(held)).sentence()
+                )
             }
             Self::NotTessellated(error) => {
                 write!(

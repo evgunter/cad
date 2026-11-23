@@ -2,8 +2,9 @@
 id: demote-unearned-tests
 kind: unit
 title: Demote the per-PR tests that cost more than a fraction of a second per run and never caught anything
-status: open
+status: closed
 opened: 2026-10-19
+closed: 2026-11-22
 ---
 
 
@@ -134,3 +135,11 @@ by about 6 min, from 21.7 to about 16.
   rides in; unittest prints no per-test times), and the always-on
   `mesh-budget` and `topo-release` rows. Both of those went red on 40+
   branches, so they were not touched.
+
+## Closed
+
+2026-11-22, CIW triage (stale). - Delivered but never closed. The per-PR slow set runs only selected
+rows (`.config/nextest.toml:1-9`, `ci.yml:457`), and the tour's `ci`
+profile cites this row (`demos/tour/.config/nextest.toml:1-8`).
+- The row's body describes the change as made.
+- It has no open deliverable and is unbanded.

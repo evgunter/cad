@@ -1090,7 +1090,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
     let cases = [
         (
             SnapshotError::NodeNotMinted { id: node() },
-            vec!["Extrude \"base plate\" (000000000005) is not in the document's mint log"],
+            vec!["\"base plate\" (000000000005) is not in the document's mint log"],
         ),
         (
             SnapshotError::PlacementReadsNoSource {
@@ -1098,7 +1098,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 read: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
             },
             vec![
-                "Extrude \"base plate\" (000000000005) reads #9:",
+                "\"base plate\" (000000000005) reads #9:",
                 "as its source directly",
                 "through a source",
             ],
@@ -1128,7 +1128,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
             },
             vec![
-                "Extrude \"base plate\" (000000000005)'s target reads #9:",
+                "\"base plate\" (000000000005)'s target reads #9:",
                 "mint log does not hold as a variable",
                 "written before an operand was a read",
             ],
@@ -1145,7 +1145,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 expected: editor_core::SlotKind::Is(editor_core::VarKind::Body),
             },
             vec![
-                "Extrude \"base plate\" (000000000005)'s target reads #9:",
+                "\"base plate\" (000000000005)'s target reads #9:",
                 "which is a profile, where it takes a body",
             ],
         ),
@@ -1186,7 +1186,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::WitnessSite { node: node() },
             vec![
-                "a witness is attached to Extrude \"base plate\" (000000000005)",
+                "a witness is attached to \"base plate\" (000000000005)",
                 "bears no sketch",
             ],
         ),
@@ -1380,7 +1380,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::VarId::new(0, tagged(7)),
             },
             vec![
-                "Extrude \"base plate\" (000000000005) reads variable #0:0000000000070000",
+                "\"base plate\" (000000000005) reads variable #0:0000000000070000",
                 "never minted",
             ],
         ),
@@ -1523,7 +1523,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 error: MetaVersionError::MissingVersion,
             },
             vec![
-                "metadata \"swatch\" on the start cap of Extrude \"base plate\" (000000000005)",
+                "metadata \"swatch\" on the start cap of \"base plate\" (000000000005)",
                 "\"v\" version field",
             ],
         ),
@@ -1624,7 +1624,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 step: StepId::new(0, tagged(8)),
             },
             vec![
-                "of Extrude \"base plate\" (000000000005) spells",
+                "of \"base plate\" (000000000005) spells",
                 "profile step id 000000000008",
                 "mint log does not hold",
             ],
@@ -3574,7 +3574,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
     for (error, said) in rows {
         let text = error.to_string();
         for node in said {
-            let spoken = node.to_string();
+            let spoken = editor_core::test_support::node_text(&node);
             let at = text
                 .find(&spoken)
                 .unwrap_or_else(|| panic!("{error:?} does not say {spoken}: {text}"));

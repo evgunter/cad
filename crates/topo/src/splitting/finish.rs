@@ -1116,16 +1116,18 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     .map(drop)
     .map_err(|refusal| {
         let edge = match &refusal {
-            EulerOpError::RechartFalsifies { edge, .. } => *edge,
+            EulerOpError::DescriptionUncertified {
+                edge: crate::EdgeSubject::Keyed(edge),
+                ..
+            } => *edge,
             _ => return refusal.into(),
         };
         let carrier = restated
             .iter()
             .any(|(e, _)| *e == edge)
-            .then(|| body.get_edge(edge))
+            .then(|| body.edge(edge))
             .flatten()
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|geom| geom.certified())
+            .and_then(crate::live::EdgeView::certified)
             .map(|curve| curve.carrier().kind());
         match carrier {
             Some(kind) => of_attachment(edge, kind, refusal),
@@ -1900,17 +1902,16 @@ pub(crate) fn section_plane_restatements<T: Decide>(
     for (_, members, _) in view.boundary_by_loop() {
         for member in members {
             let BoundaryMember::Edge {
-                ek: edge,
-                edge: edge_data,
-                ..
+                edge: edge_data, ..
             } = member
             else {
                 continue;
             };
+            let edge = edge_data.key();
             if !stranded.contains(&edge) || out.iter().any(|(e, _)| *e == edge) {
                 continue;
             }
-            let geom = body.edge_curve_linked(edge, edge_data);
+            let geom = edge_data.curve();
             let Some(curve) = geom.certified() else {
                 continue;
             };
@@ -2001,10 +2002,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             body.proven_face(face).surface(),
             body.proven_face(other_face).surface(),
         );
-        let existing = body
-            .edge_curve_linked(edge, &edge_data)
-            .certified()
-            .cloned();
+        let existing = body.proven_edge(edge).certified().cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
         let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
@@ -2246,16 +2244,14 @@ fn shell_side<T: Decide>(
             if seen_v.insert(vertex, ()).is_none() {
                 vertices.push(Reading::Vertex(vertex));
             }
-            let BoundaryMember::Edge { ek, edge, .. } = member else {
+            let BoundaryMember::Edge { edge, .. } = member else {
                 continue;
             };
+            let ek = edge.key();
             if seen_e.insert(ek, ()).is_some() {
                 continue;
             }
-            let Some(curve) = body
-                .get_curve_geom(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
+            let Some(curve) = edge.certified() else {
                 continue;
             };
             if curve.carrier().is_curved() {
@@ -2888,7 +2884,7 @@ mod edge_on_faces_rows {
 
     use super::{SplitFinishError, of_attachment};
     use crate::entity::EdgeKey;
-    use crate::euler::{EulerOpError, RechartDoor};
+    use crate::euler::EulerOpError;
     use crate::geometry::SurfaceKey;
 
     /// **A section-boundary line chord's residual read in band is the
@@ -2915,15 +2911,9 @@ mod edge_on_faces_rows {
             sample: 8,
             cause: in_band(predicate),
         };
-        let at_both_doors = |error: CertifyError| {
-            [
-                EulerOpError::Certification { error },
-                EulerOpError::RechartFalsifies {
-                    door: RechartDoor::SetFaceSurfacesDescribing,
-                    edge,
-                    error,
-                },
-            ]
+        let keyed_or_minted = |error: CertifyError| {
+            [crate::EdgeSubject::Keyed(edge), crate::EdgeSubject::Minted]
+                .map(|edge| EulerOpError::DescriptionUncertified { edge, error })
         };
         for (check, predicate) in [
             (
@@ -2932,7 +2922,7 @@ mod edge_on_faces_rows {
             ),
             (CertCheck::ChartResidual, "pcurve_map_residual"),
         ] {
-            for refusal in at_both_doors(escalated(check, predicate)) {
+            for refusal in keyed_or_minted(escalated(check, predicate)) {
                 let got = of_attachment(edge, CurveKind::Line, refusal.clone());
                 assert!(
                     matches!(
@@ -2981,7 +2971,7 @@ mod edge_on_faces_rows {
             escalated(CertCheck::Transversality, "dihedral_wedge"),
         ];
         for error in kernels {
-            for refusal in at_both_doors(error) {
+            for refusal in keyed_or_minted(error) {
                 let got = of_attachment(edge, CurveKind::Line, refusal.clone());
                 assert!(
                     matches!(got, SplitFinishError::Euler(ref e) if *e == refusal),

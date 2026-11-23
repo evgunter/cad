@@ -391,7 +391,7 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
         .map(ToString::to_string)
         .unwrap_or_default();
     assert!(
-        said.starts_with("Extrude \"plate\" ("),
+        said.starts_with("\"plate\" ("),
         "it names the node as labelled: {said}"
     );
     assert!(session.bounds().is_none());

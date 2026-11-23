@@ -4,8 +4,8 @@ kind: issue
 title: Three gates embed a python reader in a heredoc: copied rather than shared, and outside ruff.toml's population
 status: open
 opened: 2026-09-15
-priority: P3
-cost: D
+priority: P4
+cost: M
 ---
 
 
@@ -120,3 +120,5 @@ was not read here. Both original findings stand for the two that
 remain: each still carries one blind `except Exception`.
 
 Moved from GUARD to CIW on 2026-11-20, by `git mv`, when GUARD merged into CIW: GUARD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Code-quality work; it does not touch the gates step's runtime. `except Exception` is still at kernel-serde-free.sh:131 and test-features-dev-only.sh:220.

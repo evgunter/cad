@@ -433,17 +433,13 @@ const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
      the tolerance below 1e-10 m";
 
-/// `nist_ftc_09`'s refusal at every band. Its five fillet cylinders bite
-/// into their planes by 1.5 to 13 µm, tangent at the file's band
-/// (ε_in ≈ 34 µm) and crossing at the run's, and the snap catalogue makes
-/// each tangency exact (`snap.rs`'s
-/// `nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them`).
-/// The writer printed each of those edges as a crossing line of the pair
-/// as it wrote it, `√(2·r·gap)` from the ruling, so the first, `#4950`,
-/// lies 180 µm off its description: in the file's band, the file's
-/// ambiguity.
-const NIST09_PRINTED_OFF_ITS_TANGENCY: &str = "entity #4950: the file's statements miss each \
-     other by 0.0001802051876711938 m (step_edge_on_description), in the band it is read at";
+/// `nist_ftc_09`'s refusal at every band. Its cylinder `#5130` bites
+/// parallel planes `#5116` and `#5144` by 56.8 µm, in the file's band
+/// (ε_in ≈ 34 µm), so whether it is tangent is the file's ambiguity, refused
+/// at the snap (`snap.rs`'s
+/// `nist09s_cylinder_5130_reads_tangent_in_the_files_band_and_refuses_at_the_snap`).
+const NIST09_TANGENCY_IN_BAND: &str = "entity #5130: the distance 5.6844521718398856e-5 m \
+     (step_snap_relation) lies in the band the file is read at";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
@@ -840,7 +836,7 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp",
-        Refused(NIST09_PRINTED_OFF_ITS_TANGENCY),
+        Refused(NIST09_TANGENCY_IN_BAND),
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp",
