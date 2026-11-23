@@ -195,3 +195,4 @@
     - Only a slow row sees the curved records.
     - The curved ring ships with a mesh that `check_mesh` refuses (`MismatchedWinding`) while `tessellate` answers Ok: a silent wrong output newly reachable. Ruled: make it fail loud, or re-band TESLIE's row P1.
   - **Exemption off:** 27 reds, not 20, and still none a pair the split mints, of those re-checked. (HELDRECORDS orchestrator)
+- 2026-11-23 — **Note from BOXFINISH: an input-reachable panic in the n-ary door is filed on this slate** (`the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage`, P1 M): `die_composed_tour` at `f64` after one variable edit of 30% panics on the `unreachable!` about an accumulation face with no member-face lineage. Found by a reviewer's corpus sweep on BOXFINISH PR 7458, whose diff does not touch `topo`; not re-run by the filer. Re-home it if the lineage record is another program's.
