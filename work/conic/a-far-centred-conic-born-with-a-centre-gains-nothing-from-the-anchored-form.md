@@ -52,3 +52,7 @@ phase 1 and in this unit:
 The lists of what moved under one chain for every conic are on the
 branch `analysis/oneround/conic-vertex-probes`, under
 `analysis/oneround/conic-vertex/phase2-one-chain/`.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.

@@ -2,10 +2,11 @@
 id: the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect
 kind: issue
 title: The window's and the coplanar subdivision's level jet is read exact where its rounding as a length grows with the aspect, which the admission rule does not cover
-status: open
+status: parked
 opened: 2026-11-21
 priority: P1
 cost: M
+blocked_on: [an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre]
 ---
 
 
@@ -82,3 +83,11 @@ drop this row to P2.
 
 P1 by `work/README.md` Priority: a possibly wrong definite verdict,
 unmeasured.
+
+## Parked on the curve-pair fix unit (2026-11-23)
+
+`oneround/conic-pair-readers` (`an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre`) is asked to re-pose the level from the stored point: the suspects lane showed the level's form `F = X²/A² + Y²/B² − 1` loses about u·a metres whatever its centre. This row is re-read against what that unit lands: what it asks may be met, or changed, by the re-posing.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
