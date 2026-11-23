@@ -52,7 +52,7 @@ The two were measured against each other where they differ, on a body thinner th
 
 A straight split leaves the two sheets on one set of chords. A point of each face's own surface moves each sheet toward its own face, so the wall reopens with the right sign. Today's walk cuts one face only, which is why its volume's sign follows which face that is.
 
-Over the `mesh` suite at the default ε, with the three present rules off and the chord floor and fold cure on: 1,416 such splits over 59 meshes, no half folded against its parent, none farther than δ from its surface by sampled distance (worst 0.905 δ, none worse than its parent), no two new points at one position, no side left overused; six rows red, each a pin of today's cut counts or of a refusal's name.
+Over the `mesh` suite at the default ε, with the three present rules off and the chord floor and fold cure on, the designers' probes counted 1,416 such splits over 59 meshes; the stage-1 count, with every pin of today's cut counts softened so that each row meshes all its bodies rather than stopping at the first moved pin, is 1,846 over 73 (below). No half folded against its parent, none farther than δ from its surface by sampled distance (worst 0.905 δ, none worse than its parent), no side left overused; two new points at one position only on the lens below, whose two faces are one sheet; six rows red, each a pin of today's cut counts or of a refusal's name.
 
 Positive volume on a body thinner than δ is what was measured on these cells, not a theorem, and no page promises it.
 
@@ -62,6 +62,32 @@ Positive volume on a body thinner than δ is what was measured on these cells, n
 - The probes split at the surface foot of the 3-D midpoint, standing in for the midpoint in the face's chart; on a cone's development the two differ, and at an apex the chart coordinate has to be chosen.
 - Two spline faces can both make a side (`faces_that_bound_no_region::a_lens_of_two_short_arcs_meshes_at_a_coarse_delta`, with the present rules off). A spline surface has no closed-form foot, so its split point comes from the lane's polygon in the chart.
 - The halves did not meet the winding read; ε 1e-6 and 1e-12, the slow set and the other crates were not run; what the viewer's pick memo does with a patch that carries split points was not read.
+
+## Stage 1: measured (2026-11-23)
+
+The split at the midpoint in each face's own chart, each half held to that lane's own certificate, its fold where the lane reads one, and the winding read; the three present rules off, the chord floor and a fold cure on. Every `tessellate` call was logged and diffed against the same suite on main.
+
+| pair (patches with the side inside) | splits at ε 1e-9 / 1e-6 / 1e-12 | halves refused (certificate, fold, winding) | worst half |
+|---|---|---|---|
+| plane + trimmed cylinder | 802 / 802 / 802 | 0 | 0.780 δ |
+| rectangle sphere + walked cylinder | 224 / 224 / 224 | 0 | 0.905 δ |
+| rectangle cylinder + rectangle sphere | 184 / 184 / 184 | 0 | 0.905 δ |
+| rectangle torus + walked cylinder | 184 / 184 / 184 | 0 | 0.345 δ |
+| rectangle cylinder + rectangle torus | 180 / 180 / 180 | 0 | 0.345 δ |
+| plane + trimmed cone | 138 / 52 / 138 | 0 | 0.404 δ |
+| trimmed cylinder + trimmed cylinder | 128 / 136 / 132 | 0 | 0.471 δ |
+| spline + spline (the lens) | 4 / 4 / 4 | 0 | 0 |
+| plane + trimmed sphere | 2 / 2 / 2 | 0 | 0.128 δ |
+
+1,846 / 1,768 / 1,850 splits over 73 / 57 / 73 meshes. `sweep`'s 131 meshing modules at the default ε: 276 splits (trimmed cylinder pairs, plane + trimmed sphere), none refused. No body that meshes on main refuses under the split; the unsplit bored ball (refused `OverusedSide` on main) and the rod sliver of `trimmed::tests` (refused `UnclearedSharedSide`) mesh.
+
+- **The apex.** No side split in the suite has an apex end. Of every side a cone or sphere face could be asked to split, the apex ones (about 30,000) all certify; in a cone's development the apex is the origin, so the development's midpoint of a side from it is the chart rule.
+- **The development.** On a cone the chart midpoint and the development's midpoint differ (by up to 5.5·10³ δ on a wide side of the rectangle lane), and the pieces certify at either. Ruled by measurement: the one whose pieces fold on fewer of the sides a cone face could split, the development's (walked 685 against 1,675, rectangle 10 against 57, trimmed 0 against 6).
+- **Sides that could be split and never were.** Over every side a lane could be asked to split, no piece fails its certificate, but some would fold or fall under winding resolution; none of them is made by a second patch in any body measured. Ruled: the face refuses typed if one ever is, and the class is filed (`a-side-the-join-could-split-has-a-piece-that-would-fold-or-fall-under-winding-resolution`).
+- **The lens** (`faces_that_bound_no_region::a_lens_of_two_short_arcs_meshes_at_a_coarse_delta`): its two spline faces are one sheet, so each one's own-surface point is the same position. Joined by position, main's mesh of it is already a sheet counted twice (6 coincident pairs of triangles, 7 edges of more than two); the split's has 4 and 4. By vertex id both are closed manifolds. Nothing a reader can see changes; recorded on `work/ciw/the-admesh-gate-cannot-see-an-edge-of-four-triangles.md`.
+- **The pick memo** (`editor_core`'s `PickMemo`) serves a patch's pick table under the patch memo's entry id, which promises the placed corners are the entry's. A patch the join split is not: it reports no entry id (`PatchKeys::unstore`), and its table is built for the picture. Ruled.
+- **A triangle split twice.** Two sides of one triangle are both split on the walked strips of the bored ball (308 triangles); a split certified per side would hold pieces that are never made. Ruled by that: the join splits on demand from the chart corners the patch keeps, as a pure function of the face, δ and the side, and reads the pieces it actually makes.
+- **The fold cure.** Today's shared-side insert also cures folds: on the near-pole circle of `sweep`'s `tilted_sphere_pair` (δ 0.04), 133 of the 134 sides it inserts for are folds of a triangle with no lattice corner. A cure that inserts only for those and keeps dropping lattice corners for the rest loses that body. Ruled: no body that meshes today is lost; two cures measured side by side, the choice pending.
 
 ## Unit
 
