@@ -64,6 +64,13 @@ Before `embed/cone-image` these bodies refused at both scalars at depth
 
 ## Pin
 
-`self_intersection_proves_injectivity::a_cone_cut_by_a_tilted_plane_is_embedded_in_every_placement`
+`self_intersection_proves_injectivity::a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap`
 pins the bodies `Refused` at `Interval` and the two halves holding at
 both scalars where they do.
+
+**2026-11-23, on the merged landing branch:** the bodies refuse at
+`f64` too, on a plane cap
+(`two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic`),
+so exit 1 is no longer an `Interval` difference. Exit 2 is: the halves
+alone hold at `f64` in every placement and at `Interval` only where the
+row pins them.
