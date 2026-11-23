@@ -236,7 +236,7 @@ pub enum LoftError {
     Skin(SkinError),
     /// An Euler operator or certified attach refused mid-assembly
     /// (D4 ¶2 reports surface inside
-    /// [`EulerOpError::Certification`]).
+    /// [`EulerOpError::DescriptionUncertified`]).
     Euler(EulerOpError),
     /// The whole-body pcurve mint pass refused: a wall boundary's
     /// exact line-in-UV image failed its certification.
@@ -1880,7 +1880,7 @@ fn profile_all<T: Real>(profile: &ValidatedProfile<T>, holds: impl Fn(T) -> bool
                 point_all(&s.start, holds)
                     && point_all(&s.end, holds)
                     && match &s.kind {
-                        profile::SegmentKind::Line => true,
+                        profile::SegmentKind::Line { .. } => true,
                         profile::SegmentKind::Arc { arc, .. } => arc_all(arc, holds),
                     }
             })

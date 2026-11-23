@@ -409,7 +409,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let body = pncad::topo::finish(pncad::topo::Built::of(bellied(tol)), tol)
         .expect("the operand: tier 3");
     assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
-    assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
+    assert_eq!(euler_counts(&body).h(), Ok(0), "a vessel is a ball");
     let props =
         pncad::topo::mass_properties(&body, tol, crate::printed()).expect("the operand's props");
     let (v_out, a_out) = boundary(R_BELLIED, 0.0);
@@ -447,7 +447,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
          and inserted whole through the shared void door"
     );
     assert_eq!(
-        euler_counts(&sealed).genus(),
+        euler_counts(&sealed).h(),
         Ok(0),
         "a sealed hollow is genus 0"
     );
@@ -618,7 +618,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     let counts = euler_counts(&cup);
     assert_eq!(
-        (counts.r, counts.genus(), counts.s),
+        (counts.r, counts.h(), counts.s),
         (5, Ok(0), 1),
         "the mouth's ONE rim annulus carrying ONE ring, beside the four latitude \
          annuli whole with their rings; genus 0 as `topo::shell`'s docs promise a cup \

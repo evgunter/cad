@@ -1671,8 +1671,9 @@ fn escalates(e: &BooleanError) -> bool {
     matches!(
         e,
         BooleanError::Escalated { .. }
-            | BooleanError::Euler(topo::EulerOpError::Certification {
+            | BooleanError::Euler(topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::Escalated { .. },
+                ..
             })
     )
 }

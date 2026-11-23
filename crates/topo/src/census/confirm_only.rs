@@ -366,7 +366,6 @@ fn reading(finding: &ValidationError) -> Reading {
         | ValidationError::SolidWithoutShells { .. }
         | ValidationError::ShellWithoutFaces { .. }
         | ValidationError::EdgeAcrossShells { .. }
-        | ValidationError::ComponentEulerViolation { .. }
         | ValidationError::MissingProvenance { .. }
         | ValidationError::LeakedProvenance { .. }
         | ValidationError::ScaffoldingEmptyLoop { .. }

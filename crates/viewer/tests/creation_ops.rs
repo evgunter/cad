@@ -232,7 +232,9 @@ fn a_fresh_extrude_lands_unplaced_and_raises_only_unused() {
         "the extrude is drawn, in its own space"
     );
     assert!(
-        !common::row_of(&session.tree_rows(), extrude).placed,
+        common::row_of(&session.tree_rows(), extrude)
+            .placements
+            .is_empty(),
         "no world badge"
     );
     session.pump();

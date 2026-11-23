@@ -28,7 +28,11 @@ fn banner(text: &str) {
 
 fn show_tree(session: &DocSession) {
     for row in session.tree_rows() {
-        let world = if row.placed { " ▸world" } else { "" };
+        let world = if !row.placements.is_empty() {
+            " ▸world"
+        } else {
+            ""
+        };
         let message = row
             .status
             .message()

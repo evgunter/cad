@@ -10346,7 +10346,8 @@ mod tests {
             DescribeRefusal::undecided(strut, MustCarryEscalation::at(MustCarryRung::Wedge, diag)),
             DescribeRefusal::undecided(strut, MustCarryEscalation::at(MustCarryRung::Bend, diag)),
         ];
-        let residual = crate::euler::EulerOpError::Certification {
+        let residual = crate::euler::EulerOpError::DescriptionUncertified {
+            edge: crate::EdgeSubject::Minted,
             error: geom_brep::CertifyError::ResidualExceeded {
                 check: geom_brep::CertCheck::SurfaceResidual {
                     surface: crate::geometry::SurfaceKey::default(),
@@ -10427,7 +10428,10 @@ mod tests {
             predicate: Some("carrier_on_surface_2"),
             terminal_sliver: false,
         };
-        let certification = |error| EulerOpError::Certification { error };
+        let certification = |error| EulerOpError::DescriptionUncertified {
+            edge: crate::EdgeSubject::Minted,
+            error,
+        };
         let escalated = |check| {
             certification(CertifyError::Escalated {
                 check,

@@ -1993,23 +1993,21 @@ pub enum BlendError {
         margin: ClassifiedMargin,
     },
     /// **The result's pcurve caches could not be re-minted** after the
-    /// surgery — a chart image outside a derivation route, a loop that
-    /// does not close in the chart, or a cache that fails its
-    /// certification.
+    /// surgery ([`topo::mint_pcurves`]'s refusal, forwarded) — a chart
+    /// image outside a derivation route, a loop that does not close in
+    /// the chart, or a cache that fails its certification.
     ///
     /// The pass's own typed refusal is nested whole: it names the
     /// half-edge or face at fault and its own reason, which no
     /// rendering of this error has to reconstruct.
-    Certify {
-        /// The surgery step that ran the pass.
-        site: &'static str,
+    PcurveMint {
         /// The pcurve pass's typed refusal.
         source: topo::PcurveMintError,
     },
     /// **An Euler operator refused during assembly.**
     ///
     /// The operator's own refusal is nested whole — `Argument`,
-    /// `Certification`, and the rest of its vocabulary reach the caller
+    /// `DescriptionUncertified`, and the rest of its vocabulary reach the caller
     /// typed rather than as prose. `site` names the surgery step that
     /// ran the operator.
     Op {
@@ -2118,7 +2116,7 @@ impl BlendError {
             | Self::NotFinished { .. }
             | Self::Carry { .. }
             | Self::RingClearance { .. }
-            | Self::Certify { .. }
+            | Self::PcurveMint { .. }
             | Self::Op { .. }
             | Self::Join { .. } => None,
         }
@@ -2402,9 +2400,11 @@ impl BlendError {
                      {FILLET3_INSIDE_RECOURSE}"
                 )
             }
-            Self::Certify { site, source } => {
-                write!(f, "{site} — {}", geom_brep::recourse::read_at(source, door))
-            }
+            Self::PcurveMint { source } => write!(
+                f,
+                "pcurve re-mint after surgery — {}",
+                geom_brep::recourse::read_at(source, door)
+            ),
             Self::Op { site, source } => {
                 write!(
                     f,
@@ -2626,7 +2626,7 @@ mod recourse_tests {
             BlendError::Carry { .. } => Recourse::Exactly(topo::CarryRefusal::RECOURSE),
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
-            BlendError::Certify { .. } => Recourse::None,
+            BlendError::PcurveMint { .. } => Recourse::None,
             BlendError::Op { .. } => Recourse::None,
             // The join's refusal carries its own ending.
             BlendError::Join { .. } => Recourse::None,
@@ -2813,15 +2813,16 @@ mod recourse_tests {
                 chain: Convexity::Convex,
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
             },
-            BlendError::Certify {
-                site: "blend face pcurves",
+            BlendError::PcurveMint {
                 source: topo::PcurveMintError::LoopNotClosed {
                     face: FaceKey::default(),
                 },
             },
             BlendError::Op {
                 site: "strut mev",
-                source: Box::new(topo::EulerOpError::DescriptionNotAdjacent { edge: None }),
+                source: Box::new(topo::EulerOpError::DescriptionNotAdjacent {
+                    edge: topo::EdgeSubject::Minted,
+                }),
             },
             BlendError::Join {
                 refusal: topo::JoinRefusal::CarrierUnsupported {

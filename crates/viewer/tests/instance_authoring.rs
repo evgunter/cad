@@ -1173,3 +1173,96 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
     );
     assert!(session.display().probing().is_none());
 }
+
+/// **An instance's part row names the file and selects nothing**: the
+/// part is another document, so there is no node here to select.
+///
+/// *Breaks if* the row is dropped, says no file, or links.
+#[test]
+fn an_instances_part_row_names_its_file_and_is_no_link() {
+    let tol = Tol::witness();
+    let bench = asm::bench("offer-part-row", tol);
+    let (mut session, _) = authored_session(&bench, "offer-part-row", tol);
+    let instance = common::instance_in(&mut session, bench.post.id);
+    let files = session.part_files();
+    let doc = session.committed_doc();
+    let reads = viewer::relations::relations(doc, &doc.read_index(), instance, files).reads;
+    let part = reads
+        .iter()
+        .find(|row| row.seat == viewer::relations::Seat::Part)
+        .expect("an instance has a part row");
+    let [entry] = &part.entries[..] else {
+        panic!("one file: {part:?}")
+    };
+    assert_eq!(entry.said, files.name(bench.post.id), "the part's file");
+    assert!(entry.said.ends_with(".pncad"), "a file name: {entry:?}");
+    assert_eq!(entry.selects, None, "the part is no node of this document");
+}
+
+/// **An instance's constraint reading its own copy links nowhere, both
+/// ways**: the seat mate's instance reads its own copy on its `on`
+/// side, which is no other node, so its reads say so in words and its
+/// read-by holds no row of itself.
+///
+/// *Breaks if* either direction drops the own-copy rule: the reads row
+/// links the instance to itself, or the instance reads itself in its
+/// read-by.
+#[test]
+fn an_instances_own_copy_side_links_nowhere_either_way() {
+    use viewer::relations::{OWN_COPY, relations};
+    use viewer::session::Selection;
+    let tol = Tol::witness();
+    let bench = asm::bench("offer-own-copy", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
+    );
+    let doc = session.committed_doc();
+    let index = doc.read_index();
+    let owners: Vec<_> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| doc.operand_reads(id).iter().any(|read| read.own_copy))
+        .collect();
+    let [shelf] = owners[..] else {
+        panic!("one instance reads its own copy: {owners:?}")
+    };
+    let related = relations(doc, &index, shelf, session.part_files());
+    assert!(
+        related.reads.iter().any(|row| row
+            .entries
+            .iter()
+            .any(|entry| entry.said == OWN_COPY && entry.selects.is_none())),
+        "the own-copy side reads as words: {:?}",
+        related.reads
+    );
+    assert!(
+        !related.reads.iter().any(|row| row
+            .entries
+            .iter()
+            .any(|entry| entry.selects == Some(Selection::Node(shelf)))),
+        "no read links the instance to itself: {:?}",
+        related.reads
+    );
+    // A constraint's seats are said by its position, never its minted id.
+    let labels: Vec<String> = related.reads.iter().map(|row| row.seat.label()).collect();
+    assert!(
+        labels
+            .iter()
+            .any(|label| label.starts_with("constraint 1 side ")),
+        "a mate's sides by the constraint's position: {labels:?}"
+    );
+    assert!(
+        labels.iter().all(|label| !label.contains('#')),
+        "no seat spells an arena key: {labels:?}"
+    );
+    assert!(
+        index
+            .read_by(shelf)
+            .iter()
+            .all(|&(reader, _)| reader != shelf),
+        "the instance is no reader of itself: {:?}",
+        index.read_by(shelf)
+    );
+}
