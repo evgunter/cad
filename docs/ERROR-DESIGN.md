@@ -312,7 +312,9 @@ drive(doc, box) -> ParamBoxVerdict {
   refused:   [ Leaf { box, reason: SliverTerminal { predicate }
                | FlipCrossing { flipped predicates }  // no-flips v1
                | Bifurcation(WitnessBifurcation) | Infeasible  // E8
-               | Budget { depth/work bound hit } } ],
+               | Budget { depth/work bound hit }
+               | ReadsNoVariable { node, undecided | failed } } ],
+                 // the deciding node reads no variable of the box
   measure_accounting: per-reason mass under the product measure,
                       + Unanalyzed = tail mass outside `box` (E2),
 }

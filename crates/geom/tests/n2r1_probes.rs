@@ -13,20 +13,19 @@
     clippy::type_complexity
 )]
 
-use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
-use geom_core::spline::KnotVector;
+use geom::{NurbsSurface, Surface};
 use geom_core::spline::Knots;
-use geom_core::{Dual, Point2, Point3, Real};
+use geom_core::spline::{KnotVector, SpanLocate};
+use geom_core::{Dual, Point3, Real};
 
-fn knots5() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0, 1.0], 2).unwrap()
-}
-
-fn curve_from(control: Vec<Point3<f64>>) -> NurbsCurve3<f64> {
-    NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+/// A bilinear patch over the four points given, unit weights.
+fn surface_from<T: SpanLocate>(control: Vec<Point3<T>>) -> NurbsSurface<T> {
+    let kv = || Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap());
+    NurbsSurface::new(
+        kv().lift(geom_core::Real::from_f64),
+        kv().lift(geom_core::Real::from_f64),
         control,
-        vec![Real::one(); 5],
+        vec![T::one(); 4],
     )
     .unwrap()
 }
@@ -45,7 +44,7 @@ fn probe_every_partial_channel_pattern_is_described() {
         ("x and z", |i| Point3::new(f64::NAN, i, f64::NAN)),
     ];
     for (name, f) in shapes {
-        let c = curve_from((0..5).map(|i| f(f64::from(i))).collect());
+        let c = surface_from((0..4).map(|i| f(f64::from(i))).collect());
         assert!(!c.is_placeholder(), "{name} must read described");
         assert!(
             !c.map_scalar(Dual::constant).is_placeholder(),
@@ -54,20 +53,20 @@ fn probe_every_partial_channel_pattern_is_described() {
     }
     let _ = nan;
     // The true all-poison net is still the placeholder.
-    let all = curve_from((0..5).map(|_| Point3::new(nan, nan, nan)).collect());
+    let all = surface_from((0..4).map(|_| Point3::new(nan, nan, nan)).collect());
     assert!(all.is_placeholder());
 }
 
-/// ONE point of many all-poison, the rest finite: described, both
+/// ONE point of four all-poison, the rest finite: described, both
 /// before and after. (The lane's battery has this row but never asserts
 /// the answer directly.)
 #[test]
-fn probe_one_all_poison_point_of_five_is_described() {
-    let mut ctl: Vec<Point3<f64>> = (0..5)
+fn probe_one_all_poison_point_of_four_is_described() {
+    let mut ctl: Vec<Point3<f64>> = (0..4)
         .map(|i| Point3::new(f64::from(i), 1.0, 0.0))
         .collect();
     ctl[2] = Point3::new(f64::NAN, f64::NAN, f64::NAN);
-    assert!(!curve_from(ctl).is_placeholder());
+    assert!(!surface_from(ctl).is_placeholder());
 }
 
 /// **`Dual`'s `is_poison` is the VALUE channel only.** A net whose
@@ -78,7 +77,7 @@ fn probe_one_all_poison_point_of_five_is_described() {
 /// notion `f64` uses one level down.
 #[test]
 fn probe_dual_poison_is_the_value_channel_in_both_directions() {
-    let poisoned_deriv: Vec<Point3<Dual<f64>>> = (0..5)
+    let poisoned_deriv: Vec<Point3<Dual<f64>>> = (0..4)
         .map(|i| {
             let d = |v: f64| Dual {
                 value: v,
@@ -87,18 +86,13 @@ fn probe_dual_poison_is_the_value_channel_in_both_directions() {
             Point3::new(d(f64::from(i)), d(1.0), d(0.0))
         })
         .collect();
-    let c = NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        poisoned_deriv,
-        vec![Real::one(); 5],
-    )
-    .unwrap();
+    let c = surface_from(poisoned_deriv);
     assert!(
         !c.is_placeholder(),
         "a poisoned tangent is not a poisoned number (D8)"
     );
 
-    let poisoned_value: Vec<Point3<Dual<f64>>> = (0..5)
+    let poisoned_value: Vec<Point3<Dual<f64>>> = (0..4)
         .map(|_| {
             let d = Dual {
                 value: f64::NAN,
@@ -107,12 +101,7 @@ fn probe_dual_poison_is_the_value_channel_in_both_directions() {
             Point3::new(d, d, d)
         })
         .collect();
-    let c2 = NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        poisoned_value,
-        vec![Real::one(); 5],
-    )
-    .unwrap();
+    let c2 = surface_from(poisoned_value);
     assert!(
         c2.is_placeholder(),
         "value-channel poison in every channel reads placeholder at Dual — \
@@ -120,63 +109,30 @@ fn probe_dual_poison_is_the_value_channel_in_both_directions() {
     );
     // And it is NOT the net `placeholder()` mints: that one's derivative
     // is zero. Two different values, one answer.
-    assert!(NurbsCurve3::<Dual<f64>>::placeholder().is_placeholder());
+    assert!(NurbsSurface::<Dual<f64>>::placeholder().is_placeholder());
 }
 
-/// The 2-D net cannot reach the predicate at all: `is_placeholder` and
-/// `placeholder` are declared on `NurbsCurve3` only (outside the
-/// `nurbs_curve!` macro), so `NurbsCurve2` — the only 2-channel
-/// `ControlPoint` — has no placeholder state. The widening's "every
-/// channel" therefore only ever instantiates at three.
-#[test]
-fn probe_the_two_channel_payload_has_no_placeholder_state() {
-    // Compiles only because NurbsCurve2 is constructible; the absence
-    // of the door is the point and is checked by the suite above it
-    // failing to compile when `NurbsCurve2::is_placeholder` is written.
-    let ctl: Vec<Point2<f64>> = (0..5)
-        .map(|i| Point2::new(f64::NAN, f64::from(i)))
-        .collect();
-    let _c = NurbsCurve2::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        ctl,
-        vec![Real::one(); 5],
-    )
-    .unwrap();
-}
-
-/// The enum doors carry the answer for the 3-D curve and the surface —
-/// what a consumer matching `Curve3::Nurbs` / `Surface::Nurbs` asks.
+/// The enum door carries the answer for the surface — what a consumer
+/// matching `Surface::Nurbs` asks.
 #[test]
 fn probe_enum_doors_agree_on_every_partial_shape() {
-    let c = curve_from(
-        (0..5)
-            .map(|i| Point3::new(f64::from(i), f64::NAN, 1.0))
-            .collect(),
-    );
-    let e = Curve3::Nurbs(std::sync::Arc::new(c));
-    assert!(matches!(&e, Curve3::Nurbs(n) if !n.is_placeholder()));
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let s = NurbsSurface::new(
-        Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
-        Knots::from(kv).lift(geom_core::Real::from_f64),
+    let s = surface_from(
         (0..4)
             .map(|i| Point3::new(f64::from(i), 1.0, f64::NAN))
             .collect(),
-        vec![Real::one(); 4],
-    )
-    .unwrap();
+    );
     let se = Surface::Nurbs(std::sync::Arc::new(s));
     assert!(matches!(&se, Surface::Nurbs(n) if !n.is_placeholder()));
 }
 
 /// The direction claim on a battery the lane's own property row does
 /// not run: wide ⇒ narrow over every 3-channel poison pattern of a
-/// 5-point net (2^3 patterns × uniform application), plus the empty
+/// 4-point net (2^3 patterns × uniform application), plus the empty
 /// and single-point degenerate shapes the predicate can see.
 #[test]
 fn probe_wide_implies_narrow_over_every_channel_pattern() {
     for mask in 0u8..8 {
-        let ctl: Vec<Point3<f64>> = (0..5)
+        let ctl: Vec<Point3<f64>> = (0..4)
             .map(|i| {
                 let v = |bit: u8, fallback: f64| {
                     if mask & bit != 0 { f64::NAN } else { fallback }
@@ -184,7 +140,7 @@ fn probe_wide_implies_narrow_over_every_channel_pattern() {
                 Point3::new(v(1, f64::from(i)), v(2, 1.0), v(4, 2.0))
             })
             .collect();
-        let c = curve_from(ctl);
+        let c = surface_from(ctl);
         let narrow = c.control().iter().all(|p| p.x.is_poison());
         if c.is_placeholder() {
             assert!(
@@ -201,8 +157,7 @@ fn probe_wide_implies_narrow_over_every_channel_pattern() {
 }
 
 mod interval {
-    use super::{Knots, Point3, knots5};
-    use geom::NurbsCurve3;
+    use super::{Point3, surface_from};
     use geom_core::{Interval, Real};
 
     /// The three interval shapes the dispatch names, told apart:
@@ -222,14 +177,7 @@ mod interval {
             "the entire interval is a legal enclosure, not poison"
         );
 
-        let net = |c: Interval| {
-            NurbsCurve3::new(
-                Knots::from(knots5()).lift(geom_core::Real::from_f64),
-                (0..5).map(|_| Point3::new(c, c, c)).collect(),
-                vec![Real::one(); 5],
-            )
-            .unwrap()
-        };
+        let net = |c: Interval| surface_from((0..4).map(|_| Point3::new(c, c, c)).collect());
         assert!(net(nai).is_placeholder(), "all-NaI reads placeholder");
         assert!(
             net(empty).is_placeholder(),
@@ -242,9 +190,8 @@ mod interval {
         );
 
         // One channel empty, the others point brackets: described.
-        let mixed = NurbsCurve3::new(
-            Knots::from(knots5()).lift(geom_core::Real::from_f64),
-            (0..5)
+        let mixed = surface_from(
+            (0..4)
                 .map(|i| {
                     Point3::new(
                         empty,
@@ -253,9 +200,7 @@ mod interval {
                     )
                 })
                 .collect(),
-            vec![Real::one(); 5],
-        )
-        .unwrap();
+        );
         assert!(!mixed.is_placeholder());
     }
 }

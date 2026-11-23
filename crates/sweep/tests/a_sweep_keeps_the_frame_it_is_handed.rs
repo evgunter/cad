@@ -347,7 +347,7 @@ fn assert_latitudes_exact(what: &str, body: &Body<S>, rims: &[Vec<Option<topo::E
         let circle = carrier.as_circle().expect("a latitude is a circle");
         assert_exact_unit(
             &format!("{what} latitude {rim:?} u_ref"),
-            circle.frame.u_ref(),
+            circle.frame().u_ref(),
         );
         seen += 1;
     }
@@ -521,8 +521,10 @@ fn rect<T: Real>(w: T) -> ProfileLoop<T> {
 /// from the frame. The other three walls each have an end that carries
 /// the box, and take their sketch directions from their ends, so they
 /// store the box's width in the sketch plane and none across it; the
-/// enclosure holds every member's normal. The profile recording its segments' directions is what would
-/// make it exact (`the-profile-drops-the-unit-directions-its-verbs-made`).
+/// enclosure holds every member's normal. The profile records each
+/// side's director, minted as the axis here, and a door that read it
+/// would store these walls exact; the doors do not yet
+/// (`work/boxfinish/a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners.md`).
 /// The box is a leaf's, as for every profile-vertex box here.
 #[test]
 fn a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_walls() {
@@ -599,9 +601,9 @@ type Component = (&'static str, S, fn(&Vec3<f64>) -> f64);
 ///   1.22 half-widths on the turned plane, 0.44 on the tilted loft;
 /// - a profile edge or arc whose direction a boxed vertex sets divides
 ///   that vertex's difference by its own length in the sketch, once
-///   (`swept::sketch_direction`, which the doors' unit replaces with the
-///   profile's recorded direction): 4.0 half-widths on the edge, 10.7 on
-///   the arc.
+///   (`swept::sketch_vector` and `sketch_chord`, which read the
+///   segment's points, not the direction its kind records): 4.0
+///   half-widths on the edge, 10.7 on the arc.
 ///
 /// Each row's factor is that measurement rounded up by a few percent.
 fn assert_tight(what: &str, held: Vec3<S>, members: &[Vec3<f64>], width_over_truth: (f64, f64)) {
@@ -666,7 +668,7 @@ where
             carrier
                 .as_circle()
                 .expect("a latitude is a circle")
-                .frame
+                .frame()
                 .u_ref(),
         );
     }
