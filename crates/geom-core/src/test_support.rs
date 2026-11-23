@@ -119,58 +119,6 @@ pub fn is_offer_of_a_margin_within(band: Band, offered: f64, margin: f64, slack:
     independent && rule
 }
 
-#[cfg(test)]
-#[allow(clippy::expect_used)]
-mod offer_tests {
-    use super::{Band, is_offer_of_a_margin_within};
-
-    /// **The offer check answers false on a quote the margin does not
-    /// make**, and true on the one the rule makes. A margin of 5.5e-9 at
-    /// the design band (ε 1e-9, K 10) offers 5.5e-10; one of 5.756955e-10
-    /// offers 5.756e-11.
-    #[test]
-    fn the_offer_check_refuses_a_quote_the_margin_does_not_make() {
-        let band = Band::new(1e-9, 1e-8).expect("the design band");
-        let at = |v: f64, m: f64| is_offer_of_a_margin_within(band, v, m, 0.0);
-        // The rule's own offer passes at every scale the suites raise at:
-        // a quote equal to the rule's answer, so only the bound by |m|/K
-        // can refuse it.
-        for m in [
-            3.0000000000031634e-10,
-            9.999999999999951e-11,
-            5.5e-9,
-            1.234567e-7,
-            4.2e-6,
-        ] {
-            let offered = band.offer_deciding(m).expect("an offer above the floor");
-            assert!(at(offered, m), "the rule's offer {offered:e} for {m:e}");
-        }
-        assert!(at(5.5e-10, 5.5e-9), "the told offer of 5.5e-9");
-        assert!(
-            at(5.756e-11, 5.756955e-10),
-            "the told offer of 5.756955e-10"
-        );
-        assert!(!at(5.757e-11, 5.756955e-10), "rounded up, above |m|/K");
-        assert!(!at(5.75e-11, 5.756955e-10), "a figure dropped");
-        assert!(!at(5.756e-12, 5.756955e-10), "a tenth");
-        assert!(!at(5.756e-10, 5.756955e-10), "ten times");
-        assert!(
-            !at(5.7565e-11, 5.756955e-10),
-            "off the grid, between two points"
-        );
-        // A margin known to a slack accepts either grid point it straddles.
-        let straddle = 1.1e-12 * 3e-10;
-        assert!(is_offer_of_a_margin_within(band, 3e-11, 3e-10, straddle));
-        assert!(is_offer_of_a_margin_within(
-            band, 2.999e-11, 3e-10, straddle
-        ));
-        assert!(
-            !is_offer_of_a_margin_within(band, 2.998e-11, 3e-10, straddle),
-            "a step below both"
-        );
-    }
-}
-
 /// The tolerance a refusal's sentence offers to tighten below, where it
 /// ends in one: the number after "tighten the tolerance below ", in
 /// metres.
@@ -525,4 +473,56 @@ pub fn polar_distance(m: &RigidMotion<f64>) -> (f64, f64) {
     });
     let column = |j: usize| (0..3).map(|i| s[i][j].powi(2)).sum::<f64>().sqrt();
     (column(2), column(0))
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod offer_tests {
+    use super::{Band, is_offer_of_a_margin_within};
+
+    /// **The offer check answers false on a quote the margin does not
+    /// make**, and true on the one the rule makes. A margin of 5.5e-9 at
+    /// the design band (ε 1e-9, K 10) offers 5.5e-10; one of 5.756955e-10
+    /// offers 5.756e-11.
+    #[test]
+    fn the_offer_check_refuses_a_quote_the_margin_does_not_make() {
+        let band = Band::new(1e-9, 1e-8).expect("the design band");
+        let at = |v: f64, m: f64| is_offer_of_a_margin_within(band, v, m, 0.0);
+        // The rule's own offer passes at every scale the suites raise at:
+        // a quote equal to the rule's answer, so only the bound by |m|/K
+        // can refuse it.
+        for m in [
+            3.0000000000031634e-10,
+            9.999999999999951e-11,
+            5.5e-9,
+            1.234567e-7,
+            4.2e-6,
+        ] {
+            let offered = band.offer_deciding(m).expect("an offer above the floor");
+            assert!(at(offered, m), "the rule's offer {offered:e} for {m:e}");
+        }
+        assert!(at(5.5e-10, 5.5e-9), "the told offer of 5.5e-9");
+        assert!(
+            at(5.756e-11, 5.756955e-10),
+            "the told offer of 5.756955e-10"
+        );
+        assert!(!at(5.757e-11, 5.756955e-10), "rounded up, above |m|/K");
+        assert!(!at(5.75e-11, 5.756955e-10), "a figure dropped");
+        assert!(!at(5.756e-12, 5.756955e-10), "a tenth");
+        assert!(!at(5.756e-10, 5.756955e-10), "ten times");
+        assert!(
+            !at(5.7565e-11, 5.756955e-10),
+            "off the grid, between two points"
+        );
+        // A margin known to a slack accepts either grid point it straddles.
+        let straddle = 1.1e-12 * 3e-10;
+        assert!(is_offer_of_a_margin_within(band, 3e-11, 3e-10, straddle));
+        assert!(is_offer_of_a_margin_within(
+            band, 2.999e-11, 3e-10, straddle
+        ));
+        assert!(
+            !is_offer_of_a_margin_within(band, 2.998e-11, 3e-10, straddle),
+            "a step below both"
+        );
+    }
 }
