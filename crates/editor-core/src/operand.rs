@@ -577,24 +577,46 @@ impl<R: serde::Serialize> serde::Serialize for Spell<R> {
     }
 }
 
+/// One forward pass, no retry (`persist::refusal`'s premise): a string
+/// is the bare read, handed whole to the read's own deserializer; a map
+/// whose first key is `All` is a splice, its value the read; any other
+/// map is the bare read spelled out, handed on whole with its first key
+/// ([`Prepended`]).
 impl<'de, R: serde::Deserialize<'de>> serde::Deserialize<'de> for Spell<R> {
     fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        #[derive(serde::Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct All<R> {
-            #[serde(rename = "All")]
-            all: R,
+        use serde::de::value::MapAccessDeserializer;
+        use serde::de::{Error as _, MapAccess, Visitor};
+
+        struct Entry<R>(core::marker::PhantomData<R>);
+
+        impl<'de, R: serde::Deserialize<'de>> Visitor<'de> for Entry<R> {
+            type Value = Spell<R>;
+            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str("a read, or a splice of one (`{\"All\": …}`)")
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                R::deserialize(Spelled::<E>(v, core::marker::PhantomData)).map(Spell::One)
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                let Some(first) = map.next_key::<String>()? else {
+                    return R::deserialize(MapAccessDeserializer::new(map)).map(Spell::One);
+                };
+                if first != "All" {
+                    let rest = Prepended {
+                        first: Some(first),
+                        rest: map,
+                    };
+                    return R::deserialize(MapAccessDeserializer::new(rest)).map(Spell::One);
+                }
+                let all = map.next_value::<R>()?;
+                match map.next_key::<String>()? {
+                    None => Ok(Spell::All(all)),
+                    Some(other) => Err(A::Error::unknown_field(&other, &["All"])),
+                }
+            }
         }
-        #[derive(serde::Deserialize)]
-        #[serde(untagged)]
-        enum Either<R> {
-            All(All<R>),
-            One(R),
-        }
-        Ok(match Either::<R>::deserialize(de)? {
-            Either::All(All { all }) => Self::All(all),
-            Either::One(read) => Self::One(read),
-        })
+
+        de.deserialize_any(Entry(core::marker::PhantomData))
     }
 }
 
