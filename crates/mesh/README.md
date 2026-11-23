@@ -118,6 +118,11 @@ defined:
   costs is not measured, and the constant moves when it is.
 - **termination:** `trimmed::MAX_GRID_RETRIES` decides when to stop and
   refuse, and never changes a mesh's shape.
+- **termination:** `trimmed::MAX_CORRECTION_ROUNDS` (6) is the rounds a
+  face's triangles read over δ may add points before it refuses typed,
+  on the trimmed and the curved lane. It is a budget, not a proof:
+  nothing bounds the rounds a face needs, and the most measured is 3,
+  stated where it is defined.
 - **work:** `trimmed::MAX_SPHERE_EDGE_CHORDS` (2¹⁶) is the chords the
   trimmed sphere's tightening may ask of one edge before it refuses
   typed. It keeps one face's CDT at about a second in release, and its

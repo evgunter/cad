@@ -46,7 +46,7 @@
 //!   the pcurve-driven lane with `cert::cert_cylinder` certificates.
 //! - trimmed on NURBS: `loft_prism` (walls of degree 1×2) and
 //!   `swept_elbow` (1×3), the described-NURBS lane with its
-//!   hull-derived certificate and its cert-driven refinement. A
+//!   hull-derived certificate and its correction. A
 //!   `Surface::Approx` face shares the `Nurbs` dispatch arm and the
 //!   same lane, on its fit, so these rows cover its code path; what no
 //!   fixture in this crate carries is a body that reaches it through

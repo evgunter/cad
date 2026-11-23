@@ -19,9 +19,10 @@
 //! `crate::ruled_walk`): no lattice and no CDT, its triangles written along
 //! its two rows in order of angle, a side shared with a neighbour that may
 //! make it cut at its midpoint ([`may_make`]), and each triangle read by
-//! the row's certificate. Its target is δ ([`face_target`]), by the
-//! theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`; every
-//! other analytic face here sizes at [`UNPROVED_HEADROOM`] of δ.
+//! the row's certificate. Every face here sizes at δ: a walked face by
+//! the theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`,
+//! every other from its chart's cell bound as a first guess the
+//! certificate corrects (below, "The correction").
 //!
 //! # Watertightness is inherited, not re-derived
 //!
@@ -280,33 +281,40 @@
 //!
 //! # The retry loop
 //!
-//! The lane rebuilds a face, at most [`MAX_GRID_RETRIES`] times, for
-//! three causes: a triangle folded over the chord beside it drops its
-//! lattice corners, a triangle with a side a neighbour may make too is
-//! split by a point inside it, and (below) a triangle certified above δ
-//! is refined. Lattice nodes are a fixed, (v, u)-sorted list computed
-//! once, before the loop; a fold drops a node by its index, and the
-//! shared-side and refinement arms append, so indices only grow.
+//! The lane rebuilds a face for three causes: a triangle folded over the
+//! chord beside it drops its lattice corners, a triangle with a side a
+//! neighbour may make too is split by a point inside it, and (below) a
+//! triangle read over δ adds a point. The first two count against
+//! [`MAX_GRID_RETRIES`], the third against its own
+//! [`MAX_CORRECTION_ROUNDS`]. Lattice nodes are a fixed, (v, u)-sorted
+//! list computed once, before the loop; a fold drops a node by its index,
+//! and the shared-side and correction arms append, so indices only grow.
+//! An attempt's interior positions belong to that attempt: the patch
+//! this lane returns is the ACCEPTED attempt's, and a retried attempt's
+//! points are dropped with it.
 //!
-//! The same loop carries TESS-SPAN's second arm, **certificate-driven
-//! refinement**: after the emit pass, any NURBS triangle whose
-//! certificate exceeds δ — one that would otherwise refuse — queues
-//! its UV centroid as a new candidate and the attempt rebuilds. This
-//! is deliberately a LAST-RESORT backstop, not the sliver cure: in a
-//! lattice that is anisotropic in the CDT's own coordinates, a
-//! centroid is one more off-lattice point and re-admits the empty
-//! circumcircle beside itself (measured on the #316 leaf, and on a
-//! lofted circle's wall, where the ladder walked the sliver inward a
-//! step per round: `work/tesslane/lofted-rational-walls-refuse-at-some-deltas`).
-//! The cure is the lattice metric and the row raise (above), which
-//! make the lattice near square where the CDT runs
-//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
-//! that still certifies above δ after the shared round budget refuses
-//! typed ([`TessellateError::CertificateExceeded`]) — the
-//! certificate, as everywhere, is the guarantee. An attempt's interior
-//! positions belong to that attempt: the patch this lane returns is
-//! the ACCEPTED attempt's, and a retried attempt's points are dropped
-//! with it.
+//! # The correction
+//!
+//! A face's lattice and rim chords are sized at δ from its chart's cell
+//! bound, the coarsest step the bound allows (`crates/mesh/README.md`
+//! `[mesh.sizing]`). That is a first guess: a triangle the constrained
+//! triangulation makes on a trim chord point the lattice did not place
+//! can reach past one cell, and nothing bounds by how much. So the
+//! certificate decides. On every row, analytic and spline, each triangle
+//! read over δ (`cert::Verdict::Exceeded`) adds one point
+//! ([`TrimmedFace::correction_point`]: the middle of its side, of those
+//! that are no constraint, whose own chord stands farthest from the
+//! surface) and the face is triangulated again. A face still over δ when
+//! [`MAX_CORRECTION_ROUNDS`] ends refuses typed
+//! ([`TessellateError::CertificateExceeded`]). Nothing but the verdict is
+//! read, and the verdict reads no ε.
+//!
+//! On a spline row the sliver's cure is the lattice metric and the row
+//! raise (above), which make the lattice near square where the CDT runs
+//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an added point
+//! in a lattice still anisotropic there re-admits the empty circumcircle
+//! beside itself (measured on the #316 leaf and a lofted circle's wall:
+//! `work/tesslane/lofted-rational-walls-refuse-at-some-deltas`).
 //!
 //! A BOUNDARY point as intermediate is a
 //! self-touching trim loop, refused typed
@@ -503,8 +511,8 @@ fn edge_carrier(body: &Body<f64>, ek: EdgeKey) -> Result<&geom::Curve3<f64>, Tes
 }
 
 /// **The trimmed lane's steps on an analytic chart** `(h_u, h_v)`: the
-/// row's steps ([`AnalyticRow::steps`]) at the face's target
-/// ([`face_target`]). The chord pass reads the same steps to bound each
+/// row's steps ([`AnalyticRow::steps`]) at `target`, which the lane and
+/// the chord pass hand it as δ. The chord pass reads the same steps to bound each
 /// boundary chord's UV step (`chords::tighten`), so the lattice and the
 /// trim polygon are sized from one value.
 pub(crate) fn arm_steps(row: &AnalyticRow<'_>, target: f64) -> (f64, f64) {
@@ -4837,7 +4845,7 @@ pub(super) mod tests {
     ///   correction still runs and the body meshes.
     /// - **At its own steps the first guess stands**: no round is run, and
     ///   the mesh holds under 0.6 of the triangles of the mesh at `δ/2`,
-    ///   which is the lattice a headroom of a half laid at δ.
+    ///   the lattice a share of a half of δ laid at δ.
     #[test]
     fn an_over_delta_first_guess_is_corrected_and_refuses_typed_without_the_correction() {
         use geom_core::Tol;

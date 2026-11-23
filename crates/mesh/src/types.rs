@@ -215,13 +215,11 @@ pub enum TessellateError {
     /// An emitted triangle's closed-form deviation certificate exceeds
     /// δ by more than its own rounding (`cert::verdict`) — the
     /// certified-conservative promise could not be established, and an
-    /// uncertified mesh is never shipped. Each lane sizes its worst
-    /// triangle at δ by its theorem (`crates/mesh/README.md`
-    /// `[mesh.sizing]`), so this is a kernel defect, a triangle outside
-    /// what its lane's theorem covers (the trimmed cylinder's or
-    /// sphere's beside a trim chord, which size at
-    /// `trimmed::UNPROVED_HEADROOM` for that reason), or degenerate
-    /// geometry.
+    /// uncertified mesh is never shipped. Each lane's step is a first
+    /// guess and a triangle read over δ adds a point
+    /// (`crates/mesh/README.md` `[mesh.sizing]`), so this is a face whose
+    /// correction's round budget ended (`trimmed::MAX_CORRECTION_ROUNDS`)
+    /// with a triangle still over δ, or degenerate geometry.
     CertificateExceeded {
         /// The face whose patch failed.
         face: FaceKey,

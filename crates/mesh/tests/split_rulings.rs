@@ -148,7 +148,7 @@ fn volume_read(solid: &Body<f64>) -> bool {
 /// triangles over its `n` boundary points, and a split adds a point to
 /// each traversal of its edge, so that is what a walked face and its
 /// planar neighbours owe; it fails where a face is chorded otherwise than
-/// the unsplit one (the chart lane's headroom on a walked face's rims) or
+/// the unsplit one or
 /// gains interior points (a lattice, a refinement).
 fn holds_the_count_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f64) {
     holds_the_relation(what, split, solid, delta, 0);
@@ -1629,9 +1629,9 @@ fn a_split_beside_the_apex_of_a_needle_cone_refuses_undecided() {
 /// - **its caps' chords alone split** (no ruled face has a split side, so
 ///   nothing is walked): refuses so, here and on main;
 /// - **every line edge split**, the cylinder face's rulings too: refuses
-///   so here. On main it meshed, only because main's chart lane chorded the
-///   ruled face's rim finer (its headroom), which gave the caps an arc they
-///   can hold; the walk chords the rim as the unsplit face's is chorded.
+///   so here. It meshed when the chart lane chorded the ruled face's rim at
+///   half of δ, which gave the caps an arc they can hold; the walk chords
+///   the rim as the unsplit face's is chorded.
 ///
 /// The 0.2 rad prism at δ 0.03 is the same (12 cells over both, six split
 /// patterns each, refuse here and mesh on main). The class is the planar
