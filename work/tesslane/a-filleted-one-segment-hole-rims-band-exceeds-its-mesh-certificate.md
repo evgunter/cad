@@ -49,3 +49,16 @@ Branch `tesslane/one-slit-band`, cut from main.
 **Stop and report between the stages if** the cure is not local to one lane's step or one certificate, if it would change what `crates/mesh/README.md` says, or if the cause is one of this track's open rows (`a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate` is a `CertificateExceeded` lottery over a count too, and may be the same cause).
 
 When it lands, PROFILE's parked unit `circle-lowers-to-one-segment` merges main and flips its two pinned rows; a line goes on `work/profile/log.md`.
+
+### Stage 1's result and the ruling (2026-11-23)
+
+Measured by the implementer on PROFILE's tree and reproduced on main with a body `mesh` builds itself (a full revolve of a plate cross-section whose corner is a quarter arc: one torus face, one slit, the revolve's seam).
+
+- **The face** is the fillet band, a torus rectangle (a whole turn by a quarter of the tube), and it is the rectangle lane's (`mesh::curved`), not the chart lane's. The two-arc twin's band is the same one face with one slit; it passes by the rounding of its slit's span.
+- **The cause.** The slit, a quarter arc of the tube, is chorded into 3 where the face's grid has 2 rows: the chord count is `ceil(span / step)` with the step capped at π/4, and the slit's stored span is π/2 plus 5 ulps. Its chord points then sit between the grid's rows. The rectangle lane triangulates in raw chart coordinates, where this band's cell is 7.3 times longer along the tube than around the ring, so a point between two rows has an empty circle 3.5 columns wide and joins nodes four columns away: 26 triangles over δ, the worst 7.7 times.
+- **Why one δ and not its neighbours.** At a coarser δ the columns are wider and the fan reaches one column; at a finer δ the grid's rows reach the slit's count and the points sit on them.
+- **The class.** Rectangle-lane torus faces with a thin tube whose meridian side holds a chord point off the rows, by any source; the measured source is the count's knife edge on a quarter arc. Over fillet radius × δ × hole radius: 26 of 168 cells refuse, up to 17 times over. A sphere's cells are near square in its chart and a cylinder or cone has no rows, so they do not reach it.
+
+**Ruled: the rectangle lane triangulates in the lattice metric**, as the chart lane's analytic arms do (`trimmed.rs`, "The lattice metric"), through the same `AnalyticRow::metric`. Measured: all 168 cells mesh, worst certificate 0.98 δ. Every rectangle-lane torus patch's bytes move (diagonals only, counts equal), and an off-equator sphere rectangle's; the goldens re-pin.
+
+Not taken: grid rows laid through every meridian chord point (a constraint on the triangulation to get the bound, one axis, one source); removing the count's knife edge alone (the trigger, not the class). The knife edge is filed, and so is what stays unproved: the rectangle lane sizes at δ on a theorem about lattice cells, and a triangle beside a point its grid did not place reaches past a cell with nothing but the certificate holding it.
