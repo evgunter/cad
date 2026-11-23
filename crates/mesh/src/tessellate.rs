@@ -82,6 +82,9 @@ pub(crate) struct Patch {
     /// contract), naming shared points by mesh id and interior points
     /// by their index in `interior`.
     pub(crate) triangles: Vec<[PatchVertex; 3]>,
+    /// How the patch splits a side the join finds it has inside
+    /// (`crate::join`).
+    pub(crate) splits: crate::join::Splits,
 }
 
 impl Patch {
@@ -143,8 +146,8 @@ impl Patch {
 /// **this function does not call it**: it is available to a caller,
 /// and the acceptance suites run it, but nothing on this path does.
 /// What this path does census is the sides two faces' patches can share:
-/// one used past two triangles per chord carrying it refuses
-/// [`TessellateError::OverusedSide`].
+/// one that two patches both have inside is split in each
+/// (`crate::join`).
 ///
 /// # Errors
 ///
@@ -154,8 +157,8 @@ impl Patch {
 /// carriers, a curved face whose loops have no reading in one sheet of
 /// its chart, a curved face whose iso domain is not its own UV
 /// rectangle, empty loops, dangling keys, resolution
-/// overflow, certificate failure, CDT insertion failure, a side the
-/// joined patches use past two triangles per chord.
+/// overflow, certificate failure (a split's halves included), CDT
+/// insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
     tessellate_impl(body, chordal, tol, None).map(|(mesh, _)| mesh)
 }
@@ -880,8 +883,37 @@ fn tessellate_impl(
     // passes are independent — one writes the mesh arena, the other the
     // memo's counters and entries — so splitting them changes nothing
     // either produces, and both walk the faces in arena order.
+    // THE CENSUS of the sides two patches both have inside (`crate::join`),
+    // on shared ids, over every patch the lanes or the memo answered: what
+    // each face splits where it joins the mesh, below.
+    let splitting = {
+        let faces: Vec<(FaceKey, Vec<crate::join::Side>)> = work
+            .iter()
+            .filter_map(|w| {
+                let placement = w.place.as_ref().ok()?;
+                let mut sides = Vec::new();
+                placement.shared_sides(|s| sides.push(s));
+                Some((w.face, sides))
+            })
+            .collect();
+        let mut carried = Vec::new();
+        for b in &boundaries {
+            let Some(holders) = chords.holders(b.edge) else {
+                unreachable!(
+                    "edge {:?}: the chord pass chords every edge and records the faces \
+                     holding it",
+                    b.edge
+                );
+            };
+            for w in b.points.windows(2) {
+                carried.push((crate::join::side(w[0], w[1]), holders));
+            }
+        }
+        crate::join::census(&faces, &carried)
+    };
     let mut patches = Vec::with_capacity(work.len());
     let mut pending: Vec<Option<FaceMemo>> = Vec::with_capacity(work.len());
+    let mut split_at: Vec<usize> = Vec::new();
     let mut refusal = None;
     for (face, (asked, read)) in work.into_iter().zip(recorded) {
         // Both channels, in arena order, up to AND INCLUDING the face
@@ -908,7 +940,32 @@ fn tessellate_impl(
             // the lane's or the memo's, against the positions it has in
             // the mesh. A face with a triangle f64 cannot wind refuses.
             Ok(placement) => {
-                let triangles = placement.place(&mut positions);
+                let sides = splitting.get(&face.face);
+                let splits = sides.map(|_| placement.splits());
+                let mut triangles = placement.place(&mut positions);
+                // THE SPLIT: each side the census found this patch has
+                // inside, at the point of the face's own surface over its
+                // chart midpoint, every piece held as the lane holds its
+                // triangles (`crate::join::split`).
+                if let (Some(sides), Some(splits)) = (sides, &splits) {
+                    if let Err(error) = crate::join::split(
+                        face.face,
+                        sides,
+                        splits,
+                        &crate::join::Run {
+                            body,
+                            bounds: &bounds,
+                            delta: chordal,
+                            eps,
+                        },
+                        &mut positions,
+                        &mut triangles,
+                    ) {
+                        refusal = Some(error);
+                        break;
+                    }
+                    split_at.push(patches.len());
+                }
                 if let Some((_, unresolved)) =
                     crate::validate::first_unresolved(&positions, &triangles)
                 {
@@ -939,15 +996,17 @@ fn tessellate_impl(
         for work in pending.into_iter().flatten() {
             memo.record(work, &mut keys);
         }
+        // A split patch's placed corners are not its entry's: it names
+        // none, so nothing cached against the entry is served for it.
+        for &i in &split_at {
+            keys.unstore(i);
+        }
     }
     if let Some(error) = refusal {
         return Err(error);
     }
 
-    // The one place patches become the mesh. No lane-produced body is
-    // known to reach the census inside it (the trimmed lane's shared-side
-    // cure clears every one measured), so its rows drive `joined` itself
-    // on a real mesh (`side_census`), and this call is held by reading.
+    // The one place patches become the mesh, its census after the split.
     #[allow(clippy::cast_possible_truncation)]
     let mesh = joined(
         Mesh {
@@ -956,7 +1015,7 @@ fn tessellate_impl(
             boundaries,
         },
         shared_below as u32,
-    )?;
+    );
     Ok((mesh, keys))
 }
 
@@ -970,11 +1029,12 @@ fn tessellate_impl(
 /// It reads ids and counts, no tolerance.
 ///
 /// A side of more than two triangles per chord carrying it is an edge
-/// that is not manifold, whichever lane made it: two faces across one
-/// chord chain that both use a chord between two of its points as an
-/// interior edge use it twice each, and no patch sees that alone. It
-/// refuses [`TessellateError::OverusedSide`].
-fn joined(mesh: Mesh, shared_below: u32) -> Result<Mesh, TessellateError> {
+/// that is not manifold. Every side the patches had inside past that was
+/// split before they were placed (`crate::join::census`), and a chord's
+/// side is used once by each face along it, so one here is the join's own
+/// defect, observable in this branch: it panics (`[failure.taxonomy]`,
+/// row 4).
+fn joined(mesh: Mesh, shared_below: u32) -> Mesh {
     let polylines: Vec<&[u32]> = mesh
         .boundaries
         .iter()
@@ -986,10 +1046,12 @@ fn joined(mesh: Mesh, shared_below: u32) -> Result<Mesh, TessellateError> {
         shared_below,
     );
     if let Some((side, uses)) = overused_side(&uses) {
-        return Err(TessellateError::OverusedSide {
-            faces: faces_using(&mesh, side),
-            uses,
-        });
+        unreachable!(
+            "side {side:?} is an edge of {uses} triangles of faces {:?} after the join split \
+             every side two patches had inside, and each face uses a chord of its own \
+             boundary once",
+            faces_using(&mesh, side)
+        );
     }
     // D2 addendum row 5: a shared boundary the two adjacent faces failed
     // to identify with each other leaves each side's copy short of two
@@ -1008,7 +1070,7 @@ fn joined(mesh: Mesh, shared_below: u32) -> Result<Mesh, TessellateError> {
             bad.map_or(0, |(_, n)| n)
         );
     }
-    Ok(mesh)
+    mesh
 }
 
 /// **The triangle uses of every side between two shared ids**, across
@@ -1285,6 +1347,7 @@ mod patch_tests {
 
         let first = Patch {
             interior: vec![p(100.0), p(101.0)],
+            splits: crate::join::Splits::Midpoint,
             triangles: vec![
                 [
                     PatchVertex::Shared(3),
@@ -1308,6 +1371,7 @@ mod patch_tests {
 
         let second = Patch {
             interior: vec![p(200.0)],
+            splits: crate::join::Splits::Midpoint,
             triangles: vec![[
                 PatchVertex::Local(0),
                 PatchVertex::Shared(1),
@@ -1329,6 +1393,7 @@ mod patch_tests {
         let mut positions: Vec<Point3<f64>> = (0..4).map(|i| p(f64::from(i))).collect();
         let patch = Patch {
             interior: Vec::new(),
+            splits: crate::join::Splits::Midpoint,
             triangles: vec![[
                 PatchVertex::Shared(0),
                 PatchVertex::Shared(2),
@@ -1348,6 +1413,7 @@ mod patch_tests {
         let shared: Vec<Point3<f64>> = (0..3).map(|i| p(f64::from(i))).collect();
         let patch = Patch {
             interior: vec![p(9.0), p(10.0)],
+            splits: crate::join::Splits::Midpoint,
             triangles: vec![[
                 PatchVertex::Shared(2),
                 PatchVertex::Local(0),
@@ -1359,7 +1425,8 @@ mod patch_tests {
 
     mod side_census {
         //! The side census where the patches join: a side of more than two
-        //! triangles per chord carrying it refuses, on every profile.
+        //! triangles per chord carrying it after the split panics, on every
+        //! profile.
 
         use super::super::*;
 
@@ -1397,12 +1464,13 @@ mod patch_tests {
         }
 
         /// **A body's own patches join; with one face's triangles copied
-        /// into another patch they do not.** The cube's mesh as `tessellate`
-        /// makes it, its patches handed to the join with a second copy of the
-        /// first face's triangles in the second face's patch: each side of
-        /// those triangles is then a side of more triangles than its chords
-        /// allow.
+        /// into another patch, the join panics.** The cube's mesh as
+        /// `tessellate` makes it, its patches handed to the join with a second
+        /// copy of the first face's triangles in the second face's patch: each
+        /// side of those triangles is then a side of more triangles than its
+        /// chords allow, which no split left and no lane makes.
         #[test]
+        #[should_panic(expected = "after the join split every side two patches had inside")]
         fn a_mesh_whose_patches_overuse_a_side_does_not_join() {
             let tol = geom_core::Tol::witness();
             let body = sweep::test_support::cube::<f64>(1.0, tol);
@@ -1413,24 +1481,15 @@ mod patch_tests {
                 .flat_map(|b| b.points.iter().copied())
                 .max()
                 .expect("the cube has edges");
-            let faces = [mesh.patches[0].face, mesh.patches[1].face];
             let mut overused = mesh.clone();
             let copy = overused.patches[0].triangles.clone();
             overused.patches[1].triangles.extend(copy);
+            let joined_own = joined(mesh, shared_below);
             assert!(
-                joined(mesh, shared_below).is_ok(),
+                !joined_own.patches.is_empty(),
                 "the cube's own patches join"
             );
-            match joined(overused, shared_below) {
-                Err(TessellateError::OverusedSide { faces: got, uses }) => {
-                    assert!(
-                        faces.iter().all(|f| got.contains(f)),
-                        "the patch copied from and the one copied into: {got:?}"
-                    );
-                    assert!(uses > 2, "{uses} uses");
-                }
-                other => panic!("a copied face's sides refuse OverusedSide, got {other:?}"),
-            }
+            let _ = joined(overused, shared_below);
         }
 
         #[test]

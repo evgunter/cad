@@ -184,12 +184,9 @@ fn interior_points(mesh: &mesh::Mesh, face: topo::FaceKey) -> usize {
 /// the rule does not ask for, and one it asks for and does not make, are
 /// both red.
 ///
-/// Where main's census refuses the unsplit body (`OverusedSide`: its
-/// rectangle-lane faces make one side an edge of four, `work/tesslane/
-/// a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles.md`)
-/// there is no unsplit patch to count against, and the cell must be one
-/// that cuts: the cut points are then what the cell holds, beside
-/// `check_mesh` and the geometry.
+/// A face's points inside it in either body, cut or split where the
+/// patches join (`mesh::join`), count two triangles each against the
+/// other body's.
 fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f64, cuts: usize) {
     let mesh = mesh::tessellate(split, delta, tol())
         .unwrap_or_else(|e| panic!("{what}, δ {delta}: meshes, got {e:?}"));
@@ -218,11 +215,8 @@ fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f
         return;
     }
     assert_eq!(cut, cuts, "{what}, δ {delta}: the sides the walk cut");
-    let base = match mesh::tessellate(solid, delta, tol()) {
-        Ok(base) => base,
-        Err(mesh::TessellateError::OverusedSide { .. }) if cuts > 0 => return,
-        Err(e) => panic!("{what}, δ {delta}: the unsplit body refuses {e:?}"),
-    };
+    let base = mesh::tessellate(solid, delta, tol())
+        .unwrap_or_else(|e| panic!("{what}, δ {delta}: the unsplit body refuses {e:?}"));
     for patch in &mesh.patches {
         let unsplit = base
             .patches
@@ -230,15 +224,14 @@ fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f
             .find(|p| p.face == patch.face)
             .expect("the face in the unsplit body");
         let gained = traversals(split, patch.face) - traversals(solid, patch.face);
-        let owed = unsplit.triangles.len()
-            + gained
-            + if walked(patch.face) {
-                2 * interior_points(&mesh, patch.face)
-            } else {
-                0
-            };
+        // A face's lattice is the same in both bodies, so the interior
+        // points one holds past the other are its cut or split points.
+        let points =
+            |m: &mesh::Mesh| i64::try_from(interior_points(m, patch.face)).expect("a count");
+        let owed = i64::try_from(unsplit.triangles.len() + gained).expect("a count")
+            + 2 * (points(&mesh) - points(&base));
         assert_eq!(
-            patch.triangles.len(),
+            i64::try_from(patch.triangles.len()).expect("a count"),
             owed,
             "{what}, δ {delta}: a {:?} face that gained {gained} points",
             crate::reach_probes::kind_of(split, patch.face)

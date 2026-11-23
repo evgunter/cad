@@ -966,6 +966,9 @@ struct Emitted {
     /// A point inside each kept triangle with a side a neighbouring face
     /// may make too ([`TrimmedFace::attempt`]), to insert and rebuild.
     shared_sides: Vec<(f64, f64)>,
+    /// Each kept triangle's chart corners, for the face's offers
+    /// (`crate::join`).
+    book: crate::join::Book,
 }
 
 impl TrimmedFace<'_> {
@@ -1079,6 +1082,7 @@ impl TrimmedFace<'_> {
             refine,
             folded,
             shared_sides,
+            book,
         } = self.emit(
             &at,
             &crossings,
@@ -1159,6 +1163,8 @@ impl TrimmedFace<'_> {
         let patch = Patch {
             interior,
             triangles,
+            // The spline arm reads no fold (`Self::outward`).
+            splits: book.splits(matches!(self.row, ChartRow::Analytic(_))),
         };
         #[cfg(debug_assertions)]
         {
@@ -1467,6 +1473,7 @@ impl TrimmedFace<'_> {
             places.entry(h.index()).or_default().push(i);
         }
         let mut shared_sides = Vec::new();
+        let mut book = crate::join::Book::default();
         // Each run's CDT vertex ([`Run`]).
         let run_at: HashMap<usize, &Run> = self
             .runs
@@ -1704,7 +1711,14 @@ impl TrimmedFace<'_> {
                 if refine_lane && verdict == cert::Verdict::Exceeded {
                     refine.push(inside_point());
                 }
-                triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
+                let wound = crate::join::Wound(flip);
+                book.note(
+                    triangles.len(),
+                    wound.of(ids),
+                    wound.of(uv),
+                    wound.of(singular),
+                );
+                triangles.push(wound.of(ids));
             }
             if a_shared_side {
                 shared_sides.push(inside_point());
@@ -1717,6 +1731,7 @@ impl TrimmedFace<'_> {
             refine,
             folded: (folded_grid, folded_boundary),
             shared_sides,
+            book,
         })
     }
 }
@@ -3731,6 +3746,7 @@ fn walk_face(
     }
     let mut triangles = Vec::with_capacity(corners.len());
     let mut verdict = cert::FaceVerdict::new();
+    let mut book = crate::join::Book::default();
     for c in corners {
         let ids = c.map(|c| c.0);
         let tri = ids.map(|id| id.position(shared, &interior));
@@ -3761,12 +3777,14 @@ fn walk_face(
         // point is never the apex.
         let (bound, scale) = row.cert(tri, c.map(|c| c.1), c.map(|c| c.2));
         verdict.read(bound, tol.delta, scale, tol.eps);
+        book.note(triangles.len(), ids, c.map(|c| c.1), c.map(|c| c.2));
         triangles.push(ids);
     }
     verdict.refusal(fk, tol.delta)?;
     Ok(Patch {
         interior,
         triangles,
+        splits: book.splits(true),
     })
 }
 

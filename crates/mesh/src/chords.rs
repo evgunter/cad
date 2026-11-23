@@ -100,6 +100,12 @@ impl ChordPass {
     /// # Errors
     ///
     /// `MissingEntity` where the pass holds no such edge.
+    /// The two faces holding edge `ek`'s chord points ([`Self::holders`]'s
+    /// entry), `None` for an edge the pass did not chord.
+    pub(crate) fn holders(&self, ek: EdgeKey) -> Option<[FaceKey; 2]> {
+        self.holders.get(&ek).copied()
+    }
+
     pub(crate) fn across(
         &self,
         ek: EdgeKey,

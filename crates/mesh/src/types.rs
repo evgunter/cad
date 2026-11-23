@@ -649,20 +649,6 @@ pub enum TessellateError {
         /// The face whose patch keeps the triangle.
         face: FaceKey,
     },
-    /// The faces' patches, joined, use one side between two boundary
-    /// points more often than two triangles per chord carrying it (two
-    /// for a side no chord carries): an edge of the mesh that is not
-    /// manifold, which [`crate::validate::check_mesh`] would refuse
-    /// `NonManifoldEdge`. Raised where the patches join, on every lane;
-    /// two faces across one chord chain that both use one chord between
-    /// two of its points as an interior edge reach it. A different δ may
-    /// clear it.
-    OverusedSide {
-        /// The faces whose patches use the side, in arena order.
-        faces: Vec<FaceKey>,
-        /// The triangles using it.
-        uses: usize,
-    },
     /// A trimmed face on a chart with singular rows — a sphere's poles,
     /// a cone's apex, a spindle sheet's apexes — whose shape about one
     /// the trimmed lane does not mesh ([`SphereTrimCause`] names which;
@@ -1073,13 +1059,6 @@ impl TessellateError {
                  triangle with a side between two boundary chord points the face \
                  across them may join too, leaving an edge of four triangles; a \
                  different δ may clear it",
-            ),
-            Self::OverusedSide { faces, uses } => write!(
-                f,
-                "tessellate: the faces' patches use one side between two boundary \
-                 points as an edge of {uses} triangles, across {} faces, so the mesh \
-                 is not a closed manifold; a different δ may clear it",
-                faces.len()
             ),
             Self::SphereTrimShape { cause, .. } => {
                 let what = match cause {

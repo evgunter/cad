@@ -176,9 +176,10 @@
 //! which is the CROSS-FACE half no per-patch census can see. **That makes
 //! the WRAP half of the pole-fan argument mechanical**, on the same
 //! footing as the pole half: the two entries of a wrap edge never share
-//! one interior column. A side used past two triangles per chord carrying
-//! it refuses there, typed, in every profile
-//! ([`TessellateError::OverusedSide`]); a chord segment used fewer times,
+//! one interior column. A side two patches have inside is split there
+//! (`crate::join`), and one still used past two triangles per chord
+//! carrying it is the join's own defect and panics, in every profile; a
+//! chord segment used fewer times,
 //! and the per-patch census, are `#[cfg(debug_assertions)]`, which cargo's release
 //! default would drop — so whether a release build carries more than
 //! the floor is a manifest setting, and the root `Cargo.toml`
@@ -319,6 +320,7 @@ pub mod cert;
 mod chart_table;
 mod chords;
 mod curved;
+mod join;
 // The per-face patch memo behind `tessellate_with`: its key, stated
 // per lane, and its eviction rule. Public for the memo type and the
 // digests a caller keeps alive; the key itself is crate-private.

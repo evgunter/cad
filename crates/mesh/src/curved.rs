@@ -440,6 +440,7 @@ pub(crate) fn tessellate_curved(
     let mut triangles = Vec::new();
     // The face's verdict over its triangles (`cert::FaceVerdict`).
     let mut verdict = cert::FaceVerdict::new();
+    let mut book = crate::join::Book::default();
     for f in cdt.inner_faces() {
         let vs = f.vertices();
         let m: Vec<(f64, f64, PatchVertex, bool)> =
@@ -458,7 +459,9 @@ pub(crate) fn tessellate_curved(
         // A pole or apex entry has no azimuth (`crate::chart_table`).
         let (bound, scale) = row.cert(tri, uv, pole);
         verdict.read(bound, tol.delta, scale, tol.eps);
-        triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
+        let wound = crate::join::Wound(flip);
+        book.note(triangles.len(), wound.of(ids), wound.of(uv), wound.of(pole));
+        triangles.push(wound.of(ids));
     }
 
     // D2 addendum row 5 (`DESIGN.md`: kernel bug detectable only by
@@ -503,6 +506,8 @@ pub(crate) fn tessellate_curved(
     let patch = Patch {
         interior,
         triangles,
+        // This lane reads no fold.
+        splits: book.splits(false),
     };
     #[cfg(debug_assertions)]
     {

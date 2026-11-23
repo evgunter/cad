@@ -235,6 +235,14 @@ impl PatchKeys {
         self.0.iter().filter_map(|row| row.stored)
     }
 
+    /// Names no entry for the face at position `i`: its placed corners are
+    /// not the entry's (the join split it, `crate::join`).
+    pub(crate) fn unstore(&mut self, i: usize) {
+        if let Some(row) = self.0.get_mut(i) {
+            row.stored = None;
+        }
+    }
+
     pub(crate) fn push(&mut self, digest: PatchDigest, stored: Option<StoredPatchId>) {
         self.0.push(FaceRow { digest, stored });
     }
@@ -587,6 +595,46 @@ pub(crate) enum Placement<'m> {
 }
 
 impl Placement<'_> {
+    /// Each side of this face's triangles between two shared ids, in
+    /// mesh ids (`crate::join::census`), once per triangle that has it.
+    pub(crate) fn shared_sides(&self, mut each: impl FnMut(crate::join::Side)) {
+        match self {
+            Self::Lane(patch) => {
+                for t in &patch.triangles {
+                    for q in 0..3 {
+                        if let (PatchVertex::Shared(a), PatchVertex::Shared(b)) =
+                            (t[q], t[(q + 1) % 3])
+                        {
+                            each(crate::join::side(a, b));
+                        }
+                    }
+                }
+            }
+            Self::Memo { stored, boundary } => {
+                for t in &stored.triangles {
+                    for q in 0..3 {
+                        if let (StoredVertex::Boundary(a), StoredVertex::Boundary(b)) =
+                            (t[q], t[(q + 1) % 3])
+                        {
+                            each(crate::join::side(
+                                boundary[a as usize],
+                                boundary[b as usize],
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// How this face splits a side the join finds it has inside.
+    pub(crate) fn splits(&self) -> crate::join::Splits {
+        match self {
+            Self::Lane(patch) => patch.splits.clone(),
+            Self::Memo { stored, .. } => stored.splits.clone(),
+        }
+    }
+
     /// This face's triangles, as mesh ids, with its interior points
     /// appended to `positions` — the one allocation either arm makes.
     pub(crate) fn place(self, positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
@@ -637,6 +685,9 @@ enum StoredVertex {
 pub(crate) struct StoredPatch {
     interior: Vec<Point3<f64>>,
     triangles: Vec<[StoredVertex; 3]>,
+    /// The patch's splits (`crate::join`): a function of the face, as the
+    /// rest of the patch is.
+    splits: crate::join::Splits,
 }
 
 impl StoredPatch {
@@ -661,6 +712,7 @@ impl StoredPatch {
         Some(Self {
             interior: patch.interior.clone(),
             triangles,
+            splits: patch.splits.clone(),
         })
     }
 
@@ -1589,6 +1641,7 @@ mod tests {
     fn a_stored_patch_is_placed_against_the_new_boundary_ids() {
         let patch = Patch {
             interior: vec![p(0.5)],
+            splits: crate::join::Splits::Midpoint,
             triangles: vec![
                 [
                     PatchVertex::Shared(10),
@@ -1636,6 +1689,7 @@ mod tests {
             b"a".to_vec(),
             StoredPatch {
                 interior: Vec::new(),
+                splits: crate::join::Splits::Midpoint,
                 triangles: Vec::new(),
             },
         );
@@ -1662,6 +1716,7 @@ mod tests {
                     key: b"b".to_vec(),
                     stored: Some(StoredPatch {
                         interior: Vec::new(),
+                        splits: crate::join::Splits::Midpoint,
                         triangles: Vec::new(),
                     }),
                 },
