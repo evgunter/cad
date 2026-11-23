@@ -1811,3 +1811,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **NOTE for Ev's eye, a row the lane files:** Parallel × Villarceau reads `Touch` at the latitude cos v = −r/R, where the two cross transversally. C5's "both planes touch" premise for that fixed row fails there; it is conservative today.
   - Reds outside the diff are routed to their owners' rows.
   - Once the fix pass lands, the same reviewer confirms the MAJOR's fix on the new head. This is a confirmation, not a second review arm.
+- 2026-11-23 10:40 — **Harmonic-belly unit delivered: PR 7553**, head `6669ee5617`, frozen.
+  - The far-centred conic graze row read 78/596/478 wrong at far 1e4/1e5/1e6 on main. It now reads 0, with no charge, over three seeds.
+  - New `Real::harmonic_belly` with an exact-expansion numerator and a proved 9u bound relative to the belly.
+  - The sweep fixes four more readers. A line-graze row was added for the mutant that survived.
+  - The anchored-ellipse sibling is filed (P2), not fixed: Ev's PR 7523 keeps the anchor opaque.
+  - The reviewer arm was drawn and recorded on the analysis branch. A single FULL review is dispatched with an arm-free brief.
