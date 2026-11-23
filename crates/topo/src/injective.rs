@@ -10611,7 +10611,7 @@ mod presentation_rows {
         let rim = |&(key, p, q, [s, e]): &Seg| Rim {
             stated: None,
             key: edge(key),
-            arc: Some((Curve3::line(at(p), at(q) - at(p)), (iv0(0.0), iv0(1.0)))),
+            arc: Some(chord_segment(at(p), at(q))),
             ends: [vertex(s), vertex(e)],
             uses: vec![Use {
                 plus: true,
