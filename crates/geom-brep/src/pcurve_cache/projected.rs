@@ -3518,9 +3518,6 @@ pub(super) fn run_projected_checks<T: Decide>(
         why,
     };
     // ---- Check 1: the lane and the stored structure. ----
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
     if !crate::edge_nurbs::is_analytic(surface) {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),

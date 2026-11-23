@@ -1383,9 +1383,7 @@ impl<'a> Resolver<'a> {
             promoted: None,
             ill_conditioned: None,
         };
-        if let Surface::Nurbs(ref patch) = read.surface
-            && !patch.is_placeholder()
-        {
+        if let Surface::Nurbs(ref patch) = read.surface {
             match recognize::recognize(patch.as_ref(), self.budget) {
                 recognize::Recognition::Promoted {
                     surface: promoted,

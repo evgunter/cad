@@ -273,9 +273,6 @@ fn normal_at<T: Decide>(
         )),
         Some(chart) => {
             let lane = lane.ok_or(SideEscalation::NoLane(role))?;
-            if chart.is_placeholder() {
-                return Err(SideEscalation::Placeholder(role));
-            }
             let foot = lane.surface_foot(chart, p);
             foot_normal(chart, face.sense, role, p, reach, foot, band)
         }

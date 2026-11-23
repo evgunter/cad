@@ -578,14 +578,18 @@ impl Routes {
     }
 }
 
-/// A face's surface ([`Body::face_surface`]), a stale face key named as
-/// the tessellator names it.
+/// A face's surface ([`Body::face_surface`]), its misses named as the
+/// tessellator names them: the one door the tessellator reads a face's
+/// surface through, so a pending face is refused here and nowhere
+/// past it.
 pub(crate) fn face_surface(
     body: &Body<f64>,
     fk: FaceKey,
 ) -> Result<&Surface<f64>, TessellateError> {
-    body.face_surface(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })
+    body.face_surface(fk).map_err(|miss| match miss {
+        topo::SurfaceMiss::Stale => TessellateError::MissingEntity { what: "face" },
+        topo::SurfaceMiss::Pending => TessellateError::UnsupportedSurface { face: fk },
+    })
 }
 
 /// One face's slot in [`tessellate_impl`]'s indexed parallel map: the

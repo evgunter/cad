@@ -559,9 +559,6 @@ impl FaceLattice {
                 // The spline row borrows the face's cell table, which this
                 // pass is the one to assemble (`face_bound`).
                 if let Some(payload) = surface.spline_chart() {
-                    if payload.is_placeholder() {
-                        return Err(TessellateError::UnsupportedSurface { face: fk });
-                    }
                     face_bound(bounds, payload, fk)?;
                 }
                 match ChartRow::of(body, fk, surface, bounds)? {

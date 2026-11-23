@@ -105,10 +105,9 @@ pub enum TessellateError {
         /// The offending value.
         value: f64,
     },
-    /// A face's surface is the [`geom::Surface::Nurbs`]
-    /// **placeholder** (`NurbsSurface::is_placeholder`) — the mvfs "no
-    /// description yet" state has no evaluable description to
-    /// tessellate against.
+    /// A face's surface is still **pending**
+    /// ([`topo::SurfaceMiss::Pending`]) — a face mid-construction has
+    /// no description to tessellate against.
     ///
     /// A DESCRIBED `Nurbs` face never lands here: it routes through
     /// `trimmed` with the control-net Hessian certificate, and one

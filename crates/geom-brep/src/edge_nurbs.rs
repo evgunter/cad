@@ -1108,7 +1108,6 @@ pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEncl
             expected: "a plane, sphere, cylinder or torus as the analytic operand",
         });
     };
-    described(wall)?;
     // The wall the tube localizes on, with its chart speeds minted at the
     // door: a wall constant along an axis, or with no finite speed bound
     // along one, has no chart a length in metres can cross into, and the
@@ -1221,14 +1220,6 @@ fn plane_partner<T: Real>(plane: &Surface<T>) -> Result<(), PlaneNurbsRefusal> {
             expected: "a plane as the analytic operand",
         }),
     }
-}
-
-/// A wall the lanes read: a described surface, never the placeholder.
-fn described<T: Real>(wall: &NurbsSurface<T>) -> Result<(), PlaneNurbsRefusal> {
-    if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::PlaceholderWall);
-    }
-    Ok(())
 }
 
 /// What [`plane_nurbs_incidence`] certified: limbs 1 and 2 over both
@@ -1619,7 +1610,6 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
         });
     };
     plane_partner(plane)?;
-    described(chart)?;
     let exact = match carrier {
         Curve3::Circle(..) => Some(exact_arc_rim(carrier, params, wall, stated, band)),
         _ => None,
@@ -1769,8 +1759,6 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
-    described(a)?;
-    described(b)?;
     // Each chart localized on its own cell grid, as the plane lane's wall.
     let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
     let op_a = match &grid_a {
@@ -3127,14 +3115,6 @@ where
         domain: (t0, t1),
         ends: (h0, h1),
     } = schedule;
-    if wall.is_placeholder() {
-        // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
-        // the producer too: the placeholder has no description
-        // yet, and projecting onto it would return
-        // feet of a surface that does not exist. `plane_nurbs_limbs`
-        // still checks first, so its own refusal ORDER is unchanged.
-        return Err(PlaneNurbsRefusal::PlaceholderWall);
-    }
     let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
     // The domain door, asked first on a vector with no interior knots
     // (so only the interval itself can refuse): a domain whose width
@@ -3206,9 +3186,6 @@ pub(crate) fn chart_foot<T>(
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::PlaceholderWall);
-    }
     let proj = wall
         .project(point)
         .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {

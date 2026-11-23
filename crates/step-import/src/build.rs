@@ -1423,7 +1423,7 @@ fn iso_of_wall(
     let walls: Vec<(Side, &geom::NurbsSurface<f64>)> = [(Side::Plus, sa), (Side::Minus, sb)]
         .into_iter()
         .filter_map(|(side, s)| match s {
-            Surface::Nurbs(p) if !p.is_placeholder() => Some((side, p.as_ref())),
+            Surface::Nurbs(p) => Some((side, p.as_ref())),
             _ => None,
         })
         .collect();
@@ -1526,7 +1526,7 @@ fn cap_row(
     let walls: Vec<(Side, &geom::NurbsSurface<f64>)> = [(Side::Plus, sa), (Side::Minus, sb)]
         .into_iter()
         .filter_map(|(side, s)| match s {
-            Surface::Nurbs(p) if !p.is_placeholder() => Some((side, p.as_ref())),
+            Surface::Nurbs(p) => Some((side, p.as_ref())),
             _ => None,
         })
         .collect();

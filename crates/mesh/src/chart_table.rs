@@ -170,12 +170,6 @@ impl<'a> ChartRow<'a> {
         bounds: &'a FaceBounds,
     ) -> Result<Self, TessellateError> {
         match *surface {
-            // The mvfs "no description yet" state (types docs). An
-            // approximating surface has no such state: its fit is
-            // certified by construction.
-            Surface::Nurbs(ref payload) if payload.is_placeholder() => {
-                Err(TessellateError::UnsupportedSurface { face: fk })
-            }
             Surface::Nurbs(_) | Surface::Approx(_) => Ok(Self::Spline {
                 grid: face_cells(bounds, fk)?,
             }),

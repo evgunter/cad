@@ -8549,9 +8549,6 @@ pub enum NoChartSup {
 pub fn chart_stretch_sup<T: Real>(
     surface: &Surface<T>,
 ) -> Result<(SupSpeed<T>, SupSpeed<T>), NoChartSup> {
-    if surface.is_placeholder_chart() {
-        return Err(NoChartSup::Placeholder);
-    }
     // [`azimuth_lever`] reads no `v` reach off a cylinder, sphere or
     // torus, the kinds that ask it here.
     let azimuth = || SupSpeed::new(azimuth_lever(surface, T::zero()));
@@ -8776,10 +8773,6 @@ pub fn chart_stretch_inf<T: Real>(surface: &Surface<T>) -> ChartStretchInf<T> {
         sup_v: T::zero(),
         area_inf: T::zero(),
     };
-    if surface.is_placeholder_chart() {
-        // No net to bound: the placeholder certifies nothing.
-        return zero;
-    }
     match *surface {
         Surface::Nurbs(ref payload) => nurbs_stretch_inf(payload),
         Surface::Approx(ref a) => nurbs_stretch_inf(a.fit()),
@@ -8993,9 +8986,6 @@ fn fitted_defects<T: Decide>(
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
     if crate::edge_nurbs::is_analytic(surface) {
         return Err(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Fitted,
@@ -9272,9 +9262,6 @@ fn run_iso_arc_checks<T: Decide>(
             chart: surface.kind(),
         });
     };
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
     let Curve3::Circle(
         circle @ geom::Circle {
             frame: carrier_frame_14,
@@ -9743,9 +9730,6 @@ fn run_iso_checks<T: Decide>(
             chart: surface.kind(),
         });
     };
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
@@ -13591,9 +13575,6 @@ mod incidence {
         band: Band,
     ) -> Result<Incidence, PcurveCertifyError> {
         if let Some(chart) = surface.spline_chart() {
-            if surface.is_placeholder_chart() {
-                return Err(PcurveCertifyError::PlaceholderChart);
-            }
             #[cfg(test)]
             if super::mutants::spline_shown_unread() {
                 return Ok(Incidence::On(None));
@@ -13639,9 +13620,6 @@ mod incidence {
         // A spline chart is a bounded patch, so the read is the span's
         // whatever the carrier ([`super::spline_incidence`]).
         if let Some(chart) = surface.spline_chart() {
-            if surface.is_placeholder_chart() {
-                return Err(PcurveCertifyError::PlaceholderChart);
-            }
             let name = match surface {
                 Surface::Approx(_) => "pcurve_approx_chart_incident",
                 _ => "pcurve_nurbs_chart_incident",
