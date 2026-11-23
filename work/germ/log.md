@@ -1766,3 +1766,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The constructors on main still take a raw size, so the audit is still owed.
   - The alternative was to dispatch now and merge through the conflicts. I did not, because the gated doors may themselves settle some sites' sign dispositions.
   - Re-weigh at each check-in.
+- 2026-11-23 08:00 — **The nist snap main red is fixed in PR 7538** (head `453dbbcc11`, frozen).
+  - The cause is PR 7171's fix pass `2cc97f1ce7` (refuse an in-band pair of every kind), not `c25c174105` as the row said.
+  - At #5130, a fillet cylinder bites its plane by 56.8 µm, a tangent pair in the file's band, so the import refuses at the snap. Before, the first refusal was `MissInBand` at #4950.
+  - The rows are re-pinned to the new refusal class, under D7.
+  - Coverage lost: a printed crossing line read off a snapped tangency no longer has a witness in the tree. That is noted on the IMPORTGATE row.
+  - Reviewer draw: byte 9 (single FULL), recorded on the analysis branch. The review is dispatched with an arm-free brief.
+  - Not ours: `payload-rung-sweep.py --check` is red on clean main since PR 7458, already on BOXFINISH's log. It will red this PR's lint.
