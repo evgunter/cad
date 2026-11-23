@@ -2665,9 +2665,12 @@ pub(in crate::boolean) mod tests {
         let none = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
         let settled = |which: Coincide| -> &'static [GlueClass] {
             match which {
-                Coincide::Sectors => {
-                    &[GlueClass::Rest, GlueClass::Tangent, GlueClass::Continuation]
-                }
+                Coincide::Sectors => &[
+                    GlueClass::Rest,
+                    GlueClass::Tangent,
+                    GlueClass::Continuation,
+                    GlueClass::Junction,
+                ],
                 Coincide::VertexOnFace
                 | Coincide::VertexOnSection
                 | Coincide::VertexOnCurvedFace
