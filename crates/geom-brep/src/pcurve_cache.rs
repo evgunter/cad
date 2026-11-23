@@ -11016,8 +11016,7 @@ fn covers<T: Decide>((c0, c1): (T, T), (a0, a1): (T, T)) -> bool {
 /// which is shown off the chart, and read in band
 /// ([`IncidenceRead::Undecided`]) where none is and some sample is
 /// read in band, unsettled at the walk's caps, or unreadable (a net that
-/// does not cut, a weight not shown positive); and
-/// [`PcurveCertifyError::PlaceholderChart`] on the placeholder chart.
+/// does not cut, a weight not shown positive).
 pub fn read_edge_incidence<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -15794,7 +15793,7 @@ mod tests {
             v_min: -3.0,
             v_max: 1.5,
         };
-        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed).unwrap();
+        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed);
         let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
@@ -16321,7 +16320,7 @@ mod cone_azimuth_sup {
     #[test]
     fn a_cones_second_channel_is_exactly_unit_and_stays_minted() {
         let (cone, _) = cone();
-        let rate = chart_stretch_sup_v(&cone).unwrap();
+        let rate = chart_stretch_sup_v(&cone);
         assert_eq!(rate.get(), 1.0);
         let (v, dv) = (4.0_f64, 0.25_f64);
         let chord = cone.eval(0.0, v).distance(cone.eval(0.0, v + dv));
@@ -16329,50 +16328,6 @@ mod cone_azimuth_sup {
             (chord - rate.to_meters(dv)).abs() <= 4.0 * f64::EPSILON * dv,
             "a slant step of {dv} moves {chord} m, metred as {} m",
             rate.to_meters(dv)
-        );
-    }
-}
-
-/// **The placeholder chart has no sup arms, and both doors say so.**
-#[cfg(test)]
-mod placeholder_sup {
-    use super::{
-        ChartWindow, NoChartSup, PcurveCertifyError, chart_stretch_inf, chart_stretch_sup,
-        chart_stretch_sup_v, chart_sup_arms_at,
-    };
-    use geom::{NurbsSurface, Surface};
-    use std::sync::Arc;
-
-    /// The placeholder refuses on both sup doors and on the boxed one,
-    /// where it used to answer unit arms; the inf door's all-zero
-    /// answer is the same statement on the other side.
-    #[test]
-    fn the_placeholder_refuses_every_sup_door() {
-        let ph: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
-        assert!(
-            matches!(chart_stretch_sup(&ph), Err(NoChartSup::Placeholder)),
-            "pair"
-        );
-        assert!(
-            matches!(chart_stretch_sup_v(&ph), Err(NoChartSup::Placeholder)),
-            "v only"
-        );
-        let unit = ChartWindow {
-            u_min: 0.0,
-            u_max: 1.0,
-            v_min: 0.0,
-            v_max: 1.0,
-        };
-        assert_eq!(
-            chart_sup_arms_at(&ph, &unit).err(),
-            Some(PcurveCertifyError::PlaceholderChart),
-            "the boxed door, which the azimuth headroom reads"
-        );
-        let inf = chart_stretch_inf(&ph);
-        assert_eq!(
-            (inf.inf_u, inf.inf_v, inf.sup_u, inf.sup_v, inf.area_inf),
-            (0.0, 0.0, 0.0, 0.0, 0.0),
-            "the inf door certifies nothing for it"
         );
     }
 }

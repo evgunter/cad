@@ -221,7 +221,7 @@ macro_rules! edge_at {
                 spec,
                 start,
                 end,
-                |k| table.get(k).cloned(),
+                |k| table.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
                 band(),
                 NurbsLane::certified(),

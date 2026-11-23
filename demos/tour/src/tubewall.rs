@@ -126,7 +126,7 @@ fn hollow(window: TubeWindow<f64>, tol: Tol) -> pncad::sweep::Revolved<f64> {
 fn stored_minors(body: &Body<f64>) -> Vec<f64> {
     body.faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
+            Ok(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
         .collect()
@@ -165,7 +165,7 @@ fn wall_triangles(body: &Body<f64>, mesh: &pncad::mesh::Mesh, r: f64) -> Vec<usi
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Torus { minor_radius, .. }) if minor_radius.to_bits() == r.to_bits()
+                Ok(Surface::Torus { minor_radius, .. }) if minor_radius.to_bits() == r.to_bits()
             )
         })
         .map(|(k, _)| {

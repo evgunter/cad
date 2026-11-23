@@ -556,7 +556,7 @@ mod tests {
         let cube = declined_cube::<f64>(Tol::witness()).body;
         assert!(
             cube.face_views()
-                .all(|face| matches!(face.surface(), geom::Surface::Nurbs(_))),
+                .all(|face| matches!(face.surface().unwrap(), geom::Surface::Nurbs(_))),
             "the NURBS rows' fixture: every face of the cube is on a NURBS net"
         );
         let rows = [
@@ -572,7 +572,7 @@ mod tests {
             assert!(body.faces().count() > 0, "{kind}: a face to read");
             for face in body.face_views() {
                 let sense = body.get_face(face.key()).unwrap().sense;
-                let door = super::reverted_sense(face.surface(), sense);
+                let door = super::reverted_sense(face.surface().unwrap(), sense);
                 assert_eq!(
                     door,
                     sense != flips,
@@ -782,7 +782,7 @@ mod tests {
         )
         .unwrap();
         let curve = body.edges().next().unwrap().1.curve;
-        let copy = body.surfaces.insert(plane);
+        let copy = body.add_surface(plane);
         body.faces.get_mut(seed.face).unwrap().surface = copy;
         body.surfaces.remove(chart).unwrap();
         let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {

@@ -81,19 +81,12 @@ pub(crate) fn test_curve(anchor: Point3<f64>, tol: Tol) -> geom_brep::EdgeCurve<
         spec,
         anchor,
         anchor,
-        |_| None,
+        |_| Err(crate::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         geom_core::Band::linear(tol).unwrap(),
         geom_brep::NurbsLane::certified(),
     )
     .unwrap()
-}
-
-/// A raw-fixture surface: the `Nurbs` "no description yet" state (the
-/// anchor argument is accepted for call-site symmetry with
-/// [`test_curve`] and ignored — surfaces carry no certification).
-pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom::Surface<f64> {
-    geom::Surface::nurbs_placeholder()
 }
 
 /// A raw plane SURFACE fixture (an operation input, not a face datum —
@@ -490,8 +483,8 @@ pub(crate) fn ngon_pillow(n: usize, tol: Tol) -> NgonPillow {
     let curves: Vec<CurveKey> = (0..n)
         .map(|_| body.add_curve(test_curve(Point3::origin(), tol)))
         .collect();
-    let surface_a = body.add_surface(test_surface(Point3::origin()));
-    let surface_b = body.add_surface(test_surface(Point3::origin()));
+    let surface_a = body.add_pending_surface();
+    let surface_b = body.add_pending_surface();
 
     // Vertices (emanating patched once half-edges exist).
     let vertices: Vec<VertexKey> = points
@@ -788,7 +781,7 @@ pub(crate) fn raw_prism(n: usize, tol: Tol) -> RawPrism {
     let curves_t: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_b: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_v: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
-    let mut surface = || body.add_surface(test_surface(Point3::origin()));
+    let mut surface = || body.add_pending_surface();
     let surface_top = surface();
     let surface_bottom = surface();
     let surface_side: Vec<SurfaceKey> = (0..n).map(|_| surface()).collect();
@@ -998,7 +991,7 @@ pub(crate) fn mvfs_state() -> MvfsState {
         prov(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(test_surface(Point3::origin()));
+    let surface = body.add_pending_surface();
     let lone_loop = body.add_loop(
         Loop {
             boundary: LoopBoundary::Empty { vertex },
@@ -1653,7 +1646,7 @@ mod tests {
             (
                 "surface",
                 Box::new(|b| {
-                    b.surfaces.insert(test_surface(Point3::origin()));
+                    b.add_pending_surface();
                     None
                 }),
             ),
@@ -1770,13 +1763,12 @@ mod tests {
     }
 }
 
-/// A described NURBS surface carrying poison: the placeholder's
-/// bilinear structure, control point `i` at `(i, i, 2)` with its `x`
-/// NaN wherever `poisoned(i)`. Never the placeholder, since `y` and
-/// `z` stay finite.
+/// A NURBS surface whose net is not finite: bilinear on `[0, 1]²`,
+/// control point `i` at `(i, i, 2)` with its `x` NaN wherever
+/// `poisoned(i)`.
 pub(crate) fn poisoned_net(poisoned: impl Fn(usize) -> bool) -> geom::Surface<f64> {
-    let ph = geom::NurbsSurface::<f64>::placeholder();
-    let control = (0..ph.control().len())
+    let unit = || geom_core::spline::KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+    let control = (0..4)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
             let at = i as f64;
@@ -1785,10 +1777,10 @@ pub(crate) fn poisoned_net(poisoned: impl Fn(usize) -> bool) -> geom::Surface<f6
         .collect();
     geom::Surface::Nurbs(std::sync::Arc::new(
         geom::NurbsSurface::new(
-            ph.knots_u_f64_interim().clone(),
-            ph.knots_v_f64_interim().clone(),
+            unit(),
+            unit(),
             control,
-            ph.weights().to_vec(),
+            vec![1.0; 4],
         )
         .unwrap(),
     ))

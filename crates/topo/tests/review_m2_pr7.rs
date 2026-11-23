@@ -138,7 +138,7 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
     // shifted along the normal ⇒ planar residual errors at tier 3.
     let (fk, face) = body.faces().next().unwrap();
     let sk = face.surface;
-    let Some(Surface::Plane {
+    let Ok(Surface::Plane {
         frame: carrier_frame,
     }) = body.get_surface(sk).cloned()
     else {

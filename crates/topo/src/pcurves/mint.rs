@@ -2182,10 +2182,7 @@ mod not_owed_rows {
             })),
             "a dual owes no fitted row"
         );
-        for defect in [
-            PcurveCertifyError::IntervalNotForward,
-            PcurveCertifyError::PlaceholderChart,
-        ] {
+        for defect in [PcurveCertifyError::IntervalNotForward] {
             let shown = format!("{defect:?}");
             assert!(
                 !not_owed::<Dual64>(&of(defect)),

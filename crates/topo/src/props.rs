@@ -8743,7 +8743,7 @@ mod face_list_door_tests {
                 let k = body.proven_face(f).record().surface;
                 let Some(Surface::Plane {
                     frame: carrier_frame,
-                }) = body.surfaces.get_mut(k)
+                }) = body.surface_mut(k)
                 else {
                     continue;
                 };
@@ -8771,10 +8771,10 @@ mod face_list_door_tests {
             let before = read(&body);
             for (_, surface) in body.surfaces.iter_mut() {
                 match surface {
-                    Surface::Plane { frame, .. } => {
+                    crate::SurfaceSlot::Described(Surface::Plane { frame, .. }) => {
                         *frame = frame.translated(frame.u_ref() * slide)
                     }
-                    Surface::Cylinder { frame, .. } => {
+                    crate::SurfaceSlot::Described(Surface::Cylinder { frame, .. }) => {
                         *frame = frame.translated(frame.axis() * slide)
                     }
                     _ => {}
@@ -9279,7 +9279,7 @@ mod exact_enclosure_rows {
                             .iter()
                             .map(|run| {
                                 let face = body.proven_face(run.face);
-                                let surface = face.surface();
+                                let surface = face.surface().unwrap();
                                 vertex_rings(
                                     &body,
                                     surface,
@@ -9597,7 +9597,7 @@ mod shell_reference_rows {
         let mut carried = 0;
         for run in &runs {
             let face = body.proven_face(run.face);
-            let surface = face.surface();
+            let surface = face.surface().unwrap();
             let loops = face_loops(&body, face.record()).unwrap();
             let from = corner_of(lane, run);
             let (c, moved) = closed_form_or_carried(

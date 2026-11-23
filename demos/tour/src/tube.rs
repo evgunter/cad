@@ -78,7 +78,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // tolerance — that is the whole point of the retirement.)
     let mut stored: Vec<f64> = Vec::new();
     for (fk, _) in tube.faces() {
-        if let Some(Surface::Torus { minor_radius, .. }) = tube.face_surface(fk) {
+        if let Ok(Surface::Torus { minor_radius, .. }) = tube.face_surface(fk) {
             stored.push(*minor_radius);
         }
     }

@@ -15,13 +15,11 @@ use crate::euler::FaceSurface;
 use crate::fixtures::mvfs_state;
 use geom::Surface;
 
-/// **`UncertifiableSurface` is the placeholder state's verdict and no
-/// other state's.** Check 1 reads a `Nurbs` payload's `NetState` and
-/// answers each state on its own: the placeholder reports
-/// `UncertifiableSurface`, and the masquerading net — poison in one
-/// channel of every point, so described rather than the placeholder —
-/// reports `PoisonedSurfaceDescription`. What this row pins is the
-/// negative half: the masquerade never draws the PLACEHOLDER's verdict,
+/// **`UncertifiableSurface` is the pending slot's verdict and no net's.**
+/// Check 1 reports a pending slot as `UncertifiableSurface`, and a net
+/// that is not finite — poison in one channel of every point — as
+/// `PoisonedSurfaceDescription`. What this row pins is the negative
+/// half: the corrupt net never draws the pending slot's verdict,
 /// whatever else it draws.
 #[test]
 fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
@@ -58,7 +56,19 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
         )
         .0
     };
-    let with_placeholder = run(Surface::nurbs_placeholder());
+    let with_placeholder = {
+        let mut st = crate::fixtures::mvfs_state();
+        st.body.set_face_surface(st.face, FaceSurface::Pending { sense: true }).unwrap();
+        let mut marks = slotmap::SecondaryMap::new();
+        crate::validate::tier3_local_checks_marked::<f64>(
+            &st.body,
+            &mut marks,
+            tol,
+            crate::validate::PlusVCheck::NotMade,
+            Some(geom_brep::OffsetFitLane::fit()),
+        )
+        .0
+    };
     let with_masquerade = run(crate::fixtures::poisoned_net(|_| true));
     println!("PROBE class9 placeholder: {with_placeholder:?}");
     println!("PROBE class9 masquerade:  {with_masquerade:?}");

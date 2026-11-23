@@ -378,6 +378,16 @@ impl<T: Real> Body<T> {
         self.surfaces.insert(SurfaceSlot::Pending)
     }
 
+    /// The described surface at `key`, mutably: `None` for a stale key
+    /// or a pending slot. A test's way to restate a surface in place.
+    #[cfg(test)]
+    pub(crate) fn surface_mut(&mut self, key: SurfaceKey) -> Option<&mut Surface<T>> {
+        match self.surfaces.get_mut(key)? {
+            SurfaceSlot::Described(s) => Some(s),
+            SurfaceSlot::Pending => None,
+        }
+    }
+
     /// Inserts a vertex with its birth provenance (D5), returning its key.
     ///
     /// Crate-internal raw insertion: no validity promises (the referenced

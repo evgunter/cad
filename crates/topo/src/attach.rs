@@ -2350,7 +2350,7 @@ mod tests {
     fn face_at(body: &Body<f64>, axis: usize, value: f64) -> FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(Surface::Plane { frame, .. }) => {
+                Ok(Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     let (o, n) = (origin.to_array(), normal.to_array());
                     n[axis].abs() > 0.5 && o[axis] == value
@@ -2381,7 +2381,7 @@ mod tests {
     /// `face`'s own plane, moved by `by` — a fresh payload, so a swap
     /// onto it is a swap onto another chart.
     fn plane_moved(body: &Body<f64>, face: FaceKey, by: Vec3<f64>) -> Surface<f64> {
-        let Some(&Surface::Plane {
+        let Ok(&Surface::Plane {
             frame: carrier_frame,
         }) = body.get_surface(surf(body, face))
         else {
@@ -2604,7 +2604,7 @@ mod tests {
         };
         assert_eq!(carried.get_face(top).unwrap().surface, new);
         assert_eq!(edges_naming(&carried, new), named, "all four carried");
-        assert!(carried.get_surface(old).is_none(), "the old cap is reaped");
+        assert!(carried.get_surface(old).is_err(), "the old cap is reaped");
         assert_eq!(validate_geometric(&carried, tol()), Ok(()));
 
         let eps = tol().eps();
@@ -2700,7 +2700,7 @@ mod tests {
         );
         assert_eq!(surf(&body, top), shared);
         assert_eq!(edges_naming(&body, shared), named);
-        assert!(body.get_surface(old).is_none(), "the old cap is reaped");
+        assert!(body.get_surface(old).is_err(), "the old cap is reaped");
         assert_eq!(validate_geometric(&body, tol()), Ok(()));
     }
 
@@ -2844,7 +2844,7 @@ mod tests {
             body.set_face_surface(membrane, FaceSurface::Shared { key: cap, sense }),
             Ok(cap)
         );
-        assert!(body.get_surface(copy).is_none(), "the copy is reaped");
+        assert!(body.get_surface(copy).is_err(), "the copy is reaped");
         assert_eq!(validate_geometric(&body, tol()), Ok(()));
     }
 
@@ -3258,11 +3258,11 @@ mod tests {
             assert_eq!(surf(&both, top), top_key, "flipped={flipped}");
             assert_eq!(surf(&both, front), front_key, "flipped={flipped}");
             assert!(
-                matches!(both.get_surface(top_key), Some(Surface::Plane { frame, .. }) if frame.origin().z == 1.0 + d),
+                matches!(both.get_surface(top_key), Ok(Surface::Plane { frame, .. }) if frame.origin().z == 1.0 + d),
                 "the top wears the top's plane"
             );
             assert!(
-                matches!(both.get_surface(front_key), Some(Surface::Plane { frame, .. }) if frame.origin().y == -d),
+                matches!(both.get_surface(front_key), Ok(Surface::Plane { frame, .. }) if frame.origin().y == -d),
                 "the front wears the front's plane"
             );
             assert_eq!(validate_geometric(&both, tol()), Ok(()));
@@ -4241,10 +4241,7 @@ mod tests {
         let sense = sense(&body, top);
         body.set_face_surface(
             top,
-            FaceSurface::New {
-                surface: Surface::nurbs_placeholder(),
-                sense,
-            },
+            FaceSurface::Pending { sense },
         )
         .unwrap();
         let fused = body.kef(killed).unwrap();
@@ -4419,9 +4416,10 @@ mod tests {
         let plugged = body.mfkrh_plug(ring, true);
         assert!(plugged.is_ok(), "the membrane's images: {plugged:?}");
         let made = described.mfkrh(ring, FaceSurface::Inherit).unwrap();
+        let pending = described.add_pending_surface();
         let moved = described.set_face_surfaces_describing(
-            vec![Rechart::new(
-                Surface::nurbs_placeholder(),
+            vec![Rechart::shared(
+                pending,
                 made.face,
                 sense(&described, made.face),
             )],
@@ -4641,10 +4639,7 @@ mod tests {
         body.lifting_rechart_refusals_for_tests(|b| {
             b.set_face_surface(
                 top,
-                FaceSurface::New {
-                    surface: Surface::nurbs_placeholder(),
-                    sense,
-                },
+                FaceSurface::Pending { sense },
             )
         })
         .unwrap();
@@ -4682,7 +4677,7 @@ mod tests {
         let (mut body, top, membrane) = brick_with_inlay();
         let (ring, _) = demoted(&mut body, top, membrane);
         let made = body.mfkrh(ring, FaceSurface::Inherit).unwrap();
-        let placeholder = body.add_surface(Surface::nurbs_placeholder());
+        let placeholder = body.add_pending_surface();
         let sense = sense(&body, made.face);
         let moved = body.set_face_surfaces_describing(
             vec![Rechart::shared(placeholder, made.face, sense)],
@@ -4795,7 +4790,7 @@ mod tests {
             .map(|(f, _)| f)
             .find(|&f| body.proven_face(f).half_edges().len() == 4)
             .expect("a prism has quadrilateral sides");
-        let Some(&Surface::Plane { frame, .. }) = body.get_surface(surf(&body, side)) else {
+        let Ok(&Surface::Plane { frame, .. }) = body.get_surface(surf(&body, side)) else {
             panic!("a prism's side is a plane")
         };
         let normal = frame.axis();

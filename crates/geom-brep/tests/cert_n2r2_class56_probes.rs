@@ -67,7 +67,7 @@ fn n2r2_class5_plane_nurbs_limbs_on_masquerade() {
         ("one-point", poison_one),
     ] {
         let w = wall(f);
-        assert!(!w.is_placeholder());
+        assert!(!w.is_finite());
         let r = plane_nurbs_limbs::<f64>(
             &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
             carrier.knot_values().domain(),
@@ -113,7 +113,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             spec,
             ends.0,
             ends.1,
-            |k| arena.get(k).cloned(),
+            |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
@@ -136,7 +136,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             spec,
             ends.0,
             ends.1,
-            |k| arena.get(k).cloned(),
+            |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
@@ -158,7 +158,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             spec,
             ends.0,
             ends.1,
-            |k| arena.get(k).cloned(),
+            |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),

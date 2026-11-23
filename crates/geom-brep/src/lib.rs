@@ -49,8 +49,7 @@
 //! Everything is generic over [`geom_core::Real`] with decisions only
 //! through [`geom_core::Decide`]'s trilean door (named predicates, D4
 //! ¶3 escalation); evaluation is comparison-free and total (poison in,
-//! poison out — including the `Nurbs` representable-unimplemented
-//! placeholders, which certification rejects loudly); sampling is
+//! poison out); sampling is
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 

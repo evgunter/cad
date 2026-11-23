@@ -253,7 +253,7 @@ fn three_prime(
         let n = (c - o).cross(d - c);
         let n = n / n.norm();
         let surface = r.body.face_surface(f);
-        matches!(surface, Some(geom::Surface::Plane { frame, .. })
+        matches!(surface, Ok(geom::Surface::Plane { frame, .. })
             if (frame.origin() - o).dot(n).abs() < 1e-6 && frame.axis().cross(n).norm() < 1e-9)
     };
     for e in &errors {

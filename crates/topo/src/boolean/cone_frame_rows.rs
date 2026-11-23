@@ -756,7 +756,7 @@ fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {
     let tol = Tol::witness();
     let (mut wall, face) =
         crate::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
-    let carrier = wall.proven_face(face).surface().clone();
+    let carrier = wall.proven_face(face).surface().unwrap().clone();
     let twin = wall.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     wall.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(
@@ -781,7 +781,7 @@ fn apex_pair_faces(
     let face_of = |body: &crate::body::Body<f64>, keep: &dyn Fn(&geom::Surface<f64>) -> bool| {
         body.faces()
             .map(|(k, _)| k)
-            .find(|&k| keep(body.proven_face(k).surface()))
+            .find(|&k| keep(body.proven_face(k).surface().unwrap()))
             .unwrap()
     };
     let cone = face_of(cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));

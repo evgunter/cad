@@ -131,10 +131,7 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     let seed_face = t.seed.face;
     body.set_face_surface(
         seed_face,
-        FaceSurface::New {
-            surface: Surface::nurbs_placeholder(),
-            sense: true,
-        },
+        FaceSurface::Pending { sense: true },
     )
     .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));

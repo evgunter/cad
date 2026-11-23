@@ -12109,7 +12109,7 @@ mod tests {
         shell: crate::entity::ShellKey,
         vertex: VertexKey,
     ) -> LoopKey {
-        let surface = body.add_surface(crate::fixtures::test_surface(anchor()));
+        let surface = body.add_pending_surface();
         let lp = body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex },
@@ -12663,7 +12663,7 @@ mod tests {
                 },
                 prov(),
             );
-            let surface = body.add_surface(crate::fixtures::test_surface(anchor()));
+            let surface = body.add_pending_surface();
             let lp = body.add_loop(
                 Loop {
                     boundary: LoopBoundary::Cycle { first: he },
@@ -12871,7 +12871,7 @@ mod tests {
         let c = t
             .body
             .add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
-        let s = t.body.add_surface(crate::fixtures::test_surface(anchor()));
+        let s = t.body.add_pending_surface();
         assert_eq!(
             validate(&t.body),
             Err(vec![
@@ -15136,7 +15136,7 @@ mod tests {
             spec,
             s,
             t,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
@@ -15169,7 +15169,7 @@ mod tests {
             spec,
             s,
             t,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
@@ -15682,10 +15682,7 @@ mod tests {
             let sense = c.get_face(face).unwrap().sense;
             c.set_face_surface(
                 face,
-                crate::construction::FaceSurface::New {
-                    surface: geom::Surface::nurbs_placeholder(),
-                    sense,
-                },
+                crate::construction::FaceSurface::Pending { sense },
             )
             .unwrap();
             let got = nesting_words(&c, tol);
@@ -16441,7 +16438,7 @@ mod tests {
             spec,
             start,
             end,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
@@ -19029,7 +19026,7 @@ mod door_roster {
                 crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
             let face = body.faces().next().unwrap().0;
             let key = body.get_face(face).unwrap().surface;
-            *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
+            *body.surface_mut(key).unwrap() = geom::Surface::Spindle {
                 frame: geom::Frame::new(
                     geom_core::Point3::new(0.5, 0.5, 0.5),
                     geom_core::Vec3::new(0.0, 0.0, 1.0),
@@ -19092,7 +19089,7 @@ mod door_roster {
             .find(|&k| pick(&corners(&body, k)))
             .unwrap();
         let key = body.get_face(face).unwrap().surface;
-        *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
+        *body.surface_mut(key).unwrap() = geom::Surface::Spindle {
             frame: geom::Frame::new(
                 center,
                 geom_core::Vec3::new(0.0, 0.0, 1.0),

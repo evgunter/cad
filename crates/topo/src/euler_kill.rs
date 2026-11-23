@@ -2756,7 +2756,7 @@ mod tests {
             .unwrap()
             .surface;
         assert_ne!(elsewhere.surface, own);
-        assert!(body.get_surface(elsewhere.surface).is_some());
+        assert!(body.get_surface(elsewhere.surface).is_ok());
         let before = deep_snapshot(&body);
         let mut spec = EdgeCurveSpec::line_between(p(0.0), p(2.0));
         spec.description = geom_brep::EdgeDescriptionSpec::chart(elsewhere.surface);
@@ -3413,7 +3413,7 @@ mod tests {
             },
             prov(),
         );
-        let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
+        let surface = body.add_pending_surface();
         let one_half_loop = |body: &mut Body<f64>| {
             let l = body.add_loop(
                 Loop {

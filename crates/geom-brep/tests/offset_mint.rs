@@ -556,7 +556,7 @@ fn torus_ring_refuses_spindle_crossing() {
 /// fitted offset it has none of, and says there is no way through yet.
 #[test]
 fn nurbs_refuses_typed_naming_the_approximating_route() {
-    let err = offset_surface(&Surface::<f64>::nurbs_placeholder(), 0.1, band()).unwrap_err();
+    let err = offset_surface(&geom::test_support::unit_patch(), 0.1, band()).unwrap_err();
     assert!(matches!(err, OffsetError::NotClosedUnderOffset));
     let msg = err.to_string();
     assert!(
@@ -787,7 +787,7 @@ fn offset_distance_reads_back_the_minted_distance() {
     }
     // A NURBS has no offset mint at any distance, so none to invert.
     assert!(matches!(
-        offset_distance(&Surface::<f64>::nurbs_placeholder(), &kinds[1]),
+        offset_distance(&geom::test_support::unit_patch(), &kinds[1]),
         Err(OffsetDistanceError::Offset(
             OffsetError::NotClosedUnderOffset
         ))

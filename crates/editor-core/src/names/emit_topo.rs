@@ -7169,7 +7169,7 @@ mod wavy_loft {
         // A face is read in the loft, the first member, and the B face
         // in the box.
         assert!(
-            matches!(body.face_surface(*face), Some(geom::Surface::Nurbs(_))),
+            matches!(body.face_surface(*face), Ok(geom::Surface::Nurbs(_))),
             "the refusal names a spline wall of the loft"
         );
         let block = ev
@@ -7184,7 +7184,7 @@ mod wavy_loft {
         assert!(
             matches!(
                 plane,
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (block.point_in_space(frame.origin()).x - 1.0).abs() < 1e-9
                         && block.vec_in_space(frame.axis()).x.abs() > 1.0 - 1e-9
             ),

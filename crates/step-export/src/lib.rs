@@ -67,7 +67,6 @@
 //! | `Sphere` | `SPHERICAL_SURFACE` | yes, identity |
 //! | `Torus` | `TOROIDAL_SURFACE` | yes, identity |
 //! | `Nurbs` (described) | `B_SPLINE_SURFACE_WITH_KNOTS`, or the `RATIONAL_B_SPLINE_SURFACE` complex instance when any weight ≠ 1 | yes, structure for structure |
-//! | `Nurbs` (mvfs placeholder) | — | refuses (see below) |
 //! | `Approx` | — | refuses (see below) |
 //!
 //! | kernel `Curve3` | AP214 entity | exact? |
@@ -352,7 +351,7 @@ impl StepExportError {
                 "step export: face {face:?}'s surface ({kind}) has no printer in the \
                  analytic subset (every elementary surface prints, and a DESCRIBED \
                  NURBS surface prints as B_SPLINE_SURFACE_WITH_KNOTS; what refuses \
-                 is the no-description-yet placeholder, which is a mid-surgery fact, \
+                 is a face whose surface is still pending, a mid-surgery fact, \
                  and an approximating surface, which refuses rather than printing \
                  its fit as though it were the described geometry)"
             ),

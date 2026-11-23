@@ -243,7 +243,7 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
         spec,
         start,
         end,
-        |k| arena.get(k).cloned(),
+        |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         band(),
         NurbsLane::certified(),

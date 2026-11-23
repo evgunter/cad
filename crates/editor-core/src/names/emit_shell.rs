@@ -480,7 +480,7 @@ mod tests {
             body.faces()
                 .find(|&(k, _)| {
                     body.face_surface(k).map(geom::Surface::kind)
-                        == Some(geom::SurfaceKind::Cylinder)
+                        == Ok(geom::SurfaceKind::Cylinder)
                 })
                 .unwrap()
                 .0,

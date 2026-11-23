@@ -111,7 +111,7 @@ fn the_decided_lift_is_the_read_lift_through_a_twin_and_a_pole() {
         for face in body.face_views() {
             let outer = face.record().outer;
             let cycle = loop_rows(&body, outer);
-            let decided = Lift::decided(&body, face.key(), face.surface(), &cycle, true, band)
+            let decided = Lift::decided(&body, face.key(), face.surface().unwrap(), &cycle, true, band)
                 .unwrap_or_else(|refusal| {
                     panic!("vertex at the pole {vertex_at_pole}: the decided lift: {refusal:?}")
                 });
@@ -182,7 +182,7 @@ fn a_split_at_the_pole_decides_its_childrens_turn() {
         let outer = face.record().outer;
         let cycle = loop_rows(&body, outer);
         assert_eq!(cycle.len(), 3, "two children and the equator's half");
-        let decided = Lift::decided(&body, face.key(), face.surface(), &cycle, true, band)
+        let decided = Lift::decided(&body, face.key(), face.surface().unwrap(), &cycle, true, band)
             .unwrap_or_else(|refusal| panic!("the decided lift: {refusal:?}"));
         let read = Lift::read(&body, outer).unwrap();
         let chain = |lift: &Lift<f64>| -> Vec<_> {
@@ -483,7 +483,7 @@ fn an_edge_ending_on_the_pole_lifts_and_derives_as_minted() {
     for face in body.face_views() {
         let outer = face.record().outer;
         let cycle = loop_rows(&body, outer);
-        let decided = Lift::decided(&body, face.key(), face.surface(), &cycle, true, band)
+        let decided = Lift::decided(&body, face.key(), face.surface().unwrap(), &cycle, true, band)
             .unwrap_or_else(|refusal| panic!("the decided lift: {refusal:?}"));
         let read = Lift::read(&body, outer).unwrap();
         let chain = |lift: &Lift<f64>| -> Vec<_> {

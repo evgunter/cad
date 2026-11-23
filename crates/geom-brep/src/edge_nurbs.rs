@@ -1078,9 +1078,8 @@ pub fn curved_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal::WrongLane`] for any other partner,
-/// [`PlaneNurbsRefusal::PlaceholderWall`] for a wall that is not
-/// described, and otherwise as its two doors.
+/// [`PlaneNurbsRefusal::WrongLane`] for any other partner, and
+/// otherwise as its two doors.
 pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -1576,8 +1575,8 @@ pub fn first_within<C, T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal`]: the analytic side not a plane, a placeholder
-/// or non-spline wall, a foot that will not converge, an image that will
+/// [`PlaneNurbsRefusal`]: the analytic side not a plane, a non-spline
+/// wall, a foot that will not converge, an image that will
 /// not fit, and either limb's refusal with its measured bound;
 /// [`PlaneNurbsRefusal::ArcRim`] for a circle carrier whose exact image
 /// refused definitely and whose fitted path refused at a limb.
@@ -3080,8 +3079,7 @@ impl<'a, T: geom_core::CertifiedEnclosure> Schedule<'a, T> {
 /// fit when the image's knots collapse on it;
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
 /// whose projection does not converge (never a best-effort foot);
-/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses;
-/// [`PlaneNurbsRefusal::PlaceholderWall`] on the placeholder; or
+/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
 /// whatever `per_sample` returns.
 ///
 /// The carrier enters as its [`Schedule`]: `net_schedule` for a
@@ -3162,8 +3160,7 @@ where
 /// # Errors
 ///
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] when the projection
-/// will not converge (never a best-effort foot), or
-/// [`PlaneNurbsRefusal::PlaceholderWall`] on the placeholder.
+/// will not converge (never a best-effort foot).
 pub(crate) fn chart_foot<T>(
     point: Point3<T>,
     wall: &NurbsSurface<T>,

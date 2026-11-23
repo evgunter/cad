@@ -34,7 +34,7 @@ fn r2_the_arch_far_cap_identification_is_not_conditional() {
     let planes: Vec<_> = arch
         .faces()
         .filter_map(|(k, _)| match arch.face_surface(k) {
-            Some(&pncad::geom::Surface::Plane { frame, .. }) => {
+            Ok(&pncad::geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((k, origin, normal))
             }

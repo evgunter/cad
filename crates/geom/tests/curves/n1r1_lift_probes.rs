@@ -405,8 +405,5 @@ mod interval_probes {
         let ph: Curve3<f64> = Curve3::nurbs_placeholder();
         let phi: Curve3<Interval> = ph.map_scalar(Interval::from_f64);
         assert!(matches!(&phi, Curve3::Nurbs(n) if n.is_placeholder()));
-        let sph: Surface<f64> = Surface::nurbs_placeholder();
-        let sphi: Surface<Interval> = sph.map_scalar(Interval::from_f64);
-        assert!(matches!(&sphi, Surface::Nurbs(n) if n.is_placeholder()));
     }
 }

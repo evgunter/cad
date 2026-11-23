@@ -65,7 +65,7 @@ fn assert_ring_senses(body: &Body<f64>, label: &str) -> usize {
             continue;
         }
         let n = match body.face_surface(k) {
-            Some(&topo::Surface::Plane { frame, .. }) => frame.axis(),
+            Ok(&topo::Surface::Plane { frame, .. }) => frame.axis(),
             _ => continue,
         };
         seen += 1;

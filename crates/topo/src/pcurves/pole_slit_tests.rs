@@ -907,7 +907,7 @@ fn only_a_net_closed_in_v_decides_a_v_element() {
     };
     let joint = |s: &Surface<f64>| {
         super::decide_plain_joint(
-            super::DescribedChart::of(s).unwrap(),
+            super::DescribedChart::of(s),
             &image,
             0.0,
             geom_core::Point2::new(0.5, 1.0),
@@ -1419,7 +1419,7 @@ fn a_body_stated_periods_off_reads_downstream_as_its_principal_twin() {
     let faces: Vec<FaceKey> = twin.faces().map(|(f, _)| f).collect();
     assert_eq!(faces.len(), 2);
     let bound = |body: &Body<f64>, f: FaceKey| {
-        let s = body.proven_face(f).surface().clone();
+        let s = body.proven_face(f).surface().unwrap().clone();
         super::loop_windings(body, f, &s, band)
     };
     for periods in [5.0, 6.0, 10.0] {

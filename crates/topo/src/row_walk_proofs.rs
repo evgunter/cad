@@ -262,7 +262,7 @@ fn mfkrh_drops_no_row_of_a_loop_its_walk_strays_into() {
     let mut body = s.body;
     body.kfmrh(s.seed, s.wall).unwrap();
     divert(&mut body, wall, split);
-    let cylinder = body.proven_face(s.split).surface().clone();
+    let cylinder = body.proven_face(s.split).surface().unwrap().clone();
     assert_panics_on_the_walk("mfkrh", &mut body, wall, |b| {
         // Lifts RechartUnvouched: the ring's meridian lines name the cylinder's own key, and a promotion onto a fresh key of it is the chart change whose drop is the row.
         b.lifting_rechart_refusals_for_tests(|b| {
@@ -285,7 +285,7 @@ fn set_face_surface_drops_no_row_of_a_loop_its_walk_strays_into() {
     let mut body = s.body;
     divert(&mut body, wall, split);
     let face = s.wall;
-    let cylinder = body.proven_face(face).surface().clone();
+    let cylinder = body.proven_face(face).surface().unwrap().clone();
     assert_panics_on_the_walk("set_face_surface", &mut body, wall, |b| {
         // Lifts RechartUnvouched: the wall's meridian lines name the cylinder's own key, and a re-chart onto a fresh key of it is the chart change whose drop is the row.
         b.lifting_rechart_refusals_for_tests(|b| {
@@ -497,7 +497,7 @@ fn the_loop_doors_panic_on_a_walk_that_skips_a_member() {
     assert_panics_on_the_walk("kfmrh", &mut torn.clone(), wall, |b| {
         b.kfmrh(seed, w).map(|_| ())
     });
-    let cylinder = torn.proven_face(w).surface().clone();
+    let cylinder = torn.proven_face(w).surface().unwrap().clone();
     assert_panics_on_the_walk("set_face_surface", &mut torn, wall, |b| {
         // Lifts RechartUnvouched: the wall's meridian lines name the cylinder's own key, and a re-chart onto a fresh key of it is the chart change whose drop is the row.
         b.lifting_rechart_refusals_for_tests(|b| {
@@ -718,7 +718,7 @@ fn row_calls(body: &Body<f64>) -> Vec<RowCall> {
         }
     }
     for (face, data) in &faces {
-        let Some(surface) = body.get_surface(data.surface).cloned() else {
+        let Ok(surface) = body.get_surface(data.surface).cloned() else {
             continue;
         };
         let (face, sense) = (*face, data.sense);

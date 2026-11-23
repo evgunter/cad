@@ -918,14 +918,6 @@ mod tests {
     }
 
     #[test]
-    fn the_surface_placeholder_is_what_refuses() {
-        assert!(matches!(
-            map_surface(&aside(), Hand::Proper, None, &Surface::nurbs_placeholder()),
-            Err(TransformError::NurbsPlaceholder)
-        ));
-    }
-
-    #[test]
     fn the_carrier_placeholder_is_what_refuses() {
         assert!(matches!(
             map_carrier(
@@ -1091,17 +1083,18 @@ mod tests {
         }
     }
 
-    /// The gate as the public door reports it: a body whose only
-    /// geometry is a placeholder surface refuses, and the same body
-    /// carrying a described patch instead maps.
+    /// The public door on a body whose only surface slot is pending:
+    /// the slot has no geometry to move and stays pending, and the same
+    /// body carrying a described patch instead maps.
     #[test]
-    fn the_body_door_refuses_the_placeholder_and_admits_the_description() {
-        let mut placeheld: Body<f64> = Body::new();
-        placeheld.add_surface(Surface::nurbs_placeholder());
-        assert!(matches!(
-            transform_rigid(&placeheld, &aside_motion()),
-            Err(TransformError::NurbsPlaceholder)
-        ));
+    fn the_body_door_keeps_a_pending_slot_pending_and_maps_the_description() {
+        let mut pending: Body<f64> = Body::new();
+        let key = pending.add_pending_surface();
+        let moved = transform_rigid(&pending, &aside_motion()).expect("a pending slot maps");
+        assert!(
+            moved.surface_slot(key).is_some_and(SurfaceSlot::is_pending),
+            "the slot is still pending"
+        );
 
         let mut described: Body<f64> = Body::new();
         described.add_surface(described_surface());

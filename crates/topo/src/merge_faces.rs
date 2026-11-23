@@ -3175,7 +3175,7 @@ mod tests {
             .into_iter()
             .collect();
         for (i, k) in keys.into_iter().enumerate() {
-            *body.surfaces.get_mut(k).expect("a live key") = flat_plane_at(10.0 * (i + 1) as f64);
+            *body.surface_mut(k).expect("a live key") = flat_plane_at(10.0 * (i + 1) as f64);
         }
     }
 
@@ -3248,7 +3248,7 @@ mod tests {
         *body
             .surfaces
             .get_mut(key)
-            .expect("the placeholder resolves") = unit_cylinder();
+            .expect("the pending key resolves") = unit_cylinder().into();
     }
 
     /// Re-describes the fixture's one shared placeholder key as a
@@ -3260,7 +3260,7 @@ mod tests {
         *body
             .surfaces
             .get_mut(key)
-            .expect("the placeholder resolves") = flat_plane();
+            .expect("the pending key resolves") = flat_plane().into();
     }
 
     /// Runs the public door with one tear point armed, and returns
@@ -4225,7 +4225,7 @@ mod tests {
 
         // The placeholder is the third kind, and a group holding one
         // beside a described face of EITHER kind has no contract.
-        let placeholder = body.add_surface(Surface::nurbs_placeholder());
+        let placeholder = body.add_pending_surface();
         body.faces
             .get_mut(other)
             .expect("the pair's second face is live")
@@ -4277,8 +4277,8 @@ mod tests {
     }
 
     /// A bilinear net over the unit square with every `x` poisoned:
-    /// [`NetState::Poisoned`], described geometry that cannot
-    /// evaluate, and not the placeholder.
+    /// A net that is not finite: corrupt geometry that cannot
+    /// evaluate.
     fn poisoned_net() -> Surface<f64> {
         let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
             .expect("a clamped linear knot vector");
@@ -4291,7 +4291,7 @@ mod tests {
             vec![1.0; 4],
         )
         .expect("four control points on a 2x2 net");
-        assert_eq!(net.net_state(), NetState::Poisoned);
+        assert!(!net.is_finite());
         Surface::Nurbs(std::sync::Arc::new(net))
     }
 
@@ -4304,13 +4304,14 @@ mod tests {
     #[test]
     fn merge_kind_answers_each_surface_state() {
         let tol = Tol::witness();
-        assert_eq!(MergeKind::of(&flat_plane()), Ok(MergeKind::Plane));
-        assert_eq!(MergeKind::of(&unit_cylinder()), Ok(MergeKind::Curved));
+        let of = |s: Surface<f64>| MergeKind::of(&crate::SurfaceSlot::Described(s));
+        assert_eq!(of(flat_plane()), Ok(MergeKind::Plane));
+        assert_eq!(of(unit_cylinder()), Ok(MergeKind::Curved));
         assert_eq!(
-            MergeKind::of(&Surface::<f64>::nurbs_placeholder()),
+            MergeKind::of(&crate::SurfaceSlot::<f64>::Pending),
             Ok(MergeKind::Placeholder)
         );
-        assert_eq!(MergeKind::of(&poisoned_net()), Err(PoisonedNet));
+        assert_eq!(of(poisoned_net()), Err(PoisonedNet));
         let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
         body.set_face_surface(
@@ -4333,7 +4334,7 @@ mod tests {
 
     /// **A poisoned net refuses the call before any surgery.** Two
     /// adjacent faces of the cube share one key carrying a net in
-    /// [`NetState::Poisoned`]; the other four are placeholders. The
+    /// that is not finite; the other four are pending. The
     /// door refuses [`MergeCoplanarError::PoisonedSurfaceDescription`]
     /// naming the arena-first poisoned face and leaves the body
     /// byte-identical — the placeholders are not set aside into an
@@ -4446,10 +4447,7 @@ mod tests {
             .expect("a cube has faces");
         body.set_face_surface(
             side,
-            crate::euler::FaceSurface::New {
-                surface: Surface::nurbs_placeholder(),
-                sense: true,
-            },
+            crate::euler::FaceSurface::Pending { sense: true },
         )
         .expect("a live face takes a surface");
         let outcome = body
@@ -4617,7 +4615,7 @@ mod tests {
         let (bad, good) = (keys[0], keys[1]);
         let mut set = |f: FaceKey, surface: Surface<f64>| {
             let key = body.faces[f].surface;
-            body.surfaces[key] = surface;
+            *body.surface_mut(key).unwrap() = surface;
         };
         let sphere = |x: f64| Surface::Sphere {
             frame: geom::Frame::new(
@@ -4652,7 +4650,7 @@ mod tests {
         };
         let mut set = |f: FaceKey, surface: Surface<f64>| {
             let key = body.faces[f].surface;
-            body.surfaces[key] = surface;
+            *body.surface_mut(key).unwrap() = surface;
         };
         set(bad, torus(1.0, 2.0));
         set(good, torus(2.0, 0.5));
@@ -6065,7 +6063,7 @@ mod declared_reach_rows {
                     .expect("live")
             };
             let (pa, pc) = (at(&body, a), at(&body, c));
-            let flat = body.proven_face(top).surface().clone();
+            let flat = body.proven_face(top).surface().unwrap().clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
             // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.
@@ -6090,7 +6088,7 @@ mod declared_reach_rows {
                 top
             };
             let tilted = body.get_face(b_side).expect("live").surface;
-            *body.surfaces.get_mut(tilted).expect("live") = geom::Surface::Plane {
+            *body.surface_mut(tilted).expect("live") = geom::Surface::Plane {
                 frame: geom::Frame::new(
                     Point3::new(0.0, 0.0, 1.0),
                     Vec3::new(0.0, -theta, 1.0).normalize(),

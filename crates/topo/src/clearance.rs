@@ -5827,7 +5827,9 @@ mod trv_rows {
         };
         for axis in 0..3 {
             let carrier = refusal(&|b| {
-                let Some(Surface::Plane { frame, .. }) = b.surfaces.values_mut().next() else {
+                let Some(crate::SurfaceSlot::Described(Surface::Plane { frame, .. })) =
+                    b.surfaces.values_mut().next()
+                else {
                     panic!("a brick's faces are planes");
                 };
                 let mut origin = frame.origin();

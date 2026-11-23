@@ -2437,7 +2437,7 @@ mod tests {
             prov(),
         );
         body.get_solid_mut(solid).unwrap().shells.push(shell);
-        let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
+        let surface = body.add_pending_surface();
         let lp = body.add_loop(
             Loop {
                 boundary: LoopBoundary::Cycle { first: h1 },
@@ -3148,7 +3148,7 @@ mod tests {
             },
             prov(),
         );
-        let surface = t.body.add_surface(crate::fixtures::test_surface(p(9.0)));
+        let surface = t.body.add_pending_surface();
         let lp = t.body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex: v },
@@ -3183,7 +3183,7 @@ mod tests {
         // Face C's private surface was orphaned by the kill and removed
         // (geometry hygiene).
         assert_eq!(result.killed_surface, Some(surface));
-        assert!(t.body.get_surface(surface).is_none());
+        assert!(t.body.get_surface(surface).is_err());
     }
 
     #[test]

@@ -82,7 +82,7 @@ fn frustum_wedge(r0: f64, r1: f64, h: f64, theta: f64) -> Result<Body<f64>, Stri
 fn cone_faces(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut out = Vec::new();
     for (_fk, _) in body.faces() {
-        if let Some(&Surface::Cone {
+        if let Ok(&Surface::Cone {
             frame, half_angle, ..
         }) = body.face_surface(_fk)
         {

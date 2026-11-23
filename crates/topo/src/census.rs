@@ -14035,7 +14035,7 @@ mod tests {
             }
         }
         let net = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
-        assert!(!net.is_placeholder());
+        assert!(net.is_finite());
         body.set_face_surface(
             far_wall,
             FaceSurface::New {
@@ -15265,7 +15265,7 @@ mod tests {
     fn swap_placeholders(body: &mut Body<f64>, surface: &Surface<f64>) -> Vec<FaceKey> {
         let seeds: Vec<FaceKey> = body
             .faces()
-            .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Nurbs(p)) if p.is_placeholder()))
+            .filter(|(_, f)| body.surface_slot(f.surface).is_some_and(crate::SurfaceSlot::is_pending))
             .map(|(k, _)| k)
             .collect();
         for &f in &seeds {
@@ -16487,7 +16487,7 @@ mod tests {
         let cap = body
             .faces()
             .find(|(_, f)| {
-                matches!(body.get_surface(f.surface), Some(Surface::Plane { .. }))
+                matches!(body.get_surface(f.surface), Ok(Surface::Plane { .. }))
                     && match body.loops[f.outer].boundary {
                         LoopBoundary::Cycle { first } => {
                             body.loop_cycle(first).is_some_and(|c| c.len() == 2)
@@ -16557,7 +16557,7 @@ mod tests {
         );
         let cap = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Ok(Surface::Plane { .. })))
             .map(|(k, _)| k)
             .expect("the cap");
         assert_eq!(
@@ -19455,7 +19455,7 @@ mod records_by_carrier {
     fn face_at_z(body: &Body<f64>, z: f64, up: bool) -> FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - z).abs() < 1e-12
@@ -19572,7 +19572,7 @@ mod records_by_carrier {
             let side = block
                 .faces()
                 .find(|(_, f)| match block.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { frame, .. }) => {
+                    Ok(geom::Surface::Plane { frame, .. }) => {
                         let (origin, normal) = (frame.origin(), frame.axis());
                         normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-12
                     }
@@ -19849,7 +19849,7 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - 1.0).abs() < 1e-12
                 }
@@ -19910,7 +19910,7 @@ mod two_carrier_records {
         let top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                 }
@@ -19980,7 +19980,7 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-15
                 }
@@ -20039,7 +20039,7 @@ mod two_carrier_records {
         let a_top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - 1.0).abs() < 1e-12
@@ -20207,7 +20207,7 @@ mod two_carrier_records {
             let top = body
                 .faces()
                 .find(|(_, f)| match body.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { frame, .. }) => {
+                    Ok(geom::Surface::Plane { frame, .. }) => {
                         let (origin, normal) = (frame.origin(), frame.axis());
                         normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                     }
@@ -21256,7 +21256,7 @@ mod edge_face_residual {
             .faces()
             .find(|&(k, f)| {
                 matches!(body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { frame, .. })
+                    Ok(geom::Surface::Plane { frame, .. })
                         if frame.axis().z.abs() > 0.5 && (frame.origin().z - 1.0).abs() < 1e-12)
                     && body.vertices().any(|(v, _)| {
                         at(v) == [0.0, 0.0, 1.0]
@@ -21325,7 +21325,7 @@ mod point_touch {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() <= 1e-15 * x.abs().max(1.0)
                 }
@@ -23056,7 +23056,7 @@ mod lone_vertex_rows {
         // read edge by edge, and its boundary members for a lone vertex.
         let lines = |f| {
             let view = body.face(f).expect("a face");
-            if !matches!(view.surface(), geom::Surface::Plane { .. })
+            if !matches!(view.surface().unwrap(), geom::Surface::Plane { .. })
                 || !view
                     .half_edges()
                     .iter()
@@ -23142,7 +23142,7 @@ mod lone_vertex_rows {
         let mut post = crate::tier3_tests::half_disc(0.3, 0.5, (0.5, 0.5, 1.0), false, tol);
         let plane = |body: &crate::Body<f64>, normal: geom_core::Vec3<f64>| {
             body.face_views()
-                .find(|f| matches!(*f.surface(), geom::Surface::Plane { frame, .. } if (frame.axis() - normal).norm() < 1e-12))
+                .find(|f| matches!(*f.surface().unwrap(), geom::Surface::Plane { frame, .. } if (frame.axis() - normal).norm() < 1e-12))
                 .map(|f| f.key())
                 .expect("the face")
         };

@@ -1118,7 +1118,7 @@ mod lever_rows {
         let (a, fa) = sphere_zone_sheet(u, h, tol);
         let (mut b, fb) = sphere_zone_sheet(u, h, tol);
         let key = b.get_face(fb).unwrap().surface;
-        b.surfaces[key] = geom::Surface::Sphere {
+        *b.surface_mut(key).unwrap() = geom::Surface::Sphere {
             frame: geom::Frame::new(
                 Point3::new(0.9 * e, 0.0, 0.0),
                 Vec3::unit_z(),

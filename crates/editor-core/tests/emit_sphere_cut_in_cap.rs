@@ -243,11 +243,11 @@ fn the_cap_states_its_meridian_crossings_as_meetings() {
         let on_face = |input, f, p: geom_core::Point3<f64>| {
             let b = body(input);
             match b.face_surface(f) {
-                Some(topo::Surface::Plane { frame, .. }) => {
+                Ok(topo::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     (p - origin).dot(normal).abs() < 1e-9
                 }
-                Some(topo::Surface::Sphere { frame, radius, .. }) => {
+                Ok(topo::Surface::Sphere { frame, radius, .. }) => {
                     let center = frame.origin();
                     ((p - center).norm() - radius).abs() < 1e-9
                 }

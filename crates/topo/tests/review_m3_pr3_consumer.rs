@@ -39,7 +39,7 @@ fn audit_geometry(body: &Body<f64>) {
         assert!(body.get_curve_geom(e.curve).is_some(), "dangling curve key");
     }
     for (fk, _) in body.faces() {
-        assert!(body.face_surface(fk).is_some(), "dangling surface key");
+        assert!(body.face_surface(fk).is_ok(), "dangling surface key");
     }
     let mut live_p: Vec<_> = body.vertices().map(|(_, v)| v.point).collect();
     live_p.sort();

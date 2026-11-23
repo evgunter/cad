@@ -99,7 +99,7 @@ fn n1r2_surface_interval_lift_encloses_source_on_adversarial_nets() {
         let e = Surface::Nurbs(Arc::new(s.clone()));
         let ei: Surface<Interval> = e.map_scalar(Interval::from_f64);
         assert!(
-            matches!(&ei, Surface::Nurbs(n) if !n.is_placeholder()),
+            matches!(&ei, Surface::Nurbs(_)),
             "{name}"
         );
         for u in params(s.knots_u_f64_interim()) {
@@ -166,9 +166,6 @@ fn n1r2_placeholder_and_poison_at_interval_and_dual_interval() {
             .value
             .is_poison()
     );
-    let s: Surface<f64> = Surface::nurbs_placeholder();
-    let si = s.map_scalar(Interval::from_f64);
-    assert!(matches!(&si, Surface::Nurbs(n) if n.is_placeholder()));
 
     let knots = geom_core::spline::KnotVector::clamped(
         vec![0.0, 0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0, 1.0],

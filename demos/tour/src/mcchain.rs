@@ -223,7 +223,7 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
 fn bar_outline(body: &Body<f64>) -> Vec<(f64, f64)> {
     let mut cap: Option<(f64, Vec<(f64, f64)>)> = None;
     for (fk, face) in body.faces() {
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(fk) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(fk) else {
             continue;
         };
         let (origin, normal) = (frame.origin(), frame.axis());

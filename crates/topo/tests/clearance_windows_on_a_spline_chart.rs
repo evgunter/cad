@@ -182,7 +182,7 @@ fn a_cap_with_holes_on_a_patch_refuses_as_trimmed() {
             !f.rings.is_empty()
                 && matches!(
                     body.face_surface(*fk),
-                    Some(Surface::Plane { frame, .. }) if frame.axis().z > 0.5
+                    Ok(Surface::Plane { frame, .. }) if frame.axis().z > 0.5
                 )
         })
         .map(|(k, _)| k)

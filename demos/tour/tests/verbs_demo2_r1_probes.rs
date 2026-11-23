@@ -63,7 +63,7 @@ fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
             .filter(|(fk, _)| {
                 matches!(
                     body.face_surface(*fk),
-                    Some(Surface::Torus { minor_radius, .. })
+                    Ok(Surface::Torus { minor_radius, .. })
                         if minor_radius.to_bits() == outer_bits
                 )
             })
@@ -118,7 +118,7 @@ fn p2_storage_contract_holds_at_unaligned_constants() {
         .body
         .faces()
         .filter_map(|(fk, _)| match hollow.body.face_surface(fk) {
-            Some(Surface::Torus { minor_radius, .. }) => Some(minor_radius.to_bits()),
+            Ok(Surface::Torus { minor_radius, .. }) => Some(minor_radius.to_bits()),
             _ => None,
         })
         .collect();

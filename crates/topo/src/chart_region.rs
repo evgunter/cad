@@ -5354,7 +5354,7 @@ mod tests {
         // still refuse typed.
         for (surface, v_hi, chart) in [
             (sphere, core::f64::consts::FRAC_PI_2, "sphere"),
-            (Surface::nurbs_placeholder(), 0.5, "NURBS"),
+            (crate::fixtures::poisoned_net(|_| true), 0.5, "NURBS"),
         ] {
             match arm_values(certified_arms(&surface, -0.5, v_hi, band())) {
                 Err(ChartRegionError::ArmUnbounded { chart: c }) => assert_eq!(c, chart),

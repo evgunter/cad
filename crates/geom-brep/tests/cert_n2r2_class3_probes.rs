@@ -53,12 +53,6 @@ fn n2r2_class3_f64() {
             geom_brep::chart_stretch_inf(s)
         );
     }
-    let ph = Surface::<f64>::nurbs_placeholder();
-    eprintln!(
-        "[class 3 f64 placeholder] sup={:?} inf={:?}",
-        geom_brep::chart_stretch_sup(&ph),
-        geom_brep::chart_stretch_inf(&ph)
-    );
 }
 
 #[test]
@@ -106,11 +100,8 @@ fn n2r2_class3_interval() {
                 Point3::new(entire(), Interval::from_f64(p.y), Interval::from_f64(p.z))
             }))),
         ),
-        ("placeholder", Surface::<Interval>::nurbs_placeholder()),
     ];
     for (name, s) in &cases {
-        // The placeholder has no sup pair and the door says so; every
-        // other fixture answers one.
         let (su, sv) = match geom_brep::chart_stretch_sup(s) {
             Ok((su, sv)) => (su.get(), sv.get()),
             Err(refusal) => {
@@ -127,9 +118,8 @@ fn n2r2_class3_interval() {
             show(inf.inf_v),
             show(inf.area_inf)
         );
-        // Sanity: which state does the predicate report?
         if let Surface::Nurbs(p) = s {
-            eprintln!("    is_placeholder={}", p.is_placeholder());
+            eprintln!("    is_finite={}", p.is_finite());
         }
     }
 }

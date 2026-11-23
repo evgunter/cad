@@ -142,7 +142,6 @@ fn corpus() -> Vec<(&'static str, Surface<f64>)> {
             },
         ),
         ("nurbs", Surface::Nurbs(Arc::new(rational_patch()))),
-        ("nurbs_placeholder", Surface::nurbs_placeholder()),
         (
             "plane_degenerate",
             Surface::Plane {

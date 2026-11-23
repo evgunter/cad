@@ -98,10 +98,10 @@ fn n2r2_masquerade_channel_positions_f64() {
         ),
     ];
     for (name, s) in &srows {
-        assert!(!s.is_placeholder(), "surface {name}: must read described");
+        assert!(!s.is_finite(), "surface {name}: a poisoned net is not finite");
     }
     assert!(curve::<f64>(|_| Point3::new(nan(), nan(), nan())).is_placeholder());
-    assert!(surf::<f64>(|_| Point3::new(nan(), nan(), nan())).is_placeholder());
+    assert!(!surf::<f64>(|_| Point3::new(nan(), nan(), nan())).is_finite());
 }
 
 /// The 2-D net (`NurbsCurve2`) takes the same rule through the same
@@ -221,7 +221,7 @@ mod interval_lane {
         // The true placeholder at the interval scalar.
         assert!(NurbsCurve3::<Interval>::placeholder().is_placeholder());
         let s = surf::<Interval>(|i| Point3::new(empty(), pt(i as f64), pt(2.0)));
-        assert!(!s.is_placeholder());
+        assert!(!s.is_finite());
         let q = s.eval(pt(0.5), pt(0.5));
         eprintln!(
             "surface empty-x eval: x.poison={} y.poison={} z.poison={}",

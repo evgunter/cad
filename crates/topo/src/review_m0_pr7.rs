@@ -104,7 +104,7 @@ fn build_lone_edge(tol: Tol) -> LoneEdge {
     let p0 = body.add_point(Point3::new(0.0, 0.0, 0.0));
     let p1 = body.add_point(Point3::new(1.0, 0.0, 0.0));
     let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
-    let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+    let surface = body.add_pending_surface();
 
     let v0 = body.add_vertex(
         Vertex {
@@ -476,7 +476,7 @@ fn orphan_geometry_reported_in_sweep_order() {
         .add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
     let s = c
         .body
-        .add_surface(crate::fixtures::test_surface(Point3::origin()));
+        .add_pending_surface();
     expect_errors(
         "orphan geometry (point, curve, surface)",
         &c.body,

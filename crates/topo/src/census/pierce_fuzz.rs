@@ -90,7 +90,7 @@ fn found(errors: &[ValidationError]) -> Found {
 /// `face`'s plane in `body`, its stored origin moved to `o`.
 fn move_origin<T: Real>(body: &mut Body<T>, face: FaceKey, o: Point3<T>) {
     let s = body.get_face(face).unwrap().surface;
-    match body.surfaces.get_mut(s).unwrap() {
+    match body.surface_mut(s).unwrap() {
         geom::Surface::Plane { frame, .. } => *frame = frame.with_origin(o),
         _ => panic!("a planar face"),
     }

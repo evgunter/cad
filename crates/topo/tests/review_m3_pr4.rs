@@ -704,7 +704,7 @@ fn not_adjacent_edges(errors: &[topo::ValidationError]) -> Vec<topo::EdgeKey> {
 /// face's first owed one (`topo::pcurves::validate_pcurves`, step 1).
 fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     assert!(
-        matches!(b.face_surface(face), Some(geom::Surface::Cone { .. })),
+        matches!(b.face_surface(face), Ok(geom::Surface::Cone { .. })),
         "the relabelled face carries the cone"
     );
     let (edges, hes) = face_boundary(&b, face);
@@ -772,10 +772,7 @@ fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     // Lifts RechartStrandsDescriptions: the NURBS wall is the at-rest gate's input; its edges are not the row.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::construction::FaceSurface::New {
-            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
-            sense: true,
-        },
+        topo::construction::FaceSurface::Pending { sense: true },
     )
     .unwrap();
     let (edges, _) = face_boundary(&b, face);

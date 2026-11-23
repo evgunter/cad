@@ -62,7 +62,7 @@ fn certify_half_circle(
             spec,
             p0,
             p1,
-            |k| map.get(k).cloned(),
+            |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),

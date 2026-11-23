@@ -2409,7 +2409,7 @@ mod torn_hop_rows {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.5).abs() < 1e-12
+                    Ok(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.5).abs() < 1e-12
                 )
             })
             .map(|(k, _)| k)
@@ -2491,7 +2491,7 @@ mod smooth_arm_rows {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(Surface::Plane { frame, .. })
+                    Ok(Surface::Plane { frame, .. })
                         if (frame.origin().z - 0.5).abs() < 1e-12 && frame.axis().z.abs() == 1.0
                 )
             })
@@ -2511,7 +2511,7 @@ mod smooth_arm_rows {
         };
         let other = body.face_of_half_edge(mate).unwrap();
         let s_other = body.get_face(other).unwrap().surface;
-        let Some(Surface::Plane {
+        let Ok(Surface::Plane {
             frame: carrier_frame,
             ..
         }) = body.get_surface(s_self).cloned()
@@ -2556,7 +2556,7 @@ mod smooth_arm_rows {
     /// section's: the two faces' outward normals opposed at the contact.
     fn opposed_wall(r: f64) -> (SectionEdge, FaceKey) {
         let mut edge = section_edge();
-        edge.body.surfaces[edge.s_other] = cylinder_of_radius_under(edge.mid, edge.along, r);
+        *edge.body.surface_mut(edge.s_other).unwrap() = cylinder_of_radius_under(edge.mid, edge.along, r);
         let wall = edge
             .body
             .faces()
@@ -2638,7 +2638,7 @@ mod smooth_arm_rows {
             along,
             ..
         } = section_edge();
-        body.surfaces[s_other] = cylinder_under(mid, Vec3::unit_z().cross(along));
+        *body.surface_mut(s_other).unwrap() = cylinder_under(mid, Vec3::unit_z().cross(along));
         let band = Band::linear(tol()).unwrap();
         match super::describe_section_boundary(&mut body, face, band, tol()) {
             Err(SplitFinishError::WedgeEscalated {
@@ -2693,7 +2693,7 @@ mod smooth_arm_rows {
             } = section_edge();
             let cos = (1.0 - sin * sin).sqrt();
             let lean = Vec3::unit_z() * cos + Vec3::unit_z().cross(along) * sin;
-            body.surfaces[s_other] = Surface::Cylinder {
+            *body.surface_mut(s_other).unwrap() = Surface::Cylinder {
                 frame: geom::Frame::new(mid - lean, along, lean),
                 radius: 1.0,
             };
@@ -2734,7 +2734,7 @@ mod smooth_arm_rows {
             // The offer is true: just below it, the same pose describes.
             let (k, below) = (escalate / zero, 0.99 * quoted);
             let mut body = section_edge().body;
-            body.surfaces[s_other] = Surface::Cylinder {
+            *body.surface_mut(s_other).unwrap() = Surface::Cylinder {
                 frame: geom::Frame::new(mid - lean, along, lean),
                 radius: 1.0,
             };
@@ -2766,7 +2766,7 @@ mod smooth_arm_rows {
             mid,
             along,
         } = section_edge();
-        body.surfaces[s_other] = cylinder_under(mid, along);
+        *body.surface_mut(s_other).unwrap() = cylinder_under(mid, along);
         let curve = body.get_edge(edge).unwrap().curve;
         let mut spec = body
             .get_curve_geom(curve)
@@ -2780,13 +2780,13 @@ mod smooth_arm_rows {
         };
         body.set_edge_curve(edge, spec, tol())
             .expect("plane against a unit cylinder along the edge certifies tangent");
-        let Some(Surface::Plane {
+        let Ok(Surface::Plane {
             frame: carrier_frame,
         }) = body.get_surface(s_self).cloned()
         else {
             panic!("the section face is planar");
         };
-        body.surfaces[s_other] = Surface::Plane {
+        *body.surface_mut(s_other).unwrap() = Surface::Plane {
             frame: carrier_frame,
         };
         let band = Band::linear(tol()).unwrap();

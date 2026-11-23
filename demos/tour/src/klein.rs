@@ -620,8 +620,8 @@ pub fn wall3_pinned<S: Scalar>(
     let kind_of = |body: &AtRestBody<S>, f| body.face_surface(f).map(|s| s.kind());
     format!("{a_face:?}") == "FaceKey(6v1)"
         && format!("{b_face:?}") == "FaceKey(4v1)"
-        && kind_of(bulb, *a_face) == Some(SurfaceKind::Cone)
-        && kind_of(top, *b_face) == Some(SurfaceKind::Nurbs)
+        && kind_of(bulb, *a_face) == Ok(SurfaceKind::Cone)
+        && kind_of(top, *b_face) == Ok(SurfaceKind::Nurbs)
 }
 
 /// Wall 4's pinned refusal: wall 3's (`wall3_pinned`), and the same

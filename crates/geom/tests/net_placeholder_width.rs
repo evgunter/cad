@@ -122,13 +122,9 @@ fn a_net_poisoned_in_one_channel_is_described_not_the_placeholder() {
     );
     let s = masquerading_surface::<f64>();
     assert!(
-        !s.is_placeholder(),
-        "the surface half answers the same rule as the curve half"
+        !s.is_finite(),
+        "a surface net poisoned in one channel is not finite: it is corrupt"
     );
-    // The enum doors carry the same answer: this is what a consumer
-    // matching on `Surface::Nurbs(payload)` asks.
-    let e = Surface::Nurbs(Arc::new(s));
-    assert!(matches!(&e, Surface::Nurbs(n) if !n.is_placeholder()));
     let ec = Curve3::Nurbs(Arc::new(c));
     assert!(matches!(&ec, Curve3::Nurbs(n) if !n.is_placeholder()));
 }
@@ -148,14 +144,9 @@ fn the_mirror_with_a_finite_first_channel_is_described_too() {
 #[test]
 fn the_minted_placeholder_still_reads_as_the_placeholder() {
     assert!(NurbsCurve3::<f64>::placeholder().is_placeholder());
-    assert!(NurbsSurface::<f64>::placeholder().is_placeholder());
     assert!(matches!(
         Curve3::<f64>::nurbs_placeholder(),
         Curve3::Nurbs(ref n) if n.is_placeholder()
-    ));
-    assert!(matches!(
-        Surface::<f64>::nurbs_placeholder(),
-        Surface::Nurbs(ref n) if n.is_placeholder()
     ));
     // And through a lift, which is where the two states must not swap.
     let d = Curve3::<f64>::nurbs_placeholder().map_scalar(Dual::constant);
@@ -244,7 +235,10 @@ fn the_widened_answer_survives_a_lift() {
     assert!(matches!(&d, Curve3::Nurbs(n) if !n.is_placeholder()));
     let s = Surface::Nurbs(Arc::new(masquerading_surface::<f64>()));
     let sd = s.map_scalar(Dual::constant);
-    assert!(matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()));
+    assert!(
+        matches!(&sd, Surface::Nurbs(n) if !n.is_finite()),
+        "a net that is not finite lifts to one that is not finite"
+    );
 }
 
 /// The box doors are the second member of the same class, and the one
@@ -283,9 +277,22 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_on_every_axis() {
         );
     }
 
-    // The placeholder's documented answer is unchanged: still poison.
-    let ph = nurbs_surface_aabb(&NurbsSurface::<f64>::placeholder());
-    assert!(ph.min(Axis::X).is_nan() && ph.overlaps(&elsewhere));
+    // A net of infinities is not finite either: the screen asks
+    // finiteness, not NaN, so it too yields the poison box.
+    let infinite = NurbsSurface::new(
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        (0..4)
+            .map(|i| Point3::new(f64::INFINITY, f64::from(i), 2.0))
+            .collect(),
+        vec![Real::one(); 4],
+    )
+    .unwrap();
+    let ib = nurbs_surface_aabb(&infinite);
+    assert!(
+        ib.min(Axis::Y).is_nan() && ib.overlaps(&elsewhere),
+        "a net with an infinite coordinate yields the poison box on every axis"
+    );
 
     // And a fully described net still gets its real, pruning box.
     let described = NurbsSurface::new(

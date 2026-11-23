@@ -114,15 +114,15 @@ fn face_shapes(body: &Body<f64>) -> Vec<String> {
     let mut out: Vec<String> = body
         .faces()
         .map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Torus {
+            Ok(Surface::Torus {
                 major_radius,
                 minor_radius,
                 ..
             }) => format!("torus {major_radius:.17e} {minor_radius:.17e}"),
-            Some(Surface::Sphere { radius, .. }) => format!("sphere {radius:.17e}"),
-            Some(Surface::Cylinder { radius, .. }) => format!("cyl {radius:.17e}"),
-            Some(Surface::Cone { half_angle, .. }) => format!("cone {half_angle:.17e}"),
-            Some(Surface::Plane { .. }) => "plane".to_string(),
+            Ok(Surface::Sphere { radius, .. }) => format!("sphere {radius:.17e}"),
+            Ok(Surface::Cylinder { radius, .. }) => format!("cyl {radius:.17e}"),
+            Ok(Surface::Cone { half_angle, .. }) => format!("cone {half_angle:.17e}"),
+            Ok(Surface::Plane { .. }) => "plane".to_string(),
             other => format!("{:?}", other.map(Surface::kind)),
         })
         .collect();

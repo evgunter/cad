@@ -114,7 +114,7 @@ fn seat(c: Point3<f64>, at: Seat, edges: [[f64; 3]; 3]) -> (Body<f64>, VertexKey
                 .find(|(_, f)| {
                     matches!(
                         body.get_surface(f.surface),
-                        Some(geom::Surface::Cylinder { .. })
+                        Ok(geom::Surface::Cylinder { .. })
                     )
                 })
                 .map(|(k, _)| k)
@@ -798,7 +798,7 @@ fn a_self_touch_at_a_lone_vertex_of_a_curved_wall_refuses_as_a_lone_loop() {
         .find(|(_, f)| {
             matches!(
                 body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
+                Ok(geom::Surface::Cylinder { .. })
             )
         })
         .map(|(k, _)| k)

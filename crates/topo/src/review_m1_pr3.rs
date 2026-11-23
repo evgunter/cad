@@ -933,7 +933,7 @@ fn raw_self_loop(tol: Tol) -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
         prov.clone(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(crate::fixtures::test_surface(Point3::new(0.0, 0.0, 0.0)));
+    let surface = body.add_pending_surface();
     let lp = body.add_loop(
         Loop {
             boundary: LoopBoundary::Cycle { first: h1 },
@@ -1415,7 +1415,7 @@ fn raw_shared_curve_chain(
         prov.clone(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
+    let surface = body.add_pending_surface();
     let lp = body.add_loop(
         Loop {
             boundary: LoopBoundary::Cycle { first: a0 },
@@ -1512,13 +1512,13 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
             tol,
         )
         .unwrap();
-    let private = body2.add_surface(crate::fixtures::test_surface(Point3::new(5.0, 0.0, 0.0)));
+    let private = body2.add_pending_surface();
     body2.get_face_mut(split2.face).unwrap().surface = private;
     assert_eq!(validate(&body2), Ok(()));
     let reaped = body2.kfmrh(seed2.face, split2.face).unwrap();
     assert_eq!(validate(&body2), Ok(()));
     assert_eq!(reaped.killed_surface, Some(private));
-    assert!(body2.get_surface(private).is_none());
+    assert!(body2.get_surface(private).is_err());
     assert_eq!(body2.surfaces().count(), 1);
 }
 

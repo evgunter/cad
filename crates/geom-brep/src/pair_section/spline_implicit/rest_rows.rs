@@ -84,7 +84,7 @@ fn witnessed(
         },
         carrier.eval(t0),
         carrier.eval(t1),
-        move |k| arena.get(k).cloned(),
+        move |k| arena.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
         fixture_lever(extent),
         band(),
         NurbsLane::certified(),

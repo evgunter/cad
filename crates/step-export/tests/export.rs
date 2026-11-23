@@ -473,7 +473,7 @@ fn empty_body_refuses_typed() {
 }
 
 /// mvfs's skeletal body — one face bounded by an empty loop, its
-/// surface the "no description yet" placeholder — is legal only
+/// surface still pending — is legal only
 /// mid-construction, so the at-rest gate refuses it and the writer
 /// never sees it.
 #[test]

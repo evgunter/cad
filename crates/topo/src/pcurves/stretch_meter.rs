@@ -39,7 +39,7 @@ fn flat_chart(span: f64) -> Surface<f64> {
 }
 
 fn chart(s: &Surface<f64>) -> DescribedChart<'_, f64> {
-    DescribedChart::of(s).unwrap()
+    DescribedChart::of(s)
 }
 
 fn plane() -> Surface<f64> {
@@ -614,13 +614,4 @@ fn an_undecided_mark_keeps_its_own_cause() {
                 if cause.predicate == Some("undecided_mark_row")),
         "the marks' own escalation: {out:?}"
     );
-}
-
-/// A placeholder payload has no net to bound, so it has no arms:
-/// it is not a [`DescribedChart`], and these meters cannot be
-/// asked about it.
-#[test]
-fn a_placeholder_chart_is_not_a_described_chart() {
-    let s: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
-    assert!(DescribedChart::of(&s).is_none());
 }

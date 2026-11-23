@@ -3592,7 +3592,7 @@ mod tests {
         let mut body = wedge;
         let (face, f) = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Ok(Surface::Cylinder { .. })))
             .map(|(k, f)| (k, f.surface))
             .expect("a wall on the cylinder");
         let dead = body.add_surface(Surface::Plane {

@@ -164,7 +164,7 @@ fn tier_checked_volume(name: &str, body: &Body<f64>, poles: &[Singularity]) -> f
     assert_eq!(topo::validate_closed(body), Ok(()), "{name}: tier 2");
     let spheres = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(face, _)| face);
     let inside = spheres.zip(poles).map(|(face, &point)| {
         topo::ValidationError::ChartSingularityNotAVertex {

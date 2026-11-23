@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use bvh::{Aabb, Axis};
 use geom::surfaces::boxes::nurbs_surface_aabb;
-use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom::{Curve3, NurbsCurve3, NurbsSurface};
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Point3, Real};
 
@@ -73,8 +73,7 @@ fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
         vec![Real::one(); 4],
     )
     .unwrap();
-    assert!(!s.is_placeholder());
-    assert!(matches!(Surface::Nurbs(Arc::new(s)), Surface::Nurbs(ref n) if !n.is_placeholder()));
+    assert!(!s.is_finite(), "a surface net poisoned in one channel is not finite");
 }
 
 /// The state the predicate names still answers it at this scalar, and
@@ -82,11 +81,8 @@ fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
 #[test]
 fn the_minted_placeholder_still_reads_as_the_placeholder_at_interval() {
     assert!(NurbsCurve3::<Interval>::placeholder().is_placeholder());
-    assert!(NurbsSurface::<Interval>::placeholder().is_placeholder());
     let lifted = Curve3::<f64>::nurbs_placeholder().map_scalar(Interval::from_f64);
     assert!(matches!(&lifted, Curve3::Nurbs(n) if n.is_placeholder()));
-    let lifted_s = Surface::<f64>::nurbs_placeholder().map_scalar(Interval::from_f64);
-    assert!(matches!(&lifted_s, Surface::Nurbs(n) if n.is_placeholder()));
 }
 
 /// The masquerade lifts from `f64` to the interval scalar as a

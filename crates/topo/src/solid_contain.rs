@@ -5534,7 +5534,7 @@ mod kind_arm_tests {
                         major_radius: -0.3,
                         minor_radius: 0.5,
                     },
-                    SurfaceKind::Nurbs => Surface::nurbs_placeholder(),
+                    SurfaceKind::Nurbs => crate::fixtures::poisoned_net(|_| true),
                     SurfaceKind::Approx => Surface::Approx(std::sync::Arc::new(
                         crate::fixtures::bowed_offset_approx::<f64>(),
                     )),
@@ -5544,7 +5544,7 @@ mod kind_arm_tests {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let face = faces[0];
             let key = body.get_face(face).unwrap().surface;
-            *body.surfaces.get_mut(key).unwrap() = surface;
+            *body.surfaces.get_mut(key).unwrap() = surface.into();
             let sel = SolidFaces::select(&body, faces).unwrap();
             let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap());
             let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
@@ -5687,7 +5687,7 @@ mod reach_tests {
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let face = body.faces().next().expect("a face").0;
         let key = body.get_face(face).expect("the face").surface;
-        *body.surfaces.get_mut(key).expect("its surface") = Surface::Cylinder {
+        *body.surface_mut(key).expect("its surface") = Surface::Cylinder {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),

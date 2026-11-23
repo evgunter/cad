@@ -481,8 +481,8 @@ pub fn emit(label: &str, body: &Body<f64>, outdir: &str, tol: Tol) -> Vec<FaceDu
     for (ord, (fk, face)) in body.faces().enumerate() {
         let svg_name = format!("{label}.f{ord:03}.svg");
         let (chart, curved) = match body.face_surface(fk) {
-            Some(s) => chart_of(s),
-            None => ("missing", true),
+            Ok(s) => chart_of(s),
+            Err(_) => ("missing", true),
         };
 
         // Outer loop first, then the rings — the even-odd order the

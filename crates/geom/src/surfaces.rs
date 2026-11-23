@@ -2129,8 +2129,8 @@ mod tests {
             }
         }
         assert!(
-            matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()),
-            "a described NURBS lifted to the placeholder"
+            matches!(&sd, Surface::Nurbs(_)),
+            "a NURBS lifts as its payload"
         );
     }
 
@@ -2281,40 +2281,6 @@ mod tests {
                     );
                 }
             }
-        }
-    }
-
-    /// The placeholder lifts to the placeholder: a structural map keeps
-    /// poison, so `is_placeholder` survives the lift at both scalars.
-    #[test]
-    fn placeholder_lifts_to_the_placeholder() {
-        let n: Surface<f64> = Surface::nurbs_placeholder();
-        let nd: Surface<Dual64> = n.map_scalar(Dual::constant);
-        assert!(matches!(&nd, Surface::Nurbs(p) if p.is_placeholder()));
-        let p = nd.eval(Dual::constant(0.5), Dual::constant(0.5));
-        assert!(p.x.value.is_nan() && p.y.value.is_nan() && p.z.value.is_nan());
-    }
-
-    /// The placeholder's own doc promises an ALL-poison answer, so
-    /// every channel is read: a first-channel assertion here passes on
-    /// an answer poisoned in `x` and finite in `y`/`z`, which is
-    /// exactly the state the placeholder has to be distinguishable
-    /// from.
-    #[test]
-    fn nurbs_placeholder_evaluates_to_poison() {
-        let n: Surface<f64> = Surface::nurbs_placeholder();
-        let all_poison = |x: f64, y: f64, z: f64| x.is_nan() && y.is_nan() && z.is_nan();
-        let p = n.eval(0.5, 0.5);
-        assert!(all_poison(p.x, p.y, p.z));
-        for v in [
-            n.deriv_u(0.5, 0.5),
-            n.deriv_v(0.5, 0.5),
-            n.normal(0.5, 0.5),
-            n.deriv_uu(0.5, 0.5),
-            n.deriv_uv(0.5, 0.5),
-            n.deriv_vv(0.5, 0.5),
-        ] {
-            assert!(all_poison(v.x, v.y, v.z));
         }
     }
 
@@ -2476,8 +2442,8 @@ mod tests {
                 }
             }
             assert!(
-                matches!(&si, Surface::Nurbs(n) if !n.is_placeholder()),
-                "a described NURBS lifted to the placeholder"
+                matches!(&si, Surface::Nurbs(_)),
+                "a NURBS lifts as its payload"
             );
         }
 
@@ -2535,18 +2501,12 @@ mod tests {
             }
         }
 
-        /// NaI in → NaI out, and the Nurbs placeholder poisons at
-        /// interval type.
+        /// NaI in → NaI out.
         #[test]
         fn poison_propagates_at_interval() {
             let si = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
             assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
-            let n: Surface<Interval> = Surface::nurbs_placeholder();
-            // All-poison, not first-channel-poison: the placeholder's
-            // promise is the whole point.
-            let q = n.eval(Interval::zero(), Interval::zero());
-            assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
         }
     }
 

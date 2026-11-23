@@ -5279,14 +5279,14 @@ mod tests {
         let s_plus = body.get_face(split.face).unwrap().surface;
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
         let s_seed = body.get_face(seed_face).unwrap().surface;
-        *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Plane {
+        *body.surface_mut(s_seed).unwrap() = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 geom_core::Vec3::unit_z(),
                 geom_core::Vec3::unit_x(),
             ),
         };
-        *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
+        *body.surface_mut(s_plus).unwrap() = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 geom_core::Vec3::unit_y(),
@@ -5731,9 +5731,9 @@ mod tests {
             .collect();
         let weights = vec![1.0; control.len()];
         let patch = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
-        assert!(!patch.is_placeholder());
-        *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Nurbs(std::sync::Arc::new(patch));
-        *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
+        assert!(patch.is_finite());
+        *body.surface_mut(s_seed).unwrap() = geom::Surface::Nurbs(std::sync::Arc::new(patch));
+        *body.surface_mut(s_plus).unwrap() = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 geom_core::Vec3::unit_y(),
@@ -5882,7 +5882,7 @@ mod tests {
             .find(|&f| {
                 matches!(
                     body.face(f).map(|f| f.surface()),
-                    Some(geom::Surface::Plane { .. })
+                    Some(Ok(geom::Surface::Plane { .. }))
                 )
             })
             .unwrap();
@@ -6343,7 +6343,7 @@ mod tests {
             },
             prov(),
         );
-        let surface_c = body.add_surface(crate::fixtures::test_surface(p(10.0)));
+        let surface_c = body.add_pending_surface();
         let face_c = body.add_face(
             Face {
                 sense: true,

@@ -1939,10 +1939,8 @@ mod tests {
             read(&plane, face),
             Err(SplineNormalError::NotSpline)
         ));
-        let (placeholder, face) = face_on(geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::placeholder(),
-        )));
-        let got = read(&placeholder, face);
+        let st = crate::fixtures::mvfs_state();
+        let got = read(&st.body, st.face);
         assert!(
             matches!(got, Err(SplineNormalError::PlaceholderChart)),
             "{got:?}"

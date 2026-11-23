@@ -297,7 +297,7 @@ mod tests {
                 geom_brep::EdgeCurveSpec::line_between(s, t),
                 s,
                 t,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 geom_core::Band::linear(tol).expect("the witness band"),
                 geom_brep::NurbsLane::certified(),

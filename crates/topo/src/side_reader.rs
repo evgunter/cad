@@ -1129,7 +1129,6 @@ mod pre_filter_tests {
     #![allow(clippy::expect_used, clippy::panic)]
     use super::*;
     use crate::test_support_fixtures::brick;
-    use geom::Surface;
     use geom_core::Tol;
     use geom_core::k_stats::Bracket;
 
@@ -1159,7 +1158,8 @@ mod pre_filter_tests {
         let (mut body, faces) = brick_and_faces(tol);
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
-        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        *body.surfaces.get_mut(key).expect("its surface resolves") =
+            crate::fixtures::poisoned_net(|_| true).into();
         let sel = SolidFaces::select(&body, faces).expect("the faces select");
 
         let bracket = Bracket::open();
@@ -1212,7 +1212,8 @@ mod pre_filter_tests {
         );
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
-        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        *body.surfaces.get_mut(key).expect("its surface resolves") =
+            crate::fixtures::poisoned_net(|_| true).into();
         assert_eq!(
             selection_reach(&body, &faces, aim, band).map(|r| r.length()),
             Err(PointInSolidError::CorruptFace { face: spline }),
@@ -1262,7 +1263,8 @@ mod pre_filter_tests {
 
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
-        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        *body.surfaces.get_mut(key).expect("its surface resolves") =
+            crate::fixtures::poisoned_net(|_| true).into();
         let sel = SolidFaces::select(&body, faces).expect("the faces select");
         let read = side_at_infinity(&body, &sel, band, || {
             Err::<SolidContainment, _>("the volume")

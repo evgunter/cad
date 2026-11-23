@@ -6778,10 +6778,10 @@ mod tests {
     /// slotmap, mirroring how a Body resolves).
     fn table(
         surfs: Vec<Surface<f64>>,
-    ) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>) {
+    ) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Result<Surface<f64>, SurfaceMiss>) {
         let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
         let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-        (keys, move |k| map.get(k).cloned())
+        (keys, move |k| map.get(k).cloned().ok_or(SurfaceMiss::Stale))
     }
 
     fn line_spec(p0: Point3<f64>, p1: Point3<f64>) -> EdgeCurveSpec<f64> {
@@ -7430,7 +7430,7 @@ mod tests {
             spec.clone(),
             p,
             p,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7445,7 +7445,7 @@ mod tests {
                 bad,
                 p,
                 p,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
@@ -7463,7 +7463,7 @@ mod tests {
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7473,7 +7473,7 @@ mod tests {
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7490,7 +7490,7 @@ mod tests {
         a.recertify(
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7540,7 +7540,7 @@ mod tests {
                         spec,
                         Point3::new(zero, zero, zero),
                         p1,
-                        |_| None,
+                        |_| Err(crate::SurfaceMiss::Stale),
                         geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
                         band(),
                         NurbsLane::certified(),
@@ -7600,7 +7600,7 @@ mod tests {
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7624,7 +7624,7 @@ mod tests {
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7741,7 +7741,7 @@ mod tests {
             line_spec(p0, p1),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -8177,7 +8177,7 @@ mod tests {
                 spec.clone(),
                 p0,
                 p1,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
@@ -8192,7 +8192,7 @@ mod tests {
             spec.clone(),
             nan,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -8229,7 +8229,7 @@ mod tests {
             spec.clone(),
             p,
             p,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -8274,7 +8274,7 @@ mod tests {
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -8771,7 +8771,7 @@ mod tests {
             spec,
             start,
             end,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             coarse,
             NurbsLane::certified(),
@@ -8786,7 +8786,7 @@ mod tests {
                 .recertify(
                     start,
                     end,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     finer,
                     NurbsLane::certified(),
@@ -8814,7 +8814,7 @@ mod tests {
                 .recertify_stated(
                     start,
                     end,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     finer,
                     NurbsLane::certified(),
@@ -8861,7 +8861,7 @@ mod tests {
                     spec,
                     start,
                     end,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
@@ -8875,7 +8875,7 @@ mod tests {
                     spec,
                     start,
                     end,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     lane,
@@ -8884,7 +8884,7 @@ mod tests {
                 .map(|_| ())
             }),
             ("mint", |spec, band| {
-                EdgeCurve::mint(spec, |_| None, band).map(|_| ())
+                EdgeCurve::mint(spec, |_| Err(crate::SurfaceMiss::Stale), band).map(|_| ())
             }),
         ];
         let circle = Curve3::circle(
@@ -9023,7 +9023,7 @@ mod tests {
                 spec,
                 a,
                 b,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band,
                 NurbsLane::certified(),
@@ -9040,7 +9040,7 @@ mod tests {
                     spec,
                     a,
                     b,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
@@ -9057,7 +9057,7 @@ mod tests {
                     spec,
                     a,
                     b,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     lane,
@@ -9066,7 +9066,7 @@ mod tests {
                 .map(|_| ())
             }),
             ("mint", |spec, band| {
-                EdgeCurve::mint(spec, |_| None, band).map(|_| ())
+                EdgeCurve::mint(spec, |_| Err(crate::SurfaceMiss::Stale), band).map(|_| ())
             }),
         ];
         type Recertify = fn(&EdgeCurve<f64>, Band) -> Result<Certificate<f64>, CertifyError>;
@@ -9079,7 +9079,7 @@ mod tests {
                 curve.recertify(
                     a,
                     b,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
@@ -9093,7 +9093,7 @@ mod tests {
                 curve.recertify_stated(
                     a,
                     b,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
@@ -9166,7 +9166,7 @@ mod tests {
                 EdgeCurveSpec::line_between(p, q),
                 p,
                 q,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band,
                 NurbsLane::certified(),

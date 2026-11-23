@@ -5663,7 +5663,7 @@ mod read_ends_rows {
 
     use super::{EdgePlan, ReplaceFaceError, read_ends};
     use crate::entity::{EdgeKey, VertexKey};
-    use crate::geometry::{SurfaceKey, SurfaceMiss};
+    use crate::geometry::SurfaceKey;
 
     fn plan(carrier: Curve3<f64>) -> EdgePlan<f64> {
         EdgePlan {
@@ -5737,7 +5737,7 @@ mod pair_over_its_span_rows {
 
     use super::{EdgePlan, ReplaceFaceError, pair_over_its_span};
     use crate::entity::{EdgeKey, VertexKey};
-    use crate::geometry::{SurfaceKey, SurfaceMiss};
+    use crate::geometry::SurfaceKey;
     use crate::offset_derive::SectionVerdict;
 
     /// **A new edge reaching nearer the apex than its section starts is

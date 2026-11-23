@@ -258,8 +258,7 @@ fn mfkrh_plug_by(
         Door::KeysOnly => body.mfkrh_plug(ring, GENERATOR_SENSE),
         Door::Minting => body.mfkrh_minting(
             ring,
-            crate::euler::FaceSurface::New {
-                surface: geom::Surface::nurbs_placeholder(),
+            crate::euler::FaceSurface::Pending {
                 sense: GENERATOR_SENSE,
             },
             tol,

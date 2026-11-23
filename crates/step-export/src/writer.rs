@@ -1259,17 +1259,13 @@ mod tests {
         assert_eq!(rebuilt, flat);
     }
 
-    /// **The two `Surface::Nurbs` states are told apart.** This row
-    /// pins the surface records at byte level exactly as the curve
-    /// rows above pin theirs — both arms, the non-rational simple
+    /// **The `Surface::Nurbs` arms emit.** This row pins the surface
+    /// records at byte level exactly as the curve rows above pin theirs — both arms, the non-rational simple
     /// entity and the RATIONAL complex instance, even though the first
     /// corpus body is non-rational: cheap, and it keeps the arm from
     /// being dead code.
     #[test]
-    fn the_nurbs_surface_arms_emit_and_the_placeholder_refuses() {
-        let placeholder = Surface::<f64>::nurbs_placeholder();
-        assert_eq!(surface_kind(&placeholder), "nurbs placeholder");
-
+    fn the_nurbs_surface_arms_emit() {
         let patch = geom::NurbsSurface::new(
             KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
             KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
@@ -1282,8 +1278,6 @@ mod tests {
             vec![1.0; 4],
         )
         .expect("a validated bilinear patch");
-        assert_eq!(surface_kind(&Surface::Nurbs(patch.clone().into())), "nurbs");
-
         // Record pins, both arms (the curve pins' idiom).
         let body = Body::<f64>::new();
         let mut w = Writer::new(&body, geom_core::Tol::witness().eps());

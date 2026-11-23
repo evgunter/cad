@@ -9478,7 +9478,7 @@ mod tests {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { frame, .. })
+                    Ok(geom::Surface::Plane { frame, .. })
                         if frame.origin().z > 0.5 && frame.axis().z.abs() > 0.5
                 )
             })
@@ -9613,7 +9613,7 @@ mod tests {
         };
         let (fa, fb) = (cap(&a, 1.0), cap(&b, -1.0));
         let face = a.get_face(fa).unwrap();
-        let Some(geom::Surface::Plane {
+        let Ok(geom::Surface::Plane {
             frame: carrier_frame,
         }) = a.get_surface(face.surface).cloned()
         else {

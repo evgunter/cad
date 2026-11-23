@@ -451,7 +451,7 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     // Anchoring: the old plane is still referenced by four Intersection
     // descriptions, so it must survive the orphan sweep.
     assert!(
-        body.get_surface(old_surface).is_some(),
+        body.get_surface(old_surface).is_ok(),
         "descriptions must anchor the old surface"
     );
     // Tiers 1–2 still structurally clean; tier 3 reports the swap.

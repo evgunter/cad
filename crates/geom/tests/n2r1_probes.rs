@@ -166,7 +166,7 @@ fn probe_enum_doors_agree_on_every_partial_shape() {
     )
     .unwrap();
     let se = Surface::Nurbs(std::sync::Arc::new(s));
-    assert!(matches!(&se, Surface::Nurbs(n) if !n.is_placeholder()));
+    assert!(matches!(&se, Surface::Nurbs(n) if !n.is_finite()));
 }
 
 /// The direction claim on a battery the lane's own property row does

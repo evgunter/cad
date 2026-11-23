@@ -2218,7 +2218,7 @@ mod tests {
             };
             for (key, _) in body.faces() {
                 let face = body.proven_face(key);
-                let surface = face.surface();
+                let surface = face.surface().unwrap();
                 let loops = flat_loops(body, face.record()).unwrap();
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
@@ -2391,7 +2391,7 @@ mod tests {
             for run in &runs {
                 let centre = corner_of(lane, run);
                 let face = body.proven_face(run.face);
-                let surface = face.surface();
+                let surface = face.surface().unwrap();
                 let loops = face_loops(&body, face.record()).unwrap();
                 let (c, _) = super::super::closed_form(
                     surface,

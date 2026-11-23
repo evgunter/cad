@@ -2626,7 +2626,6 @@ mod tests {
                         geom_brep::pcurve_cache::FITTED_GRADE_DOOR_RECOURSE.to_owned()
                     }
                     K::CarrierDomain => geom_brep::CARRIER_DOMAIN_RECOURSE.to_owned(),
-                    K::PlaceholderChart => geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE.to_owned(),
                     K::Band => match &e {
                         C::Band(
                             geom_core::BandError::InvalidValue { .. }
@@ -2836,7 +2835,6 @@ mod tests {
                         P::CarrierDomain(r) => C::CarrierDomain(*r).ending(at),
                         _ => unreachable!("the kind is the arm"),
                     },
-                    PK::PlaceholderWall => C::PlaceholderChart.ending(at),
                     // This door's own checks, by their routing.
                     PK::Limb => match &refusal {
                         P::Limb { limb, margin } => {

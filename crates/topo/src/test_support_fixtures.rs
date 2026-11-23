@@ -13,7 +13,7 @@
 //! differ on, as a parameter ([`FaceGeometry`]): the certified doors
 //! put a `Plane` on every face and build a body whose mass properties
 //! compute, while [`declined_cube`] leaves all `n + 2` faces on the one
-//! `Surface::nurbs_placeholder` the seed `mvfs` minted, because the
+//! pending surface slot the seed `mvfs` minted, because the
 //! suites it serves read that shared key.
 //!
 //! [`cyl_wall_sheet`] is the second family, and neither sentence is true
@@ -335,7 +335,7 @@ pub fn split_plane<T: geom_core::Decide>(
 /// with `Declined` is the §9.4.2 sequence written through `mef`'s
 /// [`FaceSurface::Inherit`] arm — exactly what `mef_chord` does — so
 /// every face it mints, and the seed face it leaves alone, ends on the
-/// ONE `Surface::nurbs_placeholder` the opening `mvfs` minted. The
+/// ONE pending surface slot the opening `mvfs` minted. The
 /// suites built on it are operator-count, atomicity, revert and
 /// coplanar-merge rows, and they are not merely geometry-indifferent:
 /// several READ that single shared key, and `merge_faces`' coincidence
@@ -2500,7 +2500,7 @@ mod tests {
         // The wall is on the frame's cylinder.
         let cyl = body.get_face(face).unwrap().surface;
         assert!(
-            matches!(body.get_surface(cyl), Some(Surface::Cylinder { .. })),
+            matches!(body.get_surface(cyl), Ok(Surface::Cylinder { .. })),
             "the returned face is on the frame's cylinder"
         );
 
@@ -2545,7 +2545,7 @@ mod tests {
         let on_cylinder = |body: &Body<f64>| -> usize {
             body.faces()
                 .filter(|(_, f)| {
-                    matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. }))
+                    matches!(body.get_surface(f.surface), Ok(Surface::Cylinder { .. }))
                 })
                 .count()
         };

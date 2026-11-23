@@ -421,7 +421,7 @@ fn the_straight_arc_prisms_arc_wall_promotes_to_a_cylinder() {
     );
     assert!(
         body.surfaces()
-            .all(|(_, s)| !matches!(s, geom::Surface::Nurbs(n) if !n.is_placeholder())),
+            .all(|(_, s)| !matches!(s, geom::Surface::Nurbs(_))),
         "no spline wall is left"
     );
 }
@@ -482,7 +482,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
             // The arc wall is the rational one; the bowed `x = −1`
             // wall is integral.
             let rational = |s: &geom::Surface<f64>| match s {
-                geom::Surface::Nurbs(n) if !n.is_placeholder() && n.constant_weight().is_none() => {
+                geom::Surface::Nurbs(n) if n.constant_weight().is_none() => {
                     Some((**n).clone())
                 }
                 _ => None,
@@ -633,7 +633,7 @@ fn plane_nurbs_intersections(
 )> {
     let surfaces: std::collections::BTreeMap<_, _> = body.surfaces().collect();
     let described = |k| match surfaces.get(&k) {
-        Some(geom::Surface::Nurbs(n)) if !n.is_placeholder() => Some((**n).clone()),
+        Some(geom::Surface::Nurbs(n)) => Some((**n).clone()),
         _ => None,
     };
     let plane = |k| match surfaces.get(&k) {

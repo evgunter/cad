@@ -1665,7 +1665,7 @@ fn wall_radius(
     let ValuePayload::Body(body) = &ev.value(ext)?.payload else {
         return None;
     };
-    match body.body().face_surface(face)? {
+    match body.body().face_surface(face).ok()? {
         geom::Surface::Cylinder { radius, .. } => Some(*radius),
         _ => None,
     }

@@ -99,7 +99,7 @@ fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
         spec,
         c.eval(t0),
         c.eval(t1),
-        |k| arena.get(k).cloned(),
+        |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(T::from_f64(1.0)),
         band(),
         NurbsLane::certified(),
@@ -243,7 +243,7 @@ fn a_schedule_defect_refuses_as_itself() {
             c.eval(1.0),
         ),
     ] {
-        let surfaces = |k| arena.get(k).cloned();
+        let surfaces = |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale);
         let refused = EdgeCurve::certify(
             spec,
             start,
@@ -285,7 +285,7 @@ fn rest_re_derives_an_analytic_rung3_edges_certificate() {
         param_end: 1.0,
     };
     let (start, end) = (c.eval(0.0), c.eval(1.0));
-    let surfaces = |k| arena.get(k).cloned();
+    let surfaces = |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale);
     let certified = EdgeCurve::certify(
         spec,
         start,
@@ -419,7 +419,7 @@ fn certify_over(
         spec,
         c.eval(t0),
         c.eval(t1),
-        |k| arena.get(k).cloned(),
+        |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         band(),
         NurbsLane::certified(),
@@ -737,7 +737,7 @@ fn certify_kept(
         spec,
         c.eval(t0),
         c.eval(t1),
-        |k| arena.get(k).cloned(),
+        |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         band(),
         NurbsLane::certified(),
@@ -791,7 +791,7 @@ fn rest_reads_a_locus_only_at_its_own_band_and_surfaces() {
         edge.recertify(
             c.eval(t0),
             c.eval(t1),
-            |k| arena.get(k).cloned(),
+            |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             b,
             NurbsLane::certified(),

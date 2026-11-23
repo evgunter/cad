@@ -518,7 +518,7 @@ mod tests {
         };
         let mut poisoned = brick((6.0, 7.0), (0.0, 1.0), (0.0, 1.0), tol);
         for surface in poisoned.surfaces.values_mut() {
-            if let geom::Surface::Plane { frame, .. } = surface {
+            if let crate::SurfaceSlot::Described(geom::Surface::Plane { frame, .. }) = surface {
                 *frame = frame.with_origin(geom_core::Point3::new(f64::NAN, f64::NAN, f64::NAN));
             }
         }

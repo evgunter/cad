@@ -59,7 +59,7 @@ fn a_sub_band_turn_decides_the_lift_its_gap_meets() {
     let he_minus = body.get_edge(null.edge).unwrap().he_minus;
     let at = |he, r: f64| {
         let mut shrunk = body.clone();
-        let Some(Surface::Cylinder { radius, .. }) = shrunk.surfaces.get_mut(key) else {
+        let Some(Surface::Cylinder { radius, .. }) = shrunk.surface_mut(key) else {
             panic!("the wall is a cylinder")
         };
         *radius = r;
