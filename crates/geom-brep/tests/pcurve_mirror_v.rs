@@ -481,7 +481,10 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 pl: Vec2::new(0.6, 0.8),
                 ends: None,
             },
-            Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(0.6, 0.8, 0.0)),
+            Curve3::line(
+                Point3::new(0.1, 0.2, 0.0),
+                geom::stated_direction(Vec3::new(0.6, 0.8, 0.0)),
+            ),
             0.0,
             1.0,
         ),
@@ -495,7 +498,10 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 )
                 .unwrap(),
             )),
-            Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(0.6, 0.8, 0.0)),
+            Curve3::line(
+                Point3::new(0.1, 0.2, 0.0),
+                geom::stated_direction(Vec3::new(0.6, 0.8, 0.0)),
+            ),
             0.0,
             1.0,
         ),
@@ -558,7 +564,10 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
 #[test]
 fn a_description_without_a_chart_image_is_invariant_under_the_door() {
     let band = Band::linear(Tol::witness()).unwrap();
-    let carrier = Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(0.6, 0.8, 0.0));
+    let carrier = Curve3::line(
+        Point3::new(0.1, 0.2, 0.0),
+        geom::stated_direction(Vec3::new(0.6, 0.8, 0.0)),
+    );
     let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let a = arena.insert(plane(Vec3::unit_z()));
     let b = arena.insert(Surface::Plane {

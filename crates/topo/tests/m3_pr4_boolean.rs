@@ -85,7 +85,7 @@ fn two_bricks<
     );
     assert_eq!(
         red.null_edges.iter().map(|e| e.operand).collect::<Vec<_>>(),
-        [Operand::A, Operand::B]
+        Operand::BOTH
             .repeat(3)
             .into_iter()
             .chain([Operand::B, Operand::A].repeat(3))

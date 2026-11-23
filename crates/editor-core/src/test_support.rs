@@ -595,7 +595,11 @@ pub fn placed_against_in(
         }
     };
     crate::Placed {
-        mates: vec![crate::Mate { on, to, orient }],
+        mates: vec![crate::Mate {
+            on: on.into(),
+            to: to.into(),
+            orient,
+        }],
         values: vec![
             (Coord::slide(across[0]), slide(coordinate(across[0]))),
             (Coord::slide(across[1]), slide(coordinate(across[1]))),
@@ -1516,7 +1520,7 @@ pub fn assemble_world_copies_edits(
     // A product already the world's copies is kept as it is, so a
     // document written twice is the one document.
     let world: Vec<crate::VarId> = doc
-        .placements()
+        .copies()
         .into_iter()
         .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
         .filter_map(|p| doc.output(p, 0))
@@ -1645,16 +1649,27 @@ pub fn quiet_row(
     crate::checks::at_rest::quiet_row(doc, evaluation, row, tol)
 }
 
-/// Whether an assertion could quiet `row` in `evaluation`
-/// (`checks::at_rest::row_quietable`), asked as [`quiet_row`] asks.
+/// The assertion that would quiet `row` in `evaluation`
+/// (`checks::at_rest::quieting`), minted as [`quiet_row`] matches.
 #[must_use]
-pub fn row_quietable(
+pub fn quieting(
     doc: &ProfileDoc,
     evaluation: &crate::Evaluation<f64>,
     row: &crate::coincide::NamedCoincidence,
     tol: geom_core::Tol,
-) -> bool {
-    crate::checks::at_rest::row_quietable(doc, evaluation, row, tol)
+) -> Option<crate::Quieting> {
+    crate::checks::at_rest::quieting(doc, evaluation, row, tol)
+}
+
+/// **The language an assertion quieting `row` is written in**
+/// (`checks::at_rest::saying`): the measures that say the row, and
+/// whether its cells are read as poses. `None` for a row no assertion
+/// says.
+#[must_use]
+pub fn saying(
+    row: &crate::coincide::NamedCoincidence,
+) -> Option<(&'static [crate::measure::MeasureVerb], bool)> {
+    crate::checks::at_rest::saying_of(row)
 }
 
 /// **A dual evaluation bound to a build of record built here**: the
@@ -1678,6 +1693,78 @@ pub fn evaluate_bound<T: crate::eval::BoundToRecord>(
 // (they name `EvalScalar`, which `scripts/gates/evalscalar-allowlist.sh`
 // confines there) and are re-exported here.
 pub use crate::eval::testing::{AnyEvaluate, evaluate_any};
+
+/// **A sentence's text, for a test to compare**: `piece` written into a
+/// sentence of its own and spelled ([`crate::spoken::sentence::spell`]).
+pub fn text(piece: impl crate::Put) -> String {
+    crate::sentence!(piece).to_string()
+}
+
+pub use crate::spoken::{node_text, var_text};
+
+/// `value`'s sentence, each node said by tag, as text.
+pub fn said_text<T: crate::Say + ?Sized>(value: &T) -> String {
+    crate::Said(value, crate::Speaker::TAG)
+        .sentence()
+        .to_string()
+}
+
+// --- the flattening detector ----------------------------------------
+
+/// **A mention spelled into a sentence's words**, if one is: the first
+/// words run that holds a node's or a variable's own spelling — a
+/// quoted label then ` (<tag>)`, or a capitalised kind then ` <tag>` —
+/// rather than the mention itself. A sentence that flattened a value
+/// with a sentence (`{value}` inside a `say` body) carries its mentions
+/// as such words, which the viewer cannot link; the law rows over the
+/// refusal corpora hold that none does. An absent node is words by
+/// design and is spelled lower-case (`node <tag>`), so it is not one.
+#[must_use]
+pub fn spelled_mention(said: &crate::Sentence) -> Option<String> {
+    said.runs().iter().find_map(|run| match run {
+        crate::Run::Words(words) if spells_a_mention(words) => Some(words.clone()),
+        _ => None,
+    })
+}
+
+/// Whether `words` holds `" (<12 hex>)"` or `"<Capitalised> <12 hex>"`
+/// with the tag a whole word.
+fn spells_a_mention(words: &str) -> bool {
+    let bytes = words.as_bytes();
+    let tag_at = |at: usize| {
+        bytes.len() >= at + 12
+            && bytes[at..at + 12]
+                .iter()
+                .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+            && bytes
+                .get(at + 12)
+                .is_none_or(|b| !b.is_ascii_alphanumeric())
+    };
+    (0..bytes.len()).any(|i| {
+        if bytes[i..].starts_with(b"\" (") && tag_at(i + 3) && bytes.get(i + 15) == Some(&b')') {
+            return true;
+        }
+        if bytes[i] == b' ' && tag_at(i + 1) {
+            let word_start = bytes[..i]
+                .iter()
+                .rposition(|b| !b.is_ascii_alphanumeric())
+                .map_or(0, |p| p + 1);
+            return word_start < i && bytes[word_start].is_ascii_uppercase();
+        }
+        false
+    })
+}
+
+/// **One witness of every [`crate::NodeErrorClass`]**, each with its
+/// class: the census a consumer that answers each class walks, so a
+/// class it answers wrongly, or one added to the kernel, reds there.
+/// `tol` is the band the escalation witnesses carry.
+#[must_use]
+pub fn node_error_witnesses(
+    tol: geom_core::Tol,
+) -> Vec<(crate::NodeErrorClass, crate::NodeErrorKind)> {
+    crate::eval::class::witnesses::all(tol)
+}
 
 #[cfg(test)]
 mod tests {

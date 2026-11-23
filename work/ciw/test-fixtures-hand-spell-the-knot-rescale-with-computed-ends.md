@@ -4,7 +4,7 @@ kind: issue
 title: Six test fixtures hand-spell the knot rescale with computed ends instead of the on_domain door
 status: open
 opened: 2026-09-12
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -54,3 +54,5 @@ suites can see today. Not D290's ground (its fence is the four source
 files plus their tests), so filed here rather than converted.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Fixture spelling (an ulp-off end on six test builders). The row itself says no row's outcome is known to depend on it. Not about latency.

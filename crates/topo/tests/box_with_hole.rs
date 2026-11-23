@@ -225,7 +225,7 @@ fn holed_box_validates_with_minimal_counts_at_genus_one() {
         (counts.v, counts.e, counts.f, counts.r, counts.s),
         (16, 24, 10, 2, 1)
     );
-    assert_eq!(counts.genus(), Ok(1));
+    assert_eq!(counts.h(), Ok(1));
 
     // Exactly two faces carry rings: the top (the hole's rim ring from
     // kemr's lineage) and the bottom (the demoted membrane loop from

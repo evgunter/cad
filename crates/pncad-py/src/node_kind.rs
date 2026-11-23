@@ -67,6 +67,7 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Assemble { .. } => "assemble",
         Node::Subtract { .. } => "subtract",
         Node::Place { .. } => "place",
+        Node::Datum { .. } => "datum",
         Node::World => "world",
         Node::Space => "space",
         Node::InstantiatePart { .. } => "instantiate_part",

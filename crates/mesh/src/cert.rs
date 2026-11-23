@@ -206,11 +206,13 @@ pub fn dist_line_triangle(
     c: Point3<f64>,
 ) -> f64 {
     let unit = binade(d.x.abs().max(d.y.abs()).max(d.z.abs()));
-    let line = geom::Line {
-        origin: o,
-        dir: d * (1.0 / unit),
+    // `d` rescaled to its binade, not to unit: `Line::offset`'s
+    // `w − e·(w·e / |e|²)`, spelled out on the rescaled direction.
+    let e = d * (1.0 / unit);
+    let shadow = |p: Point3<f64>| {
+        let w = p - o;
+        Point3::origin() + (w - e * (w.dot(e) / e.norm_squared()))
     };
-    let shadow = |p: Point3<f64>| Point3::origin() + line.offset(p);
     dist_point_triangle(Point3::origin(), shadow(a), shadow(b), shadow(c))
 }
 
@@ -2241,7 +2243,7 @@ mod tests {
             };
             let line = geom::Line {
                 origin: frame.o,
-                dir: axis,
+                dir: geom::stated_direction(axis),
             };
             let dev = deepest(tri, &|q| r - line.offset(q).norm());
             assert!(

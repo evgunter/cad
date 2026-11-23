@@ -5,7 +5,7 @@ title: gate_selftest_case matches one substring of a gate's output, so a gate wh
 status: open
 opened: 2026-09-07
 priority: P3
-cost: D
+cost: M
 ---
 
 Found by the correctness review of #2106, and found **by accident**,

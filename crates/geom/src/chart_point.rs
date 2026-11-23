@@ -50,7 +50,7 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
-use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, Vec3};
+use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec3};
 
 use crate::Frame;
 use crate::azimuth::{Azimuth, Window};
@@ -446,14 +446,14 @@ impl<T: Decide> Surface<T> {
         // subtractive, not [`Vec3::reject_from`]'s triple product, which
         // amplifies an axis carrying width at the interval scalar
         // ([`Line::offset`]).
-        let about = |origin: Point3<T>, axis: Vec3<T>| {
+        let about = |origin: Point3<T>, axis: UnitVec3<T>| {
             let line = Line { origin, dir: axis };
             let (t, off) = line.param_and_offset(p);
-            (line.at(t), along(off - off.project_onto(axis)))
+            (line.at(t), along(off - off.project_onto(axis.get())))
         };
         match *self {
             Self::Plane { frame, .. } => {
-                let (origin, normal) = (frame.origin(), frame.axis());
+                let (origin, normal) = (frame.origin(), frame.axis_unit());
                 Some(
                     Line {
                         origin,
@@ -463,8 +463,7 @@ impl<T: Decide> Surface<T> {
                 )
             }
             Self::Cylinder { frame, radius, .. } => {
-                let (origin, axis) = (frame.origin(), frame.axis());
-                let (q, r) = about(origin, axis);
+                let (q, r) = about(frame.origin(), frame.axis_unit());
                 r.map(|r| q + r * radius)
             }
             Self::Cone {
@@ -472,7 +471,7 @@ impl<T: Decide> Surface<T> {
             } => {
                 let (apex, axis) = (frame.origin(), frame.axis());
                 let w = p - apex;
-                about(apex, axis).1.map(|r| {
+                about(apex, frame.axis_unit()).1.map(|r| {
                     let (sin, cos) = half_angle.sin_cos();
                     let g = axis * cos.copysign(axis.dot(w)) + r * sin;
                     apex + g * w.dot(g)
@@ -488,8 +487,8 @@ impl<T: Decide> Surface<T> {
                 minor_radius,
                 ..
             } => {
-                let (center, axis) = (frame.origin(), frame.axis());
-                about(center, axis).1.and_then(|r| {
+                let center = frame.origin();
+                about(center, frame.axis_unit()).1.and_then(|r| {
                     let m = center + r * major_radius;
                     along(p - m).map(|d| m + d * minor_radius)
                 })
@@ -636,7 +635,7 @@ mod tests {
         let Some(axis) = surface.axis_line() else {
             return Vec::new();
         };
-        let a = axis.dir.normalize();
+        let a = axis.dir.get().normalize();
         let (e1, e2) = a.orthonormal_basis();
         let mut out = Vec::new();
         for k in 0..12 {

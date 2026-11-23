@@ -331,8 +331,8 @@
 //!   [`ShellError::NotValid`] as the boolean's does, and a ringed cone
 //!   or cylinder wall — which props reads — at the mesh.
 //!
-//! Every nesting question the rim stage asks is read in the chart
-//! ([`encloses`]); check 9's contact arm reads only planes, so a curved
+//! Every concentric pair the rim stage orders is read in the chart
+//! ([`is_inner_of_concentric_pair`]); check 9's contact arm reads only planes, so a curved
 //! ring's contact with its outer loop is not decided here.
 //!
 //! # Why step 3 exists, and what the arm is expressible over
@@ -382,6 +382,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
+use geom_core::UnitVec3;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::ladder::{Answering, Climb, FreeOf, Rung, Undecided, argmin_decided, climb};
 use geom_core::{
@@ -399,7 +400,7 @@ use crate::entity::{
 };
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
-use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, linked, proven};
+use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, proven};
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
@@ -2807,26 +2808,27 @@ fn canonicalize_chart<T: Decide>(
         );
         let chart = body.proven_face(anchor).surface().clone();
         let escalated = |source| ShellError::Escalated { source };
-        let ring_first = if encloses(&chart, &p1, &p2, band).map_err(escalated)? {
-            true
-        } else if encloses(&chart, &p2, &p1, band).map_err(escalated)? {
-            false
-        } else if wraps && band_seam(&chart, body, [&side1, &side2], band)? {
-            // Neither side is a hole, and each winds the period once: the
-            // slit is a band's seam, joining the band's two boundaries,
-            // and the band's surgery cuts it. A wrapping chart whose sides
-            // do not both wind (a hole whose nesting misreads) is no band
-            // and refuses below as the slit it is; `Chart` reads to
-            // just short of the period, so no verb path reaches that
-            // misread today and no row pins it.
-            band_seams.push(proven(&body.half_edges, he1, EntityId::HalfEdge).edge);
-            continue;
-        } else {
-            return Err(not_expressible(
-                "the chart's slit loop splits into two sides neither of which encloses the \
+        let ring_first =
+            if is_inner_of_concentric_pair(&chart, &p1, &p2, band).map_err(escalated)? {
+                true
+            } else if is_inner_of_concentric_pair(&chart, &p2, &p1, band).map_err(escalated)? {
+                false
+            } else if wraps && band_seam(&chart, body, [&side1, &side2], band)? {
+                // Neither side is a hole, and each winds the period once: the
+                // slit is a band's seam, joining the band's two boundaries,
+                // and the band's surgery cuts it. A wrapping chart whose sides
+                // do not both wind (a hole whose nesting misreads) is no band
+                // and refuses below as the slit it is; `Chart` reads to
+                // just short of the period, so no verb path reaches that
+                // misread today and no row pins it.
+                band_seams.push(proven(&body.half_edges, he1, EntityId::HalfEdge).edge);
+                continue;
+            } else {
+                return Err(not_expressible(
+                    "the chart's slit loop splits into two sides neither of which encloses the \
                  other, so neither is the hole",
-            ));
-        };
+                ));
+            };
         let (a, b) = if ring_first { (he1, he2) } else { (he2, he1) };
         let made = body.kemr(a, b).map_err(|error| ShellError::Rim {
             face: anchor,
@@ -2839,7 +2841,7 @@ fn canonicalize_chart<T: Decide>(
             let (outer, _) = body.proven_face(anchor).outer();
             (loop_points(body, made.ring), loop_points(body, outer))
         };
-        if !encloses(&chart, &ring_pts, &outer_pts, band)
+        if !is_inner_of_concentric_pair(&chart, &ring_pts, &outer_pts, band)
             .map_err(|source| ShellError::Escalated { source })?
         {
             return Err(not_expressible(
@@ -3584,8 +3586,8 @@ fn along<T: Decide>(
     band: Band,
     designated: FaceKey,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, ShellError<T>> {
-    let data = proven(&body.edges, edge, EntityId::Edge);
-    let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+    let data = body.proven_edge(edge);
+    let Some(curve) = data.certified() else {
         unreachable!("{edge:?} is a seam of a finished wall, and a finished wall has no null edge")
     };
     let (t0, t1) = curve.params();
@@ -3642,12 +3644,13 @@ fn re_anchored<T: Decide>(
     designated: FaceKey,
     band: Band,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, ShellError<T>> {
-    let data = proven(&body.edges, edge, EntityId::Edge);
-    let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+    let data = body.proven_edge(edge);
+    let Some(curve) = data.certified() else {
         unreachable!("{edge:?} is a seam of a finished wall, which has no null edge")
     };
     let (t0, t1) = curve.params();
-    let starts_there = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start == moved;
+    let starts_there =
+        proven(&body.half_edges, data.record().he_plus, EntityId::HalfEdge).start == moved;
     let Some(landed) = curve
         .carrier()
         .param_near(onto, if starts_there { t0 } else { t1 })
@@ -3949,7 +3952,7 @@ fn pair_rings<T: Decide>(
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
         ([rim_ring], [source_ring]) => {
-            if encloses(
+            if is_inner_of_concentric_pair(
                 &chart,
                 &loop_points(body, *source_ring),
                 &loop_points(body, *rim_ring),
@@ -3960,7 +3963,7 @@ fn pair_rings<T: Decide>(
                 Err(not_expressible(
                     "the designated face's hole does not sit inside the cavity counterpart's",
                 ))
-            } else if encloses(
+            } else if is_inner_of_concentric_pair(
                 &chart,
                 &loop_points(body, *rim_ring),
                 &loop_points(body, *source_ring),
@@ -3999,9 +4002,10 @@ fn duplicate_in_loop<T: Real>(
     for (r#loop, members, _) in view.boundary_by_loop() {
         let mut cycle = Vec::new();
         for member in members {
-            let BoundaryMember::Edge { he, ek, .. } = member else {
+            let BoundaryMember::Edge { edge, he, .. } = member else {
                 continue;
             };
+            let ek = edge.key();
             if !skip.contains(&ek) {
                 cycle.push((he, ek));
             }
@@ -4073,15 +4077,9 @@ fn half_edge_points<T: Decide>(body: &Body<T>, run: &[HeKey]) -> Vec<geom_core::
     let mut out = Vec::new();
     for &he in run {
         let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let edge = linked(
-            &body.edges,
-            key,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
+        let edge = body.linked_edge(key, EntityId::HalfEdge(he), "edge");
         // A null edge has no carrier to sample, and no extent either.
-        let Some(geom) = body.edge_curve_linked(key, edge).certified() else {
+        let Some(geom) = edge.certified() else {
             continue;
         };
         for i in 0..=8 {
@@ -4102,9 +4100,12 @@ fn loop_points<T: Decide>(
     half_edge_points(body, &body.loop_walk(first).closed("loop", first))
 }
 
-/// Whether `inner` is the ENCLOSED one of two nested loops on the
+/// Whether `inner` is the inner of a CONCENTRIC pair of loops on the
 /// chart `surface`, by mean radius about the pair's common centroid,
-/// read in that chart ([`chart_read`]).
+/// read in that chart ([`chart_read`]). An ordering of two loops known
+/// nested, not a containment statement ([`crate::loop_side`]'s module
+/// docs): a ring threading one arm of a thin cross is nested in it and
+/// reads un-nested here.
 ///
 /// The comparison is a mean radius and not a containment proof, and
 /// that is exactly the claim the callers need: the loops compared here
@@ -4115,7 +4116,7 @@ fn loop_points<T: Decide>(
 /// being read off this. One margin, one decide, metered as the length
 /// it is; a read that cannot be decided escalates rather than answering
 /// "not enclosed".
-fn encloses<T: Decide>(
+fn is_inner_of_concentric_pair<T: Decide>(
     surface: &geom::Surface<T>,
     inner: &[geom_core::Point3<T>],
     outer: &[geom_core::Point3<T>],
@@ -4197,7 +4198,7 @@ fn chart_read<T: Decide>(
                 T::zero()
             }
             // A whole number of periods bringing this run's mean within
-            // half a period of the first run's. The pairs `encloses` exists
+            // half a period of the first run's. The pairs `is_inner_of_concentric_pair` exists
             // for are concentric by construction (its doc), so the inner's
             // mean lies inside the outer's span and no tie arises. It is
             // also asked of pairs not known to nest: both orders before a
@@ -4422,14 +4423,8 @@ fn loop_rekeyed<T: Decide>(
     let mut descriptions = Vec::new();
     for he in body.loop_walk(first).closed("loop", first) {
         let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let data = linked(
-            &body.edges,
-            edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+        let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = data.certified() else {
             unreachable!(
                 "{edge:?} bounds a rim face the shell op built from certified walls, and the \
                  surgery mints no null edge"
@@ -4764,8 +4759,8 @@ fn footprint<T: Decide>(
     for member in body.proven_face(face).boundary() {
         let at = frame.point(body.member_point(&member));
         points.push((at.x, at.y));
-        if let crate::live::BoundaryMember::Edge { ek, edge, .. } = member {
-            points.extend(edge_box_in(body, ek, edge, frame));
+        if let crate::live::BoundaryMember::Edge { edge, .. } = member {
+            points.extend(edge_box_in(body, edge, frame));
         }
     }
     let poison = points
@@ -4794,12 +4789,11 @@ fn footprint<T: Decide>(
 /// the cover asserts.
 fn edge_box_in<T: Decide>(
     body: &Body<T>,
-    key: crate::entity::EdgeKey,
-    edge: &crate::entity::Edge,
+    edge: crate::live::EdgeView<'_, T>,
     frame: &InPlane<T>,
 ) -> Vec<(T, T)> {
     use crate::cover::EdgeUncovered;
-    match crate::cover::edge_cover_linked(body, key, edge) {
+    match crate::cover::edge_cover_linked(body, edge) {
         Ok(cover) => cover_box_in(&cover, frame).to_vec(),
         Err(EdgeUncovered::Scaffold) => Vec::new(),
         Err(EdgeUncovered::Carrier(_) | EdgeUncovered::Ends) => {
@@ -4987,7 +4981,7 @@ fn walls_cross<T: Decide>(
     }
     // The point of `L` nearest `a`'s box centre, so every side
     // and position below is a short difference.
-    let d = cross.normalize();
+    let d = UnitVec3::squared(cross);
     let k = a.normal.dot(b.normal);
     let q = a.lo.mid(a.hi);
     let r_a = a.normal.dot(a.origin - q);
@@ -5211,7 +5205,7 @@ impl<T: Decide> MovedWall<T> {
             Sign::Zero => zero_up,
             Sign::Negative => false,
         };
-        let m = self.normal.cross(line.dir);
+        let m = self.normal.cross(line.dir.get());
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
         // A vertex is decided once, so every edge meeting it reads the
         // same side, and an undecided vertex escalates. A point inside an
@@ -5415,19 +5409,13 @@ fn moved_walls<T: Decide>(
                 .collect();
             for (i, &he) in cycle.iter().enumerate() {
                 let h = proven(&cavity.half_edges, he, EntityId::HalfEdge);
-                let edge = linked(
-                    &cavity.edges,
-                    h.edge,
-                    EntityId::Edge,
-                    EntityId::HalfEdge(he),
-                    "edge",
-                );
+                let edge = cavity.linked_edge(h.edge, EntityId::HalfEdge(he), "edge");
                 let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
-                let certified = cavity.edge_curve_linked(h.edge, edge).certified();
+                let certified = edge.certified();
                 // The edge's cover (`boolean::crate::cover::edge_cover_linked`):
                 // `None` for null scaffolding, a chord the wall's own
                 // vertices below hold.
-                let cover = match crate::cover::edge_cover_linked(cavity, h.edge, edge) {
+                let cover = match crate::cover::edge_cover_linked(cavity, edge) {
                     Err(crate::cover::EdgeUncovered::Scaffold) => None,
                     other => Some(other),
                 };
@@ -5437,7 +5425,7 @@ fn moved_walls<T: Decide>(
                         // The carrier's parameter runs with the edge's
                         // plus half.
                         let (t0, t1) = curve.params();
-                        let (v0, v1) = if edge.he_plus == he {
+                        let (v0, v1) = if edge.record().he_plus == he {
                             (start.0, end.0)
                         } else {
                             (end.0, start.0)
@@ -5459,7 +5447,7 @@ fn moved_walls<T: Decide>(
                                     .and_then(|c| c.as_ref().ok())
                                     .map(geom::cover::Cover::ball),
                                 (t0, t1),
-                                edge.he_plus == he,
+                                edge.record().he_plus == he,
                             )),
                         }
                     }
@@ -5845,7 +5833,7 @@ mod tests {
             disc.cut(
                 geom::Line {
                     origin: Point3::new(0.0, 0.6, 0.0),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 },
                 band,
             )
@@ -5857,7 +5845,7 @@ mod tests {
             disc.cut(
                 geom::Line {
                     origin: Point3::new(0.0, 1.5, 0.0),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 },
                 band,
             )
@@ -5886,7 +5874,7 @@ mod tests {
             half.cut(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: y,
+                    dir: geom::stated_direction(y),
                 },
                 band,
             )
@@ -5898,7 +5886,7 @@ mod tests {
             half.cut(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: -y,
+                    dir: geom::stated_direction(-y),
                 },
                 band,
             )
@@ -5924,7 +5912,7 @@ mod tests {
                 .cut(
                     geom::Line {
                         origin: Point3::new(1.0, 0.0, 0.0),
-                        dir: y,
+                        dir: geom::stated_direction(y),
                     },
                     band,
                 )
@@ -6439,7 +6427,7 @@ mod tests {
                     .cut(
                         geom::Line {
                             origin: Point3::new(c, 0.0, 0.0),
-                            dir: up,
+                            dir: geom::stated_direction(up),
                         },
                         band,
                     )
@@ -6455,7 +6443,7 @@ mod tests {
                 .cut(
                     geom::Line {
                         origin: Point3::new(1.5, 0.0, 0.0),
-                        dir: up,
+                        dir: geom::stated_direction(up),
                     },
                     band,
                 )
@@ -6571,7 +6559,7 @@ mod tests {
                     .cut(
                         geom::Line {
                             origin: Point3::new(d, c, 0.0),
-                            dir: Vec3::new(0.0, 0.0, 1.0),
+                            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                         },
                         band,
                     )
@@ -6635,12 +6623,12 @@ mod tests {
         }
         for (i, (inner, outer)) in pairs.iter().enumerate() {
             assert_eq!(
-                encloses(&cylinder, inner, outer, band),
+                is_inner_of_concentric_pair(&cylinder, inner, outer, band),
                 Ok(true),
                 "pair {i}: in"
             );
             assert_eq!(
-                encloses(&cylinder, outer, inner, band),
+                is_inner_of_concentric_pair(&cylinder, outer, inner, band),
                 Ok(false),
                 "pair {i}: out"
             );

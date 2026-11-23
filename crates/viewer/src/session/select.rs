@@ -274,17 +274,21 @@ pub enum Hovered {
     /// rule. A profile has no body, so it is named by its node alone,
     /// and a click on it selects that node.
     Profile(RecipeNodeId),
+    /// A datum's drawn square under the cursor (D10
+    /// `[placement.datums]`), by the outline's rule: a node, as a
+    /// profile is, and a click on it selects that node.
+    Datum(RecipeNodeId),
 }
 
 impl Hovered {
-    /// The hovered entity's stable name; `None` for a profile, which
-    /// is a node and not an entity of a body.
+    /// The hovered entity's stable name; `None` for a profile or a
+    /// datum, which is a node and not an entity of a body.
     pub fn name(&self) -> Option<&StableName> {
         match self {
             Self::Face(face) => Some(&face.name),
             Self::Edge(edge) => Some(&edge.name),
             Self::Vertex(vertex) => Some(&vertex.name),
-            Self::Profile(_) => None,
+            Self::Profile(_) | Self::Datum(_) => None,
         }
     }
 
@@ -295,7 +299,7 @@ impl Hovered {
             Self::Face(face) => face.node,
             Self::Edge(edge) => edge.node,
             Self::Vertex(vertex) => vertex.node,
-            Self::Profile(node) => *node,
+            Self::Profile(node) | Self::Datum(node) => *node,
         }
     }
 
@@ -305,7 +309,7 @@ impl Hovered {
             Self::Face(face) => face.feature(),
             Self::Edge(edge) => edge.feature(),
             Self::Vertex(vertex) => vertex.feature(),
-            Self::Profile(node) => *node,
+            Self::Profile(node) | Self::Datum(node) => *node,
         }
     }
 
@@ -313,7 +317,7 @@ impl Hovered {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
-            Self::Edge(_) | Self::Vertex(_) | Self::Profile(_) => None,
+            Self::Edge(_) | Self::Vertex(_) | Self::Profile(_) | Self::Datum(_) => None,
         }
     }
 
@@ -321,7 +325,7 @@ impl Hovered {
     pub fn edge(&self) -> Option<&EdgeSelection> {
         match self {
             Self::Edge(edge) => Some(edge),
-            Self::Face(_) | Self::Vertex(_) | Self::Profile(_) => None,
+            Self::Face(_) | Self::Vertex(_) | Self::Profile(_) | Self::Datum(_) => None,
         }
     }
 
@@ -329,7 +333,7 @@ impl Hovered {
     pub fn vertex(&self) -> Option<&VertexSelection> {
         match self {
             Self::Vertex(vertex) => Some(vertex),
-            Self::Face(_) | Self::Edge(_) | Self::Profile(_) => None,
+            Self::Face(_) | Self::Edge(_) | Self::Profile(_) | Self::Datum(_) => None,
         }
     }
 
@@ -337,7 +341,15 @@ impl Hovered {
     pub fn profile(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Profile(node) => Some(*node),
-            Self::Face(_) | Self::Edge(_) | Self::Vertex(_) => None,
+            Self::Face(_) | Self::Edge(_) | Self::Vertex(_) | Self::Datum(_) => None,
+        }
+    }
+
+    /// The hovered datum, when the cursor is over one's square.
+    pub fn datum(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Datum(node) => Some(*node),
+            Self::Face(_) | Self::Edge(_) | Self::Vertex(_) | Self::Profile(_) => None,
         }
     }
 
@@ -347,7 +359,7 @@ impl Hovered {
             Self::Face(face) => Selection::Face(face.clone()),
             Self::Edge(edge) => Selection::Edge(edge.clone()),
             Self::Vertex(vertex) => Selection::Vertex(vertex.clone()),
-            Self::Profile(node) => Selection::Node(*node),
+            Self::Profile(node) | Self::Datum(node) => Selection::Node(*node),
         }
     }
 }

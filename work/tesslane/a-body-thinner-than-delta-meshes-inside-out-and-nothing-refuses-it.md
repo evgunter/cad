@@ -2,10 +2,11 @@
 id: a-body-thinner-than-delta-meshes-inside-out-and-nothing-refuses-it
 kind: issue
 title: A body thinner than δ meshes as one sheet counted twice: tessellate returns Ok with a mesh of zero or negative signed volume, check_volume's bound is vacuous there, and the export gate reverses every facet
-status: open
+status: parked
 opened: 2026-11-23
 priority: P1
 cost: M
+blocked_on: [the-mesh-cures-a-side-two-faces-can-both-make-three-ways]
 ---
 
 
@@ -41,3 +42,5 @@ On these cells, splitting the collapsed side in BOTH faces at a point of each fa
 ## What closing it takes
 
 Decide what `tessellate` answers for a body thinner than δ: a mesh with the body's sign (and by what cure, on which families), or a typed refusal naming δ against the thickness. Then a check that holds it: `check_volume` with a bound that is not vacuous there, or a sign read where the patches join.
+
+- 2026-11-23 — **Parked on the shared-side unit** (`the-mesh-cures-a-side-two-faces-can-both-make-three-ways`, decided by Ev on PR 7485 and dispatched). That unit's split is the one cure measured on these cells, and Ev chose it over the alternative that leaves zero volume ("allowing zero volume sounds annoying"). When it lands: re-measure this row's table and the families it did not cover, then decide what holds the sign (a `check_volume` bound that is not vacuous past the wall's thickness, or a read where the patches join).

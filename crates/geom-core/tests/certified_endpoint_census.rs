@@ -452,14 +452,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/pcurve_cache/speed.rs",
-        41,
+        38,
         4,
-        "not yet dispositioned: 34 of the 37 that do not ask are \
-         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`. \
-         `pole_azimuth_speed`'s three (`fa3cd6593`, `0593c7cfb`) are safe at the site: `det M`'s \
-         sign and low end are read off products and sums of exact points, which no quotient or \
-         power decorates, and the quotient's high end only behind `det.lo() > 0`, its divisor \
-         proven off zero",
+        "not yet dispositioned: the 34 that do not ask are \
+         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`",
     ),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
