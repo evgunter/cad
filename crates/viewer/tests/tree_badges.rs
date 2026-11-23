@@ -1245,15 +1245,35 @@ type Edge = (
     pncad::document::RecipeNodeId,
 );
 
-/// Every node-to-node edge `doc`'s Properties draw, read off each node's
-/// reads (`reads`) or off each node's read-by rows, flipped (`read_by`).
-fn relation_edges(
-    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-) -> (Vec<Edge>, Vec<Edge>) {
+/// A named variable's definition reading a node, as an edge.
+type DefinitionEdge = (pncad::document::VarId, pncad::document::RecipeNodeId);
+
+/// Every link `doc`'s Properties draw between nodes and readers, each
+/// both ways.
+struct Relations {
+    /// Each node's reads.
+    reads: Vec<Edge>,
+    /// Each node's node readers, flipped.
+    read_by: Vec<Edge>,
+    /// Each named variable's definition reads.
+    definitions: Vec<DefinitionEdge>,
+    /// Each node's linked definition readers, flipped.
+    definitions_by: Vec<DefinitionEdge>,
+    /// How many read-by rows name the product.
+    product: usize,
+}
+
+/// Every edge `doc`'s Properties draw, read off each node's reads
+/// (`reads`) and each named variable's (`definitions`), or off each
+/// node's read-by rows, flipped (`read_by`, `definitions_by`).
+fn relation_edges(doc: &pncad::document::Doc<pncad::document::ProfileProgram>) -> Relations {
+    use viewer::relations::Seat;
     use viewer::session::Selection;
     let files = viewer::parts::PartFiles::default();
     let index = doc.read_index();
     let (mut reads, mut read_by) = (Vec::new(), Vec::new());
+    let (mut definitions, mut definitions_by) = (Vec::new(), Vec::new());
+    let mut product = 0;
     for node in doc.ids() {
         let related = viewer::relations::relations(doc, &index, node, &files);
         for row in related.reads {
@@ -1265,10 +1285,38 @@ fn relation_edges(
         }
         for row in related.read_by {
             for entry in &row.entries {
-                let Some(Selection::Node(reader)) = entry.selects() else {
-                    panic!("a reader is a node: {entry:?}")
-                };
-                read_by.push((reader, row.seat, node));
+                match (row.seat, entry.selects()) {
+                    (Seat::Definition(var), Some(Selection::Variable(by))) => {
+                        assert_eq!(by, var, "a definition row links its own variable");
+                        definitions_by.push((var, node));
+                    }
+                    (Seat::Product, None) => {
+                        product += 1;
+                    }
+                    (_, Some(Selection::Node(reader))) => read_by.push((reader, row.seat, node)),
+                    _ => panic!("a reader is a node, a named definition or the product: {entry:?}"),
+                }
+            }
+        }
+    }
+    for node in doc.ids() {
+        for &var in index.definitions_over(node) {
+            assert!(
+                doc.var_name(var).is_some() || doc.is_read(var),
+                "an unnamed definition over a node is spoken by a reader: {var:?}"
+            );
+        }
+    }
+    for var in doc
+        .var_ids()
+        .into_iter()
+        .filter(|&var| doc.var_name(var).is_some())
+    {
+        for row in viewer::relations::definition_reads(doc, var, &files) {
+            for entry in &row.entries {
+                if let Some(Selection::Node(at)) = entry.selects() {
+                    definitions.push((var, at));
+                }
             }
         }
     }
@@ -1276,40 +1324,73 @@ fn relation_edges(
         edges.sort();
         edges.dedup();
     }
-    (reads, read_by)
+    for edges in [&mut definitions, &mut definitions_by] {
+        edges.sort();
+        edges.dedup();
+    }
+    Relations {
+        reads,
+        read_by,
+        definitions,
+        definitions_by,
+        product,
+    }
 }
 
 /// **Every link the Properties draw has its way back**: over the
 /// corpus, a node read at a seat lists its reader at that seat, and a
-/// reader listed reads it — no exemption.
+/// reader listed reads it — no exemption. A named variable's definition
+/// reading a node is listed in the node's read-by as a link to the
+/// variable, and the variable's own reads list the node. The product is
+/// no selection, so it has no Properties of its own to link back from
+/// and is drawn as words: its row is one-way by construction. An unnamed
+/// definition is not listed, since a reader speaks it: one over a node
+/// is read. The corpus holds no named
+/// definition over a node, so a named source's document joins it.
 ///
 /// *Breaks if* either direction answers a read the other does not: a
 /// seat whose read reaches no node one way (a space's definer), or an
-/// exclusion (an instance's own copy) applied on one side only.
+/// exclusion (an instance's own copy, a placement's own selection)
+/// applied on one side only.
 #[test]
 fn read_by_is_the_inverse_of_reads_over_the_corpus() {
     let mut bad = Vec::new();
-    let mut edges = 0;
-    for d in crate::corpus::documents()
+    let (mut edges, mut definitions, mut product) = (0, 0, 0);
+    let beyond_nodes =
+        crate::named_source::read_by_a_definition_and_the_product(pncad::geom_core::Tol::witness());
+    let docs = crate::corpus::documents()
         .into_iter()
         .chain(crate::corpus::stage6_beside_the_registry())
-    {
-        let (reads, read_by) = relation_edges(&d.doc);
-        edges += reads.len();
-        bad.extend(
-            reads
-                .iter()
-                .filter(|e| !read_by.contains(e))
-                .map(|e| format!("{}: reads only {e:?}", d.name)),
-        );
-        bad.extend(
-            read_by
-                .iter()
-                .filter(|e| !reads.contains(e))
-                .map(|e| format!("{}: read-by only {e:?}", d.name)),
-        );
+        .map(|d| (d.name, d.doc));
+    for (name, doc) in docs.chain([("read by a definition and the product", beyond_nodes)]) {
+        let r = relation_edges(&doc);
+        edges += r.reads.len();
+        definitions += r.definitions.len();
+        product += r.product;
+        for (one, other, said) in [
+            (&r.reads, &r.read_by, "reads only"),
+            (&r.read_by, &r.reads, "read-by only"),
+        ] {
+            bad.extend(
+                one.iter()
+                    .filter(|e| !other.contains(e))
+                    .map(|e| format!("{name}: {said} {e:?}")),
+            );
+        }
+        for (one, other, said) in [
+            (&r.definitions, &r.definitions_by, "definition reads only"),
+            (&r.definitions_by, &r.definitions, "definition read-by only"),
+        ] {
+            bad.extend(
+                one.iter()
+                    .filter(|e| !other.contains(e))
+                    .map(|e| format!("{name}: {said} {e:?}")),
+            );
+        }
     }
     assert!(edges > 0, "the corpus has reads to compare");
+    assert!(definitions > 0, "the corpus has definitions reading nodes");
+    assert!(product > 0, "the corpus has a product reading a node");
     assert!(
         bad.is_empty(),
         "{} asymmetries:\n{}",

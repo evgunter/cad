@@ -198,6 +198,9 @@ impl ViewerBehavior<'_> {
                     );
                     self.index_count_ui(ui, var);
                 }
+                let doc = self.session.doc();
+                let reads = crate::relations::definition_reads(doc, var, self.session.part_files());
+                relation_rows(ui, doc, Direction::Reads, &reads, self.ops);
                 // No row is an undeclared variable, and nothing is
                 // drawn for it here: the header above has said so
                 // ([`standing_verdict`]), loud, and this panel says a

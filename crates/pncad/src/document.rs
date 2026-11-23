@@ -98,13 +98,14 @@ pub use editor_core::{
     Recorded, Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
     apply_replayed, slot_admits,
 };
-// `OperandRead` is the element of `Doc::operand_reads`, and `ReadIndex`
-// what `Doc::read_index` answers: what a node reads, and what reads it.
+// `OperandRead` is the element of `Doc::operand_reads`, `DefinitionRead`
+// of `Doc::definition_reaches`, and `ReadIndex` what `Doc::read_index`
+// answers: what a node or a definition reads, and what reads a node.
 pub use editor_core::{
     ArcShape, AuthoredStep, PenRun, PenStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
     pen_run, shape_of_recorded, step_kernel,
 };
-pub use editor_core::{OperandRead, ReadIndex};
+pub use editor_core::{DefinitionRead, OperandRead, ReadIndex};
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.

@@ -1,7 +1,14 @@
 //! **What a node reads and what reads it**, as the property panel lists
 //! them: one row per operand seat ([`Doc::operand_reads`]), and one row
 //! per node whose operand seat reaches this one ([`ReadIndex::read_by`])
-//! — the same reads, inverted, so a link one way has its way back.
+//! — the same reads, inverted, so a link one way has its way back. A
+//! variable's definition and the product slot read nodes too
+//! ([`ReadIndex::definitions_over`], [`ReadIndex::in_product`]), and a
+//! node lists them after its node readers. A named variable lists what
+//! its definition reads ([`definition_reads`]), so that link has its
+//! way back. The product is no selection, and is words. An unnamed
+//! definition is not listed: it is spoken by its reader (VARIABLES
+//! VR7), which the node lists at its own seat.
 //!
 //! A body's placements are its readers at the source seat, so a body
 //! lists them and a placement lists its source with nothing about
@@ -13,7 +20,7 @@
 
 use pncad::document::{
     Doc, Mention, Mentioned, Node, OperandRead, OperandSlot, ProfileProgram, ReadIndex,
-    RecipeNodeId, Said, Sentence, Speaker,
+    RecipeNodeId, Said, Sentence, Speaker, VarId,
 };
 
 use crate::parts::PartFiles;
@@ -98,7 +105,8 @@ pub fn link(on_screen: &Doc<ProfileProgram>, mention: &Mention) -> Option<Select
 }
 
 /// **Where a row reads**: an operand seat, one side of a placement's
-/// constraint, or an instance's part.
+/// constraint, an instance's part, a variable's definition, or the
+/// product slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Seat {
     /// The part an instance places: another document.
@@ -115,6 +123,11 @@ pub enum Seat {
         /// The seat: a side, a direction or an axis.
         slot: OperandSlot,
     },
+    /// The definition of the variable: a named source `bracket = B`, a
+    /// selection, a pose.
+    Definition(VarId),
+    /// The product slot, which reads the body the product is.
+    Product,
 }
 
 impl Seat {
@@ -146,11 +159,13 @@ impl Seat {
     }
 
     /// The seat as a reader says it: `profile`, `part`, `constraint 2
-    /// side on`.
+    /// side on`, `definition`, `body` (the product's).
     #[must_use]
     pub fn label(self) -> String {
         match self {
             Self::Part => "part".to_owned(),
+            Self::Definition(_) => "definition".to_owned(),
+            Self::Product => "body".to_owned(),
             Self::Constraint {
                 at,
                 slot: OperandSlot::Side { side, .. },
@@ -188,8 +203,9 @@ pub struct Relations {
     /// One row per operand seat, in field order; an instance's part
     /// first. Drawn `seat: entries`.
     pub reads: Vec<RelationRow>,
-    /// One row per reader and the seat it reads through, readers in
-    /// document order. Drawn `seat of: reader`.
+    /// One row per reader and the seat it reads through: node readers
+    /// in document order, then the named definitions over the node, then
+    /// the product. Drawn `seat of: reader`.
     pub read_by: Vec<RelationRow>,
 }
 
@@ -200,6 +216,11 @@ pub const DELETED: &str = "a deleted node";
 /// What an entry reads as where an instance's constraint reads its own
 /// copy, which is no other node.
 pub const OWN_COPY: &str = "this instance's own copy";
+
+/// What the product slot reads as, as a reader: it is no node or
+/// variable a click selects, and its control is a button on the body it
+/// reads.
+pub const THE_PRODUCT: &str = "the product";
 
 /// **What `node` reads and what reads it**, in `doc`, with `index` the
 /// document's [`Doc::read_index`]; empty for a node `doc` does not
@@ -223,17 +244,26 @@ pub fn relations(
         .operand_reads(node)
         .into_iter()
         .map(|read| read_row(doc, held, &read, files));
-    let read_by = index
-        .read_by(node)
-        .iter()
-        .filter_map(|&(reader, seat)| {
-            Some(RelationRow {
-                seat: Seat::of(doc.node(reader)?, seat),
-                entries: vec![Related::node(doc, reader, files)],
-                through: None,
-            })
+    let nodes = index.read_by(node).iter().filter_map(|&(reader, seat)| {
+        Some(RelationRow {
+            seat: Seat::of(doc.node(reader)?, seat),
+            entries: vec![Related::node(doc, reader, files)],
+            through: None,
         })
-        .collect();
+    });
+    let definitions = index.definitions_over(node).iter().filter_map(|&var| {
+        Some(RelationRow {
+            seat: Seat::Definition(var),
+            entries: vec![Related::named(doc, var)?],
+            through: None,
+        })
+    });
+    let product = index.in_product(node).then(|| RelationRow {
+        seat: Seat::Product,
+        entries: vec![Related::plain(THE_PRODUCT)],
+        through: None,
+    });
+    let read_by = nodes.chain(definitions).chain(product).collect();
     Relations {
         reads: part.into_iter().chain(seats).collect(),
         read_by,
@@ -275,4 +305,34 @@ fn read_row(
         entries,
         through: Related::named(doc, read.read),
     }
+}
+
+/// **What `var`'s definition reads**, in `doc`: one row at
+/// [`Seat::Definition`] per variable it reads that reaches a node
+/// ([`Doc::definition_reaches`]), the nodes as entries and the variable
+/// read after `through` where it is named — the way back from each node
+/// listing `var` in its read-by. A read reaching no node (a free value)
+/// is no relation between nodes and has no row.
+#[must_use]
+pub fn definition_reads(
+    doc: &Doc<ProfileProgram>,
+    var: VarId,
+    files: &PartFiles,
+) -> Vec<RelationRow> {
+    doc.definition_reaches(var)
+        .into_iter()
+        .filter_map(|read| {
+            let entries: Vec<Related> = read
+                .reaches
+                .iter()
+                .filter(|&&at| doc.node(at).is_some())
+                .map(|&at| Related::node(doc, at, files))
+                .collect();
+            (!entries.is_empty()).then(|| RelationRow {
+                seat: Seat::Definition(var),
+                entries,
+                through: Related::named(doc, read.read),
+            })
+        })
+        .collect()
 }

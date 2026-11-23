@@ -70,6 +70,22 @@ fn placed_twice(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNode
     (session, body, first, second)
 }
 
+/// **A document whose nodes are read by more than nodes**: the bracket
+/// placed twice through the named source `bracket = B`, then added to the
+/// product, which places it a third time — a named definition and the
+/// product slot each reading a node, for the corpus inverse row
+/// (`tree_badges`) to hold over.
+pub(crate) fn read_by_a_definition_and_the_product(tol: Tol) -> Doc<ProfileProgram> {
+    let (mut session, body, _, _) = placed_twice(tol);
+    let out = session.perform(SessionOp::AddToProduct {
+        node: body,
+        body: None,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    session.committed_doc().clone()
+}
+
 /// **Placing a body twice shares one named source**: the first Place
 /// reads an anonymous source of its own (`= B`). A second Place without
 /// a name is refused `SharedVarNeedsName` and writes nothing, since a
@@ -1365,4 +1381,122 @@ fn a_read_of_a_deleted_node_says_so_in_words() {
     assert_eq!(row.entries.len(), 1, "{row:?}");
     assert_eq!(row.entries[0].said().to_string(), DELETED, "{row:?}");
     assert_eq!(row.entries[0].selects(), None, "{row:?}");
+}
+
+/// **A body lists the definitions over it and the product in its
+/// read-by** (`relations`): placed twice, the bracket's read-by names
+/// the source `bracket = B` at the definition seat, a link selecting the
+/// variable, and `bracket`'s own Properties list the body its definition
+/// reads, a link back; placed once, the source is unnamed and spoken by
+/// its placement, which the bracket lists at its source seat, so it has
+/// no row of its own. Added to the product, which places a body in a space, the
+/// placement the product reads says so in words, since the product is no
+/// selection.
+///
+/// *Breaks if* a definition or the product reading a body goes missing
+/// from its read-by, an unnamed definition is listed beside the reader
+/// that speaks it, or the variable's reads drop the body.
+#[test]
+fn a_body_lists_the_definitions_over_it_and_the_product() {
+    use pncad::document::OperandSlot;
+    use viewer::relations::{Seat, THE_PRODUCT, definition_reads, relations};
+    use viewer::session::Selection;
+    let tol = Tol::witness();
+    let (session, body, _, second) = placed_twice(tol);
+    let doc = session.committed_doc();
+    let files = session.part_files();
+    let source = doc
+        .copied_read(second)
+        .expect("the placement reads a source");
+    let read_by = relations(doc, &doc.read_index(), body, files).read_by;
+    let definitions: Vec<_> = read_by
+        .iter()
+        .filter(|row| matches!(row.seat, Seat::Definition(_)))
+        .collect();
+    let [row] = definitions[..] else {
+        panic!("one definition over the bracket, `bracket = B`: {read_by:?}")
+    };
+    assert_eq!(row.seat, Seat::Definition(source), "{row:?}");
+    assert_eq!(
+        row.entries.iter().map(|e| e.selects()).collect::<Vec<_>>(),
+        [Some(Selection::Variable(source))],
+        "the named source is a link to the variable: {row:?}"
+    );
+    assert_eq!(row.entries[0].said().to_string(), "bracket", "{row:?}");
+    let back = definition_reads(doc, source, files);
+    assert_eq!(
+        back.iter()
+            .flat_map(|row| row.entries.iter().map(|e| (row.seat, e.selects())))
+            .collect::<Vec<_>>(),
+        [(Seat::Definition(source), Some(Selection::Node(body)))],
+        "the variable's definition reads the bracket, a link back: {back:?}"
+    );
+
+    let (mut session, body) = bracket("offer-unnamed-definition", tol);
+    let op = place_op(session.committed_doc(), body.into(), None);
+    let first = landed(&mut session, op);
+    let doc = session.committed_doc();
+    let source = doc
+        .copied_read(first)
+        .expect("the placement reads a source");
+    assert_eq!(
+        doc.var_name(source),
+        None,
+        "a lone placement's source is anonymous"
+    );
+    let read_by = relations(doc, &doc.read_index(), body, session.part_files()).read_by;
+    assert!(
+        doc.read_index().definitions_over(body).contains(&source),
+        "the unnamed source is defined over the bracket"
+    );
+    let seats: Vec<_> = read_by
+        .iter()
+        .flat_map(|row| row.entries.iter().map(|e| (row.seat, e.selects())))
+        .collect();
+    assert_eq!(
+        seats,
+        [
+            (
+                Seat::Operand(OperandSlot::Source),
+                Some(Selection::Node(first))
+            ),
+            (
+                Seat::Operand(OperandSlot::Space),
+                Some(Selection::Node(first))
+            ),
+        ],
+        "the placement speaking the unnamed source is listed, the source is not: {read_by:?}"
+    );
+
+    let (mut session, body) = bracket("offer-product-reader", tol);
+    let out = session.perform(SessionOp::AddToProduct {
+        node: body,
+        body: None,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    let index = doc.read_index();
+    assert!(
+        !index.in_product(body),
+        "a body in a space joins the product placed"
+    );
+    let [placed] = index.placements_of(body)[..] else {
+        panic!("the product's join placed the bracket once")
+    };
+    let read_by = relations(doc, &index, placed, session.part_files()).read_by;
+    let products: Vec<_> = read_by
+        .iter()
+        .filter(|row| row.seat == Seat::Product)
+        .flat_map(|row| {
+            row.entries
+                .iter()
+                .map(|e| (e.said().to_string(), e.selects()))
+        })
+        .collect();
+    assert_eq!(
+        products,
+        [(THE_PRODUCT.to_owned(), None)],
+        "the product reads the bracket's placement, in words: {read_by:?}"
+    );
 }

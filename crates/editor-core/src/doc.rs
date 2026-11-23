@@ -1067,11 +1067,25 @@ pub struct OperandRead {
     pub own_copy: bool,
 }
 
+/// **One read of a variable's definition and what it reaches**
+/// ([`Doc::definition_reaches`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefinitionRead {
+    /// The variable the definition reads.
+    pub read: VarId,
+    /// The nodes the read reaches, each once, as an operand read's
+    /// [`OperandRead::reaches`] are.
+    pub reaches: Vec<RecipeNodeId>,
+}
+
 /// **Who reads each node** ([`Doc::read_index`]): the inverse of every
-/// node's [`Doc::operand_reads`].
+/// node's [`Doc::operand_reads`], of every definition's
+/// [`Doc::definition_reaches`], and of the product slot's read.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ReadIndex {
     by_read: BTreeMap<RecipeNodeId, Vec<(RecipeNodeId, crate::OperandSlot)>>,
+    by_definition: BTreeMap<RecipeNodeId, Vec<VarId>>,
+    product: BTreeSet<RecipeNodeId>,
     copies: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>>,
 }
 
@@ -1085,6 +1099,22 @@ impl ReadIndex {
     #[must_use]
     pub fn read_by(&self, node: RecipeNodeId) -> &[(RecipeNodeId, crate::OperandSlot)] {
         self.by_read.get(&node).map_or(&[], Vec::as_slice)
+    }
+
+    /// **The variables defined over `node`**: each whose definition has
+    /// a read reaching it ([`Doc::definition_reaches`]), each once, in
+    /// the order the definitions are walked — a named source `bracket = B`, a selection or
+    /// a pose reading its body.
+    #[must_use]
+    pub fn definitions_over(&self, node: RecipeNodeId) -> &[VarId] {
+        self.by_definition.get(&node).map_or(&[], Vec::as_slice)
+    }
+
+    /// **Whether the product slot's read reaches `node`**: the body the
+    /// product is, or the assembly gathering it.
+    #[must_use]
+    pub fn in_product(&self, node: RecipeNodeId) -> bool {
+        self.product.contains(&node)
     }
 
     /// **The placements copying a body of `node`**
@@ -2677,21 +2707,48 @@ impl<P> Doc<P> {
             .into_iter()
             .map(|(seat, read)| {
                 let own_copy = crate::mate::solve::own_copy_side(self, node, seat, read);
-                let mut reaches = match own_copy {
+                let reaches = match own_copy {
                     true => Vec::new(),
-                    false => self.port_reaches(read),
+                    false => self.reaches(read),
                 };
-                // A space holds nothing, so no port reaches it; it is read
-                // by name, and its definer is what reads it
-                // ([`Self::spaces_read`]).
-                let space = self.vars.get(&read).and_then(space_definer);
-                reaches.extend(space.filter(|at| !reaches.contains(at)));
                 OperandRead {
                     seat,
                     read,
                     reaches,
                     own_copy,
                 }
+            })
+            .collect()
+    }
+
+    /// **What a read of `var` reaches**: its ports' operations
+    /// ([`Self::port_reaches`]), then a space's definer. A space holds
+    /// nothing, so no port reaches it; it is read by name, and its
+    /// definer is what reads it ([`Self::spaces_read`]).
+    fn reaches(&self, var: VarId) -> Vec<RecipeNodeId> {
+        let mut reaches = self.port_reaches(var);
+        let space = self.vars.get(&var).and_then(space_definer);
+        reaches.extend(space.filter(|at| !reaches.contains(at)));
+        reaches
+    }
+
+    /// **What `var`'s definition reads, read by read**: each variable
+    /// its definition reads, as [`Self::read_sites`] walks them, with
+    /// the nodes it reaches. Empty for a variable
+    /// with no definition reads, one this document does not hold, and a
+    /// selection that is part of its placement's reading of its source
+    /// ([`Self::own_source_selections`]), which reads nothing of its own.
+    pub fn definition_reaches(&self, var: VarId) -> Vec<DefinitionRead>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.reads_in(Readers::Definitions)
+            .filter_map(|site| match site {
+                ReadSite::Definition { var: by, read } if by == var => Some(DefinitionRead {
+                    read,
+                    reaches: self.reaches(read),
+                }),
+                _ => None,
             })
             .collect()
     }
@@ -2711,9 +2768,11 @@ impl<P> Doc<P> {
     }
 
     /// **Who reads what, over the whole document, built once**: every
-    /// node's [`Self::operand_reads`] inverted, and every placement under
-    /// the node whose body it copies ([`Self::copied_node`]). One walk of
-    /// the nodes; a caller asking of many nodes asks the index.
+    /// node's [`Self::operand_reads`], every definition's
+    /// [`Self::definition_reaches`] and the product slot's read inverted,
+    /// and every placement under the node whose body it copies
+    /// ([`Self::copied_node`]). A caller asking of many nodes asks the
+    /// index.
     pub fn read_index(&self) -> ReadIndex
     where
         P: crate::ProfilePayload,
@@ -2727,6 +2786,23 @@ impl<P> Doc<P> {
             }
             if let Some(copied) = self.copied_node(reader) {
                 index.copies.entry(copied).or_default().push(reader);
+            }
+        }
+        for site in self
+            .reads_in(Readers::Definitions)
+            .chain(self.reads_in(Readers::Product))
+        {
+            match site {
+                ReadSite::Definition { var, read } => {
+                    for at in self.reaches(read) {
+                        let over = index.by_definition.entry(at).or_default();
+                        if !over.contains(&var) {
+                            over.push(var);
+                        }
+                    }
+                }
+                ReadSite::Product { read } => index.product.extend(self.reaches(read)),
+                ReadSite::Node { .. } => {}
             }
         }
         index
