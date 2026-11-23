@@ -350,8 +350,9 @@ fn a_place_copy_resting_on_the_world_asks_no_lever() {
         on: fixture::plane(fixture::head(fixture::fname(
             body,
             RoleSeg::Cap(CapEnd::Start),
-        ))),
-        to: fixture::flip(top),
+        )))
+        .into(),
+        to: fixture::flip(top).into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let (doc, place) = step(

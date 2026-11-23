@@ -107,6 +107,7 @@ pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> 
         | Node::Mirror { .. }
         | Node::Subtract { .. }
         | Node::Place { .. }
+        | Node::Datum { .. }
         | Node::World
         | Node::Space
         | Node::InstantiatePart { .. }
@@ -860,9 +861,9 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
         .flat_map(|&source| doc.plain_copies_of(source))
         .collect();
     handed_sources.extend(
-        doc.placements()
+        copies
             .into_iter()
-            .filter(|placement| !dead.contains_key(placement) && copies.contains(placement)),
+            .filter(|placement| !dead.contains_key(placement)),
     );
     edits.extend(rebinds(doc, &dead, &handed_sources, &reading));
     Ok(Some(Splice { deleted, edits }))

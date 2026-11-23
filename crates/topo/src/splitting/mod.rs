@@ -22,7 +22,7 @@
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`]) only when the
 //!    plane may meet its padded reach box; one behind a box that
 //!    clears passes through the split whole. Edge carriers
-//!    `Line`/`Circle`/`Ellipse` pass; `Spiric` and `Nurbs` refuse
+//!    `Line`/`Circle`/`Ellipse`/`Spiric` pass; a spline refuses
 //!    ([`SplitReduceError::CurvedEdgeUnsupported`]) on the same
 //!    reach-scoped terms.
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
@@ -430,9 +430,9 @@ pub enum SplitReduceError {
         /// Its surface kind (the table row).
         kind: geom::SurfaceKind,
     },
-    /// The plane may meet an edge on a `Spiric` or `Nurbs` carrier, which
-    /// no crossing lane reads (`Line`, `Circle` and `Ellipse` carriers
-    /// all pass). An edge clears behind its own reach box or the box of
+    /// The plane may meet an edge on a spline carrier, which no crossing
+    /// lane reads (`Line`, `Circle`, `Ellipse` and `Spiric` carriers all
+    /// pass). An edge clears behind its own reach box or the box of
     /// either face it bounds.
     CurvedEdgeUnsupported {
         /// The offending edge.
@@ -777,7 +777,7 @@ impl SplitReduceError {
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
-                "the split plane may meet an edge on a spline (NURBS) or spiric curve, which \
+                "the split plane may meet an edge on a spline (NURBS) curve, which \
                  the split cannot take yet. Recourse: move the split plane clear of the \
                  bounding boxes of that edge and the faces beside it"
             ),

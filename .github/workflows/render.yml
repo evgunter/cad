@@ -453,9 +453,9 @@ jobs:
 
   # THE THREE RENDERER-FREE LANES, IN ONE JOB (merged 2026-08-22).
   #
-  # This was three jobs — `tour`, `uv`, `wild` — and the merge is worth two
-  # billed minutes with no artifact changed and no verdict merged. What each
-  # of the two folds actually collects:
+  # One job serves the `tour`, `uv` and `wild` lanes, with no artifact or
+  # verdict changed by sharing it: it pays one job's setup instead of three.
+  # What each of the two folds collects:
   #
   #   * `uv` -> here. That job existed to tile the tour's own per-face SVGs
   #     with Python's standard library: ~10 seconds of work behind a whole
