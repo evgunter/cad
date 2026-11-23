@@ -1,0 +1,6 @@
+fork: a-cut-the-kernel-makes-is-transient (ORBIT; row a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick, P0)
+drawn: 2026-11-23T21:49:07Z, python3 os.urandom(2) (drawn after the first reports, which agreed)
+bytes: 224 / 212
+arm: byte 224 >= 86 -> two designers; both Opus 5.5 (Fable usage out; Ev in chat 2026-11-23)
+mapping: byte 212 even -> A = designer lane orbit-dsgn-cut-1 (Opus 5.5), B = designer lane orbit-dsgn-cut-2 (Opus 5.5); both dispatched as subagents with model opus, 2026-11-23
+protocol: 35578f5a9a
