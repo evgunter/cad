@@ -413,9 +413,7 @@ pub fn min_radius_of_curvature_toward<T: Real>(
         (Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. }, SurfaceSide::Inner) => {
             *radius
         }
-        (Surface::Cone { .. }, SurfaceSide::Inner) => {
-            s.axis_line().map_or_else(poison, |axis| axis.distance(p))
-        }
+        (Surface::Cone { .. }, SurfaceSide::Inner) => crate::curvature_arm::parallel_radius(s, p),
         (Surface::Torus { minor_radius, .. }, SurfaceSide::Inner) => *minor_radius,
         (Surface::Nurbs(_) | Surface::Approx(_), _) => poison(),
     }

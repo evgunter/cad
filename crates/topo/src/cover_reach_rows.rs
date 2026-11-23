@@ -54,9 +54,8 @@ fn the_ball_holding_a_face_is_read_about_the_point_asked() {
     let (body, face) = crate::test_support_fixtures::sphere_cap(z, Tol::witness());
     let rim = Point3::new((1.0 - z.powi(2)).sqrt(), 0.0, z);
     let ball = super::face_ball_about(&body, face, rim, band()).unwrap();
-    assert_eq!(
-        ball.center().to_array(),
-        rim.to_array(),
+    assert!(
+        ball.center().equals_exactly(rim),
         "the ball is read about the point asked"
     );
     let antipode = Point3::origin() - (rim - Point3::origin());

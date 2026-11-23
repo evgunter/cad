@@ -86,7 +86,16 @@ pub fn uniform_curvature_arm<T: Real>(s: &Surface<T>) -> Lever<T> {
 /// tube radius does not bound. Poison for a surface with no axis.
 #[must_use]
 pub fn parallel_curvature_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> Lever<T> {
-    Lever::curvature_radius(s.axis_line().map_or_else(poison, |axis| axis.distance(p)))
+    Lever::curvature_radius(parallel_radius(s, p))
+}
+
+/// **The radius of `s`'s parallel through `p`, as a length**: the size
+/// [`parallel_curvature_arm`] levers at, for a reader that wants the
+/// radius itself (a cone's radius of curvature toward its inside,
+/// [`crate::min_radius_of_curvature_toward`]).
+#[must_use]
+pub(crate) fn parallel_radius<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
+    s.axis_line().map_or_else(poison, |axis| axis.distance(p))
 }
 
 /// **A spline chart's curvature arm at `p` over `reach`, from below**:
