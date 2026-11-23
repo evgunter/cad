@@ -488,25 +488,17 @@ pub(crate) fn tessellate_trimmed(
         ChartRow::Analytic(_) => None,
     };
     let spline = matches!(row, ChartRow::Spline { .. });
-    // The loop's vertices that are the chart's singular points, decided
-    // where the kernel decides it, at the run's band (`chart_table`'s
-    // module docs). Each vertex's mesh id is its edges' end chord id.
-    let singular = match row {
-        ChartRow::Analytic(ref a) if !a.singular_points().is_empty() => {
-            singular_vertices(body, fk, lift, chords, shared, a, tol.band)?
-        }
-        ChartRow::Analytic(_) | ChartRow::Spline { .. } => HashSet::new(),
-    };
-    // The UV polygon: per half-edge, the pcurve evaluated at the
-    // shared chord parameters (each traversal contributes all but its
-    // last point; ids stay the shared 3-D chord ids), every loop.
-    // Every loop has at least three points: the chord pass's short-loop
-    // floor (`chords`).
-    let polygon = one_location_per_branch(
-        trim_polygon(body, fk, lift, chords, spline, creases.as_ref(), &singular)?,
-        surface.angle_periods(),
-        &singular,
-    );
+    let (singular, polygon) = face_polygon(
+        body,
+        fk,
+        (surface, &row),
+        lift,
+        chords,
+        shared,
+        tol.band,
+        tol.delta,
+        creases.as_ref(),
+    )?;
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
     // `singular_row_shape` admits, so the duplicate-id skip in the emit
@@ -1067,8 +1059,9 @@ impl TrimmedFace<'_> {
         // such a vertex are one vertex on two branches, a seam's double
         // traversal (on one branch it is one location,
         // `one_location_per_branch`; a spline chart's entries are read
-        // as walked), and a singular point's copies — the sphere's and the spindle's pole sides, and the
-        // cone's apex, which its development holds as one CDT vertex, so
+        // as walked), and a singular point's copies — the sphere's and the
+        // spindle's pole sides, a spline chart's walked collapsed sides
+        // ([`SideWalk`]), and the cone's apex, which its development holds as one CDT vertex, so
         // its fan's edges are used twice at most — so on every other face
         // the set is empty and the census returns on one branch.
         let patch = Patch {
@@ -1456,16 +1449,19 @@ impl TrimmedFace<'_> {
                 // A triangle with two corners on one mesh vertex is
                 // degenerate in 3-D. Dropping it is `curved`'s idiom, and
                 // there it collapses a pole fan (#678). On the sphere's and
-                // the spindle's arms it does the same at a pole side; the
-                // cone's apex is one CDT vertex in its development, so no
+                // the spindle's arms it does the same at a pole side, and on
+                // a spline chart at each piece of a walked collapsed side
+                // ([`SideWalk`]); the cone's apex is one CDT vertex in its development, so no
                 // triangle there has two corners on it; elsewhere the drop is
                 // all it is, because neither ingredient of that fan reaches
                 // the face — no singular point, and no repeated id at two UV
                 // locations with a single interior column between them.
                 //
                 // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The singular
-                // half is the row's: a chart with singular points holds its
-                // polygon to `singular_row_shape`'s shapes. The INGREDIENT
+                // half is the row's: an analytic chart with singular points
+                // holds its polygon to `singular_row_shape`'s shapes; a
+                // spline chart's singular points are its collapsed sides,
+                // which bound its chart and hold no point past them. The INGREDIENT
                 // half — a repeated id with a single interior column between
                 // the entries — is checked at the cylinder arm's `nu`, kept
                 // off at a singular point by `pole_side_columns`, and this
@@ -2447,26 +2443,81 @@ fn one_location_per_branch(
     trim
 }
 
+/// **The face's singular vertices and its UV polygon** ([`tessellate_trimmed`]).
+///
+/// The singular vertices are the loop's vertices that are the chart's
+/// singular points: on an analytic chart decided where the kernel decides
+/// it, at `band` (`chart_table`'s module docs); on a spline chart a
+/// collapsed side's own stored point ([`CollapsedSides`]). Each vertex's
+/// mesh id is its edges' end chord id.
+///
+/// The polygon: per half-edge, the pcurve evaluated at the shared chord
+/// parameters (each traversal contributes all but its last point; ids
+/// stay the shared 3-D chord ids), every loop, a spline chart's
+/// collapsed sides walked at the face's chord steps at `delta`
+/// ([`SideWalk`]), the steps its rims are chorded at. Every loop has at
+/// least three points: the chord pass's short-loop floor (`chords`).
+#[allow(clippy::too_many_arguments)] // the face, its chart, and what the run shares
+fn face_polygon(
+    body: &Body<f64>,
+    fk: FaceKey,
+    (surface, row): (&Surface<f64>, &ChartRow<'_>),
+    lift: &FaceLift<f64>,
+    chords: &ChordPass,
+    shared: &[Point3<f64>],
+    band: geom_core::predicate::Band,
+    delta: f64,
+    creases: Option<&Creases>,
+) -> Result<(HashSet<u32>, TrimPolygon), TessellateError> {
+    let sides = CollapsedSides::of(surface);
+    let singular = match row {
+        ChartRow::Analytic(a) if !a.singular_points().is_empty() => {
+            singular_vertices(body, fk, lift, chords, shared, |p| a.is_singular(p, band))?
+        }
+        ChartRow::Spline { .. } if !sides.is_empty() => {
+            singular_vertices(body, fk, lift, chords, shared, |p| Ok(sides.holds(p)))?
+        }
+        ChartRow::Analytic(_) | ChartRow::Spline { .. } => HashSet::new(),
+    };
+    let walk = match row {
+        ChartRow::Spline { .. } if !singular.is_empty() => sides.walk(
+            shared,
+            &singular,
+            row.steps(face_target(surface, Lane::Trimmed, delta)),
+        ),
+        ChartRow::Analytic(_) | ChartRow::Spline { .. } => SideWalk::default(),
+    };
+    let spline = matches!(row, ChartRow::Spline { .. });
+    let polygon = one_location_per_branch(
+        trim_polygon(body, fk, lift, chords, spline, creases, (&singular, &walk))?,
+        surface.angle_periods(),
+        &singular,
+    );
+    Ok((singular, polygon))
+}
+
 /// **The loops' vertices that are the chart's singular points**, as mesh
 /// ids, a ring's as an outer loop's: each loop edge's end chord ids (the
 /// vertices' own points, bitwise, `crate::chords`), kept where
-/// [`AnalyticRow::is_singular`] decides the point is one, at `band`. It
-/// is the decision the loop's lift takes to turn the face there
-/// (`chart_table`'s module docs), read on the same points, so the
-/// polygon's sides at a singular point are the lift's.
+/// `is_singular` decides the point is one. On an analytic chart that is
+/// [`AnalyticRow::is_singular`] at the run's band, the decision the
+/// loop's lift takes to turn the face there (`chart_table`'s module
+/// docs), read on the same points, so the polygon's sides at a singular
+/// point are the lift's; on a spline chart it is
+/// [`CollapsedSides::holds`].
 ///
 /// # Errors
 ///
-/// `SphereTrimShape { SingularUndecided }` at a vertex the band cannot
-/// place on or off a singular point, read before the polygon is walked.
+/// `SphereTrimShape { SingularUndecided }` at a vertex `is_singular`
+/// cannot place on or off a singular point, read before the polygon is
+/// walked.
 fn singular_vertices(
     body: &Body<f64>,
     fk: FaceKey,
     lift: &FaceLift<f64>,
     chords: &ChordPass,
     shared: &[Point3<f64>],
-    row: &AnalyticRow<'_>,
-    band: geom_core::predicate::Band,
+    is_singular: impl Fn(Point3<f64>) -> Result<bool, geom_core::Indeterminate>,
 ) -> Result<HashSet<u32>, TessellateError> {
     let mut out = HashSet::new();
     for lifted in every_loop(lift).flat_map(Lift::rows) {
@@ -2483,7 +2534,7 @@ fn singular_vertices(
                 .ok_or(TessellateError::MissingEntity {
                     what: "vertex position",
                 })?;
-            match row.is_singular(p, band) {
+            match is_singular(p) {
                 Ok(true) => {
                     out.insert(id);
                 }
@@ -2904,7 +2955,8 @@ pub(crate) fn every_loop(lift: &FaceLift<f64>) -> impl Iterator<Item = &Lift<f64
 /// docs; each traversal contributes all but its last point, and its last
 /// point too where that is a `singular` vertex the next traversal leaves
 /// from another `u`, so the singular point's row is a side of the polygon
-/// — [`singular_row_shape`]).
+/// — [`singular_row_shape`]; a spline chart's collapsed side is then
+/// walked through its vertex, [`SideWalk::along`]).
 /// `nurbs_chart` widens the accepted image forms to `IsoLine`,
 /// `IsoArc` and `General`; `Fitted` refuses typed on every chart
 /// (module docs). It is the SPLINE-chart flag, not a `Surface::Nurbs`
@@ -2922,10 +2974,19 @@ fn trim_polygon(
     chords: &ChordPass,
     nurbs_chart: bool,
     creases: Option<&Creases>,
-    singular: &HashSet<u32>,
+    (singular, walk): (&HashSet<u32>, &SideWalk),
 ) -> Result<TrimPolygon, TessellateError> {
-    let read =
-        |lift: &Lift<f64>| loop_polygon(body, fk, lift, chords, nurbs_chart, creases, singular);
+    let read = |lift: &Lift<f64>| {
+        walk.along(loop_polygon(
+            body,
+            fk,
+            lift,
+            chords,
+            nurbs_chart,
+            creases,
+            singular,
+        )?)
+    };
     let (outer, rings) = domain_loops(lift);
     let mut trim = TrimPolygon::new(read(outer)?);
     for ring in rings {
@@ -3137,6 +3198,144 @@ fn flat_points<'t>(
             .map(move |&p| (k, p))
             .chain(side.then_some((k, last)))
     })
+}
+
+/// **A spline chart's collapsed sides**: each side of the knot rectangle
+/// whose boundary iso is one stored point, with that point, read from
+/// the one home (`geom_brep::chart_singularity::singular_points`). Empty
+/// on an analytic chart, whose singular points its row reads.
+struct CollapsedSides(Vec<(geom_brep::ChartSide, Point3<f64>)>);
+
+impl CollapsedSides {
+    fn of(surface: &Surface<f64>) -> Self {
+        use geom_brep::chart_singularity::{Singularity, singular_points};
+        Self(
+            singular_points(surface)
+                .into_iter()
+                .filter_map(|(which, p)| match which {
+                    Singularity::Side(side) => Some((side, p)),
+                    _ => None,
+                })
+                .collect(),
+        )
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// The sides whose point vertex position `p` is: its stored point is
+    /// the side's, by the identity the side itself is read with
+    /// (`geom_core::bit_identity::one_stored_point`). No band reads it,
+    /// so the mesh stays a function of (body, δ): a vertex a hair off a
+    /// collapsed side is a vertex beside it, and its polygon keeps it
+    /// once, as at any joint.
+    fn of_point(&self, p: Point3<f64>) -> impl Iterator<Item = geom_brep::ChartSide> + '_ {
+        self.0
+            .iter()
+            .filter(move |(_, q)| geom_core::bit_identity::one_stored_point(&p, q))
+            .map(|&(side, _)| side)
+    }
+
+    /// Whether `p` is a collapsed side's point ([`Self::of_point`]).
+    fn holds(&self, p: Point3<f64>) -> bool {
+        self.of_point(p).next().is_some()
+    }
+
+    /// The walk along each side ([`SideWalk`]) at the face's chord steps
+    /// `(h_u, h_v)`: every `singular` vertex on exactly one side walks it
+    /// at the step of the axis the side runs along. A vertex on two sides
+    /// is their shared corner, and the loop's path between its copies
+    /// turns there; it keeps its two copies and no point between.
+    fn walk(
+        &self,
+        shared: &[Point3<f64>],
+        singular: &HashSet<u32>,
+        (hu, hv): (f64, f64),
+    ) -> SideWalk {
+        let steps = singular
+            .iter()
+            .filter_map(|&id| {
+                let p = *shared.get(id as usize)?;
+                let mut on = self.of_point(p);
+                match (on.next(), on.next()) {
+                    (Some(side), None) => Some((
+                        id,
+                        match side.fixed {
+                            geom_brep::ChartAxis::U => (1, hv),
+                            geom_brep::ChartAxis::V => (0, hu),
+                        },
+                    )),
+                    _ => None,
+                }
+            })
+            .collect();
+        SideWalk { steps }
+    }
+}
+
+/// **How a spline chart's polygon walks a collapsed side**: by vertex id,
+/// the chart axis the side runs along and the face's chord step on it.
+///
+/// A singular vertex the loop arrives at from one place on its side and
+/// leaves from another is held twice ([`flat_points`]), and the polygon's
+/// side between the copies is the collapsed side. The spline certificate
+/// bounds a triangle by its chart box (`NurbsCellGrid::cert`), so a
+/// triangle with a corner at one copy spans, in the chart, as far along
+/// the side as that copy is from its other corners, however small it is
+/// in space. The side is therefore walked as a rim is chorded
+/// (`crates/mesh/README.md` `[mesh.sizing]`, "Rim chords use the face's
+/// grid step"): its image moves at unit speed along its axis, so it takes
+/// `⌈span/h⌉` pieces, each point a copy of the vertex. Every copy lies on
+/// the side, where the surface is the vertex, so the corner a triangle
+/// holds there is the surface's point at its chart corner. A triangle on
+/// two copies has two corners on one mesh vertex and the emit pass drops
+/// it; the triangles left about the vertex are a fan, which the emit
+/// pass's census of identified vertices re-derives.
+///
+/// Empty on every analytic chart: the sphere's and spindle's certificates
+/// read the triangle in space and the cone's reads no azimuth at its
+/// apex, so their pole sides hold no point between the copies.
+#[derive(Default)]
+struct SideWalk {
+    steps: HashMap<u32, (usize, f64)>,
+}
+
+impl SideWalk {
+    /// One loop's points with each walked side's points inserted between
+    /// the copies that end it, each beside the edge of the copy it
+    /// follows.
+    ///
+    /// # Errors
+    ///
+    /// [`ceil_count`]'s, on a side's count.
+    fn along(&self, (points, edges): LoopPoints) -> Result<LoopPoints, TessellateError> {
+        if self.steps.is_empty() {
+            return Ok((points, edges));
+        }
+        let n = points.len();
+        let (mut out, mut out_edges) = (Vec::with_capacity(n), Vec::with_capacity(n));
+        for i in 0..n {
+            let (a, b) = (points[i], points[(i + 1) % n]);
+            out.push(a);
+            out_edges.push(edges[i]);
+            let Some(&(axis, h)) = self.steps.get(&a.2) else {
+                continue;
+            };
+            let (fa, fb) = if axis == 0 { (a.0, b.0) } else { (a.1, b.1) };
+            if b.2 != a.2 || fa == fb {
+                continue;
+            }
+            let pieces = ceil_count((fb - fa).abs(), h)?;
+            for k in 1..pieces {
+                #[allow(clippy::cast_precision_loss)]
+                let t = k as f64 / pieces as f64;
+                out.push((a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t, a.2));
+                out_edges.push(edges[i]);
+            }
+        }
+        Ok((out, out_edges))
+    }
 }
 
 /// One loop's points, each its chart `(u, v)` and mesh id in walk order,
@@ -3430,6 +3629,10 @@ impl Creases {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "trimmed_collapsed_rows.rs"]
+mod collapsed_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -3833,10 +4036,17 @@ pub(super) mod tests {
             assert_eq!(grid.creases(), (&[0.5][..], &[][..]), "face {fk:?}");
             let c = Creases::of(grid, chart, fk).unwrap();
             let lift = body.face_lift(fk, band()).unwrap();
-            let polygon =
-                trim_polygon(&body, fk, &lift, &chords, true, c.as_ref(), &HashSet::new())
-                    .unwrap()
-                    .points;
+            let polygon = trim_polygon(
+                &body,
+                fk,
+                &lift,
+                &chords,
+                true,
+                c.as_ref(),
+                (&HashSet::new(), &super::SideWalk::default()),
+            )
+            .unwrap()
+            .points;
             let (_, v0, v1) = polygon
                 .iter()
                 .fold((0, f64::MAX, f64::MIN), |(n, lo, hi), p| {
@@ -4708,12 +4918,21 @@ pub(super) mod tests {
                 panic!("a sphere face has an analytic row");
             };
             let lift = body.face_lift(fk, band()).unwrap();
-            let singular =
-                super::singular_vertices(&body, fk, &lift, &chords, &positions, &row, band())
-                    .unwrap();
-            let polygon = super::trim_polygon(&body, fk, &lift, &chords, false, None, &singular)
-                .unwrap()
-                .points;
+            let singular = super::singular_vertices(&body, fk, &lift, &chords, &positions, |p| {
+                row.is_singular(p, band())
+            })
+            .unwrap();
+            let polygon = super::trim_polygon(
+                &body,
+                fk,
+                &lift,
+                &chords,
+                false,
+                None,
+                (&singular, &super::SideWalk::default()),
+            )
+            .unwrap()
+            .points;
             let n = polygon.len();
             let pole_sides = (0..n)
                 .filter(|&i| {
@@ -6223,13 +6442,21 @@ pub(super) mod tests {
                     panic!("a cone face has an analytic row");
                 };
                 let lift = body.face_lift(fk, band).unwrap();
-                let singular = super::super::singular_vertices(
-                    &body, fk, &lift, &chords, &positions, analytic, band,
+                let singular =
+                    super::super::singular_vertices(&body, fk, &lift, &chords, &positions, |p| {
+                        analytic.is_singular(p, band)
+                    })
+                    .unwrap();
+                let polygon = super::super::trim_polygon(
+                    &body,
+                    fk,
+                    &lift,
+                    &chords,
+                    false,
+                    None,
+                    (&singular, &super::super::SideWalk::default()),
                 )
                 .unwrap();
-                let polygon =
-                    super::super::trim_polygon(&body, fk, &lift, &chords, false, None, &singular)
-                        .unwrap();
                 let plane = CdtPlane::of(&row, 1.0, &polygon, &singular);
                 let runs = developed_runs(plane, &polygon, &singular, &|i| {
                     carried_by_a_line(&body, polygon.edges[i])

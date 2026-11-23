@@ -37,8 +37,10 @@
 //! sheet's apexes at `v = ±v*` (a horn's one cusp, at `π`). The row reads
 //! them from `topo::chart::Chart::poles`, their one home beneath which is
 //! `geom_brep::chart_singularity`, and adds what is the mesh's: where the
-//! row sits in the chart's `v` domain ([`RowEnd`]). A cylinder, a torus
-//! and a spline chart have none.
+//! row sits in the chart's `v` domain ([`RowEnd`]). A cylinder and a
+//! torus have none. A spline chart's are its collapsed sides, which the
+//! row does not carry: the trimmed lane reads them from the home
+//! (`trimmed::CollapsedSides`).
 //!
 //! Whether a loop vertex IS a singular point is a fact about the body,
 //! decided once, where the kernel decides it:
