@@ -24,3 +24,6 @@ round 12 (final For Ev): B 431141 at hand-back
 round 13 (amended For Ev; no tool use in the round): A 260908 at hand-back
 round 13 (amended For Ev): B 444806 at hand-back
 round 14 (final For Ev, recount core): A 268057 at hand-back
+round 14 (final For Ev, recount core): B 455230 at hand-back
+round 15 (final For Ev, recount sweep): A 275064 at hand-back
+round 15 (final For Ev, recount sweep): B 466464 at hand-back
