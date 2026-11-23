@@ -1473,11 +1473,11 @@ fn circular_reach<T: Decide + Bounds>(
         .and_then(|aimed| Cover::torus(&Frame::of_motion(&aimed), big, reach))
         .map(|c| c.box_in(&BoxAxes::World))
         .ok_or_else(|| {
-        disagrees(
-            EntityId::Edge(link.edge),
-            "a circular link's band is no finite tube about its axis",
-        )
-    })?;
+            disagrees(
+                EntityId::Edge(link.edge),
+                "a circular link's band is no finite tube about its axis",
+            )
+        })?;
     let sheet = |x: Point3<T>| sheet_of(meridian, x);
     let in_sheet = |f: SheetFn<T>, slack: T| Bound::Sheet {
         axis: meridian,
@@ -2014,7 +2014,10 @@ fn mixed_corner_reach<T: Decide + Bounds>(
             // about its axis and within `r` of its centre along it: its
             // box is that of the torus's cover.
             let frame = surface.frame().ok_or_else(|| {
-                disagrees(EntityId::Vertex(v), "a mixed corner's fillet patch is not a torus")
+                disagrees(
+                    EntityId::Vertex(v),
+                    "a mixed corner's fillet patch is not a torus",
+                )
             })?;
             let (lo, hi) = Cover::torus(&frame, major, radius)
                 .map(|c| c.box_in(&BoxAxes::World))
