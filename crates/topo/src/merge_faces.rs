@@ -2693,18 +2693,23 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             killed_vertices: Vec::new(),
         };
         let in_group = |f: FaceKey| f == rep || rest.contains(&f);
+        // A curved run on a chart with a singular point (a sphere's
+        // poles, a cone's apex) closes through its wrap edges: each such
+        // edge is the face's seam kept to its tip (DESIGN `[topology]`).
+        // Every other curved run keeps the period-closure skip.
+        let tipped = kind == MergeKind::Curved
+            && geom::ChartInverse::of(self.proven_face(rep).surface()).is_ok_and(|chart| {
+                !geom_brep::chart_singularity::singular_points(&chart).is_empty()
+            });
         // Absorption: repeatedly kill the first (edge-arena order)
-        // edge shared between rep and another group member. A curved
-        // run kills a wrap edge last: the wrap edge is the face's seam
-        // kept to its tip (DESIGN `[topology]`), and another edge the
-        // run shares into that tip is the one the survivor can lose.
+        // edge shared between rep and another group member. A tipped
+        // run kills a wrap edge last: another edge the run shares into
+        // the wrap edge's tip is the one the survivor can lose.
         loop {
             let mut found = None;
             for wrap_pass in [false, true] {
                 for (edge_key, edge) in self.edges() {
-                    if kind == MergeKind::Curved
-                        && crate::validate::wraps(self, edge_key) != wrap_pass
-                    {
+                    if tipped && crate::validate::wraps(self, edge_key) != wrap_pass {
                         continue;
                     }
                     let (hp, hm) = self.edge_halves(edge_key, edge);
@@ -2717,7 +2722,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                         break;
                     }
                 }
-                if found.is_some() || kind != MergeKind::Curved {
+                if found.is_some() || !tipped {
                     break;
                 }
             }
@@ -2850,7 +2855,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         //   something.
         loop {
             let mut duplicates = Vec::new();
-            // The survivor's wrap edges' tips, on a curved run: the
+            // The survivor's wrap edges' tips, on a tipped run: the
             // ends of its wrap edges at a singular point of its chart (a
             // pole, an apex). A wrap edge has the face on both sides by
             // construction, its seam, and is no duplicate the
@@ -2859,7 +2864,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             for (edge_key, edge) in self.edges() {
                 let (hp, hm) = self.edge_halves(edge_key, edge);
                 if hp.face == rep && hm.face == rep {
-                    if kind == MergeKind::Curved && crate::validate::wraps(self, edge_key) {
+                    if tipped && crate::validate::wraps(self, edge_key) {
                         let ends = self
                             .edge_vertices(edge_key)
                             .into_iter()
@@ -2877,7 +2882,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             let Some(&(first_key, _, _)) = duplicates.first() else {
                 break;
             };
-            if kind == MergeKind::Curved {
+            if kind == MergeKind::Curved && !tipped {
+                return Err(MergeCoplanarError::PeriodClosure { edge: first_key });
+            }
+            if tipped {
                 // A duplicate running into its own wrap edge's tip is a
                 // second cut into that chart singularity: the seam is a property of the face, its place
                 // conventional, and the face keeps one. It lies inside
