@@ -208,20 +208,6 @@ impl<'a, T: geom_core::CertifiedBounds> SsiOperand<'a, T> {
     pub fn nurbs(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
         ChartedNurbs::mint(surface).map(Self::Nurbs)
     }
-
-    /// A NURBS operand whose chart enclosures read `grid`, a refinement
-    /// of `surface`'s net in certification arithmetic
-    /// ([`ChartedNurbs::mint_on`]).
-    ///
-    /// # Errors
-    ///
-    /// As [`SsiOperand::nurbs`].
-    pub(crate) fn nurbs_on(
-        surface: &'a NurbsSurface<T>,
-        grid: &'a enclose::CellGrid,
-    ) -> Result<Self, SsiError> {
-        ChartedNurbs::mint_on(surface, grid).map(Self::Nurbs)
-    }
 }
 
 /// Which length levers the transversality decision at a point
@@ -1835,8 +1821,7 @@ thread_local! {
     static CHART_MINTS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
 }
 
-/// Test-only: how many charts ([`ChartedNurbs::mint`] and its grid
-/// form) this thread has minted. An operation that mints each wall
+/// Test-only: how many charts ([`ChartedNurbs::mint`]) this thread has minted. An operation that mints each wall
 /// once is pinned by the count, which timing alone would otherwise
 /// carry.
 #[cfg(any(test, feature = "test-support"))]
@@ -1894,9 +1879,8 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         })
     }
 
-    /// [`ChartedNurbs::mint`] with every chart enclosure, the speeds
-    /// among them, read off `grid`'s finer cells
-    /// ([`enclose::CellGrid`]).
+    /// This chart with every chart enclosure, the speeds among them,
+    /// read off `grid`'s finer cells ([`enclose::CellGrid`]).
     ///
     /// The two refusals are read on the surface's own cells first. They
     /// are facts of the described net: a net constant along an axis
@@ -1907,15 +1891,6 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     ///
     /// As [`ChartedNurbs::mint`], on the surface's own cells or on the
     /// grid's.
-    pub(crate) fn mint_on(
-        surface: &'a NurbsSurface<T>,
-        grid: &'a enclose::CellGrid,
-    ) -> Result<Self, SsiError> {
-        count_mint();
-        Self::charted_on(surface, grid)
-    }
-
-    /// [`ChartedNurbs::mint_on`]'s reading of `surface` on `grid`.
     fn charted_on(
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
@@ -1932,12 +1907,11 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         })
     }
 
-    /// **The grid a certificate reads this chart on**
-    /// ([`crate::edge_nurbs::wall_grid`]), where it was minted on the
-    /// surface's own cells: the one rule for a trace's certificate and
-    /// the edge certificate at rest, so the two read one chart operand.
-    /// `None` for a chart already on a grid, or one the grid leaves on
-    /// its own cells.
+    /// **The grid a certificate's limb 3 reads this chart on where its
+    /// own cells refuse** ([`crate::edge_nurbs::wall_grid`]): the one
+    /// rule for a trace's certificate and the edge certificate at rest,
+    /// so the two read one chart operand. `None` for a chart already on a
+    /// grid, or one the grid leaves on its own cells.
     pub(crate) fn certificate_grid(&self) -> Option<enclose::CellGrid> {
         match self.on_grid {
             Some(_) => None,
@@ -1950,7 +1924,7 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     ///
     /// # Errors
     ///
-    /// As [`ChartedNurbs::mint_on`].
+    /// As [`ChartedNurbs::mint`], on the grid's cells.
     pub(crate) fn on_certificate_grid(
         &self,
         grid: Option<&'a enclose::CellGrid>,

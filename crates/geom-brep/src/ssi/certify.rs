@@ -2555,26 +2555,6 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             (&first, &second, None, None)
         }
     };
-    // Each chart on the certificate's grid, whoever minted it
-    // (`ChartedNurbs::certificate_grid`).
-    let grid_of = |op: &SsiOperand<'_, T>| match op {
-        SsiOperand::Nurbs(n) => n.certificate_grid(),
-        SsiOperand::Analytic(_) => None,
-    };
-    let (grid_a, grid_b) = (grid_of(a), grid_of(b));
-    fn on_grid<'g, T: geom_core::CertifiedBounds>(
-        op: &SsiOperand<'g, T>,
-        grid: Option<&'g super::enclose::CellGrid>,
-    ) -> Result<SsiOperand<'g, T>, SsiError> {
-        match op {
-            SsiOperand::Nurbs(n) => n.on_certificate_grid(grid).map(SsiOperand::Nurbs),
-            SsiOperand::Analytic(s) => Ok(SsiOperand::Analytic(s)),
-        }
-    }
-    let (a, b) = (
-        &on_grid(a, grid_a.as_ref())?,
-        &on_grid(b, grid_b.as_ref())?,
-    );
     let asked: &[_] = match limbs {
         Limbs::All => &[(a, pcurve_a), (b, pcurve_b)],
         Limbs::Tube => &[],
@@ -2607,59 +2587,92 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // The extent levers the clearance; its upper end is the ladder's
     // widest rung.
     let widest = Bounds::hi(extent);
-    let three = match (a, b) {
-        (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
-            let Curve3::Nurbs(net) = carrier else {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: BOX_CHAIN_NEEDS_SPLINE,
-                });
+    let tube = |a: &SsiOperand<'_, T>, b: &SsiOperand<'_, T>| -> Result<_, SsiError> {
+        Ok(match (a, b) {
+            (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
+                let Curve3::Nurbs(net) = carrier else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: BOX_CHAIN_NEEDS_SPLINE,
+                    });
+                };
+                let chain = box_chain(net);
+                limb_three((widest, extent), band, |radius| {
+                    Ok(probe_tube_analytic(
+                        &chain,
+                        s1,
+                        s2,
+                        radius,
+                        (slab, ends, band.zero()),
+                    ))
+                })?
+            }
+            (SsiOperand::Analytic(partner), SsiOperand::Nurbs(n))
+            | (SsiOperand::Nurbs(n), SsiOperand::Analytic(partner)) => {
+                let Some(p) = pcurve_b else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: "the chart uniqueness tube needs the traced pcurve",
+                    });
+                };
+                let form = chart_partner_form(partner, CertifiedEnclosure::certified_bracket)?;
+                let phi = ChartPhi(&form);
+                let nodes = node_ends(p, n, &form, band);
+                limb_three((widest, extent), band, |radius| {
+                    // The pad per axis: the rung ÷ the operand's minted chart
+                    // speed along that axis. The padded windows are the
+                    // proved region and the certificate records them; the
+                    // rung is the ladder's label, not a metre bound on that
+                    // region (a window's corner can sit farther than the rung
+                    // from the carrier).
+                    let pad = n.speeds().pad(radius);
+                    probe_tube_chart(p, n.boxes(), phi, (radius, pad, nodes), (ends, band))
+                })?
+            }
+            (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
+                let (Some(pa), Some(pb)) = (pcurve_a, pcurve_b) else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: "the two-chart uniqueness tube needs both traced pcurves",
+                    });
+                };
+                limb_three((widest, extent), band, |radius| {
+                    Ok(probe_tube_pair(
+                        (pa, pb),
+                        (na, nb),
+                        (radius, (na.speeds().pad(radius), nb.speeds().pad(radius))),
+                        band,
+                    ))
+                })?
+            }
+        })
+    };
+    // Limb 3 on each chart's own cells first, and where that refuses, on
+    // the certificate's grid (`ChartedNurbs::certificate_grid`), whose
+    // finer cells read the chart's speeds and enclosures tighter. A
+    // trace's certificate and the edge certificate at rest take the same
+    // two steps, so the two read one chart operand.
+    let three = match tube(a, b) {
+        Ok(three) => three,
+        Err(own) => {
+            let grid_of = |op: &SsiOperand<'_, T>| match op {
+                SsiOperand::Nurbs(n) => n.certificate_grid(),
+                SsiOperand::Analytic(_) => None,
             };
-            let chain = box_chain(net);
-            limb_three((widest, extent), band, |radius| {
-                Ok(probe_tube_analytic(
-                    &chain,
-                    s1,
-                    s2,
-                    radius,
-                    (slab, ends, band.zero()),
-                ))
-            })?
-        }
-        (SsiOperand::Analytic(partner), SsiOperand::Nurbs(n))
-        | (SsiOperand::Nurbs(n), SsiOperand::Analytic(partner)) => {
-            let Some(p) = pcurve_b else {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: "the chart uniqueness tube needs the traced pcurve",
-                });
-            };
-            let form = chart_partner_form(partner, CertifiedEnclosure::certified_bracket)?;
-            let phi = ChartPhi(&form);
-            let nodes = node_ends(p, n, &form, band);
-            limb_three((widest, extent), band, |radius| {
-                // The pad per axis: the rung ÷ the operand's minted chart
-                // speed along that axis. The padded windows are the
-                // proved region and the certificate records them; the
-                // rung is the ladder's label, not a metre bound on that
-                // region (a window's corner can sit farther than the rung
-                // from the carrier).
-                let pad = n.speeds().pad(radius);
-                probe_tube_chart(p, n.boxes(), phi, (radius, pad, nodes), (ends, band))
-            })?
-        }
-        (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
-            let (Some(pa), Some(pb)) = (pcurve_a, pcurve_b) else {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: "the two-chart uniqueness tube needs both traced pcurves",
-                });
-            };
-            limb_three((widest, extent), band, |radius| {
-                Ok(probe_tube_pair(
-                    (pa, pb),
-                    (na, nb),
-                    (radius, (na.speeds().pad(radius), nb.speeds().pad(radius))),
-                    band,
-                ))
-            })?
+            let (grid_a, grid_b) = (grid_of(a), grid_of(b));
+            if grid_a.is_none() && grid_b.is_none() {
+                return Err(own);
+            }
+            fn on_grid<'g, T: geom_core::CertifiedBounds>(
+                op: &SsiOperand<'g, T>,
+                grid: Option<&'g super::enclose::CellGrid>,
+            ) -> Result<SsiOperand<'g, T>, SsiError> {
+                match op {
+                    SsiOperand::Nurbs(n) => n.on_certificate_grid(grid).map(SsiOperand::Nurbs),
+                    SsiOperand::Analytic(s) => Ok(SsiOperand::Analytic(s)),
+                }
+            }
+            tube(
+                &on_grid(a, grid_a.as_ref())?,
+                &on_grid(b, grid_b.as_ref())?,
+            )?
         }
     };
     Ok(certificate((on_locus, hull_sup), three))
@@ -3809,11 +3822,7 @@ mod tests {
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
 
-        // The certificate reads the wall on its own grid.
-        let minted = ChartedNurbs::mint(&wall).unwrap();
-        let grid = minted.certificate_grid();
-        let on_grid = minted.on_certificate_grid(grid.as_ref()).unwrap();
-        let speeds = on_grid.speeds();
+        let speeds = ChartedNurbs::mint(&wall).unwrap().speeds();
         let (su, sv) = (speeds.u.get(), speeds.v.get());
         assert!(
             su < sv,
@@ -3865,7 +3874,7 @@ mod tests {
             let ends = (ends, band);
             let probe = probe_tube_chart(
                 pc,
-                on_grid.boxes(),
+                &NurbsBoxes::new(&wall),
                 &crate::ssi::residual::ImplicitForm::of(&plane).unwrap(),
                 (rung, (pad_u, pad_v), nodes),
                 ends,
@@ -3892,7 +3901,7 @@ mod tests {
             let folded = rung / su.max(sv);
             let at_fold = probe_tube_chart(
                 pc,
-                on_grid.boxes(),
+                &NurbsBoxes::new(&wall),
                 &crate::ssi::residual::ImplicitForm::of(&plane).unwrap(),
                 (rung, (folded, folded), nodes),
                 ends,
@@ -4199,10 +4208,10 @@ mod tests {
 
     /// **An operand's cells are built once for its life, not once per
     /// rung**: the mint reads the one-cell fold's speeds, limb 3 walks
-    /// its ladder with every rung reading the wall's chart enclosures on
-    /// the certificate's grid, and each of the grid's cells is built at
-    /// most once over all of it, beside the wall's own cell at each of
-    /// its two mints.
+    /// its ladder with every rung reading the wall's chart enclosures,
+    /// on its own cell and then, that ladder refusing, on the
+    /// certificate's grid, and each cell's net is built at most once
+    /// over all of it, the wall's own at each of its two readings.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn every_rung_reads_the_operands_one_build_of_each_cell() {
@@ -4232,7 +4241,8 @@ mod tests {
         let cells = crate::edge_nurbs::PXN_WALL_SPANS.pow(2);
         assert!(
             (1..=cells + 2).contains(&built),
-            "the one-cell wall's {cells} grid cells were built {built} times over {rungs} rungs"
+            "the one-cell wall's net and its {cells} grid cells were built {built} times over \
+             {rungs} rungs"
         );
     }
 

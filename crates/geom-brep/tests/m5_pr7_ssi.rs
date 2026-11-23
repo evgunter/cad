@@ -5002,17 +5002,13 @@ fn rounds_at_the_wall(
 
 /// **A loop past the step budget refuses typed at the wall.** At ε 8e-15
 /// the dome's level loop takes about 19 350 marched samples, inside the
-/// branch's 20 000 steps, and limb 2 reads it in band at about 8.4e-15 m.
-/// One refinement round fits the budget, to about 19 860 samples, and its
-/// refused residual does not fall (8.38e-15 to 8.39e-15 m), so the wall
-/// refuses before the next round, naming the two refused rounds and the
-/// arithmetic's floor. At 9e-15 the loop certifies on its marched
-/// samples, so 8e-15 is where this row's subject is. A branch never
-/// grows past the wall, and the refusal is the resource limit, not a
-/// verdict on the carrier. (The plane's ℝ⁴ trace marched about 19 350
-/// samples too, but its first round would have overrun the steps, so it
-/// refused on one round, the residual's trend unread, with the march's
-/// levers.)
+/// branch's 20 000 steps, and limb 2 reads it in band at about 8.4e-15 m
+/// over more gaps than the steps left can halve: the first refinement
+/// round would overrun the budget, so the wall refuses on the marched
+/// carrier, its one refused round named and the residual's trend unread.
+/// At 9e-15 the loop certifies on its marched samples, so 8e-15 is where
+/// this row's subject is. A branch never grows past the wall, and the
+/// refusal is the resource limit, not a verdict on the carrier.
 #[test]
 fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let d = 1.0;
@@ -5031,21 +5027,22 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 8e-15", &r);
     assert_eq!(
         trend,
-        ResidualTrend::Stalled,
-        "the refused residual stopped falling: {rounds:?}"
+        ResidualTrend::Falling,
+        "one round reads no trend: {rounds:?}"
     );
+    assert_eq!(rounds.len(), 1, "one refused round: {rounds:?}");
     assert!(
-        (19_700..20_000).contains(&samples),
-        "one round's samples: {samples}"
-    );
-    assert_eq!(rounds.len(), 2, "two refused rounds: {rounds:?}");
-    assert!(
-        (19_100..19_600).contains(&rounds[0].samples),
+        (19_100..19_600).contains(&samples) && rounds[0].samples == samples,
         "the march's samples: {rounds:?}"
     );
     assert!(
-        shown.contains("stopped falling") && shown.contains("the arithmetic's floor"),
-        "the floor claimed: {shown}"
+        matches!(rounds[0].margin, RoundMargin::InBand(_))
+            && rounds[0].limb == SsiLimb::HullSupChart,
+        "limb 2 in band: {rounds:?}"
+    );
+    assert!(
+        shown.contains("20000") || shown.contains("20 000"),
+        "the step budget named: {shown}"
     );
 }
 
