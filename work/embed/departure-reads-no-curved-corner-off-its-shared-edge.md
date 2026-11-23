@@ -151,10 +151,11 @@ The traced readings have landed in `topo::injective`:
   `y > 0`. The other edge's chart curve must leave the vertex into
   `y > 0` and stay there within reach (`leaves_line`), and nothing else
   may be in reach. The far end needs no span check, because it is out
-  of reach. A reflex corner is `Structural`. The sliver concession
-  applies as in `present_line_corner`. Without it, `chute`'s annulus
-  cells, which touch the line from its far side within rounding, stay
-  undecided at depth 40;
+  of reach. A reflex corner is `Structural`. `chute`'s annulus cells,
+  which touch the line from its far side within rounding, are
+  presented as a rectangle with no width, or rounding's, and read: the
+  sliver concession that used to read them vacuous is retired
+  (`embed/remeter`, PR 7329);
 - **a sphere's pole as a collapsed side of its chart**
   (`present_chart`), as a cone's apex already was. The vertex is placed
   at the pole by `geom_brep::chart_singularity::vertex_at_singular_point`,
@@ -784,7 +785,9 @@ sphere is not needed there. The sphere pair refuses at the root, both
 - **What a pose does not read:** the graph separator (its sides carry
   no parameters) and the sliver, which is frozen. (Corrected in the fix
   pass below: a corner or point zero is read in a pose, as a stored
-  chart's is.)
+  chart's is. The sliver itself is gone since remeter, PR 7329, so
+  nothing reads one, and the row that pinned a pose against it,
+  `a_pose_reads_no_sliver`, went with it.)
 - **What a pose decides:** a presentation, or `Local`. Two exceptions
   keep the stored `Structural`: a pose in which a shared edge is no
   coordinate line is not tried (`poses_of`), and a cell reaching a

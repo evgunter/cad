@@ -826,14 +826,20 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/props.rs",
-        7,
+        11,
         3,
         "the 3 that ask are `deciding_walk`'s confirmation reads, which refine on a re-derivation \
-         that does not certify. The other 4: `far_from`'s 2 read the distances that decide \
+         that does not certify. The other 8: `far_from`'s 2 read the distances that decide \
          whether a region is carried, a choice of reference point, and the carry it selects is \
          refused by name in `carry_of` unless it certifies; `SignCertificate::interval_volume`'s \
          2, its ends, are a refusal's payload (`outward_volume`, the bracket `Undecided` \
-         reports) and certify nothing",
+         reports) and certify nothing; `closed_form_reads`' 4, its `ends` closure's `lo` and \
+         `hi` of a face's flux and area, read the walk's lifted sums and the closed form run \
+         again (`walked_closed_form`, `lifted_closed_form`) into the `(lo, hi)` pairs a \
+         `ClosedFormRead` reports. That function is test vocabulary, built only under `test` or \
+         `test-support`, and its rows compare the two readings bit for bit or match the \
+         refusal `lifted_closed_form` returns: no branch is taken on an end, so a pair that \
+         does not certify is reported as an enclosure and certifies nothing",
     ),
     ("crates/topo/src/props/quad_lane.rs", 27, 27, ""),
     ("crates/topo/src/test_support_fixtures.rs", 2, 2, ""),

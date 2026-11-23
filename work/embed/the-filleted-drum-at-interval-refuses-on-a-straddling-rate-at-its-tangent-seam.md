@@ -75,10 +75,47 @@ enclosure will need.
 
 ## What closing it takes
 
-The drum at `Interval` holds with `present_chart`'s sliver refused,
-pinned so. It gates that sliver's retirement
-(`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`).
+The drum at `Interval` holds, and its row's `Interval` half goes back
+to asserting so. The sliver is retired without waiting for this row
+(Ev, PR 7095: the drum is a test and no demo): since `embed/remeter`
+(PR 7329) `a_filleted_drum_certifies_across_its_fillet` pins the
+`Interval` half at its refusal, `Uncertified`, the top plane against
+the band across their circle, arm `Departure`, and is red the day it
+holds.
 `teapotlid`, `hollowring` and `hollowtorus` refuse the same way once
 the touch concession's `few_ulps` is also 0 (the measurement's section
 8): the touch is not this row's, but the reading that closes this row
 is the first thing to try there.
+
+## A second witness: a rounded plate filleted all round, at `Interval` (EMBED, lane `embed/remeter`, 2026-11-22)
+
+`sweep::all band_closed_mixed_chain::a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval`
+(26 faces, at the blend's door, the at-rest gate asking on
+`embed/remeter-measure` at `343977aa0`, traced with `RM_TRACE`, one
+thread). With the sliver retired it runs out of its 65,536 pairs
+(65,408 leaves, 50 s) where the drum refuses `Uncertified`.
+
+- **Where the pairs go.** Eight pairs of a wall plane against a fillet
+  cylinder across their shared ruling take 49,836 of 69,498 visits:
+  `5v1`/`21v1`, `5v1`/`29v1`, `9v1`/`25v1` and `9v1`/`33v1` at 8,125
+  each; `1v1`/`29v1` at 4,254; `1v1`/`33v1`, `2v1`/`21v1` and
+  `2v1`/`25v1` at 3,694 each.
+- **Both faces are read**: presented with the ruling as a zero side in
+  over 99% of those visits.
+- **The seam is tangent.** The carrier arm's sine straddles zero in
+  every visit of a pair (at the deepest, `[-3.1e-14, 7.3e-14]`, at an
+  arm of 0.5 m). The plane through the ruling and the graph separator
+  decide in about 200 of a pair's 8,125 visits and straddle in 160.
+- **The cylinder's rectangle is the line's enclosure**: at the deep
+  visits `u ∈ (2.3561944901923053, 2.3561944901923453)`, 4e-14 rad
+  across, about 3π/4. The drum's is 2.1e-14 rad.
+
+**Inferred, not measured**: that main certified these strips through
+`present_chart`'s sliver, as it did the drum's 16. Sliver decisions
+were not counted for this test before the change, and before it the
+ask refused earlier, at another pair (`1v1`/`27v1`, edge `57v1`), so
+these eight pairs' readings on main are in no log. That count is what
+tells this from the next most likely cause, the pairs having certified
+shallower by another separator.
+
+Any of the three changes above is what it needs.

@@ -905,7 +905,10 @@ fn the_answer_is_deterministic_across_repeats() {
         matches!(
             first.verdict(),
             ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-                refusal: EngineRefusal::Budget(CellBudget::Pairs { .. }),
+                refusal: EngineRefusal::Budget {
+                    stop: CellBudget::Pairs { .. },
+                    ..
+                },
                 ..
             })
         ),
@@ -1546,7 +1549,10 @@ fn a_band_costs_the_larger_of_its_bounds_not_their_sum() {
             matches!(
                 report.verdict(),
                 ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-                    refusal: EngineRefusal::Budget(CellBudget::Depth { .. }),
+                    refusal: EngineRefusal::Budget {
+                        stop: CellBudget::Depth { .. },
+                        ..
+                    },
                     ..
                 })
             ),
