@@ -321,23 +321,25 @@ fn image_of(c: &EdgeCurve<f64>) -> Pcurve<f64> {
     c.description().chart().unwrap().pcurve.clone()
 }
 
-/// **The other image kinds a plane can carry, at the body.** A
-/// `Fitted` and a `General` image of one line carrier at 60° (so
-/// `v ≠ 0`) on a plane face: after `revert` the image keeps
+/// **The other image kinds a plane can carry, at the body.** An
+/// `IsoLine`, a `Fitted` and a `General` image on a plane face, each of
+/// a line carrier along which `v` moves: after `revert` the image keeps
 /// its kind and is the stored one with `v` negated at nine samples,
 /// the SOURCE curve re-certified on the reverted plane refuses
 /// `StatedImage` at sample 1 (the control), the mirrored curve's
 /// fresh certificate is the one it carries to rounding, and `revert ∘ revert`
-/// restores the body. An iso image holds a row or a column of its chart,
-/// which a line at 60° is not, and `IsoArc` has no plane producer and no
+/// restores the body. The curves in UV are a line at 60°; the iso line
+/// holds a line of its chart, so it is the column `u = 0.3`, whose carrier
+/// runs along the plane's `v`. `IsoArc` has no plane producer and no
 /// plane carrier (its parameter map is a rational-quadratic Bézier's,
-/// which no `Curve3` matches), so both are pinned at the `geom-brep`
-/// door only (`pcurve_mirror_v`).
+/// which no `Curve3` matches), so it is pinned at the `geom-brep` door
+/// only (`pcurve_mirror_v`).
 #[test]
-fn a_plane_face_with_a_nurbs_image_reverts_and_recertifies() {
+fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
     let (c, s) = (0.5f64, 3f64.sqrt() / 2.0);
     let len = 2.0;
-    let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(c, s, 0.0));
+    let slanted = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(c, s, 0.0));
+    let along_v = Curve3::line(Point3::new(0.3, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let lin = || {
         NurbsCurve2::new(
             KnotVector::clamped(vec![0.0, 0.0, len, len], 1).unwrap(),
@@ -346,13 +348,18 @@ fn a_plane_face_with_a_nurbs_image_reverts_and_recertifies() {
         )
         .unwrap()
     };
-    let kinds: Vec<(&str, Pcurve<f64>)> = vec![
-        ("Fitted", Pcurve::Fitted(Arc::new(lin()))),
-        ("General", Pcurve::General(Arc::new(lin()))),
+    let kinds: Vec<(&str, Pcurve<f64>, Curve3<f64>)> = vec![
+        (
+            "IsoLine",
+            Pcurve::iso_column(0.3, (0.0, len), (0.0, len)),
+            along_v,
+        ),
+        ("Fitted", Pcurve::Fitted(Arc::new(lin())), slanted.clone()),
+        ("General", Pcurve::General(Arc::new(lin())), slanted),
     ];
     let band = Band::linear(tol()).unwrap();
     let ts: Vec<f64> = (0..9u32).map(|i| len * f64::from(i) / 8.0).collect();
-    for (label, image) in kinds {
+    for (label, image, carrier) in kinds {
         let body = plane_face_with(image, carrier.clone(), 0.0, len);
         let source = only_curve(&body);
         let reverted = body.revert().unwrap();

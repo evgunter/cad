@@ -2382,8 +2382,10 @@ pub enum PcurveCertifyError {
     /// refuse one outside the domain); an
     /// interior column or row of a chart whose weight net varies along both
     /// parameters (the collapsed row's weights are computed, so no
-    /// stored carrier shares its space); a DIAGONAL line in UV; a
-    /// degenerate iso (neither chart channel moves); an image that
+    /// stored carrier shares its space); a
+    /// degenerate iso (its moving chart channel does not definitely move
+    /// over the span; a line slanted in its chart is no iso image and is
+    /// stated as a curve in UV, so no diagonal reaches this lane); an image that
     /// leaves the chart's parameter domain, where the hull bound does
     /// not hold; a carrier whose spline structure is not the traversed
     /// column's, or whose weights are not positive (the convex-hull
@@ -5735,7 +5737,7 @@ impl<T: Decide> PcurveCache<T> {
     /// whether the fitted door is held, compared), and derived again
     /// everywhere else.
     ///
-    /// The carrier's incidence on the chart is read over `edge_span`, the
+    /// The carrier's incidence on the chart is read over `(t0, t1)`, the
     /// edge's own interval (`incidence_ended`): first on an analytic chart;
     /// on a spline chart where the row refuses, or where the row's span
     /// is not shown to cover the edge's, since the row's certificate
@@ -9705,6 +9707,13 @@ fn run_iso_arc_checks<T: Decide>(
 /// collapses the row inside; the cap and arc classes have no
 /// construction off a boundary), so each call site owns its own text.
 /// Escalations escalate. Shared by the iso-line and iso-arc classes.
+///
+/// **The drift.** An iso line's held channel is its [`ChartLine`]'s one
+/// value, which does not move by structure, so the iso-line classes pass
+/// a zero drift and the slack is the snap to the boundary alone. The
+/// arc-rim class still reads every arc as a row and passes its segment's
+/// `v` displacement, which is zero for a row arc and the whole travel
+/// for a column arc.
 ///
 /// **The domain, not the unit square (#327).** A chart the kernel
 /// BUILT is normalized to `[0, 1]²` and `(lo, hi) = (0, 1)` reads

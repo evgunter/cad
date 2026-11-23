@@ -130,14 +130,17 @@ enum Closed {
 /// A chart places its angles in principal windows by deciding turns
 /// off them through these marks (`geom::Window`, and `geom_brep`'s
 /// placement, which re-exports this type).
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+/// It is not comparable: one period has two statings (a length, a
+/// domain's two ends), and no `==` over them is the period's equality.
+#[derive(Clone, Copy, Debug)]
 pub struct Period<T> {
     stated: Stated<T>,
 }
 
 /// How a period is stated: as its length, or as the two ends of the
 /// domain one turn of the channel spans.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 enum Stated<T> {
     /// The length of one turn.
     Length(T),

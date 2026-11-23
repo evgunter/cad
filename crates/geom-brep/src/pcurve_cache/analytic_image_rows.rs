@@ -1136,3 +1136,89 @@ fn an_iso_line_off_its_column_between_the_samples_ends_in_its_lever() {
         }
     }
 }
+
+/// **A line slanted in its chart is stated as a curve in UV on its
+/// carrier's knots**, and certifies there. A line of a plane's chart
+/// that is neither a row nor a column is no iso image
+/// ([`Pcurve::IsoLine`] holds a line of its chart), so a caller states
+/// it as the degree-1 [`Pcurve::General`] through the line's values at
+/// the two ends of the CARRIER's knot domain: the composite reads the
+/// image and the carrier on one parameter, knot for knot. It certifies
+/// over the whole domain and over sub-spans of it, at both scalars.
+///
+/// The same line stated on the EDGE's span (`[t0, t0, t1, t1]`, inside
+/// the carrier's domain) is "not yet": the composite refuses a pair
+/// whose knot domains differ, which ends as the general lane's envelope
+/// gap. Pinned as what the door does today; filed as
+/// `work/pcert/a-curve-in-uv-stated-on-its-edges-span-is-refused-inside-its-carriers-knot-domain.md`.
+#[test]
+fn a_slanted_line_is_stated_as_a_curve_in_uv_on_its_carriers_knots() {
+    let surface = Surface::Plane {
+        frame: geom::Frame::new(
+            Point3::new(1.2322203379484655, 8.256594057242634, -7.770083324538339),
+            Vec3::new(0.703363688854479, -0.5626911754625069, -0.4343479737003985),
+            Vec3::new(
+                -0.6624868025539791,
+                -0.7404071868429866,
+                -0.11361528996160745,
+            ),
+        ),
+    };
+    let (p0, pl) = ([-2.1, 0.45], [0.37, -1.9]);
+    assert_eq!(
+        Pcurve::<f64>::iso_line_for_tests(p0, pl).is_none(),
+        true,
+        "a slanted line has no iso form"
+    );
+    let at = |t: f64| Point2::new(p0[0] + pl[0] * t, p0[1] + pl[1] * t);
+    let line = |lo: f64, hi: f64, ends: [Point2<f64>; 2]| {
+        NurbsCurve2::new(
+            KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap(),
+            ends.to_vec(),
+            vec![1.0, 1.0],
+        )
+        .unwrap()
+    };
+    // The carrier: the chart's own image of the line, on `[0, 1]`.
+    let net = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        [at(0.0), at(1.0)]
+            .iter()
+            .map(|p| surface.eval(p.x, p.y))
+            .collect(),
+        vec![1.0, 1.0],
+    )
+    .unwrap();
+    let on_the_carriers_knots = Image::General(Arc::new(line(0.0, 1.0, [at(0.0), at(1.0)])));
+    let spans = [(0.0, 1.0), (0.2, 0.8), (0.10643145509962969, 0.9708870021542011)];
+    for span in spans {
+        for door in DOORS {
+            let got = (door.certify)(&surface, &on_the_carriers_knots, &net, span);
+            assert_eq!(
+                got.as_ref().err().map(|e| format!("{e:?}")),
+                None,
+                "{} over {span:?}: the line stated on its carrier's knots certifies",
+                door.name
+            );
+        }
+    }
+    for (t0, t1) in &spans[1..] {
+        let on_the_span = Image::General(Arc::new(line(*t0, *t1, [at(*t0), at(*t1)])));
+        for door in DOORS {
+            let got = (door.certify)(&surface, &on_the_span, &net, (*t0, *t1));
+            assert_eq!(
+                matches!(
+                    got,
+                    Err(CertifyError::NoGeneralLane {
+                        chart: geom::SurfaceKind::Plane,
+                        carrier: geom::CurveKind::Nurbs,
+                        gap: crate::LaneGap::Envelope,
+                    })
+                ),
+                true,
+                "{} over ({t0}, {t1}): stated on the edge's span it is not yet imaged: {got:?}",
+                door.name
+            );
+        }
+    }
+}

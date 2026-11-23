@@ -120,7 +120,6 @@ fn certify_line<T: Decide>(
     p0: (f64, f64),
     pl: (f64, f64),
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    let _f = T::from_f64;
     PcurveCache::certify(
         Pcurve::iso_line_for_tests([p0.0, p0.1], [pl.0, pl.1])
             .expect("the probes state rows and columns"),

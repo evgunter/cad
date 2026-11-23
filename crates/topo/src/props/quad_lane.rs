@@ -3079,12 +3079,13 @@ mod tests {
         }
 
         /// **A seam column moved one period of a closed chart is its
-        /// domain's other end**, on domains that do not start at 0: the
-        /// column stored at `lo` and lifted one period
-        /// ([`geom_brep::Period::moved`], which is how
-        /// [`crate::joint::Deck::apply`] moves an iso image's held value)
-        /// is held at `hi` itself, so the certificate reads the
-        /// rectangle `[lo, hi]` at `f64` and at `Interval` alike. The sum
+        /// domain's other end**, on domains that do not start at 0, end
+        /// to end: the column stored at `lo` is moved by the lift's own
+        /// door ([`crate::joint::Deck::apply`] on a chart whose `u`
+        /// domain is `[lo, hi]`, which moves an iso image's held value
+        /// through [`geom_brep::Period::moved`]), and the moved image is
+        /// held at `hi` itself, so the certificate reads the rectangle
+        /// `[lo, hi]` at `f64` and at `Interval` alike. The sum
         /// `lo + (hi − lo)` it replaces has width at `Interval` on every
         /// one of these domains and at `f64` misses `hi` by an ulp on
         /// three of them. A column that is NOT at an end moves by the sum,
@@ -3099,18 +3100,38 @@ mod tests {
                 v: 0,
                 twin: false,
             };
+            /// The bilinear chart over `[lo, hi] × [0, 1]`.
+            fn chart<T: geom_core::Decide>(lo: f64, hi: f64) -> geom::Surface<T> {
+                use geom_core::spline::KnotVector;
+                let ku = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
+                let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+                let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+                    .map(|(x, y)| geom_core::Point3::new(x, y, 0.0))
+                    .to_vec();
+                let net = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 4]).unwrap();
+                geom::Surface::Nurbs(std::sync::Arc::new(net.map_scalar(T::from_f64)))
+            }
             /// The square on `[lo, hi] × [0, 1]` whose far column is the
-            /// column stored at `at`, lifted one period of `[lo, hi]`.
-            fn moved<T: Reads>((lo, hi): (f64, f64), at: f64) -> Result<TrimRectangle, PropsError> {
+            /// column stored at `at`, as the lift moves it one period of
+            /// the chart's `u` channel.
+            fn moved<T: Reads + geom_core::Decide>(
+                (lo, hi): (f64, f64),
+                at: f64,
+            ) -> Result<TrimRectangle, PropsError> {
                 let f = T::from_f64;
                 let mut rows = polygon::<T>(&[(lo, 0.0), (hi, 0.0), (hi, 1.0), (lo, 1.0)]);
-                // The held value as the lift moves it: one period of the
-                // domain's, stated by its two ends.
-                let held = geom_brep::Period::of_domain(f(lo), f(hi)).moved(f(at), 1);
-                rows[1] = piece((held, T::zero()), (0.0, 1.0)).moved_for_tests(ONCE);
+                let surface = chart::<T>(lo, hi);
+                let periods = crate::pcurves::ChartPeriods::stated(&surface);
+                let stored = piece((f(at), T::zero()), (0.0, 1.0));
+                let image = ONCE
+                    .apply(&stored.pcurve, &surface, periods)
+                    .expect("the chart states a u period");
+                let mut lifted = stored.moved_for_tests(ONCE);
+                lifted.pcurve = image;
+                rows[1] = lifted;
                 read(rows)
             }
-            fn each<T: Reads>() {
+            fn each<T: Reads + geom_core::Decide>() {
                 for (lo, hi) in [(0.3, 1.7), (0.4, 1.7), (0.6, 1.7), (0.7, 3.1)] {
                     assert_eq!(
                         moved::<T>((lo, hi), lo).unwrap().rect,

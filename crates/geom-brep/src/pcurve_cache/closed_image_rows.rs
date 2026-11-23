@@ -1161,6 +1161,9 @@ fn a_spiric_or_focal_section_on_its_carrier_certifies() {
 fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
     let mut g = fuzz::start("curve_in_uv_on_its_carrier");
     let mut read = 0usize;
+    // How many of the lines read were also stated as an iso line (a row
+    // or a column of their chart), and how many were slanted in it.
+    let (mut as_iso, mut slanted) = (0usize, 0usize);
     for _ in 0..fuzz::scaled(2) {
         for kind in &KINDS[1..] {
             let (surface, carrier, span) = drawn(&mut g, *kind);
@@ -1177,6 +1180,10 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             // its chart (a ruling, a meridian); a line slanted in its
             // chart is the curve in UV alone.
             let iso = Pcurve::iso_line_for_tests([p0.x, p0.y], [pl.x, pl.y]);
+            match iso {
+                Some(_) => as_iso += 1,
+                None => slanted += 1,
+            }
             let mut breaks: Vec<f64> = (0..g.below(5))
                 .map(|_| span.0 + (span.1 - span.0) * g.range(0.05, 0.95))
                 .collect();
@@ -1238,7 +1245,13 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             }
         }
     }
-    println!("read {read} curves in UV");
+    println!("read {read} images: {as_iso} lines stated as an iso line too, {slanted} slanted");
+    assert_eq!(
+        (read > 0, as_iso > 0 || read == 0),
+        (true, true),
+        "the row read {read} images, {as_iso} of them as an iso line ({})",
+        fuzz::replay()
+    );
 }
 
 /// `sup |C(t) − S(P(t))|` over the span, read densely: `4096` even points,
