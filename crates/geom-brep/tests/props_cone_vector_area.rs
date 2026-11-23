@@ -679,6 +679,62 @@ fn a_hole_cornered_on_the_seam_measures_where_the_seam_is_one_edge() {
     );
 }
 
+/// **A loop that states one edge's traversals twice, or meets itself,
+/// refuses with the edge identities on**: the full seamed wall
+/// `[0, 2π] × [1, 2]`, every edge carrying its id and its seam one edge
+/// walked up and back, stated twice in one loop (each rim is walked
+/// twice the same way, a closed edge whose two ends are one vertex, and
+/// the low rim's vertex is met twice with no turn between), and the
+/// figure-eight
+/// of [`a_loop_meeting_itself_at_a_vertex_refuses_by_name`] with one
+/// `CarrierId` on every edge (no two of its edges join one pair of
+/// vertices both ways). A reading that took a seam's traversals by id
+/// and sense alone, or by id and swapped vertices alone, measures one of
+/// them.
+#[test]
+fn a_doubled_seamed_wall_and_an_identified_figure_eight_refuse() {
+    let want = PropsError::ConeLoop {
+        what: "props_cone_loop_vertex",
+    };
+    let id = |k| Some(geom_brep::props::CarrierId::minted(k));
+    let with_id = |mut e: LoopEdge<f64>, k| {
+        e.carrier_id = id(k);
+        e
+    };
+    let (low, high) = (0, 1);
+    let wall = vec![
+        with_id(rim(1.0, 0.0, TAU, low, low), 1),
+        with_id(generator(0.0, 1.0, 2.0, low, high), 11),
+        with_id(rim(2.0, TAU, 0.0, high, high), 2),
+        with_id(generator(0.0, 2.0, 1.0, high, low), 11),
+    ];
+    let (_, area) = oracle(&[((0.0, TAU), (1.0, 2.0), 1.0)]);
+    let (_, once) = measure(std::slice::from_ref(&wall), true)
+        .unwrap_or_else(|e| panic!("the seamed wall once: refused {e:?}"));
+    assert!(
+        (once - area).abs() <= 1e-12 * area,
+        "the seamed wall once: area {once:e} against {area:e}"
+    );
+    let mut twice = wall.clone();
+    twice.extend(wall);
+    refuses("the seamed wall stated twice", &[twice], &want);
+    let eight = [
+        (0.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 2.0),
+        (1.0, 3.0),
+        (2.0, 3.0),
+        (2.0, 2.0),
+        (1.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let mut identified = chart_loop(&eight);
+    for e in &mut identified {
+        e.carrier_id = id(11);
+    }
+    refuses("the figure-eight with one id", &[identified], &want);
+}
+
 /// **Holes that cover more than the outer loop refuse as such**, not
 /// as a ring wound with the face: two holes each wound against the wall
 /// `[0, 3] × [1, 2]` but overlapping, their areas summing past it, turn

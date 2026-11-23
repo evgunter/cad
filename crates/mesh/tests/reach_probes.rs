@@ -1379,6 +1379,64 @@ fn a_needle_funnel_cut_at_its_apex_meshes_at_every_delta() {
     }
 }
 
+/// **A needle funnel a quarter turn round meshes as its lattice lays it,
+/// ungraded.** The funnel of
+/// [`a_needle_funnel_cut_at_its_apex_meshes_at_every_delta`] revolved a
+/// quarter turn and cut at `h = 10⁻³` by the same plane: its cone faces
+/// span a quarter turn, where no triangle reaches past one, so the
+/// trimmed lane grades none of their gaps (`trimmed::reach_graded`), and
+/// each half meshes to the triangle count it had before the grading
+/// existed. The count is held at the default ε; off it each half meshes,
+/// and a split that refuses is printed and skipped.
+#[test]
+fn a_quarter_turn_needle_funnel_keeps_its_ungraded_lattice() {
+    let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
+    let lp = ProfileLoop::polygon(
+        [(0.0, 0.0), (0.02, 1.0), (0.0, 1.0)]
+            .iter()
+            .map(|&(x, y)| Point2::new(x, y)),
+    );
+    let quarter = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+        tol(),
+    )
+    .expect("the quarter funnel revolves")
+    .body
+    .into_body();
+    let body = finished("the quarter funnel", quarter, tol());
+    let plane = topo::test_support::split_plane(Point3::new(0.0, 1e-3, 0.0), n, tol());
+    let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
+    let split = match topo::splitting::split(&body, &plane, tol()) {
+        Ok(split) => split,
+        Err(e) => {
+            assert!(!exact, "the quarter funnel splits, got {e:?}");
+            eprintln!(
+                "the quarter funnel: the split refuses at ε {:e}: {e:?}",
+                tol().eps()
+            );
+            return;
+        }
+    };
+    let mut counts = Vec::new();
+    for (side, part) in [("above", &split.above), ("below", &split.below)] {
+        let half = part.body().unwrap_or_else(|| panic!("{side}: a body"));
+        let m = mesh::tessellate(half, 1e-3, tol())
+            .unwrap_or_else(|e| panic!("the quarter funnel, {side}: meshes, got {e:?}"));
+        mesh::validate::check_mesh(&m).expect("a closed mesh");
+        assert_eq!(got(half, 1e-3), Got::Meshed, "the quarter funnel, {side}");
+        counts.push(m.patches.iter().map(|p| p.triangles.len()).sum::<usize>());
+    }
+    if tol().eps() == geom_core::tolerance::DEFAULT_EPS {
+        assert_eq!(
+            counts,
+            vec![1226, 420],
+            "the halves' triangles, above and below"
+        );
+    }
+}
+
 /// **A cone face keeps no side its plane neighbour can make too.** The
 /// cone of [`a_cone_wall_holding_a_ring_meshes_on_the_cone_row`]
 /// met by the same box, its edge scaled toward the apex by `s` (and

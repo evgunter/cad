@@ -224,71 +224,6 @@ impl<'a> ChartRow<'a> {
     }
 }
 
-/// **The angle round a cone's axis a triangle across a lattice gap may
-/// reach** ([`reach_rows`]): an eighth of a turn.
-const REACH: f64 = core::f64::consts::FRAC_PI_4;
-
-/// **The cone arm's rows with every gap graded to its lower radius**
-/// ([`AnalyticRow::lattice_rows`]): `rows`, ascending inside the window
-/// `(v0, v1)` on one nappe, with the gap from the window's end nearer
-/// the apex and each gap between rows split geometrically, so that no
-/// gap's upper slant is more than `ratio` times its lower.
-///
-/// With `ratio = 1 + sin α·REACH` a gap of slant `g` above slant `a` is
-/// at most the developed arc [`REACH`] spans at its lower radius,
-/// `a·sin α·REACH`. A triangle the triangulation lays across the gap
-/// joins points no farther apart in the development than about the gap,
-/// so its corners stand about [`REACH`] round the axis at most. Across a
-/// gap many times its lower radius, which a small end with no row inside
-/// the radius every chord certifies at leaves, the development is a
-/// strip far taller than it is wide, and the triangulation joins a point
-/// of the small end to one most of a turn round: a triangle reaching
-/// past a quarter turn from two points of the small end winds into the
-/// surface. A window whose loop reaches the apex (`at_apex`) is not
-/// graded below its first row: the apex is one point of the
-/// development, and the window's end there is a rounding of zero.
-/// Errors as `sizing::ceil_count`.
-fn reach_rows(
-    (v0, v1): (f64, f64),
-    rows: &[f64],
-    ratio: f64,
-    at_apex: bool,
-) -> Result<Vec<f64>, TessellateError> {
-    let sign = if v1 <= 0.0 { -1.0 } else { 1.0 };
-    let (near, far) = (v0.abs().min(v1.abs()), v0.abs().max(v1.abs()));
-    // The window's end at the apex is the chart's singular row, its
-    // slant a rounding of zero.
-    let start = if at_apex { 0.0 } else { near };
-    let mut stops: Vec<f64> = rows.iter().map(|v| v.abs()).collect();
-    stops.sort_by(f64::total_cmp);
-    let step = ratio.ln();
-    let mut out = Vec::with_capacity(stops.len());
-    let mut below = start;
-    for (k, &above) in stops.iter().chain(core::iter::once(&far)).enumerate() {
-        if below > 0.0 && above > below * ratio {
-            let gaps = ceil_count((above / below).ln(), step)?;
-            #[allow(clippy::cast_precision_loss)]
-            let ratio = (above / below).powf(1.0 / gaps as f64);
-            let mut at = below;
-            for _ in 1..gaps {
-                at *= ratio;
-                out.push(at);
-            }
-        }
-        if k < stops.len() {
-            out.push(above);
-        }
-        below = above;
-    }
-    let mut out: Vec<f64> = out
-        .into_iter()
-        .filter(|&a| a > near && a < far)
-        .map(|a| sign * a)
-        .collect();
-    out.sort_by(f64::total_cmp);
-    Ok(out)
-}
-
 impl<'a> AnalyticRow<'a> {
     /// The row of face `fk` on the analytic `surface`, reading its window
     /// from its outer loop ([`crate::sizing::cone_face_rho_max`],
@@ -453,7 +388,9 @@ impl<'a> AnalyticRow<'a> {
     /// face's widest). Two rows at roots `s` and `s + Δs` then stand
     /// `Δs·(2s + Δs) ≤ hv·√(v_m/v_w)` apart, `v_m` the slant midway
     /// between them in `s`: `hv` at the widest radius, shorter toward the
-    /// apex, and at most twice the uniform count over a window.
+    /// apex, and at most twice the uniform count over a window. The
+    /// trimmed lane then grades the gaps of a cone face whose span lets a
+    /// triangle reach far round the axis (`trimmed::reach_graded`).
     ///
     /// *What is proved.* A chord of 3-D length `L` from radius `ρ₁` to a
     /// larger one, `Δu` round the axis, sags at most
@@ -474,40 +411,16 @@ impl<'a> AnalyticRow<'a> {
     /// joins it to boundary points far round the axis, and a face ending
     /// near its apex holds triangles truly past δ.
     ///
-    /// **No certified row within the radius every chord certifies at.** A
-    /// chord with an end at radius `ρ` sags under `2·cos α·ρ`
+    /// **No row within the radius every chord certifies at.** A chord
+    /// with an end at radius `ρ` sags under `2·cos α·ρ`
     /// (`cert::cone_chord_sag`: `sin² ≤ 1`, and the other radius is under
     /// the sum), so where that is within the lattice's own sag at its
     /// widest radius, a row adds triangles and moves no bound.
-    ///
-    /// **Then every gap graded to its lower radius** ([`reach_rows`]): the
-    /// certificate bounds what a triangle sags, not which way it winds, and
-    /// across a gap many times its lower radius the triangulation joins a
-    /// small end to nodes far round the axis, a triangle that winds into
-    /// the surface. `at_apex`: the face's loop reaches the apex.
     ///
     /// # Errors
     ///
     /// `sizing::ceil_count`'s, for a count past `sizing::MAX_COUNT`.
     pub(crate) fn lattice_rows(
-        &self,
-        window: (f64, f64),
-        (hu, hv): (f64, f64),
-        at_apex: bool,
-    ) -> Result<Vec<f64>, TessellateError> {
-        let rows = self.certified_rows(window, (hu, hv))?;
-        match self.kind() {
-            Analytic::Cone { half_angle, .. } => {
-                reach_rows(window, &rows, 1.0 + half_angle.sin() * REACH, at_apex)
-            }
-            _ => Ok(rows),
-        }
-    }
-
-    /// The rows [`Self::lattice_rows`] lays before the cone's reach
-    /// grading: uniform, or the cone's uniform in `√|v|` off the radius
-    /// every chord certifies at.
-    fn certified_rows(
         &self,
         (v0, v1): (f64, f64),
         (hu, hv): (f64, f64),
@@ -853,8 +766,7 @@ mod tests {
         );
     }
 
-    /// **What the cone arm's certified rows hold**
-    /// ([`AnalyticRow::lattice_rows`] before its reach grading),
+    /// **What the cone arm's rows hold** ([`AnalyticRow::lattice_rows`]),
     /// read by geometry and not by the rule's own arithmetic. On cones
     /// from a needle to flat, over windows from a frustum's to one starting
     /// `10⁻⁶` of the way up, on either nappe, with `T` the lattice's sag at
@@ -929,7 +841,7 @@ mod tests {
                 let (sin, cos) = half_angle.sin_cos();
                 let row = AnalyticRow::new(&cone, widest * sin).unwrap();
                 let (hu, hv) = row.lattice_steps(row.steps(target));
-                let rows = row.certified_rows((low, widest), (hu, hv)).unwrap();
+                let rows = row.lattice_rows((low, widest), (hu, hv)).unwrap();
                 // The lattice's own sag at its widest radius: the rim
                 // chord across one column there.
                 let lattice_sag = sag(half_angle, (0.0, widest), (hu, widest));
@@ -1009,7 +921,7 @@ mod tests {
                         rows[0]
                     );
                 }
-                let mirrored = row.certified_rows((-widest, -low), (hu, hv)).unwrap();
+                let mirrored = row.lattice_rows((-widest, -low), (hu, hv)).unwrap();
                 assert!(
                     mirrored.len() == rows.len()
                         && mirrored
@@ -1031,93 +943,9 @@ mod tests {
         };
         let row = AnalyticRow::new(&cylinder, f64::NAN).unwrap();
         assert_eq!(
-            row.lattice_rows((1.0, 2.0), (0.1, 0.3), false).unwrap(),
+            row.lattice_rows((1.0, 2.0), (0.1, 0.3)).unwrap(),
             vec![1.25, 1.5, 1.75]
         );
-    }
-
-    /// **The cone arm's rows reach no farther round than `REACH`
-    /// across a gap.** On the cones and windows of
-    /// `the_cone_arms_rows_stand_a_certified_chord_apart`'s table,
-    /// on either nappe: the rows hold the certified rows and ascend inside
-    /// the window, and across every gap from the window's end nearer the
-    /// apex outward the gap is at most the developed arc `REACH` spans at
-    /// its lower radius. A window whose loop reaches the
-    /// apex is graded from its first certified row, and the needle's
-    /// window from `1.5·10⁻⁶` lays rows it would not lay otherwise.
-    #[test]
-    fn the_cone_arms_rows_reach_an_eighth_of_a_turn_across_a_gap() {
-        let frame = (
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(1.0, 0.0, 0.0),
-        );
-        let mut graded = 0usize;
-        for half_angle in [0.002, 0.4, core::f64::consts::FRAC_PI_4, 1.4] {
-            let cone = Surface::Cone {
-                frame: geom::Frame::new(frame.0, frame.1, frame.2),
-                half_angle,
-            };
-            for (widest, low, target) in [
-                (2.0_f64, 1.0, 1e-3),
-                (2.0, 0.0, 1e-3),
-                (1.5, 1.5e-6, 2.5e-5),
-                (300.0, 0.02, 1e-2),
-            ] {
-                let what = format!("α {half_angle}, window ({low}, {widest}), target {target}");
-                let row = AnalyticRow::new(&cone, widest * half_angle.sin()).unwrap();
-                let (hu, hv) = row.lattice_steps(row.steps(target));
-                let certified = row.certified_rows((low, widest), (hu, hv)).unwrap();
-                let reach = 1.0 + half_angle.sin() * super::REACH;
-                for at_apex in [false, true] {
-                    let what = format!("{what}, at the apex {at_apex}");
-                    let rows = row.lattice_rows((low, widest), (hu, hv), at_apex).unwrap();
-                    assert!(
-                        rows.windows(2).all(|w| w[0] < w[1])
-                            && rows.iter().all(|&v| v > low && v < widest)
-                            && certified.iter().all(|c| rows.contains(c)),
-                        "{what}: the rows ascend inside the window and hold the certified rows"
-                    );
-                    let first = if at_apex {
-                        certified.first().copied().unwrap_or(widest)
-                    } else {
-                        low
-                    };
-                    assert!(
-                        rows.iter().all(|&v| v >= first),
-                        "{what}: no row below {first:e}"
-                    );
-                    let stops: Vec<f64> = core::iter::once(first)
-                        .chain(rows.iter().copied().filter(|&v| v > first))
-                        .chain(core::iter::once(widest))
-                        .collect();
-                    for pair in stops.windows(2) {
-                        let (a, b) = (pair[0], pair[1]);
-                        if a > 0.0 {
-                            assert!(
-                                b / a <= reach * (1.0 + 1e-9),
-                                "{what}: the gap ({a:e}, {b:e}) is past the arc an eighth of \
-                                 a turn spans at its lower radius"
-                            );
-                        }
-                    }
-                    graded += rows.len() - certified.len();
-                    let mirrored = row
-                        .lattice_rows((-widest, -low), (hu, hv), at_apex)
-                        .unwrap();
-                    assert!(
-                        mirrored.len() == rows.len()
-                            && mirrored
-                                .iter()
-                                .rev()
-                                .zip(&rows)
-                                .all(|(m, v)| (m + v).abs() <= 1e-12 * widest),
-                        "{what}: the v < 0 nappe's rows are the mirror image"
-                    );
-                }
-            }
-        }
-        assert!(graded > 0, "some window lays graded rows");
     }
 
     /// **The fold check reads the face's side through the bit.** On each

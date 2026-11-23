@@ -1689,6 +1689,25 @@ fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
         "the displaced ring is one whole projected circle, a period below its outer loop\n{}",
         ring_table(&rings)
     );
+    let cone: Vec<_> = rings
+        .iter()
+        .filter(|r| r.body.starts_with("T1, "))
+        .collect();
+    assert_eq!(cone.len(), 3, "T1's three ops each hold one cone ring");
+    for r in cone {
+        let (u, o) = (r.ring_hull.0, r.outer_hull.0);
+        assert!(
+            r.forms == ["FocalSection", "FocalSection"]
+                && u.0 > 0.6
+                && u.1 < 2.6
+                && (o.0 - PI).abs() < MEET
+                && (o.1 - 3.0 * PI).abs() < MEET,
+            "{}: the cone ring's two arcs on u ∈ (0.6, 2.6), its outer loop from the seam on \
+             [π, 3π]\n{}",
+            r.body,
+            ring_table(&rings)
+        );
+    }
 }
 
 /// **The spiric-bounded torus wall's outer loop is a simple polygon.**
