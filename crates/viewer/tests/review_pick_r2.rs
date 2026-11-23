@@ -87,12 +87,20 @@ struct Tally {
 /// their first edits, moved: grazes 147,955 → 147,952, refused
 /// candidates 17,532 → 16,824, rays with a refusal 8,358 → 8,244.
 ///
-/// RE-PINNED when the chart lane's cylinder arm stopped laying lattice
-/// rows (`mesh`'s `chart_table::AnalyticRow::lattice_rows`): the corpus's
-/// chart-lane cylinder faces mesh on their boundary points alone, with
-/// fewer vertices, and a ray is aimed at each subsampled vertex, so fewer
-/// rays are aimed and fewer near-degenerate candidates reach the
-/// determinant: rays RAYS, grazes GRAZES, refused candidates REFUSED, rays
+/// RE-PINNED when the curved lane's CDT came to run in the lattice
+/// metric (`tesslane/one-slit-band`): grazes 147,850 → 147,844, three in
+/// `tube_arc` after its first edit and three in `hollow_tube_elbow`
+/// open, whose torus patches take other diagonals. The 147,856 →
+/// 147,850 before it is main's, not this change's
+/// (`work/green/main-red-the-viewers-pick-tally-reads-six-grazes-short-of-its-pin.md`).
+///
+/// RE-PINNED again when the chart lane's cylinder arm stopped laying
+/// lattice rows (`mesh`'s `chart_table::AnalyticRow::lattice_rows`): the
+/// corpus's chart-lane cylinder faces are triangulated on their boundary
+/// points, with fewer vertices, and a ray is aimed at each subsampled
+/// vertex, so fewer rays are AIMED and fewer near-degenerate candidates
+/// reach the determinant. Measured on this tree and on its merged main
+/// beside it: rays RAYS, grazes GRAZES, refused candidates REFUSED, rays
 /// with a refusal WITH. `genuine_refused` stays empty.
 const PINNED: (usize, usize, usize, usize) = (424_728, 138_718, 11_004, 5_130);
 
