@@ -408,3 +408,176 @@ author's "7 in topo". **Merged bases: 298/305, the same 7 red**:
 So for topo the author's argument ("no site verdict or name moved in any of
 their processes") is borne out by a reproduction: none of the seven is this
 unit's. The geom-brep and sweep share (20) was not sampled.
+
+---
+
+# Delta read: frozen head `cb36266ddd`, against `origin/main` at `c9cf004f9`
+
+Reviewed: the fix pass (the orchestrator's F1 to F8) and the merges. The
+unit's own change is now `cb36266dd` against `c9cf004f9`, which is an
+ancestor of it: 23 files. I merged `cb36266dd` into my review branch to
+build it. Same method and standing briefs as above.
+
+## Verdict: APPROVE-WITH-FIXES
+
+No MAJOR. The fixes I could test hold:
+- F3's meter is sound as argued.
+- F5's pin goes red.
+- F6, F8 and F4 are as described.
+- The `intersect.rs` merge resolution carries only the unit's reads.
+
+Against that:
+- F1's new door under-offers where its swing scales with the band, which is
+  the very caller that prompted it. Demonstrated.
+- The F3 fold's direction (least, not greatest) is pinned by no row.
+- The frozen head no longer merges cleanly with current `origin/main`.
+
+## What I executed
+
+- `ci` profile, nine crates (geom-core, geom-brep, topo, sweep, verbs,
+  step-import, editor-core, mesh, profile), opt-level 1,
+  `CAD_FUZZ_SEED=12345`, on the merged head:
+  - **default ε: 15629/15629 green.**
+  - **ε 1e-12: 15626/15629.** The three reds:
+    - the two `envelope_lemma_fuzz::projected::…_pinned_where_the_frame_cost_refuses`
+      rows (seed-dependent; now on
+      `work/pcert/a-pinned-fuzz-witness-reads-the-environments-seed.md`, and
+      red on the earlier merged bases in my first pass);
+    - `sweep a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta`
+      (open main-red row
+      `work/tesslie/main-red-a-cylinder-wall-…-at-1e-12.md` at `c9cf004f9`).
+
+  I did not rebuild `c9cf004f9` itself, so on main at this exact sha these
+  three are taken from their rows, not re-run.
+- Not run: 1e-6 on the nine crates; any slow set on the merged head except
+  the two rosters; the lane's differential.
+- Rosters, on the merged head:
+  - **geom-brep: green.**
+  - **topo: red** on `chain_parity.rs`, `pcurves/collapsed_side_rows.rs`
+    (×2), `pcurves/decision.rs` and `spline_trim.rs`. Every one of these is
+    also listed when the same binary reads `c9cf004f9`'s `topo/src`. The one
+    extra on main's sources, `boolean/join.rs: travel: name`, is the head
+    table's PAIRED entry finding nothing there. So the red is confirmed as
+    main's. **`live.rs` does not appear in my run**: it, `conic_section_frame_at`,
+    `section_cert.rs: cone_torus` and geom-brep's `APEX_FORM`/`APEX_ON_TORUS`
+    are what hosted CI reports, and CI tests the PR's merge ref with a newer
+    main (see d4).
+- Probe (on my branch at `probes/delta-across-offer-probe.rs`):
+  `decide_across` with a band-scaled swing. See d1.
+- Mutants, topo lib `tip_count_rows` / geom-brep `--test all pn_apex`:
+
+  | mutant | result |
+  |---|---|
+  | F3: `off / shares` dropped | killed (`two_admitted_tips_are_counted_at_half_their_least_lever`) |
+  | F3: shares for one corner (`halves.min(1)`) | killed (same row) |
+  | F3: fold by `max` of `above()` (unsound direction) | **survives** (4/4) — d2 |
+  | F5: `e_δ` dropped (`gap.value.abs()` for `gap.magnitude()` at the apex arms) | killed (`a_far_stated_grazing_plane_is_read_to_its_gaps_rounding`, `a_plane_through_the_apex_reads_its_reach_on_its_gaps_rounding`) |
+
+- CI 45222877266 on `cb36266dd` (refs/pull/7442/merge), at step level:
+  - `lint` → **clippy FAILURE**: `unneeded_struct_pattern` at
+    `crates/geom-brep/tests/cone_torus_pose.rs:229–230`. That file is not in
+    the head's tree; it is main's, and current `origin/main` has it fixed.
+  - `test (kernel)`:
+    - **eps 1e-6/1e-12 step FAILURE**: `topo splitting::spiric_arc::fuzz::random_arcs_at_interval`
+      at 1e-6, under an unpinned random seed `0x071f26b5a2315365`;
+    - **slow-set step FAILURE**: both rosters, on the names above.
+  - `test (app)` → **slow-set-names FAILURE**: dead entry
+    `viewer: app::properties_pane_tests::an_offer_an_earlier_op_of_its_frame_outran_is_dropped_and_said`.
+  - The mesh budget and corrupt-input jobs are green; the tools (k-lint) and
+    interval jobs were skipped; the gate job (`gate ok`) is red.
+
+  None of these reds touches a site of this unit, but the run is not "green
+  but the roster".
+
+## Findings
+
+**d1 (MINOR, DEMONSTRATED, `sure`). F1's "none" is false for a band-scaled
+swing with a reading that is not zero: a tolerance that decides exists and
+none is offered.** The new `decide_across` doc says "where the bracket holds
+zero the floor has no size, and the refusal offers no tolerance: none decides
+a reading that is its own swing". With the swing a fixed length that holds,
+because the floor stays zero at every smaller ε. With a swing proportional to
+ε, `travel`'s case, it holds only for a datum of exactly 0. Probe, band
+(1e-9, 1e-8):
+
+| datum | swing | refused under | offers | first ε where it decides Positive |
+|---|---|---|---|---|
+| 1e-9 | 1.5ε | far row `row` (F1's new path) | none | ≈ 8.2e-11 |
+| 3e-10 | 9.9ε | floor `row_floor` | none | ≈ 1.4e-11 |
+| 5e-9 | 9.9ε | floor `row_floor` | none | ≈ 2.4e-10 |
+
+The `Interval` lane gives the same offers. The floor-row path is not F1's
+change (it was already so). The far-row case is F1's, and the geom-core row
+`a_row_across_a_swing_offers_what_its_floor_decides_at` asserts
+`scaled(3e-10, 9.9, band)` offers none "a floor of no size", which is that
+claim pinned. The door cannot know whether its swing scales with ε, so its
+"none" is honest only for fixed swings. For `travel` the sentence now says the
+reading has no size when it has 1e-9. Claims 1(b) and 1(d) hold, by
+inspection and the rows:
+- an offered tolerance decides for both fixed and scaled swings, because
+  ε′ ≤ (|m| − s)/K and the floor only grows as a scaled swing shrinks;
+- the `Interval` floor `(|d| − s).max(0)` quotes `lo − s_hi`, its nearer end.
+
+Claim 1(a), that no verdict moves: not re-taken. Every `decide_across` caller
+I read (`intersect`, `torus`, `cylinders`, `locus`, `join`) propagates the
+`Err` with `map_err`. I did not trace which ladders compare refusals'
+offers downstream.
+
+**d2 (MINOR, DEMONSTRATED, surviving mutant, `sure`). F3's fold direction is
+unpinned.** Folding the half-turn corners' levers by `max` of `above()`
+instead of `min` of `below()` passes all four `tip_count_rows`, because both
+tips in `two_spikes` sit at 1 mm levers. The argument in the comment
+(`fate.rs`, above `let shares`) is sound:
+- each admitted corner deviates by `δ ≤ (π/2)·ε/L_c`;
+- `h` of them sum to at most `(π/2)·h·ε/L`;
+- the meter `off·L/(h·π/2)` claims a side only past `Kε`, i.e. `off > K·R_max`;
+- a wrong side needs `R_max − π/2 > K·R_max`, impossible for K > 1.
+
+What no row checks is the `L` it rests on, the least lever: no fixture has
+two half-turn corners at different levers.
+
+**d3 (NOTE, BY-INSPECTION, `likely`). F4's least band admits at most one
+subnormal more than the share it stands for.** Where `ε/K` underflows, the
+true share is below `2⁻¹⁰⁷⁴` and `Band::least()` reads `ρ = 2⁻¹⁰⁷⁴` as
+Zero. That is unsound by one subnormal, which nothing can see. The callers'
+decisions are right in it in every practical sense.
+
+**d4 (MINOR, DEMONSTRATED, `sure`). The frozen head does not merge cleanly
+with current `origin/main` (`032c2f9f5`).** `git merge-tree` conflicts in
+`crates/topo/src/boolean/join.rs` (`travel_rows`, the half-turn row's
+closure: main moved `geom::Line::dir` to `UnitVec3::exact_z()`) and in
+`scripts/gates/lever-fixtures.counts`. The unit's new helper
+`half_turn_arm_in` still builds `dir: Vec3::unit_z().map(T::from_f64)`, so
+the next merge has to carry it onto main's type, in the file that holds this
+unit's `travel` site. The hosted CI reds above come from that newer main.
+
+**d5 (NOTE, `sure`).** Brief item 8 names `live.rs` among topo's roster
+misses. It is CI's (newer-main merge ref), not the frozen head's (d4).
+
+**Confirmed by reading:**
+- F2 is an `Option` fold with a row (`a_loop_with_no_half_turn_corner_is_unread`).
+  "Unreachable through `places` for line runs" was not checked.
+- F6: one `size` per function (`gap.magnitude()` at each, `apex_start(size,
+  sine)`), and `offers_tolerance`/`offered_band` both read one private
+  `offer()`.
+- F7: the `intersect.rs` diff against main is the unit's reads only, onto
+  main's `Rounded`. `lever-fixtures` geom-brep is 502 (the gates step is
+  green). The geom-brep roster re-adds only the
+  `wedge_reads_zero_at_the_offer` forwarder.
+- The two filed rows exist and say what they claim.
+
+## Style (delta)
+
+Q1, Q3, Q5 and Q6 were exercised on the fix pass; Q8 was not.
+- s-d1 (Q3, `sure`): d2. A fold with two candidate directions is pinned
+  where both give one value.
+- s-d2 (Q5, `sure`): d1. The `decide_across` doc's "none decides a reading
+  that is its own swing" promises more than the door can know.
+- s-d3 (Q1, `likely`): `decide_quoting`, `classify` and `classified` are
+  three names for one body. `classify` and `decide_quoting` are each one
+  line, and `classified` is the body; the stated aim ("one classification
+  body") is met, but with an extra layer.
+
+Ratings for the delta: idiom/structure 4; test quality 3 (d2, d1's pinned
+"none"); doc honesty 4 (the PR body's dispositions match the tree where I
+checked; d1).
