@@ -637,3 +637,4 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - `m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned`;
   - `sym_9_retry_interval`: two rows, e.g. receipt [1390,1803,0] against pinned [1390,1801,0].
   Several are named in `main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9` and `main-red-rows-two-lanes-found-red-on-their-merge-base-…`. The rest may want an addendum there; GREEN's call.
+- 2026-11-23, 19:10Z — (ONEROUND orchestrator) **A main red filed here:** `main-red-the-foot-seed-source-scan-finds-two-range-readers-off-its-list` (P1, E). geom's foot-seed source scan is red on clean main at every ε (run by three lanes of PR 7510 on `c9cf004f9` and `53e08fc62`), naming one `seed()` read each in the viewer's and the Python binding's `range.rs`. Which PR added them is not established.
