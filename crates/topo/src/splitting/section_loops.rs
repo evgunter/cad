@@ -340,11 +340,10 @@ pub(super) fn outlines_disjoint<T: Decide>(
         for y in &eb {
             let separated = match (x, y) {
                 (OutlineEdge::Undecided, _) | (_, OutlineEdge::Undecided) => return Ok(false),
-                (OutlineEdge::Read(c, s), OutlineEdge::Read(d, t))
-                    if matches!(c, geom::Curve3::Ellipse(_))
-                        || matches!(d, geom::Curve3::Ellipse(_)) =>
+                (OutlineEdge::Read(x), OutlineEdge::Read(y))
+                    if matches!(x.shape, Shape::Ellipse) || matches!(y.shape, Shape::Ellipse) =>
                 {
-                    edges_clear((c, *s), (d, *t), band)
+                    edges_clear(x, y, band)
                 }
                 // Lines and circles: check 9 decided them above.
                 _ => true,
@@ -361,8 +360,24 @@ pub(super) fn outlines_disjoint<T: Decide>(
 /// or ellipse edge by its carrier and parameter window, or a kind
 /// nothing decides.
 enum OutlineEdge<T: Real> {
-    Read(geom::Curve3<T>, (T, T)),
+    Read(Edge<T>),
     Undecided,
+}
+
+/// A line, circle or ellipse edge: its carrier, its parameter window,
+/// and which of the three it is.
+struct Edge<T: Real> {
+    carrier: geom::Curve3<T>,
+    params: (T, T),
+    shape: Shape<T>,
+}
+
+/// An [`Edge`]'s kind, read once where the edge is: a line by a point of
+/// it and its direction.
+enum Shape<T: Real> {
+    Line(Point3<T>, Vec3<T>),
+    Circle,
+    Ellipse,
 }
 
 /// A conic carrier read as a conic.
@@ -399,14 +414,20 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
             out.push(OutlineEdge::Undecided);
             continue;
         };
-        out.push(match *curve.carrier() {
-            geom::Curve3::Line(_) | geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
-                OutlineEdge::Read(curve.carrier().clone(), curve.params())
-            }
+        let shape = match *curve.carrier() {
+            geom::Curve3::Line(l) => Shape::Line(l.origin, l.dir),
+            geom::Curve3::Circle(_) => Shape::Circle,
+            geom::Curve3::Ellipse(_) => Shape::Ellipse,
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
-                OutlineEdge::Undecided
+                out.push(OutlineEdge::Undecided);
+                continue;
             }
-        });
+        };
+        out.push(OutlineEdge::Read(Edge {
+            carrier: curve.carrier().clone(),
+            params: curve.params(),
+            shape,
+        }));
     }
     Ok(out)
 }
@@ -418,20 +439,19 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
 /// to the span reading's escalations. The span reading,
 /// [`geom_brep::curve_pair::meet`], decides the pairs whose carriers meet
 /// off the edges: apart where it reads no meeting and no shared run.
-fn edges_clear<T: Decide>(
-    (c, s): (&geom::Curve3<T>, (T, T)),
-    (d, t): (&geom::Curve3<T>, (T, T)),
-    band: geom_core::Band,
-) -> bool {
-    let carriers = match (c, d) {
-        (geom::Curve3::Line(l), e) | (e, geom::Curve3::Line(l)) => {
-            line_clears_conic(l.origin, l.dir, conic(e), band)
-        }
-        (e, h) => conics_clear(conic(e), conic(h), band),
+fn edges_clear<T: Decide>(x: &Edge<T>, y: &Edge<T>, band: geom_core::Band) -> bool {
+    let carriers = match (&x.shape, &y.shape) {
+        (&Shape::Line(p, along), _) => line_clears_conic(p, along, conic(&y.carrier), band),
+        (_, &Shape::Line(p, along)) => line_clears_conic(p, along, conic(&x.carrier), band),
+        _ => conics_clear(conic(&x.carrier), conic(&y.carrier), band),
     };
     carriers
         || matches!(
-            geom_brep::curve_pair::meet(&Span::new(c, s), &Span::new(d, t), band),
+            geom_brep::curve_pair::meet(
+                &Span::new(&x.carrier, x.params),
+                &Span::new(&y.carrier, y.params),
+                band
+            ),
             Ok(met) if met.points.is_empty() && met.shared.is_none()
         )
 }
@@ -580,7 +600,7 @@ mod torn_hop_rows {
 mod edge_pair_rows {
     //! [`super::edges_clear`]: two edges, one of them elliptic, decided
     //! apart or not.
-    use super::edges_clear;
+    use super::{Edge, Shape, edges_clear};
     use core::f64::consts::PI;
     use geom::{Curve3, Ellipse, Frame, Line};
     use geom_core::{Band, Point3, Vec3};
@@ -589,27 +609,34 @@ mod edge_pair_rows {
         Band::linear(geom_core::Tol::witness()).unwrap()
     }
 
-    fn ellipse(a: f64, b: f64) -> Curve3<f64> {
-        Curve3::Ellipse(Ellipse::new(
-            Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
-            a,
-            b,
-        ))
+    /// The arc of the ellipse of semi-axes `a` along x and `b` along y
+    /// over `params`.
+    fn arc(a: f64, b: f64, params: (f64, f64)) -> Edge<f64> {
+        Edge {
+            carrier: Curve3::Ellipse(Ellipse::new(
+                Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                a,
+                b,
+            )),
+            params,
+            shape: Shape::Ellipse,
+        }
     }
 
     /// The segment from `p` to `q`, on its line's unit window.
-    fn segment(p: Point3<f64>, q: Point3<f64>) -> (Curve3<f64>, (f64, f64)) {
-        (
-            Curve3::Line(Line {
+    fn segment(p: Point3<f64>, q: Point3<f64>) -> Edge<f64> {
+        Edge {
+            carrier: Curve3::Line(Line {
                 origin: p,
                 dir: q - p,
             }),
-            (0.0, 1.0),
-        )
+            params: (0.0, 1.0),
+            shape: Shape::Line(p, q - p),
+        }
     }
 
-    fn clear(e: &(Curve3<f64>, (f64, f64)), s: &(Curve3<f64>, (f64, f64))) -> bool {
-        edges_clear((&e.0, e.1), (&s.0, s.1), band())
+    fn clear(x: &Edge<f64>, y: &Edge<f64>) -> bool {
+        edges_clear(x, y, band())
     }
 
     /// **An ellipse arc against a segment**: decided apart where they are
@@ -619,12 +646,12 @@ mod edge_pair_rows {
     fn a_segment_reads_apart_from_an_arc_only_where_it_is() {
         // A segment inside the ellipse whose line crosses the carrier: the
         // carrier reading cannot decide it, the span reading does.
-        let e = (ellipse(3.0, 2.0), (0.0, 2.0 * PI));
+        let e = arc(3.0, 2.0, (0.0, 2.0 * PI));
         let inside = segment(Point3::new(-1.0, 0.0, 0.0), Point3::new(1.0, 0.5, 0.0));
         assert!(clear(&e, &inside), "a segment inside the ellipse");
         // A flat arc, and segments parallel to its major axis above its
         // minor vertex: tangent, within the band, and past it.
-        let flat = (ellipse(5.0, 0.05), (0.3, 2.8));
+        let flat = arc(5.0, 0.05, (0.3, 2.8));
         let above = |gap: f64| {
             segment(
                 Point3::new(-1.0, 0.05 + gap, 0.0),
@@ -648,9 +675,9 @@ mod edge_pair_rows {
         // chord where that arc leaves out both of its crossings (at
         // θ = 1.25 and 1.89).
         let chord = segment(Point3::new(-0.5, 0.95, 0.0), Point3::new(0.5, 0.95, 0.0));
-        let over = (ellipse(1.2, 1.0), (1.0, 5.0));
+        let over = arc(1.2, 1.0, (1.0, 5.0));
         assert!(!clear(&over, &chord), "a chord across the arc");
-        let missed = (ellipse(1.2, 1.0), (2.0, 6.0));
+        let missed = arc(1.2, 1.0, (2.0, 6.0));
         assert!(clear(&missed, &chord), "a chord the arc leaves out");
     }
 
@@ -659,17 +686,15 @@ mod edge_pair_rows {
     /// and not where they hold one (at `(±0.894, ±0.894)`).
     #[test]
     fn two_arcs_read_apart_only_where_they_are() {
-        let inner = (ellipse(1.5, 1.0), (0.0, 2.0 * PI));
-        let outer = (ellipse(3.0, 2.0), (0.0, 2.0 * PI));
+        let inner = arc(1.5, 1.0, (0.0, 2.0 * PI));
+        let outer = arc(3.0, 2.0, (0.0, 2.0 * PI));
         assert!(clear(&outer, &inner), "concentric ellipses");
-        let wide = ellipse(2.0, 1.0);
-        let tall = ellipse(1.0, 2.0);
         assert!(
-            clear(&(wide.clone(), (-0.3, 0.3)), &(tall.clone(), (-0.3, 0.3))),
+            clear(&arc(2.0, 1.0, (-0.3, 0.3)), &arc(1.0, 2.0, (-0.3, 0.3))),
             "arcs clear of the crossings"
         );
         assert!(
-            !clear(&(wide, (0.9, 1.3)), &(tall, (0.3, 0.6))),
+            !clear(&arc(2.0, 1.0, (0.9, 1.3)), &arc(1.0, 2.0, (0.3, 0.6))),
             "arcs through one crossing"
         );
     }
