@@ -430,7 +430,7 @@ where the line is a shared edge.
 
 ## Built: the two pieces (embed/corner-pieces, 2026-11-23)
 
-Built on `origin/embed/wave3-land` at `fdbcd20d8d`, the landing branch,
+Built on `origin/embed/wave3-land`, last merged at `8d34076a9e`, the landing branch,
 which holds PR 7329's margin (`embed/remeter` `7667c455e`) and PR
 7318's separator. It needs both.
 
@@ -512,8 +512,11 @@ So the pieces close the straight corner (15 of the 27 left, the rest
 reaching a recorded contact or a budget) and little of the reflex one:
 21 of those 78 already pass on the base without this unit, and the
 pieces add 8. That agrees with `embed/iso-end`'s reading that a reflex
-pair is closed through its partner. Which of the 8 the carrier arm
-alone would close once the partner is presented was not separated out.
+pair is closed through its partner. None of the 8 is closed by the
+carrier arm alone: with the piece-pair ladder and the vertex-alone path
+switched off at every pair holding a corner that is not strictly convex
+(a measurement-only switch on the measuring tree, the carrier arm still
+asked of every piece) 19 of the 78 pass, none of them among the 8.
 The 72 that still refuse at an edge exit elsewhere (a thin face, more
 than two edges in the cell).
 
@@ -532,3 +535,32 @@ plane; a flap through a run at its vertex stays `Violated`. One row is
 tied to an ε: at 1e-12 the `Interval` union at the wall does not build
 (`work/contacthold/a-flush-union-at-the-session-boxs-wall-does-not-build-at-interval-at-the-tightest-eps.md`),
 and the row asserts the `f64` body there.
+
+**Cost, on the build** (the same two trees and 215 tests, the gate's
+receipts summed per test). Over all 215: gate calls 28,271 to 39,374,
+discharged cell pairs 9,019,243 to 12,274,408 (1.36), mostly tests
+that now get further (64 make more gate calls than before). Over the
+145 tests whose gate calls are the same: discharged 3,877,010 to
+4,000,416 (1.03), per-test median 1.00, least 0.41, most 1.44. The
+design's worst case, `review_f7_pole_r1_probes::p3_inset_coplanar_patch_still_refuses`
+(estimated 2.49 times the asks), discharges 1,531 pairs before and 635
+after: the estimate counted piece pairs per call under a build where
+its corners still split to the depth floor. The suite file and unit
+set, the 283 tests both trees have: 204.6 s on `8d34076a9e`, 205.3 s
+here.
+
+**The tour walk** (85 stops, `8d34076a9e` against the unit merged with
+it): no verdict moves, 82 hold on both and the three benches read
+`Crosses` on both; 26 receipts move, total splits 304,934 to 301,998.
+
+**Mutants** (each one exact edit, over the 199 `injective::` unit tests
+and the 99 tests of the suite file; the edits are in the PR's body):
+the shared-edge-end rule, any-piece-pair under the planes and graph,
+the carrier arm on any piece, the vertex-alone path on any piece pair,
+the edge-span check and the off-cone piece each redden a unit row; the
+off-cone piece also reddens three body rows. The ray's decision
+removed survives at the default ε and reddens
+`a_spike_or_a_slit_within_the_band_is_not_cut` at ε = 1e-6: at the
+default band a spike thin enough to be in the band is too thin for the
+ray's direction to be certified, and the division that places the cell
+refuses first.
