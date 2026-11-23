@@ -161,6 +161,8 @@ const DOORS: &[&Door] = &[
 
 /// The names under no door's prefix, or under another door's, with the
 /// door that decides each.
+/// A name nothing decides now is not a red: it excuses nothing, and
+/// it goes stale silently.
 const EXCEPTIONS: &[(&str, &Door)] = &[
     // The face normal's reads, which the boolean's pierce point takes.
     ("cone_at_apex", &BOOLEAN),
@@ -233,9 +235,9 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
+/// An entry that matches nothing in `src` now is not a red: it reads
+/// nothing and excuses nothing, and it goes stale silently.
 const CARRIERS: &[NameCarrier] = &[
-    NameCarrier::Const("REACH"),
-    NameCarrier::Const("NEST"),
     NameCarrier::Const("NEAR"),
     NameCarrier::Const("FAR"),
     // The tangent rows' closed table (`TangentRow::predicate`).
@@ -264,6 +266,10 @@ const CARRIERS: &[NameCarrier] = &[
     // The forwarders that hand on their callers' names, declared so
     // those names are read.
     NameCarrier::Call("advance_as"),
+    NameCarrier::Call("spline_chart_arms"),
+    NameCarrier::Call("closest"),
+    NameCarrier::Call("place"),
+    NameCarrier::Const("AT"),
     NameCarrier::Call("all_as"),
     NameCarrier::Call("apart_as"),
     NameCarrier::Call("arc_leaving_as"),

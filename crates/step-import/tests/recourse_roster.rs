@@ -16,6 +16,8 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 
 /// The `const`s step-import's names are spelled in, and the funnels that
 /// hand on the name their caller gives them.
+/// An entry that matches nothing in `src` now is not a red: it reads
+/// nothing and excuses nothing, and it goes stale silently.
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("read"),
     NameCarrier::Call("agree"),

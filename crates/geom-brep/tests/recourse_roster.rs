@@ -42,6 +42,8 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call: the `const`s names are spelled in, then the calls (row
 /// structs and `*_as` forwarders) whose literal arguments are names.
+/// An entry that matches nothing in `src` now is not a red: it reads
+/// nothing and excuses nothing, and it goes stale silently.
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),

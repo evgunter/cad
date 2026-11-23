@@ -108,7 +108,8 @@ use Disposition::{Home, NotRust, Unconverted};
 /// A site that reaches the shared lexer needs no line — that is read
 /// off its own code ([`reaches_the_shared_lexer`]). Sorted by path.
 /// Adding a line is a deliberate act and the enum above says which
-/// acts are honest.
+/// acts are honest. A line whose file was converted or deleted is not a
+/// red: it excuses nothing, and it goes stale silently.
 const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/step-import/src/parse.rs",

@@ -2046,9 +2046,12 @@ pub fn undeclared_forwarders(
     out
 }
 
-/// The parameter names of every `fn` named `name` in `bare` (a
-/// code-only view), one list per item: each parameter's pattern before
-/// its `:`, with `mut`, `&` and a receiver's `self` read as written.
+/// The text-typed parameter names of every `fn` named `name` in `bare`
+/// (a code-only view), one list per item: each parameter whose type
+/// spells `str` (a name is a `&'static str`), by its pattern before the
+/// `:`, `mut` and `&` dropped. A parameter of any other type is no name,
+/// so a decide site handed one is another type's method, not a
+/// forwarder.
 fn fn_parameters(bare: &str, name: &str) -> Vec<Vec<String>> {
     let mut out = Vec::new();
     for (at, _) in bare.match_indices("fn ") {
@@ -2077,7 +2080,11 @@ fn fn_parameters(bare: &str, name: &str) -> Vec<Vec<String>> {
             .into_iter()
             .filter_map(|range| {
                 let param = list[range].trim();
-                let pattern = param.split_once(':').map_or(param, |(p, _)| p).trim();
+                let (pattern, ty) = param.split_once(':')?;
+                if !ty.contains("str") {
+                    return None;
+                }
+                let pattern = pattern.trim();
                 let pattern = pattern.trim_start_matches('&').trim();
                 let pattern = pattern.strip_prefix("mut ").unwrap_or(pattern).trim();
                 (!pattern.is_empty()).then(|| pattern.to_string())
@@ -3597,8 +3604,9 @@ mod tests {
 
     /// **A forwarder no carrier declares hides its callers' names, and
     /// reds**: with no listed sites, a `decide` site whose name is a bare
-    /// parameter of its `fn` reds unless that `fn` is a declared `Call`
-    /// carrier. A field or a local binding at the site stays silent.
+    /// text parameter of its `fn` reds unless that `fn` is a declared
+    /// `Call` carrier. A field, a local binding, or a parameter of
+    /// another type (another type's `decide*` method) stays silent.
     #[test]
     fn an_undeclared_forwarder_reds_with_no_list() {
         let dir = std::env::temp_dir().join(format!("tu-forwarder-{}", std::process::id()));
@@ -3609,6 +3617,7 @@ mod tests {
              fn declared_as<T>(name: &str) { decide(name, 0.0); }\n\
              fn field(row: Row) { decide(row.name, 0.0); }\n\
              fn local() { let name = pick(); decide(name, 0.0); }\n\
+             fn other(sys: &System) { decide(sys, 0.0); }\n\
              fn caller() { my_gate(1.0, \"wrong_prefix_name\"); }\n",
         )
         .expect("write");
