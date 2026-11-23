@@ -14,6 +14,7 @@ Found on 2026-11-23 by the two designers weighing what a sector bound holds (the
 **A wrong bound, by the README's lever bullet** ("a verdict … that acts on its Zero reads it from above, and one that acts on every sign reads both"):
 
 - `topo::sector_shape` `apex_extrema_inside` acts on its Zero ("no extremum inside" means the sector is not cut) and is levered at the bare `s.arm.length()`, a length read from below.
+- `geom_brep::sector_shape` `corner_shape` and `topo::sector_shape` `apex_corner_shape` act on a Zero at `CornerBounds::SlitTip` (`reads_slit_tip_turn` reads it as a whole turn), at an arm read from below. Benign while a slit tip's two edges coincide by construction; a build that reads both bounds must keep an agreed Zero apart from a straddle there (round 2 of the fork).
 - `topo::bound_side` `first_order_as` (under `bound_side::read`) acts on every sign (its Zero is a `Tie` consumers key on) and reads a curved bound or a divider at one lever.
 - The curved bound's lever itself: `BoundSupport::Conic.extent` and `ConicDeparture.extent` are `edge_extent_inf`, a bound from below on the edge's diameter, where the departure is read at the vertex and its lever is the edge's far distance from the vertex (the class of `diameter-levers-of-a-datum-read-at-a-point`). On a nearly closed flat ellipse leaving an end of its minor axis the diameter is about twice that distance, on the side that claims a definite sign.
 
