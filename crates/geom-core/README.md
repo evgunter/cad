@@ -505,13 +505,12 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   lever is never shorter than the region its verdict governs and no
   longer than the site's own measure of it: a lever read off a
   consumed extent is known from both sides, each measured from the
-  site its datum is read at: from below off points of the region and
-  from above off its cover. A verdict is served only where it holds at
-  every length between the two: for a reading multiplied by its lever,
-  a definite sign at the bound from below and a Zero at the bound from
-  above, whatever acts on the verdict. Where the two disagree the
-  reading is in band and is refused as one. Where a face is not built
-  yet nothing proves a Zero over it. No consumer takes one bound.
+  site its datum is read at: from below off points known to lie on the
+  region and from above off its cover. A verdict is served only where
+  it holds at every length between the two: for a reading multiplied by
+  its lever, a definite sign at the bound from below and a Zero at the
+  bound from above. Where the two disagree the reading is in band and
+  is refused as one.
 - **The consumed extent** (`geom_brep::Reach`): the region a verdict
   is used over. It is one type, built only from the geometry consumed
   (an edge over its span, a face's region, two faces' meet, a bounded
