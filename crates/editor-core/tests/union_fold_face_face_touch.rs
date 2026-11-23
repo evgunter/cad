@@ -390,8 +390,9 @@ fn far_origin_rod(
 /// pair's one record.
 #[test]
 fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
-    // Pinned red: the body's volume escalates in band
+    // Pinned red at back 900: the body's volume escalates in band
     // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`).
+    // Back 300 refuses ahead of it at ε 1e-12 ([`FAR_OFF_FRAME_COST`]).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -423,9 +424,16 @@ fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line_row() {
             ("rod, block, plate", [rod, apart, plate]),
             ("plate, block, rod", [plate, apart, rod]),
         ] {
+            let what = format!("back {back}: {order}");
+            if geom_core::test_support::at_the_frame_cost_band(Tol::witness())
+                && FAR_OFF_FRAME_COST.contains(&back)
+            {
+                assert_far_off_refuses_as_the_frame_cost(&doc, &what, &members);
+                continue;
+            }
             touches(
                 &doc,
-                &format!("back {back}: {order}"),
+                &what,
                 &members,
                 (plate, rod),
                 3,
@@ -434,6 +442,51 @@ fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line_row() {
             );
         }
     }
+}
+
+/// The backs at which [`a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line`]'s
+/// union refuses at ε 1e-12, in every order, ahead of the back-900 stop
+/// its pin names: the rod's wall cannot read its volume,
+/// `props_cylinder_circle_off_axis` escalating with its margin in
+/// `(1.45e-12, 1.6e-12]` (measured 1.536e-12). Cause: polar, the rod's
+/// stored frame read as its polar enclosure
+/// (`geom_core::test_support::at_the_frame_cost_band`); mutant A (PR
+/// 7131's body) builds back 300 again, and turns this pin red.
+const FAR_OFF_FRAME_COST: [f64; 1] = [300.0];
+
+/// Asserts the union of `members` refuses as [`FAR_OFF_FRAME_COST`] pins.
+fn assert_far_off_refuses_as_the_frame_cost(
+    doc: &ProfileDoc,
+    what: &str,
+    members: &[RecipeNodeId],
+) {
+    let (doc, u) = union_over(doc.clone(), members);
+    let ev = run(&doc);
+    let got = failure(&ev, u);
+    let pinned = matches!(
+        got,
+        Some(editor_core::NodeErrorKind::Boolean(topo::BooleanError::ResultInvalid { findings }))
+            if !findings.as_slice().is_empty()
+                && findings.as_slice().iter().all(|f| matches!(
+                    f,
+                    topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::props::PropsError::Escalated { cause, .. },
+                            ..
+                        },
+                        ..
+                    } if geom_core::test_support::escalated(
+                        cause,
+                        "props_cylinder_circle_off_axis",
+                        (1.45e-12, 1.6e-12),
+                    )
+                ))
+    );
+    assert!(
+        pinned,
+        "{what}: pinned to refuse the rod's volume, props_cylinder_circle_off_axis in \
+         (1.45e-12, 1.6e-12], at ε 1e-12: {got:?}"
+    );
 }
 
 /// Two flush plates, x −2..0 and 0..2, whose y = 2 faces merge, and the

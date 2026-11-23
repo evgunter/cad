@@ -2,8 +2,9 @@
 id: the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants
 kind: issue
 title: The loft's enclosure arm re-enters its sections' f64 canonical form as constants (ValidatedProfile::lift_onto), laundering at Sym
-status: open
+status: closed
 opened: 2026-10-19
+closed: 2026-11-21
 priority: P2
 cost: E
 ---
@@ -28,3 +29,7 @@ The fix this row owes: the enclosure arm reads its sections at the lane, as its
 planes already are (`self.places`), or enters the canonical form through
 `Real::from_computed`, `ConstructedLoop::lift_computed`'s convention. Either
 retires the four gate sites.
+
+## Closed (2026-11-21, `work/scalar/f64-built-data-is-built-at-t.md`)
+
+The enclosure arm builds in `T` (`LoftBuild::in_t`) for point sections as for wide ones: it validates its sections at the lane and lifts no canonical form. `ValidatedProfile::lift_onto` has no production caller, sits behind `test-support`, and its gate row is `fixture`.

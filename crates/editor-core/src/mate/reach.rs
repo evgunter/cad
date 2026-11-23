@@ -212,6 +212,10 @@ pub(crate) fn faces_reach_from<T: Decide>(
 /// # Errors
 ///
 /// [`ReachRefusal::NoFiniteBound`] for a segment with no finite cover.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn loops_reach_from<T: Decide>(
     validated: &profile::ValidatedProfile<T>,
     origin: Point3<T>,

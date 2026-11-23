@@ -850,6 +850,7 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         | PersistError::Parse { .. }
         | PersistError::Unreadable { .. }
         | PersistError::Dimension { .. }
+        | PersistError::IndexBeforeBinders { .. }
         | PersistError::Snapshot(_)
         | PersistError::ToleranceInvalid { .. } => ResolveFault::Unresolved,
     }

@@ -2033,7 +2033,7 @@ mod tests {
         let (doc, union) = inserted(
             &doc,
             Node::Union {
-                members: Bodies::Spelled(vec![body(plate), body(boss)]),
+                members: Bodies::spelled(vec![body(plate), body(boss)]),
             },
             tol,
         );

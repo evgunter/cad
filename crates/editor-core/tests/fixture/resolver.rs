@@ -53,8 +53,38 @@ impl PartStore {
         (doc, body): (ProfileDoc, RecipeNodeId),
         tol: Tol,
     ) -> (DocRef, RecipeNodeId) {
+        assert!(
+            !is_yield(&doc, body),
+            "insert_part places one body; a family part is insert_family_part"
+        );
+        self.placed_part(doc, body, super::place, tol)
+    }
+
+    /// [`Self::insert_part`] for a part whose `body` is a family: the part
+    /// is its every member, placed one by one, `{k in xs: place(xs[k])}`
+    /// (D10 `[repetition]`), so the host reads it as one multi-solid
+    /// body. Panics where `body` is no yield.
+    pub fn insert_family_part(
+        &mut self,
+        (doc, body): (ProfileDoc, RecipeNodeId),
+        tol: Tol,
+    ) -> (DocRef, RecipeNodeId) {
+        assert!(
+            is_yield(&doc, body),
+            "insert_family_part places a family; one body is insert_part"
+        );
+        self.placed_part(doc, body, super::place_each, tol)
+    }
+
+    fn placed_part(
+        &mut self,
+        doc: ProfileDoc,
+        body: RecipeNodeId,
+        place: fn(ProfileDoc, RecipeNodeId) -> (ProfileDoc, RecipeNodeId),
+        tol: Tol,
+    ) -> (DocRef, RecipeNodeId) {
         let shape = super::body_read(&doc, body.into());
-        let (doc, placement) = super::place(doc, body);
+        let (doc, placement) = place(doc, body);
         let read = match shape {
             editor_core::Operand::Output { node, port } => doc.output(node, port),
             _ => doc.output(body, 0),
@@ -233,4 +263,10 @@ pub fn in_part_of(
             path: vec![seg],
         },
     }
+}
+
+/// Whether `body`'s read is a yield of `doc`.
+fn is_yield(doc: &ProfileDoc, body: RecipeNodeId) -> bool {
+    let shape = super::body_read(doc, body.into());
+    super::operand_var(doc, &shape).is_some_and(|var| doc.yielding(var).is_some())
 }

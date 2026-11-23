@@ -321,7 +321,7 @@ fn a_world_union_is_added_as_itself() {
     let (doc, union) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(
+            members: Bodies::spelled(
                 [a_copy, b_copy]
                     .map(|copy| BodyRead::plain(Operand::Node(copy)))
                     .to_vec(),
@@ -430,7 +430,7 @@ fn a_copy_something_reads_is_placed_rather_than_moved() {
     let (doc, _) = common::inserted(
         session.committed_doc(),
         Node::Assemble {
-            members: Bodies::Spelled(vec![BodyRead::plain(Operand::Var(read))]),
+            members: Bodies::spelled(vec![BodyRead::plain(Operand::Var(read))]),
         },
         tol,
     );

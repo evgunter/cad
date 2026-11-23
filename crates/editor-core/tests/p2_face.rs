@@ -912,7 +912,7 @@ fn a_selection_of_two_members_of_the_copy_refuses_at_inline() {
     );
     let (part, _k, pattern) = fixture::linear(part, block, [2.0, 0.0, 0.0], 2.0, 3);
     let mut store = PartStore::default();
-    let (part_ref, _) = store.insert_part((part, pattern), Tol::witness());
+    let (part_ref, _) = store.insert_family_part((part, pattern), Tol::witness());
     let o = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, inst) = fixture::insert_pinned(doc, fixture::mated_instance(part_ref), &o);

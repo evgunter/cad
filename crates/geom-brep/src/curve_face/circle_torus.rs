@@ -313,11 +313,15 @@ pub(super) struct Axes<T: geom_core::Real> {
 }
 
 /// [`Axes`] of `circle` against the torus `(center, axis)`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn axes<T: Decide>(
     circle: &geom::Circle<T>,
     (t_center, t_axis): (Point3<T>, UnitVec3<T>),
 ) -> Axes<T> {
-    let tilt = circle.radius() * circle.frame().axis().cross(t_axis.get()).norm();
+    let tilt = circle.radius() * circle.axis().cross(t_axis.get()).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
         dir: t_axis,
@@ -359,6 +363,10 @@ pub(super) fn coaxial<T: Decide>(
 /// **The meridian rung's deviation** ([`meridian_deviation`]), with the
 /// centre term's rounding: `w₀` and its split along the axis are read off
 /// coordinates as large as `|C| + |c|`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn meridian<T: Decide>(
     circle: &geom::Circle<T>,
     (t_center, t_axis, major_radius, minor_radius): (Point3<T>, Vec3<T>, T, T),
@@ -369,7 +377,7 @@ pub(super) fn meridian<T: Decide>(
         (circle.frame().origin() - origin).norm() + (t_center - origin).norm() + major_radius,
     );
     meridian_deviation(
-        circle.frame().axis(),
+        circle.axis(),
         circle.radius(),
         axes.w_perp,
         axes.offset,
@@ -616,7 +624,7 @@ pub(super) fn contours<T: Decide>(
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let rho_max = radius + offset;
     let middle = geom::mid_param(t0, t1);
-    let (u_ref, v_ref) = (circle.frame().u_ref(), circle.frame().v_ref());
+    let (u_ref, v_ref) = (circle.u_ref(), circle.v_ref());
     Contours {
         depth: (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius),
         charge_h,
