@@ -237,7 +237,7 @@ fn hit_test_value(
 ) -> Py<PyAny> {
     // The lookup's refusal names a node and a body, never a name.
     let err = s::HitTestError::from(unnamed);
-    hit_test_err(py, &err, pncad::document::spoken_by(&err, doc))
+    hit_test_err(py, &err, pncad::document::spoken_by(&err, doc).to_string())
         .value(py)
         .clone()
         .into_any()
@@ -711,7 +711,7 @@ pub(crate) fn pick_face(
         Ok(Some(hit)) => Ok(Some(projected(py, &hit)?)),
         Err(err) => {
             let said = err.spoken(evaluation.doc(), &evaluation.inner);
-            Err(hit_test_err(py, &err, said))
+            Err(hit_test_err(py, &err, said.to_string()))
         }
     }
 }

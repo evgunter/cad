@@ -1187,7 +1187,12 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), LoftError> {
-    let spec = body.stored_curve(edge)?.restated_spec();
+    let Some(curve) = body.edge(edge).and_then(topo::EdgeView::certified) else {
+        unreachable!(
+            "an interior section's rim {edge:?} is a certified edge the loft minted and still holds"
+        )
+    };
+    let spec = curve.restated_spec();
     let EdgeDescriptionSpec::Scaffold(declared) = spec.description else {
         unreachable!(
             "an interior section's rim is minted through the scaffolding door, and only this \

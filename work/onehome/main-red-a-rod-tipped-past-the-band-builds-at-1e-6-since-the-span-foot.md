@@ -77,3 +77,5 @@ every op SOUND) runs ahead of its pin, so it is read at 1e-6 too.
 Reproduce: `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p sweep --test all -E 'test(=parallel_cylinder_join::a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door) | test(=parallel_cylinder_join::a_tipped_rod_refuses_alike_in_both_operand_orders)'`
 passes while main stops as pinned; the stop itself is in the panic the
 pin reads (`pinned_red::row` fails with it once main stops otherwise).
+
+**Since PR 7131 (GREEN U12, 2026-11-23).** At ε 1e-12, both of this row's tests are also red, in nightly 44989234943 and not in 44870651337. That red is not PR 7112's. The tipped rod is not a finished body (`props_cylinder_circle_off_axis`, hi 1.194e-12). Cause: 7131's polar read. Mutant A alone turns both green, and F1X or F1F alone does not. The ε 1e-6 red here is unchanged. The refusal is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (PR 7402's branch until it merges), with probe runs 45083192761 (green at `e4d679d37e`), 45083200534 (red at `9bc9d6517b`) and 45083184695 (mutants). GREEN pins nothing until Ev rules on that count.

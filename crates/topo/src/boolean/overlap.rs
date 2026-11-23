@@ -51,7 +51,6 @@ use crate::body::Body;
 use crate::contain::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::face_normal::NormalAtError;
-use crate::live::BoundaryMember;
 
 /// **Why [`overlap`] gave no answer.**
 #[derive(Clone, Debug)]
@@ -411,25 +410,19 @@ fn place<T: Decide>(
 /// outward normal from its first bound to its second.
 type Corner<T> = (Leaving<T>, Leaving<T>);
 
-/// Each loop of `face`, as its edge half-edges in walk order.
+/// Each loop of `face`, as its edge half-edges in walk order. A face
+/// with no outline, or one holding a lone ring (a boundary point no
+/// corner reading here places), is unread.
 fn loops<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
 ) -> Result<Vec<Vec<HalfEdgeKey>>, OverlapRefusal> {
+    let lone = OverlapRefusal::Unread(OverlapUnread::LoneVertex);
     let f = body.face(face).ok_or(OverlapRefusal::StaleFace { face })?;
-    let mut out = Vec::new();
-    for (_, members, _) in f.boundary_by_loop() {
-        let mut cycle = Vec::with_capacity(members.len());
-        for member in members {
-            match member {
-                BoundaryMember::Edge { he, .. } => cycle.push(he),
-                BoundaryMember::Isolated { .. } => {
-                    return Err(OverlapRefusal::Unread(OverlapUnread::LoneVertex));
-                }
-            }
-        }
-        out.push(cycle);
+    let area = f.area_loops().map_err(|_| lone.clone())?;
+    if !area.lone_rings().is_empty() {
+        return Err(lone);
     }
-    Ok(out)
+    Ok(area.cycles().map(|(lp, _)| lp.cycle()).collect())
 }
 
 /// The certified carrier and span of half-edge `he`'s edge.
@@ -461,16 +454,16 @@ fn edge_record<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
 ) -> Result<(CarrierSpan<'_, T>, &crate::entity::Edge), OverlapRefusal> {
-    let torn = OverlapRefusal::Unread(OverlapUnread::TornBoundary);
-    let edge = body
-        .get_edge(half_edge(body, he)?.edge)
-        .ok_or(torn.clone())?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .ok_or(torn)?
+    let edge = body.linked_edge(
+        half_edge(body, he)?.edge,
+        crate::entity::EntityId::HalfEdge(he),
+        "edge",
+    );
+    let curve = edge
+        .curve()
         .certified()
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))?;
-    Ok(((curve.carrier(), curve.params()), edge))
+    Ok(((curve.carrier(), curve.params()), edge.record()))
 }
 
 /// The corner of `face` at its vertex `v`: each, where its loops pass `v`

@@ -4,6 +4,8 @@ kind: issue
 title: deleting or renaming a work/ row can red pncad-py's tracker_row_exists, and a work/ edit runs no build
 status: open
 opened: 2026-10-16
+priority: P4
+cost: E
 ---
 
 
@@ -26,3 +28,8 @@ the read reach learns `join("work")` as a directory read, or ci-filter checks
 `crates/pncad-py/src/tests.rs` cites.
 
 — CIW lane, 2026-10-16, from the review of #5228
+
+- 2026-11-22 — **Re-banded unbanded → P4 by CIW triage.** Never bit: no log mentions `tracker_row_exists` outside this row. Exposure is one
+suppressed attribute (`pncad-py/src/tests.rs:9665-9680`, row
+`validation-error-reason-is-raised-and-the-stub-declares-only-door`), and the check
+(`:9701-9708`) searches every slate, so a `git mv` re-home cannot red it; only a delete can.

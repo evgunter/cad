@@ -359,7 +359,10 @@ fn analysis_is_keyed_by_var_id() {
     };
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(analyzed.params().keys().copied().collect::<Vec<_>>(), both);
-    assert_eq!(analyzed.spoken(w).to_string(), "w");
+    assert_eq!(
+        editor_core::test_support::var_text(&analyzed.spoken(w)),
+        "w"
+    );
     let boxed = ParamBox::of(&analyzed);
     assert_eq!(boxed.axes().keys().copied().collect::<Vec<_>>(), both);
 
