@@ -394,13 +394,11 @@ pub fn conic_arc_aabb<T: Bounds>(
 /// later sharpening; a wider box still contains the locus). No
 /// arithmetic — brackets only — so no rounding to pad.
 ///
-/// **A net carrying poison ANYWHERE yields the poison box**, which
-/// overlaps everything: the placeholder curve (all-poison by
-/// construction) and equally a described net poisoned in one channel
-/// of one point. The screen is `net::any_poison`, whose docs carry why
-/// a box asks the wider question than the state discriminator does.
+/// **A net that is not finite yields the poison box**, which overlaps
+/// everything ([`NurbsCurve3::is_finite`]; the surface box's docs say
+/// why).
 pub fn nurbs_curve_aabb<T: Bounds>(curve: &NurbsCurve3<T>) -> Aabb {
-    if net::any_poison(curve.control()) {
+    if !curve.is_finite() {
         return Aabb::poison();
     }
     Aabb::from_points(curve.control().iter().copied()).unwrap_or_else(Aabb::poison)
