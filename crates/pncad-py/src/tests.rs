@@ -6232,7 +6232,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
-            "component_euler_violation",
             "contact_contradicted",
             "curve_datum_undecided",
             "curved_sense_inverted",
