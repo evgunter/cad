@@ -1,14 +1,20 @@
 diff --git a/crates/editor-core/src/mate/value.rs b/crates/editor-core/src/mate/value.rs
-index 7d044674d..41b3c8f7e 100644
+index 7d044674d..333fc2b8d 100644
 --- a/crates/editor-core/src/mate/value.rs
 +++ b/crates/editor-core/src/mate/value.rs
-@@ -1645,7 +1645,8 @@ impl<T: SolveScalar> FaceChart<T> {
+@@ -1645,7 +1645,14 @@ impl<T: SolveScalar> FaceChart<T> {
              + self.slides[1] * self.slides[1])
              .sqrt()
              .upper();
 -        let extent = geom_core::tolerance::SESSION_BOX_EXTENT;
 +        let extent = geom_core::tolerance::SESSION_BOX_EXTENT
 +            * if geom_core::sfg_probe::mutant("U15") { 0.5 } else { 1.0 };
++        geom_core::sfg_probe::hit(
++            "mate_select",
++            core::any::type_name::<T>(),
++            &geom_core::Lever::<f64>::session_box().length(),
++            &geom_core::tolerance::SESSION_BOX_EXTENT,
++        );
          let reach = 3f64.sqrt() * extent + origin;
          let arm =
              super::solve::arm_of(reach, [(&on, &self.to)], &self.values()).map_err(unleverable)?;
@@ -341,14 +347,20 @@ index f94582163..ece689e0c 100644
          floor_scale: 1.0,
      };
 diff --git a/crates/topo/src/session_box.rs b/crates/topo/src/session_box.rs
-index d7b9b59d1..d1e174a6c 100644
+index d7b9b59d1..f38e431ee 100644
 --- a/crates/topo/src/session_box.rs
 +++ b/crates/topo/src/session_box.rs
-@@ -187,7 +187,12 @@ pub(crate) fn in_session_box_at<T: Decide>(
+@@ -187,7 +187,18 @@ pub(crate) fn in_session_box_at<T: Decide>(
  
  /// The box's decision on a reach: its margin the box's extent less it.
  fn box_decided<T: Decide>(reach: T, band: Band) -> Result<(), ValidationError> {
 -    let margin = Margin::of(T::from_f64(geom_core::tolerance::SESSION_BOX_EXTENT) - reach);
++    geom_core::sfg_probe::hit(
++        "session_box",
++        core::any::type_name::<T>(),
++        &geom_core::Lever::<T>::session_box().length(),
++        &T::from_f64(geom_core::tolerance::SESSION_BOX_EXTENT),
++    );
 +    let margin = Margin::of(
 +        T::from_f64(
 +            geom_core::tolerance::SESSION_BOX_EXTENT
@@ -359,10 +371,14 @@ index d7b9b59d1..d1e174a6c 100644
          Ok(geom_core::Decided {
              sign: Sign::Negative,
 diff --git a/crates/topo/src/solid_contain.rs b/crates/topo/src/solid_contain.rs
-index 4c4704cef..e2a618976 100644
+index 4c4704cef..308faf871 100644
 --- a/crates/topo/src/solid_contain.rs
 +++ b/crates/topo/src/solid_contain.rs
-@@ -974,7 +974,7 @@ fn face_geo_arms<T: Decide>(
+@@ -971,10 +971,11 @@ fn face_geo_arms<T: Decide>(
+                 }),
+                 None => {
+                     let anchor = boundary_point(body, face)?;
++                    geom_core::sfg_probe::hit("partial_wall_built", core::any::type_name::<T>(), &0, &0);
                      Ok(FaceGeo::PartialWall {
                          axis: geom::Line { origin, dir: axis },
                          radius,
@@ -371,10 +387,19 @@ index 4c4704cef..e2a618976 100644
                      })
                  }
              }
-@@ -999,7 +999,14 @@ fn face_geo_arms<T: Decide>(
+@@ -994,12 +995,22 @@ fn face_geo_arms<T: Decide>(
+                     sense: f.sense(),
+                 }),
+                 None => Ok(FaceGeo::PartialCone {
++                    half_angle: {
++                        geom_core::sfg_probe::hit("partial_cone_built", core::any::type_name::<T>(), &0, &0);
++                        half_angle
++                    },
+                     axis: geom::Line {
+                         origin: apex,
                          dir: axis,
                      },
-                     half_angle,
+-                    half_angle,
 -                    ball: partial_ball(body, face, apex, band)?,
 +                    ball: sfg_shrunk(
 +                        "U3",
@@ -387,7 +412,7 @@ index 4c4704cef..e2a618976 100644
                  }),
              }
          }
-@@ -2200,7 +2207,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
+@@ -2200,7 +2211,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
                  == Sign::Zero
                  && decide(
                      "bool_cone_partial_reach",
@@ -396,7 +421,7 @@ index 4c4704cef..e2a618976 100644
                      band,
                  )
                  .map_err(escalate)?
-@@ -2223,7 +2230,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
+@@ -2223,7 +2234,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
                  == Sign::Zero
                  && decide(
                      "bool_wall_outline_reach",
@@ -405,7 +430,7 @@ index 4c4704cef..e2a618976 100644
                      band,
                  )
                  .map_err(escalate)?
-@@ -4169,7 +4176,13 @@ pub(crate) fn ray_crossings<T: Decide>(
+@@ -4169,7 +4180,13 @@ pub(crate) fn ray_crossings<T: Decide>(
                  let Some(ts) = cone_door(
                      ray,
                      ((cone, half_angle), face),
@@ -420,7 +445,7 @@ index 4c4704cef..e2a618976 100644
                      band,
                  )?
                  else {
-@@ -4184,7 +4197,7 @@ pub(crate) fn ray_crossings<T: Decide>(
+@@ -4184,7 +4201,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                      let p = q + d.get() * t;
                      match decide(
                          "bool_cone_partial_reach",
@@ -429,7 +454,7 @@ index 4c4704cef..e2a618976 100644
                          band,
                      )
                      .map_err(escalate)?
-@@ -4229,7 +4242,7 @@ pub(crate) fn ray_crossings<T: Decide>(
+@@ -4229,7 +4246,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                      }
                      match decide(
                          "bool_wall_outline_reach",
@@ -438,7 +463,7 @@ index 4c4704cef..e2a618976 100644
                          band,
                      )
                      .map_err(escalate)?
-@@ -5827,3 +5840,24 @@ mod cone_ray_rows {
+@@ -5827,3 +5844,29 @@ mod cone_ray_rows {
          }
      }
  }
@@ -447,6 +472,11 @@ index 4c4704cef..e2a618976 100644
 +    let old = (q - ball.center()).norm() - ball.lever().length();
 +    let new = ball.stand_off(q);
 +    geom_core::sfg_probe::hit(site, core::any::type_name::<T>(), &old, &new);
++    if format!("{new:?}").starts_with('-') {
++        geom_core::sfg_probe::hit("neg_raw", site, &0, &0);
++    } else {
++        geom_core::sfg_probe::hit("pos_raw", site, &0, &0);
++    }
 +    if geom_core::sfg_probe::mutant(&format!("pos_{site}")) {
 +        return new.abs() + T::from_f64(1e9);
 +    }
