@@ -108,3 +108,15 @@ within the band, and the certificate's envelope bounds what it moves,
 as that function already says of the enclosure). Not a reading in
 `topo::injective` that clips at a curve a rounding off a parallel:
 that would be a concession.
+
+## A second sighting, likely the same cause, untraced (2026-11-23)
+
+`self_intersection_proves_injectivity::one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror`
+(PR 7320, the re-review's probe): a rounded plate of four different
+corner radii, every edge filleted, is `Embedded` at `f64` as built, in
+three rigid poses and mirrored across `x = 0`. Mirrored across a
+generic plane (through `(0.2, −0.1, 0.3)`, normal `(0.3, −0.5, 0.81)`)
+it reads `Uncertified Departure`, cylinder against plane across an
+edge: the exit of this row's traced test. The mirror re-mints the rows
+on a turned frame, where a rigid move keeps the stored images. Likely
+the same cause; not traced. The row pins it at that exit.

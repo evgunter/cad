@@ -233,9 +233,17 @@ names (its 37 are among them; the row lists modules, not tests):
 | refusing at `f64`, elsewhere (depth or pair budget, a vertex alone) | 2 | 5 |
 | refusing at `Interval` | 7 | 7 |
 
-Those figures have the curved next edge still read: the four-arc
-barrel is one of the 11 there and refuses plane × torus across an arc
-without it (not re-measured after the removal).
+Those figures have the curved next edge still read. **Measured again
+on the frozen head `bdd319229`, after its removal** (2026-11-23, the
+same sets): **11 of the 24 and 21 of the 42 pass.** Two tests moved,
+both an arc into an arc, both now `Uncertified { Departure }` plane ×
+torus across an arc at `f64`
+(`work/embed/a-corner-of-two-curves-is-read-as-no-run.md`):
+`a_four_arc_barrel_fillets_whole`, of the 24, which was failing
+already (it got past `f64` and refused at `Interval`), so the 24's
+count stays 11 with one more across an arc at `f64` and one fewer at
+`Interval`; and `band_open_mixed_chain_shapes::a_compound_corner_of_two_arcs_builds`,
+of the 42, which passed with the ladder.
 
 - The 11 at `f64` across a line are outlines built off the axes
   (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`),
@@ -243,8 +251,7 @@ without it (not re-measured after the removal).
 - The one of the 42 still across an arc
   (`band_mixed_corner::a_pair_edge_too_short_for_its_two_ends_feet_refuses_at_them`,
   `2v1 × 17v3`, edge `32v1`) is not traced.
-- By key closes what the concession closed on this row (11), with the
-  barrel's caveat above.
+- By key closes what the concession closed on this row (11).
 
 **What this row leaves:**
 - a corner of this kind at a vertex the pair shares alone (the run is

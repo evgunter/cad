@@ -51,3 +51,32 @@ vertex to their far end, every other run apart from `R`
 (`runs`, `monotone_run`, `apart`), not a second, shorter ladder. Then
 `graph_run` already takes any carrier for the next edge.
 
+## Acceptance, scope and what the build must hold (2026-11-23, PR 7320's re-review)
+
+- **Acceptance.** `injective::presentation_rows::a_curved_next_edge_that_comes_back_into_r`
+  stays unread (it is the unsound case: the next edge comes back
+  inside `R`). The four-arc barrel comes back as a body row in
+  `self_intersection_proves_injectivity`'s
+  `a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints`
+  (`Embedded` at `f64`, as built and in that row's poses). The two
+  conic rows that pin `Structural` today
+  (`two_arcs_of_one_circle_are_read_on_through_their_vertex`'s
+  two-circle tip, `an_arc_of_one_circle_that_does_not_continue_the_shared_arc_is_not_read`'s
+  over-a-turn case) re-pin to the run.
+- **Census tests it holds back, measured on PR 7320's frozen head
+  with the at-rest gate asking**: `band_closed_mixed_chain_shapes::a_four_arc_barrel_fillets_whole`
+  and `band_open_mixed_chain_shapes::a_compound_corner_of_two_arcs_builds`,
+  both `Uncertified { Departure }` plane against torus across an arc
+  at `f64`. With the removed ladder the second passed and the first
+  got past `f64` to refuse at `Interval`.
+- **The mutant to hold.** The next edge read with no test that its
+  other runs and lifts are apart from `R` (the removed ladder, in
+  effect): red on `a_curved_next_edge_that_comes_back_into_r`.
+- **A periodic chart is not in scope.** The removed ladder read no
+  chart with a periodic axis, both census tests are plane faces, and
+  no body with two curves at a tangent joint on a cylinder or torus
+  is known. It stays unread, and gets its own row if a body shows it.
+- **`graph_run` passes `closed = false` to `edge_piece` for the next
+  edge** (`edge_piece(other, *other_span, false, &[image])`). Right
+  for a line. A curved next edge that is a closed conic needs its
+  seam read as the first edge's is, or to be refused there.

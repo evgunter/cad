@@ -91,6 +91,13 @@ untraced here); 1 at `f64` plane × torus across an arc; 5 at `f64`
 elsewhere (the depth or pair budget, a vertex alone); 7 at `Interval`.
 None of the 20 is traced to its exit.
 
+**On PR 7320's frozen head `bdd319229`** (2026-11-23, after the curved
+next edge's reading was removed): 21 of the 42 pass.
+`band_open_mixed_chain_shapes::a_compound_corner_of_two_arcs_builds`
+passed with it and now refuses plane × torus across an arc at `f64`
+(`work/embed/a-corner-of-two-curves-is-read-as-no-run.md`); nothing
+else of the 42 moved.
+
 **Not read:** the same joint on a curved chart (`present_line_corner`,
 a cylinder's ruling and a curve tangent to it).
 
