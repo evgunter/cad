@@ -164,6 +164,10 @@ mod review_r2_differential;
 
 #[path = "rejections.rs"]
 mod rejections;
+#[path = "review_doors_read_2_differential.rs"]
+mod review_doors_read_2_differential;
+#[path = "review_doors_read_2_probes.rs"]
+mod review_doors_read_2_probes;
 #[path = "review_fillet_recourse_arm_r1_probes.rs"]
 mod review_fillet_recourse_arm_r1_probes;
 #[path = "review_fillet_stored_tangency_r1_probes.rs"]
