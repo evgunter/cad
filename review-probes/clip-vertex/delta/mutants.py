@@ -1,0 +1,12 @@
+M = {}
+M['D01_E_whole_filter'] = ("                .filter(|a| a.whole)\n                .map(|a| Zero::Through", "                .map(|a| Zero::Through")
+M['D02_no_iso_circle_filter'] = ("                .filter(|_| iso_circle(surface, c.side.axis(), c.at.lo()).is_none())\n", "")
+M['D03_no_line_carrier'] = ("e.ends.contains(v) && matches!(e.arc, Some((Curve3::Line(_), _)))", "e.ends.contains(v)")
+M['D04_point_any_vertex'] = ("        Zero::Point(_, _, w) => *w == v,", "        Zero::Point(..) => true,")
+M['D05_holds_not_whole'] = ("on.is_some_and(|on| on.holds(a, true)))", "on.is_some_and(|on| on.holds(a, false)))")
+M['D06_unprojected'] = ("            let n = m - d * (m.dot(d) / d.dot(d));\n            Some((Psi::Linear { n, q }, through(&[r])))", "            let n = m;\n            Some((Psi::Linear { n, q }, through(&[r])))")
+M['D07_anchor_off'] = ("            Some((Psi::Linear { n, q }, through(&[r])))", "            Some((Psi::Linear { n, q: q + n * at(1e-3) }, through(&[r])))")
+M['D08_touched_falls_through'] = ("        [] if touched => Err(Unpresented::Local),\n", "")
+M['D09_no_through'] = ("([], [v]) => side_through(v).unwrap_or(Zero::None),", "([], [v]) => { let _ = side_through(v); Zero::None }")
+M['D10_none_partner_refused'] = ("        Zero::None => true,\n        Zero::Point(_, _, w) => *w == v,", "        Zero::None => false,\n        Zero::Point(_, _, w) => *w == v,")
+M['D11_no_through_plane'] = ("        if let Some(r) = named_edge(px, b).or_else(|| named_edge(py, y.boundary)) {", "        if let Some(r) = named_edge(px, b).or_else(|| named_edge(py, y.boundary)).filter(|_| false) {")

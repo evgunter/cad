@@ -1,0 +1,133 @@
+--- /dev/fd/63	2026-11-23 22:45:21.621314494 +0000
++++ /tmp/claude-0/-home-user-cad/84f82941-c749-5ab3-a5eb-c91af15fb871/scratchpad/inj_traced_head.rs	2026-11-23 22:41:53.127191050 +0000
+@@ -2472,7 +2472,7 @@
+             _ => [Sheet::Free; 2],
+         }
+     } else {
+-        match sheets(piece.surface, b, cell, band)? {
++        match sheets(piece.surface, b, cell, band).inspect_err(|e| if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] sheets {e:?}"); })? {
+             Sheets::On(s) => s,
+             Sheets::Missed => return Ok(Presentation::Vacuous),
+         }
+@@ -2488,6 +2488,7 @@
+             .filter(|&i| b.edges.get(i).is_some_and(|e| e.arc.is_some() && !seam(e)))
+             .collect();
+         if let Some(read) = curved_walls(piece, &walls, sheet, near_edges, near_vertices, band) {
++            if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] curved_walls ok={} iso={:?}", read.is_ok(), walls.iter().map(|&i| b.edges.get(i).map(|e| e.uses.iter().map(|u| (u.iso.map(|z| (z.held, z.at.lo(), z.at.hi())), u.harmonic.is_some())).collect::<Vec<_>>())).collect::<Vec<_>>()); }
+             return read;
+         }
+     }
+@@ -2508,7 +2509,7 @@
+     let mut inside = false;
+     for &ei in &piece.local.edges {
+         let Some(e) = b.edges.get(ei) else {
+-            return Err(Unpresented::Local);
++            { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2512"); } }; return Err(Unpresented::Local) };
+         };
+         if e.arc.is_none() {
+             if piece.whole {
+@@ -2523,7 +2524,7 @@
+         }
+         for u in &e.uses {
+             let Some(iso) = u.iso else {
+-                return Err(unread(ei, near_edges));
++                { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2527"); } }; return Err(unread(ei, near_edges)) };
+             };
+             let (lo, hi) = iso.held.of(cell);
+             if piece.whole {
+@@ -2542,7 +2543,7 @@
+                 continue;
+             }
+             let Some(sigma) = face_side(u, iso, b.orientation()) else {
+-                return Err(unread(ei, near_edges));
++                { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2546"); } }; return Err(unread(ei, near_edges)) };
+             };
+             // A line on a periodic axis whose sheet is unknown has no
+             // place, at any depth.
+@@ -2552,7 +2553,7 @@
+             // Every read below, and the merge's folds, see only a
+             // certified line.
+             if !line.is_certified() {
+-                return Err(Unpresented::Local);
++                { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2556"); } }; return Err(Unpresented::Local) };
+             }
+             let side = Side::of(iso.held, sigma > 0.0);
+             // A cell past the line on its face side by no more than
+@@ -2607,7 +2608,7 @@
+             let joints = joints(b, Lines::of(piece.surface), &edges, side.axis());
+             let run = run_through(&joints, first.edges[0]);
+             if !edges.iter().all(|e| run.contains(e)) {
+-                return Err(Unpresented::Local);
++                { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2611"); } }; return Err(Unpresented::Local) };
+             }
+         }
+         let hull = Interval::from_bounds(
+@@ -2691,7 +2692,7 @@
+                     m.collapsed = Some(v);
+                     m.ends_here = ends_on_collapse(piece.surface, b, v, point, band);
+                 }
+-                Some(_) => return Err(Unpresented::Local),
++                Some(_) => { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2695"); } }; return Err(Unpresented::Local) },
+                 None => merged.push(Clip {
+                     side,
+                     at: line,
+@@ -2712,7 +2713,7 @@
+     // `a_filleted_drum_certifies_across_its_fillet` pins.
+     let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo).max(few_ulps(hi));
+     if !piece.whole && (no_width(x) || no_width(y)) {
+-        return Err(Unpresented::Local);
++        { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2716"); } }; return Err(Unpresented::Local) };
+     }
+     // Every clip's side must be the edges' own, run on past its corners,
+     // and every corner convex.
+@@ -2742,7 +2743,7 @@
+     // `work/embed/a-reflex-corner-of-a-face-with-no-implicit-carrier-has-no-reading.md`
+     // for a face with no implicit.
+     if !piece.whole && !sides_are_the_faces(b, Lines::of(piece.surface), &merged, (x, y)) {
+-        return Err(Unpresented::Local);
++        { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2746"); } }; return Err(Unpresented::Local) };
+     }
+     let zero = match zero_of(piece.surface, b, &merged, near_edges, near_vertices) {
+         Ok(Zero::Side(side, a)) if a.vertex.is_none() => {
+@@ -2799,7 +2800,7 @@
+         Ok(zero) => zero,
+         Err(e) => match partial_zero(piece.surface, b, &merged, near_edges, near_vertices) {
+             Some((side, along)) => Zero::Past(side, along),
+-            None => return Err(e),
++            None => { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L2803"); } }; return Err(e) },
+         },
+     };
+     Ok(Presentation::Of(Box::new(Presented {
+@@ -3619,7 +3620,7 @@
+         }
+     };
+     match zeros.as_slice() {
+-        [] if touched => Err(Unpresented::Local),
++        [] if touched => { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L3623"); } }; Err(Unpresented::Local) },
+         [] => Ok(match (points.as_slice(), loose.as_slice()) {
+             ([one], _) => one.clone(),
+             ([], [v]) => side_through(v).unwrap_or(Zero::None),
+@@ -3629,7 +3630,7 @@
+         [c, d] if c.side.axis() != d.side.axis() => {
+             Ok(Zero::Corner((c.side, along(c)), (d.side, along(d))))
+         }
+-        _ => Err(Unpresented::Local),
++        _ => { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] L3633"); } }; Err(Unpresented::Local) },
+     }
+ }
+ 
+@@ -7712,6 +7713,14 @@
+     let (sx, sy) = (Poses::of(faces.0), Poses::of(faces.1));
+     let px = present(x, &ex, &near.vertices, band, &sx);
+     let py = present(y, &ey, &near.vertices, band, &sy);
++    if std::env::var_os("CV_TRACE").is_some() {
++        let k = |p: &Result<Presentation<'_>, Unpresented>| match p {
++            Ok(Presentation::Of(q)) => format!("Of({})", match &q.zero { Zero::None => "None".to_string(), Zero::Side(s, a) => format!("Side({s:?},{:?})", a.edges), Zero::Past(s, a) => format!("Past({s:?},{:?})", a.edges), Zero::Corner(..) => "Corner".into(), Zero::Point(..) => "Point".into(), Zero::Through(s, a, _) => format!("Through({s:?},{:?})", a.edges), Zero::Curve(s, _) => format!("Curve({s:?})") }),
++            Ok(Presentation::Vacuous) => "Vacuous".into(),
++            Err(e) => format!("Err({e:?})"),
++        };
++        eprintln!("[cvt] {:?} {:?} nv={:?} ne={:?} :: {} || {}", x.face, y.face, near.vertices, ex, k(&px), k(&py));
++    }
+     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
+         if let Err(Unpresented::Collapsed(v)) = p {
+             return Outcome::Refuse(EngineRefusal::CollapsedChart {

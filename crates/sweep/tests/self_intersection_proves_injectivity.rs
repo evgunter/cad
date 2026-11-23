@@ -6816,3 +6816,41 @@ fn a_roof_folded_across_a_blocks_corner_crosses_it() {
         );
     }
 }
+
+// ------------------------------------------------ review probes (clip-vertex delta)
+
+/// PROBE: the generic mirror's Interval half, traced with `CV_TRACE`.
+#[test]
+fn probe_delta_mirror_interval() {
+    let ring = mirrored_generically(&near_full_ring::<Interval>().into_body());
+    eprintln!("[pose] ring Interval");
+    let r = injective(&ring, None, BUDGET);
+    println!("[probe] ring Interval: {:?} {:?}", r.verdict, r.receipt);
+    let block = mirrored_generically(&half_rod_on_a_block::<Interval>().into_body());
+    eprintln!("[pose] block Interval");
+    let r = injective(&block, None, BUDGET);
+    println!("[probe] block Interval: {:?} {:?}", r.verdict, r.receipt);
+    let block = mirrored_generically(&half_rod_on_a_block::<f64>().into_body());
+    eprintln!("[pose] block f64");
+    let r = injective(&block, None, BUDGET);
+    println!("[probe] block f64: {:?} {:?}", r.verdict, r.receipt);
+}
+
+/// PROBE: the off-grid wall row's body, pairs and whole, both scalars, three poses.
+#[test]
+fn probe_delta_off_grid_wall() {
+    for (pose, m) in turned_and_far() {
+        let float = in_pose(half_rod_on_a_block_at::<f64>(0.7, 0.13, 0.61, (0.3, 1.7)), m.as_ref());
+        let twin = in_pose(half_rod_on_a_block_at::<Interval>(0.7, 0.13, 0.61, (0.3, 1.7)), m.as_ref());
+        let (w, a) = wall_and_the_faces_at_a_vertex_alone(&float);
+        let (tw, ta) = wall_and_the_faces_at_a_vertex_alone(&twin);
+        for (f, g) in a.into_iter().zip(ta) {
+            let r = injective(&float, Some(vec![w, f]), BUDGET);
+            let ri = injective(&twin, Some(vec![tw, g]), BUDGET);
+            println!("[probe-grid] {pose} pair: f64 {} | Interval {}", class(&r.verdict), class(&ri.verdict));
+        }
+        let r = injective(&float, None, BUDGET);
+        let ri = injective(&twin, None, BUDGET);
+        println!("[probe-grid] {pose} whole: f64 {} | Interval {}", class(&r.verdict), class(&ri.verdict));
+    }
+}
