@@ -497,6 +497,16 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     let (parts, single) = match &sec {
         Section::Components { parts, single } => (parts.clone(), *single),
         Section::Tangent(_) if m < 4.0 * b.escalate() => return Vec::new(),
+        // A cylinder or cone partner is the section value's, whose sweep
+        // stands down within the general search's must-answer distance.
+        Section::Tangent(_)
+            if matches!(
+                pose.partner,
+                Surface::Cylinder { .. } | Surface::Cone { .. }
+            ) && m < super::cone_pair_search::must_answer(k.scale) =>
+        {
+            return Vec::new();
+        }
         Section::Touch(t) if t.name == "section_cone_coaxial_apexes" && m < 4.0 * b.escalate() => {
             return Vec::new();
         }

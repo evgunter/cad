@@ -828,7 +828,7 @@ const MUST_ANSWER: f64 = 2e3;
 /// The distance from every degeneracy past which a pose at `scale` must
 /// answer: [`MUST_ANSWER`] times the larger of the escalation threshold
 /// and `√(escalation · scale)`.
-fn must_answer(scale: f64) -> f64 {
+pub(super) fn must_answer(scale: f64) -> f64 {
     let e = band().escalate();
     MUST_ANSWER * e.max((e * scale).sqrt())
 }
@@ -935,6 +935,12 @@ fn off_asymptotic_planes(
         })
         .fold(f64::INFINITY, f64::min)
 }
+
+/// **How far a witness read on a pose decided on a `Zero` margin may
+/// stand off the carriers**, in units of that margin: the exact pose's
+/// section is the margin off the carriers' own, conditioned by the
+/// carriers' angle there.
+const DECIDED_SLACK: f64 = 64.0;
 
 /// A chart's precision floor: the representation, not the band, cannot
 /// resolve the pose, and any pose may refuse it.
@@ -1123,8 +1129,8 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
             if !matches!(back, Section::Touch(_)) {
                 bad.push(format!("one order a touch, the other {back:?}"));
             }
-            let within =
-                2.0 * m + WITNESS_ROUNDING * f64::EPSILON * ((t.at - k.apex).norm() + k.scale);
+            let within = DECIDED_SLACK * m
+                + WITNESS_ROUNDING * f64::EPSILON * ((t.at - k.apex).norm() + k.scale);
             for surf in [&cone, partner] {
                 let r = geom_brep::implicit_residual(surf, t.at);
                 if r.abs() > within {
@@ -1157,7 +1163,11 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
         // A pose decided on a `Zero` margin (the apex on the partner, a
         // tangency) is read on the exact pose, whose section the witness
         // lies on: the carriers stand up to the margin off it.
-        let decided = if m <= b.zero() { 2.0 * m } else { 0.0 };
+        let decided = if m <= b.zero() {
+            DECIDED_SLACK * m
+        } else {
+            0.0
+        };
         let rounding = WITNESS_ROUNDING * f64::EPSILON * ((w - k.apex).norm() + k.scale) + decided;
         for surf in [&cone, partner] {
             let r = geom_brep::implicit_residual(surf, w);

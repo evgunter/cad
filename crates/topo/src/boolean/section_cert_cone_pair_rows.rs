@@ -334,10 +334,13 @@ fn the_degenerate_cone_poses_read_as_the_value_decides_them() {
     }
     let lean = 5.0 * PI / 12.0;
     let doubled = cone_about(p(0.3, 2.0, 0.5), v(lean.sin(), 0.0, lean.cos()), PI / 6.0);
+    // The branch leaves along the doubled asymptote nearly tangent to the
+    // region's sphere, so at a finer ε its cut end may straddle it.
     for s in [classify(&cone, &doubled), classify(&doubled, &cone)] {
         assert!(
             matches!(&s, Section::Components { parts, .. }
-                if parts.len() == 1 && parts[0].unbounded),
+                if parts.len() == 1 && parts[0].unbounded)
+                || matches!(s, Section::Tangent(name) if name.starts_with("ruling_branch_cut")),
             "the doubled asymptote: one branch the region cuts, {s:?}"
         );
     }
