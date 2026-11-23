@@ -5597,6 +5597,11 @@ fn tip_points<T: Real>(
 /// [`loop_edges`]' flattening over any closed run of half-edges, in
 /// the order given: a loop's cycle, or a chain of half-edges from
 /// several faces that closes on itself.
+///
+/// The raw mass-properties door reads it over a body tier 1 has not
+/// vouched for, so every record the run names, an edge's curve
+/// included, is read raw, and one that does not resolve is
+/// [`LoopEdgesError::Corrupt`].
 pub(crate) fn run_edges<T: Decide>(
     body: &Body<T>,
     cycle: &[crate::entity::HalfEdgeKey],
@@ -5626,7 +5631,10 @@ pub(crate) fn run_edges<T: Decide>(
             return Err(LoopEdgesError::NullScaffoldEdge { edge: he.edge });
         };
         let Some(end) = body.half_edge_end(he_key) else {
-            return Err(corrupt("half-edge mate does not resolve"));
+            return Err(corrupt("half-edge next does not resolve"));
+        };
+        let Some(claim) = edge.claim(he_key) else {
+            return Err(corrupt("edge does not claim the half-edge that names it"));
         };
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
@@ -5642,7 +5650,7 @@ pub(crate) fn run_edges<T: Decide>(
                 .map(|root| CarrierId::minted(root.data().as_ffi())),
             t0,
             t1,
-            forward: he_key == edge.he_plus,
+            forward: claim.plus,
             start: tag_of(he.start),
             end: tag_of(end),
         });
@@ -7260,19 +7268,19 @@ pub trait AtRestPolicy: Decide {
         >,
     >;
 
-    /// **A certified lower bound on a spline chart's arm at `p` over
-    /// `reach`, at this scalar, or why none is read here** — the lower end
-    /// of the bracket the boolean's seam reading levers a spline face's
-    /// normal over ([`geom_brep::NurbsLane::chart_arm`],
-    /// [`geom_brep::classify_seam`]), and a spline pierced face's lever. It
-    /// is read from certified curvature bounds, at the certifying scalars
-    /// alone; a dual answers [`geom_brep::ChartArmRefusal::NoLane`], and the
-    /// seam reads smooth or escalates, never transverse.
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal>;
+    /// **This scalar's certification lane, or `None` where it does not
+    /// certify**: what a spline chart's certified arm is read through,
+    /// the lower end of the bracket the boolean's seam reading levers a
+    /// spline face's normal over ([`geom_brep::classify_seam`],
+    /// [`geom_brep::NurbsLane::chart_arm`]) and a spline pierced face's
+    /// lever. The bound is read from certified curvature bounds, at the
+    /// certifying scalars alone; a dual answers `None`, and the seam
+    /// reads smooth or escalates, never transverse.
+    fn nurbs_lane() -> Option<Self::NurbsLane>;
+
+    /// What this scalar holds [`AtRestPolicy::nurbs_lane`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type NurbsLane: geom_brep::NurbsLaneOf<Self>;
 
     /// What this scalar holds [`AtRestPolicy::section_lane`]'s lane as: the
     /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
@@ -7575,12 +7583,10 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    type NurbsLane = geom_brep::NurbsLane<Self>;
+
+    fn nurbs_lane() -> Option<Self::NurbsLane> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     type SectionLane = crate::offset_derive::SectionLane<Self>;
@@ -7755,12 +7761,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    type NurbsLane = geom_brep::NurbsLane<Self>;
+
+    fn nurbs_lane() -> Option<Self::NurbsLane> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     type SectionLane = crate::offset_derive::SectionLane<Self>;
@@ -7933,12 +7937,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    type NurbsLane = geom_brep::NurbsLane<Self>;
+
+    fn nurbs_lane() -> Option<Self::NurbsLane> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     type SectionLane = crate::offset_derive::SectionLane<Self>;
@@ -8107,12 +8109,10 @@ where
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    type NurbsLane = geom_brep::NurbsLane<Self>;
+
+    fn nurbs_lane() -> Option<Self::NurbsLane> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     type SectionLane = crate::offset_derive::SectionLane<Self>;
@@ -8298,13 +8298,11 @@ where
         None
     }
 
-    /// A dual does not certify (DL1), so it reads no certified bound.
-    fn spline_chart_arm(
-        _chart: &geom::NurbsSurface<Self>,
-        _p: geom_core::Point3<Self>,
-        _reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        Err(geom_brep::ChartArmRefusal::NoLane)
+    /// A dual does not certify (DL1), so it has no lane.
+    type NurbsLane = geom_core::NoLane;
+
+    fn nurbs_lane() -> Option<Self::NurbsLane> {
+        None
     }
 
     type SectionLane = geom_core::NoLane;
@@ -9760,6 +9758,41 @@ mod shell_reference_rows {
         assert!(
             volume.lo() <= 6.0 && 6.0 <= volume.hi(),
             "the carried sum encloses the prism's 6 m³: {volume:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod review_7437_probe {
+    #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+    use geom_core::Tol;
+
+    /// A body with one edge's curve removed, read through the raw
+    /// mass-properties door, refuses `Corrupt`, typed: the door reads a
+    /// body tier 1 has not vouched for (`run_edges`).
+    #[test]
+    fn raw_door_on_a_removed_curve() {
+        let tol = Tol::witness();
+        let mut body = crate::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let curve = body.edges.iter().next().unwrap().1.curve;
+        body.curves.remove(curve).expect("the curve was there");
+        let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body whose edge names a removed curve, which tier 1 refuses, and the door's typed refusal of it.
+            crate::test_support::measure_unvalidated(
+                &body,
+                tol,
+                crate::test_support::pinned_resolution(tol),
+            )
+            .map(|_| ())
+            .map_err(|e| format!("{e:?}"))
+        }));
+        let Ok(refusal) = got else {
+            panic!("the raw door panicked on a removed curve")
+        };
+        let refusal = refusal.expect_err("a body naming a removed curve measures nothing");
+        assert!(
+            refusal.contains("Corrupt") && refusal.contains("curve key does not resolve"),
+            "the raw door refuses a removed curve Corrupt: {refusal}"
         );
     }
 }

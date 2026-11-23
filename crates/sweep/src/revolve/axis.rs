@@ -55,6 +55,12 @@ pub(super) struct AxisFrame<T: Real> {
     /// revolve turns about. The frame's one copy of it; the axis line
     /// reads it ([`Self::line3`]).
     pub(super) axis: UnitVec3<T>,
+    /// The profile lies to the AUTHORED axis's left, so this frame is
+    /// the authored one turned half a turn about its seam radial
+    /// ([`Self::reflected`]): `d̂`, the axis and `z` run against the
+    /// authored ones, and what the revolve hands out reads them back
+    /// ([`Self::chart`]).
+    pub(super) reflected: bool,
 }
 
 impl<T: Real> AxisFrame<T> {
@@ -197,6 +203,45 @@ impl<T: Decide> AxisFrame<T> {
             azimuth: azimuth(origin3, u3),
             origin3,
             axis: turn_axis,
+            reflected: false,
+        }
+    }
+}
+
+impl<T: Real> AxisFrame<T> {
+    /// **This frame for a profile to its left**: a turn by θ about `d̂`
+    /// is the turn by `−θ` about `−d̂`, so the builders read the profile
+    /// at `r ≥ 0` about the reversed axis. The frame turned half a turn
+    /// about the radial: `d̂`, the axis, `ê_r` and the azimuth's `u` and
+    /// `w` negated, its `v` kept — exact negations, nothing decided.
+    pub(super) fn reflected(self) -> Self {
+        let Some(azimuth) = self
+            .azimuth
+            .motion()
+            .with_signed_axes((0, true), (1, false))
+        else {
+            unreachable!("u and v are two axes")
+        };
+        Self {
+            dir_sk: -self.dir_sk,
+            azimuth: geom::Frame::of_motion(&azimuth),
+            axis: -self.axis,
+            reflected: !self.reflected,
+            ..self
+        }
+    }
+
+    /// **The frame every wall surface is minted in**: the azimuth about
+    /// the AUTHORED axis, `w` the authored heading placed and `u` the
+    /// seam radial towards the profile. The azimuth itself where the
+    /// frame is not [`Self::reflected`]; run back (`v`, `w` reversed)
+    /// where it is, so a wall's chart axis is the heading the caller
+    /// wrote whichever side its profile lies on.
+    pub(super) fn chart(&self) -> geom::Frame<T> {
+        if self.reflected {
+            self.azimuth.reversed()
+        } else {
+            self.azimuth
         }
     }
 }
@@ -221,7 +266,7 @@ fn radial_of<T: Real>(dir_sk: Vec2<T>) -> Vec2<T> {
 /// start AT the point reads a whole turn. A full turn's span is `2π`,
 /// so it holds every point of its circle. The revolve's one reading of
 /// arc membership: the interior check ([`classify_segment`]) and the
-/// radial extent's interior extrema ([`radial_extent`]) both read it.
+/// radial reach's interior extrema ([`RadialReach`]) both read it.
 pub(super) fn turn_past<T: Real>(start: Point2<T>, arc: Arc2<T>, turn: Sign, toward: Vec2<T>) -> T {
     let from = start - arc.centre;
     let along = if crate::swept::turn_negates(turn) {
@@ -288,43 +333,80 @@ impl<T: Real> AxisFrame<T> {
     }
 }
 
-/// The profile's maximum radial extent (meters): the fold of `|r|`
-/// over every loop vertex and every **arc-interior radial extremum** —
-/// the named lever arm the angle predicates meter through (D4 ¶1).
+/// **The profile's radial reach**: its greatest and least signed
+/// radial coordinates, `hi` and `lo`, over every loop vertex and every
+/// **arc-interior radial extremum**. Read once, against the authored
+/// axis; [`Self::extent`] and [`Self::lies_left`] are its two readings.
 ///
-/// An arc's `|r|` maximum can sit strictly inside the arc: on the
-/// carrier, `r` is extremal at `c ± R·ê_r` (carrier angles 0 and π of
-/// the radial direction), and `|r| = max(r, −r)` peaks at an end of the
-/// arc or at whichever of those two points lies on it, which is folded
-/// in (no other point of the arc can exceed both, its apex included). Membership is
+/// On an arc's carrier, `r` is extremal at `c ± R·ê_r` (carrier angles
+/// 0 and π of the radial direction), so the arc's own extremes are its
+/// ends or whichever of those two points lies on it. Membership is
 /// [`turn_past`], the revolve's one reading of whether an arc holds a
 /// point of its circle (a full turn holds both), folded
-/// **comparison-free** via `copysign`: the candidate enters the `max`
-/// lattice with the membership margin's sign, so an off-arc candidate
-/// is negated and never wins (`r_max ≥ 0`). A zero margin means the
-/// extremum is an endpoint, already folded.
-///
-/// Never topology-determining — this only meters angle-sliver margins
-/// (`revolve_angle`, `revolve_angle_headroom`), so it stays outside
-/// the `decide` funnel; deterministic per D9 (a pure `max`/`copysign`
-/// fold, no branching on values).
-pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &AxisFrame<T>) -> T {
-    let e_r = frame.e_r();
-    let mut r_max = T::zero();
-    for lp in profile.loops() {
-        for s in lp.segments() {
-            r_max = r_max.max(frame.r(s.start).abs());
-            if let SegmentKind::Arc { arc, turn } = s.kind {
-                for dir in [T::one(), T::zero() - T::one()] {
-                    let toward = e_r * dir;
-                    let p = arc.centre + toward * arc.radius;
-                    let margin = T::zero() - turn_past(s.start, arc, turn, toward);
-                    r_max = r_max.max(frame.r(p).abs().copysign(margin));
+/// **comparison-free**: the candidate enters as the arc's start value
+/// moved by its distance from it, signed by the membership margin, so
+/// an off-arc candidate moves the wrong way and never wins. A zero
+/// margin means the extremum is an endpoint, already folded.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct RadialReach<T> {
+    hi: T,
+    lo: T,
+}
+
+impl<T: Real> RadialReach<T> {
+    /// The fold over `profile`, against `frame`.
+    pub(super) fn of(profile: &ValidatedProfile<T>, frame: &AxisFrame<T>) -> Self {
+        let e_r = frame.e_r();
+        let mut reach: Option<Self> = None;
+        for lp in profile.loops() {
+            for s in lp.segments() {
+                let at = frame.r(s.start);
+                let Self { mut hi, mut lo } = reach.map_or(Self { hi: at, lo: at }, |r| Self {
+                    hi: r.hi.max(at),
+                    lo: r.lo.min(at),
+                });
+                if let SegmentKind::Arc { arc, turn, .. } = s.kind {
+                    let toward = |toward: Vec2<T>| {
+                        let p = arc.centre + toward * arc.radius;
+                        let held = T::zero() - turn_past(s.start, arc, turn, toward);
+                        (frame.r(p) - at).abs().copysign(held)
+                    };
+                    hi = hi.max(at + toward(e_r));
+                    lo = lo.min(at - toward(e_r * (T::zero() - T::one())));
                 }
+                reach = Some(Self { hi, lo });
             }
         }
+        reach.unwrap_or(Self {
+            hi: T::zero(),
+            lo: T::zero(),
+        })
     }
-    r_max
+
+    /// The profile's maximum radial extent (meters), `max(hi, −lo)`:
+    /// the named lever arm the angle predicates meter through (D4 ¶1).
+    /// Never topology-determining — it only meters angle-sliver margins
+    /// (`revolve_angle`, `revolve_angle_headroom`), so it stays outside
+    /// the `decide` funnel; deterministic per D9 (a pure fold, no
+    /// branching on values). The same on either side of the axis.
+    pub(super) fn extent(self) -> T {
+        self.hi.max(T::zero() - self.lo)
+    }
+}
+
+impl<T: Decide> RadialReach<T> {
+    /// **Whether the profile lies to the axis's LEFT** (`r < 0`): the
+    /// sign of `hi + lo`. A profile wholly on either side has
+    /// `|hi + lo| ≥` [`Self::extent`], definite; one that reaches both
+    /// sides is refused by [`classify_loop`] in whichever frame it is
+    /// read, so an undecided side reads as not left and that
+    /// classification names the crossing.
+    pub(super) fn lies_left(self, band: Band) -> bool {
+        matches!(
+            decide("revolve_profile_side", Margin::of(self.hi + self.lo), band),
+            Ok(Sign::Negative)
+        )
+    }
 }
 
 /// A vertex's axis-contact class (swept order).
@@ -505,7 +587,10 @@ pub(super) fn classify_loop<T: Decide>(
 ///   case).
 /// - **Plane annulus** (chart normal `+a₃`, i.e. `+z`): material is
 ///   above exactly when the canonical traversal runs outward, so
-///   `sense = (canonical Δr < 0)`.
+///   `sense = (canonical Δr < 0)` — negated in a reflected frame, whose
+///   wall charts take the authored axis `−a₃` ([`AxisFrame::chart`]);
+///   every other wall's chart normal points away from the axis in
+///   either chart.
 /// - **Sphere & torus** (chart normal away from the on-meridian
 ///   carrier center): the sense is
 ///   [`crate::swept::centre_on_material_side`] of the canonical turn —
@@ -545,7 +630,7 @@ pub(super) fn classify_segment<T: Decide>(
     // chord deltas and flipped turns, so `reverse` undoes it exactly.
     let canonical = |sign: Sign| if reverse { sign.flip() } else { sign };
     match s.kind.get() {
-        SegmentKind::Line => {
+        SegmentKind::Line { .. } => {
             if va.pinned && vb.pinned {
                 return Ok(WallClass::OnAxis);
             }
@@ -568,7 +653,10 @@ pub(super) fn classify_segment<T: Decide>(
                     kind: WallKind::Plane {
                         outward: matches!(sr, Sign::Positive),
                     },
-                    sense: !matches!(canonical(sr), Sign::Positive),
+                    // The chart's normal is the AUTHORED axis
+                    // ([`AxisFrame::chart`]), against this frame's
+                    // where it is reflected.
+                    sense: !matches!(canonical(sr), Sign::Positive) != frame.reflected,
                 });
             }
             // Oblique: the generator crosses the axis at the affine
@@ -584,7 +672,7 @@ pub(super) fn classify_segment<T: Decide>(
                 sense: !matches!(canonical(sz), Sign::Negative),
             })
         }
-        SegmentKind::Arc { arc, turn } => {
+        SegmentKind::Arc { arc, turn, .. } => {
             let Arc2 { centre, radius, .. } = arc;
             // Arc walls' sense (doc above), through the shared rule —
             // the same body extrude's cylinder walls read.
@@ -846,7 +934,7 @@ mod tests {
     #[test]
     fn radial_extent_sees_arc_interior_maximum() {
         let vp = segment_profile(-90f64.to_radians(), 130f64.to_radians());
-        let ext = radial_extent(&vp, &frame_y(&vp));
+        let ext = RadialReach::of(&vp, &frame_y(&vp)).extent();
         assert!((ext - 3.0).abs() < 1e-9, "extent {ext}, want 3.0");
     }
 
@@ -856,7 +944,7 @@ mod tests {
     #[test]
     fn radial_extent_gates_off_arc_extremum() {
         let vp = segment_profile(30f64.to_radians(), 150f64.to_radians());
-        let ext = radial_extent(&vp, &frame_y(&vp));
+        let ext = RadialReach::of(&vp, &frame_y(&vp)).extent();
         let want = 2.0 + 30f64.to_radians().cos();
         assert!((ext - want).abs() < 1e-9, "extent {ext}, want {want}");
     }

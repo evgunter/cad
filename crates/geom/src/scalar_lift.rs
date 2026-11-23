@@ -136,14 +136,17 @@
 //! went through `f` ([`NurbsCurve3::map_scalar`]); a [`Surface::Nurbs`]
 //! and a [`Surface::Approx`] likewise ([`NurbsSurface::map_scalar`],
 //! [`ApproxSurface::map_scalar`]). No variant is mapped to the
-//! placeholder: a described curve that came back "no description yet"
+//! placeholder: a described surface that came back "no description yet"
 //! after a lift would be a silent substitution, and the whole reason a
 //! lift exists is to evaluate the *same* geometry at another scalar.
 //!
 //! # The placeholder and the poisoned net (the one home of this argument)
 //!
-//! What the placeholder and a poisoned net lift to follows from the map
-//! being structural. The placeholder's every control point is
+//! The placeholder is the surface's alone ([`NurbsSurface::placeholder`]);
+//! a curve's net is always described, and a poisoned one lifts to a net
+//! poisoned in the same channels. What the surface placeholder and a
+//! poisoned net lift to follows from the map being structural. The
+//! placeholder's every control point is
 //! all-poison, and every scalar embedding keeps poison (`from_f64(NaN)`
 //! is the interval's poison, `Dual::constant(NaN)` a poisoned dual), so
 //! **the placeholder lifts to the placeholder** — `is_placeholder` is
@@ -172,22 +175,16 @@ impl<T: Real> Curve3<T> {
     /// **The same curve at another scalar** (module docs): a frame or a
     /// direction re-minted there ([`crate::Frame::map_scalar`],
     /// [`UnitVec3::map_scalar`]), every other analytic field through `f`, the
-    /// NURBS payload through [`NurbsCurve3::map_scalar`]. Poison travels;
-    /// the placeholder lifts to the placeholder and a described curve to
-    /// a described curve. A conic's sizes are rebuilt through its
+    /// NURBS payload through [`NurbsCurve3::map_scalar`]. Poison travels.
+    /// A conic's sizes are rebuilt through its
     /// constructor ([`crate::Ellipse::new`]), so a lift that makes one
     /// non-finite or definitely negative panics there.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Curve3<U> {
         match self {
             Curve3::Line(crate::Line { origin, dir }) => Curve3::line(origin.map(&f), dir.map(&f)),
-            Curve3::Circle(c) => {
-                Curve3::Circle(crate::Circle::new(c.frame.map_scalar(&f), f(c.radius())))
-            }
-            Curve3::Ellipse(e) => {
-                let (a, b) = (e.semi_u(), e.semi_v());
-                Curve3::Ellipse(crate::Ellipse::new(e.frame.map_scalar(&f), f(a), f(b)))
-            }
+            Curve3::Circle(c) => Curve3::Circle(c.map_scalar(|at| at.map_scalar(&f), &f)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.map_scalar(|at| at.map_scalar(&f), &f)),
             Curve3::Spiric {
                 frame,
                 major_radius,

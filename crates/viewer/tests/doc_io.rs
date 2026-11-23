@@ -265,7 +265,7 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     );
     assert!(
         rows.iter()
-            .any(|row| row.spoken.kind() == Some("Revolve") && row.placed),
+            .any(|row| row.spoken.kind() == Some("Revolve") && !row.placements.is_empty()),
         "the revolve carries the world badge: the gallery places it"
     );
 

@@ -73,10 +73,10 @@ fn half_turn(a: Vec3<f64>) -> Mat3<f64> {
     )
 }
 
-/// **Whether `x` is zero exactly**: a point zero at every lane, read
-/// off its value channel at a dual's.
+/// **Whether `x` is zero exactly**: zero at every point it stands for
+/// ([`SolveScalar::zero_everywhere`]), so never at `Sym<f64>`.
 pub(crate) fn zero<T: SolveScalar>(x: T) -> bool {
-    x.exactly_zero() || (x.quoted() == 0.0 && x.upper() == 0.0)
+    x.zero_everywhere()
 }
 
 /// **The target axis `n` lies along exactly**, if it lies along one: its
@@ -229,5 +229,52 @@ mod tests {
                 .fold(0.0, f64::max);
             assert!(rigid < 1e-14, "tilt {tau:e}: not a rotation, {rigid:e}");
         }
+    }
+
+    /// **A normal on an axis in value alone is not aligned**: at `Dual`
+    /// a normal `(0, 0, 1)` whose `x` moves (derivative `1`) leaves the
+    /// axis off the seed, so the chart takes the general branches and
+    /// keeps the tangent; at `Sym<f64>` an exact value says nothing of the
+    /// symbols. *Breaks if* `zero` reads the value channel alone. The
+    /// symbolic row flips when the tier answers whether a form is the zero
+    /// form (BOXFINISH's EX1, `Expression::proves_zero`): these literals
+    /// are.
+    #[test]
+    fn a_normal_on_an_axis_in_value_alone_is_not_aligned() {
+        use geom_core::{Dual, Sym};
+        let d = |value: f64, deriv: f64| Dual { value, deriv };
+        let moving = Vec3::new(d(0.0, 1.0), d(0.0, 0.0), d(1.0, 0.0));
+        assert_eq!(super::aligned(moving), None, "a moving dual normal");
+        let still = Vec3::new(d(0.0, 0.0), d(0.0, 0.0), d(1.0, 0.0));
+        assert_eq!(super::aligned(still), Some(2), "a still dual normal");
+        let sym = |x: f64| <Sym<f64> as geom_core::Real>::from_f64(x);
+        assert_eq!(
+            super::aligned(Vec3::new(sym(0.0), sym(0.0), sym(1.0))),
+            None,
+            "a symbolic normal"
+        );
+        assert_eq!(
+            super::aligned(Vec3::new(0.0, 0.0, 1.0)),
+            Some(2),
+            "an f64 normal"
+        );
+    }
+
+    /// **An enclosure whose midpoint reads zero is no zero everywhere**:
+    /// `0 − |(1e−200)²|` is `[−5e−324, 0]` at `Interval`, its midpoint `−0`,
+    /// so a reading of the midpoint and the upper end calls it zero; the
+    /// point enclosure `[0, 0]` is. *Breaks if* `Interval` takes the trait's
+    /// default, which reads the midpoint.
+    #[test]
+    fn an_enclosure_reaching_below_zero_is_not_zero_everywhere() {
+        use crate::mate::SolveScalar;
+        use geom_core::{Interval, Real};
+        let tiny = <Interval as Real>::from_f64(1e-200);
+        let below = Interval::zero() - (tiny * tiny).abs();
+        assert!(!below.zero_everywhere(), "{below:?} reaches below zero");
+        assert!(
+            Interval::zero().zero_everywhere(),
+            "[0, 0] is zero everywhere"
+        );
     }
 }
