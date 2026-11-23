@@ -2391,8 +2391,8 @@ NOT_BOUND = {
     # A space as a refusal speaks it: the world, its name, or the node
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
-    # A sentence as a value: its words and mentions, the pieces a door
-    # writes it from, and the one spelling of a mention. Python reads a
+    # A sentence as a value: its words and mentions, and the pieces a
+    # door writes it from. Python reads a
     # refusal's sentence as the message text, each mention spelled; a
     # mention's node rides as the payload's `NodeId`.
     "Mention": SHAPE,
@@ -2733,6 +2733,11 @@ NOT_BOUND = {
     "Route": INTERIOR,
     # One hop of a `Route`: the instance and the document holding it.
     "RouteHop": INTERIOR,
+    # What a node reads, seat by seat, and the document's inversion of
+    # it (`Doc::operand_reads`, `Doc::read_index`): the viewer's
+    # Properties relations read them. Python has no relations view.
+    "OperandRead": INTERIOR,
+    "ReadIndex": INTERIOR,
     # The answers of `Doc::expr_reach` and `Doc::member_envs` (D10
     # `[repetition]`), the reads a reader that evaluates an expression
     # itself makes. Python evaluates through `evaluate`, which makes both

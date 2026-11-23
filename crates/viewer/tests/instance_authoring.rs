@@ -1244,7 +1244,7 @@ fn an_instances_own_copy_side_links_nowhere_either_way() {
         related.reads.iter().any(|row| row
             .entries
             .iter()
-            .any(|entry| entry.said().to_string() == OWN_COPY && entry.selects().is_none())),
+            .any(|entry| *entry.said() == *OWN_COPY && entry.selects().is_none())),
         "the own-copy side reads as words: {:?}",
         related.reads
     );
