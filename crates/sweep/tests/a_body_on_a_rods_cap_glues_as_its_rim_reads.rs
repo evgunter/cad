@@ -353,6 +353,43 @@ fn no_body_on_the_rods_cap_unions_to_a_wrong_solid() {
         Revolution::Full,
     );
     never_wrong("flange", &rod(), &flange, unit + PI * (13.0 / 3.0 + PI));
+    // A bowl hanging in a wider pipe's mouth (inner radius 1, outer 1.4):
+    // the nested touch on an inner rim.
+    let wide_pipe = body(
+        "wide pipe",
+        vec![
+            p(1.0, -2.0, 0.0),
+            p(1.4, -2.0, 0.0),
+            p(1.4, 0.0, 0.0),
+            p(1.0, 0.0, 0.0),
+        ],
+        Revolution::Full,
+    );
+    never_wrong(
+        "pipe and bowl",
+        &wide_pipe,
+        &bowl(),
+        PI * (1.96 - 1.0) * 2.0 + 2.0 / 3.0 * PI,
+    );
+    // A trumpet bell: a torus of minor radius 0.5 leaving the rim G1 and
+    // flaring outward, so the rod's wall continued past the rim lies on
+    // the bell's material side of the bell's carrier while the bell has
+    // no material below the rim. Its volume, ∫₀^ρ π(1 + ρ − √(ρ² − y²))² dy,
+    // in closed form: π(a²ρ − 2aπρ²/4 + ρ³·2/3) with a = 1 + ρ.
+    let rho: f64 = 0.5;
+    let bell = body(
+        "bell",
+        vec![
+            p(0.0, 0.0, 0.0),
+            p(1.0, 0.0, -q()),
+            p(1.0 + rho, rho, 0.0),
+            p(0.0, rho, 0.0),
+        ],
+        Revolution::Full,
+    );
+    let a = 1.0 + rho;
+    let bell_volume = PI * (a * a * rho - a * PI * rho * rho / 2.0 + 2.0 / 3.0 * rho.powi(3));
+    never_wrong("bell", &rod(), &bell, unit + bell_volume);
 }
 
 /// The half ball under ∖ and ∩: the rod ∖ the half ball is the rod, the
