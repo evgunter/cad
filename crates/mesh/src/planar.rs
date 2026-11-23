@@ -246,9 +246,35 @@ pub(crate) fn tessellate_planar(
         .map(|ids| ids.iter().map(project).collect())
         .collect();
 
+    let triangles = triangulate_chart(fk, &loops, &polygons)?;
+    let mut splits = crate::join_split::Splits::default();
+    if crate::join_split::Splits::armed() {
+        let surface = crate::tessellate::face_surface(body, fk)?;
+        let sense = body.get_face(fk).map_or(true, |f| f.sense);
+        let outward = crate::join_split::outward_of(surface, sense);
+        for &t in &triangles {
+            splits.offer(
+                &crate::join_split::Offer {
+                    ids: t,
+                    uv: [[0.0; 2]; 3],
+                    singular: [false; 3],
+                    shared,
+                    interior: &[],
+                },
+                "plane",
+                f64::INFINITY,
+                crate::sizing::Eps::at(geom_core::Tol::witness()),
+                &|_, _, _| (0.0, 1.0),
+                None,
+                Some(&outward),
+                &|p| surface.foot(p),
+            );
+        }
+    }
     Ok(Patch {
         interior: Vec::new(),
-        triangles: triangulate_chart(fk, &loops, &polygons)?,
+        splits,
+        triangles,
     })
 }
 

@@ -196,6 +196,28 @@ pub(crate) fn compute_chords(
         let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, floor)?;
         counts.insert(ek, n);
     }
+    // STAGE-1 INSTRUMENT: the chord floor.
+    if crate::join_split::on("JS_CHORD_FLOOR") {
+        let mut by_ends: HashMap<(topo::VertexKey, topo::VertexKey), Vec<EdgeKey>> = HashMap::new();
+        for (ek, _) in body.edges() {
+            let (a, b) = edge_ends(body, ek)?;
+            if a != b && counts[&ek] == 1 {
+                by_ends.entry(if a < b { (a, b) } else { (b, a) }).or_default().push(ek);
+            }
+        }
+        for (ek, _) in body.edges() {
+            let (a, b) = edge_ends(body, ek)?;
+            let key = if a < b { (a, b) } else { (b, a) };
+            let curve = certified(body, ek)?;
+            if by_ends.get(&key).is_some_and(|v| v.len() >= 2 && v.contains(&ek))
+                && !matches!(*curve.carrier(), Curve3::Line(_))
+            {
+                let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, 2)?;
+                crate::join_split::log(&format!("CHORDFLOOR -> {n}"));
+                counts.insert(ek, n);
+            }
+        }
+    }
     for (ek, _) in body.edges() {
         let curve = certified(body, ek)?;
         let (t0, t1) = curve.params();

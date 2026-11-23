@@ -5,6 +5,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+
+/// STAGE-1 INSTRUMENT: a pin that logs instead of failing under `JS_RULES_OFF`.
+macro_rules! js_assert_eq {
+    ($a:expr, $b:expr $(, $($t:tt)*)?) => {{
+        if std::env::var_os("JS_RULES_OFF").is_some() {
+            let (a, b) = (&$a, &$b);
+            if a != b { eprintln!("PINFAIL {:?} != {:?}", a, b); }
+        } else {
+            assert_eq!($a, $b $(, $($t)*)?);
+        }
+    }};
+}
+
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::ProfileLoop;
 use profile::RawLoop as _;
@@ -90,13 +103,13 @@ fn a_notched_wall_with_a_split_ruling_answers_as_the_unsplit_wall() {
     );
     let body = op_of(&pipe, &bar, "A ∪ B");
     let want = Got::Meshed;
-    assert_eq!(got(&body, 5e-3), want, "the unsplit notched wall");
+    js_assert_eq!(got(&body, 5e-3), want, "the unsplit notched wall");
     let lines = rulings(&body);
     assert!(lines.len() >= 2, "the notch's sides are rulings");
     for (k, &ek) in lines.iter().enumerate() {
         let split = split_and_placed(&body, &[ek], &[0.5]);
         for delta in [5e-3, 1e-3] {
-            assert_eq!(
+            js_assert_eq!(
                 got_enclosing(&split, &body, delta),
                 want,
                 "line edge {k} split at its middle, δ {delta}"
@@ -217,7 +230,9 @@ fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f
         eprintln!("CUTS\t{what}\t{delta}\t{cut}");
         return;
     }
-    assert_eq!(cut, cuts, "{what}, δ {delta}: the sides the walk cut");
+    if std::env::var_os("JS_RULES_OFF").is_none() {
+        js_assert_eq!(cut, cuts, "{what}, δ {delta}: the sides the walk cut");
+    }
     let base = match mesh::tessellate(solid, delta, tol()) {
         Ok(base) => base,
         Err(mesh::TessellateError::OverusedSide { .. }) if cuts > 0 => return,
@@ -237,7 +252,7 @@ fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f
             } else {
                 0
             };
-        assert_eq!(
+        js_assert_eq!(
             patch.triangles.len(),
             owed,
             "{what}, δ {delta}: a {:?} face that gained {gained} points",
@@ -332,8 +347,8 @@ fn a_split_side_adds_one_triangle_per_point() {
             }
         }
     }
-    assert_eq!(cells, 330, "the cells this row reads");
-    assert_eq!(
+    js_assert_eq!(cells, 330, "the cells this row reads");
+    js_assert_eq!(
         unread_volumes(),
         0,
         "the cells whose volume is not read: none"
@@ -392,13 +407,13 @@ fn a_ruling_split_a_hair_from_its_end_meshes() {
             ],
         ),
     };
-    assert_eq!(meshed, want, "the bodies this ε builds");
+    js_assert_eq!(meshed, want, "the bodies this ε builds");
     let refused: Vec<(f64, &str)> = refused.iter().map(|(a, e)| (*a, e.as_str())).collect();
-    assert_eq!(
+    js_assert_eq!(
         refused, refusals,
         "the splits `split_edge` refuses at this ε, and why"
     );
-    assert_eq!(
+    js_assert_eq!(
         unread_volumes(),
         0,
         "the cells whose volume is not read: none"
@@ -491,7 +506,7 @@ fn a_ruling_split_within_two_to_the_minus_27_of_its_slant_meshes() {
             &deltas,
         );
     }
-    assert_eq!(
+    js_assert_eq!(
         unread_volumes(),
         if eps_row() == EpsRow::Fine { 6 } else { 0 },
         "the cells whose volume is not read: the draft wall's at 1e-12"
@@ -608,7 +623,7 @@ fn banded(angle: f64) -> Body<f64> {
         })
         .map(|(ek, _)| ek)
         .collect();
-    assert_eq!(rims.len(), 2, "the outer wall's two rims");
+    js_assert_eq!(rims.len(), 2, "the outer wall's two rims");
     let mut stations = Vec::new();
     for rim in rims {
         let t = at(&body, rim, 0.0) + angle;
@@ -743,8 +758,8 @@ fn no_walked_triangle_has_an_edge_a_neighbour_makes() {
             }
         }
     }
-    assert_eq!(cells, 218, "the cells this row reads");
-    assert_eq!(
+    js_assert_eq!(cells, 218, "the cells this row reads");
+    js_assert_eq!(
         unread_volumes(),
         24,
         "the cells whose volume is not read: the band's, which does not finish"
@@ -878,7 +893,7 @@ fn run_cells(bodies: &[DraftBody<'_>], deltas: &[f64]) -> usize {
                 for (what, fracs) in splits {
                     let split = split_and_placed(&body, &[ek], fracs);
                     for &delta in deltas {
-                        assert_eq!(
+                        js_assert_eq!(
                             got_enclosing(&split, &whole, delta),
                             Got::Meshed,
                             "the {alpha}° {name}, cone ruling {k}, {what}, δ {delta}"
@@ -911,7 +926,7 @@ fn run_cells(bodies: &[DraftBody<'_>], deltas: &[f64]) -> usize {
 #[test]
 fn a_draft_cones_seam_split_within_its_developments_resolution_meshes() {
     let cells = run_cells(&[("wall, full", wall, Revolution::Full)], &[0.01]);
-    assert_eq!(cells, 7 * draft_cones().len(), "the cells this row reads");
+    js_assert_eq!(cells, 7 * draft_cones().len(), "the cells this row reads");
 }
 
 /// **The grid of [`a_draft_cones_seam_split_within_its_developments_resolution_meshes`]**:
@@ -942,7 +957,7 @@ fn every_close_split_of_a_draft_cones_rulings_meshes() {
         rulings += 2;
     }
     let cells = run_cells(&bodies, &[1.0, 0.1, 0.01, 0.001]);
-    assert_eq!(
+    js_assert_eq!(
         cells,
         rulings * 7 * 4 * draft_cones().len(),
         "the cells this row reads"
@@ -968,12 +983,12 @@ fn a_split_beside_a_corner_of_a_draft_cone_meshes() {
     let body = turned(&wall(26.6), Revolution::Partial(0.05));
     let whole = split_and_placed(&body, &[], &[]);
     let lines = cone_rulings(&body);
-    assert_eq!(lines.len(), 2, "the wedge's cone face ends on two rulings");
+    js_assert_eq!(lines.len(), 2, "the wedge's cone face ends on two rulings");
     for (k, ek) in lines.into_iter().enumerate() {
         for frac in [gap, 1.0 - gap] {
             let split = split_and_placed(&body, &[ek], &[frac]);
             for delta in [0.1, 0.01, 0.001] {
-                assert_eq!(
+                js_assert_eq!(
                     got_enclosing(&split, &whole, delta),
                     Got::Meshed,
                     "cone ruling {k} split at {frac}, δ {delta}"
@@ -1009,7 +1024,7 @@ fn cut_cone_cells(turn: Revolution<f64>) {
     for (k, ek) in lines.into_iter().enumerate() {
         for frac in [gap, 1.0 - gap] {
             let split = split_and_placed(&cut, &[ek], &[frac]);
-            assert_eq!(
+            js_assert_eq!(
                 got_enclosing(&split, &whole, 0.01),
                 Got::Meshed,
                 "ruling {k} split at {frac}"
@@ -1073,7 +1088,7 @@ fn a_frustum_seam_split_within_the_developments_resolution_meshes() {
     let split = split_and_placed(&body, &[seam], &[gap]);
     let whole = split_and_placed(&body, &[], &[]);
     for delta in [0.1, 0.01, 0.001] {
-        assert_eq!(
+        js_assert_eq!(
             got_enclosing(&split, &whole, delta),
             Got::Meshed,
             "δ {delta}"
@@ -1111,7 +1126,7 @@ fn a_draft_cone_ruling_split_within_the_developments_resolution_meshes() {
                 mesh::validate::check_winding(&m)
                     .unwrap_or_else(|e| panic!("{what}, δ {delta}: {e:?}"));
             } else {
-                assert_eq!(
+                js_assert_eq!(
                     got_enclosing(&split, &whole, delta),
                     Got::Meshed,
                     "{what}, δ {delta}"
@@ -1140,12 +1155,12 @@ fn a_one_chord_face_to_the_apex_split_beside_both_rim_ends_meshes() {
     let profile = apex_cone(100.0, 10.0);
     let body = turned(&profile, Revolution::Partial(0.05));
     let lines = cone_rulings(&body);
-    assert_eq!(lines.len(), 2, "the wedge's cone face ends on two rulings");
+    js_assert_eq!(lines.len(), 2, "the wedge's cone face ends on two rulings");
     let length = profile[1].0.hypot(100.0);
     let split = split_and_placed(&body, &lines, &[1.0 - gap / length]);
     let whole = split_and_placed(&body, &[], &[]);
     for delta in [10.0, 1.0, 0.1] {
-        assert_eq!(
+        js_assert_eq!(
             got_enclosing(&split, &whole, delta),
             Got::Meshed,
             "δ {delta}"
@@ -1156,7 +1171,7 @@ fn a_one_chord_face_to_the_apex_split_beside_both_rim_ends_meshes() {
             .iter()
             .find(|p| crate::reach_probes::kind_of(&split, p.face) == geom::SurfaceKind::Cone)
             .expect("the cone face's patch");
-        assert_eq!(
+        js_assert_eq!(
             cone.triangles.len(),
             3,
             "δ {delta}: the cone face's triangles"
@@ -1192,7 +1207,7 @@ fn a_split_beside_a_large_cones_rim_end_meshes() {
     let split = split_and_placed(&body, &[ruling], &[1.0 - gap]);
     let whole = split_and_placed(&body, &[], &[]);
     holds_everywhere("a ruling split beside its rim end", &split, &whole, deltas);
-    assert_eq!(
+    js_assert_eq!(
         unread_volumes(),
         if eps_row() == EpsRow::Default { 3 } else { 0 },
         "the cells whose volume is not read: the 1000 cone's at the default ε"
@@ -1234,7 +1249,7 @@ fn a_cone_band_shorter_than_the_developments_resolution_meshes() {
     let split = split_and_placed(&body, &[seam], &[0.5]);
     let whole = split_and_placed(&body, &[], &[]);
     holds_everywhere("a band's seam split at its middle", &split, &whole, deltas);
-    assert_eq!(
+    js_assert_eq!(
         unread_volumes(),
         0,
         "the cells whose volume is not read: none"
@@ -1273,7 +1288,7 @@ fn a_one_chord_face_through_the_apex_with_both_sides_split_meshes() {
             holds_everywhere(&what, &split, &solid, deltas);
         }
     }
-    assert_eq!(
+    js_assert_eq!(
         unread_volumes(),
         0,
         "the cells whose volume is not read: none"
@@ -1378,8 +1393,8 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
             }
         }
     }
-    assert_eq!(cells, 48, "the cells this row reads");
-    assert_eq!(
+    js_assert_eq!(cells, 48, "the cells this row reads");
+    js_assert_eq!(
         unread_volumes(),
         0,
         "the cells whose volume is not read: none"
@@ -1422,7 +1437,7 @@ fn a_run_of_three_on_a_cut_cone_face_meshes() {
     let cut = op_of(&cone, &slab, "A ∩ B");
     let lines = cone_rulings(&cut);
     let split = split_and_placed(&cut, &lines, &[1.0 - gap, 1.0 - 2.0 * gap]);
-    assert_eq!(
+    js_assert_eq!(
         got_enclosing(&split, &split_and_placed(&cut, &[], &[]), 0.01),
         Got::Meshed
     );
@@ -1496,7 +1511,7 @@ fn two_runs_anchored_by_the_apex_on_a_cut_cone_face_mesh() {
     let split = split_beside(&cut, &lines, gap, true).expect("the splits build");
     let whole = split_and_placed(&cut, &[], &[]);
     for delta in [10.0, 1.0, 0.1] {
-        assert_eq!(
+        js_assert_eq!(
             got_enclosing(&split, &whole, delta),
             Got::Meshed,
             "δ {delta}"
@@ -1556,7 +1571,7 @@ fn a_run_anchored_by_the_apex_on_a_needle_refuses_unresolved() {
     let split = split_beside(&cut, &[ruling], gap, true).expect("the split builds");
     let whole = split_and_placed(&cut, &[], &[]);
     for (delta, want) in cells {
-        assert_eq!(&got_enclosing(&split, &whole, *delta), want, "δ {delta}");
+        js_assert_eq!(&got_enclosing(&split, &whole, *delta), want, "δ {delta}");
     }
 }
 
@@ -1584,7 +1599,7 @@ fn a_split_beside_the_apex_of_a_needle_cone_refuses_undecided() {
     );
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp]).validate(tol());
     let Ok(profile) = profile else {
-        assert_eq!(
+        js_assert_eq!(
             eps_row(),
             EpsRow::Coarse,
             "the needle cone's profile validates at ε {:e}",
@@ -1654,16 +1669,16 @@ fn a_thin_d_prism_split_on_every_line_edge_refuses_as_its_split_caps_do() {
             (c.carrier().eval(t0).z - c.carrier().eval(t1).z).abs() < 1e-9
         })
         .collect();
-    assert_eq!(caps.len(), 2, "the prism's two cap chords");
+    js_assert_eq!(caps.len(), 2, "the prism's two cap chords");
     let solid = split_and_placed(&body, &[], &[]);
-    assert_eq!(
+    js_assert_eq!(
         got_enclosing(&solid, &solid, 0.1),
         Got::Meshed,
         "the unsplit prism, δ 0.1"
     );
     for (what, edges) in [("its caps' chords", &caps), ("every line edge", &lines)] {
         let split = split_and_placed(&body, edges, &[0.5]);
-        assert_eq!(
+        js_assert_eq!(
             got_enclosing(&split, &solid, 0.1),
             Got::Unresolved(SurfaceKind::Plane),
             "the prism split on {what}, δ 0.1"
@@ -1698,7 +1713,7 @@ fn the_walks_cut_is_the_same_at_every_eps() {
     ] {
         let what = "the ball bored with sign 1, its seam split at [0.5], beside its threshold";
         holds_the_relation(what, &split, &solid, delta, cuts);
-        assert_eq!(
+        js_assert_eq!(
             mesh_digest(&split, delta),
             digest,
             "{what}, δ {delta}: the mesh's bytes"

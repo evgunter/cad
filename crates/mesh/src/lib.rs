@@ -319,6 +319,7 @@ pub mod cert;
 mod chart_table;
 mod chords;
 mod curved;
+mod join_split;
 // The per-face patch memo behind `tessellate_with`: its key, stated
 // per lane, and its eviction rule. Public for the memo type and the
 // digests a caller keeps alive; the key itself is crate-private.

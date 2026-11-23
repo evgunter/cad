@@ -1584,6 +1584,7 @@ mod tests {
     fn a_stored_patch_is_placed_against_the_new_boundary_ids() {
         let patch = Patch {
             interior: vec![p(0.5)],
+            splits: Default::default(),
             triangles: vec![
                 [
                     PatchVertex::Shared(10),

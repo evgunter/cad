@@ -1,0 +1,48 @@
+## probe-9
+pair | splits | exceeded | unres_cert | unres_winding | fold(face) | fold(vs parent) | worst half/δ | apex | disagree | worst footgap/δ
+plane:plane+trim:cyl | 802 | 0 | 0 | 0 | 0 | 0 | 0.780 | 0 | 0 | 7.113e-13
+rect:sphere+walk:cyl | 224 | 0 | 0 | 0 | 0 | 0 | 0.905 | 0 | 0 | 9.371e-15
+rect:torus+walk:cyl | 184 | 0 | 0 | 0 | 0 | 0 | 0.345 | 0 | 0 | 3.315e-15
+rect:cyl+rect:sphere | 184 | 0 | 0 | 0 | 0 | 0 | 0.905 | 0 | 0 | 1.003e-14
+rect:cyl+rect:torus | 180 | 0 | 0 | 0 | 0 | 0 | 0.345 | 0 | 0 | 3.315e-15
+plane:plane+trim:cone | 138 | 0 | 0 | 0 | 0 | 0 | 0.404 | 0 | 0 | 2.333e-01
+trim:cyl+trim:cyl | 128 | 0 | 0 | 0 | 0 | 0 | 0.471 | 0 | 0 | 2.422e-11
+spline:nurbs+spline:nurbs | 4 | 0 | 0 | 0 | 0 | 0 | 0.000 | 0 | 0 | 0.000e+00
+plane:plane+trim:sphere | 2 | 0 | 0 | 0 | 0 | 0 | 0.128 | 0 | 0 | 5.551e-15
+('CHORDFLOOR', '') 14
+('FOLDCURE', '') 72
+('JOIN-coincident', '') 2
+('JOIN-left>0', '') 0
+('JOIN-meshes', '') 73
+## probe-6
+pair | splits | exceeded | unres_cert | unres_winding | fold(face) | fold(vs parent) | worst half/δ | apex | disagree | worst footgap/δ
+plane:plane+trim:cyl | 802 | 0 | 0 | 0 | 0 | 0 | 0.780 | 0 | 0 | 7.113e-13
+rect:sphere+walk:cyl | 224 | 0 | 0 | 0 | 0 | 0 | 0.905 | 0 | 0 | 9.371e-15
+rect:torus+walk:cyl | 184 | 0 | 0 | 0 | 0 | 0 | 0.345 | 0 | 0 | 3.315e-15
+rect:cyl+rect:sphere | 184 | 0 | 0 | 0 | 0 | 0 | 0.905 | 0 | 0 | 1.003e-14
+rect:cyl+rect:torus | 180 | 0 | 0 | 0 | 0 | 0 | 0.345 | 0 | 0 | 3.315e-15
+trim:cyl+trim:cyl | 136 | 0 | 0 | 0 | 0 | 0 | 0.471 | 0 | 0 | 9.153e-08
+plane:plane+trim:cone | 52 | 0 | 0 | 0 | 0 | 0 | 0.404 | 0 | 0 | 2.333e-01
+spline:nurbs+spline:nurbs | 4 | 0 | 0 | 0 | 0 | 0 | 0.000 | 0 | 0 | 0.000e+00
+plane:plane+trim:sphere | 2 | 0 | 0 | 0 | 0 | 0 | 0.128 | 0 | 0 | 5.551e-15
+('CHORDFLOOR', '') 14
+('FOLDCURE', '') 36
+('JOIN-coincident', '') 2
+('JOIN-left>0', '') 0
+('JOIN-meshes', '') 57
+## probe-12
+pair | splits | exceeded | unres_cert | unres_winding | fold(face) | fold(vs parent) | worst half/δ | apex | disagree | worst footgap/δ
+plane:plane+trim:cyl | 802 | 0 | 0 | 0 | 0 | 0 | 0.780 | 0 | 0 | 7.113e-13
+rect:sphere+walk:cyl | 224 | 0 | 0 | 0 | 0 | 0 | 0.905 | 0 | 0 | 9.371e-15
+rect:torus+walk:cyl | 184 | 0 | 0 | 0 | 0 | 0 | 0.345 | 0 | 0 | 3.315e-15
+rect:cyl+rect:sphere | 184 | 0 | 0 | 0 | 0 | 0 | 0.905 | 0 | 0 | 1.003e-14
+rect:cyl+rect:torus | 180 | 0 | 0 | 0 | 0 | 0 | 0.345 | 0 | 0 | 3.315e-15
+plane:plane+trim:cone | 138 | 0 | 0 | 0 | 0 | 0 | 0.404 | 0 | 0 | 2.333e-01
+trim:cyl+trim:cyl | 132 | 0 | 0 | 0 | 0 | 0 | 0.471 | 0 | 0 | 3.960e-14
+spline:nurbs+spline:nurbs | 4 | 0 | 0 | 0 | 0 | 0 | 0.000 | 0 | 0 | 0.000e+00
+plane:plane+trim:sphere | 2 | 0 | 0 | 0 | 0 | 0 | 0.128 | 0 | 0 | 5.551e-15
+('CHORDFLOOR', '') 14
+('FOLDCURE', '') 72
+('JOIN-coincident', '') 2
+('JOIN-left>0', '') 0
+('JOIN-meshes', '') 73

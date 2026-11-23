@@ -966,6 +966,7 @@ struct Emitted {
     /// A point inside each kept triangle with a side a neighbouring face
     /// may make too ([`TrimmedFace::attempt`]), to insert and rebuild.
     shared_sides: Vec<(f64, f64)>,
+    splits: crate::join_split::Splits,
 }
 
 impl TrimmedFace<'_> {
@@ -1079,6 +1080,7 @@ impl TrimmedFace<'_> {
             refine,
             folded,
             shared_sides,
+            splits,
         } = self.emit(
             &at,
             &crossings,
@@ -1159,6 +1161,7 @@ impl TrimmedFace<'_> {
         let patch = Patch {
             interior,
             triangles,
+            splits,
         };
         #[cfg(debug_assertions)]
         {
@@ -1467,6 +1470,7 @@ impl TrimmedFace<'_> {
             places.entry(h.index()).or_default().push(i);
         }
         let mut shared_sides = Vec::new();
+        let mut splits = crate::join_split::Splits::for_surface(surface);
         // Each run's CDT vertex ([`Run`]).
         let run_at: HashMap<usize, &Run> = self
             .runs
@@ -1625,7 +1629,12 @@ impl TrimmedFace<'_> {
                     !wound_outward
                 }) {
                     let grid: Vec<usize> = corners.iter().filter_map(|c| c.grid).collect();
-                    folded_boundary |= grid.is_empty();
+                    if grid.is_empty() && crate::join_split::on("JS_FOLD_CURE") {
+                        a_shared_side = true;
+                        crate::join_split::log("FOLDCURE");
+                    } else {
+                        folded_boundary |= grid.is_empty();
+                    }
                     folded_grid.extend(grid);
                 }
                 let (bound, scale) = self.row.cert(tri, uv, singular);
@@ -1633,6 +1642,26 @@ impl TrimmedFace<'_> {
                 // a NaN kept once met (`cert::FaceVerdict`): what a refusal
                 // reports is what refused.
                 let verdict = measure.verdict.read(bound, tol.delta, scale, tol.eps);
+                if crate::join_split::Splits::armed() {
+                                        let outward = |p| self.outward(p).map(|n| { let v = n.vec(); [v.x, v.y, v.z] });
+                    let lane = if matches!(self.row, ChartRow::Spline { .. }) { "spline" } else { "trim" };
+                    splits.offer(
+                        &crate::join_split::Offer {
+                            ids: crate::join_split::wound(flip, ids),
+                            uv: crate::join_split::wound(flip, uv),
+                            singular: crate::join_split::wound(flip, singular),
+                            shared,
+                            interior: &interior,
+                        },
+                        lane,
+                        tol.delta,
+                        tol.eps,
+                        &|t, u, s| self.row.cert(t, u, s),
+                        Some(&|u, v| surface.eval(u, v)),
+                        if lane == "trim" { Some(&outward) } else { None },
+                        &|p| surface.foot(p),
+                    );
+                }
                 // THE DEVIATION PASS (`crate::budget`, issue #320):
                 // barycentric samples of |S(w) − Π(w)| on this triangle,
                 // reduced to the largest ratio against the triangle's OWN
@@ -1717,6 +1746,7 @@ impl TrimmedFace<'_> {
             refine,
             folded: (folded_grid, folded_boundary),
             shared_sides,
+            splits,
         })
     }
 }
@@ -3280,6 +3310,9 @@ impl TrimPolygon {
         (at_a, a): (&[usize], u32),
         (at_b, b): (&[usize], u32),
     ) -> Vec<FaceKey> {
+        if crate::join_split::on("JS_RULES_OFF") {
+            return Vec::new();
+        }
         let neighbours = at_a
             .iter()
             .any(|&i| at_b.iter().any(|&j| self.next(i) == j || self.next(j) == i));
@@ -3731,6 +3764,7 @@ fn walk_face(
     }
     let mut triangles = Vec::with_capacity(corners.len());
     let mut verdict = cert::FaceVerdict::new();
+    let mut splits = crate::join_split::Splits::for_surface(row.surface());
     for c in corners {
         let ids = c.map(|c| c.0);
         let tri = ids.map(|id| id.position(shared, &interior));
@@ -3761,12 +3795,33 @@ fn walk_face(
         // point is never the apex.
         let (bound, scale) = row.cert(tri, c.map(|c| c.1), c.map(|c| c.2));
         verdict.read(bound, tol.delta, scale, tol.eps);
+        if crate::join_split::Splits::armed() {
+            let outward = |p| { let v = row.outward(sense, p).vec(); let a = [v.x, v.y, v.z]; a.iter().all(|x| x.is_finite()).then_some(a) };
+            let surface = row.surface();
+            splits.offer(
+                &crate::join_split::Offer {
+                    ids,
+                    uv: c.map(|c| c.1),
+                    singular: c.map(|c| c.2),
+                    shared,
+                    interior: &interior,
+                },
+                "walk",
+                tol.delta,
+                tol.eps,
+                &|t, u, s| row.cert(t, u, s),
+                Some(&|u, v| surface.eval(u, v)),
+                Some(&outward),
+                &|p| surface.foot(p),
+            );
+        }
         triangles.push(ids);
     }
     verdict.refusal(fk, tol.delta)?;
     Ok(Patch {
         interior,
         triangles,
+        splits,
     })
 }
 
