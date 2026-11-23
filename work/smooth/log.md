@@ -1,3 +1,0 @@
-# SMOOTH — the log
-
-- 2026-11-22 — **Opened** by PROFILE's cut of Ev's ruling on PR 7251 (`work/README.md`, Track size: PROFILE weighed 35 against 30 before this build). The ruled text is `docs/PATHS-DESIGN.md` as PR 7251 leaves it; the cut read commit `7c8acfd225` of `profile/ev-smooth-continuation`, which was not yet merged. The five units are new. `tangent-arc-to-needs-an-explicit-tangent-where-line-takes-the-directed-point` (the parent) and `no-fused-verb-takes-a-departure-tangent-arc-toward-a-point` moved here from `work/profile/` by `git mv`, ids kept. Nothing is dispatched. (PROFILE cut lane)

@@ -1,0 +1,6 @@
+fork: a-torus-touch-is-read-by-its-near-band (ORBIT; rows a-torus-touch-along-a-whole-parallel-refuses-r-tan + a-torus-touch-at-a-definite-non-elliptic-point-refuses-r-tan)
+drawn: 2026-11-23T17:15:17Z, python3 os.urandom(2) (drawn late, after the first reports and one reconciliation round)
+bytes: 31 / 28
+arm: byte 31 < 86 -> three designers drawn; run as two, both Opus 5.5 (Fable usage out; Ev in chat 2026-11-23: "run everything on opus, using two opus reviewers/designers as indicated")
+mapping: byte 28 even -> A = designer lane orbit-dsgn-touch-1 (Opus 5.5), B = designer lane orbit-dsgn-touch-2 (Opus 5.5); both dispatched as subagents with model opus, 2026-11-23
+protocol: 35578f5a9a
