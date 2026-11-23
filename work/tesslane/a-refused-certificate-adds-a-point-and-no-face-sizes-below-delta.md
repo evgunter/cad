@@ -31,6 +31,8 @@ Measured by the two designers over the `mesh` suite at one ε, sized at δ with 
 - With the correction at the midpoint of the widest side that is no boundary side, one wide tilted cylinder wall needs more rounds than the shared budget of 6 (it meshes at 40).
 - One face folds at δ that does not at δ/2 (a tube near a sphere's pole; one ringed sphere face in the other designer's run). A fold is not a deviation and the correction does not reach it.
 
+**Ev's condition (PR 7486, 2026-11-23): "if it's not an instance of doing extra work to get a less precise result, it's good".** The headline's meaning, in Ev's words, is in the clause: where refining to exactly δ would be more work than refining slightly past it, the lane refines slightly past it. Over the suite the change was measured at less work in total. Whether it is less work on every kind of face is not measured, and a face that takes several correction rounds to reach a coarser mesh than one finer pass would have given is the instance Ev's sentence excludes. So stage 1 measures WORK as well as counts: per face family, the time and the triangulation passes under sizing at δ with the correction, against today's sizing, and it names every family where the correction costs more. For such a family the answer is the page's own: size it slightly finer up front (a first guess the family's correction rate justifies), not iterate.
+
 Stage 1 measures, then stops and reports: which insertion rule loses no face lane-wide, spline rows and the rectangle lane's triangulation included, and at what budget; folds counted beside certificates; the three ε; the slow set, `sweep`'s meshing modules, `step-import` and the tour; the faces sharing a rim with a chart-lane face. Stage 2 builds it.
 
 ## What it closes
