@@ -226,7 +226,12 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 /// Everything wearing [`crate::theme::Theme::actionable`] says its own
 /// words, so this decides salience and never meaning.
 pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -> egui::RichText {
-    let text = egui::RichText::new(text);
+    voiced(egui::RichText::new(text), theme, tone)
+}
+
+/// [`toned`]'s voice, on text already rich: a sentence's run
+/// (`widgets::sentence_toned`).
+pub(crate) fn voiced(text: egui::RichText, theme: &Theme, tone: frame::Tone) -> egui::RichText {
     match tone {
         frame::Tone::Advisory => text.weak(),
         frame::Tone::Actionable => text.color(chrome(theme.actionable)),

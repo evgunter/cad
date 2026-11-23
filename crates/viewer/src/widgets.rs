@@ -209,6 +209,123 @@ pub(crate) fn message_toned(
     message(ui, crate::app::toned(text, theme, tone))
 }
 
+/// **A kernel sentence, drawn**: [`message`]'s wrap, each run in
+/// `voice`, and each mention [`crate::relations::link`] answers for
+/// `on_screen` underlined in the link colour. A click on one answers
+/// what it selects in [`Spoken::selects`]; a mention it answers nothing
+/// for — another document's, or a node `on_screen` no longer holds —
+/// is drawn as words, and so are the sentence's words.
+///
+/// The sentence is ONE galley, one section per run, so it wraps as the
+/// same text drawn by [`message`] does, a mention included. A click is
+/// placed on its character by `egui::Galley::cursor_from_pos` and
+/// confirmed against that character's box (`pos_from_cursor` either
+/// side of it), so a click past a row's end, or between two rows,
+/// lands on nothing; the character's run is found by counting
+/// characters, since a glyph's section index is epaint's own.
+pub(crate) fn sentence(
+    ui: &mut egui::Ui,
+    said: &pncad::document::Sentence,
+    on_screen: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    voice: impl Fn(egui::RichText) -> egui::RichText,
+) -> Spoken {
+    use pncad::document::{Mentioned, Run};
+    let link_colour = ui.visuals().hyperlink_color;
+    let mut job = egui::text::LayoutJob::default();
+    // Each run's selection where it is a link, and its first character.
+    let mut runs: Vec<(usize, Option<crate::session::Selection>)> = Vec::new();
+    let mut chars = 0;
+    for run in said.runs() {
+        let (text, selects) = match run {
+            Run::Words(words) => (words.clone(), None),
+            Run::Mention(mention) => (
+                match mention.mentioned() {
+                    Mentioned::Node(node) => crate::tree::spelled(node),
+                    Mentioned::Var(var) => crate::tree::spelled_var(var),
+                },
+                crate::relations::link(on_screen, mention),
+            ),
+        };
+        runs.push((chars, selects.clone()));
+        chars += text.chars().count();
+        let mut rich = voice(egui::RichText::new(text));
+        if selects.is_some() {
+            rich = rich.color(link_colour).underline();
+        }
+        rich.append_to(
+            &mut job,
+            ui.style(),
+            egui::FontSelection::Default,
+            ui.text_valign(),
+        );
+    }
+    let galley = wrapped_in_region(ui, job);
+    if runs.iter().all(|(_, selects)| selects.is_none()) {
+        return Spoken {
+            response: ui.add(egui::Label::new(galley)),
+            selects: None,
+        };
+    }
+    let (rect, response) = ui.allocate_exact_size(galley.size(), egui::Sense::click());
+    // The run whose character the pointer is on, if it is a link's.
+    let under = |at: egui::Pos2| -> Option<crate::session::Selection> {
+        let local = at - rect.min;
+        let near = galley.cursor_from_pos(local).index.0;
+        let on = [near.checked_sub(1), Some(near)]
+            .into_iter()
+            .flatten()
+            .filter(|&at| at < chars)
+            .find(|&at| {
+                let from = galley.pos_from_cursor(egui::text::CCursor::new(at));
+                let to = galley.pos_from_cursor(egui::text::CCursor::new(at + 1));
+                (from.min.y - to.min.y).abs() < f32::EPSILON
+                    && (from.min.x..to.min.x).contains(&local.x)
+                    && (from.min.y..=from.max.y).contains(&local.y)
+            })?;
+        let run = runs.partition_point(|(first, _)| *first <= on) - 1;
+        runs[run].1.clone()
+    };
+    let hovered = response.hover_pos().and_then(&under);
+    if hovered.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    let selects = if response.clicked() {
+        response.interact_pointer_pos().and_then(&under)
+    } else {
+        None
+    };
+    if ui.is_rect_visible(rect) {
+        ui.painter()
+            .galley(rect.min, galley, ui.visuals().text_color());
+    }
+    Spoken { response, selects }
+}
+
+/// [`sentence`] in the voice its [`frame::Tone`] asks for, as
+/// [`message_toned`] voices a message.
+///
+/// [`frame::Tone`]: crate::frame::Tone
+pub(crate) fn sentence_toned(
+    ui: &mut egui::Ui,
+    said: &pncad::document::Sentence,
+    on_screen: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    theme: &Theme,
+    tone: crate::frame::Tone,
+) -> Spoken {
+    sentence(ui, said, on_screen, |text| {
+        crate::app::voiced(text, theme, tone)
+    })
+}
+
+/// **What [`sentence`] drew, and the link a click on it took**.
+pub(crate) struct Spoken {
+    /// The sentence's own response.
+    pub(crate) response: egui::Response,
+    /// What the mention clicked this frame selects; `None` when no link
+    /// was clicked.
+    pub(crate) selects: Option<crate::session::Selection>,
+}
+
 /// The one place the wrap rule [`message`]'s doc states is spelled,
 /// so its three doors cannot drift apart.
 ///
@@ -5264,5 +5381,139 @@ mod count_site_tests {
             },
         );
         assert_steps_by_one("circle split n", moved);
+    }
+}
+
+/// **A kernel sentence drawn by [`sentence`]**: a mention inside one
+/// laid-out, wrapped galley is hit on its own characters and nowhere
+/// else, it is a link only for the document on screen while that
+/// document holds it, and the sentence wraps where its text does.
+#[cfg(test)]
+mod sentence_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use eframe::egui;
+    use pncad::document::{Doc, DocumentId, ProfileProgram, RecipeNodeId, Sentence, Speaker};
+
+    use crate::pane::headless::Landed;
+    use crate::session::Selection;
+
+    /// Narrow enough that [`said`] wraps to several rows, the mention
+    /// on one past the first.
+    const REGION: f32 = 260.0;
+
+    /// The startup plate, and its extrude.
+    fn plate() -> (Doc<ProfileProgram>, RecipeNodeId) {
+        let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
+            .expect("the startup document");
+        let extrude = doc.ids()[1];
+        (doc, extrude)
+    }
+
+    /// A refusal-length sentence naming `node` as `by` says it, with
+    /// words on both sides.
+    fn said(by: Speaker<'_>, doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Sentence {
+        pncad::document::sentence!(
+            "the chain does not close yet — its last step reads ",
+            by.mention(&doc.spoken(node)),
+            " which is not the start of the loop it began",
+        )
+    }
+
+    /// One frame of `said` drawn in [`REGION`] on `ctx` against
+    /// `on_screen`, with `events`: what it painted, and what a click
+    /// selected.
+    fn frame(
+        ctx: &egui::Context,
+        said: &Sentence,
+        on_screen: &Doc<ProfileProgram>,
+        events: Vec<egui::Event>,
+    ) -> (Vec<Landed>, Option<Selection>) {
+        let mut selects = None;
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                events,
+                ..Default::default()
+            },
+            |ui| {
+                ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
+                    selects = super::sentence(ui, said, on_screen, |text| text).selects;
+                });
+            },
+        );
+        output.textures_delta.clear();
+        (crate::pane::headless::landed_in(&output.shapes), selects)
+    }
+
+    /// What a click at `at` selects, on a context that has drawn the
+    /// sentence once.
+    fn click(said: &Sentence, on_screen: &Doc<ProfileProgram>, at: egui::Pos2) -> Option<Selection> {
+        let ctx = egui::Context::default();
+        let _ = frame(&ctx, said, on_screen, Vec::new());
+        let _ = frame(&ctx, said, on_screen, vec![egui::Event::PointerMoved(at)]);
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        frame(&ctx, said, on_screen, vec![press(true), press(false)]).1
+    }
+
+    /// The one galley the sentence painted.
+    fn galley(said: &Sentence, on_screen: &Doc<ProfileProgram>) -> Landed {
+        let (painted, _) = frame(&egui::Context::default(), said, on_screen, Vec::new());
+        let [only] = &painted[..] else {
+            panic!("a sentence is one galley: {painted:?}")
+        };
+        only.clone()
+    }
+
+    /// **A click lands on the mention's characters and on nothing
+    /// beside them**, inside one wrapped galley: its first and last
+    /// characters select the node; the characters either side of it and
+    /// a point past a row's end select nothing.
+    ///
+    /// *Breaks if* a click is mapped to the wrong run (an off-by-one at
+    /// the cursor, or a run boundary counted in bytes rather than
+    /// characters), or a point outside every glyph is taken as the
+    /// nearest one.
+    #[test]
+    fn a_click_selects_the_mention_it_lands_on_and_nothing_beside_it() {
+        let (doc, extrude) = plate();
+        let said = said(Speaker::of(&doc), &doc, extrude);
+        let landed = galley(&said, &doc);
+        assert!(
+            landed.rows.len() >= 3,
+            "the sentence wraps at {REGION}: {:?}",
+            landed.rows
+        );
+        let name = crate::tree::spelled(&doc.spoken(extrude));
+        let start = landed.text[..landed.text.find(&name).expect("the mention is painted")]
+            .chars()
+            .count();
+        let end = start + name.chars().count();
+        let [first, last, before, after] =
+            [start, end - 1, start - 1, end].map(|index| landed.char_centre(index));
+        assert!(
+            first.y > landed.rows[0].max.y,
+            "the mention is on a row past the first, so a row's offset counts"
+        );
+        let short = landed.rows.last().expect("a painted sentence has rows");
+        assert!(
+            short.max.x < landed.allocated.max.x - 2.0,
+            "the last row stops short of the galley's edge: {short:?}"
+        );
+        let past_row_end = egui::pos2(landed.allocated.max.x - 1.0, short.center().y);
+        for (at, selects, what) in [
+            (first, Some(Selection::Node(extrude)), "its first character"),
+            (last, Some(Selection::Node(extrude)), "its last character"),
+            (before, None, "the character before it"),
+            (after, None, "the character after it"),
+            (past_row_end, None, "past the last row's end"),
+        ] {
+            assert_eq!(click(&said, &doc, at), selects, "a click on {what}, at {at:?}");
+        }
     }
 }
