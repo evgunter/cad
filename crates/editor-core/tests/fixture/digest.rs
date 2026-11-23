@@ -245,13 +245,24 @@ impl<'b> KeyFree<'b> {
         )
     }
 
-    /// The cell a name table entry's key denotes.
+    /// The cell a name table entry's key denotes, or its absence.
     pub fn entity(&self, key: &EntityKey) -> String {
+        // A key the body does not hold reads as that absence: the
+        // table's entity is not a cell of the body it names it in.
         match *key {
             EntityKey::Body => "body".to_owned(),
-            EntityKey::Face(f) => format!("face {}", self.face(f)),
-            EntityKey::Edge(e) => format!("edge {}", self.edge(e)),
-            EntityKey::Vertex(v) => format!("vertex {}", self.vertex(v)),
+            EntityKey::Face(f) if self.body.get_face(f).is_some() => {
+                format!("face {}", self.face(f))
+            }
+            EntityKey::Edge(e) if self.body.get_edge(e).is_some() => {
+                format!("edge {}", self.edge(e))
+            }
+            EntityKey::Vertex(v) if self.body.get_vertex(v).is_some() => {
+                format!("vertex {}", self.vertex(v))
+            }
+            EntityKey::Face(_) => "a face the body does not hold".to_owned(),
+            EntityKey::Edge(_) => "an edge the body does not hold".to_owned(),
+            EntityKey::Vertex(_) => "a vertex the body does not hold".to_owned(),
         }
     }
 
