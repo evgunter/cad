@@ -193,8 +193,7 @@ fn r1_the_heat_sinks_fin_walls_are_no_flush_rows_in_either_order() {
 /// **The heat sink itself**: a base plate united with a fin sunk into
 /// it, and the same fin placed again as its own solid. The instance's
 /// four side walls share a 0.75-tall area with the union's: no flush
-/// pair. Red if one is reported (`perf12_census_goldens`' heat_sink
-/// rows).
+/// pair. Red if one is reported (the corpus heat sink's case).
 #[test]
 fn r1_a_fin_instance_over_its_united_copy_is_no_flush_row() {
     let tol = Tol::witness();

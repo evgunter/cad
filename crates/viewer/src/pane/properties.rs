@@ -647,7 +647,9 @@ impl ViewerBehavior<'_> {
                 // copy placed into the world is given a space of its
                 // own, which the probe then moves.
                 if matches!(fault, crate::display::AdmissionFault::InTheWorld { .. })
-                    && doc.placements().contains(&node)
+                    && doc
+                        .node(node)
+                        .is_some_and(pncad::document::Node::makes_a_copy)
                     && ui.button("Into a space of its own").clicked()
                 {
                     self.ops.push(SessionOp::IntoOwnSpace { placement: node });

@@ -256,3 +256,7 @@ names should merge.
 `crates/editor-core/tests/decide_3_split_rows_interval.rs` (the row
 that pins it, with the numbers asserted so a drift reds). Filed by
 DECIDE-3's fix pass with the measurement above.
+
+## The golden is gone; the question stands (CIW, 2026-11-23)
+
+PR 7501 removes `sym_9`'s link split pin (`carrier_on_surface_2` with the ladder). This row is not about that pin. It stays open for rendering the residuals and reading the atom keys, and it is cited live from `decide_3_split_rows_interval.rs:95`, `drive.rs:361` and `sym.rs:1849/2268/2329`. The trade itself was set by Ev's ruling on #3039. What now witnesses the ladder: `sym_9`'s rows (equal totals, each retry moves one decision from numeric to symbolic) and `decide_3_split_rows_interval`'s per-rung pins.

@@ -54,6 +54,8 @@ left as main) puts back every editor-core pin below. So
 
 These readings are the same at the default ε, 1e-6 and 1e-12.
 
+**After PR 7501** (CIW's `census-digest-goldens`). It merged while this PR was open. It narrowed `m10_9_pins_interval`, `m10_sym_profile_interval`, `sym11_exact_channel_rows` and `sym_9_retry_interval` to what an intended change does not move: their receipts now pin the symbolic and frozen columns, not the numeric one. 7434's moves are numeric only, so the re-pins of those four files are superseded, and main's versions are taken as they stand. They pass on the merged tree (`d2c0cf3356`) at the default ε, 1e-6 and 1e-12, with the bulge rows and the step-export fixture row: 17 of 17 at each ε. What this PR still changes is the bulge tables and `swept_elbow.step`.
+
 **After PR 7264.** That PR merged while this one was open. It re-pinned
 the same rows for validation no longer reading an adjacent line pair's
 shared vertex, and it measured them on a base without 7434's move. Its
