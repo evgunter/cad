@@ -277,3 +277,11 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The links widget PR #7557** is up at 874eb74, and its egui hit-test feasibility check passed. It is in single review: session_013QoYWYkJNYM3B6FTXsnFkx.
   - **Main's rustdoc red from #7554** (an unresolvable `Self::exactly_zero` link) is fixed by #7560, verified with the gate's lints. DOCTAIL's log is told.
   - No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 11:59Z — **The offers PR #7562 is up** at 73fb81ba. `viewer::recourse::offers` matches exhaustively, with `wildcard_enum_match_arm` denied. Offers are Commit, Lead or Unoffered.
+  - The coincidence Commit takes the `Quieting` itself (`AssertQuieting`, through `Quieting::record`). `AssertedSeat::Read(Operand)` is replaced by `Minted(QuietingRef)`, so the raw-`NamedCell` hazard is closed by type.
+  - `DocSession::current()` gates every document-editing offer.
+  - 13 offer shapes are inventoried; 7 moved onto the function, 3 are new and 3 stay off it, with reasons.
+  - Two P3 rows filed: versions, and borders.
+  - The lane verified locally: viewer 1158, viewer with the app feature 1631/1634 (GPU rows), and the law file 11/11.
+  - **Dual review** on Opus with identical briefs (ledger `dual-7562.md`): R1 session_013QoYWX8V4H1RAvcYciGEpR, R2 session_013QoYWX3xSnngdRgmJdzMXZ. Claim 1 is that no offer edits the wrong document state.
+  - It couples with the links widget #7557, which is in single review: whichever lands second ports. No row (rule 12). (OFFER orchestrator)
