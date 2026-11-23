@@ -297,6 +297,10 @@ impl DriveMemo {
     /// the same budget and rules, so it is this one, and the first is
     /// kept with the `Arc` every earlier hit handed out.
     pub(super) fn publish_form(&self, id: SymId, form: &Arc<Form>, froze: bool) {
+        // A table that serves nothing keeps the freezes alone.
+        if !froze && !self.serves_forms {
+            return;
+        }
         let mut inner = self.write();
         if froze {
             inner.frozen.insert(id, ());
