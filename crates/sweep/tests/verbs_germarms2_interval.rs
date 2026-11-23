@@ -214,9 +214,10 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
 /// the enclosures decided the lane rather than the geometry, so that half
 /// is an equality; the re-posed twin builds too, or takes the fixture
 /// escape [`same_door_or_escalated`] writes the reason for. At ε 1e-12
-/// both halves refuse as the frame cost: the direct union in
-/// [`MEETING_AXES_FRAME_COST`], the re-posed twin in
-/// [`MEETING_AXES_REPOSED_FRAME_COST`].
+/// the direct union refuses as the frame cost
+/// ([`MEETING_AXES_FRAME_COST`]); the re-posed twin takes that escape,
+/// `carrier_matches_mapped_source` at 1.026e-12, alike with and without
+/// each of PR 7131's mutants, so it is not the frame cost's.
 #[test]
 fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
@@ -295,17 +296,7 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
             "direct",
         );
     }
-    let reposed = union(&repose(&a), &repose(&b));
-    if crate::common::frame_cost::at_the_least_band() {
-        assert!(
-            reposed_escalates_as_the_frame_cost(&reposed),
-            "the re-posed meeting-axes pose: pinned to escalate carrier_matches_mapped_source in \
-             {MEETING_AXES_REPOSED_FRAME_COST:?} at the crossing insertion, at ε 1e-12: {:?}",
-            reposed.as_ref().map(|_| "a result")
-        );
-        return;
-    }
-    match reposed {
+    match union(&repose(&a), &repose(&b)) {
         Ok(topo::BooleanResult::Body(out)) => {
             // [`repose`]'s motion, at `f64`.
             let r = Affine3::rotation_about_axis(
@@ -331,34 +322,6 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
 /// 7131's body) builds the union, and turns this pin red; mutant A does
 /// not.
 const MEETING_AXES_FRAME_COST: (f64, f64) = (1.2e-12, 1.35e-12);
-
-/// The window [`the_meeting_axes_pose_builds_at_the_certified_scalar`]'s
-/// re-posed twin refuses in at ε 1e-12: the crossing insertion's minted
-/// edge does not certify, `carrier_matches_mapped_source` escalating with
-/// its margin's upper end in this window (measured 1.026e-12). Cause:
-/// bracket, as the direct union's; mutant F1X (PR 7131's body) builds
-/// the twin, and turns this pin red.
-const MEETING_AXES_REPOSED_FRAME_COST: (f64, f64) = (1.0e-12, 1.1e-12);
-
-/// Whether `r` is the refusal [`MEETING_AXES_REPOSED_FRAME_COST`] pins.
-fn reposed_escalates_as_the_frame_cost(
-    r: &Result<topo::BooleanResult<Interval>, BooleanError>,
-) -> bool {
-    matches!(
-        r,
-        Err(BooleanError::CrossingInsertion {
-            source: topo::EulerOpError::DescriptionUncertified {
-                error: geom_brep::CertifyError::Escalated { cause, .. },
-                ..
-            },
-            ..
-        }) if crate::common::frame_cost::escalated(
-            cause,
-            "carrier_matches_mapped_source",
-            MEETING_AXES_REPOSED_FRAME_COST,
-        )
-    )
-}
 
 /// **The skew pose at the BODY level, at the certified scalar.** Slide
 /// the pair along the common perpendicular `â₁ × â₂` by the dyadic
