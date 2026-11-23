@@ -48,3 +48,15 @@ half is not enough for such a body to finish: it needs these readings
 to decide too, or a later finish to carry the facts the finished input
 held (`a-later-finish-could-carry-facts-whose-data-is-bit-identical-to-a-finished-inputs`).
 P2: the switch deletion is not blocked on it.
+
+## A rod turned and moved to the session box's corner (EMBED lane `embed/iso-end`, 2026-11-22)
+
+`sweep::all self_intersection_proves_injectivity::a_notched_rod_holds_across_its_reflex_corners_in_every_pose`,
+its case "turned, at the session box's corner": the unit notched rod
+turned 0.7 rad about `(2, 3, 6)/7` through `(0.3, −0.2, 0.1)`, then
+moved by `(−997, 997, −997)`. It finishes at the default ε and at 1e-6.
+At ε 1e-12 it does not: 2 `EdgeCertification` and 10 `Pcurve` findings,
+each an incidence refusal at `pcurve_line_chart_incident` or
+`pcurve_cylinder_chart_incident`, with margin [0, 1.34e-12] against a
+band of 1e-12. The row skips that case loudly while the finish refuses
+for those predicates alone.
