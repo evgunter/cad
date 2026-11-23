@@ -35,6 +35,15 @@ The fix is a chamber whose leaves need visibly different amounts again — a doc
 
 (GREEN U3, `green/editor-1e-12`) On the scheduled nightly 44870651337 (main `f5ef8f2b`) this row is red at the default ε, 1e-6 and 1e-12 with one message, `race: the row's certified arm is vacuous unless this drive certifies: Receipt { certified: 1, refused: 7, splits: 7 }` at `m10_sym_drive_memo_interval.rs:539`. So the re-pin this row owes greens the 1e-6 and 1e-12 rows too, and GREEN's 1e-12 row defers to it.
 
+## Still red at every ε on 11-22's main (GREEN U9, 2026-11-22)
+
+(GREEN, `green/held-reds`) Two lanes cited this test to GREEN's closed
+1e-12 row; this row holds it. On current main (`5ea1ac0a70`, hosted,
+throwaway run 45051569400 with the row out of the slow set) it is red at
+the default ε, 1e-6 and 1e-12, each with the message the section above
+quotes (`m10_sym_drive_memo_interval.rs:539`, `Receipt { certified: 1,
+refused: 7, splits: 7 }`).
+
 ## Not PR 7434's; every slab drive certifies more (DOCTAIL, 2026-11-23)
 
 (DOCTAIL, `work/doctail/main-red-the-identity-turns-decisions-moved-the-m10-slow-rows.md`) The row was reported as moved by PR 7434 (the least turn's identity shortcut removed). It was not. The receipt is `Receipt { certified: 1, refused: 7, splits: 7 }` on 7434's first parent `fa42c60` and on `787aed5`. It is the same with 7434's geom-core files restored on main, and with the Rodrigues arm's former spelling. It is the same at the default ε, 1e-6 and 1e-12.
