@@ -2,7 +2,8 @@
 id: the-plane-poses-offset-loses-digits-at-far-frames-so-the-ring-path-cannot-drop-its-charge
 kind: issue
 title: The plane pose's offset n·(c − o) loses digits at far frames, so the ring path cannot read the crossing reading uncharged (U3b's ring-path move waits on it)
-status: review
+status: closed
+closed: 2026-11-23
 opened: 2026-11-21
 branch: germ/plane-pose-far-frame
 pr: 7411
