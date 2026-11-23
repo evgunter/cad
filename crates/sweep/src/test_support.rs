@@ -1766,6 +1766,11 @@ pub fn assert_promises_either_side(sentence: &str) {
     }
 }
 
+/// What a boolean built through a sphere cut-in leaves of the cut:
+/// nothing. A check of a built body, here because the `mesh` suites
+/// read it too.
+pub mod cut_trace;
+
 /// **Pappus pieces for a meridian-plane fill or cut**: `(area, ∫x dA)`
 /// of the elementary regions a fillet's cross-section decomposes into,
 /// so a row can derive a revolved volume delta by hand as

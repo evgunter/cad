@@ -330,58 +330,90 @@ fn a_loops_edges_read_simple_knots_at_every_scale() {
     }
 }
 
-/// **A rod through a donut builds on periodic loops, and a ball against
-/// the donut refuses its interior loop typed: this row pins a gap**
-/// (`work/lathe/a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate.md`).
-/// The union, the intersection and the difference of the donut and the
-/// rod build, and their mesh stops at the torus faces' projected spline
-/// images. The ball and the donut are each one face round their axis,
-/// and their section loop crosses neither's seam: every op of the pair,
-/// both orders of the difference, refuses at the section certificate,
-/// which counts the loop inside both faces and has no cut-in for it.
+/// **A ball and a rod against a donut build on periodic loops.** The
+/// ball and the donut are each one face round their axis, and their
+/// section, a null oval where the ball scrapes the tube, crosses neither
+/// face's seam: the section certificate counts it inside both faces, the
+/// ball's face is cut in along a meridian the oval crosses and glued
+/// back, and the result carries no trace of the cut. Every op of the
+/// pair builds, both orders of the difference; each volume answers the
+/// operands' closed forms with the lens's, and the lens answers a
+/// quadrature of the two solids' closed-form insides. The union, the
+/// intersection and the difference of the donut and the rod build too.
+/// The mesh of each union and intersection stops at the sphere's and the
+/// torus's faces' projected spline images.
 #[test]
-fn a_rod_through_a_donut_builds_and_a_ball_against_it_refuses_its_interior_loop() {
+fn a_ball_and_a_rod_against_a_donut_build_on_periodic_loops() {
+    use core::f64::consts::PI;
     let x = Vec3::new(1.0, 0.0, 0.0);
     let ball = finished("the ball", ball(0.5), tol());
-    let ring = posed(
-        "the donut",
-        donut(0.6, 0.2),
-        Affine3::translation(Vec3::new(0.1, 0.35, 0.2))
-            * Affine3::rotation_about_axis(Point3::origin(), x, 0.7),
-    );
-    for (op, run, operand) in [
-        ("A ∪ B", topo::union(&ball, &ring, tol()), topo::Operand::B),
-        (
-            "A ∩ B",
-            topo::intersect(&ball, &ring, tol()),
-            topo::Operand::B,
-        ),
-        (
-            "A ∖ B",
-            topo::subtract(&ball, &ring, tol()),
-            topo::Operand::B,
-        ),
-        (
-            "B ∖ A",
-            topo::subtract(&ring, &ball, tol()),
-            topo::Operand::A,
-        ),
+    let pose = Affine3::translation(Vec3::new(0.1, 0.35, 0.2))
+        * Affine3::rotation_about_axis(Point3::origin(), x, 0.7);
+    let ring = posed("the donut", donut(0.6, 0.2), pose);
+    let runs = [
+        ("A ∪ B", topo::union(&ball, &ring, tol())),
+        ("A ∩ B", topo::intersect(&ball, &ring, tol())),
+        ("A ∖ B", topo::subtract(&ball, &ring, tol())),
+        ("B ∖ A", topo::subtract(&ring, &ball, tol())),
+    ];
+    let volume = |op: &str, r: &Result<BooleanResult<f64>, BooleanError>| {
+        let built = r
+            .as_ref()
+            .unwrap_or_else(|e| panic!("the ball and the donut, {op}: the op builds, got {e:?}"));
+        sweep::test_support::cut_trace::assert_no_cut_trace(op, built);
+        let body = &built.body().expect("a body").body;
+        let m = topo::mass_properties(body, tol(), topo::test_support::pinned_resolution(tol()))
+            .unwrap_or_else(|e| panic!("the ball and the donut, {op}: a volume, got {e:?}"));
+        (m.enclosure.volume, m.enclosure.volume_pad)
+    };
+    let [union, lens, ball_less, ring_less] = [0, 1, 2, 3].map(|i| volume(runs[i].0, &runs[i].1));
+    let (v_ball, v_ring) = (4.0 / 3.0 * PI * 0.125, 2.0 * PI * PI * 0.6 * 0.04);
+    let (cut, slack) = (lens.0, lens.1 + 1e-9);
+    for (what, (got, pad), want) in [
+        ("A ∪ B", union, v_ball + v_ring - cut),
+        ("A ∖ B", ball_less, v_ball - cut),
+        ("B ∖ A", ring_less, v_ring - cut),
     ] {
-        match run {
-            Err(BooleanError::FallbackExtentUnsupported {
-                operand: on, what, ..
-            }) => assert!(
-                on == operand
-                    && what.contains("the loop is certified, and cutting it in is not built"),
-                "the ball and the donut, {op}: the donut's face refuses the interior loop, got \
-                 {on:?}: {what}"
-            ),
-            other => panic!(
-                "the ball and the donut, {op}: refuses the interior loop, got {:?}",
-                other.as_ref().err()
-            ),
+        assert!(
+            (got - want).abs() <= pad + slack,
+            "the ball and the donut, {what}: {got} ± {pad}, the closed forms less the lens {want}"
+        );
+    }
+    // The lens by the midpoint rule over the ball's cube: inside the ball
+    // and inside the donut, each read in closed form, the donut in its
+    // own frame (`pose`'s inverse).
+    let n = 200;
+    let h = 1.0 / f64::from(n);
+    let (c, s) = (0.7f64.cos(), 0.7f64.sin());
+    let mut inside = 0u32;
+    for i in 0..n {
+        for j in 0..n {
+            for k in 0..n {
+                let at = |m: i32| -0.5 + (f64::from(m) + 0.5) * h;
+                let p = [at(i), at(j), at(k)];
+                if p[0] * p[0] + p[1] * p[1] + p[2] * p[2] >= 0.25 {
+                    continue;
+                }
+                let q = [p[0] - 0.1, p[1] - 0.35, p[2] - 0.2];
+                let (ly, lz) = (c * q[1] + s * q[2], -s * q[1] + c * q[2]);
+                let rho = (q[0] * q[0] + lz * lz).sqrt() - 0.6;
+                if rho * rho + ly * ly < 0.04 {
+                    inside += 1;
+                }
+            }
         }
     }
+    let quadrature = f64::from(inside) * h * h * h;
+    assert!(
+        cut > 0.0 && (cut - quadrature).abs() <= 0.02 * quadrature,
+        "the ball and the donut, A ∩ B: the lens {cut} against its quadrature {quadrature}"
+    );
+    assert_ops(
+        "the ball and the donut",
+        runs,
+        &[5e-3],
+        &Got::ProjectedSpline,
+    );
     let donut = finished("the donut", donut(0.6, 0.2), tol());
     let rod = posed(
         "the rod",

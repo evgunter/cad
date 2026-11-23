@@ -1593,7 +1593,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         && let Ok(pairs) = &pairs
         && let Some(guard) = first_refusing(pairs).map(|i| &pairs[i])
     {
-        let cut_ins = match interior_cuts::cut_ins(a, b, pairs, band) {
+        let cut_ins = match interior_cuts::cut_ins(a, b, pairs, &red.sections, band) {
             Err(e @ BooleanError::Escalated { .. }) => return Err(e),
             Ok(cut_ins) => cut_ins,
             Err(_) => None,
@@ -2569,7 +2569,30 @@ fn no_crossings_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
         return Ok(NoCrossings::Recut(recuts));
     }
-    section_extent_pass(a, b, &red.sections, &evidence, deferred, band).map(NoCrossings::Certified)
+    let pairs = fallback_section_pairs(a, b, &red.sections, &evidence, band)?;
+    // An interior loop on a sphere face is cut in ([`interior_cuts`]);
+    // a pair the reduction settled one carrier is held, not cut.
+    let raised: Vec<PairVerdict> = pairs
+        .iter()
+        .filter(|p| {
+            !evidence
+                .settled
+                .iter()
+                .any(|q| q.a == p.a_face && q.b == p.b_face)
+        })
+        .cloned()
+        .collect();
+    if raised
+        .iter()
+        .any(|p| p.verdict == Err(SectionRefusal::Loop))
+        && let Some(cut_in) = interior_cuts::cut_ins(a, b, &raised, &red.sections, band)?
+    {
+        return Ok(NoCrossings::Recut(Recuts {
+            rechart: Vec::new(),
+            cut_in,
+        }));
+    }
+    section_extent_pass(&pairs, evidence.settled, deferred).map(NoCrossings::Certified)
 }
 
 impl Evidence<'static> {
@@ -2593,21 +2616,18 @@ impl Evidence<'static> {
 /// curved face. A verified `Rest` pair is answered without its section,
 /// and a refusing pair the reduction settled one carrier is held
 /// ([`OnDeferred::hold`]).
-fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
-    sections: &super::section_table::SectionTable<T>,
-    evidence: &Evidence<'_>,
+fn section_extent_pass(
+    pairs: &[PairVerdict],
+    settled: &[super::SettledPair],
     mut deferred: OnDeferred,
-    band: Band,
 ) -> Result<OnDeferred, BooleanError> {
-    for p in &fallback_section_pairs(a, b, sections, evidence, band)? {
+    for p in pairs {
         let Err(refusal) = p.verdict else {
             continue;
         };
         let (operand, face, ..) = p.named();
         deferred.hold(
-            evidence.settled,
+            settled,
             (p.a_face, p.b_face),
             BooleanError::FallbackExtentUnsupported {
                 operand,
@@ -6256,15 +6276,40 @@ struct SphereCutIn<T: Real> {
     center: Point3<T>,
     /// Its radius.
     radius: T,
-    /// The section circle's center.
-    foot: Point3<T>,
-    /// The section circle's radius.
-    rho: T,
-    /// The section circle's axis.
-    normal: Vec3<T>,
-    /// A unit direction across the circle, which places a point of it
-    /// where `foot` lies on the chart's polar axis.
-    u_ref: Vec3<T>,
+    /// The section the cut is across.
+    section: CutSection<T>,
+}
+
+/// **The section a cut-in runs across** ([`SphereCutIn`]).
+enum CutSection<T: Real> {
+    /// A circle: the cut's meridian runs through its centre's direction,
+    /// and it crosses the meridian at two points.
+    Circle {
+        /// The circle's center.
+        foot: Point3<T>,
+        /// Its radius.
+        rho: T,
+        /// Its axis.
+        normal: Vec3<T>,
+        /// A unit direction across the circle, which places a point of
+        /// it where `foot` lies on the chart's polar axis.
+        u_ref: Vec3<T>,
+    },
+    /// A marched loop ([`interior_cuts`]): the cut's meridian runs
+    /// through `toward`'s direction from the centre, and the cut-in reads
+    /// where the loop lies off its net and its tube.
+    Loop {
+        /// A direction across the chart's axis, from the centre.
+        toward: Vec3<T>,
+        /// The control points of the loop's carrier's net, whose hull
+        /// holds the carrier.
+        net: Vec<Point3<T>>,
+        /// How far from its carrier a point of the loop lies.
+        pad: f64,
+        /// The loop's tube, each piece's least and greatest corners: every
+        /// piece holds a piece of the loop.
+        tube: Vec<([f64; 3], [f64; 3])>,
+    },
 }
 
 /// **The half-meridian a cut-in ran along** ([`apply_cut_ins`]), which
@@ -6659,10 +6704,12 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                 face: holder,
                                                 center,
                                                 radius,
-                                                foot,
-                                                rho,
-                                                normal,
-                                                u_ref,
+                                                section: CutSection::Circle {
+                                                    foot,
+                                                    rho,
+                                                    normal,
+                                                    u_ref,
+                                                },
                                             });
                                         }
                                         Err(what) => {
@@ -6808,7 +6855,16 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                         band,
                                                     )?);
                                                 }
-                                                escape_normals.push(cut.normal);
+                                                let CutSection::Circle { normal, .. } = cut.section
+                                                else {
+                                                    return Err(
+                                                        BooleanError::ClassificationInvariant {
+                                                            what: "extent scan: a sphere pair's \
+                                                                   cut is not across a circle",
+                                                        },
+                                                    );
+                                                };
+                                                escape_normals.push(normal);
                                                 sphere_escapes.push(cut);
                                             } else {
                                                 cut_ins.push(cut);
@@ -6991,10 +7047,12 @@ fn sphere_pair_cut<T: Decide>(
                 face: holder,
                 center,
                 radius,
-                foot,
-                rho,
-                normal,
-                u_ref,
+                section: CutSection::Circle {
+                    foot,
+                    rho,
+                    normal,
+                    u_ref,
+                },
             })
         }
         Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
@@ -7463,9 +7521,21 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // Re-read once, not a minimum (`scripts/gates/argmin-folds.tsv`,
         // recompute): a foot on the axis takes the circle's own point
         // instead, and no two candidates are compared.
-        let mut k = toward(cut.foot - cut.center);
+        let mut k = match cut.section {
+            CutSection::Circle { foot, .. } => toward(foot - cut.center),
+            CutSection::Loop { toward: d, .. } => toward(d),
+        };
         if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
-            k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
+            let CutSection::Circle {
+                foot, rho, u_ref, ..
+            } = cut.section
+            else {
+                return Err(refuse_at(
+                    cut.face,
+                    "the section loop has no meridian of the face's chart",
+                ));
+            };
+            k = toward(foot + u_ref * rho - cut.center);
             if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
                 return Err(refuse_at(
                     cut.face,
@@ -7491,21 +7561,84 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // A point of the half-meridian by its coordinates across and
         // along the axis, `r·(cos φ, sin φ)`.
         let latitude = |p: Point3<T>| (h.dot(p - cut.center), axis.dot(p - cut.center));
-        // The circle's two crossings, both on the half-plane `h`.
-        let across = cut.normal.cross(k);
-        if sign_as(
-            "bool_sphere_cut_section_meridian",
-            Margin::of(across.norm()),
-        )? == Sign::Zero
-        {
-            return Err(refuse_at(
-                cut.face,
-                "the section circle lies in its own meridian plane",
-            ));
-        }
-        let e = across.normalize();
-        let crossings = [cut.foot - e * cut.rho, cut.foot + e * cut.rho];
-        for p in crossings {
+        // The circle's two crossings, both on the half-plane `h`. A loop
+        // names none: its net's hull, padded, lies in the half-plane, and
+        // pieces of it lie on both sides of the meridian's plane, so it
+        // crosses the half-meridian, and only between its heights.
+        let crossings = match &cut.section {
+            CutSection::Circle {
+                foot, rho, normal, ..
+            } => {
+                let across = normal.cross(k);
+                if sign_as(
+                    "bool_sphere_cut_section_meridian",
+                    Margin::of(across.norm()),
+                )? == Sign::Zero
+                {
+                    return Err(refuse_at(
+                        cut.face,
+                        "the section circle lies in its own meridian plane",
+                    ));
+                }
+                let e = across.normalize();
+                Some([*foot - e * *rho, *foot + e * *rho])
+            }
+            CutSection::Loop { net, pad, tube, .. } => {
+                let padded = band.padded(*pad).map_err(|_| {
+                    refuse_at(cut.face, "the section loop's pad is no band to read it by")
+                })?;
+                for &q in net {
+                    if decide(
+                        "bool_sphere_cut_loop_half",
+                        Margin::of(h.dot(q - cut.center)),
+                        padded,
+                    )
+                    .map_err(esc)?
+                        != Sign::Positive
+                    {
+                        return Err(refuse_at(
+                            cut.face,
+                            "the section loop is not certified inside one half of a meridian \
+                             plane of the face's chart",
+                        ));
+                    }
+                }
+                // A piece of the tube wholly on `side` of the meridian's
+                // plane holds a point of the loop there.
+                let on = |side: Sign| -> Result<bool, BooleanError> {
+                    for &(lo, hi) in tube {
+                        let mut all = true;
+                        for corner in 0..8_u8 {
+                            let pick = |i: usize| {
+                                T::from_computed(if corner >> i & 1 == 0 { lo[i] } else { hi[i] })
+                            };
+                            let q = Point3::new(pick(0), pick(1), pick(2));
+                            if sign_as(
+                                "bool_sphere_cut_loop_side",
+                                Margin::of(k.dot(q - cut.center)),
+                            )? != side
+                            {
+                                all = false;
+                                break;
+                            }
+                        }
+                        if all {
+                            return Ok(true);
+                        }
+                    }
+                    Ok(false)
+                };
+                if !(on(Sign::Positive)? && on(Sign::Negative)?) {
+                    return Err(refuse_at(
+                        cut.face,
+                        "the section loop is not certified to cross the meridian the face \
+                         would be cut along",
+                    ));
+                }
+                None
+            }
+        };
+        for p in crossings.into_iter().flatten() {
             if sign_as("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive
             {
                 return Err(refuse_at(
@@ -7531,6 +7664,14 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             if let [only] = candidates[..] {
                 only
             } else {
+                // A loop names no crossing to place it on one piece by.
+                let Some([lo, hi]) = crossings else {
+                    return Err(refuse_at(
+                        cut.face,
+                        "a marched section loop on a sphere face a cut divided, whose piece \
+                         is not read",
+                    ));
+                };
                 let mut holder = None;
                 let mut across_a_cut = false;
                 for &piece in &candidates {
@@ -7559,7 +7700,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         | crate::region::RegionRefusal::WoundPastPeriod
                         | crate::region::RegionRefusal::Unreadable(_) => unread(),
                     };
-                    let [lo, hi] = crossings;
                     match (
                         region.contains(lo, band).map_err(read_region)?,
                         region.contains(hi, band).map_err(read_region)?,
@@ -7583,7 +7723,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         };
         let refuse = |what| refuse_at(face, what);
         let view = body.proven_face(face);
-        let mut circle = crossings.map(latitude);
         // `x` lies above `y` by `r·sin(φx − φy)`, a length linear in the
         // arc between them (both lie on the closed half-meridian, so the
         // angle between them is short of π).
@@ -7593,10 +7732,51 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 Margin::of((x.1 * y.0 - x.0 * y.1) / r),
             )
         };
-        if above(circle[0], circle[1])? == Sign::Positive {
-            circle.swap(0, 1);
-        }
-        let [s1, s2] = circle;
+        // A boundary hit's place against the section: `Negative` below
+        // it, `Positive` above it, anything else between.
+        let place: Box<dyn Fn((T, T)) -> Result<Sign, BooleanError> + '_> = match crossings {
+            Some(crossings) => {
+                let mut circle = crossings.map(latitude);
+                if above(circle[0], circle[1])? == Sign::Positive {
+                    circle.swap(0, 1);
+                }
+                let [s1, s2] = circle;
+                Box::new(move |s| {
+                    Ok(match (above(s, s1)?, above(s, s2)?) {
+                        (Sign::Negative, _) => Sign::Negative,
+                        (_, Sign::Positive) => Sign::Positive,
+                        _ => Sign::Zero,
+                    })
+                })
+            }
+            // Along the half-meridian height orders latitude, and the
+            // loop's heights lie within its net's, padded.
+            None => {
+                let CutSection::Loop { net, pad, .. } = &cut.section else {
+                    return Err(corrupt("cut-in: a circle with no crossings"));
+                };
+                let padded = band
+                    .padded(*pad)
+                    .map_err(|_| refuse("the section loop's pad is no band to read it by"))?;
+                Box::new(move |s: (T, T)| {
+                    let mut signs = net.iter().map(|&q| {
+                        decide(
+                            "bool_sphere_cut_loop_height",
+                            Margin::of(s.1 - axis.dot(q - cut.center)),
+                            padded,
+                        )
+                        .map_err(esc)
+                    });
+                    let first = signs.next().transpose()?.unwrap_or(Sign::Zero);
+                    for sign in signs {
+                        if sign? != first {
+                            return Ok(Sign::Zero);
+                        }
+                    }
+                    Ok(first)
+                })
+            }
+        };
         // The face's boundary hits on the half-meridian.
         struct Hit<T> {
             s: (T, T),
@@ -7770,13 +7950,12 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         hits.retain(|h| h.vertex.is_none_or(|v| at_vertex.insert(v)));
         let (mut belows, mut overs): (Vec<usize>, Vec<usize>) = (Vec::new(), Vec::new());
         for (k, hit) in hits.iter().enumerate() {
-            match (above(hit.s, s1)?, above(hit.s, s2)?) {
-                (Sign::Negative, _) => belows.push(k),
-                (_, Sign::Positive) => overs.push(k),
-                _ => {
+            match place(hit.s)? {
+                Sign::Negative => belows.push(k),
+                Sign::Positive => overs.push(k),
+                Sign::Zero => {
                     return Err(refuse(
-                        "the sphere face's boundary meets the cut's meridian inside the section \
-                         circle",
+                        "the sphere face's boundary meets the cut's meridian inside the section",
                     ));
                 }
             }

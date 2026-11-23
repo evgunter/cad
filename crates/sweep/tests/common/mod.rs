@@ -25,8 +25,6 @@
 //!   [`orient`];
 //! - [`census`] — a built body's ring count and genus through the
 //!   kernel's census door: a check of a body, so beside [`orient`];
-//! - [`cut_trace`] — that a boolean built through a sphere cut-in
-//!   carries no trace of the cut: a check of a body, beside [`census`];
 //! - [`operands`] — the plain named bodies a boolean row puts
 //!   something else against: the shared boxes and the conic corpus's
 //!   rounded plate (body authoring, same routing);
@@ -164,10 +162,6 @@ pub mod cap_rims;
 /// through the kernel's census door. A check several suites make of
 /// a body they built, so it routes beside [`orient`].
 pub mod census;
-
-/// What a boolean built through a sphere cut-in leaves of the cut:
-/// nothing. A check of a built body, so it routes beside [`census`].
-pub mod cut_trace;
 
 /// The plain named operands — the axis-aligned boxes more than one
 /// suite builds a boolean from, and the rounded plate the conic

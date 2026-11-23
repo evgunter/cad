@@ -2986,6 +2986,30 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
         let record = self.proven_face(face).record();
+        // The lift reads stored rows. A join that re-cut the face's loops
+        // drops theirs until the result is minted whole, after the merge:
+        // such a face is read off a copy with its own rows minted, which
+        // read its loops in whichever roles they stand.
+        let unminted = core::iter::once(record.outer)
+            .chain(record.rings.iter().copied())
+            .flat_map(|l| crate::pcurves::loop_rows(self, l))
+            .any(|h| self.pcurve(h).is_none() || self.joint(h).is_none());
+        let minted;
+        let read = if unminted {
+            let mut copy = self.clone();
+            crate::pcurves::mint_pcurves_of(&mut copy, &[face], tol).map_err(|_| {
+                MergeCoplanarError::PeriodClosure {
+                    edge: *group
+                        .killed_edges
+                        .last()
+                        .unwrap_or_else(|| unreachable!("a role pass runs after a kemr")),
+                }
+            })?;
+            minted = copy;
+            &minted
+        } else {
+            self
+        };
         // A face has one outline. The slot whose lift places every ring
         // is it; failing one, the slot left standing once every slot
         // whose lift places a ring decidedly nowhere, or decidedly in
@@ -3002,7 +3026,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 Some(i) => core::mem::replace(&mut rings[i], record.outer),
                 None => record.outer,
             };
-            match crate::pcurves::face_lift_as(self, face, outer, rings, band) {
+            match crate::pcurves::face_lift_as(read, face, outer, rings, band) {
                 Ok(_) => placed.push(slot),
                 Err(
                     crate::pcurves::RingPlacementError::NoShift { .. }

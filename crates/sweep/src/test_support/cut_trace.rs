@@ -4,11 +4,14 @@
 //! divided, so the result carries no edge the operands' faces did not
 //! (DESIGN `[topology]`'s seam clause, read on the result at rest).
 //!
-//! The reading, of any built result:
+//! A cut-in cuts only sphere faces, so the reading is of a built
+//! result's sphere faces; a torus, cylinder or cone run keeps its authored
+//! cuts by design (the sweep README's "Walls: one per run", C12.5), and
+//! the output merge's skip of one is no trace of a cut:
 //!
-//! - the output merge skipped no group (`merge_skipped` is empty);
-//! - no edge divides two faces worn on one surface record, so the face
-//!   count is the maximal one;
+//! - the output merge skipped no group of sphere faces;
+//! - no edge divides two sphere faces worn on one surface record, so
+//!   their count is the maximal one;
 //! - every edge with one sphere face on both sides lies on that face's
 //!   own chart seam, the half-meridian at azimuth zero (the plane of its
 //!   frame's axis and `u_ref`, on `u_ref`'s side), which is where the
@@ -16,9 +19,9 @@
 //!   so a pole-to-pole meridian on another half, whose ends are the
 //!   poles and lie on every meridian, is read too.
 //!
-//! Not absorbed: [`super::cap_rims`] reads rims and the faces across
-//! them, not seams; [`super::orient`] reads positions off charts, not
-//! which edges a face keeps.
+//! Not absorbed: the sweep suites' `cap_rims` reads rims and the faces
+//! across them, not seams; their `orient` reads positions off charts,
+//! not which edges a face keeps.
 
 use topo::BooleanResult;
 
@@ -32,18 +35,24 @@ pub fn assert_no_cut_trace(label: &str, r: &BooleanResult<f64>) {
     let Some(out) = r.body() else {
         return;
     };
-    assert!(
-        out.naming.merge_skipped.is_empty(),
-        "{label}: the output merge skipped {:?}",
-        out.naming.merge_skipped
-    );
     let body = &*out.body;
+    let on_sphere = |f| matches!(body.face_surface(f), Some(geom::Surface::Sphere { .. }));
+    let skipped: Vec<_> = out
+        .naming
+        .merge_skipped
+        .iter()
+        .filter(|s| s.faces.iter().any(|&f| on_sphere(f)))
+        .collect();
+    assert!(
+        skipped.is_empty(),
+        "{label}: the output merge skipped sphere faces {skipped:?}"
+    );
     let point = |v| topo::readback::vertex_point(body, v).unwrap();
     for (e, _) in body.edges() {
         let sides = topo::readback::edge_sides(body, e).unwrap();
         let (f1, f2) = sides.faces();
         let (k1, k2) = sides.surfaces();
-        if k1 != k2 {
+        if k1 != k2 || !on_sphere(f1) {
             continue;
         }
         assert_eq!(

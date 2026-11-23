@@ -35,9 +35,9 @@ use geom_core::{Tol, Vec3};
 use sweep::test_support::{ball_poled, brick, finished};
 use topo::{AtRestBody, Body};
 
-use crate::common::cut_trace::assert_no_cut_trace;
 use crate::common::differential::{every_op_both_orders, outcome};
 use crate::common::oracles::{ball_volume, cap_volume};
+use sweep::test_support::cut_trace::assert_no_cut_trace;
 
 fn tol() -> Tol {
     Tol::witness()
