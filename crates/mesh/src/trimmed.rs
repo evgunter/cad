@@ -498,11 +498,7 @@ pub(crate) fn walkable(
 
 /// The carrier of edge `ek`.
 fn edge_carrier(body: &Body<f64>, ek: EdgeKey) -> Result<&geom::Curve3<f64>, TessellateError> {
-    body.get_edge(ek)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(|g| g.certified())
-        .map(|c| c.carrier())
-        .ok_or(TessellateError::MissingEntity { what: "edge curve" })
+    crate::walk::edge_curve(body, ek).map(|c| c.carrier())
 }
 
 /// **The trimmed lane's steps on an analytic chart** `(h_u, h_v)`: the
@@ -2360,7 +2356,7 @@ fn developed_runs(
 /// Whether edge `ek` is carried by a line, which on a cone is a ruling:
 /// what [`developed_runs`] reads of the polygon side an edge carries.
 fn carried_by_a_line(body: &Body<f64>, ek: EdgeKey) -> bool {
-    edge_carrier(body, ek).is_ok_and(|carrier| matches!(carrier, geom::Curve3::Line(..)))
+    edge_carrier(body, ek).is_ok_and(|carrier| !carrier.is_curved())
 }
 
 /// The [`Run`] that `group`, every polygon point at one CDT point, is;
