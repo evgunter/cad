@@ -330,10 +330,12 @@ edge the result carries on the locus. One tangent pair can leave a seam
 under one op, a knife edge under another and no edge under a third.
 Where both faces end on a rim, the pair is a junction (C4's `Tangent`
 row): rim routing by material wedge (C7) decides it on the rim's
-identity and the wedge alone. The zip leaves a seam, described where it
-rests: `TangentIntersection` where the jet is determinate along it,
-the pair where it is not (a bend whose `κ_rel` passes through zero
-between two stations, or is zero at one), its bend under-determined. A G1 joint authored inside one
+identity and the wedge alone. The zip leaves a seam, carrying the
+rim edge's own description where it rests: `TangentIntersection` where
+the jet is determinate along it (`|κ_rel|` certified bounded away from
+zero over the edge), the pair where it is not (a bend whose `κ_rel`
+crosses zero on the edge, at a station or between them), its bend
+under-determined. A G1 joint authored inside one
 profile is the structural form of the same fact.
 
 **The crossing layer's one-sided cover.** An edge touching the other

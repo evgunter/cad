@@ -3128,8 +3128,7 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let worklist = describe_worklist(body, seam_edges, merged);
-    describe_edges_seamed(body, worklist, &merged.skipped, seam_edges, band, tol)
-        .map_err(of_describe)
+    describe_edges(body, worklist, &merged.skipped, band, tol).map_err(of_describe)
 }
 
 /// [`describe_minted_edges`]' worklist: the seam edges that survived
@@ -3261,22 +3260,6 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), DescribeRefusal> {
-    describe_edges_seamed(body, worklist, skipped, &[], band, tol)
-}
-
-/// [`describe_edges`], told which worklist edges are the zips' seams:
-/// a seam the zip fused between two faces may still carry the section
-/// edge's construction stand-in (a junction's rim, whose section ring
-/// survives as the seam), and it is described where it rests, as a
-/// recorded skip's is.
-fn describe_edges_seamed<T: Decide + crate::props::AtRestPolicy>(
-    body: &mut Body<T>,
-    worklist: impl IntoIterator<Item = crate::entity::EdgeKey>,
-    skipped: &[crate::merge_faces::SkippedMerge],
-    seams: &[crate::entity::EdgeKey],
-    band: Band,
-    tol: Tol,
-) -> Result<(), DescribeRefusal> {
     // Whether two faces both belong to one recorded merge skip: the
     // licensed cosurface pairs the merge stage ships unglued.
     let recorded_skip = |(f1, f2): (FaceKey, FaceKey)| {
@@ -3364,13 +3347,9 @@ fn describe_edges_seamed<T: Decide + crate::props::AtRestPolicy>(
                     // faces of a declared pair the merge stage could not
                     // glue and RECORDED (a curved group: DESIGN's
                     // "only a curved group's skip is recorded and
-                    // shipped"), or as a zip's seam, the section edge the
-                    // zip kept between the two faces; either is described
-                    // where it rests. Any other scaffold stays one, and
-                    // tier 3 refuses it.
-                    geom_brep::EdgeDescription::Scaffold(_) => {
-                        recorded_skip(sides.faces()) || seams.contains(&edge)
-                    }
+                    // shipped"); it is described where it rests. Any
+                    // other scaffold stays one, and tier 3 refuses it.
+                    geom_brep::EdgeDescription::Scaffold(_) => recorded_skip(sides.faces()),
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order through the must-carry rule
@@ -10260,7 +10239,7 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/boolean/ops.rs");
         let source = test_utils::source::code_only(&std::fs::read_to_string(path).unwrap());
         let start = source
-            .find("fn describe_edges_seamed")
+            .find("fn describe_edges")
             .expect("the rebuild's description pass");
         let body = &source[start..start + source[start..].find("\n}\n").expect("its end")];
         assert_eq!(

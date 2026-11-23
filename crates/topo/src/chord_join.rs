@@ -4582,12 +4582,13 @@ fn path_ring_side<T: Decide>(
 /// copy of the edge, so its curve is the edge's own, from `u1` to `u2`
 /// (the edge's endpoints' copies, at its endpoints' points) — never a
 /// section the lane would compute from the germ's face pair, which may
-/// be two faces on one carrier, or meet in no conic. A line is the
-/// straight chord; a circle is its own arc; any other curve is the
-/// edge's own spec. Either is run back where the chord runs against the
-/// edge ([`run_back`]), and a description no chord states is re-stated
-/// in the chart of the face it divides ([`chord_description`]) (a
-/// closed edge's copy is [`closed_edge_spec`]'s, in every lane). The boolean takes this lane on both
+/// be two faces on one carrier, or meet in no conic. Its spec is the
+/// edge's own at rest, of every carrier kind, so the copy carries the
+/// edge's description and never a construction's stand-in: it is run
+/// back where the chord runs against the edge ([`run_back`]), and a
+/// description no chord states is re-stated in the chart of the face it
+/// divides ([`chord_description`]) (a closed edge's copy is
+/// [`closed_edge_spec`]'s, in every lane). The boolean takes this lane on both
 /// solids for an edge of both, and on the edge's solid alone for a
 /// conic edge of one lying in a face of the other whose pair has no
 /// section lane (a tube's rim on a ball). `None` on every other lane:
@@ -4596,7 +4597,7 @@ fn path_ring_side<T: Decide>(
 /// ruling, a lens rim on a wall).
 ///
 /// `segment`, `u1` and `u2` are keys the join carries, so one that no
-/// longer resolves refuses typed. Past them, the ends' points and the
+/// longer resolves refuses typed. Past them, the
 /// segment's curve and halves are links, mid-operation
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]): a miss panics, and a torn
 /// curve is not an uncertified one.
@@ -4611,15 +4612,12 @@ fn along_edge_spec<T: Decide>(
     let (JoinLane::AlongEdge, Some(edge)) = (lane, segment) else {
         return Ok(None);
     };
-    let point = |v: VertexKey| {
-        body.get_vertex(v)
-            .map(|d| body.point_of(v, d))
-            .ok_or(JoinError::SectionInvariant {
-                face,
-                what: "a chord end along the segment's edge no longer resolves",
-            })
-    };
-    let (p1, p2) = (point(u1)?, point(u2)?);
+    for v in [u1, u2] {
+        body.get_vertex(v).ok_or(JoinError::SectionInvariant {
+            face,
+            what: "a chord end along the segment's edge no longer resolves",
+        })?;
+    }
     let e = body.get_edge(edge).ok_or(JoinError::SectionInvariant {
         face,
         what: "the segment's edge no longer resolves",
@@ -4630,9 +4628,6 @@ fn along_edge_spec<T: Decide>(
             what: "the segment's edge carries no certified curve",
         });
     };
-    if !curve.carrier().is_curved() {
-        return Ok(Some(EdgeCurveSpec::line_between(p1, p2)));
-    }
     // The chord starts at the copy of whichever end of the edge null
     // edges tie `u1` to; the curve runs from its `he_plus` start.
     let (e_start, e_end) = crate::query::edge_ends(body, edge);
@@ -4654,18 +4649,7 @@ fn along_edge_spec<T: Decide>(
         .get_face(face)
         .ok_or_else(|| corrupt_face(face))?
         .surface;
-    let copy = match curve.carrier() {
-        geom::Curve3::Circle(..) => {
-            let (t0, t1) = curve.params();
-            EdgeCurveSpec::arc_of_circle(curve.carrier().clone(), t0, t1).ok_or(
-                JoinError::SectionInvariant {
-                    face,
-                    what: "a circle segment edge's arc does not state",
-                },
-            )?
-        }
-        _ => curve.restated_spec(),
-    };
+    let copy = curve.restated_spec();
     if forward {
         Ok(Some(EdgeCurveSpec {
             description: chord_description(&copy.description, face, Some(surface))?,

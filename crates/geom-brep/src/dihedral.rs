@@ -1530,9 +1530,11 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// - **[`MustCarryVerdict::UnderDetermined`]** — every station read
 ///   was smooth first-order and definite second-order, and no
 ///   intrinsic tangency is demanded: a station's second-order
-///   separation read `Zero`/`Negative`, or the pair is outside the
-///   certificate's lane and cannot store one (see the variant). The
-///   conventional description is the honest one either way.
+///   separation read `Zero`/`Negative`, the separation is not certified
+///   between the stations ([`second_order_walk`]'s span), or the pair
+///   is outside the certificate's lane and cannot store one (see the
+///   variant). The conventional description is the honest one either
+///   way.
 /// - **[`MustCarryVerdict::InBand`]** — a station was certifiable as
 ///   neither, carrying that station's escalation tagged with the rung
 ///   that raised it ([`WedgeEscalation`]): the caller refuses TYPED
@@ -1602,7 +1604,8 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// transverse one anywhere answers `Transverse` (every station) or
 /// `Mixed` (some); only an edge smooth at every station descends into
 /// [`second_order_walk`], where the first station not `Positive`
-/// decides. The tier-3 must-carry arm re-asks
+/// decides and, past every station, the span's certified bound does.
+/// The tier-3 must-carry arm re-asks
 /// this question of the stored description through the same walk, and
 /// that is what keeps the demanded set and the stored set ONE set: a
 /// constructor reading a coarser schedule can store a description tier
@@ -2154,17 +2157,22 @@ impl MustCarryVerdict {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MustCarryVerdict {
     /// Every interior station of the certification schedule read a
-    /// definitely-positive second-order separation and the pair is
-    /// inside [`crate::tangent_certificate_lane`]: the intrinsic
-    /// description is demanded.
+    /// definitely-positive second-order separation, `|κ_rel|` is
+    /// certified bounded away from zero over the whole edge (the
+    /// tangency certificate's own tube decision, [`tube_separation`]),
+    /// and the pair is inside [`crate::tangent_certificate_lane`]: the
+    /// intrinsic description is demanded, and its certificate certifies
+    /// it.
     JetDeterminate,
     /// The join is smooth first-order at every station read, and no
     /// intrinsic tangency is demanded, for one of two reasons.
     ///
     /// - A station's second-order separation was definitely
     ///   `Zero`/`Negative` (a G2 join, a same-surface split, coplanar
-    ///   planes): the conventional description is the honest one, by
-    ///   this predicate.
+    ///   planes), or every station's was positive and the separation
+    ///   is not certified between them (a bend whose `κ_rel` crosses
+    ///   zero off the stations): the conventional description is the
+    ///   honest one, by this predicate.
     /// - The pair is outside [`crate::tangent_certificate_lane`]: every
     ///   interior station read `Smooth` first-order and `Positive`
     ///   second-order, and the certificate cannot store an intrinsic

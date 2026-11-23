@@ -67,8 +67,11 @@ pub enum Bend {
 /// | [`End`](Self::End) (`Slit`) | 2π | legal iff jet-determinate |
 /// | [`Lamina`](Self::Lamina) | 0 or 2π, osculating | refused |
 ///
-/// The fold hands out an end only over a jet-determinate tangency, so an
-/// end it returns is legal. In-band readings escalate
+/// The fold hands out an end only over a tangency whose jets separate at
+/// every station, so an end it returns is legal; whether that separation
+/// is certified between the stations is the end's and the seam's
+/// [`Bend`], which decides the description they store and not their
+/// legality. In-band readings escalate
 /// ([`InBand`](Self::InBand)); stations that disagree are
 /// [`Mixed`](Self::Mixed).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -324,7 +327,8 @@ enum Read<T: Real> {
 /// metered second-order: an escalation anywhere is the verdict, else a
 /// disagreement anywhere, and only an edge tangent at every station
 /// descends into the second-order walk, where the first station not
-/// positive decides.
+/// positive decides the material verdict and the certified span the
+/// bend.
 #[must_use]
 pub fn edge_wedge_over<T: Decide>(
     walk: &WedgeWalk<'_, T>,

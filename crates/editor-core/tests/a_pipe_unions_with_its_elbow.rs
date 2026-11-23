@@ -310,10 +310,33 @@ fn an_elbow_whose_neutral_points_sit_between_the_stations_unions() {
     }
 }
 
+/// **The neutral points in the end gaps of the rims' halves**: the axis
+/// turned far enough that each half of each rim, split at the elbow's
+/// ends, holds a neutral point between its end and its first or last
+/// station, where every station reads one sign of `κ_rel`. Not certified
+/// along the half, the seam is described where it rests, and the pipe
+/// and the rod each union at the closed form.
+#[test]
+fn an_elbow_whose_neutral_points_sit_in_the_end_gaps_unions() {
+    for delta in [1.15, 1.18, 1.21, -1.21] {
+        let (off, hollow_want) = turned(delta);
+        let rod = section(false) * (LENGTH + BEND * f64::cos(delta) * FRAC_PI_2);
+        for (hollow, want) in [(true, hollow_want), (false, rod)] {
+            stops_where_its_pose_does(
+                &join(hollow, CapEnd::End, off),
+                off,
+                want,
+                &format!("turned {delta}, hollow {hollow}"),
+            );
+        }
+    }
+}
+
 /// **A neutral point within the band of a station refuses on the seam's
 /// bend**, though its wedge is a decided π: the second-order walk reads
-/// that station's sagitta in band
-/// (`work/select/a-seam-decided-pi-refuses-where-only-its-bend-is-undecided.md`).
+/// that station's sagitta in band. This is the fixture of
+/// `work/select/a-seam-decided-pi-refuses-where-only-its-bend-is-undecided.md`,
+/// pinned refusing as that row records it; it flips when that row lands.
 #[test]
 fn an_elbow_whose_neutral_point_sits_in_band_of_a_station_refuses_on_its_bend() {
     let (off, _) = turned(20.0 * Tol::witness().eps());
