@@ -38,3 +38,7 @@ So the draw's circle now carries a frame squared at `f64` (7131's `RigidMotion::
 
 The row is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (on PR 7402's branch until that merges) as one of the frame cost's two `f64`-squaring rows. Unlike the rest of that count, it is a finding and not a cost. It is not pinned; GREEN greens nothing until Ev rules on the count.
 (GREEN, U12)
+
+## A second seed, from `oneround/unsourced-unions` (PR 7294), 2026-11-23
+
+The row's hosted run on PR 7294 (run 45098183324, the slow-set step for the tests the diff edits) reds the same way at ε 1e-12 on seed `0xfe838f340344caed` (`CAD_FUZZ_EFFORT=1`): `draw 10 f64: Recedes on (-6.599691873753483e-8, -6.592501423312038e-8) ring None`. The draw is a circle of radius 734 whose centre is 721 m out, with a frame tilted by about 3·10⁻¹² against a point pair. Replayed locally, it reds on the same draw with PR 7294's head and with `origin/main`'s `geom-brep` files (`d7963dd38f`). So it is this row's, not that diff's.
