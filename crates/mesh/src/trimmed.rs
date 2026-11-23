@@ -84,9 +84,9 @@
 //! `chords::tighten`) refuses typed
 //! ([`TessellateError::SphereTrimShape`]). On every analytic arm a trim polygon wound
 //! against the face refuses typed
-//! ([`TessellateError::TrimLoopOrientation`]), a triangle folded over
-//! the chord beside it is dropped and rebuilt or refuses
-//! ([`TessellateError::FoldedTriangle`]). On every arm, the spline's
+//! ([`TessellateError::TrimLoopOrientation`]), and a triangle folded
+//! over the chord beside it gets a point inside it and the face is
+//! rebuilt, or refuses ([`TessellateError::FoldedTriangle`]). On every arm, the spline's
 //! included, a triangle with a side a neighbouring face may make too (a
 //! side joining two polygon points that are not neighbours on their loop
 //! and that one neighbour holds both of) is split by a point inside it
@@ -281,12 +281,11 @@
 //! # The retry loop
 //!
 //! The lane rebuilds a face, at most [`MAX_GRID_RETRIES`] times, for
-//! three causes: a triangle folded over the chord beside it drops its
-//! lattice corners, a triangle with a side a neighbour may make too is
-//! split by a point inside it, and (below) a triangle certified above δ
-//! is refined. Lattice nodes are a fixed, (v, u)-sorted list computed
-//! once, before the loop; a fold drops a node by its index, and the
-//! shared-side and refinement arms append, so indices only grow.
+//! three causes: a triangle folded over the chord beside it and a
+//! triangle with a side a neighbour may make too are each split by a
+//! point inside it, and (below) a triangle certified above δ is refined.
+//! Lattice nodes are a fixed, (v, u)-sorted list computed once, before
+//! the loop, and every arm appends, so indices only grow.
 //!
 //! The same loop carries TESS-SPAN's second arm, **certificate-driven
 //! refinement**: after the emit pass, any NURBS triangle whose
@@ -696,11 +695,7 @@ pub(crate) fn tessellate_trimmed(
             (cand, Some(stats), stats.metric)
         }
     };
-    // The lattice nodes a fold has dropped, by index into the candidates
-    // (module docs, "The retry loop"): mesh ids mint row-major on the
-    // FINAL kept set.
     let across = faces_across(body, fk, chords)?;
-    let mut dropped: HashSet<usize> = HashSet::new();
     // THE FALSIFICATION ACCUMULATOR, deliberately OUTSIDE the retry
     // loop and reset by nothing.
     //
@@ -769,13 +764,7 @@ pub(crate) fn tessellate_trimmed(
         // pass — reaches the hand-off below. (`worst_ratio` is
         // deliberately not among them; see above.)
         measure = AttemptMeasure::fresh();
-        match trimmed.attempt(
-            attempt,
-            &mut candidates,
-            &mut dropped,
-            &mut measure,
-            &mut falsification,
-        ) {
+        match trimmed.attempt(attempt, &mut candidates, &mut measure, &mut falsification) {
             Ok(Next::Rebuild) => {}
             Ok(Next::Accept(patch)) => {
                 outcome = Some(Ok(patch));
@@ -889,8 +878,8 @@ impl AttemptMeasure {
 
 /// What an attempt that did not refuse asks of the retry loop.
 enum Next {
-    /// Rebuild: a fold's lattice corners dropped, or a shared side's or a
-    /// refinement's points appended.
+    /// Rebuild: a fold's, a shared side's or a refinement's points
+    /// appended.
     Rebuild,
     /// The attempt's patch, accepted.
     Accept(Patch),
@@ -959,10 +948,9 @@ struct Emitted {
     interior: Vec<Point3<f64>>,
     triangles: Vec<[PatchVertex; 3]>,
     refine: Vec<(f64, f64)>,
-    /// The grid candidates of triangles wound against the face
-    /// ([`TrimmedFace::outward`]), to drop and rebuild; and whether a
-    /// folded triangle had no grid corner to drop.
-    folded: (Vec<usize>, bool),
+    /// A point inside each kept triangle wound against the face
+    /// ([`TrimmedFace::outward`]), to insert and rebuild.
+    folds: Vec<(f64, f64)>,
     /// A point inside each kept triangle with a side a neighbouring face
     /// may make too ([`TrimmedFace::attempt`]), to insert and rebuild.
     shared_sides: Vec<(f64, f64)>,
@@ -1064,12 +1052,11 @@ impl TrimmedFace<'_> {
         &self,
         attempt: usize,
         candidates: &mut Vec<(f64, f64)>,
-        dropped: &mut HashSet<usize>,
         measure: &mut AttemptMeasure,
         falsification: &mut Falsification,
     ) -> Result<Next, TessellateError> {
         let fk = self.fk;
-        let mut at = self.insert_points(candidates, dropped)?;
+        let mut at = self.insert_points(candidates)?;
         let crossings = self.constrain_boundary(&mut at)?;
         crate::region::require_a_region(fk, &crossings)?;
         let Some(orientation) = self.orientation else {
@@ -1080,7 +1067,7 @@ impl TrimmedFace<'_> {
             interior,
             triangles,
             refine,
-            folded,
+            folds,
             shared_sides,
             book,
         } = self.emit(
@@ -1116,20 +1103,17 @@ impl TrimmedFace<'_> {
         // THE WINDING CENSUS (every analytic arm): a triangle whose
         // normal points into the surface is folded over the chord beside
         // it — a lattice point inside the UV polygon but past the 3-D
-        // chord, within the boundary arc's sagitta. Its grid corners are
-        // dropped and the face rebuilt, which takes the fold's apex off
-        // that side of the chord; a fold with no grid corner, or one
-        // the retry budget does not clear, refuses typed.
-        match folded {
-            (_, true) => return Err(TessellateError::FoldedTriangle { face: fk }),
-            (grid, false) if !grid.is_empty() => {
-                if attempt == last_attempt() {
-                    return Err(TessellateError::FoldedTriangle { face: fk });
-                }
-                dropped.extend(grid);
-                return Ok(Next::Rebuild);
+        // chord, within the boundary arc's sagitta, or a triangle of
+        // boundary points across such an arc. A point strictly inside it
+        // where the CDT runs (`TrimmedFace::inside_point`) is inserted and
+        // the face rebuilt, which takes the fold apart; one the retry
+        // budget does not clear refuses typed.
+        if !folds.is_empty() {
+            if attempt == last_attempt() {
+                return Err(TessellateError::FoldedTriangle { face: fk });
             }
-            _ => {}
+            candidates.extend(folds);
+            return Ok(Next::Rebuild);
         }
         // Refinement retry (module docs): a centroid is strictly
         // interior to its kept triangle, hence inside the trim polygon;
@@ -1140,8 +1124,6 @@ impl TrimmedFace<'_> {
         // insertion cannot converge against a strip
         // still anisotropic where the CDT runs (measured — anchors and
         // centroids each re-admit the empty circle beside themselves).
-        // Appending keeps every existing candidate index (the `dropped`
-        // set stays valid).
         if !refine.is_empty() && !measure.verdict.worst().is_nan() && attempt < last_attempt() {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
@@ -1195,11 +1177,7 @@ impl TrimmedFace<'_> {
 
     /// The trim polygon's points, then the kept grid candidates, into a
     /// fresh triangulation, noting every point on a crease.
-    fn insert_points(
-        &self,
-        candidates: &[(f64, f64)],
-        dropped: &HashSet<usize>,
-    ) -> Result<Cdt, TessellateError> {
+    fn insert_points(&self, candidates: &[(f64, f64)]) -> Result<Cdt, TessellateError> {
         let fk = self.fk;
         // BULK-LOADED, not inserted one by one. Incremental insertion
         // along a dense boundary chain is quadratic in the flips it
@@ -1234,13 +1212,7 @@ impl TrimmedFace<'_> {
             .points
             .iter()
             .map(|&(u, v, id)| (u, v, self.singular.contains(&id)))
-            .chain(
-                candidates
-                    .iter()
-                    .enumerate()
-                    .filter(|(k, _)| !dropped.contains(k))
-                    .map(|(_, &(u, v))| (u, v, false)),
-            )
+            .chain(candidates.iter().map(|&(u, v)| (u, v, false)))
             .collect();
         let mut unique: Vec<SpadePoint<f64>> = Vec::with_capacity(inputs.len());
         let mut index_of: HashMap<(u64, u64), usize> = HashMap::with_capacity(inputs.len());
@@ -1283,11 +1255,11 @@ impl TrimmedFace<'_> {
             }
         }
         let pinches = Pinches::of(&walk, fk);
-        let kept = candidates
+        for ((k, &(u, v)), &h) in candidates
             .iter()
             .enumerate()
-            .filter(|(k, _)| !dropped.contains(k));
-        for ((k, &(u, v)), &h) in kept.zip(&handle_of[self.polygon.points.len()..]) {
+            .zip(&handle_of[self.polygon.points.len()..])
+        {
             // A point of the mesher's at an existing vertex. Nothing is
             // merged: the lattice keeps clear of the polygon (`lay`), and
             // a shared side's or a refinement's point is inside its triangle.
@@ -1465,7 +1437,7 @@ impl TrimmedFace<'_> {
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
         let refine_lane = matches!(self.row, ChartRow::Spline { .. });
-        let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
+        let mut folds = Vec::new();
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the shared-side test below.
         let n_poly = at.handles.len();
@@ -1489,7 +1461,6 @@ impl TrimmedFace<'_> {
             let mut corners = [Corner {
                 id: PatchVertex::Shared(0),
                 uv: [0.0; 2],
-                grid: None,
                 places: None,
             }; 3];
             for (k, vtx) in vs.iter().enumerate() {
@@ -1500,10 +1471,6 @@ impl TrimmedFace<'_> {
                         Slot::Grid(c) => grid_ids[&c],
                     },
                     uv: [u, v],
-                    grid: match slot {
-                        Slot::Grid(c) => Some(c),
-                        Slot::Boundary(_) => None,
-                    },
                     places: places.get(&vtx.fix().index()).map(Vec::as_slice),
                 };
                 match pinches.id_in(f, vtx.fix(), flip) {
@@ -1542,7 +1509,7 @@ impl TrimmedFace<'_> {
                 let apex = corners.map(|c| c.is_singular(self.singular));
                 move || Self::inside_point(plane, &uv, developed, apex)
             };
-            let mut a_shared_side = false;
+            let (mut a_shared_side, mut a_fold) = (false, false);
             for corners in core::iter::once(corners).chain(between) {
                 let ids = corners.map(|c| c.id);
                 let uv = corners.map(|c| c.uv);
@@ -1632,9 +1599,7 @@ impl TrimmedFace<'_> {
                     let wound_outward = normal.dot(n.vec()) > 0.0;
                     !wound_outward
                 }) {
-                    let grid: Vec<usize> = corners.iter().filter_map(|c| c.grid).collect();
-                    folded_boundary |= grid.is_empty();
-                    folded_grid.extend(grid);
+                    a_fold = true;
                 }
                 let (bound, scale) = self.row.cert(tri, uv, singular);
                 // The attempt's verdict takes the triangle in, its worst bound
@@ -1721,8 +1686,11 @@ impl TrimmedFace<'_> {
                 );
                 triangles.push(wound.of(ids));
             }
+            // One point per CDT triangle, whichever cause asks.
             if a_shared_side {
                 shared_sides.push(inside_point());
+            } else if a_fold {
+                folds.push(inside_point());
             }
         }
 
@@ -1730,7 +1698,7 @@ impl TrimmedFace<'_> {
             interior,
             triangles,
             refine,
-            folded: (folded_grid, folded_boundary),
+            folds,
             shared_sides,
             book,
         })
@@ -1825,8 +1793,6 @@ struct Corner<'a> {
     id: PatchVertex,
     /// Its chart point.
     uv: [f64; 2],
-    /// The grid candidate it is, if one.
-    grid: Option<usize>,
     /// Its places in the trim polygon, if a boundary point: a pinch
     /// handle's several, a run's point's own.
     places: Option<&'a [usize]>,
@@ -2293,7 +2259,6 @@ impl Run {
         Corner {
             id: PatchVertex::Shared(id),
             uv: [u, v],
-            grid: None,
             places: Some(&self.members[m..=m]),
         }
     }
@@ -6164,7 +6129,7 @@ pub(super) mod tests {
                 "a node on the apex row is not laid: its sector holds the apex"
             );
             let at = wedge
-                .insert_points(&[(0.5, 0.5)], &HashSet::new())
+                .insert_points(&[(0.5, 0.5)])
                 .expect("the wedge's points enter the CDT");
             assert_eq!(
                 at.meta.len(),
@@ -6173,7 +6138,7 @@ pub(super) mod tests {
             );
             assert!(
                 matches!(
-                    wedge.insert_points(&[(0.5, 0.0), (0.5, 0.5)], &HashSet::new()),
+                    wedge.insert_points(&[(0.5, 0.0), (0.5, 0.5)]),
                     Err(TessellateError::Triangulation { .. })
                 ),
                 "a point of the mesher's at the apex's CDT point refuses: it is not merged"
@@ -6452,7 +6417,6 @@ pub(super) mod tests {
                     #[allow(clippy::cast_possible_truncation)]
                     id: PatchVertex::Shared(100 + h as u32),
                     uv: [0.0; 2],
-                    grid: None,
                     places: None,
                 });
                 let ids = |t: [Corner<'_>; 3]| t.map(|c| c.id);

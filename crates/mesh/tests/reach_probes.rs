@@ -1315,7 +1315,7 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
 /// The funnel of rim radius `0.02` cut by the tilted plane of
 /// [`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`] through
 /// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`
-/// and `3·10⁻⁵` and `UnclearedSharedSide` at `2·10⁻⁴`, the half below meshes, and
+/// and `2·10⁻⁴` and meshes at `3·10⁻⁵`, the half below meshes, and
 /// a cut at `10⁻³` meshes both halves. No mesh is returned where it
 /// refuses. Off the default ε a split that refuses or leaves no half is
 /// printed and skipped, and each cell's answer is printed, not held.
@@ -1325,7 +1325,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [1e-3, 2e-4, 3e-5];
     // The half above the cut at `h = 10⁻⁵`, at each δ.
-    let refused = ["FoldedTriangle", "UnclearedSharedSide", "FoldedTriangle"];
+    let refused = [Some("FoldedTriangle"), Some("FoldedTriangle"), None];
     let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     for h in [1e-3, 1e-5] {
         let body = finished(
@@ -1363,7 +1363,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                     None
                 } else {
                     let at = deltas.iter().position(|&d| d == delta);
-                    Some(refused[at.expect("a δ of the table")])
+                    refused[at.expect("a δ of the table")]
                 };
                 if exact {
                     assert_eq!(refusal, want, "{what}, δ = {delta:e}");
@@ -1907,9 +1907,10 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 /// - **A sphere ring passing near a pole**
 ///   (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
 ///   a tube of radius 0.3 tilted 0.22 about `x` and turned 3 about `z`
-///   rings the ball's face about 0.006 rad from its pole, and at
-///   `δ = 2·10⁻²` a triangle folds over the ring's chord there; finer δ
-///   mesh.
+///   rings the ball's face about 0.006 rad from its pole: at
+///   `δ = 2·10⁻²` a triangle folds over the ring's chord there and the
+///   lane splits it (`mesh::trimmed`'s winding census), and every δ
+///   meshes.
 ///
 /// **At each ε.** Where the boolean builds, every answer is the same at
 /// ε `10⁻⁶` and `10⁻¹²` as at the default. Some poses are past what the
@@ -1981,7 +1982,7 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
             * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.22),
     );
     let ball = finished("the ball", ball_poled_z(SQRT_2, Vec3::zero(), tol()), tol());
-    let sphere = [Got::Folded(SurfaceKind::Sphere), Got::Meshed, Got::Meshed];
+    let sphere = [Got::Meshed, Got::Meshed, Got::Meshed];
     let want: Vec<_> = ["A ∪ B", "B ∪ A", "B ∖ A"]
         .into_iter()
         .flat_map(|op| {
