@@ -149,6 +149,52 @@ impl<'b, T: geom_core::Real> Geometric<'b, T> {
         Self { body, facts }
     }
 
+    /// **A hand-built body with the runs tier 3 would keep on it, and
+    /// nothing check 4 or check 6 decides**: each face's run from each
+    /// edge and each vertex of its boundary, through the door tier 3
+    /// reads them by ([`crate::WedgeReach`]); no class and no singular
+    /// vertex. For a row that asks the question of construction state
+    /// tier 3 refuses (two open sheets, a lamina) to exercise a reading
+    /// on it: every separator then runs, as on an edge tier 3 read no
+    /// class for.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn fixture(body: &'b Body<T>) -> Self
+    where
+        T: geom_core::Decide,
+    {
+        let wedges = crate::WedgeReach::new(body);
+        let mut facts = Tier3Facts::default();
+        for (edge, record) in body.edges() {
+            let Some(curve) = body
+                .curves
+                .get(record.curve)
+                .and_then(crate::null::CurveGeom::certified)
+            else {
+                continue;
+            };
+            for face in crate::edge_faces(body, edge) {
+                facts.keep_edge_run(
+                    face,
+                    edge,
+                    wedges.run_from_edge(face, curve.carrier(), curve.params()),
+                );
+            }
+        }
+        for (he, half) in body.half_edges.iter() {
+            let (Some(face), Some(&at)) = (
+                body.face_of_half_edge(he),
+                body.vertices
+                    .get(half.start)
+                    .and_then(|v| body.points.get(v.point)),
+            ) else {
+                continue;
+            };
+            facts.keep_vertex_run(face, half.start, wedges.run_from_vertex(face, at));
+        }
+        Self::new(body, Arc::new(facts))
+    }
+
     /// The body.
     #[must_use]
     pub fn body(&self) -> &'b Body<T> {

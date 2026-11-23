@@ -411,14 +411,13 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
     let band = Band::linear(tol).unwrap();
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    // The question reads tier 3's facts. A body tier 3's local battery
-    // refuses is asked through bare windows, whose touching pairs
-    // refuse naming that.
-    let windows = match topo::geometric(body, tol) {
-        Ok(geometric) => Side::windows_of(&geometric, faces, Which::First),
-        Err(_) => Side { body, faces }.windows(Which::First),
-    }
-    .expect("every face has a window");
+    // The question reads tier 3's facts. This file's hand-built sheets
+    // (two open cylinders on an ellipse, a disk and its annulus) are
+    // construction state tier 3 refuses, and are asked on fixture facts:
+    // the runs tier 3 would keep, no class.
+    let geometric = topo::geometric(body, tol).unwrap_or_else(|_| topo::Geometric::fixture(body));
+    let windows =
+        Side::windows_of(&geometric, faces, Which::First).expect("every face has a window");
     let bound = ClearanceBound::StrictlyPositive;
     let sweep = Sweep {
         bound,
