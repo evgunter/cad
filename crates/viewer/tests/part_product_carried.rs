@@ -73,7 +73,26 @@ fn opened(path: std::path::PathBuf, instance: RecipeNodeId, tol: Tol) -> (TreeRo
 /// node's own refusal, whose recourse the refusal roster holds
 /// (`editor-core/tests/refusal_concision_chains.rs`, with its filed
 /// admissions), so it is not held to one here a second time.
-fn hold_to_the_standard(message: &str, carried: &[CarriedLine]) {
+/// **A carried level as its text**: what these rows read, the
+/// document's label and the line spelled.
+#[derive(Debug, PartialEq)]
+struct Text {
+    document: String,
+    line: String,
+}
+
+/// Each carried level of a failed row, as [`Text`].
+fn texts(carried: &[CarriedLine]) -> Vec<Text> {
+    carried
+        .iter()
+        .map(|level| Text {
+            document: level.document.clone(),
+            line: level.line.to_string(),
+        })
+        .collect()
+}
+
+fn hold_to_the_standard(message: &str, carried: &[Text]) {
     let not_a_recourse_check = |name: &str| {
         let lost = format!("{name} states no recourse");
         move |p: &String| !p.starts_with(&lost)
@@ -184,6 +203,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let RowStatus::Failed { message, carried } = &row.status else {
         panic!("the instance's own operation failed: {:?}", row.status);
     };
+    let (message, carried) = (&message.to_string(), &texts(carried));
     eprintln!("DRAWN\n{message}");
     for (level, carried) in carried.iter().enumerate() {
         let indent = "  ".repeat(level + 1);
@@ -193,11 +213,11 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     assert_eq!(
         carried,
         &vec![
-            CarriedLine {
+            Text {
                 document: "bracket.pncad".to_owned(),
                 line: own_line(&bracket, bracket_piece, &dir, tol),
             },
-            CarriedLine {
+            Text {
                 document: "boss.pncad".to_owned(),
                 line: own_line(&boss, boss_piece, &dir, tol),
             },
@@ -296,6 +316,7 @@ fn a_poisoned_part_product_draws_the_failure_that_poisoned_it() {
     let RowStatus::Failed { message, carried } = &row.status else {
         panic!("the instance's own operation failed: {:?}", row.status);
     };
+    let (message, carried) = (&message.to_string(), &texts(carried));
     eprintln!("DRAWN\n{message}");
     for (level, carried) in carried.iter().enumerate() {
         let indent = "  ".repeat(level + 1);
@@ -305,11 +326,11 @@ fn a_poisoned_part_product_draws_the_failure_that_poisoned_it() {
     assert_eq!(
         carried,
         &vec![
-            CarriedLine {
+            Text {
                 document: "bracket.pncad".to_owned(),
                 line: own_line(&bracket, inner, &dir, tol),
             },
-            CarriedLine {
+            Text {
                 document: "broken.pncad".to_owned(),
                 line: own_line(&broken, extrude, &dir, tol),
             },
@@ -477,6 +498,7 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let RowStatus::Failed { message, carried } = &row.status else {
         panic!("the instance fails: {:?}", row.status);
     };
+    let (message, carried) = (&message.to_string(), &texts(carried));
     assert_eq!(
         carried
             .iter()

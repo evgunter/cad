@@ -2,9 +2,10 @@
 id: the-region-reads-a-spiric-edge-by-the-leg-across-its-plane-not-by-the-spiric-plane-arm
 kind: issue
 title: The region reads a spiric edge by its leg across the edge's plane: the (Spiric, Plane) arm is unbuilt, and refusing the edge instead reds ten plane × torus rows
-status: open
-design: true
+status: closed
 opened: 2026-11-21
+closed: 2026-11-22
+pr: 7431
 priority: P1
 cost: M
 rides_with: co-surface-direction-table-and-spiric-plane-door
@@ -64,3 +65,15 @@ Whether the `(Spiric, Plane)` arm is built (its pose and a method on
 or the leg-across-the-edge reading is ratified as the co-surface arm's
 own spiric reading (two curves on one torus), in `curve_pair::on_surface`
 beside `across`.
+
+## Closed (2026-11-22, PR 7431)
+
+Ev ratified the design in PR 7301: the `(Spiric, Plane)` arm is built
+(`curve_face::spiric_plane`, by section reduction), and which curve is
+read across which plane is the co-surface arm's direction table
+(`curve_pair::on_surface::direction`), which reads any leg against a
+spiric edge across the edge's plane. The region reads the pair through
+the arm (`OnSurface::meet`), which places each meeting on the edge;
+`Legs::across`, `Legs::on_edge_plane` and the torus door's placement are
+retired. The ten rows above pass on the branch.
+
