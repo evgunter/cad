@@ -1,0 +1,343 @@
+//! **The placement editor's snap** ([`crate::matetool::MateTool::proposal`]):
+//! where a draft's copy stands once its mates hold, moved the least way
+//! from where it stands now, and the numbers its value rows read there.
+//!
+//! The mate fixing a direction `d` (a plane, an axis or a direction) is
+//! the chart's. Its snap is the least motion that makes it hold: the
+//! copy's mated direction, where the copy stands, turned by the least
+//! turn onto `d`, and its mated point carried onto the target's plane or
+//! line by the shortest move. A point mate beside it then carries the
+//! copy's mated point onto the target's. The orientation written is the
+//! one nearest the snapped turn; the slides are the ones the mate leaves
+//! along the target axes its least turn carries
+//! ([`editor_core::mate::slides_left_along`]). With no mate fixing a
+//! direction, a point mate moves the copy onto its point and nothing
+//! turns it, and with no mate the copy stands where it stands. A frame
+//! fixes every freedom and leaves no value.
+//!
+//! The numbers are read back where the snap stands the copy through the
+//! chart that places it ([`editor_core::mate::read_back`]), never a
+//! second spelling of it (D10 `[placement.values]`).
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
+
+use editor_core::mate::{
+    ChainTurn, Charted, MatedDirection, MatedHold, mated_direction, read_back, slides_left_along,
+    spin_as_chain_turn, turn_onto,
+};
+use editor_core::{Coord, Formula, Orientation, SlideAxes};
+use pncad::document::pose::PoseValue;
+use pncad::document::{
+    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, OperandSlot, Placed,
+    ProfileProgram, RecipeNodeId, Recording,
+};
+use pncad::geom_core::Tol;
+use pncad::geom_core::linalg::{Mat3, Point3, Vec3};
+
+/// A frame's linear part and origin as a matrix and a vector.
+fn parts(frame: &Frame) -> (Mat3<f64>, Vec3<f64>) {
+    let c = frame.columns;
+    let col = |j: usize| Vec3::new(c[j][0], c[j][1], c[j][2]);
+    let [x, y, z] = frame.translation;
+    (Mat3::from_cols(col(0), col(1), col(2)), Vec3::new(x, y, z))
+}
+
+/// **The copy's mated point**, in its own coordinates: on its plane
+/// nearest its origin, its line's foot, or its origin for a direction.
+fn copy_point(mated: &MatedDirection<f64>) -> Vec3<f64> {
+    match mated.hold {
+        MatedHold::Plane { copy_offset, .. } => mated.copy_dir.get() * copy_offset,
+        MatedHold::Line { copy_foot, .. } => copy_foot - Point3::origin(),
+        MatedHold::Free => Vec3::zero(),
+    }
+}
+
+/// **The point of what the target holds nearest `p`**: the shortest
+/// move onto its plane or its line, none for a direction — the snap's
+/// own motion.
+fn nearest(mated: &MatedDirection<f64>, p: Vec3<f64>) -> Vec3<f64> {
+    let dir = mated.dir.get();
+    match mated.hold {
+        MatedHold::Plane { offset, .. } => p - dir * (dir.dot(p) - offset),
+        MatedHold::Line { foot, .. } => {
+            let foot = foot - Point3::origin();
+            foot + dir * dir.dot(p - foot)
+        }
+        MatedHold::Free => p,
+    }
+}
+
+/// `pose`, read in the target space where the copy stands at `(r, t)`,
+/// carried back into the copy's own coordinates.
+fn unplaced(pose: PoseValue<f64>, r: Mat3<f64>, t: Vec3<f64>, tol: Tol) -> Option<PoseValue<f64>> {
+    let back = r.transpose();
+    let band = pncad::geom_core::Band::linear(tol).ok()?;
+    let unit =
+        |v: Vec3<f64>| pncad::geom_core::UnitVec3::new(back * v, "viewer_snap_unplaced", band).ok();
+    Some(match pose {
+        PoseValue::Plane { normal, offset } => PoseValue::Plane {
+            normal: unit(normal.get())?,
+            offset: offset - normal.get().dot(t),
+        },
+        PoseValue::Axis(line) => PoseValue::axis_through(
+            Point3::origin() + back * (line.foot() - Point3::origin() - t),
+            unit(line.dir().get())?,
+        ),
+        PoseValue::Direction { dir } => PoseValue::Direction {
+            dir: unit(dir.get())?,
+        },
+        PoseValue::Point { position } => PoseValue::Point {
+            position: Point3::origin() + back * (position - Point3::origin() - t),
+        },
+        _ => return None,
+    })
+}
+
+/// One mate's two poses read where the copy stands, `on` in the copy's
+/// own coordinates, and whether its `to` reads the opposite sense.
+type BoundMate = (PoseValue<f64>, PoseValue<f64>, bool);
+
+/// **Where a draft's copy stands snapped onto its mates**: the copy's
+/// relative pose, the orientation nearest its snapped turn for the mate
+/// fixing a direction, the slides that mate leaves, and the chart's two
+/// poses its numbers are read through.
+pub(crate) struct DraftSnap {
+    /// The copy's relative pose, snapped.
+    at: pncad::geom_core::linalg::Affine3<f64>,
+    /// The orientation nearest the snapped turn, for the chart's mate.
+    pub(crate) orient: Option<Orientation>,
+    /// The slides the chart's mate leaves, read off the copy's geometry.
+    pub(crate) along: Option<SlideAxes>,
+    /// The chart's mate, its two poses and its `to`'s sense.
+    chart: Option<(PoseValue<f64>, PoseValue<f64>, bool)>,
+}
+
+impl DraftSnap {
+    /// **The number each of `coords` reads where the snap stands the
+    /// copy**, under the chart's orientation `orient` (the one the bundle
+    /// writes); `None` where the chart does not read it.
+    pub(crate) fn read<R>(
+        &self,
+        orient: Option<Orientation>,
+        coords: &[Coord<R>],
+        tol: pncad::geom_core::Tol,
+    ) -> Vec<Option<f64>> {
+        let Ok(band) = pncad::geom_core::Band::linear(tol) else {
+            return vec![None; coords.len()];
+        };
+        let chart = self.chart.as_ref().map(|(on, to, to_flipped)| Charted {
+            on,
+            to,
+            to_flipped: *to_flipped,
+            orient: orient.or(self.orient).unwrap_or(Orientation::IDENTITY),
+        });
+        read_back(chart, &self.at, coords, band, tol)
+    }
+
+    /// **The new chart's spin as a link of the loaded chain `chain`**,
+    /// where the kernel states it one ([`spin_as_chain_turn`]), under
+    /// the chart's orientation `orient`.
+    pub(crate) fn chain_turn<R>(
+        &self,
+        orient: Option<Orientation>,
+        chain: &[Coord<R>],
+    ) -> Option<ChainTurn> {
+        let (on, to, to_flipped) = self.chart.as_ref()?;
+        spin_as_chain_turn(
+            Charted {
+                on,
+                to,
+                to_flipped: *to_flipped,
+                orient: orient.or(self.orient)?,
+            },
+            chain,
+        )
+    }
+}
+
+/// **The loaded chart's spin as a link of the new chain `chain`**: the
+/// chart of `placement`'s mate `id` as the landed pair `doc`, `ev` reads
+/// it, where the kernel states its spin one link of `chain`
+/// ([`spin_as_chain_turn`]).
+pub(crate) fn loaded_chain_turn<R>(
+    doc: &Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    placement: RecipeNodeId,
+    id: ConstraintId,
+    chain: &[Coord<R>],
+    tol: pncad::geom_core::Tol,
+) -> Option<ChainTurn> {
+    let node = doc.node(placement)?;
+    let (raw, instance) = (node.bundle()?, reads_its_own_output(node));
+    let c = raw.iter().find(|c| c.id == id)?;
+    let m = c.mate()?;
+    let bind = |side, var| {
+        editor_core::eval::bound_pose(
+            doc,
+            ev,
+            OperandSlot::Side {
+                constraint: id,
+                side,
+            },
+            var,
+            tol,
+        )
+        .ok()
+    };
+    let on = bind(MateSide::On, m.on)?;
+    let on = if instance {
+        let (r0, t0) = parts(&pncad::document::SolvedPoses::of(doc, ev).relative(placement)?);
+        unplaced(on, r0, t0, tol)?
+    } else {
+        on
+    };
+    let to = bind(MateSide::To, m.to)?;
+    spin_as_chain_turn(
+        Charted {
+            on: &on,
+            to: &to,
+            to_flipped: editor_core::mate::flipped(doc, m.to),
+            orient: m.orient,
+        },
+        chain,
+    )
+}
+
+/// **A draft's copy snapped onto `mates`** placed into `target`, read
+/// off `ev`, the landed evaluation of `doc`: the copy where `placement`
+/// stands it now, moved the least way that makes the mates hold (module
+/// docs). Where `target` is not the placement's, the copy is read where
+/// it stood in the space it leaves, those numbers charted on the new
+/// target's axes (the target edit keeps every value's number). `None`
+/// where the copy stands nowhere, or the mates do not write as a bundle:
+/// the door then says why.
+pub(crate) fn draft_snap(
+    doc: &Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    placement: RecipeNodeId,
+    target: &super::PlaceTarget,
+    mates: &[Mate<Formula>],
+    tol: pncad::geom_core::Tol,
+) -> Option<DraftSnap> {
+    let bundle = Placed::of(doc, mates.to_vec(), Vec::new()).bundle();
+    let mut run = Recording::start(doc, tol);
+    let before = pncad::document::SolvedPoses::of(doc, ev).relative(placement)?;
+    let written = super::retarget(&mut run, placement, target).is_ok()
+        && run
+            .apply(DocEdit::SetConstraints {
+                placement,
+                constraints: bundle,
+                fresh: Vec::new(),
+            })
+            .is_ok();
+    let (r0, t0) = parts(&before);
+    let affine = |r: Mat3<f64>, t: Vec3<f64>| pncad::geom_core::linalg::Affine3::from_parts(r, t);
+    // Where the mates do not write as a bundle, or a pose of theirs does
+    // not evaluate, nothing is snapped: the copy is read where it stands,
+    // and the door says why.
+    let unsnapped = DraftSnap {
+        at: affine(r0, t0),
+        orient: None,
+        along: None,
+        chart: None,
+    };
+    if !written {
+        return Some(unsnapped);
+    }
+    let doc = run.doc();
+    let node = doc.node(placement)?;
+    let (raw, instance) = (node.bundle()?.to_vec(), reads_its_own_output(node));
+    let bind = |id: ConstraintId, side, var| {
+        editor_core::eval::bound_pose(
+            doc,
+            ev,
+            OperandSlot::Side {
+                constraint: id,
+                side,
+            },
+            var,
+            tol,
+        )
+        .ok()
+    };
+    // Each mate's two poses, `on` in the copy's own coordinates: an
+    // instance's `on` reads its own output, which stands where the copy
+    // stood, so it is carried back.
+    let read: Option<Vec<BoundMate>> = raw
+        .iter()
+        .filter(|c| c.mate().is_some())
+        .map(|c| {
+            let m = c.mate()?;
+            let on = bind(c.id, MateSide::On, m.on)?;
+            let on = if instance {
+                unplaced(on, r0, t0, tol)?
+            } else {
+                on
+            };
+            let to = bind(c.id, MateSide::To, m.to)?;
+            Some((on, to, editor_core::mate::flipped(doc, m.to)))
+        })
+        .collect();
+    let Some(read) = read else {
+        return Some(unsnapped);
+    };
+    let point = read.iter().find_map(|(on, to, _)| match (on, to) {
+        (PoseValue::Point { position: o }, PoseValue::Point { position: t }) => Some((
+            *o - pncad::geom_core::linalg::Point3::origin(),
+            *t - pncad::geom_core::linalg::Point3::origin(),
+        )),
+        _ => None,
+    });
+    let Some((on, to, to_flipped, seat)) = read
+        .iter()
+        .find_map(|(on, to, flipped)| Some((on, to, *flipped, mated_direction(on, to)?)))
+    else {
+        // No mate fixes a direction: a point mate carries the copy's
+        // point onto the target's, and nothing turns it.
+        let t = match point {
+            Some((o, p)) => p - r0 * o,
+            None => t0,
+        };
+        return Some(DraftSnap {
+            at: affine(r0, t),
+            orient: None,
+            along: None,
+            chart: None,
+        });
+    };
+    let d = seat.dir.get();
+    let band = pncad::geom_core::Band::linear(tol).ok()?;
+    // No turn seats the copy's direction (it or the target's is no
+    // direction the band mints): nothing is snapped.
+    let Some(turn) = turn_onto(r0 * seat.copy_dir.get(), d, band, tol) else {
+        return Some(unsnapped);
+    };
+    let turned = turn * r0;
+    let t = match point {
+        Some((o, p)) => p - turned * o,
+        None => {
+            let point = copy_point(&seat);
+            nearest(&seat, r0 * point + t0) - turned * point
+        }
+    };
+    let orient = Orientation::nearest(&turned);
+    let n = orient.apply(seat.copy_dir.get());
+    let slides = Placed::freedoms(doc, mates, None)
+        .iter()
+        .filter(|c| c.is_slide())
+        .count();
+    Some(DraftSnap {
+        at: affine(turned, t),
+        orient: Some(orient),
+        along: Some(slides_left_along(slides, n)),
+        chart: Some((on.clone(), to.clone(), to_flipped)),
+    })
+}
+
+/// **Whether a placement's near sides read its own output**, solved, so
+/// a snap reads them back at the identity: an instance's (off its
+/// copy) and a datum's (its frame); a `Place` reads its source.
+fn reads_its_own_output(node: &Node<ProfileProgram>) -> bool {
+    matches!(node, Node::InstantiatePart { .. } | Node::Datum { .. })
+}

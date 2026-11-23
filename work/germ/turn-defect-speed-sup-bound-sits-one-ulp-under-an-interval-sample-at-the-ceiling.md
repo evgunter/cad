@@ -1,0 +1,105 @@
+---
+id: turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling
+kind: issue
+title: turn_defect_speed_hi's sup bound sits below an Interval sample of the speed at the ceiling, by 1 ulp at 1e-6 and about 11 ulps at 1e-12: an enclosure that does not enclose, found by r2_turn_probes' varying-seed fuzz
+status: open
+opened: 2026-10-29
+priority: P2
+cost: M
+---
+
+
+Found by GREEN (PR 5966's gate, run 40805176279, `test (kernel)`,
+2026-10-29). It is not that PR's: it reproduces on main `f533c1a9d5`
+with the seed.
+
+`crates/geom/tests/r2_turn_probes.rs`,
+`turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval`
+(a varying-seed fuzz), at ε 1e-6:
+
+> sup over the defect: 130.88286993304766 (f64) / 130.88286993304766
+> (Interval) < 130.8828699330477 at 16/64: a -130.88286993304766 b
+> 0.027471258741429194 t0 1.5708606597176065 gap 2.571067338045846e-4
+
+The sup bound `turn_defect_speed_hi` reads exactly the ceiling `|a|`,
+which the row's own ceiling check allows. The `speed_enclosure` sample at
+16/64 has an upper end one ulp above it, the enclosure's own rounding.
+So either the bound must stand an ulp clear of the ceiling where it
+clamps there, or the row's "sup over the defect" comparison owes the
+same `1e-15` relative slack its ceiling check already has. Which is
+right is the owner's call; not looked into further.
+
+Reproduce: `CAD_TOLERANCE_EPS=1e-6 CAD_FUZZ_SEED=0xcc21d29c318a7479
+CAD_FUZZ_EFFORT=1 cargo nextest run -p geom --profile ci -E
+'test(=r2_turn_probes::turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval)'`.
+
+## A second seed, 2026-10-29 (GREEN latency lane)
+
+PR 6019's gate (run 40847689090, `test (kernel)`) reds the same row at
+ε 1e-12, on a diff that touches only `scripts/ci-filter.py`:
+
+> sup over the defect: 2.953798525442482 (f64) / 2.953798525442482
+> (Interval) < 2.9537985254424868 at 21/64: a 1.0336476587993828 b
+> 2.953798525442482 t0 0.0002488148581001326 gap 7.583415220477767e-4
+
+The bound reads exactly `|b|` and the sample sits about 4.8e-15 above
+it, about eleven ulps and more than a `1e-15` relative slack, so neither
+fix named above covers this seed.
+
+Reproduce: `CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=0x85193fcde51a223a`
+with the same command.
+
+## Re-homed and banded (2026-10-29, GREEN)
+
+Moved from TINT to GERMCERT. The defect is in the bound,
+`geom::carrier_speed::turn_defect_speed_hi`
+(`crates/geom/src/carrier_speed.rs`), not in the test. The second seed's
+11-ulp miss rules out a test-side slack as the fix, and no program
+claims the file; GERMCERT's charter (certificate margins read at their
+whole width) is the nearest. Banded P2, as interval and error
+propagation: the sup bound is a certified enclosure that a sample
+escapes.
+
+The fuzz keeps running (the user, in chat, 2026-10-29, agreeing not to
+disable it): while this row is open it will red an unrelated PR on
+some seeds, about twice a day on 2026-10-29. That cost is the reason to
+take it soon. When it is fixed, pin both seeds as deterministic rows
+beside the fix.
+
+Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Another seed, at the default ε (2026-11-03, `onecopy/small-reads`)
+
+`cargo nextest run -p geom` on PR 6475's branch failed this test. That branch's geom diff is a doc comment and one new unit test, so the failure is not its own:
+
+> sup over the defect: 0.13233093034424084 (f64) / 0.13233093034424084 (Interval) < 0.132330930344241 at 23/64: a 0.03369404504116446 b 0.13233093034424084 t0 18.85412848563191 gap 1.2723748588382879e-2
+
+Reproduce: `CAD_FUZZ_SEED=0x6aefff4768992785 CAD_FUZZ_EFFORT=1`. Here the ceiling is `|b|`, not `|a|`, so the clamp at the ceiling bites from either coefficient.
+
+Another seed that reproduces it, at the default ε and at 1e-12 alike, on main `62dcb1a97e`: `CAD_FUZZ_SEED=0x4c4e025223660e02` (sup 45.74884339543839 < 45.748843395438406 at 35/64, `t0` 822842.79; met by PR 6500).
+
+**A second seed** (ONECOPY's harmonic-cut unit, 2026-11-06, on main `c80a1e8c` plus a diff that does not reach `geom::carrier_speed`). `CAD_FUZZ_SEED=0x60f5bbc7adbbd2d2 CAD_FUZZ_EFFORT=1` reds the row at both ε = 1e-9 and 1e-12:
+
+> sup over the defect: 26.03895124682756 (f64) / 26.03895124682756 (Interval) < 26.038951246827594 at 64/64: a 26.03895124682756 b 0.007562229532909478 t0 -237.19042521848743 gap -1.7984767358215947e-4
+
+The shape is the same: the bound reads the ceiling `|a|`, and the sample's upper end lies about 15 ulps above it.
+
+## Still firing (2026-11-09, `onecopy/boolean-standing-2`)
+
+`CAD_TOLERANCE_EPS=1e-12` `ci` runs hit it twice on 2026-11-09, on two
+branches that touch no `carrier_speed::turn_defect_*` code. Neither run
+kept the seed (the log line was filtered out), and six re-runs passed.
+
+- 2026-11-16 — **a seed at the default eps, from TESSLANE's PR 6965** (a diff that touches no `geom` source): hosted `test (kernel)` on its head `8f585255cf` (2026-11-14) drew `0x19eec72bea96df53` and `r2_turn_probes::turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval` failed at the default eps, the sup bound one ulp under an interval sample at the ceiling. The rows above have it at 10⁻⁶ and 10⁻¹² only.
+
+## The floor's mirror (2026-11-20, GERM's PR 7183)
+
+The same fuzz row failed on the **inf** side at ε 1e-6:
+`CAD_FUZZ_SEED=0x4d073e89924408a0`, effort 1. `turn_defect_speed_lo`
+reads 0.04921567327106361, both at `f64` and as the Interval lower end.
+That is the floor `a`, and it sits above an Interval sample of the
+speed, 0.04921567327106356, at sample 56/64 (`b` 0.0588, `t0` 10.997,
+gap 1.33e-3). The excess is about 7 ulps. This reproduces on
+`origin/main` `818092d44a`
+(`CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom -E 'test(/turn_defect_speeds_bound_the_speed_on_the_true_defect/)'`),
+so the PR did not cause it.

@@ -1,0 +1,159 @@
+//! **The authoring specs and their lowering to nodes**: what one
+//! creation form authors, in the vocabulary the form fills in.
+//!
+//! A VOCABULARY. These hold no session state at all — a spec is a
+//! payload the panels build and the session lowers.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
+
+use pncad::document::AuthoredNode;
+use pncad::document::{Bodies, BodyRead, Formula, Node};
+use pncad::topo::BooleanOp;
+
+/// The payload of one pattern form (GAUTH-4), beside the other
+/// authoring spec for the reason it is here at all: it names what a
+/// form authors.
+///
+/// `Explicit` has no arm by the plan's ruling: a list of absolute
+/// frames is not a form's job.
+///
+/// **The numbers are `Expr`, not numbers** — see [`super::SessionOp`]'s
+/// note on the authoring vocabulary — and **a direction is never
+/// numbers** (D10 `[variables.poses]`): it is one of the pattern's
+/// space's axes, or picked geometry the pattern reads, so it follows
+/// that geometry when it is edited ([`PatternDirection`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum PatternRuleSpec {
+    /// Stepped along a direction ([`pncad::pattern::linear_pattern`]):
+    /// each member slid `scalar(k)·spacing` along it.
+    Linear {
+        /// The direction stepped along.
+        direction: PatternDirection,
+        /// Distance between copies (`Length`).
+        spacing: Formula,
+    },
+    /// Stepped around an axis ([`pncad::pattern::circular_pattern`]):
+    /// each member spun `scalar(k)·step` about it, from where the body
+    /// stands.
+    Circular {
+        /// The axis turned about: a picked edge's line or a round face's
+        /// axis, or one of the space's axes through its origin.
+        axis: PatternDirection,
+        /// Angular step between copies (`Angle`).
+        step: Formula,
+    },
+}
+
+/// **A pattern's direction or axis, as the form names it**: one of the
+/// pattern's space's axes, or geometry picked in the viewport, read in
+/// the space the pattern places into.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PatternDirection {
+    /// One of the space's axes (through its origin, for a ring).
+    Axis(pncad::document::TargetAxis),
+    /// A picked edge's line: a straight edge's, or a round edge's axis.
+    Edge(super::select::EdgeSelection),
+    /// A picked face: a flat face's normal for a row; a round face's
+    /// carrier axis for a row or a ring.
+    Face(super::select::FaceSelection),
+}
+
+/// **Which copy of a pattern one part form selects** — the
+/// authoring counterpart of an indexed read (`BodyRead::indexed`), beside
+/// [`PatternRuleSpec`] for its reason: it names what a form authors,
+/// in the numbers a form holds.
+///
+/// **The index is an `i64`, not an `Expr`**: a form holds a number,
+/// and the session mints the `Formula::count` literal of the indexed
+/// read ([`crate::combine::part_node`]), the same division of labour
+/// [`super::SessionOp::AddPattern`]'s count already takes.
+///
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PartSelectSpec {
+    /// The `i`-th member of a family.
+    Instance(i64),
+}
+
+/// **What one boolean authors**: the operation and its operands, in
+/// the shape the node it lowers to takes ([`BooleanSpec::node`]). Each
+/// operand is a body read: a body, a split's half by its port, or one
+/// member of a family by its indices (`xs[i]`, [`BodyRead::indexed`]).
+///
+/// Union and intersect take a LIST — any count is a document the door
+/// accepts (one member builds that body, none the typed empty body,
+/// and a node spelled twice glues) — while subtract takes exactly two
+/// operands that are not interchangeable: `from` is the body KEPT and
+/// `tool` the body REMOVED. Three arms rather than an operation beside
+/// a list, so a subtraction of the wrong count has no spelling.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BooleanSpec {
+    /// The material in any member, members in fold order.
+    Union(Vec<BodyRead<Formula>>),
+    /// The material in every member, members in fold order.
+    Intersect(Vec<BodyRead<Formula>>),
+    /// `from` with `tool` cut away.
+    Subtract {
+        /// The body kept.
+        from: BodyRead<Formula>,
+        /// The body removed.
+        tool: BodyRead<Formula>,
+    },
+}
+
+impl BooleanSpec {
+    /// The operation — the kernel's enum, the boolean form's choice.
+    pub fn op(&self) -> BooleanOp {
+        match self {
+            Self::Union(_) => BooleanOp::Union,
+            Self::Intersect(_) => BooleanOp::Intersect,
+            Self::Subtract { .. } => BooleanOp::Subtract,
+        }
+    }
+
+    /// Every operand, in the node's order: the members, or `from`
+    /// then `tool`.
+    pub fn operands(&self) -> Vec<BodyRead<Formula>> {
+        match self {
+            Self::Union(members) | Self::Intersect(members) => members.clone(),
+            Self::Subtract { from, tool } => vec![from.clone(), tool.clone()],
+        }
+    }
+
+    /// **The same operation over `operands`**, in the node's order —
+    /// [`Self::operands`]' inverse, for a door that reads an operand
+    /// through a placement.
+    ///
+    /// # Panics
+    ///
+    /// A subtraction given other than two operands: the list is always
+    /// one [`Self::operands`] answered, re-read.
+    #[must_use]
+    pub fn with_operands(&self, operands: Vec<BodyRead<Formula>>) -> Self {
+        match self {
+            Self::Union(_) => Self::Union(operands),
+            Self::Intersect(_) => Self::Intersect(operands),
+            Self::Subtract { .. } => match <[BodyRead<Formula>; 2]>::try_from(operands) {
+                Ok([from, tool]) => Self::Subtract { from, tool },
+                Err(_) => unreachable!("a subtraction's operands are two"),
+            },
+        }
+    }
+
+    /// Lower to the node.
+    pub fn node(&self) -> AuthoredNode {
+        let spelled = |members: &[BodyRead<Formula>]| Bodies::Spelled(members.to_vec());
+        match self {
+            Self::Union(members) => Node::Union {
+                members: spelled(members),
+            },
+            Self::Intersect(members) => Node::Intersect {
+                members: spelled(members),
+            },
+            Self::Subtract { from, tool } => Node::Subtract {
+                from: from.clone(),
+                tool: tool.clone(),
+            },
+        }
+    }
+}

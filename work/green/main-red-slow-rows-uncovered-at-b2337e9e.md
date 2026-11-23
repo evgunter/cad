@@ -1,0 +1,49 @@
+---
+id: main-red-slow-rows-uncovered-at-b2337e9e
+kind: issue
+title: Four slow-set rows red on main at b2337e9e that no open row covers, and two open main-red rows that cite a state the tree no longer has
+status: closed
+opened: 2026-11-03
+priority: P1
+cost: E
+closed: 2026-11-14
+---
+
+
+Found by the FULL review of ONECOPY's PR 6463. Each failure below is identical on main tip `b2337e9e` and on that PR's head, so none of them comes from the PR. Filed by the ONECOPY orchestrator.
+
+## Red, and covered by no row
+- `editor-core` `docm2_part_interval::a7_…`: red at ε/10, ε/16 and ε/32. `work/topo/a-cap-normal-reads-the-height-s-width` still says ε/32 is green.
+- `editor-core` `m10_sym_profile_interval::…pinned_per_eps_row`: the slab now fails (2827 forms against 2807). The open row `work/green/main-red-two-slow-digest-rows-at-8ae2b9b` says the plate is what fails.
+- `node_standing::every_node_result_reader…` (`viewer/session.rs`).
+- `coincidence_door::two_copies_on_one_axis…`, at 1e-12 only.
+
+## Partly covered
+- `certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned`. `work/splice/main-red-certified-endpoint-census-drifted-in-geom-brep-after-6171` names 4 files, but today's drift is wider: carrier_net, ruling, winds, residual, ssi/boundary, clearance, net, and others.
+
+Filed on GREEN, which carries main-red rows (work/issues/ is retired). Route each to the program that owns its ground (`python3 scripts/work.py territory --files -`), and correct the two open rows' stated states. This row closes once each failure has an owner's row.
+
+## Added (2026-11-03, the PR 6454 fix pass, failing identically at its merge base)
+
+- `editor-core` `m4_pr8_k_probe`'s corpus dump: 116 `<unnamed>` decisions, and the key-split pin.
+  Bisected (2026-11-06, `onecopy/main-reds-k-and-m10`): the `<unnamed>` samples began at PR 6376's merge (`47b0763a4a`, `onehome/vertex-section-room`), 138 on main now. The site is `geom_core::running::Rounded::divisor`, which reads `room.sign_within(Band::enclosure_sign())` directly rather than through a named `k_stats` door; naming it is a choice between a logged decision (`k_stats::decide`, which moves the verdict log) and `check_unlogged` with an audit row. The key split is on `work/tally/probe-lane-content-and-naming-keys-split-from-f64-on-every-corpus-document.md` (PR 6341).
+- `editor-core` `node_standing::every_node_result_reader_goes_through_usable_or_is_listed`: `viewer/src/session.rs` is in READERS with a count of 3 that the scan no longer finds. Same row as above, now with its cause.
+- topo `boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`: `ruled_region.rs`, `shell.rs` and `splitting/containment.rs` read a box with no entry. Covered by BOXES' own main-red row.
+- `sweep` `ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`: its pinned red now PASSES on main ("pinned to stop … and it passed"). Its owners (CPAIR or CHARTTAIL) should retire or re-pin it. Reported by the PR 6463 lane.
+- `sweep` `bisector_nodes::the_near_node_poses_at_the_witness_band`: fails identically on main at c02eb40cfe with `QuadratureUnsupported`. Reported by the PR 6463 lane; no row covers it.
+- `sweep` built with `topo/per-op-postcondition` (as `-p topo -p sweep --all-features` unifies it): `germ_plane_torus_frame`'s `a_band_pose_under_the_tubes_top…` and `two_one_site_loops…` fail 40/40 with `mfkrh postcondition: OrphanGeometry Surface(1v3)`. Main at 55f1a93ff1 fails the same way. Reported by the PR 6463 lane.
+- `sweep` `a_loft_computes_its_walls_in_t::a_lofted_arc_wall_is_a_function_of_the_sections_bulge`: red with main's `pose.rs` restored, so not caused by PR 6492. Reported by its lane; no row found.
+- `r1_dm1_probe` ×2, `tier_gate::every_corpus_import`: red on main at the parent of PR 6482's merge (72d09443-era). Reported by the angle-reads lane; no row found.
+- step-import `r1_dm1_probe::dm1_no_longer_refuses_at_the_instancing_gate`, and topo `link::cone_fuzz::the_consumers_paths_never_contradict_the_exact_oracle` at seed 0xe7fad745443d741c (a varying-seed fuzz): both red on main, reported by the PR 6495 lane at its merge base.
+
+## Corrected (2026-11-14, `green/censuses`)
+
+Two of the rows above are greened by the `nightly-reds-the-source-censuses` unit, read at nightly 43371638371 and on main `b363f5fa13`:
+- `node_standing::every_node_result_reader…`: `viewer/src/session.rs` lost its 3 reads with `frame_off`, removed by PR 6431's merge (`3819ae968d`, `forms/split-pattern`); its `READERS` entry is struck. `eval/mod.rs` 33 → 35 and `eval/parts.rs` 1 → 2 are PR 6735's (`1ed46561d6`), as `work/doors/node-standing-census-goes-red-on-main-between-nightlies` says; re-blessed with reasons.
+- `certified_endpoint_census`: the geom-brep drift this row lists was re-pinned by PR 6738 (`d43220b275`), and none of those files moves the census today. Today's red is topo only, `clearance.rs` 53 → 56 (PR 6885) and `injective.rs` 121/40 → 137/52 (PRs 6892, 6894, 6905) and → 144/59 (PR 6907); re-blessed with the new sites' dispositions.
+
+The other rows here are outside that unit and are not re-checked.
+
+## Closed (2026-11-14)
+
+Nothing this row lists is red any more. `node_standing` and the endpoint census were greened by PR 6921. Every other test it names (`docm2_part_interval`'s a7 rows, `m10_sym_profile_interval`'s slab row, `coincidence_door::two_copies_on_one_axis…`, the near-node poses, the lofted arc wall, `dm1`) passes at all three ε rows of nightly 43371638371, read from each leg's junit. Which merge or pin greened each is not traced here.

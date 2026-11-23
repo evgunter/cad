@@ -1,0 +1,553 @@
+//! **The opening measurement** for the coaxial cylinder×sphere lane,
+//! and the differential rows that say what this unit's arms did and did
+//! not move.
+//!
+//! The fixture is the one the pair is named for: a sphere threaded on a
+//! cylinder — centre on the cylinder's axis, `R > r` so the two walls
+//! genuinely cross, in two circles at `z = ±√((R−r)(R+r))` well inside
+//! the cylinder's own extent. Every body here is authored through the
+//! public extrude/revolve doors.
+//!
+//! **What the measurement found, and it was not presumed — including
+//! the parts that refuted the first guess.** Three doors were named as
+//! candidates. Two of them are reachable for this pair, one is not, and
+//! WHICH one a pose takes turns on whether the walls cross:
+//!
+//! - **The crossing coaxial pose builds through the carried lane.** The
+//!   crossing layer roots the cylinder's seam line on the ball's sphere
+//!   face, the section table decides the pair coaxial by margin (its two
+//!   circles, a closed form) and matches its germs on them, and the
+//!   join cuts both sides' chords from the circle a germ's branch names,
+//!   the circle itself over the two sites' angles
+//!   (`chord_join::carried_chord_spec`'s closed-form arm). It refused at
+//!   the join, `CurvedBooleanUnsupported` naming the cylinder, while the
+//!   carried lane chorded only fitted splines.
+//! - **A non-crossing pose — a ball wholly inside a wider cylinder —
+//!   builds**: no crossing is found, the containment fallback runs, and
+//!   the section pass certifies the sphere × wall pair apart.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
+use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::construction::Construct;
+use topo::{AtRestBody, Body, BooleanError};
+
+/// The cylinder: a circle of radius `r` at the origin, extruded along
+/// world Z from `z0` to `z1`. Its axis is Z.
+fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
+    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
+    .into_body()
+}
+
+/// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
+/// constructor chart — the same one SPHSPH measured on).
+fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(centre).unwrap()).unwrap()
+}
+
+/// The re-posed twin's map, off every axis plane.
+fn twin_map() -> Affine3<f64> {
+    Affine3::rotation_about_axis(
+        Point3::new(0.3, -0.2, 0.7),
+        Vec3::new(1.0, 2.0, 3.0).normalize(),
+        0.7,
+    ) * Affine3::translation(Vec3::new(0.11, 0.23, -0.37))
+}
+
+fn posed(b: &Body<f64>) -> Body<f64> {
+    topo::transform_rigid(
+        b,
+        &geom_core::test_support::rigid(&twin_map(), Tol::witness()),
+    )
+    .unwrap()
+}
+
+/// **The volume of the coaxial ball inside the cylinder**: the ball of
+/// radius `big` centred on the axis at height `zs`, cut by the cylinder
+/// of radius `r` between heights `z0` and `z1`. Each slice is a disc of
+/// radius `min(r, √(big² − u²))`, `u` the height off the ball's centre,
+/// so the integral is exact piecewise: `π r²` where the slice is the
+/// cylinder's, `π (big² − u²)` where it is the ball's.
+fn coaxial_lens(r: f64, (z0, z1): (f64, f64), big: f64, zs: f64) -> f64 {
+    use core::f64::consts::PI;
+    let (a, b) = (z0.max(zs - big), z1.min(zs + big));
+    if a >= b {
+        return 0.0;
+    }
+    let h = if big > r {
+        (big * big - r * r).sqrt()
+    } else {
+        0.0
+    };
+    // The dome's antiderivative in `u`.
+    let dome = |u: f64| PI * (big * big * u - u.powi(3) / 3.0);
+    let mut cuts = vec![a, b];
+    for k in [zs - h, zs + h] {
+        if a < k && k < b {
+            cuts.push(k);
+        }
+    }
+    cuts.sort_by(f64::total_cmp);
+    cuts.windows(2)
+        .map(|w| {
+            let mid = 0.5 * (w[0] + w[1]) - zs;
+            if mid.abs() < h {
+                PI * r * r * (w[1] - w[0])
+            } else {
+                dome(w[1] - zs) - dome(w[0] - zs)
+            }
+        })
+        .sum()
+}
+
+/// **THE OPENING MEASUREMENT, moved: the crossing coaxial pair builds
+/// every op through the carried lane.** The ball of radius `R` centred
+/// on the axis of the radius-1 cylinder `z ∈ [−2, 2]` crosses its wall
+/// in two circles (the ball inside the caps, one cap cut, the ball just
+/// wider than the wall); the join cuts both sides' chords from those
+/// circles, each a closed form, so every op in both operand orders and
+/// both poses builds, tiers 1 to 3, at the volume the slices integrate
+/// to ([`coaxial_lens`]). This pair refused at the join,
+/// `CurvedBooleanUnsupported` naming the cylinder, until the carried lane
+/// took closed forms.
+#[test]
+fn coaxial_poses_build_every_op_at_their_volumes() {
+    use core::f64::consts::PI;
+    use topo::BooleanOp::{Intersect, Subtract, Union};
+    let (r, zc) = (1.0_f64, (-2.0, 2.0));
+    let vc = PI * r * r * (zc.1 - zc.0);
+    let c = cyl(r, zc.0, zc.1);
+    for (big, z) in [(1.5_f64, 0.0), (1.2, 0.3), (1.05, -0.5), (1.8, 1.0)] {
+        let vs = 4.0 / 3.0 * PI * big.powi(3);
+        let vi = coaxial_lens(r, zc, big, z);
+        let s = ball_at(big, Vec3::new(0., 0., z));
+        for (pose, c, s) in [
+            ("direct", c.clone(), s.clone()),
+            ("re-posed twin", posed(&c), posed(&s)),
+        ] {
+            let (c, s) = (
+                finished(pose, c, Tol::witness()),
+                finished(pose, s, Tol::witness()),
+            );
+            for (op, x, y, want) in [
+                (Union, &c, &s, vc + vs - vi),
+                (Union, &s, &c, vc + vs - vi),
+                (Intersect, &c, &s, vi),
+                (Intersect, &s, &c, vi),
+                (Subtract, &c, &s, vc - vi),
+                (Subtract, &s, &c, vs - vi),
+            ] {
+                let label = format!("R {big} z {z}, {pose}, {op:?}");
+                let got = built_volume(&label, op, x, y).expect("a body");
+                assert!(
+                    (got - want).abs() <= 1e-9 * want,
+                    "{label}: {got} against {want}"
+                );
+            }
+        }
+    }
+}
+
+/// **The non-coaxial transversal pose crosses, passes the germ frame
+/// and the join, and builds.** The crossing that used to keep the pierce
+/// door is certified now by the conic × quadric root door
+/// (`geom_brep::curve_face::conic_quadric`), its pierce's sector side
+/// certifies, the matcher pairs the cylinder × sphere germs by foot on
+/// the section's one loop (`R < r + d`), and the join cuts both sides'
+/// chords from that loop; the cylinder and sphere faces they bound
+/// measure through the rotational lane, in both poses. The union is no
+/// legal operand only because a later boolean's point-in-solid walk
+/// cannot read its chorded sphere face
+/// (`crate::cylinder_sphere_frame::far_union`).
+#[test]
+fn a_transversal_pose_builds_in_both_poses() {
+    use core::f64::consts::PI;
+    let (r, z0, z1, big) = (1.0, -2.0, 2.0, 1.5);
+    let c = cyl(r, z0, z1);
+    let s = ball_at(big, Vec3::new(0.6, 0.0, 0.0));
+    // The operands' area: the cylinder's wall and caps, and the ball's
+    // sphere.
+    let area = 2.0 * PI * r * (z1 - z0) + 2.0 * PI * r * r + 4.0 * PI * big * big;
+    for (label, c, s) in [
+        ("direct", c.clone(), s.clone()),
+        ("re-posed twin", posed(&c), posed(&s)),
+    ] {
+        let (c, s) = (
+            finished(label, c, Tol::witness()),
+            finished(label, s, Tol::witness()),
+        );
+        let got = topo::union(&c, &s, Tol::witness());
+        if let Some(off) = crate::cylinder_sphere_frame::at_its_volume(
+            label,
+            got,
+            transversal_union_volume(),
+            crate::cylinder_sphere_frame::Ends::Builds,
+            crate::cylinder_sphere_frame::pad_ceiling(area),
+            &TRANSVERSAL_PAD_GUARDS,
+        ) {
+            panic!("{off}");
+        }
+    }
+}
+
+/// Regression guards on the transversal union's volume half-width,
+/// `(ε, width)`, not soundness bounds: four times the widest measured
+/// over both poses (debug, 2026-11-11), rounded up: `5.354e-6` at ε
+/// 1e-6, `7.907e-9` at 1e-9 and `4.758e-11` at 1e-12. Any other ε reads
+/// the resolution ceiling alone.
+const TRANSVERSAL_PAD_GUARDS: [(f64, f64); 3] = [(1e-6, 2.2e-5), (1e-9, 3.2e-8), (1e-12, 2.0e-10)];
+
+/// The transversal pose's union, independently of the kernel: the
+/// cylinder `r = 1`, `z ∈ [−2, 2]`, and the ball of radius `1.5` about
+/// `(0.6, 0, 0)`, their common part sliced along the cylinder's axis,
+/// each slice the lens of the unit disc and the ball's disc
+/// `0.6` off it (`cylinder_sphere_frame::lens`), by adaptive
+/// Gauss–Kronrod.
+fn transversal_union_volume() -> f64 {
+    use crate::cylinder_sphere_frame::{gk, lens};
+    use core::f64::consts::PI;
+    let big = 1.5_f64;
+    let common = gk(
+        &|z: f64| lens(1.0, (big * big - z * z).max(0.0).sqrt(), 0.6),
+        -big,
+        big,
+        1e-13,
+        24,
+    );
+    PI * 4.0 + 4.0 / 3.0 * PI * big.powi(3) - common
+}
+
+/// **A chorded sphere face whose sense bit is flipped is refused at rest
+/// as a lamina**: the rotational lane reads the bit with no cross-check
+/// (a loop on a sphere bounds a face on each side), so under the flipped
+/// bit the face would measure as its complement; tier 3 exempts the
+/// face from its sense cross-check and refuses the body at check 4
+/// instead, where the flipped face meets its neighbours along a wedge of
+/// no angle (`ValidationError::LaminaWedge`). Every sphere face of the
+/// transversal union, flipped alone.
+#[test]
+fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
+    let tol = Tol::witness();
+    let c = finished("c", cyl(1.0, -2.0, 2.0), tol);
+    let s = finished("s", ball_at(1.5, Vec3::new(0.6, 0.0, 0.0)), tol);
+    let got = topo::union(&c, &s, tol).expect("the union builds");
+    let body = &got.body().expect("a body").body;
+    let spheres: Vec<_> = body
+        .faces()
+        .filter(|(k, _)| matches!(body.face_surface(*k), Some(geom::Surface::Sphere { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    assert!(!spheres.is_empty(), "the union holds a sphere face");
+    for k in spheres {
+        let flipped = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .unwrap();
+        let errs = topo::finish::<f64>(flipped, tol)
+            .err()
+            .unwrap_or_else(|| panic!("{k:?} flipped finishes"));
+        assert!(
+            errs.as_slice()
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::LaminaWedge { .. })),
+            "{k:?} flipped: {errs:?}"
+        );
+    }
+}
+
+/// The boolean's volume, `None` for an empty result, after tiers 1–3;
+/// a refusal fails with the payload.
+fn built_volume(
+    label: &str,
+    op: topo::BooleanOp,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> Option<f64> {
+    let tol = Tol::witness();
+    let out = match op {
+        topo::BooleanOp::Union => topo::union(a, b, tol),
+        topo::BooleanOp::Intersect => topo::intersect(a, b, tol),
+        topo::BooleanOp::Subtract => topo::subtract(a, b, tol),
+    }
+    .unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+    let body = &out.body()?.body;
+    assert_eq!(topo::validate(body), Ok(()), "{label}: tier 1");
+    assert_eq!(topo::validate_closed(body), Ok(()), "{label}: tier 2");
+    assert_eq!(
+        topo::validate_geometric(body, tol),
+        Ok(()),
+        "{label}: tier 3"
+    );
+    Some(topo::test_support::pinned_volume("the measured body", body, tol).volume)
+}
+
+/// **The non-crossing pose: a ball wholly inside a wider cylinder.**
+/// No crossing exists, so the containment fallback runs, and the
+/// sphere × cylinder pair is the section pass's: the ball's sphere and
+/// the wall's carrier have no section at all (centred on the axis, and
+/// off it), so the pass clears the pair and the vertex probe answers.
+/// Every op builds in both operand orders and both poses, against
+/// `π r² h` and `4πρ³/3`.
+#[test]
+fn a_contained_ball_builds_through_the_section_pass() {
+    use core::f64::consts::PI;
+    use topo::BooleanOp::{Intersect, Subtract, Union};
+    let (r, h, rho) = (2.0_f64, 4.0, 0.5_f64);
+    let (vc, vs) = (PI * r * r * h, 4.0 / 3.0 * PI * rho.powi(3));
+    let c = cyl(r, -2.0, 2.0);
+    for centre in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.9, 0.8, -1.2)] {
+        let s = ball_at(rho, centre);
+        for (pose, c, s) in [
+            ("direct", c.clone(), s.clone()),
+            ("re-posed twin", posed(&c), posed(&s)),
+        ] {
+            let (c, s) = (
+                finished(pose, c, Tol::witness()),
+                finished(pose, s, Tol::witness()),
+            );
+            for (op, x, y, want) in [
+                (Union, &c, &s, Some(vc)),
+                (Union, &s, &c, Some(vc)),
+                (Intersect, &c, &s, Some(vs)),
+                (Intersect, &s, &c, Some(vs)),
+                (Subtract, &c, &s, Some(vc - vs)),
+                (Subtract, &s, &c, None),
+            ] {
+                let label = format!("{pose}, ball at {centre:?}, {op:?}");
+                let got = built_volume(&label, op, x, y);
+                match (got, want) {
+                    (Some(v), Some(w)) => {
+                        assert!((v - w).abs() <= 1e-9 * w, "{label}: {v} against {w}");
+                    }
+                    (None, None) => {}
+                    _ => panic!("{label}: {got:?} against {want:?}"),
+                }
+            }
+        }
+    }
+}
+
+/// **A ball scraping the wall from inside, in an oval interior to both
+/// faces.** Poled along z with its seam meridians in the plane
+/// `y = 1.8`, the ball centred at `(0, 1.8, 0)` pokes through the wall
+/// (`1.8 + 0.5 > 2`) without any edge of either body crossing a face:
+/// the seam stays inside the cylinder, the cylinder's seam line and
+/// rims stay clear of the ball. The section is one oval inside both
+/// faces, which the section pass certifies and refuses (R-loop), typed
+/// as the fallback's extent refusal. Were the pass not to take the pair
+/// up, the vertex probe would answer for it and count the lens wrong.
+#[test]
+fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
+    let c = cyl(2.0, -2.0, 2.0);
+    let poled_z = Affine3::translation(Vec3::new(0.0, 1.8, 0.0))
+        * Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(1.0, 0.0, 0.0),
+            core::f64::consts::FRAC_PI_2,
+        );
+    let s = topo::transform_rigid(
+        &ball_at(0.5, Vec3::new(0.0, 0.0, 0.0)),
+        &geom_core::test_support::rigid(&poled_z, Tol::witness()),
+    )
+    .unwrap();
+    for (pose, c, s) in [
+        ("direct", c.clone(), s.clone()),
+        ("re-posed twin", posed(&c), posed(&s)),
+    ] {
+        let (c, s) = (
+            finished(pose, c, Tol::witness()),
+            finished(pose, s, Tol::witness()),
+        );
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("the oval is interior");
+        let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+            panic!("{pose}: expected the section pass's refusal, got {err:?}");
+        };
+        assert!(
+            what.contains("closed loop interior to both"),
+            "{pose}: {what}"
+        );
+    }
+}
+
+/// **A torus operand passes the pair gate and refuses typed at the
+/// crossing layer.** The torus is on the union's KIND roster, so the
+/// cylinder×torus union is no longer the gate's to refuse. The
+/// cylinder's rim circles genuinely cross the tube (the ring passes
+/// through the cylinder's end caps at `(0, 0, ±2)`), and that
+/// circle×torus crossing has a root lane (`geom_brep::curve_face::circle_torus`),
+/// as the OTHER direction's does — a circle of the torus against the
+/// cylinder's wall, the conic × quadric root door
+/// (`geom_brep::curve_face::conic_quadric`). Their pierces' sector sides
+/// certify, and what refuses is a germ pair's section — never a body.
+/// A germ's branch is read where it is minted: the wall × torus pair
+/// stands square to the torus's axis, a section the value counts and
+/// carries, each germ its site's foot; the end cap's against the torus,
+/// the cap plane parallel to the torus's axis at its inner equator, is a
+/// general-rung spiric (`GermSectionSpiric`), which refuses.
+///
+/// The pair gate's own sentence is pinned on a cone, the kind it still
+/// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
+/// join dispatch's text by
+/// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below.
+#[test]
+fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
+    let torus = {
+        // A torus operand reaches the pair/kind refusal, which is the
+        // door that carries the fitted-chord sentence.
+        let lp = bulge_loop(vec![
+            (Point2::new(2.0, -0.3), 1.0),
+            (Point2::new(2.0, 0.3), 1.0),
+        ]);
+        let vp = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tol::witness())
+            .unwrap();
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        };
+        revolve(&vp, axis, Revolution::Full, Tol::witness())
+            .unwrap()
+            .body
+    };
+    let a = cyl(1.0, -2.0, 2.0);
+    // The refusal names no edge, so the sweep's trace says which events
+    // it took: a circle of the torus (B) on the cylinder's wall (A).
+    let (_, ba) = topo::sweep_traces(
+        &a,
+        &torus,
+        topo::SweepStrategy::Realized,
+        None,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
+    let torus_circle_on_wall = ba.accepted().iter().any(|(e, f)| {
+        let circle = torus
+            .get_edge(*e)
+            .and_then(|e| torus.get_curve_geom(e.curve))
+            .and_then(topo::CurveGeom::certified)
+            .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
+        let wall = matches!(a.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
+        circle && wall
+    });
+    assert!(
+        torus_circle_on_wall,
+        "a torus circle meets the cylinder's wall"
+    );
+    let err = topo::union(
+        &finished("the cylinder", a, Tol::witness()),
+        &finished("the torus", torus, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect_err("a germ pair's section refuses");
+    assert!(
+        matches!(
+            err,
+            BooleanError::GermSectionSpiric {
+                a_kind: geom::SurfaceKind::Plane,
+                b_kind: geom::SurfaceKind::Torus,
+                ..
+            }
+        ),
+        "expected a germ pair's section door, got {err:?}"
+    );
+}
+
+/// **The germ-pair JOIN dispatch's refusal says what that dispatch
+/// actually wires** — the corrected clause, read off a CONSTRUCTED
+/// `CurvedBooleanUnsupported`, which no row in the tree did before.
+///
+/// The clause it replaces was created by this unit's own refusal-text
+/// sweep and was measured FALSE: it said the join dispatch wires
+/// `(Sphere, Sphere)` and a declared-coaxial `(Cylinder, Sphere)`. It
+/// does not. `join::bool_connect`'s match has three arms —
+/// `(Plane, Plane)`, `(Plane, Sphere) | (Plane, Cylinder)` and the
+/// mirror of the second — and its catch-all is the site that raises
+/// THIS variant, so a sphere pair or a cyl×sphere germ reaches the
+/// catch-all exactly like a cone or torus one. What IS wider is
+/// `join::pair_section_frame`, a different dispatch answering a
+/// different question: it names a section frame (a centre and an axis
+/// for the rotational facing test), never a seam lane. The wired pairs
+/// are stated once, in `topo`'s `meeting::meeting_recourse`, and every refusal
+/// that names them renders that one sentence, so there is no second
+/// Display left to disagree with.
+///
+/// **The refusal is read off the variant, and the NURBS wall that once
+/// reached it end to end is pinned where it stops.** The variant is
+/// per-KIND and its Display carries no per-site branch, so the sentence
+/// is the variant's whatever raises it. A cylinder with one wall
+/// relabelled to the NURBS placeholder is not a finished body — the
+/// at-rest gate refuses the wall as uncertifiable — so it never reaches
+/// the crossing layer. The cyl×sphere and sphere×sphere crossings are
+/// stopped two layers above (the rows at the top of this file are that
+/// measurement), so the join dispatch's catch-all cannot be reached end
+/// to end for them either. The error has several raise sites
+/// (`sectors.rs`, `vtxfac.rs`, `recl.rs`, `reduce.rs` beside `join.rs`).
+#[test]
+fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
+    let mut b = cyl(1.0, -0.5, 0.5);
+    let (face, _) = b.faces().next().unwrap();
+    // Lifts RechartStrandsDescriptions: the relabelled face is the join dispatch's input.
+    b.set_face_surface_unvouched_for_tests(
+        face,
+        topo::construction::FaceSurface::New {
+            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let errors = topo::finish(b, Tol::witness())
+        .expect_err("a NURBS placeholder wall is not a finished body");
+    assert!(
+        errors.iter().any(
+            |e| matches!(e, topo::ValidationError::UncertifiableSurface { face: f } if *f == face)
+        ),
+        "the at-rest gate names the placeholder wall: {errors:?}"
+    );
+    let err = BooleanError::CurvedBooleanUnsupported {
+        operand: topo::Operand::B,
+        face,
+        kind: geom::SurfaceKind::Nurbs,
+    };
+    let msg = err.render(geom_brep::recourse::Reading::Build);
+    // What the JOIN dispatch wires, stated as the recourse: a plane
+    // face against a plane, cylinder, sphere or cone face, or a torus
+    // face where the plane holds its axis or stands square to it — so
+    // the sentence does not claim the wider SECTION-FRAME dispatch's
+    // pairs as join arms.
+    let wired = "every meeting is a plane against a plane, cylinder, sphere, cone, or torus \
+                 whose axis it holds or is square to";
+    assert!(
+        msg.contains(wired),
+        "the refusal does not state what that dispatch wires: {msg}"
+    );
+}

@@ -1,0 +1,59 @@
+---
+id: the-spline-chart-cell-walk-is-written-twice
+kind: issue
+title: The spline chart's Bézier cell walk is written twice, in geom-brep and topo
+status: open
+opened: 2026-11-04
+priority: P3
+cost: M
+---
+
+
+Filed by `pcert/spline-chart-incidence`. `geom-brep/src/pcurve_cache/spline_incidence.rs`
+(a carrier's incidence on a spline chart) and `topo/src/spline_trim.rs`
+(a point against a spline face's trim, and the cells the boolean's carrier walk
+in `topo/src/spline_region.rs` reads) each cut the chart into Bézier cells and walk them
+by a hull lower bound and a chart-point upper bound. Differences worth one home:
+
+- Both cuts now refine the homogeneous net through the kernel's insertion plans
+  in the scalar (`refined`: `plan_inputs::refine_plan` +
+  `CurvePlan::apply_homogeneous`), each with its own copy of `refined`.
+- topo's `Patch::extent` reads `value_channel`, NaN for a wide cell, so at
+  `Interval` a kept cell would be a leaf at depth 0 (read, not run).
+- geom-brep's floor adds the slab bound. Both now charge the cut's `f64`
+  rounding, and the charge is **written twice**: `splice/spline-region-charge`
+  (`work/splice/spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor.md`)
+  copied `Control`, `blend`, `refined`, `point_rounding` and the floor's
+  `rounding_charge` into `topo/src/spline_region.rs` (now `topo/src/spline_trim.rs`) instead of moving
+  them to one home, because a live PCERT branch
+  (`pcert/spline-certificate-door`) was editing `spline_incidence.rs` at the
+  time. topo's copy also charges the trim's pieces (`Piece::bbox`) and holds
+  its cells about the control box's middle, as geom-brep's does. topo's cut now
+  runs through the kernel's insertion plans, not `refine_knots`.
+- The caps drift: geom-brep's walk halves a cell across its longer way up to 96
+  times and visits 4096 cells a sample (`CELL_DEPTH`, `CELL_VISITS`); topo's
+  quarters up to 48 times and visits 8192 (its `CELL_DEPTH`, `CELL_VISITS`).
+
+Every home of a cell cut or a cell hull a single home would take in (review
+fix Y12, PR 6498):
+
+- `geom-brep/src/pcurve_cache/spline_incidence.rs`: `Net::of`, `refined`,
+  `Cell::split`, the floor (box and slab) and its `f64` charge;
+- `topo/src/spline_trim.rs`: `bezier_cells`, `refined`, `blend`,
+  `point_rounding`, `Patch::split`, `Patch::floor`, and the trim's `Piece`;
+- `geom-brep/src/patch_bound.rs`: `patch_cells`, `patch_cells_across_creases`,
+  `patch_cells_refined` (an `f64` chart's partials per cell);
+- `geom-core/src/spline/compose/patch.rs`: `PatchSpans::decompose`, one
+  interval channel per cell;
+- `geom-brep/src/ssi/enclose.rs`: `NurbsBoxes`;
+- the refinement routes: `geom_core::spline::RingRefinement` and
+  `refine_plan_homogeneous` + `CurvePlan::apply_certified` (one `Interval`
+  channel), and `plan_inputs::refine_plan` + `CurvePlan::apply_homogeneous` (any
+  scalar).
+
+Move the cells, the cut and the floor to one home in geom-brep and read them from
+both.
+
+2026-11-14 (`tesslane/spline-ring-door`): topo's cells (`bezier_cells`, `Patch`, `refined`, `blend`, `point_rounding`) and the trim's `Piece` now live at the crate root, `topo/src/spline_trim.rs`, beside the trim that meters by them; the boolean's carrier walk reads them from there. Their one home in geom-brep is still this row's.
+
+**Note from `a-place-is-an-f64-argument-answered-on-the-value-channel` (PR 7250).** The two `refined` copies answer an inserted knot the held runs do not hold differently: `spline_trim`'s enters it as a computed value (`T::from_computed(v)`), `spline_incidence`'s as NaN, the poison. Both are right for their callers: `spline_incidence` inserts only the chart's own breakpoints, so an unheld knot there is a defect and poisons the row; `spline_trim`'s is also called by `bezier_pieces`, which inserts a pcurve image's span ends `a`, `b`, places the image is cut at. One home has to keep that difference as a parameter (held breakpoints only, or breakpoints and cut points). Both walks now run only at a scalar that carries no tangent (`Decide<Value = T>`), with their places handed to `eval_at`.

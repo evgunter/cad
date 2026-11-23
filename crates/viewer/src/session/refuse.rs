@@ -1,0 +1,1456 @@
+//! **Why an operation did not happen**: the session's refusal
+//! vocabulary, its ranking ladder, and the sentences the chrome shows
+//! beside a refusal.
+//!
+//! A VOCABULARY. [`Refusal`] is a value, [`Refusal::rank`] orders two
+//! of them and the wording composers are pure functions over their
+//! arguments; nothing here names the session. [`NodeKindWanted`] and
+//! [`admits`] live here because the kind a seat wants is a
+//! [`Refusal::WrongNodeKind`] payload and `admits` is its predicate,
+//! and [`Step`] for the same reason — it is the
+//! [`Refusal::NothingToDo`] payload and [`Refusal::nothing_to_step`]
+//! is its predicate, over the history vocabulary the moves live in.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
+
+use pncad::document::{
+    Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
+    ProfileProgram, RecipeNodeId, Said, Sentence, SlotId, SlotKind, Speaker, SpokenNode,
+    SpokenSpace, SpokenVar, VarId, VarKind, VarName, say,
+};
+use std::path::{Path, PathBuf};
+
+use pncad::workspace::WorkspaceError;
+
+// The recourse this module's `NoSuchVariable` arm ends on, read from its
+// one home beside the error whose door raises the other half of the
+// pair. A direct edge on the owning crate rather than a new re-export
+// added to `pncad`'s root — the rule `pncad`'s own crate docs state
+// for a name the facade does not carry, and the same one this crate's
+// `bvh` and `Rgba8` edges cite.
+use editor_core::edit::UNKNOWN_VAR_RECOURSE;
+
+use crate::combine;
+use crate::display::{AdmissionFault, DisplayFault};
+use crate::docio::DocIoError;
+use crate::history::History;
+use crate::props::{self, Notation, SlotValue};
+use crate::session::SessionOp;
+
+/// The node kind a creation op's seat requires — the payload of
+/// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
+/// in the vocabulary's own words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeKindWanted {
+    /// A `Node::Profile`.
+    Profile,
+    /// A read of ONE body — the combining seats' kind: a node whose one
+    /// output is a body, or a split's half read by its port
+    /// ([`admits_read`]).
+    Body,
+    /// A FAMILY — what an indexed read (`BodyRead::indexed`) indexes: a
+    /// node evaluated once per value of the indices it reaches (D10
+    /// `[repetition]`).
+    Instances,
+}
+
+/// **Whether `node` in `doc` is the wanted kind** — the one
+/// classification behind every creation seat's gate, a node `doc` does
+/// not hold reading as "no", because a seat naming nothing and a seat
+/// naming the wrong thing both mean there is nothing of that kind
+/// there to consume.
+///
+/// A free function rather than a `DocSession` method because the
+/// question is asked in two places for two purposes: the commit door
+/// asks it to REFUSE ([`super::DocSession::require_kind`]), and a tool's
+/// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
+/// answer for both is what keeps a seat from steering a pick the door
+/// would then reject.
+///
+/// **A body is the edit door's own kind check**: the read a node named
+/// alone takes ([`Doc::read_of_node`]) is a `Body` variable
+/// ([`holds_body`]). A node of several outputs (a split's sides, a
+/// revolve's body beside its axis) has no such read. A family by
+/// repetition — a pattern, or a placement of one — defines a `Body`
+/// variable reaching an index, and the gate admits it. Evaluation then
+/// follows D10 `[repetition]`: an operation reading it is evaluated
+/// once per member, except `union`, `intersect` and `assemble`, which
+/// take the family whole. The answer is about the recipe, not one
+/// evaluation of it: what the read evaluates to under the current
+/// parameters, an empty boolean or a node's own refusal, is that
+/// node's result. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
+/// holds the seat to the edit door, and
+/// `::the_body_seats_admissions_evaluate_as_bodies` to evaluation.
+pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWanted) -> bool {
+    let held = doc.node(node);
+    match wanted {
+        NodeKindWanted::Body => holds_body(doc, doc.read_of_node(node)),
+        NodeKindWanted::Instances => {
+            held.is_some()
+                && doc
+                    .node_reach(node)
+                    .chain()
+                    .is_some_and(|chain| !chain.is_empty())
+        }
+        NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
+    }
+}
+
+/// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
+/// node named alone, and for a port the kind of the variable it names
+/// (a split's half is a body), a family being, as [`admits`] reads it,
+/// a variable evaluated once per member — the gate every body seat's
+/// commit asks of the read it holds.
+pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
+    let var = match read {
+        Operand::Node(node) => return admits(doc, *node, wanted),
+        Operand::Output { node, port } => doc.output(*node, *port),
+        Operand::Var(var) => Some(*var),
+        Operand::Name(name) => doc.var_named(name.as_str()),
+        // A pick reads one piece of a copy, and a source one body.
+        Operand::Pick { .. } | Operand::Source(_) => return wanted == NodeKindWanted::Body,
+        Operand::Select { .. } | Operand::Pose(_) => return false,
+    };
+    match wanted {
+        NodeKindWanted::Body => holds_body(doc, var),
+        NodeKindWanted::Instances => var.is_some_and(|var| {
+            doc.var_reach(var)
+                .chain()
+                .is_some_and(|chain| !chain.is_empty())
+        }),
+        NodeKindWanted::Profile => false,
+    }
+}
+
+/// **Whether `var` is a live `Body` variable**, by the edit door's own
+/// slot check (`SlotKind::admits`) — the one spelling of the body
+/// gate's kind test.
+fn holds_body(doc: &Doc<ProfileProgram>, var: Option<VarId>) -> bool {
+    var.and_then(|var| doc.var(var))
+        .is_some_and(|var| SlotKind::Is(VarKind::Body).admits(var))
+}
+
+/// **Which seat kind a node is by its kind alone**, or `None` for a
+/// node no profile seat takes — the one
+/// classification [`admits`] reads for every kind but the two read off
+/// the variable a node named alone defines ([`NodeKindWanted::Body`],
+/// [`NodeKindWanted::Instances`]).
+pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
+    match node {
+        Node::Profile(_) => Some(NodeKindWanted::Profile),
+        Node::Split { .. }
+        | Node::Mirror { .. }
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Subtract { .. }
+        | Node::Union { .. }
+        | Node::Intersect { .. }
+        | Node::Assemble { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Place { .. }
+        | Node::Datum { .. }
+        | Node::World
+        | Node::Space
+        | Node::Measure { .. }
+        | Node::Assertion(_) => None,
+    }
+}
+
+impl NodeKindWanted {
+    /// The kind's name, for sentences.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Profile => "a profile",
+            Self::Body => "a body",
+            Self::Instances => "a pattern",
+        }
+    }
+}
+
+/// Which way a history step goes — the payload of
+/// [`Refusal::NothingToDo`], so the refusal names the direction that
+/// had nothing rather than hedging over both.
+///
+/// **It is the direction as a VALUE, which is why a third naming of
+/// undo-and-redo earns its place.** [`super::SessionOp::Undo`] and
+/// [`super::SessionOp::Redo`] are two operations and
+/// [`crate::history::History`]'s `undo`/`redo` are two moves; neither
+/// distinction can be passed to anything. This one can, and that is
+/// what lets the direction-to-sentence map below and the toolbar's
+/// two-row table each be written once instead of twice — which is the
+/// whole of what this program asked for here.
+///
+/// It lives in this module rather than beside the moves for the
+/// reason [`NodeKindWanted`] does — it is a `Refusal` payload and
+/// [`Refusal::nothing_to_step`] is its predicate — and the stronger
+/// reason is the one that answers the obvious alternative: folding
+/// `History::can_undo`/`can_redo` into one `can_step(Step)` would
+/// replace two predicates that say which way they go, at eleven
+/// reading sites that know their direction already, with one that
+/// makes every reader carry an argument.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Step {
+    /// Toward the root — [`super::SessionOp::Undo`].
+    Undo,
+    /// Along the current branch — [`super::SessionOp::Redo`].
+    Redo,
+}
+
+impl Step {
+    /// The verb, for a sentence a person reads.
+    fn verb(self) -> &'static str {
+        match self {
+            Self::Undo => "undo",
+            Self::Redo => "redo",
+        }
+    }
+}
+
+/// **Why the door refuses a `SetBundle`** (`DocSession::bundle_door`):
+/// the three refusals its judgement answers, each a [`Refusal`] arm's
+/// payload. Kept beside the judgement, and owned again as that arm
+/// wherever it is said or an op lands with it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BundleRefusal {
+    /// [`Refusal::BundleStale`].
+    Stale {
+        /// The placement, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// [`Refusal::Edit`]: the bundle's edit refused, respoken.
+    Edit(Box<EditError>),
+    /// [`Refusal::PlacementFails`].
+    Fails {
+        /// The fault the placement would evaluate to.
+        fault: Option<Box<pncad::document::MateFault>>,
+    },
+}
+
+impl From<BundleRefusal> for Refusal {
+    fn from(refusal: BundleRefusal) -> Self {
+        match refusal {
+            BundleRefusal::Stale { node } => Self::BundleStale { node },
+            BundleRefusal::Edit(error) => Self::Edit(error),
+            BundleRefusal::Fails { fault } => Self::PlacementFails { fault },
+        }
+    }
+}
+
+/// **Typed text that did not parse** ([`crate::session::parse_text`]):
+/// [`Refusal::Parse`] before a door raises it, said in its words, so a
+/// field that reports it without the door (`matetool::typed_value`) says
+/// the door's sentence and holds nothing but a parse refusal.
+#[derive(Debug, Clone)]
+pub struct ParseRefusal(pub Box<ParseError>);
+
+impl From<ParseRefusal> for Refusal {
+    fn from(refusal: ParseRefusal) -> Self {
+        Self::Parse(refusal.0)
+    }
+}
+
+impl core::fmt::Display for ParseRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        parse_said(f, &self.0)
+    }
+}
+
+/// [`Refusal::Parse`]'s sentence.
+fn parse_said(f: &mut core::fmt::Formatter<'_>, error: &ParseError) -> core::fmt::Result {
+    write!(f, "the expression did not parse: {error}")
+}
+
+/// Why an operation did not happen. Every arm is a value the chrome
+/// renders; none is a message this layer composed about someone else's
+/// failure.
+#[derive(Debug)]
+pub enum Refusal {
+    /// The slot is driven by an expression, so a drag over it is
+    /// refused with the affordance G4 ratifies. A typed number is not refused: it replaces the expression
+    /// ([`crate::session::SessionOp::SetSlot`]). The payload is what the
+    /// affordance needs: which variables drive it (each navigable and
+    /// editable), and what the slot evaluates to today.
+    DrivenByExpression {
+        /// The node holding the slot.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+        /// The variables the driving expression reads, each as the
+        /// document spoke it at the refusal.
+        variables: Vec<SpokenVar>,
+        /// The slot's current value, when it has one.
+        current: Option<SlotValue>,
+        /// The working notation the affordance reads `current` in —
+        /// the one in force when the edit was refused, since nobody
+        /// wrote that value.
+        notation: Notation,
+    },
+    /// The node does not exist, or does not carry that slot.
+    NoSuchSlot {
+        /// The node named, as the document held it at the refusal.
+        node: SpokenNode,
+        /// The slot named.
+        slot: SlotId,
+    },
+    /// No document variable with that id.
+    ///
+    /// A LOOKUP's not-found arm, never a pre-check: the sites that
+    /// raise it need the declaration itself — its dimension to open a
+    /// gesture, an operand to read — and none
+    /// commits an edit, so no door below refuses on their behalf. The
+    /// value door does refuse a variable the document does not hold,
+    /// and says so in editor-core's words ([`EditError::UnknownVar`],
+    /// reached through [`Self::Edit`]).
+    ///
+    /// **One mistake reaches two sentences, and that is decided rather
+    /// than left.** Typing into the value field of a variable the
+    /// document no longer holds goes to the edit door; dragging its
+    /// row comes here. The two cannot be made one refusal without
+    /// putting back the pre-check the door already refuses — so what
+    /// is converged is what the
+    /// user must DO: this arm renders the same recourse the door
+    /// renders — [`editor_core::edit::UNKNOWN_VAR_RECOURSE`], its
+    /// one home — over the same fact. What stays apart is
+    /// the frame, and it has to: the door's sentence is about an edit
+    /// that was refused, and a drag has no edit behind it, so a
+    /// gesture that borrowed the door's frame would report a
+    /// refusal of something nobody attempted.
+    NoSuchVariable(VarId),
+    /// An offer was accepted ([`SessionOp::SetSlotVariable`]) of a
+    /// variable that is not on offer at that slot: the offer closed —
+    /// the slot was retyped, dragged, undone — or never named it. An
+    /// offer is made only about a value as it was typed, so the op
+    /// refuses rather than join the slot to a variable chosen against a
+    /// value it no longer holds.
+    ///
+    /// [`SessionOp::SetSlotVariable`]: crate::session::SessionOp::SetSlotVariable
+    NotOffered(SpokenVar),
+    /// [`SessionOp::SetSlotVariable`] carried a name for a variable
+    /// that already has one. A name is given to share an unnamed
+    /// variable (VR2); a named one is shared by the name it holds, and
+    /// accepting its offer renames nothing.
+    ///
+    /// [`SessionOp::SetSlotVariable`]: crate::session::SessionOp::SetSlotVariable
+    OfferIsNamed(SpokenVar),
+    /// A variable's field was given a constant expression that does
+    /// not evaluate to a value — a non-finite result, or a count past
+    /// its range. Constant text typed as a value is folded here, before
+    /// any door, so the evaluator's refusal is this door's to forward.
+    ConstantRefused {
+        /// The variable whose field was typed into.
+        var: SpokenVar,
+        /// The evaluator's refusal, in its own words.
+        source: EvalError,
+    },
+    /// The New door was asked for a blank name.
+    EmptyName,
+    /// A creation op named a node that is not the kind its seat
+    /// requires — absent, or of another kind. Refusing here keeps
+    /// "that is not a profile/axis" a fact stated at the door rather
+    /// than a failed node discovered after the edit lands; one arm
+    /// for every seat, so the sentence is spelled once (GAUTH-4/5 add
+    /// more seats to the same rule).
+    WrongNodeKind {
+        /// The node named, as the document held it at the refusal.
+        node: SpokenNode,
+        /// The kind the seat requires.
+        wanted: NodeKindWanted,
+    },
+    /// A body seat's read names no output of the document: a selection,
+    /// or a variable name nothing defines. A seat reads a node or one of
+    /// its outputs.
+    NotABodyRead {
+        /// The read, as the session op held it.
+        read: Box<Operand>,
+    },
+    /// Entities picked on a drawn family are read in no one member of
+    /// it: a selection reads one body (REFERENCES DM3), and the picks lie
+    /// in two members, or in none the landed evaluation finds.
+    PickedMember {
+        /// The family, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// The step that clears a body could not be measured — its input's
+    /// landed value is not one body with a width
+    /// ([`combine::StepClearFault`]).
+    StepClear(combine::StepClearFault),
+    /// A gesture's frame could not be made: one of its numbers is not
+    /// of its dimension or does not evaluate, its direction is none, or
+    /// the body it reads the frame off offers no geometry to read
+    /// ([`GestureFrameFault`]).
+    Frame(Box<GestureFrameFault>),
+    /// `apply` refused the edit — the door's own sentence, forwarded.
+    ///
+    /// **Layer 3 adds a frame and never a second opinion.** Every
+    /// condition `apply` refuses is refused there and rendered in
+    /// `EditError`'s words; a flat arm restating one would be two
+    /// spellings of a rule with one home (`crates/viewer/README.md`).
+    ///
+    /// Boxed, as `Io` is below: these two payloads are an order of
+    /// magnitude larger than every other arm, and a refusal is
+    /// returned by value from functions on the ordinary path — so the
+    /// unboxed shape made every `Ok` in this module pay for the widest
+    /// error nobody was raising.
+    Edit(Box<EditError>),
+    /// The value was not a usable dimensioned literal.
+    Dimension(DimensionError),
+    /// The expression text did not parse.
+    Parse(Box<ParseError>),
+    /// A gesture operation arrived with no gesture in flight.
+    NoGesture,
+    /// A gesture is in flight, so this operation is not available.
+    GestureInFlight,
+    /// A gesture operation named a target that is not the open
+    /// gesture's — a preview or a commit for a field other than the
+    /// one being dragged.
+    ///
+    /// **Separate from [`Refusal::GestureInFlight`] because it answers
+    /// a different question.** That one says a drag is open at all —
+    /// either because the operation is unavailable while one is
+    /// ([`super::SessionOp::permitted_during_value_gesture`]) or
+    /// because it would open a second ([`crate::g1::Slot::begin`]) —
+    /// and the driving operations are neither. This one is about this
+    /// operation's own payload against this session's own gesture, and
+    /// folding the two into one refusal would make the table's answer
+    /// unreadable from the outcome.
+    ///
+    /// It carries no payload and ranks with the bookkeeping refusals
+    /// for one reason: it arrives in a batch behind the
+    /// `GestureInFlight` that refused the drag's begin, and that is
+    /// the sentence with the remedy in it.
+    WrongGesture,
+    /// A file operation failed.
+    Io(Box<DocIoError>),
+    /// Undo at the root, or redo at the tip of the current branch.
+    ///
+    /// **The direction is the payload because the answer is about one
+    /// direction and not both.** Undo at the root refuses while a redo
+    /// is waiting on the branch the cursor just left, so a sentence
+    /// naming both is false of the half that is live — and the two
+    /// controls that produce these ops are separate buttons, each of
+    /// which shows this refusal's words before the click
+    /// ([`Self::nothing_to_step`]).
+    NothingToDo {
+        /// The direction asked for.
+        direction: Step,
+    },
+    /// A display-state operation refused (a display op on an id the
+    /// document does not hold, hide on a non-instance, a free-move on
+    /// a copy in the world's space, a gesture out of order) — the
+    /// fault's own typed vocabulary, unaltered.
+    Display(DisplayFault),
+    /// A written-unit change refused — the panel model's own typed
+    /// vocabulary, unaltered.
+    SlotUnit(props::SlotUnitFault),
+    /// A `range?` the kernel's admission refuses, before any geometry
+    /// runs (`pncad::analysis::range::admit`) — the refusal's own
+    /// vocabulary, unaltered.
+    Range(Box<pncad::analysis::RangeRefusal>),
+    /// The session has no backing file, so there is no directory for a
+    /// part reference to be picked from or to resolve against — the
+    /// directory rule's consequence at authoring time. Its recourse
+    /// rides the sentence, composed in `Display` like every other arm
+    /// here.
+    NoDocumentDirectory,
+    /// The workspace refused — the scan (duplicate id, unreadable
+    /// sibling) or the read of the part being referenced — in the
+    /// store's own words.
+    ///
+    /// Boxed for [`Refusal::Edit`]'s reason: its widest arms carry two
+    /// paths (a duplicate id names both claimants) or a path with two
+    /// pins (a mismatch names what was wanted and what was found).
+    Workspace(Box<WorkspaceError>),
+    /// The open document was asked to instantiate ITSELF.
+    ///
+    /// Refused at the door rather than left to fail later. A
+    /// self-reference pins the file's content as it stands, and what
+    /// happens next depends on what that file then does: a save moves
+    /// the content and the pin stops holding, while a pin that still
+    /// holds sends the evaluation back into the document it started
+    /// in, where the descent refuses the cycle by name. Neither
+    /// outcome is one anybody asked for. `refactor`'s split door
+    /// refuses a self-referencing identity in the same spirit, though
+    /// for its own first reason — the produced pair could not both
+    /// live in one store — with the evaluation cycle recorded beside
+    /// it.
+    SelfInstance {
+        /// The identity that is both the open document and the part
+        /// asked for.
+        id: DocumentId,
+    },
+    /// The path editor's program was loaded from one the document no
+    /// longer holds (an undo, or an edit from elsewhere, landed in
+    /// between): it is an edit of something that is not there any
+    /// more, and is not written over what is.
+    ProfileEditStale {
+        /// The profile node, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// A bundle was drafted over one the placement no longer holds (an
+    /// undo, a redo, an edit from elsewhere): it is not written over the
+    /// one it holds.
+    BundleStale {
+        /// The placement, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// Place was asked of a copy (a placement or an instance): a copy is
+    /// edited by its own placement.
+    PlaceOnACopy {
+        /// The copy, as the document held it at the refusal.
+        copy: SpokenNode,
+    },
+    /// Place was asked of a body several sources read (VARIABLES VR4):
+    /// which of them the new placement shares is the person's to say, so
+    /// each is offered as the body to place.
+    SeveralSources {
+        /// The body, as the document held it at the refusal.
+        body: SpokenVar,
+        /// The sources reading it, in id order.
+        sources: Vec<SpokenVar>,
+    },
+    /// A door's change of a copy's target ([`super::SessionOp::AddToProduct`]
+    /// moving it into the world, [`super::SessionOp::IntoOwnSpace`]) over
+    /// a bundle of its own that reads the space it leaves: the change is
+    /// held, as the placement editor holds it, and the editor opens on
+    /// the copy with `target` set, the rows reading the old space marked
+    /// ([`crate::tools::Tools::answered`]).
+    TargetHeld {
+        /// The copy's placement, as the document held it at the refusal.
+        copy: SpokenNode,
+        /// The placement, for the editor to open on.
+        placement: RecipeNodeId,
+        /// The space it would leave.
+        space: Box<SpokenSpace>,
+        /// How many of its constraints read that space.
+        reading: usize,
+        /// The space it would move into, `None` for a new space.
+        into: Option<Box<SpokenSpace>>,
+        /// The target the editor opens with.
+        target: super::PlaceTarget,
+    },
+    /// A combine was asked of a copy placed into another space than its
+    /// first operand's: a combine changes no placement's target, and the
+    /// copy is moved by its own placement's "into" row.
+    CopyInAnotherSpace {
+        /// The copy, as the document held it at the refusal.
+        copy: SpokenNode,
+        /// The space its placement places it into.
+        space: Box<SpokenSpace>,
+        /// The first operand's space.
+        into: Box<SpokenSpace>,
+    },
+    /// A Place given a name for a source that has one
+    /// ([`super::SessionOp::Place`]): the copy shares a named source by
+    /// that name, and a rename is the source's own row.
+    SourceIsNamed {
+        /// The source, as the document held it at the refusal.
+        source: SpokenVar,
+    },
+    /// **A delete that cannot splice** (DM6,
+    /// `editor_core::continuation::SpliceFault`): one member of a family
+    /// would land where no edit writes one.
+    Unspliced {
+        /// The reader that would be handed the member, or the deleted
+        /// node, as the document held it at the refusal.
+        node: SpokenNode,
+        /// Which.
+        fault: editor_core::continuation::SpliceFault,
+    },
+    /// The tree's `remove` asked of a value: a freedom is always set,
+    /// and its only edit is its number.
+    ValueNotRemoved {
+        /// The placement, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// The placement editor could not derive a bundle from its draft.
+    Draft(Box<crate::matetool::MateToolError>),
+    /// The placement editor's bundle would place a copy that does not
+    /// stand: its placement's fault, or `None` where what it reads does
+    /// not evaluate. It is not written, and the editor holds the draft.
+    PlacementFails {
+        /// The fault the placement would evaluate to.
+        fault: Option<Box<pncad::document::MateFault>>,
+    },
+    /// A takeover would re-point a copy a pick reads onto a body that
+    /// holds no pieces — a feature's result, a mirror's union, a
+    /// combine. A pick is never re-pointed (D10
+    /// `[placement.placement]`), so it would name a piece its copy no
+    /// longer holds; the takeover refuses rather than strand it.
+    StrandedPick {
+        /// The copy the takeover would re-point.
+        copy: SpokenNode,
+        /// The pick reading it.
+        pick: SpokenVar,
+    },
+    /// **Add to the product** was asked of a copy the product reads
+    /// already ([`super::SessionOp::AddToProduct`]): adding it again
+    /// would write the slot as it stands.
+    InTheProduct {
+        /// The copy's placement.
+        copy: SpokenNode,
+    },
+    /// A finding's assertion asked of a document that already holds an
+    /// assertion saying it ([`super::SessionOp::AssertQuieting`]):
+    /// authoring it again would write a second one.
+    ClaimHeld {
+        /// The assertion that says it.
+        assertion: SpokenNode,
+    },
+}
+
+impl Refusal {
+    /// **This refusal with every node and variable it names spoken
+    /// again from `doc`** — a later version of the document it was
+    /// raised in, so a label or a name changed since the raise is the
+    /// one it says. The rule
+    /// and why it is sound are [`SpokenNode::respoken`]'s; it is why a
+    /// document an `Open` or a `New` replaced is never `doc` here
+    /// (`frame::batch_refusal`).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| node.respoken(doc);
+        match self {
+            Self::NoSuchSlot { node, slot } => Self::NoSuchSlot {
+                node: again(node),
+                slot,
+            },
+            Self::WrongNodeKind { node, wanted } => Self::WrongNodeKind {
+                node: again(node),
+                wanted,
+            },
+            Self::PickedMember { node } => Self::PickedMember { node: again(node) },
+            Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::BundleStale { node } => Self::BundleStale { node: again(node) },
+            Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::SeveralSources { body, sources } => Self::SeveralSources {
+                body: body.respoken(doc),
+                sources: sources.iter().map(|source| source.respoken(doc)).collect(),
+            },
+            Self::TargetHeld {
+                copy,
+                placement,
+                space,
+                reading,
+                into,
+                target,
+            } => Self::TargetHeld {
+                copy: again(copy),
+                placement,
+                space: Box::new(doc.spoken_space(space.id())),
+                reading,
+                into: into.map(|into| Box::new(doc.spoken_space(into.id()))),
+                target,
+            },
+            Self::CopyInAnotherSpace { copy, space, into } => Self::CopyInAnotherSpace {
+                copy: again(copy),
+                space: Box::new(doc.spoken_space(space.id())),
+                into: Box::new(doc.spoken_space(into.id())),
+            },
+            Self::SourceIsNamed { source } => Self::SourceIsNamed {
+                source: source.respoken(doc),
+            },
+            Self::Unspliced { node, fault } => Self::Unspliced {
+                node: again(node),
+                fault,
+            },
+            Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
+            Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
+            Self::PlacementFails { fault } => Self::PlacementFails { fault },
+            Self::InTheProduct { copy } => Self::InTheProduct { copy: again(copy) },
+            Self::ClaimHeld { assertion } => Self::ClaimHeld {
+                assertion: again(assertion),
+            },
+            Self::StrandedPick { copy, pick } => Self::StrandedPick {
+                copy: again(copy),
+                pick: pick.respoken(doc),
+            },
+            Self::ConstantRefused { var, source } => Self::ConstantRefused {
+                var: var.respoken(doc),
+                source,
+            },
+            Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
+            Self::OfferIsNamed(var) => Self::OfferIsNamed(var.respoken(doc)),
+            Self::Display(fault) => Self::Display(fault.respoken(doc)),
+            Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
+            Self::Edit(error) => Self::Edit(Box::new(error.respoken(doc))),
+            Self::DrivenByExpression {
+                node,
+                slot,
+                variables,
+                current,
+                notation,
+            } => Self::DrivenByExpression {
+                node,
+                slot,
+                variables: variables.iter().map(|var| var.respoken(doc)).collect(),
+                current,
+                notation,
+            },
+            Self::StepClear(fault) => Self::StepClear(fault.respoken(doc)),
+            unspoken @ (Self::NoSuchVariable(_)
+            | Self::NotABodyRead { .. }
+            | Self::EmptyName
+            | Self::Dimension(_)
+            | Self::Frame(_)
+            | Self::Parse(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo { .. }
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
+            // Spoken off the document the admission read, which is the
+            // shown one; a refusal outlives no edit of it.
+            | Self::Range(_)) => unspoken,
+        }
+    }
+
+    /// **The parse error, when the refusal is the expression door's
+    /// parse refusal** — the text an author typed did not parse, so
+    /// nothing reached the document and the typed source is still the
+    /// author's. The reading `frame::retype_draft` takes.
+    pub fn parse_error(&self) -> Option<&ParseError> {
+        match self {
+            Self::Parse(error) => Some(&**error),
+            Self::DrivenByExpression { .. }
+            | Self::NoSuchSlot { .. }
+            | Self::NoSuchVariable(_)
+            | Self::ConstantRefused { .. }
+            | Self::NotOffered(_)
+            | Self::OfferIsNamed(_)
+            | Self::EmptyName
+            | Self::WrongNodeKind { .. }
+            | Self::PickedMember { .. }
+            | Self::NotABodyRead { .. }
+            | Self::StepClear(_)
+            | Self::Frame(_)
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo { .. }
+            | Self::Display(_)
+            | Self::SlotUnit(_)
+            | Self::Range(_)
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
+            | Self::ProfileEditStale { .. }
+            | Self::BundleStale { .. }
+            | Self::PlaceOnACopy { .. }
+            | Self::SeveralSources { .. }
+            | Self::CopyInAnotherSpace { .. }
+            | Self::TargetHeld { .. }
+            | Self::SourceIsNamed { .. }
+            | Self::Unspliced { .. }
+            | Self::ValueNotRemoved { .. }
+            | Self::Draft(_)
+            | Self::PlacementFails { .. }
+            | Self::StrandedPick { .. }
+            | Self::InTheProduct { .. }
+            | Self::ClaimHeld { .. } => None,
+        }
+    }
+
+    /// How much this refusal has to say, lower being more.
+    ///
+    /// **A frame performs a BATCH of operations**, and a batch can hold
+    /// more than one refusal: dragging an expression-driven slot queues
+    /// `BeginGesture` (refused with G4's ratified affordance) and
+    /// `PreviewGesture` (refused `NoGesture`, purely because the first
+    /// refusal stopped the gesture from opening). A chrome that keeps
+    /// the last refusal shows the second one and buries the decision
+    /// the affordance exists to deliver.
+    ///
+    /// So the ranks are: the affordance first, because it is a ratified
+    /// decision (G4) about what the user just tried; then every refusal that
+    /// names a real failure; then the bookkeeping ones, which are
+    /// consequences of an earlier refusal at least as often as they are
+    /// news. [`Refusal::preferred`] applies it.
+    pub fn rank(&self) -> u8 {
+        match self {
+            Self::DrivenByExpression { .. } => 0,
+            Self::NoSuchSlot { .. }
+            | Self::NoSuchVariable(_)
+            | Self::ConstantRefused { .. }
+            | Self::NotOffered(_)
+            | Self::OfferIsNamed(_)
+            | Self::EmptyName
+            | Self::WrongNodeKind { .. }
+            | Self::PickedMember { .. }
+            | Self::NotABodyRead { .. }
+            | Self::StepClear(_)
+            | Self::Frame(_)
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::Parse(_)
+            | Self::SlotUnit(_)
+            | Self::Range(_)
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
+            | Self::ProfileEditStale { .. }
+            | Self::BundleStale { .. }
+            | Self::PlaceOnACopy { .. }
+            | Self::SeveralSources { .. }
+            | Self::CopyInAnotherSpace { .. }
+            | Self::TargetHeld { .. }
+            | Self::SourceIsNamed { .. }
+            | Self::Unspliced { .. }
+            | Self::ValueNotRemoved { .. }
+            | Self::Draft(_)
+            | Self::PlacementFails { .. }
+            | Self::StrandedPick { .. }
+            | Self::InTheProduct { .. }
+            | Self::ClaimHeld { .. }
+            | Self::Io(_) => 1,
+            // The ONE arm whose rank is a per-payload decision: the
+            // three gesture-order faults rank with their document
+            // twins, and the substantive ones rank with the real
+            // failures, because "this instance is placed into the
+            // world" is a decision about what the user tried; "no
+            // evaluation has landed" is not, and ranks with the
+            // gesture-order faults. `Edit` and
+            // `SlotUnit` forward whole vocabularies at one rank each
+            // and that IS a default: every condition either raises is
+            // a real failure, so no payload of theirs ranks
+            // differently. The admission family is walked arm by arm
+            // too, rather than folded into one `Admission(_)`.
+            Self::Display(fault) => match fault {
+                DisplayFault::NoFreeMove
+                | DisplayFault::FreeMoveInFlight
+                | DisplayFault::WrongFreeMove => 2,
+                DisplayFault::NonRigidFrame { .. } => 1,
+                DisplayFault::Admission(fault) => match fault {
+                    AdmissionFault::NotEvaluated { .. } => 2,
+                    AdmissionFault::NoSuchNode { .. }
+                    | AdmissionFault::NotABody { .. }
+                    | AdmissionFault::NotDrawn { .. }
+                    | AdmissionFault::NotASpace { .. }
+                    | AdmissionFault::InTheWorld { .. }
+                    | AdmissionFault::NoSpace { .. }
+                    | AdmissionFault::MovedSpace { .. }
+                    | AdmissionFault::NoSuchSpace { .. }
+                    | AdmissionFault::NotShown { .. } => 1,
+                },
+            },
+            Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::NothingToDo { .. } => 2,
+        }
+    }
+
+    /// The refusal a frame should show, given the one it already has.
+    ///
+    /// Strictly better wins; ties keep the incumbent, so within one
+    /// rank the FIRST refusal of a frame is the one displayed — it is
+    /// the one that describes what the user's action ran into, and
+    /// everything after it is downstream of that.
+    pub fn preferred(shown: Option<Self>, next: Self) -> Option<Self> {
+        match shown {
+            Some(shown) if shown.rank() <= next.rank() => Some(shown),
+            _ => Some(next),
+        }
+    }
+
+    /// **The self-instance rule and its refusal, in one place**:
+    /// `Some` exactly when `id` is the open document `open`.
+    ///
+    /// Both consumers of the rule call this — the op, which refuses,
+    /// and the catalogue, which marks the entry it cannot offer — so
+    /// the predicate has one home and the chrome's disabled reason is
+    /// the same value the click would have been answered with.
+    pub fn self_instance(open: DocumentId, id: DocumentId) -> Option<Self> {
+        (open == id).then_some(Self::SelfInstance { id })
+    }
+
+    /// **The nothing-to-step answer, ahead of the move**: `Some`
+    /// exactly when the history has no state to move to in
+    /// `direction`.
+    ///
+    /// This is the CHROME's door. `DocSession::step` does not call it
+    /// and must not: a door reports what its own attempt found, so it
+    /// moves and refuses on the `None` the move itself answers with,
+    /// which is the only reading that cannot go stale between the ask
+    /// and the act. What this composes is the same refusal VALUE, for
+    /// the toolbar's Undo and Redo buttons, which have to decide
+    /// whether to offer the move BEFORE it is attempted and owe the
+    /// reader the sentence the attempt would have given.
+    ///
+    /// Those two buttons are the only hand that pushes
+    /// [`super::SessionOp::Undo`] or [`super::SessionOp::Redo`], and
+    /// they are disabled exactly while this is `Some` — so the
+    /// tooltip is the only place that sentence is ever read, and the
+    /// status line is not a second surface for it.
+    pub fn nothing_to_step(history: &History, direction: Step) -> Option<Self> {
+        let available = match direction {
+            Step::Undo => history.can_undo(),
+            Step::Redo => history.can_redo(),
+        };
+        (!available).then_some(Self::NothingToDo { direction })
+    }
+
+    /// **The new-document name rule, and its one home**: the name a
+    /// [`super::SessionOp::NewDocument`] is built from, or the refusal
+    /// a blank one is answered with.
+    ///
+    /// Both consumers call this — `DocSession::new_document`, which
+    /// refuses, and the New-document form's Create button, which
+    /// disables and shows the words.
+    ///
+    /// It hands back the trimmed name, which the form sends in the op.
+    /// Nothing past this check reads the name yet: the door validates
+    /// it and discards it
+    /// (`work/vseam/a-new-documents-typed-name-is-kept-nowhere`).
+    ///
+    /// The name says `new_document` and not `name`: a blank
+    /// *variable* name is a different question with a different
+    /// answer — no door refuses one at all
+    /// (`work/edit/no-door-refuses-a-blank-parameter-name`) — and a
+    /// general name here would be an inviting wrong door for it.
+    pub fn new_document_name(typed: &str) -> Result<&str, Self> {
+        let name = typed.trim();
+        if name.is_empty() {
+            Err(Self::EmptyName)
+        } else {
+            Ok(name)
+        }
+    }
+
+    /// **The affordance sentence, and its one home.**
+    ///
+    /// G4 ratifies the behaviour — "Dragging an expression-driven
+    /// dimension refuses, with an affordance offering to edit the
+    /// expression" — and decides no wording; the sentence is this
+    /// layer's. It is composed once and **every surface that shows it
+    /// calls this** — through this function, or through
+    /// the `Display` of a [`Refusal::DrivenByExpression`] the surface
+    /// is holding. The surfaces are not listed here: a list is a
+    /// census of call sites that nothing re-derives, and the rule is
+    /// what does the work. Two independently-built copies is how two
+    /// surfaces come to say different things about one refusal.
+    ///
+    /// The current value is spelled as the slot's field spells it
+    /// ([`props::computed_text`], in the working `notation` and
+    /// carrying its symbol), so the two never show one number two ways.
+    pub fn affordance(
+        variables: &[SpokenVar],
+        slot: SlotId,
+        current: Option<SlotValue>,
+        notation: Notation,
+    ) -> String {
+        Self::affordance_said(variables, slot, current, notation, Speaker::TAG).to_string()
+    }
+
+    /// [`Refusal::affordance`] as a sentence, each variable a mention
+    /// said by `by`.
+    #[must_use]
+    pub fn affordance_said(
+        variables: &[SpokenVar],
+        slot: SlotId,
+        current: Option<SlotValue>,
+        notation: Notation,
+        by: Speaker<'_>,
+    ) -> Sentence {
+        let over = if variables.is_empty() {
+            Sentence::from("an expression")
+        } else {
+            let names = variables
+                .iter()
+                .map(|var| pncad::document::sentence!(by.var(var)));
+            pncad::document::sentence!("an expression over ", Sentence::joined(names, ", "))
+        };
+        match current {
+            Some(value) => {
+                let currently =
+                    props::computed_text(slot.expr_dimension(), value.as_f64(), notation);
+                pncad::document::sentence!(
+                    "driven by ",
+                    over,
+                    format_args!(
+                        " (currently {currently}) — edit the expression, or type a number over it"
+                    )
+                )
+            }
+            None => pncad::document::sentence!(
+                "driven by ",
+                over,
+                " — edit the expression, or type a number over it"
+            ),
+        }
+    }
+
+    /// The already-declared sentence, and its one home: the add-
+    /// variable form's notice BEFORE the click, which offers the
+    /// standing variable's row in place of the Create button. A click
+    /// that reaches the door anyway is refused by the declare itself
+    /// (`EditError::VarNameTaken`, through [`Refusal::Edit`]); the
+    /// notice is an offer the form makes from the document it reads,
+    /// with the standing declaration's dimension, which the door's
+    /// refusal does not carry.
+    ///
+    /// The dimension is named through its OWN `Display`, which is the
+    /// one home of the dimension-in-prose rule (`Dimension`'s impl in
+    /// editor-core): a dimension is a quantity KIND, so a sentence a
+    /// person reads says the common noun and never the variant
+    /// identifier.
+    pub fn exists_wording(name: &VarName, dimension: Dimension) -> String {
+        format!(
+            "variable {} already exists ({dimension}) — edit it instead?",
+            name.as_str()
+        )
+    }
+
+    /// The not-declared fact, and its one home. The status line
+    /// renders it through [`Refusal::NoSuchVariable`], which adds the
+    /// recourse; the properties pane shows it bare, as the verdict on a
+    /// variable selection that no longer denotes — one composition,
+    /// so the pane describing the selection and the refusal answering
+    /// a drag on it say the fact in the same words.
+    ///
+    /// The recourse is the refusal's half alone: it instructs an
+    /// attempt, and the pane is describing a selection, not answering
+    /// one.
+    pub fn undeclared_wording(var: &SpokenVar) -> String {
+        Self::undeclared_said(var, Speaker::TAG).to_string()
+    }
+
+    /// [`Refusal::undeclared_wording`] as a sentence, the variable a
+    /// mention said by `by`.
+    #[must_use]
+    pub fn undeclared_said(var: &SpokenVar, by: Speaker<'_>) -> Sentence {
+        pncad::document::sentence!("variable ", by.var(var), " is not in this document")
+    }
+
+    /// The create-offer sentence, and its one home — shown over the
+    /// add-variable form when an expression refused on this name.
+    pub fn offer_wording(name: &VarName) -> String {
+        format!("create variable {}?", name.as_str())
+    }
+}
+
+impl Refusal {
+    /// **Its sentence**, each node and variable it names a mention said
+    /// by `by`, ended at the door `at` reads it (`recourse::Ended`), or
+    /// its payload alone where `at` is `None`. `by` is the document the
+    /// refusal was raised in, which a reader links its mentions in
+    /// (`frame::refusal_message`); [`Speaker::TAG`] says them in no
+    /// document, which is how its `Display` reads.
+    #[must_use]
+    pub fn said(
+        &self,
+        by: Speaker<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> Sentence {
+        let mut out = Sentence::new();
+        self.write(&mut out, by, at);
+        out
+    }
+
+    /// This refusal's text ended at the door `at` reads it
+    /// (`recourse::Ended`); its `Display` is the payload alone.
+    #[must_use]
+    pub fn render(&self, at: impl Into<pncad::geom_brep::recourse::ReadAt>) -> String {
+        self.said(Speaker::TAG, Some(at.into())).to_string()
+    }
+
+    /// Writes each arm through its payload's OWN words wherever the
+    /// payload has them — the same rule the feature tree's badges
+    /// follow: the layer that raised the failure names it. A payload
+    /// that is said (`EditError`, `MateFault`, `RangeRefusal`) is
+    /// written as a sentence by `by`, and a staged one (`PersistError`
+    /// inside [`DocIoError`], `WorkspaceError`) as its labelled
+    /// sentence, so their mentions stay mentions. A payload with words
+    /// alone (`DimensionError`, `ParseError`, an OS read error, and the
+    /// viewer's own faults, filed to be said) is spelled before the
+    /// sentence is written.
+    ///
+    /// One exception, stated rather than hidden: the affordance arm's
+    /// wording is this layer's own sentence, so it is
+    /// composed here (and here only — [`Refusal::affordance_said`] is
+    /// its single home).
+    fn write(
+        &self,
+        out: &mut Sentence,
+        by: Speaker<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) {
+        let node = |node: &SpokenNode| by.mention(node);
+        let var = |var: &SpokenVar| by.var(var);
+        let space = |space: &SpokenSpace| Said(space, by).sentence();
+        let _ = match self {
+            Self::DrivenByExpression {
+                slot,
+                variables,
+                current,
+                notation,
+                ..
+            } => say!(
+                out,
+                Self::affordance_said(variables, *slot, *current, *notation, by)
+            ),
+            Self::NoSuchSlot { node: held, slot } => say!(
+                out,
+                node(held),
+                format_args!(" has no {} slot", slot.label())
+            ),
+            Self::NoSuchVariable(id) => say!(
+                out,
+                Self::undeclared_said(&SpokenVar::new(*id, None), by),
+                format_args!(" — {UNKNOWN_VAR_RECOURSE}")
+            ),
+            Self::ConstantRefused { var: held, source } => {
+                let source = source.to_string();
+                say!(
+                    out,
+                    "the value typed for ",
+                    var(held),
+                    " does not evaluate: ",
+                    source
+                )
+            }
+            Self::NotOffered(held) => say!(
+                out,
+                var(held),
+                " is no longer offered here — type the value again to be offered \
+                 the variables equal to it"
+            ),
+            Self::OfferIsNamed(held) => say!(
+                out,
+                var(held),
+                " already has a name, and the slot shares it by that name — accept \
+                 the offer without giving it another"
+            ),
+            Self::EmptyName => say!(out, "a new document needs a name"),
+            Self::WrongNodeKind { node: held, wanted } => say!(
+                out,
+                node(held),
+                format_args!(" is not {} in this document", wanted.name())
+            ),
+            Self::PickedMember { node: held } => say!(
+                out,
+                node(held),
+                " is a family, and a selection reads one body: pick on one drawn member \
+                 of it, once the document has landed"
+            ),
+            Self::NotABodyRead { read } => match &**read {
+                Operand::Name(name) => say!(
+                    out,
+                    format_args!("no variable is named {name} in this document")
+                ),
+                _ => say!(
+                    out,
+                    "a selection names cells of a body, not the body: a body seat reads a node \
+                     or one of its outputs"
+                ),
+            },
+            // The frame is layer 3's and the sentence is the door's.
+            // Nothing is doubled: `EditError`'s arms state the problem
+            // and carry no category prefix of their own, so this reads
+            // as one sentence rather than as two openings.
+            Self::StepClear(fault) => {
+                let text = pncad::geom_brep::recourse::read_at(fault, at).to_string();
+                say!(out, text)
+            }
+            Self::Frame(fault) => {
+                let text = fault.to_string();
+                say!(out, text)
+            }
+            Self::Edit(error) => say!(out, "the edit was refused: ", Said(&**error, by)),
+            Self::Dimension(error) => {
+                let text = error.to_string();
+                say!(out, text)
+            }
+            Self::Parse(error) => {
+                let text = core::fmt::from_fn(|f| parse_said(f, error)).to_string();
+                say!(out, text)
+            }
+            Self::NoGesture => say!(out, "no drag is in progress"),
+            Self::GestureInFlight => say!(out, "finish the drag first"),
+            Self::WrongGesture => say!(out, "that is not the drag in progress"),
+            Self::Io(error) => match &**error {
+                DocIoError::Persist(error) => {
+                    say!(
+                        out,
+                        pncad::document::Labelled(&**error, pncad::document::Labels::Kept)
+                    )
+                }
+                DocIoError::Read { .. } => {
+                    let text = error.to_string();
+                    say!(out, text)
+                }
+            },
+            Self::NothingToDo { direction } => {
+                say!(out, format_args!("nothing to {}", direction.verb()))
+            }
+            Self::Display(fault) => {
+                let text = fault.to_string();
+                say!(out, text)
+            }
+            Self::SlotUnit(fault) => {
+                let text = fault.to_string();
+                say!(out, text)
+            }
+            Self::Range(refusal) => say!(out, Said(&**refusal, by)),
+            Self::NoDocumentDirectory => say!(
+                out,
+                "save the document first — references resolve against the file's directory"
+            ),
+            Self::Workspace(error) => say!(
+                out,
+                pncad::document::Labelled(&**error, pncad::document::Labels::Kept)
+            ),
+            Self::SelfInstance { id } => say!(
+                out,
+                format_args!(
+                    "document {id} is the open document — a document cannot be an instance of \
+                     itself; pick another part"
+                )
+            ),
+            Self::BundleStale { node: held } => say!(
+                out,
+                node(held),
+                "'s bundle changed since the editor loaded it; the editor's draft was not \
+                 written — the editor now shows the bundle as it is"
+            ),
+            Self::PlaceOnACopy { copy } => say!(
+                out,
+                node(copy),
+                " is a copy; move it by its own placement in the placement editor, not \
+                 by a copy of it"
+            ),
+            Self::SeveralSources { body, sources } => say!(
+                out,
+                var(body),
+                format_args!(" is placed through {} sources (", sources.len()),
+                Sentence::joined(
+                    sources
+                        .iter()
+                        .map(|source| pncad::document::sentence!(var(source))),
+                    ", "
+                ),
+                "); place one of them, and the new copy shares it"
+            ),
+            Self::TargetHeld {
+                copy,
+                space: from,
+                reading,
+                into,
+                ..
+            } => say!(
+                out,
+                node(copy),
+                format_args!(" has {reading} constraint(s) of its own reading "),
+                space(from),
+                ", the space this would move it out of; its placement editor opens with the \
+                 target set to ",
+                into.as_ref()
+                    .map_or_else(|| Sentence::from("a new space"), |into| space(into)),
+                ": re-pick or strike the marked rows"
+            ),
+            Self::CopyInAnotherSpace {
+                copy,
+                space: from,
+                into,
+            } => say!(
+                out,
+                node(copy),
+                " is placed into ",
+                space(from),
+                ", and this combine is in ",
+                space(into),
+                "; a combine moves no copy: set ",
+                node(copy),
+                "'s \"into\" row to ",
+                space(into),
+                " in its placement editor first"
+            ),
+            Self::Unspliced { node: held, fault } => match fault {
+                editor_core::continuation::SpliceFault::MemberAtSeat { .. } => say!(
+                    out,
+                    "deleting this would hand ",
+                    node(held),
+                    " one member of a family at a seat that reads a whole body, which no edit \
+                     can write; delete or re-point ",
+                    node(held),
+                    " first"
+                ),
+                editor_core::continuation::SpliceFault::MemberAtProduct => say!(
+                    out,
+                    "deleting ",
+                    node(held),
+                    " would hand the product one member of a family, and the product reads a \
+                     whole body; set the product first"
+                ),
+                editor_core::continuation::SpliceFault::MemberOfAMember { .. } => say!(
+                    out,
+                    "deleting this would hand a reader of one member of ",
+                    node(held),
+                    " a member of a member, which no read spells; delete that reader first"
+                ),
+                editor_core::continuation::SpliceFault::ContinuationCycle { .. } => say!(
+                    out,
+                    "the delete's continuations came back to ",
+                    node(held),
+                    ", which an acyclic recipe cannot do; nothing was deleted"
+                ),
+            },
+            Self::SourceIsNamed { source } => say!(
+                out,
+                var(source),
+                " is named already, so the copy shares it by that name; place it \
+                 without a name, and rename it on its own row"
+            ),
+            Self::ValueNotRemoved { node: held } => say!(
+                out,
+                "a value of ",
+                node(held),
+                " sets a freedom its mates leave, and a freedom is always set; \
+                 edit its number instead"
+            ),
+            Self::Draft(error) => {
+                let text = error.to_string();
+                say!(out, text)
+            }
+            Self::PlacementFails { fault: Some(fault) } => say!(
+                out,
+                "the copy would not stand: ",
+                Said(&**fault, by),
+                "; the editor's draft was not written"
+            ),
+            Self::PlacementFails { fault: None } => say!(
+                out,
+                "what the placement reads does not evaluate; the editor's draft was not written"
+            ),
+            Self::ProfileEditStale { node: held } => say!(
+                out,
+                node(held),
+                " changed since the editor loaded it; the editor's program was not \
+                 written — the editor now shows the profile as it is"
+            ),
+            Self::StrandedPick { copy, pick } => say!(
+                out,
+                var(pick),
+                " picks a piece of ",
+                node(copy),
+                ", and what would take ",
+                node(copy),
+                " over holds no pieces: a pick is never re-pointed, so the takeover would \
+                 leave it naming a piece its copy no longer holds"
+            ),
+            Self::InTheProduct { copy } => say!(out, node(copy), " is in the product already"),
+            Self::ClaimHeld { assertion } => {
+                say!(out, node(assertion), " says this already")
+            }
+        };
+    }
+}
+
+/// Its payload alone, its mentions said in no document.
+impl core::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.said(Speaker::TAG, None))
+    }
+}
+
+impl pncad::geom_brep::recourse::Ended for Refusal {
+    fn ended(&self, at: pncad::geom_brep::recourse::ReadAt) -> String {
+        self.render(at)
+    }
+}
+
+impl core::error::Error for Refusal {}
+
+impl From<WorkspaceError> for Refusal {
+    fn from(error: WorkspaceError) -> Self {
+        Self::Workspace(Box::new(error))
+    }
+}
+
+/// **The choice a save that would give the document a second file
+/// puts in front of the person** (DI4), drawn from
+/// `SaveWouldDuplicateId`'s own payload: save over the file that
+/// already holds this document, or save at the chosen name as a new
+/// document. Dismissing it is the third answer and emits nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaveChoice {
+    existing: PathBuf,
+    requested: PathBuf,
+}
+
+impl SaveChoice {
+    /// The choice between saving over `existing`, the file that holds
+    /// the document already, and saving at `requested` as a new one.
+    pub(crate) fn new(existing: PathBuf, requested: PathBuf) -> Self {
+        Self {
+            existing,
+            requested,
+        }
+    }
+
+    /// The label of the control that saves over the existing file.
+    pub fn over_label(&self) -> String {
+        format!("Save over {}", file_name(&self.existing))
+    }
+
+    /// The label of the control that forks at the chosen name.
+    pub fn fork_label(&self) -> String {
+        format!("Save {} as a new document", file_name(&self.requested))
+    }
+
+    /// Saving over the file that holds this document already.
+    pub fn over(&self) -> SessionOp {
+        SessionOp::Save(self.existing.clone())
+    }
+
+    /// Saving at the chosen name as a new document.
+    pub fn fork(&self) -> SessionOp {
+        SessionOp::SaveAsNewDocument(self.requested.clone())
+    }
+}
+
+/// A path as a label names it: its file name, both files of a
+/// [`SaveChoice`] being in one folder.
+fn file_name(path: &Path) -> std::borrow::Cow<'_, str> {
+    path.file_name()
+        .map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy())
+}
+
+/// **Why a gesture's frame could not be made**: a pattern's picked
+/// direction or axis.
+#[derive(Debug, Clone)]
+pub enum GestureFrameFault {
+    /// The geometry picked for a pattern reads no direction where it
+    /// stands, or, for a ring, no axis.
+    NoHeading {
+        /// The field, as the form names it.
+        field: &'static str,
+    },
+}
+
+impl core::fmt::Display for GestureFrameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoHeading { field } => write!(
+                f,
+                "the {field} picked reads none where it stands: pick a straight edge, a flat \
+                 face for its normal or a round edge or face for its axis"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for GestureFrameFault {}

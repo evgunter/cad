@@ -1,0 +1,16 @@
+# FreeCAD/OCC import expectations for nurbs_wireframe.step (M5 PR 13
+# review probe): a GEOMETRIC_CURVE_SET wireframe whose single curve is
+# the writer's own RATIONAL_B_SPLINE_CURVE complex instance, spliced in
+# verbatim from writer.rs's record pin.
+#
+# Why this file exists: the B_SPLINE_CURVE_WITH_KNOTS arm has no body
+# at rest behind it (rung-3 SSI carriers are not reachable through any
+# public constructor), so nothing else in the corpus puts that record
+# in front of an independent READER. Counts only -- a wireframe has no
+# solids, shells, faces or volume. The geometric reconstruction is
+# checked by the sibling nurbs_wireframe.probe.py.
+EXPECT_SOLIDS=0
+EXPECT_SHELLS=0
+EXPECT_FACES=0
+EXPECT_EDGES=1
+EXPECT_VERTICES=2

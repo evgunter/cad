@@ -1,0 +1,302 @@
+schema: 2
+{
+  "snapshot": {
+    "next_id": 4,
+    "nodes": {
+      "0": {
+        "Profile": {
+          "plane": {
+            "basis": [
+              [
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0
+              ]
+            ],
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "loops": [
+            {
+              "vertices": [
+                {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 2.0,
+                  "y": 0.0,
+                  "bulge": 0.25
+                },
+                {
+                  "x": 2.0,
+                  "y": 1.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "bulge": 0.0
+                }
+              ],
+              "tangent_joints": []
+            }
+          ]
+        }
+      },
+      "1": {
+        "Extrude": {
+          "profile": 0,
+          "distance": {
+            "Param": {
+              "name": "depth",
+              "dim": "Length"
+            }
+          }
+        }
+      },
+      "2": {
+        "Profile": {
+          "plane": {
+            "basis": [
+              [
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0
+              ]
+            ],
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "loops": [
+            {
+              "vertices": [
+                {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 3.0,
+                  "y": 0.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 3.0,
+                  "y": 1.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 1.5,
+                  "y": 1.0,
+                  "bulge": -0.41421356237309515
+                },
+                {
+                  "x": 1.0,
+                  "y": 1.5,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 1.0,
+                  "y": 3.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 0.0,
+                  "y": 3.0,
+                  "bulge": 0.0
+                }
+              ],
+              "tangent_joints": [
+                3,
+                4
+              ]
+            }
+          ]
+        }
+      },
+      "3": {
+        "Profile": {
+          "plane": {
+            "basis": [
+              [
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0
+              ]
+            ],
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "loops": [
+            {
+              "vertices": [
+                {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 3.0,
+                  "y": 0.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 3.0,
+                  "y": 1.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 1.5,
+                  "y": 1.0,
+                  "bulge": -0.4142135623730951
+                },
+                {
+                  "x": 1.0,
+                  "y": 1.5,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 1.0,
+                  "y": 3.0,
+                  "bulge": 0.0
+                },
+                {
+                  "x": 0.0,
+                  "y": 3.0,
+                  "bulge": 0.0
+                }
+              ],
+              "tangent_joints": [
+                3,
+                4
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "order": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "params": {
+      "depth": {
+        "Continuous": {
+          "dim": "Length",
+          "value": 0.75
+        }
+      }
+    },
+    "epsilon": 1e-9,
+    "witnesses": {
+      "0": {
+        "schema": 1,
+        "bytes": "007f80ff"
+      }
+    },
+    "metadata": {},
+    "appearance": [
+      [
+        {
+          "kind": "Body",
+          "node": 1,
+          "path": [
+            "OutputBody"
+          ]
+        },
+        {
+          "attrs": {
+            "Color": {
+              "Color": {
+                "r": 10,
+                "g": 20,
+                "b": 30,
+                "a": 255
+              }
+            }
+          },
+          "metadata": {
+            "tool.example/pin": {
+              "Map": {
+                "blob": {
+                  "Bytes": "dead"
+                },
+                "list": {
+                  "List": [
+                    "Null",
+                    {
+                      "Bool": true
+                    }
+                  ]
+                },
+                "neg_zero": {
+                  "Float": -0.0
+                },
+                "v": {
+                  "Int": 1
+                }
+              }
+            }
+          }
+        }
+      ]
+    ]
+  },
+  "edits": [
+    {
+      "SetParam": {
+        "node": 1,
+        "slot": "Distance",
+        "expr": {
+          "Literal": {
+            "value": 0.5,
+            "dim": "Length"
+          }
+        }
+      }
+    }
+  ]
+}

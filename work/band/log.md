@@ -1,0 +1,1467 @@
+# BAND — the log
+
+## 2026-09-20 — opened
+
+Cut out of CARVE, which was carrying 73 budget points, when Ev
+ratified the priority and track-size conventions in chat the same day.
+The cut followed CARVE's PRIORITY seam per `work/README.md` "Track
+size", into several tracks at once so they can run in PARALLEL — Ev, in
+chat: *"for these high priority tracks it's ideal to have several
+components that can be worked on in parallel."*
+
+9 rows arrived by `git mv` with their ids, bodies and history
+unchanged. CARVE keeps its band 5600-5699; band 7800-7899 is claimed
+for this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
+dispatched.
+
+## Announced seam from TOPO (2026-09-24)
+
+TOPO's `kevs-fan-merge-needs-a-re-describing-kill-door` (branch
+`topo/kev-describing-door`; PR title "TOPO: kev refuses a merge that
+would strand a carrier; kev_describing takes the re-descriptions")
+lands Ev's ruling (c) on PR 2527. `Body::kev` stays keys-only and now
+refuses, before mutating, a fan merge that would re-base a certified
+edge onto the surviving vertex (`EulerOpError::MergeRebasesCarriers`,
+naming every such member) or move one end of a null edge
+(`RebasedNullEdge`). It carries a merge that moves nothing: an empty
+fan, or a killed null edge. `Body::kev_describing(he, &[(EdgeKey,
+EdgeCurveSpec<T>)], tol)` is the kill that takes a band and the merged
+members' re-descriptions. A listed member is certified at the merged
+endpoints. An unlisted one passes the re-basing gate `mev`'s fan site
+passes. `kev_describing(he, &[], tol)` is the kill with a band and
+nothing re-described.
+
+**Your files, and what changed in them.**
+
+- `crates/sweep/src/blend/surgery.rs` (BAND's and CARVE's): the two
+  closure kills take `kev_describing`. `rim_phase`'s is
+  `"rim closure kev"` and `rim_phase_annulus`'s crossing kill is
+  `"annulus closure kev"`; the refusal site names are unchanged. Each
+  hands its one merged member the chord between the endpoints the
+  merge gives it (`EdgeCurveSpec::line_between`, `merged_chord_spec`),
+  the scaffolding the surgery's struts and trims carry. That member is
+  the upper meridian remnant, or the mate seam's rim-side piece. The
+  final pass still states the slit as the band's seam, the meridian
+  arc, through `attach_contact`. (The first push handed the arc under
+  arc scaffolding; at the certified scalar that scaffold's residual
+  enclosed wider than eps = 1e-12's band and the kill escalated, so the
+  interval 1e-12 rows went red. The chord encloses at ulps.) Without
+  this change these were 118 of the 129 sweep refusals S93 measured.
+  At the head, `cargo test -p sweep --lib --test all` shows 1746
+  passed and 7 ignored, at default eps and at 1e-12.
+## 2026-09-24 — seam: TOPO re-worded one comment in `blend/surgery.rs`
+
+TOPO's `half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`
+(branch `topo/mint-rows-at-the-mint-site`) re-worded the comment above
+the surgery's closing `mint_pcurves` in `crates/sweep/src/blend/surgery.rs`
+("the input's caches are stale the moment the first strut lands"):
+`mev`, `mef` and `mekr` now leave a face with complete rows complete
+or rowless, never half-minted, so the pass is described as minting the
+faces the surgery builds and re-deriving the rest. No code in the file
+moved. The same unit's sweep run measured the fillet surgery's
+"annulus mate trim mef" meeting states the closed-form lane cannot
+mint mid-surgery; the operators leave those faces rowless for this
+pass rather than refusing.
+## 2026-09-25 — first sitting: taken, wave 1 dispatched
+
+Taken by the BAND orchestrator; `status: active`. The review-posture
+question the plan left open is gone: the A/B it inherited is
+suspended, so review is per unit by the orchestration tiers.
+`in-band-corner-verdicts-…` arrived unpriced and is P1/E (one routed
+sentence), which puts the slate at 30/30.
+
+Wave 1, three lanes on disjoint ground, each a FULL single review
+(each changes what a refusal or a name says, where believing it takes
+more than reading it):
+
+- `ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle` — branch
+  `band/ruled-d-hole-ring-crease`.
+- `blend-slit-name-collides-when-two-rims-share-a-meridian` — branch
+  `band/band-slit-discriminator`. Announced seam: EDIT's and EMIT's
+  `names/role.rs` and EDIT's `names/emit_blend.rs`.
+- `subdivided-profile-side-coplanar-walls-gate` — branch
+  `band/subdivided-side-walls`. Announced seam: CARVE/STRUT's
+  `extrude.rs`, TOPO's boolean gate if the answer is a refusal.
+
+Decided without Ev (sequencing, with a recommendation):
+`sweep-emits-no-contact-record-for-declared-cusps` closes by
+`Extruded` carrying the declarations, not by ratifying caller
+ownership (reason in the plan), and runs after the subdivided-side
+row since both are `extrude.rs`'s lowering. `S90-impl` waits on
+SCALAR's LANE-4 (#3194).
+
+Ev, in chat the same day: the review posture is the per-unit tiers
+("it is indeed replaced by the per-unit review tiers"), and
+`Extruded` carrying the declared cusps is the close ("carrying the
+declared cusps sounds great").
+
+## 2026-09-25 — `subdivided-profile-side-coplanar-walls-gate` closed (PR #3244)
+
+Measured, no kernel change; reviewed by the orchestrator's read (a
+test suite and three filed rows, nothing a reader has to take on
+trust). The item's own premise was backwards: extrude and revolve DO
+give a declared continuation's walls one surface key; what refuses is
+that nothing merges them before the boolean, and the recourse the
+refusal names (`merge_coplanar_faces`) has no door above
+`topo::Body`. Filed: `swept-continuation-walls-reach-the-boolean-unmerged`
+(P0, the fork — goes to Ev, `needs_ev`), `subdivided-rim-fillet-refuses-at-the-collinear-joint`
+(P1), and CARVE's `loft-walls-keyed-per-segment-on-a-declared-carrier`
+(P2). Blind spot the lane named: `revolve/tube.rs` unmeasured.
+
+The fork goes to Ev as an `[ev]` PR editing F7. The declared-cusp row
+(`sweep-emits-no-contact-record-for-declared-cusps`) was waiting on
+this lane's `extrude.rs` ground and is now free to dispatch.
+
+## 2026-09-25 — the continuation-merge fork ruled
+
+Ev ruled option 1 on the `[ev]` PR: sweeps over a declared straight
+continuation run the structural merge as a documented final stage
+(F7 amended in the same PR). `swept-continuation-walls-reach-the-boolean-unmerged`
+becomes the implementation row; it dispatches after the declared-cusp
+lane lands, because both change what `Extruded`'s face handles mean.
+
+Ev also pointed at the new orchestrator protocol (PR #3247: a designer
+pair weighs every design fork before its `[ev]` PR, and orchestrator
+branches keep the program prefix even when the harness pins another).
+Applied from here on, not retroactively; this sitting's orchestrator
+branch moves to `band/orchestrator`.
+
+## 2026-09-25 — note from GERM: one merge seat for the sweep
+
+GERM found that a FULL revolve of an axis-touching profile emits every planar
+wall as two same-key halves (`work/carve/full-revolve-emits-split-planar-walls.md`),
+and has put it to Ev. Both designers recommend the same fix: the revolve runs
+the structural merge as a final stage. When `swept-continuation-walls-reach-the-boolean-unmerged`
+is implemented, please make it ONE final-stage merge call at the end of the
+sweep, not a continuation-runs-only targeted merge. Otherwise the full-revolve
+row has to widen it again. — (GERM orchestrator)
+
+## 2026-09-25 — `ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle` closed (PR #3243)
+
+Built rather than re-refused: `chord_site` cuts in whichever cap cycle
+(outer or ring) carries the keyed half-edge, so a ruled crease ending in
+a cap's ring carves. Full single review. Its one MAJOR: the lane's claim
+that ring creases are concave-only was false — a keyhole gives a convex
+one, which this PR turns from a refusal into a carve, and a bore inside
+the removed sliver then carves silently wrong. Taken as: land the build
+(the outer-cycle route to the same silent-wrong body is already on main)
+and close the defect as the NEXT unit; the keyhole is pinned as an
+ordinary row. Filed by the lane and its fix pass:
+`ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver` (P0, now
+with both routes), `body-not-intact-renders-every-detail-as-a-reference-that-did-not-resolve`
+(P2), ZIP's `blind-d-pocket-subtract-refuses-with-join-internal-words`,
+ATREST's `check-9-does-not-check-a-ring-nested-inside-another-ring`, and
+evidence on CONTACT's `axis-coincident-lap-trips-the-planar-join-invariant`.
+
+GERM's note above (one final-stage merge call at the end of the sweep)
+goes into the continuation-merge unit's brief verbatim.
+
+## 2026-09-26 — `blend-slit-name-collides-when-two-rims-share-a-meridian` closed (PR #3245)
+
+The teapot lid's rims roll in ONE `Node::Fillet`. The kernel record
+(`BlendNaming::slits`, `meridian_splits`) carries the slitting band's
+source edges, and `RoleSeg::BandSlit`/`BandCross` carry that set as a
+discriminator — option (a), because N4 names from birth data alone. The
+item undercounted: `BandCross` collided one row later the same way.
+Full single review, no MAJOR; its fix pass took the reviewer's rows
+(the one that matters: an unrewritten `band` silently retargets a held
+slit name, and nothing else in the suite saw it), made `band` a
+discriminator in `walk_names` rather than a derivation, and gave the
+band identity one home. `annulus-rim-phase-…` gained the note that its
+hand-kept retain is now load-bearing for `BandCut` uniqueness. Filed:
+INSTR's `tess-budget-baseline-names-predate-piece-naming`.
+## 2026-09-26 — `sweep-emits-no-contact-record-for-declared-cusps` closed (PR #3257)
+
+`Extruded`, `Revolved` and `Lofted` carry `declared_contacts`, one
+`Tangent` pair per declared cusp joint. Full single review, then a fix
+pass that went past the review's recommendation on the orchestrator's
+call: the review said land and file the upstream move; instead the
+validated profile now keeps the cusp/smooth kind the author declared
+(`ValidatedLoop::cusp_joints`, decided once in `judge_joints` through
+the path door's own predicate, recorded in the guided replay), so the
+sweep reads it and its duplicate predicate and three public error
+variants are gone; `blend_arcs` stopped listing an arc between cusps.
+Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
+MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
+`product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
+has its measured red-first row.
+
+## 2026-09-26 — `ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver` closed (PR #3271)
+
+The silent-wrong path the D-hole unit widened is shut: before any `mef`,
+a convex ruled cut-off meters every cap edge but the two rims it
+shortens — other rings and the cut cycle's own other edges — against a
+region enclosing the removed sliver (annulus about the section centre,
+cut by a half-plane), and refuses `RingClearance` on the cap. Full
+review found two MAJORs: the first meter tested straight edges by their
+infinite line (a square drive hole on a D-shaft's axis refused), and the
+cut cycle's own edges were unmetered (an L-channel into the sliver carved
+silently wrong — the lane had filed it P1 "unmeasured"). The fix pass
+gave edge metering one windowed home (the ladder rim's outer walk now
+uses it too) and closed both; a delta review found them closed by rows
+that go red on revert, plus one MINOR (the sentence said "removes" on
+concave bands), fixed by `RingClearance` carrying the chain's convexity.
+Remaining false refusals are disclosed on
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` (P2).
+Filed: `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned` (P2),
+`arc-window-membership-has-three-spellings` (P1).
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/band/blend-endings-say-lower-the-tolerance-and-route-by-name.md`. `sweep::blend::ClassifiedMargin` is a third spelling of a decided margin beside `recourse::Classified`; convergence is noted on the encl certify-span row. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## Seam from TOPO, fix pass on PR 3161 (2026-09-29)
+
+`Body::kev_merged_members(he)` is new and public: the merged members
+of `kev(he)`, in the dying vertex's orbit order, each with the two
+endpoints the merge gives it (`topo::MergedMember { edge, start, end }`,
+`he_plus` forward order). It is read from the same plan and endpoint
+reading the two kill doors certify against, so a caller no longer
+re-derives what the merge will do. `kev`'s plan phase now also refuses
+`OrbitBroken` where the dying vertex's orbit reaches a half-edge that
+does not start there (two `next` tears could walk it through the killed
+half, and the describing door then panicked); on a valid body nothing
+changes.
+
+**Your files, and what changed in them.**
+
+- `crates/sweep/src/blend/surgery.rs`: `merged_chord_spec` now reads
+  the member's merged endpoints from `kev_merged_members` instead of
+  re-deriving them (its old rule, `start == dead`, agreed with the
+  door only on valid bodies). It takes the refusal site name, so a
+  read-door refusal is reported as `"rim closure kev"` or
+  `"annulus closure kev"`. The chord it hands the kill is unchanged.
+- `crates/sweep/src/blend/surgery.rs` `"rim kev"`,
+  `crates/sweep/src/blend/open/planar.rs` `"corner kev"` and
+  `crates/sweep/src/blend/open/ruled.rs` `"cap vertex kev"`: each is a
+  spur kill, so the keys-only kill merges no fan. Each now says so and
+  `debug_assert!`s it through `kev_merged_members`, where before the
+  claim was only measured.
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `sweep/src/blend/surgery.rs`. `blend/surgery.rs`'s three re-charts moved from `set_face_surface_and_sense` to `set_face_surface`, bit unchanged. (TOPO implementer)
+
+## 2026-10-01 — `cap-rim-smooth-arm-decides-by-argument-not-by-the-rule` closed (PR #3667)
+
+The row's diagnosis was wrong: the arm is reachable at 1 < K < √φ (Ev's
+PR 2119 ruling admits any K > 1), so it is routed through the must-carry
+rule rather than made unreachable; stored descriptions are unchanged
+(plane pairs read UnderDetermined). The verdict → description mapping
+gained one home, `MustCarryVerdict::description`, used by all four smooth
+arms. Single review (style + claims), then a fix pass and a delta review;
+both clean. Filed: CARVE's `extrude-arc-walls-are-ruled-in-n-not-w`,
+CLEAVE's `topo-smooth-arms-decide-descriptions-outside-the-must-carry-rule`,
+and the residue row `blend-split-rows-and-must-carry-prose-residue` (P4).
+
+## 2026-10-01 — `annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance` closed (PR #3670)
+
+The annulus rim phase splits its seams through `split_fragment`, which
+now takes the expected source and refuses inside the one home if its
+lookup disagrees; every annulus row names `frag.source`, as the ladder's
+`slits` row does. `blend_surgery`'s debug postcondition checks the SOURCE
+half of every birth row (an exhaustive destructure of `BlendNaming`). No
+name moved (sweep, editor-core naming, tour teapot rows). Full review,
+fix pass, delta review; the review's row
+`every_band_crossing_names_the_seam_its_foot_split` is what tells a
+right source from a merely valid one. Residue (the ladder still names
+`meridian_splits` by the split key) is on
+`blend-split-rows-and-must-carry-prose-residue`.
+
+## 2026-10-01 — the three recourse rows and ENCL's ending row closed (PR #3690)
+
+`corner-config-recourse-and-policy-assert-a-default-for-any-tag`,
+`every-escalation-carries-the-coincidence-recourse-first`,
+`in-band-corner-verdicts-route-to-the-corner-configuration-recourse` and
+`blend-endings-say-lower-the-tolerance-and-route-by-name` closed as one
+unit. `BlendError::Escalated` carries a closed `BlendDecision` (11
+decisions at 13 construction points); subject, lever and ending are
+exhaustive matches; no blend refusal renders "declare the coincidence";
+sized endings go through `geom_brep::recourse`. Full review, fix pass,
+delta review, a last small pass, and a python-census fix (`BlendDecision`
+listed interior beside `BlendSite`). Known cost: `ContactSecondOrder`
+offers no tolerance until ENCL's must-carry row says which reading
+escalated. Filed: ENCL's `recourse-table-has-no-lever-only-ending` and
+`must-carry-in-band-verdict-does-not-say-which-decision-escalated`;
+BAND's `dependent-normals-refusal-carries-no-margin-for-its-ending`,
+`dependent-normals-names-a-run-out-policy-the-tag-says-cannot-help`.
+`blend-surgery-invariant-ends-in-a-tag` priced P4/E.
+
+## 2026-10-01 — continuation walls ruled: construct (PR 3647)
+
+Ev approved the designer pair's converged answer, superseding the
+2026-09-25 merge-stage ruling: sweeps build one wall per cosurface run;
+F7 is back to boolean outputs as the one op with a merge stage. The row
+`swept-continuation-walls-reach-the-boolean-unmerged` is now the
+implementation (fork-log row 36; A = Fable, B = Opus).
+
+## 2026-10-01 — `arc-window-membership-has-three-spellings` closed (PR #3700)
+
+The row's "three spellings" were two questions: a selection ("may this
+angle bracket lie in this periodic window" — sweep's `CircleFrame::misses`,
+geom's curve boxes, and a fourth copy found in `mesh/src/cert.rs`), now one
+home `geom::periodic_window_may_hold(phi, window, period)`; and topo's
+decided in/out/in-band membership (`arc_trim`, `chart_azimuth_margin`),
+a different question that keeps its own code, argued once at `arc_trim`.
+`misses` asks in its relative frame and is exactly the old predicate on
+its domain (pinned against an oracle with a census row). `CircleMargins`
+stays: an unsigned per-piece distance reads an enclosing ring as clear.
+Single review, fix pass, delta review, last pass.
+
+## 2026-10-01 — `subdivided-rim-fillet-refuses-at-the-collinear-joint` closed (PR #3701)
+
+A rim of collinear plane–plane links between the same two faces, meeting
+at valence-2 joints, fillets and chamfers as ONE band face
+(`OpenBand::admit`'s `Joint`, one `joint_verdict` shared with predicate 2;
+per joint one kef of the lower strut and one kev of the spur), named
+`BandFace` of the chain's sorted edge names. Predicate 2's clearance screen
+groups a joined run as one feature and checks each joint's foot exactly
+against the trimlines at the run's ends; nothing it cannot read is skipped.
+Full review, fix pass, delta review, last pass. Merged with two red rows
+that are main's own (filed there: REACH's 1e-6 `SectionLoopMixed`, PROPS'
+thread-count golden); every other row green. Filed:
+`ruled-band-refuses-a-joint-on-one-support-pair`,
+`unmerged-subdivided-wall-rim-fillet-names-no-merge-recourse`.
+
+## 2026-10-01 — `annulus-rim-host-outer-boundary-is-metered-only-by-the-sampled-screen` closed (PR #3715)
+
+Every closed rim's host AND mate outer boundary is now metered in closed
+form (`support_boundary_clearance`), not only by predicate 2's sampled
+screen: four silent-wrong carves (a notch or a tilted cut whose closest
+approach falls between sample stations) now refuse `RingClearance`.
+Non-line/circle edges are bounded by geom's certified boxes with the
+ellipse's exact height range, and a refusal decided by a box says so
+(`bounded`). Full review (MAJOR: an ellipse ball assumed `major ≥ minor`),
+two fix passes, delta review. Merged with two red rows that are main's own
+(as #3701). Filed: `face-clearance-screen-skips-boundary-edges-it-cannot-read`,
+`support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place`,
+`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`.
+
+## 2026-10-01 — S90 ruled: the blend stays differentiable (PR 3724)
+
+Ev approved the designers' converged answer: the blend doors stay generic
+under DL5; H-R3's fillet third is retired. `S90-impl` becomes the pin
+(dual tangent rows), P1/M. Fork-log row 40 (A = Opus, B = Fable).
+
+## 2026-10-02 — `S90-impl` closed (PR #3764)
+
+The blend's dual tangents are pinned: a sweep row checks a filleted and a
+chamfered cube's `Dual64` volume tangent against central differences
+(blend size and an upstream cube size seeded) and the fillet against two
+closed forms; an editor-core row differentiates a stack-up measure
+through a 3D fillet. Each row reds under a tangent-freezing mutant
+(radius read through `.lo()`; chamfer distance; edge point). Reviewed by
+the orchestrator's read (tests only, mutants demonstrated). Filed TINT's
+`dual-tangent-is-unpinned-for-seven-recipe-verbs`.
+
+## 2026-10-02 — continuation walls closed: sweeps build one wall per run (PR #3736)
+
+Closes `swept-continuation-walls-reach-the-boolean-unmerged` and the claimed
+`full-revolve-emits-split-planar-walls` (Ev's "construct" ruling, fork-log
+row 36). Extrude and partial revolve build one wall per run of collinear
+profile pieces (`swept::wall_runs`), a station being an `mev` chain with no
+strut; a full revolve collapses each run (`kef`/`kev`/`kemr`), so a planar
+wall in a solid is one face. Walls are stored per run; names go through
+`PieceRun` (a one-piece run is spelled as its bare locator, so bodies with
+no multi-piece run keep their names) and one constituents view
+(`names/merged.rs`). No `merge_coplanar_faces` is left on the sweep path.
+Dual review, class H (DR-38): both NOT-MERGEABLE-AS-IS on the
+same two CI-demonstrated MAJORs, tally 0; the union was taken in one fix
+pass, plus a delta read. Filed: `swept-cocircular-arc-runs-build-one-wall`
+(P1), `lamina-plane-annulus-keeps-its-slit`,
+`swept-operand-merge-repairs-left-in-tests`, `swept-run-walls-style-residue`,
+SHELL's `cap-rim-refusal-order-follows-the-arena`. Merged over main's two
+filed reds (thread-count digest; the 1e-6 open-sign row).
+## 2026-10-02 — `face-clearance-screen-skips-boundary-edges-it-cannot-read` closed (PR #3786)
+
+Predicate 2's boundary-pair screen reads each support loop whole
+(`screened_loop`) and refuses what it cannot read instead of skipping it.
+Two arms are reachable on a tier-1-valid body through `fillet_edges`: a
+lone-vertex ring and an uncertified boundary carrier, both now
+`UnsupportedGeometry` naming the entity (each pinned by a row that reds on
+main). The other three (unresolved face, loop/cycle, half-edge) are torn-body
+states, refused `BodyNotIntact`. `touches_any` refuses an unresolved edge
+rather than reading it as apart, and the surgery's three
+`filter_map(get_half_edge)` member reads became its typed no-cycle refusal.
+Reviewed by the orchestrator's read (cost E).
+
+## 2026-10-02 — a P0 landed from SHOW: `a-plane-plane-blend-cannot-end-at-an-unrequested-corner`
+
+Filed by SHOW's `split-node-chords-by-name-has-no-demo` (PR 3842) and
+raised to P0 / cost H / `design: true` at that PR's review: chamfering
+or filleting one edge of a box refuses `UnsupportedRunOut`, a face's
+whole rim `ChainNotG1`, and only all twelve edges build. Both doors are
+in the row's scope. The planar band's end geometry is a design fork in
+the shape of FILLET-H7's (Ev's ruling on PR 1736): two designers first.
+The bracket scene pins it live (walls 1–3). Its sibling
+`a-blend-refuses-a-solid-of-several-shells` landed at P2.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — `swept-cocircular-arc-runs-build-one-wall` closed (PR #3826)
+
+Extrude and the full revolve build one wall per run of adjacent cocircular
+same-turn arcs (`swept::joins` → `Join::{Corner, Run, Cut}`; the full
+revolve's `collapse_runs` sums the arc sweeps); a circle cut into arcs keeps
+its C12.5 cut, one wall per arc on one key (the orchestrator accepted that
+reading: a curved run closing its full period refuses to merge). The partial
+revolve still builds an arc run one wall per arc — the props meridian fold
+groups pieces by split lineage — parked as
+`partial-revolve-arc-runs-wait-on-the-meridian-fold` and stated at the README
+claim site. `offset_axial::reauthor` reads a re-authored arc's sweep nearest
+the old one (an atan2-cut fix a collapsed meridian exposed). Full review
+(APPROVE-WITH-FIXES, no MAJOR): the fix pass made the arc boolean rows answer,
+corrected stale station prose, guarded `wall_runs`' one-corner loop, adopted
+the probes (Vector, hole loop, k = 5, Interval, π-summing runs, the hollow
+sweep across the atan2 cut, f64/Interval names) and folded duplicate helpers.
+Merged up to main over ~3000 commits; main's split-ball row
+(`pi_seam_and_kiss_through_the_boolean`) re-pointed to a hand-cut equator. No
+re-baseline moved. Merged over main's own red at 1e-6
+(`pocket_ring_steep_ellipse`, filed on JOIN).
+## 2026-10-06 — the plane–plane run-out fork goes to Ev (`[ev]` PR #4085)
+
+`a-plane-plane-blend-cannot-end-at-an-unrequested-corner` (P0) put
+through the design-fork protocol: fork-log row 72. Designers A and B
+both diagnosed one missing idea (a band's end as its section by the face
+it runs into) and a face-whole planar carve, recommended the cut-off /
+mitre / patch by request count, and converged after three rounds; the
+only crossover was the mitre's name key, settled once both measured that
+a wider role variant is additive on the wire. PR 4085 asks Ev to rule
+the rule itself, the C8 and H7 text, whether an extruded box's isosceles
+mitre should lint as an unproven coincidence under D10, and the
+vocabulary. The designers flagged three rows to file once Ev rules:
+`CornerConfig::policy` maps `MixedConvexity` to `RunOutFeather`;
+`RuledPlan::plan` refuses a requested cap rim (the ruled band's own
+2-of-3 gap); the inner corner of an L-shaped rim (a torus pivot about L,
+or the end-face rule; the torus is degenerate there).
+## 2026-10-06 — `a-hole-filleted-at-both-rims-in-one-fillet-panics-in-blend-surgery` closed (PR #4088)
+
+A through-bore's two rims filleted in one call panicked at the surgery's
+naming postcondition (in the kernel, not only through the document): both
+are ladder rims sharing the bore wall as mate, the wall's seams run rim to
+rim, and the second carve's `meridian_splits` row named the fragment the
+first carve left rather than the source seam. The row now names
+`frag.source`, as the annulus phase does, the band telling the two splits
+of one seam apart; `shared_support_gate`'s doc no longer says two ladder
+rims never meet. Rows: the extruded bore at N = 2…4 and box ∖ cylinder
+build at the two-tori closed form and equal the two single-rim calls in
+either order (red on main), and one document `Fillet` over both rims mints
+distinct names. Reviewed by the orchestrator's read (one-key fix, the
+convention pinned by the new rows).
+
+`declared-joint-kind-zero-margin-reads-smooth` parked on
+`d10-one-way-to-say-intent-is-unbuilt`: profile declared-joint kinds are
+the hold's ground (D10 makes tangency constructed).
+
+## 2026-10-06 — `support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place` closed (PR #3822)
+
+The ladder case the row named was already exact (arm (a) meters each open
+link's trimline against the widened ring); what carved wrong on main was
+a ruled link beside an annulus rim — a rod on a squared washer's bottom
+face with the bore rim, a tier-3-valid body whose bottom boundary crossed
+itself. `support_boundary_clearance` now reads a co-requested outer-cycle
+edge at its own trim (`co_requested_trim`): an open link as its trimline,
+another rim's arc as that rim's whole trim circle (exact by closed form
+and containment). Full review (APPROVE-WITH-FIXES, no MAJOR; every probe
+refused on its closed-form margin and carved bodies matched it); the fix
+pass took all six points: the arm (c) sibling row closed (predicate 3's
+`s > r` keeps a plane-cap trim disc out of the sliver) with the remaining
+open-link candidate filed as `ruled-cap-meter-reads-a-co-requested-open-link-at-its-stored-place`
+(P3); the rim-arc branch kept with its unreachability argued at the site;
+"this link's trim on this face" given one home (`EdgeBlend::trims`,
+`Link::trim_on`, `open_trimline`); the reviewer's boundary sweep adopted
+as rows.
+
+## 2026-10-06 — the plane–plane run-out ruled (Ev, PR #4085)
+
+Ev approved all four decisions: the request-count rule (cut-off, mitre,
+patch), the C8/H7 text, and the vocabulary; decision 3 (whether a box's
+isosceles mitre lints) went to INTENT at Ev's request (#4094), where Ev
+answered: land it under (b), recorded as a value-decided coincidence and
+proven at INTENT's stage 4 (#4097). Fork-log row 72 completed (byte 26:
+Opus = A, Fable = B; both matched after round 3). The row's build order is
+in its `## Ruled` section; step 1 dispatches next. Filed
+`chamfer-ends-in-a-curved-end-face` (P3) from Ev's curved-end-face
+question.
+
+## 2026-10-06 — `a-blend-refuses-a-solid-of-several-shells` closed (PR #4113)
+
+A blend carves each chain inside the shell it lies in and leaves every other
+shell untouched, byte for byte down to the pcurve rows (the inventory gate
+that refused any body but one solid of one shell is gone). The row's premise
+was wrong: the bracket split's leg-tip half is two solids of one shell each;
+the door covers that and a solid with a void shell. A chain or corner whose
+supports lie in two shells is tier-1-invalid and refuses `BodyNotIntact`
+(the `AcrossShells` variant the lane first minted was folded in). Full
+review (APPROVE-WITH-FIXES, no MAJOR) — its N6 showed a tier-3′ backstop at
+the door would refuse a valid island round and miss one-shell overlap, so
+none was added; the overlap hole the lane found is
+`blend-material-is-never-checked-against-faces-that-are-not-its-supports`
+(P0, in flight). The fix pass also caught that an empty request on an
+empty body had begun to answer `SurgeryInvariant`. Filed JOIN's
+`pinch-tessellate-row-escalates-coincidence-at-eps-1e-6` (main red at 1e-6;
+merged over it). First BAND units run as cloud sessions.
+
+## 2026-10-06 — `fillet-support-ring-must-be-a-circle` closed (PR #4119)
+
+The ring carry-through meter reads a ring piece by piece: a polygonal ring
+(a prism unioned onto a face) is metered edge by edge against the region the
+carve sweeps, exactly, and a ring counts as one circle only when it is one
+closed circle edge. That second change also fixes three configurations
+where main builds a tier-3-INVALID body (a lens ring of two bores in one
+subtraction order, a three-arc ring, a hostless-annulus lens), each now a
+row. A multi-edge ring refuses at its least margin, independent of
+subtraction order. The duplicate whole-circle readings (`CircleMargins`,
+the `effective` widening) are retired: one home for ring reading. The heat
+sink rounds its plate after the union, gated on tier 3. Full review
+(APPROVE-WITH-FIXES, no MAJOR) taken in full. Filed:
+`a-ring-of-ellipse-edges-refuses-the-ring-meter` (P3). The lane's duplicate
+filing of main's 1e-6 pinch red was dropped for JOIN's (PR 4113).
+
+## 2026-10-06 — run-out steps 1–2 landed (PR #4121): the plane–plane band cuts off at its end face
+
+Under Ev's PR 4085 ruling: chain G1 classifies plane–plane junctions (a
+definite turn breaks the chain into two ends; `Turn` refuses until the
+mitre, step 4); predicate 6 reads the request count; the planar band carves
+locally (`blend/open/end_face.rs`, shared with the ruled band), so one edge,
+any subset ending at unrequested corners, and three edges of one corner
+(patch + cut-offs) chamfer and fillet at their closed forms; an oblique
+chamfer builds, an oblique fillet refuses until step 3. The whole-face
+planar path was deleted early (step 5), shown bit-identical by both
+reviewers' and the fix pass's base/head differentials. The bracket's chord
+walls retired. Dual review, class H (DR-89): R1 NOT-MERGEABLE-AS-IS on a
+concave cut-off swallowing end-face features unmetered (tally 1); R2
+APPROVE-WITH-FIXES. The union was taken: the concave end face LOSES the
+sliver too (the README sentence from PR 4085 corrected to say so — the
+decision unchanged, Ev told), arm (d) pinned by a witness, crossing cut-off
+feet refused at plan. Filed `a-requested-ring-edge-refuses-at-the-ring-meter`.
+The row stays open for steps 3–5 (oblique fillet, mitre, overrun).
+## 2026-10-06 — `lamina-plane-annulus-keeps-its-slit` closed (PR #4136)
+
+A lamina full revolve's plane annulus is one face with its bore as a ring:
+no seam slit and no `Meridian(Seam, s)` name, as a solid's planar wall
+already was (fork-log row 36's "construct"). The blend surgery and rim
+routing follow it: a plane annulus's one-link bore routes to the annulus
+carve, `lone_host_trim` carves a lone crossing, and the ruled band's support
+gate admits a plane support with rings, metered by the ring pass. STEP's
+washer exports 6 edges (census goldens re-blessed). Full review
+(APPROVE-WITH-FIXES, no correctness defect — every carve at its closed form)
+taken in full: a sentence-level prose sweep across blend, topo, mesh and the
+README; the check-9 outer-edge witness rebuilt through a public `mekr_chord`;
+ΔV pins; the deepest-gap reading; and 14 probe rows. Reconciled with 4119's
+piece-by-piece ring readers. Filed: TESS
+`mesh-slit-annulus-rows-no-longer-build-a-slit`, CLEAVE
+`revolve-seam-split-volumes-miss-their-closed-form-at-eps-1e-6` (main's red,
+merged over); SHELL `offset-door-declared-transport-has-no-built-witness`.
+
+## 2026-10-06 — run-out step 3 landed (PR #4173): an oblique plane end face cuts a round band off in an ellipse
+
+A fillet whose plane end face is oblique to its edge ends in the end plane's
+elliptic section of its cylinder, for the planar and the ruled band on both
+convexities: built through `Curve3::ellipse`'s deciding door, the sliver
+enclosed exactly (the disc to the sliver's reach less the ellipse, cut to
+the half-plane and the section's box). `cap_transverse` picks the kind; the
+near-perpendicular window where the ellipse is not distinct from a circle
+escalates as its own `BlendDecision::CapEllipse` with a followable recourse.
+The bracket's fillet walls retired; the tour rocker's wall 2 (the same
+over-refusal on a circle end) retired into builds. Full review
+(APPROVE-WITH-FIXES; every arc on both faces to 1e-16) taken in full. Filed:
+`second-order-cap-window-escalates-small-drafts` (P3); witnesses on CONTACT's
+`at-infinity-probe-measures-in-closed-form-only` and QUAD's
+`quadrature-convergence-test-escalates-instead-of-refining`. The run-out row
+stays open for step 4 (the mitre) and the overrun.
+
+## 2026-10-07 — the P0 landed (PR #4143): every band is metered against every face it could reach
+
+Predicate 2's reach (`blend/reach.rs`) meters each band against every face
+of the body that is not a support of its chain, in any shell, and refuses
+before any mutation (`BlendError::FaceClearance { at, chain, margin,
+bounded }`). Each reach is an intersection of 1-Lipschitz bounds (straight
+links closed at their end faces, circular links in their meridian sheet,
+corner patches of their own). Faces are pruned on certified boxes
+(`topo::FaceBoxes`). Cells halve until they clear, reach `escalate`, or a
+per-face budget of 4096 runs out; a spent budget refuses and never passes.
+Two bands of one request are read against what each leaves. The reach arm
+runs in the surgery after predicate 6 and before any mutation; C8 and
+`run_battery` are re-worded to say so, since the arm needs the plan's feet.
+The class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally
+0) was taken in full:
+- every sign is now decided (a bound scaled by an undecided sign is
+  vacuous, never wrong);
+- an end face tangent to the spine refuses typed;
+- the corner skip-union is gone;
+- `replaces` is restricted to the edge's extent plus a slab;
+- the corner bounds are pinned against analytic oracles.
+
+The cost of the 42-link request fell from about 4 s to 0.3 s at
+`Interval`. Filed: `blend-reach-takes-an-open-arc-link-over-the-whole-turn`
+(P3), plus a second seed on VACUITY's pick-face guard. This unholds PR 4092.
+
+## 2026-10-07 — sided radius headroom landed (PR #4092): r is limited only where a support bends toward the ball
+
+Predicate 1 (`fillet3_radius_headroom`) reads each support's curvature on the
+side the ball rolls (`geom_brep::SurfaceSide`, `min_radius_of_curvature_toward`).
+A ball outside a bore, boss or dimple is no longer limited by that radius.
+Bodies built at the Pappus closed forms to 1e-12.
+
+The full review's MAJOR (a convex band past a thin wall's far face, which
+the old two-sided limit happened to refuse) was held on the P0 and is now
+closed by PR 4143's reach meter, without touching the headroom. The
+reviewer's `thin_flare` is a row: `r = 1.5` and `1.6` refuse `FaceClearance`
+on the far face at a definite negative margin at all three eps rows, and
+`r = 1.4` builds. The Klein inner corner gives the same refusals, held in
+its scene.
+
+The minors were taken in full:
+- the cone-foot row closed as unreachable (spine regularity refuses first);
+- the torus arms stated unreachable through `fillet_edges`;
+- `SurfaceSide` replaces the bool;
+- the margin tightened to `r·(1 − r/arm)`.
+
+The tour rocker's wall 1 retired. Filed:
+`rocker-crease-radius-stays-at-the-eye-after-wall-1-retired` (P3).
+
+## 2026-10-07 — run-out step 4 landed (PR #4209): two requested edges at an isosceles corner meet in a mitre
+
+Under Ev's PR 4085 ruling and INTENT's option (b), two requested edges at a
+trivalent vertex whose third edge L is unrequested now meet in a mitre, chamfer
+or fillet, on both convexities, where `fillet3_turn_isosceles` decides the
+trihedron isosceles.
+- **The verdict.** The margin is the larger of the levered face-angle cosine
+  difference and the gap between the two feet on L. The feet term came from
+  the dual review: it is stricter, never looser, so Zero puts the midpoint
+  foot within band of both trimlines at acute angles too. A definite verdict
+  refuses `UnsupportedRunOut { TURN_NOT_ISOSCELES }` (renamed from
+  `TURN_OVERRUN`, whose text was false at supplementary angles); in band it
+  escalates.
+- **The geometry.** The mitre is a chord, or `cylinder_cylinder_section`'s
+  ellipse; L splits at the turn foot.
+- **Names and coincidences.** The new roles are `Mitre` and `TurnFoot`, with
+  content tags 49/50, because main's `Crossing`/`EdgeCrossing` took 47/48
+  while the PR was open. The Zero verdict is recorded as
+  `DecidedCoincidence::IsoscelesTurn`, a typed seam until D10 has a door
+  (`work/intent/value-decided-coincidences-have-no-recording-door.md`).
+- **Clearance.** The mitre needs no new reach code: each link's window
+  closes at the other band's support plane. Void and island rows refuse with
+  the meter and go red without it.
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the oblique-turn cap pad pinned;
+- the turn-feet arm of `shared_rims_clear` pinned where the screen passes;
+- `core`'s window padded at a planar end;
+- in-band `SectionError` escalates `MitreSection`;
+- the frustum checked against exact and point-membership oracles;
+- one turn reading per vertex.
+
+The bracket's wall 3 stays (its section-face corners are not isosceles). The
+run-out row stays open for step 5: the overrun at a non-isosceles turn,
+including the supplementary chamfer whose feet coincide, then deleting the
+residue.
+
+## 2026-10-07 — the run-out row closes at step 4; step 5 split
+
+Per the ruling's build order, `a-plane-plane-blend-cannot-end-at-an-unrequested-corner`
+closes with PR 4209. Step 5 (the non-isosceles overrun, a numeric probe
+before its spec) is now its own row,
+`a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
+whole-face planar path step 5 was to delete went at step 2.
+
+## 2026-10-07 — step 5's design to Ev (the non-isosceles overrun)
+
+PR 4239's probe measured the overrun on 2250 corners and the three witnesses
+(the bracket, the sheared box, the leaning prism). Two designers (A/B,
+fork-log row 121, renumbered from 85 at merge) agreed on the final state from their first reports. After
+two reconciliation rounds they also agreed on the verdict's two readings,
+the three-leg recourse, and what a later blend of L meets (a chamfer of L
+builds at 0 of 980 corners at an equal setback). Design reports, closed
+forms and measurements: the `[ev]` PR and the item's probe findings.
+## 2026-10-07 — the reach meters an end face away from its vertex (PR #4254)
+
+A link's reach now skips only its chain's supports and the faces its own
+window is capped by (recorded by `straight_reach` as it builds the caps,
+plus a corner patch's supports at a patch end), not every face at any
+vertex of its chain. In production a multi-link chain spans valence-2
+joints only, so the hole lived at a jointed chain's far end face; that
+witness is pinned
+(`a_jointed_chains_far_end_face_is_metered_against_the_near_link`; red
+with the chain-wide skip put back). A curved face where a straight window
+ends fails loud (`SurgeryInvariant`), so the skip's premise is structural.
+
+`band_reach_for_tests` now breaks chains at turns as production does
+(`battery::broken_at_turns`); no reach row moved under it (256 tests
+diffed). One row moved for the structural skip: a circular reach has no
+caps, so an open arc's flat is now metered (latent; open arcs refuse
+upstream). Single full review (APPROVE-WITH-FIXES, no MAJOR), taken in
+full. Filed: `tint/tipped-rod-join-escalates-at-1e-12` (main's red). Not
+chased: `point_in_solid` answering `VolumeUncertified` on 533 sample
+points of a tier-3-valid jointed-chain body (the review's probe K control).
+
+## 2026-10-07 — the blend doors take a finished operand (PR #4252)
+
+`fillet_edges` and `chamfer_edges` take `&AtRestBody<T>`. At a dual they read
+`gate_unverdicted` first (`build.rs::operand_gate`) and refuse
+`InsideOutOperand` / `ScaffoldingOperand`. At f64 and `Interval` an inside-out
+or scaffolded body cannot be finished, so it never reaches either door. The
+clockwise wedge and the slit dome are pinned, both verbs, red without the
+door read. The change is threaded through editor-core, verbs, pncad-py, the
+tour, and ~500 test call sites (`test_support::at_rest`, `#[track_caller]`).
+`topo::Unfinished` is public; its refusal texts are one home (consts), true
+for a `ShellWinding` finding.
+
+**Behaviour change:** editor-core's blend node now pays tier 3 on its
+target, which roughly doubles a chained blend node's cost (tier 3 ≈ the
+blend). No corpus, tour or guide document regressed. `UnfinishedOperand`'s
+text names the input's operation, and every arm fits the 75-word budget.
+
+**Review.** Cost M: a full review raised a MAJOR, so a second full review
+followed the fix pass, and it raised another of the same class. Both MAJORs
+were the PR having deleted the only row of an arm a FINISHED body still
+reaches: the half-band gate's curved single host, and the hostless host
+gate (a pinched planar host). Both are now witnessed rows. The filed
+`blend-scaffolding-arms-behind-the-operand-gate` closed: its two remaining
+screen arms are provably unreachable through the doors (tier 2 checks 1
+and 4), and are kept as stated defence for direct `run_battery` callers.
+Declined: `#[non_exhaustive]` on `Unfinished`, because the one foreign match
+should break the build on a new case. Filed:
+`restfront/dual-operand-read-passes-an-orientation-it-cannot-measure`.
+Not changed: `common::cavity::cut`'s re-gate (66 callers).
+
+## 2026-10-07 — a straight cap edge clear of the cut-off's sliver carves (PR #4271)
+
+The cut-off sliver's clearance meter read a cap edge only as wholly inside
+the ball's section, wholly beyond the reach, or wholly short of the floor,
+so an edge that left the enclosure Ω by different faces refused where it
+was clear. `line_clearance` now reads a straight edge exactly: the least of
+Ω's defining function over its ends, the radial foot and the terms'
+pairwise crossings, at every scalar (a quotient whose divisor's bracket
+meets zero is skipped; soundness against the sliver rests on the ends).
+Three rectangular-hole witnesses carve, at `Interval` too, and the
+keyhole at `r = BR` carves at its closed form. The half-plane wedge near
+the feet had no witness on main (pinned as a row).
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the `Interval` collapse at a floor-parallel edge;
+- a cancellation far from the centre;
+- a candidate-set fuzzer that can go red, at both scalars;
+- an independent Ω oracle;
+- the filed rows corrected.
+
+Filed: `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver`,
+`cap-sliver-meter-reads-a-curved-edge-term-by-term`.
+
+Claim 1 (a bore wholly inside the sliver dying with it) is NOT built. The
+unit row stays open, re-titled to that question: may a blend delete an
+authored feature wholly inside the material it removes? It goes to Ev
+after the designer protocol (both designers recommend building it).
+
+## 2026-10-08 — the rocker's crease carves at the blend radius (PR #4287)
+
+`demos/tour/src/rocker.rs`: `R_CREASE` rises from `R_EYE` (1/4) to
+`R_BLEND` (1/2), as sided headroom (PR 4092) allows. Tier 3 holds, ΔV matches
+`−2·crease_cut(r)·depth` to 1e-12, and the census stays 38/57/21 at genus 2.
+The sweep still asserts the old radius at its closed form. The kernel and
+FreeCAD frames are re-rendered: only the keyhole's two creases are rounder.
+`TestRocker`'s mirror and the README row follow. Filed on CIW (P1):
+`ciw/render-gui-sorts-ordinal-digest-node-ids-as-ints`; the GUI render
+lane crashes on PR 4244's `ordinal:digest` ids, so the viewer cells are
+unrendered until it lands.
+## 2026-10-07 — the bore-in-the-sliver question to Ev
+
+PR 4271 left the unit's claim 1 open as a design fork: may a blend delete an
+authored feature wholly inside the material it removes? Two designers (A/B,
+fork-log row 86) both recommend building it, silently, as a Boolean does.
+They split on whether the blend's naming records the consumed faces, and
+on one C8 sentence. The implementing lane had recommended keeping the
+refusal; that is the stated alternative. The `[ev]` PR carries the question.
+- 2026-10-09 — Seam note from ENCL (PR 4411, merged): `geom_brep::must_carry_over_edge` now reads the second-order sagitta on every pair (tier 3's walk), so an in-band sagitta escalates `InBand(SecondOrder)` out of lane too; `UnderDetermined` out of lane means every station read Positive (or a station read Zero/Negative). An out-of-lane all-Positive pair now costs `CERT_SAMPLES−2` `tangent_second_order` samples. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL: dispatching `encl/sweep-must-carry-escalation`. `sweep::blend::surgery`'s contact-edge, `sweep::extrude` (strut, cap rim) and `sweep::revolve::upgrade` will map `MustCarryEscalation` exhaustively instead of `.diag()`. The blend's second-order reading gets its `AnySign` tolerance ending back, and a first-order station stops reading as `ContactSecondOrder`. Texts may move on in-band must-carry refusals. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4474, merged): the material pairing is a decision. `geom_brep::MATERIAL_PAIRING` and `MATERIAL_PAIRING_CLAUSE` end it at tier 3 (`WedgeCheck::MaterialPairing`) and split finish (`SplitFinishError::DescribeSideEscalated`), with a true tolerance offer. Where the wedge would re-decide below m/K, `pairing_at_wedge` quotes the wedge and offers w/K, as `at_wedge` does. `MaterialStations`' `Break` is `MaterialStop { check, cause }`. The cusp-side Zero reads via `decide_nonzero`. New k_stats predicates appear on the refusal path only: "material_pairing_offer_wedge" and "material_pairing_wedge". (ENCL orchestrator)
+
+## 2026-10-12 — Ev ruled on the bore in the sliver (PR 4285)
+
+Build it: a feature wholly inside the material a band removes or fills goes
+with it, as under a Boolean; a crossing feature still refuses. No `Consumed`
+record until something needs one. C8 now says face clearance reads three
+ways. A consumption lint over the blend and the Boolean as one rule, which
+needs lints to store their own resolution first, is filed on INTENT
+(`a-feature-an-operation-consumes-has-a-lint`). Fork-log row 119 (renumbered
+from 86 at merge). The build goes in the ruling's four steps.
+
+## 2026-10-12 — a requested ring edge meters as a strip (PR 4286)
+
+A planar support's ring that carries a plane–plane link's requested edge
+is metered at the strip (arm (d)), not refused at the ring meter.
+`a-requested-ring-edge-refuses-at-the-ring-meter` closes. Three full
+reviews (tier M, sequential: each of the first two raised a MAJOR):
+- review 1 (`fcd3d374a6`): `reach::screened` read a two-sided region where
+  arm (d) is one-sided, so clear far-side geometry reached
+  `SurgeryInvariant` (also on main for the outer cycle). Fix pass 1 made
+  the region one-sided, and `screened` refuses a vertex inside it typed.
+- review 2 (`7781e428ee`): the one-sided bound's `slab` setback disabled
+  the cross-chain excuse at oblique poses (the sealed void + island
+  refused at three of five poses that built on the base). Fix pass 2
+  split the readers: `screened` keeps the one-sided bound, the excuse
+  reads the two-sided region where `screened` finds it vacant of other
+  vertices; a row builds the island at every pose.
+- review 3 (`6754d3515c`): APPROVE-WITH-FIXES, no MAJOR; it reached the
+  vertex-only premise with a curved far-side edge and found no reader.
+  A finisher took its minors (the spike row now pins arm (d) with an arc
+  no vertex screen sees; the docs state the vacancy as a vertex reading).
+
+Filed: `the-cross-chain-excuse-misses-an-oblique-cell-past-a-windows-end`
+(the 1.1 rad pose, red on the base too),
+`the-strip-screen-reads-a-supports-vertices-not-its-edges` (with its
+witness row), and evidence added to
+`the-support-screen-refuses-a-feature-across-the-edges-line`. Main's
+1e-6 red of `r1_lane0_e2e` is noted on its ssiedge item.
+
+## 2026-10-12 — the bore ruling's step 1: predicate 2 reads three ways (PR 4797)
+
+Predicate 2's reach and the cap meter (arm (c)) read each face and cycle
+clear, wholly inside, or crossing, and feed one verdict for the request
+(`reach::Unclear`): a crossing anywhere refuses as a crossing, then a
+bound, and `BlendError::WhollyInside` only when every non-clear reading is
+inside. "Wholly inside" still refuses; the consuming carve is step 3.
+Because a wall that meets a window's end plane reads as a bound, every
+through-bore inside a sliver refuses as a bound at its wall today; the
+step-3 prerequisite (a non-strict cap-plane reading, a prism reading for
+the ruled crease) is in the unit's Findings. The README states today's
+refusal beside the ruling's end state (Ev on PR 4285: rephrase where
+misleading).
+
+Cost H, a concurrent dual (DR row `PR-4797`). Both reviews found the same
+MAJOR: the first version's verdict was whichever face or cycle was read
+first, so a crossing feature could be refused `WhollyInside` by order.
+Tally 0. A union fix pass fixed it, and a confirming full review on
+`0f5d13362d` approved, with notes for steps 2–4 recorded on the unit.
+`blend-support-ring-meters-read-two-ways` triaged P3/M.
+
+## 2026-10-12 — Ev ratified the non-isosceles turn's overrun (PR 4245)
+
+Ev's conditions (2026-10-08) were checked numerically on the PR, with
+figures in `crates/sweep/doc/turn-overrun/`. PR 4844's dual review then
+showed the box-corner limit was stated wrong: the chamfer's chord is the
+gap times a corner-fixed ratio, so both readings are quadratic there. The
+README sentence and a comment were corrected before Ev answered "this
+design sounds good!". Fork-log row 121 (renumbered from 85 at merge) gets
+its second half. The build goes in three steps; step 1 is PR 4844.
+
+## 2026-10-12 — the turn reads its feet and its overrun chord (PR 4844, overrun step 1)
+
+A two-requested-edge turn at a trivalent plane–plane vertex reads two
+closed-form lengths per verb: the gap between the bands' feet on the third
+edge, and the overrun chord. Both Zero builds the mitre and records a
+`CommonFoot` coincidence (unproven at the document's door); both definite
+refuses `TURN_OVERRUN` naming the far band; anything else escalates. The
+sheared box's supplementary chamfer, refused before, now builds (convex and
+concave, at f64 and Interval, at the closed form). Cost H: a concurrent dual
+(DR row `PR-4844`), both APPROVE-WITH-FIXES, tally 0. Both reviews derived
+that the box-corner chamfer chord is the gap times a corner-fixed ratio —
+the `[ev]` analysis had said linear — and the README and PR 4245's comment
+were corrected before Ev ratified. The turn recourse drops its "clearly
+apart" leg until step 2 builds the overrun; step 2 restores it.
+
+## 2026-10-13 — the bore ruling's step 3: a ruled cut-off's sliver consumes a through-feature wholly inside it (PR 4896)
+
+A through-feature between the two caps of a convex ruled cut-off, wholly
+inside the sliver the band removes, now goes with it: a prism reading
+(`reach::prism_inside`) reads the feature's faces through the cap cycles
+read inside — the cap's sliver is the prism's slice, so the two readings
+agree — and the carve (`consume`) retires its faces, edges and rings.
+`consume::plan` admits only an annulus of one-cycle faces and refuses
+`WhollyInside` for anything else; a blind bore refuses as a bound. The two
+witness bores build at `ΔV = −2·A·L + π·a²·L`. Step 2's remainder landed:
+a consumed name resolves `Vanished { PredicateFlip }`, and `WhollyInside
+{ at }` is canonical by `EntityId`. Cost H, a concurrent dual (DR row
+`PR-4896`), both APPROVE-WITH-FIXES, tally 0. Both showed by mutant that
+nothing pinned the prism's slack and tilt terms; two rows now do. The
+reviews contradicted each other on a one-edge bore: the fix pass found the
+seamed one-edge bore builds (one face, one cycle) while a seamless wall
+(two cycles) would have been admitted and then refused untyped, so `plan`
+now refuses faces with rings. Step 4 (planar band, concave fill, chamfer)
+has its owed list on the unit.
+
+## 2026-10-13 — the bounds roster line PR 4896 owed (`reach::displaces`)
+
+PR 4896 added `reach::displaces`, a sole-bracket bound door, with no
+`bounds_census` roster line; geom-core's census turned main red (filed
+three times: P0 by FLUX and TANG lanes, P1 by PCERT). The PR's own CI and
+the orchestrator's local gate (sweep + editor-core) never ran the census,
+which carries no `gated_to!` marker and so runs only when a diff seeds
+geom-core. The line's disposition is Selection, inheriting `Unclear`'s.
+Before merging a blend PR that adds a `Bounds` site, run
+`cargo nextest run -p geom-core -E 'test(bounds_census)'`.
+
+## 2026-10-13 — a chamfer's non-isosceles turn builds its overrun (PR 4926, overrun step 2)
+
+Where both readings are definite, a chamfer turn builds the mitre plus the
+far band's cut-off at the near band's face of L, clipped at the mitre's end
+q down to the far foot p_k; every vertex trivalent, the far band's
+`EndArc`/`FootVertex` named. The "move the feet clearly apart" recourse is
+back for the chamfer. Tour wall 3 builds (`bracket.png` re-baselined). The
+fillet still refuses `TURN_OVERRUN` (step 3). Cost H: a concurrent dual (DR
+row `PR-4926`), both APPROVE-WITH-FIXES, tally 0; both built the overrun
+right against oracles of their own (a clipped cube; Boolean slabs), now
+rows. Both showed by mutant that arm (c)'s whole-sliver meter at a turn
+makes no refusal the reach does not, and one that it refuses a boss clear
+of the overrun: filed as `a-turns-overrun-meters-the-whole-cut-off-sliver`
+(the fix revises the README's ratified clause, so it is Ev's). The
+short-near-edge spurious `FOOT_INSIDE_A_FACE` is now executed on its item.
+
+## 2026-10-13 — the bore ruling's step 4: the planar band and the chamfer consume a through-feature wholly inside their sliver (PR 4957)
+
+The planar band hands its crease to the cap meter, so step 3's prism
+reading and carve take a through-feature wholly inside the material a
+convex plane–plane cut-off removes. A chord end's sliver is read as its
+exact triangle, so the chamfer's convex section takes no slack (keyed on the
+sliver, not the verb). The concave fill split to its own fork,
+`a-concave-fill-and-a-whole-shell-inside-a-bands-region` (`[ev]` PR 4963);
+a void inside a convex band's material is owed and still refuses
+`WhollyInside`. Cost H: a concurrent dual (DR row `PR-4957`), both
+APPROVE-WITH-FIXES, tally 0. Each found one of the triangle's terms unpinned
+(the outside witness; the two rim sides), killed only by its own probe; both
+are rows now. Filed `a-chord-ends-triangle-could-read-a-cycle-outside` (a
+missed loosening). The overrun's sliver, built through the same chord end,
+keeps crease `None`, pinned by a slot row. Merged with main brought in after
+PR 4992 fixed PR 4197's `transform_rigid` break on main.
+
+## 2026-10-13 — a fillet's non-isosceles turn builds its overrun (PR 4962, overrun step 3; the item closes)
+
+A fillet whose feet on the unrequested edge L stand definitely apart
+builds the overrun, at convex and concave corners: the far band's ordinary
+cut-off at the near band's face, in the section any cut-off picks, its arc
+windowed from p_k to the mitre's end q (G1 at both). `TURN_OVERRUN` is
+gone. Near a box corner, on the side whose far face is oblique, the end
+ellipse escalates past the turn's band (to ≈0.0256° at r = d); the turn
+recourse now hands on to that recourse, walked to a build. Cost H: a
+concurrent dual (DR row `PR-4962`), both APPROVE-WITH-FIXES, tally 0; both
+built the right bodies against oracles of their own (a planes-solved
+quadrature with membership grids; a Monte Carlo opening), now rows. The two
+residues (`an-overruns-sliver-refuses-a-short-near-edge`,
+`a-turns-overrun-meters-the-whole-cut-off-sliver`) are verb-neutral and
+carry the fillet's evidence; the round sliver over-refused nothing probed.
+
+## 2026-10-13 — the line meter's Interval low end far from the centre (PR 5025, P1)
+
+The Interval line meter read `G` through the point `q0 + e·[s]`, so `s`
+sat in every coordinate and a near-0/0 crossing candidate's spread
+lowered even a term flat along the segment. `g` now reads each term with
+`s` once (`√((s + b)² + d2)`, `a + k·s`); each still encloses its term at
+every point of `[s]`. Main reddened the fuzz row on 8/1000 seeds; the
+branch on 0/1000 and on ~400k effort-100 cases. Both seeds' cases are
+fixed rows. Cost E, verified by the orchestrator (the seeds green on the
+head, clippy clean).
+
+## 2026-10-14 — BodyNotIntact says how the body broke (PR 5021)
+
+`BodyNotIntact` carries a typed `Breach { Unresolved, Unwalked,
+Disagrees }` and renders that cause, not "did not resolve" for every
+detail; all 213 raise sites classified, nine mixed ones split. Each
+breach's text is pinned, with a real refusal per kind where one is
+reachable (`Disagrees` through the public door; the other two only
+crate-internally, since the doors validate tiers 1 and 2). The lane
+filed seven sibling refusals that render several causes through one
+sentence, across six programs. Cost E, verified by the orchestrator.
+
+## 2026-10-14 — Ev ruled the band's feature semantics (PR 4963)
+
+Re-forked on Ev's comments into one question and answered by two
+designers in agreement (fork-log rows 139–140): Boolean semantics is a
+blend's definition (convex `S − R`, concave `S ∪ F`); a feature crossing
+the band surface refuses as an unbuilt case, with the intention to build
+it once the Boolean serves the band × feature pairs; a mouth a fill
+covers is sealed; an advisory lint for every operation reports a feature
+an op makes vanish or change type unasked; `docs/DESIGN.md`'s
+void-insertion convention gains the blend's seal as a fourth producer.
+The reorder recourse (`subtract(fillet(body), hole)`) needs the blend's
+edges re-picked upstream, because a name on a feature's output is that
+node's `From { read, of }`. Build order and status:
+`work/band/a-concave-fill-and-a-whole-shell-inside-a-bands-region.md`.
+
+## 2026-10-14 — a fillet corner's chart poles on its third foot (PR 5048)
+
+`arms::corner_chart` poles every fillet corner patch on one of its feet,
+so one pole is a vertex and the antipode lies outside (the feet are
+independent, predicate 6); the patch stays in an open hemisphere and its
+`u` window in `[0, θ]`, `θ < π`. Ev's C12 (7) rule held for blend corners
+at last: the f4 clip read `Unencoded` on main and reads `Encoded` here,
+over 160 corners. Cost M, full review APPROVE-WITH-FIXES (text only; the
+geometry held over 2000+ charts and 124 built corners, and a mutant);
+the fix pass took the reviewer's oblique corpus into the row. Oblique
+fillet corners still do not tessellate (`NotIsoRectangle`, the P0 tess
+item, which now carries them as a witness); box corners move only by
+signed zeros at axis poses and by ulps elsewhere.
+
+## 2026-10-14 — the cap sliver reads reach and floors over its rim pieces alone (PR 5110)
+
+`CapSliver::of` no longer takes the end curve's own terms into `reach`
+or the floors: over the compact sliver the distance and each floor's
+linear function reach their extremes on its boundary, and inside an arc
+of the strictly convex end curve an extreme would need the outward
+normal to point the way the function grows, where the sliver runs on
+past it; so the rim pieces hold every extreme (proof at the site). The
+review re-derived it and ran the whole sweep suite instrumented (10,383
+sliver constructions; the dropped terms never beat the rims by more
+than 6.5e-14, foot-tie rounding). One row pins the arc extremes the cap
+meter reads (the far and along-high arms). Cost M, full review
+APPROVE-WITH-FIXES (a stale doc). Filed
+`a-cap-slivers-rim-arcs-whole-circle-arms-have-no-cap-row`: the rim
+arcs' whole-circle arms, now the only source of those extremes, have no
+cap row.
+## 2026-10-14 — sheet_clip clips a cylinder or plane at any pose (PR 5052)
+
+`sheet_clip` admitted a cylinder by its stored origin's offset and an
+unlevered tilt gate. A wrong admission was only ever a lost clip (the
+clip is the face boundary's span along the trace, and `z` is affine
+along every ruling, so the boundary's span holds the face at every
+pose); the fix reads no origin and, after review, clips a cylinder or
+a plane at any pose, ⊥ included. `sheet_fn` reads its slack at the foot
+of the reach box's centre. `tilt`, the circle arm's `lean` and
+`circular_reach` take their chords without cancellation; main's
+`√(2−2|b̂·a|)` under-read the slack in f64 (a zero-band lean levered
+over a long box read 0). Cost M, full review APPROVE-WITH-FIXES (no
+MAJOR: 9412 clips at 14 leans, 0 missed a face point; mutants red); the
+fix pass ported the reviewer's corpus as rows.
+
+## 2026-10-14 — the band feature rule written down; the crossing recourse names the reorder (PR 5077, step 1)
+
+C8 and `crates/sweep/README.md` predicate 2 state Ev's rule (PR 4963):
+`S − R` / `S ∪ F`, what is built today, and the refusals sorted by the
+meter that reads them (the screen and the ring meters; the reach;
+`WhollyInside`). The clearance and ring recourses offer the reorder
+("if that face came after the edge, blend before it, re-picking the
+edges there"); rows walk it to a build for a chamfer against a skew
+bore and for either verb against a parallel bore, and pin the fillet
+against a skew bore refusing at the Boolean (`GermFrameUnsupported
+{ Cylinder, Cylinder }`) until that pair is served. Filed
+`work/doctail/an-editor-action-moves-a-node-after-another.md`; the
+lint item carries Ev's op-agnostic ruling. Cost M, full review
+APPROVE-WITH-FIXES (two README sentences named the wrong arm or row).
+
+## 2026-10-14 — blend refusals say what their site met (PR 5116)
+
+`Breach` gains `Scaffolding` (with topo's own recourse, "finish that
+edit first", shared through one literal with `Unfinished`'s door
+sentence) and `Degenerate`; null-edge and lone-vertex sites leave
+`UnsupportedGeometry`'s shape recourse; folded `None`s refuse per cause
+through one `surgery::certified_curve` read (`stored_piece` and
+`battery::carrier_of` its `Result` forms). `Scaffolding` is reachable
+through the public `run_battery_for` on a raw body (a row pins it);
+`Degenerate` only crate-internally. Cost M, full review
+APPROVE-WITH-FIXES. Filed `blend-two-geometry-refusals-meet-no-shape`
+and `blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate`.
+
+## 2026-10-14 — a thin cylinder boxes by its boundary (closes blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate)
+
+Tier 3 admits any exactly positive radius; the face box's levered axis
+refused one the band does not decide positive. No door was found to
+mint one (profile, STEP, fillet each refuse it at the band), but the
+margin chain does not exclude it, so `face_box_rule` now falls back to
+the boundary hull (sound for any ruled face) where the axis is a
+direction and the lever does not decide. The review's fix pass splices
+the lever's escalation superseded on that fallback, clips the slab to the
+hull on every coordinate (one home for the ruled containment), and
+filed `cleave/separating-axis-reads-swallow-their-unit-escalations`.
+
+## 2026-10-14 — a bar inside a concave band's fill is absorbed (PR 5099, step 2)
+
+A bar between two end walls wholly inside the material a concave band's
+fill adds goes at `ΔV = +(A − A_bar)·L`: a cut-off's cap ring read
+inside its sliver carries its crease on either convexity
+(`SliverOrigin::CutOff`), and nothing else reads the side, so step 1's
+carve runs for the fill unchanged. Cost H: a concurrent dual (DR row
+`PR-5099`), both APPROVE, tally 0. The fix pass took in both reviewers'
+probes; the ruled table's island-voids cell carries an erratum (the
+voids lie in `F`, which fills them), and the step-2 refusals steps 3 and
+4 inherit are pinned (a bump on the bar, a sealed tube, blind holes in
+the walls). Filed `a-feature-inside-a-turns-overrun-is-not-carved`.
+
+## 2026-10-14 — a cup on one end wall goes with the band (PR 5161, step 3)
+
+The end-wall half of step 3: a blind bore under a convex plane–plane
+band and a pin under a concave one, wholly inside the region, go at
+`ΔV = ∓(A·L − V_cup)`. A cup's faces off the cap are certified through
+their edges read in the band's exact core, a plane face not parallel to
+the spine by its boundary, and `consume` takes a disk on one cycle,
+bridging a face's rings first, so a bump on a bar now builds too. The
+strip-mouth half (dimple, boss) and the ruled band's cups are filed.
+
+
+The fix pass of its dual review: the core reading of an edge now
+tightens its depth (it reported the first certifying piece's, which,
+not the lean term, refused a slightly leaning bore under the fillet,
+now built); rows witness the disk count, the piece radius and the
+plane reading's slack; C8 says an absorbed island's voids are filled.
+Filed `a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved`
+and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 51 rows left are 5 at P2, 36 at P3, 3 at P4, 7 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)
+
+## 2026-10-19 — a cup on a support's strip goes with the band (PR 5338, step 3)
+
+The strip half of step 3: a dimple under a convex plane–plane band and
+a boss under a concave one, their mouths rings on a support's strip,
+wholly inside the region, go at `ΔV = ∓(A·L − π·a²·h)`, where the band
+is one link cut off at both ends. The ring pass reads a support's ring
+against the strip across the edge; the clearance screen stands down on
+a ring that reading decides; the reach reads the cup in the band's core
+less that support's side, its other edges in the whole core. A ruling
+square to the support pays nothing where the section is convex (the
+chamfer's) or the face lies on the support's side of the fillet ball's
+centre; a cup reaching past that centre pays its run across the spine,
+since at an acute dihedral a line along the support's normal can leave
+the section through the arc and come back in the cusp by the other
+support (both reviewers' probes, now rows in `band_dihedral_cups`, with
+the cap half's at 30°, 60°, 120° and 135°, which main builds right).
+The screen and arm (a) read a ring through one piece set
+(`surgery::strip_ring`), so a leaning round dimple's elliptic mouth now
+goes too. `consume` needed nothing new. The followability row's blind
+hole from the support face now builds. Filed
+`a-cup-on-a-strip-beside-a-band-not-cut-off-at-both-ends-is-not-carved`.
+## 2026-10-19 — a cut-off arc at an oblique end reads off atan2's cut
+
+`an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward`
+closed: a foot half a turn from its end ellipse's `u_ref` read the hull
+`[−π, π]` at `Interval`, so the sheared box's fillet refused where
+`f64` built. `surgery::arc_window` re-anchors at the half turn and is
+the one window read for `CapSliver::of` and `attach_contact`. A shear
+ladder of both signs, convex and concave, both verbs, at both scalars.
+Filed `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
+one issue for the seam-anchored reads in `topo`.
+
+## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
+
+`sheet_center`'s round × round arm reads `geom_core::Circles` for the
+offset circles' radical foot and half-chord, and `corner_ball` solves
+for the centre's offset from its first vertex. Rows in
+`blend_arms_centre_placement.rs` hold both at a few ulps of scale at
+`f64` and `Interval` (main: about `ratio` ulps / NaN past 1e8, and
+`u·|p|/det`). Closed `sheet-center-circle-pair-cancels-at-unequal-offsets`
+and `blend-corner-ball-cramer-anchors-at-the-world-origin`. Filed
+`plane-sphere-blend-spine-radius-by-differences-of-squares` here and
+`work/shell/topo-planar-offset-cramer-anchors-at-the-world-origin.md`.
+
+## 2026-10-19 — the slate re-banded for the hand-back
+
+Ev (in chat): finish what matters, then hand the tail back rather than
+working through it. The eight unbanded items now carry a band and a
+cost (the Interval oblique cut-off's `BodyNotIntact`, a normal fillet
+refusing on the certified scalar, P2; the precision and funnel items
+P2; the overrun and dependent-normals refusals P3).
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` closes:
+its four steps are built and its void residue is the concave item's
+step 4. `blend-reach-never-meters-the-bands-of-one-chain-against-each-other`
+drops to P3 (no door reaches it while every chain is straight). Being
+finished before the hand-back: step 3b (strip-mouth cups), the two
+`arms.rs` centre placements, and the Interval oblique cut-off. Step 4
+(whole shells and the seal) and the P3 tail stay on the slate.
+
+## 2026-10-19 — the track handed back (`ready`, P2)
+
+Ev (in chat): finish what matters, then hand the tail back. Finished
+before the hand-back: step 3's strip half (PR 5338, a dimple or boss on
+a support's strip; its dual review found a wrong body at acute
+dihedrals, fixed by giving the ν-stray only inside the fillet ball's
+centre half-space, and the merged cap half was probed at 30°–135° and
+is unaffected), the two `arms.rs` centre placements (PR 5348), and the
+Interval oblique cut-off (PR 5346). The program is `ready` at P2: step 4
+(whole shells and the seal, H), the anti-seam Interval refusal, three
+error-propagation rows, and the P3 tail. The 1e-12 needle main red
+filed here is closed as a duplicate of CPAIR's bisected item.
+- 2026-10-20 — **Seam (NURBS):** PR 5477 merged (`6a61ea97`, CPAIR ground). `band_turn_overrun_fillet::the_needle_builds_then_refuses_at_the_turn_as_it_flattens` and `leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales` now pass at `CAD_TOLERANCE_EPS=1e-12`. They were red in the 10-17, 10-18 and 10-19 nightlies, bisected to PR 5227. `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval` stays red at 1e-12, on the Interval polish meter, filed as `work/cpair/curve-pair-polish-at-interval-reads-the-iterates-width`. (NURBS orchestrator)
+- 2026-10-26 — (tracker sweep) Closed three rows already fixed on main: `fillet3-chain-arm-mints-indeterminates-after-a-definite-sign` (both sites go through `classify_positive`, `4c59258a00`), `blend-reach-reads-two-extents-off-a-root-of-one-minus-a-square` (both reads respelt without cancellation, `f84f8ef95d`), and `end-face-vertex-window-picks-its-first-half-turn-by-floor` (the floor pick was deleted with the end curve's terms, `12ee8c73f0`, PR 5110). Re-read notes added to `blend-split-rows-and-must-carry-prose-residue` (two of its three bullets are done), `unmerged-subdivided-wall-rim-fillet-names-no-merge-recourse` (its witness row is gone; the refusal stands), `swept-run-walls-style-residue` (the gate's count), and the line numbers of `unclaimed-half-edge-read-as-a-minus-half-in-band` and `blend-rim-and-seam-walks-read-a-ring-by-an-unproven-cycle-walk`. Priced the two unpriced rows: `a-blend-of-no-edges-returns-its-input` P3 E with `design`, and `a-knife-edge-plane-blend-divides-by-one-plus-the-normals-dot` cost M. Dropped the plan's stale SCALAR note (`S90-impl` closed 2026-08-21). The track is still far over budget (about 100/30): it is owed a priority-seam split.
+- 2026-10-26 — (split) BAND measured about 100 points against 30 (twelve P2, four P4, about 85 of P3), so it split along its priority seam. BAND keeps the P2 slate and the P4 residue, and four cheap P3 rows that sit beside step 4: the surgery's ring walk and half-edge reads, the empty request's design question, and the swept-operand test repairs. That is 20 points. The P3 tail of conservative refusals and wide meters split by which reader refuses, into three new programs, each `ready`, its rows moved by `git mv` with ids kept. **BANDRULE** (26.5) takes 13 rows: the shapes the band-feature rule or the chain door would build (features in a region that is no disk or annulus, inside a turn's overrun, cups on a strip, leaning cups, a ruled band's cup, a touch in the strip, the core depth on a spiric or spline crease, a chamfer into a curved end face, a ruled joint, an unmerged subdivided rim) and the endings that name the wrong recourse (the two `DependentNormals` rows, the two shape-recourse sites). **BANDREACH** (18.5) takes 8 rows on predicate 2, the reach meter in `reach.rs` and the support screen in `battery.rs`. **BANDMETER** (28.5) takes 12 rows on the surgery's meters: `ring_clearance_pass`, the rim's support-boundary meter, the cap sliver and the turn's overrun sliver. **CARVEREST** (to 21.5) takes three `battery.rs` rows that read the chain walk and the corner: `corner-config-indeterminate-has-no-real-body-witness` and `open-rim-end-corner-of-a-partial-revolve-does-not-classify` (`corner_at`, beside CARVEREST's corner-valence row), and `blend-an-edge-in-another-shell-moves-predicate-4-at-a-cavity-corner` (`walk_chains`' pairing, beside its corner-junction row). **PROFILETAIL** (to 34.5/35) takes `declared-joint-kind-zero-margin-reads-smooth`, which is `profile::validate` ground. Code comments citing the old `work/band/` paths were re-pointed.
+- 2026-10-26 — (easy-fixes lane) Closed `plane-sphere-blend-spine-radius-by-differences-of-squares`: `plane_sphere_blend` factors both differences of squares, pinned near the pole in `m5_pr12_blends`.
+- 2026-10-26 — (easy-fixes lane) Closed `a-bands-core-depth-reads-no-speed-for-a-spiric-or-spline-crease`: `band_reach`'s core depth reads `speed_range(c).1`.
+- 2026-10-26 — (ATREST orchestrator) Filed `blend-reads-its-chain-convexity-off-the-link` (P1 M) here. It is parked on ATREST's `material-and-convexity-are-read-three-ways`, which makes `topo::link` the one reader of a cell's local material. Blend's `fillet3_convexity_sign` is the same predicate that build deletes from `Gap`.
+- 2026-11-02 — **Seam (REFS):** REFS is building `select-all-edges-picks-edges-a-fillet-refuses` (P0) on branch `reads/smooth-edge-identity`. That puts a dihedral-class door in the kernel and changes the blend battery so a requested Smooth link (sign Zero, normals aligned) is left alone and reported in `Blended`. A Knife link (a cusp or slit) still refuses. The change is in `crates/sweep/src/blend/battery.rs`, the fillet and the chamfer. Filed on BANDRULE: the two measured walls between this and a one-click bracket (a mixed-convexity corner, a closed mixed chain), both P0. (REFS orchestrator)
+- 2026-11-02 — **BANDRULE merged into BAND.** Under the budget rule of 2026-11-02 (only dispatchable P0, P1 and unbanded rows count) BANDRULE had fallen far under budget, and its charter is one story with BAND's. Its 16 item files moved here by `git mv`, ids and bodies unchanged, each with a dated note; its plan is folded into `plan.md` and its charter, `paths` and `keep_out` into `program.md`, and its directory left the tracker (`docs/doc-ledger/bandrule-leaves-the-tracker.md`, which names the SHA its log is recoverable at).
+
+## 2026-11-04 — picked up (`active`)
+
+A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convexity corner and the rounded outline's closed mixed chain (P0), the knife-edge blend and blend's convexity read off `topo::link` (P1). `blend-reads-its-chain-convexity-off-the-link` drops its `blocked_on`: ATREST's link build closed (PR 5773), so the row is dispatchable. The unbanded `a-chain-end-beside-a-smooth-seam-folds-to-an-indeterminate-corner` is banded P3 E, with the other wrong-recourse endings: once the closed mixed chain is built, the slot's whole outline is the request a user makes, and one arc alone is a tangent chain end.
+
+## 2026-11-04 — dispatches
+
+- **`a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds` (P0)**: a design fork (what a blend builds at a corner whose requested edges mix convexity, and the corner and band-end vocabulary after it), so designers first. The draw gave the three-designer arm, recorded on `analysis/design-fork/band-mixed-convexity-corner`.
+- **`a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses` (P0)**: `band/closed-mixed-chain`, phase 1 is measure and plan, back to the orchestrator before any build. Review tier: **dual** (H; junction carry-through is chain architecture every multi-link band will build on).
+- **`blend-reads-its-chain-convexity-off-the-link` (P1)**: `band/blend-convexity-off-the-link`. Review tier: **single, FULL** (M; swapping the predicate can flip a convexity verdict at a tangent or near-tangent edge, so correctness is at risk, not only style).
+- **`a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined` (P1)**: held until a build slot frees. Its row says to measure first.
+- 2026-11-04 — **closed mixed chain, phase 1 adjudicated.** The lane's plan generalises the annulus walk (`HostSide::Struts`) to links on different blend surfaces: a kept section edge per junction instead of the slit, the host taken as the face every link shares, line trims in the meters, and reach windows capped at the junction's section plane. Ruled unilaterally (a dominant argument, so not a fork): the junction's shared section is certified under predicate 4's own name, `fillet3_chain_g1`, its margin the distance between the two links' section centres. The alternatives, rejected: reading the unrequested strut's wedge (predicate 5) certifies a sufficient condition one step removed, and a seventh predicate would revise C8 for what predicate 4 already says. The open mixed chain is filed as a P1 row in the unit's PR, not built in it (about +40% scope; the open carve is plane–plane-only). Ring-hosted mixed rims are measured in the unit, and built or filed with a precise detail.
+- 2026-11-04 — **main was red for a few minutes, the orchestrator's doing.** A `git commit -a` on `band/orchestrator` (9b8bb24ac6, merged in PR 6501) swept in a designer lane's uncommitted probe edit to `crates/sweep/tests/all.rs`, which names a file that was never committed. PR 6503 dropped the two lines; with it the tree outside `work/` and `docs/` is byte-identical to the main before PR 6501, so it merged without its own run. From now on the orchestrator stages by path in its checkout, and every lane brief, designers' included, says to probe in a private clone made by `local-scripts/new-lane.sh`.
+- 2026-11-04 — **`blend-reads-its-chain-convexity-off-the-link` closed: its premise no longer holds.** The lane stopped at the premise check, as briefed. Blend already reads the kernel's one edge-wedge door, `geom_brep::classify_edge_wedge` (PR 6344, after the row was filed), and `topo::link` reads planar faces and line edges only, so it cannot answer for curved edges. ATREST's decision keeps `geom_brep::dihedral` as the wedge classifier. Nothing was built; the measurement is in the row's `## Closed`.
+- 2026-11-04 — **`a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined` (P1)** dispatched on `band/knife-edge-blend`. Phase 1 measures and plans, and reports back before any build. Review tier is set when the plan is in.
+- 2026-11-04 — **knife edge, phase 1 adjudicated.** Lifting `KnifeEdge` with the right side builds the crescent prism and the sphere–cone ring, exact to 1e-12 and tier 3, through the existing surgery. Every cylinder–cylinder knife reaches NaN: `arms::sheet_center` picks its ball by a quantity that is exactly zero at a knife (0·∞ circle×circle, the sign of noise line×circle), so the two exact builds were luck and `KnifeEdge` is load-bearing until a real selector exists. Plan approved: the knife's end is read from its jet (`WedgeEnd::{Cusp, Slit}`), the arms get a structural side selector and a decided existence predicate, `KnifeEdge` narrows to "ball undefined", and the fillet only (the chamfer's arms are plane–plane, and no plane–plane knife exists). The touch of two tangent solids in an Assembly, which the fillet leaves alone in silence, is filed as its own P1 design row. Review tier: **dual** (H).
+- 2026-11-04 — **closed mixed chain blocked on a certificate.** Phase 2 runs to the description pass (battery `band_g1`, the `RimShape::Mixed` walk, reach capped at the section plane, the `BandSection` role), and every mixed rim then refuses `ResidualExceeded { TangentHull }`, margin ≈ 0.19·r, on the section edge. That edge is a cylinder band and a torus band tangent along the torus's MERIDIAN circle, the class `geom_brep::tangent_certificate_lane`'s doc names as in-lane but uncertifiable. The blend does not work around it. BAND claims the certificate row on TANG's ground (TANG has no orchestrator, and a blocker inherits its waiter's band, P0): `band/torus-meridian-certificate`, phase 1 measure and plan, review tier **dual** (H; certificate soundness). Filed by the chain lane on its branch: `an-open-tangent-chain-of-mixed-links-refuses-at-the-open-carve` (P0 H, blocks the bracket row).
+- 2026-11-04 — **the bracket's design fork, round 1.** All three designers agree on the all-three rule (the odd band cut off, the pair through it as one G1 chain, per vertex, one call), the retirements and a first `[ev]` step that narrows the gate. They split on the pair alone at a mixed vertex: B and C moved to the mitre, and A moved away from it, reading B's measured `d³/3` as a gouge past the setback. Round 2 is dispatched on that and on the vocabulary details.
+- 2026-11-04 — **the bracket's design fork goes to Ev: `[ev]` PR 6507.** Two rounds converged. All three designers agree: the all-three rule (the odd band cut off, the pair through it), the pair alone gets the mitre (a mitre join at a reflex corner, the `d³/3` wedge included), the odd edge plus one (the chamfer builds, the fillet refuses), one `UnbuiltEnd` refusal, and the end enum `Patch | CutOff | Mitre | Overrun`. One split stays: the odd-plus-one fillet's tag (run-out vs curved end face). Step 1, which narrows the gate, is being built on `band/mixed-vertex-gate` as its own `[ev]` PR. Review tier: single, FULL (M; lifting the gate lets the existing surgery build shapes it never met). Design-fork row 253.
+- 2026-11-04 — **the section edge is a design fork.** The meridian lane derived a sound, tight, meridian-aware residual bound (`f2 = min(coaxial, meridian)`, zero on the exact pose, checked against finite differences). With it the stadium's section edge moves from `TangentHull` to `TubeNotSeparated`, and no sound bound avoids that: κ_rel runs from −2 to exactly 0 at the cap end, where the torus is parabolic and every surface is tangent to the cap plane. It holds at every junction a rounded outline mints. That is C7 ground (ratified), so two designers weigh what the edge is (draw `analysis/design-fork/band-junction-section-tube`, two-designer arm). The lane holds phase 2, and meanwhile checks a suspected soundness hole in the existing torus and cone drift accounting.
+- 2026-11-04 — **the section-edge fork is decided without Ev: the designers agree, on Ev's own D2.** Both designers (draw `analysis/design-fork/band-junction-section-tube`) rejected the brief's framing. The section edge is a curve known in advance, the rolling ball's section, so under D2 (PR 5216, Ev 2026-10-16) it takes a STRUCTURAL selector, `SharedRow` of the cylinder band's transverse circle and the torus band's meridian, certified per surface at any contact order. Only a witness owes the tube. κ_rel = 0 at the end vertex is a theorem (both bands are tangent to the cap along trimlines tangent there), so no witness certificate could pass, and the meridian-aware bound is not built. This is SELECT's unit 1–2 slice; SELECT has no orchestrator, and BAND claims only the analytic `SharedRow` (`band/structural-section-row`, the meridian lane, review tier **dual**, H). The chain lane then states the selector. Not put to Ev: it is a faithful elaboration of a ratified decision, and no `[ev]` PR means no fork-log row. One designer would also re-word DESIGN [edges]' "Validity is margined" bullet so its margins read as a witness's admission. The other reads that bullet as already met on the open edge, the posture of the ratified first-order node rule. The build needs no re-wording, so it is left as it is and Ev is told. The meridian lane's drift oracle (180 near-coaxial torus and cone poses, worst ratio 0.117) found no hole; the unproven premise is filed on TANG.
+- 2026-11-04 — **knife edge: PR 6510 open.** It builds the lune cusp and slit, the valley (as a profile and through the union in both orders), the crescent prism (five poses, including the mirror guard), the crescent hole and the sphere–cone ring, each at a closed-form ΔV to 1e-9. The knife's side is read from its jet. `Branch::Knife` replaces the noise-picked crossing, and `fillet3_knife_room` decides the ball's existence. `KnifeEdge` narrows to `{Chamfer, NoRoom}`. Filed `a-fillet-leaves-the-kiss-of-two-touching-solids-as-it-is-with-no-refusal` (P1 M, design). The dual is dispatched concurrently on the frozen head 2fd0474f8d (R1, R2; concurrent arm, H). The lane noted a local loft symbolic-zero count (18 vs 10) and a topo lib-test compile error in `census/self_touch_curved.rs`, both outside its diff and expected on main; to check against CI.
+- 2026-11-04 — **PR 6510's dual is in, and both reviews say NOT-MERGEABLE-AS-IS on the same two MAJORs.** Both are CI reds of the PR's own making: the bounds allowlist, and an editor-core row still citing the old knife refusal. Both reviewers verified the geometry by execution (side, branch, room, ΔV to their own closed forms; Interval; a public-API valley end to end). Bilateral MINOR: the lune slit refuses `RingClearance` from r ≈ 2/3 on a screen reading an exact zero, with a wrong "8/9" story in the test and the PR. Bilateral style: the chamfer's knife refusal duplicates `ChamferArmUnsupported`, and "straight × straight has no room" is written twice. Unilateral: R1 the stale convexity-margin docs and the 'faces are curved' text; R2 the `MaterialSide` recourse, the crescent's arc foot binding first, and two levers (unsure). The fix pass is the adjudicated union (14 items). Class finding, logged here: a refusal's recourse inherited by a new reading of its decision without being re-read for fit (`MaterialSide`, `NoRoom`'s Display).
+- 2026-11-04 — Filed `work/honepose/main-red-section-end-poses-own-rounding-escalates-its-map-residual-at-1e-12` (P0). BAND's PRs 6510 and 6513 and PCERT's branch all fail it at 1e-12, while the needle 1e-12 row is ONECOPY's filed P0 (`main-red-the-needle-refuses-its-meet-at-1e-12-after-meet-pose-order`, bisected to PR 6492). Both are main's; BAND's PRs merge over them with the runs cited.
+- 2026-11-04 — Correction: the `section_end_poses` 1e-12 main red was already filed by PCERT on ONECOPY (`main-red-a-section-ends-own-rounding-escalates-at-1e-12-after-angle-reads`, P0, bisected to PR 6482), minutes before BAND's filing, so BAND's HONEPOSE duplicate is withdrawn before it merged. Both 1e-12 reds on BAND's PRs are ONECOPY's filed P0s.
+- 2026-11-04 — **PR 6513's single FULL review: APPROVE-WITH-FIXES.** Every body the gate admits was verified by execution, at f64 and Interval, across other dihedrals, posts and end to end on the L-bracket's 17 convex edges. MAJOR: a curved link requested alone at a mixed vertex gets the mixed-corner recourse, which tells the user to do what they did. Also fixed: the clearance issue widened with more witnesses, a pin tightened, and style items. Same class as PR 6510's: a recourse reached by a path it was not written for.
+- 2026-11-04 — PR 6508 (the drift premise filed on TANG, oracle ignored) merged on green: orchestrator's read, mechanical. PR 6514, the analytic `SharedRow` at any contact order (`geom_brep::analytic_shared_row`, `row_contact.rs`), is green; its dual is dispatched concurrently on the frozen head ba4cf41630 (R1, R2; concurrent arm, H). The closed-mixed-chain lane resumes phase 2b on it in parallel: the section edge states the selector. One deviation, accepted: the contact class is not stored on the certificate. Storing it would re-pin three editor-core digest rows at every eps, and nothing reads it yet.
+- 2026-11-04 — PR 6510's fix pass (26655dd764) took the whole union. The cap-sliver screen's exact zero is filed as P2, the wedge-recourse witness as P3. Its only reds are ONECOPY's two filed 1e-12 P0s, annotated on the PR. The DR row is pushed as the last commit (90bf4293cc), and the merge waits on that commit's run.
+- 2026-11-04 — **PR 6514's dual: both reviews APPROVE-WITH-FIXES, and neither found an unsound certificate.** Bilateral: the cone apex (R1 MAJOR, R2 MINOR; adopted as MAJOR, because a span through the apex certifies a class across a singular point); shallow constant crossings escalating, because the cover charges a variation the analytic geometry cannot have; the refusal kind varying with key order; tests asserting only `is_err`; the 'is a row' family spelled once more. R1 m2 independently repeats a designer's point: DESIGN [edges]' 'Validity is margined' bullet (`7184e3d466`, Ev in chat) reads as requiring transversality of every `Intersection`. So the fork's 'no Ev question' call is revised: the re-wording rides PR 6514 as its `[ev]` question, and the chain P0 merges after it. The fix pass is the 11-item union.
+- 2026-11-04 — PR 6513's fix pass (1c99535d22) took the whole review: a curved link at a mixed vertex is judged as at a uniform one, the clearance issue is widened into the reflex-sector class, and the mixed refusal has one home. It is green except for the two inherited 1e-12 rows, and waits only on Ev's `[ev]` answer.
+- 2026-11-04 — **PR 6510 merged**: the knife-edge fillet builds where its ball is defined. GitHub's merge API returned 502, 500 and 'merge already in progress', and the merge completed server-side. A direct push of a local merge commit to main was denied by the session's permission classifier and was not retried.
+- 2026-11-04 — PR 6514's fix pass (5450c612f4, head 0ba5de4cc7, green) took all 11 items. A singularity check runs before the row certificate (cone apex, non-ring torus). The crossing bound is now closed form (cos θ a degree-2 trigonometric polynomial with exact coefficients, so a constant angle is charged nothing). There is one row admission and one certifier, the stale citers are re-worded, and DESIGN's margins bullet is re-worded and put to Ev on the PR. Process finding: the lane pushed an empty commit to start CI after a push did not trigger it, which is off-limits. The code tier did run in full, so nothing is undone, and the lane is told. The rewritten soundness core gets a verification read of the delta by R1 before merge. That is a correctness check of new code, recorded in the DR row, not a relaxation.
+- 2026-11-04 — R1's verification of PR 6514's fix-pass delta: APPROVE-WITH-FIXES, no MAJOR (the cone apex closed; the closed-form crossing bound sound at f64 and Interval for every admitted row; spline walls unchanged; DESIGN's wording matches the code). Two P3 rows are filed on SELECT in a last commit: the class levered by edge length, so a very short crossing edge reads Touching; and an Interval cone line row returning None. The short-span Interval liveness boundary is pinned.
+- 2026-11-04 — **PR 6520: the rounded outline fillets whole.** The rounded plate (every edge, r = 0.05 and 0.14, f64 and Interval: 16 band faces, 16 sections), the pocket floor and the pocket mouth (the ring-hosted ladder goes through the mixed walk unchanged) build tier-3 valid with total naming, at Pappus closed forms. The section edge is stated as the structural `SharedRow`. The second radius is 0.14 because the true bound is r < R/2 (`SpineIrregular` at 0.2). The lane merges 6514's final head and drops the TANG meridian row (the designers ruled no bound is owed), and then the dual is dispatched on its frozen head. 6520 merges after 6514, which waits on Ev.
+- 2026-11-04 — PR 6520's dual is dispatched concurrently on the frozen head 4b913f5c9a (R1, R2; concurrent arm, H). That head merges 6514's 8872c9cb9e, whose short-span pin is red at eps 1e-6 (the boundary depends on the band), so the 6514 lane fixes it there. 6514's PR head is still unsynced on GitHub after its last two pushes (a GitHub-side miss during the day's 5xx errors), and no empty commit is used.
+- 2026-11-04 — **PR 6520's dual: both reviews NOT-MERGEABLE-AS-IS on one bilateral MAJOR.** At f64, an outline that is not axis-aligned refuses `SurgeryInvariant` ('not a shared row'): rotated rectangles, rounded triangles, pentagons and hexagons, and a pocket mouth cut through the document API. The root is PR 6514's exact-zero row admission (`harmonic_row`'s `is_exact_zero` after `cylinder_rim_axial` snaps only an Interval bracket that holds zero), the same test that leaves the filed SELECT Interval cone row with none. 6514 is fixing it with a classified zero, closing that row. Otherwise the carve was exact on every probe both reviewers built (slots, L-shapes, unequal radii, arc-into-arc, pockets, bosses, both rims at once, naming through editor-core). R1 MAJOR (downgradable): a short flat between two arcs is falsely refused by the support screen, whose closed chains merge no joints. R2: a hole beside an arc link is falsely refused (the arc window is unread). Bilateral style: `mixed_boundary_clearance` twins `support_boundary_clearance` and has drifted. The fix pass is the 11-item union. Class finding: an exact-zero admission (`is_exact_zero`) of a computed coefficient fails one way at f64 and the other at Interval. The 6514 lane sweeps geom-brep for it.
+- 2026-11-04 — PR 6514 at c332d63401 (green): `harmonic_row` decides each coefficient against the band at every scalar, so off-axis sections at f64 and the Interval cone line both read rows. The SELECT row is closed. Rows: the stadium turned 7/30/45/90° and a pentagon junction, at f64 and Interval, each failing on the old source. Sweep: four `is_exact_zero` hits, one fixed; the spline rows' literal zeros stand. `cylinder_rim_axial` is left unsnapped, because the band reading absorbs its rounding. The lane also named moved digests as a reason, which is not a justification (`memories/output-stability-as-justification.md`) and is not the deciding one here.
+- 2026-11-10 — **Resumed after the weekly usage limit (2026-11-04 → 11-10).** Ev's answers:
+  - **PR 6507:** approved the mixed-corner rule ("i think this is good!"). Ev is not sure the odd-plus-one fillet must always refuse, but it need not be built now. Ev asked for renders before merging, and for a row to reflect these shapes in the demo.
+  - **PR 6513 (step 1):** approved ("yes of course"). Ev asked which ratified text had said otherwise; answered on the PR: C8's scope sentence and the sweep README's mixed-vertex sentence, agent-written in PR 4085's leftover-refusal list.
+  - **PR 6514:** Ev asked what narrowing the margins to witnesses additionally allows; answered on the PR.
+  The closed-mixed-chain lane died mid fix pass on the limit and is resumed. PRs 6507, 6513, 6514 and 6520 conflict with main after six days and each gets main merged.
+- 2026-11-10 — PR 6520's fix pass (352a67bff5) took all 11 items: off-axis rectangles, triangles, pentagons, hexagons and the rotated slot build with 6514's band-decided admission; the short flats and the octagon build (`closed_chain_apart`); the arc window is read; one clearance door; one section home; the barrel builds. Filed two P1s: the mate-ring gate and the mixed-plus-annulus gate. It cannot merge main yet: main's SELECT/ONECOPY certify.rs work (`ChartImage`, `rows`, `TangentVerdict`) conflicts on 6514's ground. So the 6514 lane folds main in first, and the chain lane then takes 6514's merged head and resolves only its own five files.
+- 2026-11-10 — **PR 6513 merged** (step 1 of the mixed corner, approved by Ev): a mixed-convexity vertex refuses only when the odd edge is requested with another edge. One edge takes the cut-off and the pair the mitre join; the L-bar's inside edge now fillets. It merged up with main green, and main's two 1e-12 reds are fixed there.
+- 2026-11-10 — PR 6514 has main folded in at a9e10733da (green). Main's ONECOPY `ChartImage` and its own `side_row_certifies` (a span-exact skip) were folded into the one certifier `row_certifies`, so a single admission remains. `rows` is unrelated, and SEAL's `TangentVerdict` is kept. The chain lane now takes that head and main.
+- 2026-11-10 — **Renders for Ev: `[ev]` PR 6798** (step 1's shapes, the knife-edge fillets, the rounded plate and pocket floor), pointed to from 6507. Authoring the rounded plate through the user's path lattice found a must-fix for 6520: the lattice plate at r = 0.14, and the lattice pocket mouth drawn off-origin, refuse `SurgeryInvariant` ('not a shared row'), because a few-ulp vertex is unseen by 6520's bulge-table pins. It rides 6520 (the user's own authoring path, so part of its P0), and the row moves from the renders branch to 6520, which closes it.
+- 2026-11-10 — PR 6520 at 2a900ec9bd is green and clean, with 6514 and main merged and the 12-item fix pass in. The lattice-drawn plate and the off-origin pocket mouth build at 0.05 and 0.14, f64 and Interval, through 6514's band-decided admission, with no blend change; that row is closed in 6520. Concern to verify: away from the default eps, the Interval rows skip where a section's `shared_row_touch` escalates. R1 is resumed to verify the delta, ordinary-geometry liveness at 1e-6 and 1e-12 included.
+- 2026-11-10 — R1's executed delta review of PR 6520: APPROVE-WITH-FIXES. Off-axis shapes are exact at f64 at every eps and at Interval at 1e-9 and 1e-6, with membership 0 wrong. The adversarial overlaps (dog-bone, pinched) refuse at exactly the overlap, and the shapes that fit build. The arc-wedge holes are tight both ways. MINOR: at Interval at eps 1e-12 only, every mixed rim refuses `shared_row_touch` in band, and the skip that hid it had a wrong comment and citation. It is now a pin plus a P2 row. The `ring_edge_unmetered` narrowing is disclosed or kept. Last commit before the DR row; 6520 merges after 6514's `[ev]`.
+- 2026-11-10 — PR 6520's last review items are in at 5ea04163a4: the 1e-12 pin both ways and its P2 row filed, the ring-edge narrowing undone (boxed_reach kept, bandmeter's ellipse-ring row cited for annulus rims), the spine-bound premise stated, and R1's probes pinned. It conflicts with main again on 6514's certify.rs, so the final main merge waits for Ev's ruling on 6514 (one round: 6514, then 6520). Process finding, second lane today: an empty commit pushed to start CI on a conflicting PR. Both lanes were told; nothing undone. The cause is a conflict that blocks CI silently; the rule is in agent-lane-operations, and lanes still reach for the empty commit.
+- 2026-11-10 — While 6514, 6520, 6507 and 6798 wait on Ev: dispatched `an-open-tangent-chain-of-mixed-links-refuses-at-the-open-carve` (P0, phase 1, stacked on band/closed-mixed-chain; review tier **dual**, H). Dispatched the designers on `a-fillet-leaves-the-kiss-of-two-touching-solids-as-it-is-with-no-refusal` (P1, design; draw `analysis/design-fork/band-kiss-of-two-solids`, two-designer arm). The two P1 gates 6520 filed (mate-ring, mixed-plus-annulus) wait for 6520 to merge, since they extend its code.
+- 2026-11-10 — The open mixed chain's phase 1 is adjudicated. It refuses at `Joint::admit`, not at the arm check the row names. Plan approved: a `Junction` token and station in the planar open carve, a mid-chain torus link only, the junction moves as shared helpers with `rim_phase_mixed`, and a new straight-link station meter. Its two questions are filed, not built: an outline filleted in part stops at a tangent junction (P3, design; Ev on 6507: 'we certainly don't need to build that case now'), and an end torus link cut off in its meridian plane (P3).
+- 2026-11-10 — **The kiss fork goes to Ev: `[ev]` PR 6807.** The designers agreed on their first reports, so no reconciliation was needed. A blend site may be a recorded line contact; a contact's blend fills every void crescent through the knife arm, and the piece sort lowers the solid count. An edge request on a contact stays the identity, and the sub-fork offered to Ev is a typed `EdgeOnContact` refusal or a lint. `[assemblies.document]`'s fusion clause is restated so that a request naming the contact fuses. Measured: a bridged union has no kiss edge, so the seam on the line is a chart accident. Filed: the `BooleanResultKind::Assembly` rename (TOUCHREC, P4), and evidence on TANGRIM's tangent-ruling pierce row. Design-fork row 260.
+- 2026-11-10 — **PR 6810: an open tangent chain of mixed links fillets whole** (stacked on 6520). The junction moves live in one home, `blend/junction.rs`, used by both carves. There is a `Junction` token and stations, a mid-chain torus link, arc trims, one face per link, the station meter `feet_clear` and a torus wedge meter. The L-plate run, the teardrop and the concave notch floor build at Pappus by pieces at f64 and Interval, and the 1e-12 Interval case is pinned like 6520's. The Q1 and Q2 rows are filed. Hosted CI can't run until 6520 takes main, so the dual is dispatched on the frozen head 0a2e4dbea8 (R1, R2; concurrent arm, H) with local runs as evidence.
+- 2026-11-11 — **PR 6810's dual: both reviews APPROVE-WITH-FIXES, no wrong body in about 90 probes.** Unilateral MAJORs, both false refusals: R1, the battery's adjacency exemption is closed-only, so an open run's short flat or compound corner is screened pairwise; R2, arm (e) reads an arc of 180° or more over its whole circle, so a keyhole or a tombstone refuses. R1 S1: `Junction::admit` re-spells `resolve_mixed_rim`'s junction reading, a second home in a one-home PR. Bilateral: the junction moves' twins in the annulus closure, the broken refusal string, the misleading ring-on-mate text, the comment-held strip invariant, and the meter no real geometry reaches. The fix pass is the 11-item union. Class finding, third time in this program: a fix whose subject is one home leaves or mints a twin next door (6520's clearance door, 6520's section home, now 6810's junction admission).
+- 2026-11-11 — The container restarted during 6810's fix pass. The lane's uncommitted edits survived in its clone (10 files). The lane is resumed and told the tree is its own authorised work, to commit WIP at once, and to push after each item.
+
+- 2026-11-11 — PR 6810 fix pass done by the open-chain lane (head 527c65de4e, all 11 items; local suites green at three eps, bar unrelated germ/slow tests). Item 9 flips two older pins (the slot end arc; `band_turn_overrun_fillet`'s later-call L) to `PARTIAL_TANGENT_RUN`, and item 3 requires a planar host on the closed rim — a delta verifier is checking both for lost capability, plus the open-chain exemption's premise and wide-arc windowing.
+
+- 2026-11-11 — 6810 delta verification CLEAN: item 9 renamed two refusals (neither pin ever built), no closed-rim case used a curved host, no junction twins left, wide-arc windowing only over-reads. One MINOR (stale `feet_clear` comment after the end-edge exemption) plus a README/premise note and a P3 issue row for a false `Escalated{RingClearance, Invalid}` refusal sent back to the lane. 6810 then waits on 6514 → 6520.
+
+- 2026-11-11 — 6810 follow-ups in (head 2c2f50dc14): `feet_clear` doc corrected and pinned (lean-back L=0.09 → `JUNCTION_FEET_CROSS`), exemption premises in README and at `chain_apart`, P3 row `a-wedge-clipped-line-touching-the-window-reads-an-invalid-margin` filed (degenerate clip chord → `Invalid` margin; the case already refused falsely at margin Zero before this PR, so no capability lost). 6810 is ready; order 6514 → 6520 → 6810, gated on Ev's 6514 ruling.
+
+- 2026-11-12 — Ev approved the renders ("they look great!" on 6507; "these are great!" on 6798). Merged 6798 (renders, 11c82c909f) and 6507 (the mixed-corner rule, 52444e25ad); `[ev]` dropped from both titles and each body records the answer (6507's body condensed to the answer plus the agreed rule; the designers' sections stay in its edit history and fork row 259). The bracket row stays open for step 3 after the open chain lands. Still with Ev: 6514 (gates 6520 → 6810) and 6807.
+
+- 2026-11-12 — Ev on 6514: approve, reworded so that anything measured always carries its margin and a structural selector skips only the transversality margin because its curve is known by construction. Draft bullet in band-briefs/6514-ev-wording.md; the meridian lane is folding main (6514 conflicted again), applying it and checking each claim against `row_contact.rs`. Then: PR body updated, `[ev]` off, DR row, merge; then 6520, then 6810.
+
+- 2026-11-12 — Ev on 6807: "this plan sounds good", with two questions: is there a broader class covering contact lines and edges; and is "fillets act like booleans" already stated (making the `[assemblies.document]` edit unnecessary)? Answered on the PR: C8's Boolean-semantics paragraph (geom-brep README, from [ev] 4963 / fork 140) already makes a contact blend an explicit boolean (`S ∪ F`), so the lean is to drop the DESIGN edit, optionally adding a citation; no existing type unifies edge and contact (cells and cell-pair records are two cases), but both lower to "where two faces meet", which could be named as the blend site, at Ev's choice or after designers. Waiting on Ev.
+- 2026-11-12 — 6514: Ev reshaped the bullet (two bullets: "Validity is margined" back to its own ending; a separate "What is true by construction is not measured"), then approved, asking for one check that the principle isn't already stated elsewhere in DESIGN.md. The meridian lane is doing the edit and the check.
+
+- 2026-11-12 — 6514: Ev approved ("looks good!"). Final DESIGN text is two bullets ("Validity is margined" with its original ending; "What is true by construction is not measured", citing [edges]' selector question, where the principle was already stated). Main folded (72188539ad), green at 953c62f8e6. `[ev]` off, body condensed to the answer (full write-up in edit history). DR coding for 6514/6520/6810 dispatched blinded (bytes 187, 240, 136, mapping private); rows follow, then merge 6514 → 6520 → 6810.
+- 2026-11-12 — 6807: Ev: drop the DESIGN edit (done, 186a17eaf7 + base restore; the row cites C8's `S ∪ F`), and asked whether a new type is needed for clean fillet code. Answered: yes, one small key enum (edge | contact) carried by `BlendRequest`, `battery::Link` and `BlendSite`; `Link` already bundles the two supports the arms read. Proposed merging 6807 as the rule and filing the build after heldrecords; waiting on Ev.
+
+- 2026-11-12 — 6807: Ev approved ("if you are sure then just go ahead"). Fork row 260 completed (decision; Opus = A, Fable = B), the kiss row's rule gains the request type (one key enum, edge | contact, on `BlendRequest`/`Link`/`BlendSite`), and `a-blend-names-a-line-contact-as-its-site` (P1, H) filed, blocked on HELDRECORDS' `a-finished-body-holds-its-contact-records-at-every-door`. `[ev]` off; merges on green. 6514's DR row pushed (d3a7afb287); merges on green.
+
+- 2026-11-12 — 6807 merged (a1d8b22cd7). 6514 merged (9ee1c046ef) over one inherited red: geom-brep `a_stated_image_on_its_carrier_certifies` at ε 1e-12 at fuzz seed 0x3f4f8ff23555b906, reproduced on main 63d935ad38 and filed `pcert/a-cone-stated-image-at-a-fuzz-seed-reads-in-band-at-eps-1e-12` (P1) on this branch; noted on the PR. The chain lane is folding main into 6520. Freed disk by removing clones of merged PRs.
+
+- 2026-11-12 — band-mixgates: both shared-support gates on the mixed rim were measured before lifting.
+  - Cross-drilled plate: drilled-then-filleted ΔV 0.0031196575015717 against Pappus 0.0031196575015719, equal to filleted-then-drilled. The bore's rings stay on the walls.
+  - Plate with a round hole, every edge: one call ΔV 0.0076629944986384, bit-equal to the two calls (closed form 0.0076629944986383). Its hole rim is a LADDER. The reversed carve order, forced on scratch, built the same.
+  - Both gates are dropped. A mixed link's co-requested trim is read between its feet, so a hole beside a corner arc no longer refuses on the arc's whole circle.
+  - A mixed rim and a true annulus still refuse at the gate. The support meter's ranged read straddles them. Filed: `an-annulus-rim-around-a-mixed-rim-refuses-in-one-call`, `a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter`, `a-ladder-or-annulus-rims-mate-with-a-ring-refuses-at-its-resolver`.
+- 2026-11-12 — **PR 6520 merged** (da77d8754f): the closed chain of mixed links fillets all round. Main folded in at 2fe187ca58 (merge, no conflicts), DR row last (caf798ed35). Merged over three inherited `test (kernel)` reds, each reproduced on main and filed: the cups fixture's own boolean at 1e-6 (`band/a-cups-fixture-boolean-is-unfinished-at-eps-1e-6`, P1), the full-turn bead's volume at 1e-12 (`lathe/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`, P1), and `tilted_sphere_pair`'s pole row at 1e-6, bisected to PR 6832's merge 9a25634807 (`gauge/the-in-arc-pairing-turns-the-pole-arcs-lane-gap-into-an-indeterminate-at-eps-1e-6`, P1). The gates were re-run on a trial merge with main 6c70512339 (6853 touched band's roster) and passed. Next: the open-chain lane folds main into 6810. The two P1 gate rows (mate-ring, mixed-plus-annulus) are dispatched to one lane, measure-first, from main; they fold 6810 when it lands.
+
+- 2026-11-12 — **PR 6810 merged** (171ce64c89): an open tangent chain of mixed links fillets whole. Main (6520) folded in at d6dc73a53b with no conflicts. The fold's follow-ups at 3a392f758e: the concision registry (`JUNCTION_ON_ONE_PAIR` named by bare name, `feet_in_order` returns a bool), five refusal texts trimmed to the 75-word budget (meaning kept, read by the orchestrator), two doc links to the retired `Joint`, and two `band_planar_cut_off` rows moved to the slow set (timed equally slow on main, about 2 s). DR row last (ae9b3e239c). Merged over the same three inherited kernel reds. Steps 1 and 2 of the bracket's build order are in; step 3 (the all-three rule, the resting link, the odd-plus-one chamfer, the `UnbuiltEnd` vocabulary) is dispatched, phase 1 measure-and-plan only, with renders to Ev before it merges. The P1 gates lane is told to fold main.
+- 2026-11-12 — **The support meter reads a circle piece against a windowed strip exactly** (PR 6887, `a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter` closed). `StripLevel::wedge_margin` clips each line or circle piece to the window's half-planes and reads the level over the parts inside. The two- and four-arc discs' outlines build at Pappus (were −0.30); the four holes beside a corner build in one call (were the sequential recourse), and PR 6865's `beside_rim` fallback is gone. A clip in band escalates `RingClearance` only where it decides the read. With the shared-support gate lifted on scratch, the disc-around-outline pair builds at the closed form at 2, 4 and 8 arcs: evidence added to `an-annulus-rim-around-a-mixed-rim-refuses-in-one-call`, gate kept. Filed: `the-planar-strip-meter-reads-a-piece-across-and-along-its-rectangle-separately` (arm (d)'s rectangle read).
+
+- 2026-11-12 — Bracket step 3, phase 1 plan received. The mixed corner is carved in one pass as a four-sided patch (a torus or a planar strip). Closed forms are derived for the flush and inset corners, both verbs, and the odd-plus-one chamfer. I ruled (a): one-pass carving is implementation. The rule fixes the faces, not the carve order. Cut 1 (all three, perpendicular `E`) is dispatched; cut 2 (odd-plus-one chamfer) follows; cut 3 (vocabulary) waits on designers for questions (b)–(d). Filed `a-chamfer-over-a-plane-cylinder-edge-has-no-arm` (P1; the bracket's bore blocks "chamfer all round") and `an-all-three-mixed-corner-chamfer-at-an-oblique-shared-face-refuses` (P2). Freed disk: deleted the build targets of merged lanes (openmix, mixchain, meridian).
+
+- 2026-11-12 — PR 6865 (mixed-rim gates) is in review; I pushed a clean main merge to clear GitHub's stale conflict flag. Bracket cut 1: the probe confirms the flush corner (0,3.5,0.5) trips first, and the bore stops the chamfer earlier. The resting link's naming reuses the corner alphabet (`CornerFace`, `EndArc` ×3, `FootVertex` ×2, `TrimEdge{O,E}`) plus one new role, `HostFoot{vertex, edge}`, for the two host feet on `E`. I settled that one myself: `BandSection` went in the same way, in 6520. The UnbuiltEnd residue (questions b–d) went to an Opus and a Fable designer. Both found the ratified payload fits only the run-out tag, recommend a per-tag enum, and dissolve `CornerConfig`. They differ only on run-out's fields and Python's strings; I took Fable's. To Ev as `[ev]` PR 6866. Cut 3's scope also takes these defects, which both designers found:
+  - the four strut-count checks (`open/planar.rs`) become `SurgeryInvariant`, the junction one included;
+  - `chamfer_feet`'s "support does not carry two requested edges" becomes an invariant;
+  - `battery.rs` mints `Indeterminate` for self-disagreement (`cut_off_section`, the ruled cap, the `(2, _)` arms of `corner_at`) and should mint invariants;
+  - `reach.rs` compares a unitless `|n·τ|` against a tolerance in metres, so it must defer to the battery's levered dependent-normals decision;
+  - `surgery.rs`'s "Ends" comment contradicts its `NEdgeVertex` mint;
+  - `admit.rs` mints `NEdgeVertex` at a chain joint;
+  - the feet-crossing recourse is the generic corner sentence;
+  - the `pncad` prelude re-exports `CornerConfig` and `RunOutPolicy`.
+
+  Filed `a-vertex-sited-blend-refusal-names-no-site-in-the-editor` (P2).
+
+- 2026-11-12 — **Model-compare protocol missed at dispatch.** PRs 6865 and 6873 were dispatched without `docs/MODEL-COMPARE-PROTOCOL.md`'s draws. My dispatch checklist still pointed at the paused dual-review protocol. Here is what each unit ran, recorded now so that its row (at merge) can state it:
+  - **6865** (`a-mixed-rims-mate-with-a-ring-refuses-at-the-mate-gate` and the shared-support row): letter M, tier single (FULL), reason: it lifts two refusal gates whose soundness rests on meter reads. Implementer Opus 5.5, not drawn. Reviewer Opus 5.5, not drawn. Lane commits carry the Co-Authored-By trailer, so the reviewer was exposed to the implementer's model. Both arms are excluded from the counts (rule 8); the row records them in full.
+  - **6873** (bracket step 3, cut 1): letter H, tier dual, reason: a new corner kind, a persisted name role, and a relaxation of the ring-clearance meter. Implementer Opus 5.5, not drawn. The pair is one Opus 5.5 and one Fable 5.2, dispatched concurrently on frozen head 81ea1d1f28 with identical briefs. The slot order was not drawn (R1 is Opus by dispatch order). At least one lane commit carries the trailer, an exposure common to both reviewers.
+  - From now on, every band unit draws before dispatch, on `analysis/model-compare/band-2026-11-12`, and implementer briefs carry the no-trailer line.
+- 2026-11-12 — PR 6865's fix pass: m2's false `RingClearance` on clear holes near a corner arc now refuses with the true sequential recourse (`level_clearance` `beside_rim`). The exact circle-against-arc-strip read is filed as P1 in the widened meter row. m1 is pinned (intersect construction, ladder first); m3's numbers are corrected; m4's row is raised to P1. CI timing reds on the main merges are not this PR's (both rows are slow on main, or IO-bound), and those rows are added to the slow set. PR 6873 (cut 1) is up: the bracket fillets all round and the bore-less bracket chamfers all round, both at the closed forms; the renders are checked; the dual review is dispatched. PR 6866 (`[ev]`, UnbuiltEnd payload): Ev asked for context, and a context section has been added.
+- 2026-11-12 — PR 6865 merged (ab54a84d4c). Dispatched `a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter`: letter H, tier dual (a certified meter read, soundness-critical). Implementer draw: byte 170 → Opus, on `analysis/model-compare/band-2026-11-12`. Lane `band-meter`, branch `band/meter-exact-circle-read`. Queued, waiting on disk: `a-chamfer-over-a-plane-cylinder-edge-has-no-arm` (P1), `a-cups-fixture-boolean-is-unfinished-at-eps-1e-6` (P1), and bracket cut 2 once 6873's review is in.
+- 2026-11-13 — Ev approved `[ev]` PR 6866 ("this looks good!"), and it merged: the per-tag `UnbuiltEnd` payload is settled, so cut 3 has its vocabulary. PR 6883 merged.
+- **PR 6873** (cut 1): both reviews, Opus and Fable on frozen head 81ea1d1f28, came back APPROVE-WITH-FIXES with no MAJOR. Their probes confirmed every closed form at plan angles 30–150°, at Interval, rotated, and in a membership grid. The adjudicated union is all taken. Its main items:
+  - the chamfer over-refuses at short edges (margin exactly 0, demonstrated by both reviewers);
+  - the fillet over-refuses near r = 0.149 on the bracket;
+  - three guard rows for the ring arm (a) relaxation;
+  - the fillet odd-plus-one recourse wording;
+  - the battery's mixed verdict is read once.
+  
+  The original implementer agent was lost to a container restart, so the fix pass was re-dispatched on the same arm (Opus). The renders are committed to `docs/renders/band-2026-11/` for Ev.
+- **PR 6887** (the exact meter read): CI green, no blinding leak. Dual review: slot draw byte 28 → R1 Opus, R2 Fable, concurrent on frozen head 02a7a84ebf. Witnesses: the four corner holes and the 2- and 4-arc discs now build in one call, and the `beside_rim` fallback is retired.
+- 2026-11-13 — **PR 6887 merged** (4b3f0823cd): the exact meter read. The fix pass took the union of both reviews, including R2's demonstrated MAJOR (a touch escalating where it does not decide the read, now settled by `StripLevel::settle`). Blind coding: byte 123; 0 tallied on the loose reading, 1 (R2 → R1) on the strict one. Both readings are in the row. Filed by the fix pass: `the-support-meter-reads-an-ellipse-spiric-or-spline-piece-across-and-along-a-window-separately` (P2).
+- 2026-11-13 — Dispatched `a-chamfer-over-a-plane-cylinder-edge-has-no-arm`: letter M, tier single FULL (a new chamfer arm, the cone frustum). Implementer draw: byte 154 → Opus. Lane `band-borecham`. Scope: whole circular plane–cylinder rims. Arcs inside tangent chains are measured only.
+- 2026-11-13 — **PR 6873**'s fix pass is in (2c4c093b37). It filed `the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges` (P1), the traced cause of both reviewers' over-refusals. The renders are committed. `[ev]` is on the PR with the renders question at the top, and it is the only thing left. Blind coding: byte 229; 9 bilateral, no MAJOR, no tally. Row committed as the last commit (f4ac7359eb). Cut 2 (odd-plus-one chamfer) dispatches after 6873 merges.
+- 2026-11-16 — **PR 6873 merged** (2026-11-13), after Ev approved the renders ("these look great!"). Bracket step 3, cut 1 is done: the bracket fillets all round, and the bore-less bracket chamfers all round. The bore-chamfer lane (`band-borecham`) was stopped by the weekly usage limit with three commits pushed, and is resumed. Dispatched **cut 2**, the odd-plus-one chamfer: letter M, tier dual (sequential arm), because a face grows by a coplanar triangle at a mixed corner. Implementer draw: byte 240 → Opus. Lane `band-cut2`, branch `band/bracket-odd-plus-one`. Cut 3 (the vocabulary, payload settled on 6866) follows cut 2.
+2026-11-16 — **PR 6904** (the chamfer's plane–cylinder arm, a cone frustum) is up. Reviewer drawn: byte 135 → Fable, single FULL. The lane saw `verbs_germarms2` and `verbs_cylcyl_r1_review_probes` red at 1e-6 on its branch. Those are not known main reds, so the reviewer is checking them on main. **PR 7038** (cut 2: the odd edge plus one pair edge chamfers) is up, with CI green. First reviewer drawn: byte 97 → Fable, dual sequential. The cut 2 lane found that pair edges between s and 2s threw, failed to finish, or built wrong; it fixed this in `junction::feet_clear`.
+2026-11-16 — Both reviews came back APPROVE-WITH-FIXES with no MAJOR: 6904 (Fable) and 7038 (Fable first reviewer, so no second). The fix passes went to the implementers. A container restart lost both mid-pass. Under rule 3 they were re-dispatched on the same arm (Opus) to resume from the lane clones: 6904 had its fix commit 4a5f44e59c pushed; 7038 had uncommitted edits.
+2026-11-17 — **PR 6904 merged** at f0d422c2cc, with CI green on a10ba88a. Its fix pass took M1–M3 and S2/S3/S4/S6/S9. The model-compare row is the last commit. **PR 7038** is done with its fix pass (head fe6da33a01, row last) and is now `[ev]` for its renders, like cut 1. Cut 3 waits for 7038 to merge, because it touches the same gate and vocabulary.
+2026-11-17 — Dispatched `a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction` (P1): letter H, tier dual concurrent. The lane is to stop and report if the plane–cone shared row needs a design decision. Implementer draw: byte 16 → Opus. Lane `band-stripfru`, branch `band/chamfer-strip-frustum-junction`. The cups row is waiting on ONEDOOR (see the row). The mixed-corner reach row (P1) and cut 3 wait for 7038, because they touch the same gate and reach.
+2026-11-17 — On 7038, Ev asked how the corner compares with other CAD kernels. A research lane (Opus, not drawn: research only) measured OCCT 8.0.1 on the same fixtures and searched vendor docs. Findings: OCCT's odd-plus-one chamfer is invalid at the flush right-angle corner and gouges the floor at 120°. Creo Elements/Direct and T-FLEX both document refusing this request. OCCT builds a pair edge alone (we refuse) and the odd-plus-one fillet at single corners. The comparison is posted on 7038 and the branch is `band/occt-compare-renders`. Its commit carries a Co-Authored-By trailer; it is not a reviewed lane, so blinding is unaffected.
+- 2026-11-17 — The strip-frustum lane opened PR 7050 (head 2d2380f2bc, CI green), with no design fork: the strip–frustum section is a generator that `analytic_shared_row` already certifies. The lane commits are clean of trailers. A slot-order draw (byte 47) put Fable in R1, so two concurrent reviews, one per model, are now running on the frozen head.
+- 2026-11-17 — Both reviews of 7050 approved with fixes, with no MAJOR between them. The blind coding found 3 bilateral findings and no tally candidates. The fix pass took everything but three style items and filed four P3 rows. Its head 64d87c9b35 is green. The row went on last (554b4797b1), and 7050 merges once CI is green. 7038 still waits for Ev's reply on the OCCT comparison.
+- 2026-11-13 — PR 6904 (`a-chamfer-over-a-plane-cylinder-edge-has-no-arm`, lane `band-borecham`): the chamfer gets the plane–cylinder arm, a cone frustum carved through the fillet's closed-rim walks. A bore's mouth, both rims of a through-bore, a post's top, a boss's foot and a counterbore's step build at the frustum ring's closed form, and with 6873 merged in, the bracket chamfers all round, its bore included, at its closed form. A rounded outline's arc keeps `ChamferArmUnsupported`, measured and filed as `a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction` (P1, H).
+- 2026-11-17 — Merged 7050 at e25c78c0f0 after CI went green on the row commit (554b4797b1). The strip-frustum row is closed. Of the P0/P1 rows still open, cut 3 and the reach row wait on 7038, which waits on Ev; the cups row, the kiss row and the line-contact row are blocked on other programs. The stale open-mixed-chain row (6810 merged 11-12) is closed on this branch.
+- 2026-11-17 — 7038 conflicted with main once 7050 had merged (in `junction.rs` and one test file). A lane merged main into it (282e7a8c45) and kept both PRs' behaviour:
+  - `JUNCTION_FEET_CROSS` now combines both texts.
+  - The curved-link row now pins `ChainNotG1` for the curved link and the straight edge, because 7050 removed the gate.
+  - Its touched suites pass at all three ε. The resolution is unreviewed, and the row says so.
+  - The new head is 84f52cc745, with the row commit last.
+  - A small wart remains: the feet-cross refusal now gives its "smaller size" advice twice (7038's recourse plus 7050's detail suffix). Fold it in cut 3.
+- 2026-11-16 — Bracket step 3, cut 2 (lane `band-cut2`, PR 7038): a mixed corner's odd edge with one pair edge chamfers, as a turn whose overrun has the odd band the far one; admitted by the all-three corner's reading of `E`, so an oblique `E` and a curved link still refuse, and the fillet refuses for good. `junction::feet_clear` now reads a turn's stations: a pair edge between `s` and `2s` long built a wrong or unfinished body before. The row stays open for cut 3, the vocabulary.
+- 2026-11-17 — PR 7038's fix pass (first review approved with fixes, no MAJOR). The mixed corner's recourse now names what builds: the odd edge alone (a pair edge alone lands its foot inside a face), and the two that round alike only where `E` is square to the odd edge. A link too short for its feet gets its own recourse, which says the size is too large for the edge. A curved link refuses `ChamferArmUnsupported`, and the README now says so. The short-edge rows sit `100ε` either side of each boundary, and the reviewer's membership oracle is a permanent row. The oblique-`E` row now covers odd-plus-one, and the ε 1e-12 Interval escalation at inset 120° is filed (P3). Renders for Ev are under `docs/renders/band-2026-11/`.
+- 2026-11-13 — PR 6904 (`a-chamfer-over-a-plane-cylinder-edge-has-no-arm`, lane `band-borecham`): the chamfer gets the plane–cylinder arm, a cone frustum carved through the fillet's closed-rim walks. A bore's mouth, both rims of a through-bore, a post's top, a boss's foot and a counterbore's step build at the frustum ring's closed form, and with 6873 merged in, the bracket chamfers all round, its bore included, at its closed form. A rounded outline's arc keeps `ChamferArmUnsupported`, measured and filed as `a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction` (P1, H).
+- 2026-11-17 — PR 7050 (`a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction`, lane `band-stripfru`): a chamfer joins a strip to a frustum along the generator between their feet, a plane–cone shared row (no design fork: `analytic_shared_row` took it). Rounded outlines now chamfer all round, closed or open, at Pappus at both scalars, with names stable on replay and on a setback edit. A latent per-face sense bug (one sense per mixed rim, `true` for every open chamfer face) is fixed with it. At Interval at ε 1e-12 these chains refuse; evidence is added to that open row.
+- 2026-11-17 — Ev approved 7038 after seeing the OCCT and vendor comparison ("this seems fine, then"). It merged at 25fc8034a2, and [ev] is off the title. Filed two follow-up rows:
+  - `a-pair-edge-alone-at-a-mixed-corner-refuses-where-occt-ends-it-square` (P2);
+  - `the-odd-edge-with-one-pair-edge-fillet-refuses` (P3, design).
+
+  Next: draw and dispatch cut 3 (the vocabulary) and the reach row.
+- 2026-11-17 — Dispatched two lanes:
+  - **Cut 3, the vocabulary** (P0). Letter M, dual sequential. Implementer byte 102 → Opus. Lane `band-cut3`, branch `band/bracket-end-vocabulary`. In scope:
+    - `UnbuiltEnd` per the 6866 payload;
+    - `BandEnd` made private;
+    - the prelude retirements;
+    - the designers' invariant defects;
+    - the doubled feet-cross advice.
+  - **The mixed-corner reach row** (P1). Letter H, dual concurrent. Implementer byte 236 → Opus. Lane `band-reach`, branch `band/mixed-corner-reach`. It also takes `reach.rs`'s unitless `|n·τ|` item.
+
+  Both lanes are told to keep out of each other's files and to fold main in by merge.
+- 2026-11-17 — The cut 3 lane stopped at its measure step with a design fork, and has made no commits. Three `mixed_corner_square` refusals fit none of the eight ratified `UnbuiltEnd` tags:
+  - a curved odd link with all three edges requested;
+  - the fillet at a curved pair link;
+  - the chamfer where `E` is off square to the odd edge.
+
+  The other 26 sites map onto a tag or become an invariant. Draws: byte 84 → three designers, labels byte 211. They are weighing the fork concurrently and were given only the problem. Cut 3 resumes after Ev rules; the reach lane carries on.
+- 2026-11-17 — Three designers weighed the cut 3 fork (A Opus, B Fable, C Opus; first reports and every round are in `~/.local/share/cad-work/band-reviews/df-mixed/`). They reached a unanimous recommendation after five rounds:
+  - Curved-link mixed corners refuse `UnsupportedChain` on the arc, with the open-chain door's own sentence and the refreshed chain roster.
+  - A leaning `E` refuses a new `ObliqueMixedCorner` outside `UnbuiltEnd`. It covers both verbs, names the odd edge and gives the mixed-corner menu, and the oblique fillet moves off `SpineUnsupported`.
+  - There is no ninth tag.
+  - What decided it: all three designers ran every edge subset at the fixtures. The menu is false at the quarter-disc corner, half false at the bowed one, and true at the leaning one.
+
+  To Ev as `[ev]` PR 7058, with fork row 280's recommendation half. I settled the name `ObliqueMixedCorner` as naming. Cut 3 resumes on Ev's answer.
+
+  Off-question items for cut 3, from the designers:
+  - refresh `FILLET3_ASSEMBLY_RECOURSE` ("vertices of one convexity");
+  - mint the curved-link exit by calling the open-chain door's check, with an invariant if it finds none;
+  - the lone arc chamfered at a mixed vertex refuses corner-`Indeterminate` at a vertex that classified;
+  - `corner_at` passes the face count as the valence;
+  - `run_out_recourse` picks the recourse by matching the detail string;
+  - the dead `FILLET3_CORNER_RECOURSE` at the leaning corner's pair edges.
+- 2026-11-17 — Ev approved 7058: "sure, i have no strong opinions on the exact error strategy as long as they say correct, non-misleading stuff when it's not too burdensome to do so". Fork row 280's decision half and mapping are committed (bba8bab0b3), and the PR merges once CI is green. Cut 3 has resumed on the ruling, together with the designers' off-question items.
+- 2026-11-17 — Merged 7058 at 362cd72fd2. The fork row was renumbered 283, because main already had a 280. Ev asked for `[ev]` to come off, and it is off.
+- 2026-11-17 — Ev: Fable usage is running out. I chose to proceed on Opus only, outside the experiments, and Ev offered that option. Until Ev says Fable is back:
+  - no draws and no model-compare or design-fork rows;
+  - cut 3 and the reach row, drawn earlier, are dropped from the experiment, so they get no rows;
+  - reviews keep the tier's depth with Opus reviewers: two concurrent on the reach row, and a single review on cut 3 with a second only on a MAJOR;
+  - any design fork goes to two Opus designers and is flagged as single-model on its `[ev]` PR.
+- 2026-11-17 — Cut 3 opened PR 7072 (head 892c86881b, CI green; 33-row site table). It implements the 6866 and 7058 vocabulary: `UnbuiltEnd` with 8 tags, `ObliqueMixedCorner`, and the curved-link `UnsupportedChain` minted through a shared `admit::open_link`. The prelude retirements are done. It moved two things outside the brief, and both go to review:
+  - `FootInsideAFace` gets its own recourse;
+  - the open rim arcs of partial revolves now refuse `UnsupportedChain` instead of `Indeterminate`.
+
+  It has a single Opus review, with no experiment arm.
+- 2026-11-17 — 7072's first review (Opus) found one MAJOR, demonstrated. At a straight edge running tangentially into an arc, `RunOut { odd: None }` names the face-tangent seam rather than the edge the run continues into, so following `edge()` loops (`battery.rs:3149-3163`). Its pin cannot go red on this (`band_open_mixed_chain.rs:581-584`). It also found a MINOR: `PARTIAL_TANGENT_RUN` is false when the seam was requested.
+
+  Everything else held over a 5502-request differential: no lost or false build, and every text within budget. The ObliqueMixedCorner, curved-link and FeetCross recourses all build when followed.
+
+  A second Opus review is running on the frozen head, per the sequential arm. Disk fell to 0.9 GB with the reach lane building, so I freed about 19 GB of finished-lane targets and clones.
+- 2026-11-17 — 7072's second review (Opus) ran independently and found the same MAJOR (the tangent-run RunOut seam edge), so the MAJOR is bilateral. Its other findings:
+  - `FOOT_INSIDE_A_FACE_RECOURSE` follows to a build only where a smaller size helps;
+  - the reach site's `DependentNormals` recourse is false for `|n·τ|`;
+  - stale test prose, and the `UnbuiltEnd` texts spread over four homes.
+
+  The fix pass resumed the implementer with the union (`fix-cut3.md`). The reach lane was told about the reach-site text.
+- 2026-11-17 — The reach lane opened PR 7078 (head 2960690d8a, CI green):
+  - the mixed corner's own reach, sharing anchors with the plan through `mixed_corner_geometry`;
+  - `PatchEnd` link windows;
+  - the odd-plus-one turn's `MixedCut`;
+  - `|n·τ|` turned into an invariant deferring to predicate 6.
+
+  All seven witnesses build. It found and corrected the bracket's real limit, which is 1/4, not 1/6. The lane commits are clean of trailers. Two concurrent Opus reviews are running on the frozen head, with no experiment arm.
+- 2026-11-17 — Both 7078 reviews (Opus, run concurrently) came back APPROVE WITH FIXES with no MAJOR. Their randomized probes, about 3,100 between them, found no false clear, and both agree the containment argument holds.
+
+  Bilateral findings:
+  - "exactly the material the patch changes" over-claims air that stays air, so islands about 3% clear refuse;
+  - `cover-kind-match` was met by re-spelling the torus box rather than moving it to `Cover::torus`;
+  - a leftover probe test;
+  - CI never runs the new slow rows at 1e-6 or 1e-12.
+
+  Unilateral (B): the turned-body 3% false refusal is pinned as required, and `replaces` is not isolated by any test.
+
+  The fix pass resumed the implementer with the union (`fix-reach.md`).
+- 2026-11-17 — PR 7078, lane `band-reach` (`the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges`, P1): the reach meters a mixed corner by its own patch, the fillet's torus section and the chamfer's mitred strip, each holding the material the patch changes (and, as the fix pass found, the cut-back fill the result leaves as it was: filed P2). The odd-plus-one turn's pair strip now ends in the odd strip's plane, where a uniform turn's would end in its third face. Every witness builds at its closed form. A feature that enters a patch by `100ε` refuses, and one `100ε` clear of it builds, on the reflex side and beside the strips, for flush voids at 90°, 60° (chamfer) and 120°, and inset islands at 90°, 60° (chamfer) and 120°. The uniform reading had passed voids inside the fillet's patch, and the carve then failed to finish. The bracket builds to `0.249`: its real limit is `1/4`, not `1/6`. The reach's end-face check now defers to predicate 6's levered independence and is an invariant.
+- 2026-11-17 — PR 7078 fix pass (both reviews approved with fixes, no false clear in about 3,100 probes). The region holds the change plus the fill its patch cuts back. The prose now says so, a row pins it, and the P2 `a-mixed-corners-reach-holds-the-air-its-patch-leaves` is filed. The torus boxes are read through covers. The shared mixed geometry is one struct (pair feet, `E`'s normal, the pair's convexity). Inset islands are pinned at 60° and 120°. A fast row runs the inset fillet at every ε. Filed: P3 `a-turned-features-box-holds-the-reach-off-a-curved-patch`, P3 `a-corner-supports-replaced-region-is-not-isolated-by-a-row`, and on CIW's slate, evidence added to P2 `a-slow-rows-eps-pins-run-nowhere-on-the-pr-that-adds-them`.
+- 2026-11-17 — Bracket step 3, cut 3 (lane `band-cut3`, PR 7072), the end vocabulary as ratified on 6866 and 7058. `BlendError::UnbuiltEnd` (eight tags, each with its own site) replaces `UnsupportedCorner` and `UnsupportedRunOut`. `ObliqueMixedCorner { vertex, odd }` takes an oblique `E` for both verbs. A link at a mixed corner that is not between two planes refuses `UnsupportedChain` in the open-chain door's own words, because the battery calls `admit::open_link`. `CornerConfig`, `RunOutPolicy` and `MixedConvexity` leave the prelude, and `BandEnd` is the private per-end verdict. The designers' defects are made invariants or `disagrees`. Feet crossing has one tag and one recourse, and `FootInsideAFace` has its own recourse. The site table has 33 rows. Witnesses moved: the open rims of partial revolves (including klein wall 2) and the frustum at an open end now refuse in the door's words, where they used to refuse an indeterminate corner.
+- 2026-11-17 — Merged 7072 (cut 3) at 7f4d705e85. The fix head 3dee27218e had CI green; I meta-reviewed the run-out fix. With it the bracket row is closed (pr 7072), so the P0 is done.
+
+  What the fix pass did:
+  - the tangent run-out now names the vertex's third edge, pinned exactly, with a follow-`edge()` row that builds;
+  - `FOOT_INSIDE_A_FACE_RECOURSE` is followable, held by a followability row;
+  - `DependentNormals` has its own recourse with no size advice;
+  - the stale prose is swept, the tag texts have one home, and `corner_config` is deleted;
+  - it filed `band/a-chamfers-clearance-refusal-names-a-fillet3-predicate` (P3);
+  - it filed `topo/a-torn-body-fuzz-seed-panics-in-wedge-reach-naming-no-row-four-premise` (P1): a corrupt-input fuzz seed that panics on main, not caused by this PR.
+- 2026-11-18 — A container restart stopped the reach lane's agent. Its fix pass was already committed and pushed (9eaebfea72), but it was cut off midway through merging main, with a conflict in `.config/nextest.toml`. A fresh Opus agent is finishing the merge, adapting the branch to 7072's names, checking the fix-brief items and confirming CI.
+- 2026-11-18 — Merged 7078 (the mixed-corner reach) at 36c7cb2b66, CI green on 389238f26e. A fresh agent finished its fix pass after the restart: the main merge with 7072 kept the `|n·τ|` invariant. It filed P2 `a-mixed-corners-reach-holds-the-air-its-patch-leaves`, P3 `a-turned-features-box-holds-the-reach-off-a-curved-patch` and P3 `a-corner-supports-replaced-region-is-not-isolated-by-a-row`, and added evidence to CIW's slow-row ε P2. The reach row is closed.
+- 2026-11-18 — **Sitting ends; the track is handed back `ready`.** The P0 (the bracket filleted and chamfered all round) is done:
+  - 6873 all three edges;
+  - 7038 the odd edge plus one pair edge;
+  - 7072 the vocabulary;
+  - 7050 the strip-frustum junction;
+  - 7078 the reach.
+
+  No P1 row is dispatchable:
+  - the cups row waits on ONEDOOR;
+  - the line-contact unit is `blocked_on` HELDRECORDS;
+  - the kiss issue is its parent.
+
+  The P2/P3 tail is the next sitting's, including the two OCCT follow-ups and the rows filed this sitting. Since Fable usage ran out (Ev, 2026-11-17), work has run Opus-only, outside the experiments; a successor should check with Ev whether the draws resume.
+
+- 2026-11-18 — **Crossing from DOCTAIL (first-turn lane), on BAND's ground.** The blend's fold reads take the fold's shared names again: `BlendDecision::ConvexitySign` is `dihedral_sign` and `BlendDecision::KnifeEnd` is `material_cusp_side` (`geom_brep::FoldNames` retired; the blend reads `topo::edge_wedge`, which records the side as a choice). The verdict log records them as choices, so the resolver still names a blend convexity or knife turn. Two vanish rows now name `fillet3_ring_clearance`, the first choice that turns in decision order, where the old population reading named `fillet3_face_clearance` by name order (`edit_concave_bar`, `edit_ruled_carve`). K census note in `docs/K-REPORT.md` (2026-11-18).
+- 2026-11-20 — (tracker sweep) **BANDMETER merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 12 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From BANDMETER` sections of `program.md` and `plan.md` (`docs/doc-ledger/bandmeter-and-bandreach-merge-into-band.md`). (tracker sweep)
+- 2026-11-20 — (tracker sweep) **BANDREACH merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 10 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From BANDREACH` sections of `program.md` and `plan.md` (`docs/doc-ledger/bandmeter-and-bandreach-merge-into-band.md`). (tracker sweep)

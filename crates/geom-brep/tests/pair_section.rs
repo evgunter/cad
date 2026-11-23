@@ -1,0 +1,1116 @@
+//! **The section value** (`geom_brep::pair_section`): the cylinder ×
+//! sphere pose decided once, the components every reader takes, and the
+//! carrying that marches the general rung.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom::{Curve3, Surface};
+use geom_brep::{
+    CarryError, CarryRefusal, ClassCarrier, Coincident, ComponentShape, PairSection, SectionError,
+    SectionRead, SsiError, SsiLane, ZeroKind,
+};
+use geom_core::{Band, Point3, Tol, Vec3};
+
+fn band() -> Band {
+    Band::linear(Tol::witness()).unwrap()
+}
+
+/// A cylinder of radius `r` about `z` through the origin.
+fn cylinder(r: f64) -> Surface<f64> {
+    Surface::Cylinder {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, -3.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        radius: r,
+    }
+}
+
+/// A sphere of radius `big` about `(d, 0, 0.2)`.
+fn sphere(d: f64, big: f64) -> Surface<f64> {
+    Surface::Sphere {
+        frame: geom::Frame::new(
+            Point3::new(d, 0.0, 0.2),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        radius: big,
+    }
+}
+
+fn built(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
+    match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
+        Ok(SectionRead::Built(section)) => section,
+        other => panic!("expected the section, got {other:?}"),
+    }
+}
+
+fn on_both(p: Point3<f64>, a: &Surface<f64>, b: &Surface<f64>, what: &str) {
+    for s in [a, b] {
+        let r = geom_brep::implicit_residual(s, p);
+        assert!(r.abs() < 1e-12, "{what}: {p:?} is {r:e} off {s:?}");
+    }
+}
+
+/// **The coaxial pose**: two circles of the cylinder's radius, each on
+/// both surfaces, winding about the cylinder and not the sphere, told
+/// apart by their side of the centre's plane; the coincidence that
+/// chose the arm is the record the Boolean keeps. Carried without a
+/// march door: both carriers are closed forms.
+#[test]
+fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
+    let (cyl, sph) = (cylinder(1.0), sphere(0.0, 2.0));
+    let section = built(&cyl, &sph);
+    let (decided, _) = section.coincidence().expect("the coaxiality is recorded");
+    assert_eq!(
+        (decided.name(), decided),
+        ("cs_coaxial", Coincident::CylinderSphere)
+    );
+    assert!(section.tangency().is_none(), "no tangency");
+    assert_eq!(
+        section.counted().expect("a counted section").len(),
+        2,
+        "two circles"
+    );
+    for (k, c) in section
+        .counted()
+        .expect("a counted section")
+        .iter()
+        .enumerate()
+    {
+        assert_eq!(
+            c.winds,
+            [true, false],
+            "circle {k} winds about the cylinder"
+        );
+        let ClassCarrier::Closed(curve @ Curve3::Circle(..)) = &c.carrier else {
+            panic!("circle {k}: a closed-form circle, got {:?}", c.carrier);
+        };
+        for i in 0..6 {
+            on_both(curve.eval(f64::from(i)), &cyl, &sph, "a coaxial circle");
+        }
+    }
+    let swapped = built(&sph, &cyl);
+    assert_eq!(
+        swapped.counted().expect("a counted section")[0].winds,
+        [false, true],
+        "the order asked of"
+    );
+    let carried = section
+        .carry(None::<geom_core::NoLane>, band())
+        .expect("closed forms carry");
+    let p = match &section.counted().expect("a counted section")[1].carrier {
+        ClassCarrier::Closed(curve) => curve.eval(0.4),
+        _ => unreachable!(),
+    };
+    let foot = on_arc(carried.site(p, band()).unwrap());
+    assert_eq!(foot.component, 1, "the foot's component");
+}
+
+/// **A tangency is classification data**, decided once: the coaxial
+/// tangent circle (`cs_wall_reach`), an off-axis sphere touching the wall
+/// from outside or inside (`cs_near_reach`, one point on the nearest
+/// ruling), and the figure-eight's node (`cs_far_reach`). None carries.
+#[test]
+fn a_tangency_is_classification_data_and_does_not_carry() {
+    for (label, d, r, big, decision, shape, at) in [
+        (
+            "tangent circle",
+            0.0,
+            1.0,
+            1.0,
+            "cs_wall_reach",
+            ComponentShape::Loop,
+            None,
+        ),
+        (
+            "touch outside",
+            1.5,
+            0.5,
+            1.0,
+            "cs_near_reach",
+            ComponentShape::Point,
+            Some(Point3::new(0.5, 0.0, 0.2)),
+        ),
+        (
+            "touch inside",
+            0.3,
+            1.0,
+            0.7,
+            "cs_near_reach",
+            ComponentShape::Point,
+            Some(Point3::new(1.0, 0.0, 0.2)),
+        ),
+        (
+            "node",
+            0.5,
+            0.5,
+            1.0,
+            "cs_far_reach",
+            ComponentShape::Loop,
+            None,
+        ),
+    ] {
+        let (cyl, sph) = (cylinder(r), sphere(d, big));
+        let section = built(&cyl, &sph);
+        let zero = section.tangency().expect("a tangency");
+        assert_eq!(
+            (zero.decision.name(), zero.decision.kind()),
+            (decision, ZeroKind::Tangency),
+            "{label}"
+        );
+        let [c] = section.counted().expect("a counted section") else {
+            panic!("{label}: one component");
+        };
+        assert_eq!(c.shape, shape, "{label}");
+        assert!(matches!(c.carrier, ClassCarrier::Unminted(_)), "{label}");
+        if let Some(at) = at {
+            assert!(
+                (c.witness.unwrap() - at).norm() < 1e-12,
+                "{label}: {:?}",
+                c.witness
+            );
+        }
+        assert!(
+            matches!(
+                section.carry(None::<geom_core::NoLane>, band()),
+                Err(CarryError::Refused(CarryRefusal::Unminted(_)))
+            ),
+            "{label}: a tangency does not carry"
+        );
+    }
+}
+
+/// **Off the axis the reach counts the loops**: none short of the wall,
+/// one past its nearest ruling, two past its farthest, each loop on the
+/// general rung and two winding about the cylinder; each loop's witness,
+/// the ruling sweep's, lies on both surfaces, the two loops' on opposite
+/// sides of the centre's height.
+#[test]
+fn off_the_axis_the_reach_counts_the_loops() {
+    let none = built(&cylinder(0.5), &sphere(2.0, 0.5));
+    assert!(
+        none.counted().expect("a counted section").is_empty(),
+        "the sphere misses the wall"
+    );
+    let (cyl, sph) = (cylinder(0.5), sphere(0.5, 0.3));
+    let one = built(&cyl, &sph);
+    let [c] = one.counted().expect("a counted section") else {
+        panic!("one loop");
+    };
+    assert_eq!(c.winds, [false, false], "null on both carriers");
+    assert!(matches!(c.carrier, ClassCarrier::General));
+    on_both(c.witness.unwrap(), &cyl, &sph, "the lone loop's witness");
+    let two = built(&cylinder(0.5), &sphere(0.1, 0.7));
+    assert_eq!(
+        two.counted().expect("a counted section").len(),
+        2,
+        "two loops"
+    );
+    let (cyl, sph) = (cylinder(0.5), sphere(0.1, 0.7));
+    let mut heights = Vec::new();
+    for c in two.counted().expect("a counted section") {
+        assert_eq!(c.winds, [true, false], "each winds about the cylinder");
+        assert!(matches!(c.carrier, ClassCarrier::General));
+        let w = c.witness.expect("each loop witnessed");
+        on_both(w, &cyl, &sph, "a ring's witness");
+        heights.push(w.z - 0.2);
+    }
+    assert!(
+        heights[0] * heights[1] < 0.0,
+        "one witness on each ring: {heights:?} about the centre's height"
+    );
+}
+
+/// **An axis offset in the band escalates** (`cs_coaxial`), and a reach
+/// in the band too: the pose never folds a conditioning verdict into an
+/// arm's absence.
+#[test]
+fn a_pose_in_the_band_escalates() {
+    let b = band();
+    let mid = (b.zero() + b.escalate()) / 2.0;
+    for (label, d, big, want) in [
+        ("offset", mid, 0.75, "cs_coaxial"),
+        ("far reach", 0.25, 0.75 + mid, "cs_far_reach"),
+        ("wall reach", 0.0, 0.5 + mid, "cs_wall_reach"),
+    ] {
+        match geom_brep::pair_section(
+            &cylinder(0.5),
+            &sphere(d, big),
+            None,
+            None::<geom_core::NoLane>,
+            b,
+        ) {
+            Err(SectionError::Escalated(diag)) => {
+                assert_eq!(diag.predicate, Some(want), "{label}");
+            }
+            other => panic!("{label}: expected an escalation, got {other:?}"),
+        }
+    }
+}
+
+/// **A radius not definitely positive is a degenerate operand on every
+/// reading of the pair**, coaxial or not, either radius, zero or
+/// negative, and in either order: the section value, the march and the
+/// C5 table's pose question.
+#[test]
+fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
+    let reach = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.0), 1.0);
+    for (label, cyl, sph) in [
+        (
+            "negative cylinder, coaxial",
+            cylinder(-0.5),
+            sphere(0.0, 1.0),
+        ),
+        (
+            "negative cylinder, off the axis",
+            cylinder(-0.5),
+            sphere(0.6, 0.3),
+        ),
+        ("negative sphere, coaxial", cylinder(0.5), sphere(0.0, -0.7)),
+        (
+            "negative sphere, off the axis",
+            cylinder(0.5),
+            sphere(0.4, -0.3),
+        ),
+        ("zero sphere, off the axis", cylinder(0.5), sphere(0.6, 0.0)),
+        (
+            "zero cylinder, off the axis",
+            cylinder(0.0),
+            sphere(0.4, 0.3),
+        ),
+    ] {
+        for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
+            assert!(
+                matches!(
+                    geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()),
+                    Err(SectionError::DegenerateOperand { .. })
+                ),
+                "{label}: the section value"
+            );
+            let slab = geom_brep::SsiDomain {
+                center: Point3::new(0.0, 0.0, 0.0),
+                half_extent: 2.0,
+                extent: 2.0,
+                floor_scale: 1.0,
+            };
+            assert!(
+                matches!(
+                    geom_brep::cylinder_sphere_ssi(a, b, slab, band()),
+                    Err(SsiError::RadiusNotPositive { .. })
+                ),
+                "{label}: the march"
+            );
+            let served = geom_brep::route_pose(a, b, &reach, band())
+                .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            assert!(!served.implemented, "{label}: the pose question");
+        }
+    }
+}
+
+/// **A radius in the band escalates by its name**, in either order: a
+/// sphere `2.865·zero` in radius whose centre lies that far outside the
+/// wall, so it touches it, reads its radius undecided before any reach
+/// or girdle (the fuzzer's pose 1562 at ε = 1e-6, where the retired
+/// guard, which never read the radius, called it a touch); and a
+/// cylinder that thin.
+#[test]
+fn a_radius_in_the_band_escalates_by_its_name() {
+    let z = band().zero();
+    let (r, small) = (0.190_833_873_299_757_15, 2.865_155_564_080_179_6 * z);
+    for (label, cyl, sph, want, predicate) in [
+        (
+            "sphere",
+            cylinder(r),
+            sphere(r + small, small),
+            geom_brep::SectionRadius::Sphere,
+            "cs_sphere_radius",
+        ),
+        (
+            "cylinder",
+            cylinder(small),
+            sphere(0.4, 0.3),
+            geom_brep::SectionRadius::Cylinder,
+            "cs_cylinder_radius",
+        ),
+    ] {
+        for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
+            match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
+                Err(SectionError::RadiusEscalated { radius, diag }) => {
+                    assert_eq!(radius, want, "{label}");
+                    assert_eq!(diag.predicate, Some(predicate), "{label}");
+                }
+                other => panic!("{label}: expected its radius escalated, got {other:?}"),
+            }
+        }
+    }
+}
+
+/// **The general rung carries through its door**: a marched loop is a
+/// periodic cubic with its certificate, the witness's foot on it;
+/// without the door the carrying refuses by the scalar's name. Seated
+/// at a parameter it is the same carrier over the span from there to a
+/// turn on, as a circle is, its certificate the loop's own; at its base
+/// knot the span is kept. A loop no site seats reads its base opening.
+#[test]
+fn the_general_rung_carries_through_its_door() {
+    let (cyl, sph) = (cylinder(0.5), sphere(0.5, 0.3));
+    let section = built(&cyl, &sph);
+    assert!(
+        matches!(
+            section.carry(None::<geom_core::NoLane>, band()),
+            Err(CarryError::Refused(CarryRefusal::NoLane { scalar: "f64" }))
+        ),
+        "no door, no march"
+    );
+    let carried = section
+        .carry(Some(SsiLane::marched()), band())
+        .expect("the lone loop marches");
+    let [c] = carried.components() else {
+        panic!("one carried component");
+    };
+    assert!(
+        c.closed() && c.certificate.is_some(),
+        "a closed certified loop"
+    );
+    assert!(
+        matches!(c.carrier, Curve3::Periodic(_)) && c.carrier.period().is_some(),
+        "a closed fitted loop is a periodic cubic: {:?}",
+        c.carrier.kind()
+    );
+    let witness = section.counted().expect("a counted section")[0]
+        .witness
+        .unwrap();
+    assert_eq!(on_arc(carried.site(witness, band()).unwrap()).component, 0);
+    // Unseated, the loop reads its base opening: one net over the whole
+    // period, closed on one control point, every interior knot simple.
+    let whole = c.carrier.clamped_net(c.span).unwrap().unwrap();
+    assert_eq!(whole.domain(), c.span);
+    assert!(
+        interior_knots(&whole).iter().all(|k| k.1 == 1),
+        "the unseated loop's knots are simple"
+    );
+    let ends = [
+        whole.control()[0],
+        whole.control()[whole.control().len() - 1],
+    ];
+    assert!(
+        ends[0].equals_exactly(ends[1]),
+        "the unseated loop closes on one control point"
+    );
+    let (lo, hi) = c.span;
+    let at = lo + 0.37 * (hi - lo);
+    let seated = section.seat(c, at).expect("the loop seats");
+    assert_eq!(seated.span, (at, at + (hi - lo)), "seated by its span");
+    assert!(
+        seated.carrier.same_content(&c.carrier),
+        "the seated loop's carrier is the loop's, untouched"
+    );
+    let (held, own) = (seated.certificate.unwrap(), c.certificate.unwrap());
+    assert_eq!(
+        (held.hull_sup, held.on_locus_max, held.tube_boxes),
+        (own.hull_sup, own.on_locus_max, own.tube_boxes),
+        "and its certificate the loop's own, taken once"
+    );
+    let kept = section.seat(c, lo).expect("a seat at the base knot");
+    assert_eq!(kept.span, c.span, "a loop seated at its base knot is kept");
+    // A seat read a turn off is the same seat, in the base turn.
+    let off = section.seat(c, at - (hi - lo)).expect("a seat a turn back");
+    assert_eq!(off.span.0, at, "a seat is read in the loop's base turn");
+}
+
+/// The interior knots of `net`, each with its multiplicity.
+fn interior_knots(net: &geom::NurbsCurve3<f64>) -> Vec<(f64, usize)> {
+    let runs: Vec<(f64, usize)> = net.knot_values().runs().collect();
+    runs[1..runs.len() - 1].to_vec()
+}
+
+/// **A seated loop has no start**: over five poses, one loop and two,
+/// every component seated at nineteen interior parameters, at six
+/// within rounding of its base knot, at the base knot itself, and on a
+/// knot and an ulp to each side of it reads, over its seated span, a
+/// clamped view whose interior knots are all simple, and whose every
+/// point is the loop's point there, a whole period back where the span
+/// runs past the base turn, to 1e-12. No seat is a special case: none
+/// refuses, none is decided near anything, and the view's ends are one
+/// point. The seats on a knot certify; one an ulp under a knot reads a
+/// first span that narrow, which the certificate may refuse
+/// (`work/sectarms/a-clamped-view-ending-within-three-ulps-of-a-knot-holds-a-span-no-hull-reads.md`).
+#[test]
+fn a_seated_loop_has_no_start() {
+    for (d, big) in [
+        (0.5, 0.3),
+        (0.35, 0.3),
+        (0.2, 0.699),
+        (0.1, 0.7),
+        (0.62, 0.15),
+    ] {
+        let (cyl, sph) = (cylinder(0.5), sphere(d, big));
+        let section = built(&cyl, &sph);
+        // The sliver pose, a millimetre short of the far wall, carries
+        // at a band of 1e-9 and finer and refuses its tube at 1e-6,
+        // where the clamped fit of the same points certified at a tube
+        // 60 times narrower than a normal pose's. The cause is not found
+        // (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
+        let coarse_sliver = (d, big) == (0.2, 0.699) && band().zero() > 1e-7;
+        let carried = match section.carry(Some(SsiLane::marched()), band()) {
+            Ok(carried) => {
+                assert!(!coarse_sliver, "d {d}, R {big}: the coarse sliver carries");
+                carried
+            }
+            Err(CarryError::Refused(CarryRefusal::March(
+                geom_brep::ssi::SsiError::TubeStraddles { .. },
+            ))) if coarse_sliver => continue,
+            Err(e) => panic!("d {d}, R {big}: the section carries, got {e:?}"),
+        };
+        for c in carried.components() {
+            let (lo, hi) = c.span;
+            let period = hi - lo;
+            let whole = c.carrier.clamped_net(c.span).unwrap().unwrap();
+            let mut ats: Vec<f64> = (1..20)
+                .map(|k| lo + period * f64::from(k) / 20.0 + 1e-3)
+                .collect();
+            ats.extend([
+                lo,
+                lo + 1e-15,
+                lo + 1e-12,
+                lo + 1e-9,
+                hi - 1e-9,
+                hi - 1e-12,
+                hi - 1e-15,
+            ]);
+            // A seat exactly on a knot of the loop, and an ulp to each
+            // side of one.
+            let knots = interior_knots(&whole);
+            let knot = knots[knots.len() / 3].0;
+            ats.extend([knot, knot.next_down(), knot.next_up()]);
+            for at in ats {
+                let seated = section
+                    .seat(c, at)
+                    .unwrap_or_else(|e| panic!("d {d}, R {big}: seat {at}: {e:?}"));
+                assert!(
+                    seated.closed() && seated.certificate.is_some(),
+                    "d {d}, R {big}: seat {at} is closed and certified"
+                );
+                let (s0, s1) = seated.span;
+                let view = seated
+                    .carrier
+                    .clamped_net(seated.span)
+                    .unwrap()
+                    .unwrap_or_else(|e| panic!("d {d}, R {big}: seat {at}: {e}"));
+                assert_eq!(view.domain(), (s0, s1), "d {d}, R {big}: seat {at}");
+                let worst = interior_knots(&view).iter().map(|k| k.1).max();
+                assert_eq!(
+                    worst,
+                    Some(1),
+                    "d {d}, R {big}: seat {at}: every interior knot of the view is simple"
+                );
+                assert!(
+                    (view.eval(s0) - view.eval(s1)).norm() < 1e-12,
+                    "d {d}, R {big}: seat {at}: the seated span closes"
+                );
+                for k in 0..=4000 {
+                    let u = s0 + (s1 - s0) * f64::from(k) / 4000.0;
+                    let v = if u <= hi { u } else { u - period };
+                    let gap = (view.eval(u) - whole.eval(v)).norm();
+                    assert!(gap < 1e-12, "d {d}, R {big}: seat {at}: {gap:e}");
+                }
+                // The seats on and beside a knot certify at the edge
+                // door's limbs as the whole loop does: on the base knot
+                // and on a knot, an ulp over a knot (the knot then lies
+                // outside the view), and within 1e-15 and 1e-12 of the
+                // base knot on either side (a span of four ulps or
+                // more). The one seat left out is the ulp under a knot,
+                // whose first span is one ulp wide and which the tube
+                // limb refuses on some loops: the open fork
+                // `work/sectarms/a-clamped-view-ending-within-three-ulps-of-a-knot-holds-a-span-no-hull-reads.md`.
+                let certified = [
+                    knot,
+                    knot.next_up(),
+                    lo,
+                    lo + 1e-15,
+                    lo + 1e-12,
+                    hi - 1e-12,
+                    hi - 1e-15,
+                ];
+                if certified.contains(&at) {
+                    geom_brep::certify_rung3(
+                        &view,
+                        None,
+                        &geom_brep::SsiOperand::Analytic(&cyl),
+                        &geom_brep::SsiOperand::Analytic(&sph),
+                        big * 2.0,
+                        band(),
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("d {d}, R {big}: seat {at}: the view certifies, got {e:?}")
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// **Every other kind pair is read elsewhere**, with `route`'s own arm,
+/// and `serves` says so.
+#[test]
+fn every_other_pair_is_read_elsewhere() {
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+    };
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    for (a, b) in [(&plane, &plane), (&plane, &torus), (&torus, &plane)] {
+        assert!(
+            !geom_brep::pair_section::serves(a.kind(), b.kind()),
+            "{:?} × {:?} is not served",
+            a.kind(),
+            b.kind()
+        );
+        match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
+            Ok(SectionRead::Elsewhere(route)) => {
+                assert_eq!(route, geom_brep::route(a.kind(), b.kind()));
+            }
+            other => panic!(
+                "{:?} × {:?}: read elsewhere, got {other:?}",
+                a.kind(),
+                b.kind()
+            ),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// The pose against the formulas it retired, and the sites near the node
+// (the dual review of SECT step 1a; R1's and R2's rows, deduplicated).
+// ---------------------------------------------------------------------
+
+/// A unit vector square to `a`.
+fn square_to(a: Vec3<f64>) -> Vec3<f64> {
+    let t = if a.x.abs() < 0.9 {
+        Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        Vec3::new(0.0, 1.0, 0.0)
+    };
+    let u = t - a * t.dot(a);
+    u * (1.0 / u.norm())
+}
+
+/// A cylinder of radius `r` about `axis` through `origin`.
+fn cylinder_about(origin: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
+    Surface::Cylinder {
+        frame: geom::Frame::new(origin, axis, square_to(axis)),
+        radius: r,
+    }
+}
+
+/// A sphere of radius `big` about `center`.
+fn sphere_at(center: Point3<f64>, big: f64) -> Surface<f64> {
+    Surface::Sphere {
+        frame: geom::Frame::new(center, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+        radius: big,
+    }
+}
+
+fn sign(m: f64) -> Option<geom_core::Sign> {
+    geom_core::k_stats::decide("retired", geom_core::Margin::of(m), band()).ok()
+}
+
+/// What the interior-loop guard reads off a pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Class {
+    Empty,
+    Lone,
+    Pair,
+    Touch,
+    Tangent,
+}
+
+/// **The retired guard arm** (`section_cert::sphere_cylinder` as it
+/// stood before step 1a), transcribed: the reach `R − |e − r|` read
+/// first, then the girdle `e + r − R`, at the centre's offset `e` from
+/// the axis. A `Zero` reach beside a `Positive` girdle is the touch;
+/// any other `Zero` or undecided row is the tangency.
+fn retired_guard(e: f64, r: f64, big: f64) -> Class {
+    use geom_core::Sign;
+    match (sign(big - (e - r).abs()), sign(e + r - big)) {
+        (None, _) => Class::Tangent,
+        (Some(Sign::Zero), Some(Sign::Positive)) => Class::Touch,
+        (Some(Sign::Zero), _) | (Some(_), None | Some(Sign::Zero)) => Class::Tangent,
+        (Some(Sign::Negative), Some(_)) => Class::Empty,
+        (Some(Sign::Positive), Some(Sign::Positive)) => Class::Lone,
+        (Some(Sign::Positive), Some(Sign::Negative)) => Class::Pair,
+    }
+}
+
+/// **The retired coincidence row** (`glue::frame_rows` over
+/// `cylinder_sphere_section`): written where the offset decided `Zero`,
+/// both radii decided positive and `R − r` decided.
+fn retired_row(e: f64, r: f64, big: f64) -> bool {
+    use geom_core::Sign;
+    sign(e) == Some(Sign::Zero)
+        && sign(r) == Some(Sign::Positive)
+        && sign(big) == Some(Sign::Positive)
+        && sign(big - r).is_some()
+}
+
+/// The offset as the pose reads it: an offset decided `Zero` is the
+/// coaxial pose, whose reach and girdle are `±(R − r)`. The retired arm
+/// read `|e − r|` with the measured residual `e`, so where `R − r` lies
+/// within `e ≤ zero` of a band edge the two can read different signs;
+/// the pose's reading is the coaxial one it decided.
+fn decided_offset(e: f64) -> f64 {
+    if sign(e) == Some(geom_core::Sign::Zero) {
+        0.0
+    } else {
+        e
+    }
+}
+
+/// **The escalation widths past the escalate edge within which the
+/// value's ruling sweep may escalate an extreme of `Δ`.** The sweep reads
+/// `Δ = R − ρ` along the wall's rulings; its extremes are the near reach
+/// `R − |e − r|` (at the near ruling) and the far reach `R − (e + r)` (at
+/// the far one). Where an extreme stands `x` widths past the edge, the
+/// ruling angle about it reads in the band (`|Δ| <` escalate) between
+/// `φ_a`, where `Δ` has fallen `x` widths, and `φ_b`, where it has fallen
+/// `2 + x`. The cell from the extreme's ruling is never monotone, so the
+/// sweep must cut it at a decided angle short of `φ_a`, and its cuts are
+/// the middle and ±⅛, ±¼ of a cell's width, a ratio of three end to end.
+/// It finds one wherever `φ_b / φ_a` is under three. `Δ` falls from an
+/// extreme at least linearly in the angle (a kink, where the near ruling
+/// runs through the centre) and at most quadratically (a smooth extreme),
+/// so `φ_b / φ_a` lies between `√((2 + x)/x)` and `(2 + x)/x`, under three
+/// once `x` is past a quarter (smooth) or one (kink). Measured
+/// (2026-11-04): over 46 614 poses, one or the other extreme swept through
+/// four widths past the edge at ε 1e-6, 1e-9 and 1e-12, every ruling
+/// escalation stood within 0.29 of a width of the edge.
+const SWEEP_ZONE_WIDTHS: f64 = 1.0;
+
+/// **Whether the value's ruling sweep may escalate a crossing the retired
+/// formulas count**: an extreme of `Δ` within [`SWEEP_ZONE_WIDTHS`] past the
+/// escalate edge.
+fn sweep_may_escalate(e: f64, r: f64, big: f64) -> bool {
+    let k = band().escalate();
+    [big - (e - r).abs(), big - (e + r)]
+        .iter()
+        .any(|m| m.abs() <= k * (1.0 + SWEEP_ZONE_WIDTHS))
+}
+
+/// Whether the value's `new` reading stands against the retired `old`:
+/// the same, or the ruling sweep's escalation of a crossing
+/// [`sweep_may_escalate`] names, counted in `escalated`.
+fn reads_as_retired(
+    new: (Class, bool),
+    old: (Class, bool),
+    (e, r, big): (f64, f64, f64),
+    escalated: &mut usize,
+) -> bool {
+    if new == old {
+        return true;
+    }
+    let crossing = matches!(old, (Class::Lone | Class::Pair, false));
+    let escalates = new == (Class::Tangent, false) && crossing && sweep_may_escalate(e, r, big);
+    *escalated += usize::from(escalates);
+    escalates
+}
+
+/// The value's reading of a pair: its guard class, and whether it
+/// records a coincidence.
+fn read_class(a: &Surface<f64>, b: &Surface<f64>) -> (Class, bool) {
+    match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
+        Ok(SectionRead::Built(s)) => {
+            let class = if s.tangency().is_some() {
+                match s.counted().expect("a counted section") {
+                    [c] if c.shape == ComponentShape::Point && c.witness.is_some() => Class::Touch,
+                    _ => Class::Tangent,
+                }
+            } else {
+                match s.counted().expect("a counted section").len() {
+                    0 => Class::Empty,
+                    1 => Class::Lone,
+                    2 => Class::Pair,
+                    n => panic!("{n} components"),
+                }
+            };
+            (class, s.coincidence().is_some())
+        }
+        Err(SectionError::Escalated(_) | SectionError::RadiusEscalated { .. }) => {
+            (Class::Tangent, false)
+        }
+        other => panic!("positive radii build or escalate, got {other:?}"),
+    }
+}
+
+/// **The boundary enumeration**: every offset and radius boundary of the
+/// pose, at and either side of the band's edges, in both orders. Off the
+/// band the value reads the retired arm's class and writes the retired
+/// coincidence row exactly; an offset inside the band (`zero < e <
+/// escalate`) is the one ruling step 1a moved: the pose escalates the
+/// offset itself, so the guard reads a tangency where the retired arm
+/// read the reach and girdle of an off-axis pose. An offset decided
+/// `Zero` but not exactly zero is read as the coaxial pose
+/// ([`decided_offset`]).
+#[test]
+fn the_pose_reads_the_retired_formulas_at_every_boundary() {
+    let b = band();
+    let (z, k) = (b.zero(), b.escalate());
+    let r = 0.5;
+    let offsets = [
+        0.0,
+        0.3 * z,
+        z,
+        2.0 * z,
+        0.5 * (z + k),
+        k,
+        1.5 * k,
+        3.0 * k,
+        1e-3,
+        0.1,
+        0.2,
+        0.5,
+        0.7,
+        1.2,
+    ];
+    let nudges = [
+        -3.0 * k,
+        -k,
+        -0.5 * (z + k),
+        -z,
+        -0.3 * z,
+        0.0,
+        0.3 * z,
+        z,
+        0.5 * (z + k),
+        k,
+        3.0 * k,
+        0.05,
+        -0.05,
+    ];
+    let (mut n, mut in_band, mut escalated) = (0, 0, 0);
+    for e in offsets {
+        let sph_centre = Point3::new(e, 0.0, 0.2);
+        for base in [(e - r).abs(), e + r, r, 0.3, 0.9] {
+            for nudge in nudges {
+                let big = base + nudge;
+                if big <= 3.0 * k {
+                    continue;
+                }
+                let (cyl, sph) = (cylinder(r), sphere_at(sph_centre, big));
+                let old = (
+                    retired_guard(decided_offset(e), r, big),
+                    retired_row(e, r, big),
+                );
+                for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
+                    n += 1;
+                    let new = read_class(x, y);
+                    let what = format!(
+                        "e {e:e}, R−|e−r| {:e}, R−(e+r) {:e}, R−r {:e}",
+                        big - (e - r).abs(),
+                        big - (e + r),
+                        big - r
+                    );
+                    if e > z && e < k {
+                        in_band += 1;
+                        assert_eq!(new, (Class::Tangent, false), "in the band: {what}");
+                    } else {
+                        assert!(
+                            reads_as_retired(new, old, (e, r, big), &mut escalated),
+                            "off the band: {what}: {new:?} against {old:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    println!("{n} readings, {in_band} in the band, {escalated} escalated by the ruling sweep");
+    assert!(
+        n > 1000 && in_band > 100,
+        "{n} readings, {in_band} in the band, {escalated} escalated by the ruling sweep"
+    );
+}
+
+/// **The counterexample search**: random poses, any axis and origin,
+/// pushed onto their coaxiality, their tangencies and the band's edge,
+/// in both orders. Off the band the value writes the retired coincidence
+/// row exactly where it was written and reads the retired guard's class.
+#[test]
+fn no_pose_off_the_band_moves_from_the_retired_formulas() {
+    use test_utils::fuzz;
+    let mut g = fuzz::start("pair_section::retired_formulas");
+    let b = band();
+    let (mut rows, mut checked, mut escalated, mut zone_exact) = (0, 0, 0, 0);
+    let poses = fuzz::scaled(5_000);
+    for k in 0..poses {
+        let origin = Point3::new(g.unit() - 0.5, g.unit() - 0.5, g.unit() - 0.5);
+        let axis = loop {
+            let v = Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0));
+            let n = v.norm();
+            if n > 0.2 && n < 1.0 {
+                break v * (1.0 / n);
+            }
+        };
+        let r = 0.05 + g.unit();
+        let off = match k % 3 {
+            0 => 0.0,
+            1 => b.escalate() * 3.0 * g.unit(),
+            _ => 1.5 * g.unit(),
+        };
+        // Two arms put one extreme of the sweep's `Δ` up to twice
+        // [`SWEEP_ZONE_WIDTHS`] past the escalate edge, the other where the
+        // offset puts it: the zone where the sweep may escalate, and past
+        // it, where it must answer as the retired formulas do.
+        let zone = b.escalate() * (1.0 + 2.0 * SWEEP_ZONE_WIDTHS * g.unit());
+        let big = match k % 9 {
+            0 => r,
+            1 => (off - r).abs(),
+            2 => off + r,
+            3 => (off - r).abs() + b.zero() * 0.5,
+            // `k % 3`: 4 near the axis, 5 and 8 anywhere off it.
+            4 | 5 => (off - r).abs() + zone,
+            8 => off + r + if g.unit() < 0.5 { zone } else { -zone },
+            _ => 0.05 + 2.0 * g.unit(),
+        };
+        // The retired formulas read a radius decided positive; one in the
+        // band escalates by its name instead
+        // ([`a_radius_in_the_band_escalates_by_its_name`]).
+        if big <= b.escalate() * 1.001 || (off > b.zero() * 0.999 && off < b.escalate() * 1.001) {
+            continue;
+        }
+        let c = origin + axis * g.range(-1.0, 1.0) + square_to(axis) * off;
+        let (cyl, sph) = (cylinder_about(origin, axis, r), sphere_at(c, big));
+        // The retired formulas read the offset as measured, not as drawn.
+        let q = c - origin;
+        let e = (q - axis * q.dot(axis)).norm();
+        let old = (
+            retired_guard(decided_offset(e), r, big),
+            retired_row(e, r, big),
+        );
+        let past_the_zone = matches!(k % 9, 4 | 5 | 8)
+            && matches!(old.0, Class::Lone | Class::Pair)
+            && !sweep_may_escalate(e, r, big);
+        for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
+            let new = read_class(x, y);
+            zone_exact += usize::from(past_the_zone);
+            assert!(
+                reads_as_retired(new, old, (e, r, big), &mut escalated),
+                "pose {k} (off {off:e}, r {r}, R {big}): {new:?} against {old:?}; {}",
+                fuzz::replay()
+            );
+            rows += usize::from(new.1);
+            checked += 1;
+        }
+    }
+    println!(
+        "{checked} readings, {escalated} escalated by the ruling sweep, {zone_exact} crossings \
+         just past its zone read exactly"
+    );
+    assert!(
+        rows > poses / 10 && checked > poses && zone_exact > poses / 40,
+        "{rows} rows, {checked} readings, {escalated} escalated by the ruling sweep; {}",
+        fuzz::replay()
+    );
+}
+
+/// The wall point at azimuth `θ` of the section of [`cylinder`]`(r)` and
+/// [`sphere`]`(d, big)`, on the upper (`+1`) or lower (`−1`) sheet;
+/// `None` where the azimuth has none.
+fn wall_point(r: f64, d: f64, big: f64, theta: f64, sheet: f64) -> Option<Point3<f64>> {
+    let h2 = big * big - r * r - d * d + 2.0 * r * d * theta.cos();
+    (h2 >= 0.0).then(|| Point3::new(r * theta.cos(), r * theta.sin(), 0.2 + sheet * h2.sqrt()))
+}
+
+/// Whether the cyclic sequence `ts` on a closed span of length `period`
+/// runs one way round exactly once.
+fn turns_once(ts: &[f64], period: f64) -> bool {
+    let steps: Vec<f64> = ts
+        .iter()
+        .zip(ts.iter().cycle().skip(1))
+        .map(|(a, b)| (b - a).rem_euclid(period))
+        .collect();
+    let fwd: f64 = steps.iter().sum();
+    let back: f64 = steps.iter().map(|s| period - s).sum();
+    (fwd - period).abs() < 1e-6 * period || (back - period).abs() < 1e-6 * period
+}
+
+/// **Two loops keep their sites and their order, down to the node**:
+/// `R` past `d + r` by a wide margin and by hairs, so the loops nearly
+/// meet at the far ruling. In either order every analytic site of one
+/// sheet has its foot on one component, the two sheets' on two, and the
+/// feet run round each loop in the azimuth's order, once. Marches: in
+/// the slow set.
+#[test]
+fn two_loops_keep_their_sites_and_order_near_the_node() {
+    let r = 0.5;
+    for (d, big) in [(0.1, 0.7), (0.2, 0.71), (0.2, 0.701)] {
+        let (cyl, sph) = (cylinder(r), sphere(d, big));
+        for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
+            let s = built(x, y);
+            let c = s
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("d {d}, R {big}: {e:?}"));
+            assert_eq!(c.components().len(), 2, "d {d}, R {big}");
+            let mut seen = Vec::new();
+            for sheet in [1.0, -1.0] {
+                let mut ts = Vec::new();
+                let mut want = None;
+                for i in 0..97 {
+                    // Densest near the far ruling, θ = π.
+                    let u = f64::from(i) / 97.0;
+                    let theta = std::f64::consts::PI * (1.0 + (2.0 * u - 1.0).powi(3));
+                    let p = wall_point(r, d, big, theta, sheet).unwrap();
+                    let at = format!("d {d}, R {big}, θ {theta}");
+                    let f = on_arc(c.site(p, band()).unwrap_or_else(|e| panic!("{at}: {e:?}")));
+                    assert_eq!(*want.get_or_insert(f.component), f.component, "{at}");
+                    ts.push(f.t);
+                }
+                let want = want.expect("a site on the sheet");
+                assert!(
+                    !seen.contains(&want),
+                    "d {d}, R {big}: each sheet its own loop"
+                );
+                seen.push(want);
+                let (lo, hi) = c.components()[want].span;
+                assert!(turns_once(&ts, hi - lo), "d {d}, R {big}, sheet {sheet}");
+            }
+        }
+    }
+}
+
+/// **One loop keeps its order, down to the node**: the centre on the
+/// wall, and `R` short of `d + r` by hairs, so the loop's two lobes pass
+/// close at the far side. In either order every site's foot lies on the
+/// one component and the feet run round it once in the loop's own order.
+/// Marches: in the slow set.
+#[test]
+fn one_loop_keeps_its_order_near_the_node() {
+    let r = 0.5;
+    for (d, big) in [(0.5, 0.3), (0.2, 0.69), (0.2, 0.699)] {
+        let (cyl, sph) = (cylinder(r), sphere(d, big));
+        let t0 = ((r * r + d * d - big * big) / (2.0 * r * d)).acos();
+        for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
+            let c = built(x, y)
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("d {d}, R {big}: {e:?}"));
+            assert_eq!(c.components().len(), 1, "d {d}, R {big}");
+            let mut ts = Vec::new();
+            for i in 0..200 {
+                let tau = 4.0 * t0 * (f64::from(i) + 0.5) / 200.0;
+                let (theta, sheet) = if tau < 2.0 * t0 {
+                    (tau - t0, 1.0)
+                } else {
+                    (3.0 * t0 - tau, -1.0)
+                };
+                let Some(p) = wall_point(r, d, big, theta, sheet) else {
+                    continue;
+                };
+                let f = on_arc(
+                    c.site(p, band())
+                        .unwrap_or_else(|e| panic!("d {d}, R {big}, τ {tau}: {e:?}")),
+                );
+                assert_eq!(f.component, 0);
+                ts.push(f.t);
+            }
+            let (lo, hi) = c.components()[0].span;
+            assert!(turns_once(&ts, hi - lo), "d {d}, R {big}");
+        }
+    }
+}
+
+/// **Near the node, no site reads on the other sheet's loop**: the two
+/// loops of the sphere at `d 0.2` whose radius `R` runs across
+/// `0.7003–0.705`, past `d + r` by hairs, in either order. Every site
+/// whose foot is read lies on its own sheet's component, and the two
+/// sheets' components differ; a refusal, of the carry or of a foot, is
+/// allowed, but most sites read. Marches: in the slow set.
+#[test]
+fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
+    let (r, d) = (0.5, 0.2);
+    let (mut read, mut refused) = (0usize, 0usize);
+    for k in 0..8 {
+        let big = 0.7003 + (0.705 - 0.7003) * f64::from(k) / 7.0;
+        let (cyl, sph) = (cylinder(r), sphere(d, big));
+        for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
+            let Ok(c) = built(x, y).carry(Some(SsiLane::marched()), band()) else {
+                refused += 1;
+                continue;
+            };
+            let mut owner: [Option<usize>; 2] = [None, None];
+            for (s, sheet) in [1.0, -1.0].into_iter().enumerate() {
+                for i in 0..97 {
+                    let u = f64::from(i) / 97.0;
+                    let theta = std::f64::consts::PI * (1.0 + (2.0 * u - 1.0).powi(3));
+                    let Some(p) = wall_point(r, d, big, theta, sheet) else {
+                        continue;
+                    };
+                    let Ok(geom_brep::SiteReading::OnArc(f)) = c.site(p, band()) else {
+                        refused += 1;
+                        continue;
+                    };
+                    read += 1;
+                    let at = format!("R {big}, sheet {sheet}, θ {theta}");
+                    assert_eq!(
+                        *owner[s].get_or_insert(f.component),
+                        f.component,
+                        "{at}: a site on its sheet's own loop"
+                    );
+                }
+            }
+            if let [Some(a), Some(b)] = owner {
+                assert_ne!(a, b, "R {big}: each sheet its own loop");
+            }
+        }
+    }
+    eprintln!("near the node: {read} sites read, {refused} refusals");
+    // The row is a reading, not a run of refusals: 2716 of its 3104
+    // sites read at every ε when it landed.
+    assert!(read >= 2500, "{read} sites read, {refused} refusals");
+}
+
+/// **A closed form is seated by its span**: each of the coaxial pose's
+/// circles, seated at any angle, is its own carrier over that angle to
+/// a turn on, with no lane asked for and no certificate. Its seat point
+/// is the circle's point at that angle, so a chord cut from it starts
+/// there.
+#[test]
+fn a_closed_form_is_seated_by_its_span() {
+    let (cyl, sph) = (cylinder(1.0), sphere(0.0, 2.0));
+    let section = built(&cyl, &sph);
+    let carried = section
+        .carry(None::<geom_core::NoLane>, band())
+        .expect("closed forms carry");
+    for c in carried.components() {
+        let (lo, hi) = c.span;
+        assert!(c.closed() && c.certificate.is_none(), "a closed form");
+        for at in [lo, lo + 1.0, lo + 3.0, lo - 2.5, hi + 0.5] {
+            let seated = section
+                .seat(c, at)
+                .unwrap_or_else(|e| panic!("seat {at}: {e:?}"));
+            assert_eq!(seated.span, (at, at + (hi - lo)), "seated at {at}");
+            assert!(
+                seated.carrier.eval(at).equals_exactly(c.carrier.eval(at)),
+                "seat {at}: the carrier is as it was"
+            );
+        }
+    }
+}
+
+/// The foot of a site off every node: these sections list none.
+fn on_arc(reading: geom_brep::SiteReading<f64>) -> geom_brep::SiteFoot<f64> {
+    match reading {
+        geom_brep::SiteReading::OnArc(foot) => foot,
+        geom_brep::SiteReading::AtNode(n) => panic!("a site at node {n} of a section with none"),
+    }
+}

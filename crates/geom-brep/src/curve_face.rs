@@ -1,0 +1,636 @@
+//! **The curve × face meeting table**: how a carrier span and a face
+//! meet (C5's curve × face clause, `crates/geom-brep/README.md`).
+//!
+//! - **One total table** ([`route`]): one exhaustive match over the
+//!   span's [`CurveKind`] and the face's [`SurfaceKind`], with no
+//!   wildcard arm, naming the door that reads the span against the
+//!   face's interior. An arm that is not built says so
+//!   ([`Route::implemented`]) and names what it lacks, and its caller
+//!   refuses typed with that routing.
+//! - **The boundary first** ([`read`], and [`boundary`] its answer for
+//!   the span's interior): before any arm, the span is
+//!   read against each of the face's boundary edges through the
+//!   curve-pair table ([`crate::curve_pair::meet`]), each boundary
+//!   edge's start vertex on the span before its meeting. A shared run
+//!   along a boundary edge is a coincidence, decided by that reading and
+//!   never by surface arithmetic; a point meeting there is a meeting on
+//!   the face's boundary. Only a span the boundary leaves undecided
+//!   ([`Boundary::Clear`]) is read against the face's interior.
+//! - **The boundary, located** ([`located`]): the same pass read past
+//!   each member it cannot read, which is then undecided over the window
+//!   of the span it can meet ([`Undecided`]). A reader that cuts the
+//!   span takes the meetings and the windows' ends together
+//!   ([`Located::cuts`]), and asks which window a run reaches
+//!   ([`Located::undecided_over`]).
+//!
+//! The pass is given no topology and no surface: the boundary is its
+//! spans, in the face's walk order, and its lone vertices, so it serves
+//! every face kind alike.
+
+use geom::{CurveKind, SurfaceKind};
+use geom_core::{Band, Decide, Indeterminate, Point3};
+
+use crate::curve_pair::{Hit, MeetFault, MeetKind, Meetings, Span, meet};
+
+/// The door that reads a span against a face's interior, once its
+/// boundary has left the span undecided.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Door {
+    /// A line or a conic against a plane: the plane-crossing lane
+    /// ([`plane_crossing`]).
+    PlaneCrossing,
+    /// A line against a cylinder, a cone, a sphere or a torus: the
+    /// certified roots of the surface's residual along the line
+    /// ([`line_quadric`]).
+    LineRoots,
+    /// A circle or an ellipse against a cylinder, a cone or a sphere: the
+    /// residual's trigonometric polynomial in the conic's angle
+    /// ([`conic_quadric`]).
+    ConicQuadric,
+    /// A circle or an ellipse against a torus ([`circle_torus`],
+    /// [`ellipse_torus`]).
+    ConicTorus,
+    /// A spline span against an analytic face: the face's residual
+    /// composed along the span (the ring composite).
+    SplineComposite,
+    /// Any span against a spline face: enclosures on the span's pieces
+    /// and the surface's cells, a Krawczyk contraction for one meeting.
+    SplineFace,
+    /// A spiric span against a plane: the section reduction, the line
+    /// where the two planes meet read against the spiric's own torus
+    /// ([`spiric_plane`]).
+    SpiricPlane,
+    /// A spiric span against a curved analytic face: its section by the
+    /// face has no torus lane yet.
+    Spiric,
+    /// Any span against a spindle sheet's face: no lane yet.
+    Sheet,
+}
+
+/// How [`route`] reads a pair of kinds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Route {
+    /// The door.
+    pub door: Door,
+    /// Whether the door reads the pair.
+    pub implemented: bool,
+    /// What the door is, or, unbuilt, what it lacks.
+    pub note: &'static str,
+}
+
+/// **The table**: the door every pair of kinds is read by. Exhaustive,
+/// with no wildcard arm: a new [`CurveKind`] or [`SurfaceKind`] is a
+/// compile error here until it has a door.
+#[must_use]
+pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
+    use CurveKind::{Circle, Ellipse, Line, Nurbs, Periodic, Spiric};
+    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Spindle, Torus};
+    let built = |door, note| Route {
+        door,
+        implemented: true,
+        note,
+    };
+    let unbuilt = |door, note| Route {
+        door,
+        implemented: false,
+        note,
+    };
+    match (curve, surface) {
+        (Line | Circle | Ellipse, Plane) => built(
+            Door::PlaneCrossing,
+            "the roots of the plane's residual along the carrier",
+        ),
+        (Line, Cylinder | Cone | Sphere | Torus) => built(
+            Door::LineRoots,
+            "the certified roots of the surface's residual along the line",
+        ),
+        (Circle | Ellipse, Cylinder | Cone | Sphere) => built(
+            Door::ConicQuadric,
+            "the residual's trigonometric polynomial in the conic's angle",
+        ),
+        (Circle | Ellipse, Torus) => built(
+            Door::ConicTorus,
+            "the torus residual along the conic, of degree two on a circle and four on an ellipse",
+        ),
+        (Nurbs, Plane | Cylinder | Cone | Sphere | Torus) => built(
+            Door::SplineComposite,
+            "the face's residual composed along the spline span, read on its pieces",
+        ),
+        (Line | Circle | Ellipse | Nurbs, SurfaceKind::Nurbs | Approx) => built(
+            Door::SplineFace,
+            "boxes of the span's parameter and the chart's, cleared past the band or \
+             proved one transverse meeting by a Krawczyk contraction",
+        ),
+        (Spiric, SurfaceKind::Nurbs | Approx) => unbuilt(
+            Door::SplineFace,
+            "enclosures of a spiric span's pieces against the surface's cells, \
+             deferred until its first producer \
+             (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
+        ),
+        (Spiric, Plane) => built(
+            Door::SpiricPlane,
+            "the line where the spiric's plane meets the plane, read against the spiric's \
+             torus on the oval's side of the axis",
+        ),
+        (Spiric, Cylinder | Cone | Sphere | Torus) => unbuilt(
+            Door::Spiric,
+            "the face's section by the spiric's plane against the spiric's torus, a lane \
+             deferred until its first producer \
+             (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
+        ),
+        (Line | Circle | Ellipse | Spiric | Nurbs | Periodic, Spindle) => unbuilt(
+            Door::Sheet,
+            "a span against a spindle sheet's face, which has no lane yet",
+        ),
+        (Periodic, Plane | Cylinder | Cone | Sphere | Torus) => {
+            unbuilt(Door::SplineComposite, PERIODIC_READS_ITS_VIEW)
+        }
+        (Periodic, SurfaceKind::Nurbs | Approx) => {
+            unbuilt(Door::SplineFace, PERIODIC_READS_ITS_VIEW)
+        }
+    }
+}
+
+/// Why no door takes a periodic cubic: an edge on one is read on its
+/// clamped view over the edge's span (`EdgeCurve::carrier`), which is a
+/// spline and routes as one.
+const PERIODIC_READS_ITS_VIEW: &str = "a periodic cubic's span is read on its clamped view, \
+     which routes as a spline";
+
+/// **The K-name prefix of every door this crate decides in**, by door:
+/// a K name's prefix is the module that decides its margin
+/// (`[topo.homes]`), and every name decided in `curve_face.rs` or under
+/// `curve_face/` starts with one of these or with [`TABLE_K_PREFIX`]
+/// (its row `every_door_name_carries_a_listed_prefix` reads those
+/// sources for it). A door built elsewhere decides under its own
+/// module's prefix there, and has no row here until it moves beside
+/// [`route`]. A reader that asks whether a recorded name is curve × face
+/// machinery asks [`decided_by_curve_face`], not a copy of this list.
+///
+/// The plane door decides no row of its own: its class is the pose's
+/// (`curve_face_pose_*`), its roots' places the crossing's
+/// (`curve_face_cross_*`), both under [`TABLE_K_PREFIX`].
+pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
+    (Door::LineRoots, "line_quadric_"),
+    (Door::ConicQuadric, "conic_quadric_"),
+    (Door::ConicTorus, "circle_torus_"),
+    (Door::ConicTorus, "ellipse_torus_"),
+    (Door::SplineComposite, "spline_composite_"),
+    (Door::SplineFace, "spline_face_"),
+    (Door::SpiricPlane, "spiric_plane_"),
+];
+
+/// The K-name prefix of this module's own readings, ahead of any door:
+/// the boundary pass and its windows.
+pub const TABLE_K_PREFIX: &str = "curve_face_";
+
+/// Whether `predicate` is decided by the curve × face table or one of
+/// its doors in this crate ([`TABLE_K_PREFIX`], [`DOOR_K_PREFIXES`]).
+#[must_use]
+pub fn decided_by_curve_face(predicate: &str) -> bool {
+    predicate.starts_with(TABLE_K_PREFIX)
+        || DOOR_K_PREFIXES
+            .iter()
+            .any(|(_, prefix)| predicate.starts_with(prefix))
+}
+
+/// What the boundary pass makes of a span ([`boundary`]).
+#[derive(Clone, Copy, Debug)]
+pub enum Boundary<T: geom_core::Real> {
+    /// The span meets the boundary strictly inside itself, at `t` and
+    /// `point`: a meeting on the face's boundary, where both edges are
+    /// split. Of several, a lone vertex's first, else the one the walk
+    /// reaches first, which need not be the least `t`.
+    Meets {
+        /// The parameter on the span.
+        t: T,
+        /// The point.
+        point: Point3<T>,
+        /// Where it sits on the boundary.
+        at: OnBoundary<T>,
+    },
+    /// The span lies along the boundary: a boundary edge shares a run of
+    /// positive length with it, and no boundary edge or vertex meets the
+    /// span strictly inside it, so the run is the whole span.
+    Along {
+        /// The boundary edge, by its index in the walk.
+        edge: usize,
+    },
+    /// Certified: the span's interior meets the boundary nowhere. The
+    /// span's interior is the interior door's.
+    Clear,
+}
+
+/// Why [`boundary`] gave no answer.
+#[derive(Clone, Copy, Debug)]
+pub enum BoundaryRefusal {
+    /// Where a boundary vertex sits on the span fell in the band's gap.
+    /// Ranked by its margin.
+    Escalated(Indeterminate),
+    /// The meeting reading of the span and a boundary edge refused, as
+    /// its group ([`MeetKind`]): in band, a touch, a reading that did not
+    /// run (nothing is known of where the member meets the span, outside
+    /// its window ([`located`]) or in it), or a kernel fault.
+    Met(MeetKind),
+}
+
+/// Where a meeting of the span sits on the face's boundary
+/// ([`BoundaryMeeting`]).
+#[derive(Clone, Copy, Debug)]
+pub enum OnBoundary<T: geom_core::Real> {
+    /// The start vertex of the edge at this index in the walk.
+    Vertex(usize),
+    /// The lone vertex at this index.
+    Lone(usize),
+    /// On the edge at this index in the walk, where its span reads the
+    /// meeting: inside it, or at one of its ends.
+    Edge(usize, Hit<T>),
+}
+
+/// A meeting of the span with the face's boundary: its point, where it
+/// sits on the span, and where on the boundary.
+#[derive(Clone, Copy, Debug)]
+pub struct BoundaryMeeting<T: geom_core::Real> {
+    /// The point.
+    pub point: Point3<T>,
+    /// Where it sits on the span.
+    pub on_span: Hit<T>,
+    /// Where it sits on the boundary.
+    pub on_boundary: OnBoundary<T>,
+}
+
+/// **Every meeting of a span with a face's boundary** ([`read`]), in the
+/// order the pass reads them.
+#[derive(Clone, Debug)]
+pub struct BoundaryReading<T: geom_core::Real> {
+    /// The meetings: each vertex read on the span, then each point
+    /// meeting of an edge the span shares no curve with.
+    pub meetings: Vec<BoundaryMeeting<T>>,
+    /// The edges, by index in the walk, whose carrier the pose read as the
+    /// span's own curve, each with whether they share a run of positive
+    /// length ([`shares_a_run`]). Their point meetings are the run's
+    /// witnesses and are not in `meetings`.
+    pub shared: Vec<(usize, bool)>,
+}
+
+/// **A stretch of the span a reading could not read**, and why: outside
+/// it the reading is exact, inside it says nothing. The boundary pass's
+/// is a member it could not read and the stretch outside which that
+/// member meets nothing ([`Span::window_near`]); the crossing reading's
+/// is a stretch of the span against the surface ([`CrossWhy`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Undecided<T: geom_core::Real, W = BoundaryRefusal> {
+    /// The span's parameters, `(lo, hi)`, the unread meetings lie
+    /// within.
+    pub window: (T, T),
+    /// Why the stretch was not read.
+    pub why: W,
+}
+
+/// **The boundary pass read past its members' refusals** ([`located`]):
+/// the meetings of every member it read, and every member it did not.
+#[derive(Clone, Debug)]
+pub struct Located<T: geom_core::Real> {
+    /// The members read, as [`read`] gives them. Private: a meeting is
+    /// read through [`Located::cuts`], beside the windows.
+    reading: BoundaryReading<T>,
+    /// The members not read, in the pass's order.
+    undecided: Vec<Undecided<T>>,
+}
+
+/// **The boundary pass**: `span` read against a face's boundary, given
+/// as its edges in the face's walk order (each edge's start vertex and
+/// its span) and its lone vertices. The members are read in order, and
+/// the first that refuses refuses the pass ([`located`] reads on past
+/// it). Each vertex is read on the
+/// span ([`Span::contact`]); each edge's start vertex before the edge's
+/// span, which is read through [`crate::curve_pair::meet`]. A shared run
+/// is read through its witnesses, of which one strictly inside the span
+/// is a run of positive length, and leaves the run's ends to the vertex
+/// readings, since every end of a run strictly inside the span is a
+/// vertex of the boundary.
+///
+/// # Errors
+///
+/// [`BoundaryRefusal`], as its variants say: the first member's refusal
+/// in the pass's order. A refusal's meetings are not read: a stretch
+/// that escalates holds meetings whose stretch is undecided.
+pub fn read<T: Decide>(
+    span: &Span<'_, T>,
+    edges: &[(Point3<T>, Span<'_, T>)],
+    lone: &[Point3<T>],
+    band: Band,
+) -> Result<BoundaryReading<T>, BoundaryRefusal> {
+    let pass = pass(span, edges, lone, band, false);
+    pass.undecided
+        .first()
+        .map_or(Ok(pass.reading), |u| Err(u.why))
+}
+
+/// **The boundary pass, located** ([`read`]'s, read past each member's
+/// refusal): a member it cannot read is [`Undecided`] over the window of
+/// the span it can meet ([`Span::window_near`]), and every other member is
+/// read as [`read`] reads it. So the reading is exact outside the
+/// windows, and says nothing inside them.
+pub fn located<T: Decide>(
+    span: &Span<'_, T>,
+    edges: &[(Point3<T>, Span<'_, T>)],
+    lone: &[Point3<T>],
+    band: Band,
+) -> Located<T> {
+    pass(span, edges, lone, band, true)
+}
+
+impl<T: Decide> Located<T> {
+    /// **Where the span is cut**: each meeting's parameter strictly inside
+    /// it, and each undecided window's two ends. No member crosses the
+    /// open run between two cuts outside every window.
+    #[must_use]
+    pub fn cuts(&self) -> Vec<T> {
+        let meetings = self
+            .reading
+            .meetings
+            .iter()
+            .filter_map(|m| match m.on_span {
+                Hit::On { t, .. } => Some(t),
+                Hit::End(_) => None,
+            });
+        let ends = self.undecided.iter().flat_map(|u| [u.window.0, u.window.1]);
+        meetings.chain(ends).collect()
+    }
+
+    /// The first member whose reading faulted ([`MeetKind::Fault`]):
+    /// a kernel fault no window confines.
+    #[must_use]
+    pub fn fault(&self) -> Option<BoundaryRefusal> {
+        self.undecided
+            .iter()
+            .find(|u| matches!(u.why, BoundaryRefusal::Met(MeetKind::Fault { .. })))
+            .map(|u| u.why)
+    }
+
+    /// **The first window the run `(a, b)` can reach into**
+    /// ([`undecided_over`]).
+    #[must_use]
+    pub fn undecided_over(&self, run: (T, T), speed: T, band: Band) -> Option<&Undecided<T>> {
+        undecided_over(&self.undecided, run, speed, band)
+    }
+}
+
+/// **The first window the run `(a, b)` can reach into**: one it does not
+/// definitely end at or before, or start at or after
+/// (`curve_face_window`, the parameters metred at `speed`, the span
+/// carrier's). A window is the escalation wider than where its meetings
+/// can lie, so a run past it by a zero gap misses them.
+#[must_use]
+pub fn undecided_over<T: Decide, W>(
+    windows: &[Undecided<T, W>],
+    (a, b): (T, T),
+    speed: T,
+    band: Band,
+) -> Option<&Undecided<T, W>> {
+    let past = |gap: T| {
+        matches!(
+            geom_core::k_stats::decide(
+                "curve_face_window",
+                geom_core::Margin::of(gap * speed),
+                band
+            ),
+            Ok(geom_core::Sign::Zero | geom_core::Sign::Positive)
+        )
+    };
+    windows
+        .iter()
+        .find(|u| !(past(u.window.0 - b) || past(a - u.window.1)))
+}
+
+/// A member of the boundary as the pass reads it.
+enum Member<'s, 'a, T: geom_core::Real> {
+    /// A vertex's point, and where it sits on the boundary.
+    Vertex(Point3<T>, OnBoundary<T>),
+    /// The edge at this index in the walk, and its span.
+    Edge(usize, &'s Span<'a, T>),
+}
+
+/// [`read`] and [`located`]'s one walk; `past` reads on past a member's
+/// refusal.
+fn pass<T: Decide>(
+    span: &Span<'_, T>,
+    edges: &[(Point3<T>, Span<'_, T>)],
+    lone: &[Point3<T>],
+    band: Band,
+    past: bool,
+) -> Located<T> {
+    let (t0, t1) = span.params();
+    let mid = geom::mid_param(t0, t1);
+    let mut pass = Located {
+        reading: BoundaryReading {
+            meetings: Vec::new(),
+            shared: Vec::new(),
+        },
+        undecided: Vec::new(),
+    };
+    let window = |cover: Option<geom::cover::Cover<T>>| span.window_near(cover.as_ref(), band);
+    let vertex = |pass: &mut Located<T>, point: Point3<T>, on_boundary| match span
+        .contact(point, mid, band)
+    {
+        Ok(Some(on_span)) => pass.reading.meetings.push(BoundaryMeeting {
+            point,
+            on_span,
+            on_boundary,
+        }),
+        Ok(None) => {}
+        Err(refusal) => pass.undecided.push(Undecided {
+            window: window(geom::cover::Cover::points(vec![point])),
+            why: carrier(refusal.refused()),
+        }),
+    };
+    let mut met_edges = Vec::with_capacity(edges.len());
+    // The members in the pass's order: the lone vertices, then each
+    // edge's start vertex before the edge.
+    let lone_members = lone
+        .iter()
+        .enumerate()
+        .map(|(i, &point)| Member::Vertex(point, OnBoundary::Lone(i)));
+    let walk_members = edges.iter().enumerate().flat_map(|(i, (start, edge))| {
+        [
+            Member::Vertex(*start, OnBoundary::Vertex(i)),
+            Member::Edge(i, edge),
+        ]
+    });
+    for member in lone_members.chain(walk_members) {
+        if !past && !pass.undecided.is_empty() {
+            break;
+        }
+        match member {
+            Member::Vertex(point, on_boundary) => vertex(&mut pass, point, on_boundary),
+            Member::Edge(i, edge) => match meet(span, edge, band) {
+                Ok(met) => met_edges.push((i, met)),
+                Err(refusal) => {
+                    let (e0, e1) = edge.params();
+                    let cover = edge
+                        .carrier()
+                        .cover_over(geom::cover::ParamWindow::new(e0, e1));
+                    pass.undecided.push(Undecided {
+                        window: window(cover.ok()),
+                        why: BoundaryRefusal::of(refusal.fault),
+                    });
+                }
+            },
+        }
+    }
+    for (i, met) in met_edges {
+        if met.shared.is_some() {
+            pass.reading.shared.push((i, shares_a_run(&met)));
+            continue;
+        }
+        pass.reading
+            .meetings
+            .extend(met.points.iter().map(|m| BoundaryMeeting {
+                point: m.point,
+                on_span: m.on_a,
+                on_boundary: OnBoundary::Edge(i, m.on_b),
+            }));
+    }
+    pass
+}
+
+/// **The boundary pass's answer for a span's interior** ([`read`]): the
+/// first meeting strictly inside the span, a lone vertex's before the
+/// walk's and the walk's in its order, else a run shared with a boundary
+/// edge, else clear.
+///
+/// # Errors
+///
+/// [`read`]'s.
+pub fn boundary<T: Decide>(
+    span: &Span<'_, T>,
+    edges: &[(Point3<T>, Span<'_, T>)],
+    lone: &[Point3<T>],
+    band: Band,
+) -> Result<Boundary<T>, BoundaryRefusal> {
+    let reading = read(span, edges, lone, band)?;
+    // Walk order: an edge's start vertex, then the edge's meetings, and
+    // `meetings` holds every vertex before any edge's, the lone first.
+    let first = reading
+        .meetings
+        .iter()
+        .filter_map(|m| match m.on_span {
+            Hit::On { t, .. } => Some(Boundary::Meets {
+                t,
+                point: m.point,
+                at: m.on_boundary,
+            }),
+            Hit::End(_) => None,
+        })
+        .min_by_key(|b| match *b {
+            Boundary::Meets {
+                at: OnBoundary::Lone(_),
+                ..
+            } => 0,
+            Boundary::Meets {
+                at: OnBoundary::Vertex(edge) | OnBoundary::Edge(edge, _),
+                ..
+            } => edge + 1,
+            Boundary::Along { .. } | Boundary::Clear => usize::MAX,
+        });
+    let along = reading.shared.iter().find(|(_, run)| *run).map(|&(i, _)| i);
+    Ok(first.unwrap_or(along.map_or(Boundary::Clear, |edge| Boundary::Along { edge })))
+}
+
+impl BoundaryRefusal {
+    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]): a
+    /// vertex's place ranked by its margin, and a meeting's as its group
+    /// stands ([`MeetKind::refusal`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a kernel fault.
+    pub fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self {
+            Self::Escalated(diag) => Ok(crate::ladder::Refusal::Margin(*diag)),
+            Self::Met(kind) => kind.refusal(),
+        }
+    }
+
+    /// A meeting reading's refusal, as the pass types it: its group.
+    #[must_use]
+    pub const fn of(fault: MeetFault) -> Self {
+        Self::Met(fault.kind())
+    }
+}
+
+/// **Whether two spans share a run of positive length**: the pose read
+/// them as one curve, and a witness of the run lies strictly inside the
+/// first span. Spans on one curve that share only an end (the rest of a
+/// rim's circle) have witnesses at that end alone.
+#[must_use]
+pub fn shares_a_run<T: geom_core::Real>(met: &Meetings<T>) -> bool {
+    met.shared.is_some() && met.points.iter().any(|m| matches!(m.on_a, Hit::On { .. }))
+}
+
+/// A point-on-span refusal of a vertex reading.
+fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
+    refusal.escalation().map_or_else(
+        |why| BoundaryRefusal::of(why.into()),
+        BoundaryRefusal::Escalated,
+    )
+}
+
+/// **The pose of `span` against `surface`** (C5's curve × face
+/// paragraph): `Lies`, `Apart`, `Tangent`, `Through` or `Isolated`, read
+/// by the rungs of the arm [`route`] names ([`pose::pose()`]).
+///
+/// # Errors
+///
+/// [`PoseRefusal`].
+pub fn pose<T: Decide>(
+    span: &Span<'_, T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Pose<T>, PoseRefusal> {
+    pose::pose(span, surface, band)
+}
+
+/// **Where `span` meets `surface`** (C5's curve × face paragraph): the
+/// pose, then the door's one method, matched on [`route`]'s door with no
+/// wildcard ([`cross::cross()`]).
+///
+/// # Errors
+///
+/// [`CrossRefusal`]: its windows, and the meetings outside them.
+pub fn cross<T: Decide>(
+    span: &Span<'_, T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Crossings<T>, CrossRefusal<T>> {
+    cross::cross(span, surface, band)
+}
+
+pub use cross::{CrossRefusal, CrossWhy, Crossings, Meeting, MeetingKind, OnSpan};
+pub use pose::{Form, Pose, PoseRefusal, PoseRung, Singular, Touch};
+
+pub mod circle_roots;
+pub mod circle_torus;
+pub mod composite;
+// The conic rows' shared test oracles (test builds, and `topo`'s through
+// `test-support`).
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod conic_oracle;
+pub mod conic_quadric;
+pub mod cross;
+pub mod ellipse_torus;
+pub mod line_quadric;
+pub mod plane_crossing;
+pub mod pose;
+#[cfg(test)]
+mod pose_rows;
+#[cfg(test)]
+mod review_rows;
+#[cfg(test)]
+mod rows;
+pub mod spiric_plane;
+pub mod spline_face;
+#[cfg(test)]
+mod window_fuzz;

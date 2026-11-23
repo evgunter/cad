@@ -1,0 +1,105 @@
+//! The scalar / tolerance / predicate substrate of the CAD kernel.
+//!
+//! `geom-core` is the bottom layer everything else stands on: the [`Real`]
+//! scalar trait (instantiated at `f64` here, at forward-mode [`dual`]
+//! numbers, and at the certified [`Interval`] scalar over
+//! `interval-transcendentals`, including the dual-over-interval
+//! combination — every instantiation compiles in every build), the
+//! single global [`Tolerance`]
+//! value, the trilean predicate machinery ([`Decide`] / [`Sign`] /
+//! [`Band`] — the single door from numbers to decisions), and the small
+//! fixed-dimension [`linalg`] layer — vectors, points, matrices, affine
+//! maps, generic over [`Real`] — that the geometry layers build upon. It carries the
+//! determinism charter (D9) from the first line — no panics on input,
+//! typed errors, transcendentals via `libm`, essentially no unsafe. See
+//! `docs/DESIGN.md` (decisions D4, D9, and open question Q1) for the
+//! design contract this crate implements.
+
+pub mod arc;
+pub mod bisect;
+pub mod bit_identity;
+pub mod dual;
+pub mod exact;
+pub mod interval;
+pub mod k_stats;
+pub mod ladder;
+pub mod linalg;
+pub mod line2;
+pub mod one_line;
+mod param;
+pub mod period;
+pub mod predicate;
+pub mod readable;
+pub mod real;
+pub mod rows;
+pub mod running;
+pub mod spline;
+pub mod structure;
+pub mod sym;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
+pub mod told;
+pub mod tolerance;
+pub mod value_view;
+
+/// **The golden angle**, `2π·(1 − 1/φ)` radians: as far from every
+/// low-order rational multiple of a turn as an angle gets, so a direction
+/// stepped or turned by it aligns with no axis-parallel or 45° feature a
+/// model is likely to hold. The one spelling of it: profile's ray
+/// schedule steps by it, and topo's side-at-infinity reader turns its
+/// aimed rays by it.
+pub const GOLDEN_ANGLE: f64 = 2.399_963_229_728_653;
+
+/// **The golden section** of a unit span, `1/φ = (√5 − 1)/2`: a point at
+/// this fraction (or at `1 −` it) of a span sits off its middle and off
+/// every low-order rational fraction of it, so it misses the planes of a
+/// symmetric pose and a dyadic lattice alike. The one spelling of it:
+/// topo's side-at-infinity aims step and weigh by it, its sequence
+/// generator splits edges at it, and golden-section searches narrow by
+/// it.
+pub const GOLDEN_SECTION: f64 = 0.618_033_988_749_895;
+
+pub use arc::{Arc2, Circles, Circles2, CirclesAt};
+pub use dual::{Dual, Dual64, DualInterval};
+pub use interval::Interval;
+#[cfg(feature = "probe")]
+pub use k_stats::{MarginSample, Probe, SampleOutcome};
+pub use linalg::{
+    Affine3, Angle, FrameError, FrameInput, LEAST_TURN_CONDITIONING, LengthOutOfFormat,
+    LeveredUnitError, Mat3, MotionPart, NoDirection, OrthoAxis, OrthonormalizeError, Point2,
+    Point3, RigidMotion, RigidMotionError, TurnError, Turns, UNIT_DIRECTION_ARM, UnitVec3,
+    UnitVec3Error, Vec2, Vec3, decide_unit_direction, not_rigid_reading,
+};
+pub use line2::{Line2, LineMeet};
+pub use param::{bracket_mid, mid_param};
+pub use predicate::{
+    Allowance, Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING,
+    DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading,
+    FileCoincidence, Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed,
+    KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE,
+    KERNEL_OR_FILE_DEFECT_ENDING, Lever, MOVE_RECOURSE, Margin, MarginDiag, MarginKind,
+    MarginTerms, MissReading, MissSource, MissingRecourse, NOT_YET_ENDING, NonzeroSign,
+    RANGE_ENDING, RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE, Sign, SizedPass,
+    SizedWords, StoredCulprit, SupSpeed, UNNAMED_DECISION, UNNAMED_PREDICATE,
+    UNREADABLE_FILE_MARGIN_NOTE, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE,
+    UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
+};
+pub use quantity::{self, Notation};
+pub use readable::Readable;
+pub use real::{
+    Bounds, CertifiedBounds, CertifiedEnclosure, Certifies, NoLane, Real, TangentTransport,
+    Uncertified, Witness, fold_signed_zero, is_exact_zero, is_finite_length, is_underflowed_length,
+    is_zero_length, poison, pow2, width,
+};
+pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
+pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
+pub use structure::{structure_ascends, structure_nonzero};
+pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
+pub use told::{
+    Compared, Dimension, Member, Position, Sentence, Tell, Told, ToldIn, WIDEST_NUMBER,
+};
+pub use tolerance::{
+    EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
+    ToleranceReport,
+};
+pub use value_view::{OverScalar, ValueView};

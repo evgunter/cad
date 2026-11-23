@@ -1,0 +1,105 @@
+//! A one-segment loop's revolve: D1's full turn swept whole, far end
+//! first, as one torus wall whose strut — the latitude circle through
+//! the loop's one vertex — is its wrap edge in `v` (D1: a torus
+//! parallel wraps `v`). Both revolve cases build it here, through the
+//! shared [`crate::swept::build_full_turn`] extrude also sweeps a full
+//! turn with; the full revolve then closes the wall on itself in `u`
+//! as well (`full::build_turn_lamina`).
+
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
+use geom_core::{Decide, Point3, Sign, Tol};
+use topo::construction::FaceSurface;
+use topo::{Body, LoopKey};
+
+use super::axis::{AxisFrame, LoopClasses, WallClass};
+use super::partial::LoopSwept;
+use super::surfaces::wall_surface;
+use super::{RevolveError, SweptSeg};
+use crate::swept::{self, FullTurn, Placing, face_surface_key, placed_segment_spec};
+
+/// Where a one-segment loop's turn runs: its vertex at the start and at
+/// the end of the rotation, and the end's placement.
+pub(super) struct TurnEnds<T: geom_core::Real> {
+    /// The vertex on the sketch placement (the near end).
+    pub(super) near: Point3<T>,
+    /// The vertex rotated through `theta` (the far end).
+    pub(super) far: Point3<T>,
+    /// The sketch placement, turned through `theta` when the far end
+    /// is not the near one.
+    pub(super) place_far: Placing<T>,
+}
+
+/// Sweeps the one-segment loop `seg` (loop `loop_index`, whose classes
+/// are `cls`) through `theta` from `r#loop`'s lone vertex, which sits
+/// at `ends.far`: the far rim, the strut back to `ends.near`, and the
+/// near rim, whose new face takes `near_cap`. The strut is described as
+/// the wall's wrap edge. `axis_c` is the θ-signed carrier axis of a
+/// strut that runs near to far; this one runs back, about `−axis_c`.
+#[allow(clippy::too_many_arguments)] // the sweep's fixed context, as `sweep_loop`'s
+pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    frame: &AxisFrame<T>,
+    cls: &LoopClasses<T>,
+    seg: &SweptSeg<T>,
+    r#loop: LoopKey,
+    ends: &TurnEnds<T>,
+    theta: T,
+    axis_c: Sign,
+    near_cap: FaceSurface<T>,
+    tol: Tol,
+) -> Result<(FullTurn, LoopSwept), RevolveError> {
+    // A full turn's one segment is a circle clear of the axis: the axis
+    // classes refuse every other full turn before a build starts
+    // (`revolve`), so its wall is a torus and its vertex is off-axis.
+    let WallClass::Wall { kind, sense } = cls.walls[0] else {
+        unreachable!("a one-segment loop clear of the axis sweeps a wall")
+    };
+    let wall = FaceSurface::New {
+        surface: wall_surface(&kind, seg, frame),
+        sense,
+    };
+    let center = frame.foot3(seg.a);
+    let radius = cls.verts[0].r;
+    // The strut runs far to near. A turned far end is the sketch point
+    // turned through `theta`, so the strut is that turn's own range run
+    // back, on the sketch placement: no turned placement is evaluated.
+    let turned = |angle: T| {
+        MappedCurve::whole(MappedSource::RevolvedPoint {
+            point: seg.a,
+            place: frame.place,
+            axis: frame.line3(),
+            angle,
+        })
+    };
+    let strut = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Scaffold(if ends.place_far.is_turned() {
+            turned(theta).restrict(T::one(), T::zero())
+        } else {
+            turned(T::zero() - theta)
+        }),
+        // `u_ref` points at the far end: the seam direction `u₃` (the
+        // vertex lies at `r > 0`), turned with it.
+        carrier: frame.latitude(center, radius, axis_c.flip(), ends.place_far),
+        param_start: T::zero(),
+        param_end: theta.abs(),
+    };
+    let turn = swept::build_full_turn(
+        body,
+        r#loop,
+        ends.near,
+        placed_segment_spec(seg, ends.place_far, ends.far, tol),
+        wall,
+        strut,
+        placed_segment_spec(seg, frame.motion, ends.near, tol),
+        near_cap,
+        tol,
+    )?;
+    let wall_key = face_surface_key(body, turn.wall);
+    swept::describe_wrap_edge(body, turn.strut, wall_key, tol)?;
+    let swept = LoopSwept {
+        faces: vec![Some(turn.wall)],
+        rims: vec![Some(turn.strut)],
+        tops: vec![Some(turn.far)],
+    };
+    Ok((turn, swept))
+}

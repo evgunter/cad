@@ -1,0 +1,551 @@
+//! **A curved face whose loop has NO RIM**, and what makes such a loop
+//! bound a face — measured on every chart kind the walk has one for.
+//!
+//! A rim-free loop is all meridians, so it gets no u-extent from a rim
+//! row: the walk's band arm derives the whole width from the columns its
+//! iso-side OPENINGS carry, and an opening's column belongs to its EDGE.
+//! Two openings on two distinct edges therefore bound a domain and one
+//! edge's openings bound nothing —
+//! [`mesh::TessellateError::SingleColumnCurvedFace`] is that premise
+//! refused, and this file is the class it covers:
+//!
+//! * **no junction on the chart axis, so one opening** — a torus face
+//!   bounded by one meridian circle, and a cylinder face bounded by one
+//!   generator. Neither chart has a pole for a meridian to end on;
+//!   nothing can move the column, and the loop is a single iso side.
+//! * **one edge's openings** — the one-face cone whose loop is a single
+//!   generator from the apex (one opening), which states that edge's
+//!   column, bitwise. The one-face sphere whose loop is a single seam
+//!   walked both ways is not in the class: its two ends are the chart's
+//!   poles, so its chart image is empty and the walk places the seam's
+//!   two traversals a period apart, the one-face ball
+//!   (`the_one_face_ball.rs`).
+//! * **the positive controls**, which must still mesh: the ball's two
+//!   pole-to-pole bands and the rimless lune, whose two openings stand on
+//!   two edges, and the spur-wearing cap in
+//!   `loops_the_meridian_guard_admits.rs`, whose loop carries a rim.
+//!
+//! Two members are NOT refused by the guard, and each is rowed for what
+//! answers instead: a slit bounded by two COINCIDENT edges satisfies the
+//! premise, but its loop stores no lift for the band's columns and cannot
+//! be minted one, so it refuses before the walk opens a column
+//! (`work/tesslie/two-coincident-edges-open-two-columns-that-are-one.md`),
+//! and the sphere cut along a whole great circle is taken by a door in
+//! front of the walk. The second one first:
+//!
+//! One member of the class is refused earlier and by another door: the
+//! sphere cut along a whole great circle through both poles is tier-3
+//! VALID, and props' branch door (`require_one_chart_branch`) refuses it
+//! `UnsupportedCurvedShape` because a meridian arc of it carries a pole
+//! mid-edge. It is rowed here because the guard's premise would also
+//! refuse it, and which door answers first is a fact worth pinning.
+//!
+//! Without the guard each refusing row answers with a hole where the face
+//! is: the cross-face census catches it where debug assertions run, and
+//! `tessellate` returns `Ok` with an empty patch where they do not
+//! (`work/tesslane/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md` has
+//! both measurements). The bodies come through the Euler doors.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+use common::witness_bodies::one_circle_cut;
+use common::{ball, sphere_wedge};
+use core::f64::consts::PI;
+use geom::SurfaceKind;
+use geom::{Curve3, Surface};
+use geom_brep::EdgeCurveSpec;
+use geom_core::{Band, Point3, Tol, Vec3};
+use topo::Body;
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+
+fn z_axis() -> Vec3<f64> {
+    Vec3::new(0.0, 0.0, 1.0)
+}
+fn x_axis() -> Vec3<f64> {
+    Vec3::new(1.0, 0.0, 0.0)
+}
+
+fn unit_sphere() -> Surface<f64> {
+    Surface::Sphere {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
+        radius: 1.0,
+    }
+}
+
+/// The great circle in the xz plane from the north pole:
+/// `eval(t) = (sin t, 0, cos t)`.
+fn meridian_from_the_pole() -> Curve3<f64> {
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        1.0,
+        z_axis(),
+    )
+}
+
+/// The same great circle by latitude: `eval(t) = (cos t, 0, sin t)`.
+fn meridian_by_latitude() -> Curve3<f64> {
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        1.0,
+        x_axis(),
+    )
+}
+
+/// **The one-face, one-seam sphere** (V2 / E1 / F1).
+fn one_seam_sphere() -> Body<f64> {
+    let tol = Tol::witness();
+    let seam = meridian_from_the_pole();
+    let mut body = Body::<f64>::new();
+    let start = body.mvfs(seam.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
+    body.mev(
+        MevSite::Lone {
+            r#loop: start.r#loop,
+        },
+        seam.eval(PI),
+        EdgeCurveSpec::arc_of_circle(seam, 0.0, PI).unwrap(),
+        tol,
+    )
+    .unwrap();
+    body
+}
+
+/// **The sphere slit bounded by two COINCIDENT edges**: the one-seam
+/// sphere's seam, plus a second edge on the same carrier between the same
+/// two pole vertices (`mef Chords`). Two edge keys, one column.
+fn sphere_slit_on_two_coincident_edges() -> Body<f64> {
+    let tol = Tol::witness();
+    let seam = meridian_from_the_pole();
+    let mut body = Body::<f64>::new();
+    let start = body.mvfs(seam.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let m = body
+        .mev(
+            MevSite::Lone {
+                r#loop: start.r#loop,
+            },
+            seam.eval(PI),
+            EdgeCurveSpec::arc_of_circle(seam.clone(), 0.0, PI).unwrap(),
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: m.he_plus,
+            he2: m.he_minus,
+        },
+        EdgeCurveSpec::arc_of_circle(seam, 0.0, PI).unwrap(),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .expect("the Euler door mints a second edge on the same carrier");
+    body
+}
+
+/// **The torus face bounded by one meridian circle**, and its complement.
+fn torus_on_one_meridian_circle() -> Body<f64> {
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    let minor = Curve3::circle(
+        Point3::new(2.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        0.5,
+        x_axis(),
+    );
+    one_circle_cut(&minor, torus, None)
+}
+
+/// **The sphere cut along a whole great circle through both poles**,
+/// split at the two equator points the cut's parameterization gives.
+fn sphere_on_one_great_circle() -> Body<f64> {
+    one_circle_cut(&meridian_by_latitude(), unit_sphere(), None)
+}
+
+/// **The one-seam cylinder**: one generator, walked up and back.
+fn one_seam_cylinder() -> Body<f64> {
+    let tol = Tol::witness();
+    let cyl = Surface::Cylinder {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
+        radius: 1.0,
+    };
+    let mut body = Body::<f64>::new();
+    let start = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: cyl,
+            sense: true,
+        },
+    )
+    .unwrap();
+    body.mev(
+        MevSite::Lone {
+            r#loop: start.r#loop,
+        },
+        Point3::new(1.0, 0.0, 1.0),
+        EdgeCurveSpec::line_between(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)),
+        tol,
+    )
+    .unwrap();
+    body
+}
+
+/// **The one-seam cone**: one generator from the apex, walked out and back.
+fn one_seam_cone() -> Body<f64> {
+    let tol = Tol::witness();
+    let cone = Surface::Cone {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
+        half_angle: core::f64::consts::FRAC_PI_4,
+    };
+    let mut body = Body::<f64>::new();
+    let start = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: cone,
+            sense: true,
+        },
+    )
+    .unwrap();
+    body.mev(
+        MevSite::Lone {
+            r#loop: start.r#loop,
+        },
+        Point3::new(1.0, 0.0, 1.0),
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)),
+        tol,
+    )
+    .unwrap();
+    body
+}
+
+/// The first face, in arena order, on a surface of `kind` — the face
+/// `tessellate`'s fold answers for when several refuse.
+fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
+    body.faces()
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
+        .map(|(fk, _)| fk)
+        .expect("the body carries a face of that kind")
+}
+
+/// Both doors `curved::iso_rectangle_shape` routes by, on the first
+/// face of `kind` — the measurement that says the refusal below is this
+/// lane's to make and not a door's.
+fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let (fk, f) = body
+        .faces()
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
+        .expect("the body carries a face of that kind");
+    let surface = body.face_surface(fk).unwrap();
+    let (outer, _) =
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
+    (
+        geom_brep::props::require_iso_rectangle(surface, &outer, band).is_ok(),
+        geom_brep::props::require_one_chart_branch(surface, &outer, band).is_ok(),
+    )
+}
+
+/// `tessellate` refuses `body` with the single-column arm, naming the
+/// first face on a `kind` surface and that kind — and both doors in front
+/// of the walk admitted the face, so the refusal is the walk's.
+fn assert_refuses_single_column(name: &str, body: &Body<f64>, kind: SurfaceKind, delta: f64) {
+    assert_eq!(
+        doors(body, kind),
+        (true, true),
+        "{name}: both doors admit, so the walk is what refuses"
+    );
+    assert_eq!(
+        mesh::tessellate(body, delta, Tol::witness()).map(|_| ()),
+        Err(mesh::TessellateError::SingleColumnCurvedFace {
+            face: first_face_on(body, kind),
+            surface: kind,
+        }),
+        "{name}"
+    );
+}
+
+/// **No junction on the chart axis: the torus and the cylinder.** A
+/// torus chart's axis misses the surface and a cylinder chart's axis lies
+/// inside it, so no junction of either loop can be at one: every
+/// consecutive pair of meridians continues a single iso side, the loop
+/// opens exactly one, and nothing can move its column. The torus member
+/// is the one the row was filed on (both of its faces are in this state,
+/// and the first in arena order is what the fold answers for); the
+/// cylinder member is the same statement one chart down, and it is where
+/// the count guard behind the walk (`polygon.len() < 3`) used to answer
+/// `MissingEntity` for it.
+///
+/// Neither body is tier-3 valid, and neither could be: a torus cut along
+/// one circle is an annulus, which needs two loops, and a cylinder with
+/// no rim is unbounded. `tessellate` does not re-validate, so the Euler
+/// doors and any caller that meshes without validating reach this.
+#[test]
+fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
+    for (name, body, kind) in [
+        (
+            "torus bounded by one meridian circle",
+            torus_on_one_meridian_circle(),
+            SurfaceKind::Torus,
+        ),
+        (
+            "cylinder bounded by one generator",
+            one_seam_cylinder(),
+            SurfaceKind::Cylinder,
+        ),
+    ] {
+        assert!(not_valid_but_for_joins(&body), "{name} is not tier-3 valid");
+        assert_refuses_single_column(name, &body, kind, 0.05);
+    }
+}
+
+/// **One edge's column, turning at the apex: the one-seam cone.** It
+/// opens ONE iso side: its apex is the start of `travs[0]`, which opens
+/// whatever the run rule says, and its far junction is off the axis and
+/// continues. Its loop is all spurs, but its far tip is no singular
+/// point of the chart, so it is no wrap strip, and its one opening states
+/// the edge's column.
+#[test]
+fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column() {
+    let body = one_seam_cone();
+    assert!(
+        not_valid_but_for_joins(&body),
+        "the one-seam cone is not tier-3 valid"
+    );
+    assert_refuses_single_column("one-seam cone", &body, SurfaceKind::Cone, 0.05);
+}
+
+/// **The one-seam sphere is the wrap strip once its rows are minted**: a
+/// record of what `tessellate` does today with a body outside its
+/// contract, not a guarantee. The body is the one-face ball with its
+/// edge's description left unwritten, so it is not tier-2 valid: the edge
+/// is no wrap edge, and its two valence-1 ends are strut tips
+/// (`ScaffoldingStrutVertex`). Its loop's chart image is empty and its
+/// tips are the two poles, so the walk reads it as the strip, whose period
+/// is the loop's stored lift; built through the Euler doors, it stores
+/// none, and the walk refuses it as the trimmed lane refuses a loop with no
+/// lift. Minted (`topo::mint_pcurves`), the lift turns the face a whole
+/// turn round each pole, the walk places the edge's two traversals a
+/// period apart (`the_one_face_ball.rs`), and the body meshes as the unit
+/// ball.
+#[test]
+fn the_one_seam_sphere_is_the_wrap_strip_once_its_rows_are_minted() {
+    let mut body = one_seam_sphere();
+    let tier_2 = topo::validate_closed(&body);
+    assert!(
+        tier_2.as_ref().is_err_and(|errors| errors
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::ScaffoldingStrutVertex { .. }))),
+        "the one-seam sphere's ends are strut tips at tier 2: {tier_2:?}"
+    );
+    let unminted = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
+    assert!(
+        matches!(
+            &unminted,
+            Err(mesh::TessellateError::DomainUnread { cause, .. })
+                if matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
+        ),
+        "the unminted one-seam sphere stores no lift for the strip to read: {unminted:?}"
+    );
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the one-seam sphere's rows mint");
+    common::check_mesh_acceptance(&body, 0.05, Some((4.0 * PI / 3.0, 4.0 * PI)));
+}
+
+/// **The sphere slit bounded by two COINCIDENT edges**, and what answers
+/// today: the residue the guard does not close, recorded where it is
+/// reached rather than only in prose.
+///
+/// Two distinct edges on ONE great-circle carrier between the same two
+/// pole vertices (`mvfs` + `mev` + `mef Chords` with the same
+/// `arc_of_circle` twice, V2 / E2 / F2). Both poles are junctions, so both
+/// traversals open — two openings on two EDGE KEYS — and
+/// [`mesh::TessellateError::SingleColumnCurvedFace`]'s premise is
+/// satisfied. The two edges state the same column, so a walk of it would
+/// have zero width. The rung the guard is missing is one that can tell
+/// two coincident edges from two distinct ones; comparing the openings'
+/// `u_raw` bitwise would do it and would need no ε, but it is a
+/// coordinate comparison and not the loop's incidence, so it is not this
+/// guard's shape. Rowed and filed:
+/// `work/tesslie/two-coincident-edges-open-two-columns-that-are-one.md`.
+///
+/// The cylinder twin is NOT in this state: with no pole, both junctions
+/// are continuations, the loop opens one iso side, and the guard refuses
+/// it. The residue is the sphere's and the cone's.
+///
+/// The walk's band reads its columns off the loop's lift, and this body,
+/// built through the Euler doors, stores none: it refuses
+/// [`mesh::TessellateError::DomainUnread`] (a lift gap) in every profile,
+/// before the zero-width walk can mesh as a hole or panic at the census.
+/// Nor can it be minted: the mint's turn at each pole between two edges
+/// leaving along one direction has no decided width
+/// (`SingularMiss::EdgesCoincide`), so no lift exists for any lane to read.
+#[test]
+fn two_coincident_edges_have_no_lift_for_the_walk_to_read() {
+    let tol = Tol::witness();
+    let body = sphere_slit_on_two_coincident_edges();
+    assert!(
+        not_valid_but_for_joins(&body),
+        "a slit bounded by two coincident edges is not tier-3 valid"
+    );
+    assert_eq!(
+        doors(&body, SurfaceKind::Sphere),
+        (true, true),
+        "both doors admit, as they do for every member of this class"
+    );
+    let answer = |body: &Body<f64>| {
+        let answered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            mesh::tessellate(body, 0.05, tol)
+        }));
+        match &answered {
+            Err(payload) => {
+                let text = payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                    .unwrap_or_default();
+                format!("panic: {}", text.chars().take(13).collect::<String>())
+            }
+            Ok(Err(e)) => format!("refused: {e:?}"),
+            Ok(Ok(m)) => format!(
+                "Ok: patches {:?}, check_mesh {:?}",
+                m.patches
+                    .iter()
+                    .map(|p| p.triangles.len())
+                    .collect::<Vec<_>>(),
+                mesh::validate::check_mesh(m).map_err(|e| format!("{e:?}"))
+            ),
+        }
+    };
+    let said = answer(&body);
+    assert!(said.starts_with("refused: DomainUnread"), "{said}");
+    assert!(said.contains("Gap(LiftGap"), "{said}");
+    let mut minted = body.clone();
+    let mint = topo::mint_pcurves(&mut minted, tol);
+    assert!(
+        matches!(
+            mint,
+            Err(topo::pcurves::PcurveMintError::SingularTurn {
+                miss: topo::pcurves::SingularMiss::EdgesCoincide,
+                ..
+            })
+        ),
+        "the mint has no decided width for the two coincident edges: {mint:?}"
+    );
+}
+
+/// Whether `body` fails tier 3 on something other than check 11: a
+/// hand-built body holding a joinable vertex is construction state, so
+/// that verdict alone says nothing about what these rows refuse — and
+/// neither does check 11's undecided verdict, which asks the same
+/// question at a vertex whose reading lands in the band.
+fn not_valid_but_for_joins(body: &Body<f64>) -> bool {
+    topo::validate_geometric(body, Tol::witness()).is_err_and(|errors| {
+        errors.iter().any(|e| {
+            !matches!(
+                e,
+                topo::ValidationError::JoinableVertexAtRest { .. }
+                    | topo::ValidationError::JoinUndecidedAtRest { .. }
+            )
+        })
+    })
+}
+
+/// **The member another door owns.** The sphere cut along a whole great
+/// circle through both poles has two hemispheres for faces, each
+/// bounding arc carrying a pole in its interior, where the azimuth it
+/// holds constant jumps by π. A chart singularity in a face's closure is
+/// a vertex of it, so tier 3 refuses each face for each pole inside its
+/// arc, beside the two arcs the join would take into one closed edge
+/// (check 11; the half-arcs are what this row meshes). The Euler doors
+/// state it all the same, and `tessellate` does not re-validate:
+/// props' branch door says what the walk cannot read and `tessellate`
+/// answers `UnsupportedCurvedShape`, ahead of the walk. The recourse is
+/// to state the poles as vertices, which turns each face into the
+/// two-column band the lane meshes.
+#[test]
+fn a_hemisphere_pair_is_refused_at_the_branch_door_not_by_the_walk() {
+    use geom_brep::chart_singularity::Singularity;
+    let body = sphere_on_one_great_circle();
+    let arcs: Vec<topo::EdgeKey> = body.edges().map(|(edge, _)| edge).collect();
+    let inside = |face, point, edge| topo::ValidationError::ChartSingularityNotAVertex {
+        face,
+        point,
+        lies: topo::SingularityLies::InsideEdge { edge },
+    };
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Err(body
+            .faces()
+            .flat_map(|(face, _)| {
+                [
+                    inside(face, Singularity::North, arcs[0]),
+                    inside(face, Singularity::South, arcs[1]),
+                ]
+            })
+            .chain(
+                body.vertices()
+                    .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+            )
+            .collect()),
+        "each hemisphere holds a pole inside each of its arcs, and the arcs meet at two \
+         joinable vertices"
+    );
+    assert_eq!(
+        doors(&body, SurfaceKind::Sphere),
+        (true, false),
+        "the shape door admits it; the branch door is what refuses"
+    );
+    let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
+    assert!(
+        matches!(
+            got,
+            Err(mesh::TessellateError::UnsupportedCurvedShape { .. })
+        ),
+        "{got:?}"
+    );
+}
+
+/// **The positive controls: two openings on two edges mesh.** The ball's
+/// two pole-to-pole bands and the rimless lune are rim-free loops whose
+/// two meridians are two edges meeting at the poles, and they mesh
+/// watertight. Their u-extents are the two columns' spread — π and the
+/// wedge angle — so nothing about the guard reads a width: these pass it
+/// on the same incidence question the refusals fail.
+#[test]
+fn a_rim_free_loop_whose_openings_are_two_edges_still_meshes() {
+    let tol = Tol::witness();
+    for (name, body) in [
+        ("ball, two pole-to-pole bands", ball()),
+        ("rimless lune over theta = 2", sphere_wedge(2.0)),
+    ] {
+        assert_eq!(topo::validate_geometric(&body, tol), Ok(()), "{name}");
+        let mesh = mesh::tessellate(&body, 0.05, tol).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        for patch in &mesh.patches {
+            assert!(
+                !patch.triangles.is_empty(),
+                "{name}: every face emits triangles"
+            );
+        }
+    }
+}

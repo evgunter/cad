@@ -1,0 +1,174 @@
+//! **The join's sites refuse a spiric or spline edge typed, naming the
+//! edge and the face** ([`BooleanError::EdgeCarrierUnsupported`]): the
+//! germ frame along an edge of either solid, and the ring run.
+//!
+//! The rows drive each site directly on the sweep rows' sheets
+//! (`test_support_fixtures`): a planar sheet in `z = 0`
+//! bounded by a quadratic Bézier arc and its chord, and one in `x = ½`
+//! bounded by a spiric arc and its chord.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use super::super::{BooleanError, EdgeCarrierSite, HalfGerm, Locus, Operand};
+use super::{IslandClosing, germ_section_loops, ring_run_ccw};
+use crate::chord_join::SegmentCurve;
+use crate::test_support_fixtures::{bezier_arc_sheet, spiric_cap};
+use crate::{Body, EdgeKey, FaceKey, HalfEdgeKey};
+use geom_brep::SectionPick;
+use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
+
+fn band() -> Band {
+    Band::linear(Tol::witness()).unwrap()
+}
+
+/// The face on `edge`'s plus side, and that half.
+fn plus_side(body: &Body<f64>, edge: EdgeKey) -> (FaceKey, HalfEdgeKey) {
+    let he = body.get_edge(edge).unwrap().he_plus;
+    (body.face_of_linked(he), he)
+}
+
+fn assert_site(
+    got: Result<impl core::fmt::Debug, BooleanError>,
+    (operand, edge, face): (Operand, EdgeKey, FaceKey),
+    site: EdgeCarrierSite,
+    what: &str,
+) {
+    match got {
+        Err(BooleanError::EdgeCarrierUnsupported {
+            operand: o,
+            edge: e,
+            face: f,
+            face_of,
+            site: s,
+        }) => {
+            assert_eq!(
+                (o, e, f, face_of, s),
+                (operand, edge, face, operand, site),
+                "{what}"
+            );
+        }
+        other => panic!("{what}: expected the {site:?} refusal, got {other:?}"),
+    }
+}
+
+/// **A germ along a spline or spiric edge of either solid has no
+/// frame.** Read for the face pair instead, a coplanar pair's
+/// straight-chord test would take a curved edge for its chord. Each
+/// sheet stands as the edge's solid on each side, the other sheet as
+/// its partner.
+#[test]
+fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
+    for (name, (body, edge)) in [
+        ("spline", bezier_arc_sheet(1.0, 1.0, Tol::witness())),
+        (
+            "spiric",
+            spiric_cap(
+                2.0,
+                1.0,
+                0.5,
+                (-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2),
+                Tol::witness(),
+            ),
+        ),
+    ] {
+        let (other, _) = bezier_arc_sheet(1.0, 0.5, Tol::witness());
+        let (face, _) = plus_side(&body, edge);
+        let germ = |on: Operand| HalfGerm {
+            he: HalfEdgeKey::default(),
+            a_face: if on == Operand::A {
+                face
+            } else {
+                FaceKey::default()
+            },
+            b_face: if on == Operand::B {
+                face
+            } else {
+                FaceKey::default()
+            },
+            a_locus: if on == Operand::A {
+                Locus::OnEdge(edge)
+            } else {
+                Locus::InFace(FaceKey::default())
+            },
+            b_locus: if on == Operand::B {
+                Locus::OnEdge(edge)
+            } else {
+                Locus::InFace(FaceKey::default())
+            },
+            dir: Vec3::new(1.0, 0.0, 0.0),
+            branch: SectionPick::Only,
+        };
+        assert_site(
+            germ_section_loops(
+                &super::super::section_table::SectionTable::default(),
+                (&body, &other),
+                &germ(Operand::A),
+                band(),
+            ),
+            (Operand::A, edge, face),
+            EdgeCarrierSite::GermFrame,
+            &format!("a {name} edge of A"),
+        );
+        assert_site(
+            germ_section_loops(
+                &super::super::section_table::SectionTable::default(),
+                (&other, &body),
+                &germ(Operand::B),
+                band(),
+            ),
+            (Operand::B, edge, face),
+            EdgeCarrierSite::GermFrame,
+            &format!("a {name} edge of B"),
+        );
+    }
+}
+
+/// **A ring run holding a spline edge refuses before a wall's or a
+/// quadric's closing winds it, and winds on a plane**: the wall closing,
+/// whose chart has no closed-form image of one, and the quadric closing,
+/// which reads no spline it holds no evidence of lying on the face for.
+/// The run is the arc alone, closed by its chord. The refusal precedes
+/// any reading of the face, so the sheet's plane face stands for the
+/// wall and the quadric too: reverted, each closing answers
+/// `RingIslandUnread` instead. The planar closing winds the run by the
+/// arc's own area (`crate::loop_winding`): the arc stands above its
+/// chord and runs `+x`, so the region is to its right, clockwise about
+/// the outward `+z`.
+/// The carried closing (`IslandClosing::Carried`) reads a spline run on
+/// a cylinder, sphere or torus face from its edges' certificates
+/// (`ring_path::SplineArc`): `cylinder_sphere_frame`'s turned-chart pose
+/// reaches it on the drum's wall and its two-loop poses on the ball,
+/// `germ_sphere_torus_placements` on the donut, and
+/// `ring_path::spline_fuzz` searches its readings.
+#[test]
+fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
+    let (body, edge) = bezier_arc_sheet(1.0, 1.0, Tol::witness());
+    let (face, he) = plus_side(&body, edge);
+    let chord = SegmentCurve::of((he, he), None);
+    let closings = [
+        ("quadric", IslandClosing::Quadric(&chord)),
+        (
+            "wall",
+            IslandClosing::Wall((
+                Point3::new(0.0, 0.0, 0.0),
+                UnitVec3::new(Vec3::new(0.0, 1.0, 0.0), "ring_run_rows", band()).unwrap(),
+            )),
+        ),
+    ];
+    for operand in Operand::BOTH {
+        for (name, closing) in closings {
+            assert_site(
+                ring_run_ccw((&body, operand), face, ((he, he), None), closing, band()),
+                (operand, edge, face),
+                EdgeCarrierSite::RingRun,
+                &format!("{name} closing, operand {operand:?}"),
+            );
+        }
+        let planar = IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), &chord);
+        let wound = ring_run_ccw((&body, operand), face, ((he, he), None), planar, band());
+        assert!(
+            matches!(wound, Ok(false)),
+            "planar closing, operand {operand:?}: {wound:?}"
+        );
+    }
+}

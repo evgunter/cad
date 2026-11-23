@@ -1,0 +1,297 @@
+//! Acceptance (e): revolve's typed refusals — half-plane crossings,
+//! sliver radii (micro-radius revolve), degenerate/sliver/full-range/
+//! poisoned angles, degenerate/poisoned axes, non-manifold axis
+//! contact, an arc ending at a spindle sheet's apex, and arc-interior
+//! half-plane violations. Every case is a
+//! typed [`RevolveError`], never a panic or silent approximation.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::revolve_common;
+
+use core::f64::consts::PI;
+use profile::RawLoop;
+
+use geom_core::Vec2;
+use geom_core::{Point2, Tol};
+use profile::{ProfileLoop, test_support::bulge_loop};
+use revolve_common::*;
+use sweep::{Revolution, RevolveAxis, RevolveError, revolve};
+
+fn washer() -> ProfileLoop<f64> {
+    ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ])
+}
+
+#[test]
+fn vertex_across_the_axis_is_typed() {
+    let lp = ProfileLoop::polygon([
+        Point2::new(-1.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(-1.0, 1.0),
+    ]);
+    let vp = validated(vec![lp]);
+    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
+    assert!(matches!(e, RevolveError::VertexCrossesAxis { .. }), "{e:?}");
+}
+
+#[test]
+fn sliver_radius_is_typed() {
+    // Left edge a sliver away from the axis: r = 3ε sits inside the
+    // (ε, Kε) band at every ε row — a micro-radius revolve.
+    let r = 3.0 * eps();
+    let lp = ProfileLoop::polygon([
+        Point2::new(r, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(r, 1.0),
+    ]);
+    let vp = validated(vec![lp]);
+    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
+    assert!(matches!(e, RevolveError::SliverRadius { .. }), "{e:?}");
+}
+
+#[test]
+fn degenerate_and_sliver_and_poisoned_angles_are_typed() {
+    let vp = validated(vec![washer()]);
+    let e = revolve(&vp, axis_y(), Revolution::Partial(0.0), Tol::witness()).unwrap_err();
+    assert!(matches!(e, RevolveError::DegenerateAngle), "{e:?}");
+    // Sliver: θ·r_max in the band (r_max = 2).
+    let e = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(1.5 * eps()),
+        Tol::witness(),
+    )
+    .unwrap_err();
+    assert!(matches!(e, RevolveError::AngleEscalated { .. }), "{e:?}");
+    // Poisoned angle: decides nothing, escalates loudly.
+    let e = revolve(&vp, axis_y(), Revolution::Partial(f64::NAN), Tol::witness()).unwrap_err();
+    assert!(matches!(e, RevolveError::AngleEscalated { .. }), "{e:?}");
+}
+
+#[test]
+fn full_range_partial_angles_are_typed() {
+    let vp = validated(vec![washer()]);
+    for theta in [2.0 * PI, -2.0 * PI, 3.0 * PI] {
+        let e = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap_err();
+        assert!(matches!(e, RevolveError::FullRangeAngle), "{theta}: {e:?}");
+    }
+}
+
+#[test]
+fn degenerate_and_poisoned_axes_are_typed() {
+    let vp = validated(vec![washer()]);
+    let zero = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 0.0),
+    };
+    let e = revolve(&vp, zero, Revolution::Full, Tol::witness()).unwrap_err();
+    assert!(matches!(e, RevolveError::DegenerateAxis), "{e:?}");
+    let poison = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(f64::NAN, f64::NAN),
+    };
+    // A poisoned axis is a length that is not a NUMBER, and that is
+    // the question the door asks first — `NaN − NaN` is the scalar's
+    // poison exactly as `∞ − ∞` is.
+    let e = revolve(&vp, poison, Revolution::Full, Tol::witness()).unwrap_err();
+    assert!(matches!(e, RevolveError::NonFiniteAxis), "{e:?}");
+}
+
+/// **An axis direction past the ~1e154 overflow band.** `norm2`
+/// overflows to ∞, an infinite margin is maximally definite, and
+/// `normalize` then divides by ∞: before the finiteness question went
+/// first, `AxisFrame::build` returned `Ok` with `dir_sk = (0, 0)` and
+/// the revolve went on to report `NonManifoldAxisContact` — every
+/// profile vertex reads as radius 0 against a zero axis, so the
+/// refusal that eventually surfaced named a contact that does not
+/// exist. The profile here is a washer sitting at x ∈ [1, 2]: it
+/// touches nothing.
+#[test]
+fn an_axis_direction_with_no_finite_length_is_typed() {
+    let vp = validated(vec![washer()]);
+    for dir in [
+        Vec2::new(1e200, 0.0),
+        Vec2::new(0.0, 1e200),
+        Vec2::new(1e200, 1e200),
+    ] {
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir,
+        };
+        let e = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap_err();
+        assert!(matches!(e, RevolveError::NonFiniteAxis), "{dir:?}: {e:?}");
+        // The sentence names the cause and a recourse that can work.
+        let msg = e.render(geom_brep::recourse::Reading::Build);
+        assert!(msg.contains("no finite length"), "{msg}");
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
+    }
+}
+
+/// **An axis direction below the ~1e-162 underflow band.** The
+/// components square to zero, so `norm2` is EXACTLY zero and the
+/// classifier answers `Zero` definitely: before the underflow question
+/// was asked, `AxisFrame::build` refused as `DegenerateAxis` — "no
+/// definite length (zero or sliver)" with the coincidence recourse.
+/// Both halves of that were false. The axis is not zero and it is not a
+/// sliver: `(0, 1e-200)` names +Y exactly, and no tolerance recovers a
+/// norm the format lost, because the squared norm is zero at every eps.
+#[test]
+fn an_axis_direction_whose_length_underflowed_is_typed() {
+    let vp = validated(vec![washer()]);
+    for dir in [
+        Vec2::new(0.0, 1e-200),
+        Vec2::new(1e-200, 0.0),
+        Vec2::new(1e-200, 1e-200),
+    ] {
+        // The premise: the norm flushed, and the direction survives in
+        // the witness the underflow question is asked against.
+        assert_eq!(dir.norm(), 0.0, "{dir:?}");
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir,
+        };
+        let e = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap_err();
+        assert!(matches!(e, RevolveError::UnderflowedAxis), "{dir:?}: {e:?}");
+        // The sentence names the end of the format it is, and the one
+        // recourse that can work — not a coincidence band.
+        let msg = e.render(geom_brep::recourse::Reading::Build);
+        assert!(msg.contains("underflowed out of the format"), "{msg}");
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            0,
+            "{msg}"
+        );
+    }
+}
+
+#[test]
+fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
+    // Triangle touching the axis at exactly one vertex: revolving
+    // fully would pinch the boundary at that point.
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+    ]);
+    let vp = validated(vec![lp]);
+    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
+    assert!(
+        matches!(e, RevolveError::NonManifoldAxisContact { .. }),
+        "{e:?}"
+    );
+    // The same profile revolves fine PARTIALLY (axis vertex ordinary).
+    let t = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap();
+    assert_all_tiers(&t.body);
+}
+
+// A full revolve of a holed profile, or of one meeting the axis in two
+// or more runs, builds its cavities through the void-insertion door —
+// `revolve_ring.rs` and `revolve_axis_gaps.rs` are the acceptance
+// suites.
+
+#[test]
+fn arc_interior_across_the_axis_is_typed() {
+    // A clockwise semicircle from (0, −1) to (0, 1) bulging through
+    // (−1, 0), closed by a box out to x = 2: endpoints on the axis,
+    // apex definitely across it from the box.
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), -1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(2.0, 1.0), 0.0),
+        (Point2::new(2.0, -1.0), 0.0),
+    ]);
+    let vp = validated(vec![lp]);
+    let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
+    assert!(matches!(e, RevolveError::ArcCrossesAxis { .. }), "{e:?}");
+}
+
+/// A one-segment loop: the full circle centred at `(cx, cy)` with radius
+/// `r`, starting at carrier angle `phase`.
+fn full_circle(cx: f64, cy: f64, r: f64, phase: f64) -> ProfileLoop<f64> {
+    RawLoop::new([(
+        Point2::new(cx + r * phase.cos(), cy + r * phase.sin()),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(cx, cy),
+            radius: r,
+            sweep: core::f64::consts::TAU,
+        }),
+    )])
+}
+
+/// **The arc rule reads the interior before the ends**: an arc that
+/// passes its circle's point of least radius crosses the axis, whether
+/// or not an end of it is on the axis, so each of these refuses
+/// `ArcCrossesAxis`.
+///
+/// - A full lemon circle (`R = −0.5, r = 1`) whose vertex is an apex.
+/// - The lemon's long arc between its two apexes, through `x < 0`,
+///   closed by a box out to `x = 2`.
+#[test]
+fn an_arc_through_its_least_radius_crosses_the_axis_whatever_its_ends() {
+    let h = 0.75_f64.sqrt();
+    for (what, lp) in [
+        (
+            "a full lemon circle from its apex",
+            full_circle(-0.5, 0.0, 1.0, PI / 3.0),
+        ),
+        (
+            "the lemon's long arc between its apexes",
+            bulge_loop(vec![
+                (Point2::new(0.0, -h), -(PI / 3.0).tan()),
+                (Point2::new(0.0, h), 0.0),
+                (Point2::new(2.0, h), 0.0),
+                (Point2::new(2.0, -h), 0.0),
+            ]),
+        ),
+    ] {
+        let got = revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(1.0),
+            Tol::witness(),
+        );
+        assert!(
+            matches!(got, Err(RevolveError::ArcCrossesAxis { .. })),
+            "{what}: {:?}",
+            got.map(|_| "built")
+        );
+    }
+}
+
+/// **An arc on a sheet's circle that dips across the axis crosses it**,
+/// its ends clear of the axis: on an apple (`R = 0.5`) and a lemon
+/// (`R = −0.5`), the arc from `(ρ, z)` the long way round through
+/// `v = π` to `(ρ, −z)`, closed by a box out to `x = 3`.
+#[test]
+fn a_sheet_arc_dipping_across_the_axis_crosses_it() {
+    for (what, big, v) in [("apple", 0.5, 1.5), ("lemon", -0.5, 0.5)] {
+        let r = 1.0_f64;
+        let (rho, z) = (big + r * f64::cos(v), r * f64::sin(v));
+        let turn = 2.0 * PI - 2.0 * v;
+        let lp = bulge_loop(vec![
+            (Point2::new(rho, z), (turn / 4.0).tan()),
+            (Point2::new(rho, -z), 0.0),
+            (Point2::new(3.0, -z), 0.0),
+            (Point2::new(3.0, z), 0.0),
+        ]);
+        let got = revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        );
+        assert!(
+            matches!(got, Err(RevolveError::ArcCrossesAxis { .. })),
+            "{what}: {:?}",
+            got.map(|_| "built")
+        );
+    }
+}

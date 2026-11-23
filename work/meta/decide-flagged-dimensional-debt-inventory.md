@@ -1,0 +1,80 @@
+---
+id: decide-flagged-dimensional-debt-inventory
+kind: issue
+title: Dimensional-debt inventory — the 11+1 decide_flagged sites (F2/F6/F7/F10/F13/F14/F15 families)
+status: open
+opened: 2026-08-06
+refs: [213, 501, 502, 2063]
+priority: P4
+cost: E
+---
+
+## From GitHub issue 214
+
+Opened 2026-08-06; 1 comment.
+
+Ev's ask on #213: the `decide_flagged` debt lane needs concrete scheduling. The inventory IS the grep — `grep -rn decide_flagged crates/` lists every site with its ledger row id as a compile-time argument; docs/predicate-dimension-audit.md holds each row's dimensional analysis and deferral disposition. Families: **F2** ×4 (validate.rs sense/loop checks), **F6** ×3 (chart_arms residue), **F7** ×1 (fitted-lane NURBS span), **F10** ×1 loop covering 7 checks (transform.rs), **F13** ×1 (cone-nappe fallback cosine — N5 branch-selection family), **F14** ×1 (revolve angle-vs-τ radians), **F15** ×1 (revolve_axis_dir_in_plane unit-dot sine — the #213 review's catch, with its scale-blindness probe as the standing pin). Each retires by giving its family the honest metering (per-kind lever or restatement), shrinking the grep to zero; sequencing: opportunistic riders on units already touching each family (the F13 fix rides the next cone-chart unit, F14/F15 the next editor-core wire unit), with a standing rule that NO new decide_flagged site ships without a ledger row. The count is asserted in the census suite, so silent growth fails a test.
+
+## Comments
+
+**2026-08-15** — comment:
+
+(M8 orchestrator) F6 and F7 are RETIRED by PR #502 (M8-F67, merged 2026-08-15): the F7 bare rate and both census F6 interval_forward sites now gate one metred quantity (knot-domain length × certified speed lower bound, collapsed-arm at every lane), the cone azimuth headroom takes its real lever, and the decide_flagged census asserts **8** (was 12): F2 ×4, F10, F13, F14, F15. The K stream took zero outcome changes (1.82M-row diff, reviewer-reproduced) — no baseline re-cut. The excluded topo::pcurves arm residue is #501. The audit doc's rows were truth-passed in the same unit (incl. the formerly-false trim_containment FLAG).
+
+## Home
+
+`work/issues/`: the remaining families span `validate.rs`, `transform.rs`, the cone charts and the editor-core wire, so no single open program's territory or charter owns the inventory; the code-quality register cites it from `S13` but does not carry it.
+
+## Re-homed (2026-09-04)
+
+Moved from `work/issues/` to `work/meta/` in the tracker-wide
+re-home sweep of 2026-09-04 (Ev's direction, in-chat), which read every
+open `work/issues/` file against every open program's `paths` and
+against the code-quality K–X fences. Id, body and header are unchanged;
+the directory is the claim (`work/README.md`). Any `## Home` section
+above naming `work/issues/` is superseded by this line and is kept as
+the record of why the file was parked there.
+
+## Refs at GATES' sweep (2026-09-08)
+
+GATES closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 7); `S13` is now cited by its closing PR 2063.
+
+## Re-surveyed at main `bb25fa4f` (2026-10-26, tracker sweep)
+
+The family list above is stale. `git grep decide_flagged -- crates`
+outside comments and the census, at `bb25fa4f`:
+
+| family | site |
+| --- | --- |
+| F13 | `crates/geom-brep/src/pcurve_cache.rs` (~:8287, `pcurve_cone_chart_nappe`) |
+| F14 | `crates/editor-core/src/eval/wire.rs` (~:4297), plus a `decide_flagged_reported` site in `eval/wire/stepped.rs` (~:105) |
+| F16 | `crates/editor-core/src/measure.rs` (~:747) — new since this register |
+
+**F2 (×4, `validate.rs`) and F15 are gone.** The census
+(`crates/geom-core/tests/flagged_census.rs`, `LEDGER_FLAGGED_SITES = 6`)
+is the tripwire and agrees on six `decide_flagged` call sites. The
+owners above are whoever holds each file's ground today; this register
+routes, it does not execute.
+
+## F10 retired (2026-11-10, ONEHOME rigid-motion unit)
+
+`RigidMotion::check_rigid` now exists at `f64` alone. It admits a map
+as given when each of its seven rigidity residuals is within its own
+rounding (`rounding_charge` of its term bound), and refuses any other.
+It decides nothing, against no band. Every motion at a box scalar is
+minted by its construction, so no residual there is decided at all.
+That is fork 256's decision, revised by PR 6717's review into fork 258's
+final state, on PR 6589 and the row
+`work/onehome/a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses.md`.
+The F10 row has left the table above. `LEDGER_FLAGGED_SITES` is 4: F13,
+F14, F16 and F22.
+
+## F22 retired (2026-11-15, ONEHOME least-turn mint)
+
+`RigidMotion::turned_between`, `least_turn` and `LeastTurn` are one
+mint, `RigidMotion::least_turn` (fork 270, PR 6964's decision,
+`onehome/least-turn-mint`). It decides its pole through `k_stats::decide`
+over `Margin::levered(|a + b|, arm)`, the arm a `Lever` its caller
+sources, and its conditioning through `Band::enclosure_sign`; nothing
+there is flagged. The F22 row has left the table above, and the census
+on that branch reads one site fewer than main's (5 → 4).

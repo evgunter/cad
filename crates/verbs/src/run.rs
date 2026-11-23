@@ -1,0 +1,542 @@
+//! The dispatch sites over the kernel's op doors, one per declared
+//! door, and what comes back out of them.
+
+use geom_core::{Bounds, Decide, Real, Tol};
+use profile::ValidatedProfile;
+use sweep::blend::BlendRefusal;
+use sweep::blend::naming::BlendNaming;
+use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
+use topo::splitting::SplitNaming;
+use topo::{
+    BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, GlueVerdict,
+    ShellDoorOf, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
+    SweepStrategy, split,
+};
+
+use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
+
+/// **What a verb produced**: the body, and the operation's own record
+/// of what it minted, in the record channel for the verb's family.
+///
+/// No record is RESTATED here — each family's channel carries the
+/// operation's own value across ([`VerbRecord`]), so a change INSIDE
+/// any moved type reaches this door with no edit. A record GROWN at
+/// the top level (a new `BooleanBody` field, a new `SplitResult`
+/// field, a new blend record beside `naming`) is a compile-time visit
+/// here instead — the pair door and the split door each destructure
+/// their result exhaustively so a grown field cannot vanish in the
+/// move.
+///
+/// The blend doors also hand back their solid, shell and per-role face
+/// lists. Those are geometry a caller who wants them reads off the door
+/// directly; the lowering reads the body and the record, so those are
+/// what a verb result carries.
+#[derive(Debug)]
+pub struct VerbOut<T: topo::AtRestPolicy> {
+    /// The operation's output body, finished at the door that built it
+    /// ([`topo::AtRestPolicy::finish`]).
+    pub body: T::Finished,
+    /// The operation's own record of the result, per family.
+    pub record: VerbRecord<T>,
+    /// The coincidences the operation decided from values, in decision
+    /// order and its operands' keys ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
+}
+
+/// **The record channel, one variant per record family** — the
+/// operation's own types, moved across by value, never restated.
+///
+/// Closed with no wildcard arm (D3): a verb family with a new record
+/// shape adds a variant, and the lowerings that consume the channel
+/// match it exhaustively — a new family breaks them at compile time
+/// and is routed deliberately, never silently refused. Which variant a
+/// given verb's run produces is fixed by the verb's family; a consumer
+/// handed another family's variant is holding a kernel bug and refuses
+/// typed rather than emitting names from the wrong record (the same
+/// class as a blend body arriving with `None` records).
+///
+/// **The sweep families carry their door's whole bundle, body
+/// included**, and that is why the profile door hands back a record
+/// rather than a [`VerbOut`]. A blend's and a boolean's records are
+/// beside their body; `Extruded` and `Revolved` are records WITH the
+/// body in them, and the naming door each family owns reads the whole
+/// bundle — so splitting the body out would either restate the bundle
+/// field by field (the thing this channel exists not to do) or hand
+/// the consumer a record its own emitter cannot be called with.
+// Size skew is inherent: the sweep bundles carry their finished body,
+// and a record is moved once per verb.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
+pub enum VerbRecord<T: topo::AtRestPolicy> {
+    /// A blend door's per-entity birth records. The `Option` is the op
+    /// door's own and its whole point is that an EMPTY record must not
+    /// be constructible: `None` says "this body has no birth records",
+    /// which the document layer panics on as a kernel bug, and an empty
+    /// struct would be caught by nothing.
+    Blend(Option<BlendNaming>),
+    /// The boolean's non-body result, whole — the fields of the
+    /// kernel's `BooleanBody` beside the body and its coincidences,
+    /// each the kernel's own type moved across by value.
+    Boolean {
+        /// How the result body came to be.
+        kind: BooleanResultKind,
+        /// Contact records surviving into the result, result keys, each
+        /// citing the coincidence that backs it — the tier-3′ currency
+        /// the consuming layer carries onward.
+        contacts: ContactRecords,
+        /// Mint-time naming facts the naming layer consumes.
+        naming: BooleanNaming,
+        /// The face pairs the op glued on its own decision — what an
+        /// n-ary union's pairwise judgement hands its fold steps.
+        verdicts: Vec<GlueVerdict<T>>,
+        /// Per result face, and per discarded face, the operand faces
+        /// whose area it holds.
+        holdings: Box<topo::Holdings>,
+    },
+    /// The extrude door's whole bundle — body, solid, shell, caps,
+    /// side walls per loop, struts per loop.
+    Extrude(Extruded<T>),
+    /// The revolve door's whole bundle — body, solid, shell,
+    /// cavities, walls, rims, poles and the case split's own keys.
+    Revolve(Revolved<T>),
+    /// The split's mint-time naming facts — the section faces with
+    /// their side, the chord-mef fragment rows and the null-edge
+    /// vertex pairs — the kernel's own type moved across by value.
+    /// It sits BESIDE the two sides rather than around them
+    /// ([`SplitOut`]): the split's emitter takes the sides and the
+    /// record as separate arguments, so nothing is restated by
+    /// taking the door's result apart — unlike a sweep's bundle,
+    /// whose emitter reads the whole.
+    Split(SplitNaming),
+    /// The shell's mint-time naming facts — the outer wall rows, the
+    /// cavity twins per arena, the rim rows and what the construction
+    /// retired — the kernel's own type moved across by value, beside
+    /// the body for the split's reason: the shell's naming is read
+    /// alongside the operand, not out of a bundle that contains it.
+    Shell(ShellNaming),
+}
+
+/// **What the split produced**: its two sides, each a body or the
+/// typed empty, under ONE record — the out-type of the split door
+/// ([`crate::Split::run_split`]).
+///
+/// It is its own out-type, per door, for the reason [`PairOut`] is:
+/// a one-body consumer reads [`VerbOut::body`] without matching,
+/// and widening that into "one body or two sides" would make every
+/// blend consumer handle a two-sidedness its verbs cannot mean. The
+/// two sides are the kernel's own [`SplitPart`]s moved across by
+/// value — never a list of bodies, because which side is ABOVE is
+/// the plane's own fact and a role the consumer selects by, and
+/// never a single body with a side marker, because an EMPTY side is
+/// a value of the split's contract (a plane that misses the material
+/// on one side) and not a failure. The record is the third field of
+/// the door's own result moved into the closed channel; the door
+/// destructures that result exhaustively, so a field grown onto it
+/// breaks the door at compile time instead of vanishing in the move.
+#[derive(Debug)]
+pub struct SplitOut<T: topo::AtRestPolicy> {
+    /// The material on the plane normal's side.
+    pub above: SplitPart<T>,
+    /// The material on the opposite side.
+    pub below: SplitPart<T>,
+    /// The split's own record of what it minted, in its channel.
+    pub record: VerbRecord<T>,
+    /// The coincidences the split decided from values (its pinches), in
+    /// the operand's keys ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
+}
+
+/// **What a two-operand verb produced**: the typed empty success, or a
+/// body with its record.
+///
+/// `Empty` exists because it is part of the boolean's contract (F8: a
+/// regularized result that vanishes is a VALUE, not an error), and the
+/// one-operand door does not carry it because no one-operand verb can
+/// produce it — the split is per DOOR, so a blend consumer never
+/// handles an emptiness its verbs cannot mean.
+// Size skew vs `Empty` is inherent (same posture as `BooleanResult`).
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
+pub enum PairOut<T: topo::AtRestPolicy> {
+    /// The regularized result is empty.
+    Empty,
+    /// A real result body, finished, and its record.
+    Out(VerbOut<T>),
+}
+
+/// **Why a verb refused**, carrying the op door's own typed refusal
+/// unaltered.
+///
+/// Closed with no wildcard arm (D3): the arms grow one per migrated op
+/// family, and a consumer that renders refusals is forced to visit the
+/// new one. The blend pair shares a single arm because the two doors
+/// share one refusal vocabulary and the door itself records which verb
+/// refused (`BlendRefusal::verb`).
+///
+/// **`T: Real`, and the scalar is the shell's.** Every other door's
+/// refusal is scalar-free, and this enum was too until the shell's
+/// arrived: `ShellError<T>` carries the thickness it refused, the
+/// measured wall gap and the width two offsets would have needed —
+/// numbers at the operand's own scalar. Carrying the scalar is what
+/// lets this arm hold the door's refusal UNALTERED, which is the one
+/// thing this enum promises. The alternative — a scalar-free
+/// projection minted here — would be a second vocabulary for shell
+/// refusals, hand-kept in a crate that owns neither end and with
+/// nothing to force it to follow `ShellError`; and rendering the
+/// numbers instead would mean reading brackets in this file, which is
+/// exactly the abstention its `Bounds` allowlist entry rests on.
+#[derive(Debug)]
+pub enum VerbError<T: Real> {
+    /// A blend door refused.
+    Blend(BlendRefusal),
+    /// The boolean pipeline refused.
+    Boolean(BooleanError),
+    /// A placed operand's image in the computing frame reaches past the
+    /// session box (`topo::Placed::taken`).
+    Placed {
+        /// Which operand.
+        operand: topo::Operand,
+        /// The move's findings.
+        findings: topo::NotFinished,
+    },
+    /// The extrude door refused.
+    Extrude(ExtrudeError),
+    /// The revolve door refused.
+    Revolve(RevolveError),
+    /// The split op refused.
+    Split(SplitError),
+    /// The shell door refused, carrying its typed refusal verbatim.
+    /// Boxed: `ShellError` is the widest refusal in the channel (it
+    /// nests the face-replacement door's own, which nests the fit
+    /// door's), and an unboxed arm would make every `VerbError` that
+    /// size.
+    Shell(Box<ShellError<T>>),
+}
+
+impl<T: Real> VerbError<T> {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
+        match self {
+            Self::Blend(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Boolean(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Placed { findings, .. } => write!(f, "{}", read_at(findings, at)),
+            Self::Extrude(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Revolve(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Split(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Shell(refusal) => write!(f, "{}", read_at(refusal.as_ref(), at)),
+        }
+    }
+}
+
+geom_brep::ended_by_write!([T: Real] VerbError<T>);
+
+impl<T: Real> core::error::Error for VerbError<T> {}
+
+/// **The scalar every run door runs at**: the bound set the op doors
+/// it delegates to ask for, spelled once (SEAT-4, `geom_core::Real`'s
+/// `Bounds` doc). Every lane scalar that has the three has this, by the
+/// blanket impl; nothing here reads a bracket.
+pub trait DoorScalar: Decide + Bounds + topo::AtRestPolicy {}
+
+impl<T: Decide + Bounds + topo::AtRestPolicy> DoorScalar for T {}
+
+impl<T: DoorScalar> Blend<T> {
+    /// **Run this blend against its operand.**
+    ///
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`topo::AtRestPolicy::Finished`]), as at [`Boolean::run_pair`]. Every
+    /// check, every refusal and every minted entity is the op door's —
+    /// this dispatches and re-wraps, and adds no decision of its own.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Blend`] carrying the door's [`BlendRefusal`]
+    /// verbatim; the door's own docs
+    /// (`sweep::blend::build::fillet_edges`,
+    /// `sweep::blend::build::chamfer_edges`) enumerate the cases.
+    pub fn run(&self, operand: &T::Finished, tol: Tol) -> Result<VerbOut<T>, VerbError<T>> {
+        let blended = match self {
+            Self::Fillet { edges, radius } => {
+                sweep::blend::build::fillet_edges(operand, edges, *radius, tol)
+            }
+            Self::Chamfer { edges, distance } => {
+                sweep::blend::build::chamfer_edges(operand, edges, *distance, tol)
+            }
+        }
+        .map_err(VerbError::Blend)?;
+        Ok(VerbOut {
+            body: blended.body,
+            record: VerbRecord::Blend(blended.naming),
+            coincidences: blended.coincidences,
+        })
+    }
+}
+
+impl Boolean {
+    /// **Run this boolean against its operands.**
+    ///
+    /// Both bodies come in borrowed, in operand order, finished
+    /// ([`topo::AtRestPolicy::Finished`]: the door's operands are finished
+    /// bodies, and the result it hands back is one too), each where it
+    /// stands ([`topo::Placed`]: a body alone is in the computing frame),
+    /// and the door moves each one not in it ([`topo::boolean_placed`]). `sweep` is the
+    /// candidate-generation strategy — a property of the RUN, not of
+    /// the operation (both strategies produce bit-identical results;
+    /// the kernel's differential suite pins it), which is why it rides
+    /// beside the tolerance witness here instead of in the payload.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Boolean`] carrying the pipeline's [`BooleanError`]
+    /// verbatim (`topo::boolean_op_with` enumerates the cases);
+    /// [`VerbError::Placed`] where an operand's image past the session
+    /// box refuses its move, naming which.
+    ///
+    /// The run comes back with the two operands it read, each in the
+    /// computing frame (`topo::PairTaken`), which a namer that compares
+    /// the result's geometry with an operand's reads.
+    pub fn run_pair<'p, F: topo::FinishedBody>(
+        &self,
+        a: impl Into<topo::Placed<'p, F>>,
+        b: impl Into<topo::Placed<'p, F>>,
+        sweep: SweepStrategy,
+        tol: Tol,
+    ) -> Result<PlacedPairOut<'p, F>, VerbError<F::Scalar>>
+    where
+        F::Scalar: DoorScalar,
+    {
+        let Self { op, inputs } = self;
+        let (result, read) = topo::boolean_placed(*op, (a.into(), b.into()), inputs, sweep, tol)
+            .map_err(|refusal| match refusal {
+                topo::PlacedBooleanError::Placed { operand, findings } => {
+                    VerbError::Placed { operand, findings }
+                }
+                topo::PlacedBooleanError::Boolean(error) => VerbError::Boolean(error),
+            })?;
+        let out = match result {
+            BooleanResult::Empty => PairOut::Empty,
+            BooleanResult::Body(bb) => {
+                // Exhaustive destructure, deliberately: a field
+                // grown onto `BooleanBody` breaks this door at
+                // compile time instead of silently vanishing
+                // in a field-by-field move.
+                let topo::BooleanBody {
+                    body,
+                    kind,
+                    contacts,
+                    naming,
+                    coincidences,
+                    verdicts,
+                    holdings,
+                } = bb;
+                PairOut::Out(VerbOut {
+                    body,
+                    record: VerbRecord::Boolean {
+                        kind,
+                        contacts,
+                        naming,
+                        verdicts,
+                        holdings: Box::new(holdings),
+                    },
+                    coincidences,
+                })
+            }
+        };
+        let topo::PairTaken { a, b } = read;
+        Ok(PlacedPairOut { out, a, b })
+    }
+}
+
+/// **What [`Boolean::run_pair`] returns**: the pair's outcome and the two
+/// operands it read, each in the computing frame (`topo::PairTaken`).
+#[derive(Debug)]
+pub struct PlacedPairOut<'p, F: topo::FinishedBody> {
+    /// The pair's outcome.
+    pub out: PairOut<F::Scalar>,
+    /// `a` as the pair read it.
+    pub a: std::borrow::Cow<'p, F>,
+    /// `b` as the pair read it.
+    pub b: std::borrow::Cow<'p, F>,
+}
+
+impl Members {
+    /// **Run this union or intersect over its member bodies**, in list
+    /// order, one body per member of the payload.
+    ///
+    /// The bodies come in borrowed, finished and placed, as at
+    /// [`Boolean::run_pair`] (`topo::nary_placed` moves each one not in
+    /// the computing frame). What comes back is the kernel's own run
+    /// (`topo::NaryRun`): every judgement and every fold step, each a
+    /// pair boolean's body and record, which a consumer names from, and
+    /// how the operation ended, with the members it read in its computing
+    /// frame (`topo::NaryTaken`). A refusal is carried there verbatim
+    /// (`NaryEnd::Refused`), after what ran before it.
+    ///
+    /// # Panics
+    ///
+    /// Where `bodies` does not hold one body per member: a wiring bug.
+    ///
+    /// # Errors
+    ///
+    /// The first member whose image past the session box refuses its
+    /// move, by its place, with the box's finding.
+    pub fn run_members<'m, F: topo::FinishedBody>(
+        &self,
+        bodies: &[topo::Placed<'m, F>],
+        sweep: SweepStrategy,
+        tol: Tol,
+    ) -> topo::NaryPlacedRun<'m, F::Scalar>
+    where
+        F::Scalar: DoorScalar,
+    {
+        let Self { op, members, apart } = self;
+        if bodies.len() != members.len() {
+            unreachable!(
+                "an n-ary boolean of {} members was run over {} bodies",
+                members.len(),
+                bodies.len()
+            );
+        }
+        let members: Vec<topo::NaryPlaced<'m, '_, F::Scalar>> = bodies
+            .iter()
+            .zip(members)
+            .map(|(&placed, inputs)| topo::NaryPlaced { placed, inputs })
+            .collect();
+        topo::nary_placed(*op, &members, apart, sweep, tol)
+    }
+}
+
+impl<T: DoorScalar> Sweep<T> {
+    /// **Run this sweep against its operand profile.**
+    ///
+    /// The validated profile comes in BORROWED, never in the payload:
+    /// it is the thing operated on, and a declaration owning a clone
+    /// of it is what the operand rule exists to prevent.
+    ///
+    /// What comes back is the record alone, not a [`VerbOut`], for the
+    /// reason [`VerbRecord`]'s docs give: a sweep door's bundle IS its
+    /// record and the body is a field of it, so a consumer takes the
+    /// body out of the record after its emitter has read it.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Extrude`] / [`VerbError::Revolve`] carrying the
+    /// door's own typed refusal verbatim (`sweep::extrude` and
+    /// `sweep::revolve` enumerate the cases).
+    pub fn run_profile(
+        &self,
+        operand: &ValidatedProfile<T>,
+        tol: Tol,
+    ) -> Result<VerbRecord<T>, VerbError<T>> {
+        match self {
+            Self::Extrude { distance, side } => {
+                let extrusion = sweep::Extrusion::Distance {
+                    depth: *distance,
+                    side: *side,
+                };
+                sweep::extrude(operand, extrusion, tol)
+                    .map(VerbRecord::Extrude)
+                    .map_err(VerbError::Extrude)
+            }
+            Self::Revolve { axis, revolution } => sweep::revolve(operand, *axis, *revolution, tol)
+                .map(VerbRecord::Revolve)
+                .map_err(VerbError::Revolve),
+        }
+    }
+}
+
+impl<T: DoorScalar> Split<T> {
+    /// **Run this split against its operand body.**
+    ///
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`topo::AtRestPolicy::Finished`]), as at [`Boolean::run_pair`]; what differs is what
+    /// comes back. A split hands back TWO sides, each a body or the typed
+    /// empty, and the one-body out-type cannot carry them — so this is
+    /// the split's own door
+    /// with its own out-type ([`SplitOut`]). Every decision, the pinch's
+    /// copies included, is the kernel door's, reached here unchanged:
+    /// this dispatches and re-wraps, and adds no decision of its own.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Split`] carrying the door's [`SplitError`]
+    /// verbatim (`topo::split` enumerates the cases — every stage's
+    /// typed refusal passed through whole).
+    pub fn run_split(&self, operand: &T::Finished, tol: Tol) -> Result<SplitOut<T>, VerbError<T>> {
+        // Exhaustive destructure, deliberately: a field grown onto
+        // `SplitResult` breaks this door at compile time instead of
+        // silently vanishing in the move.
+        let SplitResult {
+            above,
+            below,
+            naming,
+            coincidences,
+        } = split(operand, &self.plane, tol).map_err(VerbError::Split)?;
+        Ok(SplitOut {
+            above,
+            below,
+            record: VerbRecord::Split(naming),
+            coincidences,
+        })
+    }
+}
+
+impl<T: DoorScalar> Shell<T> {
+    /// **Run this shell against its operand body**, through
+    /// the certified door the caller hands in.
+    ///
+    /// The DOOR is what says the scalar may certify. `topo::shell_open`
+    /// validates what it built and the `+V` invariant of that
+    /// validation is a certified claim, so a
+    /// [`topo::ShellDoor`] has one constructor
+    /// ([`topo::ShellDoor::certified`]) and it is bounded on
+    /// `CertifiedPolicy + CertifiedBounds`: holding the value IS
+    /// the right, and passing it here is how this door asks for more
+    /// of the scalar than the rest of the vocabulary does without
+    /// asking it of every other door on this block. The one seam that
+    /// answers it per scalar is
+    /// [`topo::AtRestPolicy::shell_door`]; a caller that gets
+    /// [`None`] there has nothing to pass and refuses typed where it
+    /// stands, so there is no run-time arm here for the absence.
+    ///
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`topo::AtRestPolicy::Finished`]). An EMPTY `open` is the sealed
+    /// hollow, which is the kernel door's own contract and not a case
+    /// decided here.
+    /// Every check, every refusal and every minted entity is the
+    /// door's — this dispatches and re-wraps, and adds no decision of
+    /// its own; the tolerance witness travels down unaltered and no
+    /// number is derived from it here.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Shell`] carrying the door's [`ShellError`] verbatim
+    /// (`topo::shell_open` enumerates the cases — the band derivation,
+    /// the thickness gate, the wall-clearance gate, the per-face offset
+    /// refusals, the designation gates and a result that does not
+    /// validate).
+    pub fn run_shell(
+        &self,
+        operand: &T::Finished,
+        tol: Tol,
+        door: T::ShellDoor,
+    ) -> Result<VerbOut<T>, VerbError<T>> {
+        let Self { thickness, open } = self;
+        // Exhaustive destructure, deliberately: a field grown onto
+        // `Shelled` breaks this door at compile time instead of
+        // silently vanishing in the move.
+        let Shelled { body, naming } = door
+            .open(operand, *thickness, open, tol)
+            .map_err(|error| VerbError::Shell(Box::new(error)))?;
+        Ok(VerbOut {
+            body,
+            record: VerbRecord::Shell(naming),
+            // The shell's offsets glue nothing a margin decided.
+            coincidences: Vec::new(),
+        })
+    }
+}

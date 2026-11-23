@@ -1,0 +1,77 @@
+---
+id: the-cone-fuzz-draws-a-cone-bounding-no-one-material-at-a-seed
+kind: issue
+title: cone_fuzz draws a cone that bounds no one material for the split at seed 0xb33c662ce7b49b24, failing at ε 1e-9 on main
+status: open
+opened: 2026-11-02
+priority: P2
+cost: C
+---
+
+Found by SPLITDOOR on `splitdoor/section-line-components` (PR 6310),
+from a changed-path run. Replayed on a clean `origin/main` worktree at
+`0b4711875`: red there too, identically, so it is main's and not 6310's.
+
+## What
+
+`topo` `link::cone_fuzz::the_consumers_paths_never_contradict_the_exact_oracle`,
+replayed with
+`CAD_TOLERANCE_EPS=1e-9 CAD_FUZZ_SEED=0xb33c662ce7b49b24 CAD_FUZZ_EFFORT=1`:
+
+```
+ε 1e-9, cone 21, split: the drawn cone bounds no one material (a fixture defect)
+```
+
+The fuzzer's own guard (`cone_fuzz.rs`, the `one_material` check
+before the split's probes) reports that the cone it drew for this seed
+is no fixture: its faces do not bound one material. That is a defect
+of the draw, not a contradiction of the oracle, but it fails the row.
+
+A second seed, `0xc104fc1eeda44d90` (`CAD_FUZZ_EFFORT=1`, any
+`CAD_TOLERANCE_EPS`), fails the same way at its ε-1e-6 draw:
+`ε 1e-6, cone 25, split: the drawn cone bounds no one material`.
+Found on `splitdoor/cone-apex-vertex-pairs`, and red identically at
+that branch's earlier head `656e9bd920`. The failing check is fixture code only
+(`drawn`, `cone_oracle`, `one_material`). A third,
+`0xbdef491a30087e7a`, fails it at its ε-1e-9 draw (`cone 30, split`).
+A fourth, `0xea18fcee647dcd12`, at its ε-1e-12 draw (`cone 15,
+split`). A fifth, `0x6c4c058888f82e3b`, at the default ε: "the drawn
+cone bounds no one material", found by RESTREAD's verifier on PR 6415
+and red at that PR's merge base too. The fuzz draws a fresh seed per
+run, so a replay needs the seed given.
+
+## Done when
+
+The draw cannot produce such a cone (or skips it loudly, by
+`loud_skip_marker!`, rather than failing), and this seed is pinned as
+an ordinary row beside the fix.
+
+**A second seed** (RESTREAD, `restread/self-touch-second-order`, whose
+diff does not reach the fuzz's draw or its oracle): seed
+`0xa194f9d0b0758284` at the default ε, effort 1, reports
+`ε 1e-6, cone 18, split` and `ε 1e-6, cone 18, conic`, the same
+message.
+
+**A third seed from the same lane** (found by PR 6422's review):
+seed `0x5a8a9d9e82406bc6` at ε 1e-12 reports `cone 31, split`, the
+same message, and is red at that branch's merge base `dc4e9b279e` too.
+
+**A fourth seed** (SEAL's lane, a full local `topo` run, 2026-11-09):
+seed `0xec7d0a99c56b41cc` (`CAD_FUZZ_EFFORT=1`) at ε 1e-9 reports
+`cone 2, split` and `cone 2, conic`, the same message. The lane's diff
+touches no file under `crates/topo/src/link/`.
+
+**Another, from ONECOPY's `onecopy/length-rule`**: seed
+`0x85b149a16ec6139e` with `CAD_FUZZ_EFFORT=30` reports `ε 1e-12,
+cone 806, split`, the same message, and is red identically with the
+branch's whole diff stashed (main `2fee45b9`).
+
+**Two more, from PR 6637's delta review (ONECOPY, 2026-11-09)**, both red identically on that PR's base:
+- `0x18045dcd4522ddd8` at ε 1e-12 reports `cone 29, split`, the same message;
+- `0xce1d0edd5fbb1372` at ε 1e-9 reports `cone 22, split` and `cone 22, conic`, the same message.
+
+The reviewer measured about 10% of random seeds red at `CAD_FUZZ_EFFORT=1`. The fuzzer is not fixed there.
+
+**One more (2026-11-09, reported to ONECOPY's orchestrator; recorded by `onecopy/main-reds-triage`)**: seed `0xb699506f073b8f0f` reports `cone 21`, `split` and `conic`, the same message, at ε 1e-6 and at the default ε (reproduced by PR 6691's review).
+
+**A further seed** (ONECOPY, `onecopy/topo-forwarders`, PR 6686, whose renames do not reach the fuzz's draw or its oracle): seed `0x1b29dd259aa2977b` at `CAD_TOLERANCE_EPS=1e-12`, `CAD_FUZZ_EFFORT=1`, cone 29, reports "the drawn cone bounds no one material (a fixture defect)" for both the `split` and `conic` readings. Replayed on a clean `origin/main` worktree at `3eea1540`, it is red there too, identically. Found by a slow-set run of `link::cone_fuzz::the_consumers_paths_never_contradict_the_exact_oracle` (1 in 7 runs).

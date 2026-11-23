@@ -1,0 +1,3842 @@
+//! **The projected image** ([`Pcurve::Projected`], C4): on an analytic
+//! chart, the image of a carrier with no closed-form image (a spline
+//! carrier; a circle or an ellipse on a sphere, cylinder, cone or torus
+//! not shown one of the chart's own classes; a line on a cylinder or a
+//! cone not shown a ruling)
+//! is the chart's own
+//! inverse applied to the carrier, `P(t) = ψ(C(t))`. It is exact, not a
+//! fit. One case reads one channel off another exact function: a conic
+//! edge with an end on a sphere's pole reads its azimuth off the reduced
+//! radial, which names the same direction away from the pole and has a
+//! value at it (An end on the pole, below).
+//!
+//! # What the row stores
+//!
+//! The carrier written in the chart's frame (`FramedCarrier`: its
+//! control net, a conic's centre and two semi-axis vectors, or a line's
+//! point and direction), the
+//! chart's own scalars the inverse reads, the end on a sphere's pole whose
+//! reduced radial the azimuth reads where it has one ([`PoleEnd`]), a
+//! partition of the parameter
+//! into pieces that each stay in one `atan2` sector (a per-piece branch
+//! centre `θ_k = m_k·π/2`, a whole number of quarter turns, and on a
+//! torus a second one `φ_k` for the tube angle),
+//! and the deck map `(u, v) ↦ (u_off + u, v_off + v_sign·v)` that
+//! places the image on the branch its loop walk chose.
+//!
+//! # The channels
+//!
+//! The channels are the chart's one reading of a point's coordinates
+//! (D3): [`geom::ChartChannels`], the table [`geom::ChartInverse::point`]
+//! reads, on the stored chart scalars. Where the point reading names each
+//! angle in its window at a band, the image names it on its piece's
+//! branch ([`geom::Azimuth::about`]), the branch the sector condition
+//! decided at derivation, so the image decides nothing when it is
+//! evaluated, reads at every scalar, and is one continuous branch across
+//! each piece. On chart-frame coordinates `(x, y, z)` (origin at the
+//! chart's origin, apex or centre; `z` along the axis), with
+//! `ρ = √(x² + y²)` and the azimuth `α(x, y) = θ_k + atan2(R(−θ_k)·(x, y))`
+//! read on the branch nearest the piece's centre:
+//!
+//! | chart | `u` | `v` |
+//! |---|---|---|
+//! | plane | `x` | `y` |
+//! | cylinder | `α(x, y)` | `z` |
+//! | cone | `α(σx, σy)` | `z·cos α + σ·ρ·sin α` |
+//! | sphere | `α(x, y)` | `atan2(z, ρ)` |
+//! | torus | `α(x, y)` | `φ_k + atan2(R(−φ_k)·(ρ − R, z))` |
+//!
+//! `σ = ±1` is the cone's nappe, the image's own (its carrier's middle,
+//! `chart_of`), where the point reading decides it on each point's `z`.
+//! The cone's `v` is the slant of the perpendicular foot of the point on
+//! the generator through its azimuth, not its height (which is off by
+//! `1/cos α`).
+//!
+//! **`S(ψ(ξ))` is the chart's nearest point to `ξ`** on the plane, the
+//! cylinder, the sphere and the torus, and on the cone the foot on the
+//! generator line through the point's azimuth — the nearest point of
+//! the nappe `σ` names wherever `σ·z ≥ 0`. Per chart, in the canonical
+//! frame (`N = S∘ψ`):
+//!
+//! - plane: `N(ξ) = (x, y, 0)`, the orthogonal projection;
+//! - cylinder: `N(ξ) = (R·(x, y)/ρ, z)`; `|ξ − N(ξ)| = |ρ − R|`;
+//! - cone: `N(ξ) = s·(σ·sin α·r̂, cos α)` with `s = σρ·sin α + z·cos α`
+//!   the foot's slant on the line through the apex in direction
+//!   `(σ sin α r̂, cos α)`; `|ξ − N(ξ)| = |ρ·cos α − σz·sin α|`;
+//! - sphere: `N(ξ) = r·ξ/|ξ|`; `|ξ − N(ξ)| = ||ξ| − r|`;
+//! - torus: `N(ξ) = R·r̂ + r·unit(ρ − R, z)` in the meridian half-plane;
+//!   `|ξ − N(ξ)| = |√((ρ − R)² + z²) − r|`.
+//!
+//! The rows `the_projection_is_the_nearest_point_on_every_chart` (unit
+//! tests below) measure each identity on random points.
+//!
+//! # The certificate (the envelope alone certifies)
+//!
+//! With `Ŝ` the chart's orthonormal twin and `ξ̂` the carrier re-derived
+//! in its frame (so `C = Ŝ`'s origin `+ F̂·ξ̂` exactly),
+//!
+//! ```text
+//! |S(P) − C| ≤ |S(P) − Ŝ(P)| + |Ŝ(P) − N(ξ)| + |N(ξ) − N(ξ̂)| + |N(ξ̂) − ξ̂|
+//!                  frame           pole          fidelity        incidence
+//! ```
+//!
+//! plus the deck map's distance from a deck transformation of the chart
+//! (whole periods, the sphere's twin) and the stored chart scalars'
+//! distance from the chart's, both fidelity. The **pole** term is zero
+//! wherever `P = ψ(ξ)`; on an image with a pole end it bounds how far
+//! reading the azimuth off the reduced radial moves the point, and is
+//! charged as fidelity ([`pole_term`]). **Incidence** is the
+//! carrier's distance from the chart: the chart's implicit form `f`
+//! composed along `ξ̂` (`geom_core::spline::compose::canonical_composite`
+//! for a net, `implicit::conic_form_sup` for a conic, its coefficients'
+//! rounding charged,
+//! [`line_off_cylinder_sup`] and [`line_off_cone_form`] for a line over
+//! the edge's interval), converted to
+//! metres per part of the twin net's knot spans, each cut into equal
+//! parts in the composite's own ring (`CurveCertData::with_breaks`; the
+//! net itself is never refined through an `f64` plan, which would
+//! re-round it): first the parts its own turn needs
+//! (`pcurve_cache::Parts::ByTurn`), and `INCIDENCE_CUTS` parts where
+//! that envelope does not pass (`run_projected_checks`). The edge
+//! certificate's limb 2 (`limb2_offset_sup`) reads the same parts and
+//! halves them further. The conversion
+//! divides `|f|` by a lower bound on `|∇f|` along the segment from the
+//! point to its nearest point on the chart, so each is tight to first
+//! order: `|f|` on the plane;
+//! `D = |f| / (R + max(ρ_min, R − |f|/R))` on the cylinder and the same
+//! with `r` on the sphere; `|f| / lever` on the cone, with
+//! `lever = ρ_min·cos α + (σz)_min·sin α` (the twin's `half_angle`),
+//! which must decide positive or the span refuses
+//! (`SectorRefused { channel: Lever }`); and on the torus
+//! `|f| / ((r + max(0, r − D₁))·((ρ_min + R)² − r²))` with
+//! `D₁ = |f| / (r·((ρ_min + R)² − r²))`, whose lever `(ρ_min + R)² − r²`
+//! must decide positive the same way (a spindle torus's inner sheet
+//! drives it negative). `ρ_min` and `(σz)_min` are
+//! read off each part's own controls (`piece_controls`, ratios in the
+//! scalar; `part_floors`: the box's nearest point maxed with the
+//! chord-support bound where its divisor certifies). The composite
+//! takes no root; `ρ_min` takes one square root of a scalar bound, in
+//! the scalar's outward-rounded arithmetic. **Fidelity** is the
+//! stored net's distance from `ξ̂` (`max |qᵢ − q̂ᵢ|`, the partition of
+//! unity) through `N`'s Lipschitz bound on the segment between them:
+//! `max(1, R/ρ)` on the cylinder, `r/|ξ|` on the sphere,
+//! `1 + |s|·sin α/ρ` on the cone, `(R + r)/ρ + r/m` on the torus (`m`
+//! the distance to the tube's core), each with its lower bound read off
+//! the incidence term (`|ξ̂| ≥ r − incidence`, and so on) less the
+//! fidelity itself.
+//!
+//! **The distance floor** is the lower bound the other way, read at a
+//! part's break (`distance_floor`), where the composite's value `f(p)`
+//! is enclosed and `p` is the part's end control: `|f(p)|`'s lower end
+//! over an upper bound on `Meters::divisor` at `p`, a factor with
+//! `|f| ≤ distance · divisor`, the distance being from the form's zero
+//! set: equal on the plane, cylinder and sphere, and on the torus where
+//! the divisor's larger term is the one matching the nearer tube circle;
+//! in general below it on the cone. Every surface lies in its form's
+//! zero set, so the floor is a certified lower bound on the carrier's
+//! distance from it there. Limb 2 reads it
+//! as a measured miss.
+//!
+//! **The sector condition**, decided per piece: the piece's radial hull
+//! (its Bézier controls rotated by `−θ_k`, or a conic's or a line's
+//! harmonic box, or on an image with a pole end the reduced radial's box)
+//! lies in the open half-plane `x′ > 0`, and on a torus the same for
+//! `(ρ − R, z)` rotated by `−φ_k`; consecutive branch centres are at most
+//! a quarter turn apart, so the image is one continuous branch. The
+//! centres are quarter turns so the rotation is exact: a bracketed
+//! scalar's image carries no width from them. A
+//! piece at or within the band of the singular set (a sphere's pole, the
+//! cone's axis, the torus's core) refuses typed
+//! ([`PcurveCertifyError::SectorRefused`]), unless the image reads that
+//! piece's azimuth off a pole end, whose reduced radial does not reach
+//! the axis. Sector, branch and incidence
+//! are decided over the pieces and spans the edge's interval `[t0, t1]`
+//! overlaps; a piece wholly outside it is not the edge's. The azimuth
+//! period gate reads the image's sweep on a cover finer than its pieces
+//! (`SWEEP_CUTS` a piece, graded toward both ends by `SWEEP_GRADE`
+//! halvings), so a whole turn certifies and a sweep past one refuses.
+//!
+//! # An end on the pole
+//!
+//! A sphere's pole is a vertex of every face whose closure holds it, so a
+//! section circle through it reaches it as an edge's end, and the piece
+//! holding that end has a radial hull on the axis: no sector holds it. A
+//! conic edge whose producer states an end on the pole
+//! ([`SingularEnds`], decided where its joint is) reads its azimuth off the
+//! reduced radial `g` instead ([`PoleEnd`]), which is `r(t) − r(t_p)`
+//! divided by the scalar `2·sin((t − t_p)/2)`: the same direction, and
+//! nonzero at the pole, where it is the carrier's radial direction. Every
+//! azimuth reading of the image reads `g` — the point
+//! (`ProjectedImage::eval`), each piece's box, so its sector, branch and
+//! window (`frame_box_on`: `g`'s harmonic box in `t/2`), and the sweep —
+//! while the latitude, `ρ` and `z` stay the carrier's. At the pole the
+//! image's point is the end's limit along the edge, `(α(g(t_p)), π/2)`.
+//! Check 4 charges what the reduction misses, the stored conic's radial
+//! part at the pole (zero at a true pole end, rounding there), through the
+//! sphere's Lipschitz bound ([`pole_term`]).
+//!
+//! A net, a line, or any chart but the sphere reads `ψ(C(t))` throughout,
+//! and its piece on the singular set refuses its sector.
+//!
+//! A net's hull terms are certification arithmetic (C9), so they run
+//! through the fitted door ([`crate::FittedLane`]); a conic's and a
+//! line's are closed forms of their coefficients and certify at every
+//! `Decide` scalar.
+
+use std::sync::Arc;
+
+use geom::{ChartAngle, ChartChannels, Curve3, NurbsCurve3, Quarter, Surface};
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
+use geom_core::period::{Bounded, Exact, Extent, Period, TurnRows, TurnUndecided};
+use geom_core::predicate::Band;
+use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
+
+use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
+use crate::offset::Nappe;
+
+use super::{
+    ChartWindow, EnvelopeTerm, EnvelopeTerms, PcurveCertifyError, PcurveCheck, PcurveKind, decide,
+    harmonic_span_box,
+};
+
+/// `σ = ±1` of a cone's nappe (module docs).
+pub(super) fn nappe_sign(nappe: Nappe) -> f64 {
+    match nappe {
+        Nappe::Opening => 1.0,
+        Nappe::Mirror => -1.0,
+    }
+}
+
+/// The chart a projected image's inverse is written for, with the
+/// chart scalars the inverse reads (copied, so the image evaluates from
+/// `t` alone; check 4 meters their distance from the chart's).
+#[derive(Clone, Copy, Debug)]
+pub enum ProjectedChart<T: Real> {
+    /// `u = x`, `v = y`.
+    Plane,
+    /// `u = α`, `v = z`.
+    Cylinder,
+    /// `u = α(σx, σy)`, `v = z·cos α + σ·ρ·sin α`.
+    Cone {
+        /// `sin α` of the chart's half-angle.
+        sin: T,
+        /// `cos α` of the chart's half-angle.
+        cos: T,
+        /// The nappe `σ`.
+        nappe: Nappe,
+    },
+    /// `u = α`, `v = atan2(z, ρ)`.
+    Sphere,
+    /// `u = α`, `v = φ + atan2(R(−φ)·(ρ − R, z))`.
+    Torus {
+        /// The major radius `R`.
+        major: T,
+    },
+}
+
+impl<T: Real> ProjectedChart<T> {
+    fn kind(&self) -> geom::SurfaceKind {
+        match self {
+            Self::Plane => geom::SurfaceKind::Plane,
+            Self::Cylinder => geom::SurfaceKind::Cylinder,
+            Self::Cone { .. } => geom::SurfaceKind::Cone,
+            Self::Sphere => geom::SurfaceKind::Sphere,
+            Self::Torus { .. } => geom::SurfaceKind::Torus,
+        }
+    }
+
+    fn sigma(&self) -> T {
+        match self {
+            Self::Cone { nappe, .. } => T::from_f64(nappe_sign(*nappe)),
+            _ => T::one(),
+        }
+    }
+
+    /// The chart's channel table ([`geom::ChartChannels`]) on the
+    /// stored scalars.
+    fn channels(&self) -> ChartChannels<T> {
+        match *self {
+            Self::Plane => ChartChannels::Plane,
+            Self::Cylinder => ChartChannels::Cylinder,
+            Self::Cone { sin, cos, nappe } => ChartChannels::Cone {
+                sin,
+                cos,
+                mirror: matches!(nappe, Nappe::Mirror),
+            },
+            Self::Sphere => ChartChannels::Sphere,
+            Self::Torus { major } => ChartChannels::Torus { major },
+        }
+    }
+
+    /// The locus a part is read against: a cone chart's stored nappe,
+    /// and every other chart's whole carrier.
+    pub(crate) fn locus(&self) -> Locus {
+        match self {
+            Self::Cone { nappe, .. } => Locus::Nappe(*nappe),
+            _ => Locus::Carrier,
+        }
+    }
+}
+
+/// The carrier written in the chart's frame (module docs): chart-frame
+/// coordinates, origin at the chart's origin, apex or centre.
+#[derive(Clone, Debug)]
+pub enum FramedCarrier<T: Real> {
+    /// A spline carrier's net, with the carrier's own knots and weights.
+    /// Its pieces are read on the carrier's own parameter.
+    Net(Arc<NurbsCurve3<T>>),
+    /// A harmonic conic `centre + a·cos t + b·sin t`, a circle's or an
+    /// ellipse's. Its pieces are read on `s = (t − origin)/span`, the
+    /// uniform partition of the interval it was derived over.
+    Conic {
+        /// The centre.
+        centre: Vec3<T>,
+        /// The `cos t` coefficient.
+        a: Vec3<T>,
+        /// The `sin t` coefficient.
+        b: Vec3<T>,
+        /// The carrier parameter at `s = 0`.
+        origin: T,
+        /// The parameter length at `s = 1`.
+        span: T,
+    },
+    /// A line `point + dir·t`. Its pieces are read on
+    /// `s = (t − origin)/span`, as a conic's.
+    Line {
+        /// The point at `t = 0`.
+        point: Vec3<T>,
+        /// The direction, per unit of the carrier's parameter.
+        dir: Vec3<T>,
+        /// The carrier parameter at `s = 0`.
+        origin: T,
+        /// The parameter length at `s = 1`.
+        span: T,
+    },
+}
+
+impl<T: SpanLocate> FramedCarrier<T> {
+    /// The chart-frame point at the carrier parameter `t`.
+    #[must_use]
+    pub fn eval(&self, t: T) -> Vec3<T> {
+        match self {
+            Self::Net(net) => net.eval(t) - Point3::origin(),
+            Self::Conic { centre, a, b, .. } => {
+                let (s, c) = t.sin_cos();
+                *centre + *a * c + *b * s
+            }
+            Self::Line { point, dir, .. } => *point + *dir * t,
+        }
+    }
+}
+
+impl<T: SpanLocate> FramedCarrier<T> {
+    /// The carrier parameters of the piece parameters `a`, `b`. On a
+    /// net a piece end that is one of its breakpoints is that
+    /// breakpoint's held value; any other is a break the partition
+    /// chose (a schedule point), entered as the constant it is.
+    fn piece_span(&self, a: f64, b: f64) -> (T, T) {
+        match self {
+            Self::Net(net) => (net_param(net, a), net_param(net, b)),
+            Self::Conic { origin, span, .. } | Self::Line { origin, span, .. } => (
+                *origin + *span * T::from_f64(a),
+                *origin + *span * T::from_f64(b),
+            ),
+        }
+    }
+
+    /// The piece parameter of `t`.
+    fn piece_param(&self, t: T) -> T {
+        match self {
+            Self::Net(_) => t,
+            Self::Conic { origin, span, .. } | Self::Line { origin, span, .. } => {
+                (t - *origin) / *span
+            }
+        }
+    }
+}
+
+/// A projected chart image (module docs). Built by [`super::chart_pcurve`]
+/// and its interval-aware sibling [`super::chart_pcurve_over`]; carried
+/// across a chart translation or reflection by [`Pcurve::map_affine`].
+#[derive(Clone, Debug)]
+pub struct ProjectedImage<T: Real> {
+    pub(super) chart: ProjectedChart<T>,
+    pub(super) carrier: FramedCarrier<T>,
+    /// The piece breaks on the piece parameter: a clamped degree-1 knot
+    /// vector, one span per piece.
+    pub(super) breaks: KnotVector,
+    /// `θ_k = m_k·π/2`, one quarter turn per piece.
+    pub(super) azimuth: Vec<Quarter>,
+    /// `φ_k = n_k·π/2`, one per piece on a torus chart; empty elsewhere.
+    pub(super) tube: Vec<Quarter>,
+    pub(super) u_off: T,
+    pub(super) v_off: T,
+    pub(super) v_sign: T,
+    /// The edge's end on the chart's pole, where a conic image reads its
+    /// azimuth off the reduced radial ([`PoleEnd`]); `None` elsewhere.
+    pub(super) pole: Option<PoleEnd<T>>,
+}
+
+/// **An end of a conic edge on a sphere chart's pole** (module docs, "An
+/// end on the pole"). At the pole the radial part `r(t)` of the carrier
+/// vanishes and names no azimuth, so the image reads its azimuth off the
+/// reduced radial instead: for a conic `c + a·cos t + b·sin t`,
+///
+/// ```text
+/// r(t) − r(t_p) = 2·sin((t − t_p)/2) · (b_r·cos m − a_r·sin m),  m = (t + t_p)/2,
+/// ```
+///
+/// exactly, so `g(t) = ±(b_r·cos m − a_r·sin m)` points along `r(t) −
+/// r(t_p)` wherever the sine keeps its sign: `+` for an edge that leaves
+/// the pole (`t ≥ t_p`), `−` for one that arrives (`t ≤ t_p`). `g` is a
+/// harmonic in `t/2` with no constant, nonzero at the pole (the carrier's
+/// radial direction there) unless the conic's radial part is a segment, a
+/// meridian's, which the closed form takes first.
+///
+/// Which end is on the pole is not read here: the producer states it
+/// ([`SingularEnds`]), deciding it where the loop walk decides that end's
+/// joint — at the edge's vertex, or, for an edge an Euler operator has
+/// yet to mint, at the carrier's end, the point the site walk's joint is
+/// read at. Either way the image never reads the direction of the rounded
+/// `r(t_p)`. The certificate charges what the reduction misses, `r(t_p)`,
+/// which a true pole end has at rounding scale ([`pole_term`]).
+#[derive(Clone, Copy, Debug)]
+pub struct PoleEnd<T> {
+    /// The carrier parameter of the end on the pole.
+    pub(super) at: T,
+    /// Whether the edge leaves the pole there (its start) rather than
+    /// arriving (its end).
+    pub(super) leaves: bool,
+}
+
+impl<T: Real> PoleEnd<T> {
+    /// The pole end a conic edge over `(t0, t1)` takes from its stated
+    /// `ends`: its start where the start is on the pole (a closed circle
+    /// from the pole round to it reads its start), else its end.
+    #[must_use]
+    pub fn stated(ends: SingularEnds, (t0, t1): (T, T)) -> Option<Self> {
+        match (ends.start, ends.end) {
+            (true, _) => Some(Self {
+                at: t0,
+                leaves: true,
+            }),
+            (false, true) => Some(Self {
+                at: t1,
+                leaves: false,
+            }),
+            (false, false) => None,
+        }
+    }
+
+    /// `σ = +1` for an edge that leaves the pole, `−1` for one that
+    /// arrives: the sign `2·sin((t − t_p)/2)` takes along the edge, and so
+    /// the sign `g` takes against `(r(t) − r(t_p))/(2·sin((t − t_p)/2))`.
+    fn sign(self) -> T {
+        if self.leaves { T::one() } else { -T::one() }
+    }
+
+    /// How far `[t0, t1]` reaches past the turn on which the sine keeps
+    /// [`Self::sign`]: `[t_p, t_p + 2π]` leaving, `[t_p − 2π, t_p]`
+    /// arriving.
+    fn reach_past(self, (t0, t1): (T, T)) -> T {
+        let turn = super::Period::<T>::angle().length();
+        let (lo, hi) = if self.leaves {
+            (self.at, self.at + turn)
+        } else {
+            (self.at - turn, self.at)
+        };
+        (lo - t0).max(T::zero()) + (t1 - hi).max(T::zero())
+    }
+
+    /// The pole's parameter.
+    #[must_use]
+    pub fn at(&self) -> T {
+        self.at
+    }
+
+    /// Whether the edge leaves the pole (the end is its start).
+    #[must_use]
+    pub fn leaves(&self) -> bool {
+        self.leaves
+    }
+
+    /// `g` as `A·cos τ + B·sin τ` in `τ = t/2`, from the conic's radial
+    /// coefficients `a_r`, `b_r`: `A = σ(b_r·cos h − a_r·sin h)`, `B =
+    /// −σ(b_r·sin h + a_r·cos h)`, `h = t_p/2`, `σ = ±1` by [`Self::leaves`].
+    pub(crate) fn half_angle_pair(self, a: Vec2<T>, b: Vec2<T>) -> (Vec2<T>, Vec2<T>) {
+        let (sh, ch) = (self.at * T::from_f64(0.5)).sin_cos();
+        let sign = self.sign();
+        ((b * ch - a * sh) * sign, -(b * sh + a * ch) * sign)
+    }
+
+    /// The reduced radial `g(t)` of the conic with radial coefficients
+    /// `a_r`, `b_r`.
+    pub(crate) fn reduced(self, a: Vec2<T>, b: Vec2<T>, t: T) -> Vec2<T> {
+        let (big_a, big_b) = self.half_angle_pair(a, b);
+        let (s, c) = (t * T::from_f64(0.5)).sin_cos();
+        big_a * c + big_b * s
+    }
+}
+
+/// Which ends of an edge lie on its chart's singular set, as its
+/// producer decided them at the edge's vertices
+/// ([`super::chart_pcurve_over_ends`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SingularEnds {
+    /// The edge's start (`t0`).
+    pub start: bool,
+    /// The edge's end (`t1`).
+    pub end: bool,
+}
+
+/// The radial part `(x, y)` of a chart-frame vector.
+pub(super) fn radial_of<T: Real>(v: Vec3<T>) -> Vec2<T> {
+    Vec2::new(v.x, v.y)
+}
+
+/// A radial vector `(x, y)` in the chart frame: on the plane `z = 0`.
+pub(super) fn in_frame<T: Real>(v: Vec2<T>) -> Vec3<T> {
+    Vec3::new(v.x, v.y, T::zero())
+}
+
+/// Whether `carrier`'s projected image on `surface` reads a stated end on
+/// the singular set ([`PoleEnd`]): a conic's on a sphere. A producer asks
+/// before it decides its ends, so no other pair decides any.
+pub fn reads_singular_ends<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bool {
+    matches!(carrier, Curve3::Circle(..) | Curve3::Ellipse(..))
+        && matches!(surface, Surface::Sphere { .. })
+}
+
+use super::Pcurve;
+
+impl<T: Real> ProjectedImage<T> {
+    /// The chart the inverse is written for.
+    #[must_use]
+    pub fn chart(&self) -> &ProjectedChart<T> {
+        &self.chart
+    }
+
+    /// The carrier in the chart's frame.
+    #[must_use]
+    pub fn carrier(&self) -> &FramedCarrier<T> {
+        &self.carrier
+    }
+
+    /// The piece breaks.
+    #[must_use]
+    pub fn breaks(&self) -> &KnotVector {
+        &self.breaks
+    }
+
+    /// The per-piece branch centres `θ_k`, as quarter turns.
+    #[must_use]
+    pub fn azimuth(&self) -> &[Quarter] {
+        &self.azimuth
+    }
+
+    /// The per-piece tube branch centres `φ_k` (torus only), as quarter
+    /// turns.
+    #[must_use]
+    pub fn tube(&self) -> &[Quarter] {
+        &self.tube
+    }
+
+    /// Piece `k`'s azimuth centre `θ_k`. Every curved image carries one
+    /// per piece (the derivation writes them; `certify` refuses a row
+    /// that does not), so a missing one is a kernel bug.
+    fn theta(&self, k: usize) -> Quarter {
+        self.azimuth.get(k).copied().unwrap_or_else(|| {
+            unreachable!("piece {k} of {} has no azimuth centre", self.azimuth.len())
+        })
+    }
+
+    /// Piece `k`'s tube centre `φ_k`, on a torus chart (as [`Self::theta`]).
+    fn phi(&self, k: usize) -> Quarter {
+        self.tube
+            .get(k)
+            .copied()
+            .unwrap_or_else(|| unreachable!("piece {k} of {} has no tube centre", self.tube.len()))
+    }
+
+    /// The deck map `(u_off, v_off, v_sign)`.
+    #[must_use]
+    pub fn deck(&self) -> (T, T, T) {
+        (self.u_off, self.v_off, self.v_sign)
+    }
+
+    /// The edge's end on the chart's pole, if the image reads one
+    /// ([`PoleEnd`]).
+    #[must_use]
+    pub fn pole(&self) -> Option<PoleEnd<T>> {
+        self.pole
+    }
+
+    pub(crate) fn pieces(&self) -> usize {
+        self.breaks.control_count().saturating_sub(1)
+    }
+
+    /// The image under the affine chart map `point`/`vector`, whose
+    /// linear part is `diag(1, ±1)` (every map a chart row takes: the
+    /// branch translations, the sphere's twin and the plane's `v`
+    /// reflection) — [`Pcurve::map_affine`]'s arm.
+    pub(super) fn map_affine(
+        &self,
+        point: impl Fn(Point2<T>) -> Point2<T>,
+        vector: impl Fn(Vec2<T>) -> Vec2<T>,
+    ) -> Self {
+        let p = point(Point2::new(self.u_off, self.v_off));
+        Self {
+            u_off: p.x,
+            v_off: p.y,
+            v_sign: vector(Vec2::new(T::zero(), self.v_sign)).y,
+            ..self.clone()
+        }
+    }
+
+    /// The image's channels at a chart-frame point on piece `k`, before
+    /// the deck map: the chart's one channel table
+    /// ([`geom::ChartChannels::read`], the arithmetic
+    /// [`geom::ChartInverse::point`] reads), each angle named on the
+    /// piece's branch ([`geom::Azimuth::about`]) — the azimuth about
+    /// `θ_k`, a torus's tube angle about `φ_k`, a sphere's latitude about
+    /// zero (a piece clear of the poles has `ρ > 0`) — where the point
+    /// reading names it in its window at a band. The sector condition
+    /// decided the branch at derivation, so the image decides nothing
+    /// here and evaluates at every scalar.
+    fn raw(&self, p: Vec3<T>, k: usize) -> Point2<T> {
+        self.chart
+            .channels()
+            .read((p.x, p.y, p.z), |angle, direction| match angle {
+                ChartAngle::Azimuth => direction.about(self.theta(k)),
+                ChartAngle::Tube => direction.about(self.phi(k)),
+                ChartAngle::Latitude => direction.about(Quarter(0)),
+                ChartAngle::SheetTube => {
+                    unreachable!("a spindle sheet has no projected chart (`chart_at` refuses it)")
+                }
+            })
+            .uv
+    }
+
+    /// [`Self::raw`] with the azimuth read at `at` (the reduced radial's
+    /// point, [`Self::azimuth_point`]) and every other channel at `p`.
+    fn raw_at(&self, p: Vec3<T>, at: Vec3<T>, k: usize) -> Point2<T> {
+        if self.pole.is_none() {
+            return self.raw(p, k);
+        }
+        Point2::new(self.raw(at, k).x, self.raw(p, k).y)
+    }
+
+    fn place(&self, raw: Point2<T>) -> Point2<T> {
+        Point2::new(self.u_off + raw.x, self.v_off + self.v_sign * raw.y)
+    }
+
+    fn place_box(&self, w: ChartWindow<T>) -> ChartWindow<T> {
+        let (a, b) = (self.v_sign * w.v_min, self.v_sign * w.v_max);
+        ChartWindow {
+            u_min: self.u_off + w.u_min,
+            u_max: self.u_off + w.u_max,
+            v_min: self.v_off + a.min(b),
+            v_max: self.v_off + a.max(b),
+        }
+    }
+}
+
+/// A chart-frame box of one piece: `x′`, `y′` the radial part rotated by
+/// `−θ_k` (and flipped through the cone's nappe), `z` the axial part.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FrameBox<T> {
+    pub(crate) x: (T, T),
+    pub(crate) y: (T, T),
+    pub(crate) z: (T, T),
+    /// `ρ`'s range where `x′`, `y′` are not the radial part's box: on an
+    /// image with a pole end they box the reduced radial the azimuth
+    /// reads ([`PoleEnd`]), and `ρ` is the carrier's own.
+    pub(crate) rho: Option<(T, T)>,
+}
+
+/// `[lo, hi]·k` as a range.
+fn scale<T: Real>((lo, hi): (T, T), k: T) -> (T, T) {
+    let (a, b) = (lo * k, hi * k);
+    (a.min(b), a.max(b))
+}
+
+fn add<T: Real>((a, b): (T, T), (c, d): (T, T)) -> (T, T) {
+    (a + c, b + d)
+}
+
+/// The range of `atan2(y, x)` over a box: its corners' extremes, which
+/// are exact for a box clear of the cut; a box reaching `x ≤ 0` answers
+/// the whole period, through the selection rather than a branch.
+fn atan2_range<T: Real>(x: (T, T), y: (T, T)) -> (T, T) {
+    let corners = [
+        y.0.atan2(x.0),
+        y.0.atan2(x.1),
+        y.1.atan2(x.0),
+        y.1.atan2(x.1),
+    ];
+    let lo = corners[1..].iter().fold(corners[0], |m, &c| m.min(c));
+    let hi = corners[1..].iter().fold(corners[0], |m, &c| m.max(c));
+    (
+        x.0.select_le_zero(T::zero() - T::pi(), lo),
+        x.0.select_le_zero(T::pi(), hi),
+    )
+}
+
+/// A box rotated by `−m·π/2`, exactly.
+///
+/// [`Quarter::rotate`]'s range form: the rotation is a swap and sign
+/// flips, so each output range is one input range, or its negation with
+/// its ends swapped. Written on the ranges rather than as the min and max
+/// of the rotated corners, which at `Interval` (an elementwise envelope)
+/// would read the same box only where each range's two ends are ordered
+/// elementwise; `the_box_rotation_is_the_quarters_on_its_corners` ties
+/// the two.
+fn rotate_box<T: Real>(q: Quarter, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
+    let neg = |(lo, hi): (T, T)| (T::zero() - hi, T::zero() - lo);
+    match q.0.rem_euclid(4) {
+        0 => (x, y),
+        1 => (y, neg(x)),
+        2 => (neg(x), neg(y)),
+        _ => (neg(y), x),
+    }
+}
+
+/// `range` cut at every knot of `kv` strictly inside it: the stretches
+/// each of which lies in one knot span's closure, in order — the pieces
+/// [`piece_controls`] takes. `None` when a cut is not ordered (a NaN end,
+/// or `range` running backwards), which a range a knot vector's breaks
+/// built cannot be, so the caller refuses rather than drops a stretch.
+pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<ParamRange>> {
+    let (a, b) = (range.start(), range.end());
+    // The knots strictly inside `range` are one run of the sorted list,
+    // found by bisection: a part of a many-span net reads the knots it
+    // crosses, not every knot (`sweep_box` boxes sixteen parts a span).
+    let knots = kv.knots();
+    let first = knots.partition_point(|&k| k <= a);
+    let inside = &knots[first..knots.partition_point(|&k| k < b).max(first)];
+    let mut breaks = vec![a];
+    breaks.extend(inside.chunk_by(|x, y| x == y).map(|run| run[0]));
+    breaks.push(b);
+    breaks
+        .windows(2)
+        .map(|w| ParamRange::new(w[0], w[1]))
+        .collect()
+}
+
+/// The net parameter `v` in the scalar: one of the net's breakpoints is
+/// that breakpoint's held value; any other is a point the caller
+/// chose (a partition or halving break, or the `f64` end of an edge's
+/// certified parameter enclosure), entered as the constant it is.
+fn net_param<T: SpanLocate>(net: &NurbsCurve3<T>, v: f64) -> T {
+    match net.knot_values().value_at(v) {
+        Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
+        Err(e) => {
+            unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
+        }
+    }
+}
+
+/// The control points and weights of a net's restriction to `piece`
+/// `= [a, b]`, a sub-interval of one of its knot spans: the blossom
+/// `B(a^{p−m}, b^m)`, `m = 0…p`, of each homogeneous channel
+/// `(w·P, w)`, by the scalar's own restriction
+/// ([`SpanLocate::restrict_window`]) over the net's held knots — at the
+/// certification scalar the window's certified restriction, so the
+/// controls enclose the true restriction's; every control is a
+/// combination of the span's with ratios in `[0, 1]`, so the weights
+/// stay positive. A piece end that is one of the net's breakpoints is
+/// that breakpoint's held value, and any other end is entered as the
+/// caller's `f64` parameter.
+///
+/// The span is the one `a` locates in. Inside one knot span's closure
+/// with `a < b` that is the span holding the piece; at `a == b` on a
+/// knot it is the span starting there, whose closure holds the point.
+pub fn piece_controls<T: SpanLocate>(net: &NurbsCurve3<T>, piece: ParamRange) -> Vec<(Vec3<T>, T)> {
+    let ends = (piece.start(), piece.end());
+    let (span, _) = net.knots_f64_interim().span_range(piece);
+    let held = net.knot_values().values();
+    let held_ends = (net_param(net, ends.0), net_param(net, ends.1));
+    let homogeneous: Vec<(Vec3<T>, T)> = span
+        .window()
+        .map(|i| {
+            let w = net.weights()[i];
+            ((net.control()[i] - Point3::origin()) * w, w)
+        })
+        .collect();
+    let channel = |c: fn(&(Vec3<T>, T)) -> T| -> Vec<T> {
+        let line: Vec<T> = homogeneous.iter().map(c).collect();
+        T::restrict_window(&line, span, held, ends, held_ends)
+    };
+    let (x, y, z, w) = (
+        channel(|q| q.0.x),
+        channel(|q| q.0.y),
+        channel(|q| q.0.z),
+        channel(|q| q.1),
+    );
+    x.into_iter()
+        .zip(y)
+        .zip(z)
+        .zip(w)
+        .map(|(((x, y), z), w)| (Vec3::new(x, y, z) / w, w))
+        .collect()
+}
+
+impl<T: SpanLocate> ProjectedImage<T> {
+    /// [`Pcurve::eval`]'s arm.
+    pub(super) fn eval(&self, t: T) -> Point2<T> {
+        let p = self.carrier.eval(t);
+        let at = self.azimuth_point(p, t);
+        let s = self.carrier.piece_param(t);
+        // A poison parameter locates no piece: the point is poison in
+        // every channel `s` carries.
+        let Some(set) = s.locate_spans(&self.breaks) else {
+            return Point2::<T>::origin().map(|_| poison_from(s));
+        };
+        let mut acc = self.raw_at(p, at, set.first.index() - 1);
+        for span in set.first.index() + 1..=set.last.index() {
+            let raw = self.raw_at(p, at, span - 1);
+            acc = Point2::new(acc.x.enclosure_hull(raw.x), acc.y.enclosure_hull(raw.y));
+        }
+        self.place(acc)
+    }
+
+    /// The chart-frame point the azimuth is read at, for the carrier's
+    /// point `p` at `t`: `p` itself, or on an image with a pole end the
+    /// reduced radial `g(t)` beside `p`'s axial part ([`PoleEnd`]).
+    fn azimuth_point(&self, p: Vec3<T>, t: T) -> Vec3<T> {
+        match (&self.pole, &self.carrier) {
+            (Some(pole), FramedCarrier::Conic { a, b, .. }) => {
+                let g = pole.reduced(radial_of(*a), radial_of(*b), t);
+                Vec3::new(g.x, g.y, p.z)
+            }
+            _ => p,
+        }
+    }
+
+    /// The pieces `[t0, t1]` overlaps, `lo ≤ hi`, or `None` when an
+    /// end is poison and so locates no piece.
+    pub(crate) fn overlapped(&self, t0: T, t1: T) -> Option<(usize, usize)> {
+        let a = self.carrier.piece_param(t0).locate_spans(&self.breaks)?;
+        let b = self.carrier.piece_param(t1).locate_spans(&self.breaks)?;
+        let lo = a.first.index().min(b.first.index()) - 1;
+        let hi = a.last.index().max(b.last.index()) - 1;
+        Some((lo, hi))
+    }
+
+    /// Piece `k`'s chart-frame box, its end pieces stretched to `t0`
+    /// and `t1` (a conic's or a line's), so the box covers what `[t0, t1]` reads of
+    /// the piece.
+    pub(crate) fn frame_box(&self, k: usize, t0: T, t1: T) -> FrameBox<T> {
+        let knots = self.breaks.knots();
+        // The breaks are a knot vector's, so a piece's ends are ordered
+        // numbers; a pair that is not names no piece, and its box is
+        // poison.
+        let Some(piece) = ParamRange::new(knots[k + 1], knots[k + 2]) else {
+            let poison = poison_from(t0 + t1);
+            return FrameBox {
+                x: (poison, poison),
+                y: (poison, poison),
+                z: (poison, poison),
+                rho: None,
+            };
+        };
+        self.frame_box_on(k, piece, t0, t1)
+    }
+
+    /// The chart-frame box of `[s0, s1]`, a sub-interval of piece `k`
+    /// on the piece parameter, read on that piece's branch. A conic's or
+    /// a line's sub-interval at the partition's first or last break is stretched
+    /// to `t0` or `t1`, as [`Self::frame_box`] stretches an end piece.
+    fn frame_box_on(&self, k: usize, part: ParamRange, t0: T, t1: T) -> FrameBox<T> {
+        let (s0, s1) = (part.start(), part.end());
+        let theta = self.theta(k);
+        let sigma = self.chart.sigma();
+        let knots = self.breaks.knots();
+        match &self.carrier {
+            FramedCarrier::Net(net) => {
+                // A part may cross the net's knots (a plane chart's one
+                // piece is the whole net): each span it crosses is
+                // restricted on its own, never extended past its knots.
+                let Some(stretches) = span_stretches(net.knots_f64_interim(), part) else {
+                    let poison = poison_from(t0 + t1);
+                    return FrameBox {
+                        x: (poison, poison),
+                        y: (poison, poison),
+                        z: (poison, poison),
+                        rho: None,
+                    };
+                };
+                let controls: Vec<(Vec3<T>, T)> = stretches
+                    .into_iter()
+                    .flat_map(|stretch| piece_controls(net, stretch))
+                    .collect();
+                let first = controls[0].0;
+                let mut x = (first.x, first.x);
+                let mut y = (first.y, first.y);
+                let mut z = (first.z, first.z);
+                for (c, _) in &controls[1..] {
+                    x = (x.0.min(c.x), x.1.max(c.x));
+                    y = (y.0.min(c.y), y.1.max(c.y));
+                    z = (z.0.min(c.z), z.1.max(c.z));
+                }
+                let (x, y) = if matches!(self.chart, ProjectedChart::Plane) {
+                    (x, y)
+                } else {
+                    rotate_box(theta, scale(x, sigma), scale(y, sigma))
+                };
+                FrameBox { x, y, z, rho: None }
+            }
+            FramedCarrier::Conic { .. } | FramedCarrier::Line { .. } => {
+                let zero = Vec3::zero();
+                let (centre, a, b, l, origin, span) = match &self.carrier {
+                    FramedCarrier::Conic {
+                        centre,
+                        a,
+                        b,
+                        origin,
+                        span,
+                    } => (centre, a, b, &zero, origin, span),
+                    FramedCarrier::Line {
+                        point,
+                        dir,
+                        origin,
+                        span,
+                    } => (point, &zero, &zero, dir, origin, span),
+                    FramedCarrier::Net(_) => unreachable!("matched above"),
+                };
+                let mut ta = *origin + *span * T::from_f64(s0);
+                let mut tb = *origin + *span * T::from_f64(s1);
+                if s0 <= knots[0] {
+                    ta = ta.min(t0);
+                }
+                if s1 >= knots[knots.len() - 1] {
+                    tb = tb.max(t1);
+                }
+                let rot2 = |v: Vec2<T>| {
+                    let (x, y) = theta.rotate(v.x * sigma, v.y * sigma);
+                    Vec2::new(x, y)
+                };
+                let rot = |v: Vec3<T>| rot2(radial_of(v));
+                let radial = harmonic_span_box(
+                    Point2::origin() + rot(*centre),
+                    rot(*a),
+                    rot(*b),
+                    rot(*l),
+                    ta,
+                    tb,
+                );
+                let axial = harmonic_span_box(
+                    Point2::new(centre.z, T::zero()),
+                    Vec2::new(a.z, T::zero()),
+                    Vec2::new(b.z, T::zero()),
+                    Vec2::new(l.z, T::zero()),
+                    ta,
+                    tb,
+                );
+                let radial_box = FrameBox {
+                    x: (radial.u_min, radial.u_max),
+                    y: (radial.v_min, radial.v_max),
+                    z: (axial.u_min, axial.u_max),
+                    rho: None,
+                };
+                match (&self.pole, &self.carrier) {
+                    // The azimuth reads the reduced radial, a harmonic in
+                    // `t/2` with no constant ([`PoleEnd`]); `ρ` and `z` stay
+                    // the carrier's.
+                    (Some(pole), FramedCarrier::Conic { .. }) => {
+                        let (big_a, big_b) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
+                        let half = T::from_f64(0.5);
+                        let reduced = harmonic_span_box(
+                            Point2::origin(),
+                            rot2(big_a),
+                            rot2(big_b),
+                            Vec2::zero(),
+                            ta * half,
+                            tb * half,
+                        );
+                        FrameBox {
+                            x: (reduced.u_min, reduced.u_max),
+                            y: (reduced.v_min, reduced.v_max),
+                            z: radial_box.z,
+                            rho: Some(Self::rho_range(&radial_box)),
+                        }
+                    }
+                    _ => radial_box,
+                }
+            }
+        }
+    }
+
+    /// `ρ`'s range over a box: its nearest point's distance from the
+    /// axis below, its farthest corner's above.
+    pub(crate) fn rho_range(b: &FrameBox<T>) -> (T, T) {
+        if let Some(rho) = b.rho {
+            return rho;
+        }
+        let sq = |(lo, hi): (T, T)| lo.powi(2).max(hi.powi(2));
+        let gap = |(lo, hi): (T, T)| lo.max(T::zero() - hi).max(T::zero());
+        let (gx, gy) = (gap(b.x), gap(b.y));
+        ((gx.powi(2) + gy.powi(2)).sqrt(), (sq(b.x) + sq(b.y)).sqrt())
+    }
+
+    /// The tube channel's rotated box `(ρ − R, z)` by `−φ_k`.
+    pub(crate) fn tube_box(&self, k: usize, b: &FrameBox<T>, major: T) -> ((T, T), (T, T)) {
+        let rho = Self::rho_range(b);
+        rotate_box(self.phi(k), (rho.0 - major, rho.1 - major), b.z)
+    }
+
+    /// The channel ranges over one box of piece `k`, before the deck
+    /// map.
+    fn window(&self, k: usize, b: &FrameBox<T>) -> ChartWindow<T> {
+        let theta = self.theta(k).angle::<T>();
+        let (u, v) = match self.chart {
+            ProjectedChart::Plane => (b.x, b.y),
+            ref chart => {
+                let u = atan2_range(b.x, b.y);
+                let u = (theta + u.0, theta + u.1);
+                let rho = Self::rho_range(b);
+                let v = match *chart {
+                    ProjectedChart::Plane => unreachable!("answered above"),
+                    ProjectedChart::Cylinder => b.z,
+                    ProjectedChart::Cone { sin, cos, .. } => {
+                        add(scale(b.z, cos), scale(scale(rho, self.chart.sigma()), sin))
+                    }
+                    ProjectedChart::Sphere => {
+                        let c = [
+                            b.z.0.atan2(rho.0),
+                            b.z.0.atan2(rho.1),
+                            b.z.1.atan2(rho.0),
+                            b.z.1.atan2(rho.1),
+                        ];
+                        (
+                            c[1..].iter().fold(c[0], |m, &x| m.min(x)),
+                            c[1..].iter().fold(c[0], |m, &x| m.max(x)),
+                        )
+                    }
+                    ProjectedChart::Torus { major } => {
+                        let phi = self.phi(k).angle::<T>();
+                        let (tx, ty) = self.tube_box(k, b, major);
+                        let r = atan2_range(tx, ty);
+                        (phi + r.0, phi + r.1)
+                    }
+                };
+                (u, v)
+            }
+        };
+        ChartWindow {
+            u_min: u.0,
+            u_max: u.1,
+            v_min: v.0,
+            v_max: v.1,
+        }
+    }
+
+    /// The hull of `first` and `rest`, placed by the deck map.
+    fn placed_hull(
+        &self,
+        first: ChartWindow<T>,
+        rest: impl Iterator<Item = ChartWindow<T>>,
+    ) -> ChartWindow<T> {
+        let w = rest.fold(first, |o, w| ChartWindow {
+            u_min: o.u_min.min(w.u_min),
+            u_max: o.u_max.max(w.u_max),
+            v_min: o.v_min.min(w.v_min),
+            v_max: o.v_max.max(w.v_max),
+        });
+        self.place_box(w)
+    }
+
+    /// The window a poison read answers: [`poison_from`] of `seed` in
+    /// every bound.
+    fn poison_window(seed: T) -> ChartWindow<T> {
+        let poison = poison_from(seed);
+        ChartWindow {
+            u_min: poison,
+            u_max: poison,
+            v_min: poison,
+            v_max: poison,
+        }
+    }
+
+    /// [`Pcurve::chart_box`]'s arm: per overlapped piece, the channel
+    /// ranges over that piece's box, hulled. Restriction-monotone: a
+    /// sub-span overlaps a subset of the pieces, and an end piece is
+    /// stretched only to an end it does not already contain. A poison
+    /// end locates no piece, and the box is poison.
+    pub(super) fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
+        let Some((lo, hi)) = self.overlapped(t0, t1) else {
+            return Self::poison_window(t0 + t1);
+        };
+        let piece = |k| self.window(k, &self.frame_box(k, t0, t1));
+        self.placed_hull(piece(lo), (lo + 1..=hi).map(piece))
+    }
+
+    /// The channel ranges over `[t0, t1]` read on a cover finer than the
+    /// pieces: each piece cut into [`SWEEP_CUTS`] equal parts, and the
+    /// parts `[t0, t1]` overlaps boxed on their piece's branch. The
+    /// period gate's reading (check 2): a piece's box is as wide as its
+    /// sector allows, so the hull of piece boxes over-reads a long sweep
+    /// by up to a sector at each end, while a short part's box is tight
+    /// to the part's own sweep.
+    pub(super) fn sweep_box(&self, t0: T, t1: T) -> ChartWindow<T> {
+        let knots = self.breaks.knots();
+        let pieces = self.pieces();
+        let mut fine = Vec::with_capacity(pieces * SWEEP_CUTS + 2 * usize::from(SWEEP_GRADE) + 1);
+        fine.push(knots[1]);
+        for k in 0..pieces {
+            let (a, b) = (knots[k + 1], knots[k + 2]);
+            #[allow(clippy::cast_precision_loss)]
+            let step = (b - a) / SWEEP_CUTS as f64;
+            // The partition's two ends are graded geometrically, so the
+            // parts there are short enough that their boxes read the
+            // sweep's ends tightly.
+            if k == 0 {
+                fine.extend(
+                    (1..=SWEEP_GRADE)
+                        .rev()
+                        .map(|j| a + step * 0.5f64.powi(i32::from(j))),
+                );
+            }
+            for c in 1..SWEEP_CUTS {
+                #[allow(clippy::cast_precision_loss)]
+                fine.push(a + step * c as f64);
+            }
+            if k + 1 == pieces {
+                fine.extend((1..=SWEEP_GRADE).map(|j| b - step * 0.5f64.powi(i32::from(j))));
+            }
+            fine.push(b);
+        }
+        fine.dedup();
+        let fine = breaks_vector(&fine);
+        let (Some(lo), Some(hi)) = (
+            self.carrier.piece_param(t0).locate_spans(&fine),
+            self.carrier.piece_param(t1).locate_spans(&fine),
+        ) else {
+            return Self::poison_window(t0 + t1);
+        };
+        let first = lo.first.index().min(hi.first.index()) - 1;
+        let last = lo.last.index().max(hi.last.index()) - 1;
+        let cuts = fine.knots();
+        let part = |j: usize| {
+            // The cuts are a knot vector's, so a part's ends are ordered
+            // numbers; a pair that is not names no part, and reads as
+            // poison.
+            let Some(part) = ParamRange::new(cuts[j + 1], cuts[j + 2]) else {
+                return Self::poison_window(t0 + t1);
+            };
+            // The piece holding the part is the one its start locates
+            // in: the start is inside it and the part does not cross a
+            // break.
+            let k = self.breaks.span_range(part).0.index() - 1;
+            self.window(k, &self.frame_box_on(k, part, t0, t1))
+        };
+        self.placed_hull(part(first), (first + 1..=last).map(part))
+    }
+}
+
+/// How many equal parts check 4 cuts each knot span of a net into, in
+/// the composite's ring, when composing the chart's implicit form along
+/// it (`pcurve_cache::projected_hull_lane`) for an envelope its first
+/// reading, in the parts each span's turn needs
+/// (`pcurve_cache::Parts::ByTurn`, at most as many), did not pass: the
+/// incidence is read per part, and every refusal of check 4 is read on
+/// these parts. Not halved further: over the five crates' suites' rows
+/// (fuzz searches aside) eight parts read within 1.0% of a 64-cut read
+/// at p99, and at most 17.5% over it (the census on
+/// `work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
+/// Limb 2's rounds start at as many.
+pub(crate) const INCIDENCE_CUTS: usize = 8;
+
+/// How many equal parts [`ProjectedImage::sweep_box`] cuts a piece into.
+const SWEEP_CUTS: usize = 16;
+
+/// How many halvings [`ProjectedImage::sweep_box`] grades the
+/// partition's first and last part by.
+const SWEEP_GRADE: u8 = 40;
+
+// ---------------------------------------------------------------------
+// Derivation
+// ---------------------------------------------------------------------
+
+/// The deepest halving of a top-level piece the derivation tries before
+/// refusing: a piece `2⁻²⁰` of its span long, which a carrier the band
+/// clears of the singular set does not need.
+const MAX_REFINE: u32 = 20;
+
+/// The chart's frame: origin and `(e₁, e₂, e₃)` (`u_ref`, `axis × u_ref`,
+/// `axis`; a plane's `normal` for the axis). `None` off an analytic chart.
+pub(crate) fn chart_frame<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, [Vec3<T>; 3])> {
+    let frame = |o: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>| (o, [u_ref, axis.cross(u_ref), axis]);
+    Some(match *surface {
+        Surface::Plane {
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(origin, normal, u_ref)
+        }
+        Surface::Cylinder {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(origin, axis, u_ref)
+        }
+        Surface::Cone {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(apex, axis, u_ref)
+        }
+        Surface::Sphere {
+            frame: carrier_frame,
+            ..
+        }
+        | Surface::Torus {
+            frame: carrier_frame,
+            ..
+        }
+        | Surface::Spindle {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(center, axis, u_ref)
+        }
+        Surface::Nurbs(_) | Surface::Approx(_) => return None,
+    })
+}
+
+fn to_frame<T: Real>(v: Vec3<T>, e: &[Vec3<T>; 3]) -> Vec3<T> {
+    Vec3::new(v.dot(e[0]), v.dot(e[1]), v.dot(e[2]))
+}
+
+/// A net's control points written in a chart frame.
+pub(crate) fn framed_net<T: Real>(
+    net: &NurbsCurve3<T>,
+    origin: Point3<T>,
+    e: &[Vec3<T>; 3],
+) -> NurbsCurve3<T> {
+    net.map_points(|p| Point3::origin() + to_frame(p - origin, e))
+}
+
+fn sector_refused(piece: usize, channel: SectorChannel) -> PcurveCertifyError {
+    PcurveCertifyError::SectorRefused {
+        piece: u32::try_from(piece).unwrap_or(u32::MAX),
+        channel,
+    }
+}
+
+/// Which `atan2` channel a sector refusal names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SectorChannel {
+    /// The azimuth: the radial hull reaches the axis, or leaves the
+    /// half-plane its branch centre names.
+    Azimuth,
+    /// A torus's tube angle: the hull reaches the tube's core.
+    Tube,
+    /// Two consecutive branch centres half a period apart or more.
+    Branch,
+    /// The metre lever a carrier span's incidence divides by
+    /// ([`Meters::over`]) is not positive: a cone's `ρ·cos α + σz·sin α`
+    /// (the span reaches the apex or the other nappe), or a torus's
+    /// `(ρ + R)² − r²` (the span reaches a spindle torus's inner sheet).
+    Lever,
+    /// On a spindle sheet, the span's nearest points on its meridian
+    /// circle lie across the axis, past an apex ([`Meters::over`]'s side
+    /// check), so the circle's distance is not the sheet's.
+    Side,
+}
+
+impl SectorChannel {
+    /// What failed, in a clause.
+    #[must_use]
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::Azimuth => {
+                "its radial hull reaches the chart's axis (a sphere's pole, the cone's apex) or \
+                 leaves the half-plane of its branch"
+            }
+            Self::Tube => "its hull reaches the torus's tube core",
+            Self::Branch => "two consecutive branch centres are half a period apart or more",
+            Self::Lever => {
+                "its metre lever is not positive: it reaches the cone's apex or other nappe, \
+                 or a spindle torus's inner sheet"
+            }
+            Self::Side => {
+                "its meridian circle's nearest points lie across the axis, past the sheet's apex"
+            }
+        }
+    }
+}
+
+/// Whether piece `k`'s sector holds, decided at `T` on its box.
+fn piece_sector<T: Decide>(
+    image: &ProjectedImage<T>,
+    k: usize,
+    t0: T,
+    t1: T,
+    band: Band,
+) -> Result<Option<SectorChannel>, Indeterminate> {
+    if matches!(image.chart, ProjectedChart::Plane) {
+        return Ok(None);
+    }
+    let b = image.frame_box(k, t0, t1);
+    if !positive_as("pcurve_projected_sector", Margin::of(b.x.0), band)? {
+        return Ok(Some(SectorChannel::Azimuth));
+    }
+    if let ProjectedChart::Torus { major } = image.chart {
+        let (tx, _) = image.tube_box(k, &b, major);
+        if !positive_as("pcurve_projected_sector", Margin::of(tx.0), band)? {
+            return Ok(Some(SectorChannel::Tube));
+        }
+    }
+    Ok(None)
+}
+
+/// Chooses piece `k`'s branch centres: the first quarter turn whose
+/// open half-plane holds the piece's hull, and on a torus the same for
+/// the tube channel. A SELECTION of structure, read off the candidates
+/// with nothing recorded; the chosen pair is then decided as a verdict
+/// ([`piece_sector`]).
+fn choose_quarters<T: Decide>(image: &mut ProjectedImage<T>, k: usize, t0: T, t1: T, band: Band) {
+    let clear = |x: T| {
+        geom_core::k_stats::detached(|| positive_as("pcurve_projected_sector", Margin::of(x), band))
+            .0
+            .unwrap_or(false)
+    };
+    for m in 0..4 {
+        image.azimuth[k] = Quarter(m);
+        let b = image.frame_box(k, t0, t1);
+        if clear(b.x.0) {
+            break;
+        }
+    }
+    if let ProjectedChart::Torus { major } = image.chart {
+        let b = image.frame_box(k, t0, t1);
+        for n in 0..4 {
+            image.tube[k] = Quarter(n);
+            if clear(image.tube_box(k, &b, major).0.0) {
+                break;
+            }
+        }
+    }
+}
+
+/// Unwraps quarter-turn indices onto one branch: each within a quarter
+/// turn of the one before where the two pieces' sectors allow it.
+fn unwrap_quarters(q: &mut [i32]) {
+    for k in 1..q.len() {
+        let d = (q[k] - q[k - 1]).rem_euclid(4);
+        q[k] = q[k - 1] + if d > 2 { d - 4 } else { d };
+    }
+}
+
+fn breaks_vector(breaks: &[f64]) -> KnotVector {
+    let mut knots = Vec::with_capacity(breaks.len() + 2);
+    knots.push(breaks[0]);
+    knots.extend_from_slice(breaks);
+    knots.push(breaks[breaks.len() - 1]);
+    KnotVector::clamped(knots, 1)
+        .unwrap_or_else(|e| unreachable!("projected breaks are increasing by construction: {e}"))
+}
+
+/// The chart a projected image of `framed` on `surface` is written
+/// for: the chart's own scalars, and on a cone the nappe the carrier's
+/// middle sits on (a carrier on the cone stays on one nappe, and the
+/// lever reads every span of it).
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::SectorRefused`] ([`SectorChannel::Lever`]) for a
+/// cone carrier whose middle is at the apex's height;
+/// [`PcurveCertifyError::Escalated`] when that is undecided.
+fn chart_of<T: Decide>(
+    surface: &Surface<T>,
+    framed: &FramedCarrier<T>,
+    band: Band,
+) -> Result<ProjectedChart<T>, PcurveCertifyError> {
+    chart_at(
+        surface,
+        || match framed {
+            FramedCarrier::Net(net) => {
+                let (d0, d1) = net.knot_values().domain();
+                net.eval(geom::mid_param(d0, d1)).z
+            }
+            FramedCarrier::Conic { origin, span, .. }
+            | FramedCarrier::Line { origin, span, .. } => {
+                framed.eval(*origin + *span * T::from_f64(0.5)).z
+            }
+        },
+        band,
+    )
+}
+
+/// [`chart_of`] for a carrier whose middle sits at height `mid` in the
+/// surface's chart frame, read only on a cone.
+pub(crate) fn chart_at<T: Decide>(
+    surface: &Surface<T>,
+    mid: impl FnOnce() -> T,
+    band: Band,
+) -> Result<ProjectedChart<T>, PcurveCertifyError> {
+    Ok(match *surface {
+        Surface::Plane { .. } => ProjectedChart::Plane,
+        Surface::Cylinder { .. } => ProjectedChart::Cylinder,
+        Surface::Sphere { .. } => ProjectedChart::Sphere,
+        Surface::Torus { major_radius, .. } => ProjectedChart::Torus {
+            major: major_radius,
+        },
+        Surface::Cone { half_angle, .. } => {
+            let (sin, cos) = half_angle.sin_cos();
+            let nappe = nappe_of(mid(), band)?;
+            ProjectedChart::Cone { sin, cos, nappe }
+        }
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            return Err(PcurveCertifyError::UnsupportedChart {
+                chart: surface.kind(),
+            });
+        }
+    })
+}
+
+/// The nappe of a cone a carrier whose middle sits at height `mid` in
+/// the cone's chart frame lies on.
+fn nappe_of<T: Decide>(mid: T, band: Band) -> Result<Nappe, PcurveCertifyError> {
+    match decide("pcurve_projected_nappe", Margin::of(mid), band).map_err(|cause| {
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::Sector,
+            sample: 0,
+            cause,
+        }
+    })? {
+        Sign::Positive => Ok(Nappe::Opening),
+        Sign::Negative => Ok(Nappe::Mirror),
+        Sign::Zero => Err(sector_refused(0, SectorChannel::Lever)),
+    }
+}
+
+/// **What a part's metres are read against** ([`Meters`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Locus {
+    /// The surface's whole carrier: on a cone the double cone (a section
+    /// of carriers, C5), on every other chart the surface itself.
+    Carrier,
+    /// One nappe of a cone: a cone face's locus.
+    Nappe(Nappe),
+}
+
+/// A face's locus on its chart: on a cone the nappe a carrier whose
+/// middle sits at height `mid` in the chart frame lies on
+/// ([`chart_at`]'s), on every other analytic chart its carrier.
+///
+/// # Errors
+///
+/// [`chart_at`]'s on a cone; [`PcurveCertifyError::UnsupportedChart`]
+/// off an analytic chart.
+pub(crate) fn face_locus<T: Decide>(
+    surface: &Surface<T>,
+    mid: impl FnOnce() -> T,
+    band: Band,
+) -> Result<Locus, PcurveCertifyError> {
+    match surface {
+        Surface::Cone { .. } => Ok(Locus::Nappe(nappe_of(mid(), band)?)),
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => Ok(Locus::Carrier),
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        }),
+    }
+}
+
+/// **Which projected lane `carrier` has on `surface`**, if any: the one
+/// home of the (carrier, chart) pairs the general lane is written for,
+/// read by the mint's lane choice (`chart_image`, through [`has_lane`])
+/// and by check 4's gates here. A spline net on any analytic chart; a
+/// circle or an ellipse on a sphere, cylinder, cone or torus, whose
+/// incidence term is the chart's form along the conic, a trigonometric
+/// polynomial, bounded
+/// by its harmonics' sups (`implicit::conic_form_sup`); and a line on a
+/// cylinder or a cone, whose incidence term is the chart's form along
+/// the line, a quadratic, bounded by its Bernstein coefficients over the
+/// edge.
+pub(crate) fn lane_of<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> Option<Lane<T>> {
+    match (carrier, surface) {
+        (Curve3::Nurbs(_), _) if crate::edge_nurbs::is_analytic(surface) => Some(Lane::Net),
+        (
+            Curve3::Circle(..) | Curve3::Ellipse(..),
+            Surface::Sphere { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Torus { .. },
+        ) => Some(Lane::Conic),
+        (Curve3::Line(_), &Surface::Cylinder { radius, .. }) => {
+            Some(Lane::Line(LineChart::Cylinder { radius }))
+        }
+        (Curve3::Line(_), &Surface::Cone { half_angle, .. }) => {
+            let (sin, cos) = half_angle.sin_cos();
+            Some(Lane::Line(LineChart::Cone { sin, cos }))
+        }
+        _ => None,
+    }
+}
+
+/// A projected lane ([`lane_of`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Lane<T> {
+    /// A spline carrier's net.
+    Net,
+    /// A circle or an ellipse.
+    Conic,
+    /// A line, on the chart it names.
+    Line(LineChart<T>),
+}
+
+/// The chart of a line's projected lane, with the scalars its incidence
+/// term reads.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum LineChart<T> {
+    /// A cylinder of radius `radius`.
+    Cylinder { radius: T },
+    /// A cone of half-angle `α`, by `sin α` and `cos α`.
+    Cone { sin: T, cos: T },
+}
+
+/// **Whether `carrier` has a projected image on `surface`** ([`lane_of`]).
+pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bool {
+    lane_of(carrier, surface).is_some()
+}
+
+/// The period gate's row, and the straddle of a bounded channel's two
+/// readings.
+const PERIOD_ROWS: TurnRows<&str> = crate::rows::PCURVE_AZIMUTH_PERIOD.rows();
+
+/// The period gate's row at an exact channel.
+const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn());
+
+/// Check 2's disposition of one channel's "not over": a sweep over a
+/// turn refuses as `exceeded`, an undecided one escalates under `check`.
+fn period_gate(
+    not_over: Result<bool, TurnUndecided>,
+    check: PcurveCheck,
+    exceeded: PcurveCertifyError,
+) -> Result<(), PcurveCertifyError> {
+    match not_over {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(exceeded),
+        Err(undecided) => Err(PcurveCertifyError::Escalated {
+            check: super::general(check),
+            sample: 0,
+            cause: undecided.diag,
+        }),
+    }
+}
+
+/// The projected image of `carrier` on `surface` (module docs), over the
+/// carrier's knot domain for a net and over `span` (or the carrier's own
+/// interval, `own_interval`) for a conic or a line.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::SectorRefused`] when no partition within the
+/// refinement cap puts every piece in one sector (a carrier through or
+/// within the band of a pole, the cone's apex or the torus's core);
+/// [`PcurveCertifyError::Escalated`] ([`PcurveCheck::Sector`]) when the
+/// nappe or a sector stays in the band at the cap.
+///
+/// # Panics
+///
+/// On a pair with no projected lane ([`has_lane`]): every caller reads
+/// that list before the call, so such a pair here is a kernel bug, not a
+/// refusal.
+pub(crate) fn project<T: Decide>(
+    carrier: &Curve3<T>,
+    span: Option<(T, T)>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<ProjectedImage<T>, PcurveCertifyError> {
+    project_ending(carrier, span, None, surface, band)
+}
+
+/// [`project`] for an edge with an end on the chart's singular set, as
+/// its producer stated it ([`PoleEnd::stated`]) or as a stored row holds
+/// it: a conic edge on a sphere reads its azimuth there off the reduced
+/// radial ([`PoleEnd`]). Any other carrier or chart, or a carrier with no
+/// interval, takes the image [`project`] does.
+///
+/// # Errors
+///
+/// As [`project`].
+pub(crate) fn project_ending<T: Decide>(
+    carrier: &Curve3<T>,
+    span: Option<(T, T)>,
+    pole: Option<PoleEnd<T>>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<ProjectedImage<T>, PcurveCertifyError> {
+    assert!(
+        has_lane(carrier, surface),
+        "project: a {} on a {} chart has no projected lane (`has_lane`), and every caller \
+         reads that list first",
+        carrier.kind().name(),
+        surface.kind().name()
+    );
+    let Some((origin, e)) = chart_frame(surface) else {
+        unreachable!("project: `has_lane` admits only analytic charts, which have a frame")
+    };
+    let framed = match carrier {
+        Curve3::Nurbs(net) => FramedCarrier::Net(Arc::new(framed_net(net, origin, &e))),
+        Curve3::Periodic(_) => unreachable!(
+            "project: `has_lane` admits no periodic cubic, whose span is read on its clamped view"
+        ),
+        Curve3::Circle(..) | Curve3::Ellipse(..) => {
+            let Some(form) = super::carrier_harmonic(carrier) else {
+                unreachable!("a conic has a harmonic form")
+            };
+            let (t0, t1) = span.unwrap_or_else(|| super::own_interval(carrier));
+            FramedCarrier::Conic {
+                centre: to_frame(form.c - origin, &e),
+                a: to_frame(form.a, &e),
+                b: to_frame(form.b, &e),
+                origin: t0,
+                span: t1 - t0,
+            }
+        }
+        &Curve3::Line(geom::Line { origin: point, dir }) => {
+            let (t0, t1) = span.unwrap_or_else(|| super::own_interval(carrier));
+            FramedCarrier::Line {
+                point: to_frame(point - origin, &e),
+                dir: to_frame(dir, &e),
+                origin: t0,
+                span: t1 - t0,
+            }
+        }
+        Curve3::Spiric { .. } => {
+            unreachable!("project: `has_lane` admits no spiric")
+        }
+    };
+    let escalated = |cause| PcurveCertifyError::Escalated {
+        check: PcurveCheck::Sector,
+        sample: 0,
+        cause,
+    };
+    let chart = chart_of(surface, &framed, band)?;
+    let pole = match (&framed, &chart, span) {
+        (FramedCarrier::Conic { .. }, ProjectedChart::Sphere, Some(_)) => pole,
+        _ => None,
+    };
+    let mut image = ProjectedImage {
+        chart,
+        carrier: framed,
+        breaks: breaks_vector(&[0.0, 1.0]),
+        azimuth: vec![Quarter(0)],
+        tube: Vec::new(),
+        u_off: T::zero(),
+        v_off: T::zero(),
+        v_sign: T::one(),
+        pole,
+    };
+    // The top-level pieces: a net's knot spans (a piece's hull is one
+    // span's Bézier restriction), a conic's or a line's one interval.
+    let tops: Vec<f64> = match &image.carrier {
+        FramedCarrier::Net(net) => net.knots_f64_interim().breakpoints().collect(),
+        FramedCarrier::Conic { .. } | FramedCarrier::Line { .. } => vec![0.0, 1.0],
+    };
+    if matches!(image.chart, ProjectedChart::Plane) {
+        image.breaks = breaks_vector(&[tops[0], tops[tops.len() - 1]]);
+        return Ok(image);
+    }
+    // A net's edge reads only `[t0, t1]` of it: a piece wholly outside
+    // is kept for the partition and needs no sector (check 4 decides
+    // the pieces the edge overlaps).
+    let edge = match image.carrier {
+        FramedCarrier::Net(_) => span,
+        FramedCarrier::Conic { .. } | FramedCarrier::Line { .. } => None,
+    };
+    let mut breaks = vec![tops[0]];
+    let mut azimuth = Vec::new();
+    let mut tube = Vec::new();
+    for w in tops.windows(2) {
+        refine(
+            &mut image,
+            (w[0], w[1]),
+            edge,
+            band,
+            &mut breaks,
+            &mut azimuth,
+            &mut tube,
+        )
+        .map_err(|e| match e {
+            Refine::Refused(channel) => sector_refused(azimuth.len(), channel),
+            Refine::Escalated(cause) => escalated(cause),
+        })?;
+    }
+    unwrap_quarters(&mut azimuth);
+    unwrap_quarters(&mut tube);
+    image.breaks = breaks_vector(&breaks);
+    image.azimuth = azimuth.into_iter().map(Quarter).collect();
+    image.tube = tube.into_iter().map(Quarter).collect();
+    // C4's placement: the deck origin names the image's azimuth, and on
+    // a torus its tube angle, in the principal window at the span's
+    // midpoint, so where the carrier's parameter starts moves no image;
+    // each levered by `Placement`'s one rule.
+    let place = span.map_or_else(
+        || super::Placement::own(carrier, surface),
+        |span| super::Placement::over(span, carrier, surface),
+    );
+    let at = image.eval(place.mid());
+    let deck = |along, angle: T| {
+        Ok::<_, PcurveCertifyError>(match place.turns(along, angle, band)? {
+            0 => T::zero(),
+            k => super::Period::angle().times(-k),
+        })
+    };
+    image.u_off = deck(super::Along::Azimuth, at.x)?;
+    if matches!(image.chart, ProjectedChart::Torus { .. }) {
+        image.v_off = deck(super::Along::Tube, at.y)?;
+    }
+    Ok(image)
+}
+
+enum Refine {
+    Refused(SectorChannel),
+    Escalated(Indeterminate),
+}
+
+/// Whether the piece `[a, b]` (on the carrier parameter,
+/// [`FramedCarrier::piece_span`]'s) lies wholly outside the edge
+/// interval `edge`, by more than the band: a SELECTION of the
+/// partition, read with nothing recorded, an undecided answer reading
+/// as inside.
+fn outside<T: Decide>((a, b): (T, T), edge: Option<(T, T)>, band: Band) -> bool {
+    let Some((t0, t1)) = edge else {
+        return false;
+    };
+    let clear = |x: T| {
+        geom_core::k_stats::detached(|| {
+            positive_as("pcurve_projected_outside", Margin::of(x), band)
+        })
+        .0
+        .unwrap_or(false)
+    };
+    clear(t0 - b) || clear(a - t1)
+}
+
+/// Halves `[a, b]` (on the piece parameter) until its piece holds its
+/// sector, appending the pieces in order ([`geom_core::bisect`], earlier
+/// half first). A piece wholly outside the edge interval `edge` is
+/// appended as found.
+#[allow(clippy::too_many_arguments)]
+fn refine<T: Decide>(
+    image: &mut ProjectedImage<T>,
+    (a, b): (f64, f64),
+    edge: Option<(T, T)>,
+    band: Band,
+    breaks: &mut Vec<f64>,
+    azimuth: &mut Vec<i32>,
+    tube: &mut Vec<i32>,
+) -> Result<(), Refine> {
+    let mut reads = Budget::implied_by_depth(1, MAX_REFINE);
+    let walked = bisect_within([(a, b, 0u32)], &mut reads, |(a, b, depth)| {
+        image.breaks = breaks_vector(&[a, b]);
+        image.azimuth = vec![Quarter(0)];
+        image.tube = if matches!(image.chart, ProjectedChart::Torus { .. }) {
+            vec![Quarter(0)]
+        } else {
+            Vec::new()
+        };
+        let (ta, tb) = image.carrier.piece_span(a, b);
+        choose_quarters(image, 0, ta, tb, band);
+        let verdict = if outside((ta, tb), edge, band) {
+            Ok(None)
+        } else {
+            piece_sector(image, 0, ta, tb, band)
+        };
+        match verdict {
+            Ok(None) => {
+                breaks.push(b);
+                azimuth.push(image.azimuth[0].0);
+                if let Some(&phi) = image.tube.first() {
+                    tube.push(phi.0);
+                }
+                Step::Settled
+            }
+            Ok(Some(channel)) if depth >= MAX_REFINE => Step::Stop(Refine::Refused(channel)),
+            Err(cause) if depth >= MAX_REFINE => Step::Stop(Refine::Escalated(cause)),
+            _ => {
+                let m = geom::mid_param(a, b);
+                Step::Halve([(a, m, depth + 1), (m, b, depth + 1)])
+            }
+        }
+    });
+    match walked {
+        Ok(None) => Ok(()),
+        Ok(Some(refused)) => Err(refused),
+        Err(Exhausted) => unreachable!("a sector refinement spends its depth before its reads"),
+    }
+}
+
+impl<T: Real> Pcurve<T> {
+    /// The projected image, if this is one.
+    #[must_use]
+    pub fn projected(&self) -> Option<&ProjectedImage<T>> {
+        match self {
+            Pcurve::Projected(image) => Some(image),
+            _ => None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// The certificate
+// ---------------------------------------------------------------------
+
+/// What the fitted door derives for a net's projected row, in
+/// certification arithmetic: every piece's sector hull and every knot
+/// span's composite bound.
+#[derive(Clone, Debug)]
+pub(crate) struct ProjectedHull {
+    /// Per piece of the stored image, in order: the lower bound of
+    /// `x′`, and of the tube's `X′` (`+∞` off a torus).
+    pub(crate) pieces: Vec<PieceHull>,
+    /// Per part of the re-derived twin net (each knot span cut into
+    /// equal parts, and at the caller's cuts): its parameter
+    /// range, the bound of `|f|`, the floors its metre conversion reads,
+    /// and its metre readings.
+    pub(crate) spans: Vec<SpanHull>,
+}
+
+/// One piece of a [`ProjectedHull`].
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PieceHull {
+    pub(crate) x_lo: f64,
+    pub(crate) tube_lo: f64,
+}
+
+/// One part of a [`ProjectedHull`]'s twin net.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SpanHull {
+    pub(crate) range: (f64, f64),
+    /// The upper bound of `|f|` over the part (NaN where the composite
+    /// refuses it).
+    pub(crate) f_sup: f64,
+    /// The lower bound of `ρ` over the part's points.
+    pub(crate) rho_lo: f64,
+    /// The upper bound of `ρ` over the part's points.
+    pub(crate) rho_hi: f64,
+    /// The range of `z` over the part's points.
+    pub(crate) z: (f64, f64),
+    /// A certified upper bound in metres on the part's distance from
+    /// the chart ([`Meters::certified`]): `+∞` where it does not read,
+    /// NaN where a bound above is not certified.
+    pub(crate) meters: f64,
+    /// Certified lower bounds in metres on the distance from the chart
+    /// at the part's two ends ([`Meters::divisor`]), `0` where none is.
+    pub(crate) floors: (f64, f64),
+}
+
+/// The floors of a Bézier part's points, read off its controls `q`:
+/// two lower bounds of `ρ` — the box's nearest point to the axis (at
+/// least zero), and the controls' support along their chord, `ρ ≥ p·n̂`,
+/// whose divisor `|first + last|` the caller must see certified before
+/// it reads the support — the range of `z`, and the box's farthest
+/// point from the axis.
+pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T), T) {
+    let first = q[0].0;
+    let mut b = FrameBox {
+        x: (first.x, first.x),
+        y: (first.y, first.y),
+        z: (first.z, first.z),
+        rho: None,
+    };
+    for (c, _) in &q[1..] {
+        b.x = (b.x.0.min(c.x), b.x.1.max(c.x));
+        b.y = (b.y.0.min(c.y), b.y.1.max(c.y));
+        b.z = (b.z.0.min(c.z), b.z.1.max(c.z));
+    }
+    let last = q[q.len() - 1].0;
+    let (mx, my) = (first.x + last.x, first.y + last.y);
+    let norm = (mx.powi(2) + my.powi(2)).sqrt();
+    let support = q
+        .iter()
+        .map(|(c, _)| (c.x * mx + c.y * my) / norm)
+        .reduce(|m, x| m.min(x))
+        .unwrap_or_else(T::zero);
+    let (boxed, far) = ProjectedImage::<T>::rho_range(&b);
+    (boxed.max(T::zero()), support, b.z, far)
+}
+
+/// A part's axial reach off its controls `q` ([`part_floors`]): the
+/// least `ρ` (the box's floor, raised to the chord support where that
+/// support's divisor certifies), the greatest `ρ`, and the range of `z`.
+/// The one reading of a part's floors that its metres conversion
+/// ([`Meters::part_bound`]) divides by.
+pub(crate) fn part_reach(
+    q: &[(Vec3<geom_core::Interval>, geom_core::Interval)],
+) -> (
+    geom_core::Interval,
+    geom_core::Interval,
+    (geom_core::Interval, geom_core::Interval),
+) {
+    let (boxed, support, z, far) = part_floors(q);
+    // The support's divisor may not certify (a chord through the axis):
+    // the box's floor stands alone then.
+    let rho = if support.is_certified() {
+        boxed.max(support)
+    } else {
+        boxed
+    };
+    (rho, far, z)
+}
+
+impl Meters<geom_core::Interval> {
+    /// **A part's metres bound** — the one cell-to-metres step: a part
+    /// whose `|f|` is at most `f_sup`, whose `ρ` ranges over
+    /// `(rho_lo, rho_hi)` and whose `z` over `z`, read through
+    /// [`Self::certified`] with each lever decided positive where its
+    /// `lower` end is, and its reading's `upper` end taken. `NaN` where an
+    /// input is not finite, `+∞` where no reading reads (a torus or sheet
+    /// lever not decided positive).
+    pub(crate) fn part_bound(
+        self,
+        f_sup: f64,
+        (rho_lo, rho_hi): (f64, f64),
+        z: (f64, f64),
+        lower: impl Fn(geom_core::Interval) -> f64,
+        upper: impl Fn(geom_core::Interval) -> f64,
+    ) -> f64 {
+        if !(f_sup.is_finite()
+            && rho_lo.is_finite()
+            && rho_hi.is_finite()
+            && z.0.is_finite()
+            && z.1.is_finite())
+        {
+            return f64::NAN;
+        }
+        let point = |x: f64| geom_core::Interval::from_bounds(x, x);
+        self.certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
+            lower(lever) > 0.0
+        })
+        // `+∞` off the cone and the sheet only: on them the apex reading
+        // always reads.
+        .map_or(f64::INFINITY, upper)
+    }
+}
+
+/// The one decision every condition of this module reads: whether
+/// `value` decides positive. Not positive (zero or negative) is
+/// `Ok(false)`; the band's undecided answer escalates.
+fn positive_as<T: Decide, A: geom_core::MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    Ok(decide(name, margin, band)? == Sign::Positive)
+}
+
+/// A [`positive_as`] verdict as check 4's: `ok` when it decided positive,
+/// `refused` when it did not, an escalation at `check` (its sample the
+/// piece or span `at`) when the band could not tell.
+fn checked<R>(
+    verdict: Result<bool, Indeterminate>,
+    check: PcurveCheck,
+    at: usize,
+    refused: PcurveCertifyError,
+    ok: R,
+) -> Result<R, PcurveCertifyError> {
+    match verdict {
+        Ok(true) => Ok(ok),
+        Ok(false) => Err(refused),
+        Err(cause) => Err(PcurveCertifyError::Escalated {
+            check: super::general(check),
+            sample: u32::try_from(at).unwrap_or(u32::MAX),
+            cause,
+        }),
+    }
+}
+
+/// [`positive_as`] of `value` as a check-4 verdict ([`checked`]): `value`
+/// when it decides positive.
+fn require_positive_as<T: Decide>(
+    name: &'static str,
+    value: T,
+    band: Band,
+    check: PcurveCheck,
+    at: usize,
+    refused: PcurveCertifyError,
+) -> Result<T, PcurveCertifyError> {
+    checked(
+        positive_as(name, Margin::of(value), band),
+        check,
+        at,
+        refused,
+        value,
+    )
+}
+
+/// A piece's sector condition on `channel`: `margin` (the lower bound
+/// of `x′`, or of the tube's `X′`) decides positive.
+fn holds<T: Decide, A: geom_core::MarginTerms>(
+    margin: Margin<T, A>,
+    band: Band,
+    piece: usize,
+    channel: SectorChannel,
+) -> Result<(), PcurveCertifyError> {
+    checked(
+        positive_as("pcurve_projected_sector", margin, band),
+        PcurveCheck::Sector,
+        piece,
+        sector_refused(piece, channel),
+        (),
+    )
+}
+
+/// Piece `k`'s sector condition off the hull: its azimuth channel, and
+/// on a torus its tube channel, each decided positive. A bound the hull
+/// could not certify is NaN, which escalates.
+pub(super) fn hull_sector<T: Decide>(
+    piece: &PieceHull,
+    k: usize,
+    chart: &ProjectedChart<T>,
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    holds(
+        Margin::<T>::bound(piece.x_lo),
+        band,
+        k,
+        SectorChannel::Azimuth,
+    )?;
+    if matches!(chart, ProjectedChart::Torus { .. }) {
+        holds(
+            Margin::<T>::bound(piece.tube_lo),
+            band,
+            k,
+            SectorChannel::Tube,
+        )?;
+    }
+    Ok(())
+}
+
+/// `(σz)_min` over a part whose `z` ranges over `z`, on a nappe, and
+/// `|z|_min` on the double cone: a bound the hull walk computed, so at
+/// `Sym` an unknown.
+fn axial_floor<T: Real>(z: (f64, f64), locus: Locus) -> T {
+    match locus {
+        Locus::Nappe(Nappe::Opening) => T::from_computed(z.0),
+        Locus::Nappe(Nappe::Mirror) => T::zero() - T::from_computed(z.1),
+        Locus::Carrier => T::from_computed(abs_z(z).0),
+    }
+}
+
+/// The distance of an angle from the nearest point of `shift + pℤ`, `p`
+/// the channel's own period ([`Surface::angle_periods`](geom::Surface::angle_periods)).
+///
+/// Sound at every scalar on its own terms: a lattice distance is
+/// continuous in the angle and the same on either branch at a tie, so
+/// the floor's pick never shows in it, and an `Interval` straddle widens
+/// it but still encloses. Its readers (`projected_envelope`'s fidelity
+/// terms) pass a deck offset (a whole number of turns, or a reflection's
+/// zero) against a shift of 0 or π (the sphere's twin), all form-definite
+/// constants at `Sym`, and add the distance to an envelope bound: no
+/// identity reads it.
+fn off_period<T: Real>(angle: T, shift: T, period: super::Period<T>) -> T {
+    (angle - shift)
+        .reduce_periodic_centred(period.length())
+        .abs()
+}
+
+/// A `z` box's least and greatest `|z|`, the least zero where the box
+/// straddles `z = 0`.
+fn abs_z((z0, z1): (f64, f64)) -> (f64, f64) {
+    let far = z0.abs().max(z1.abs());
+    if z0 <= 0.0 && 0.0 <= z1 {
+        (0.0, far)
+    } else {
+        (z0.abs().min(z1.abs()), far)
+    }
+}
+
+/// Which of [`Meters::over`]'s conditions a positivity is asked of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Lever {
+    /// A divisor: the cone's or a torus's lever, or a sheet's `σ(M² − r²)`.
+    Divisor,
+    /// A sheet's side check, `r·ρ − |m − r|·|R|`.
+    Side,
+}
+
+/// A chart's conversion between its canonical form's magnitude `|f|`
+/// and the distance from it in metres ([`net_incidence`]'s list), at
+/// scalar `S`: the twin's own scalars, and on a cone the [`Locus`] read
+/// against.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Meters<S> {
+    Plane,
+    Cylinder { radius: S },
+    Sphere { radius: S },
+    Cone { sin: S, cos: S, locus: Locus },
+    Torus { major: S, minor: S },
+    Spindle { major: S, minor: S },
+}
+
+impl<S: Real> Meters<S> {
+    /// The conversion for `twin`, its scalars crossed into `S` by
+    /// `cross`, on a cone against `locus`; `None` off an analytic chart. The cone's half-angle is crossed
+    /// before its sine and cosine are taken, so at an enclosure `S` they
+    /// enclose the stored angle's, never a lane scalar's rounding of
+    /// them.
+    pub(crate) fn of<U: Real>(
+        twin: &Surface<U>,
+        locus: Locus,
+        cross: impl Fn(U) -> S,
+    ) -> Option<Self> {
+        Some(match *twin {
+            Surface::Plane { .. } => Self::Plane,
+            Surface::Cylinder { radius, .. } => Self::Cylinder {
+                radius: cross(radius),
+            },
+            Surface::Sphere { radius, .. } => Self::Sphere {
+                radius: cross(radius),
+            },
+            Surface::Cone { half_angle, .. } => {
+                let (sin, cos) = crate::implicit::cone_sin_cos(half_angle, cross);
+                Self::Cone { sin, cos, locus }
+            }
+            Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            } => Self::Torus {
+                major: cross(major_radius),
+                minor: cross(minor_radius),
+            },
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => Self::Spindle {
+                major: cross(major_radius),
+                minor: cross(minor_radius),
+            },
+            Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        })
+    }
+
+    /// **The cone's apex reading**: `√|f|`, a bound on the distance of a
+    /// part whose `|f|` is at most `f` from the implicit cone, taken
+    /// where the lever does not decide positive (a part reaching the
+    /// apex). In the meridian half-plane `f = a·b`, with
+    /// `a = ρ cos α − z sin α` and `b = ρ cos α + z sin α` the distances
+    /// from the two generator lines, both on the implicit cone, so the
+    /// distance is at most `min(|a|, |b|) ≤ √|f|`. `None` off the cone.
+    pub(crate) fn apex_root(self, f: S) -> Option<S> {
+        match self {
+            Self::Cone { .. } => Some(f.sqrt()),
+            _ => None,
+        }
+    }
+
+    /// **A part's reading in certification arithmetic**
+    /// ([`SpanHull::meters`]), for a part whose `|f|` is at most `f`,
+    /// whose `ρ` ranges over `rho` and whose `z` over `z`, each lever
+    /// taken where `positive` certifies it:
+    /// - on a sheet, the least of [`Self::over`], [`Self::sheet_at_height`]
+    ///   and [`Self::sheet_apex_reach`] that read, each a bound on the
+    ///   part's distance from this sheet; the apex reach always reads;
+    /// - on the double cone the lesser of [`Self::over`] and
+    ///   [`Self::apex_root`], both bounds on its distance;
+    /// - elsewhere [`Self::over`], else [`Self::apex_root`]; `None` where
+    ///   neither reads. The cone's apex reading is the double cone's
+    ///   distance, which must not undercut a nappe's own reading away
+    ///   from the apex.
+    pub(crate) fn certified(
+        self,
+        f: S,
+        rho: (S, S),
+        z: (f64, f64),
+        positive: impl Fn(S) -> bool,
+    ) -> Option<S> {
+        let over = self.over(
+            f,
+            rho,
+            z,
+            |lever, _| if positive(lever) { Ok(lever) } else { Err(()) },
+        );
+        match self {
+            Self::Spindle { major, minor } => Some(
+                [
+                    over.ok(),
+                    Self::sheet_at_height(major, minor, rho, z, &positive),
+                ]
+                .into_iter()
+                .flatten()
+                .fold(
+                    Self::sheet_apex_reach(major, minor, rho.1, z),
+                    |least, d| least.min(d),
+                ),
+            ),
+            _ => self.settled(f, over, || self.apex_root(f)).ok(),
+        }
+    }
+
+    /// **A part's reading from [`Self::over`]'s**, the one rule the hull's
+    /// reading ([`Self::certified`]) and the decided bound
+    /// ([`net_incidence`]) both take: where `over` did not read, the
+    /// `fallback` (the apex reading); on the double cone the lesser of
+    /// `over` and `√|f|`, each a bound on its distance.
+    pub(crate) fn settled<E>(
+        self,
+        f: S,
+        over: Result<S, E>,
+        fallback: impl FnOnce() -> Option<S>,
+    ) -> Result<S, E> {
+        match self {
+            Self::Cone {
+                locus: Locus::Carrier,
+                ..
+            } => {
+                let root = f.sqrt();
+                Ok(over.map_or(root, |over| over.min(root)))
+            }
+            _ => over.or_else(|refusal| fallback().ok_or(refusal)),
+        }
+    }
+
+    /// **A sheet's apex reading**: the distance of a part whose `ρ` is at
+    /// most `rho_hi` and whose `z` ranges over `z` from the nearer apex
+    /// `(0, ±h)`, a point of the sheet. `|f|` cannot stand in for it,
+    /// since it vanishes on the other sheet too, which meets this one at
+    /// the apexes.
+    fn sheet_apex_reach(major: S, minor: S, rho_hi: S, z: (f64, f64)) -> S {
+        let height = geom::sheet_apex(major, minor).height;
+        let (z0, z1) = (S::from_computed(z.0), S::from_computed(z.1));
+        let reach = |apex: S| {
+            let along = (z0 - apex).abs().max((z1 - apex).abs());
+            (rho_hi.powi(2) + along.powi(2)).sqrt()
+        };
+        reach(height).min(reach(-height))
+    }
+
+    /// **A sheet's reading at the part's own height.** On an apple or a
+    /// horn (`R > 0`), every height `h ≤ |z| < r` meets the sheet's branch
+    /// nearer the axis at `ρ_s(z) = R − √(r² − z²) = (z² − h²)/(R + √(r² − z²))`,
+    /// which is `≥ 0`, so `(ρ_s(z), z)` is a point of the sheet and a part
+    /// is within `|ρ − ρ_s(z)|` of it. `ρ_s` grows with `|z|`, so over the
+    /// box that is at most `max(ρ_hi − ρ_s(|z|_min), ρ_s(|z|_max) − ρ_lo)`.
+    /// `None` where `positive` does not certify `R > 0` and the box's `|z|`
+    /// inside `(h, r)`.
+    fn sheet_at_height(
+        major: S,
+        minor: S,
+        (rho_lo, rho_hi): (S, S),
+        z: (f64, f64),
+        positive: impl Fn(S) -> bool,
+    ) -> Option<S> {
+        let (near, far) = abs_z(z);
+        let (near, far) = (S::from_computed(near), S::from_computed(far));
+        let h = geom::sheet_apex(major, minor).height;
+        let inside = positive(major) && positive(near - h) && positive(minor - far);
+        let level = |w: S| (w.powi(2) - h.powi(2)) / (major + ((minor - w) * (minor + w)).sqrt());
+        inside.then(|| (rho_hi - level(near)).max(level(far) - rho_lo))
+    }
+
+    /// **Limb 2's reading of a part whose lever the band does not decide
+    /// positive** (refused or escalated): on a cone [`Self::apex_root`];
+    /// on a sheet the hull's reading ([`SpanHull::meters`],
+    /// [`Self::certified`]). Each bounds the part's distance from the
+    /// chart's zero set whatever the band said of the lever, and on a
+    /// sheet from this sheet alone, so taking it in the band's place
+    /// certifies no part the band would read off the sheet. `None` off
+    /// the cone and the sheet, and on a sheet where the hull's reading is
+    /// NaN (a part whose composite did not certify).
+    pub(crate) fn apex_part(self, f: S, span: &SpanHull) -> Option<S> {
+        match self {
+            Self::Spindle { .. } => span
+                .meters
+                .is_finite()
+                .then(|| S::from_computed(span.meters)),
+            _ => self.apex_root(f),
+        }
+    }
+
+    /// An upper bound in metres on the distance of a part whose `|f|` is
+    /// at most `f`, whose `ρ` ranges over `rho` and whose `z` over `z`.
+    /// Each lever it divides by is `positive`'s answer on it first,
+    /// since the division needs it positive: on a cone
+    /// `ρ cos α + (σz) sin α`, on a torus `(ρ + R)² − r²`.
+    ///
+    /// On a spindle sheet `f = (m² − r²)(M² − r²)` vanishes on both of
+    /// the torus's sheets: `m` is the distance from the sheet's tube
+    /// circle (centre `R`) and `M` from the other's (centre `−R`), with
+    /// `M² − m² = 4Rρ`. Two decisions make the bound this sheet's, and
+    /// each does a different job:
+    ///
+    /// - **The lever** `σ·(M² − r²)`, `σ = sgn R`, decided positive over
+    ///   the box, is what `|f|` is divided by to leave `|m − r|`, the
+    ///   distance from the sheet's whole meridian circle. On the sheet it
+    ///   is `4|R|ρ`. `σ` only picks which end of the box certifies it:
+    ///   the least `(ρ + R)² + z² − r²` on an apple (`R > 0`), and
+    ///   `r² − (ρ + R)² − z²` at the box's greatest on a lemon. It does
+    ///   not select the sheet: a part on the OTHER sheet's circle, or
+    ///   past the apexes, can still clear it.
+    /// - **The side check** selects it. `|m − r|` is the distance from
+    ///   the whole circle, which is the sheet's own distance only where
+    ///   the circle's nearest point is on the sheet's side of the axis,
+    ///   and that is `|m − r|·|R| ≤ r·ρ`, decided positive. Without it
+    ///   the bound under-reads parts near the other sheet or the apexes
+    ///   (`a_spindle_bound_is_this_sheets_distance`).
+    pub(crate) fn over<E>(
+        self,
+        f: S,
+        rho: (S, S),
+        z: (f64, f64),
+        positive: impl Fn(S, Lever) -> Result<S, E>,
+    ) -> Result<S, E> {
+        let axial = match self {
+            Self::Cone { locus, .. } => axial_floor(z, locus),
+            _ => S::zero(),
+        };
+        self.over_at(f, rho, axial, z, positive)
+    }
+
+    /// [`Self::over`] with the cone's `(σz)_min` given as `axial` at `S`
+    /// (read on the cone alone); `z` is read on the spindle alone.
+    pub(crate) fn over_at<E>(
+        self,
+        f: S,
+        rho: (S, S),
+        axial: S,
+        z: (f64, f64),
+        positive: impl Fn(S, Lever) -> Result<S, E>,
+    ) -> Result<S, E> {
+        let (rho, rho_hi) = rho;
+        let torus = |outer: S, minor: S| {
+            let first = f / (minor * outer);
+            f / ((minor + (minor - first).max(S::zero())) * outer)
+        };
+        Ok(match self {
+            Self::Plane => f,
+            Self::Cylinder { radius } | Self::Sphere { radius } => {
+                f / (radius + rho.max(radius - f / radius))
+            }
+            Self::Cone { sin, cos, .. } => f / positive(rho * cos + axial * sin, Lever::Divisor)?,
+            Self::Torus { major, minor } => torus(
+                positive((rho + major).powi(2) - minor.powi(2), Lever::Divisor)?,
+                minor,
+            ),
+            Self::Spindle { major, minor } => {
+                // `M² − r²` over the box: its least value where `ρ + R`
+                // keeps one sign (every apple), its greatest everywhere,
+                // weighted by the sheet's sign `σ = sgn R` (±1, exact).
+                let (near, far) = abs_z(z);
+                let z2 = |at: f64| S::from_computed(at).powi(2);
+                let (lo, hi) = ((rho + major).powi(2), (rho_hi + major).powi(2));
+                let least = lo.min(hi) + z2(near) - minor.powi(2);
+                let most = lo.max(hi) + z2(far) - minor.powi(2);
+                // `σ = sgn R`, decided at rest (`geom::meridian_side`).
+                let sigma = geom::meridian_side(major);
+                let half = S::from_f64(0.5);
+                let outer = ((S::one() + sigma) * least - (S::one() - sigma) * most) * half;
+                let d = torus(positive(outer, Lever::Divisor)?, minor);
+                positive(minor * rho - d * major.abs(), Lever::Side)?;
+                d
+            }
+        })
+    }
+
+    /// At a point `p` of the chart's frame, a factor with
+    /// `|f(p)| ≤ d(p) · divisor(p)`, `d(p)` the point's distance from the
+    /// form's zero set, so that `|f(p)|` over an upper bound on the
+    /// divisor bounds that distance from below. It is a factor at `p`
+    /// itself, not a bound along a path to the zero set. On the cylinder
+    /// and the sphere it is exact: `|f|` is `|ρ − R|·(ρ + R)` and
+    /// `||p| − r|·(|p| + r)`. On the torus `f = (m² − r²)(M² − r²)`, with
+    /// `m = √((ρ − R)² + z²)` and `M = √((ρ + R)² + z²)` the distances
+    /// from the meridian plane's two tube circles, and the zero set's
+    /// distance is `min(|m − r|, |M − r|)`. Since
+    /// `|f| = |m − r|·(m + r)·|M² − r²| = |M − r|·(M + r)·|m² − r²|`, `|f|`
+    /// is at most that distance times
+    /// `max((m + r)·|M² − r²|, (M + r)·|m² − r²|)`, with equality where
+    /// the larger term is the one matching the nearer circle. On the cone
+    /// `|f|` is `|ρ cos α − z sin α|·|ρ cos α + z sin α|`, the distances
+    /// from the two generator lines of the meridian plane, the nearer of
+    /// which is the double cone's distance, and the other is at most
+    /// `ρ cos α + |z| sin α`. Each surface lies in its form's zero set, so
+    /// it is no nearer than that set.
+    pub(crate) fn divisor(self, p: Vec3<S>) -> S {
+        let rho = (p.x.powi(2) + p.y.powi(2)).sqrt();
+        match self {
+            Self::Plane => S::one(),
+            Self::Cylinder { radius } => rho + radius,
+            Self::Sphere { radius } => (p.x.powi(2) + p.y.powi(2) + p.z.powi(2)).sqrt() + radius,
+            Self::Cone { sin, cos, .. } => rho * cos + p.z.abs() * sin,
+            Self::Torus { major, minor } | Self::Spindle { major, minor, .. } => {
+                let (near, far) = (
+                    (rho - major).powi(2) + p.z.powi(2),
+                    (rho + major).powi(2) + p.z.powi(2),
+                );
+                let by_far = (near.sqrt() + minor) * (far - minor.powi(2)).abs();
+                let by_near = (far.sqrt() + minor) * (near - minor.powi(2)).abs();
+                by_far.max(by_near)
+            }
+        }
+    }
+}
+
+/// A certified lower bound in metres on the distance from the chart at
+/// a point `at` of its frame where the form's value is enclosed by
+/// `value`: `|f|`'s lower end over the upper end of
+/// [`Meters::divisor`] there, rounded down; `0` where either end is not
+/// certified or not positive.
+pub(crate) fn distance_floor(
+    meters: Meters<geom_core::Interval>,
+    value: geom_core::Interval,
+    at: Vec3<geom_core::Interval>,
+) -> f64 {
+    use geom_core::{Bounds, Interval};
+    let f = crate::ssi::enclose::zero_free_lower_bound(value);
+    let divisor = meters.divisor(at).abs();
+    if !divisor.is_certified() {
+        return 0.0;
+    }
+    let divisor = divisor.hi();
+    if f > 0.0 && divisor.is_finite() && divisor > 0.0 {
+        let floor = Interval::from_bounds(f, f) / Interval::from_bounds(divisor, divisor);
+        if floor.is_certified() {
+            floor.lo().max(0.0)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    }
+}
+
+/// The parts of a hull a window `[t0, t1]` reads, and the breaks
+/// certainly inside it.
+pub(crate) struct Window {
+    /// The parts it overlaps, located on the parts' own breaks: the
+    /// lower end as a point locates (a break it sits on reads as the
+    /// part starting there), the upper end on the mirrored breaks (a
+    /// break it sits on reads as the part ending there), so a part that
+    /// meets the interval at one end point alone is not read.
+    pub(crate) parts: core::ops::RangeInclusive<usize>,
+    /// The breaks, by index, past every part the lower end may lie in
+    /// and before every part the upper end may: each lies in `[t0, t1]`
+    /// at every value the window's brackets stand for.
+    pub(crate) inside: core::ops::RangeInclusive<usize>,
+}
+
+/// The [`Window`] of `[t0, t1]` on `hull`'s parts.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::ImageMismatch`] for a hull with no part or a
+/// poison end.
+pub(crate) fn window_of<T: Decide>(
+    hull: &ProjectedHull,
+    (t0, t1): (T, T),
+) -> Result<Window, PcurveCertifyError> {
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    let Some(last) = hull.spans.last() else {
+        return Err(refuse("the net has no knot span"));
+    };
+    let bounds: Vec<f64> = hull
+        .spans
+        .iter()
+        .map(|s| s.range.0)
+        .chain([last.range.1])
+        .collect();
+    let mirrored: Vec<f64> = bounds.iter().rev().map(|&x| -x).collect();
+    let n = hull.spans.len();
+    let (parts, mirrored) = (breaks_vector(&bounds), breaks_vector(&mirrored));
+    let (Some(lower), Some(upper)) = (
+        t0.locate_spans(&parts),
+        (T::zero() - t1).locate_spans(&mirrored),
+    ) else {
+        return Err(refuse("an end of the window is poison and meets no part"));
+    };
+    Ok(Window {
+        parts: (lower.first.index() - 1).min(n - upper.last.index())
+            ..=(lower.last.index() - 1).max(n - upper.first.index()),
+        inside: lower.last.index()..=n - upper.last.index(),
+    })
+}
+
+/// The incidence of a net's re-derived twin over the parts of it the
+/// window `[t0, t1]` overlaps (the edge's interval; a part past its ends
+/// is not the edge's): per part, the canonical composite's bound `|f|`
+/// converted to metres (module docs) on the floors of the twin's own
+/// points, and the smallest radial floor of the stored carrier, `ρ_min`
+/// of the twin less `d`, the stored net's distance from it (what the
+/// Lipschitz bounds on the segment between the two read).
+///
+/// The conversions, with `D` the first bound below and the factor each
+/// divides by a lower bound on the exact denominator of the distance:
+///
+/// - plane: `|f|` (metres already);
+/// - cylinder: `|ρ − R| = |f| / (ρ + R)`, with `ρ ≥ max(ρ_min, R − D)`,
+///   `D = |f|/R`;
+/// - sphere: `||ξ| − r| = |f| / (|ξ| + r)`, with
+///   `|ξ| ≥ max(ρ_min, r − D)`, `D = |f|/r`;
+/// - cone: `|ρ cos α − σz sin α| = |f| / (ρ cos α + σz sin α)`, the
+///   lever `ρ_min cos α + (σz)_min sin α` (the twin's angle, the stored
+///   nappe) decided positive;
+/// - torus: `|m − r| = |f| / ((m + r)·((ρ + R)² + z² − r²))`, `m` the
+///   distance to the tube's core, with `m ≥ max(0, r − D)` and the
+///   second factor `≥ (ρ_min + R)² − r²`, `D = |f| / (r·((ρ_min + R)² − r²))`,
+///   that lever decided positive (`|m − r|` bounds the distance on every
+///   torus, ring, horn or spindle).
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::ImageMismatch`] when no part meets the window,
+/// or one that does has no certified composite bound or floor; a cone's,
+/// a torus's or a sheet's lever that does not decide positive refuses
+/// [`SectorChannel::Lever`] at the part, except where `apex` reads such
+/// a cone or sheet part through [`Meters::apex_part`] (limb 2's reading).
+pub(super) fn net_incidence<T: Decide>(
+    hull: &ProjectedHull,
+    (t0, t1): (T, T),
+    locus: Locus,
+    twin: &Surface<T>,
+    d: T,
+    band: Band,
+    apex: bool,
+) -> Result<(T, T), PcurveCertifyError> {
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    let mut incidence = T::zero();
+    let mut rho_floor: Option<T> = None;
+    let window = window_of(hull, (t0, t1))?.parts;
+    let Some(meters) = Meters::of(twin, locus, |x| x) else {
+        unreachable!("a projected chart is analytic")
+    };
+    for (j, span) in hull.spans.iter().enumerate() {
+        if !window.contains(&j) {
+            continue;
+        }
+        if !span.f_sup.is_finite() {
+            return Err(refuse(
+                "a knot span's canonical composite bound is not certified",
+            ));
+        }
+        if !(span.rho_lo.is_finite()
+            && span.rho_hi.is_finite()
+            && span.z.0.is_finite()
+            && span.z.1.is_finite())
+        {
+            return Err(refuse(
+                "a knot span's radial or axial floor is not certified",
+            ));
+        }
+        let rho = T::from_computed(span.rho_lo);
+        let floor = (rho - d).max(T::zero());
+        rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
+        let f = T::from_computed(span.f_sup);
+        // Not [`Meters::part_bound`]: this reading is at the lane scalar
+        // `T`, and decides each lever at the band, escalating where the
+        // band cannot tell, where `part_bound` reads interval enclosures
+        // and takes a lever positive only where its lower end is.
+        let over = meters.over(
+            f,
+            (rho, T::from_computed(span.rho_hi)),
+            span.z,
+            |lever, which| {
+                let channel = match which {
+                    Lever::Divisor => SectorChannel::Lever,
+                    Lever::Side => SectorChannel::Side,
+                };
+                require_positive_as(
+                    "pcurve_projected_lever",
+                    lever,
+                    band,
+                    PcurveCheck::Sector,
+                    j,
+                    sector_refused(j, channel),
+                )
+            },
+        );
+        let disp = meters.settled(f, over, || {
+            apex.then(|| meters.apex_part(f, span)).flatten()
+        })?;
+        incidence = incidence.max(disp);
+    }
+    let Some(rho_floor) = rho_floor else {
+        return Err(refuse("no knot span of the net meets the edge's interval"));
+    };
+    Ok((incidence, rho_floor))
+}
+
+/// The stored net's distance from the twin's, control point for control
+/// point: a bound on their distance at every parameter (the partition
+/// of unity over one knot vector and one weight vector).
+fn net_fidelity<T: Real>(net: &NurbsCurve3<T>, twin_net: &NurbsCurve3<T>) -> T {
+    net.control()
+        .iter()
+        .zip(twin_net.control())
+        .fold(T::zero(), |m, (q, p)| m.max(q.distance(*p)))
+}
+
+/// What limb 2's reader ([`crate::pcurve_cache::limb2_offset_sup`]) read
+/// of a carrier's distance from a surface.
+#[derive(Debug)]
+pub(crate) enum Offset<T> {
+    /// A certified upper bound on it over the edge's interval.
+    Bound(T),
+    /// A certified lower bound on it at a break of the composite inside
+    /// the edge's interval, past the band's zero, and the upper bound
+    /// over the interval read on the same parts.
+    Miss {
+        floor: T,
+        bound: Result<T, PcurveCertifyError>,
+    },
+}
+
+impl<T: geom_core::CertifiedEnclosure> Offset<T> {
+    /// The upper bound's upper end, NaN where none was read or the bound
+    /// does not certify: at an enclosure scalar limb 2 decides this end
+    /// ([`crate::pcurve_cache::limb2_offset_sup`]), so a refused bound
+    /// stalls the limb rather than passing on its ordinary ends.
+    pub(crate) fn upper(&self) -> f64 {
+        match self {
+            Self::Bound(b) | Self::Miss { bound: Ok(b), .. } => {
+                b.certified_bracket().map_or(f64::NAN, |(_, hi)| hi)
+            }
+            Self::Miss { bound: Err(_), .. } => f64::NAN,
+        }
+    }
+}
+
+/// The carrier's own size in the frame a round's composite read it in
+/// ([`crate::carrier_net::CarrierNet::width`] and `extent`), in metres.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NetSize {
+    /// The widest enclosure among the net's controls.
+    pub(crate) width: f64,
+    /// The width no halving removes
+    /// ([`crate::carrier_net::CarrierNet::rounding`]).
+    pub(crate) rounding: f64,
+    /// The diagonal of the net's control box.
+    pub(crate) extent: f64,
+}
+
+/// [`Offset`] and the size of the net the rounds stopped on.
+#[derive(Debug)]
+pub(crate) struct OffsetRead<T> {
+    /// The reading.
+    pub(crate) offset: Offset<T>,
+    /// The net it was read on.
+    pub(crate) size: NetSize,
+    /// The upper bound's upper end in metres, for the refusal's payload
+    /// and story (`limb2_offset_sup` fills it at a bracket scalar); NaN
+    /// where none was read.
+    pub(crate) upper: f64,
+    /// The certified lower bound at the break the rounds stopped on,
+    /// in metres ([`Offset::Miss`]'s `floor`); `0` where they stopped
+    /// on the bound.
+    pub(crate) floor: f64,
+    /// Where the reading did not clear the band, on the carrier's
+    /// parameter: on an [`Offset::Miss`] the break it stopped on, as a
+    /// point, always the first entry; then every part whose bound does
+    /// not clear. A selection of where a search refines, never a
+    /// decision.
+    pub(crate) uncleared: Vec<crate::ssi::certify::RefusedSpan>,
+}
+
+/// How far above the net's rounding limb 2's bound may lie and still be
+/// at the floor its rounds stop at, and how far above the band's zero
+/// that rounding must itself lie ([`round_floored`]): an order of
+/// magnitude, the composite's arithmetic adding a few roundings at the
+/// net's scale to the net's own. It is the stop's own constant, not
+/// [`crate::KERNEL_LIMIT_ROUNDING_FACTOR`], which reads a stopped bound
+/// against the net's whole width for the kernel limit's story.
+pub(crate) const ROUND_FLOOR_FACTOR: f64 = 16.0;
+
+/// **Limb 2's round stop** ([`offset_rounds`]): a round whose bound
+/// `sup` is within [`ROUND_FLOOR_FACTOR`] of the net's `rounding`, that
+/// rounding itself that factor above the band's zero, and the bound not
+/// halved since the round `before` it, is at its floor — no halving
+/// takes it lower. The first round, with no `before`, never is.
+///
+/// **The rounding is the whole net's, the bound the window's.** The net
+/// reports one rounding, the widest control over every part
+/// ([`NetSize::rounding`]), and a window reading parts whose own
+/// rounding is finer can be stopped while its bound would still fall.
+/// That costs liveness and never soundness: the stop only ends the
+/// rounds, and the limb reads the lowest hull any round reached exactly
+/// as the crate's other stops do (`crate::ssi::certify::subdivide_until`),
+/// so an early stop refuses a bound a later round might have cleared and
+/// passes none it would not. The halving clause keeps a bound still
+/// falling twofold a round going whatever the rounding says. A
+/// per-part rounding would need the net to carry one per part, which it
+/// does not.
+pub(crate) fn round_floored(sup: f64, before: Option<f64>, rounding: f64, band: Band) -> bool {
+    let slowed = before.is_some_and(|b| sup > 0.5 * b);
+    slowed && sup <= ROUND_FLOOR_FACTOR * rounding && rounding >= ROUND_FLOOR_FACTOR * band.zero()
+}
+
+/// Limb 2's rounds over a carrier's composite, read on the parts the
+/// edge's `window` overlaps: `hull` composes the carrier's twin with
+/// its parts cut at a round's breaks and says the size of the net it
+/// read, and the rounds halve as
+/// [`crate::pcurve_cache::limb2_offset_sup`]'s docs say, stopping
+/// ([`round_floored`]) once the bound is within [`ROUND_FLOOR_FACTOR`]
+/// of the net's rounding ([`NetSize::rounding`]), that rounding itself
+/// that factor above the band's zero, and the last round did not halve it: a
+/// bound held up by the carrier's own data (at a family scalar, its
+/// spread over the box) far above the band stops falling there, and
+/// the rounds past it buy nothing. A rounding near the band leaves the
+/// rounds on, since the bound may still fall the little way the band
+/// asks. The rounding alone is no floor — it is
+/// the widest control over every channel, and the distance may read a
+/// channel far sharper, as at a far placement whose length rounds wide
+/// along the carrier — so a bound still falling at least twofold a
+/// round goes on, near the rounding or below it. The bound is decided on [`net_incidence`] over the parts
+/// the rounds stopped on.
+pub(crate) fn offset_rounds<T: Decide>(
+    hull: impl Fn(&[f64]) -> Result<(ProjectedHull, NetSize), PcurveCertifyError>,
+    window: (T, T),
+    locus: Locus,
+    twin: &Surface<T>,
+    band: Band,
+) -> Result<OffsetRead<T>, PcurveCertifyError> {
+    use crate::ssi::certify::{Hull, Subdivided, subdivide_until};
+    let round = |cuts: &[f64]| {
+        let (hull, size) = hull(cuts)?;
+        read_round(hull, size, window)
+    };
+    // The stored carrier is the net itself, so the radial floor's
+    // fidelity term is zero; limb 2 reads the incidence alone.
+    let bound = |hull: &ProjectedHull| {
+        net_incidence(hull, window, locus, twin, T::zero(), band, true)
+            .map(|(incidence, _)| incidence)
+    };
+    // The last round's bound, replaced on every call before the stop
+    // reads it. `subdivide_until` asks the stop after its other
+    // exhaustions (`||`), so a round it does not ask about is one that
+    // ends the rounds anyway — nothing left to halve, or a NaN bound —
+    // and no later round reads a `before` that skipped one.
+    let last = core::cell::Cell::new(None::<f64>);
+    let floored = |h: &Hull<(ProjectedHull, NetSize)>| {
+        let before = last.replace(Some(h.sup));
+        round_floored(h.sup, before, h.data.1.rounding, band)
+    };
+    Ok(match subdivide_until(round, band, floored)? {
+        Subdivided::Bound(hull) => {
+            let mut uncleared = Vec::new();
+            hull.uncleared(band, &mut uncleared);
+            OffsetRead {
+                offset: Offset::Bound(bound(&hull.data.0)?),
+                size: hull.data.1,
+                upper: f64::NAN,
+                floor: 0.0,
+                uncleared,
+            }
+        }
+        Subdivided::Value { hull, at, floor } => {
+            let mut uncleared = vec![crate::ssi::certify::RefusedSpan { lo: at, hi: at }];
+            hull.uncleared(band, &mut uncleared);
+            OffsetRead {
+                offset: Offset::Miss {
+                    floor: T::from_computed(floor),
+                    bound: bound(&hull.data.0),
+                },
+                size: hull.data.1,
+                upper: f64::NAN,
+                floor,
+                uncleared,
+            }
+        }
+    })
+}
+
+/// **Limb 2 on one composite, where it clears** — the first round of
+/// [`offset_rounds`] alone: `Some` with the reading [`offset_rounds`]
+/// gives a round that clears the band, decided on the same
+/// [`net_incidence`]; `None` where the bound does not clear, so the
+/// caller's full rounds decide.
+///
+/// # Errors
+///
+/// As [`net_incidence`] over a round that clears.
+pub(crate) fn offset_cleared<T: Decide>(
+    hull: ProjectedHull,
+    size: NetSize,
+    window: (T, T),
+    locus: Locus,
+    twin: &Surface<T>,
+    band: Band,
+) -> Result<Option<OffsetRead<T>>, PcurveCertifyError> {
+    let round = read_round(hull, size, window)?;
+    if !crate::ssi::certify::clears(round.sup, band) {
+        return Ok(None);
+    }
+    let (hull, size) = round.data;
+    let (incidence, _) = net_incidence(&hull, window, locus, twin, T::zero(), band, true)?;
+    Ok(Some(OffsetRead {
+        offset: Offset::Bound(incidence),
+        size,
+        upper: f64::NAN,
+        floor: 0.0,
+        uncleared: Vec::new(),
+    }))
+}
+
+/// One round of limb 2 read on the parts `window` overlaps: its bound,
+/// its breaks and floors there, and its work over the whole composite.
+fn read_round<T: Decide>(
+    hull: ProjectedHull,
+    size: NetSize,
+    window: (T, T),
+) -> Result<crate::ssi::certify::Hull<(ProjectedHull, NetSize)>, PcurveCertifyError> {
+    use crate::ssi::certify::Hull;
+    let Window { parts, inside } = window_of(&hull, window)?;
+    let read = &hull.spans[parts.clone()];
+    let spans: Vec<f64> = read.iter().map(|s| s.meters).collect();
+    let floor = |k: usize| {
+        if !inside.contains(&k) {
+            return 0.0;
+        }
+        let before = k.checked_sub(1).and_then(|i| hull.spans.get(i));
+        let after = hull.spans.get(k);
+        before
+            .map_or(0.0, |s| s.floors.1)
+            .max(after.map_or(0.0, |s| s.floors.0))
+    };
+    Ok(Hull {
+        // A refused part refuses the bound.
+        sup: spans.iter().copied().fold(0.0, crate::carrier_net::widest),
+        breaks: read
+            .iter()
+            .map(|s| s.range.0)
+            .chain(read.last().map(|s| s.range.1))
+            .collect(),
+        floors: (*parts.start()..=*parts.end() + 1).map(floor).collect(),
+        spans,
+        // The composite reads the whole carrier, whatever the
+        // window reads.
+        work: hull.spans.len(),
+        data: (hull, size),
+    })
+}
+
+/// **The sup of `|f|` along a segment for a chart's quadratic form**
+/// `f = Q(q) − c`, `Q` a quadratic form, from `f0 = f(q0)`, `f1 = f(q1)`
+/// and `chord = Q(q1 − q0)`: along the segment `f` is a quadratic in the
+/// segment's parameter whose Bernstein coefficients are `f0`, `f1` and
+/// the middle one `B(q0, q1) − c = (f0 + f1 − chord)/2` (`B` the form's
+/// polar), so `|f|` is at most their largest magnitude, plus the
+/// rounding the three carry ([`geom_core::rounding_charge`] of `terms`,
+/// a bound on every magnitude they are built from). Every operation is
+/// outward-rounded at `Interval`.
+fn segment_form_sup<T: Real>(f0: T, f1: T, chord: T, terms: T) -> T {
+    let middle = (f0 + f1 - chord) * T::from_f64(0.5);
+    let big = f0.abs().max(f1.abs()).max(middle.abs());
+    #[cfg(test)]
+    let big = super::mutants::segment_form_ends(f0, f1, middle).unwrap_or(big);
+    big + geom_core::rounding_charge(terms)
+}
+
+/// **The sup of the distance from a cylinder of radius `r` (in its own
+/// canonical frame, axis `z`) of the segment from `q0` to `q1`**: the
+/// line's incidence term. The cylinder's form `f = ρ² − r²`, written
+/// `(ρ − r)(ρ + r)` at the ends, with `Q` the `x`, `y` square, is bounded
+/// by [`segment_form_sup`] at `F`. Then `|ρ − r| = |f|/(ρ + r)` with
+/// `ρ ≥ r − F/r`, the cylinder's metre conversion ([`Meters::over`]) with
+/// no floor on `ρ`. The bound holds for every segment whose ends lie in
+/// the enclosures `q0`, `q1`.
+pub(crate) fn line_off_cylinder_sup<T: Real>(q0: Vec3<T>, q1: Vec3<T>, r: T) -> T {
+    let radial_sq = |q: Vec3<T>| q.x.powi(2) + q.y.powi(2);
+    let form = |q: Vec3<T>| {
+        let rho = radial_sq(q).sqrt();
+        (rho - r) * (rho + r)
+    };
+    let chord = (q1.x - q0.x).powi(2) + (q1.y - q0.y).powi(2);
+    let terms = radial_sq(q0) + radial_sq(q1) + r.powi(2) + chord;
+    let big = segment_form_sup(form(q0), form(q1), chord, terms);
+    let Ok(sup) =
+        Meters::Cylinder { radius: r }.over(big, (T::zero(), T::zero()), (0.0, 0.0), |x, _| {
+            Ok::<T, core::convert::Infallible>(x)
+        });
+    sup
+}
+
+/// **A bound on the cone's form `|f|` along the segment from `q0` to
+/// `q1`** (in its canonical frame, apex at the origin, axis `z`), the
+/// half-angle's `sin α` and `cos α` given: `f = ρ²·cos²α − z²·sin²α`,
+/// written `(ρ cos α − z sin α)(ρ cos α + z sin α)` at the ends, bounded
+/// by [`segment_form_sup`]. The projected row converts it to metres on
+/// its own floors ([`Meters::over_at`]).
+pub(crate) fn line_off_cone_form<T: Real>(q0: Vec3<T>, q1: Vec3<T>, sin: T, cos: T) -> T {
+    let form = |q: Vec3<T>| {
+        let rho = (q.x.powi(2) + q.y.powi(2)).sqrt();
+        (rho * cos - q.z * sin) * (rho * cos + q.z * sin)
+    };
+    let dq = q1 - q0;
+    let chord = (dq.x.powi(2) + dq.y.powi(2)) * cos.powi(2) - dq.z.powi(2) * sin.powi(2);
+    let terms = q0.norm_squared() + q1.norm_squared() + dq.norm_squared();
+    segment_form_sup(form(q0), form(q1), chord, terms)
+}
+
+/// The stored carrier's radial floor and axial range over the pieces
+/// `met` of `[t0, t1]`, read off each piece's box, each piece's sector
+/// (its azimuth, and on a torus its tube channel) decided first; with
+/// the piece the floor is read at.
+fn met_floors<T: Decide>(
+    image: &ProjectedImage<T>,
+    met: &[usize],
+    (t0, t1): (T, T),
+    band: Band,
+) -> Result<(T, (T, T), usize), PcurveCertifyError> {
+    let mut floors: Option<(T, (T, T), usize)> = None;
+    for &k in met {
+        let b = image.frame_box(k, t0, t1);
+        holds(Margin::of(b.x.0), band, k, SectorChannel::Azimuth)?;
+        if let ProjectedChart::Torus { major } = image.chart {
+            holds(
+                Margin::of(image.tube_box(k, &b, major).0.0),
+                band,
+                k,
+                SectorChannel::Tube,
+            )?;
+        }
+        let rho = ProjectedImage::rho_range(&b).0;
+        floors = Some(match floors {
+            None => (rho, b.z, k),
+            Some((r, (lo, hi), at)) => {
+                let lower = geom_core::k_stats::detached(|| {
+                    positive_as("pcurve_projected_floor_pick", Margin::of(r - rho), band)
+                })
+                .0
+                .unwrap_or(false);
+                (
+                    r.min(rho),
+                    (lo.min(b.z.0), hi.max(b.z.1)),
+                    if lower { k } else { at },
+                )
+            }
+        });
+    }
+    let Some(floors) = floors else {
+        unreachable!("`overlapped` names at least one piece")
+    };
+    Ok(floors)
+}
+
+/// The cone's `(σz)_min` over an axial range `(lo, hi)`, on the chart's
+/// nappe, less `d`; `0` off the cone, where it is not read.
+fn axial_less<T: Real>(chart: &ProjectedChart<T>, (lo, hi): (T, T), d: T) -> T {
+    match chart {
+        ProjectedChart::Cone {
+            nappe: Nappe::Mirror,
+            ..
+        } => T::zero() - hi - d,
+        ProjectedChart::Cone { .. } => lo - d,
+        _ => T::zero(),
+    }
+}
+
+/// [`Meters::over_at`] of a closed-form carrier's `|f|` bound `f`, its
+/// lever decided positive (check 4's sector refusal at `part`
+/// otherwise).
+fn closed_form_meters<T: Decide>(
+    meters: Meters<T>,
+    f: T,
+    (rho, axial): (T, T),
+    part: usize,
+    band: Band,
+) -> Result<T, PcurveCertifyError> {
+    meters.over_at(f, (rho, rho), axial, (0.0, 0.0), |lever, _| {
+        require_positive_as(
+            "pcurve_projected_lever",
+            lever,
+            band,
+            PcurveCheck::Sector,
+            part,
+            sector_refused(part, SectorChannel::Lever),
+        )
+    })
+}
+
+/// **A line's incidence on a cone**, part by part of the twin's segment
+/// from `q0` to `q1`: [`line_off_cone_form`] converted on each part's own
+/// floors (its ends bound its box). The cone's lever `ρ cos α + σz sin α`
+/// grows along a ruling from the apex, and one conversion over a part
+/// over-reads its miss by the lever's spread over it, so the segment
+/// starts as [`INCIDENCE_CUTS`] parts and a part whose lever's ceiling is
+/// past [`LEVER_SPREAD`] times its floor is halved, a selection read off
+/// the lever's ends with nothing recorded. A part still spread after
+/// [`LEVER_DEPTH`] halvings reaches toward the apex: the pose's lever
+/// refusal ([`SectorChannel::Lever`]), at the image's piece that holds
+/// the part (`piece_of`, read off the part's fractions `(s_a, s_b)` of the
+/// segment, which is affine in `t`; a part is the conversion's, not the
+/// image's), and so is a lever not shown positive on a part.
+fn line_off_cone_sup<T: Decide>(
+    meters: Meters<T>,
+    (sin, cos): (T, T),
+    chart: &ProjectedChart<T>,
+    (q0, q1): (Vec3<T>, Vec3<T>),
+    piece_of: impl Fn(T, T) -> usize,
+    band: Band,
+) -> Result<T, PcurveCertifyError> {
+    let floors = |qa: Vec3<T>, qb: Vec3<T>| {
+        let b = FrameBox {
+            x: (qa.x.min(qb.x), qa.x.max(qb.x)),
+            y: (qa.y.min(qb.y), qa.y.max(qb.y)),
+            z: (qa.z.min(qb.z), qa.z.max(qb.z)),
+            rho: None,
+        };
+        let (rho_lo, rho_hi) = ProjectedImage::rho_range(&b);
+        // `(σz)`'s floor and ceiling over the part, on the chart's nappe.
+        let (lo, hi) = match chart {
+            ProjectedChart::Cone {
+                nappe: Nappe::Mirror,
+                ..
+            } => (T::zero() - b.z.1, T::zero() - b.z.0),
+            _ => b.z,
+        };
+        ((rho_lo, lo), rho_hi * cos + hi * sin)
+    };
+    // The spread read as a ratio, `(ceiling − SPREAD·floor)/ceiling`,
+    // whose size (an eighth where it matters) the band decides at any
+    // scale of lever; a ceiling not shown positive, or a ratio in band,
+    // reads as spread (a halving only tightens the conversion).
+    let spread = |(rho, axial): (T, T), ceiling: T| {
+        let floor = rho * cos + axial * sin;
+        geom_core::k_stats::detached(|| {
+            Ok::<bool, Indeterminate>(
+                !positive_as("pcurve_projected_lever_ceiling", Margin::of(ceiling), band)?
+                    || positive_as(
+                        "pcurve_projected_lever_spread_ratio",
+                        Margin::of((ceiling - floor * T::from_f64(LEVER_SPREAD)) / ceiling),
+                        band,
+                    )?,
+            )
+        })
+        .0
+        .unwrap_or(true)
+    };
+    let cuts = u32::try_from(INCIDENCE_CUTS).unwrap_or(u32::MAX);
+    let cut = |k: u32| T::from_f64(f64::from(k) / f64::from(cuts));
+    let at = |s: T| q0 + (q1 - q0) * s;
+    let parts = (0..cuts).map(|k| (cut(k), cut(k + 1), 0u32));
+    let mut sup = T::zero();
+    let mut reads = Budget::implied_by_depth(cuts as usize, LEVER_DEPTH);
+    let walked = bisect_within(parts, &mut reads, |(sa, sb, depth)| {
+        let (qa, qb) = (at(sa), at(sb));
+        let (lo, ceiling) = floors(qa, qb);
+        if spread(lo, ceiling) {
+            if depth == LEVER_DEPTH {
+                return Step::Stop(sector_refused(piece_of(sa, sb), SectorChannel::Lever));
+            }
+            let mid = geom::bracket_mid((sa, sb));
+            return Step::Halve([(sa, mid, depth + 1), (mid, sb, depth + 1)]);
+        }
+        match closed_form_meters(
+            meters,
+            line_off_cone_form(qa, qb, sin, cos),
+            lo,
+            piece_of(sa, sb),
+            band,
+        ) {
+            Ok(part) => {
+                sup = sup.max(part);
+                Step::Settled
+            }
+            Err(e) => Step::Stop(e),
+        }
+    });
+    match walked {
+        Ok(None) => Ok(sup),
+        Ok(Some(e)) => Err(e),
+        Err(Exhausted) => unreachable!("a lever walk spends its depth before its reads"),
+    }
+}
+
+/// The spread of the cone's lever over a part past which
+/// [`line_off_cone_sup`] halves it: the conversion over-reads a part's
+/// miss by at most this factor.
+const LEVER_SPREAD: f64 = 1.125;
+
+/// The halvings [`line_off_cone_sup`] spends on a part before the part
+/// is read as reaching the apex: `2⁻²⁴` of an [`INCIDENCE_CUTS`] part.
+const LEVER_DEPTH: u32 = 24;
+
+/// Check 4 of a projected row (module docs): the envelope's terms, with
+/// the sector condition decided first, each over the pieces `[t0, t1]`
+/// overlaps. `boxed` is the row's chart box over `[t0, t1]`. A curved
+/// chart's net reads its incidence with each knot span in the parts
+/// `parts` reads it in; every other row reads no parts.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub(super) fn projected_envelope<T: Decide>(
+    image: &ProjectedImage<T>,
+    t0: T,
+    t1: T,
+    boxed: &ChartWindow<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+    lane: Option<impl crate::FittedLaneOf<T>>,
+    parts: super::Parts,
+) -> Result<(EnvelopeTerms<T>, super::ImageName), PcurveCertifyError> {
+    let mut terms = EnvelopeTerms::new();
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    // ---- The plane: the mapped net's difference, exactly. ----
+    if let Surface::Plane { frame } = *surface {
+        let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        let (FramedCarrier::Net(net), Curve3::Nurbs(c)) = (&image.carrier, carrier) else {
+            return Err(refuse(
+                "a plane's projected image is a spline carrier's net",
+            ));
+        };
+        // `S(P(t)) − C(t)` is affine in the image's net and linear in
+        // the carrier's, over one knot vector and one weight vector, so
+        // it is `Σ Rᵢ(t)·Δᵢ` and its sup is at most `max |Δᵢ|`.
+        let v_ref = normal.cross(u_ref);
+        let sup = net
+            .control()
+            .iter()
+            .zip(c.control())
+            .fold(T::zero(), |m, (q, p)| {
+                let mapped = origin
+                    + u_ref * (image.u_off + q.x)
+                    + v_ref * (image.v_off + image.v_sign * q.y);
+                m.max(mapped.distance(*p))
+            });
+        terms.add(EnvelopeTerm::Incidence, sup);
+        return Ok((terms, super::ImageName::Derived));
+    }
+    if let Surface::Spindle { .. } = surface {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        });
+    }
+    let twin = super::orthonormal_chart(surface);
+    let Some((o, e)) = chart_frame(&twin) else {
+        unreachable!("an analytic chart has a frame")
+    };
+    terms.add(
+        EnvelopeTerm::Frame,
+        super::frame_defect(surface, boxed.v_reach()),
+    );
+    let reach = |x: T| {
+        require_positive_as(
+            "pcurve_projected_reach",
+            x,
+            band,
+            PcurveCheck::EnvelopeTerm(EnvelopeTerm::Fidelity),
+            0,
+            PcurveCertifyError::ResidualExceeded {
+                check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::Fidelity),
+                sample: 0,
+            },
+        )
+    };
+    let Some((lo, hi)) = image.overlapped(t0, t1) else {
+        return Err(refuse(
+            "an end of the interval is poison and meets no piece",
+        ));
+    };
+    let met: Vec<usize> = (lo..=hi).collect();
+    // ---- Incidence, raw fidelity and the radial floor. ----
+    let (incidence, d, rho_floor) = match (&image.carrier, carrier) {
+        (FramedCarrier::Net(net), Curve3::Nurbs(c)) => {
+            let twin_net = framed_net(c, o, &e);
+            let d = net_fidelity(net, &twin_net);
+            let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
+            let hull = lane.projected_hull(image, &twin_net, &twin, parts, &[])?;
+            for &k in &met {
+                hull_sector::<T>(&hull.pieces[k], k, &image.chart, band)?;
+            }
+            let (incidence, rho_floor) =
+                net_incidence(&hull, (t0, t1), image.chart.locus(), &twin, d, band, false)?;
+            (incidence, d, rho_floor)
+        }
+        (FramedCarrier::Conic { centre, a, b, .. }, Curve3::Circle(..) | Curve3::Ellipse(..)) => {
+            let Some(form) = super::carrier_harmonic(carrier) else {
+                unreachable!("a conic has a harmonic form")
+            };
+            let (Some(Lane::Conic), Some(conic), Some(meters)) = (
+                lane_of(carrier, &twin),
+                carrier.conic(),
+                Meters::of(&twin, image.chart.locus(), |x| x),
+            ) else {
+                return Err(refuse(
+                    "a conic's projected image is written for a sphere, cylinder, cone or torus",
+                ));
+            };
+            let (tc, ta, tb) = (
+                to_frame(form.c - o, &e),
+                to_frame(form.a, &e),
+                to_frame(form.b, &e),
+            );
+            // `Δc + Δa·cos t + Δb·sin t`: the centre's gap and the pair's
+            // exact sup.
+            let d = (*centre - tc).norm() + harmonic_sup(*a - ta, *b - tb);
+            // The twin's radial floor: the stored pieces' boxes' less
+            // `d`, or the whole conic's (a quarter piece's box may hold
+            // the axis). Every point of the segment between the stored
+            // conic and its twin is within `d` of either.
+            let (rho_box, z, floor_at) = met_floors(image, &met, (t0, t1), band)?;
+            let rho_twin = (rho_box - d).max(crate::implicit::conic_axis_distance_floor(
+                conic,
+                geom::Line {
+                    origin: o,
+                    dir: e[2],
+                },
+            ));
+            let rho_floor = (rho_twin - d).max(T::zero());
+            let Some(form_sup) = crate::implicit::conic_form_sup(&twin, conic) else {
+                return Err(refuse("the conic's chart has no form along it"));
+            };
+            let f = form_sup.bound();
+            #[cfg(test)]
+            let f = super::mutants::form_uncharged(form_sup.harmonics).unwrap_or(f);
+            // The sphere's conversion reads `|ξ|`, which the axis floor
+            // also bounds; it is read at `0`, its whole-turn form.
+            let rho = match meters {
+                Meters::Sphere { .. } => T::zero(),
+                _ => rho_twin,
+            };
+            let incidence = closed_form_meters(
+                meters,
+                f,
+                (rho, axial_less(&image.chart, z, d)),
+                floor_at,
+                band,
+            )?;
+            #[cfg(test)]
+            let incidence = super::mutants::circle_incidence(surface).unwrap_or(incidence);
+            (incidence, d, rho_floor)
+        }
+        (
+            &FramedCarrier::Line { point, dir, .. },
+            &Curve3::Line(geom::Line {
+                origin: at0,
+                dir: along,
+            }),
+        ) => {
+            let Some(Lane::Line(chart)) = lane_of(carrier, &twin) else {
+                return Err(refuse(
+                    "a line's projected image is written for a cylinder or a cone",
+                ));
+            };
+            let (rho_lo, _, _) = met_floors(image, &met, (t0, t1), band)?;
+            let (p, l) = (to_frame(at0 - o, &e), to_frame(along, &e));
+            // The stored line's gap from the re-derived one is affine in
+            // `t`, so its sup over the edge is at an end.
+            let gap = |t: T| (point - p + (dir - l) * t).norm();
+            let d = gap(t0).max(gap(t1));
+            let rho_floor = (rho_lo - d).max(T::zero());
+            let incidence = match chart {
+                LineChart::Cylinder { radius } => {
+                    line_off_cylinder_sup(p + l * t0, p + l * t1, radius)
+                }
+                // The cone's lever grows along a ruling from the apex, so
+                // `|f|` is converted per part of the edge, on the part's
+                // own floors: the twin's segment there, whose ends bound
+                // its box.
+                LineChart::Cone { sin, cos } => {
+                    let Some(meters @ Meters::Cone { .. }) =
+                        Meters::of(&twin, image.chart.locus(), |x| x)
+                    else {
+                        return Err(refuse(
+                            "the image's inverse is written for another chart kind",
+                        ));
+                    };
+                    line_off_cone_sup(
+                        meters,
+                        (sin, cos),
+                        &image.chart,
+                        (p + l * t0, p + l * t1),
+                        |sa, sb| {
+                            let t = |s: T| t0 + (t1 - t0) * s;
+                            image
+                                .overlapped(t(sa), t(sb))
+                                .map_or(lo, |(first, _)| first)
+                        },
+                        band,
+                    )?
+                }
+            };
+            (incidence, d, rho_floor)
+        }
+        _ => return Err(refuse("the stored carrier is not the edge's carrier kind")),
+    };
+    let (u_arm, v_arm) = match *surface {
+        Surface::Plane { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => {
+            unreachable!(
+                "the plane and the spindle return before the arms, and check 1 refuses a spline \
+                 chart"
+            )
+        }
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => super::chart_sup_arms_at(surface, boxed)?,
+    };
+    // Consecutive branch centres on one branch: each piece holds its
+    // sector at the break it shares with the next, so their centres are
+    // at most a quarter turn apart on one branch, and a whole period or
+    // more apart on two.
+    for w in met.windows(2) {
+        let (i, j) = (w[0], w[1]);
+        for angles in [&image.azimuth, &image.tube] {
+            if let (Some(&x), Some(&y)) = (angles.get(i), angles.get(j))
+                && (y.0 - x.0).abs() > 1
+            {
+                return Err(sector_refused(j, SectorChannel::Branch));
+            }
+        }
+    }
+    terms.add(EnvelopeTerm::Incidence, incidence);
+    // ---- Fidelity: the stored carrier through N's Lipschitz bound. ----
+    let lipschitz = match *surface {
+        Surface::Cylinder { radius, .. } => (radius / reach(radius - incidence - d)?).max(T::one()),
+        Surface::Sphere { radius, .. } => radius / reach(radius - incidence - d)?,
+        Surface::Cone { half_angle, .. } => {
+            T::one() + (boxed.v_reach() + d) * half_angle.sin().abs() / reach(rho_floor)?
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            (major_radius + minor_radius) / reach(major_radius - minor_radius - incidence - d)?
+                + minor_radius / reach(minor_radius - incidence - d)?
+        }
+        Surface::Plane { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => {
+            unreachable!(
+                "the plane and the spindle return before the arms, and check 1 refuses a spline \
+                 chart"
+            )
+        }
+    };
+    terms.add(EnvelopeTerm::Fidelity, lipschitz * d);
+    if let Some(pole) = image.pole {
+        terms.add(
+            EnvelopeTerm::Fidelity,
+            pole_term(image, pole, (t0, t1), lipschitz)
+                .ok_or_else(|| refuse("an image with a pole end is a conic's on a sphere chart"))?,
+        );
+    }
+    // ---- The deck map and the chart scalars. ----
+    let twin_deck = match decide("pcurve_projected_v_sign", Margin::of(image.v_sign), band) {
+        Ok(Sign::Positive) => false,
+        Ok(Sign::Negative) if matches!(surface, Surface::Sphere { .. }) => true,
+        Ok(_) => {
+            return Err(refuse(
+                "a reflected image on a curved chart is no deck map of it (only the sphere's twin is)",
+            ));
+        }
+        Err(cause) => {
+            return Err(PcurveCertifyError::Escalated {
+                check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityV),
+                sample: 0,
+                cause,
+            });
+        }
+    };
+    let name = if twin_deck {
+        super::ImageName::Twin
+    } else {
+        super::ImageName::Derived
+    };
+    // The chart's angle channels and their periods, from their one home;
+    // the plane was answered above, so the first channel is an angle.
+    let Some((Some(period_u), period_v)) = surface.angle_periods() else {
+        unreachable!("a curved analytic chart's first channel is an angle")
+    };
+    let (shift, sign) = if twin_deck {
+        (T::pi(), T::zero() - T::one())
+    } else {
+        (T::zero(), T::one())
+    };
+    terms.add(
+        EnvelopeTerm::FidelityU,
+        u_arm.to_meters(off_period(image.u_off, shift, period_u)),
+    );
+    let v_reach = boxed.v_reach();
+    let v_off = match period_v {
+        Some(period) => off_period(image.v_off, shift, period),
+        None => image.v_off.abs(),
+    };
+    terms.add(
+        EnvelopeTerm::FidelityV,
+        v_arm.to_meters(v_off + (image.v_sign - sign).abs() * v_reach),
+    );
+    match (image.chart, &twin) {
+        (ProjectedChart::Cone { sin, cos, .. }, Surface::Cone { half_angle, .. }) => {
+            let (s, c) = half_angle.sin_cos();
+            // The slant direction's radial and axial components moved.
+            let drift = harmonic_sup_scalar(sin - s, cos - c);
+            #[cfg(test)]
+            let drift = super::mutants::cone_drift(sin - s, cos - c).unwrap_or(drift);
+            terms.add(EnvelopeTerm::FidelityV, drift * (v_reach + incidence + d));
+        }
+        (
+            ProjectedChart::Torus { major },
+            Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            },
+        ) => {
+            let core = reach(*minor_radius - incidence - d)?;
+            terms.add(
+                EnvelopeTerm::FidelityV,
+                *minor_radius * (major - *major_radius).abs() / core,
+            );
+        }
+        _ => {}
+    }
+    Ok((terms, name))
+}
+
+/// **The pole term** (module docs, "An end on the pole"): the most the
+/// image's point moves off `N(ξ)` because its azimuth reads the reduced
+/// radial, `2·L·(|r(t_p)| + e·sup|g|)` with `L` the sphere's Lipschitz
+/// bound `r/(r − incidence − d)` (`lipschitz`), `r(t_p)` the stored
+/// conic's radial part at the pole parameter and `e` how far `[t0, t1]`
+/// reaches past the parameters where `2·sin((t − t_p)/2)` keeps the sign
+/// the end gives it (`PoleEnd::reach_past`). `None` on any other carrier
+/// or chart.
+///
+/// At `t` the image's point and `N(ξ(t))` share their latitude, so they lie
+/// on one circle of radius `ρ_N = r·|r(t)|/|ξ(t)| ≤ L·|r(t)|`, and their
+/// distance is `ρ_N·|r̂ − ĝ|`. Write `r = r(t_p) + q`, `q = 2·sin((t −
+/// t_p)/2)·g`. Where the sine has its sign `q` points along `ĝ`, and
+/// `|r̂ − q̂| ≤ 2·|r − q|/|r| = 2·|r(t_p)|/|r|`, so the distance is at
+/// most `2·L·|r(t_p)|`. Elsewhere `|r̂ − ĝ| ≤ 2` and `|r| ≤ |r(t_p)| +
+/// |q|` with `|q| ≤ |t − t_p|_out·sup|g|`, the parameter's excess past the
+/// range, so it is at most `2·L·(|r(t_p)| + e·sup|g|)`. Both cases are
+/// under that one bound.
+fn pole_term<T: Decide>(
+    image: &ProjectedImage<T>,
+    pole: PoleEnd<T>,
+    (t0, t1): (T, T),
+    lipschitz: T,
+) -> Option<T> {
+    let (FramedCarrier::Conic { centre, a, b, .. }, ProjectedChart::Sphere) =
+        (&image.carrier, &image.chart)
+    else {
+        return None;
+    };
+    let (s, c) = pole.at.sin_cos();
+    let miss = radial_of(*centre + *a * c + *b * s).norm();
+    let (big_a, big_b) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
+    let sup_g = harmonic_sup(in_frame(big_a), in_frame(big_b));
+    let excess = pole.reach_past((t0, t1));
+    Some(T::from_f64(2.0) * lipschitz * (miss + excess * sup_g))
+}
+
+/// Check 4's terms of a projected `pcurve` over `[t0, t1]`
+/// ([`projected_envelope`], its spans read in `parts`), with the row's
+/// placement pair
+/// (`super::placement_terms`): the projected envelope reads the image
+/// through the chart's periodic map, so it cannot see a whole period of
+/// either channel. The terms' total is what check 4 decides.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn check_4_terms<T: Decide>(
+    pcurve: &super::Pcurve<T>,
+    (t0, t1): (T, T),
+    boxed: &ChartWindow<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+    lane: Option<impl crate::FittedLaneOf<T>>,
+    parts: super::Parts,
+) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
+    let super::Pcurve::Projected(image) = pcurve else {
+        unreachable!("check_4_terms: every caller holds a projected image")
+    };
+    let (mut terms, name) =
+        projected_envelope(image, t0, t1, boxed, carrier, surface, band, lane, parts)?;
+    let (fu, fv) = super::placement_terms(pcurve, name, (t0, t1), carrier, surface, band)?;
+    terms.add(EnvelopeTerm::FidelityU, fu);
+    terms.add(EnvelopeTerm::FidelityV, fv);
+    Ok(terms)
+}
+
+/// The four checks of a projected row, in the fixed order every lane
+/// keeps: the lane and its structure; the interval and the period
+/// headroom; the schedule, as the envelope's cross-check on the witness
+/// lane; and the envelope, which is the whole certified statement.
+///
+/// `lane` is read by a net's row only, at check 4: its hull terms are
+/// certification arithmetic.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub(super) fn run_projected_checks<T: Decide>(
+    pcurve: &Pcurve<T>,
+    t0: T,
+    t1: T,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+    lane: Option<impl crate::FittedLaneOf<T>>,
+) -> Result<super::PcurveCertificate<T>, PcurveCertifyError> {
+    use super::{EnvelopeStatement, Record};
+    let Pcurve::Projected(image) = pcurve else {
+        unreachable!("run_projected_checks: every caller matches `Pcurve::Projected` to reach it")
+    };
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    // ---- Check 1: the lane and the stored structure. ----
+    if surface.is_placeholder_chart() {
+        return Err(PcurveCertifyError::PlaceholderChart);
+    }
+    if !crate::edge_nurbs::is_analytic(surface) {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        });
+    }
+    if image.chart.kind() != surface.kind() {
+        return Err(refuse(
+            "the image's inverse is written for another chart kind",
+        ));
+    }
+    let pieces = image.pieces();
+    let curved = !matches!(image.chart, ProjectedChart::Plane);
+    if curved
+        && (image.azimuth.len() != pieces
+            || image.tube.len()
+                != if matches!(image.chart, ProjectedChart::Torus { .. }) {
+                    pieces
+                } else {
+                    0
+                })
+    {
+        return Err(refuse("the image's branch centres are not one per piece"));
+    }
+    match (&image.carrier, carrier) {
+        (FramedCarrier::Net(net), Curve3::Nurbs(c)) => {
+            // The structure is the carrier's, exactly (C6): one knot
+            // vector and one weight vector, so the stored net and the
+            // carrier's differ control point for control point.
+            if net.knots_f64_interim() != c.knots_f64_interim()
+                || net.weights_f64_interim() != c.weights_f64_interim()
+            {
+                return Err(refuse(
+                    "the stored net's knots or weights are not the carrier's",
+                ));
+            }
+            let (d0, d1) = net.domain();
+            let b = image.breaks.knots();
+            if b[0] > d0 || b[b.len() - 1] < d1 {
+                return Err(refuse(
+                    "the image's pieces do not cover the carrier's domain",
+                ));
+            }
+            if curved {
+                let kv = net.knots_f64_interim();
+                for k in 0..pieces {
+                    let (a, z) = (b[k + 1], b[k + 2]);
+                    let Some(span) = kv.span_at(geom::mid_param(a, z)) else {
+                        return Err(refuse("a piece of the image has a NaN break"));
+                    };
+                    let j = span.index();
+                    if a < kv.knots()[j] || z > kv.knots()[j + 1] {
+                        return Err(refuse("a piece of the image straddles a knot of the net"));
+                    }
+                }
+            }
+        }
+        (FramedCarrier::Conic { .. }, Curve3::Circle(..) | Curve3::Ellipse(..))
+        | (FramedCarrier::Line { .. }, Curve3::Line(_))
+            if has_lane(carrier, surface) => {}
+        _ => {
+            return Err(refuse(
+                "the stored carrier is not the edge's carrier kind (a spline's net, a circle or \
+                 an ellipse on a curved analytic chart, or a line on a cylinder or a cone)",
+            ));
+        }
+    }
+
+    // ---- Check 2: the parameter interval, and the period headroom. ----
+    let span_escalated = |cause| PcurveCertifyError::Escalated {
+        check: PcurveCheck::ParamSpan,
+        sample: 0,
+        cause,
+    };
+    let rate = super::param_rate_gate(carrier, band).map_err(span_escalated)?;
+    match decide(
+        "pcurve_interval_forward",
+        Margin::metered(t1 - t0, rate),
+        band,
+    )
+    .map_err(span_escalated)?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
+    }
+    let boxed = image.chart_box(t0, t1);
+    if curved {
+        // The period gate reads the sweep on a cover finer than the
+        // pieces (`ProjectedImage::sweep_box`); the arms read the box.
+        // This lane keeps the gate the closed-form lanes dropped: their
+        // span past a period is bounded by the edge certificate's
+        // `interval_span_winding`, which counts a carrier's turns, and a
+        // spline carrier's parameter is no angle, so it has no turns to
+        // count (`work/pcert/projected-period-gate-stands-in-for-a-winding-bound-a-spline-carrier-has-none.md`).
+        //
+        // Each channel's sweep is asked "not over" by the turn rule
+        // ([`Period::not_over`]) at that channel's chart rate: exact where
+        // the chart's stretch in it is constant (a cylinder's azimuth, a
+        // torus's tube), bounded where it varies over the box (the
+        // sphere's, torus's and cone's azimuth: `azimuth_lever_inf` to
+        // the sup arm).
+        let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed)?;
+        let swept = image.sweep_box(t0, t1);
+        let one_turn = Period::angle();
+        let azimuth = Extent::between(swept.u_min, swept.u_max);
+        let not_over = match *surface {
+            Surface::Cylinder { radius, .. } => {
+                one_turn.not_over(PERIOD_EXACT, azimuth, Exact::new(radius), band)
+            }
+            _ => {
+                let inf = super::azimuth_lever_inf(surface, boxed.v_min, boxed.v_max);
+                one_turn.not_over(PERIOD_ROWS, azimuth, Bounded::new(inf, u_arm), band)
+            }
+        };
+        period_gate(
+            not_over,
+            PcurveCheck::AzimuthPeriod,
+            PcurveCertifyError::AzimuthPeriodExceeded,
+        )?;
+        if let Surface::Torus { minor_radius, .. } = *surface {
+            let tube = Extent::between(swept.v_min, swept.v_max);
+            period_gate(
+                one_turn.not_over(PERIOD_EXACT, tube, Exact::new(minor_radius), band),
+                PcurveCheck::TubePeriod,
+                PcurveCertifyError::TubePeriodExceeded,
+            )?;
+        }
+    }
+
+    // ---- Check 3: the schedule, the envelope's cross-check. ----
+    let mut max_residual = T::zero();
+    let samples = match T::WITNESS {
+        geom_core::Witness::Inexact => {
+            super::schedule_residuals(
+                Record::CrossCheck,
+                pcurve,
+                super::Stations::Computed(t0, t1),
+                carrier,
+                surface,
+                band,
+                &mut max_residual,
+            )?;
+            crate::certify::CERT_SAMPLES
+        }
+        geom_core::Witness::Exact => 0,
+    };
+
+    // ---- Check 4: the envelope, the whole certified statement. ----
+    let envelope = |parts| {
+        let terms = check_4_terms(
+            pcurve,
+            (t0, t1),
+            &boxed,
+            carrier,
+            surface,
+            band,
+            lane,
+            parts,
+        )?;
+        let envelope = terms.total();
+        super::envelope_verdict(envelope, band, || {
+            terms
+                .first_over(band)
+                .map_or(PcurveCheck::Envelope, PcurveCheck::EnvelopeTerm)
+        })?;
+        Ok(envelope)
+    };
+    // A curved chart's net, with a fitted door to read it through, is
+    // read first with each knot span in the parts its own turn needs
+    // (`Parts::ByTurn`), its decisions set aside: the k_stats channels
+    // (`k_stats::detached`) and the `Sym` decision logs (`sym::aside`).
+    // Each part's hull bounds `|f|` over the part at any count, so a
+    // first reading whose envelope passes is the check's, and its
+    // decisions are kept. Anything else (a refusal, an escalation, a
+    // sector or lever not shown at its coarser parts) is discarded with
+    // its decisions, and the envelope is read whole again at
+    // `INCIDENCE_CUTS` parts a span, which takes every decision a refusal
+    // rests on. Limb 2's first reading (`limb2_offset_sup`) keeps its
+    // decisions on the trail instead, which is
+    // `work/pcert/limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail.md`.
+    let first = (matches!(image.carrier, FramedCarrier::Net(_)) && curved && lane.is_some())
+        .then(|| {
+            geom_core::sym::aside(|| {
+                geom_core::k_stats::detached(|| envelope(super::Parts::ByTurn))
+            })
+        })
+        .and_then(|((read, recording), sym)| {
+            let kept = read.is_ok();
+            #[cfg(test)]
+            let kept = super::mutants::first_reading_kept(kept).unwrap_or(kept);
+            if kept {
+                geom_core::k_stats::splice(recording);
+                #[cfg(test)]
+                if super::mutants::first_reading_sym_discarded_on_pass() {
+                    sym.discard();
+                    return read.ok();
+                }
+                sym.keep();
+            } else {
+                sym.discard();
+            }
+            read.ok()
+        });
+    let envelope = match first {
+        Some(read) => read,
+        None => envelope(super::Parts::Each(INCIDENCE_CUTS))?,
+    };
+    Ok(super::PcurveCertificate::closed(
+        samples,
+        max_residual,
+        envelope,
+        EnvelopeStatement::MapResidualProjected,
+    ))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::sym::revalue::{record, revalue};
+    use geom_core::sym::with_session;
+    use geom_core::{Sym, SymBudget};
+
+    use super::*;
+
+    type S = Sym<f64>;
+
+    /// The hull's bounds are the `f64` hull walk's, so at `Sym` each
+    /// enters as an unknown and what reads it re-values to nothing; a
+    /// constant would re-value to its own bits. Per site: the sector's
+    /// azimuth and tube channels (`x_lo`, `tube_lo`, decided in that
+    /// order), the plane's incidence (`f_sup`) and Lipschitz floor
+    /// (`rho_lo`), and the cone's axial floor on each nappe (`z`).
+    #[test]
+    fn the_hulls_bounds_enter_as_computed_values() {
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let hull = ProjectedHull {
+            pieces: vec![PieceHull {
+                x_lo: 1.0,
+                tube_lo: 2.0,
+            }],
+            spans: vec![SpanHull {
+                range: (0.0, 1.0),
+                f_sup: 1e-3,
+                rho_lo: 1.0,
+                rho_hi: 2.0,
+                z: (0.5, 2.0),
+                meters: f64::NAN,
+                floors: (0.0, 0.0),
+            }],
+        };
+        let none = |_| None;
+        let ((sector, incidence, floor, z), _) = with_session(budget, || {
+            let torus = ProjectedChart::Torus {
+                major: S::from_f64(1.2),
+            };
+            let ((), decisions) = record(|| {
+                hull_sector::<S>(&hull.pieces[0], 0, &torus, band).expect("both channels hold")
+            });
+            let sector: Vec<_> = decisions
+                .iter()
+                .filter(|d| d.predicate == "pcurve_projected_sector")
+                .map(|d| revalue(d.node, &none))
+                .collect();
+            let plane = Surface::Plane {
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+            }
+            .map_scalar(S::from_f64);
+            let (incidence, floor) = net_incidence(
+                &hull,
+                (S::zero(), S::one()),
+                Locus::Carrier,
+                &plane,
+                S::from_f64(0.25),
+                band,
+                false,
+            )
+            .expect("the plane's part is certified");
+            let z = [Nappe::Opening, Nappe::Mirror].map(|nappe| {
+                revalue(
+                    axial_floor::<S>((0.5, 2.0), Locus::Nappe(nappe)).node(),
+                    &none,
+                )
+            });
+            (
+                sector,
+                revalue(incidence.node(), &none),
+                revalue(floor.node(), &none),
+                z,
+            )
+        });
+        assert_eq!(
+            sector,
+            [None, None],
+            "x_lo (1.0), tube_lo (2.0): the sector's channels"
+        );
+        assert_eq!(incidence, None, "f_sup: the plane's incidence");
+        assert_eq!(floor, None, "rho_lo: the Lipschitz floor");
+        assert_eq!(z, [None, None], "z.0, z.1: the axial floor on each nappe");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod turn_rows;
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod one_reading_rows;
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod old_formula_rows;

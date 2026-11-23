@@ -1,0 +1,276 @@
+//! Scalar lifts of the two geometry enums: **the same curve or
+//! surface, read at another scalar.**
+//!
+//! `DESIGN.md` makes "evaluate the same function with a different
+//! scalar type" the reason the geometry layer is generic over `T`, and
+//! this module holds the ENUM half of that: `Curve3::map_scalar` and
+//! `Surface::map_scalar`, one exhaustive match per enum, the scalar
+//! conversion as the parameter, so a caller never spells the variant
+//! ladder and a variant added to either enum fails to compile here
+//! rather than silently falling to a default arm.
+//!
+//! # Where the rest of the lift lives
+//!
+//! The enum arms delegate to their payloads, and each payload's lift
+//! sits beside its private fields because that is the only place that
+//! can construct it: [`NurbsCurve3::map_scalar`] (and `NurbsCurve2`'s)
+//! in `curves/nurbs.rs`, [`NurbsSurface::map_scalar`] in
+//! `surfaces/nurbs.rs`, [`SurfaceDescription::map_scalar`] and
+//! [`ApproxSurface::map_scalar`] in `surfaces/approx.rs` — each through
+//! a `from_validated_parts` door that takes the count argument below
+//! rather than re-validating. The leaf maps are `geom_core`'s `Point2/3::map`,
+//! `Vec2/3::map`, `Mat3::map` and `Affine3::map`. One name, `map_scalar`
+//! on every geometry type whose fields are all structural and `map` on
+//! every leaf; a reader looking for "where does this crate lift X" finds
+//! it on X. A frame is not such a type: it has two named reads out of
+//! its lane and no lift into one (below).
+//!
+//! # The fallible direction, and where it exists
+//!
+//! A lift can REFUSE where whether a component has an image is decided
+//! by the target scalar's TYPE rather than by any component's value —
+//! the lane → `f64` crossing is the one such caller in the tree. That
+//! direction is named `try_map`: the same structural walk with
+//! `f: Fn(T) -> Result<U, E>`, the first refusal returned and no
+//! component after it consulted.
+//!
+//! **It is deliberately partial, and the convention above does not
+//! promise it everywhere.** `try_map` exists on `Vec3`, `Mat3` and
+//! `Affine3` — whose `map`s are written AS it, so each walk's
+//! component placement is stated once for both directions — and on
+//! `profile`'s `SketchPlane`. The other three leaves (`Point2`,
+//! `Point3`, `Vec2`) and every
+//! `map_scalar` rung have no fallible twin, because nothing has asked
+//! for one. The rule is one name per direction, on the types that have
+//! that direction — not both names on every type; minting the rest
+//! ahead of a consumer is what
+//! `work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`
+//! is measuring.
+//!
+//! # What a lift is, and is not
+//!
+//! A lift is a **structural map** but for one field: every scalar field
+//! goes through `f` (a NURBS payload's control points, weights and held
+//! knots among them), every `f64` structure field (degrees, knot
+//! structure, the weights' value channel, windows, tolerances) is
+//! carried verbatim, and no arithmetic is performed. `f` keeps every
+//! value's point, so the structure carried over is still the lifted
+//! values' value channel. It is therefore exact whenever `f` is —
+//! `Real::from_f64` at every scalar, `Dual::constant` for the dual lanes
+//! — and then a lifted payload with no frame **evaluates to the source**,
+//! bit for bit in a `Dual`'s value channel. The rows named
+//! `described_nurbs_lifts_as_its_payload` in the enum modules' tests pin
+//! exactly that.
+//!
+//! **The field is a carrier's frame** ([`crate::Frame::map_scalar`]). A
+//! frame is a claim, and it has only the two reads out of its lane that
+//! `geom_core`'s `RigidMotion` "Crossing scalars" names: carried as it
+//! is between two scalars of one [`Witness`](geom_core::Witness) kind,
+//! and from `f64` to `Interval` the enclosure, about an ulp per entry,
+//! of the polar factor of its stored entries. Nothing lifts a frame into
+//! `Dual` or `Sym`; a carrier there is minted there. So an `f64` carrier
+//! read at `Interval` is the carrier on that rotation, not a bracket of
+//! the rounded entries.
+//!
+//! # Why a structural map's counts survive it (the one home of this argument)
+//!
+//! Every `from_validated_parts` door in this crate — the curves', the
+//! surface's — skips `new`'s validation, and this is the argument it
+//! skips it on. It is stated here, once, because it is the same
+//! argument in every direction and at every arity; each door's doc
+//! points at this section rather than carrying a copy.
+//!
+//! A door takes parts that are an ALREADY-VALIDATED curve's or
+//! surface's own: the knot vectors carried verbatim or re-domained, and the net and
+//! weight vector under **one structural map**. These shapes qualify,
+//! and the argument covers each of them:
+//!
+//! - **Pointwise** — every control point through a function, the
+//!   weights untouched. A map over a `Vec` cannot change its length.
+//! - **A grid permutation** — the same points and the same weights,
+//!   re-indexed (a transpose, a reversal in one direction). A
+//!   permutation is a bijection of the index set onto itself, so it
+//!   changes neither the length nor the multiset of values.
+//! - **Knots re-expressed on another domain** — the same net and the
+//!   same weights under a knot vector from [`KnotVector::on_domain`],
+//!   which changes neither the degree nor the knot count, so
+//!   [`KnotVector::control_count`] is unchanged.
+//! - **Any composition of those** — a pointwise map after a
+//!   permutation, a re-domained knot vector over a mapped net, and so
+//!   on, since none of them changes either of the two things the checks
+//!   read.
+//!
+//! So `control.len()` still equals the knots' `control_count()` (the
+//! product of the two per-direction counts, for a surface),
+//! `weights.len()` still equals `control.len()`, and no weight VALUE
+//! moved — every weight is still the positive finite number `new`
+//! admitted, and every knot vector is still the one `KnotVector`'s own
+//! constructor accepted.
+//!
+//! **One door is not a structural map: a knot-algebra plan's output**
+//! (the curves' `apply_plans`, the surface's `from_u_columns` after
+//! `map_u_columns`). There the knot vector and the weights are NEW —
+//! the plan's own. Its counts agree by the plan's construction (one
+//! weight per control point of the knot vector it builds), and every
+//! weight it writes passed `geom_core::spline::algebra`'s written-weight
+//! admission, the same regime `new` checks
+//! (`geom_core::spline::weight_in_regime`); a weight outside it refuses
+//! the operation with `KnotAlgebraError::WeightCollapse` before any
+//! curve is built. The `debug_assert` in each door re-derives
+//! the count agreement (D2 addendum row 5: a bug detectable only by
+//! re-derivation).
+//!
+//! **What the door cannot check, and therefore requires of its
+//! caller.** The `debug_assert` reads two LENGTHS. It cannot see
+//! whether the weights rode the SAME permutation as the points, and a
+//! caller that permutes the net one way and the weights another hands
+//! back a net whose every count is right and whose every control point
+//! has the wrong weight. That pairing is the caller's obligation, owed
+//! at the call site; the door states it and trusts it, and the doors'
+//! own rows (the reversal's "the weight rides the same permutation")
+//! are where it is pinned.
+//!
+//! # The NURBS and approximating variants lift their PAYLOAD
+//!
+//! A [`Curve3::Nurbs`] lifts to a [`Curve3::Nurbs`] whose control net
+//! went through `f` ([`NurbsCurve3::map_scalar`]); a [`Surface::Nurbs`]
+//! and a [`Surface::Approx`] likewise ([`NurbsSurface::map_scalar`],
+//! [`ApproxSurface::map_scalar`]). No variant is mapped to the
+//! placeholder: a described surface that came back "no description yet"
+//! after a lift would be a silent substitution, and the whole reason a
+//! lift exists is to evaluate the *same* geometry at another scalar.
+//!
+//! # The placeholder and the poisoned net (the one home of this argument)
+//!
+//! The placeholder is the surface's alone ([`NurbsSurface::placeholder`]);
+//! a curve's net is always described, and a poisoned one lifts to a net
+//! poisoned in the same channels. What the surface placeholder and a
+//! poisoned net lift to follows from the map being structural. The
+//! placeholder's every control point is
+//! all-poison, and every scalar embedding keeps poison (`from_f64(NaN)`
+//! is the interval's poison, `Dual::constant(NaN)` a poisoned dual), so
+//! **the placeholder lifts to the placeholder** — `is_placeholder` is
+//! preserved through the map. A described net carrying poison in some
+//! points lifts to a described net carrying poison in the same points:
+//! **never the benign placeholder**, because the crate docs' rule is
+//! `all`-not-`any` and a map applied pointwise cannot turn some into
+//! all. That rule's own width (which channels `is_placeholder` reads)
+//! is untouched here; the lift neither narrows nor widens it.
+
+use geom_core::Real;
+#[cfg(doc)]
+use geom_core::UnitVec3;
+
+use crate::curves::Curve3;
+use crate::surfaces::Surface;
+
+#[cfg(doc)]
+use crate::curves::NurbsCurve3;
+#[cfg(doc)]
+use crate::surfaces::{ApproxSurface, NurbsSurface, SurfaceDescription};
+#[cfg(doc)]
+use geom_core::KnotVector;
+
+impl<T: Real> Curve3<T> {
+    /// **The same curve at another scalar** (module docs): a frame or a
+    /// direction re-minted there ([`crate::Frame::map_scalar`],
+    /// [`UnitVec3::map_scalar`]), every other analytic field through `f`, the
+    /// NURBS payload through [`NurbsCurve3::map_scalar`]. Poison travels.
+    /// A conic's sizes are rebuilt through its
+    /// constructor ([`crate::Ellipse::new`]), so a lift that makes one
+    /// non-finite or definitely negative panics there.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Curve3<U> {
+        match self {
+            Curve3::Line(crate::Line { origin, dir }) => Curve3::line(origin.map(&f), dir.map(&f)),
+            Curve3::Circle(c) => Curve3::Circle(c.map_scalar(|at| at.map_scalar(&f), &f)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.map_scalar(|at| at.map_scalar(&f), &f)),
+            Curve3::Spiric {
+                frame,
+                major_radius,
+                minor_radius,
+                offset,
+            } => Curve3::Spiric {
+                frame: frame.map_scalar(&f),
+                major_radius: f(*major_radius),
+                minor_radius: f(*minor_radius),
+                offset: f(*offset),
+            },
+            Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
+            Curve3::Periodic(n) => Curve3::Periodic(std::sync::Arc::new(n.map_scalar(&f))),
+        }
+    }
+}
+
+impl<T: Real> Surface<T> {
+    /// **The same surface at another scalar** (module docs): a frame
+    /// re-minted there ([`crate::Frame::map_scalar`]), every other analytic
+    /// field through `f`, the NURBS payload through
+    /// [`NurbsSurface::map_scalar`], the approximating payload through
+    /// [`ApproxSurface::map_scalar`]. Poison travels; the placeholder
+    /// lifts to the placeholder and a described surface to a described
+    /// surface.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Surface<U> {
+        self.map_with(&f, |frame| frame.map_scalar(&f))
+    }
+
+    /// **A test's reading of this surface at another scalar**, its frame
+    /// read by `frame` as the caller states rather than by
+    /// [`crate::Frame::map_scalar`]: a row that samples an enclosure's
+    /// surface at its midpoints, which is no frame read, states the
+    /// frame it samples on (squared from the midpoints at `f64`).
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn map_scalar_on<U: Real>(
+        &self,
+        f: impl Fn(T) -> U,
+        frame: impl Fn(&crate::Frame<T>) -> crate::Frame<U>,
+    ) -> Surface<U> {
+        self.map_with(&f, frame)
+    }
+
+    fn map_with<U: Real>(
+        &self,
+        f: &impl Fn(T) -> U,
+        frame_of: impl Fn(&crate::Frame<T>) -> crate::Frame<U>,
+    ) -> Surface<U> {
+        match self {
+            Surface::Plane { frame } => Surface::Plane {
+                frame: frame_of(frame),
+            },
+            Surface::Cylinder { frame, radius } => Surface::Cylinder {
+                frame: frame_of(frame),
+                radius: f(*radius),
+            },
+            Surface::Cone { frame, half_angle } => Surface::Cone {
+                frame: frame_of(frame),
+                half_angle: f(*half_angle),
+            },
+            Surface::Sphere { frame, radius } => Surface::Sphere {
+                frame: frame_of(frame),
+                radius: f(*radius),
+            },
+            Surface::Torus {
+                frame,
+                major_radius,
+                minor_radius,
+            } => Surface::Torus {
+                frame: frame_of(frame),
+                major_radius: f(*major_radius),
+                minor_radius: f(*minor_radius),
+            },
+            Surface::Spindle {
+                frame,
+                major_radius,
+                minor_radius,
+            } => Surface::Spindle {
+                frame: frame_of(frame),
+                major_radius: f(*major_radius),
+                minor_radius: f(*minor_radius),
+            },
+            Surface::Nurbs(n) => Surface::Nurbs(std::sync::Arc::new(n.map_scalar(f))),
+            Surface::Approx(a) => Surface::Approx(std::sync::Arc::new(a.map_scalar(f))),
+        }
+    }
+}

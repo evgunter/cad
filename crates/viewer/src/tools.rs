@@ -1,0 +1,1265 @@
+//! **The modal tools, and the rule that only one of them is open.**
+//!
+//! Every modal tool here holds picks in tool state and commits exactly
+//! one ACTION — one history state, one undo (G1's preview-vs-commit
+//! rule; the mate tool set the shape and the creation tools took it).
+//! For most tools that action is one `DocEdit`; a declaring boolean's
+//! is two, recorded as one. The placement editor is the exception that
+//! stays open: it places a body, then commits each change live
+//! (`crate::matetool`). They all consume the SAME
+//! selection stream, which is what makes the one-at-a-time rule a rule
+//! rather than a preference: with two open, one click fills a seat in
+//! each, and the picks a user believes they are making are not the
+//! picks the tools hold.
+//!
+//! So the set of tools is ONE value with one door in: [`Tools`] holds
+//! an `Option<OpenTool>`, one variant per kind, so "two tools open" is
+//! not a state the door has to avoid but a state that cannot be
+//! written down. A tool added to the set cannot be forgotten by an
+//! exclusivity rule that no longer exists.
+//!
+//! **The four per-tool rules here are policy and name every tool** —
+//! the pick routing, the survival step, the cursor narrowing, the
+//! close-on-commit edit. The READ door is not one of them: each typed
+//! accessor on [`Tools`] matches its own variant and answers `None` to
+//! every other, which is identity rather than policy, so a new
+//! tool that never gets an accessor compiles clean. [`ToolKind::ALL`]
+//! is not a list a compiler has to be asked to force either: it is
+//! projected from the enum's own declaration by the crate's
+//! `vocabulary!` macro, so a new kind reaches it by construction.
+//! Nothing outside the test suites reads it.
+//!
+//! The value is renderer-free on purpose: the pick routing, the
+//! survival step and the exclusivity are all properties a headless row
+//! asserts, and only the widgets that open and read the tools need a
+//! window.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
+
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Say, Speaker};
+use pncad::select::SplitHalf;
+
+use crate::blend::{BlendEvent, BlendTool};
+use crate::combine::{
+    AssertionEvent, AssertionTool, BooleanTool, MirrorTool, PartTool, PatternTool, PlaneEvent,
+    SplitTool, TransformTool,
+};
+use crate::matetool::{MateTool, MateToolEvent};
+use crate::pickcache::NotIndexed;
+use crate::pickindex::{PickIndex, PickKinds};
+use crate::seats::SeatEvent;
+use crate::session::{PlaceTarget, Selection, SessionOp};
+use crate::vocab::vocabulary;
+
+vocabulary! {
+    /// Which modal tool — the vocabulary the open/close door and every
+    /// notice are addressed in.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum ToolKind {
+        /// The mate tool: two picks, a face, an edge or a vertex each.
+        Mate,
+        /// The boolean tool: any number of bodies for union and
+        /// intersect, two for subtract.
+        Boolean,
+        /// The split tool: a body and its cutting plane's numbers.
+        Split,
+        /// The transform tool: one body or copy picked, which opens the
+        /// placement editor on it ([`MateTool::moving`]).
+        Transform,
+        /// The pattern tool: a body and its rule's numbers.
+        Pattern,
+        /// The blend tool: one body and a SET of its edges.
+        Blend,
+        /// The projection tool (it authors a `Node::Part`): one split or
+        /// one pattern, and which body of it.
+        Part,
+        /// The mirror tool: a body and the plane it is reflected across.
+        Mirror,
+        /// The assertion tool: a claim's two seats, a body or a face
+        /// each, and the measure it bounds.
+        Assertion,
+    }
+
+    /// Every kind, for the test suites that sweep them — which are
+    /// its only readers. No production code reads it: the chrome names
+    /// each kind it offers literally, and which tool is open is a value
+    /// ([`OpenTool`]), not a scan over this list.
+    ///
+    /// It stays `pub` and stays here rather than moving into the suite
+    /// that reads it, because those are integration tests and see only
+    /// this crate's public surface — a suite-local list would be a
+    /// hand-written one again, with nothing forcing it, which is the
+    /// defect this array no longer has.
+    pub const ALL;
+}
+
+impl ToolKind {
+    /// **The tool's name, and its one home**: the bare noun its
+    /// sentences ([`Self::says`]), its activation button
+    /// ([`Self::button`]) and its commit button ([`Self::commit`]) are
+    /// composed from.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Mate => "mate",
+            Self::Boolean => "boolean",
+            Self::Split => "split",
+            Self::Transform => "transform",
+            Self::Pattern => "pattern",
+            Self::Blend => "blend",
+            Self::Part => "projection",
+            Self::Mirror => "mirror",
+            Self::Assertion => "assertion",
+        }
+    }
+
+    /// **A tool's sentence**: its name, then what it has to say — a
+    /// panel's prompt, or a tool event's words ([`ToolNotice`]). A
+    /// refusal at its commit button is [`ToolKind::refuses`], composed
+    /// by the same function, so the prefix has one spelling.
+    pub fn says(self, what: &impl core::fmt::Display) -> String {
+        compose(&Panel::Tool(self).name(), what)
+    }
+
+    /// [`Self::says`], into a sentence: `what` keeps its mentions.
+    fn says_into(
+        self,
+        out: &mut editor_core::Sentence,
+        what: impl pncad::document::Put,
+    ) -> core::fmt::Result {
+        pncad::document::say!(out, format_args!("{}: ", Panel::Tool(self).name()), what)
+    }
+
+    /// **This tool's panel refusing its commit**, as the value
+    /// [`crate::frame::tool_news`] takes.
+    pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
+        PanelRefusal::new(Panel::Tool(self), why)
+    }
+
+    /// **The words on the button that opens this tool**: its name,
+    /// capitalised, as a tool, with the ellipsis of a button that opens
+    /// a panel rather than acting.
+    pub fn button(self) -> String {
+        format!("{} tool…", capitalised(self.label()))
+    }
+
+    /// The words on the button that commits this tool's edit. The
+    /// placement editor has none: it commits each change as it is made.
+    pub fn commit(self) -> String {
+        format!("Commit {}", self.label())
+    }
+
+    /// **What the cursor may pick while this tool is open** — an open
+    /// tool narrows the priority rule, it does not re-decide it.
+    ///
+    /// The mate tool's rule is its panel's chosen kind's
+    /// ([`Tools::pick_kinds_choosing`]); its own is a plane's, the kind
+    /// the panel opens on. A plane takes faces, and on a real part whole faces sit
+    /// within the edge radius of their own boundary — a narrow shelf, a
+    /// small hole's wall — so with edges always winning those faces
+    /// were unpickable for as long as the tool was open. The blend tool
+    /// is the mirror case: it takes EDGES and nothing else, so a cursor
+    /// no edge wins answers NOTHING rather than re-selecting the wall
+    /// behind the edge the user was aiming at. Every other tool holds
+    /// NODE picks, which a face and an edge answer equally well
+    /// ([`Selection::seat_node`] reaches the drawn body either way); a
+    /// profile's outline answers only a tool whose seat reads a profile,
+    /// so a body tool is never handed a node it cannot seat.
+    pub fn pick_kinds(self) -> PickKinds {
+        match self {
+            // The mirror's and the split's plane is a face or a datum's
+            // xy plane, and their body is picked by a face or in the
+            // tree; the placement editor's far side may be a datum too.
+            Self::Mate | Self::Mirror | Self::Split => PickKinds::FacesAndDatums,
+            // The assertion tool's face seats are faces, and its body
+            // seats are picked in the tree.
+            Self::Assertion => PickKinds::FacesOnly,
+            Self::Blend => PickKinds::EdgesOnly,
+            // Their seats read bodies, picked through a face or an
+            // edge; none reads a profile, so none is offered one.
+            Self::Boolean | Self::Transform | Self::Pattern | Self::Part => {
+                PickKinds::FacesAndEdges
+            }
+        }
+    }
+
+    /// **Whether this tool's form holds a label field.** A tool under
+    /// the create rule's "a creation proposes no label"
+    /// (`crates/viewer/README.md`, "A create gesture commits the
+    /// node") holds none: its insert stores `Kind N` on the node its
+    /// noun names, and the node's label row renames it. A tool brought
+    /// under the rule joins the list here.
+    pub fn offers_label(self) -> bool {
+        match self {
+            Self::Mirror => false,
+            Self::Mate
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Blend
+            | Self::Part
+            | Self::Assertion => true,
+        }
+    }
+
+    /// **Whether this operation is this tool's one committed edit** —
+    /// the rule that closes the tool that authored it, once the edit
+    /// has actually landed. Which op belongs to which tool is
+    /// `committed_by`'s; whether a tool closes on its op at all is
+    /// this match's.
+    pub fn commits(self, op: &SessionOp) -> bool {
+        match self {
+            Self::Mate
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Blend
+            | Self::Part
+            | Self::Mirror
+            | Self::Assertion => committed_by(op) == Some(self),
+        }
+    }
+}
+
+/// **Which tool an operation is the committed edit of**, or `None` for
+/// an operation no tool closes on. The placement editor closes on none:
+/// its [`SessionOp::Place`] opens it on the placement made, and each
+/// [`SessionOp::SetBundle`] is one live change ([`Tools::answered`]).
+/// `AddMate` is nobody's: it is the API spelling of a mate added to a
+/// bundle.
+fn committed_by(op: &SessionOp) -> Option<ToolKind> {
+    match op {
+        SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
+        SessionOp::AddSplit { .. } => Some(ToolKind::Split),
+        SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
+        SessionOp::AddAssertion { .. } => Some(ToolKind::Assertion),
+        // Two ops, one tool: the output choice picks the door, and
+        // either one landing is this tool's edit committed. The blend
+        // tool's kind choice does the same.
+        SessionOp::AddPattern { .. } | SessionOp::AddFusedPattern { .. } => Some(ToolKind::Pattern),
+        SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. } => Some(ToolKind::Blend),
+        // ONE op for both selectors: the two doors mint the same op with
+        // different payloads, so a landed `AddPart` is this tool's edit
+        // whichever selector authored it.
+        SessionOp::AddPart { .. } => Some(ToolKind::Part),
+        // A labelled creation is its creation's commit, labelled.
+        SessionOp::CreateLabelled { creation, .. } => committed_by(creation.op()),
+        SessionOp::SetLabel { .. }
+        | SessionOp::SetProduct { .. }
+        | SessionOp::AddToProduct { .. }
+        | SessionOp::RepointPlacements { .. }
+        | SessionOp::AddMate { .. }
+        | SessionOp::Place { .. }
+        | SessionOp::SetBundle { .. }
+        | SessionOp::Select(_)
+        | SessionOp::Hover(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
+        | SessionOp::IntoOwnSpace { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
+        | SessionOp::ProveRange { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetVariable { .. }
+        | SessionOp::SetVariableUnit { .. }
+        | SessionOp::SetVariableText { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginVariableGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewVariableGesture { .. }
+        | SessionOp::CommitVariableGesture { .. }
+        | SessionOp::CancelGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::StopRange
+        | SessionOp::Reevaluate
+        | SessionOp::Open(_)
+        | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
+        | SessionOp::SetBodyOn { .. }
+        | SessionOp::SetSpaceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove { .. }
+        | SessionOp::CancelFreeMove
+        | SessionOp::NewDocument { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::DrawOnFace { .. }
+        | SessionOp::EditProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. }
+        // A finding's offer, drawn beside the finding, not a tool's edit.
+        | SessionOp::AssertQuieting { .. } => None,
+    }
+}
+
+/// Something a tool did on its own — a survival drop, or a pick it
+/// declined — carrying which tool it was about, so the sentence a
+/// chrome shows is composed once ([`ToolKind::says`]) rather than at
+/// each call site.
+///
+/// **Not a [`PanelRefusal`], and not merged with one**: each arm
+/// answers [`crate::frame::Retold`] for itself, and a survival drop
+/// answers `Never` ([`crate::frame::tool_notice`]), where a panel's
+/// refusal is uniformly `Again`. One type would put both answers
+/// behind one door that could not tell them apart.
+#[derive(Debug)]
+pub enum ToolNotice {
+    /// The mate tool lost a pick — its own event vocabulary, which
+    /// degrades by STEP rather than by seat.
+    Mate(MateToolEvent),
+    /// The blend tool has something to say about a pick or its
+    /// target — its own event vocabulary, which is about a SET rather
+    /// than about seats.
+    Blend(BlendEvent),
+    /// The mirror tool lost its plane, a face or a variable, or
+    /// declined a variable that is no plane.
+    Mirror(PlaneEvent),
+    /// The split tool lost its plane, a face or a variable, or declined
+    /// a variable that is no plane.
+    Split(PlaneEvent),
+    /// The assertion tool lost a face seat.
+    Assertion(AssertionEvent),
+    /// A seated tool lost a pick.
+    Seated {
+        /// Which tool.
+        tool: ToolKind,
+        /// What it lost.
+        event: SeatEvent,
+    },
+    /// A viewport click aimed at the open tool met nothing of the kinds
+    /// it picks ([`Tools::pick_kinds_choosing`]), so the tool took no
+    /// pick.
+    Missed {
+        /// The open tool.
+        tool: ToolKind,
+        /// The kinds the cursor could pick.
+        kinds: PickKinds,
+    },
+}
+
+/// The seated arm says the node its event carries (`SpokenNode`, kept
+/// by [`Tools::respeak`]); the blend arm's event holds bare ids, and a
+/// dropped face pick is said by the speaker, a node it does not hold as
+/// the tool kept it.
+impl Say for ToolNotice {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::Mate(event) => ToolKind::Mate.says_into(f, Said(event, by)),
+            Self::Blend(event) => ToolKind::Blend.says_into(f, Said(event, by)),
+            Self::Mirror(event) => ToolKind::Mirror.says_into(f, Said(event, by)),
+            Self::Split(event) => ToolKind::Split.says_into(f, Said(event, by)),
+            Self::Assertion(event) => ToolKind::Assertion.says_into(f, Said(event, by)),
+            Self::Seated { tool, event } => tool.says_into(f, Said(event, by)),
+            Self::Missed { tool, kinds } => tool.says_into(
+                f,
+                format_args!("{} under the cursor — no pick taken", kinds.nothing()),
+            ),
+        }
+    }
+}
+
+/// The sentence a panel speaks: its name, then what it has to say.
+/// **`text` with its first letter capitalised**, as a label that opens
+/// a line reads.
+pub(crate) fn capitalised(text: &str) -> String {
+    let (first, rest) = text.split_at(text.chars().next().map_or(0, char::len_utf8));
+    format!("{}{rest}", first.to_uppercase())
+}
+
+fn compose(name: &str, what: &impl core::fmt::Display) -> String {
+    format!("{name}: {what}")
+}
+
+vocabulary! {
+    /// **A panel or field that commits and is not one of the modal
+    /// tools** ([`ToolKind`]), named by what it does: the creation
+    /// pane's profile-on-a-face form, the extrude and revolve buttons
+    /// beside a selected profile, the profile editor, and the label
+    /// field a create form and the properties pane each carry.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum FormKind {
+        /// The creation pane's profile-on-a-face form.
+        ProfileOnFace,
+        /// The extrude button beside a selected profile.
+        Extrude,
+        /// The revolve button beside a selected profile.
+        Revolve,
+        /// The profile editor.
+        EditProfile,
+        /// A node's label field, on a create form or in the properties
+        /// pane.
+        Label,
+    }
+
+    /// Every form, for the suites that sweep them.
+    pub const ALL;
+}
+
+impl FormKind {
+    /// The form's name, as its sentences open.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::ProfileOnFace => "profile on a face",
+            Self::Extrude => "extrude",
+            Self::Revolve => "revolve",
+            Self::EditProfile => "edit profile",
+            Self::Label => "label",
+        }
+    }
+
+    /// **This form's button refusing**, as the value
+    /// [`crate::frame::tool_news`] takes.
+    pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
+        PanelRefusal::new(Panel::Form(self), why)
+    }
+}
+
+/// Which panel refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Panel {
+    Tool(ToolKind),
+    Form(FormKind),
+}
+
+impl Panel {
+    /// The name its sentences open with: a tool's noun, as a tool; a
+    /// form's name as it is.
+    fn name(self) -> String {
+        match self {
+            Self::Tool(kind) => format!("{} tool", kind.label()),
+            Self::Form(form) => form.label().to_owned(),
+        }
+    }
+}
+
+/// **What a panel's button refused, and which panel's it was** — the
+/// value [`crate::frame::tool_news`] takes. Built only by
+/// [`ToolKind::refuses`] and [`FormKind::refuses`].
+///
+/// **What the type pins**: the sentence opens with a panel's name, and
+/// the door it reaches answers [`crate::frame::Subject::Document`] and
+/// [`crate::frame::Retold::Again`]. **What it does not**: the words
+/// after the name — `refuses` takes any `Display`, so whether they are
+/// the panel's own refusal is the call site's.
+///
+/// **Not a [`ToolNotice`]**, and not merged with one: a panel's refusal
+/// is uniformly `Again` — the same click says it again — where a tool
+/// event answers [`crate::frame::Retold`] per arm and a survival drop
+/// answers `Never`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PanelRefusal {
+    panel: Panel,
+    why: String,
+}
+
+impl PanelRefusal {
+    fn new(panel: Panel, why: &impl core::fmt::Display) -> Self {
+        Self {
+            panel,
+            why: why.to_string(),
+        }
+    }
+}
+
+impl core::fmt::Display for PanelRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { panel, why } = self;
+        f.write_str(&compose(&panel.name(), why))
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ToolNotice {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, Speaker::TAG, f)
+    }
+}
+
+impl ToolNotice {
+    /// **The sentence the line shows**: each bare id said from the
+    /// landed document the tool's picks and loads were read off, each
+    /// name within its table in that document's evaluation
+    /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
+    pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
+        Said(self, crate::frame::landed_speaker(landed))
+            .sentence()
+            .to_string()
+    }
+}
+
+/// **Which tool is open, and its state** — one variant per kind, so
+/// the open tool is a single value rather than one optional value per
+/// tool, and "two tools open" has no spelling.
+#[derive(Debug)]
+pub enum OpenTool {
+    /// The mate tool.
+    Mate(MateTool),
+    /// The boolean tool.
+    Boolean(BooleanTool),
+    /// The split tool.
+    Split(SplitTool),
+    /// The transform tool, before its pick: the pick opens the
+    /// placement editor in its place ([`MateTool::moving`]).
+    Transform(TransformTool),
+    /// The pattern tool.
+    Pattern(PatternTool),
+    /// The blend tool.
+    Blend(BlendTool),
+    /// The part tool.
+    Part(PartTool),
+    /// The mirror tool.
+    Mirror(MirrorTool),
+    /// The assertion tool.
+    Assertion(AssertionTool),
+}
+
+impl OpenTool {
+    /// The tool of `kind`, holding nothing.
+    fn fresh(kind: ToolKind) -> Self {
+        match kind {
+            ToolKind::Mate => Self::Mate(MateTool::new()),
+            ToolKind::Boolean => Self::Boolean(BooleanTool::new()),
+            ToolKind::Split => Self::Split(SplitTool::new()),
+            ToolKind::Transform => Self::Transform(TransformTool::new()),
+            ToolKind::Pattern => Self::Pattern(PatternTool::new()),
+            ToolKind::Blend => Self::Blend(BlendTool::new()),
+            ToolKind::Part => Self::Part(PartTool::new()),
+            ToolKind::Mirror => Self::Mirror(MirrorTool::new()),
+            ToolKind::Assertion => Self::Assertion(AssertionTool::new()),
+        }
+    }
+
+    /// Which kind this is — the vocabulary the rules that do not need
+    /// the tool's own state are addressed in.
+    pub fn kind(&self) -> ToolKind {
+        match self {
+            Self::Mate(_) => ToolKind::Mate,
+            Self::Boolean(_) => ToolKind::Boolean,
+            Self::Split(_) => ToolKind::Split,
+            Self::Transform(_) => ToolKind::Transform,
+            Self::Pattern(_) => ToolKind::Pattern,
+            Self::Blend(_) => ToolKind::Blend,
+            Self::Part(_) => ToolKind::Part,
+            Self::Mirror(_) => ToolKind::Mirror,
+            Self::Assertion(_) => ToolKind::Assertion,
+        }
+    }
+}
+
+/// **The one guard every seated tool's pick shares.** A seated tool
+/// takes [`Selection::seat_node`] and nothing else — a tree click
+/// directly, a face or edge pick as the node whose DRAWN body the ray
+/// met — so a selection carrying no node is a click that tool does not
+/// see. The arms of [`Tools::feed`] that hold seats name the tool and
+/// share this; none of them re-spells it.
+///
+/// **Not [`Selection::node`]**, which is the feature tree's question —
+/// the feature that MADE the face. On a moved copy or a filleted body
+/// that is a node upstream of what was clicked, and a seat fed it
+/// authors against geometry the user did not pick.
+fn on_node_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId)) {
+    if let Some(node) = selection.seat_node() {
+        pick(node);
+    }
+}
+
+/// [`on_node_pick`] with the output body a viewport pick hit, which a
+/// body seat reads by port when the node defines several.
+fn on_body_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId, Option<u32>)) {
+    if let Some(node) = selection.seat_node() {
+        pick(node, selection.seat_body());
+    }
+}
+
+/// The modal tools as one value: at most one is open, and the open one
+/// is the only one the selection stream reaches.
+///
+/// **The read door hands a tool back by value iff that tool is
+/// `Copy`.** The seated tools are small `Copy` values and answer by
+/// value; the mate tool holds picked faces and the blend tool holds a
+/// SET of edges, so those two answer by reference. That is the whole
+/// rule, and the accessors below name which side of it they are on
+/// rather than each re-arguing it.
+#[derive(Debug, Default)]
+pub struct Tools {
+    open: Option<OpenTool>,
+    /// The kind of the mate row a datum being made opens its editor with
+    /// ([`Self::awaiting_datum`]).
+    datum_kind: Option<pncad::document::VarKind>,
+}
+
+impl Tools {
+    /// No tool open.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// **Open one tool, closing whatever was open.**
+    ///
+    /// Opening the tool that is already open starts it over: the value
+    /// is replaced, so its held picks go. Nothing in the chrome can
+    /// reach that path today — a tool's activation button is shown only
+    /// while it is closed — so this is the door's rule rather than an
+    /// affordance, and the FORM fields (an angle, a count) are drafts
+    /// living outside the tool and are untouched either way.
+    pub fn open(&mut self, kind: ToolKind) {
+        self.open = Some(OpenTool::fresh(kind));
+    }
+
+    /// Close whatever is open (the Cancel door, and the one a committed
+    /// edit takes).
+    pub fn close(&mut self) {
+        self.open = None;
+    }
+
+    /// Which tool is open, if any.
+    pub fn open_kind(&self) -> Option<ToolKind> {
+        self.open.as_ref().map(OpenTool::kind)
+    }
+
+    /// The open mate tool, by reference (the read-door rule on
+    /// [`Tools`]).
+    pub fn mate(&self) -> Option<&MateTool> {
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// The open placement editor, to change its draft.
+    pub fn mate_mut(&mut self) -> Option<&mut MateTool> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// **Open the placement editor holding `tool`** — a door opened on a
+    /// placement or a body rather than by a first pick (the tree's
+    /// `edit` and `remove`), closing whatever was open.
+    pub fn open_mate(&mut self, tool: MateTool) {
+        self.open = Some(OpenTool::Mate(tool));
+    }
+
+    /// Open the assertion tool holding `tool`'s seats: the one a
+    /// finding's lead fills ([`AssertionTool::led`]).
+    pub fn open_assertion(&mut self, tool: AssertionTool) {
+        self.open = Some(OpenTool::Assertion(tool));
+    }
+
+    /// The open boolean tool.
+    pub fn boolean(&self) -> Option<BooleanTool> {
+        match &self.open {
+            Some(OpenTool::Boolean(tool)) => Some(tool.clone()),
+            _ => None,
+        }
+    }
+
+    /// The open boolean tool, mutably — the door its operation choice
+    /// is made through, that being tool state (it decides what a pick
+    /// does) and not a document edit.
+    pub fn boolean_mut(&mut self) -> Option<&mut BooleanTool> {
+        match &mut self.open {
+            Some(OpenTool::Boolean(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// The open split tool.
+    pub fn split(&self) -> Option<&SplitTool> {
+        match &self.open {
+            Some(OpenTool::Split(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// The open Transform tool, before its pick opened the editor.
+    pub fn transform(&self) -> Option<&TransformTool> {
+        match &self.open {
+            Some(OpenTool::Transform(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// **The half the Transform tool's waiting split is moved as**: the
+    /// placement editor opened on that half
+    /// ([`MateTool::moving`]), or what it says instead.
+    #[must_use = "a refused half is only reported if its notice is shown"]
+    pub fn transform_half(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        half: SplitHalf,
+    ) -> Vec<ToolNotice> {
+        let Some(OpenTool::Transform(tool)) = &self.open else {
+            return Vec::new();
+        };
+        let Some(split) = tool.awaiting_half() else {
+            return Vec::new();
+        };
+        match MateTool::moving(doc, split.id(), Some(u32::from(half.port()))) {
+            Ok(editor) => {
+                self.open = Some(OpenTool::Mate(editor));
+                Vec::new()
+            }
+            Err(event) => vec![ToolNotice::Mate(*event)],
+        }
+    }
+
+    /// The open pattern tool.
+    pub fn pattern(&self) -> Option<PatternTool> {
+        match &self.open {
+            Some(OpenTool::Pattern(tool)) => Some(tool.clone()),
+            _ => None,
+        }
+    }
+
+    /// The open part tool.
+    pub fn part(&self) -> Option<PartTool> {
+        match &self.open {
+            Some(OpenTool::Part(tool)) => Some(tool.clone()),
+            _ => None,
+        }
+    }
+
+    /// The open mirror tool, by reference (the read-door rule on
+    /// [`Tools`]).
+    pub fn mirror(&self) -> Option<&MirrorTool> {
+        match &self.open {
+            Some(OpenTool::Mirror(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// The open assertion tool, by reference (the read-door rule on
+    /// [`Tools`]).
+    pub fn assertion(&self) -> Option<&AssertionTool> {
+        match &self.open {
+            Some(OpenTool::Assertion(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// The open blend tool, by reference (the read-door rule on
+    /// [`Tools`]).
+    pub fn blend(&self) -> Option<&BlendTool> {
+        match &self.open {
+            Some(OpenTool::Blend(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// The open blend tool, mutably — the door the all-edges
+    /// affordance loads its set through, that being a tool-state
+    /// operation and not a document edit.
+    pub fn blend_mut(&mut self) -> Option<&mut BlendTool> {
+        match &mut self.open {
+            Some(OpenTool::Blend(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// **What the cursor may pick right now** ([`ToolKind::pick_kinds`]
+    /// carries the rule); the bare cursor's rule with nothing open.
+    pub fn pick_kinds(&self) -> PickKinds {
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => crate::matetool::pick_kinds(tool.active_kind()),
+            _ => self
+                .open_kind()
+                .map_or(PickKinds::Any, ToolKind::pick_kinds),
+        }
+    }
+
+    /// [`Tools::pick_kinds`] with the mate panel's chosen kind `mate`
+    /// narrowing the mate tool's rule ([`crate::matetool::pick_kinds`]):
+    /// what the viewport's cursor picks with.
+    pub fn pick_kinds_choosing(&self, mate: pncad::document::VarKind) -> PickKinds {
+        match self.open_kind() {
+            Some(ToolKind::Mate) => crate::matetool::pick_kinds(mate),
+            _ => self.pick_kinds(),
+        }
+    }
+
+    /// **Whether an operation is the open tool's one committed edit**,
+    /// which is what closes it. Answered against the OPEN tool rather
+    /// than against the op alone, so an op that no tool authored — or
+    /// one authored while a different tool is open — never closes
+    /// anything.
+    pub fn commits_open_tool(&self, op: &SessionOp) -> bool {
+        self.open_kind().is_some_and(|kind| kind.commits(op))
+    }
+
+    /// **The Place the open placement editor's pick asked for**, taken
+    /// ([`MateTool::take_place`]): queued in the batch of the pick that
+    /// asked for it.
+    pub fn take_place(&mut self, doc: &Doc<ProfileProgram>) -> Option<SessionOp> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => tool.take_place(doc),
+            _ => None,
+        }
+    }
+
+    /// **The op the open placement editor's change waits on to land**,
+    /// if one formed this frame and has not been performed: an undo in
+    /// the same batch takes it back before it lands, as the profile
+    /// editor's (`ViewerApp::perform_batch`).
+    pub fn mate_landing(&self) -> Option<&SessionOp> {
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => tool.landing(),
+            _ => None,
+        }
+    }
+
+    /// **Undo takes back the placement editor's held draft first**, as
+    /// the profile editor's (`Drafts::undo_pending`): when the open
+    /// editor holds changes the document does not
+    /// ([`MateTool::holds_changes`]), they are dropped — the editor shows
+    /// the bundle as `doc`, the committed document, holds it — and the
+    /// undo is spent on them. Answers the placement the dropped draft
+    /// edited, for the notice that says so.
+    pub fn undo_pending(&mut self, doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
+        let Some(OpenTool::Mate(tool)) = &mut self.open else {
+            return None;
+        };
+        if !tool.holds_changes() {
+            return None;
+        }
+        let placement = tool.door()?.placement;
+        tool.discard(doc);
+        Some(placement)
+    }
+
+    /// **The session answered `op`**, which made `made` and `committed`
+    /// or was refused, leaving `doc` the committed document: a landed
+    /// [`SessionOp::Place`] opens the placement editor on the placement
+    /// it made, and the editor's own [`SessionOp::SetBundle`] landing or
+    /// refused settles its draft ([`MateTool::landed`],
+    /// [`MateTool::refused`]). Any other op, and an op the editor did not
+    /// form, leaves the tools alone.
+    pub fn answered(
+        &mut self,
+        op: &SessionOp,
+        made: Option<RecipeNodeId>,
+        committed: bool,
+        doc: &Doc<ProfileProgram>,
+    ) {
+        let Some(OpenTool::Mate(tool)) = &mut self.open else {
+            return;
+        };
+        match (op, made) {
+            (SessionOp::Place { .. }, Some(placement)) if committed && tool.door().is_none() => {
+                tool.placed(doc, placement);
+            }
+            (SessionOp::SetBundle { .. }, _) if tool.landing() == Some(op) => {
+                if committed {
+                    tool.landed(doc);
+                } else {
+                    tool.refused(doc);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// **A New plane, New axis or New frame button clicked**: the kind
+    /// of the mate row the placement editor opens the datum with once it
+    /// is made ([`Self::datum_made`]) — the tool's state, not the op's.
+    pub fn awaiting_datum(&mut self, kind: pncad::document::VarKind) {
+        self.datum_kind = Some(kind);
+    }
+
+    /// **A datum made** ([`SessionOp::AddDatum`], committed): the
+    /// placement editor opens on it with one mate row of the kind its
+    /// button named ([`Self::awaiting_datum`]), so every pick fills that
+    /// row's far side (create, then edit); with none named, a plane's.
+    pub fn datum_made(
+        &mut self,
+        op: &SessionOp,
+        made: Option<RecipeNodeId>,
+        doc: &Doc<ProfileProgram>,
+    ) {
+        let op = match op {
+            SessionOp::CreateLabelled { creation, .. } => creation.op(),
+            op => op,
+        };
+        let (SessionOp::AddDatum { .. }, Some(datum)) = (op, made) else {
+            return;
+        };
+        let kind = self
+            .datum_kind
+            .take()
+            .unwrap_or(pncad::document::VarKind::Plane);
+        if let Ok(mut tool) = MateTool::edit(doc, datum) {
+            tool.add_mate(kind);
+            self.open_mate(tool);
+        }
+    }
+
+    /// **A door's target change held** ([`crate::session::Refusal::TargetHeld`]'s
+    /// lead, [`crate::recourse::Heard::HoldTarget`]): the placement editor
+    /// opens on `placement` with `target` set, so the change is held
+    /// there as the editor holds one — the rows reading the old space
+    /// marked, and the strike offered. Answers whether it opened.
+    pub fn hold_target(
+        &mut self,
+        placement: RecipeNodeId,
+        target: PlaceTarget,
+        doc: &Doc<ProfileProgram>,
+    ) -> bool {
+        let Ok(mut tool) = MateTool::edit(doc, placement) else {
+            return false;
+        };
+        tool.set_target(target);
+        self.open_mate(tool);
+        true
+    }
+
+    /// **A document replaced this one**: the open tool starts over,
+    /// open, holding nothing ([`Tools::open`]). Its picks are ids of the
+    /// document they were made in, and the next document may hold a
+    /// node of the same id (`SpokenNode::respoken`'s premise).
+    ///
+    /// The tool's value is rebuilt whole, so a pick a tool adds goes
+    /// with it. Sorted as `Drafts::document_replaced` sorts: a field
+    /// added to [`Tools`] does not compile here until it is named and
+    /// rebuilt below (kept), or written `_` and left to
+    /// `..Self::default()` (dropped).
+    pub fn document_replaced(&mut self) {
+        let Self {
+            open,
+            datum_kind: _,
+        } = core::mem::take(self);
+        *self = Self {
+            // Which tool is open is chrome; what it holds is not.
+            open: open.map(|tool| OpenTool::fresh(tool.kind())),
+            // A datum awaited was to be made in the document replaced.
+            ..Self::default()
+        };
+    }
+
+    /// **Feed one frame's operations to the open tool.**
+    ///
+    /// A selection is the only op a tool consumes, and the two
+    /// vocabularies are the ones the tools were written against: the
+    /// mate tool takes the FACE (its poses are read off the picked
+    /// faces, so an edge pick is not one of its picks), the
+    /// blend tool takes the EDGE (it blends edges, and its target is
+    /// the drawn body the edge was picked on rather than the feature
+    /// that minted it), the split and mirror tools take a face or a
+    /// plane variable as their plane and a tree click as their body
+    /// (`SplitTool::feed`, `MirrorTool::feed`), and every
+    /// seated tool takes [`Selection::seat_node`] — a tree click directly, a face or edge
+    /// pick as the node whose drawn body the ray met.
+    ///
+    /// **Feeding answers**, because a pick can be DECLINED: the blend
+    /// tool refuses an edge on a second body rather than taking it or
+    /// dropping it silently, and the split and mirror tools decline a
+    /// variable that is no plane (`PlaneEvent::NotAPlane`). The returned notices are the same values
+    /// [`Tools::reconcile`] answers with and are shown the same way; a
+    /// frame in which every pick landed answers with none.
+    ///
+    /// **`index` is what an edge pick means** — the whole drawn edge it
+    /// is part of ([`PickIndex::whole_edge`]), so a click on a circle
+    /// the body holds as two arcs reaches the blend tool as the circle.
+    /// It is the index the pick was made through, or why there is none
+    /// ([`NotIndexed`]); the blend tool refuses a new edge pick without
+    /// one rather than hold what may be half a circle.
+    ///
+    /// **`doc` is what routes a seated tool's pick**, not what
+    /// judges it: a seat asks the document what KIND of node was
+    /// picked so a pick that only one of two seats can hold lands in
+    /// that one (`crate::seats`). The commit door still owns the
+    /// verdict.
+    ///
+    /// `#[must_use]`: the notices ARE the refusal — dropping them is
+    /// how a declined pick becomes a click that silently did nothing,
+    /// which is the bug this return value exists to prevent.
+    #[must_use = "a declined pick is only reported if its notice is shown"]
+    pub fn feed(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        index: Result<&PickIndex, NotIndexed>,
+        ops: &[SessionOp],
+    ) -> Vec<ToolNotice> {
+        let mut notices = Vec::new();
+        for op in ops {
+            let SessionOp::Select(selection) = op else {
+                continue;
+            };
+            match &mut self.open {
+                None => {}
+                Some(OpenTool::Mate(tool)) => {
+                    let event = match selection {
+                        Selection::Face(face) => tool.pick(doc, face.clone()),
+                        Selection::Edge(edge) => tool.pick(doc, edge.clone()),
+                        Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
+                        // A datum picked whole is a far side.
+                        Selection::Node(node) => {
+                            tool.pick_datum(doc, *node);
+                            None
+                        }
+                        Selection::None | Selection::Variable(_) => None,
+                    };
+                    notices.extend(event.map(ToolNotice::Mate));
+                }
+                Some(OpenTool::Blend(tool)) => {
+                    if let Some(edge) = selection.edge() {
+                        notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));
+                    }
+                }
+                Some(OpenTool::Boolean(tool)) => {
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
+                }
+                Some(OpenTool::Split(tool)) => {
+                    notices.extend(tool.feed(doc, selection).map(ToolNotice::Split));
+                }
+                Some(OpenTool::Transform(tool)) => {
+                    let opened = match selection {
+                        Selection::Face(face) => Some(MateTool::moving_picked(doc, face.clone())),
+                        Selection::Edge(edge) => Some(MateTool::moving_picked(doc, edge.clone())),
+                        Selection::Vertex(vertex) => {
+                            Some(MateTool::moving_picked(doc, vertex.clone()))
+                        }
+                        Selection::Node(node) => Some(MateTool::moving(doc, *node, None)),
+                        Selection::None | Selection::Variable(_) => None,
+                    };
+                    match opened {
+                        Some(Ok(editor)) => self.open = Some(OpenTool::Mate(editor)),
+                        Some(Err(event)) => match *event {
+                            MateToolEvent::HalfUnchosen { split } => tool.await_half(split),
+                            event => notices.push(ToolNotice::Mate(event)),
+                        },
+                        None => {}
+                    }
+                }
+                Some(OpenTool::Pattern(tool)) => {
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
+                }
+                Some(OpenTool::Part(tool)) => {
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
+                }
+                Some(OpenTool::Mirror(tool)) => {
+                    notices.extend(tool.feed(doc, selection).map(ToolNotice::Mirror));
+                }
+                Some(OpenTool::Assertion(tool)) => match selection.face() {
+                    Some(face) => tool.seat_face(doc, face.clone()),
+                    None => on_node_pick(selection, |node| {
+                        notices.extend(tool.seat_body(doc, node).map(ToolNotice::Assertion));
+                    }),
+                },
+            }
+        }
+        notices
+    }
+
+    /// **The open tool's held nodes, spoken again from `doc`**, the
+    /// shown document after an operation (`SpokenNode::respoken`'s
+    /// rule): a held node `doc` holds takes its label now, and one it
+    /// no longer holds keeps the last it had, so a drop or a refusal
+    /// about it says that label.
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        match &mut self.open {
+            None => {}
+            Some(OpenTool::Transform(tool)) => tool.respeak(doc),
+            Some(OpenTool::Mate(tool)) => tool.respeak(doc),
+            Some(OpenTool::Blend(tool)) => tool.respeak(doc),
+            Some(OpenTool::Boolean(tool)) => tool.respeak(doc),
+            Some(OpenTool::Split(tool)) => tool.respeak(doc),
+            Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
+            Some(OpenTool::Part(tool)) => tool.respeak(doc),
+            Some(OpenTool::Mirror(tool)) => tool.respeak(doc),
+            Some(OpenTool::Assertion(tool)) => tool.respeak(doc),
+        }
+    }
+
+    /// **The picks the open tool holds** ([`crate::session::Holds`]):
+    /// the mate tool's faces, the mirror's plane and the blend's edges;
+    /// the seated tools hold bodies, whose reads a takeover keeps.
+    pub fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => tool.held(),
+            Some(OpenTool::Blend(tool)) => tool.held(),
+            Some(OpenTool::Mirror(tool)) => tool.held(),
+            Some(OpenTool::Split(tool)) => tool.held(),
+            Some(OpenTool::Assertion(tool)) => tool.held(),
+            None
+            | Some(
+                OpenTool::Boolean(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Part(_),
+            ) => Vec::new(),
+        }
+    }
+
+    /// **The half seat `seat` of the open tool reads**, when it holds a
+    /// split picked alone ([`crate::seats::Seats::choose_half`]); a
+    /// no-op for a tool without body seats.
+    pub fn choose_half(&mut self, seat: usize, half: SplitHalf) {
+        match &mut self.open {
+            None
+            | Some(
+                OpenTool::Mate(_)
+                | OpenTool::Blend(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Part(_)
+                | OpenTool::Assertion(_),
+            ) => {}
+            Some(OpenTool::Boolean(tool)) => tool.choose_half(seat, half),
+            Some(OpenTool::Split(tool)) => tool.choose_half(seat, half),
+            Some(OpenTool::Pattern(tool)) => tool.choose_half(seat, half),
+            Some(OpenTool::Mirror(tool)) => tool.choose_half(seat, half),
+        }
+    }
+
+    /// **The member pick `seat` of the open boolean tool reads**, by
+    /// its index values, where it reads a family nothing copies, whole
+    /// or one member ([`crate::combine::BooleanTool::choose_member`]); a
+    /// no-op for every other tool, whose seats read a family whole.
+    pub fn choose_member(&mut self, seat: usize, at: Vec<i64>) {
+        match &mut self.open {
+            None
+            | Some(
+                OpenTool::Mate(_)
+                | OpenTool::Blend(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Part(_)
+                | OpenTool::Assertion(_)
+                | OpenTool::Split(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Mirror(_),
+            ) => {}
+            Some(OpenTool::Boolean(tool)) => tool.choose_member(seat, at),
+        }
+    }
+
+    /// **The survival step, once per frame** — the consumer obligation
+    /// every tool's module docs state, discharged in one place.
+    ///
+    /// `doc` is the committed document. The seated tools answer from it
+    /// alone (a held node is there or it is not); the mate tool needs the
+    /// landed PAIR, because a face pick's survival is a question about a
+    /// name and an evaluation together, and judges its draft's bundle
+    /// against `doc`, which its live changes are committed to. A session
+    /// with nothing landed yet therefore reconciles the seated tools and
+    /// leaves the mate tool alone, which is the honest answer: "we
+    /// cannot tell" is not "it is gone".
+    ///
+    /// The blend tool needs BOTH: the document says whether its target
+    /// still exists, and the landed evaluation says which edges that
+    /// target still has — two questions, two answers, one per event
+    /// arm (`crate::blend::BlendTool::reconcile`).
+    #[must_use = "a dropped pick is only reported if its notice is shown"]
+    pub fn reconcile(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    ) -> Vec<ToolNotice> {
+        let Some(open) = self.open.as_mut() else {
+            return Vec::new();
+        };
+        let kind = open.kind();
+        let dropped = match open {
+            OpenTool::Mate(tool) => {
+                return match landed {
+                    Some(landed) => tool
+                        .reconcile(doc, landed)
+                        .into_iter()
+                        .map(ToolNotice::Mate)
+                        .collect(),
+                    None => Vec::new(),
+                };
+            }
+            OpenTool::Boolean(tool) => tool.reconcile(doc),
+            // The target seat answers from the document; the plane from
+            // the landed pair, as the mirror's does.
+            OpenTool::Split(tool) => {
+                let seat = tool
+                    .reconcile(doc)
+                    .into_iter()
+                    .map(|event| ToolNotice::Seated {
+                        tool: ToolKind::Split,
+                        event,
+                    });
+                let plane = landed
+                    .and_then(|(landed_doc, eval)| tool.reconcile_plane(landed_doc, eval))
+                    .map(ToolNotice::Split);
+                return seat.chain(plane).collect();
+            }
+            OpenTool::Transform(tool) => {
+                tool.reconcile(doc);
+                Vec::new()
+            }
+            OpenTool::Pattern(tool) => tool.reconcile(doc),
+            OpenTool::Part(tool) => tool.reconcile(doc),
+            // The body seat answers from the document; the plane, a
+            // face, from the landed pair, as the mate tool's picks do.
+            OpenTool::Mirror(tool) => {
+                let seat = tool
+                    .reconcile(doc)
+                    .into_iter()
+                    .map(|event| ToolNotice::Seated {
+                        tool: ToolKind::Mirror,
+                        event,
+                    });
+                let plane = landed
+                    .and_then(|(landed_doc, eval)| tool.reconcile_plane(landed_doc, eval))
+                    .map(ToolNotice::Mirror);
+                return seat.chain(plane).collect();
+            }
+            // The body seats answer from the document; the face seats
+            // from the landed pair, as the mirror's plane does.
+            OpenTool::Assertion(tool) => {
+                let seats = tool
+                    .reconcile(doc)
+                    .into_iter()
+                    .map(|event| ToolNotice::Seated {
+                        tool: ToolKind::Assertion,
+                        event,
+                    });
+                let faces = landed
+                    .map(|(landed_doc, eval)| tool.reconcile_faces(landed_doc, eval))
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(ToolNotice::Assertion);
+                return seats.chain(faces).collect();
+            }
+            OpenTool::Blend(tool) => {
+                return tool
+                    .reconcile(doc, landed)
+                    .into_iter()
+                    .map(ToolNotice::Blend)
+                    .collect();
+            }
+        };
+        dropped
+            .into_iter()
+            .map(|event| ToolNotice::Seated { tool: kind, event })
+            .collect()
+    }
+}
+
+/// **The frame a datum defines** (D10 `[placement.datums]`), `None` for
+/// a node that is no datum: what a plane seat reads a datum picked whole
+/// through.
+pub(crate) fn datum_frame(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Option<pncad::document::VarId> {
+    doc.node(node)
+        .is_some_and(pncad::document::Node::is_datum)
+        .then(|| doc.output(node, 0))
+        .flatten()
+}

@@ -1,0 +1,65 @@
+# THE TRACKER'S BOARD. `work/STATUS.md` is the render of `work/` (see
+# work/README.md), and this workflow is the ONLY writer of it: on every push
+# to main that touches the tracker it re-renders and commits the result from
+# the Actions token. Nothing on a branch writes the file, so no branch ever
+# conflicts on it; a checkout wanting the view runs `scripts/work.py status`.
+#
+# NO RECURSION: pushes made with the default GITHUB_TOKEN trigger no workflow
+# runs (GitHub's own guard), and the subject carries [skip ci] besides. The
+# commit is `.md`, TIER=docs to scripts/ci-filter.py, so nightly.yml's gate
+# does not read it as main having moved.
+#
+# THE RACE IS A RETRY, NOT A CONFLICT: if main moved while rendering, the push
+# is rejected, the loop re-syncs to the new main and re-renders on top. That
+# re-creates an unpushed local commit; it never rewrites published history.
+name: work-status
+on:
+  push:
+    branches: [main]
+    paths:
+      - "work/**"
+      - "scripts/work.py"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  # NO LOCAL MIRROR: this job commits the rendered board to main from the Actions token; a developer box renders with `scripts/work.py status` and commits nothing
+  render:
+    name: render work/STATUS.md
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING (ci.yml's
+      # jobs carry the argument). The reset below restores the tree, which
+      # is fine: the commit can only ever contain the one rendered file.
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: render and commit (main only)
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            python3 scripts/work.py lint
+            python3 scripts/work.py render
+            if git diff --quiet -- work/STATUS.md; then
+              echo "work/STATUS.md already current"
+              exit 0
+            fi
+            git add work/STATUS.md
+            git commit -m "work: render STATUS.md for ${SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              echo "committed work/STATUS.md"
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land work/STATUS.md after 4 attempts" >&2
+          exit 1

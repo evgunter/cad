@@ -1,0 +1,527 @@
+//! **VERBS-CHAMFER**: the plane–plane chamfer over the fillet's own
+//! infrastructure — the chamfered cube, the refusals a consumer
+//! actually reaches, and the two claims the geometry rests on (the
+//! strip's outward chart normal, and the foot the two verbs share on a
+//! right corner).
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common::oracles::chamfered_cube_volume;
+use geom::Surface;
+use geom_core::{Point2, Point3, Tol, Vec3};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::blend::BlendError;
+use sweep::blend::arms::chamfer_strip;
+use sweep::blend::build::fillet_edges;
+use sweep::chamfer::chamfer_edges;
+use sweep::test_support::cube;
+use sweep::{Extrusion, extrude};
+use topo::query;
+use topo::readback::euler_counts;
+use topo::{Body, EdgeKey};
+
+/// The cube side, meters.
+const L: f64 = 1.0;
+/// The chamfer setback, meters.
+const D: f64 = 0.1;
+
+/// Every vertex point of a body, in a deterministic total order — so
+/// two bodies' vertex SETS can be compared bit for bit.
+fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
+    let mut pts: Vec<(f64, f64, f64)> = body
+        .vertex_points()
+        .map(|(_, p)| p)
+        .map(|p| (p.x, p.y, p.z))
+        .collect();
+    pts.sort_by(|a, b| a.partial_cmp(b).expect("finite coordinates"));
+    pts
+}
+
+/// **THE CHAMFERED CUBE** — all twelve edges at equal setback: 26
+/// faces (6 shrunk squares, 12 strips, 8 corner triangles), every one
+/// of them a PLANE, tiers 1–3 green, the census and Euler relation
+/// pinned, the certified volume against the closed form, and a
+/// watertight mesh.
+#[test]
+fn the_chamfered_cube() {
+    let body = cube::<f64>(L, Tol::witness());
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &query::all_edges(&body),
+        D,
+        Tol::witness(),
+    )
+    .expect("a cube's twelve edges chamfer");
+    let out_body = topo::test_support::finished("out_body", out.body, Tol::witness());
+
+    assert_eq!(topo::validate(&out_body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&out_body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_geometric(&out_body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+
+    assert_eq!(out.blend_faces.len(), 12, "one strip per edge");
+    assert_eq!(out.corner_faces.len(), 8, "one patch per corner");
+    assert_eq!(
+        out.band_faces.len(),
+        0,
+        "a cube has no closed rim, so no closed-rim band"
+    );
+
+    let counts = euler_counts(&out_body);
+    assert_eq!((counts.v, counts.e, counts.f), (24, 48, 26), "census");
+    assert_eq!(
+        (counts.r, counts.s, counts.h()),
+        (0, 1, Ok(0)),
+        "Euler–Poincaré: one closed shell, no rings, genus 0"
+    );
+
+    // Every face is a plane — the whole claim of the analytic case.
+    for (k, _) in out_body.faces() {
+        assert!(
+            matches!(out_body.face_surface(k), Some(Surface::Plane { .. })),
+            "a chamfered cube carries planes only; face {k:?} does not"
+        );
+    }
+
+    let want = chamfered_cube_volume(L, D);
+    let props = topo::mass_properties(
+        &out_body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props");
+    assert!(
+        (props.enclosure.volume - want).abs() <= 1e-12 * want,
+        "volume {} vs closed form {want}",
+        props.enclosure.volume
+    );
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
+
+    let mesh = mesh::tessellate(&out_body, 5e-3, Tol::witness()).expect("tessellates");
+    mesh::validate::check_mesh(&mesh).expect("watertight");
+}
+
+/// **The birth records close.** `output = (source − dead) ⊎ minted`,
+/// in both directions, for the chamfer's own rows: twelve strips off
+/// twelve edges, eight patches off eight corners, and every source
+/// edge and corner vertex accounted for as retired.
+#[test]
+fn the_chamfer_records_every_birth_and_death() {
+    let body = cube::<f64>(L, Tol::witness());
+    let source_edges = query::all_edges(&body);
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &source_edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("chamfers");
+    let rec = out.naming.expect("the surgery is the only producer");
+
+    assert_eq!(rec.blends.len(), 12, "a strip per source edge");
+    assert_eq!(rec.corners.len(), 8, "a patch per source vertex");
+    assert!(rec.bands.is_empty(), "no rim phase ran");
+    assert_eq!(rec.dead.edges.len(), 12, "every source edge is excised");
+    assert_eq!(rec.dead.vertices.len(), 8, "every sharp corner is fused");
+
+    // Every retired source key is gone from the output; every strip and
+    // patch key is present in it and was not in the source.
+    for e in &rec.dead.edges {
+        assert!(out.body.get_edge(*e).is_none(), "a retired edge survives");
+    }
+    for v in &rec.dead.vertices {
+        assert!(
+            out.body.get_vertex(*v).is_none(),
+            "a retired vertex survives"
+        );
+    }
+    let minted = rec
+        .blends
+        .iter()
+        .map(|(f, _)| *f)
+        .chain(rec.corners.iter().map(|(f, _)| *f));
+    for face in minted {
+        assert!(
+            out.body.get_face(face).is_some(),
+            "a minted face is missing from the output"
+        );
+    }
+    // Every source edge the request named is retired, and the rows
+    // name the source they were minted for.
+    let mut blended: Vec<EdgeKey> = rec.blends.iter().map(|(_, e)| *e).collect();
+    blended.sort_unstable();
+    let mut requested = source_edges;
+    requested.sort_unstable();
+    assert_eq!(blended, requested, "a strip per requested edge, no other");
+}
+
+/// **The two verbs put their feet in the same place on a RIGHT
+/// corner**, and the fillet's are still the exact numbers.
+///
+/// The rolling ball at rest is at distance `r` inside all three
+/// supports, so its foot on each is on both of that support's
+/// trimlines; the chamfer crosses those trimlines directly. In exact
+/// arithmetic the two derivations coincide on a cube.
+///
+/// **The fillet's half is asserted BIT-EXACTLY**, and that is the
+/// point of the row: the feet moved from the support-admission door
+/// into the plan, and a filleted cube whose 24 vertices are not
+/// literally `{0, r, L − r, L}` is a fillet whose foot derivation
+/// changed. The chamfer's half is asserted to within an ulp instead —
+/// a line-crossing solve and a projection are two different exact
+/// forms of one point, and rounding them to the same `f64` is not
+/// something either form promises.
+#[test]
+fn fillet_and_chamfer_agree_on_a_right_corner() {
+    let body =
+        sweep::test_support::finished("body", cube::<f64>(L, Tol::witness()), Tol::witness());
+    let edges = query::all_edges(&body);
+    let filleted = fillet_edges(&body, &edges, D, Tol::witness()).expect("fillets");
+    let chamfered = chamfer_edges(&body, &edges, D, Tol::witness()).expect("chamfers");
+
+    let want: Vec<(f64, f64, f64)> = {
+        // Each of the 24 is a foot: one coordinate on a face of the
+        // cube, the other two set back by exactly D.
+        let mut v = Vec::with_capacity(24);
+        for face in [0.0, L] {
+            for a in [D, L - D] {
+                for b in [D, L - D] {
+                    v.push((face, a, b));
+                    v.push((a, face, b));
+                    v.push((a, b, face));
+                }
+            }
+        }
+        v.sort_by(|x, y| x.partial_cmp(y).expect("finite"));
+        v
+    };
+    assert_eq!(sorted_points(&filleted.body), want, "the fillet's feet");
+    let got = sorted_points(&chamfered.body);
+    assert_eq!(got.len(), want.len(), "the chamfer's vertex count");
+    // Matched by proximity, not by order: an ulp of difference moves a
+    // coordinate across the sort key, and the claim is about the
+    // POINTS, not about how they sort.
+    for w in &want {
+        let near = got
+            .iter()
+            .filter(|g| Vec3::new(g.0 - w.0, g.1 - w.1, g.2 - w.2).norm_inf() <= 1e-15)
+            .count();
+        assert_eq!(
+            near, 1,
+            "exactly one chamfer foot sits at {w:?}, found {near}"
+        );
+    }
+}
+
+/// **One edge of a cube is cut off at both end faces** — the first
+/// thing a consumer tries. Each end is a trivalent corner whose other
+/// two edges are not requested, so the band ends in each end face's
+/// plane section: a chord, the strip a prism of section `d²/2`.
+#[test]
+fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
+    let body = cube::<f64>(L, Tol::witness());
+    let edges = query::all_edges(&body);
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges[..1],
+        D,
+        Tol::witness(),
+    )
+    .expect("one edge of a cube chamfers");
+    let removed = L.powi(3)
+        - topo::test_support::pinned_volume(
+            "closed-form props",
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&out.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .volume;
+    assert!(
+        (removed - D * D / 2.0 * L).abs() < 1e-12,
+        "the strip removes its prism: {removed}"
+    );
+}
+
+/// **A circular prism's two rims chamfer as frustums**: each rim is a
+/// cylinder meeting a cap square to its axis, so its band is the cone
+/// through the two trim circles, and each removes the triangle `D²/2`
+/// carried round at `r − D/3`.
+#[test]
+fn a_circular_prisms_rims_chamfer_as_frustums() {
+    let (r, h) = (0.5, 1.0);
+    let cyl = cylinder(r, h);
+    let rims: Vec<EdgeKey> = query::all_edges(&cyl)
+        .into_iter()
+        .filter(|&e| {
+            let (a, b) = topo::readback::edge_sides(&cyl, e).unwrap().surfaces();
+            a != b
+        })
+        .collect();
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &rims,
+        D,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the prism's rims chamfer, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 2, "a frustum per rim");
+    for f in &out.band_faces {
+        assert!(
+            matches!(out.body.face_surface(*f), Some(Surface::Cone { .. })),
+            "a frustum band is a cone"
+        );
+    }
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    let v = |b: &topo::Body<f64>| {
+        topo::test_support::pinned_volume(
+            "v",
+            &topo::test_support::finished("v", topo::Body::clone(b), Tol::witness()),
+            Tol::witness(),
+        )
+        .volume
+    };
+    let want = -2.0 * core::f64::consts::PI * D * D * (r - D / 3.0);
+    let got = v(&out.body) - v(&cyl);
+    assert!((got - want).abs() < 1e-12, "ΔV {got} against {want}");
+}
+
+/// **A curved support refuses through the chamfer's OWN arm table**,
+/// with its own recourse: the missing door is the chamfer over that
+/// curved support, not the fillet's canal surface, and the
+/// plane–sphere pair the fillet offers is no alternative here. The
+/// dome's equator is plane–sphere.
+#[test]
+fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
+    let dome = sweep::test_support::dome(1.0, Tol::witness());
+    let edges = query::all_edges(&dome);
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&dome, Tol::witness()),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect_err("a plane–sphere rim has no chamfer band");
+    assert!(
+        matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
+        "the arm table is what refused: {err:?}"
+    );
+    let text = err.render(geom_brep::recourse::Reading::Build);
+    assert!(
+        text.starts_with("chamfer:") && text.contains("both planes"),
+        "the refusal speaks as the chamfer: {text}"
+    );
+}
+
+/// **A CONCAVE plane–plane edge gets a decided, correct verdict.**
+///
+/// An L-bracket's inner edge is concave and its two terminations are
+/// trivalent vertices whose other two edges are convex — a
+/// mixed-convexity corner, whose odd edge the inner one is. Requested
+/// alone it is cut off at both end faces, filling `d²/2` along its
+/// length 1; requested with a convex edge of that corner it is cut off
+/// in the top face and that edge's strip in its plane, adding `(2/3)d³`
+/// (`band_mixed_corner_odd_plus_one`). Where the face the two convex
+/// edges share leans off square to the odd edge, the request refuses
+/// `ObliqueMixedCorner`, naming the odd edge.
+#[test]
+fn an_l_brackets_inner_edge_is_cut_off_and_chamfers_with_a_convex_neighbour() {
+    let tol = Tol::witness();
+    let bracket = l_bracket();
+    let inner = concave_edge(&bracket);
+    let at_rest = sweep::test_support::at_rest(&bracket, tol);
+    let volume = |b: &topo::AtRestBody<f64>| {
+        topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+            .expect("closed-form props")
+            .enclosure
+            .volume
+    };
+    let out = chamfer_edges(&at_rest, &[inner], D, tol).expect("the inner edge alone chamfers");
+    let out_body = topo::test_support::finished("out_body", out.body, tol);
+    assert_eq!(
+        topo::validate_geometric(&out_body, tol),
+        Ok(()),
+        "the chamfered bracket is tier-3 valid"
+    );
+    let added = volume(&out_body) - volume(&at_rest);
+    assert!(
+        (added - D * D / 2.0).abs() < 1e-12,
+        "the concave chamfer fills d²/2 along its length: {added}"
+    );
+
+    let top = query::all_edges(&bracket)
+        .into_iter()
+        .find(|&k| {
+            let he = bracket.get_edge(k).expect("an edge").he_plus;
+            let pt = |v| {
+                *bracket
+                    .get_point(bracket.get_vertex(v).expect("a vertex").point)
+                    .expect("a point")
+            };
+            let ps = [
+                pt(bracket.get_half_edge(he).expect("a half").start),
+                pt(bracket.half_edge_end(he).expect("an end")),
+            ];
+            let at = |p: Point3<f64>, x: f64| {
+                (p.x - x).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12 && (p.z - 1.0).abs() < 1e-12
+            };
+            (at(ps[0], 1.0) && at(ps[1], 2.0)) || (at(ps[0], 2.0) && at(ps[1], 1.0))
+        })
+        .expect("the top edge from the reflex corner");
+    let out = chamfer_edges(&at_rest, &[inner, top], D, tol)
+        .expect("the odd edge with another of its corner chamfers");
+    let out_body = topo::test_support::finished("out_body", out.body, tol);
+    assert_eq!(
+        topo::validate_geometric(&out_body, tol),
+        Ok(()),
+        "the bracket chamfered at its mixed corner is tier-3 valid"
+    );
+    let added = volume(&out_body) - volume(&at_rest);
+    assert!(
+        (added - 2.0 / 3.0 * D.powi(3)).abs() < 1e-12,
+        "the odd edge and the top edge, each 1 long, add (2/3)d³: {added}"
+    );
+
+    let leaning = crate::band_mixed_corner::leaning();
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&leaning, tol),
+        &crate::band_mixed_corner::leaning_odd_and_one(&leaning),
+        D,
+        tol,
+    )
+    .expect_err("the odd edge with another of an oblique corner refuses");
+    match err.error {
+        BlendError::ObliqueMixedCorner { odd, .. } => assert_eq!(
+            odd,
+            crate::band_mixed_corner::leaning_odd_and_one(&leaning)[0],
+            "the refusal names the odd edge"
+        ),
+        other => panic!("expected the oblique mixed corner refusal, got {other:?}"),
+    }
+}
+
+/// **The strip's chart normal is outward on a CONCAVE edge too** — the
+/// claim that lets the chamfer mint every band with sense `true` and
+/// carry no convexity parameter in its geometry.
+///
+/// The witness is the concave 90° edge along `+z` between the support
+/// `{y = 0, x > 0}` (outward `+y`) and the support `{x = 0, y > 0}`
+/// (outward `+x`): material fills everything but the first quadrant,
+/// so the strip's outward normal is `(1, 1, 0)/√2` — which is what the
+/// closed form returns, with no side chosen anywhere.
+#[test]
+fn the_strip_mints_an_outward_normal_on_a_concave_edge() {
+    let p = Point3::new(0.0, 0.0, 0.0);
+    let tau = Vec3::new(0.0, 0.0, 1.0);
+    let n_a = Vec3::new(0.0, 1.0, 0.0);
+    let n_b = Vec3::new(1.0, 0.0, 0.0);
+    let strip = chamfer_strip(p, tau, n_a, n_b, D);
+    let Surface::Plane { frame, .. } = strip.surface else {
+        panic!("a chamfer strip is a plane");
+    };
+    let (normal, origin) = (frame.axis(), frame.origin());
+    let want = (n_a + n_b).normalize();
+    assert!(
+        (normal - want).norm() < 1e-15,
+        "the strip's chart normal must be the supports' outward bisector, got {normal:?}"
+    );
+    // Both trimlines sit inside their own supports: the first support
+    // extends toward +x from the edge, the second toward +y.
+    assert!(origin.x > 0.0, "the first trimline is inside its support");
+    assert_eq!(strip.trim_a.1, D, "the setback is the request's, exactly");
+    assert_eq!(strip.trim_b.1, D);
+    assert_eq!(strip.spine_curvature, 0.0, "a ruled strip has no spine");
+}
+
+// ------------------------------------------------------------------
+// Fixtures.
+// ------------------------------------------------------------------
+
+/// A circular prism: two half-arc profile segments extruded, so every
+/// rim edge has a plane and a CYLINDER for supports.
+fn cylinder(r: f64, h: f64) -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("a circle is a valid profile");
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a circular prism")
+    .body
+    .into_body()
+}
+
+/// An L-bracket: the six-vertex L profile extruded by 1 m. Its one
+/// reflex profile corner becomes the body's one concave edge.
+fn l_bracket() -> Body<f64> {
+    let lp = bulge_loop(
+        [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ]
+        .into_iter()
+        .map(|(x, y)| (Point2::new(x, y), 0.0))
+        .collect(),
+    );
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("the L is a valid profile");
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bracket extrudes")
+    .body
+    .into_body()
+}
+
+/// The bracket's one concave edge: the vertical wall–wall edge over the
+/// reflex profile corner at `(1, 1)`, found by its endpoints rather
+/// than by index.
+fn concave_edge(body: &Body<f64>) -> EdgeKey {
+    let at = |p: Point3<f64>| (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12;
+    body.edges()
+        .find(|(k, _)| {
+            let Some((start, end)) = body.edge_vertices(*k) else {
+                return false;
+            };
+            let pt = |v| {
+                body.get_vertex(v)
+                    .and_then(|x| body.get_point(x.point))
+                    .copied()
+            };
+            match (pt(start), pt(end)) {
+                (Some(a), Some(b)) => at(a) && at(b),
+                _ => false,
+            }
+        })
+        .map(|(k, _)| k)
+        .expect("the bracket has a vertical edge over its reflex corner")
+}

@@ -1,0 +1,1866 @@
+//! **The class gates of the sphere and cone charts against their
+//! incidence tests.** `chart_pcurve`'s sphere arm reads two class gates
+//! — polar (the carrier plane ⊥ the axis, centred on it) and meridian —
+//! and the cone's reads one (a rim: ⊥ the axis, centred on it). Every
+//! carrier failing them is decided by an incidence test
+//! (`pcurve_sphere_chart_incident`, `pcurve_cone_chart_incident`): on
+//! the chart, its image, or a class with no general lane yet; off
+//! it, a carrier off the chart. A
+//! gate that reads a SECOND, amplified quantity after an in-band first
+//! one — or a first-order quantity for a second-order departure — must
+//! not decide off-chart on its own; these rows build on-chart carriers
+//! at exactly that boundary.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::shared::surf::off_cone;
+use crate::shared::tol::{band, eps};
+use geom::{Curve3, Surface};
+use geom_brep::{Pcurve, PcurveCertifyError, chart_pcurve};
+use geom_core::spline::KnotVector;
+use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
+
+/// The right circular cone of half-angle `alpha` about `+z` with its
+/// apex at the origin.
+fn cone(alpha: f64) -> Surface<f64> {
+    Surface::Cone {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        half_angle: alpha,
+    }
+}
+
+/// The cone's section by the plane through `(0, 0, h)` whose normal is
+/// tilted `theta` off the axis toward `+x`: an ellipse, major along the
+/// plane's `x` direction. With `T = tan²α` and `A = cos²θ − T·sin²θ`,
+/// the centre sits `−T·h·sin θ / A` along that direction and the
+/// semi-axes are `h·tan α·cos θ / A` and `h·tan α·cos θ / √A`.
+fn section(alpha: f64, h: f64, theta: f64) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64) {
+    let t = alpha.tan().powi(2);
+    let (s, c) = theta.sin_cos();
+    let a = c * c - t * s * s;
+    let u = Vec3::new(c, 0.0, -s);
+    let centre = Point3::new(0.0, 0.0, h) + u * (-t * h * s / a);
+    let k = h * alpha.tan() * c;
+    (centre, Vec3::new(s, 0.0, c), u, k / a, k / a.sqrt())
+}
+
+/// A tilted plane section of a cone lies on it, and is imaged; the
+/// same ellipse moved off it by `2·K·ε` — just past the sliver, so a
+/// meter loose by more than a factor of two would excuse it — is a
+/// carrier off the chart.
+#[test]
+fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
+    let alpha = 0.5;
+    let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
+    let on = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(centre, axis, u_ref),
+        major,
+        minor,
+    ));
+    let dist = off_cone(&on, &cone(alpha));
+    assert!(dist < 1e-14, "on the cone: {dist:e}");
+    let got = chart_pcurve(&on, &cone(alpha), band());
+    assert!(
+        matches!(got, Ok(Pcurve::FocalSection(_))),
+        "a cone section derives its section image: {got:?}"
+    );
+    let shift = 2.0 * Tol::witness().k() * eps();
+    let moved = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(centre + axis * shift, axis, u_ref),
+        major,
+        minor,
+    ));
+    let dist = off_cone(&moved, &cone(alpha));
+    assert!(
+        dist > Tol::witness().k() * eps(),
+        "the move is past the sliver: {dist:e}"
+    );
+    let got = chart_pcurve(&moved, &cone(alpha), band());
+    assert!(
+        matches!(
+            got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+            Some(geom_brep::IncidenceRead::Off(_))
+        ),
+        "a moved section is off the cone: {got:?}"
+    );
+}
+
+/// The cone incidence margin, `|k₀| + |(k₁, k₂)| + |(k₃, k₄)|` over
+/// `2·sin α·z_min`, read through one harmonic group at a time: each row
+/// builds a conic off the cone whose residual lives in ONE group, at
+/// `5·K·ε` — past the sliver — with every other group inside `ε`, so a
+/// margin that dropped that group would call it uncovered.
+#[test]
+fn each_harmonic_group_of_the_cone_residual_decides_alone() {
+    let (e, k) = (eps(), Tol::witness().k());
+    let off = |what: &str, carrier: Curve3<f64>, alpha: f64| {
+        let got = chart_pcurve(&carrier, &cone(alpha), band());
+        assert!(
+            matches!(
+                got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
+            "{what}: {got:?}"
+        );
+    };
+    // k₀ alone: a circle ⊥ the axis of the wrong radius, centred 2·K·ε
+    // off the axis so the rim's centring gate sends it to the test.
+    // `k₀ ≈ cos²α·2ρ·δρ`, `k₁ = 2·cos²α·w·a` stays under ε.
+    let alpha = 1.55_f64;
+    let rho = alpha.tan();
+    let d_rho = 5.0 * k * e * 2.0 * alpha.sin() / (alpha.cos().powi(2) * 2.0 * rho);
+    off(
+        "k0: a wrong radius",
+        Curve3::circle(
+            Point3::new(2.0 * k * e, 0.0, 1.0),
+            Vec3::unit_z(),
+            rho + d_rho,
+            Vec3::unit_x(),
+        ),
+        alpha,
+    );
+    // (k₁, k₂) alone: the right radius, centred δ off the axis — the
+    // first harmonic is `2·cos²α·δ·ρ`, k₀ = `cos²α·δ²` is second
+    // order, and the margin reads `δ·cos α`.
+    let alpha = 0.5_f64;
+    let delta = 5.0 * k * e / alpha.cos();
+    off(
+        "k1,k2: an off-axis rim",
+        Curve3::circle(
+            Point3::new(delta, 0.0, 1.0),
+            Vec3::unit_z(),
+            alpha.tan(),
+            Vec3::unit_x(),
+        ),
+        alpha,
+    );
+    // (k₃, k₄) alone: an ellipse ⊥ the axis, centred on it, with
+    // `A² + B² = 2ρ²` (so k₀ = 0) and `A² − B² = 2s` (k₃ = cos²α·s).
+    let rho = alpha.tan();
+    let s = 5.0 * k * e * 2.0 * alpha.sin() / alpha.cos().powi(2);
+    off(
+        "k3,k4: an ellipse round the axis",
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+            (rho * rho + s).sqrt(),
+            (rho * rho - s).sqrt(),
+        )),
+        alpha,
+    );
+}
+
+/// **The cone's rim gates on a needle and on a wide cone.** A circle
+/// approximating the section by a plane tilted inside the axial band
+/// (`ρ·sin θ = ε/2`) lies on the cone to rounding. Its centre is
+/// `≈ tan α · ε/2` off the axis: inside the centring band on a needle
+/// cone, where it is a rim and images in closed form, and past it on a
+/// wide one, where the centring gate fails. There the incidence test,
+/// not the gate, decides — and the circle is not shown off the cone, a
+/// circle that is none of its rims (a cone holds no other circle), which
+/// takes the general lane: its projected image, which certifies.
+#[test]
+fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
+    let e = eps();
+    for (alpha, rim) in [(0.05_f64, true), (1.55, false)] {
+        let h = 1.0;
+        let theta = 0.5 * e / (h * alpha.tan());
+        let (centre, axis, u_ref, major, minor) = section(alpha, h, theta);
+        let circle = Curve3::circle(centre, axis, (major * minor).sqrt(), u_ref);
+        let dist = off_cone(&circle, &cone(alpha));
+        assert!(dist < 0.01 * e, "alpha = {alpha}: on the cone: {dist:e}");
+        let got = chart_pcurve(&circle, &cone(alpha), band());
+        if rim {
+            assert!(
+                got.is_ok(),
+                "alpha = {alpha}: a needle cone's near-rim is a rim: {got:?}"
+            );
+        } else {
+            assert!(
+                centre.x.abs() > 10.0 * e,
+                "alpha = {alpha}: the centre offset is past the band: {:e}",
+                centre.x
+            );
+            let Ok(image @ Pcurve::Projected(_)) = got else {
+                panic!(
+                    "alpha = {alpha}: an on-cone circle that is no rim takes its projected \
+                     image, never off the chart: {got:?}"
+                )
+            };
+            let cache = geom_brep::PcurveCache::certify(
+                image,
+                0.0,
+                core::f64::consts::TAU,
+                &circle,
+                &cone(alpha),
+                band(),
+            )
+            .unwrap_or_else(|e| panic!("alpha = {alpha}: the projected image certifies: {e:?}"));
+            assert!(
+                cache.certificate().envelope < band().zero(),
+                "alpha = {alpha}: its envelope is inside the band"
+            );
+        }
+    }
+}
+
+/// A small circle exactly on the unit sphere near its pole, whose plane
+/// is tilted off ⊥-the-axis by an angle `θ` small enough that the
+/// polar class's axial gate (`|a·z| + |b·z| = ρ·sin θ`) reads ZERO, but
+/// whose centre's radial offset (`h·sin θ`, `h ≈ R`) is `h/ρ` times
+/// larger and reads nonzero. The circle lies on the sphere (its centre
+/// is the foot of the sphere's centre on its plane, `ρ² + h² = R²`), so
+/// the pair is an uncovered general circle, never off the chart.
+#[test]
+fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
+    let e = eps();
+    let sphere = Surface::Sphere {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    for rho in [1e-2_f64, 1e-3, 1e-4] {
+        let h = (1.0 - rho * rho).sqrt();
+        // ρ·sin θ = ε/2: inside the axial gate's zero half.
+        let s = 0.5 * e / rho;
+        let c = (1.0 - s * s).sqrt();
+        let n = Vec3::new(s, 0.0, c);
+        let carrier = Curve3::circle(
+            Point3::new(h * s, 0.0, h * c),
+            n,
+            rho,
+            Vec3::new(c, 0.0, -s),
+        );
+        let worst = (0..64)
+            .map(|i| {
+                let p = carrier.eval(f64::from(i) * core::f64::consts::TAU / 64.0);
+                ((p.x * p.x + p.y * p.y + p.z * p.z).sqrt() - 1.0).abs()
+            })
+            .fold(0.0_f64, f64::max);
+        assert!(worst < 1e-14, "rho = {rho:e}: on the sphere: {worst:e}");
+        // The amplified quantity really is past the band, so the row
+        // exercises the second gate rather than passing the first two.
+        assert!(h * s > 10.0 * e, "rho = {rho:e}: centre offset {:e}", h * s);
+        let got = chart_pcurve(&carrier, &sphere, band());
+        assert!(
+            matches!(got, Ok(Pcurve::Projected(_))),
+            "rho = {rho:e}: an on-sphere circle is a general circle with a projected image: \
+             {got:?}"
+        );
+    }
+}
+
+/// **An in-band move is never read off the cone or the sphere** (the
+/// one-sided incidence test). A cone section moved along the cone's
+/// axis by half the band's zero half derives its image; a sphere's
+/// general circle moved by as much is the general circle the projected
+/// route images, never a carrier off the chart.
+#[test]
+fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
+    let alpha = 0.5;
+    let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
+    let moved = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(centre + Vec3::unit_z() * (0.5 * eps()), axis, u_ref),
+        major,
+        minor,
+    ));
+    let got = chart_pcurve(&moved, &cone(alpha), band());
+    assert!(
+        matches!(got, Ok(Pcurve::FocalSection(_))),
+        "a cone section moved ε/2: {got:?}"
+    );
+    let sphere = Surface::Sphere {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    let n = Vec3::new(0.3, 0.0, 1.0).normalize();
+    let (h, rho) = (0.6_f64, 0.8_f64);
+    let circle = Curve3::circle(
+        Point3::origin() + n * (h + 0.5 * eps()),
+        n,
+        rho,
+        Vec3::unit_y(),
+    );
+    let got = chart_pcurve(&circle, &sphere, band());
+    assert!(
+        matches!(got, Ok(Pcurve::Projected(_))),
+        "a general circle moved ε/2 off the sphere: {got:?}"
+    );
+}
+
+/// **A poison end of the interval locates no piece, so the projected
+/// image's box is poison.** The `Net` carrier is the sharp case: its
+/// box is built from knot values alone, so a poison end that located
+/// the first piece read a certified box of that piece for a window
+/// nobody asked about. At the interval scalar a NaI end now answers a
+/// box with nothing certified in it.
+#[test]
+fn a_projected_net_image_boxes_a_nai_end_as_poison() {
+    let lift = |x: f64| Interval::from_f64(x);
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            )
+            .lift(geom_core::Real::from_f64),
+            vec![
+                Point3::new(lift(0.1), lift(-0.2), lift(0.0)),
+                Point3::new(lift(0.7), lift(0.9), lift(0.0)),
+                Point3::new(lift(1.3), lift(0.2), lift(0.0)),
+                Point3::new(lift(1.6), lift(0.8), lift(0.0)),
+            ],
+            [1.0, 0.6, 1.0, 1.0].map(lift).to_vec(),
+        )
+        .unwrap(),
+    ));
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(
+            Point3::new(lift(0.05), lift(0.1), lift(0.0)),
+            Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        ),
+    };
+    let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+    assert!(
+        matches!(&image, Pcurve::Projected(p) if matches!(p.carrier(), geom_brep::FramedCarrier::Net(_))),
+        "the fixture is a projected net: {image:?}"
+    );
+    let certified = |b: geom_brep::ChartWindow<Interval>| {
+        [b.u_min, b.u_max, b.v_min, b.v_max]
+            .iter()
+            .all(|x| x.is_certified())
+    };
+    let ok = image.chart_box(lift(0.0), lift(1.0));
+    assert!(certified(ok), "CONTROL: the whole interval boxes: {ok:?}");
+    let nai = lift(f64::NAN);
+    for (name, b) in [
+        ("NaI start", image.chart_box(nai, lift(1.0))),
+        ("NaI end", image.chart_box(lift(0.0), nai)),
+    ] {
+        assert!(
+            [b.u_min, b.u_max, b.v_min, b.v_max]
+                .iter()
+                .all(|x| x.is_poison()),
+            "{name}: {b:?}"
+        );
+    }
+}
+
+/// **The projected image answers a poison parameter with poison in
+/// every channel it carries.** At `Dual` that includes the derivative
+/// channel, where a bare `from_f64(NaN)` would be a dual constant whose
+/// derivative reads as a zero: the point (`ProjectedImage::eval`) and
+/// the box (`chart_box`'s poison window) are both checked.
+#[test]
+fn a_projected_image_answers_a_poison_dual_parameter_with_poison_in_every_channel() {
+    use geom_core::Dual64;
+    let lift = Dual64::constant;
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            )
+            .lift(geom_core::Real::from_f64),
+            vec![
+                Point3::new(lift(0.1), lift(-0.2), lift(0.0)),
+                Point3::new(lift(0.7), lift(0.9), lift(0.0)),
+                Point3::new(lift(1.3), lift(0.2), lift(0.0)),
+                Point3::new(lift(1.6), lift(0.8), lift(0.0)),
+            ],
+            [1.0, 0.6, 1.0, 1.0].map(lift).to_vec(),
+        )
+        .unwrap(),
+    ));
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(
+            Point3::new(lift(0.05), lift(0.1), lift(0.0)),
+            Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        ),
+    };
+    let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+    assert!(
+        matches!(&image, Pcurve::Projected(p) if matches!(p.carrier(), geom_brep::FramedCarrier::Net(_))),
+        "the fixture is a projected net: {image:?}"
+    );
+    let poison = |x: Dual64| x.value.is_nan() && x.deriv.is_nan();
+    let t = Dual64::variable(f64::NAN);
+    let p = image.eval(t);
+    assert!(poison(p.x) && poison(p.y), "eval: {p:?}");
+    let b = image.chart_box(t, lift(1.0));
+    assert!(
+        [b.u_min, b.u_max, b.v_min, b.v_max].into_iter().all(poison),
+        "chart_box: {b:?}"
+    );
+}
+
+/// **A plane chart's box covers every span of its net.** A plane chart
+/// reads the whole net as one piece, so the piece crosses the net's
+/// knots; its box is each span's own restriction, hulled. The fixture is
+/// a two-span polyline `(0,0) → (1,0) → (1,5)`, whose first span
+/// extended past its knot runs along `v = 0`: a box read off that
+/// extension misses the corner `(1, 5)` the curve ends at. At `f64` and
+/// at the certification scalar, where the box must also certify.
+#[test]
+fn a_plane_chart_box_covers_every_span_of_its_net() {
+    fn check<T: geom_core::Decide>(
+        lift: impl Fn(f64) -> T,
+        lo: impl Fn(T) -> f64,
+        hi: impl Fn(T) -> f64,
+        tag: &str,
+    ) {
+        let carrier = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::Knots::from(
+                    KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+                )
+                .lift(&lift),
+                vec![
+                    Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+                    Point3::new(lift(1.0), lift(0.0), lift(0.0)),
+                    Point3::new(lift(1.0), lift(5.0), lift(0.0)),
+                ],
+                vec![lift(1.0), lift(1.0), lift(1.0)],
+            )
+            .unwrap(),
+        ));
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+                Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+                Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+            ),
+        };
+        let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+        let b = image.chart_box(lift(0.0), lift(1.0));
+        let (u, v) = ((lo(b.u_min), hi(b.u_max)), (lo(b.v_min), hi(b.v_max)));
+        assert!(
+            u.0 <= 0.0 && u.1 >= 1.0 && v.0 <= 0.0 && v.1 >= 5.0,
+            "{tag}: the box u {u:?} v {v:?} misses a corner of the polyline [0, 1] x [0, 5]"
+        );
+    }
+    check(|x| x, |x| x, |x| x, "f64");
+    check(
+        Interval::from_f64,
+        |x: Interval| {
+            if x.is_certified() {
+                geom_core::Bounds::lo(x)
+            } else {
+                f64::NAN
+            }
+        },
+        |x: Interval| {
+            if x.is_certified() {
+                geom_core::Bounds::hi(x)
+            } else {
+                f64::NAN
+            }
+        },
+        "Interval",
+    );
+}
+
+/// **A rim whose height is not shown away from the apex's refuses as
+/// not shown, quoting its margin** (`pcurve_cone_chart_nappe`'s Zero
+/// arm). A circle ⊥ the axis, centred on it at a height inside the zero
+/// band, passes the rim gates and reaches the nappe: a band-decided Zero
+/// is not an exact one, so the refusal says the height "is not shown
+/// away from the apex's" and carries the margin the decision read, never
+/// the bare fact that the apex plane meets the cone only at the apex.
+/// Read at `f64` and at `Interval`.
+#[test]
+fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
+    let surface = cone(0.5);
+    let Surface::Cone { frame, .. } = surface else {
+        unreachable!()
+    };
+    let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let rim = Curve3::circle(apex + axis * (0.2 * eps()), axis, 0.3, u_ref);
+    let check = |got: Result<String, PcurveCertifyError>, lane: &str| match got {
+        Err(PcurveCertifyError::Incidence(r))
+            if matches!(r.read(), geom_brep::IncidenceRead::AtPose(_)) && r.why().is_some() =>
+        {
+            let why = r.why().unwrap_or_default();
+            assert!(
+                why.contains("is not shown away from the apex"),
+                "{lane}: {why}"
+            );
+        }
+        other => panic!("{lane}: a rim at the apex's height: {other:?}"),
+    };
+    let got = chart_pcurve(&rim, &surface, band());
+    if let Err(e) = &got {
+        assert!(
+            e.render(geom_brep::recourse::Reading::Build)
+                .contains("(margin "),
+            "{e}"
+        );
+    }
+    check(got.map(|p| format!("{p:?}")), "f64");
+    let rim_i: Curve3<Interval> = rim.map_scalar(Interval::from_f64);
+    let surface_i: Surface<Interval> = surface.map_scalar(Interval::from_f64);
+    check(
+        chart_pcurve(&rim_i, &surface_i, band()).map(|p| format!("{p:?}")),
+        "Interval",
+    );
+}
+
+/// **Only an incidence reading ends as one** (D3, D4 ¶1 (iv)): a pose
+/// reading ends in the pose lever, a definite miss as the door's defect,
+/// and neither reaches "not shown on the face", the undecided incidence
+/// read's ending. Read at `f64` and at `Interval`:
+/// - a rim whose height sits in the apex's sliver
+///   (`pcurve_cone_chart_nappe`, `cone_conic_incidence`): the pose the
+///   in-band Zero names, so the pose lever, though it may lie on the cone;
+/// - a near-round ellipse 10 m off the sphere and off the torus: the
+///   incidence test's definite miss, the kernel's defect at a build,
+///   whatever its roundness (review on PR 5844).
+///
+/// The Villarceau tangent's parts, a class reading at `K ≤ 3`, are
+/// pinned in `pcurve_villarceau`; a tiny ellipse within ε of the sphere
+/// or the torus, in `a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet`.
+#[test]
+fn only_an_incidence_reading_ends_as_one() {
+    use geom_brep::IncidenceRead;
+    use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN, Reading};
+    let e = eps();
+    let at_pose = |what: &str, got: Result<(), PcurveCertifyError>| {
+        let Some(err) = got
+            .as_ref()
+            .err()
+            .filter(|e| matches!(IncidenceRead::of(e), Some(IncidenceRead::AtPose(_))))
+        else {
+            panic!("{what}: a pose reading: {got:?}");
+        };
+        let text = err.render(Reading::Build);
+        assert!(
+            text.contains(INCIDENCE_AT_POSE.lever)
+                && !text.contains(INCIDENCE_UNSHOWN.lever)
+                && !text.contains("defect"),
+            "{what}: {text}"
+        );
+    };
+    let definitely_off = |what: &str, got: Result<(), PcurveCertifyError>| {
+        let Err(err) = &got else {
+            panic!("{what}: definitely off: {got:?}");
+        };
+        assert!(
+            matches!(IncidenceRead::of(err), Some(IncidenceRead::Off(_)))
+                && err
+                    .render(Reading::Build)
+                    .ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "{what}: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
+    };
+    let both = |what: &str,
+                carrier: Curve3<f64>,
+                surface: Surface<f64>,
+                want: &dyn Fn(&str, Result<(), PcurveCertifyError>)| {
+        want(
+            &format!("{what} (f64)"),
+            chart_pcurve(&carrier, &surface, band()).map(|_| ()),
+        );
+        want(
+            &format!("{what} (Interval)"),
+            chart_pcurve(
+                &carrier.map_scalar(Interval::from_f64),
+                &surface.map_scalar(Interval::from_f64),
+                band(),
+            )
+            .map(|_| ()),
+        );
+    };
+    // The apex's sliver: past the zero band, under the escalation band.
+    let alpha = 0.5_f64;
+    for h in [2.0 * e, 5.5 * e] {
+        both(
+            &format!("a rim at h = {h:e}"),
+            Curve3::circle(
+                Point3::new(0.0, 0.0, h),
+                Vec3::unit_z(),
+                h * alpha.tan(),
+                Vec3::unit_x(),
+            ),
+            cone(alpha),
+            &at_pose,
+        );
+    }
+    let sphere = Surface::Sphere {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    let ellipse = |z: f64, r: f64, d: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
+            r,
+            r - d,
+        ))
+    };
+    both(
+        "a near-round ellipse 10 m off the sphere",
+        ellipse(10.0, 0.8, 0.5 * e),
+        sphere,
+        &definitely_off,
+    );
+    both(
+        "a near-round ellipse 10 m off the torus",
+        ellipse(10.0, 2.5, 0.5 * e),
+        torus,
+        &definitely_off,
+    );
+}
+
+/// **A class rate read Zero is no incidence reading: the carrier takes
+/// the general lane unless the incidence test shows it off** (D3; review
+/// on PR 5844, H2). Each closed-form arm that reads a class's rate
+/// (`pcurve_chart_orientation` on a cone ellipse,
+/// `pcurve_sphere_chart_polar_rate`, `pcurve_torus_chart_meridional_rate`)
+/// and reads it Zero sends the carrier through D3's one door to the
+/// general lane: a carrier off the chart is the test's definite miss, one
+/// not shown off is the general lane's, which images it where the lane is
+/// written and is "not yet" where it is not. Each arm is reached:
+/// - a thin ellipse (minor semi-axis under ε) along a cone generator,
+///   whose radial projection does not wind: on the cone, the projected
+///   image;
+/// - a great circle of the sphere whose plane leans `4.1e-10` off the
+///   axis, turned so its radial part passes the escalation band, at band
+///   `(1e-9, 1.05e-9)`: its polar rate reads `9.75e-10`, Zero, though it
+///   lies on the sphere (`K < √2`): "not yet", never off;
+/// - a circle centred on the tube's centre circle in the vertical plane ⊥
+///   the meridian: its meridional rate is exactly 0, and it is off the
+///   torus, so the incidence test's definite miss, the kernel's defect.
+///
+/// A Zero read here as a pose (`OffMargin::InBand`) reds the first as an
+/// incidence refusal, the second as an incidence ending and the third as
+/// a lever.
+#[test]
+fn a_class_rate_read_zero_takes_the_general_lane_unless_shown_off() {
+    use geom_brep::IncidenceRead;
+    use geom_brep::recourse::Reading;
+    let e = eps();
+    let not_incidence = |what: &str, got: Result<(), PcurveCertifyError>| {
+        let Err(err @ PcurveCertifyError::NoGeneralLane { .. }) = &got else {
+            panic!("{what}: on the chart, no lane yet: {got:?}");
+        };
+        assert!(IncidenceRead::of(err).is_none(), "{what}: {err:?}");
+    };
+    let alpha = 0.5_f64;
+    let g = Vec3::new(alpha.sin(), 0.0, alpha.cos());
+    let thin = chart_pcurve(
+        &Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin() + g * 2.0, Vec3::unit_y(), g),
+            0.5,
+            0.3 * e,
+        )),
+        &cone(alpha),
+        band(),
+    );
+    assert!(
+        matches!(thin, Ok(Pcurve::Projected(_))),
+        "a thin ellipse along a generator: on the chart, the general lane: {thin:?}"
+    );
+    let (lean, turn) = (4.125e-10_f64, 9.75e-10_f64);
+    let up = (1.0 - lean * lean).sqrt();
+    let (e1, e2) = (Vec3::new(-lean, 0.0, up), Vec3::unit_y());
+    let th = (turn / up).asin();
+    let sphere = Surface::Sphere {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    not_incidence(
+        "a leaning great circle at K < √2",
+        chart_pcurve(
+            &Curve3::circle(
+                Point3::origin(),
+                Vec3::new(up, 0.0, lean),
+                1.0,
+                e1 * th.cos() + e2 * th.sin(),
+            ),
+            &sphere,
+            geom_core::Band::new(1e-9, 1.05e-9).unwrap(),
+        )
+        .map(|_| ()),
+    );
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    let got = chart_pcurve(
+        &Curve3::circle(
+            Point3::new(2.0, 0.0, 0.0),
+            Vec3::unit_x(),
+            0.5,
+            Vec3::unit_z(),
+        ),
+        &torus,
+        band(),
+    );
+    let Err(err) = &got else {
+        panic!("a circle ⊥ the meridian, off the torus: {got:?}");
+    };
+    assert!(
+        matches!(
+            geom_brep::IncidenceRead::of(err),
+            Some(geom_brep::IncidenceRead::Off(_))
+        ) && err
+            .render(Reading::Build)
+            .ends_with(geom_core::KERNEL_DEFECT_ENDING),
+        "{err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
+    );
+}
+
+/// **A closed form minted at Zero, re-read with its class reading in
+/// band, is undecided at check 4: typed, escalating, never a pass and
+/// never a defect** (D3; only a definite contradiction of what is stored
+/// is a defect). The image is a sphere parallel's, minted where the
+/// axial gate reads Zero. The carrier it is re-read against is the same
+/// circle tilted on the sphere so its axial reading is in the band:
+/// still exactly on the sphere, so incidence reads it on.
+///
+/// The two lanes read different checks first, each pinned. At `f64`
+/// (an inexact witness) certification runs check 3's schedule as the
+/// closed form's cross-check before check 4, and its first sample reads
+/// the tilt at the circle's radius in band: `MapResidual`. At `Interval`
+/// (an exact witness) the schedule is not run, so check 4's
+/// re-derivation reads the class in band: `ChartClass`, "not yet". The
+/// class re-read is also pinned at the door check 4 re-derives through
+/// (`pcurve_cache::check_4_class_rows::check_4s_re_derivation_of_an_in_band_class_is_undecided`).
+#[test]
+fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
+    use geom_brep::PcurveCache;
+    let sphere = Surface::Sphere {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    let (h, rho) = (0.6, 0.8);
+    let parallel = Curve3::circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
+    let image = chart_pcurve(&parallel, &sphere, band()).unwrap();
+    // Tilt the circle's plane about `x` through the sphere's centre, so
+    // it stays on the sphere; the axial reading is `ρ·sin θ`.
+    let mid = 0.5 * (band().zero() + band().escalate());
+    let theta = (mid / rho).asin();
+    let (s, c) = theta.sin_cos();
+    let n = Vec3::new(0.0, -s, c);
+    let tilted = Curve3::circle(Point3::origin() + n * h, n, rho, Vec3::unit_x());
+    let tau = core::f64::consts::TAU;
+    let got = PcurveCache::certify(image, 0.0, tau, &tilted, &sphere, band());
+    assert!(
+        matches!(
+            got,
+            Err(PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::MapResidual,
+                ..
+            })
+        ),
+        "f64: check 3's cross-check reads the tilt first: {got:?}"
+    );
+    let at = <Interval as Real>::from_f64;
+    let sphere_i = sphere.map_scalar(at);
+    let image_i = chart_pcurve(&parallel.map_scalar(at), &sphere_i, band()).unwrap();
+    let got = PcurveCache::certify(
+        image_i,
+        at(0.0),
+        at(tau),
+        &tilted.map_scalar(at),
+        &sphere_i,
+        band(),
+    );
+    assert!(
+        matches!(
+            got,
+            Err(PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::ChartClass,
+                ..
+            })
+        ),
+        "Interval: check 4 re-reads the class in band: {got:?}"
+    );
+}
+
+/// The edge certificate of `carrier` over `(t0, t1)`, described on the
+/// unit sphere's chart.
+fn sphere_chart_edge(
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+) -> Result<geom_brep::EdgeCurve<f64>, geom_brep::CertifyError> {
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    let sphere = Surface::Sphere {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    let (keys, lookup) = crate::shared::surf::table(vec![sphere]);
+    EdgeCurve::certify(
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(keys[0]),
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        carrier.eval(t0),
+        carrier.eval(t1),
+        &lookup,
+        geom_core::test_support::fixture_lever(1.0),
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+}
+
+/// **An ellipse edge within the band of the sphere, described on its
+/// chart, certifies through the general lane** (D3): a parallel's
+/// circle whose semi-axis along `x` is lengthened by `ε/4`, built
+/// through the ellipse door, stores the projected image.
+#[test]
+fn an_ellipse_edge_within_the_band_of_a_sphere_certifies() {
+    let e = eps();
+    let (h, rho) = (0.6, 0.8);
+    let ellipse = Curve3::ellipse(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        rho + 0.25 * e,
+        rho,
+        Vec3::unit_x(),
+        band(),
+    )
+    .expect("an ellipse");
+    let edge = sphere_chart_edge(&ellipse, (0.0, 1.0))
+        .unwrap_or_else(|err| panic!("the ellipse's edge certifies: {err:?}"));
+    assert!(
+        matches!(
+            edge.description(),
+            geom_brep::EdgeDescription::Chart(c) if matches!(c.pcurve, Pcurve::Projected(_))
+        ),
+        "{edge:?}"
+    );
+}
+
+/// **An edge described on a chart whose general lane is unwritten for
+/// its carrier ends lever-only "not yet" at the edge certificate, never
+/// as the description's defect** (D3). The carrier is a line within the
+/// band of the unit sphere (tangent to the parallel at height `0.6`,
+/// moved in by `ε/8` and read over a span whose sagitta is `ε/4`), which
+/// no general lane images: the mint refuses `NoGeneralLane`, and the
+/// edge certificate carries it as its own `NoGeneralLane` under the
+/// class check, not folded into `ChartImageUnavailable`'s defect. Read
+/// at a build and at rest.
+#[test]
+fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{CertCheck, CertifyError};
+    let e = eps();
+    let (h, rho) = (0.6_f64, 0.8_f64);
+    let half = (0.5 * e).sqrt();
+    let line = Curve3::line(Point3::new(rho - 0.125 * e, 0.0, h), Vec3::unit_y());
+    let err =
+        sphere_chart_edge(&line, (-half, half)).expect_err("a line on a sphere has no image yet");
+    assert!(matches!(err, CertifyError::NoGeneralLane { .. }), "{err:?}");
+    assert_eq!(
+        err.decision().map(|(check, _)| check),
+        Some(CertCheck::ChartClass)
+    );
+    for reading in [Reading::Build, Reading::AtRest] {
+        let ending = err
+            .ending(reading)
+            .expect("a decision's refusal has an ending");
+        assert!(
+            ending.starts_with(geom_core::NOT_YET_ENDING),
+            "{reading:?}: {ending}"
+        );
+        for word in ["defect", "tolerance", "Recourse:"] {
+            assert!(!ending.contains(word), "{reading:?}: {word}: {ending}");
+        }
+    }
+}
+
+/// **The edge certificate ends a carrier's incidence by the door, and a
+/// read in band by its lever** (D3, D4 ¶1 (iv)): a carrier off its
+/// chart is the kernel's defect at a build and the stored culprit at
+/// rest; one whose incidence test lands in band, and one read within the
+/// band at a pose where the chart holds no curve of its kind, each end in
+/// the geometry's lever worded for that read, never a defect. Who placed
+/// the carrier moves none of it: the same carrier with and without a
+/// declaration ends alike. At `f64`.
+///
+/// - **Off**: a line on the unit sphere, which holds none.
+/// - **Undecided**: a great circle tilted off the axis (none of the
+///   sphere's parallels or meridians) of radius `1 + mid`, its distance
+///   from the sphere mid-band.
+/// - **At a pose**: a circle of radius 2 about `(0, 0, 1)` tilted 30° off
+///   a cone's axis, whose lowest point sits at the apex's height: its
+///   nappe reading is a band-decided Zero (`cone_conic_incidence`), and
+///   the apex plane meets the cone only at the apex.
+#[test]
+fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{
+        CertCheck, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource,
+    };
+    use geom_core::{Affine3, Point2};
+    let mid = 0.5 * (band().zero() + band().escalate());
+    let sphere = Surface::Sphere {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    let declaration = MappedCurve::whole(MappedSource::ExtrudedPoint {
+        point: Point2::new(0.0, 0.0),
+        place: Affine3::identity(),
+        vec: Vec3::unit_z(),
+    });
+    let line = |origin: Point3<f64>, dir: Vec3<f64>| Curve3::Line(geom::Line { origin, dir });
+    // (read, face, carrier, span, the in-band read's lever, if any)
+    type Row = (
+        &'static str,
+        Surface<f64>,
+        Curve3<f64>,
+        (f64, f64),
+        Option<&'static str>,
+    );
+    let rows: [Row; 3] = [
+        (
+            "off",
+            sphere.clone(),
+            line(Point3::new(0.0, 0.0, 0.0), Vec3::unit_x()),
+            (0.2, 0.6),
+            None,
+        ),
+        (
+            "undecided",
+            sphere,
+            Curve3::circle(
+                Point3::origin(),
+                Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
+                1.0 + mid,
+                Vec3::unit_y(),
+            ),
+            (0.0, 1.0),
+            Some("Recourse: move the geometry so the boundary lies clearly on the face it bounds"),
+        ),
+        (
+            "at a pose",
+            cone(0.5),
+            Curve3::circle(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.5, 0.0, 0.75_f64.sqrt()),
+                2.0,
+                Vec3::new(0.75_f64.sqrt(), 0.0, -0.5),
+            ),
+            (0.0, 1.0),
+            Some("Recourse: move the geometry so the edge sits clear of that pose"),
+        ),
+    ];
+    for (what, surface, carrier, (t0, t1), lever) in rows {
+        let (keys, lookup) = crate::shared::surf::table(vec![surface]);
+        let certify = |declared: bool| {
+            let chart = EdgeDescriptionSpec::chart(keys[0]);
+            EdgeCurve::certify(
+                EdgeCurveSpec {
+                    description: if declared {
+                        chart.declared_by(declaration)
+                    } else {
+                        chart
+                    },
+                    carrier: carrier.clone(),
+                    param_start: t0,
+                    param_end: t1,
+                },
+                carrier.eval(t0),
+                carrier.eval(t1),
+                &lookup,
+                geom_core::test_support::fixture_lever(1.0),
+                band(),
+                geom_brep::NurbsLane::certified(),
+            )
+            .expect_err("the carrier is no curve of its chart here")
+        };
+        let refusal = certify(false);
+        match (what, refusal.incidence_read()) {
+            ("off", Some(geom_brep::IncidenceRead::Off(_)))
+            | ("undecided", Some(geom_brep::IncidenceRead::Undecided(_)))
+            | ("at a pose", Some(geom_brep::IncidenceRead::AtPose(_))) => {}
+            _ => panic!("{what}: {refusal:?}"),
+        }
+        assert_eq!(
+            refusal.decision().map(|(check, _)| check),
+            Some(CertCheck::ChartIncidence),
+            "{what}"
+        );
+        let declared = certify(true);
+        for (reading, culprit) in [
+            (Reading::Build, geom_core::KERNEL_DEFECT_ENDING),
+            (Reading::AtRest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        ] {
+            let ending = refusal.ending(reading).unwrap();
+            assert_eq!(
+                declared.ending(reading).as_deref(),
+                Some(ending.as_str()),
+                "{what} {reading:?}: who placed the carrier moves no ending"
+            );
+            match lever {
+                None => assert_eq!(ending, culprit, "{what} {reading:?}"),
+                Some(lever) => {
+                    assert!(ending.starts_with(lever), "{what} {reading:?}: {ending}");
+                    for word in ["defect", "loosen", "tighten", "declared"] {
+                        assert!(
+                            !ending.contains(word),
+                            "{what} {reading:?}: {word}: {ending}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The circle of `radius` about the point `h` up `axis`, ⊥ to it.
+fn coaxial(h: f64, radius: f64) -> Curve3<f64> {
+    Curve3::circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        radius,
+        Vec3::unit_x(),
+    )
+}
+
+/// Each class arm a circle of the wrong radius passes (its plane ⊥ the
+/// axis, centred on it), and the plane's and the cylinder's mints, with
+/// the circle's distance from the face `d`: (row, face, carrier).
+fn wrong_radius_rows(d: f64) -> Vec<(&'static str, Surface<f64>, Curve3<f64>)> {
+    let alpha = 0.5_f64;
+    vec![
+        (
+            "a sphere's polar circle",
+            Surface::Sphere {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 1.0,
+            },
+            coaxial(0.6, 0.8 + d),
+        ),
+        (
+            "a cone's rim",
+            cone(alpha),
+            coaxial(1.0, alpha.tan() + d / alpha.cos()),
+        ),
+        (
+            "a torus's parallel",
+            Surface::Torus {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+            },
+            coaxial(0.0, 2.5 + d),
+        ),
+        (
+            "a cylinder's rim",
+            Surface::Cylinder {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 1.0,
+            },
+            coaxial(0.5, 1.0 + d),
+        ),
+        (
+            "a circle in a plane",
+            Surface::Plane {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            },
+            coaxial(d, 0.7),
+        ),
+    ]
+}
+
+/// `chart_pcurve`'s refusal at `f64` and at `Interval`.
+fn at_both_lanes(
+    carrier: &Curve3<f64>,
+    surface: &Surface<f64>,
+) -> [(&'static str, PcurveCertifyError); 2] {
+    let lift = Interval::from_f64;
+    [
+        (
+            "f64",
+            chart_pcurve(carrier, surface, band())
+                .map(|_| ())
+                .unwrap_err(),
+        ),
+        (
+            "Interval",
+            chart_pcurve(&carrier.map_scalar(lift), &surface.map_scalar(lift), band())
+                .map(|_| ())
+                .unwrap_err(),
+        ),
+    ]
+}
+
+/// **A circle every class gate passes, off the face by its radius, ends
+/// as its incidence read at the mint, at every door** (D3, D4 ¶1 (iv)).
+/// The sphere's polar circle, the cone's rim and the torus's parallel
+/// read the carrier's plane and centre, not its radius, and the plane's
+/// and the cylinder's mints image any carrier; each reads incidence
+/// first. Half a metre off, the read is the definite miss: the kernel's
+/// defect at a build, the stored culprit at rest, the damaged file at
+/// the import door whatever the file's ε_in. Mid-band off, it is not
+/// shown on the face: the geometry's lever at every door, never a
+/// defect. A mint that images the carrier before reading it ends the
+/// first `Ok` and the second as the residual's defect; both red here.
+#[test]
+fn a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read() {
+    use geom_brep::recourse::{INCIDENCE_UNSHOWN, ReadAt, Reading};
+    use geom_core::FileCoincidence;
+    let doors = |what: &str| {
+        [
+            (ReadAt::Run(Reading::Build), geom_core::KERNEL_DEFECT_ENDING),
+            (
+                ReadAt::Run(Reading::AtRest),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                ReadAt::File(FileCoincidence::new(1e-6)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+            (
+                ReadAt::File(FileCoincidence::new(10.0)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+        ]
+        .map(|(at, culprit)| (format!("{what} at {at:?}"), at, culprit))
+    };
+    for (row, surface, carrier) in wrong_radius_rows(0.5) {
+        for (lane, err) in at_both_lanes(&carrier, &surface) {
+            let what = format!("{row} half a metre off ({lane})");
+            assert!(
+                matches!(
+                    geom_brep::IncidenceRead::of(&err),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                ),
+                "{what}: the definite miss: {err:?}"
+            );
+            for (door, at, culprit) in doors(&what) {
+                assert_eq!(err.ending(at), culprit, "{door}");
+            }
+        }
+    }
+    let mid = 0.5 * (band().zero() + band().escalate());
+    for (row, surface, carrier) in wrong_radius_rows(mid) {
+        for (lane, err) in at_both_lanes(&carrier, &surface) {
+            let what = format!("{row} mid-band off ({lane})");
+            assert!(
+                matches!(
+                    geom_brep::IncidenceRead::of(&err),
+                    Some(geom_brep::IncidenceRead::Undecided(_))
+                ),
+                "{what}: not shown on the face: {err:?}"
+            );
+            for (door, at, _) in doors(&what) {
+                let ending = err.ending(at);
+                assert!(
+                    ending.contains(INCIDENCE_UNSHOWN.lever) && !ending.contains("defect"),
+                    "{door}: {ending}"
+                );
+            }
+        }
+    }
+}
+
+/// **An ellipse within ε of the sphere or the torus is no carrier the
+/// incidence test shows off** (D3; the review probes on PR 5844): the
+/// kind gate reads incidence first, and an ellipse not shown off takes
+/// the general lane, its projected image, which certifies at both
+/// scalars, never the definite miss. The ellipse has semi-axes `a = √(0.2·ε)` and `a/2` in
+/// the tangent plane at the sphere's pole, set at mid-sagitta, and the
+/// same at the torus's outer equator. Its far, near-round twin is the
+/// definite miss (`only_an_incidence_reading_ends_as_one`).
+#[test]
+fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_takes_the_general_lane() {
+    use geom_brep::PcurveCache;
+    let e = eps();
+    let a = (0.2 * e).sqrt();
+    let rows = [
+        (
+            "the sphere",
+            Surface::Sphere {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 1.0,
+            },
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(0.0, 0.0, 1.0 - a * a / 4.0),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                ),
+                a,
+                0.5 * a,
+            )),
+        ),
+        (
+            "the torus",
+            Surface::Torus {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+            },
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(2.5 - 0.05 * e, 0.0, 0.0),
+                    Vec3::unit_x(),
+                    Vec3::unit_z(),
+                ),
+                (0.05 * e).sqrt(),
+                0.5 * (0.05 * e).sqrt(),
+            )),
+        ),
+    ];
+    let lift = Interval::from_f64;
+    let tau = core::f64::consts::TAU;
+    for (face, surface, ellipse) in rows {
+        let image = chart_pcurve(&ellipse, &surface, band());
+        let Ok(image @ Pcurve::Projected(_)) = image else {
+            panic!("{face} (f64): the projected image: {image:?}")
+        };
+        let (carrier_i, surface_i) = (ellipse.map_scalar(lift), surface.map_scalar(lift));
+        let image_i = chart_pcurve(&carrier_i, &surface_i, band());
+        let Ok(image_i @ Pcurve::Projected(_)) = image_i else {
+            panic!("{face} (Interval): the projected image: {image_i:?}")
+        };
+        let at_f64 = PcurveCache::certify(image, 0.0, tau, &ellipse, &surface, band())
+            .unwrap_or_else(|e| panic!("{face} (f64): certifies: {e:?}"));
+        let at_interval = PcurveCache::certify(
+            image_i,
+            lift(0.0),
+            lift(tau),
+            &carrier_i,
+            &surface_i,
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("{face} (Interval): certifies: {e:?}"));
+        assert!(
+            at_f64.certificate().envelope < band().zero()
+                && at_interval.certificate().envelope.hi() < band().zero(),
+            "{face}: the envelopes are inside the band"
+        );
+    }
+}
+
+/// **The incidence read is the distance from the surface the chart
+/// denotes, taken in the carrier's own frame** (D3). Carriers on their
+/// face that a read taken where they sit, or from where the chart's
+/// anchor sits, would call off:
+/// - a cylinder's rim and a sphere's polar circle placed 1e7 m out along
+///   each axis (their data exact there), whose points' coordinates round
+///   by about ε;
+/// - a rim on a cylinder whose tilted axis runs through the origin,
+///   `2ᵏ` m up it, and a circle on a tilted plane through the origin
+///   `2ᵏ` m along it: the chart's anchor that far from the carrier, the
+///   data exact;
+/// - a ruling `h` up a cylinder whose axis is long by `δ = ε/4`, inside
+///   the at-rest margin, where a distance taken through the long axis
+///   levers it by the height (`2δ²h²/R`, here `100·ε`).
+///
+/// Each is shown on its face at `f64` and at `Interval`: the mint images
+/// it or refuses it for a reason that is no incidence read. Far from the
+/// anchor `Interval`'s enclosure of the distance widens with the
+/// distance slid, so it reads in band past a measured `2ᵏ⁰` (pinned per
+/// ε row), never off. The same placements half a metre off are the
+/// definite miss at both lanes.
+#[test]
+fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
+    let e = eps();
+    let far = Vec3::new(1e7, 1e7, 1e7);
+    let at = Point3::origin() + far;
+    let delta = 0.25 * e;
+    let height = (50.0 * e).sqrt() / delta;
+    let rows = [
+        (
+            "a cylinder's rim far out",
+            Surface::Cylinder {
+                frame: geom::Frame::new(at, Vec3::unit_z(), Vec3::unit_x()),
+                radius: 1.0,
+            },
+            Curve3::circle(at, Vec3::unit_z(), 1.0, Vec3::unit_x()),
+        ),
+        (
+            "a sphere's polar circle far out",
+            Surface::Sphere {
+                frame: geom::Frame::new(at, Vec3::unit_z(), Vec3::unit_x()),
+                radius: 5.0,
+            },
+            Curve3::circle(
+                at + Vec3::new(0.0, 0.0, 3.0),
+                Vec3::unit_z(),
+                4.0,
+                Vec3::unit_x(),
+            ),
+        ),
+        (
+            "a ruling high up a long axis",
+            Surface::Cylinder {
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0 + delta),
+                    Vec3::unit_x(),
+                ),
+                radius: 1.0,
+            },
+            Curve3::line(Point3::new(1.0, 0.0, height), Vec3::unit_z()),
+        ),
+    ];
+    let tilted = Vec3::new(0.0, 0.6, 0.8);
+    let far_anchor = |k: i32, off: f64| {
+        let h = 2f64.powi(k);
+        let in_plane = Vec3::unit_x() * h + tilted.cross(Vec3::unit_x()) * h;
+        [
+            (
+                format!("a rim 2^{k} m up a tilted axis, {off} m off"),
+                Surface::Cylinder {
+                    frame: geom::Frame::new(Point3::origin(), tilted, Vec3::unit_x()),
+                    radius: 1.0,
+                },
+                Curve3::circle(
+                    Point3::origin() + tilted * h,
+                    tilted,
+                    1.0 + off,
+                    Vec3::unit_x(),
+                ),
+            ),
+            (
+                format!("a circle 2^{k} m along a tilted plane, {off} m off"),
+                Surface::Plane {
+                    frame: geom::Frame::new(Point3::origin(), tilted, Vec3::unit_x()),
+                },
+                Curve3::circle(
+                    Point3::origin() + in_plane + tilted * off,
+                    tilted,
+                    1.0,
+                    Vec3::unit_x(),
+                ),
+            ),
+        ]
+    };
+    let lift = Interval::from_f64;
+    let at_both = |carrier: &Curve3<f64>, surface: &Surface<f64>| {
+        [
+            ("f64", chart_pcurve(carrier, surface, band()).map(|_| ())),
+            (
+                "Interval",
+                chart_pcurve(&carrier.map_scalar(lift), &surface.map_scalar(lift), band())
+                    .map(|_| ()),
+            ),
+        ]
+    };
+    let on = rows.into_iter().map(|(what, s, c)| (what.to_owned(), s, c));
+    for (what, surface, carrier) in on {
+        for (lane, got) in at_both(&carrier, &surface) {
+            assert!(
+                got.as_ref()
+                    .err()
+                    .and_then(geom_brep::IncidenceRead::of)
+                    .is_none(),
+                "{what} ({lane}): shown on its face: {got:?}"
+            );
+        }
+    }
+    // The anchor `2ᵏ` m from the carrier, `k` up to 30: `f64` reads the
+    // exact placement on its face at every `k`. What this row guards is
+    // the move into the carrier's frame; the move leaves the `f64` read
+    // little rounding to charge here, and with the charge off it stays
+    // green. The charge is guarded by rows that go red without it:
+    // `pcurve_frame_premise_rows::a_rounded_unit_axis_at_a_far_placement…`
+    // at ε 1e-9 and 1e-12, and sweep's
+    // `split_edge_on_faces_poses::an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds`
+    // at 1e-9 (measured; neither at 1e-6).
+    // `Interval` charges nothing, its enclosure holding the
+    // rounding already. It reads each frame lifted to its polar
+    // enclosure, η = 6.28e-17 (0.57 u: the tilted axis `(0, 0.6, 0.8)`
+    // rounds off unit), about an ulp wide at each entry where the stated
+    // f64 frame read as points had none, so the enclosure of the distance
+    // widens with the distance slid times that width (measured under the
+    // polar lift summed exactly: 19 and 22 at 1e-9, 9 and 12 at 1e-12, 29
+    // and none at 1e-6; summed in interval arithmetic 18, 21, 8, 11, 28
+    // and none; the point frame read 20, 24, 10, 14, 30 and 31). So it
+    // reads the placement on below the `k`
+    // where that width passes the zero band, in band from there, never
+    // off: the row pins the measured `k` at each ε row CI runs, and that
+    // one transition at any other.
+    let boundary = |shape: usize| match (shape, e) {
+        (0, 1e-9) => Some(19),
+        (0, 1e-12) => Some(9),
+        (0, 1e-6) => Some(29),
+        (1, 1e-9) => Some(22),
+        (1, 1e-12) => Some(12),
+        (1, 1e-6) => Some(31),
+        _ => None,
+    };
+    for shape in [0, 1] {
+        let mut first_in_band = None;
+        for k in 0..=30 {
+            let (what, surface, carrier) = far_anchor(k, 0.0)[shape].clone();
+            for (lane, got) in at_both(&carrier, &surface) {
+                let read = got.as_ref().err().and_then(geom_brep::IncidenceRead::of);
+                if lane == "f64" {
+                    assert!(read.is_none(), "{what} (f64): shown on its face: {got:?}");
+                    continue;
+                }
+                assert!(
+                    !read.is_some_and(geom_brep::IncidenceRead::is_definite),
+                    "{what} (Interval): never read off: {got:?}"
+                );
+                match (read, first_in_band) {
+                    (None, None) => {}
+                    (Some(_), None) => first_in_band = Some(k),
+                    (Some(_), Some(_)) => {}
+                    (None, Some(from)) => {
+                        panic!("{what} (Interval): on again past 2^{from}, where it read in band")
+                    }
+                }
+            }
+        }
+        if let Some(k0) = boundary(shape) {
+            assert_eq!(
+                first_in_band.unwrap_or(31),
+                k0,
+                "shape {shape} at ε {e:e}: the Interval read leaves the face's zero band at 2^{k0}"
+            );
+        }
+    }
+    for (what, surface, carrier) in [10, 23].into_iter().flat_map(|k| far_anchor(k, 0.5)) {
+        for (lane, got) in at_both(&carrier, &surface) {
+            assert!(
+                got.as_ref()
+                    .err()
+                    .and_then(geom_brep::IncidenceRead::of)
+                    .is_some_and(geom_brep::IncidenceRead::is_definite),
+                "{what} ({lane}): the definite miss: {got:?}"
+            );
+        }
+    }
+}
+
+/// **The certification reads a carrier as its mint read it** (N2): a
+/// stored row's check 4 re-derives the image on the chart's
+/// orthonormalised twin, and takes the stored chart's incidence read
+/// there rather than reading the carrier again on the twin. Read on the
+/// twin, an `Interval` chart reads wider than the stored one, so a row
+/// its mint imaged on the face would be read in band at its own
+/// certification.
+///
+/// The family is the far-anchor row's above: a rim `2ᵏ` m up a cylinder
+/// on a tilted axis, and a circle `2ᵏ` m along a tilted plane, `k` to
+/// 30, at `f64` and `Interval`. Wherever the mint images the carrier,
+/// `PcurveCache::certify` of that image over the full turn reads no
+/// incidence refusal. With check 4's twin re-reading the carrier
+/// instead, the `Interval` rim escalates `ChartIncidence` in `certify` at
+/// `2¹⁸` and `2¹⁹` at ε 1e-9, where the mint images it (measured).
+#[test]
+fn a_stored_row_is_read_at_its_certification_as_its_mint_read_it() {
+    use geom_brep::PcurveCache;
+    let tilted = Vec3::new(0.0, 0.6, 0.8);
+    let tau = core::f64::consts::TAU;
+    let lift = <Interval as Real>::from_f64;
+    let mut certified = [0usize; 2];
+    for k in 0..=30 {
+        let h = 2f64.powi(k);
+        let in_plane = Vec3::unit_x() * h + tilted.cross(Vec3::unit_x()) * h;
+        let shapes = [
+            (
+                format!("a rim 2^{k} m up a tilted axis"),
+                Surface::Cylinder {
+                    frame: geom::Frame::new(Point3::origin(), tilted, Vec3::unit_x()),
+                    radius: 1.0,
+                },
+                Curve3::circle(Point3::origin() + tilted * h, tilted, 1.0, Vec3::unit_x()),
+            ),
+            (
+                format!("a circle 2^{k} m along a tilted plane"),
+                Surface::Plane {
+                    frame: geom::Frame::new(Point3::origin(), tilted, Vec3::unit_x()),
+                },
+                Curve3::circle(Point3::origin() + in_plane, tilted, 1.0, Vec3::unit_x()),
+            ),
+        ];
+        for (shape, (what, surface, carrier)) in shapes.into_iter().enumerate() {
+            if let Ok(image) = chart_pcurve(&carrier, &surface, band()) {
+                let got = PcurveCache::certify(image, 0.0, tau, &carrier, &surface, band());
+                assert!(
+                    got.as_ref()
+                        .err()
+                        .and_then(geom_brep::IncidenceRead::of)
+                        .is_none(),
+                    "{what} (f64): imaged by the mint, read on at its certification: {:?}",
+                    got.err()
+                );
+            }
+            let (carrier, surface) = (carrier.map_scalar(lift), surface.map_scalar(lift));
+            if let Ok(image) = chart_pcurve(&carrier, &surface, band()) {
+                let got =
+                    PcurveCache::certify(image, lift(0.0), lift(tau), &carrier, &surface, band());
+                assert!(
+                    got.as_ref()
+                        .err()
+                        .and_then(geom_brep::IncidenceRead::of)
+                        .is_none(),
+                    "{what} (Interval): imaged by the mint, read on at its certification: {:?}",
+                    got.err()
+                );
+                certified[shape] += 1;
+            }
+        }
+    }
+    // The mint images the rim below `2¹⁹` and the plane's circle below
+    // `2²²` at ε 1e-9 (the far-anchor row's pins), so the `k` the twin's
+    // re-read refused are certified here.
+    if eps() == 1e-9 {
+        assert_eq!(
+            certified,
+            [19, 22],
+            "the Interval images certified per shape"
+        );
+    }
+}
+
+/// **A stored chart edge re-certified on its chart moved ends as its
+/// incidence read** (D3): the image the edge stores is metered against
+/// the chart only after the carrier's incidence on it is read, as the
+/// mint reads it, so a stored row whose chart no longer holds its curve
+/// is read off, or not shown on, the face, never metered as a residual.
+/// A rim on a cylinder, a circle on a plane and a polar circle on a
+/// sphere, each chart moved half a metre (the definite miss: the stored
+/// culprit at rest, the damaged file at import) and mid-band (the
+/// lever), re-certified with and without the stored image stated.
+#[test]
+fn a_stored_chart_edge_on_a_moved_chart_ends_as_its_incidence_read() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{CertCheck, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, StatedImage};
+    use geom_core::FileCoincidence;
+    let b = band();
+    let mid = 0.5 * (b.zero() + b.escalate());
+    type Moved = Box<dyn Fn(f64) -> Surface<f64>>;
+    let rows: [(&str, Surface<f64>, Curve3<f64>, Moved); 3] = [
+        (
+            "a cylinder's rim",
+            Surface::Cylinder {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 1.0,
+            },
+            coaxial(0.5, 1.0),
+            Box::new(|d| Surface::Cylinder {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 1.0 + d,
+            }),
+        ),
+        (
+            "a circle in a plane",
+            Surface::Plane {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            },
+            coaxial(0.0, 1.0),
+            Box::new(|d| Surface::Plane {
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, d), Vec3::unit_z(), Vec3::unit_x()),
+            }),
+        ),
+        (
+            "a sphere's polar circle",
+            Surface::Sphere {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 5.0,
+            },
+            coaxial(3.0, 4.0),
+            Box::new(|d| Surface::Sphere {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 5.0 + d,
+            }),
+        ),
+    ];
+    let (t0, t1) = (0.0, 2.0);
+    for (what, surface, carrier, moved) in rows {
+        let (keys, lookup) = crate::shared::surf::table(vec![surface.clone()]);
+        let edge = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart(keys[0]),
+                carrier: carrier.clone(),
+                param_start: t0,
+                param_end: t1,
+            },
+            carrier.eval(t0),
+            carrier.eval(t1),
+            &lookup,
+            geom_core::test_support::fixture_lever(1.0),
+            b,
+            geom_brep::NurbsLane::certified(),
+        )
+        .unwrap();
+        let stored = StatedImage {
+            surface: keys[0],
+            pcurve: geom_brep::chart_pcurve_over(&carrier, t0, t1, &surface, b).unwrap(),
+        };
+        for (off, definite) in [(0.5, true), (mid, false)] {
+            let chart = moved(off);
+            for stated in [None, Some(&stored)] {
+                let at = format!(
+                    "{what} on its chart moved {off:e} (stated: {})",
+                    stated.is_some()
+                );
+                let err = edge
+                    .recertify_stated(
+                        carrier.eval(t0),
+                        carrier.eval(t1),
+                        |_| Some(chart.clone()),
+                        geom_core::test_support::fixture_lever(1.0),
+                        b,
+                        geom_brep::NurbsLane::certified(),
+                        stated,
+                    )
+                    .expect_err(&at);
+                assert_eq!(
+                    err.decision().map(|(check, _)| check),
+                    Some(CertCheck::ChartIncidence),
+                    "{at}: the incidence read, never the residual's meter: {err:?}"
+                );
+                let rest = err.ending(Reading::AtRest).unwrap();
+                let import = err.ending(FileCoincidence::new(1e-6)).unwrap();
+                if definite {
+                    assert_eq!(rest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING, "{at}");
+                    assert_eq!(import, geom_core::DAMAGED_FILE_ENDING, "{at}");
+                } else {
+                    for ending in [&rest, &import] {
+                        assert!(
+                            ending.contains(geom_brep::recourse::INCIDENCE_UNSHOWN.lever)
+                                && !ending.contains("defect"),
+                            "{at}: {ending}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **A corner and an edge exactly on a tilted plane, far from its
+/// anchor, are read on it** (D3): `topo`'s planar tier reads a flat
+/// face's corners and edges by the mint's own decider
+/// ([`geom_brep::read_point_incidence`], [`geom_brep::read_incidence`]),
+/// in their own frame and less their rounding, so the tier and the mint
+/// never read one edge two ways. On the plane through the origin with
+/// normal `(0, 0.6, 0.8)`, a point `2ᵏ` m along it and a line through
+/// that point in the plane, `k` up to 30: `f64` reads both on at every
+/// `k`; `Interval`, which charges nothing, reads them on below the
+/// measured `2ᵏ⁰` where its enclosure's width passes the zero band, in
+/// band from there, never off. Moved half a metre off the plane, each is
+/// the definite miss at both lanes.
+#[test]
+fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
+    let e = eps();
+    let n = Vec3::new(0.0, 0.6, 0.8);
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(Point3::origin(), n, Vec3::unit_x()),
+    };
+    let lift = Interval::from_f64;
+    let lift_point = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
+    let reads = |p: Point3<f64>| {
+        let line = Curve3::line(p, Vec3::unit_x());
+        [
+            (
+                "corner, f64",
+                geom_brep::read_point_incidence(p, &plane, band()),
+            ),
+            (
+                "corner, Interval",
+                geom_brep::read_point_incidence(lift_point(p), &plane.map_scalar(lift), band()),
+            ),
+            (
+                "edge, f64",
+                geom_brep::read_incidence(&line, 0.0, 1.0, &plane, band()),
+            ),
+            (
+                "edge, Interval",
+                geom_brep::read_incidence(
+                    &line.map_scalar(lift),
+                    lift(0.0),
+                    lift(1.0),
+                    &plane.map_scalar(lift),
+                    band(),
+                ),
+            ),
+        ]
+    };
+    let k0 = match e {
+        1e-9 => Some(22),
+        1e-12 => Some(12),
+        1e-6 => Some(31),
+        _ => None,
+    };
+    let mut first_in_band = [None; 2];
+    for k in 0..=30 {
+        let p = Point3::origin() + (Vec3::unit_x() + n.cross(Vec3::unit_x())) * 2f64.powi(k);
+        for (i, (what, got)) in reads(p).into_iter().enumerate() {
+            let read = got.as_ref().err().and_then(geom_brep::IncidenceRead::of);
+            if what.ends_with("f64") {
+                assert!(read.is_none(), "{what} 2^{k} m out: read on: {got:?}");
+                continue;
+            }
+            assert!(
+                !read.is_some_and(geom_brep::IncidenceRead::is_definite),
+                "{what} 2^{k} m out: never read off: {got:?}"
+            );
+            let slot = &mut first_in_band[i / 2];
+            match (read, *slot) {
+                (Some(_), None) => *slot = Some(k),
+                (None, Some(from)) => panic!("{what}: on again at 2^{k}, past 2^{from}"),
+                _ => {}
+            }
+        }
+    }
+    if let Some(k0) = k0 {
+        for (i, first) in first_in_band.into_iter().enumerate() {
+            assert_eq!(
+                first.unwrap_or(31),
+                k0,
+                "{} at ε {e:e}: Interval leaves the zero band at 2^{k0}",
+                ["corner", "edge"][i]
+            );
+        }
+    }
+    for k in [0, 20] {
+        let p =
+            Point3::origin() + (Vec3::unit_x() + n.cross(Vec3::unit_x())) * 2f64.powi(k) + n * 0.5;
+        for (what, got) in reads(p) {
+            assert!(
+                got.as_ref()
+                    .err()
+                    .and_then(geom_brep::IncidenceRead::of)
+                    .is_some_and(geom_brep::IncidenceRead::is_definite),
+                "{what} 2^{k} m out, 0.5 m off: the definite miss: {got:?}"
+            );
+        }
+    }
+}
+
+/// **An arc on its face is read on it by the edge's own read, wherever
+/// its circle goes past its ends** (D3): the planar tier reads an edge on
+/// its plane by [`geom_brep::read_edge_incidence`], which samples a conic
+/// over the edge's span, the only part of it the edge states.
+///
+/// The unit circle about the origin, its axis tilted `1e3·ε` about `x`,
+/// edged over `t ∈ [−1e-4, 1e-4]` on the plane `z = 0` (the delta
+/// review's P4): the arc's farthest point is `0.1·ε` off the plane, the
+/// full turn's `1e3·ε`. The edge's read shows it on the face at `f64` and
+/// `Interval`, so the planar tier does not name the arc-bounded face the
+/// stored culprit. The mint and the certification read a conic over its
+/// whole turn (`geom_brep::read_incidence`, [`geom_brep::chart_pcurve_over`]),
+/// and read this one off: pinned here as it stands, the item
+/// `work/pcert/a-conics-incidence-is-read-over-its-full-turn-not-the-edges-span.md`.
+#[test]
+fn an_arc_on_its_face_is_read_on_it_by_the_edges_own_read() {
+    let e = eps();
+    let tilt = 1e3 * e;
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+    };
+    let circle = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, -tilt.sin(), tilt.cos()),
+        1.0,
+        Vec3::unit_x(),
+    );
+    let (t0, t1) = (-1e-4, 1e-4);
+    let lift = Interval::from_f64;
+    let (ci, pi) = (circle.map_scalar(lift), plane.map_scalar(lift));
+    for (lane, got) in [
+        (
+            "f64",
+            geom_brep::read_edge_incidence(&circle, t0, t1, &plane, band()),
+        ),
+        (
+            "Interval",
+            geom_brep::read_edge_incidence(&ci, lift(t0), lift(t1), &pi, band()),
+        ),
+    ] {
+        assert_eq!(got, Ok(()), "the arc's edge read ({lane}): on its face");
+    }
+    for (lane, got) in [
+        (
+            "f64",
+            geom_brep::read_incidence(&circle, t0, t1, &plane, band()),
+        ),
+        (
+            "Interval",
+            geom_brep::read_incidence(&ci, lift(t0), lift(t1), &pi, band()),
+        ),
+    ] {
+        assert!(
+            got.as_ref()
+                .err()
+                .and_then(geom_brep::IncidenceRead::of)
+                .is_some_and(geom_brep::IncidenceRead::is_definite),
+            "the mint's read of the arc ({lane}) is its whole turn's, the definite miss: {got:?}"
+        );
+    }
+}
+
+/// **`topo::chart_region`'s plane path reads an arc over its whole turn,
+/// where the planar tier reads its span**: pinned as it stands, so the
+/// fix of `work/pcert/a-conics-incidence-is-read-over-its-full-turn-not-the-edges-span.md`
+/// has to flip it.
+///
+/// `chart_region`'s plane path (`loop_uv_polygon`) images a flat face's
+/// trim edge on demand by [`geom_brep::chart_pcurve_over`] over the
+/// edge's span. That is the mint's imaging, which reads a conic over its
+/// whole turn. On the arc of [`an_arc_on_its_face_is_read_on_it_by_the_edges_own_read`]
+/// (the unit circle tilted `1e3·ε` about `x`, edged over
+/// `t ∈ [−1e-4, 1e-4]`, on `z = 0`) it refuses, read off its chart (`IncidenceRead::Off`), the
+/// full turn's farthest point (`Past(1.0e-6)` at ε 1e-9). `chart_region`
+/// ends that as `TrimOffFace`, the stored culprit at rest, while the planar
+/// tier's [`geom_brep::read_edge_incidence`] reads the same arc on its
+/// face. Both lanes.
+#[test]
+fn chart_regions_plane_path_reads_an_arc_over_its_whole_turn_where_the_planar_tier_reads_its_span()
+{
+    let tilt = 1e3 * eps();
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+    };
+    let circle = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, -tilt.sin(), tilt.cos()),
+        1.0,
+        Vec3::unit_x(),
+    );
+    let (t0, t1) = (-1e-4, 1e-4);
+    let lift = Interval::from_f64;
+    let (ci, pi) = (circle.map_scalar(lift), plane.map_scalar(lift));
+    let imaged = [
+        (
+            "f64",
+            geom_brep::chart_pcurve_over(&circle, t0, t1, &plane, band()).map(|_| ()),
+        ),
+        (
+            "Interval",
+            geom_brep::chart_pcurve_over(&ci, lift(t0), lift(t1), &pi, band()).map(|_| ()),
+        ),
+    ];
+    for (lane, got) in imaged {
+        assert!(
+            got.as_ref()
+                .err()
+                .and_then(geom_brep::IncidenceRead::of)
+                .is_some_and(geom_brep::IncidenceRead::is_definite),
+            "chart_region's plane path ({lane}): the whole turn's definite miss: {got:?}"
+        );
+    }
+    assert_eq!(
+        geom_brep::read_edge_incidence(&circle, t0, t1, &plane, band()),
+        Ok(()),
+        "the planar tier (f64): on its face"
+    );
+    assert_eq!(
+        geom_brep::read_edge_incidence(&ci, lift(t0), lift(t1), &pi, band()),
+        Ok(()),
+        "the planar tier (Interval): on its face"
+    );
+}

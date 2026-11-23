@@ -1,0 +1,17 @@
+--- a/demos/tour/src/lily.rs
++++ b/demos/tour/src/lily.rs
+@@
+-                    kind: SurfaceKind::Cone,
+-                    other_kind: SurfaceKind::Torus,
+-                    ..
+-                }
+-            )
+-        },
+-        "join flower to stem — VERBS-LILYWELD PR-2 is what does it",
++                    kind: SurfaceKind::Sphere,
++                    other_kind: SurfaceKind::Torus,
++                    ..
++                }
++            )
++        },
++        "join flower to stem — VERBS-LILYWELD PR-2 is what does it", // R2 PROBE D: wall 2 must PANIC when the pinned payload is not the measured one

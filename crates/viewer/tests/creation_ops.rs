@@ -1,0 +1,1161 @@
+//! **From nothing to a solid, replayed headlessly** (GAUTH-1): the
+//! creation op vocabulary driving the real `DocSession` with no
+//! renderer — the new-document door, the profile/extrude/revolve/drawn-on-face
+//! inserts with their typed refusals, a seat's held pick across a new
+//! document, and the ring acceptance stream.
+//!
+//! # The ring row's comparison, and its strength
+//!
+//! The acceptance stream — `NewDocument("hollow-ring")`, one profile
+//! of two concentric circle loops, a full-turn revolve about an axis
+//! in the profile's own plane — is asserted against the committed gallery fixture
+//! (`gallery_ring.pncad`: the ring demo's document as the
+//! exporter saved it, ε re-stamped per `common::gallery_ring_at`).
+//! The authored document is compared under the fixture's id, because
+//! the door mints a random one where the demo derives its own.
+//! The comparator is **`Doc::bit_eq`** — spec D7's replay-identity
+//! comparator, the strongest equality the document layer supports:
+//! every float compares by bits, identity/order/placements structurally.
+//! `PartialEq` would conflate `±0.0`; nothing weaker would be a claim
+//! about the same document. The row goes red when the fixture is
+//! regenerated from a deliberately changed demo recipe — and then the
+//! question is whether the creation vocabulary still spells the new
+//! recipe, never how to get the old bytes back.
+
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
+use crate::common;
+
+use core::f64::consts::TAU;
+
+use common::{ang, body_volume, circle_at, len, near, rectangle_at, scl, session_insert};
+use pncad::document::{
+    Dimension, DimensionError, Doc, DocumentId, Formula, LoopProgram, Node, ProfileProgram,
+    RecipeNodeId, RecordedProgramError, SlotId,
+};
+use pncad::geom_core::Tol;
+use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
+use pncad::quantity::{WrittenAngle, WrittenLength};
+use viewer::props;
+use viewer::props::Notation;
+use viewer::seats::{Seat, Seats};
+use viewer::session::{
+    DocSession, FaceSelection, Hovered, NodeKindWanted, Refusal, Selection, SessionOp, Step,
+};
+
+/// The ring demo's constants (`demos/tour/src/ring.rs`): mean radius,
+/// tube outer radius, bore radius.
+const R: f64 = 0.30;
+const RO: f64 = 0.07;
+const RI: f64 = 0.05;
+
+/// A session over a throwaway document — creation starts from an
+/// arbitrary "whatever was open".
+fn session(tol: Tol) -> DocSession {
+    DocSession::inline(Doc::empty_derived("creation-start", tol), tol)
+}
+
+/// A synthetic face selection for the hover row: `Hover` stores the
+/// value without resolving it, so any well-formed name will do.
+fn synthetic_face(node: RecipeNodeId) -> FaceSelection {
+    FaceSelection {
+        name: StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![],
+        },
+        node,
+        body: 0,
+    }
+}
+
+/// The acceptance stream: the ring, authored through the ops.
+/// Answers the session and the revolve node.
+fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
+    let mut session = session(tol);
+    let outcome = session.perform(SessionOp::NewDocument {
+        name: "hollow-ring".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: [RO, RI]
+                .map(|radius| LoopProgram::Circle {
+                    centre: [len(R), Formula::zero(Dimension::Length)],
+                    radius: len(radius),
+                })
+                .into(),
+        },
+    );
+    let revolve = session_insert(
+        &mut session,
+        SessionOp::AddRevolve {
+            profile,
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(TAU),
+        },
+    );
+    (session, revolve)
+}
+
+/// **A revolve lands unplaced, whatever its axis reads**: the gesture
+/// inserts the revolve alone — no placement, so nothing reads the ring
+/// and it is drawn in its own space where it was made — and the outcome
+/// carries no notice. Breaks if the gesture writes a placement beside
+/// it, or says something about the ordinary answer.
+#[test]
+fn a_revolve_lands_unplaced_whatever_its_axis_reads() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![circle_at([R, 0.0], RO)],
+        },
+    );
+    let outcome = session.perform(SessionOp::AddRevolve {
+        profile,
+        axis_through: [len(0.0), len(0.0)],
+        axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+        angle: ang(TAU),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [revolve] = outcome.minted[..] else {
+        panic!("the revolve alone: {:?}", outcome.minted)
+    };
+    assert_eq!(outcome.made, Some(revolve));
+    assert_eq!(
+        viewer::frame::outcome_notices(&outcome).count(),
+        0,
+        "the ordinary answer carries no notice"
+    );
+    let doc = session.committed_doc();
+    assert!(doc.placements().is_empty(), "nothing is placed");
+    assert!(
+        viewer::world::is_drawn(doc, revolve),
+        "the ring is drawn in its own space"
+    );
+}
+
+#[test]
+fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
+    let tol = Tol::witness();
+    let (mut session, revolve) = authored_ring(tol);
+
+    // The record of comparison: the committed gallery fixture — the
+    // demo's own document through the exporter — not a hand twin that
+    // could drift from both (the module header carries the strength
+    // argument).
+    let fixture = pncad::document::load(&common::gallery_ring_at(tol), tol)
+        .expect("the gallery fixture loads at this run's ε");
+    // The demo places the ring into the world and makes it the product;
+    // a new body lands unplaced, so the ops stream's document gets the
+    // same two edits by hand.
+    let (placed, placement) = common::inserted(
+        session.committed_doc(),
+        common::world_place(pncad::document::Operand::output(revolve, 0)),
+        tol,
+    );
+    let (placed, _) = common::edited(
+        &placed,
+        pncad::document::DocEdit::SetProduct {
+            product: Some(pncad::document::Operand::Node(placement)),
+        },
+        tol,
+    );
+    assert!(
+        placed.clone().under_identity(fixture.id()).bit_eq(&fixture),
+        "the ops-authored ring, placed by hand, and the demo's saved \
+         document are one document's content under D7's replay-identity \
+         comparator"
+    );
+    assert_eq!(
+        common::world(&placed),
+        [revolve],
+        "placed by hand, the world is the revolve"
+    );
+
+    // End to end: the authored document evaluates, and the revolve's
+    // body is the demo's two-shell hollow ring.
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    match &eval.value(revolve).expect("the revolve evaluated").payload {
+        ValuePayload::Body(body) => {
+            assert_eq!(
+                body.body().shells().count(),
+                2,
+                "outer torus + toroidal cavity, in one solid"
+            );
+        }
+        other => panic!("expected a body, got {other:?}"),
+    }
+}
+
+/// **A new body lands unplaced** (Ev, 2026-10-31): the extrude gesture
+/// is the extrude alone, one recorded action — no placement, so the
+/// body is drawn in its own space, outside the product — and a fresh
+/// extrude raises only `unused`: nothing reads it, and the product
+/// door is its recourse. ONE undo takes it. Breaks if the gesture
+/// writes a world placement (a second insert, a placed badge), or the
+/// fresh body opens with any other finding.
+#[test]
+fn a_fresh_extrude_lands_unplaced_and_raises_only_unused() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = common::rectangle_in(&mut session, 0.02, 0.01);
+    let before = session.committed_doc().clone();
+    let outcome = session.perform(SessionOp::AddExtrude {
+        profile,
+        distance: len(0.005),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [extrude] = outcome.minted[..] else {
+        panic!("one insert: {:?}", outcome.minted);
+    };
+    assert_eq!(outcome.made, Some(extrude), "the extrude is what it made");
+    assert_eq!(outcome.committed.len(), 1, "the extrude alone");
+    let doc = session.committed_doc();
+    assert!(matches!(doc.node(extrude), Some(Node::Extrude { .. })));
+    assert!(doc.placements().is_empty(), "nothing is placed");
+    assert_eq!(
+        viewer::world::drawn_nodes(doc),
+        [extrude],
+        "the extrude is drawn, in its own space"
+    );
+    assert!(
+        common::row_of(&session.tree_rows(), extrude)
+            .placements
+            .is_empty(),
+        "no world badge"
+    );
+    session.pump();
+    let report = session.checks().expect("the registry ran");
+    let found: Vec<_> = report.findings.iter().map(|f| f.check).collect();
+    assert_eq!(
+        found,
+        [pncad::document::CheckId::Unused],
+        "a fresh extrude raises only `unused`: {:?}",
+        report.findings
+    );
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo takes the body"
+    );
+}
+
+#[test]
+fn the_authored_ring_survives_save_and_reload() {
+    let tol = Tol::witness();
+    let (mut session, _) = authored_ring(tol);
+    let dir = common::tempdir("gauth1-ring");
+    let path = dir.join("hollow-ring.pncad");
+
+    let saved = session.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    let authored = session.committed_doc().clone();
+
+    // Reload into the same session through the ordinary open door.
+    let opened = session.perform(SessionOp::Open(path));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    assert!(
+        session.committed_doc().bit_eq(&authored),
+        "save → reload is bit-identity on the authored document"
+    );
+}
+
+/// A different part than the ring through the same doors — rectangle
+/// profile, extrude — with the volume as the oracle,
+/// then save/reload (the volume bit-identical across it) and an
+/// undo/redo walk over the creations. Promoted from the review lane's
+/// e2e exercise.
+#[test]
+fn a_bracket_block_authors_saves_reloads_and_undoes() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let out = session.perform(SessionOp::NewDocument {
+        name: "bracket".to_owned(),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+
+    // Rectangle profile → extrude: a 40 × 20 × 10 mm block.
+    let (profile, extrude) = common::box_in(&mut session, [0.04, 0.02, 0.01]);
+    let v = body_volume(&mut session, extrude, tol);
+    let want = 0.04 * 0.02 * 0.01;
+    assert!(
+        ((v - want) / want).abs() < 1e-12,
+        "extruded block volume: {v} vs {want}"
+    );
+
+    // Undo walks the session's actions back to the empty document, and
+    // redo restores the whole of it.
+    let authored = session.committed_doc().clone();
+    let mut steps = 0;
+    while session.perform(SessionOp::Undo).refusal.is_none() {
+        steps += 1;
+    }
+    assert!(steps > 0, "the authoring is undoable");
+    assert!(session.committed_doc().is_empty(), "back to empty");
+    assert!(session.committed_doc().node(profile).is_none());
+    for _ in 0..steps {
+        assert!(session.perform(SessionOp::Redo).refusal.is_none());
+    }
+    assert!(session.committed_doc().bit_eq(&authored), "redo restores");
+
+    // Save → reload → bit identity, and the SOLID is the same too.
+    let dir = common::tempdir("gauth1-bracket");
+    let path = dir.join("bracket.pncad");
+    let saved = session.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    let opened = session.perform(SessionOp::Open(path));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    assert!(session.committed_doc().bit_eq(&authored));
+    let v2 = body_volume(&mut session, extrude, tol);
+    assert_eq!(v.to_bits(), v2.to_bits(), "same volume after reload");
+
+    // The file is the document's state: undo ends at the open.
+    assert!(matches!(
+        session.perform(SessionOp::Undo).refusal,
+        Some(Refusal::NothingToDo {
+            direction: Step::Undo
+        })
+    ));
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// The op vocabulary deliberately exceeds the chrome's templates — a
+/// rectangle outer with two circle holes is spellable through
+/// `AddProfile` though no form says it — and what it authors is real:
+/// the extruded plate's volume matches the closed form. Promoted from
+/// the review lane's e2e exercise (the disclosed loop-list deviation,
+/// probed at its full scope).
+#[test]
+fn the_op_vocabulary_exceeds_the_chrome_templates_and_that_works() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![
+                rectangle_at([0.0, 0.0], 0.06, 0.03),
+                circle_at([-0.015, 0.0], 0.005),
+                circle_at([0.015, 0.0], 0.005),
+            ],
+        },
+    );
+    let extrude = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    let v = body_volume(&mut session, extrude, tol);
+    let want = (0.06 * 0.03 - 2.0 * core::f64::consts::PI * 0.005 * 0.005) * 0.01;
+    assert!(near(v, want), "plate with two bores: {v} vs {want}");
+}
+
+#[test]
+fn new_document_mints_its_id_and_clears_the_session() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    // Give the session things to clear: a selection, a hover, and —
+    // via Save — a backing path and its directory resolver.
+    let profile = common::rectangle_in(&mut session, 0.02, 0.01);
+    session.perform(SessionOp::Select(Selection::Node(profile)));
+    session.perform(SessionOp::Hover(Some(Hovered::Face(synthetic_face(
+        profile,
+    )))));
+    let dir = common::tempdir("gauth1-new");
+    let saved = session.perform(SessionOp::Save(dir.join("old.pncad")));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    assert!(session.path().is_some());
+    assert!(session.resolve_dir().is_some(), "save bound the resolver");
+    assert!(session.hover().is_some());
+
+    let outcome = session.perform(SessionOp::NewDocument {
+        name: "fresh-part".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(outcome.committed.is_empty(), "a replacement, not an edit");
+    let doc = session.committed_doc();
+    let fresh = doc.id();
+    assert_ne!(
+        fresh,
+        DocumentId::derive("fresh-part"),
+        "the id is minted, not derived from the typed name"
+    );
+    assert!(doc.is_empty(), "an empty document");
+    assert_eq!(session.selection(), &Selection::None);
+    assert!(session.hover().is_none(), "hover cleared");
+    assert!(session.path().is_none(), "no backing file until saved");
+    assert!(
+        session.resolve_dir().is_none(),
+        "no resolver: references refuse typed until the document is saved"
+    );
+    assert!(
+        !session.history().can_undo(),
+        "the old document's history is gone, not underneath"
+    );
+
+    // One name twice is two documents.
+    let outcome = session.perform(SessionOp::NewDocument {
+        name: "fresh-part".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_ne!(
+        session.committed_doc().id(),
+        fresh,
+        "a second document of one name is a second identity"
+    );
+}
+
+#[test]
+fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let outcome = session.perform(SessionOp::NewDocument {
+        name: "   ".to_owned(),
+    });
+    assert!(
+        matches!(outcome.refusal, Some(Refusal::EmptyName)),
+        "{:?}",
+        outcome.refusal
+    );
+
+    // Mid-gesture, every creation door refuses — and so does Open,
+    // which shares NewDocument's policy (both replace the document a
+    // drag is previewing against).
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![circle_at([0.0, 0.0], 0.01)],
+        },
+    );
+    let extrude = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    let begun = session.perform(SessionOp::BeginGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+    });
+    assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
+    for op in [
+        SessionOp::NewDocument {
+            name: "mid-gesture".to_owned(),
+        },
+        SessionOp::Open(std::env::temp_dir().join("gauth1-never-read.pncad")),
+        SessionOp::DrawOnFace {
+            face: FaceSelection {
+                name: StableName {
+                    kind: EntityKind::Face,
+                    node: extrude,
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                },
+                node: extrude,
+                body: 0,
+            },
+            traced: Vec::new(),
+            chains: vec![common::rectangle_chain([0.0, 0.0], 0.002, 0.002)],
+        },
+        SessionOp::AddProfile {
+            loops: vec![circle_at([0.0, 0.0], 0.01)],
+        },
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+        SessionOp::AddRevolve {
+            profile,
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(TAU),
+        },
+    ] {
+        let refused = session.perform(op);
+        assert!(
+            matches!(refused.refusal, Some(Refusal::GestureInFlight)),
+            "{:?}",
+            refused.refusal
+        );
+    }
+}
+
+#[test]
+fn the_rectangle_template_is_the_rectangle_as_written() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![rectangle_at([0.005, -0.002], 0.04, 0.02)],
+        },
+    );
+    // The session's only profile: its one `rectangle` step is every id
+    // the document has minted.
+    let doc = session.committed_doc();
+    let Some(Node::Profile(minted)) = doc.node(profile) else {
+        panic!("the profile is live");
+    };
+    assert_eq!(
+        minted
+            .ids
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>(),
+        doc.mint().steps().collect(),
+        "the profile's steps are the document's only mints"
+    );
+    assert_eq!(minted.ids.iter().flatten().count(), 1, "one step");
+    let want = Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::rectangle(0.005, -0.002, 0.04, 0.02).expect("finite fields")],
+        ids: minted.ids.clone(),
+        on: None,
+    });
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.node(profile).expect("the profile is live").written(doc),
+        want,
+        "the centre, width and height as written"
+    );
+}
+
+/// **A profile with no loops is a document state**: New profile's
+/// op (`SessionOp::AddProfile` with no loops) inserts it, it evaluates to the empty region, and its tree row
+/// is an ordinary profile row. What sweeps it refuses at its own door,
+/// on its own row, in the words `EmptyProfile` has.
+#[test]
+fn a_profile_with_no_loops_inserts_and_what_sweeps_it_refuses() {
+    use pncad::document::NodeErrorKind;
+    use pncad::sweep::{ExtrudeError, RevolveError};
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(&mut session, SessionOp::AddProfile { loops: vec![] });
+    let extrude = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    let revolve = session_insert(
+        &mut session,
+        SessionOp::AddRevolve {
+            profile,
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(TAU),
+        },
+    );
+    session.pump();
+    let eval = session.evaluation().expect("evaluated");
+    assert!(
+        matches!(
+            eval.value(profile).map(|v| &v.payload),
+            Some(ValuePayload::Profile(p)) if p.validated.loops().is_empty()
+        ),
+        "the profile evaluates to no loops: {:?}",
+        eval.node_error(profile)
+    );
+    let refused = |node| eval.node_error(node).map(|e| &e.kind);
+    assert!(
+        matches!(
+            refused(extrude),
+            Some(NodeErrorKind::Extrude(ExtrudeError::EmptyProfile))
+        ),
+        "the extrude refuses at its own door: {:?}",
+        refused(extrude)
+    );
+    assert!(
+        matches!(
+            refused(revolve),
+            Some(NodeErrorKind::Revolve(RevolveError::EmptyProfile))
+        ),
+        "the revolve refuses at its own door: {:?}",
+        refused(revolve)
+    );
+    let rows = session.tree_rows();
+    assert_eq!(
+        common::status_of(&rows, profile),
+        viewer::tree::RowStatus::Ok,
+        "the profile's row is an ordinary row"
+    );
+    match common::status_of(&rows, extrude) {
+        viewer::tree::RowStatus::Failed { message, .. } => assert!(
+            message
+                .to_string()
+                .contains("profile has no loops — nothing to sweep"),
+            "the extrude's badge says it: {message}"
+        ),
+        other => panic!("the extrude's row is its own failure: {other:?}"),
+    }
+}
+
+/// A profile's step order is the EDIT DOOR's to refuse, and its
+/// values are evaluation's (`[recipe.doors]`), so the sentence a
+/// hand-written program gets and the sentence the template gets are
+/// one sentence; no rule about them is restated in the session.
+#[test]
+fn profile_refusals_are_typed_at_the_door() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let states = session.history().len();
+
+    let unclosed = session.perform(SessionOp::AddProfile {
+        loops: vec![common::unclosed_loop()],
+    });
+    assert!(
+        matches!(unclosed.refusal, Some(Refusal::Edit(_))),
+        "{:?}",
+        unclosed.refusal
+    );
+
+    // A non-finite field refuses at the literal door — which is now
+    // BEFORE the op exists, not inside it. The op carries `Expr`s, and
+    // an `Expr` cannot hold a non-finite value, so a session that
+    // refused this would be refusing a state nothing can build: the
+    // lowering is where the number is judged, and the form puts its
+    // refusal on the status line.
+    let non_finite = viewer::sketch::path_program(
+        &[pncad::profile::Step::Rectangle {
+            centre: pncad::geom_core::Point2::origin(),
+            width: f64::INFINITY,
+            height: 0.01,
+        }],
+        Notation::CANONICAL,
+        &|_, _| None,
+    );
+    assert!(
+        matches!(
+            non_finite,
+            Err(RecordedProgramError::Literal(
+                DimensionError::NonFiniteLiteral
+            ))
+        ),
+        "{non_finite:?}"
+    );
+
+    assert_eq!(
+        session.history().len(),
+        states,
+        "a refused creation leaves no history state behind"
+    );
+
+    // Degenerate loops, zero and negative radius, are admitted and
+    // refuse at evaluation.
+    for radius in [0.0, -0.01] {
+        let degenerate = session.perform(SessionOp::AddProfile {
+            loops: vec![circle_at([0.0, 0.0], radius)],
+        });
+        assert!(degenerate.refusal.is_none(), "{:?}", degenerate.refusal);
+        let [profile] = degenerate.minted.as_slice() else {
+            panic!("one profile minted: {:?}", degenerate.minted)
+        };
+        let ev = pncad::document::evaluate::<f64>(
+            session.committed_doc(),
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
+        assert!(
+            ev.node_error(*profile).is_some(),
+            "radius {radius} refuses at evaluation"
+        );
+    }
+}
+
+/// One refusal from each of the five creation doors, and none of them
+/// commits an edit or leaves a history state.
+#[test]
+fn a_refusal_at_any_creation_door_leaves_no_history_state() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    // A body: no profile to extrude or revolve, and its face is on a
+    // body, so the profile drawn on it refuses on its coordinates
+    // instead.
+    let block = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
+    let states = session.history().len();
+    for op in [
+        SessionOp::NewDocument {
+            name: String::new(),
+        },
+        SessionOp::AddProfile {
+            loops: vec![common::unclosed_loop()],
+        },
+        SessionOp::AddExtrude {
+            profile: block,
+            distance: len(0.01),
+        },
+        SessionOp::AddRevolve {
+            profile: block,
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(TAU),
+        },
+        // A dimensionless coordinate in a Length argument refuses at
+        // the edit door, one rule for authored and hand-written
+        // documents.
+        SessionOp::DrawOnFace {
+            face: FaceSelection {
+                name: StableName {
+                    kind: EntityKind::Face,
+                    node: block,
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                },
+                node: block,
+                body: 0,
+            },
+            traced: Vec::new(),
+            chains: vec![
+                pncad::trace::Chain::at(scl(0.0), scl(0.0))
+                    .line_to(pncad::document::ProgramTarget::Point([
+                        len(0.002),
+                        len(0.0),
+                    ]))
+                    .line_to(pncad::document::ProgramTarget::Point([
+                        len(0.002),
+                        len(0.002),
+                    ]))
+                    .line_to(pncad::document::ProgramTarget::Start),
+            ],
+        },
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_some(), "the door refuses");
+        assert!(outcome.committed.is_empty(), "and commits nothing");
+    }
+    assert_eq!(session.history().len(), states, "no history state minted");
+}
+
+#[test]
+fn extrude_and_revolve_require_their_node_kinds() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![circle_at([R, 0.0], RO)],
+        },
+    );
+    let extrude = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.02),
+        },
+    );
+
+    // The extrude door: an extrude node is not a profile, and neither
+    // is an id the document never held.
+    for wrong in [extrude, RecipeNodeId::new(0, 999)] {
+        let refused = session.perform(SessionOp::AddExtrude {
+            profile: wrong,
+            distance: len(0.02),
+        });
+        assert!(
+            matches!(
+                &refused.refusal,
+                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
+                    if node.id() == wrong
+            ),
+            "{:?}",
+            refused.refusal
+        );
+    }
+
+    // The revolve door's one seat: a feature or a placement is not a
+    // profile. The axis is no pick — two coordinate pairs in the
+    // profile's own plane — so there is no second seat to refuse.
+    // A copy in the world, added to the product: a new body lands unplaced.
+    let (mut session, copy) = common::world_copy_in(&session, extrude, tol);
+    for wrong in [extrude, copy] {
+        let refused = session.perform(SessionOp::AddRevolve {
+            profile: wrong,
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(TAU),
+        });
+        assert!(
+            matches!(
+                &refused.refusal,
+                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
+                    if node.id() == wrong
+            ),
+            "{:?}",
+            refused.refusal
+        );
+    }
+
+    // The happy path inserts the revolve, its axis on the node itself.
+    let revolve = session_insert(
+        &mut session,
+        SessionOp::AddRevolve {
+            profile,
+            // The frame's v is world +Y, so this is its own +y
+            // through (0, 0).
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(TAU),
+        },
+    );
+    assert!(matches!(
+        session.committed_doc().node(revolve),
+        Some(Node::Revolve { .. })
+    ));
+}
+
+/// A NewDocument under a held pick: a reconciling consumer hears the
+/// drop, typed. (A consumer that SKIPS reconcile is not reliably
+/// caught — fresh inserts re-mint the same small ids and the stale
+/// pick aliases the new node; the module docs state the hazard and
+/// issue #1384 tracks the class.)
+#[test]
+fn reconcile_drops_the_pick_across_a_new_document() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![circle_at([R, 0.0], RO)],
+        },
+    );
+    let body = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    let mut seats = Seats::one(Seat::MirrorBody);
+    seats.pick(session.committed_doc(), body);
+    let out = session.perform(SessionOp::NewDocument {
+        name: "fresh".to_owned(),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let events = seats.reconcile(session.committed_doc());
+    assert_eq!(events.len(), 1, "the pick dropped, loudly: {events:?}");
+    assert_eq!(seats.held(0), None);
+}
+
+/// **The reported defect, end to end: a form authoring in millimetres
+/// produces a document that reads back in millimetres.**
+///
+/// Before this, every creation op carried a bare canonical `f64`, so
+/// the form's unit picker moved what was on SCREEN and nothing else:
+/// the session minted a unit-less literal and the panel rendered it in
+/// metres until the user reached for the panel's own picker. The op
+/// vocabulary is what closed it — an `Expr` carries the notation the
+/// form built it with — so this row drives the same door the chrome
+/// does and asserts on what the PANEL then says, not on the op.
+///
+/// It walks all three shapes the report covers: a scalar slot
+/// (`AddExtrude`), a vector one (`AddRevolve`, whose axis point the form
+/// writes from one picker), and a profile, whose template is lowered
+/// in the form's notation rather than in the session.
+#[test]
+fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let mm = Notation {
+        length: pncad::quantity::MM,
+        angle: pncad::quantity::DEG,
+    };
+
+    // The extrude button's default, written the way the chrome does:
+    // the value is canonical, the notation says how it is written.
+    let extrude_distance = Formula::written_length(WrittenLength::canonical_in(0.01, mm.length))
+        .expect("10 mm is a length");
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![
+                viewer::sketch::path_program(
+                    &[pncad::profile::Step::Circle {
+                        centre: pncad::geom_core::Point2::origin(),
+                        radius: 0.005,
+                    }],
+                    mm,
+                    &|_, _| None,
+                )
+                .expect("a 5 mm circle"),
+            ],
+        },
+    );
+    let extrude = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: extrude_distance,
+        },
+    );
+
+    let row = props::slot_rows(session.committed_doc(), extrude)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .expect("the extrude has a distance");
+    assert_eq!(
+        row.unit.map(|u| u.symbol()),
+        Some("mm"),
+        "the panel row remembers the form's unit, with no picker touched"
+    );
+    assert_eq!(
+        props::field_text(&row, Notation::DEFAULT),
+        "10",
+        "and the field reads 10, not 0.01"
+    );
+    // The canonical value is untouched by any of it.
+    assert_eq!(
+        row.value
+            .expect("a value")
+            .one()
+            .expect("one value")
+            .as_f64()
+            .to_bits(),
+        0.01_f64.to_bits()
+    );
+
+    // The profile's literals took the same notation through the
+    // template lowering — the form's job, not the session's.
+    let radius = props::slot_rows(session.committed_doc(), profile)
+        .into_iter()
+        .find(|row| matches!(row.value, Ok(ref v) if v.one().expect("one value").as_f64() == 0.005))
+        .expect("the circle's radius");
+    assert_eq!(radius.unit.map(|u| u.symbol()), Some("mm"));
+
+    // A vector slot: one picker, every component written in it — the
+    // revolve's axis point, in the profile's own plane, clear of the
+    // circle. And an ANGLE authored in degrees, the other half of the
+    // picker pair — a right angle reads as 90, not as
+    // 1.5707963267948966.
+    let revolve = session_insert(
+        &mut session,
+        SessionOp::AddRevolve {
+            profile,
+            axis_through: [0.006, 0.001].map(|metres| {
+                Formula::written_length(WrittenLength::canonical_in(metres, mm.length))
+                    .expect("a finite length")
+            }),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: Formula::written_angle(WrittenAngle::canonical_in(
+                core::f64::consts::FRAC_PI_2,
+                mm.angle,
+            ))
+            .expect("a right angle"),
+        },
+    );
+    let point: Vec<props::SlotRow> = props::slot_rows(session.committed_doc(), revolve)
+        .into_iter()
+        .filter(|row| matches!(row.slot, SlotId::Origin(_)))
+        .collect();
+    assert_eq!(point.len(), 2, "the axis point's two components");
+    for row in point {
+        assert_eq!(
+            row.unit.map(|u| u.symbol()),
+            Some("mm"),
+            "every component of the vector, not just the first"
+        );
+    }
+    let row = props::slot_rows(session.committed_doc(), revolve)
+        .into_iter()
+        .find(|row| row.slot == SlotId::RevolveAngle)
+        .expect("the revolve has an angle");
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("deg"));
+    assert_eq!(props::field_text(&row, Notation::DEFAULT), "90");
+}
+
+/// **From nothing to a boss on a picked face, headlessly** — the
+/// gesture AUTH-1 exists for, driven through the op vocabulary alone.
+///
+/// A document, a square, an extrude; then the box's top cap is PICKED
+/// the way the viewport picks it (a `FaceSelection` carrying the name
+/// and the node whose body the ray met), `DrawOnFace` draws a footprint
+/// on its chart, `AddExtrude` extrudes it off the cap and `AddBoolean`
+/// fuses it on: three actions.
+///
+/// **The boss's own volume discriminates nothing** — a boss on the
+/// bottom cap, on a side, or at the wrong height extrudes the same
+/// block — so what pins it is where the boss stands in the block's
+/// coordinates, asserted whole: a footprint 6 × 3 mm in its chart's
+/// first quadrant spans the box whose corner is the cap's centre, its
+/// height along the cap's outward normal, its long side along the
+/// block's +x. A boss on the bottom cap hangs below the block; one on a
+/// side spans another box; one turned spans another quadrant. The
+/// union's volume is the evidence that it fused, flush.
+#[test]
+fn a_boss_is_authored_on_a_picked_face() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let block = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
+    session.pump();
+
+    // The pick, as the viewport makes it: the name, and the node whose
+    // body the ray met.
+    let cap = StableName {
+        kind: EntityKind::Face,
+        node: block,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
+    let picked = FaceSelection {
+        name: cap,
+        node: block,
+        body: 0,
+    };
+    let footprint = [0.006, 0.003, 0.004];
+    let (_, boss) = common::drawn_boss(
+        &mut session,
+        picked,
+        common::rectangle_chain([0.0, 0.0], footprint[0], footprint[1]),
+        footprint[2],
+    );
+    let union = session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: viewer::session::BooleanSpec::Union(vec![block.into(), boss.into()]),
+        },
+    );
+    let v = body_volume(&mut session, union, tol);
+    let want = 0.04 * 0.02 * 0.01 + footprint.iter().product::<f64>();
+    assert!(near(v, want), "the boss fused, flush: {v} vs {want}");
+
+    // The boss stands ON the cap: this is what "drawn on that face"
+    // means geometrically, and it is the assertion a boss on another
+    // face, at another height or turned fails.
+    let (lo, hi) = common::drawn::extent(&mut session, boss);
+    let close = |got: [f64; 3], want: [f64; 3], what: &str| {
+        for (g, w) in got.into_iter().zip(want) {
+            assert!((g - w).abs() <= 1e-12, "{what}: {got:?} vs {want:?}");
+        }
+    };
+    close(
+        lo,
+        [0.0, 0.0, 0.01],
+        "the footprint's corner is the cap's centre, 10 mm up",
+    );
+    close(
+        hi,
+        [footprint[0], footprint[1], 0.01 + footprint[2]],
+        "and the boss rises along the cap's outward normal, its long side on +x",
+    );
+}
+
+/// **An add mints exactly the profile**: one node, the profile, on its
+/// own plane.
+#[test]
+fn an_add_profile_mints_only_the_profile() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let outcome = session.perform(SessionOp::AddProfile {
+        loops: vec![circle_at([0.0, 0.0], RO)],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.minted.len(), 1, "{:?}", outcome.minted);
+    assert!(matches!(
+        session.committed_doc().node(outcome.minted[0]),
+        Some(Node::Profile(_))
+    ));
+}
+
+/// **A viewport pick on a revolve's body is that body, not a half**: a
+/// revolve defines a body and an axis, so the pick seats its body's
+/// port; the seat line says no half, and the pattern of it lands.
+#[test]
+fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
+    use viewer::combine::{PatternOutputChoice, PatternTool};
+    let tol = Tol::witness();
+    let (mut session, revolve) = authored_ring(tol);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let mut tool = PatternTool::new();
+    tool.pick_at(&doc, revolve, Some(0));
+    let line = viewer::seats::seat_line(tool.seats(), pncad::document::Speaker::of(&doc));
+    assert!(
+        !line.contains("half"),
+        "a revolve is said as a split half: {line}"
+    );
+    let outcome = session.perform(
+        tool.linear_op(
+            PatternOutputChoice::Instances,
+            2,
+            viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+            len(0.1),
+        )
+        .expect("seated"),
+    );
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+}
+
+/// **A document made in the viewer says what it makes**: two fresh
+/// boxes land unplaced and are no product until the author adds them,
+/// one by one, through the one door; the product is then their copies'
+/// `⊔`, and taking one out leaves the other alone. The `⊔` the product
+/// read before goes with the old answer.
+#[test]
+fn the_product_is_what_the_author_adds_to_it() {
+    let tol = Tol::witness();
+    let mut session = DocSession::inline(
+        pncad::document::Doc::empty_derived("viewer-product-gesture", tol),
+        tol,
+    );
+    let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
+    let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
+    assert!(
+        viewer::world::product_reads(session.committed_doc()).is_empty(),
+        "nothing joins the product by being made"
+    );
+    for body in [big, small] {
+        let outcome = session.perform(SessionOp::AddToProduct {
+            node: body,
+            body: None,
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    let [big, small] = [big, small].map(|body| {
+        let doc = session.committed_doc();
+        viewer::world::world_copy(doc, common::copy_of(doc, body)).expect("a world copy")
+    });
+    let doc = session.committed_doc();
+    assert_eq!(viewer::world::product_reads(doc), vec![big, small]);
+    let assembles = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>| {
+        doc.ids()
+            .into_iter()
+            .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Assemble { .. })))
+            .count()
+    };
+    assert_eq!(assembles(doc), 1, "one `⊔`, the product's");
+    let bodies = viewer::world::product_without(doc, big);
+    let outcome = session.perform(SessionOp::SetProduct { bodies });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(viewer::world::product_reads(doc), vec![small]);
+    assert_eq!(assembles(doc), 0, "the old `⊔` went with the old answer");
+}

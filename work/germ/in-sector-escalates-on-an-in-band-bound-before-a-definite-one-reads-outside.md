@@ -1,0 +1,31 @@
+---
+id: in-sector-escalates-on-an-in-band-bound-before-a-definite-one-reads-outside
+kind: issue
+title: in_sector escalates on an in-band bound reading before a later reading decides the direction outside
+status: open
+opened: 2026-10-13
+priority: P3
+---
+
+
+
+## What
+
+`crates/topo/src/boolean/sectors.rs` `in_sector` answers `false` on the
+first reading decided Negative (`bool_cone_within` ×2, then
+`bool_cone_facing`). It returns an in-band reading through `?` before a
+later reading can decide the direction outside, so the sector escalates
+`Coincidence(Sectors)` where a definite answer stands. The function's own
+doc already notes an order dependence ("at a zero flip its answer can
+depend on which of two sectors over one plane is read first, as an
+in-band reading may").
+
+The identity ladder's rule (any definite reading answers; an in-band one
+refuses only where none does) has one home: `geom_brep::ladder::climb`
+(`read_identity` over banded data). A conjunction of "outside" readings
+is the same shape with the signs read the other way, which `climb`'s
+reader states (`Rung::Answers` on the refusing sign).
+
+Found by PR 4918's second-review sweep (2026-10-13). Not measured.
+
+Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.

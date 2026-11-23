@@ -1,0 +1,1867 @@
+//! **A spline wall and an implicit partner: the pair classified.** The
+//! partner is a surface with an implicit residual in metres, a plane, a
+//! cylinder, a sphere or a torus, and the wall a NURBS surface (an
+//! approximating surface read as its fit). The section is the zero set of
+//! `φ = f∘S` over the wall's knot rectangle (C3's residual × chart trace
+//! shape), and the pair decides its tangency and coincidence once, in its
+//! classification on `φ`, before any march (C5), in three stages run in
+//! this order:
+//!
+//! 1. **the hull**, the bound on `φ` its net gives: a net decided on one
+//!    side of the partner is apart; one within the zero band of it lies
+//!    on it ([`SectionError::CoincidentSurfaces`]), and one in band
+//!    escalates. Then the door: a side of the rectangle collapsed to a
+//!    point ([`crate::chart_singularity::spline_collapsed_row`]) not
+//!    decided clear of the partner refuses, named. On the plane `φ` is
+//!    linear, the net's control heights bound it, and both read at every
+//!    scalar and with no march door (`SplineImplicitPose::hull`); a
+//!    curved partner's `f` is not, and its hull is the Bernstein hull of
+//!    the tensor composite `f∘S`, formed in certification arithmetic
+//!    through the march door ([`curved`]);
+//! 2. **the boundary pass**, through the march door, each side of the
+//!    rectangle against the partner's form ([`crate::ssi::boundary`]'s
+//!    pass, run once): a graze or a side held tangent refuses by name,
+//!    and its crossings and `Side` and `Corner` regions are where the
+//!    section ends;
+//! 3. **the regularity sweep** ([`sweep`]): where `∇φ` is bounded off
+//!    zero, past the band's exclusions, no component closes in the
+//!    wall's chart outside the critical points it decides Zero. That
+//!    verdict is the section: no component where the pass found no end
+//!    and no point was decided, [`Components::Reaching`] on the sides the
+//!    pass found ends on, and the touches as point components where they
+//!    are all the section has; the interior-loop guard's loop-free stage
+//!    is it. Where a node, or a touch beside components with ends, meets
+//!    arcs, the pose is read whole with the decided points handed in and
+//!    listed with its arcs ([`listed`]): each node with its lines and side,
+//!    each arc end at it naming its ray. Where
+//!    the sweep declines, the pose is read whole on the same pass, on the
+//!    1×2 trace ([`crate::ImplicitSection`]), a plane's pass carried on
+//!    the pose.
+//!
+//! The order is the proof's: the sweep's loop-free verdict says nothing
+//! of a wall within the band of the partner everywhere, which the hull
+//! decides, nor of a component touching a side without crossing it,
+//! which the pass refuses as a graze.
+//!
+//! Read whole, the section of a plane, cylinder, sphere or ring torus and
+//! a NURBS wall (an approximating surface read as its fit) is
+//! [`crate::ImplicitSection::all`] over the wall's whole knot rectangle:
+//! every branch with its three-limb certificate, every boundary region,
+//! and the accounting that they are all of them. The
+//! plane is read at its pivot, its origin moved to its foot nearest the
+//! wall (`SplineImplicitPose::pivot`), so its frame stands where the
+//! wall is wherever its origin is stored. The foot is found in `f64`, so
+//! the plane read may stand off the stored one; that shift is certified
+//! and charged: the reading's band is padded by it, and the witness's
+//! bracket and the boundary pass's exact empty answers (a corner or a
+//! side clear of the plane by its distance's sign) read the stored
+//! plane's height. Charged, the shift still moves a reading at the
+//! band's edge: where the origin is stored can decide a pose there
+//! (`work/sectarms/a-plane-at-the-bands-edge-reads-by-where-its-origin-is-stored.md`). Each piece of the section is a component:
+//!
+//! - a closed branch is a [`ComponentShape::Loop`], with its witness;
+//! - an open branch, which runs between two crossings of the wall's
+//!   rectangle, and a `Side` or `Corner` region, where the section runs
+//!   along a side or leaves at a corner within the band, are
+//!   [`ComponentShape::Open`], reaching the sides of the wall's chart
+//!   they end on ([`ChartReach`]); a branch that ends anywhere else is
+//!   refused, never read as reaching.
+//!
+//! **A branch's witness** is the wall's point `q = S(P(mid))` at the
+//! middle of the branch's pcurve on the wall (an enclosure's centre),
+//! and its pad a metre bound on how far `q` stands from a point of that
+//! branch's own arc: a segment of the chart through `P(mid)` along `φ`'s
+//! chart gradient (the plane height's, or the curved partner's residual
+//! along the wall), inside the window of the branch's certified chart
+//! tube that holds `P(mid)`, whose ends `φ` (the stored plane's height,
+//! or the partner's form) is certified to straddle, halved about the sign change while the
+//! sign stays certified ([`bracket`]). The segment holds a point of the
+//! section, and inside the window limb 3 proves the section one arc,
+//! the branch's; the image's length from `P(mid)` to it is bounded by
+//! the chart extents and the wall's certified chart speeds over the
+//! segment's own box, so the pad shrinks with the band. A branch no
+//! bracket fits carries no witness.
+//!
+//! **An open branch is carried as the reading fitted it**
+//! ([`super::ClassCarrier::Fitted`]): its certified carrier, its
+//! certificate, and its pad and reach in metres, each the chart tube's
+//! padded windows read through the wall's chart speeds ([`pad_of`]). An
+//! arc to a node is carried on to it (C5's node end): its carrier runs
+//! to the node's point, its tube is graded toward the node and ends in
+//! the node's own box, its pad is read box by box, and the ray it names
+//! is the one whose sector holds its tube's last box ([`ray_at`]). A
+//! loop on the chart ([`super::NoCarrier::ChartLoop`]) is listed with no
+//! carrier.
+//!
+//! A refusal maps by name: a tangency the reading reports (the march's
+//! transversality, a graze of a side, a side held tangent) is a pinch
+//! named by its decision, an escalation is the value's escalation, and
+//! any other refusal, an accounting that did not close among them, is
+//! [`SectionError::Unaccounted`], carrying its cause; but a reading with
+//! decided points handed in that does not account for the components
+//! beside them refuses as a pinch ([`CRITICAL_UNREAD`]): the surfaces meet
+//! within the band there.
+//!
+//! The reading is a march, so the arm is the march door's
+//! ([`super::SsiLane::marched`], at `f64` alone).
+
+use geom::{NurbsSurface, Surface};
+use geom_core::k_stats::{Magnitude, decide, decide_magnitude};
+use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec2, Vec3};
+
+use super::{
+    ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, NodeEnd, NodeSet,
+    PairPose, PairSection, PairSide, SectionComponent, SectionNode, SsiLaneOf, node_joined,
+};
+use crate::ExtentBall;
+use crate::intersect::SectionError;
+use crate::ssi::boundary::BoundaryPass;
+use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
+use crate::ssi::exhaust::UvRect;
+use crate::ssi::residual::ImplicitForm;
+use crate::ssi::{BranchEnd, BranchTip, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
+
+#[cfg(test)]
+mod carry_rows;
+mod curved;
+#[cfg(test)]
+mod node_rows;
+#[cfg(test)]
+mod rest_rows;
+mod sweep;
+
+/// **A spline wall and an implicit partner**, in the order the section
+/// was asked of.
+#[derive(Clone, Debug)]
+pub struct SplineImplicitPose<T: Real> {
+    partner: Surface<T>,
+    wall: Surface<T>,
+    /// The wall's net: a NURBS wall's own, an approximating surface's
+    /// fit's.
+    net: geom::NurbsSurface<T>,
+    partner_first: bool,
+    /// The boundary pass the classification ran (stage 2), carried to
+    /// the whole reading so it runs once.
+    pass: Option<std::sync::Arc<(crate::ssi::PassKey, BoundaryPass<[f64; 2]>)>>,
+}
+
+impl<T: Real> SplineImplicitPose<T> {
+    /// The pose of `a` and `b`, one a plane, a cylinder, a sphere or a
+    /// torus and the other a NURBS or an approximating surface; `None`
+    /// for any other pair.
+    #[must_use]
+    pub fn of(a: &Surface<T>, b: &Surface<T>) -> Option<Self> {
+        let implicit = |s: &Surface<T>| {
+            matches!(
+                s,
+                Surface::Plane { .. }
+                    | Surface::Cylinder { .. }
+                    | Surface::Sphere { .. }
+                    | Surface::Torus { .. }
+            )
+        };
+        let (partner, wall, partner_first) = if implicit(a) {
+            (a, b, true)
+        } else if implicit(b) {
+            (b, a, false)
+        } else {
+            return None;
+        };
+        Some(Self {
+            partner: partner.clone(),
+            wall: wall.clone(),
+            net: wall.spline_chart()?.clone(),
+            partner_first,
+            pass: None,
+        })
+    }
+
+    /// The two surfaces in the order the pose was asked of.
+    pub fn operands(&self) -> (&Surface<T>, &Surface<T>) {
+        if self.partner_first {
+            (&self.partner, &self.wall)
+        } else {
+            (&self.wall, &self.partner)
+        }
+    }
+
+    /// The implicit partner.
+    pub fn partner(&self) -> &Surface<T> {
+        &self.partner
+    }
+
+    /// Whether the partner is a plane, whose `φ` is linear.
+    pub fn is_plane(&self) -> bool {
+        matches!(self.partner, Surface::Plane { .. })
+    }
+
+    /// The wall's net: a NURBS wall's own, an approximating surface's
+    /// fit's.
+    pub fn net(&self) -> &geom::NurbsSurface<T> {
+        &self.net
+    }
+
+    /// The wall's side of the pair, in the order the pose was asked of.
+    pub(super) fn wall_side(&self) -> PairSide {
+        if self.partner_first {
+            PairSide::Second
+        } else {
+            PairSide::First
+        }
+    }
+
+    /// `[on the partner, on the wall]` in the order the pose was asked
+    /// of.
+    pub(super) fn order<V>(&self, on_partner: V, on_wall: V) -> [V; 2] {
+        if self.partner_first {
+            [on_partner, on_wall]
+        } else {
+            [on_wall, on_partner]
+        }
+    }
+
+    /// **A ball holding the whole section**: the wall lies in its net's
+    /// convex hull (its weights are positive), so in the ball about the
+    /// net's control points: about the middle of their box, reaching the
+    /// farthest.
+    pub fn ball(&self) -> ExtentBall<T> {
+        ExtentBall::of_covered(geom::cover::Cover::net(self.net.control().to_vec()).as_ref())
+    }
+}
+
+impl<T: Real> SplineImplicitPose<T> {
+    /// The pose of a pair the arm serves.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::WrongLane`] for any other pair.
+    fn served(a: &Surface<T>, b: &Surface<T>) -> Result<Self, SectionError> {
+        Self::of(a, b).ok_or(SectionError::WrongLane {
+            expected: "a plane, cylinder, sphere or torus and a NURBS or approximating surface",
+        })
+    }
+
+    /// The pair's section with these components, nothing decided Zero.
+    fn section(self, components: Components<T>) -> PairSection<T> {
+        self.section_deciding(components, Vec::new())
+    }
+
+    /// The pair's section with these components and these `Zero`
+    /// verdicts.
+    fn section_deciding(
+        self,
+        components: Components<T>,
+        decided: Vec<super::ZeroVerdict>,
+    ) -> PairSection<T> {
+        self.section_listing(components, decided, Vec::new(), Vec::new())
+    }
+
+    /// The pair's section with these components, `Zero` verdicts, nodes
+    /// and node-joined sets.
+    fn section_listing(
+        self,
+        components: Components<T>,
+        decided: Vec<super::ZeroVerdict>,
+        nodes: Vec<SectionNode<T>>,
+        node_sets: Vec<NodeSet>,
+    ) -> PairSection<T> {
+        let lever = self.ball().lever();
+        PairSection {
+            pose: PairPose::SplineImplicit(Box::new(self)),
+            decided,
+            components,
+            nodes,
+            node_sets,
+            lever,
+        }
+    }
+}
+
+/// What stage 1 decides of a pose it does not refuse.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Hull {
+    /// The net lies strictly on one side of the partner.
+    Apart,
+    /// The net reaches past the band of the partner.
+    Cuts,
+}
+
+/// **Stage 1's one rule, from its readings**: every reading of the net
+/// decided of one sign is apart; otherwise `coincidence`, the net's
+/// largest distance read against the band, decides it coincident (a
+/// coincidence its consumer keeps, D10), cutting, or in band.
+///
+/// # Errors
+///
+/// [`SectionError::CoincidentSurfaces`] and [`SectionError::Escalated`].
+fn hull_verdict(
+    sides: &[Option<Sign>],
+    coincidence: impl FnOnce() -> Result<Magnitude, geom_core::Indeterminate>,
+) -> Result<Hull, SectionError> {
+    let all = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
+    if all(Sign::Positive) || all(Sign::Negative) {
+        return Ok(Hull::Apart);
+    }
+    match coincidence() {
+        Ok(Magnitude::Zero) => Err(SectionError::CoincidentSurfaces),
+        Ok(Magnitude::Positive) => Ok(Hull::Cuts),
+        Err(diag) => Err(SectionError::Escalated(diag)),
+    }
+}
+
+/// **The door's collapsed sides, against any partner**: a side of the
+/// wall's rectangle collapsed to a point
+/// ([`crate::chart_singularity::spline_collapsed_row`]) is a pole, and
+/// one whose row is not decided clear of the partner, every point of it
+/// on one side by `clear`, is refused before any sweep, named.
+///
+/// # Errors
+///
+/// [`SectionError::Unaccounted`], naming the side.
+fn door_on<T: Decide>(
+    net: &NurbsSurface<T>,
+    partner: &str,
+    clear: impl Fn(Point3<T>) -> Option<Sign>,
+) -> Result<(), SectionError> {
+    let control = net.control();
+    for side in crate::ssi::boundary::SIDES {
+        let Some(row) = crate::chart_singularity::spline_collapsed_row(net, side) else {
+            continue;
+        };
+        let signs: Vec<_> = row
+            .iter()
+            .filter_map(|&i| control.get(i))
+            .map(|&p| clear(p))
+            .collect();
+        let one = |s| !signs.is_empty() && signs.iter().all(|&t| t == Some(s));
+        if !(one(Sign::Positive) || one(Sign::Negative)) {
+            return Err(SectionError::Unaccounted {
+                cause: format!("{side} collapses to a point not decided clear of the {partner}"),
+            });
+        }
+    }
+    Ok(())
+}
+
+impl<T: Decide> SplineImplicitPose<T> {
+    /// **Stage 1, the hull**: the wall lies in its net's convex hull (its
+    /// weights are positive), so the control points' heights over the
+    /// plane bound the wall's. A net whose every height is decided of one
+    /// sign meets the plane nowhere; one whose largest height is decided
+    /// within the zero band lies on it. The heights are formed in the
+    /// scalar's own arithmetic, as every pose decision is.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::DegenerateOperand`] for a net whose height is
+    /// poison, at every scalar and with or without a march door;
+    /// [`SectionError::CoincidentSurfaces`] for a net within the zero
+    /// band of the plane everywhere, a coincidence its consumer keeps
+    /// (D10); and [`SectionError::Escalated`] where its largest height
+    /// is in the band.
+    fn hull(&self, band: Band) -> Result<Hull, SectionError> {
+        let heights: Vec<T> = self.net.control().iter().map(|&c| self.height(c)).collect();
+        if heights.iter().any(|h| h.is_poison()) {
+            return Err(SectionError::DegenerateOperand {
+                what: "the spline wall's net has a control point whose height over the plane \
+                       is poison",
+            });
+        }
+        let sides: Vec<_> = heights
+            .iter()
+            .map(|&h| decide("section_nurbs_plane_hull", Margin::of(h), band).ok())
+            .collect();
+        hull_verdict(&sides, || {
+            let reach = heights.iter().fold(T::zero(), |m, &h| m.max(h.abs()));
+            decide_magnitude("section_nurbs_plane_coincident", Margin::of(reach), band)
+        })
+    }
+
+    /// **The door's collapsed sides**: a side of the wall's rectangle
+    /// collapsed to a point
+    /// ([`crate::chart_singularity::spline_collapsed_row`]) is a pole,
+    /// and one whose row is not decided clear of the plane, every point
+    /// of it on one side, is refused before any sweep, named.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::Unaccounted`], naming the side.
+    fn door(&self, band: Band) -> Result<(), SectionError> {
+        door_on(&self.net, "plane", |p| {
+            decide("section_nurbs_plane_pole", Margin::of(self.height(p)), band).ok()
+        })
+    }
+
+    /// The height of `p` over the plane, in metres, read about the
+    /// stored origin in the scalar's own arithmetic: the hull and door
+    /// read at every scalar, and the pivot's lift is an `f64` reading's
+    /// alone (its rounding uncharged far out:
+    /// `work/sectarms/a-wall-row-in-an-oblique-plane-reads-empty-by-where-the-planes-origin-is-stored.md`).
+    fn height(&self, p: Point3<T>) -> T {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = self.partner
+        else {
+            unreachable!("the pose holds a plane")
+        };
+        let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
+        (p - origin).dot(normal.normalize())
+    }
+}
+
+impl SplineImplicitPose<f64> {
+    /// **The plane read at its pivot** (module docs): the same
+    /// carrier, its origin moved to the foot on it of the wall's ball's
+    /// centre (as an angular datum is read at its pivot, `section_cert`'s
+    /// lever and pivot), and the foot's certified height over the stored
+    /// plane. A plane pose's alone: the classification reads it only
+    /// where the partner is a plane.
+    fn pivot(&self) -> Pivot {
+        let Surface::Plane {
+            frame: carrier_frame,
+        } = self.partner
+        else {
+            unreachable!("the pose holds a plane")
+        };
+        let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+        let Some(foot) = self.partner.foot(self.ball().center()) else {
+            unreachable!("a plane's foot is in closed form")
+        };
+        Pivot {
+            plane: Surface::Plane {
+                frame: geom::Frame::new(foot, normal, u_ref),
+            },
+            lift: stored_height(&carrier_frame, foot),
+        }
+    }
+
+    /// **The reading's domain**: the cube of the net's ball. The 1×2
+    /// trace marches on the wall's rectangle, which bounds it, against a
+    /// plane as against a curved partner, so no window bounds a march and
+    /// the domain carries only what the reading reads, the feature extent
+    /// and the accounting floor. The feature extent is the net ball's
+    /// diameter ([`super::domain_about`]).
+    #[must_use]
+    pub fn domain(&self) -> SsiDomain {
+        let ball = self.ball();
+        super::domain_about(ball.center(), ball.radius(), ball.radius() * 2.0)
+    }
+}
+
+/// **`foot`'s certified height over a stored plane**, the plane read as
+/// every certified partner read takes a stored frame: its polar
+/// enclosure ([`crate::ssi::residual::certified_frame`]), whose normal is
+/// a unit, so the height is the dot along it.
+fn stored_height(plane: &geom::Frame<f64>, foot: Point3<f64>) -> Interval {
+    let (o, [_, _, m]) = crate::ssi::residual::certified_frame(plane);
+    let a = foot.map(Interval::from_certified);
+    (a.x - o.x) * m.x + (a.y - o.y) * m.y + (a.z - o.z) * m.z
+}
+
+/// **The plane read at its pivot** (`SplineImplicitPose::pivot`).
+struct Pivot {
+    /// The plane, its origin at the foot.
+    plane: Surface<f64>,
+    /// The foot's certified height over the stored plane, along its unit
+    /// normal: the stored plane's `φ` less the read plane's, the one
+    /// quantity the pass's exact empty answers and the witness's bracket
+    /// read the stored plane through ([`ImplicitForm::lifted`]).
+    lift: Interval,
+}
+
+impl Pivot {
+    /// **The section read at the pivot**, at the padded band
+    /// ([`Pivot::band`]), its form lifted onto the stored plane
+    /// ([`crate::ImplicitSection::lifted`]).
+    ///
+    /// # Errors
+    ///
+    /// [`Pivot::band`]'s, and the reading's, mapped.
+    fn reading<'a>(
+        &'a self,
+        pose: &'a SplineImplicitPose<f64>,
+        band: Band,
+    ) -> Result<(crate::ImplicitSection<'a>, Band), SectionError> {
+        let read_band = self.band(band)?;
+        let reading = crate::ImplicitSection::of(&self.plane, pose.net(), pose.domain(), read_band)
+            .map_err(super::whole_reading_refused)?;
+        Ok((reading.lifted(self.lift), read_band))
+    }
+
+    /// How far the plane read may stand off the stored one, in metres:
+    /// every distance to the plane moves by at most this, so the
+    /// reading's band is padded by it.
+    fn shift(&self) -> f64 {
+        self.lift.abs().hi()
+    }
+
+    /// The reading's band: `band` padded by the shift.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::Unaccounted`] where the shift pads no band.
+    fn band(&self, band: Band) -> Result<Band, SectionError> {
+        band.padded(self.shift())
+            .map_err(|e| SectionError::Unaccounted {
+                cause: format!(
+                    "the plane read at its pivot stands {:e} m off the stored one, which pads \
+                     no band: {e}",
+                    self.shift()
+                ),
+            })
+    }
+}
+
+/// **The partner a branch's witness is bracketed against**: the surface
+/// read, whose linearized residual selects the bracket's direction and
+/// step, and its form, the stored surface's certified sign deciding it
+/// ([`ImplicitForm::plus_lift`]).
+#[derive(Clone, Copy)]
+struct Bracketed<'a> {
+    surface: &'a Surface<f64>,
+    form: &'a ImplicitForm,
+}
+
+impl Bracketed<'_> {
+    /// The certified sign of the stored surface's `φ` over `s`, an
+    /// enclosure of a point: `Some(true)` on the positive side.
+    fn sign(self, s: Box3) -> Option<bool> {
+        let form = self.form;
+        crate::ssi::section::sign(form.plus_lift(form.value(form.framed(s))))
+    }
+
+    /// At the wall's point `p`: the stored surface's `φ` in metres there,
+    /// bounded above, the gradient whose chart image the bracket steps
+    /// along, and the least step's floor, in metres, below which `φ`
+    /// reads as no distance: the rounding of the coordinates `φ` is read
+    /// in, about the plane's origin or the partner's centre or axis.
+    fn at(self, p: Point3<f64>) -> (f64, Vec3<f64>, f64) {
+        let q = self.form.framed_point(p);
+        (
+            crate::implicit_residual(self.surface, p).abs() + self.form.lift().abs().hi(),
+            crate::implicit_gradient(self.surface, p),
+            f64::EPSILON * geom_core::interval::norm_sup(&[q.x, q.y, q.z]),
+        )
+    }
+}
+
+/// **An open branch as the component it carries**
+/// (`ClassCarrier::Fitted`): its certified carrier over its span, its
+/// certificate, its witness `carrier(mid)`, and its pad and reach in
+/// metres ([`pad_of`]); where an end is at a node, by its index among
+/// the section's in `nodes` (start first), the pad read box by box
+/// (C2's node end). It claims no winding: an open arc winds about
+/// neither surface.
+fn fitted(
+    b: &SsiBranch,
+    shape: ComponentShape,
+    net: &NurbsSurface<f64>,
+    nodes: [Option<usize>; 2],
+) -> Result<super::CarriedComponent<f64>, super::CarryError> {
+    let (read, boxes, runs) = pad_of(b, net, nodes)?;
+    Ok(super::CarriedComponent {
+        carrier: b.carrier.clone(),
+        span: b.params,
+        shape,
+        certificate: Some(b.certificate),
+        winds: [false, false],
+        pad: read.pad,
+        reach: read.reach,
+        witness: b.witness,
+        boxes,
+        runs,
+    })
+}
+
+/// **A chart-tubed branch's pad and reach in metres**
+/// ([`super::CarriedComponent::pad`], [`super::CarriedComponent::reach`]):
+/// the windows of the certificate's chart tube (the pcurve's hull over
+/// each of its spans, padded by `pad_u` and `pad_v`,
+/// `ssi::certify::chart_tube_windows`), each one piece of the tube
+/// ([`super::pad_and_reach`]). Limb 3 holds the section in the windows
+/// one arc, a piece of it in each, and the reading's accounting banks
+/// every other cell of the wall's rectangle, so every point of the
+/// component lies in some window's image on the wall.
+///
+/// Each window is halved, along whichever chart axis leaves the
+/// narrower halves, until each cell's image on the wall
+/// (`NurbsBoxes::rect_box`: the cell's midpoint enclosure plus its
+/// half-widths times the certified partials over it) is no wider than
+/// [`PAD_CELL_RUNGS`] of the tube's rungs, or [`PAD_CUTS`] times; each cell is read against
+/// eight carrier points per cell (at most [`PAD_SAMPLES_MAX`]) over the
+/// window's span. The cells cover
+/// the window, so the pad bounds every point of its image: it is the
+/// farthest point of the window's image from the carrier, read at the
+/// cell's size. A window is the pcurve's hull over a whole span, so the
+/// pad is at least the window's own width across the carrier imaged on
+/// the wall: for a pcurve of one span, the arc's whole bend in the chart,
+/// however narrow the rung.
+///
+/// # Errors
+///
+/// A desync where the certificate is not a chart tube, the branch
+/// carries no wall pcurve or its carrier is not a spline; otherwise
+/// [`super::pad_and_reach`]'s, with [`super::CarryRefusal::TubeUnread`]
+/// where the windows or a cell do not read. Beside the pad, each
+/// window's image with the carrier's span over it
+/// ([`super::CarriedComponent::runs`]).
+fn pad_of(
+    b: &SsiBranch,
+    net: &NurbsSurface<f64>,
+    ends: [Option<usize>; 2],
+) -> Result<(super::TubeRead, Vec<super::PadBox>, Vec<super::TubeRun>), super::CarryError> {
+    use super::{CarryError, CarryRefusal, LoopTubeRefusal, TubePiece};
+    let (
+        SsiTube::Chart {
+            pad_u,
+            pad_v,
+            rung,
+            nodes,
+        },
+        Some(pcurve),
+    ) = (b.certificate.tube, b.pcurve_b.as_ref())
+    else {
+        return Err(CarryError::Desync(
+            "a spline × implicit branch holds no chart tube on the wall's pcurve",
+        ));
+    };
+    let geom::Curve3::Nurbs(carrier) = &b.carrier else {
+        return Err(CarryError::Desync(
+            "a spline × implicit branch's carrier is not a spline",
+        ));
+    };
+    // The listing's node ends and the certificate's are one fact, read
+    // twice: the branch's tips, and the node boxes limb 3 proved.
+    if [0, 1]
+        .iter()
+        .any(|&e| ends[e].is_some() != nodes[e].is_some())
+    {
+        return Err(CarryError::Desync(
+            "a spline × implicit arc's node ends are not its certificate's node boxes",
+        ));
+    }
+    let unread = || CarryError::Refused(CarryRefusal::TubeUnread(LoopTubeRefusal::NotFinite));
+    let windows = crate::ssi::certify::chart_tube(pcurve, (pad_u, pad_v), nodes).ok_or(
+        CarryError::Refused(CarryRefusal::TubeUnread(LoopTubeRefusal::Uncertified)),
+    )?;
+    let boxes = NurbsBoxes::new(net);
+    let image = |(u0, u1, v0, v1): (f64, f64, f64, f64)| {
+        UvWindow::new(u0, u1, v0, v1)
+            .map(|uv| boxes.rect_box(uv))
+            .ok_or_else(unread)
+    };
+    let pieces: Vec<TubePiece> = windows
+        .iter()
+        .map(|w| {
+            let mut cells = Vec::new();
+            let whole = (w.rect.u.0, w.rect.u.1, w.rect.v.0, w.rect.v.1);
+            let mut open = vec![(whole, image(whole)?, 0u32)];
+            while let Some(((u0, u1, v0, v1), cell, depth)) = open.pop() {
+                // A cell no wider than `PAD_CELL_RUNGS` rungs, or one cut
+                // as often as a window is, is read as it stands.
+                let narrow = cell.width().partial_cmp(&(PAD_CELL_RUNGS * rung))
+                    != Some(core::cmp::Ordering::Greater);
+                if narrow || depth == PAD_CUTS {
+                    cells.push(cell);
+                    continue;
+                }
+                let (um, vm) = (geom::mid_param(u0, u1), geom::mid_param(v0, v1));
+                let halves =
+                    |a, b| -> Result<_, CarryError> { Ok([(a, image(a)?), (b, image(b)?)]) };
+                let across_u = halves((u0, um, v0, v1), (um, u1, v0, v1))?;
+                let across_v = halves((u0, u1, v0, vm), (u0, u1, vm, v1))?;
+                let widest = |h: &[(_, Box3); 2]| h[0].1.width().max(h[1].1.width());
+                let cut = if widest(&across_u) <= widest(&across_v) {
+                    across_u
+                } else {
+                    across_v
+                };
+                open.extend(cut.map(|(rect, cell)| (rect, cell, depth + 1)));
+            }
+            let samples = (8 * cells.len() + 1).min(PAD_SAMPLES_MAX);
+            Ok(TubePiece {
+                boxes: cells,
+                span: w.ends,
+                samples,
+            })
+        })
+        .collect::<Result<_, CarryError>>()?;
+    let read = super::pad_and_reach(
+        carrier,
+        &pieces,
+        b.certificate.hull_sup,
+        geom::mid_param(b.params.0, b.params.1),
+    )?;
+    // Each window's image with the carrier's span over it: where on the
+    // carrier a site in it lies (`CarriedComponent::runs`).
+    let runs = pieces
+        .iter()
+        .map(|piece| {
+            let hull = piece.boxes.iter().fold(None, |acc: Option<Box3>, &c| {
+                Some(acc.map_or(c, |a| a.hull(c)))
+            });
+            hull.and_then(|h| super::TubeRun::of(h, piece.span))
+                .ok_or_else(unread)
+        })
+        .collect::<Result<Vec<_>, CarryError>>()?;
+    // Read box by box where an end is a node: the node's box is the
+    // window at that end of the chain, marked with its node.
+    if nodes == [None, None] {
+        return Ok((read, Vec::new(), runs));
+    }
+    let last = windows.len() - 1;
+    let boxes = windows
+        .iter()
+        .zip(&pieces)
+        .zip(&read.each)
+        .enumerate()
+        .map(|(k, ((w, piece), &pad))| {
+            let hull = piece.boxes.iter().fold(None, |acc: Option<Box3>, &c| {
+                Some(acc.map_or(c, |a| a.hull(c)))
+            });
+            let hull = hull
+                .filter(|h| [h.x, h.y, h.z].iter().all(|i| i.is_certified()))
+                .ok_or_else(unread)?;
+            let side = |i: Interval| (i.lo(), i.hi());
+            let [x, y, z] = [side(hull.x), side(hull.y), side(hull.z)];
+            let node = match k {
+                0 if w.node => ends[0],
+                _ if k == last && w.node => ends[1],
+                _ => None,
+            };
+            Ok(super::PadBox {
+                lo: [x.0, y.0, z.0],
+                hi: [x.1, y.1, z.1],
+                pad,
+                node,
+            })
+        })
+        .collect::<Result<Vec<_>, CarryError>>()?;
+    Ok((read, boxes, runs))
+}
+
+/// How many rungs wide a cell's image [`pad_of`] reads as it stands:
+/// a window is padded by the rung's chart width on each side, so its
+/// image is about two rungs across the carrier however short its span.
+const PAD_CELL_RUNGS: f64 = 2.0;
+
+/// How many times [`pad_of`] halves a chart window, at most, toward
+/// cells whose image is no wider than [`PAD_CELL_RUNGS`] rungs: up to
+/// `2⁸` cells a window.
+const PAD_CUTS: u32 = 8;
+
+/// The most carrier points [`pad_of`] reads a window's cells against:
+/// eight intervals a cell, one per part (`super::PAD_SPLITS`), up to
+/// this.
+const PAD_SAMPLES_MAX: usize = 2049;
+
+/// **Two carried arcs whose pads may meet carry neither**
+/// ([`super::CarryRefusal::PadsMeet`]). A site is read on a component
+/// where it stands within the band padded by that component's pad
+/// ([`super::CarriedComponent::reads`]): an arc read whole, within its
+/// pad of its carrier, so within its pad of the carrier's control hull
+/// (`ssi::certify::tube_chain` at radius zero); an arc read box by box,
+/// within one of its boxes widened by the band's escalation. A point
+/// read on two arcs that share no node is a desync, and one read on two
+/// that share a node escalates on its distance from it
+/// ([`super::CarriedSection::site`]), so the carry holds each pair of
+/// fitted arcs apart by those regions, read region by region, except
+/// where one of the two meets the box of a node both arcs end at: there
+/// the arcs meet, and a site escalates. Limb 3 holds each arc alone in
+/// its own tube, but a pad reaches past the tube, so the tube's
+/// uniqueness does not give this.
+fn apart(components: &mut [SectionComponent<f64>], band: Band) {
+    // Each fitted arc's regions: a box, the pad about it, and the node
+    // whose box it is.
+    let regions = |c: &SectionComponent<f64>| -> Option<Vec<(Box3, f64, Option<usize>)>> {
+        let ClassCarrier::Fitted(fitted) = &c.carrier else {
+            return None;
+        };
+        let arc = fitted.as_ref().as_ref().ok()?;
+        if arc.boxes.is_empty() {
+            let geom::Curve3::Nurbs(net) = &arc.carrier else {
+                return None;
+            };
+            let chain = crate::ssi::certify::tube_chain(net, 0.0);
+            return Some(
+                chain
+                    .into_iter()
+                    .map(|(b, _, _)| (b, arc.pad, None))
+                    .collect(),
+            );
+        }
+        Some(
+            arc.boxes
+                .iter()
+                .map(|b| {
+                    let side = |k: usize| Interval::from_bounds(b.lo[k], b.hi[k]);
+                    (
+                        Box3 {
+                            x: side(0),
+                            y: side(1),
+                            z: side(2),
+                        },
+                        0.0,
+                        b.node,
+                    )
+                })
+                .collect(),
+        )
+    };
+    let read: Vec<_> = components.iter().map(regions).collect();
+    let mut meet: Vec<Option<super::CarryRefusal>> = vec![None; components.len()];
+    for (i, a) in read.iter().enumerate() {
+        let Some(a) = a else { continue };
+        for (j, b) in read.iter().enumerate().skip(i + 1) {
+            let Some(b) = b else { continue };
+            let (ends_a, ends_b) = (components[i].shape.nodes(), components[j].shape.nodes());
+            let shared = |n: Option<usize>| {
+                n.is_some_and(|n| ends_a.contains(&Some(n)) && ends_b.contains(&Some(n)))
+            };
+            // The boxes of the nodes both arcs end at: a region meeting
+            // one is the node's, where the two arcs meet.
+            let node_boxes: Vec<Box3> = a
+                .iter()
+                .chain(b.iter())
+                .filter(|&&(_, _, n)| shared(n))
+                .map(|&(r, _, _)| r)
+                .collect();
+            let at_node = |r: Box3| node_boxes.iter().any(|&n| box_gap(r, n) <= 0.0);
+            for &(ba, pad_a, _) in a {
+                for &(bb, pad_b, _) in b {
+                    if at_node(ba) || at_node(bb) {
+                        continue;
+                    }
+                    let gap = box_gap(ba, bb);
+                    let reach = pad_a + pad_b + 2.0 * band.escalate();
+                    // A refused box reads `NaN`, which holds nothing apart.
+                    if gap.partial_cmp(&reach) != Some(core::cmp::Ordering::Greater) {
+                        let refusal = super::CarryRefusal::PadsMeet {
+                            pads: [pad_a, pad_b],
+                            gap,
+                        };
+                        meet[i].get_or_insert(refusal.clone());
+                        meet[j].get_or_insert(refusal);
+                    }
+                }
+            }
+        }
+    }
+    for (c, refusal) in components.iter_mut().zip(meet) {
+        if let Some(refusal) = refusal {
+            c.carrier = ClassCarrier::Fitted(Box::new(Err(super::CarryError::Refused(refusal))));
+        }
+    }
+}
+
+/// A lower bound on the distance between any point of `a` and any
+/// point of `b`: the diagonal of the per-axis gaps, rounded down by a
+/// relative `1e-12`, far past its few roundings. `NaN` where either box
+/// is refused.
+fn box_gap(a: Box3, b: Box3) -> f64 {
+    let gap = |s: Interval, t: Interval| {
+        if s.is_certified() && t.is_certified() {
+            (s.lo() - t.hi()).max(t.lo() - s.hi()).max(0.0)
+        } else {
+            f64::NAN
+        }
+    };
+    let [x, y, z] = [gap(a.x, b.x), gap(a.y, b.y), gap(a.z, b.z)];
+    x.hypot(y).hypot(z) * (1.0 - 1e-12)
+}
+
+/// **A branch's witness and how far it may stand from its arc**: the
+/// wall's point `q = S(P(mid))` at the middle of the branch's pcurve on
+/// the wall, bracketed on the section within the tube window of the
+/// branch's certificate that holds `P(mid)` ([`bracket`]). `None` where
+/// the certificate is not a chart tube, the branch carries no wall
+/// pcurve, or no bracket fits its window: a component with no witness.
+fn witness(
+    b: &SsiBranch,
+    net: &NurbsSurface<f64>,
+    partner: Bracketed<'_>,
+) -> Option<(Point3<f64>, f64)> {
+    let (
+        SsiTube::Chart {
+            pad_u,
+            pad_v,
+            nodes,
+            ..
+        },
+        Some(pcurve),
+    ) = (b.certificate.tube, b.pcurve_b.as_ref())
+    else {
+        return None;
+    };
+    let mid = geom::mid_param(b.params.0, b.params.1);
+    // A node's box is no window of the arc's own: limb 3 holds the arc
+    // one there by the node's reading alone.
+    let window = crate::ssi::certify::chart_tube(pcurve, (pad_u, pad_v), nodes)?
+        .into_iter()
+        .find(|w| !w.node && w.ends.0 <= mid && mid <= w.ends.1)?;
+    let at = pcurve.eval(mid);
+    bracket(net, partner, (at.x, at.y), window.rect)
+}
+
+/// The most doublings [`bracket`] takes. It is not what ends a search:
+/// each doubling's ends are checked inside the window and the wall's
+/// rectangle first, and a segment that leaves either is no bracket, so
+/// the doublings stop once the segment outgrows the window. The cap
+/// only bounds the loop should a step stay finite and inside forever.
+const BRACKET_DOUBLINGS: u32 = 64;
+
+/// The most halvings [`bracket`] takes to close in on the zero: an
+/// `f64` parameter has no more bits to halve.
+const BRACKET_HALVINGS: u32 = 64;
+
+/// **The wall's point at `at`, bracketed on the section inside `window`**:
+/// `q`, an enclosure's centre of `S(at)`, and a metre bound on its
+/// distance from a point of the section on the wall, or `None`.
+///
+/// The segment through `at` along the plane height's chart gradient
+/// is doubled from the height's own step until the stored plane's
+/// height ([`Bracketed::sign`]) is certified negative at one end and positive
+/// at the other (the wall's certified box at a point), then halved
+/// about the sign change for as long as the height's sign at the middle
+/// is certified: a zero of the height, a point of the section, lies
+/// between the ends kept. Its distance from `S(at)` is at most the image
+/// of the chart segment from `at` to it, bounded by that segment's
+/// chart extents times the wall's certified chart speeds over the box
+/// spanning `at` and the ends kept; `q` stands within its enclosure's
+/// half-widths of `S(at)`, which the bound adds. The segment must lie in
+/// `window`, a window of the branch's certified chart tube, where limb
+/// 3 proves the section one arc: so the zero is the branch's. A segment
+/// that leaves the window or the wall's rectangle, or a gradient that
+/// is not a direction, is no bracket.
+fn bracket(
+    net: &NurbsSurface<f64>,
+    partner: Bracketed<'_>,
+    at: (f64, f64),
+    window: UvRect,
+) -> Option<(Point3<f64>, f64)> {
+    let jet = net.ders(at.0, at.1);
+    let (phi, m, least) = partner.at(jet.point);
+    let (gu, gv) = (m.dot(jet.du), m.dot(jet.dv));
+    let (d, g) = Vec2::new(gu, gv).checked_direction().ok()?;
+    let (du, dv) = (d.x, d.y);
+    let point = |t: f64| (at.0 + du * t, at.1 + dv * t);
+    let base = phi.max(least) / g;
+    let (u_domain, v_domain) = (net.knot_values_u().domain(), net.knot_values_v().domain());
+    let inside = |(u, v): (f64, f64)| {
+        window.holds((u, v))
+            && u_domain.0 <= u
+            && u <= u_domain.1
+            && v_domain.0 <= v
+            && v <= v_domain.1
+    };
+    let boxes = NurbsBoxes::new(net);
+    let at_box = |(u, v): (f64, f64)| UvWindow::new(u, u, v, v).map(|w| boxes.rect_box(w));
+    // The height's certified sign at `t`: `Some(true)` above the plane,
+    // `Some(false)` below, `None` undecided.
+    let sign = |t: f64| partner.sign(at_box(point(t))?);
+    let mut step = base;
+    let (mut low, mut high) = (0.0, 0.0);
+    for _ in 0..=BRACKET_DOUBLINGS {
+        step *= 2.0;
+        if !(inside(point(-step)) && inside(point(step))) {
+            return None;
+        }
+        if sign(-step) == Some(false) && sign(step) == Some(true) {
+            (low, high) = (-step, step);
+            break;
+        }
+    }
+    if low == high {
+        return None;
+    }
+    for _ in 0..BRACKET_HALVINGS {
+        let middle = geom::mid_param(low, high);
+        if middle <= low || middle >= high {
+            break;
+        }
+        match sign(middle) {
+            Some(false) => low = middle,
+            Some(true) => high = middle,
+            None => break,
+        }
+    }
+    let (near, far) = (point(low.min(0.0)), point(high.max(0.0)));
+    let span = UvWindow::new(
+        near.0.min(far.0),
+        near.0.max(far.0),
+        near.1.min(far.1),
+        near.1.max(far.1),
+    )?;
+    let reach = (-low).max(high).max(0.0)
+        * (du.abs() * boxes.speed_sup(span, true) + dv.abs() * boxes.speed_sup(span, false));
+    let (q, half) = at_box(at)?.centre_and_reach()?;
+    let pad = (reach + half).next_up();
+    pad.is_finite().then_some((q, pad))
+}
+
+/// **The pair's classification before any lane is read**: against a
+/// plane, stage 1, the hull, and the door's collapsed sides, at every
+/// scalar; past them, and for a curved partner from the hull on, the
+/// march door's arm ([`section`]).
+///
+/// # Errors
+///
+/// [`SectionError::WrongLane`] for a pair that is not an implicit
+/// surface and a spline; the plane's hull's and door's;
+/// [`SectionError::NoMarch`] for a pose they do not decide, asked with no
+/// `lane`; and [`section`]'s.
+pub(super) fn classified<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    lane: Option<impl SsiLaneOf<T>>,
+    band: Band,
+) -> Result<PairSection<T>, SectionError> {
+    let pose = SplineImplicitPose::served(a, b)?;
+    if pose.is_plane() {
+        if pose.hull(band)? == Hull::Apart {
+            return Ok(pose.section(Components::Counted(Vec::new())));
+        }
+        pose.door(band)?;
+    }
+    let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
+    lane.spline(pose, band)
+}
+
+/// **The pair's classification, the march door's arm**: for a curved
+/// partner, stages 1 to 3 ([`curved`]); for a plane past its door, stage
+/// 2, the boundary pass ([`crate::ImplicitSection`]'s, run once), whose
+/// grazes and side tangencies refuse by name, then stage 3, the
+/// regularity sweep ([`sweep`]). Its loop-free verdict is the section:
+/// no component where the pass found no end, else
+/// [`Components::Reaching`] on the sides the pass's crossings and
+/// regions lie on, the pass carried on the pose. Where the sweep
+/// declines, the plane's reading lists the section whole on the same
+/// pass.
+///
+/// # Errors
+///
+/// The pass's refusal and the whole reading's, mapped (module docs), and
+/// [`curved::section`]'s.
+pub(super) fn section(
+    mut pose: SplineImplicitPose<f64>,
+    band: Band,
+) -> Result<PairSection<f64>, SectionError> {
+    if !pose.is_plane() {
+        return curved::section(pose, band);
+    }
+    let pivot = pose.pivot();
+    let (reading, read_band) = pivot.reading(&pose, band)?;
+    let (reach, pass) = {
+        let pass = reading.pass().map_err(super::whole_reading_refused)?;
+        let reach = pass
+            .crossings
+            .iter()
+            .map(|c| ChartReach::side(c.at.side))
+            .chain(pass.contacts.iter().map(contact_reach))
+            .fold(ChartReach::default(), ChartReach::or);
+        (
+            reach,
+            std::sync::Arc::new((reading.pass_key(), pass.clone())),
+        )
+    };
+    let form = reading.form().clone();
+    let decided = match sweep::sweep(
+        reading.boxes(),
+        &form,
+        reading.account_floor(),
+        read_band,
+        pose.ball().certified_diameter(),
+    ) {
+        sweep::Sweep::Declined(_) => {
+            let out = reading.all().map_err(super::whole_reading_refused)?;
+            return listed(
+                pose,
+                Bracketed {
+                    surface: &pivot.plane,
+                    form: &form,
+                },
+                out,
+                None,
+                band,
+            );
+        }
+        sweep::Sweep::Enclosing { decided } => {
+            let (out, listing) = read_listing(reading, &decided)?;
+            let partner = Bracketed {
+                surface: &pivot.plane,
+                form: &form,
+            };
+            return listed(pose, partner, out, Some(&listing.of(&decided)), band);
+        }
+        sweep::Sweep::LoopFree(decided) => decided,
+    };
+    if crosses(&decided, reach) {
+        let (out, listing) = read_listing(reading, &decided)?;
+        let partner = Bracketed {
+            surface: &pivot.plane,
+            form: &form,
+        };
+        return listed(pose, partner, out, Some(&listing.of(&decided)), band);
+    }
+    let witnesses = witnesses(reading.boxes(), &decided);
+    drop(reading);
+    pose.pass = Some(pass);
+    Ok(loop_free(pose, reach, &decided, &witnesses))
+}
+
+/// **A crossing section read whole with its decided points handed in**
+/// ([`read_crossing`]), beside each point's witness, for [`listed`] to
+/// list with them: the sweep's enclosing verdict, or a loop-free one
+/// whose points cross the section's other components ([`crosses`]).
+///
+/// # Errors
+///
+/// [`read_crossing`]'s.
+pub(super) fn read_listing(
+    reading: crate::ImplicitSection<'_>,
+    decided: &[sweep::Critical],
+) -> Result<(crate::ssi::SsiOutcome, Witnesses), SectionError> {
+    let witnesses = Witnesses(witnesses(reading.boxes(), decided));
+    Ok((read_crossing(reading, decided)?, witnesses))
+}
+
+/// The decided points' witnesses a crossing reading kept
+/// ([`read_listing`]).
+pub(super) struct Witnesses(Vec<Option<(Point3<f64>, f64)>>);
+
+impl Witnesses {
+    /// The listing of `decided`, these its witnesses.
+    pub(super) fn of<'d>(&'d self, decided: &'d [sweep::Critical]) -> Listing<'d> {
+        Listing {
+            decided,
+            witnesses: &self.0,
+        }
+    }
+}
+
+/// Whether the decided points cross the section's other components: a
+/// node, whose arcs end at it, or a touch beside components with ends.
+/// Such a section is read whole with the points handed in
+/// ([`read_crossing`], [`listed`]), every arc listed.
+pub(super) fn crosses(decided: &[sweep::Critical], reach: ChartReach) -> bool {
+    decided.iter().any(|c| c.kind == sweep::Kind::Node) || (!decided.is_empty() && reach.any())
+}
+
+/// **The section read whole with the decided points handed in** (C5):
+/// each node's box a march ends on entering, and carries its arc on to
+/// the node's point from, and every point's box a region seeding skips
+/// and accounting reads.
+///
+/// # Errors
+///
+/// [`SectionError::Pinched`]: [`CRITICAL_UNREAD`] where the reading's
+/// accounting does not close, [`CRITICAL_TUBE`] where an arc's tube
+/// straddles; any other refusal of the reading mapped, its cause
+/// carried ([`super::whole_reading_refused`]).
+pub(super) fn read_crossing(
+    reading: crate::ImplicitSection<'_>,
+    decided: &[sweep::Critical],
+) -> Result<crate::ssi::SsiOutcome, SectionError> {
+    let nodes: Vec<(UvRect, (f64, f64))> = decided
+        .iter()
+        .filter(|c| c.kind == sweep::Kind::Node)
+        .map(|c| (c.region, c.at))
+        .collect();
+    let claimed: Vec<UvRect> = decided.iter().map(|c| c.region).collect();
+    reading
+        .with_criticals(&nodes, &claimed)
+        .all()
+        .map_err(|e| match e {
+            // The surfaces meet within the band at a decided point beside
+            // components the reading's accounting could not close on: the
+            // pair is near tangent there, and reads so, as the
+            // classification's pinch did before the points were listed.
+            crate::ssi::SsiError::CellBudget { .. }
+            | crate::ssi::SsiError::ExhaustivenessInconclusive(_) => SectionError::Pinched {
+                predicate: CRITICAL_UNREAD,
+            },
+            // An arc's tube straddles beside a decided point: the surfaces
+            // meet within the band along it there (a node whose lines
+            // nearly meet), named by the tube's own decision.
+            crate::ssi::SsiError::TubeStraddles { .. } => SectionError::Pinched {
+                predicate: CRITICAL_TUBE,
+            },
+            other => super::whole_reading_refused(other),
+        })
+}
+
+/// **The pinch a crossing section refuses as where its whole reading's
+/// accounting does not close** ([`read_crossing`]): the surfaces meet
+/// within the band at a decided node or touch, and the components beside
+/// it were not all read (`work/sectarms/a-spline-node-the-reading-cannot-account-for-reads-as-a-tangency.md`).
+pub(super) const CRITICAL_UNREAD: &str = "spline_critical_unread";
+
+/// **The pinch a crossing section refuses as where an arc's tube
+/// straddles** ([`read_crossing`]): limb 3's transversality decision
+/// (`ssi_tube_transversality`), in the band along an arc beside a decided
+/// point, so the surfaces meet within the band there.
+pub(super) const CRITICAL_TUBE: &str = "ssi_tube_transversality";
+
+/// The decided points a whole reading was handed, beside its outcome
+/// ([`listed`]): the points in the sweep's order, and each one's witness.
+pub(super) struct Listing<'d> {
+    /// The points decided Zero.
+    pub decided: &'d [sweep::Critical],
+    /// Each point's witness ([`witnesses`]).
+    pub witnesses: &'d [Option<(Point3<f64>, f64)>],
+}
+
+/// Each decided critical point's witness, the wall's point at its box's
+/// enclosure's centre, and that enclosure's reach, its pad.
+pub(super) fn witnesses(
+    boxes: &crate::ssi::enclose::NurbsBoxes<'_, f64>,
+    decided: &[sweep::Critical],
+) -> Vec<Option<(Point3<f64>, f64)>> {
+    decided
+        .iter()
+        .map(|c| {
+            c.cell
+                .window()
+                .and_then(|w| boxes.rect_box(w).centre_and_reach())
+        })
+        .collect()
+}
+
+/// The decision a critical point decided Zero is named by, a tangency
+/// decided Zero ([`super::SectionDecision::Tangency`]).
+pub(super) const CRITICAL: &str = "spline_critical_value";
+
+/// **The section a loop-free sweep's verdict is** (module docs), the
+/// pass's ends `reach` and the critical points `decided` Zero:
+///
+/// - none decided: no component where the pass found no end, else
+///   [`Components::Reaching`] on the sides it found them on;
+/// - only touches and no end: each touch a point component, its witness
+///   the wall's point at its box and its pad that box's reach, each a
+///   tangency decided Zero, the reading the interior-loop guard's touch
+///   arm takes.
+///
+/// A node, or touches beside components with ends, crosses the section
+/// ([`crosses`]): the caller reads it whole with the points handed in
+/// and lists every arc ([`read_listing`]), so it never reaches here.
+pub(super) fn loop_free(
+    pose: SplineImplicitPose<f64>,
+    reach: ChartReach,
+    decided: &[sweep::Critical],
+    witnesses: &[Option<(Point3<f64>, f64)>],
+) -> PairSection<f64> {
+    if decided.is_empty() {
+        let Some(reached) = super::Reached::new(pose.order(ChartReach::default(), reach)) else {
+            return pose.section(Components::Counted(Vec::new()));
+        };
+        return pose.section(Components::Reaching(reached));
+    }
+    debug_assert!(
+        !crosses(decided, reach),
+        "a section its decided points cross is read whole, not here"
+    );
+    let mut components = Vec::with_capacity(decided.len());
+    let mut verdicts = Vec::with_capacity(decided.len());
+    for (c, &witness) in decided.iter().zip(witnesses) {
+        components.push(SectionComponent {
+            shape: ComponentShape::Point,
+            winds: [false, false],
+            witness: witness.map(|(q, _)| q),
+            pad: witness.map_or(0.0, |(_, pad)| pad),
+            carrier: ClassCarrier::Unminted(super::NoCarrier::Touch),
+            cut_ends: None,
+        });
+        verdicts.push(super::ZeroVerdict {
+            decision: super::SectionDecision::Tangency(CRITICAL),
+            margin: c.margin,
+        });
+    }
+    pose.section_deciding(Components::Counted(components), verdicts)
+}
+
+/// **The section read whole** (module docs): C3's reading, every
+/// component listed, on the boundary pass the classification ran where
+/// it carried one.
+///
+/// # Errors
+///
+/// The whole reading's refusal, mapped (module docs), and
+/// [`SectionError::Unaccounted`] for a branch that ends off the wall's
+/// rectangle, which the chart lanes' readings never march; a curved
+/// partner's is [`curved::whole`]'s.
+pub(super) fn whole(
+    pose: &SplineImplicitPose<f64>,
+    band: Band,
+) -> Result<PairSection<f64>, SectionError> {
+    if !pose.is_plane() {
+        return curved::whole(pose, band);
+    }
+    let pivot = pose.pivot();
+    let (reading, _) = pivot.reading(pose, band)?;
+    let reading = match &pose.pass {
+        Some(carried) => reading
+            .with_pass((&carried.0, BoundaryPass::clone(&carried.1)))
+            .map_err(super::whole_reading_refused)?,
+        None => reading,
+    };
+    let form = reading.form().clone();
+    let out = reading.all().map_err(super::whole_reading_refused)?;
+    listed(
+        pose.clone(),
+        Bracketed {
+            surface: &pivot.plane,
+            form: &form,
+        },
+        out,
+        None,
+        band,
+    )
+}
+
+/// The sides a boundary region reaches.
+fn contact_reach(region: &SsiBoundaryContact) -> ChartReach {
+    match *region {
+        SsiBoundaryContact::Side { side, .. } => ChartReach::side(side),
+        SsiBoundaryContact::Corner { corner, .. } => ChartReach::corner(corner),
+    }
+}
+
+/// Why a node's arcs are not listed: their ends at it name no ray each
+/// (C5: "Each arc end at a node names its line and the sense it leaves
+/// along").
+pub(super) const NODE_RAY: &str = "spline_node_ray";
+
+/// **The whole reading's outcome as the section's components** (module
+/// docs), with the decided points it was handed, if any ([`Listing`]):
+///
+/// - each node listed (C5): its point, the wall's normal, its two lines
+///   and the side of each other the surfaces lie on in sector 0, read off
+///   the Hessian that decided it; refused ([`sweep::NODE_BOX`]) where its point
+///   is not placed within the band;
+/// - each arc end at a node named by the ray it leaves along: the ray
+///   whose sector holds its tube's last box before the node's, checked
+///   against its end tangent ([`ray_at`]); a node whose rays are not each
+///   claimed by exactly one end refuses ([`NODE_RAY`]);
+/// - each touch a point component with its witness;
+/// - each point a tangency decided Zero, and the arcs sharing nodes one
+///   node-joined set ([`NodeSet`]).
+///
+/// - each open branch carried as the reading fitted it ([`fitted`]), an
+///   arc to a node carried on to it, its pad read box by box; a loop
+///   with no carrier.
+///
+/// # Errors
+///
+/// [`SectionError::Unaccounted`] for a branch that ends off the wall's
+/// rectangle; [`SectionError::Pinched`] as above, and
+/// [`SectionError::Escalated`] for a ray read in the band.
+fn listed(
+    pose: SplineImplicitPose<f64>,
+    partner: Bracketed<'_>,
+    out: crate::ssi::SsiOutcome,
+    listing: Option<&Listing<'_>>,
+    band: Band,
+) -> Result<PairSection<f64>, SectionError> {
+    let (decided, witnesses) = listing.map_or((&[][..], &[][..]), |l| (l.decided, l.witnesses));
+    let side = |tip: BranchTip| match tip {
+        BranchTip::Rim(at) => ChartReach::side(at.side),
+        BranchTip::Node(_) => ChartReach::default(),
+    };
+    let open = |on_wall: ChartReach| ComponentShape::Open {
+        ends: ComponentEnds {
+            rims: pose.order(ChartReach::default(), on_wall),
+            ..ComponentEnds::default()
+        },
+    };
+    let frames: Vec<&sweep::NodeFrame> = decided.iter().filter_map(|c| c.node.as_ref()).collect();
+    if frames
+        .iter()
+        .any(|f| f.width.is_nan() || f.width > band.zero())
+    {
+        return Err(SectionError::Pinched {
+            predicate: sweep::NODE_BOX,
+        });
+    }
+    let nodes: Vec<SectionNode<f64>> = frames
+        .iter()
+        .map(|f| SectionNode {
+            point: f.point,
+            normal: f.normal,
+            lines: f.lines,
+            above: if f.wall_above {
+                pose.wall_side()
+            } else {
+                pose.wall_side().other()
+            },
+        })
+        .collect();
+    // Each node's arc ends: the component, whether it is the start, and
+    // the ray it leaves the node along, the one whose sector holds its
+    // tube's last box, checked against its end tangent ([`ray_at`]).
+    let mut at_node: Vec<Vec<(usize, bool, usize)>> = vec![Vec::new(); nodes.len()];
+    // Each branch with its shape and the nodes its ends stand at, its
+    // carrier minted once the listing has named its rays.
+    let mut read: Vec<(SsiBranch, ComponentShape, Minted)> = Vec::with_capacity(out.branches.len());
+    let extent = pose.ball().certified_diameter();
+    for b in out.branches {
+        let (shape, minted) = match b.end {
+            BranchEnd::Closed => (ComponentShape::Loop, Err(super::NoCarrier::ChartLoop)),
+            BranchEnd::Rim { from, to } => (
+                open(ChartReach::side(from.side).or(ChartReach::side(to.side))),
+                Ok([None, None]),
+            ),
+            BranchEnd::Node { from, to } => {
+                let mut ends = [None, None];
+                for (e, tip) in [from, to].into_iter().enumerate() {
+                    let BranchTip::Node(n) = tip else {
+                        continue;
+                    };
+                    let (node, list) =
+                        nodes
+                            .get(n)
+                            .zip(at_node.get_mut(n))
+                            .ok_or(SectionError::Pinched {
+                                predicate: NODE_RAY,
+                            })?;
+                    let ray = ray_at(&b, pose.net(), (e, node), extent, band)?;
+                    list.push((read.len(), e == 0, ray));
+                    ends[e] = Some(n);
+                }
+                (open(side(from).or(side(to))), Ok(ends))
+            }
+            BranchEnd::Cut => {
+                return Err(SectionError::Unaccounted {
+                    cause: "a branch of the spline × implicit reading ended off the wall's \
+                            rectangle, where no side of the wall's chart holds it"
+                        .to_owned(),
+                });
+            }
+        };
+        read.push((b, shape, minted));
+    }
+    for (n, ends) in at_node.iter().enumerate() {
+        let mut claimed = [false; 4];
+        for &(k, start, ray) in ends {
+            if claimed[ray] {
+                return Err(SectionError::Pinched {
+                    predicate: NODE_RAY,
+                });
+            }
+            claimed[ray] = true;
+            let (line, sense) = SectionNode::<f64>::RAYS[ray];
+            let end = Some(NodeEnd {
+                node: n,
+                line,
+                sense,
+            });
+            if let ComponentShape::Open { ends } = &mut read[k].1 {
+                if start {
+                    ends.nodes.start = end;
+                } else {
+                    ends.nodes.end = end;
+                }
+            }
+        }
+        if claimed != [true; 4] {
+            return Err(SectionError::Pinched {
+                predicate: NODE_RAY,
+            });
+        }
+    }
+    let mut components = Vec::with_capacity(read.len() + out.boundary.len());
+    for (b, shape, minted) in read {
+        let witness = witness(&b, pose.net(), partner);
+        let carrier = match minted {
+            Ok(ends) => ClassCarrier::Fitted(Box::new(fitted(&b, shape, pose.net(), ends))),
+            Err(why) => ClassCarrier::Unminted(why),
+        };
+        components.push(SectionComponent {
+            shape,
+            winds: [false, false],
+            witness: witness.map(|(q, _)| q),
+            pad: witness.map_or(0.0, |(_, pad)| pad),
+            carrier,
+            cut_ends: None,
+        });
+    }
+    components.extend(out.boundary.iter().map(|region| SectionComponent {
+        shape: open(contact_reach(region)),
+        winds: [false, false],
+        witness: None,
+        pad: 0.0,
+        carrier: ClassCarrier::Unminted(super::NoCarrier::WallRegion),
+        cut_ends: None,
+    }));
+    for (c, &witness) in decided.iter().zip(witnesses) {
+        if c.kind == sweep::Kind::Touch {
+            components.push(SectionComponent {
+                shape: ComponentShape::Point,
+                winds: [false, false],
+                witness: witness.map(|(q, _)| q),
+                pad: witness.map_or(0.0, |(_, pad)| pad),
+                carrier: ClassCarrier::Unminted(super::NoCarrier::Touch),
+                cut_ends: None,
+            });
+        }
+    }
+    apart(&mut components, band);
+    let verdicts = decided
+        .iter()
+        .map(|c| super::ZeroVerdict {
+            decision: super::SectionDecision::Tangency(CRITICAL),
+            margin: c.margin,
+        })
+        .collect();
+    let node_sets = node_joined(&components, nodes.len(), [false, false]);
+    Ok(pose.section_listing(Components::Counted(components), verdicts, nodes, node_sets))
+}
+
+/// A listed branch's carrier to mint: the nodes its ends stand at, or
+/// why it has none ([`listed`]).
+type Minted = Result<[Option<usize>; 2], super::NoCarrier>;
+
+/// **The ray an arc end leaves its node along** (C5), by index in
+/// [`SectionNode::RAYS`]: the ray whose sector holds the last box of the
+/// arc's tube before the node's box, each point of the box's image
+/// nearer that ray's direction from the node than any other ray's (its
+/// lead over each certified positive, as an enclosure over the box);
+/// and the carrier's end tangent, leaving the node, must name the same
+/// ray, its lead over the next decided levered by the feature extent (a
+/// difference of cosines, read as a sine is). `end` is the branch's
+/// start (0) or its end (1), at `node`.
+///
+/// # Errors
+///
+/// [`SectionError::Pinched`] ([`NODE_RAY`]) where no sector holds the
+/// last box, or the end tangent names another ray;
+/// [`SectionError::Escalated`] where the tangent's lead reads in the band;
+/// [`SectionError::Unaccounted`] where the arc's tube does not end in the
+/// node's box, or holds no box of its own before it.
+fn ray_at(
+    b: &SsiBranch,
+    net: &NurbsSurface<f64>,
+    (end, node): (usize, &SectionNode<f64>),
+    extent: geom_core::Lever<Interval>,
+    band: Band,
+) -> Result<usize, SectionError> {
+    let pinched = || SectionError::Pinched {
+        predicate: NODE_RAY,
+    };
+    let unread = |cause: &str| SectionError::Unaccounted {
+        cause: cause.to_owned(),
+    };
+    let (
+        SsiTube::Chart {
+            pad_u,
+            pad_v,
+            nodes,
+            ..
+        },
+        Some(pcurve),
+    ) = (b.certificate.tube, b.pcurve_b.as_ref())
+    else {
+        return Err(unread(
+            "an arc to a node holds no chart tube on the wall's pcurve",
+        ));
+    };
+    let windows = crate::ssi::certify::chart_tube(pcurve, (pad_u, pad_v), nodes)
+        .ok_or_else(|| unread("an arc to a node's chart tube does not read"))?;
+    // The window at the end, and the one before it, toward the arc.
+    let (at, before) = match end {
+        0 => (Some(0), Some(1)),
+        _ => (windows.len().checked_sub(1), windows.len().checked_sub(2)),
+    };
+    let (Some(w), Some(last)) = (
+        at.and_then(|k| windows.get(k)),
+        before.and_then(|k| windows.get(k)),
+    ) else {
+        return Err(unread("an arc to a node's chart tube holds one window"));
+    };
+    if !w.node {
+        return Err(unread(
+            "an arc to a node's chart tube does not end in the node's box",
+        ));
+    }
+    if last.node {
+        return Err(unread(
+            "an arc between two nodes holds no window of its own between their boxes",
+        ));
+    }
+    let image = UvWindow::new(last.rect.u.0, last.rect.u.1, last.rect.v.0, last.rect.v.1)
+        .map(|r| NurbsBoxes::new(net).rect_box(r))
+        .ok_or_else(pinched)?;
+    let rays = node.rays();
+    let off = |c: Interval, p: f64| c - Interval::from_certified(p);
+    let q = [
+        off(image.x, node.point.x),
+        off(image.y, node.point.y),
+        off(image.z, node.point.z),
+    ];
+    let lead = |i: usize, j: usize| {
+        let d = rays[i] - rays[j];
+        let along = |c: Interval, x: f64| c * Interval::from_certified(x);
+        along(q[0], d.x) + along(q[1], d.y) + along(q[2], d.z)
+    };
+    let sector = (0..4)
+        .find(|&i| {
+            (0..4)
+                .filter(|&j| j != i)
+                .all(|j| lead(i, j).is_certified() && lead(i, j).lo() > 0.0)
+        })
+        .ok_or_else(pinched)?;
+    // The end tangent, leaving the node.
+    let (t, sense) = if end == 0 {
+        (b.params.0, 1.0)
+    } else {
+        (b.params.1, -1.0)
+    };
+    let tangent = b.carrier.ders1(t).1 * sense;
+    let dots = rays.map(|r| tangent.dot(r) / tangent.norm());
+    let best = SectionNode::<f64>::nearest_ray(dots);
+    let next = SectionNode::<f64>::nearest_ray(core::array::from_fn(|i| {
+        if i == best {
+            f64::NEG_INFINITY
+        } else {
+            dots[i]
+        }
+    }));
+    let d = geom_core::k_stats::decide_reported(
+        NODE_RAY,
+        Margin::levered(Interval::from_certified(dots[best] - dots[next]), extent),
+        band,
+    )
+    .map_err(SectionError::Escalated)?;
+    match d.sign {
+        Sign::Positive if best == sector => Ok(sector),
+        Sign::Positive | Sign::Negative => Err(pinched()),
+        Sign::Zero => Err(SectionError::Escalated(geom_core::k_stats::gate_rejection(
+            NODE_RAY,
+            d,
+            band,
+            geom_core::SizedPass::NonZero,
+        ))),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Point3, Vec3};
+
+    use geom_core::Interval;
+
+    use super::{Bracketed, bracket};
+    use crate::ssi::exhaust::UvRect;
+    use crate::ssi::residual::ImplicitForm;
+
+    /// **The pivot's lift reads its stored plane on the polar factor**
+    /// (decision 1, PR 7131), the carrier the `Interval` lift reads: on
+    /// 4,096 tilted planes placed out to 10 km, a foot a near-graze
+    /// `≤ 1e-12` off each 10 to 20 km out along its seam, the lift holds
+    /// the foot's double-double height over the polar plane
+    /// ([`crate::ssi::residual::polar_truth`]). Red under the stored
+    /// origin and normal lifted as points and divided by the normal's
+    /// norm (the old `pivot`; first at draw 456), and under them read raw
+    /// (draw 36).
+    #[test]
+    fn a_pivots_lift_reads_its_stored_plane_on_the_polar_factor() {
+        use crate::ssi::residual::polar_truth::{height, holds, poses};
+        for (n, (frame, foot)) in poses(4096, 1e4).into_iter().enumerate() {
+            let lift = super::stored_height(&frame, foot);
+            assert!(
+                holds(lift, height(&frame, foot)),
+                "draw {n}: {lift:?} misses the polar truth"
+            );
+        }
+    }
+
+    /// The plane read through `origin` with `normal`, lifted by `lift`
+    /// onto the stored plane.
+    type Read = (geom::Surface<f64>, ImplicitForm);
+
+    /// The plane through `origin` with `normal`, stored where it is read.
+    fn plane(at: (Point3<f64>, Vec3<f64>)) -> Read {
+        lifted(at, 0.0)
+    }
+
+    /// The plane through `origin` with `normal`, `lift` its height over
+    /// the stored plane.
+    fn lifted((origin, normal): (Point3<f64>, Vec3<f64>), lift: f64) -> Read {
+        let surface = geom::Surface::Plane {
+            frame: geom::Frame::new(origin, normal, Vec3::new(1.0, 0.0, 0.0)),
+        };
+        let form = ImplicitForm::of(&surface)
+            .unwrap()
+            .lifted(Interval::from_certified(lift));
+        (surface, form)
+    }
+
+    /// The bracket's partner for a read plane.
+    fn on(read: &Read) -> Bracketed<'_> {
+        Bracketed {
+            surface: &read.0,
+            form: &read.1,
+        }
+    }
+
+    /// The ramp `z = x/2` over `u ∈ [0, 1]`, `y = v ∈ [0, 1]`: its `u`
+    /// row runs `x` 0, 0.25, 0.5 over the first knot span and leaps to
+    /// `x = 100` over the second, so the net's chart speed is some four
+    /// hundred times the first span's.
+    fn stretched_ramp() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [0.0, 0.25, 0.5, 100.0]
+            .iter()
+            .flat_map(|&x| [Point3::new(x, 0.0, 0.5 * x), Point3::new(x, 1.0, 0.5 * x)])
+            .collect();
+        NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+    }
+
+    /// The whole chart.
+    fn everywhere() -> UvRect {
+        UvRect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        }
+    }
+
+    /// The plane `dz` below the ramp's point at `(0.25, ½)`.
+    fn below(dz: f64) -> (Point3<f64>, Vec3<f64>) {
+        let q = stretched_ramp().eval(0.25, 0.5);
+        (Point3::new(0.0, 0.0, q.z - dz), Vec3::new(0.0, 0.0, 1.0))
+    }
+
+    /// **The bracket's reach is the segment's, read over its own box,
+    /// and closed in on the zero.** The plane `10⁻⁶` below the wall's
+    /// point meets the ramp `2·10⁻⁶` back in `x`, `√1.25·2·10⁻⁶` from it
+    /// along the wall: the pad bounds that distance and stays within a
+    /// quarter over it. Red against the chart speed read over the whole
+    /// net (some four hundred times the first span's), against the pad
+    /// halved, and against the reach dropped.
+    #[test]
+    fn the_brackets_reach_is_the_segments_over_its_own_box() {
+        let dz = 1e-6;
+        let (q, pad) = bracket(
+            &stretched_ramp(),
+            on(&plane(below(dz))),
+            (0.25, 0.5),
+            everywhere(),
+        )
+        .expect("the plane crosses the wall beside the point");
+        let off = 2.0 * dz * 1.25_f64.sqrt();
+        assert!(
+            q.distance(stretched_ramp().eval(0.25, 0.5)) <= 1e-15,
+            "the witness is the wall's point: {q:?}"
+        );
+        assert!(
+            off <= pad && pad <= 1.25 * off,
+            "the pad {pad:e} against the distance {off:e}"
+        );
+    }
+
+    /// The ramp `z = x/2` with `x = u²` over `u ∈ [0, 1]`, `y = v`: its
+    /// chart speed in `u` grows with `u`.
+    fn quickening_ramp() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [0.0, 0.0, 1.0]
+            .iter()
+            .flat_map(|&x| [Point3::new(x, 0.0, 0.5 * x), Point3::new(x, 1.0, 0.5 * x)])
+            .collect();
+        NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+    }
+
+    /// **The bracket reads the wall's speed over its segment, not at its
+    /// point.** On the quickening ramp the wall's point at `u = 0.3`
+    /// (`x = 0.09`) and the plane `z = 0.08` (`x = 0.16`, `u = 0.4`):
+    /// the section stands `0.07·√1.25` along the wall, and the chart
+    /// speed at the point, `0.6·√1.25`, carries the `0.1` of chart to
+    /// only `0.06·√1.25`. Red against the speeds read at the point.
+    #[test]
+    fn the_brackets_speed_is_the_segments_not_the_points() {
+        let at = Point3::new(0.0, 0.0, 0.08);
+        let (_, pad) = bracket(
+            &quickening_ramp(),
+            on(&plane((at, Vec3::new(0.0, 0.0, 1.0)))),
+            (0.3, 0.5),
+            everywhere(),
+        )
+        .expect("the plane crosses the wall beside the point");
+        let off = 0.07 * 1.25_f64.sqrt();
+        assert!(
+            off <= pad && pad <= 1.25 * off,
+            "the pad {pad:e} against the distance {off:e}"
+        );
+    }
+
+    /// **The stored plane's height is read through the lift.** The same
+    /// cut as the quickening ramp's, read from a foot `0.01` below the
+    /// plane, its lift `−0.01`: the pad is the stored plane's. Red
+    /// against the lift dropped (the foot's plane, at `x = 0.14`, is
+    /// nearer).
+    #[test]
+    fn the_bracket_reads_the_stored_plane_through_its_lift() {
+        let foot = lifted(
+            (Point3::new(0.0, 0.0, 0.07), Vec3::new(0.0, 0.0, 1.0)),
+            -0.01,
+        );
+        let (_, pad) = bracket(&quickening_ramp(), on(&foot), (0.3, 0.5), everywhere())
+            .expect("the plane crosses the wall beside the point");
+        let off = 0.07 * 1.25_f64.sqrt();
+        assert!(
+            off <= pad && pad <= 1.25 * off,
+            "the pad {pad:e} against the distance {off:e}"
+        );
+    }
+
+    /// **A bracket that leaves its tube window is none.** The same cut,
+    /// its window a hair round the point: the segment the bracket needs
+    /// leaves it, where the tube proves nothing of the section, so no
+    /// witness is had. Red against the window's containment dropped.
+    #[test]
+    fn a_bracket_that_leaves_its_window_is_none() {
+        let hair = UvRect {
+            u: (0.25 - 1e-9, 0.25 + 1e-9),
+            v: (0.5 - 1e-9, 0.5 + 1e-9),
+        };
+        assert!(
+            bracket(
+                &stretched_ramp(),
+                on(&plane(below(1e-6))),
+                (0.25, 0.5),
+                hair
+            )
+            .is_none()
+        );
+    }
+
+    /// The dome `z = −(x − ½)² − (y − ½)²` over `[0, 1]²`, its top `z = 0`
+    /// at the centre.
+    fn dome() -> NurbsSurface<f64> {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let g = [-0.25, 0.25, -0.25];
+        let control = (0..9)
+            .map(|n| {
+                let (i, j) = (n / 3, n % 3);
+                #[allow(clippy::cast_precision_loss)]
+                Point3::new(0.5 * i as f64, 0.5 * j as f64, g[i] + g[j])
+            })
+            .collect();
+        NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+    }
+
+    /// **A height that never changes sign is no bracket.** A plane just
+    /// above the dome's top meets it nowhere: from a point beside the top
+    /// the segment doubles inside the chart with its ends below the plane
+    /// at every step, until it leaves the chart. Red against the sign
+    /// check dropped (the first segment is taken).
+    #[test]
+    fn a_height_of_one_sign_is_no_bracket() {
+        let above = (Point3::new(0.5, 0.5, 1e-3), Vec3::new(0.0, 0.0, 1.0));
+        assert!(bracket(&dome(), on(&plane(above)), (0.45, 0.5), everywhere()).is_none());
+    }
+}

@@ -1,0 +1,683 @@
+//! Error paths: absurd δ (zero/negative/poisoned/infinite), refused
+//! `Nurbs` surfaces, and the resolution-overflow guard.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+use topo::construction::Construct;
+
+use common::*;
+use geom_core::Tol;
+use mesh::{TessellateError, tessellate};
+use test_utils::f6::assert_f6_every_variant;
+
+#[test]
+fn zero_delta_is_refused() {
+    let body = l_prism();
+    match tessellate(&body, 0.0, Tol::witness()) {
+        Err(TessellateError::InvalidChordalTolerance { value }) => assert_eq!(value, 0.0),
+        other => panic!(
+            "expected InvalidChordalTolerance, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+#[test]
+fn negative_delta_is_refused() {
+    let body = l_prism();
+    match tessellate(&body, -0.5, Tol::witness()) {
+        Err(TessellateError::InvalidChordalTolerance { value }) => assert_eq!(value, -0.5),
+        other => panic!(
+            "expected InvalidChordalTolerance, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+#[test]
+fn poisoned_delta_is_refused() {
+    let body = l_prism();
+    match tessellate(&body, f64::NAN, Tol::witness()) {
+        Err(TessellateError::InvalidChordalTolerance { value }) => assert!(value.is_nan()),
+        other => panic!(
+            "expected InvalidChordalTolerance, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+#[test]
+fn infinite_delta_is_refused() {
+    let body = l_prism();
+    match tessellate(&body, f64::INFINITY, Tol::witness()) {
+        Err(TessellateError::InvalidChordalTolerance { value }) => {
+            assert_eq!(value, f64::INFINITY);
+        }
+        other => panic!(
+            "expected InvalidChordalTolerance, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+#[test]
+fn an_mvfs_seed_face_is_refused() {
+    // The mvfs seed face carries `Surface::Nurbs` (the honest
+    // no-description placeholder) and its outer loop is one vertex: a
+    // face with no outline, which the domain door refuses typed before
+    // the placeholder surface is read.
+    let mut body = topo::Body::<f64>::new();
+    let seed = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+        .unwrap();
+    match tessellate(&body, 0.1, Tol::witness()) {
+        Err(TessellateError::DomainUnread { face, cause }) => assert!(
+            face == seed.face && *cause == topo::pcurves::RingPlacementError::OuterEmpty,
+            "{face:?} {cause:?}"
+        ),
+        other => panic!("expected DomainUnread, got {:?}", other.map(|_| ())),
+    }
+}
+
+#[test]
+fn absurdly_fine_delta_overflows_typed() {
+    // A denormal δ is finite and positive but demands ~10^162 chords
+    // per circle — refused before allocating.
+    let body = ball();
+    match tessellate(&body, 5e-324, Tol::witness()) {
+        Err(TessellateError::ResolutionOverflow { count }) => assert!(count > 16_777_216.0),
+        other => panic!("expected ResolutionOverflow, got {:?}", other.map(|_| ())),
+    }
+}
+
+test_utils::f6_variants! {
+    /// `TessellateError`'s census: one ident per variant, feeding both
+    /// the wildcard-free `match` rustc checks and the identifier
+    /// roster the weld compares against the rendered cases. A variant
+    /// added to the enum stops this file compiling; adding it here is
+    /// also adding it to the roster, so it then reds until it has a
+    /// case. The mechanism and what it does NOT weld are documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const TESSELLATE_ERROR: TessellateError = [
+        InvalidChordalTolerance,
+        UnsupportedSurface,
+        UnsupportedNurbsFace,
+        UnsupportedCurve,
+        NullScaffoldEdge,
+        DomainUnread,
+        EmptyLoop,
+        MissingEntity,
+        ResolutionOverflow,
+        StepNotPositive,
+        CertificateExceeded,
+        RoundingUnresolved,
+        Triangulation,
+        SelfTouchingTrimLoop,
+        PinchWedge,
+        BoundaryBoundsNoRegion,
+        UnsupportedCurvedDomain,
+        UnsupportedCurvedShape,
+        MeridianFreeCurvedFace,
+        SingleColumnCurvedFace,
+        Band,
+        TrimLoopOrientation,
+        FoldedTriangle,
+        UnresolvedWinding,
+        UnclearedSharedSide,
+        OverusedSide,
+        SphereTrimShape,
+        WrapStripTurn,
+        LiftedColumnOff,
+    ];
+}
+
+/// Every `Debug` field name `TessellateError`'s payloads carry, as the
+/// punctuation a dump would print — the whole payload vocabulary, not
+/// the subset one row happens to construct.
+///
+/// **What this roster is worth, stated honestly.** It is NOT what
+/// catches an arm that starts printing `{self:?}`: every variant of
+/// this enum is a struct variant, so a full dump carries `{`, which
+/// [`test_utils::f6::assert_f6`] bans unconditionally, and it equals
+/// the value's own `Debug`, which the same helper refuses. What these
+/// entries buy over that is exactly one thing — a BRACE-FREE field
+/// token in an otherwise prose sentence, `write!(f, "face: {face}")` —
+/// and they are unwelded to the enum, so a payload field added to an
+/// existing variant leaves them short in silence.
+const TESSELLATE_ERROR_FIELDS: &[&str] = &[
+    "value:",
+    "face:",
+    "note:",
+    "edge:",
+    "what:",
+    "count:",
+    "bound:",
+    "requested:",
+    "allowance:",
+    "off_bbox:",
+    "first_uv:",
+    "max_distance:",
+    "source:",
+    "surface:",
+    "error:",
+    "cause:",
+    "unresolved:",
+    "corners:",
+    "height:",
+    "faces:",
+    "uses:",
+    "turn:",
+];
+
+/// The Display contract (#1111): a façade consumer renders a
+/// `TessellateError` through the tessellator's own words, so every arm
+/// must state what happened in prose — δ, the chart, the walk, the
+/// unbuilt lane's note — and must never read as the `Debug` struct
+/// dump the Python bindings were reduced to printing. The variant
+/// identifier and the field-name punctuation are the dump's
+/// fingerprints; asserting their ABSENCE is what keeps a future
+/// `write!(f, "{self:?}")` from passing this test.
+#[test]
+fn tessellate_error_display_names_its_content_not_its_struct() {
+    let face = topo::FaceKey::default();
+    let edge = topo::EdgeKey::default();
+    let cases = [
+        (
+            TessellateError::InvalidChordalTolerance { value: 0.0 },
+            vec!["δ", "positive"],
+        ),
+        (
+            TessellateError::UnsupportedSurface { face },
+            vec!["placeholder", "surface"],
+        ),
+        (
+            TessellateError::UnsupportedNurbsFace {
+                face,
+                note: "a C⁰-creased direction",
+            },
+            vec!["NURBS face", "C⁰-creased direction"],
+        ),
+        (
+            TessellateError::UnsupportedCurve {
+                edge,
+                note: "an illegal-rational carrier",
+            },
+            vec!["carrier", "illegal-rational carrier"],
+        ),
+        (
+            TessellateError::NullScaffoldEdge { edge },
+            vec!["scaffolding", "at-rest"],
+        ),
+        (
+            TessellateError::DomainUnread {
+                face,
+                cause: Box::new(topo::pcurves::RingPlacementError::OuterOpen {
+                    winding: topo::joint::Winding {
+                        deck: topo::Deck {
+                            u: 1,
+                            v: 0,
+                            twin: false,
+                        },
+                    },
+                }),
+            },
+            vec![
+                "one sheet of its chart",
+                "does not close in the face's chart",
+            ],
+        ),
+        (
+            TessellateError::EmptyLoop { face },
+            vec!["empty loop", "at-rest"],
+        ),
+        (
+            TessellateError::MissingEntity {
+                what: "a loop's face back-reference",
+            },
+            vec!["a loop's face back-reference", "corrupt"],
+        ),
+        (
+            TessellateError::ResolutionOverflow { count: 1e9 },
+            vec!["1e9", "coarser"],
+        ),
+        (
+            TessellateError::StepNotPositive {
+                span: 2.0,
+                step: -0.5,
+            },
+            vec!["-5e-1", "2e0", "kernel defect"],
+        ),
+        (
+            TessellateError::CertificateExceeded {
+                face,
+                bound: 2.0,
+                requested: 1.0,
+            },
+            vec!["2e0", "1e0", "uncertified"],
+        ),
+        (
+            TessellateError::RoundingUnresolved {
+                face,
+                bound: 1.000_000_000_000_001e-3,
+                requested: 1e-3,
+                allowance: 2e-12,
+            },
+            vec![
+                "1e-3",
+                "2e-12",
+                "rounding",
+                "nearer the origin",
+                "coarser δ",
+            ],
+        ),
+        (
+            TessellateError::Triangulation { face },
+            vec!["CDT", "corrupt"],
+        ),
+        (
+            TessellateError::SelfTouchingTrimLoop { face },
+            vec!["trim loop", "T-junction"],
+        ),
+        (
+            TessellateError::PinchWedge { face },
+            vec!["one point", "sector", "single pass", "ring"],
+        ),
+        (
+            TessellateError::BoundaryBoundsNoRegion { face },
+            vec!["no region", "odd number", "even-odd"],
+        ),
+        (
+            TessellateError::UnsupportedCurvedDomain {
+                face,
+                off_bbox: 3,
+                first_uv: (0.25, 0.5),
+                max_distance: 1e-9,
+            },
+            vec!["3 walk entries", "2.5e-1", "1e-9", "re-author"],
+        ),
+        (
+            TessellateError::UnsupportedCurvedShape {
+                face,
+                source: geom_brep::props::PropsError::SpanUncertified {
+                    what: "props_rim_span_winding",
+                },
+            },
+            vec![
+                "props_rim_span_winding",
+                "iso-parameter rectangle",
+                "no certified edge",
+            ],
+        ),
+        (
+            TessellateError::MeridianFreeCurvedFace {
+                face,
+                surface: geom::SurfaceKind::Sphere,
+            },
+            vec!["sphere", "rims only", "is a meridian", "seamed"],
+        ),
+        (
+            TessellateError::SingleColumnCurvedFace {
+                face,
+                surface: geom::SurfaceKind::Torus,
+            },
+            vec!["torus", "no rim", "single column", "needs a rim"],
+        ),
+        (
+            TessellateError::Band {
+                error: geom_core::BandError::Empty {
+                    zero: 1.0,
+                    escalate: 1.0,
+                },
+            },
+            vec!["band", "tolerance"],
+        ),
+        (
+            TessellateError::TrimLoopOrientation { face },
+            vec!["winds against", "complement", "a ring winds the same way"],
+        ),
+        (
+            TessellateError::FoldedTriangle { face },
+            vec!["folds over", "wound against"],
+        ),
+        (
+            TessellateError::UnresolvedWinding {
+                face,
+                unresolved: Box::new(mesh::validate::Unresolved {
+                    corners: [[1.0, 0.0, 0.0]; 3],
+                    height: 2.5e-16,
+                    allowance: 1.75e-15,
+                }),
+            },
+            vec![
+                "winding",
+                "rounding of its own corner positions",
+                "2.5e-16",
+                "1.75e-15",
+                "8 f64 epsilons",
+            ],
+        ),
+        (
+            TessellateError::UnclearedSharedSide { face },
+            vec!["boundary chord points", "four"],
+        ),
+        (
+            TessellateError::OverusedSide {
+                faces: vec![face, face],
+                uses: 4,
+            },
+            vec!["4 triangles", "2 faces", "not a closed manifold"],
+        ),
+        (
+            TessellateError::SphereTrimShape {
+                face,
+                edge,
+                cause: mesh::types::SphereTrimCause::PastPole,
+            },
+            vec!["trimmed lane", "past a chart pole or apex mid-edge"],
+        ),
+        (
+            TessellateError::WrapStripTurn {
+                face,
+                turn: Some(topo::Deck {
+                    u: 2,
+                    v: 0,
+                    twin: false,
+                }),
+            },
+            vec!["one whole turn", "far half 2 whole turns", "re-mint"],
+        ),
+        (
+            TessellateError::LiftedColumnOff { face, edge },
+            vec!["quarter turn", "stored chart image", "re-mint"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);
+}
+
+/// **The meridian-free refusal prescribes a seam only where one
+/// exists.** A sphere or cone face restates on meridians through its
+/// pole or apex; a one-rim cylinder face is unbounded and has no pole to
+/// put a vertex on, so its sentence must not send the caller looking for
+/// one.
+#[test]
+fn the_meridian_free_refusal_prescribes_a_seam_only_where_one_exists() {
+    use geom::SurfaceKind;
+    let shown = |surface| {
+        TessellateError::MeridianFreeCurvedFace {
+            face: topo::FaceKey::default(),
+            surface,
+        }
+        .to_string()
+    };
+    for kind in [SurfaceKind::Sphere, SurfaceKind::Cone] {
+        let text = shown(kind);
+        assert!(
+            text.contains(kind.name()) && text.contains("seamed form") && text.contains("pole"),
+            "{text}"
+        );
+    }
+    let cylinder = shown(SurfaceKind::Cylinder);
+    assert!(
+        cylinder.contains("cylinder") && cylinder.contains("its other rim"),
+        "{cylinder}"
+    );
+    assert!(
+        !cylinder.contains("seamed") && !cylinder.contains("restate it"),
+        "a one-rim cylinder face has no seamed restatement: {cylinder}"
+    );
+}
+
+/// **The single-column refusal prescribes a second column only where one
+/// can exist.** A sphere or cone chart has a singularity a meridian can
+/// end on, so its faces restate as a band on two columns; a cylinder or
+/// torus chart has none, so no meridian pair bounds anything there and
+/// its sentence must send the caller to a rim instead of to a second
+/// meridian.
+#[test]
+fn the_single_column_refusal_prescribes_a_second_column_only_where_one_can_exist() {
+    use geom::SurfaceKind;
+    let shown = |surface| {
+        TessellateError::SingleColumnCurvedFace {
+            face: topo::FaceKey::default(),
+            surface,
+        }
+        .to_string()
+    };
+    for kind in [SurfaceKind::Sphere, SurfaceKind::Cone] {
+        let text = shown(kind);
+        assert!(
+            text.contains(kind.name())
+                && text.contains("two meridians on DIFFERENT")
+                && text.contains("pole or apex"),
+            "{text}"
+        );
+    }
+    for kind in [SurfaceKind::Cylinder, SurfaceKind::Torus] {
+        let text = shown(kind);
+        assert!(
+            text.contains(kind.name()) && text.contains("needs a rim"),
+            "{text}"
+        );
+        assert!(
+            !text.contains("DIFFERENT"),
+            "a chart with no singularity has no two-column restatement: {text}"
+        );
+    }
+}
+
+/// **The failure path's order is ARENA order, not the map's.**
+///
+/// `tessellate`'s per-face dispatch is D9 idiom 1, so every face's lane
+/// runs whatever the first one answers, and the refusal a caller sees
+/// is chosen by the fold rather than by whichever worker finished
+/// first. The serial loop got that for free by stopping at the first
+/// refusing face; here it is a property of the fold and so it is
+/// checked.
+///
+/// The body is the washer with TWO faces poisoned into refusing —
+/// differently, so the two refusals are distinguishable — the first of
+/// its ringless faces in arena order, and after it the last ringless face
+/// and, in turn, the last ringed one. The answer must be the first's, at
+/// every thread count.
+#[test]
+fn two_faces_refusing_differently_report_the_first_in_arena_order() {
+    use geom::Surface;
+    use geom_core::{Point3, Vec3};
+    use topo::construction::FaceSurface;
+    use topo::{Body, FaceKey};
+
+    fn poison(body: &mut Body<f64>, which: usize, surface: Surface<f64>) -> FaceKey {
+        let (fk, face) = body.faces().nth(which).expect("a face at that index");
+        let sense = face.sense;
+        // Lifts RechartStrandsDescriptions: the poisoned surface is the mesher's input, edges as they were.
+        body.set_face_surface_unvouched_for_tests(fk, FaceSurface::New { surface, sense })
+            .expect("the surface swap is accepted");
+        fk
+    }
+    // Two surfaces a washer's face cannot be. Both refuse INSIDE a
+    // lane, which is the point: a poison the chord pass refuses (a
+    // placeholder NURBS, say) never reaches the map and would test the
+    // order of a pass that is still serial. So both poisoned faces are
+    // ringless: a curved face with a ring is the trimmed lane's, whose
+    // lattice the chord pass reads, and a plane's half-edges store no
+    // chart image for it to read.
+    let sphere = || Surface::Sphere {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        radius: 1.0,
+    };
+    let cone = || Surface::Cone {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        half_angle: 0.5,
+    };
+
+    let cylinder = || Surface::Cylinder {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        radius: 3.0,
+    };
+
+    let clean = washer();
+    let ringed = |want: bool| -> Vec<usize> {
+        clean
+            .faces()
+            .enumerate()
+            .filter(|(_, (_, face))| face.rings.is_empty() != want)
+            .map(|(i, _)| i)
+            .collect()
+    };
+    let (ringless, holed) = (ringed(false), ringed(true));
+    let first = ringless[0];
+    // The tails: the last ringless face poisoned as a cone, and the last
+    // ringed face after the head poisoned as a cylinder, which the
+    // trimmed lane takes and refuses at its domain inside the map (a
+    // plane's half-edges store no chart image), past the chord pass,
+    // which lays no lattice beside a cylinder.
+    let mut tails = vec![(ringless[ringless.len() - 1], cone())];
+    tails.extend(
+        holed
+            .last()
+            .filter(|&&i| i > first)
+            .map(|&i| (i, cylinder())),
+    );
+    assert!(
+        tails.len() == 2 && tails.iter().all(|&(i, _)| i > first),
+        "the row needs a head face and a ringless and a ringed tail"
+    );
+
+    let mut head_only = clean.clone();
+    poison(&mut head_only, first, sphere());
+    let head =
+        tessellate(&head_only, 0.05, Tol::witness()).expect_err("the poisoned head face refuses");
+
+    for (last, surface) in tails {
+        let mut tail_only = clean.clone();
+        poison(&mut tail_only, last, surface.clone());
+        let tail = tessellate(&tail_only, 0.05, Tol::witness())
+            .expect_err("the poisoned tail face refuses");
+        assert_ne!(
+            format!("{head:?}"),
+            format!("{tail:?}"),
+            "the two poisons must refuse differently, or this row proves nothing"
+        );
+
+        let mut both = clean.clone();
+        poison(&mut both, first, sphere());
+        poison(&mut both, last, surface);
+        for threads in [1usize, 4] {
+            let got = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .expect("a rayon pool of the requested width")
+                .install(|| tessellate(&both, 0.05, Tol::witness()).expect_err("both refuse"));
+            assert_eq!(
+                format!("{got:?}"),
+                format!("{head:?}"),
+                "at {threads} thread(s) the reported refusal is the LAST face's, not the \
+                 first in arena order — the fold is taking the map's order"
+            );
+        }
+    }
+}
+
+/// **Each cause of `DomainUnread` says its own thing.** The refusal
+/// carries the ring door's cause (`topo::pcurves::RingPlacementError`),
+/// and its sentence is the cause's: each names what is true of a body
+/// that raises it, no two are one sentence, and each cause's
+/// `name()` is its own word.
+#[test]
+fn each_domain_unread_cause_has_its_own_sentence_and_word() {
+    use topo::pcurves::{RingPlacementError as R, SplineTrimGap};
+    let (face, ring) = (topo::FaceKey::default(), topo::LoopKey::default());
+    let winding = topo::joint::Winding {
+        deck: topo::Deck {
+            u: 1,
+            v: 0,
+            twin: false,
+        },
+    };
+    let gap = topo::pcurves::LiftGap {
+        half_edge: topo::HalfEdgeKey::default(),
+    };
+    let cases = [
+        (R::Gap(gap), "gap", "has no lift in the face's chart"),
+        (
+            R::OuterOpen { winding },
+            "outer_open",
+            "its outer loop does not close",
+        ),
+        (
+            R::RingOpen { ring, winding },
+            "ring_open",
+            "a ring of it does not close",
+        ),
+        (R::OuterEmpty, "outer_empty", "its outer loop is one vertex"),
+        (R::NoShift { ring }, "no_shift", "no whole number"),
+        (R::Shifts { ring }, "shifts", "more than one whole number"),
+        (
+            R::Copies { ring },
+            "copies",
+            "more of the chart's periods than",
+        ),
+        (
+            R::Undecided { ring, cause: None },
+            "undecided",
+            "is undecided",
+        ),
+        (
+            R::SplineTrimUnread {
+                ring: None,
+                cause: SplineTrimGap::Placeholder,
+            },
+            "spline_trim_unread",
+            "spline face with a ring",
+        ),
+    ];
+    // Every variant, numbered by a match with no wildcard: a cause added
+    // to the enum stops this row compiling until it is numbered here, and
+    // then reds until it has a case above.
+    let variant = |c: &R| match c {
+        R::Gap(_) => 0,
+        R::OuterOpen { .. } => 1,
+        R::RingOpen { .. } => 2,
+        R::OuterEmpty => 3,
+        R::NoShift { .. } => 4,
+        R::Shifts { .. } => 5,
+        R::Copies { .. } => 6,
+        R::Undecided { .. } => 7,
+        R::SplineTrimUnread { .. } => 8,
+    };
+    let mut numbered: Vec<usize> = cases.iter().map(|(c, _, _)| variant(c)).collect();
+    numbered.sort_unstable();
+    assert_eq!(numbered, (0..9).collect::<Vec<_>>(), "one case per cause");
+    let mut sentences = Vec::new();
+    for (cause, word, says) in cases {
+        let text = TessellateError::DomainUnread {
+            face,
+            cause: Box::new(cause),
+        }
+        .to_string();
+        assert!(text.contains(says), "{word}: `{says}` in {text}");
+        assert_eq!(cause.name(), word, "{cause:?}");
+        sentences.push(text);
+    }
+    let mut distinct = sentences.clone();
+    distinct.sort();
+    distinct.dedup();
+    assert_eq!(
+        distinct.len(),
+        sentences.len(),
+        "no two causes say one thing"
+    );
+}

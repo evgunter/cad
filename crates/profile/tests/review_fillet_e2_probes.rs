@@ -1,0 +1,72 @@
+//! **FILLET-E2 review probes (profile side)** — the PATHS `.fillet(r)`
+//! door and `Profile::validate` agree about the tangency of the joint
+//! the door computes, over every small line × line turn.
+//!
+//! They did not. The door built a four-vertex loop wherever the corner
+//! turned by a few multiples of `√ε` and validation refused it,
+//! `TangencyContradicted`, naming the door as the way to make the joint
+//! exact. What the measurement behind that finding showed is that the
+//! door's carrier is tangent to within a couple of ulps at every one of
+//! those turns, and the loss is in the STORED form: a profile holds an
+//! arc as a chord and a carrier, and a fillet whose sagitta
+//! `r(1 − cos(θ/2))` sits at or below ε is read back as a straight
+//! segment, with no arc carrier for the declaration to be about.
+//!
+//! So the door reads its own output the way validation will. The
+//! stored chord turns from each leg by half the corner's turn over its
+//! own length, and a joint's turn is levered by the shorter leg's arm,
+//! the chord's: four times the sagitta, inside ε at every turn the
+//! disagreement used to span. The two sides now agree the other way —
+//! the declared tangency holds on the chord, the door builds the bend
+//! and validation accepts it — and this row is the pin on that.
+//!
+//! **The turn angles ride the run's own tolerance.** The window sits at
+//! `θ ∝ √ε` and moves with the ε row the gate draws; the multiples below
+//! are the ones inside it at 1e-6, 1e-9 and 1e-12 alike.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_core::{Point2, Tol};
+use profile::{Open, PathError, Profile, ProfileLoop, SketchPlane, Start};
+
+fn tol() -> Tol {
+    Tol::witness()
+}
+
+/// The bend `fillet_recourse_followability.rs` builds: the incoming
+/// ray runs east from the origin, the corner sits at `(4, 0)`, the
+/// arrival leaves it at `theta`, anchored three units along.
+fn bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    Open.at(Point2::new(0.0, 0.0))
+        .angle(0.0, tol())?
+        .fillet(radius, tol())?
+        .at(anchor, tol())?
+        .angle(theta, tol())?
+        .line(1.0, tol())?
+        .line_to(Start, tol())
+        .map(|c| c.loop_.into_loop())
+}
+
+#[test]
+fn small_bends_build_and_validate_on_their_stored_chord() {
+    let scale = tol().eps().sqrt();
+    for c in [0.1, 0.3, 1.0, 2.0] {
+        let theta = c * scale;
+        let lp = bend(theta, 0.2).unwrap_or_else(|e| {
+            panic!("c = {c}, theta = {theta:e}: the stored chord carries the tangency, got {e}")
+        });
+        Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol())
+            .unwrap_or_else(|e| panic!("c = {c}, theta = {theta:e}: and validates, got {e}"));
+    }
+    // The two sides agree once the turn is well clear of the band, as
+    // they always did — and the loop the door builds there validates.
+    let theta = 32.0 * scale;
+    let lp = bend(theta, 0.2).expect("the door builds the bend");
+    Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol())
+        .unwrap_or_else(|e| {
+            panic!("and the validator accepts the joint at theta = {theta:e}, got {e}")
+        });
+}

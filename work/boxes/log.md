@@ -1,0 +1,674 @@
+# BOXES — the log
+
+## 2026-09-20 — opened
+
+Cut out of REACH, which was carrying 151 budget points, when Ev
+ratified the priority and track-size conventions in chat the same day.
+The cut followed REACH's PRIORITY seam per `work/README.md` "Track
+size", and was made into several tracks at once so they can run in
+PARALLEL — Ev, in chat: *"for these high priority tracks it's ideal to
+have several components that can be worked on in parallel."*
+
+11 rows arrived by `git mv` with their ids, bodies and history
+unchanged. REACH keeps its band 6000-6099; band 7300-7399 claimed for
+this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
+dispatched.
+
+**Seam note (CONTACT-11, 2026-09-29).** A dated section on `chart-window-walk-written-twice` records where the torus walk now stands: consecutive continuity, and the box through `solid_contain::chart_polygon_box`.
+
+Signed: (CONTACT-11 implementer)
+- 2026-09-29 — Seam note from ORIGIN: filed `box-door-census-misses-a-point-free-read` on this slate, from PR 3425's sweep of `(`-terminated source needles. (ORIGIN orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/boolean/boxes.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: In PR 3513's second fix pass (branch `topo/every-escalation-names-its-decision`), `crates/topo/src/boolean/boxes.rs`'s test module is `pub(crate)` and its `torus_wall` fixture `pub(crate)`, so `reduce::declaration_order_rows` can build a torus sheet for the circle × torus row; nothing else in the file moves. (TOPO implementer)
+- 2026-10-10 — Seam note from PIPE (PR 4486, `pipe/census-arms-and-witness-caps`): `boolean::boxes::edge_box_rule` now takes the certified `Option<&geom_brep::EdgeCurve<T>>`, and `EdgeBoxRule::ConicAmplitude` carries `params: (T, T)`. `AxialCarrier::Conic::params` is `(T, T)`, not `Option`, and the full-turn `None` arms (unreachable by construction) are gone. No box moved. (PIPE implementer, D291 lane)
+
+## Seam note from PIPE (2026-10-10): `#757` is retired by D10
+
+PIPE closed `S79`, which pointed at `#757`, and records this here for
+BOXES to act on. `boolean-declarations-has-no-geometric-producer` asks
+for a geometric producer of `BooleanDeclarations`. D10 (ratified, PR
+#3990) retires the type: INTENT's `declared-pairs-retire` deletes it,
+its prelude export and the declared seats on booleans. Once that row
+lands, the hand-written declarers at `demos/tour/src/booleans.rs` and
+`crates/topo/tests/common/mod.rs` have nothing left to produce. BOXES
+decides whether to close the row now or park it on
+`declared-pairs-retire`. Signed (PIPE orchestrator).
+- 2026-10-10 — Seam note from PIPE S350 (PR 4482): comment-only edit in `crates/topo/src/boolean/boxes.rs`'s `every_door_that_reads_a_box_is_inventoried` prose — the two census `face_box(` calls are now described as test-module rows pinning a described net carrying poison (one of them gates). The pinned count (`census.rs`, 7) is unchanged. (PIPE S350 lane)
+- 2026-10-18 — Seam note from RESTREAD (branch `restread/one-edge-box-map`, row `census-edge-reach-of-is-a-second-edge-box-map`): `boolean::boxes` gains `edge_rule_box`, the one `EdgeBoxRule → SpanBox` map, which `edge_box` (at `f64` brackets) and `census::edge_reach_of` (at the census's scalar, in its frame) both read. Its spiric arm is `geom::spiric_period_box`, the construction `geom::curves::boxes::spiric_arc_aabb` also reads now. That construction charges its root of a cancelling difference for rounding, so it encloses the period with no pad; both unrounded copies missed the arc near the fold. `EdgeBoxRule::ConicAmplitude` is now a tuple variant over `ConicArc`, and `EdgeBoxRule::Spiric` drops its `carrier` field. Both lanes' spiric boxes widen: about `32·u·S` off the fold, and near it by the root of a radicand widened at its own scale, measured at 4.7e-12 to 2.0e-7 m over the gate's fixtures. No public door reaches either lane with a spiric. The door inventory now counts `edge_rule_box(` and turbofish-spelled calls (`name::<`), and `census.rs` pins 10. Filed here: `census-lane-span-extents-are-not-self-enclosing`. (RESTREAD implementer)
+- 2026-10-25 — Seam note from PRED `D292` (branch `pred/d292-directional-extremum`): `crates/topo/src/boolean/boxes.rs` stops spelling a conic arc's amplitude. `edge_axial_span`'s conic arm (`AxialCarrier::Conic` is now the lane's span) and the census's conic edge box read `geom::curves::boxes::conic_arc_extent_along` (the bracket lane its certified twin); `arc_extent` and its adversarial probe row are deleted, `ConicArc` drops `u_ref`, `BoxFrame` gains `rows`, and `the_two_box_lanes_agree_face_for_face` pins the lanes equal to rounding rather than to the subdivision charge. Census boxes and axial windows on arcs tighten by up to that charge (`a·(Δt/16)²/8`). (PRED orchestrator)
+- 2026-10-26 — Seam note from WIRE (branch `wire/re-chart-rows-name-input-cells`, row `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`): `boolean/ops.rs` `apply_recuts` now returns each re-charted shell's cells in the re-cut operand (`Recharts`), and `respell_through_cuts` (which now takes the rows, not the body) reads each such cell as the least face of the input shell it was turned over. A `Meet` or `OnCarrier` row keeps its relation on that face; any other relation naming a re-charted cell refuses `FallbackExtentUnsupported`, except a face of a one-face shell. The debug check `rows_name_input_cells` from `cleave/rows-name-input-cells-guard` lands with it at `boolean_op_with`'s exit. No expected value in `topo` or `sweep` moved; rows on the four re-chart tests now name ball faces where they named turned edges. (WIRE implementer, wire-rechart)
+- 2026-10-27 — **Claimed from FLUXTAIL:** `an-edges-extent-has-four-dispatchers` (P1, M), at the re-cut that closed FLUX and FLUXTAIL (`docs/doc-ledger/flux-leaves-the-tracker.md`). It is BOXES' class, one question with four homes, and was re-banded P3 → P1 on Ev's instruction. Three folds wait on it: CHARTTAIL's `chart-region-carrier-gates-read-vertices-not-arcs`, HONE's `splitting-face-extent-lever-reads-vertices-not-arcs` and LEVER's `tangent-witness-span-reads-vertices-not-arcs`.
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` touches `crates/topo/src/boolean/boxes.rs` in its docs only: the module docs' door list says `flush_at_rest`'s one `face_box` read now boxes cylinder and sphere faces beside the planar ones.
+
+## 2026-11-02 — picked up; cut on the extent seam
+
+(BOXES orchestrator) Picked up; `status: active`. The slate measured 62
+points against 30, so it was cut on its semantic seam first: every row
+asking *what region can a face or edge occupy* stays; seven one-home
+doors that ask something else went to a new program, ONEDOOR (`D95`,
+`G9`, `S173`, `chart-window-walk-written-twice`,
+`description-staleness-ladder-three-spellings`,
+`sweep-trace-has-two-spellings`,
+`the-shell-of-a-face-is-scanned-for-where-a-back-pointer-answers`), and
+`signed-penetration-depth`, a clearance-engine feature, to CLEAR.
+Closed `boolean-declarations-has-no-geometric-producer`: the type is
+gone (D10). Re-priced `D280` M with `design: true`, and
+`the-chord-dip-charge-has-two-homes` C riding with
+`split-gate-sphere-zone-folds-into-face-box-rule`: its remaining home in
+`boxes.rs` serves only the sampled torus window, which the fold
+replaces by the closed form the split gate already reads. The P3/P4
+tail stays here though it keeps BOXES over budget: those rows are arms
+of the rule the step-2 design will restate, and cutting them away
+would separate them from their answer.
+
+The diagnosis behind the order (plan.md): `[one-way.places]` names no
+home for a face's or edge's extent, so each site that needed one built
+its own. TWICE's `extent-ball-and-reach-are-two-statements-of-one-extent`
+and ONEHOME's cluster C (`three-readings-of-a-points-rounding-charge-it-three-ways`)
+are the same gap seen from the verdict side; the step-2 survey reads them.
+
+## 2026-11-02 — the extent-home fork goes to Ev (PR 6334)
+
+(BOXES orchestrator) Three designers (fork row 239) converged in three
+rounds: one cover per entity, a reading under `[one-way.readings]`, its
+shapes as methods, `Uncovered` typed with meet/hull defined on the
+`Result`. PR 6334 carries the DESIGN edit and asks Ev to ratify. Units
+wait on the ruling. Implementation notes the designers asked the units
+to carry: `glue::overlap_ball`'s NaN-dropping `f64::max`/`min` is the
+first consumer onto `meet` (it gets poison ∩ X = X today by accident);
+`Uncovered`'s reason combines on Err ∧ Err; the cylinder arm's
+`splice_superseded` branch goes (an undecided axis is an absent slab);
+`held_reach_in`'s pole narrowing folds into the sphere arm; the
+`ConeSlab` "jurisdiction" fence comes down; a parameter-window type
+survives as data in `geom`. Rows to fold under the design beyond
+BOXES': `apex/face-reach-misses-an-interior-far-point-on-a-sphere-torus-or-cone-face`,
+`tang/whole-turn-conic-reach-…`, `lever/germ-takes-the-span-bounded-face-reach-alone`,
+`hone/splitting-face-extent-lever-reads-vertices-not-arcs`,
+`twice/extent-ball-and-reach-are-two-statements-of-one-extent`.
+## 2026-11-02 — the extent survey (main `b3448a04bd`)
+
+(BOXES orchestrator) A read-only survey of every door that answers *what region can a face or an edge occupy*, verbatim as delivered. It is the evidence the extent-home design fork is dispatched on; it asserts a class, so it lives here rather than in a session.
+
+> BOXES survey: what region can a face or an edge occupy?
+> 
+> Checkout `baf3fe65f5`. It differs from origin/main `b3448a04bd` only under `work/`, so the code below is main's. I read the tree, not the row bodies. Nothing was edited; one scratch counting script is in the scratchpad.
+> 
+> **The diagnosis holds.** `[one-way.places]` has no row for this question. `[one-way.readings]` also exempts "kind-agnostic methods (boxes, BVH, subdivision, clearance)", yet every door below is a per-kind match. So the box doors sit outside both the canonical-places table and the "one reading" rule.
+> 
+> ## 1. Inventory
+> 
+> Production code only (`#[cfg(test)]` modules, `*_rows.rs` and fuzz/probe/search files excluded). Caller counts are approximate. Abbreviations: P=Plane, Cy=Cylinder, Co=Cone, S=Sphere, T=Torus, N=Nurbs/Approx, L=Line, C=Circle, E=Ellipse, Sp=Spiric.
+> 
+> **Face doors**
+> - `topo::boolean::boxes::face_box_rule` → `FaceBoxRule`, the kind→construction rule, under `Decide`. Arms: P→BoundaryHull; Cy→CylinderSlab (falls to BoundaryHull when the axis is not decided unit); Co→ConeSlab; S→SphereWindow; T→TorusWindow; N→ControlNet. Callers: `face_box`, `census::face_reach_in`, `census/depth_gap.rs` (2).
+> - `boxes::face_box` (`Decide + Bounds`) → world `Aabb`, f64 brackets, padded, poison on no claim. Arms: ControlNet→`nurbs_surface_aabb`; Sphere→`sphere_reach`; Torus→sampled `torus_window_extent` ∩ `torus_extent`; Cy→`slab_extent` clipped to the boundary hull; Co→`cone_frustum_extent` with tan = `sin.hi()/cos.lo()`; hull→per-edge `edge_box`. About 29 calls: ops.rs (8, `face_rows`), pieces.rs (7), reduce.rs (3, the C10 tree and gate), separation.rs (3), census.rs (3, Trees), glue.rs (2), `boolean/mod.rs` held-pierce, `face_boxes.rs`.
+> - `topo::FaceBoxes::of` (pub) → every face's `face_box` in one BVH. The only face box `topo` exports. Caller: `sweep/blend/reach.rs` (3).
+> - `census::face_reach_in` / `face_reach` (World frame), `Decide`, pub(crate) → `(lo, hi)` in any `BoxFrame`; `None` on no claim. Same rule and the same `Span` extents at T, but ControlNet→`point_hull` of the control points, conic arcs via `conic_arc_extent_along` (no outward rounding), cone tan via `half_angle.tan()`. `face_reach` callers: separating.rs (10, narrow phase), join.rs (2), carrier_pair.rs, reduce.rs, census/in_plane.rs. `face_reach_in` callers: separating.rs, `boolean/mod.rs` `witness_span`, `classify::gate_face_reach`, census.
+> - `census::held_reach_in` (private) → `face_reach_in`, with a sphere's first frame row narrowed where its pole reads `Out`. Census-only tightening; one caller (census.rs:8819).
+> - `boxes::sphere_reach` → a sphere face's box (Rect, Zone or whole ball), `Decide`. Read by both box lanes.
+> - `splitting::classify::gate_face_reach` / `torus_window_reach` → aimed-frame box. Torus: closed-form `torus_rect_extent` once `R > r` is decided; otherwise `face_reach_in`. Split gate only.
+> - `boolean::carrier_pair::face_ball` → `ExtentBall`: `ExtentBall::of_carrier` (the whole S or T ball) when there is one, else `of_box(census::face_reach)`. Callers: the carrier doors (`pair_extent`).
+> - `geom_brep::ExtentBall::of_carrier` (S/T whole ball; `None` for others) and `of_torus` (R+r, no abs). `of_torus` callers: `of_carrier`, `pair_section/torus.rs`.
+> - `splitting::rules::face_reach_from` → scalar reach from a point. P/Cy: each edge over its span (`Reach::span_reach_from`); every other kind: each edge round its whole carrier (`Reach::lever_from`). Plus vertices. Callers: rules.rs `face_extent` (the split lever), join.rs `frame_extent` (plane×torus), chord_join.rs, link.rs.
+> - `rules::face_reach_round_from` (always round the whole carrier); `face_axial_range` (extent along an axis through `Reach::range_along`); `cone_axial_window` (widens to hold the apex unless the azimuth window is under 3/4 turn); `cone_face_reach` → `Reach::Face`. Callers: join.rs, chord_join.rs.
+> - `boolean/mod.rs::witness_span` + `conic_reach` → extent along a tangent line: vertices, plus each C/E edge's whole-carrier extremes along `dir`; falls back to `face_reach_in` aimed when an edge is another kind. Ignores the face's kind. Callers: `locus_through_both_faces`, the census tangent pair.
+> - `boolean::solid_contain::selection_reach` (+ `splitting::containment::loop_extent_from`) → ball about q holding the loops (vertices plus each edge's `carrier_ball`/`conic_arc_ball`). Its docs say it does not hold S/T faces. Callers: solid_contain, side_reader.
+> - `side_reader::beyond` → `selection_reach`, widened by the whole S/T ball spelled `|c−aim| + |r|` and `+ |R| + |r|`.
+> - `editor-core::mate::reach::face_reach` → scalar reach from the origin. P/Cy: boundary (`measure::reach_of`); Co: boundary ∨ apex; S: `|c−o| + r`; T: `+ R + r` (no abs); N: control net. Caller: `body_reach`/`part_reach` (mate lever, `eval/wire.rs` `copy_reach`).
+> - `editor-core::eval::measure::reach_of` → boundary walk with `curve_reach`, kind-blind. Callers: measure.rs (2), mate (3), `checks/at_rest.rs` (4; its line-1963 caller guards P/Cy first).
+> - `sweep::blend::reach::sheet_clip` → face box in a revolve's (r, z) sheet frame from per-edge boxes. L: hull of `eval(t0..t1)`; C/E: `{circle,ellipse}_arc_aabb`; N: `nurbs_curve_aabb`; Sp: `None`.
+> - `topo::boolean::trace::carrier_extent` (pub) → whole-carrier (anchor, reach) across a normal. P/Co: 0; Cy, S: radius; T: `R·|a×n| + r`; N: `None`. Callers: `plane_misses`, editor-core trace.rs.
+> - `geom_brep::ssi::analytic_box` → whole S/T cube (`|R| + |r|`), f64. Quadric readout.
+> - `chart_region::face_boundary_points` (vertices only), read as an extent by `carrier_agreement` and `cylinder_pair_overlap`. Open row `work/charttail/chart-region-carrier-gates-read-vertices-not-arcs.md`.
+> - `census::distance` (planar face) → hull of the boundary vertices. Unsure whether its `planar_face` admits curved edges.
+> 
+> **Edge doors**
+> - `boxes::edge_box_rule` → `EdgeBoxRule`: L→Chord; C/E→ConicAmplitude; Sp→Spiric; N→ControlHull; null→NoSoundBox. Callers: census (3), depth_gap (2), in_plane (2), boxes.
+> - `boxes::edge_rule_box` → `SpanBox`, generic over the lane's scalar. ControlHull folds the control points with the chord; Spiric→`geom::spiric_period_box`. Callers: `edge_box`, census `edge_reach_of`.
+> - `boxes::edge_box` (`Decide + Bounds`) → `Aabb`; conic via `geom::conic_arc_aabb` (Interval, outward). About 10 calls: census (4), reduce (2), validate ring_pairs, carrier_touch, ops, `boundary_hull`.
+> - `census::edge_reach_in` (`Decide`, frame) → conic via `conic_arc_extent_along` per frame row at T. Callers: separating, in_plane, `classify::edge_clears`, reduce `gate_maximal_faces`.
+> - `census::Candidates::build`'s `curved_box` → N: `nurbs_curve_aabb` (no chord hull); else `edge_box`. Pass 2′ tree.
+> - `boxes::axial_carrier` + `edge_axial_span` → an edge's extent along an axis. L chord; C/E via `conic_arc_extent_along(_bracketed)`; N control points; Sp and NoSoundBox **Unclaimable**. Callers: the Cy/Co arms of both lanes.
+> - `geom::curves::boxes` (sole `Bounds`, Interval-lifted): `circle_arc_aabb`, `ellipse_arc_aabb`, `spiric_arc_aabb` (= `spiric_period_box` ∪ ends), `conic_arc_aabb` (dispatcher, `None` for L/N), `nurbs_curve_aabb`. Plus `conic_arc_extent_along` (Real) and its `_bracketed` twin. Callers: topo boxes and census, sweep reach and surgery, step-import `knot_split::piece_box` (which maps kinds itself: "there is no body yet").
+> - `geom::spiric_period_box` (Real) → the box of an oval's whole period. Callers: topo boxes, geom `spiric_arc_aabb`.
+> - `geom_brep::extent::edge_reach_from` / `edge_extent_sup` / `edge_reach_bounds` (`SpanLocate`) → reach from a pivot, or a diameter. L ends; C exact arc; E `conic_arc_reach`; Sp/N the lesser of the whole torus or net and a 16-sample Lipschitz bound. Callers: carrier_pair (rest locus), contact_verify, offset_derive, fate, census/curved, validate.
+> - `geom_brep::Reach::{lever_from, span_reach_from, range_along}` (Real) on `Reach::Span`. `lever_from`: C/E whole carrier; Sp `|c−p| + |R| + |r|`; L/N span points. `range_along`: C/E exact arc; Sp torus support `R·|dir×k| + r`; N whole net. Callers: rules.rs, chord_join, intersect.
+> - `geom_brep::control_net_reach` → N net reach from a point. Callers: reduce, face_normal, sector_face, dihedral.
+> - `splitting::containment::carrier_ball` (`Decide`) → ball. L `None`; C `(center, radius)` (no abs); E (center, larger semi-axis); Sp speed-bound ball about the midpoint; N ball about the centre of the control box. Callers: `step_ball`, `arc_distance_floor`, shell.rs (`carrier_box`, `moved_walls`).
+> - `containment::conic_arc_ball` → the arc's own ball (midpoint, speed×half-width, plus a rounding charge). `step_ball` keeps both balls and `extent_from` takes the nearer.
+> - `shell::carrier_box` → 2-D in-plane box, the projection of `carrier_ball`. Shell footprint gate.
+> - `shell::moved_walls` (inline) → cavity wall box. Conic: cube `centre ± max(ru, rv)`; Sp/N: `ArcPiece::ball` (the lesser of the speed ball and the net ball).
+> - `reduce::gate_maximal_faces` (inline) → reach from the edge's start. L chord; C `2|r|·sin(min(span/2, π/2))`; N `control_net_reach`; else `ExtentBall::of_box(edge_reach_in).lever_from(at)`.
+> - `sweep::blend::surgery::boxed_reach` (`Bounds`) → near/far from c, or a range along u, from box corners. E/Sp/N via geom boxes; L/C `None`.
+> - `editor-core::eval::measure::curve_reach` → reach from a point, whole carrier. C `|c−o| + radius` (no abs); E larger semi-axis; Sp `+ R + r`; N net.
+> - Subdivision piece balls (`spline_arc`, `spiric_arc`, `ArcPiece`) are kind-specific but are refinement, not doors.
+> 
+> **Literal torus balls in region-bounding code:** `extent.rs:173` (`of_torus`, no abs) and `:779` (with abs, same file); `side_reader.rs:434`; `ssi.rs:3423`; `mate/reach.rs:216`; `measure.rs:730`; `join.rs:4208` and `containment.rs:2083` (spiric levers, R+r+|d|); `solid_contain.rs:2794` (`ext`); `circle_torus.rs:373` (lever). Torus supports written differently: `boxes::torus_extent` `(R+r)·perp + r·|a_i|`; `trace::carrier_extent` `R·|a×n| + r`; `Reach::range_along` `R·|dir×k| + r`.
+> 
+> **What my search could not match.** My regexes caught `fn …(aabb|box|extent|reach|ball)`, `Curve3::`/`Surface::` arms and `from_points`/`point_hull`. They miss inline per-kind matches with no such name (as `moved_walls` and `gate_maximal_faces` were found only by reading), folds that use vertices as extents under generic names (as `chart_region` was), levers that carry a region bound under "lever"/"arm"/"size" names (e.g. `pcurve_cache` `azimuth_lever`, mesh sizing; I judged those not to be this question), and the narrower blend doors (`arms::corner_ball`, `battery::extent_of`), which I did not open.
+> 
+> ## 2. Where they disagree
+> 
+> - **Torus face**: `face_box` and `face_reach_in` use a sampled chart window plus a subdivision charge; the split gate uses the closed form `torus_rect_extent`, the cause its docs name for having its own torus arm. `carrier_pair::face_ball` uses the whole R+r ball; mate and `beyond` use R+r. **sure**
+> - **Torus support along a direction**: `torus_extent` ≥ `trace::carrier_extent` = `range_along` for any tilted axis, because r·(√(1−a²) + |a|) ≥ r. **sure** (row `torus-extent-overreaches-…`)
+> - **Sphere face**: `sphere_reach` (rect, zone or ball) in both box lanes; `held_reach_in` narrows further in the census only; `face_ball`, `beyond`, mate and ssi take the whole ball. **sure**
+> - **Sphere/torus face reach from a point**: `rules::face_reach_from` levers boundary edges round their own carriers and never the surface's ball. On a sphere cap past a hemisphere, measured from a rim point, the antipode (2r) exceeds the rim's 2ρ. Mate and `beyond` add the carrier ball instead. Whether a split or join caller ever hands it such a face: **unsure**. The difference in arithmetic: **sure**.
+> - **Conic arc box**: Interval-outward `conic_arc_aabb` (`edge_box`) against `conic_arc_extent_along` at T with no outward charge (`edge_reach_in`). **sure**. Whether the latter fails to enclose itself: row `census-lane-span-extents-are-not-self-enclosing`.
+> - **Conic edge tightness**: the exact arc (boxes lanes, sweep, `span_reach_from`, `edge_reach_from`) against the whole carrier (`carrier_ball`, `shell::carrier_box`, `moved_walls` cube, `witness_span::conic_reach`, `measure::curve_reach`, `Reach::lever_from`). **sure**
+> - **Ellipse reach from a point**: `gate_maximal_faces` takes a box-corner ball lever from `edge_reach_in`; `edge_reach_from` takes `conic_arc_reach`; `carrier_ball` takes the larger semi-axis ball. **sure**
+> - **Spiric**: period box (topo boxes, geom, sweep surgery); speed-bound midpoint ball (`carrier_ball`); torus ball (`lever_from`, `curve_reach`); torus support (`range_along`); min(torus, Lipschitz) (`edge_reach_from`); `axial_carrier` says Unclaimable although `edge_rule_box` has a box; `sheet_clip` refuses it. **sure**
+> - **NURBS edge**: `edge_rule_box` ControlHull (net ∪ chord) against census `curved_box` `nurbs_curve_aabb` (net only; poison on any poisoned channel). The census comment "where `edge_box` has no sound box" is stale, since `edge_box_rule` maps Nurbs→ControlHull. **sure** stale, **likely** redundant.
+> - **NURBS face**: `face_box` poison box against `face_reach_in` `None` for a poisoned net (documented as intended). **sure**
+> - **Cone face**: the ConeSlab axial window is read off the boundary only, so a tip face bounded by its rim alone would leave out the apex. `rules::cone_axial_window` widens for exactly that case. Valid bodies seem to carry apex struts. **unsure**
+> - **Sign handling**: `of_torus` R+r against `lever_from` |R|+|r| (one file); `carrier_ball` and `curve_reach` circle `radius` against `lever_from` `radius.abs()`. At rest, tier 3 refuses non-positive radii, so this differs only on bodies that have not been through tier 3. **likely**
+> - **Line edge ends**: vertex points (topo) against `carrier.eval(t0/t1)` (sweep `sheet_clip`, `curve_reach`). **sure**, small.
+> - **Face boundary reach**: `measure::reach_of` is kind-blind, and some callers guard P/Cy (`at_rest.rs:1963`) while others hand any kind (`at_rest.rs:1079` `pairing_read`). **unsure**
+> 
+> ## 3. Why there are several
+> 
+> 1. **Scalar walls.** The `Bounds` scope rule (`geom-core/src/real.rs:1117`, "brackets never decide") puts a compound `Decide + Bounds` only in per-file allowlisted driver code (`scripts/gates/bounds-allowlist.sh`: boxes.rs 3, census.rs 8, reduce.rs 11, shell.rs 2, sweep reach and surgery …).
+>    - Pruning lanes therefore box at f64 brackets (`face_box`, `edge_box`, `FaceBoxes`). Deciding lanes (split gate `reach_clears`, narrow phase, carrier doors, join levers) must hold the answer at T under `Decide` only, so they get `face_reach_in`, `edge_reach_in`, `carrier_ball` and `face_reach_from`.
+>    - geom's arc boxes are sole-`Bounds`, so a `Decide`-only lane cannot call them; `conic_arc_extent_along` (Real) was added as a twin of `_bracketed`. geom-brep's `edge_reach_from` needs `SpanLocate` (sampling), a third wall.
+>    - `boxes.rs`'s `Span<T>` arithmetic is the one place that collapsed this: one formula, two lane entries.
+> 2. **Crate layering and visibility.** A face's region needs the Body (loop walk, stored pcurves for the torus window, `sphere_chart_trim`, chord_join azimuth windows), so it lives in topo. The edge pieces that need no Body live below: geom has boxes, geom-brep has reaches and balls. topo's doors are pub(crate), and the only export is the f64 world `FaceBoxes` (plus `trace::carrier_extent`). So sweep, editor-core (mate, measure) and step-import ("there is no body yet") rebuild per-kind matches from geom's public boxes or by hand.
+> 3. **Answer shape: genuinely different consumers.**
+>    - BVH and pruning want a world Aabb: looseness costs work, or a refusal where non-overlap is the grant (the boxes.rs module docs list thirteen doors and which way each reads).
+>    - Gates want an extent along one direction in an aimed frame (`BoxFrame`).
+>    - Angular levers want a reach from a pivot. `extent.rs` says a ball is not a lever ("no longer than the caller's own measure"), so a box or ball door cannot serve a two-sided lever row.
+>    - The shell wants a 2-D in-plane box; the blend wants an (r, z) sheet box; the mate wants a reach from the part origin.
+> 4. **Per-kind tightening lands where the need is felt.** The sphere zone (split gate, later folded into the rule), the closed-form torus (split gate, not folded), the sphere pole `Out` (census only) and the cone apex (rules) each have their data in a different module. The rule itself records a territory fence: ConeSlab "No boundary clip … jurisdiction: the cone lanes are a different unit's territory."
+> 5. **Fail-loud direction per door.** Poison box (prunes nothing), `None` (refuse), `unreachable!`, or `Err(UnboundedFace)`. The same no-claim answer is spelled per consumer, which keeps census and boolean lanes apart even where their arithmetic is shared.
+> 6. **At-rest vs mid-op vs pre-body.** `face_reach_in` and `carrier_pair` serve at-rest and mid-op bodies (`OPERATORS_KEEP_LINKS`); sweep surgery reads mid-op bodies through `Option`; step-import has curves and no body; editor-core reads evaluated bodies. Sign conventions (abs or not) differ along this axis.
+> 7. **DESIGN gives no home.** No `[one-way.places]` row exists. `[one-way.readings]` exempts "boxes" as kind-agnostic although every door matches on kind, and its "lowest crate" placement (geom for one carrier) conflicts with the scalar wall in 1.
+> 
+> ## 4. Axes a single home would carry
+> 
+> - **Genuine** (consumers need different things):
+>   - answer shape: world box, frame box, extent along a direction, reach from a point (scalar), ball;
+>   - face vs edge (a face needs the Body and trim, an edge only its carrier and span);
+>   - frame: world, aimed, in-plane 2-D, (r, z) sheet;
+>   - pruning vs deciding direction: bracketed f64 vs T;
+>   - lever constraint: an upper bound that is also no longer than the region's own measure (rules out balls);
+>   - no-claim spelling, as far as each door's fail-loud direction differs.
+> - **Accidental:**
+>   - the tightness choice per kind (whole carrier vs arc, sampled vs closed-form torus, sphere ball vs window, period box vs speed ball), made per site with no consumer reason recorded;
+>   - torus and sphere literals and their abs handling;
+>   - the stale NURBS `curved_box`;
+>   - the spiric being Unclaimable along an axis but boxable;
+>   - vertex points vs `eval` endpoints;
+>   - the topo `pub(crate)` wall that forces sweep, editor-core and step-import re-derivations;
+>   - outward rounding present at one scalar and absent at the other.
+> - **Mixed:** the scalar bound (`Bounds` / `Decide` / `SpanLocate` / `Real`). The wall itself is ratified policy, but `Span<T>` shows the arithmetic need not split along it; at-rest vs mid-op vs no-body, real for which records exist, accidental for sign conventions.
+> 
+> **Stale rows.** D280's `reach_box` no longer exists: `face_reach_in` reads the rule and the shared `Span` extents, and the remaining gaps are the cone tan spelling, the ControlNet poison/None split and conic rounding. `boxes::{conic_extent, arc_extent}` from the four-dispatchers row: `arc_extent` is gone, and `conic_extent` now serves only full circles (`circle_box`, `separating`). The witness_span vertices-only row is partly overtaken: `conic_reach` adds the whole conic carriers.
+
+Dispatched on it: the extent-home design fork, three designers (protocol `1b9ac429b1`, blinding on `analysis/design-fork/boxes-extent-home`). The survey also reports `D280`'s premise stale (`reach_box` is gone; what is left is the cone tan spelling, the ControlNet poison/None split and the conic rounding) and the census `curved_box` NURBS comment stale; both go to the design.
+
+## 2026-11-02 — U1 (PR 6336) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Tier: single FULL review (the box arms are certified enclosures). The verdict was APPROVE-WITH-FIXES, with no MAJOR. C1 soundness was confirmed by a 20k-case span probe; the worst escape was 1.4e-15 relative to R + r. Mutants M1–M5 and M9 were killed; M6, M7 and M8 survive. Adjudicated:
+
+- Into the fix pass:
+  - **S1/S8/m2:** the PR minted a fourth ring reader. The bracket lane's `R.lo > r.hi` is a bracket choosing the construction, and the two lanes measurably took different arms near horn. The fix is one ring home that both lanes and depth_gap/face_normal read.
+  - **m1:** a spindle-torus row so the guards can go red.
+  - **n1/S4:** the bracketed row ties R to r and uses the code as its own oracle.
+  - **n2/S5:** the arms-row doc over-promises.
+  - **n3:** stale prose in the oracle doc and the from-f64 allowlist's example.
+  - **n5:** the chord-dip f2·h²/8 spellings left in geom-brep and mesh.
+  - **m3:** stated honestly in the PR body; unreachable at rest.
+- Already filed, not re-filed: S2 (`torus-extent-overreaches-…`), S3 (`census-lane-span-extents-are-not-self-enclosing`, evidence added).
+- State-sync done here: dated notes on the rows citing the deleted symbols, here and on GAUGE, ORBIT and TOPO (seam notes on their logs). `split-gate-sphere-zone-folds-into-face-box-rule` moves to `review` on PR 6336.
+- **Class finding, logged:** a fix that closes a duplicate mints a new reader of a neighbouring question (here, the ring condition). The style lane's Q1 caught it again.
+
+## 2026-11-02 — U1 (PR 6336) lands
+
+(BOXES orchestrator) The fix pass (head `9ade3aa2`) took every
+adjudicated item:
+- **One ring reader.** `geom::is_ring_torus` is read by both box lanes and by `depth_gap`. The bracket comparison and `boxes::ring_decided` are gone. `face_normal` keeps the declining form, since it needs which half refused.
+- **Guard rows.** The near-horn and spindle rows kill M6 and M8.
+- **An independent 5⁵ family oracle.**
+- **Chord-dip spellings.** One repointed; three are different quantities.
+- **m3** stated in the PR body.
+
+Declined, with reasons:
+- the binding-meet row (M7 survives; the doc is corrected instead), because building a bracketed body with corners off unit norm is not cheap;
+- moving `chord_dip_charge` down for mesh, which has no spelling of the quantity.
+
+Orchestrator's read of the delta: accepted. Closed
+`split-gate-sphere-zone-folds-into-face-box-rule` and
+`the-chord-dip-charge-has-two-homes`.
+
+Accepted near-duplicate, recorded so it is not mistaken for an oversight: `geom::is_ring_torus` (a reading that answers a bool) beside `require_ring_torus` (the declining form that mints the escalation). Both are built on the same two halves. Under the cover design (PR 6334) the box lanes' use becomes a stage of the torus arm, and the pair is re-examined there.
+
+## 2026-11-02 — sitting ends; the track goes back `ready`
+
+(BOXES orchestrator) PR 6336 (U1) merged at `f1867c8b`. Its last push
+added `m10_6_r1_probes_interval::a_planted_violated_reads_violated_over_a_certified_leaf`
+to the slow set. That test is not this unit's: it measured 1.002 s
+against the 1.0 s bar after main was merged in, the integration cannot
+re-run a job (403), and the slow-set rule (≥ 0.5 s) already covered it.
+
+Every remaining P1 row now waits on Ev's ruling on PR 6334, and is
+`parked` on its ruling item `the-region-an-entity-occupies-is-one-cover`:
+`D280` (its `design` flag cleared, since the question is on the ruling),
+`an-edges-extent-has-four-dispatchers`, `sphere-operand-box-is-the-whole-ball`,
+and U1's sweep filing `a-sphere-or-torus-pair-extent-skips-the-face-box-rule`
+(banded P1, E: two readings of one fact). The ruling item is filed
+here in the same bytes as on the `[ev]` branch, so the two land as one.
+
+No dispatchable P0/P1 remains, so the track is handed back `ready` (work/README.md, Priority).
+The P3/P4 tail is left alone, though several rows are cheap. Each is
+an arm the cover design restates, so fixing one now is work the build
+undoes. That is the reason they are not this sitting's easy tail.
+
+**What the next orchestrator does on Ev's answer to PR 6334:**
+- On approval: fill fork row 239's second half (the decision, the
+  match, tokens, and the label→model mapping from
+  `analysis/design-fork/boxes-extent-home`), close the ruling item,
+  merge the PR, and cut the build into units. The designers' suggested
+  order (log entry "the extent-home fork goes to Ev"; the For the
+  orchestrator sections are archived at
+  `~/.local/share/cad-work/boxes-fork-*.md` on this session's box
+  only) is:
+  1. `geom::cover` with the whole-carrier and arc readings, and the edge doors onto it;
+  2. `topo` face and edge covers replacing both box lanes and `Span`;
+  3. the levers (`rules.rs`, `join.rs`, `carrier_pair`, `witness_span`, `gate_maximal_faces`, `solid_contain`/`beyond`) onto `reach`/`range`/`ball`;
+  4. sweep and editor-core;
+  5. a gate on kind matches outside the cover modules.
+  
+  Then un-park the four rows onto those units.
+- On a change: rework the DESIGN text on the PR and re-ask.
+
+The token counts for row 239 come from the harness's per-agent usage. The
+first report and the total are A 141727 / 174465, B 187149 / 239850,
+C 137607 / 178525 (first report / last reply).
+
+- 2026-11-02 — The extent-home fork row is **241**, not 239: main took 239 for another fork before PR 6334 landed. The entries above that say 239 mean 241. (BOXES orchestrator)
+
+## 2026-11-02 — Ev ratifies the cover (PR 6334); the build is cut
+
+(BOXES orchestrator) Ev, on PR 6334: *"the idea is good! we'll have to
+see how the implementation pans out, i guess. we can accept this for
+now and if it needs to be revised because of issues encountered when
+implementing then that's ok"*. Fork row 241's second half is filled
+in (all three first reports matched), and the ruling item is closed.
+
+Merging main brought in a `[one-way.places]` row ratified the same day
+on PR 6329: *f64 rounding, a verdict's lever arm, and the extent it is
+consumed over* lives in `crates/geom-core/README.md`, "Float rounding".
+That section names `geom_brep::Reach` as the one consumed-extent type.
+Both rows stand. They ask different questions: where a region lies,
+and what extent a verdict's margin levers over. `cover-levers` builds
+`Reach` from cover queries, and carries the seam explicitly.
+
+The build, cut into six units (bodies carry the spec):
+1. `cover-geom-readings` (H, dual review): `Cover`, `Uncovered`, meet and hull, the methods, and geom's carrier readings.
+2. `cover-edge-doors` (H).
+3. `cover-topo-faces` (H).
+4. `cover-levers` (H).
+5. `cover-app-readers` (M).
+6. `cover-kind-match-gate` (M).
+
+Each later unit is parked on its predecessors. Re-parked onto them:
+- `an-edges-extent-has-four-dispatchers` → `cover-edge-doors`;
+- `D280`, `sphere-operand-box-is-the-whole-ball` and nine P3/P4 arm rows → `cover-topo-faces`;
+- `a-sphere-or-torus-pair-extent-skips-the-face-box-rule` → `cover-levers`;
+- `torus-extent-overreaches-…` → `cover-geom-readings`;
+- `box-door-census-misses-a-point-free-read` → `cover-kind-match-gate`.
+
+`sphere-window-falls-back-to-the-ball-leaving-its-escalations-on-the-log` banded P3/E. The track is `active` again, at 8/30.
+
+## 2026-11-02 — `cover-geom-readings` (PR 6383): the dual review, and an `[ev]` question
+
+(BOXES orchestrator) The tier is DUAL with letter H, so the arm is CONCURRENT under protocol `1b9ac429b1`. Two Opus reviewers were dispatched together at 2026-11-02T16:19Z on frozen head `82640b3a1e`, with one brief and private lanes. R1 disclosed one glimpse, the *name* of R2's target directory seen in an `ls`, with no contents; that is not a findings glimpse. Both returned APPROVE-WITH-FIXES.
+
+Correspondence pre-note (the blinded coding at merge confirms it):
+
+- **Bilateral:**
+  - the segment charge at the wrong scale (MAJOR/MAJOR, both executed: up to 1.2e-10 at origin ~1e6);
+  - the tube's `ball`/`point_range` reading the frame as unit (MINOR/NOTE);
+  - "signs once" false (patch has no abs, tube abs twice; R2 executed a negative-minor-radius patch under-claim);
+  - mutants surviving or killed only probabilistically (hull ball branch, abs, segment slack);
+  - non-finite data giving a whole-space value (NOTE/NOTE);
+  - `Frame` beside `BoxFrame`, unscheduled;
+  - `plane_misses` C5 (R1 (b), R2 (c));
+  - the 16ε charge vocabulary in several places.
+- **Unilateral R1:** `beyond` skipping a `PoisonedNet` `Err` (MINOR, read); `world_box` clone cost.
+- **Unilateral R2:**
+  - the spiric rectangle as a second spelling of `spiric_period_box` (Q1);
+  - `spiric_period_box` still `pub` against the item;
+  - `ParamWindow`'s doc;
+  - the frustum's dead kink;
+  - two PR-body inaccuracies.
+- **Tally candidates:** none. The one MAJOR is bilateral.
+
+Adjudication:
+
+- **C5:** R2's reading holds, checked against `editor-core` `trace.rs` `traced`. `Ok(true)` (misses) is `NoTrace`; `Ok(false)` hands off to the exact crossing computation. So "not shown to miss" grants nothing, the ratified text stands, and only `plane_misses`'s doc over-claims. The implementer's proposed DESIGN revision is withdrawn.
+- **Fix pass:** everything else, except as below.
+- **Scheduled here rather than fixed:**
+  - `BoxFrame`'s retirement → `cover-topo-faces`;
+  - `spiric_period_box` going internal → `cover-edge-doors`;
+  - `carrier_extent`'s leftover kind match → `cover-app-readers`.
+
+**A conflict between two texts ratified today.** `[simple.conditioned]` (PR 6329, merged 14:54Z) says *"at `f64` … nothing charges, pads or estimates float rounding"*. The cover paragraph (PR 6334, written 07:16Z before it existed, merged 15:11Z) says each bound "encloses at every scalar", which the unit read as per-piece f64 charges. The reviewers' MAJOR is such a charge at the wrong scale.
+
+- Per `docs/prompts/designer.md` §2, when two instructions conflict, the redesign wins. I judged this to have one plainly right answer: the cover follows `[simple.conditioned]` (real numbers at f64, an enclosure at Interval). So I did not dispatch designers, and the PR says so.
+- The re-wording is on PR 6383's branch, and the PR title carries `[ev]` with the question at the top of its body.
+- The fix pass's charge items (the segment scale, the spiric charge) are on hold until Ev answers.
+- Consequence for the row-to-be: the MAJOR's fix may be the deletion of the charges, not a re-scaled charge.
+- 2026-11-02 — Ev on PR 6383: *"good catch, i missed 'encloses at every scalar' when i approved that"*. The cover follows `[simple.conditioned]`; the re-wording on PR 6383's branch stands; the fix pass deletes the per-piece f64 charges rather than re-scaling them. `[ev]` is off the title. (BOXES orchestrator)
+- 2026-11-02 — PR 6383's first fix pass (head `61c9c16f`) took every item, and the f64 charges were deleted per Ev. A FULL delta review of `82640b3a..61c9c16f` is recorded on the dual row as a post-pair confirmation. It returned APPROVE-WITH-FIXES:
+  - D1 (Gram bounds at Interval, 300 skewed cases) and D2 (signs) confirmed;
+  - M1: deleting the charges exposed the tube's squared-distance near as ill-posed at f64 (1.051e-6 for a true 1e-6). That is the "re-posed as a distance" shape the geom-core README names;
+  - M2: four non-finite screens and the spiric abs unguarded;
+  - D6: two sphere spellings.
+  
+  A second fix pass has been dispatched. The unit file's stale charge and sign text is corrected here. (BOXES orchestrator)
+- 2026-11-02 — `cover-geom-readings` merged (PR 6383, `06c73b5d`) under the inherited-red rule: the python suite's `slot_admits` census red came from PR 6390, is annotated on 6383, and is filed on FORMS. **Dispatched `cover-edge-doors`.** Review tier: single FULL. The type decision was made and dual-reviewed in 6383; this unit repoints doors across crates and moves verdicts, so the review carries the soundness claims. Not dual, because it fixes no new type others build on. `cover-topo-faces` waits for it, since both rework `boxes.rs`'s `Span` and edge box rule. (BOXES orchestrator)
+
+## 2026-11-02 — `cover-geom-readings` lands (PR 6383)
+
+(BOXES orchestrator) The second fix pass (`55d664af95`, with main merged as `bbca6476`, gate green) passed my read:
+- `Arc::point_near` bounds the arc as a circle of radius ρ in an orthonormalized frame plus a Gram-bounded deviation; off-crest monotonicity takes the nearer end, so `|w − circle| − dev` is a sound lower bound in a well-conditioned distance form;
+- the tube near reads through the spine circle;
+- `Ring::ball`'s `unreachable!` is backed by `Ring::of`'s new finite screen.
+
+Declined with reason: `beyond` carrying the `Uncovered` reason (a new `PointInSolidError` variant is not cheap); the refusal is pinned as `CorruptFace`.
+
+The dual row is `docs/dual-review-log/rows/PR-6383.md` (tally 0: the one MAJOR was bilateral).
+
+**Class finding, logged.** Deleting the f64 charges per `[simple.conditioned]` exposed a formula the charge had been hiding (a squared residual near zero). Under that rule, a charge removed is a conditioning question asked: every later cover unit that deletes a charge re-poses what it covered rather than dropping it.
+
+Unparked: `cover-edge-doors`, `cover-topo-faces`. `torus-extent-overreaches-…` re-parked on `cover-topo-faces`, which deletes `torus_extent`. Filed `a-covers-nearest-distance-from-a-line-is-a-squared-residual` (P3, M).
+
+## 2026-11-02 — `cover-edge-doors` (PR 6399) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `eb133f2e`: APPROVE-WITH-FIXES, no MAJOR.
+
+**Confirmed:**
+- edge-cover soundness on 80 real edges;
+- the radicand re-posing (proof plus 400 near-fold cases);
+- `point_far`;
+- `crest_outside` (200k windows);
+- the maximal-faces verdict move, which is right for that body.
+
+**Adjudicated into the fix pass:**
+- **Reader-side tightening** (`edge_reach_from`'s Lipschitz `min`, step-import's restricted hull) moves into `cover_over`'s spline and spiric arms, which honor the window. Two edge-reach spellings and several topo doors calling `cover_over` directly are pointed at the one topo edge reading.
+- **`SPEED_MARGIN`:** decided under `[simple.conditioned]`, either a rounding charge (deleted) or a sampling bound (named and derived).
+- **Restored panics** where `gate_operand`'s precondition makes a null carrier a kernel bug.
+- **Red rows** for the vertex hull (M6), the Gram fix (M4b), the window (M9) and the gate's old intent.
+- **`Curve3::cover()`** for the whole carrier, replacing `whole_cover`'s kind dispatch.
+- **Stale docs.**
+
+**Scheduled on `cover-levers`:** the `lever_from` narrowing, and `certify_plane`, which the sweep missed.
+
+**Class finding, logged.** The ratified "tighter construction is written into the arm, never at a reader" is exactly the rule a door-repointing unit breaks. Repointing a door that had its own tightening tends to keep that tightening at the reader, `min`'d with the cover. Every later cover unit's brief names this.
+- 2026-11-03 — **Coupling with ONEHOME** (PR 6391, `onehome/one-extent`): it re-minted the retired `of_torus` and added five more per-kind `ExtentBall` constructors. They are folded onto `cover-levers`, with a seam note on ONEHOME's log. Class instance: a door retired in one program is re-minted by a parallel program that never saw the retirement. The `cover-kind-match-gate` unit is what stops that structurally; until it lands, seam notes are the only defence. (BOXES orchestrator)
+
+## 2026-11-03 — `cover-edge-doors` lands (PR 6399)
+
+(BOXES orchestrator) The tier was single FULL review plus two delta reviews of the fix passes; the second fix pass added new enclosure constructions, the blossom restriction and the spiric window rectangle. Three fix passes in all:
+1. Tightening moved into the arms. The readers read the cover alone. One topo edge reading. Fail-loud restored. `SPEED_MARGIN` deleted as a rounding charge.
+2. The pass that ran over the container restart; its lane was resumed, not restarted, and its pushed work was intact.
+3. The fix's own copies retired: one restriction routine (`restrict_window`), `edge_reach_from` deleted, one end reading, one `geom_core::poison()`, and `spiric_arc_aabb` as an independent reference.
+
+Moved, disclosed:
+- spline reaches tighten sharply (a wild window 17.8·R → 1.0·R);
+- a closed spiric loosens 1.8%, filed as `a-closed-spirics-cover-is-the-period-rectangle-with-no-tighter-stage`;
+- the maximal-faces gate now refuses a reshaped fixture correctly, and the gate's old intent is pinned on a short-carrier row.
+
+Closed: `cover-edge-doors` and `an-edges-extent-has-four-dispatchers`.
+
+Filed:
+- the bound creep (`cover-readings-bound-creep-into-conic-only-readers`, P4);
+- evidence on `an-edges-diameter-and-exactness-have-no-cover-method`;
+- earlier, `a-spline-window-restriction-has-four-spellings` on NURBS.
+
+`cover-levers` is now parked on `cover-topo-faces` alone.
+
+**Class finding.** Every fix pass on this build has minted a copy of something it closed:
+- 6383: a second torus support and `Frame`;
+- 6399 pass 1: reader-side tightening;
+- 6399 pass 2: a second restriction routine and a copied arm.
+
+The style lane's Q1 caught each one. The pattern is now in the briefs, and the `cover-kind-match-gate` unit is the structural answer.
+- 2026-11-03 — `cover-edge-doors` merged (PR 6399, `c036d7ae`). **Dispatched `cover-topo-faces`.** Review tier: DUAL, letter H, so the arm is CONCURRENT. It exports `topo::face_cover`/`edge_cover`, the public surface `cover-levers`, `cover-app-readers` and the gate build on, and it replaces both box lanes with broad verdict moves: architectural, and hard to change later. The brief carries the build's class finding: check your own diff for a copy of what you close, reader-side tightening, or a second spelling. (BOXES orchestrator)
+- 2026-11-03 — **Seam (ONEDOOR): `[topo.homes]` is now held per PR** by `scripts/gates/engine-leaves.sh`, merged in PR 6458. Ev ratified the rule on PR 6426; it is in `crates/topo/README.md`.
+  - **What the gate refuses** in `crates/topo/src`, outside an engine directory:
+    - naming an item declared under `boolean/` or `splitting/`, counted by name however it is reached;
+    - one engine naming the other;
+    - a crate-visible item inside an engine;
+    - any construct binding a new name to an engine item (an `as` rename, a `type` alias, `use crate as`, `#[macro_use]`);
+  - Each is counted over a shrink-only allowlist, `scripts/gates/engine-leaves.counts`.
+  - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
+  - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
+  - (ONEDOOR orchestrator)
+- 2026-11-08 — The `cover-topo-faces` lane was resumed after the weekly usage limit stopped it (2026-11-03; five commits pushed through `5cf5c2fbc5`, clone intact). On resume it was told that main's `engine-leaves.sh` (`[topo.homes]`, Ev on PR 6426) puts `face_cover`/`edge_cover` and the edge reading at the crate root, not under `boolean/`, and pointed at `aabb-poison-is-per-lane-and-a-one-lane-nan-box-prunes`: the cover's `aabb()` must hand the BVH `Aabb::poison()`, never a one-lane-NaN box. (BOXES orchestrator)
+
+## 2026-11-08 — `cover-topo-faces` (PR 6579): the concurrent dual pair
+
+(BOXES orchestrator) Tier DUAL, letter H, arm CONCURRENT, protocol `1b9ac429b1`. Two Opus reviewers were dispatched together at 2026-11-08T17:5xZ on frozen head `0cc69585`, from one brief. Glimpses disclosed: R1 saw another lane's `cargo` command lines in `ps`; R2 read the PR's own check runs and the `test (kernel)` job log to explain a red, which is not the other lane's artefacts. Neither saw findings. Both returned APPROVE-WITH-FIXES.
+
+Correspondence pre-note (to be confirmed by the blind coding at merge):
+
+**Bilateral:**
+- the box-door inventory red at the head (MAJOR/MAJOR, both executed);
+- `overlap_ball` dropping the band pad that `section_door` keeps (MINOR/MINOR, argued), and its meet unpinned (mutant D survives, both);
+- `depth_gap::least_on`'s reader-side max (MINOR/MINOR);
+- the filed row's false premise;
+- `Breach::Degenerate` dead and the zero-axis case misnamed;
+- the vacuous cone-pinching disjunct;
+- the `≤ √2` shell row;
+- the lanes-agree row now nominal;
+- `bool_box_` K prefixes;
+- C7 answered (a) by both;
+- stale README text;
+- loop-closes-in-the-chart spelled twice or more;
+- the 20/50 verdict confirmed by both.
+
+**Unilateral R1:**
+- the apex winding branch unpinned (mutant A2, executed);
+- two meet-ball spellings in `glue`;
+- `face_rows` re-spelling `face_box`;
+- `face_cover_toward` aim-dependence;
+- six edge-reading entry points.
+
+**Unilateral R2:**
+- "support either way less the base" five times;
+- `cone_axial_window`'s scaffolding fold;
+- slab and frustum terms that never tighten a box (MUT_SLAB/FRUSTUM survive);
+- the clockwise-torus hole measured at 5.08 m (known row).
+
+**Tally candidates:** none. The one MAJOR is bilateral.
+
+**Adjudicated:**
+- everything into the fix pass, except: C7, filed as the unit `cover-carrier-level-piece` (P1/M, parked on this unit); `cone_axial_window`'s fold, sent to `cover-levers`; the clockwise torus, which stays on its row.
+- C7 is not a question for Ev. Both reviewers read the ratified text as already deciding it, and the level piece is its faithful elaboration.
+
+**Class finding, again.** The unit minted five spellings of one support-difference and two meet balls, despite the brief naming the trap. Q1 caught it in both reviews. The structural answer is still `cover-kind-match-gate`. A rule-of-thumb grep for "support either way" shapes belongs in that gate's design.
+
+## 2026-11-08 — `cover-topo-faces` lands (PR 6579)
+
+(BOXES orchestrator) The fix pass took every adjudicated item. `gate ok` is green at `1fd16037`.
+
+Accepted on my read. The slab and frustum removal rests on the rulings argument: the ruling through a cylinder face point leaves the face at boundary points on both sides; a cone's ruling runs through the apex, so the cone face lies in hull(boundary + apex). `face_nearest`'s plane stage is sound because the plane distance is convex.
+
+The dual row is `PR-6579.md`, with tally 0. The pair was coded blind and agrees with the pre-note.
+
+Unparked:
+- `cover-levers`, the next unit (H);
+- `cover-app-readers` (M);
+- `cover-carrier-level-piece` (M).
+
+`cover-kind-match-gate` waits on levers and app-readers.
+
+The lane survived a weekly usage-limit stop and a five-day gap: resumed, not restarted, with main merged twice. Its first merge dropped main's door bullets for three doors, which the inventory re-homing caught and restored. Class note: a large merge can silently drop the other side's prose, so read the merge's "missing from main's side" list.
+- 2026-11-08 — `cover-topo-faces` merged (PR 6579, `3b7794bb`). **Dispatched in parallel: `cover-levers` and `cover-app-readers`.** Both are single FULL review: neither changes the public cover type, and both move verdicts. They couple little (geom-brep, splitting and boolean ground against sweep and editor-core), and the disk holds two builds. `cover-carrier-level-piece` follows, then `cover-kind-match-gate`. Both lanes get one common brief (`~/.local/share/cad-work/boxes-cover-common-brief.md`, this box only) carrying the build's eight binding lessons. (BOXES orchestrator)
+- 2026-11-09 — A container restart stopped `cover-levers` and `cover-app-readers` mid-unit. Both clones survived: levers with three pushed commits and uncommitted work in nine files; app-readers clean, with PR 6588 open. Both lanes resumed, not restarted. The disk was at 2.2 GB free because app-readers' target had grown to 22 GB; deleting it freed the volume to 24 GB. (BOXES orchestrator)
+
+## 2026-11-09 — `cover-app-readers` (PR 6588) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `c9cf149e`: APPROVE-WITH-FIXES, no MAJOR.
+
+Confirmed:
+- the line-site re-posing, exact in any frame (6000 cases at f64 and Interval, 0 failures);
+- dropping `sheet_clip`'s pad: it paid for a coaxial approximation, not a clearance tolerance;
+- `ρ_lo` sound;
+- the mate `Band`.
+
+Into the fix pass:
+- the aim and `ρ_lo`'s tightness have no red-capable row (two mutants survive the whole sweep ci set);
+- the aim's K decision logs on every face, so it is decided where used;
+- a zero-tolerance emptiness test granting clearance, to be read through a named decide;
+- `at_rest::beyond`'s plane/cylinder gate, whose stated reason this PR made false;
+- an overstated exactness claim in the PR body and a row note;
+- small docs.
+
+**Class instance:** the premise-excludes-the-failing-mode test (a pose row that skips the one kind the new code touches). The style lane's Q3 caught it.
+- 2026-11-09 — PR 6588's fix pass (head `11bb520a`, gate green) took every item. Two of its choices:
+  - **It dropped the aim rather than pin it.** Every sphere face today's doors build has its rims about its own chart axis, so the pole cut never bites; a tilted chart is refused upstream as a frontier.
+  - **The emptiness test reads through the file's `sure`, not a new `BlendDecision` variant.**
+  
+  Accepted on my read.
+  
+  **Process breach, logged:** the lane pushed two EMPTY commits to re-run CI after runner 504s, which the rules forbid. The final run did execute the full code tiers over the PR's diff, so its green is genuine; nothing is re-done.
+  
+  **Friction finding:** runner tool downloads (actionlint, the python suite's tools) returned 504 several times on 2026-11-09, failing lint and the python suite before any check ran. This integration cannot re-run jobs (403), so a 504 costs a fresh push.
+  
+  Routed: a fifth `OutsideSessionBox` row as evidence on ONEHOME's main-red, and `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` on TINT (TCOST and TINT share its file; `work/issues/` no longer exists). (BOXES orchestrator)
+- 2026-11-09 — `cover-app-readers` merged (PR 6588, `6bbebd7e`). **Dispatched `cover-carrier-level-piece`** (single FULL review), in parallel with `cover-levers`' review. `cover-kind-match-gate` waits on `cover-levers` alone. (BOXES orchestrator)
+
+## 2026-11-09 — `cover-levers` (PR 6596) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `7f76cf1ca7`: APPROVE-WITH-FIXES, no MAJOR. Every probed lever is an upper bound (M1, M5, M6, M7 killed), and no verdict moved toward a grant.
+
+Into the fix pass:
+- **Rows.** M2, M4 and M8 survive. The PR body's claim about the lone-vertex row is false, since that row's face has no cover anyway. No new differential replaced the two retired.
+- **`foot_lever`.** It floors at a conic's centre, outside the consumed region, which the span narrowing made bind.
+- **Three spellings each** of the poison ball and the whole-circle cover; `Cover::ball` vs `Node::ball`.
+- **`cone_face_reach`'s reader-side window meet.**
+- **Refusal names** that now say less than they did.
+- **`chart_region` reading each cover twice per gate.**
+
+Deferrals scheduled on `cover-kind-match-gate`.
+
+The `[ev]` question on the "Float rounding" README text is still with Ev.
+
+**Class, again.** The fix that closed TWICE's two-types row minted three poison-ball spellings, in the same PR. Q1 caught it.
+
+## 2026-11-09 — the nightly is red, and some of it may be ours
+
+(BOXES orchestrator) Nightly run 42567046151 (sha `836426e0`) failed eight jobs:
+- rustdoc;
+- gate self-tests;
+- both k-lint rows;
+- `--all-features`;
+- the viewer;
+- both full slow-set suites.
+
+That sha contains PRs 6336, 6383, 6399 and 6579. The PR gate runs none of those jobs, so a merged cover unit can red main there unseen. Several rows look like ours:
+- the rustdoc gate ("a link to a renamed, deleted … item");
+- `span_reach_hunt`;
+- the `m10_sym_profile_interval` slab forms;
+- rows about origins "stored far off".
+
+A triage lane (`boxes/nightly-reds`) attributes every failing row by running it before and after each BOXES merge. It fixes ours in one PR, and files the rest that have no row on their owners' slates.
+
+**Class finding.** A unit's PR going green says nothing about the slow set, rustdoc, `--all-features` or k-lint. For a unit as wide as the cover build, each merge owes a run of the nightly-only jobs its diff can move, before or right after it lands. The brief's lesson 5 asked for the slow set only. Rustdoc and `--all-features` belong in it too.
+
+Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631).
+
+- 2026-11-09 — PR 6631's FULL review (head `c87a6b29`): APPROVE-WITH-FIXES. M1, a real false refusal: a cone frustum beside a pin at gap 5e-4 clears on the base and refuses on the head, because "proposes a depth" was conflated with "lies at a level" (a cone has no level, so `across` lost its axis). The fix pass separates the cover's proposed sites from `level`. Also taken: m1 (`reach_to` unguarded; add a row), m2 (patch shell has no row; add one or remove it), m3 (stale `Depth::*` citations in two onecopy rows), and style S1–S4, S7–S11 (Core/`Around::Circle` one shape, one range entry, one sphere spelling, one Gram helper). Deferred with a reason in the PR body: S5 (constructor flags) and S6 (shell as an Option field). The `inner` discontinuity at R = r is sound and fail-loud; kept, with a doc line.
+
+- 2026-11-09: merged PR 6639 (nightly 42567046151 triage). BOXES' reds were `span_reach_hunt` and the docm2 ladder, both from PR 6399, plus rustdoc sites from 6399 and 6579. The rest were attributed to their owners and filed at P0 on their slates.
+  - The first fix was a clamp at the reader (`span_reach` taking `.min(reach_from)`). I sent it back: the tighter bound now lives in `Cover::arc` as a meet with the whole conic. That raises `frozen` (evaluation cost) on the m10_9 and sym11 ledgers; decisions are unchanged, and the owners are notified on their rows.
+  - docm2 was re-pinned, not loosened at the cover. The tighter line-edge cover is a P2 row on BOXES.
+- 2026-11-09: PR 6631's fix pass (`07d55569`) passed delta review (APPROVE-WITH-FIXES, no MAJOR). It adds `Cover::about` (proposed sites) separate from `level`, and a cone frustum piece, probed sound over 3000 cases. The last small pass: depth_gap prose, one axis-line constructor, rename `cover::Radial`, delete the caller-less `level()`, and a skewed-frame tightness row. Two duplicates are deferred in the PR body: Shell/wall level spellings, and `Around`/`Site`.
+
+- 2026-11-14: merged PR 6596 (`cover-levers`, merge `e9b02da7c7`) after Ev's answer on the PR (2026-11-12) and three merges of main.
+  - The fixture-lever pins were rebaselined to geom-brep 447, sweep 32 and topo 290, with Ev's leave, because the rise is this PR's: it adds `ExtentBall::fixture` to the counted set.
+  - Two merge artifacts were fixed: a slow-set entry listed twice, and `verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar`, which ran 1.03 s on CI. The branch times that test the same as main locally, and other branches run it at 0.58–0.86 s on CI, so it joins the slow set as runner variance.
+  - **A verdict moved:** `recl::an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it`. Its skeletal faces have no cover, so the glue door reads no extent and passes. Main's pin of the collapsed-line refusal wording has no reachable fixture under the cover reading. The row's owner should know.
+  - Dispatched `cover-kind-match-gate` (the last unit), which started from the cover-levers branch before the merge.
+- 2026-11-14: PR 6957's single FULL review (`cover-kind-match-gate`, head `06ed312a64`): APPROVE-WITH-FIXES.
+  - **The cover move is sound** (C4): `Arc::near` reads the conic annulus. The reviewer probed 3000 ellipses with no unsound result at f64 or at Interval, and the old floor is never tighter.
+  - **All three MAJORs are taken, and all are in the gate:**
+    - (1) shrink-only `reader` pins would block every future cover reader, the right answer itself. They become a registry with an argued direction per site.
+    - (2) `ball` misses receiver-qualified radii, wrapped sums and sphere variants, and three tree instances are unpinned.
+    - (3) `arm` misses aliases, imported variants, `Self::` arms and neutrally named distance bounds. Name resolution replaces the literal prefix.
+  - **All MINORs are taken:**
+    - `READERS` derived from the doors' `pub` items, not hand-copied;
+    - `arc_distance_floor`'s Line arm and kind dispatch moved or filed;
+    - stale `arc_floor_rows` prose fixed;
+    - moved verdicts named, with an `arcs_along` row;
+    - the `rho_sum` and `(R−r)(R+r)` false positives excluded;
+    - pins follow a git rename;
+    - self-test gaps closed.
+  - **Class finding, the build's recurring one in gate form:** a gate keyed on spellings is a second hand-written list. MAJOR-1 is a gate that would have pushed sites away from the one right place.
+  - **The `foot_on` pivot is a design fork.** Two designers were dispatched (draw 112/242, recorded on `analysis/design-fork/foot-on-pivot`).
+- 2026-11-14: PR 6957's first fix pass (`419d4348cc`) passed delta review: APPROVE-WITH-FIXES.
+  - **Closed:** all three earlier MAJORs. Readers are a registry with an argued direction; ball reads whole statements; kind names resolve per file.
+  - **Checked clean:** `arcs.rs` after a disk-full truncation and restore; the radius 10³ → 100 change, honest because the 10³ cylinder fixture fails certification at ε = 1e-12 before the door runs; the self-test left out of lint, because a `ci.yml` edit puts the PR on the `all` tier, where the filed eps reds run.
+  - **New MAJOR, taken:** sums of three or more terms escape `ball` (non-overlapping regex pairing, plus an over-wide "two parenthesised sums" exclusion). The fix flattens each sum into its terms.
+  - **MINORs, taken:**
+    - the vertex pivot in `arcs_along` has no killing row;
+    - the registry's direction text is unchecked. A sweep of the lever entries is needed, because a longer arm decides zero less readily but nonzero more readily.
+    - registry lines are re-keyed on (file, fn, door), so that a swap of doors goes red.
+  - The `foot_on` fork converged after three rounds on the window's middle; it is `[ev]` PR 6968.
+- 2026-11-09 — PR 6596's fix pass (head `8fd8a93f`, gate green) took every item:
+  - **Red-capable rows** for M2, M4, M8, `Cover::circle`, the box ball and GERM's antipode; the false PR-body claim is corrected.
+  - **`foot_lever`:** reads at a point of the arc, and the kind match is gone.
+  - **One poison-ball door** (`of_covered(Option<&Cover>)`) and **one whole-circle construction** (`Cover::circle`).
+  - **The box ball:** built inside the node rule, bottom-up.
+  - **The cone window:** now a `Cover::meet`.
+  - **Refusals carry `FaceUncovered`.**
+  - **`chart_region`:** reads each cover once per gate.
+  - **`witness_pad`:** kept on the union as a band tolerance, and declined on the overlap, where a point touch would read as a length.
+
+  Accepted on my read. The box ball is sound because a meet's box is the intersection of its parts', a hull's the union, and every node's ball is the smaller of two balls that each contain the set. Merge waits on Ev's `[ev]` answer on the "Float rounding" text. `arc_distance_floor` is scheduled on `cover-kind-match-gate`. (BOXES orchestrator)
+- 2026-11-14: merged PR 6957 (`cover-kind-match-gate`, merge `892f2d7bcf`) after its second fix pass. I verified the pass myself rather than dispatch a third review:
+  - the self-test passes;
+  - the delta review's five escaping sums, planted in production code, now go red, as does a let-bound renamed torus sum;
+  - a neutrally named alias arm returning `radius * 2` still passes, which is the documented neutral-vocabulary class.
+  Pins: 363 arm, 38 ball, 28 whole; 96 reads of 26 doors registered. The unit closes, and its leftovers are filed as their own rows. The cover build's last unit is merged. Open: `[ev]` PR 6968 (the pivot fork), then its implementing unit.
+- 2026-11-15: Ev approved `[ev]` PR 6968, the `foot_on` pivot: the window's middle; "no need to try to find a point that's better than the midpoint right now". Merged as `0807c130bf`.
+  - Ev first asked how a point that is not a witness can be sound. Answer: the pivot is the origin of a tilt bound, so any point is sound provided the datum and its lever are read at it. That is now one README clause, added on Ev's "only if ambiguous", since the question itself showed it was ambiguous.
+  - Row 269 is filled in: Opus = A, Fable = B.
+  - Dispatched the implementing unit on `boxes/reach-region`.
+- 2026-11-15: the implementing unit opened PR 6976 (`boxes/reach-region`, head `152a4a9be9`, gate green). The changes:
+  - `Reach::Region(Cover)` via `of_span`;
+  - the midpoint `foot_on`;
+  - `reading_point`, `span_points` and `minimax_on_axis` deleted;
+  - a swap-invariant parallel `d`;
+  - topo's span sites read `edge_cover` or `of_span`, with a typed `EdgeUncovered`.
+
+  It reports that designer B's coaxial claim holds for every caller today, with one latent case: `transport_curve`. The first head's corrupt-input red (`review_d18` seed `0xd3ff1f8c5d8b60f6`) reproduces on main and is charttail's filed own-loop panic, so it is not this diff. Dispatched a single FULL review. (BOXES orchestrator)
+- 2026-11-15: PR 6976's FULL review returned APPROVE-WITH-FIXES with no MAJOR. Soundness, bit-for-bit `d` symmetry, the pins, the edge-cover lever measurement (≤1.85e-16 on a re-run slice) and the mutant kills all hold under execution. My rulings:
+  - **Taken:**
+    - `span_reach` is a second spelling of `cover::arc_cover`, so it routes there;
+    - the half-done stale-doc sweep (`parallel_swing`, `RuledFrame`, the `CcStance::Parallel` foot, `refusal()`'s row list) gets finished;
+    - the unguarded "3.2%" is replaced by the bound the hunt guards;
+    - the PR body's `carrier_eq` row, its "same pivot" claim and its undisclosed head commit are corrected;
+    - `foot_on`'s √2 is said to be relative to the cover's least.
+  - **`EdgeUncovered`'s standing:** take its standing from the cause rather than a blanket "limit". A poisoned or non-finite net is not a "not yet".
+  - **The drift between `ExtentBall::of_edge_from`/`cover_far` (poison) and `of_span` (typed), and the two ball-pivot spellings:** fix both in this pass if small, otherwise file with citations.
+
+  The fix pass is sent to the implementing lane. (BOXES orchestrator)
+- 2026-11-15: I verified PR 6976's fix pass myself rather than dispatch a delta review. Every MINOR was taken:
+  - `span_reach` is gone, and moved carriers read `arc_cover`;
+  - `EdgeUncovered::refusal` stands by its cause: data faults are row 4, scaffolding is a limit, and a mixed payload aborts;
+  - a ball has one pivot spelling, `Reach::Ball` reading `ExtentBall::foot_on`;
+  - `of_edge_from` is deleted;
+  - the 3.2% claim is replaced by the bound the hunt guards;
+  - `mint_carrier` reads the gate's section, so its `unreachable!` is gone.
+
+  No pinned verdict moved, and CI is green on `fb141e4945`. Merged as `47905426f9`; `a-reachs-pivot-is-chosen-per-kind` is closed. Filed in this pass:
+  - `face-uncovered-stands-as-a-limit-whatever-its-cause`;
+  - `edge-extent-sup-poisons-an-uncovered-span`.
+
+  BOXES's implementation queue is empty apart from the filed P2/P3 follow-ups. (BOXES orchestrator)
+- 2026-11-15: The track is set back to `ready`. Its orchestrator exited without handing the track back, so it read `active` with nobody on it; 20 rows are dispatchable. (set at Ev's request)
+- 2026-11-20 — (ONEROUND orchestrator) `oneround/lever-doors` (PR 7143, in its fix pass) lowers `scripts/gates/cover-kind-match.counts` from `arm 7 implicit.rs` to `arm 2 implicit.rs` plus `arm 1 curvature_arm.rs`. Four of the arms it counted were `curvature_lever_arm`'s kind match; they now sit in `uniform_curvature_arm`, whose name the gate's pattern does not read as a region, so they left the count by a rename and not by a clearing. Its reviewer read the gate's header and judged a curvature radius by kind outside what the gate holds (its own "cannot see" list names "an `arm` built from a carrier's radii"), but the pin fell without BOXES deciding it.
+- 2026-11-20 — (ONEROUND orchestrator) **Seam: `oneround/box-region` makes `topo::cover::face_cover` the session box's read of every finished face** (Ev's answer on PR 7140; `crates/geom-core/README.md`, the session-box bullet). Four of your open rows now bear on a refusal, not only on a box's tightness: `the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement` (the unit's inside read places candidate points through `contain::curved_face_placement`, the door that row wants the cover off), `torus-box-window-does-not-bound-a-clockwise-face` (a cover that does not bound its face would admit a body past the box), `sphere-window-re-reads-the-loop-on-every-reach` (the face read now runs at every finish, move and placement; the unit measures its cost), and a spline face's whole-net cover (a loose cover refuses as a limit). `sphere-operand-box-is-the-whole-ball` (P1) names `FaceBoxRule::WholeBall`; no symbol of that name is in the tree and `face_box` reads `sphere_window`, so the row looks stale.

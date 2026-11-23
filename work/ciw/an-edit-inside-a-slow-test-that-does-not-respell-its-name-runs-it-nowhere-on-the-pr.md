@@ -1,0 +1,159 @@
+---
+id: an-edit-inside-a-slow-test-that-does-not-respell-its-name-runs-it-nowhere-on-the-pr
+kind: issue
+title: an edit inside a slow test, or to its helpers, that does not re-spell its name runs it nowhere on the PR
+status: closed
+opened: 2026-10-28
+priority: P3
+cost: E
+closed: 2026-11-22
+---
+
+
+Filed by TESS's thin-rings lane (PR 5911), outside its fence.
+
+## What
+
+`docs/prompts/implementer-discipline.md` §2 says the per-PR gate runs
+"the slow tests your diff adds or edits". `.github/workflows/ci.yml`'s
+slow-set step runs a slow test only when an added Rust line in the diff
+spells its leaf name (`scripts/check-fast-set-times.py` `added_tokens`,
+then `scripts/slow_set.py --new-expr`). An edit to a slow test's body,
+or to a helper it calls, that leaves its `fn` line untouched therefore
+runs the test in no PR step. The ε rows that run "every test file it
+adds or edits" (`EPS_EXTRA`) also run under the `ci` profile, so they
+skip it as well. The script's module doc names the general blind spot
+("a test whose name no added line spells"), but §2 and its readers
+assume an edit is caught.
+
+## Witness
+
+PR 5911 head `e779226321`
+(`crates/sweep/tests/an_annular_tube_through_a_plate.rs`) changes the body
+of the slow test `thin_nested_rings_build` and the `every_op` helper it
+calls. The run's change filter selected `sweep`, and the slow-set step
+logged "0 tests run". The two ε rows ran the file's four fast tests only.
+The changed test was green only by a local run.
+
+## Wanted
+
+Either make the gate select the slow tests of every test file the diff
+edits (the file-level rule `EPS_EXTRA` already uses), or reword §2 to
+say a slow test runs on the PR only when an added line names it. A §2
+edit goes to Ev, because `docs/prompts/` binds every lane.
+
+## Evidence, 2026-10-31 (PR 6128)
+
+A second witness. PR 6128 (`vseam/a-labelled-creation-is-one-recording`),
+at head `3f7b8d48ed`, rewrote `labelled_as_one_undo` in
+`crates/viewer/tests/node_labels.rs`. That helper is the body of the
+slow test `every_creation_labelled_is_one_undo_whatever_door_commits_it`,
+which the same PR had just moved into the slow set. No added line spelled
+the test's name, so the PR's slow-set step selected nothing, and the
+PR's central row went green on no gate at all. The review caught it. The
+fix pass re-spells the name in the helper's doc comment.
+
+A third (GREEN lane, PR 6343, 2026-11-02). The PR re-pinned eleven
+sweep slow rows by editing their expectation tables
+(`cylinder_sphere_frame`'s `pose_rows!` door arrays, `germ_tilted_rod`'s
+`OTHER_SPINS_STOPS`, and the asserted `Stop` in `torus_doors_join`). Its
+first gate ran `Starting 0 tests` in the slow-set step and still
+concluded `gate ok`. The fix pass names each row in its pin comment.
+
+## Evidence: PR 6818 (TINT, 2026-11-11)
+
+Two more slow rows show the same blind spot, from both sides.
+
+- **How the red got in.** PR 6371 retyped `BooleanError::ResultInvalid`'s
+  field from `errors` to `findings`. Nothing in that diff spells
+  `germ_tilted_rod::the_steeper_tilts_union_stops_by_identity`, so the
+  test ran on no PR step. It stood red on main from 2026-11-08 until
+  PR 6818.
+- **How the fix goes unchecked.** PR 6818 re-pins that test inside its
+  body and adds a line to
+  `bounds_census::every_sole_bracket_bound_door_is_in_the_roster`'s
+  `ROSTER`. Its head `403e5baf1f` reported, in hosted run 42965866425 (job
+  `test (kernel)`):
+  - `slow set over: package(geom-core)|package(sweep)`, followed by `0 tests run`;
+  - change filter: "1 of its rows are in ci's slow set and skip this step"
+    for `bounds_census.rs`, and "3 of its rows" for `germ_tilted_rod.rs`.
+
+  So neither fix ran hosted at any ε. The PR's evidence for both is a
+  local run.
+
+- **PR 6934** (`green/eps-1e-6`, 2026-11-14): two of its thirteen slow rows were edited without their names on an added line (`a_vertex_piercing_a_lens_wall::a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate`, a re-pinned stop inside the body; `m5_s11_concave_sense::loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`, a constant it reads). Each now has a doc line naming the test, which is what selects it. Even selected, a slow row runs on the PR at the default ε only, so an ε 1e-6 pin on one is checked by no PR step.
+
+
+## Evidence (GREEN, 2026-11-14): a PR that re-pins six slow tests got a green gate that ran none of them
+
+PR 6931 (`green/default-eps`) pins or re-blesses six slow-set tests by editing their bodies and helpers. Its first gate run (head `447474cb7`) was green with the slow-set step lasting one second: the diff's added lines spelled none of the six names. The lane made each pin's comment name its test, and the second run (43555174396) is the one that ran them. Every lane that greens a nightly red is in this position, since greening a slow test is an edit inside it. On GREEN this turns "the gate is green" into no evidence at all for a pin PR, so the lanes now read the step log for which tests ran.
+
+**Comments written for the selector (PR 6931's fix pass).** The lane's
+answer was to make a comment beside each pin name the test that reads
+it. Those mentions exist so that an added line spells the name and the
+slow-set step selects the test; they are to go when the selector reads
+edits inside a test. They are:
+
+- `crates/sweep/tests/a_plane_near_a_needle_cones_apex.rs`, the module
+  header's last sentence;
+- `crates/sweep/tests/an_aimed_ray_from_far_reads_a_split_side_right.rs`,
+  `Read`'s doc (two test names);
+- `crates/topo/tests/shell_role_reader.rs`, `MOVED_THIN_READS`' doc;
+- `crates/topo/src/boolean/offer_rows.rs`, `QUOTED_AS_A_LENGTH`'s doc;
+- `crates/viewer/tests/door_at_rest.rs`, `DIE_UNPROVEN`'s doc.
+
+The review of that PR also read which rows the second run reached: each
+of the six once, at the default ε, in the slow-set step, and nowhere
+else (`work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`).
+
+## The workaround in the tree, and when it goes (GREEN `green/goldens`, PR 6956, 2026-11-14)
+
+PR 6956 re-cut tables and golden files read by ten slow-set rows; its diff spelled none of their names, and `slow_set.py --new-expr` selected `none()`. To be gated at all it added, beside each re-cut table, a doc line naming the test that reads it (`[`the_blend_documents_evaluate_to_their_committed_digests`]` and the like, in `lib_g16_corpus_name_digests.rs`, `perf2_name_keying_differential.rs`, `seat4_verb_lowering.rs`, `seat7_sweep_lowering.rs`, `sym11_exact_channel_rows.rs`, `perf12_census_goldens.rs`, `m10_5_clearance_interval.rs`, `step-export/tests/export.rs` and `sweep/tests/mass_props_are_thread_count_invariant.rs`).
+
+Those lines exist only for the selector. They fail open: a later re-cut that edits a constant and leaves the doc line alone adds no line spelling the name, so it is selected by nothing again, and nothing says so. A golden FILE re-cut (`.txt`, `.step`) never adds a Rust line at all. When the selector is fixed to see a slow test whose body, table or `include_str!` target the diff touches, the lines can go.
+
+## Six more of those lines (GREEN `green/nightly-1115`, PR 6985, 2026-11-15)
+
+PR 6985 re-states six slow-set rows without respelling a name, so it
+names each on an added line. Four read as part of the doc they sit in
+and two exist only for the selector:
+
+- only for the selector: `crates/editor-core/tests/coincidence_door.rs`,
+  the parenthesis naming
+  `the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows` in
+  that test's own doc; `crates/test-utils/tests/reader_census.rs`, the
+  two comment lines naming
+  `every_site_that_reads_rust_source_is_in_the_ledger` on the ledger's
+  new `a_blend_reads_the_wedge_through_the_one_fold.rs` entry;
+- part of the doc: `sym11_exact_channel_rows.rs` (`PAST_THE_CEILING`'s
+  doc), `mass_props_are_thread_count_invariant.rs` (`expected`'s doc,
+  both walk rows; its golden `.txt` edit adds no Rust line),
+  `raw_door_census.rs` (`after_mod_keyword`'s doc).
+
+The step runs them at the default ε only. Three of the six were red at
+1e-12 only or at every row, so the 1e-6 and 1e-12 readings in that PR
+are local runs.
+
+## Witness: PR 7114 (DOCTAIL first turn, 2026-11-18)
+
+A change to the behaviour the slow rows read, with none of their names on an added line. PR 7114 changes what the resolver names (the verdict log's roles, the first-turn reading). At head `25567153c8`, the kernel job's "the slow-set tests this diff adds or edits" step ran 0 tests, and `gate ok` was green. A review then found `edit_strip_mouth_cups::a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_verdict` red at that head. The row's file was untouched by the PR, so no file-level rule would have caught it either.
+
+The `revalue_corpus` floors and two recourse-roster rows the PR moved were caught only by a local run of a hand-picked filter. A rule that reads names or files cannot see a slow row that reads behaviour through a crate it depends on. What would catch it is running the slow set of every crate whose `src/` the diff changes, or at least of the rows that read the changed module's names.
+
+Signed (DOCTAIL first-turn lane).
+
+**2026-11-21 (ONEROUND orchestrator), another instance.** PR 7225 (`oneround/box-region`) edits the bodies of `tcost_k3_certificate`'s two slow rows and their helper and spells neither name on an added line. Run 44859392555, job `test (kernel)`, step "test (the slow-set tests this diff adds or edits)": "Starting 0 tests across 0 binaries (12 binaries skipped)". The step is green, and a reviewer found it only by reading the step's log; the same step in `test (app)` took one second with a re-baselined ledger in the diff.
+
+## Closed
+
+2026-11-22, CIW triage (stale). - Fixed by PR 7359 (`425990a7be`, 11-22). `is_edited` selects every slow
+row of an edited file (`slow_set.py:145-159`). Its witnesses (PRs 5911,
+6128, 6343, 6818, 6931, 6934, 6956, 6985 and 7225) all edit the row's
+own file. `work/ciw/log.md` has the 11-21 crossing entry.
+- Residue:
+- a helper in another file or a data file named by a built string goes
+to GREEN's two open P3 rows;
+- behaviour through `src` (PR 7114) goes to the P1 reform;
+- ε goes to `a-slow-rows-eps-pins-…`.
+- GREEN noted that the hosted step has not yet run on a PR that edits a
+slow file. Check the first such run's log.

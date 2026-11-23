@@ -1,0 +1,1640 @@
+//! **The analytic blend arms** (C8's D3 payoff): the constant-radius
+//! rolling ball over analytic supports lands on analytic surfaces in
+//! exactly the cases that dominate practice, and those are the cases
+//! this unit ships — nothing is fitted, nothing is approximated.
+//!
+//! | support pair | spine | blend | trimlines |
+//! |---|---|---|---|
+//! | plane–plane | line | cylinder | two lines |
+//! | plane–sphere (a circular rim) | circle | torus | two circles |
+//! | sphere–cone, cone–plane(⊥), cone–cone, cylinder–cone, cylinder–sphere, cylinder–plane(⊥), sphere–sphere | circle | torus | two circles |
+//! | cylinder–cylinder(∥), cylinder–plane(∥) | line | cylinder | two lines |
+//! | trihedral vertex (3 planes) | point | sphere | three circles |
+//!
+//! **Every constant-radius arm mints a TORUS or a CYLINDER, never a
+//! cone.** A constant-radius rolling ball is the envelope of EQUAL
+//! spheres, and the envelope of equal spheres over a line spine is a
+//! cylinder and over a circle spine a torus; a cone is the envelope of
+//! spheres whose radius varies LINEARLY, which is the variable-radius
+//! (canal) family, not this one.
+//!
+//! # The one derivation, said once ([`SupportTrace`])
+//!
+//! Rows 2–4 are a single closed form. Whenever a support pair carries a
+//! symmetry that the rolling ball inherits — a common axis of
+//! revolution, or a common ruling direction — the ball's centre is
+//! confined to one plane: the **SHEET**. For a coaxial pair that is the
+//! meridian half-plane through the rim point ([`Meridian`]); for a pair
+//! meeting along a straight ruling it is the cross-section normal to
+//! that ruling ([`Ruling`]). Both supports cut the sheet in a LINE or a
+//! CIRCLE, the ball centre is where the two offset traces cross
+//! ([`sheet_center`]), and the spine is that centre carried round the
+//! axis (a circle ⇒ torus) or along the ruling (a line ⇒ cylinder).
+//!
+//! So the per-pair content is only the reduction — which trace each
+//! support cuts, and on which side its material lies — and the spine
+//! radius `s` falls out of the crossing. The pairs, with the trace each
+//! support contributes to the sheet and the resulting `s`:
+//!
+//! | pair | traces | spine radius `s` |
+//! |---|---|---|
+//! | plane(⊥)–sphere | line ⊥ axis × circle | `√((R ∓ r)² − h²)` |
+//! | cone–plane(⊥) | two lines | crossing of the two offset lines |
+//! | cone–cone | two lines | crossing of the two offset lines |
+//! | cylinder–cone | two lines | `R ∓ r` and the offset generator |
+//! | cylinder–plane(⊥) | two lines | `R ∓ r` exactly |
+//! | sphere–cone | line × circle | the offset generator on the offset sphere |
+//! | cylinder–sphere | line × circle | `R_cyl ∓ r` exactly |
+//! | sphere–sphere | two circles | the offset spheres' own crossing |
+//! | cylinder–cylinder(∥) | two circles | (straight spine: no `s`) |
+//! | cylinder–plane(∥) | line × circle | (straight spine: no `s`) |
+//!
+//! The pair is selected by the RIM CARRIER's own stored shape, not
+//! guessed: a coaxial pair meets in a circle and a ruled pair in a
+//! line, so the carrier says which sheet the reduction runs in.
+//!
+//! The **chamfer** ([`chamfer_strip`], [`chamfer_corner_patch`]) is
+//! the ruled sibling of the first and third rows: the same trimline
+//! structure over the same supports, with the rolling ball's tube
+//! replaced by the flat strip at equal setback and its octant by the
+//! plane through the three feet. It is exact for the same reason — a
+//! straight edge over planes puts both trimlines on lines. Over a
+//! cylinder meeting a plane square to its axis ([`chamfer_frustum`])
+//! the feet lie in the meridian sheet instead, so the trimlines are
+//! circles about the axis and the band is the cone through them: a
+//! frustum coaxial with the cylinder, the strip carried round the axis.
+//!
+//! Every arm returns its blend surface, its spine, and the EXACT
+//! setback on each support — and the battery consumes the setback
+//! from HERE, not from a parallel first-order estimate. That is what
+//! makes the ordering claim honest: the quantity predicate 2 refuses
+//! on is bit-for-bit the quantity the constructor would use.
+//!
+//! **Sense, from stored structure** (S10/S11): a blend face's chart
+//! normal agrees with the material's outward normal exactly when the
+//! chain is CONVEX — the rolling ball is then inside the material and
+//! the blend bulges away from it, so the chart normal (radially out
+//! of the tube/ball) is the outward one. On a CONCAVE chain the ball
+//! rolls in the void, material sits outside the tube, and the sense
+//! bit is `false`. The bit is read off the chain's stored convexity
+//! verdict — never from a sampled normal.
+//!
+//! Everything a general spine would need — a canal surface, the
+//! kernel's first approximating SURFACE — is refused typed by
+//! [`super::BlendError::SpineUnsupported`], which names that banked
+//! unit as the front door that does not exist yet.
+
+use geom::Curve3;
+use geom::Surface;
+use geom_brep::SurfaceSide;
+use geom_core::{Circles, Point3, Real, Vec3};
+
+use super::battery::{Convexity, ball_side, sided, signed};
+
+/// A blend surface with its spine and its per-support trimlines —
+/// the complete analytic answer for one link of a chain.
+#[derive(Clone, Debug)]
+pub struct EdgeBlend<T: Real> {
+    /// The blend surface itself: the fillet's cylinder or torus, or
+    /// the chamfer's plane strip.
+    pub surface: Surface<T>,
+    /// The spine's curvature, 1/meters: `0` for a straight spine,
+    /// `1/s` for a circular one. Predicate 3 reads this.
+    ///
+    /// A rolling-ball fact, so a ruled band has none: the chamfer
+    /// strip stores `0` and predicate 3 does not run over it (a
+    /// chamfer has no rolling ball whose centre locus could fold).
+    pub spine_curvature: T,
+    /// The trimline on the FIRST support, and the setback (meters)
+    /// from the original edge to it, measured in that support.
+    pub trim_a: (Curve3<T>, T),
+    /// The trimline on the SECOND support, likewise.
+    pub trim_b: (Curve3<T>, T),
+}
+
+/// One support's trimline and the setback to it, as [`EdgeBlend`]
+/// stores them.
+pub(crate) type Trim<T> = (Curve3<T>, T);
+
+impl<T: Real> EdgeBlend<T> {
+    /// **The trim on one support, then the other's**: the FIRST
+    /// support's (`trim_a`) first when `first_is_a`, else the second's.
+    /// Callers name the support by FACE (`first_is_a = link.face_a ==
+    /// face`), never by slot: `face_a` is whichever support carries
+    /// `he_plus`, which the request does not choose. The one home of
+    /// that selection.
+    pub(crate) fn trims(&self, first_is_a: bool) -> (&Trim<T>, &Trim<T>) {
+        if first_is_a {
+            (&self.trim_a, &self.trim_b)
+        } else {
+            (&self.trim_b, &self.trim_a)
+        }
+    }
+}
+
+/// **The rolling ball's section of a link's band through `p`**: the
+/// circle of the ball's radius about the spine's point in the plane
+/// through `p` normal to the spine, and that plane's unit normal. A
+/// cylinder band's is its transverse circle (centre the axis foot, normal
+/// the axis), a torus band's its meridian (centre the spine circle at
+/// `p`'s azimuth, normal the azimuth's tangent). `None` for a band with no
+/// rolling ball.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BallSection<T: Real> {
+    pub(crate) centre: Point3<T>,
+    pub(crate) normal: Vec3<T>,
+    pub(crate) radius: T,
+}
+
+impl<T: Real> BallSection<T> {
+    pub(crate) fn of(blend: &EdgeBlend<T>, p: Point3<T>) -> Option<Self> {
+        match blend.surface {
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
+                Some(Self {
+                    centre: origin + axis * (p - origin).dot(axis),
+                    normal: axis,
+                    radius,
+                })
+            }
+            Surface::Torus {
+                frame,
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                let radial = radial_about(center, axis, p);
+                Some(Self {
+                    centre: center + radial * major_radius,
+                    normal: axis.cross(radial).normalize(),
+                    radius: minor_radius,
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// **A chamfer band's foot through `p` on one of its trims**: a strip's
+/// trimline's foot of `p`, a frustum's trim circle at `p`'s azimuth. At
+/// a junction point both are the setback along that support's inward
+/// unit, so two links' feet on one support coincide where their bands
+/// share their section, the generator between the two feet. `None` for
+/// a trim that is neither a line nor a circle.
+pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
+    match trim {
+        Curve3::Line(line) => Some(line.foot(p)),
+        Curve3::Circle(c) => Some(
+            c.frame().origin() + perp_unit(p - c.frame().origin(), c.frame().axis()) * c.radius(),
+        ),
+        _ => None,
+    }
+}
+
+/// The unit radial about the axis through `center` along `axis` at `p`'s
+/// azimuth: a torus's or a cone's.
+pub(crate) fn radial_about<T: Real>(center: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> Vec3<T> {
+    let q = p - center;
+    (q - axis * q.dot(axis)).normalize()
+}
+
+/// The corner ball of a uniform trihedral vertex: a sphere patch (the
+/// spherical triangle bounded by the three contact circles with the
+/// three incident edge cylinders), resting inside the material at a
+/// convex corner and in the void at a concave one.
+#[derive(Clone, Debug)]
+pub struct CornerBall<T: Real> {
+    /// The sphere the octant patch lies on — **measurement-only**: the
+    /// carve reads [`CornerBall::center`] and mints the production
+    /// chart one level up (`build`'s octant chart pick), because the
+    /// iso-rectangle criterion needs the corner's incident LINKS and
+    /// third support, which three normals cannot see. This chart
+    /// ([`corner_chart`] over the side's own feet) exists so the arm is
+    /// measurable as a value, coherent on both sides.
+    pub surface: Surface<T>,
+    /// The ball centre — the point at distance `r` from all three
+    /// support planes, on the side the corner's convexity picks. The
+    /// one field the carve consumes.
+    pub center: Point3<T>,
+    /// `|det(n₁, n₂, n₃)|` for the three outward support normals —
+    /// **measurement-only**: predicate 6 classifies this margin
+    /// BEFORE any ball exists (the C8 ordering), from the same
+    /// determinant recomputed on the battery's own inputs; the field
+    /// exposes the solve's conditioning to rows that measure the arm.
+    pub independence: T,
+}
+
+/// The rim blend of a plane meeting a sphere along a circle — the pip
+/// rims. Named separately from [`EdgeBlend`] only in the docs: it is
+/// produced by [`plane_sphere_blend`] and returned as an
+/// [`EdgeBlend`] like every other arm.
+pub type RimBlend<T> = EdgeBlend<T>;
+
+/// Which analytic arm a link took — carried on the link so the report
+/// and the tests can enumerate coverage without re-deriving it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlendArm {
+    /// Plane–plane edge → cylinder patch, straight spine.
+    PlanePlaneCylinder,
+    /// Plane–sphere circular rim → torus patch, circular spine.
+    PlaneSphereTorus,
+    /// Plane–plane edge → flat strip at equal setback, no spine. The
+    /// chamfer's open-chain arm ([`chamfer_strip`]).
+    PlanePlaneStrip,
+    /// Sphere–cone coaxial rim → torus patch, circular spine.
+    SphereConeTorus,
+    /// Cone–plane(⊥ axis) coaxial rim → torus patch, circular spine.
+    ConePlaneTorus,
+    /// Cone–cone coaxial rim → torus patch, circular spine.
+    ConeConeTorus,
+    /// Cylinder–cone coaxial rim → torus patch, circular spine.
+    CylinderConeTorus,
+    /// Cylinder–sphere coaxial rim → torus patch, circular spine.
+    CylinderSphereTorus,
+    /// Cylinder–plane(⊥ axis) coaxial rim → torus patch, circular spine.
+    CylinderPlaneTorus,
+    /// Sphere–sphere rim → torus patch, circular spine. The one arm
+    /// whose hypothesis is free: two spheres on distinct centres always
+    /// meet in a circle, and the line through the centres is that
+    /// circle's own axis, so the pair is coaxial by construction.
+    SphereSphereTorus,
+    /// Two parallel cylinders meeting along a common ruling → cylinder
+    /// patch, straight spine. The open-chain surgery carves its band
+    /// between TRANSVERSE CAPS — plane faces perpendicular to the
+    /// ruling, where the band ends in the cap's own section of it.
+    CylinderCylinderCylinder,
+    /// Cylinder and a plane containing its axis direction, meeting
+    /// along a ruling → cylinder patch, straight spine. Carved between
+    /// plane caps exactly as the row above.
+    CylinderPlaneCylinder,
+    /// Cylinder–plane(⊥ axis) circular rim → cone frustum at equal
+    /// setback, no spine. The chamfer's closed-rim arm
+    /// ([`chamfer_frustum`]).
+    CylinderPlaneCone,
+}
+
+impl BlendArm {
+    /// Whether this arm blends a plane–plane support pair — the pair
+    /// the in-place open-chain surgery carves between trivalent
+    /// corners, whichever band the request grafts onto it.
+    #[must_use]
+    pub fn is_plane_plane(self) -> bool {
+        matches!(self, Self::PlanePlaneCylinder | Self::PlanePlaneStrip)
+    }
+
+    /// Whether this arm is a CHAMFER's: a ruled band at equal setback
+    /// rather than a rolling ball's envelope.
+    #[must_use]
+    pub fn is_chamfer(self) -> bool {
+        matches!(self, Self::PlanePlaneStrip | Self::CylinderPlaneCone)
+    }
+
+    /// Whether this arm's band is a surface of revolution about its
+    /// supports' common axis, meeting each support in a circle about it
+    /// — the shape a closed rim's band is carved from: the fillet's
+    /// torus ([`Self::is_coaxial_torus`]) or the chamfer's frustum.
+    #[must_use]
+    pub fn is_coaxial(self) -> bool {
+        self.is_coaxial_torus() || self == Self::CylinderPlaneCone
+    }
+
+    /// Whether the band meets its supports TANGENTIALLY along its
+    /// trimlines — every rolling ball's does — or crosses them at a
+    /// definite angle, as a chamfer's does.
+    #[must_use]
+    pub fn meets_supports_tangentially(self) -> bool {
+        !self.is_chamfer()
+    }
+
+    /// Whether this arm is a RULED one — a cylinder band about a
+    /// straight spine over curved supports sharing the ruling, whose
+    /// open chain terminates in plane caps rather than corners.
+    #[must_use]
+    pub fn is_ruled(self) -> bool {
+        matches!(
+            self,
+            Self::CylinderCylinderCylinder | Self::CylinderPlaneCylinder
+        )
+    }
+
+    /// Whether this arm's blend is the TORUS about a circular spine —
+    /// the shape a CLOSED rim's fillet band is built from, whatever kinds
+    /// its two supports are. Every coaxial-revolution pair mints one; the
+    /// ruled pairs mint a cylinder and meet along an open edge instead.
+    #[must_use]
+    pub fn is_coaxial_torus(self) -> bool {
+        matches!(
+            self,
+            Self::PlaneSphereTorus
+                | Self::SphereConeTorus
+                | Self::ConePlaneTorus
+                | Self::ConeConeTorus
+                | Self::CylinderConeTorus
+                | Self::CylinderSphereTorus
+                | Self::CylinderPlaneTorus
+                | Self::SphereSphereTorus
+        )
+    }
+
+    /// The arm's name, for refusal text and report rows. The
+    /// [`super::BlendError::SpineUnsupported`] payload's hand-written
+    /// roster is checked against exactly these strings, so a new arm
+    /// that is not advertised there fails a test rather than shipping a
+    /// stale refusal.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::PlanePlaneCylinder => "plane–plane → cylinder",
+            Self::PlaneSphereTorus => "plane–sphere → torus",
+            Self::PlanePlaneStrip => "plane–plane → strip",
+            Self::SphereConeTorus => "sphere–cone → torus",
+            Self::ConePlaneTorus => "cone–plane → torus",
+            Self::ConeConeTorus => "cone–cone → torus",
+            Self::CylinderConeTorus => "cylinder–cone → torus",
+            Self::CylinderSphereTorus => "cylinder–sphere → torus",
+            Self::CylinderPlaneTorus => "cylinder–plane → torus",
+            Self::SphereSphereTorus => "sphere–sphere → torus",
+            Self::CylinderCylinderCylinder => "cylinder–cylinder → cylinder",
+            Self::CylinderPlaneCylinder => "cylinder–plane(∥) → cylinder",
+            Self::CylinderPlaneCone => "cylinder–plane → cone",
+        }
+    }
+
+    /// The arm's two support KINDS, in the same order
+    /// [`Self::name`] spells them — one word each, in the vocabulary
+    /// the recourse sentences use for a stored surface, which is
+    /// [`geom::SurfaceKind::name`]'s.
+    ///
+    /// Split out from [`Self::name`] because a refused caller needs
+    /// the KIND SET (four words, which is what the door tests first)
+    /// and the refusal's payload needs the PAIRS (eleven rows), and
+    /// only the second of those is a display string.
+    /// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+    /// checks each word here against the pair half of [`Self::name`],
+    /// so the two spellings cannot drift apart.
+    #[must_use]
+    pub fn kinds(self) -> [&'static str; 2] {
+        use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere};
+        match self {
+            Self::PlanePlaneCylinder | Self::PlanePlaneStrip => [Plane, Plane],
+            Self::PlaneSphereTorus => [Plane, Sphere],
+            Self::SphereConeTorus => [Sphere, Cone],
+            Self::ConePlaneTorus => [Cone, Plane],
+            Self::ConeConeTorus => [Cone, Cone],
+            Self::CylinderConeTorus => [Cylinder, Cone],
+            Self::CylinderSphereTorus => [Cylinder, Sphere],
+            Self::CylinderPlaneTorus | Self::CylinderPlaneCylinder | Self::CylinderPlaneCone => {
+                [Cylinder, Plane]
+            }
+            Self::SphereSphereTorus => [Sphere, Sphere],
+            Self::CylinderCylinderCylinder => [Cylinder, Cylinder],
+        }
+        .map(geom::SurfaceKind::name)
+    }
+
+    /// Every arm, for the coverage rows and the refusal-roster check.
+    pub const ALL: [Self; 13] = [
+        Self::PlanePlaneCylinder,
+        Self::PlaneSphereTorus,
+        Self::PlanePlaneStrip,
+        Self::SphereConeTorus,
+        Self::ConePlaneTorus,
+        Self::ConeConeTorus,
+        Self::CylinderConeTorus,
+        Self::CylinderSphereTorus,
+        Self::CylinderPlaneTorus,
+        Self::SphereSphereTorus,
+        Self::CylinderCylinderCylinder,
+        Self::CylinderPlaneCylinder,
+        Self::CylinderPlaneCone,
+    ];
+}
+
+/// The unit component of `x` orthogonal to the unit direction `a` —
+/// the seam reference every chart below takes from real geometry the
+/// caller already stored (a support's own `u_ref`, a corner normal),
+/// never from a coordinate-axis tie-break. Poison propagates when `x`
+/// is parallel to `a`, which is the honest answer: there is no
+/// distinguished perpendicular there.
+pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
+    // Named binding so the interval-square tripwire's self-multiplication
+    // grep does not false-positive on `a * a.dot(x)` (a vector scaled by a
+    // projection coefficient, not a scalar square) — the affine.rs
+    // restructuring precedent; no numeric change.
+    let along = a.dot(x);
+    (x - a * along).normalize()
+}
+
+/// **The plane–plane edge blend**: the rolling ball of radius `r`
+/// tangent to both planes, rolled along their common edge.
+///
+/// With outward normals `n_a`, `n_b` and any point `p` on the edge,
+/// the ball centre solves `(c − p)·n_a = (c − p)·n_b = −r` (inside
+/// the material by `r` from each support), giving the closed form
+/// `c = p − r·(n_a + n_b)/(1 + n_a·n_b)` — the spine, a straight line
+/// along the edge direction `tau`. The blend is the cylinder about
+/// that line with radius `r`; the trimline on each support is the
+/// ruling through the ball's foot on that plane, and the setback is
+/// `r·√((1 − d)/(1 + d))` with `d = n_a·n_b` (equivalently
+/// `r·tan(φ/2)` for the outward-normal angle φ) — derived here once
+/// and consumed by predicate 2.
+///
+/// `convexity` picks the side through [`signed`]: on a
+/// concave chain the ball rolls on the far side of both supports, which
+/// is the same formula with `r` negated.
+#[must_use]
+pub fn plane_plane_blend<T: Real>(
+    p: Point3<T>,
+    tau: Vec3<T>,
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    radius: T,
+    convexity: Convexity,
+) -> EdgeBlend<T> {
+    let signed = signed(convexity, radius);
+    let d = n_a.dot(n_b);
+    let one = T::one();
+    let center = p - (n_a + n_b) * (signed / (one + d));
+    let side = ball_side(convexity, true);
+    let (a, b) = (
+        SupportTrace::Straight { normal: n_a, side },
+        SupportTrace::Straight { normal: n_b, side },
+    );
+    let foot_a = a.contact(center, radius);
+    let foot_b = b.contact(center, radius);
+    let setback = radius * ((one - d) / (one + d)).sqrt();
+    EdgeBlend {
+        surface: Surface::Cylinder {
+            frame: geom::Frame::new(center, tau, a.foot(center)),
+            radius,
+        },
+        spine_curvature: T::zero(),
+        trim_a: (
+            Curve3::Line(geom::Line {
+                origin: foot_a,
+                dir: tau,
+            }),
+            setback,
+        ),
+        trim_b: (
+            Curve3::Line(geom::Line {
+                origin: foot_b,
+                dir: tau,
+            }),
+            setback,
+        ),
+    }
+}
+
+/// **The plane–sphere rim blend**: a plane with outward normal `n`
+/// through `origin`, meeting a sphere of radius `sphere_r` centred at
+/// `sphere_c` along a circle.
+///
+/// The ball centre sits at distance `r` from the plane and on the
+/// OFFSET SPHERE — the locus at distance `r` from the sphere — on the
+/// side of both supports the chain's stored convexity verdict picks
+/// (S10/S11): the material side of each on a CONVEX chain, the void
+/// side of each on a CONCAVE one, where the ball rolls in the void.
+/// That is ONE fold, [`signed`] (`±r`), homed beside the chain's
+/// verdict in `battery` and shared with [`plane_plane_blend`], `open::planar::corner_plan`
+/// and — as the side [`ball_side`] — the shared sheet
+/// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
+/// NEGATIVE, the rest depth. Which side of the
+/// SPHERE its material is on is the pair's own second configuration
+/// and is read from the sphere face's stored sense bit, never from a
+/// normal: a sphere's chart normal is the outward radial
+/// (`geom::Surface::Sphere`), so `sphere_convex` (the stored `sense`)
+/// says the material is INSIDE the sphere. The centre rides at `R − r`
+/// where the sphere's sense AGREES with the chain's convexity (a
+/// convex chain against a convex sphere — the dome; a concave chain
+/// against a pocket) and at `R + r` where it does not (a convex chain
+/// against a pip's dimple; a concave chain against a boss).
+/// Everything else is one derivation:
+///
+/// - the spine is the CIRCLE of radius `s = √(offset² − h²)`,
+///   `h = (c_s − o)·n + signed`, in the offset plane, and the blend is
+///   the torus about it;
+/// - both trimlines are circles coaxial with the spine: radius `s` on
+///   the plane (at `spine_center + n·signed`, which is the plane) and
+///   `R·s/offset` on the sphere;
+/// - the plane's setback is `|s − a|` for the rim radius `a`, spelled
+///   by the agreement bit above: where the offset is `R + r` the
+///   blend widens the plane's boundary (`s > a` — a pip's blend eats
+///   into the flat face rather than into the pocket; a boss's rests
+///   outside its footprint), where it is `R − r` it shrinks it.
+///
+/// **The setback convention, stated once, HERE, because this is where
+/// the two spellings diverge.** This arm spells the plane's setback by
+/// case — `a − s` on the inner offset, `s − a` on the outer — which is
+/// the POSITIVE displacement in every quadrant (the sign of `s − a` is
+/// the agreement bit itself, so a wrong fold reads as a NEGATIVE length,
+/// which predicate 2 would turn into a wider margin;
+/// `review_h4_r1_probes::the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants`
+/// pins the value in all four); the shared sheet reduction ([`Meridian::blend`],
+/// [`Ruling::blend`]) returns the unsigned Euclidean displacement of the
+/// trimline from the rim, on both supports. Predicate 2 consumes them
+/// identically, as `gap − setback − setback`, so the unsigned form is
+/// the CONSERVATIVE one — it can only shrink the margin, never widen
+/// it — and the two agree in magnitude everywhere (pinned by
+/// `verbs_arms2_arms::the_shared_reduction_agrees_with_the_plane_sphere_arm`,
+/// which compares `|signed|` against the unsigned and says why).
+///
+/// **Neither degenerate case is gated here**, and they are two
+/// different cases, not one:
+///
+/// - `s² ≤ 0` — no spine circle exists: the offset plane misses the
+///   offset sphere, or touches it at one point, so no ball of radius
+///   `r` rolls along the rim touching both supports (on the dome, a
+///   ball inside the sphere and on its equator's plane, from
+///   `r = R/2`, where the one ball resting on both sits on the axis). `s` would be poison. The caller decides it first,
+///   from [`plane_sphere_room`], and refuses typed before this arm runs.
+/// - `0 < s ≤ r` — a spine circle exists but the tube swallows it: `s`
+///   and `1/s` are ordinary finite numbers, and predicate 3 refuses
+///   `SpineIrregular` on the FINITE curvature.
+///
+/// Total arithmetic in, classification at the caller: the crate's
+/// standing posture.
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn plane_sphere_blend<T: Real>(
+    origin: Point3<T>,
+    n: Vec3<T>,
+    plane_u_ref: Vec3<T>,
+    sphere_c: Point3<T>,
+    sphere_r: T,
+    radius: T,
+    sphere_convex: bool,
+    convexity: Convexity,
+) -> EdgeBlend<T> {
+    let PlaneSphereFold {
+        signed,
+        depth,
+        h,
+        side,
+        offset,
+    } = PlaneSphereFold::of(
+        origin,
+        n,
+        sphere_c,
+        sphere_r,
+        radius,
+        sphere_convex,
+        convexity,
+    );
+    let s2 = (offset - h) * (offset + h);
+    let s = s2.sqrt();
+    let spine_center = sphere_c - n * h;
+    let u_ref = perp_unit(plane_u_ref, n);
+    // The rim circle the blend replaces: the sphere ∩ plane locus.
+    let rim2 = (sphere_r - depth) * (sphere_r + depth);
+    let rim = rim2.max(T::zero()).sqrt();
+    // The contact circle on the sphere: the sphere point along the
+    // line from its centre to the spine, scaled to radius R.
+    let scale = sphere_r / offset;
+    let sphere_trim_c = sphere_c - n * (h * scale);
+    let sphere_trim_r = s * scale;
+    // Setback on the sphere: the EUCLIDEAN displacement of the
+    // trimline from the rim. Predicate 2 compares it against face
+    // extents measured the same way, so the two sides of that
+    // inequality are in one metric — an arc-length setback against a
+    // straight-line extent would be comparing different quantities.
+    let rim_pt = sphere_c - n * depth + u_ref * rim;
+    let con_pt = sphere_trim_c + u_ref * sphere_trim_r;
+    EdgeBlend {
+        surface: Surface::Torus {
+            frame: geom::Frame::new(spine_center, n, u_ref),
+            major_radius: s,
+            minor_radius: radius,
+        },
+        spine_curvature: T::one() / s,
+        trim_a: (
+            Curve3::circle(spine_center + n * signed, n, s, u_ref),
+            // The plane's setback: the POSITIVE displacement of the
+            // trimline from the rim in every quadrant (`s < rim` on the
+            // inner offset, `s > rim` on the outer — function docs),
+            // spelled by the bit rather than as `|s − rim|` so a wrong
+            // fold reads as a negative length instead of hiding.
+            sided(side, rim - s),
+        ),
+        trim_b: (
+            Curve3::circle(sphere_trim_c, n, sphere_trim_r, u_ref),
+            (con_pt - rim_pt).norm(),
+        ),
+    }
+}
+
+/// The plane–sphere pair's one fold, read by [`plane_sphere_blend`] and
+/// [`plane_sphere_room`] alike.
+struct PlaneSphereFold<T: Real> {
+    /// The ball's signed depth into the plane's material
+    /// ([`signed`]).
+    signed: T,
+    /// The sphere centre's height over the plane along `n`.
+    depth: T,
+    /// The sphere centre's height over the OFFSET plane the ball
+    /// centre rides.
+    h: T,
+    /// The ball's side of the sphere.
+    side: SurfaceSide,
+    /// The signed radius of the offset sphere the ball centre rides.
+    offset: T,
+}
+
+impl<T: Real> PlaneSphereFold<T> {
+    fn of(
+        origin: Point3<T>,
+        n: Vec3<T>,
+        sphere_c: Point3<T>,
+        sphere_r: T,
+        radius: T,
+        sphere_convex: bool,
+        convexity: Convexity,
+    ) -> Self {
+        // The one fold (`battery::signed`): the ball is `r` INTO the
+        // plane's material on a convex chain and `r` out of it on a
+        // concave one.
+        let signed = signed(convexity, radius);
+        let depth = (sphere_c - origin).dot(n);
+        // The same fold read against the sphere's stored sense: the ball
+        // rests on the sphere's MATERIAL side — inside it — exactly when
+        // that sense agrees with the chain's convexity.
+        let side = ball_side(convexity, sphere_convex);
+        Self {
+            signed,
+            depth,
+            h: depth + signed,
+            side,
+            // The offset sphere the ball centre rides, selected
+            // STRUCTURALLY.
+            offset: sphere_r - sided(side, radius),
+        }
+    }
+}
+
+/// **`fillet3_ball_room`'s margin on the plane–sphere arm**, in METERS:
+/// the offset sphere's SIGNED radius less the offset plane's distance
+/// from its centre, `(R ∓ r) − |h|` in [`plane_sphere_blend`]'s terms —
+/// the line × circle margin [`offset_room`] reads in a sheet, here in
+/// the meridian. It is positive exactly where `s² = offset² − h² > 0`
+/// with the offset on the ball's side, so where the spine circle
+/// exists. The radius is signed, not taken in magnitude: past `r = R`
+/// with the ball inside the sphere, `R − r` is a ball holding the
+/// sphere, not resting on it, and the margin keeps falling with the
+/// overshoot rather than reading that tangency. With the ball outside
+/// the sphere the offset is `R + r`, positive at every radius.
+///
+/// On the dome (a ball inside a sphere of radius `R`, on the plane
+/// through its centre) it is `R − 2r` at every radius: the largest ball
+/// a hemisphere holds has `r = R/2`. On a plane at distance `d` from
+/// the centre it is `R − r − |d ± r|`, so a cap holds more room than the
+/// hemisphere on one side and less on the other.
+#[must_use]
+pub fn plane_sphere_room<T: Real>(
+    origin: Point3<T>,
+    n: Vec3<T>,
+    sphere_c: Point3<T>,
+    sphere_r: T,
+    radius: T,
+    sphere_convex: bool,
+    convexity: Convexity,
+) -> T {
+    let fold = PlaneSphereFold::of(
+        origin,
+        n,
+        sphere_c,
+        sphere_r,
+        radius,
+        sphere_convex,
+        convexity,
+    );
+    fold.offset - fold.h.abs()
+}
+
+// ------------------------------------------------------------------
+// The shared sheet reduction: one derivation for every curved-support
+// constant-radius arm.
+// ------------------------------------------------------------------
+
+/// One support reduced to its **trace in the blend sheet** — the plane
+/// the pair's own symmetry confines the rolling ball's centre to (the
+/// module docs' one derivation).
+///
+/// Both traces and the rim point lie in that sheet, so the centre
+/// problem is two-dimensional and closed-form: a line and a circle are
+/// the only traces an analytic surface of revolution cuts in its own
+/// meridian, and the same two are all a cylinder or a plane cuts in a
+/// cross-section normal to a ruling.
+///
+/// **`side` is the ball's side of the support as the support's chart
+/// sees it, and it is the only place one enters an arm.** It is
+/// [`SurfaceSide::Inner`] when the ball's centre lies on the side the
+/// support's chart normal points AWAY from — the support's material side
+/// on a `sense: true` face — and [`SurfaceSide::Outer`] when it lies on
+/// the side the chart normal points into; [`ball_side`] is
+/// where it is read, from stored structure and never from a sampled
+/// normal (S10/S11). It selects the `R ∓ r` fold: every consumer spells
+/// it as [`sided`], a conditional negation of the radius or of the
+/// foot direction, so it is a side here and never a `±1`.
+#[derive(Clone, Copy, Debug)]
+pub enum SupportTrace<T: Real> {
+    /// A STRAIGHT trace: the line through the rim point whose unit
+    /// normal in the sheet is the support's own chart normal there. A
+    /// plane ⊥ the axis, a coaxial cylinder and a coaxial cone all cut
+    /// their meridian in one, as does a plane containing a ruling in the
+    /// cross-section normal to it.
+    ///
+    /// The line is anchored at the RIM, not at the support's stored
+    /// origin — every such support passes through the rim by
+    /// construction, and anchoring there keeps the reduction free of the
+    /// support's own axis anchor (a cylinder's `origin`, a cone's
+    /// `apex`), which carries placement round-off the rim does not.
+    Straight {
+        /// The support's unit chart normal at the rim, which lies in the
+        /// sheet.
+        normal: Vec3<T>,
+        /// The ball's side of the support (type docs).
+        side: SurfaceSide,
+    },
+    /// A ROUND trace: the circle the support cuts in the sheet — a
+    /// sphere centred on the axis in its meridian, a cylinder about the
+    /// ruling in the cross-section.
+    Round {
+        /// The trace circle's centre, in the sheet.
+        center: Point3<T>,
+        /// Its radius (positive by convention).
+        radius: T,
+        /// The ball's side of the support (type docs).
+        side: SurfaceSide,
+    },
+}
+
+impl<T: Real> SupportTrace<T> {
+    /// Where the ball at `center` touches this support: back off the
+    /// centre by `radius` along the trace's own outward direction.
+    fn contact(self, center: Point3<T>, radius: T) -> Point3<T> {
+        match self {
+            Self::Straight { .. } => center + self.foot(center) * radius,
+            Self::Round {
+                center: c,
+                radius: rr,
+                side,
+            } => c + (center - c) * (rr / (rr - sided(side, radius))),
+        }
+    }
+
+    /// The unit direction from the ball at `center` to its
+    /// [`Self::contact`], read off the trace. The contact's offset
+    /// from `center` is the radius against coordinates of the body's
+    /// size, so a direction read back off the two points keeps only
+    /// the digits the radius leaves.
+    fn foot(self, center: Point3<T>) -> Vec3<T> {
+        match self {
+            Self::Straight { normal, side } => sided(side, normal),
+            Self::Round {
+                center: c, side, ..
+            } => sided(side, (center - c).normalize()),
+        }
+    }
+}
+
+/// **Which of the two crossings of the offset traces is the edge's
+/// ball** ([`sheet_center`]).
+#[derive(Clone, Copy, Debug)]
+pub enum Branch<T: Real> {
+    /// The crossing that returns the rim as `radius → 0`: every edge
+    /// whose supports meet at a definite angle.
+    Rim,
+    /// A knife edge (a cusp or slit): the crossing on the side of the
+    /// rim this unit points to, the in-face direction both supports
+    /// leave the edge by ([`inward_unit`] of the `he_plus` face). Read
+    /// off the traversal, never off a sampled crossing.
+    Knife(Vec3<T>),
+}
+
+/// **The room the offset traces leave the ball**, in METERS: whether
+/// the `radius`-offsets of two traces in the link's sheet cross, where
+/// the ball's centre lies. It is one margin for both branches —
+/// `fillet3_ball_room` reads it at a rim and `fillet3_knife_room` at a
+/// knife — positive exactly where they cross in two points, so where
+/// [`sheet_center`] has a centre to return on either branch.
+///
+/// Each offset circle's radius is SIGNED, `R ∓ r` by the ball's side
+/// ([`sided`]): past `r = R` with the ball inside a circle the offset is
+/// negative, a ball holding the support rather than resting on it, and
+/// the margin falls with the overshoot instead of reading that circle's
+/// magnitude.
+///
+/// - **circle × circle**: [`Circles::secant`] of the two offsets, which
+///   is positive only where both are. Two cylinders kissing externally
+///   (the valley between two touching tubes) always cross; two
+///   internally tangent ones (a lune) cross while `r < R_big − R_small`,
+///   the room their crescent opens to; two convex spheres' offsets
+///   about centres `d` apart cross while `2(R − r) > d` (the lentil).
+/// - **line × circle**: the offset circle's signed radius less the
+///   offset line's distance from its centre.
+/// - **line × line**: `None`. The two offsets are two lines, and whether
+///   they cross is the branch's, not a margin's: at a rim the traces
+///   cross at the angle predicate 5 decided definite, and so do their
+///   offsets at every radius; at a knife the traces are one line and
+///   their offsets parallel, so the supports never open (no valid body
+///   carries the pair).
+#[must_use]
+pub fn offset_room<T: Real>(
+    rim: Point3<T>,
+    a: SupportTrace<T>,
+    b: SupportTrace<T>,
+    radius: T,
+) -> Option<T> {
+    use SupportTrace::{Round, Straight};
+    let offset = |rr: T, side| rr - sided(side, radius);
+    match (a, b) {
+        (Straight { .. }, Straight { .. }) => None,
+        (
+            Straight { normal, side },
+            Round {
+                center,
+                radius: rr,
+                side: sr,
+            },
+        )
+        | (
+            Round {
+                center,
+                radius: rr,
+                side: sr,
+            },
+            Straight { normal, side },
+        ) => {
+            let line = rim - normal * sided(side, radius);
+            Some(offset(rr, sr) - (center - line).dot(normal).abs())
+        }
+        (
+            Round {
+                center: c_a,
+                radius: r_a,
+                side: s_a,
+            },
+            Round {
+                center: c_b,
+                radius: r_b,
+                side: s_b,
+            },
+        ) => Some(Circles::new(c_a.distance(c_b), offset(r_a, s_a), offset(r_b, s_b)).secant()),
+    }
+}
+
+/// **The rolling ball's centre in the sheet** — the crossing of the two
+/// OFFSET traces, in closed form, for each of the three trace pairings.
+///
+/// `rim` is the point of the original edge the sheet passes through and
+/// `sheet_normal` the sheet's unit normal. Each closed form is written
+/// so it **selects the branch that returns the rim as `radius → 0`**,
+/// which is the structural answer to "which of the two circles the
+/// offsets meet in is MY edge" — the same question the plane–sphere
+/// arm answers by the meridian's `ρ ≥ 0` and never has to ask.
+///
+/// The material sides enter as `σ = +1` where a trace's `side` is
+/// `Inner` and `−1` where it is `Outer`, spelled below as [`sided`].
+///
+/// - **line × line**: `δ = −r[(σ_a − σ_b d)n̂_a + (σ_b − σ_a d)n̂_b]/(1 − d²)`
+///   for `d = n̂_a·n̂_b` — [`plane_plane_blend`]'s own centre formula with
+///   the two material sides folded in, and poison exactly where the two
+///   traces are parallel (`d = ±1`), which is a tangential pair.
+/// - **line × circle**: along the line's own direction `t̂`, the offset
+///   parameter solves `λ² + 2λb + D = 0` with `b = R(t̂·û)` and
+///   `D = 2Rr(σ_circle − σ_line(n̂·û))` for the circle's outward unit `û`
+///   at the rim. The rim branch is `λ = b(√(1 − D/b²) − 1)`, written
+///   that way so the `√` carries `b`'s own sign and no comparison
+///   appears; `b = 0` is the tangential pair and poisons.
+/// - **circle × circle**: the two offset circles' crossing, the radical
+///   foot and half-chord's square `h²` read from [`Circles`] (each from
+///   the pair's clearances, so neither cancels at offsets orders of
+///   magnitude apart), with the transverse half-chord carried by
+///   `μ·√(h²/μ²)` for `μ` the rim's own transverse coordinate — again
+///   the rim branch, branch-free, poisoned at a tangential pair.
+///
+/// Total arithmetic in, classification at the caller: nothing is gated
+/// here, exactly as [`plane_sphere_blend`] gates nothing. Offset traces
+/// that do not cross have no centre, which the caller decides first from
+/// [`offset_room`] (`fillet3_ball_room` at a rim, `fillet3_knife_room`
+/// at a knife), so no root here is taken of a negative number on a pair
+/// those doors pass.
+///
+/// **At a knife edge the rim branch is undefined, and `branch` names
+/// the ball's side instead** ([`Branch::Knife`]). There the two traces
+/// touch at the rim, so the rim lies on the circles' line of centres
+/// (`μ = 0`) or the line runs along the circle (`b = 0`): the rim
+/// selector reads an exact zero, and the sign of rounding noise would
+/// pick the crossing. The knife's ball rests in the crescent the
+/// supports open into, on the side both faces leave the edge by, so
+/// the knife branch keeps the crossing on that side of the rim. A
+/// line × line pair has no knife crossing at all (parallel offsets),
+/// which the caller refuses before any centre is read ([`offset_room`]).
+#[must_use]
+pub fn sheet_center<T: Real>(
+    rim: Point3<T>,
+    sheet_normal: Vec3<T>,
+    a: SupportTrace<T>,
+    b: SupportTrace<T>,
+    radius: T,
+    branch: Branch<T>,
+) -> Point3<T> {
+    use SupportTrace::{Round, Straight};
+    let one = T::one();
+    match (a, b) {
+        (
+            Straight {
+                normal: n_a,
+                side: s_a,
+            },
+            Straight {
+                normal: n_b,
+                side: s_b,
+            },
+        ) => {
+            let d = n_a.dot(n_b);
+            rim - (n_a * (sided(s_a, one) - sided(s_b, d))
+                + n_b * (sided(s_b, one) - sided(s_a, d)))
+                * (radius / (one - d.powi(2)))
+        }
+        (
+            Straight { normal, side },
+            Round {
+                center,
+                radius: rr,
+                side: sr,
+            },
+        )
+        | (
+            Round {
+                center,
+                radius: rr,
+                side: sr,
+            },
+            Straight { normal, side },
+        ) => {
+            // The circle's outward unit at the rim, and the line's own
+            // direction in the sheet (orientation-free: `lambda` flips
+            // with `t`, so `t * lambda` does not).
+            let u = (rim - center) / rr;
+            let t = sheet_normal.cross(normal);
+            let b_coef = rr * t.dot(u);
+            let d_coef = (rr + rr) * radius * (sided(sr, one) - sided(side, normal.dot(u)));
+            let lambda = match branch {
+                Branch::Rim => b_coef * ((one - d_coef / b_coef.powi(2)).sqrt() - one),
+                // `λ = −b ± √(b² − D)`, the root on the side `toward`
+                // points along the line: a sign pick by `t̂·toward`,
+                // which is ±1 at a knife and never near zero there (the
+                // line runs along the circle at the rim, so `t̂` is the
+                // common tangent, and `toward` is that tangent's unit,
+                // both in the sheet), so no rounding chooses it.
+                Branch::Knife(toward) => {
+                    (b_coef.powi(2) - d_coef).sqrt().copysign(t.dot(toward)) - b_coef
+                }
+            };
+            rim + t * lambda - normal * sided(side, radius)
+        }
+        (
+            Round {
+                center: c_a,
+                radius: r_a,
+                side: s_a,
+            },
+            Round {
+                center: c_b,
+                radius: r_b,
+                side: s_b,
+            },
+        ) => {
+            // An offset circle is the circle at the offset's magnitude.
+            let off_a = (r_a - sided(s_a, radius)).abs();
+            let off_b = (r_b - sided(s_b, radius)).abs();
+            let offsets = Circles::new(c_a.distance(c_b), off_a, off_b).at(c_a, c_b);
+            let across = sheet_normal.cross(offsets.direction());
+            let h2 = offsets.pair().half_chord_squared();
+            let y = match branch {
+                // The rim's own transverse coordinate `μ` carries the
+                // half-chord's sign, branch-free.
+                Branch::Rim => {
+                    let mu = (rim - c_a).dot(across);
+                    mu * (h2 / mu.powi(2)).sqrt()
+                }
+                // At a knife the rim lies ON the line of centres, so `μ`
+                // is an exact zero; the side is a sign pick by
+                // `toward·across` instead, which is ±1 there and never
+                // near zero (`toward` is the common tangent's unit, ⊥ the
+                // line of centres in the sheet, and so is `across`).
+                Branch::Knife(toward) => h2.sqrt().copysign(toward.dot(across)),
+            };
+            offsets.chord_ends(across, y)[0]
+        }
+    }
+}
+
+/// **The meridian half-plane of a coaxial pair** at one rim point: the
+/// sheet in which a pair of surfaces of revolution about one axis
+/// reduces to two plane curves.
+///
+/// The axis is the RIM CIRCLE's own stored frame — a coaxial pair meets
+/// in a circle about the common axis, so the edge the caller asked to
+/// blend already carries the axis, and nothing is fitted or guessed.
+#[derive(Clone, Copy, Debug)]
+pub struct Meridian<T: Real> {
+    /// The common axis, through the rim circle's centre, its `dir` the
+    /// rim circle's unit axis. The readings below take `dir` as unit
+    /// (each `·dir` is a length along the axis, and `dir × radial` the
+    /// sheet's unit normal), which the type does not carry: a circle's
+    /// axis is unit by convention
+    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+    pub axis: geom::Line<T>,
+    /// The rim point the sheet passes through.
+    pub rim: Point3<T>,
+}
+
+impl<T: Real> Meridian<T> {
+    /// The sheet's radial unit at the rim — poison on an on-axis rim,
+    /// where no meridian is distinguished ([`perp_unit`]).
+    #[must_use]
+    pub fn radial(&self) -> Vec3<T> {
+        perp_unit(self.rim - self.axis.origin, self.axis.dir)
+    }
+
+    /// The unit normal of the sheet (the meridian half-plane's own).
+    #[must_use]
+    pub fn sheet_normal(&self) -> Vec3<T> {
+        self.axis.dir.cross(self.radial())
+    }
+
+    /// The rim's radius — the **named lever arm** every angular
+    /// departure from coaxiality is metered through, so the coaxiality
+    /// margin is a length in the same metres as every other one.
+    #[must_use]
+    pub fn lever(&self) -> T {
+        (self.rim - self.axis.origin).dot(self.radial())
+    }
+
+    /// Reduce one support to its meridian trace, with the **departure
+    /// from coaxiality** it contributes (meters, at [`Self::lever`]).
+    ///
+    /// `None` for a surface kind this family does not cover; the caller
+    /// refuses [`super::BlendError::SpineUnsupported`] on it.
+    ///
+    /// The departure is what makes the coaxiality hypothesis checkable
+    /// rather than assumed: a plane and a cone contribute their axis
+    /// misalignment `|n̂ × k̂|` at the lever arm, a sphere the distance of
+    /// its centre from the axis. A definite non-zero departure means the
+    /// pair is not a coaxial one, so its spine is neither line nor
+    /// circle — the canal family, refused.
+    #[must_use]
+    pub fn trace(&self, s: &Surface<T>, side: SurfaceSide) -> Option<(SupportTrace<T>, T)> {
+        let radial = self.radial();
+        let lever = self.lever();
+        match *s {
+            // A plane ⊥ the axis: its chart normal IS the meridian
+            // trace's normal, and it must be the axis itself.
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some((
+                    SupportTrace::Straight { normal, side },
+                    normal.cross(self.axis.dir).norm() * lever,
+                ))
+            }
+            // A coaxial cylinder: the meridian trace is the line through
+            // the rim with the radially outward normal. The stored
+            // radius never enters — the rim's own radius IS it.
+            Surface::Cylinder { frame, .. } => {
+                let axis = frame.axis();
+                Some((
+                    SupportTrace::Straight {
+                        normal: radial,
+                        side,
+                    },
+                    axis.cross(self.axis.dir).norm() * lever,
+                ))
+            }
+            // A coaxial cone: the generator through the rim, whose chart
+            // normal is `radial·cos α − k̂·(ω sin α)` for the NAPPE sign
+            // ω — which nappe the rim sits on, read off the apex by sign
+            // alone (a sign the apex's own placement round-off cannot
+            // move).
+            Surface::Cone {
+                frame, half_angle, ..
+            } => {
+                let (apex, axis) = (frame.origin(), frame.axis());
+                let (sin_a, cos_a) = half_angle.sin_cos();
+                let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir)).unit_sign();
+                Some((
+                    SupportTrace::Straight {
+                        normal: radial * cos_a - self.axis.dir * (nappe * sin_a),
+                        side,
+                    },
+                    axis.cross(self.axis.dir).norm() * lever,
+                ))
+            }
+            // A sphere centred on the axis: its meridian trace is the
+            // great circle of the same radius, centred at the axis point
+            // level with the sphere's centre. The departure is the
+            // centre's own distance off the axis.
+            Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
+                let level = self.axis.foot(center);
+                Some((
+                    SupportTrace::Round {
+                        center: level,
+                        radius,
+                        side,
+                    },
+                    (center - level).norm(),
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    /// **The coaxial arm**: the torus about the circular spine, with
+    /// both trimlines as circles coaxial with it.
+    ///
+    /// The spine is the circle the ball centre sweeps about the axis: of
+    /// radius `|s|`, where `s` is the centre's radial coordinate in the
+    /// sheet. A centre that has crossed the axis (`s < 0`) sweeps the same
+    /// circle as one at `|s|` on the rim's side, so the band surface is
+    /// the torus of major radius `|s|` with its seam turned to the
+    /// centre's side (`u_ref` along the centre's own radial,
+    /// [`ring_radius`]): the point set the signed form would trace, in the
+    /// ring convention's terms, its chart point `(u, π − v)` the signed
+    /// form's `(u, v)`. The trimlines are their circles the same way, of
+    /// radius the contact's distance from the axis with the seam turned to
+    /// its side, which is the signed form's own parametrisation.
+    /// `|s|` forgets which side of the axis the centre is on, which a
+    /// self-intersecting torus needs (the sign picks its lemon from its
+    /// apple), so a spindle mint, should one come, reads the signed `s`
+    /// and never this. `spine_curvature` is `1/|s|`, so a spine the tube
+    /// swallows, on either side of the axis, reaches predicate 3 as a
+    /// finite curvature past `1/r`. A spine that does not exist at all
+    /// never reaches this arm: the caller refuses it from [`offset_room`]
+    /// first, as it does [`plane_sphere_blend`]'s.
+    #[must_use]
+    pub fn blend(
+        &self,
+        a: SupportTrace<T>,
+        b: SupportTrace<T>,
+        radius: T,
+        branch: Branch<T>,
+    ) -> EdgeBlend<T> {
+        let radial = self.radial();
+        let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius, branch);
+        let level = |q: Point3<T>| self.axis.foot(q);
+        let s = (center - self.axis.origin).dot(radial);
+        // The setback is the EUCLIDEAN displacement of the trimline from
+        // the rim, the metric predicate 2 measures face extents in.
+        let trim = |t: SupportTrace<T>| {
+            let q = t.contact(center, radius);
+            let (rho, toward) = ring_radius((q - self.axis.origin).dot(radial), radial);
+            (
+                Curve3::circle(level(q), self.axis.dir, rho, toward),
+                (q - self.rim).norm(),
+            )
+        };
+        let (spine, toward) = ring_radius(s, radial);
+        EdgeBlend {
+            surface: Surface::Torus {
+                frame: geom::Frame::new(level(center), self.axis.dir, toward),
+                major_radius: spine,
+                minor_radius: radius,
+            },
+            spine_curvature: T::one() / spine,
+            trim_a: trim(a),
+            trim_b: trim(b),
+        }
+    }
+}
+
+/// **A signed radial coordinate `x` as the ring convention stores a
+/// circle about the axis**: its distance `|x|` from the axis, and
+/// `radial` turned to its side, the seam's direction. A circle of signed
+/// radius `x` seamed along `radial` and one of radius `|x|` seamed along
+/// the returned direction are one parametrisation
+/// ([`Meridian::blend`]'s spine and trimlines).
+fn ring_radius<T: Real>(x: T, radial: Vec3<T>) -> (T, Vec3<T>) {
+    (x.abs(), radial * x.unit_sign())
+}
+
+/// **The cross-section of a ruled pair** at one point of the common
+/// ruling: the sheet in which two supports that are translational along
+/// one direction reduce to two plane curves.
+///
+/// The ruling is the EDGE's own stored direction — a pair meeting along
+/// a straight line carries it on the carrier, so nothing is fitted.
+#[derive(Clone, Copy, Debug)]
+pub struct Ruling<T: Real> {
+    /// The unit ruling direction (the rim line's own).
+    pub tau: Vec3<T>,
+    /// The rim point the cross-section passes through.
+    pub rim: Point3<T>,
+    /// The link's own extent — the named lever arm the departure from
+    /// the shared-ruling hypothesis is metered through.
+    pub lever: T,
+}
+
+impl<T: Real> Ruling<T> {
+    /// Reduce one support to its cross-section trace, with the
+    /// **departure from the shared-ruling hypothesis** it contributes
+    /// (meters, at [`Self::lever`]).
+    ///
+    /// `None` for a surface kind this family does not cover.
+    #[must_use]
+    pub fn trace(&self, s: &Surface<T>, side: SurfaceSide) -> Option<(SupportTrace<T>, T)> {
+        match *s {
+            // A plane containing the ruling: its chart normal is already
+            // ⊥ the ruling, so it is the cross-section line's normal.
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some((
+                    SupportTrace::Straight { normal, side },
+                    normal.dot(self.tau).abs() * self.lever,
+                ))
+            }
+            // A cylinder about the ruling: the cross-section circle,
+            // centred where the cylinder's axis crosses this sheet.
+            Surface::Cylinder { frame, radius, .. } => {
+                let axis = frame.axis();
+                let on_axis = s.axis_line()?.foot(self.rim);
+                Some((
+                    SupportTrace::Round {
+                        center: geom::Line {
+                            origin: self.rim,
+                            dir: self.tau,
+                        }
+                        .square_foot(on_axis),
+                        radius,
+                        side,
+                    },
+                    axis.cross(self.tau).norm() * self.lever,
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    /// **The ruled arm**: the cylinder of radius `r` about the straight
+    /// spine, with both trimlines as lines along the ruling.
+    ///
+    /// `spine_curvature` is zero — a straight spine never folds, so
+    /// predicate 3 saturates exactly as it does on [`plane_plane_blend`].
+    /// Offsets that do not cross never reach this arm: the caller
+    /// refuses them from [`offset_room`] first.
+    #[must_use]
+    pub fn blend(
+        &self,
+        a: SupportTrace<T>,
+        b: SupportTrace<T>,
+        radius: T,
+        branch: Branch<T>,
+    ) -> EdgeBlend<T> {
+        let center = sheet_center(self.rim, self.tau, a, b, radius, branch);
+        let (q_a, q_b) = (a.contact(center, radius), b.contact(center, radius));
+        EdgeBlend {
+            surface: Surface::Cylinder {
+                frame: geom::Frame::new(center, self.tau, a.foot(center)),
+                radius,
+            },
+            spine_curvature: T::zero(),
+            trim_a: (Curve3::line(q_a, self.tau), (q_a - self.rim).norm()),
+            trim_b: (Curve3::line(q_b, self.tau), (q_b - self.rim).norm()),
+        }
+    }
+}
+
+/// **The chart of a corner patch**, from the unit directions
+/// `[f_x, f_y, f_c]` from the ball centre to the patch's three feet.
+/// Returns `(u_ref, axis)`: the pole is `±f_c`, the seam meridian runs
+/// through `f_x`, and `f_y` lies at `u ∈ (0, π)`.
+///
+/// **Neither pole lies inside the patch off a vertex.** Each boundary
+/// circle is a great circle (an edge cylinder of radius `r` whose axis
+/// passes through the centre touches the sphere along the great circle
+/// normal to that axis), and the one through feet `i` and `j` is the
+/// arc of directions `⊥ n_i × n_j`; so the patch is the spherical
+/// triangle of nonnegative combinations of the `f_i`. One pole is `f_c`,
+/// a vertex. The other, `−f_c`, is not in it: `−f_c = Σ λ_i f_i` with
+/// `λ ≥ 0` gives `(1 + λ_c) f_c + λ_x f_x + λ_y f_y = 0`, which the
+/// independence of the three normals (predicate 6's margin) forbids.
+/// The same independence keeps the patch inside an open hemisphere
+/// (the one about the dual direction `w` with `w·f_i = 1`), so no
+/// patch is large enough to hold an antipodal pair and none is refused.
+///
+/// **The sign is folded, not branched**: `axis = f_c·sign(f_c·(f_x × f_y))`,
+/// spelled as a positive multiple so it is total over `T` and poisons
+/// where the feet are dependent. It makes `(axis × u_ref)·f_y > 0`, so
+/// the patch spans `u ∈ [0, θ]` with `θ < π`, bounded by the meridians
+/// through `f_x` and `f_y` and the arc `f_x f_y`, which is the equator
+/// exactly when `f_x, f_y ⊥ f_c` (the iso-rectangle `build`'s octant
+/// pick scores for).
+#[must_use]
+pub fn corner_chart<T: Real>(feet: [Vec3<T>; 3]) -> (Vec3<T>, Vec3<T>) {
+    let [f_x, f_y, f_c] = feet;
+    let turn = f_c.dot(f_x.cross(f_y));
+    let axis = (f_c * turn).normalize();
+    (perp_unit(f_x, axis), axis)
+}
+
+/// **The corner ball** of a uniform trihedral vertex: the sphere of
+/// radius `r` tangent to all three support planes — from inside the
+/// material at a convex corner, from inside the VOID at a concave one.
+///
+/// The centre solves `(c − p_i)·n_i = ∓r` for the three outward
+/// normals (`−r` convex, `+r` concave: the outward normals point into
+/// the void, and the concave rest is on that side); the solution is
+/// `c = p₁ + N⁻¹·(…)`, solved for the offset from the first vertex so
+/// its rounding is of the corner's own size rather than its distance
+/// from the origin, and written here as the Cramer expansion so
+/// `|det(n₁, n₂, n₃)|` — the independence margin predicate 6
+/// classifies — falls out of the same computation, side-blind.
+///
+/// The patch is bounded by three CIRCLES, one per incident edge
+/// cylinder: the ball centre lies ON each cylinder's axis (the axis
+/// is the locus at distance `r` from two of the planes, and the
+/// centre is at distance `r` from all three), and both have radius
+/// `r`, so sphere and cylinder are tangent along a full circle. That
+/// is the configuration the jet certificate's circle arm certifies,
+/// and its `κ_rel` is `1/r` — the sphere curves transverse to the
+/// contact circle where the cylinder is flat along its ruling. All of
+/// it holds on either side: only which side of each plane the tangency
+/// circles sit on follows the sign.
+///
+/// **The stored chart is [`corner_chart`]'s**, over the side's own
+/// foot directions `±n_i` (`+` convex, `−` concave) in argument order,
+/// so its pole is the third foot or that foot's antipode and the
+/// patch holds no chart singularity off its vertices.
+#[must_use]
+pub fn corner_ball<T: Real>(
+    verts: [Point3<T>; 3],
+    normals: [Vec3<T>; 3],
+    radius: T,
+    convexity: Convexity,
+) -> CornerBall<T> {
+    let [n1, n2, n3] = normals;
+    // The rest DEPTH: the NEGATIVE of the one fold, `battery::signed`,
+    // which every consumer spells as a FOOT displacement
+    // (`corner_plan`'s `toward`, `plane_plane_blend`'s `signed`) — a foot
+    // displaces opposite the depth by definition of tangency. The one
+    // place the fold must stay a negation; `corner_plan` cites it.
+    let signed = -signed(convexity, radius);
+    // Right-hand sides: (c − p₁)·n_i = (p_i − p₁)·n_i + signed.
+    let anchor = verts[0];
+    let rhs = [
+        signed,
+        (verts[1] - anchor).dot(n2) + signed,
+        (verts[2] - anchor).dot(n3) + signed,
+    ];
+    let det = n1.dot(n2.cross(n3));
+    // Cramer: c − p₁ = (rhs₁·(n₂×n₃) + rhs₂·(n₃×n₁) + rhs₃·(n₁×n₂)) / det.
+    let num = n2.cross(n3) * rhs[0] + n3.cross(n1) * rhs[1] + n1.cross(n2) * rhs[2];
+    let c = anchor + num / det;
+    // The feet lie along `n_i` from a convex rest and along `−n_i` from
+    // a concave one — the same fold as the centre's.
+    let foot = |n: Vec3<T>| sided(ball_side(convexity, true), n);
+    let (u_ref, axis) = corner_chart([foot(n1), foot(n2), foot(n3)]);
+    CornerBall {
+        surface: Surface::Sphere {
+            frame: geom::Frame::new(c, axis, u_ref),
+            radius,
+        },
+        center: c,
+        independence: det.abs(),
+    }
+}
+
+// ------------------------------------------------------------------
+// The chamfer's arm: the flat strip, and the flat corner patch.
+// ------------------------------------------------------------------
+
+/// A support's **inward in-plane unit** at one of its boundary edges:
+/// the unit ⊥ the edge, in the support plane, pointing into the face.
+///
+/// It is read off the TRAVERSAL, never off a convexity verdict. Under
+/// the kernel's counterclockwise-outer-loop convention
+/// (`topo::entity`) a face's interior lies to the LEFT of each of its
+/// half-edges seen from outside the shell, and "left of `τ̂` seen from
+/// outside" is the rotation of `τ̂` by a quarter turn about the
+/// OUTWARD normal — `n × τ̂`. `τ̂` is the half-edge's own direction, so
+/// the second support of an edge (which carries `he_minus`, running
+/// against the stored carrier) takes `−τ̂`.
+///
+/// This is what makes the chamfer's geometry convexity-free: on a
+/// concave edge the two supports lie on the other sides of the edge
+/// and their half-edges run the other way round, so the same
+/// expression still points into the face. Convexity enters the
+/// chamfer at its ADMISSION doors and nowhere in this file.
+#[must_use]
+pub fn inward_unit<T: Real>(n: Vec3<T>, tau: Vec3<T>) -> Vec3<T> {
+    n.cross(tau).normalize()
+}
+
+/// **A chamfer's two feet** at the edge point `p`: one setback
+/// `distance` along each support's inward unit ([`inward_unit`]), the
+/// FIRST support's `n_a × τ̂` and the second's `−(n_b × τ̂)`, for `τ̂` the
+/// `he_plus` traversal direction and `n_a`, `n_b` the supports' outward
+/// normals. The one home of the feet [`chamfer_strip`] runs its
+/// trimlines through and [`chamfer_frustum`] its trim circles.
+#[must_use]
+pub fn chamfer_feet<T: Real>(
+    p: Point3<T>,
+    tau: Vec3<T>,
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    distance: T,
+) -> (Point3<T>, Point3<T>) {
+    (
+        p + inward_unit(n_a, tau) * distance,
+        p - inward_unit(n_b, tau) * distance,
+    )
+}
+
+/// **The plane–plane chamfer strip**: the flat band that replaces a
+/// straight edge at equal setback `distance` along both supports.
+///
+/// With `p` a point of the edge, `tau` the `he_plus` traversal
+/// direction and `n_a`/`n_b` the two supports' OUTWARD normals, the
+/// two trimlines are `p + m·distance + τ̂ s` for the supports' own
+/// inward units `m_a = n_a × τ̂` and `m_b = −(n_b × τ̂)`
+/// ([`inward_unit`]) — lines parallel to the edge, so the strip is an
+/// exact [`Surface::Plane`] and nothing is fitted.
+///
+/// **Its chart normal is `n_a + n_b`, and that is a derivation, not a
+/// convention.** The strip's normal is
+/// `(foot_b − foot_a) × τ̂ = −[(n_a + n_b) × τ̂] × τ̂ = n_a + n_b`
+/// (both normals are ⊥ `τ̂`). A positive combination of two OUTWARD
+/// normals is outward, so the strip face mints with sense `true` — on
+/// a concave edge as much as on a convex one, which is why the
+/// chamfer never reads [`super::battery::blend_sense`]. For a
+/// symmetric setback the strip plane is the supports' bisector plane,
+/// which is the same statement.
+#[must_use]
+pub fn chamfer_strip<T: Real>(
+    p: Point3<T>,
+    tau: Vec3<T>,
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    distance: T,
+) -> EdgeBlend<T> {
+    let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, distance);
+    EdgeBlend {
+        surface: Surface::Plane {
+            frame: geom::Frame::new(foot_a, (n_a + n_b).normalize(), tau),
+        },
+        spine_curvature: T::zero(),
+        trim_a: (
+            Curve3::Line(geom::Line {
+                origin: foot_a,
+                dir: tau,
+            }),
+            distance,
+        ),
+        trim_b: (
+            Curve3::Line(geom::Line {
+                origin: foot_b,
+                dir: tau,
+            }),
+            distance,
+        ),
+    }
+}
+
+/// **The plane–cylinder chamfer frustum**: the band that replaces a
+/// circular rim where a cylinder meets a plane square to its axis, at
+/// equal setback `distance` along both supports.
+///
+/// The feet are the strip's ([`chamfer_feet`]), read at the rim point
+/// `sheet.rim` with the `he_plus` traversal direction `tau`.
+/// Both units are normal to `tau`, which is normal to the meridian
+/// sheet, so both feet lie in the sheet — on the plane one setback off
+/// the rim radially, on the cylinder one setback along the axis — and
+/// each trimline is the circle about the axis through its foot. The band
+/// is the cone through the two circles: its generator is the segment
+/// between the feet, its apex where that segment's line meets the axis,
+/// its half-angle the generator's angle to the axis (a quarter turn's
+/// half at equal setbacks). The axis is signed so the feet lie on the
+/// `v > 0` nappe. Exact, nothing fitted.
+///
+/// Each trim circle's radius is its foot's distance from the axis, so
+/// the caller decides the plane foot's definitely positive before it
+/// asks for the band (`battery::frustum_arm`).
+///
+/// The cone's chart normal is radially outward on that nappe, whichever
+/// side the material is, so the band's sense is not this constructor's
+/// to fix: its caller derives it from [`frustum_rim_side`], as the
+/// strip's normal is derived from the supports' outward normals.
+#[must_use]
+pub fn chamfer_frustum<T: Real>(
+    sheet: &Meridian<T>,
+    tau: Vec3<T>,
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    distance: T,
+) -> EdgeBlend<T> {
+    let radial = sheet.radial();
+    let k = sheet.axis.dir;
+    let (foot_a, foot_b) = chamfer_feet(sheet.rim, tau, n_a, n_b, distance);
+    let g = foot_b - foot_a;
+    let g_r = g.dot(radial);
+    let rho_a = (foot_a - sheet.axis.origin).dot(radial);
+    let apex = foot_a - g * (rho_a / g_r);
+    let trim = |q: Point3<T>| {
+        (
+            Curve3::circle(
+                sheet.axis.foot(q),
+                k,
+                (q - sheet.axis.origin).dot(radial),
+                radial,
+            ),
+            distance,
+        )
+    };
+    EdgeBlend {
+        surface: Surface::Cone {
+            frame: geom::Frame::new(apex, k * (foot_a - apex).dot(k).unit_sign(), radial),
+            half_angle: (g_r.abs() / g.norm()).asin(),
+        },
+        spine_curvature: T::zero(),
+        trim_a: trim(foot_a),
+        trim_b: trim(foot_b),
+    }
+}
+
+/// **Which side of its generator a frustum's rim lies on**, read along
+/// the cone's chart normal: the chart normal at the generator's midpoint
+/// in `rim`'s own meridian, dotted with the run from there to `rim`. The
+/// chamfer's outward normal is a positive combination of its supports'
+/// outward normals ([`chamfer_strip`]'s derivation), and over a definite
+/// wedge that sum points from the band toward the rim it cuts off on a
+/// convex rim and away from the rim it fills over on a concave one; so
+/// the cone's chart normal is outward exactly when this reading's sign
+/// agrees with the convexity, and the caller folds the two into the
+/// band's sense bit. At equal setbacks the rim stands `distance / √2`
+/// off its generator, so the sign is definite on any exact frustum.
+/// `None` for a band that is not a cone or trims that are not circles.
+#[must_use]
+pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option<T> {
+    let Surface::Cone {
+        frame: carrier_frame,
+        half_angle,
+        ..
+    } = blend.surface
+    else {
+        return None;
+    };
+    let axis = carrier_frame.axis();
+    let (a, b) = (blend.trim_a.0.as_circle()?, blend.trim_b.0.as_circle()?);
+    let radial = perp_unit(rim - a.frame().origin(), axis);
+    let fa = a.frame().origin() + radial * a.radius();
+    let fb = b.frame().origin() + radial * b.radius();
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    Some((radial * cos_a - axis * sin_a).dot(rim - fa.mid(fb)))
+}
+
+/// Where two coplanar lines of one support face meet, in that face's
+/// plane of normal `n` — the chamfer's FOOT at a corner, which is the
+/// point where the two incident strips' trimlines on this support
+/// cross.
+///
+/// Closed form, for the lines `a = o₁ + d₁·s` and `b = o₂ + d₂·t`:
+/// `s = ((o₂ − o₁) × d₂)·n / ((d₁ × d₂)·n)`, exact and total. Two parallel trimlines (a "corner" whose two edges are
+/// collinear) drive the denominator to zero and poison the foot, which
+/// is the honest answer — there is no crossing there.
+#[must_use]
+pub fn line_meet<T: Real>(a: geom::Line<T>, b: geom::Line<T>, n: Vec3<T>) -> Point3<T> {
+    let s = (b.origin - a.origin).cross(b.dir).dot(n) / a.dir.cross(b.dir).dot(n);
+    a.origin + a.dir * s
+}
+
+/// **The chamfer's corner patch**: the plane through the three feet at
+/// a trivalent corner — the sphere octant's flat analog.
+///
+/// Each strip meets the patch along the segment between the two feet
+/// on that strip's own supports, and both of those feet lie on that
+/// strip's trimlines, which the strip plane contains — so the patch
+/// closes the corner exactly, with no fitting and no tolerance.
+///
+/// **The chart normal is outward, derived.** The patch plane's normal
+/// is `g = (f₁ − f₀) × (f₂ − f₀)` up to sign, and the sign is fixed by
+/// folding `g` against `outward`, a direction on the patch's outward
+/// side: at a uniform corner the supports' outward normal SUM
+/// `n₀ + n₁ + n₂`, since the patch is the face that truncates (convex)
+/// or fills (concave) the corner and in both cases its outward normal
+/// lies on that sum's positive side; at a mixed corner the sum of the
+/// shared face's normal and the odd strip's. Folding it in as a
+/// positive multiple — `normalize(g·(g·outward))` — keeps the
+/// derivation branch-free and total; a patch plane orthogonal to
+/// `outward` poisons rather than picking a side. The face therefore
+/// mints with sense `true`, like the strips,
+/// and this module has no convexity parameter to leave half-derived.
+#[must_use]
+pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], outward: Vec3<T>) -> Surface<T> {
+    let g = (feet[1] - feet[0]).cross(feet[2] - feet[0]);
+    let normal = (g * g.dot(outward)).normalize();
+    Surface::Plane {
+        frame: geom::Frame::new(feet[0], normal, perp_unit(feet[1] - feet[0], normal)),
+    }
+}

@@ -1,0 +1,5 @@
+--- a/demos/tour/src/lily.rs
++++ b/demos/tour/src/lily.rs
+@@
+-const ARCH_R: f64 = 0.052;
++const ARCH_R: f64 = 0.050; // R2 PROBE A: is the coincidence derivation-robust?

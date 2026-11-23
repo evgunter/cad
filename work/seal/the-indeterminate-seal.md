@@ -1,0 +1,65 @@
+---
+id: the-indeterminate-seal
+kind: unit
+title: only the funnel builds an Indeterminate: non_exhaustive, MarginDiag::INVALID crate-private, a test-support constructor, invalid_margin.rs deleted (mints step 5)
+status: parked
+opened: 2026-10-10
+priority: P1
+cost: M
+parent: topo-mints-indeterminates-outside-the-funnel
+blocked_on: [cone-nappe-is-decided-in-five-places, boolean-unreadable-norm-ends-as-a-kernel-defect]
+---
+
+Unit 6 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
+(2026-10-10, main `98a3817a1d`). This is design step 5 and design
+item 1.
+
+## What
+
+- `geom_core::Indeterminate` becomes `#[non_exhaustive]`. Its fields
+  stay readable.
+- `MarginDiag::INVALID` becomes crate-private.
+- Fixtures move to a `test-support` constructor. On 2026-10-10 that
+  covers 136 test literals and 85 `INVALID` spellings outside
+  `geom-core`.
+- `crates/topo/src/invalid_margin.rs` is deleted.
+- `scripts/gates/reporting-margin-door.sh`'s `terminal_sliver: true`
+  literal pin becomes a compile error. Its prose says so.
+
+## Why it waits on every other row
+
+Both attributes are crate-wide in `geom-core`, so the seal breaks every
+remaining production hand mint in every crate at once. It cannot land
+in parts. The remaining hand mints are:
+- CLEAVE's units 1–5;
+- PRED's four (`period-headroom-margin-has-no-shared-home`,
+  `cone-nappe-is-decided-in-five-places`);
+- CHART's four (`chart-region-mints-indeterminates-after-a-definite-sign`,
+  `chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value`);
+- TOPO's `boolean-unreadable-norm-ends-as-a-kernel-defect`;
+- the 35 D10-held arms, through unit 5. These include `contact_verify`'s
+  seven, which SECTOR's `contact-gate-readers-drop-the-arm-verdict-or-mint-invalid`
+  also names; unit 5 carries them, so this row does not wait on SECTOR's.
+
+A blocker row may close without retiring its mint. Re-run the
+re-scope's two passes when the last blocker closes. The ratchet gate
+(`hand-minted-indeterminate-ratchet-gate`) is what that re-run should
+find at zero.
+
+## C24: a public poison reading (moved here 2026-11-10)
+
+Moved from `glue-disagreements-and-held-contradictions-after-stage-4` when its four steps closed (step 4, PR 6693).
+
+C24 is `crates/sweep/src/blend/battery.rs:129`, `measured`: a reporting projection whose NaN reads `MarginDiag::INVALID`, on BAND and CARVE's ground. It is honest poison. Once this row makes `INVALID` crate-private, `measured` needs a public poison reading, and offering that reading is this row's to do.
+
+## Slate triage
+
+2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). SEAL holds the Indeterminate seal and the declared-contact rows in its way; id and body unchanged. (CLEAVE orchestrator)
+
+## RESTWORD's split arm was already retired (2026-11-11)
+
+`material-arm-split-ends-as-a-hand-minted-invalid` is closed, and its blocker is dropped from `blocked_on`. ONEDOOR's PR 6443 retired the split into `WedgeVerdict::Mixed` (`MixedDihedral`) on 2026-11-03, and in-band ends now escalate through `decide_nonzero`, so that site mints nothing.
+
+## Triggers fired (2026-11-20, CHARTTAIL)
+
+`chart-region-mints-indeterminates-after-a-definite-sign` and `chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value` closed with PR 7168: `chart_region.rs` mints no escalation after a definite sign. Pruned from `blocked_on`.

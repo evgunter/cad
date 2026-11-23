@@ -1,0 +1,308 @@
+//! **The document layer's export door**.
+//!
+//! `step_export::step_string` takes a finished kernel body
+//! ([`topo::AtRestBody`]); before
+//! this module, nothing curated accepted an EVALUATED body, so the
+//! one-shot journey ("build a bracket, export STEP") stopped at
+//! "measure". This door completes it in the document layer's own
+//! vocabulary: an [`Evaluation`] plus the [`RecipeNodeId`] whose value
+//! is to be exported.
+//!
+//! # Shape (a measured fork)
+//!
+//! A `pncad` FUNCTION taking `Evaluation` + node was chosen over a
+//! method on the bindings' body handle: the "which body does this
+//! node denote" unwrap then has ONE construction site, in Rust, and
+//! Rust document-layer consumers get the same door Python binds —
+//! one semantics, two host languages.
+//!
+//! # Scope
+//!
+//! STEP only. The STL writers consume a [`mesh::Mesh`], not a body, so
+//! an STL door needs the tessellation layer threaded through the
+//! document surface — a further curation step, recorded rather than
+//! rushed. Single-body values only (`Body`, or a non-empty `Boolean`):
+//! a `Split` or `Instances` value denotes SEVERAL bodies and gets a
+//! typed refusal naming its kind, not a silent first-element pick.
+//!
+//! # Read-outs
+//!
+//! The bindings' bodies leave through here too: [`body_in_space`],
+//! [`product_body_in_space`] and [`pick_mesh_in_space`] compose a body
+//! (or its pick mesh) into its space as export does, for a
+//! host-language read-out that never re-enters a document.
+
+use editor_core::say;
+use editor_core::{
+    Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say, Speaker,
+};
+use geom_core::Tol;
+use step_export::{StepExportError, StepOptions, step_string};
+use topo::AtRestBody;
+
+/// **Why a body could not be read as it stands in its space's
+/// coordinates** ([`body_in_space`]): moved there, it reaches past the
+/// session box.
+#[derive(Debug)]
+pub enum ComposeError {
+    /// The body moved into its space reaches past the session box: a
+    /// finished body moved by an isometry asks the box again
+    /// ([`topo::FinishedBody::moved`]).
+    NotFinished(topo::NotFinished),
+}
+
+impl ComposeError {
+    /// This refusal's text, its nested refusal ended at the door `at`
+    /// where it is `Some`; `None` writes the payload alone.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
+        match self {
+            Self::NotFinished(findings) => write!(
+                f,
+                "the body as it stands in its space is not a finished body: {}",
+                read_at(findings, at)
+            ),
+        }
+    }
+}
+
+geom_brep::ended_by_write!(ComposeError);
+
+impl core::error::Error for ComposeError {}
+
+/// Why [`step_for_node`] refused. Fail-loud and typed, D2-style; the
+/// standing carries the ids to ask the caller's own [`Evaluation`] for
+/// the payload (a failure's root cause is one
+/// [`Evaluation::node_error`] call away — the error type does not
+/// clone the kernel's non-`Clone` refusals to repeat them here).
+#[derive(Debug)]
+pub enum ExportError {
+    /// The node has no value in this evaluation.
+    Standing(NodeStanding),
+    /// The node's value is not a single body (`profile`, `pose`,
+    /// `split`, `instances`, ...).
+    NotABody {
+        /// The node whose value was refused.
+        node: RecipeNodeId,
+        /// The value's kind, from the kernel's own
+        /// [`editor_core::ValuePayload::kind_name`].
+        kind: &'static str,
+    },
+    /// The node's Boolean produced an empty result — nothing to
+    /// export.
+    EmptyBoolean {
+        /// The node whose Boolean came up empty.
+        node: RecipeNodeId,
+    },
+    /// The body could not be composed into its space's coordinates
+    /// ([`body_in_space`]).
+    Compose(ComposeError),
+    /// The body was denoted but the STEP writer refused it.
+    Step(StepExportError),
+    /// The whole-document door's gather refused: an empty world
+    /// (naming the unplaced bodies), a stranded placement, a failed
+    /// placement, or a kernel refusal while gathering.
+    Product(ProductError),
+}
+
+impl Say for ExportError {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            ExportError::Standing(standing) => say!(f, "export: ", Said(standing, by)),
+            ExportError::NotABody { node, kind } => {
+                say!(
+                    f,
+                    "export: ",
+                    by.node(*node),
+                    format_args!(" evaluates to a `{kind}`, not a body")
+                )
+            }
+            ExportError::EmptyBoolean { node } => {
+                say!(
+                    f,
+                    "export: ",
+                    by.node(*node),
+                    "'s Boolean is empty — nothing to export"
+                )
+            }
+            // The composition is a map the export runs: a build.
+            ExportError::Compose(e) => write!(
+                f,
+                "export: the body could not be composed into its space's coordinates: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
+            ExportError::Step(e) => write!(
+                f,
+                "export: the STEP writer refused: {}",
+                e.render(geom_brep::recourse::Reading::AtRest)
+            ),
+            ExportError::Product(e) => say!(f, "export: ", Said(e, by)),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: this document's nodes
+/// by their tags.
+impl core::fmt::Display for ExportError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::document::display_said(self, Speaker::TAG, f)
+    }
+}
+
+impl ExportError {
+    /// **The refusal as the frame holding the evaluated document says
+    /// it**: each of its nodes as `doc` holds it now. The door reads an
+    /// evaluation alone, so the refusal holds this document's ids,
+    /// never their labels.
+    #[must_use]
+    pub fn spoken(&self, doc: &ProfileDoc) -> editor_core::Sentence {
+        editor_core::spoken_by(self, doc)
+    }
+}
+
+impl core::error::Error for ExportError {}
+
+/// Serializes the single body `node` denotes in `evaluation` as a STEP
+/// (AP214 Part 21) exchange file and returns it as a string.
+///
+/// Accepts a `Body` value or a non-empty `Boolean`, an instance's copy
+/// and a `⊔` among them; every other shape of result is a typed
+/// [`ExportError`], never a guess.
+///
+/// # Errors
+///
+/// Every arm of [`ExportError`]: the evaluation-side refusals above,
+/// [`ExportError::Compose`] for a body that could not be read into its
+/// space, or [`ExportError::Step`] carrying the writer's own refusal. A
+/// body is written in its space's coordinates, as it stands there; it
+/// is finished already (a value holds the scalar's finished body), so
+/// the door gates nothing of its own.
+pub fn step_for_node(
+    evaluation: &Evaluation<f64>,
+    node: RecipeNodeId,
+    options: &StepOptions,
+    tol: Tol,
+) -> Result<String, ExportError> {
+    let value = evaluation.usable(node).map_err(ExportError::Standing)?;
+    let body = match value.payload.one_body() {
+        Some(Some(body)) => body,
+        Some(None) => return Err(ExportError::EmptyBoolean { node }),
+        None => {
+            return Err(ExportError::NotABody {
+                node,
+                kind: value.payload.kind_name(),
+            });
+        }
+    };
+    let body = body_in_space(body, tol)
+        .map_err(ExportError::Compose)?
+        .finished(tol)
+        .map_err(|findings| ExportError::Compose(ComposeError::NotFinished(findings)))?;
+    step_string(&body, options, tol).map_err(ExportError::Step)
+}
+
+/// **A body value as it stands in its space**, the façade's read-out
+/// door: what the value holds, moved by [`editor_core::in_space`]'s map
+/// ([`editor_core::Held::moved`]), of the same kind, its verdict carried;
+/// shared as it is where it is in its space's coordinates already.
+///
+/// A read-out is an export in D10 `[placement.world]`'s sense: what it
+/// answers (a host-language body, its points and measures) has no way
+/// back into a document. The bindings read a value's bodies through
+/// this door and compose nothing themselves.
+///
+/// # Errors
+///
+/// [`ComposeError::NotFinished`] when the moved body reaches past the
+/// session box.
+pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
+    body: &editor_core::Framed<T>,
+    tol: Tol,
+) -> Result<editor_core::Held<T>, ComposeError> {
+    match editor_core::in_space(body) {
+        None => Ok(body.holding().clone()),
+        Some(map) => body
+            .holding()
+            .moved(&map, tol)
+            .map_err(ComposeError::NotFinished),
+    }
+}
+
+/// **A product's body as it stands in the world**, [`body_in_space`]
+/// for the aggregate a gather computed ([`editor_core::Product`]):
+/// borrowed as it is where the gather computed in the world's
+/// coordinates, else moved, still finished. The move keeps every arena
+/// key, so the product's names and records cite the composed body as
+/// they cite the gathered one.
+///
+/// # Errors
+///
+/// [`ProductError::ProductInvalid`] when the moved aggregate reaches
+/// past the session box: the one place a composed product's refusal is
+/// built.
+pub fn product_body_in_space(
+    product: &editor_core::Product<f64>,
+    tol: Tol,
+) -> Result<std::borrow::Cow<'_, AtRestBody<f64>>, ProductError> {
+    let Some(map) = editor_core::in_space(product) else {
+        return Ok(std::borrow::Cow::Borrowed(&product.body));
+    };
+    topo::FinishedBody::moved(&product.body, &map, tol)
+        .map(std::borrow::Cow::Owned)
+        .map_err(|findings| ProductError::ProductInvalid { findings })
+}
+
+/// **A pick index's mesh as it stands in its space**, the read-out a
+/// host-language display draws: [`editor_core::NodePick::mesh`] is in
+/// its body's frame, and [`editor_core::pick_face`] reads a ray in the
+/// space's coordinates into that frame, so the mesh drawn is the one
+/// composed here. Borrowed as it is where the body is in its space's
+/// coordinates already; a rigid map keeps every winding and every
+/// patch's and polyline's key.
+#[must_use]
+pub fn pick_mesh_in_space(pick: &editor_core::NodePick) -> std::borrow::Cow<'_, mesh::Mesh> {
+    let Some(map) = editor_core::in_space(pick) else {
+        return std::borrow::Cow::Borrowed(pick.mesh());
+    };
+    let mut mesh = pick.mesh().clone();
+    for p in &mut mesh.positions {
+        *p = map.transform_point(*p);
+    }
+    std::borrow::Cow::Owned(mesh)
+}
+
+/// Serializes the WHOLE DOCUMENT's product — the body its product slot
+/// reads, a `⊔`'s pieces each its own solids — as a STEP (AP214 Part 21)
+/// exchange file.
+///
+/// This is the door that accepts what [`step_for_node`] refuses: a
+/// family's members, a split's two halves, several disjoint tips.
+/// One writer path serves both cases — `step_export` already emits one
+/// `MANIFOLD_SOLID_BREP` per solid, which is exactly
+/// the shape an imported multi-solid assembly round-trips through — so
+/// a one-solid product is not a special case here, it is the same call
+/// with one solid.
+///
+/// # Errors
+///
+/// [`ExportError::Product`] carrying the gather's own typed refusal
+/// (an empty slot, a product whose body is gone, a failed operand, a
+/// kernel graft or validity refusal), or
+/// [`ExportError::Step`] carrying the writer's.
+pub fn export_document_step(
+    evaluation: &Evaluation<f64>,
+    doc: &ProfileDoc,
+    options: &StepOptions,
+    tol: Tol,
+) -> Result<String, ExportError> {
+    let product =
+        editor_core::product_recorded(doc, evaluation, tol).map_err(ExportError::Product)?;
+    // The product is in the frame its gather computed in; it is written
+    // in the world's coordinates.
+    let body = product_body_in_space(&product, tol).map_err(ExportError::Product)?;
+    step_string(&body, options, tol).map_err(ExportError::Step)
+}

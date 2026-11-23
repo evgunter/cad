@@ -1,0 +1,170 @@
+---
+id: a-spline-wall-cannot-say-whether-it-holds-a-pierce-point
+kind: issue
+title: A union across a spline edge refuses HeldPierceUnbuilt: faces_holding_pierce asks a spline wall whether it holds a pierce point, and its trim cannot say
+status: closed
+opened: 2026-10-26
+priority: P0
+cost: M
+refs: [a-point-has-no-place-in-a-nurbs-faces-trim, the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex]
+branch: splice/held-pierce
+closed: 2026-11-03
+pr: 6435
+---
+
+Filed by `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`'s
+lane, from its end-to-end row.
+
+## What
+
+With the sector walk's spline arm in (`topo::sector_face`'s
+`spline_normal`), the wavy loft united with a box across its corners
+gets past the sector walk and refuses one site on.
+`editor-core` `emit_topo`'s
+`wavy_loft::a_union_across_a_nurbs_edge_refuses_at_a_spline_walls_held_pierce`
+pins it: `HeldPierceUnbuilt { operand: A, kind: Nurbs, pierced_kind:
+Plane, placed: false }`. The face is a spline wall of the loft. The
+pierced face is the box's face `x = 1`.
+
+The site is `boolean::vtxfac::held_reads` (inside
+`faces_holding_pierce`). For a pierce point of the face `x = 1`, it
+asks each face of the loft whose box holds the point whether the face
+holds it. A spline wall's placement is
+`contain::curved_face_placement_decided`, which answers
+`CurvedPlacement::Trim(None)` for a spline face
+(`a-point-has-no-place-in-a-nurbs-faces-trim`), and `held_reads`
+refuses on it.
+
+Two things stand behind this site:
+
+- **The placement.** The point-in-face row gives a spline face its
+  trim reading. With it, a wall that does not hold the point reads
+  `Out` and is passed over.
+- **A wall that does hold the point.** `held_reads` refuses
+  `placed: true` for a spline face read `In` ("a spline face's trim
+  never places a point In"): it has no residual to decide the point
+  onto the carrier and reads no normal there.
+
+The second may not be reached by the wavy loft. Measure it once the
+first lands.
+
+## Owed
+
+The end-to-end row the sector-walk row could not write: the union
+builds, and the crossings of each corner are named through the
+boolean, the first and third, of one sense, tied. It replaces the
+tripwire above. If the union then refuses at a later site, pin that
+site and file it.
+
+## Measured against point-in-face (2026-10-27)
+
+The point-in-face lane (`splice/point-in-face`, PR 5805) measured this
+union on a scratch merge of 5805's head with 5802's. The union still
+refuses `HeldPierceUnbuilt { placed: false }`, and the spline arm is
+reached. `vtxfac::faces_holding_pierce` asks
+`curved_face_placement_decided` about the loft wall `FaceKey(4v1)` at
+`(1, −1, 3)`. The arm answers `Trim(None)` because it cannot build the
+wall's trim mid-boolean: `loop_lift` returns
+`LiftGap { half_edge: 53v1 }`. That half-edge has no stored pcurve row,
+most likely because it is a piece of a corner edge the sweep split.
+
+So this row also waits on the boolean keeping, or re-deriving, the
+rows of a spline face's split edges before it asks the trim. There are
+two doors:
+- `pcurves::split_cache`, which restricts a stored row to a split
+  piece;
+- `pcurve_of`, which derives a row on demand but needs an
+  `AtRestPolicy` that the `Decide`-generic containment door does not
+  have.
+
+Decide which while building this row. Re-measure once PR 5805 lands.
+
+## Measured with point-in-face (SPLICE, PR 5805, 2026-10-27)
+
+Measured with the spline arm of `contain::curved_face_placement_decided`
+(`topo::boolean::spline_region`) on a merge of PR 5805 with PR 5802.
+The union still refuses `HeldPierceUnbuilt { placed: false }`, now for a
+different reason. The arm is reached for the loft wall at the pierce
+point `(1, −1, 3)`, but it cannot build the wall's trim:
+`Body::loop_lift` returns `LiftGap` for a half-edge of the wall's loop
+with no stored pcurve row mid-boolean, most likely a piece of a corner
+edge the sweep split. So the trim answers `Trim(None)`.
+
+What this row needs now is the boolean keeping, or re-deriving, the
+rows of a spline face's split edges before it asks the face's trim.
+There are two doors for that:
+- `pcurves::split_cache` restricts a stored row to a split piece;
+- `pcurves::pcurve_of` derives a row on demand, but needs `AtRestPolicy`,
+  which the `Decide`-generic containment door does not have.
+
+Moved from SPLICE to SPLICEFACE on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
+
+## The normal door its second half needs (2026-10-31)
+
+`splice/a-vertex-piercing-a-spline-face-reads-no-outward-normal` leaves
+this row's site as it stands. `held_reads` still reads its spline wall
+through `contain::curved_face_placement_decided` and still refuses
+`placed: true` for a wall read `In`. What that lane added is the door
+the second half needs:
+- `contain::curved_face_placement_decided` returns the in-trim foot an
+  `In` placement was decided at;
+- `face_normal::spline_outward_normal_at` reads the wall's outward
+  normal at that chart point.
+
+The wall's bend there is `T::spline_chart_arm`, as the pierce now reads
+its pierced spline face's (`PierceLever::Within`). The placement's
+uniqueness on the wall is
+`the-spline-placement-read-certifies-no-second-in-trim-foot`.
+
+Moved from SPLICEFACE to SPLICE on 2026-11-02, by `git mv`, when SPLICEFACE merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Measured on main d1ac688 (held-pierce lane, Phase 0, 2026-11-03)
+
+The rowless half-edge is not a piece of a split corner. Every
+`SplitEdge` piece on the wall's loop stores its row (`Body::split_edge`
+already restricts it through `pcurves::split_cache`). On the loft wall
+`FaceKey(4v1)`'s outer loop, the six rowless halves (`53v1`, `50v1`,
+`41v1`, `44v1`, `51v1`, `56v1` on the cycle) are each a half of a
+`MevNull` edge (`Fan`, `new_side: Above`): the null scaffolding the
+boolean's sweep mints at each crossing vertex, which has no carrier
+and so, by `pcurves`' module rule, no row while it holds the loop
+open. Each has its joint element, and both its ends are one point.
+`Body::loop_lift` returns `LiftGap` on the first of them, so
+`spline_region::Trim::of` answers `None` and the read `Trim(None)`.
+
+The analytic reader already treats this edge: `region::boundary` with
+`Scaffolding::Skipped` leaves out a null edge whose two ends are one
+point. A scratch spline trim lift that leaves such halves out (the
+joints into them are the identity, so the decks of the halves around
+them are unchanged) gets the wavy loft past this site: the
+wall reads `OffCarrier` at both pierce points `(1, ∓1, 3)` (it is the
+loft's right wall, 0.3 off them), `held_reads` passes, and the union
+refuses one site on in the join: `GermFrameUnsupported { a_face:
+4v1, a_kind: Nurbs, b_face: 6v1, b_kind: Plane }`
+(`boolean::join::pair_section_frame_at`'s `NoArm`). The second half
+(`placed: true`) is not reached by the wavy loft.
+
+## Teapot wall 3 reaches this site (2026-11-03)
+
+Measured by the split-parameter lane (`splice/split-parameter`). With
+a boundary meeting's parameter carried to the seam split
+(`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`), teapot
+wall 3 (`demos/tour/src/teapot.rs`, `wall_probes`) stops here at the
+default and 1e-12 rows: `HeldPierceUnbuilt { operand: B, kind: Nurbs,
+pierced_kind: Sphere, placed: false }`. The face is the spout's outer
+wall and the pierced face the belly's sphere, both pinned by geometry in
+`teapot::wall3_pinned`. At 1e-6 the join stops one wall earlier
+(`teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).
+
+With the trim lifted past the sweep's null edges (`splice/held-pierce`),
+the spout's walls read the pierce point, and teapot wall 3 moves on at
+the default and 1e-12 rows. It now stops in the join at SECTARMS'
+`a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`
+(`GermFrameUnsupported { a_kind: Sphere, b_kind: Nurbs }`), which is
+re-pinned in `teapot::wall3_pinned`.
+
+## Closed (SPLICE, PR 6435, 2026-11-03)
+
+The rowless half-edges were the sweep's zero-length `MevNull` placeholders, not split pieces (`Body::split_edge` already restricts a split piece's row). The spline trim now lifts its loops past a placeholder as the analytic reader does: one predicate, `topo::null::is_placeholder` (null scaffolding whose ends are one point), read by both, through a crate-private `pcurves::loop_lift_past_placeholders`. The public `Body::loop_lift` stays strict, since a finished body holds no null edges. The skip is exact because the mint gives the joints into a placeholder's halves `JointElement::IDENTITY`. Rows cover a parted null edge and a rowless closed non-null edge (both gap), and a placeholder at every joint across a closed chart's seam.
+
+Past the site, the wavy loft ∪ box and the saddle cut by its tangent plane read their pierce points `OffCarrier` (correct) and stop at `GermFrameUnsupported { Nurbs, Plane }` (`sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame`, which now carries the end-to-end row this item owed). Teapot wall 3 stops at `GermFrameUnsupported { Sphere, Nurbs }` (`sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`) at the default ε and 1e-12. The `placed: true` half is unreached by any operand: `a-spline-wall-holding-a-pierce-point-has-no-operand-that-reaches-it` (P2).

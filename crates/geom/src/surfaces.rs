@@ -1,0 +1,2672 @@
+//! Analytic surfaces: the [`Surface`] closed enum and its evaluators.
+//!
+//! Surface kinds form a **closed enum** per D3 (`docs/DESIGN.md`):
+//! intersection needs pairwise dispatch (plane×cylinder, cylinder×torus,
+//! …), and a closed enum makes every dispatch site exhaustively checked
+//! at compile time. The [`Surface::Nurbs`] variant is the universal
+//! fallback — it carries a validated [`NurbsSurface`] payload (see
+//! [`nurbs`]) and its evaluator arms are real; the "no description yet"
+//! state is [`Surface::nurbs_placeholder`].
+//!
+//! # Surface conventions (normative; the surface half)
+//!
+//! The crate docs carry the conventions curves and surfaces share —
+//! units, complete loci (here: the infinite plane, the full cylinder,
+//! both cone nappes), the no-range-reduction rule and its bit-identity
+//! policy, conventional-and-unchecked frame fields, totality and
+//! poison, and the evaluation-code discipline. These are the
+//! surface-specific ones:
+//!
+//! - **The reference frame.** Every axisymmetric variant carries a unit
+//!   `axis` and a unit `u_ref ⊥ axis`; the third frame vector is always
+//!   `v_ref = axis × u_ref`, **computed, never stored** — the frame
+//!   `(u_ref, v_ref, axis)` is right-handed by construction. The
+//!   plane's frame is the same shape with `normal` in the axis role.
+//!   `u_ref` carries the **seam** (where u = 0 lives).
+//! - **The azimuthal frame is one body, and it is not here.** The
+//!   radial unit vector at azimuth `u`, its derivative the tangential,
+//!   and the `v_ref` above are the interior `crate::azimuth` module's
+//!   doors; that module is the one home for the formula, its
+//!   association order and the seam convention, and it is shared with
+//!   the curve half. Every azimuthal evaluator below starts from it,
+//!   one `sin_cos` call per parameter.
+//! - **Normals are derived, not stored**: `normal(u, v)` is
+//!   `(∂S/∂u × ∂S/∂v).normalize()` — the orientation is the
+//!   parameterization's, full stop. There is no "outward" concept at
+//!   this layer: a face's material side is topology's to carry (D1's
+//!   interior-left rule); the surface only promises which way its
+//!   *chart* orients. (For the closed surfaces below, the chosen charts
+//!   happen to give the intuitive out-of-the-material direction —
+//!   radially out of the cylinder, out of the sphere and torus — a
+//!   convenience, not a contract.)
+//! - **Parameterization singularities are chart defects, documented
+//!   per variant, and they poison the derived normal honestly**: where
+//!   `∂S/∂u = 0` (sphere poles, cone apex) the cross product vanishes
+//!   and `normalize` yields the scalar's poison — no branch, no
+//!   fabricated limit direction. (Exactly AT the singularity, that is;
+//!   just off it the cross product is tiny but nonzero, and
+//!   `normalize`'s power-of-two prescale returns its direction — the
+//!   nappe's normal — however small it is.) The SURFACE is regular at a sphere
+//!   pole (the chart isn't); the cone apex is a genuine surface
+//!   singularity (no tangent plane exists). Pole handling (tessellation
+//!   fans, revolve's pole vertices) is downstream case analysis on
+//!   *topology*, never a special path inside these evaluators.
+//! - **The conventional fields** here are `axis`, `normal` and `u_ref`
+//!   (unit; `u_ref ⊥ axis`, ⊥ `normal`), unchecked per the crate
+//!   docs' rule.
+
+pub mod approx;
+pub mod boxes;
+pub mod nurbs;
+pub mod projection;
+
+use crate::rows::{RingReader, RingSites};
+use std::sync::Arc;
+
+use geom_core::period::Period;
+use geom_core::spline::SpanLocate;
+use geom_core::{Band, Point3, Real, Vec3};
+
+use crate::convention::{ConventionEnd, RepresentabilityMargin};
+use crate::curves::Line;
+use crate::datum::{AnalyticData, DatumValue};
+use crate::frame::Frame;
+
+use crate::azimuth;
+pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
+pub use nurbs::{
+    NetState, NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow,
+};
+pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
+
+/// An analytic surface — a **complete locus**. Units, the
+/// no-range-reduction rule and its bit-identity policy, and the
+/// conventional-and-unchecked field rule are the crate docs'; the
+/// reference frame, seam placement, derived normals and the chart
+/// singularities are this module's.
+///
+/// Fields are public data (D2: conventions are carried by data);
+/// construction is by struct-literal variant syntax.
+///
+/// **`Clone`, not `Copy` (M5 PR 3, accepted and binding):** the
+/// [`Surface::Nurbs`] payload is an [`Arc`]-shared [`NurbsSurface`], so
+/// the enum is cheap to clone (one refcount) but no longer `Copy`. The
+/// payload is immutable after validated construction — sharing is
+/// D9-clean (no address-dependent behavior, no interior mutability).
+#[derive(Clone, Debug)]
+pub enum Surface<T: Real> {
+    /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
+    /// `v_ref = normal × u_ref`.
+    ///
+    /// - `u`, `v` in meters (arc-length parameters on the unit frame);
+    ///   domain ℝ², not periodic. `normal ⊥ u_ref`, both unit: the
+    ///   frame's.
+    /// - The chart normal `∂u × ∂v` is exactly the stored `normal` (in
+    ///   exact arithmetic): `u_ref × v_ref = normal` for the
+    ///   right-handed frame.
+    Plane {
+        /// The placement: the point at `(0, 0)`, the normal as its axis
+        /// and the `u` direction as its `u_ref`, held as the rigid frame
+        /// it is.
+        frame: Frame<T>,
+    },
+
+    /// The infinite cylinder
+    /// `S(u, v) = origin + radial(u)·radius + axis·v`.
+    ///
+    /// - `u` in radians, 2π-periodic (the azimuth; seam at `u_ref`);
+    ///   `v` in meters along `axis` (`origin` is the `v = 0` point on
+    ///   the axis); domain ℝ².
+    /// - Chart normal: `radial(u)` — radially outward (for
+    ///   `radius > 0`), since `∂u × ∂v = tangential·r × axis =
+    ///   radial·r`.
+    /// - No chart singularities (`radius > 0` by convention).
+    Cylinder {
+        /// The placement: the `v = 0` point on the axis, the axis and the
+        /// seam, held as the rigid frame it is.
+        frame: Frame<T>,
+        /// The radius in meters (positive by convention).
+        radius: T,
+    },
+
+    /// The (double) cone with apex `apex`, axis `axis`, and
+    /// **half-angle** `half_angle` ∈ (0, π/2) between axis and
+    /// generators:
+    /// `S(u, v) = apex + axis·(v·cos α) + radial(u)·(v·sin α)`.
+    ///
+    /// - `u` in radians, 2π-periodic (azimuth; seam at `u_ref`).
+    /// - `v` in meters **along the slant** (arc length of the
+    ///   generator lines; `|∂S/∂v| = 1`): the (u, v) convention chosen
+    ///   so both parameters are honest lengths/angles. `v = 0` is the
+    ///   apex; `v > 0` is the nappe opening along `+axis`; `v < 0`
+    ///   evaluates the mirror nappe (the complete locus — kernel faces
+    ///   will bound a single nappe by their vertices, as everywhere).
+    /// - **The apex, honestly**: at `v = 0` the parameterization is
+    ///   singular (`∂S/∂u = 0`, every azimuth maps to the apex) AND the
+    ///   surface itself is singular — the cone has no tangent plane at
+    ///   its apex; this is a true geometric singularity, unlike the
+    ///   sphere's pole, which is purely a chart artifact. The derived
+    ///   normal at `v = 0` is therefore poison (0-vector normalized),
+    ///   which is the correct answer, not a limitation: any definite
+    ///   vector would fabricate a tangent plane that does not exist.
+    ///   (NaN-poison holds exactly at `v = 0`; at any `v ≠ 0`, however
+    ///   small, the normal is the nappe's — see this module's
+    ///   singularity bullet.)
+    ///   Away from the apex the chart normal is
+    ///   `radial(u)·cos α − axis·sin α` for `v > 0` (tilted outward,
+    ///   perpendicular to the generator) and its negation for `v < 0`.
+    /// - `half_angle` strictly inside (0, π/2) by convention: 0
+    ///   degenerates to a line, π/2 to a plane — evaluated as-is here,
+    ///   like every conventional invariant; the net at rest is
+    ///   `topo::validate`'s tier-3 check 1, which reads
+    ///   [`Surface::representability_margins`].
+    Cone {
+        /// The placement: the apex, the axis the `v > 0` nappe opens
+        /// along, and the seam, held as the rigid frame it is.
+        frame: Frame<T>,
+        /// The half-angle α ∈ (0, π/2), radians, between `axis` and the
+        /// generator lines.
+        half_angle: T,
+    },
+
+    /// The sphere
+    /// `S(u, v) = center + (radial(u)·cos v + axis·sin v)·radius`.
+    ///
+    /// - `u` in radians, 2π-periodic: **longitude** (azimuth; seam at
+    ///   `u_ref`). `v` in radians: **latitude**, canonical domain
+    ///   `[−π/2, π/2]`, `v = 0` the equator through
+    ///   `center + u_ref·radius` — chosen (over colatitude) so the
+    ///   azimuth/`u_ref`/seam pattern is identical across cylinder,
+    ///   cone, sphere, and torus.
+    /// - **Poles, honestly**: at `v = ±π/2` (the points
+    ///   `center ± axis·radius`) the SURFACE is perfectly regular —
+    ///   the chart is not: `∂S/∂u = tangential·(r·cos v) → 0`, all
+    ///   longitudes map to one point, and the derived normal is poison
+    ///   there (in exact arithmetic; at `f64`, `cos(fl(π/2)) ≈ 6e-17`
+    ///   is not exactly zero, so evaluation near the pole returns
+    ///   finite values with catastrophically ill-conditioned `u`
+    ///   derivatives — same defect, different clothes). Downstream pole
+    ///   machinery (revolve's pole vertices, tessellation fans) owns
+    ///   the case analysis; the evaluator stays branch-free.
+    /// - Chart normal: `radial(u)·cos v + axis·sin v` — radially
+    ///   outward — since `∂u × ∂v = (that unit vector)·(r²·cos v)` and
+    ///   `cos v ≥ 0` on the canonical domain.
+    Sphere {
+        /// The placement: the centre, the polar axis and the seam,
+        /// held as the rigid frame it is.
+        frame: Frame<T>,
+        /// The radius in meters (positive by convention).
+        radius: T,
+    },
+
+    /// The torus
+    /// `S(u, v) = center + radial(u)·(R + r·cos v) + axis·(r·sin v)`
+    /// with `R` = `major_radius`, `r` = `minor_radius`.
+    ///
+    /// - `u` in radians, 2π-periodic: the **major** azimuth around
+    ///   `axis` (seam at `u_ref`). `v` in radians, 2π-periodic: the
+    ///   **minor** angle around the tube; `v = 0` on the outer equator
+    ///   (radially farthest from the axis), `v = π/2` on the top circle
+    ///   (toward `+axis`).
+    /// - Convention `R > r > 0` (a ring torus — no self-intersection);
+    ///   spindle/horn configurations are degenerate data. `sweep::revolve`
+    ///   refuses them at construction, but the other door that can mint a
+    ///   torus (`step-import`'s `TOROIDAL_SURFACE`) reads both radii
+    ///   verbatim — so the net covering BOTH is `topo::validate`'s tier-3
+    ///   check 1, which refuses any face carrying one at rest: a tube
+    ///   radius that is not positive as `UnrepresentableSurfaceDatum`
+    ///   (through [`Surface::representability_margins`]), and a horn or
+    ///   spindle (`R ≤ r`) as `DegenerateTorus`.
+    /// - Chart normal: `radial(u)·cos v + axis·sin v` — out of the tube
+    ///   — since `∂u × ∂v = (that)·(r·(R + r·cos v))` and
+    ///   `R + r·cos v > 0` for a ring torus. No chart singularities on
+    ///   a ring torus.
+    Torus {
+        /// The placement: the centre, the axis and the seam,
+        /// held as the rigid frame it is.
+        frame: Frame<T>,
+        /// The major radius R in meters: center-to-tube-center
+        /// distance (`R > r` by convention).
+        major_radius: T,
+        /// The minor radius r in meters: the tube radius (positive by
+        /// convention).
+        minor_radius: T,
+    },
+
+    /// One **sheet** of a spindle or horn torus: the revolved circle
+    /// `S(u, v) = center + radial(u)·(R + r·cos v) + axis·(r·sin v)`
+    /// restricted to the points where `ρ = R + r·cos v ≥ 0`, with `R` =
+    /// `major_radius` **signed** and `r` = `minor_radius`.
+    ///
+    /// - `u` in radians, 2π-periodic (the azimuth; seam at `u_ref`), as
+    ///   on the [`Surface::Torus`]. `v` in radians, **closed** on
+    ///   `[−v*, v*]` with `cos v* = −R/r`: the sheet's two ends are its
+    ///   **apexes** `center ± axis·(r·sin v*)` on the axis, where
+    ///   `∂S/∂u = 0` and the surface itself is singular (a conical
+    ///   point of half-angle `atan(√(r² − R²)/|R|)`, like a cone's
+    ///   apex). The horn (`R = r`) closes at one cusp, `v* = π`.
+    /// - `R < 0` is the **lemon** (the minor arc of the meridian circle,
+    ///   between the apexes: a football's wall); `0 < R < r` the
+    ///   **apple** (the major arc); `R = r` the horn. `R = 0` is the
+    ///   sphere, its own kind, and `R > r` the ring, [`Surface::Torus`].
+    /// - Convention `r > 0`, `R ≠ 0`, `−r < R ≤ r`, decided at rest by
+    ///   [`Surface::representability_margins`] and tier 3.
+    /// - The formula, its jet and its implicit residual are the
+    ///   torus's: with `R` signed, the residual
+    ///   `((ρ − R)² + h² − r²)/2r` vanishes on exactly this sheet, so
+    ///   chart, residual and normal agree at every point of it.
+    /// - Chart normal: `radial(u)·cos v + axis·sin v` — out of the
+    ///   tube — since `∂u × ∂v = (that)·(r·ρ)` and `ρ ≥ 0` on the
+    ///   sheet.
+    Spindle {
+        /// The placement: the centre, the axis and the seam,
+        /// held as the rigid frame it is.
+        frame: Frame<T>,
+        /// The signed major radius R in meters: the signed distance of
+        /// the meridian circle's centre from the axis, in the sketch
+        /// half-plane at `u`; negative on the lemon.
+        major_radius: T,
+        /// The minor radius r in meters: the meridian circle's radius
+        /// (positive by convention, `r ≥ |R|`).
+        minor_radius: T,
+    },
+
+    /// The NURBS fallback (D3: representable from day one; evaluators
+    /// implemented at M5 PR 3). The payload is a validated
+    /// [`NurbsSurface`] behind an [`Arc`] (immutable, cheap to clone —
+    /// see the enum docs on the `Copy` loss). The "no description yet"
+    /// state the former unit variant carried is
+    /// [`Surface::nurbs_placeholder`] — a poison-valued payload with
+    /// the same all-poison evaluation behavior.
+    Nurbs(Arc<NurbsSurface<T>>),
+
+    /// An **approximating** surface: a fitted NURBS standing in for a
+    /// surface the kernel cannot represent exactly, carrying the
+    /// intensional description of what it approximates and a
+    /// certificate bounding the distance between them
+    /// ([`ApproxSurface`]).
+    ///
+    /// The fit **is** the geometry: every evaluator, box and mesh arm
+    /// delegates to it, and the certificate says how far that stands
+    /// from the intent. The description is what re-certification
+    /// measures against — the validator re-derives per face and never
+    /// trusts the stored certificate.
+    ///
+    /// The payload is certified by construction ([`ApproxSurface`] has
+    /// no other door), so unlike [`Surface::Nurbs`] there is no
+    /// placeholder state in this variant: an `Approx` surface is always
+    /// described.
+    ///
+    /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]), and its
+    /// fit as geometry: evaluation, boxes, pcurves and sections read the
+    /// fit, re-derivation at rest reads the description, and the other
+    /// kind-indexed questions (dihedral classification, tangent bounds,
+    /// census) treat it as its own kind.
+    Approx(Arc<ApproxSurface<T>>),
+}
+
+/// Which [`Surface`] variant a surface is: the workspace's one
+/// fieldless mirror of the surface enum ([`Surface::kind`]).
+///
+/// Hand-written rather than derived so each variant's doc speaks of the
+/// tag, not of a payload it does not have. A variant added to
+/// [`Surface`] reds [`Surface::kind`]'s wildcard-free match until it
+/// has a kind here; [`Self::ALL`] is derived from this enum, so there
+/// is no roster to forget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, strum::VariantArray)]
+pub enum SurfaceKind {
+    /// A [`Surface::Plane`].
+    Plane,
+    /// A [`Surface::Cylinder`].
+    Cylinder,
+    /// A [`Surface::Cone`].
+    Cone,
+    /// A [`Surface::Sphere`].
+    Sphere,
+    /// A [`Surface::Torus`].
+    Torus,
+    /// A [`Surface::Spindle`].
+    Spindle,
+    /// A [`Surface::Nurbs`], described or the placeholder.
+    Nurbs,
+    /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`]. A
+    /// kind-indexed table says what it does with one; the intersection
+    /// table routes it as its fit's kind.
+    Approx,
+}
+
+impl<T: Real> Surface<T> {
+    /// **Whether `other` is this surface by content, each value read by
+    /// `same`**: one kind, and every value that states an analytic
+    /// surface one by `same`. A spline or approximating surface is the
+    /// same allocation (`Arc::ptr_eq`): no reader compares their content
+    /// today. The one home of the walk, beside
+    /// [`crate::Curve3::same_content_by`].
+    #[must_use]
+    pub fn same_content_by(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
+        let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
+        let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
+        let frame = |f: &Frame<T>, g: &Frame<T>| {
+            point(f.origin(), g.origin()) && vec(f.axis(), g.axis()) && vec(f.u_ref(), g.u_ref())
+        };
+        match (self, other) {
+            (Self::Plane { frame: f }, Self::Plane { frame: g }) => frame(f, g),
+            (
+                Self::Cylinder { frame: f, radius },
+                Self::Cylinder {
+                    frame: g,
+                    radius: r,
+                },
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Cone {
+                    frame: f,
+                    half_angle,
+                },
+                Self::Cone {
+                    frame: g,
+                    half_angle: h,
+                },
+            ) => frame(f, g) && same(*half_angle, *h),
+            (
+                Self::Sphere { frame: f, radius },
+                Self::Sphere {
+                    frame: g,
+                    radius: r,
+                },
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Torus {
+                    frame: f,
+                    major_radius,
+                    minor_radius,
+                },
+                Self::Torus {
+                    frame: g,
+                    major_radius: big,
+                    minor_radius: small,
+                },
+            )
+            | (
+                Self::Spindle {
+                    frame: f,
+                    major_radius,
+                    minor_radius,
+                },
+                Self::Spindle {
+                    frame: g,
+                    major_radius: big,
+                    minor_radius: small,
+                },
+            ) => frame(f, g) && same(*major_radius, *big) && same(*minor_radius, *small),
+            (Self::Nurbs(x), Self::Nurbs(y)) => Arc::ptr_eq(x, y),
+            (Self::Approx(x), Self::Approx(y)) => Arc::ptr_eq(x, y),
+            (
+                Self::Plane { .. }
+                | Self::Cylinder { .. }
+                | Self::Cone { .. }
+                | Self::Sphere { .. }
+                | Self::Torus { .. }
+                | Self::Spindle { .. }
+                | Self::Nurbs(_)
+                | Self::Approx(_),
+                _,
+            ) => false,
+        }
+    }
+    /// Which variant this surface is.
+    ///
+    /// **No wildcard arm**: a new [`Surface`] variant is a compile error
+    /// here until [`SurfaceKind`] names it.
+    #[must_use]
+    pub fn kind(&self) -> SurfaceKind {
+        match self {
+            Self::Plane { .. } => SurfaceKind::Plane,
+            Self::Cylinder { .. } => SurfaceKind::Cylinder,
+            Self::Cone { .. } => SurfaceKind::Cone,
+            Self::Sphere { .. } => SurfaceKind::Sphere,
+            Self::Torus { .. } => SurfaceKind::Torus,
+            Self::Spindle { .. } => SurfaceKind::Spindle,
+            Self::Nurbs(_) => SurfaceKind::Nurbs,
+            Self::Approx(_) => SurfaceKind::Approx,
+        }
+    }
+
+    /// **A surface of revolution's axis, as a line**: from a cylinder's
+    /// axis point, a cone's apex, or a sphere's, a torus's or a spindle's
+    /// centre, along its stored axis as stored ([`Frame::axis_line`] of
+    /// [`Self::frame`]). A reader that takes the axis as unit (a meridian
+    /// sheet, a revolve's seed) says so with [`Line::unit`]. `None` for a
+    /// plane, whose frame axis is a normal and not an axis line, and for
+    /// a net. The one door to a surface of revolution's axis.
+    #[must_use]
+    pub fn axis_line(&self) -> Option<Line<T>> {
+        match self {
+            Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
+            | Self::Torus { frame, .. }
+            | Self::Spindle { frame, .. } => Some(frame.axis_line()),
+            Self::Plane { .. } | Self::Nurbs(_) | Self::Approx(_) => None,
+        }
+    }
+
+    /// **The placement of an analytic surface**: a plane's origin,
+    /// normal and `u` axis, a cylinder's axis point, a cone's apex, a
+    /// sphere's or a torus's centre, each with its axis and seam `u_ref`
+    /// (each variant's docs say what they place). `None` for a net.
+    #[must_use]
+    pub fn frame(&self) -> Option<Frame<T>> {
+        match self {
+            Self::Plane { frame }
+            | Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
+            | Self::Torus { frame, .. }
+            | Self::Spindle { frame, .. } => Some(*frame),
+            Self::Nurbs(_) | Self::Approx(_) => None,
+        }
+    }
+
+    /// [`Self::frame`], to place it again: the analytic surface's frame,
+    /// or `None` for a net.
+    pub fn frame_mut(&mut self) -> Option<&mut Frame<T>> {
+        match self {
+            Self::Plane { frame }
+            | Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
+            | Self::Torus { frame, .. }
+            | Self::Spindle { frame, .. } => Some(frame),
+            Self::Nurbs(_) | Self::Approx(_) => None,
+        }
+    }
+}
+
+impl SurfaceKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; <Self as strum::VariantArray>::VARIANTS.len()] =
+        match <Self as strum::VariantArray>::VARIANTS.first_chunk() {
+            Some(all) => *all,
+            None => unreachable!(),
+        };
+
+    /// The kind's name: one lower-case word, the spelling refusals and
+    /// tables print.
+    ///
+    /// **Also a persisted key.** `tools/tess-meter` writes it into its
+    /// CSV's `chart` column and `tools/tess-lint` joins committed
+    /// baselines on that column, so rewording a name re-keys every
+    /// baseline row that carries it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Plane => "plane",
+            Self::Cylinder => "cylinder",
+            Self::Cone => "cone",
+            Self::Sphere => "sphere",
+            Self::Torus => "torus",
+            Self::Spindle => "spindle",
+            Self::Nurbs => "nurbs",
+            Self::Approx => "approx",
+        }
+    }
+
+    /// The kind as the noun a person reads in a refusal ("a spline
+    /// (NURBS) face"). It is not [`Self::name`]: that one is a stable
+    /// key other tools join on, so it cannot be reworded for a reader,
+    /// and the two spline kinds read differently here.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Nurbs => "spline (NURBS)",
+            Self::Approx => "approximated spline",
+            Self::Plane
+            | Self::Cylinder
+            | Self::Cone
+            | Self::Sphere
+            | Self::Torus
+            | Self::Spindle => self.name(),
+        }
+    }
+
+    /// The kind as an adjective for a face or its surface, for prose
+    /// ("a cylindrical face").
+    #[must_use]
+    pub const fn adjective(self) -> &'static str {
+        match self {
+            Self::Plane => "flat",
+            Self::Cylinder => "cylindrical",
+            Self::Cone => "conical",
+            Self::Sphere => "spherical",
+            Self::Torus => "toroidal",
+            Self::Spindle => "spindle",
+            Self::Nurbs => "spline",
+            Self::Approx => "fitted",
+        }
+    }
+}
+
+/// **The ring-torus convention's ring half, decided: its one home.**
+///
+/// D3's convention for a torus is `R > r > 0`. This decides the half
+/// that relates the two datums, `R − r > 0`, as a length on the band
+/// under the one name `ring_torus_convention`. It lives here, in the
+/// crate that defines [`Surface::Torus`], so that every door that leans
+/// on the ring reads it whatever its layer: the spiric carrier's
+/// constructor in this crate, the offset door and the plane×torus
+/// section in `geom_brep`, and in `topo` tier 3, the trim door's
+/// meridian frame and the regular outward normal. Each maps a
+/// non-`Positive` answer into its own refusal; the verdict keeps the
+/// reporting margin for a refusal that quotes it (tier 3's
+/// `DegenerateTorus`).
+///
+/// The tube half `r > 0` is a separate datum and is not decided here:
+/// `R − r` alone passes a nonpositive tube radius whenever the
+/// difference stays positive (`r = −0.3` against `R = 0.75`), so a door
+/// that needs both asks the tube first.
+///
+/// A chart's azimuth stretch floor is the same number, `R − r`, but it
+/// is an arm bound that any positive floor satisfies, gated like every
+/// other kind's arm, and not a statement of the convention.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] when the margin lands in the
+/// escalation band.
+pub fn ring_torus<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    ring_half_as(
+        RingReader::Convention.sites().ring(),
+        major_radius,
+        minor_radius,
+        band,
+    )
+}
+
+/// The ring half's one spelling, `R − r` as a length, under `name`.
+fn ring_half_as<T: geom_core::Decide>(
+    name: &'static str,
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(
+        name,
+        geom_core::Margin::of(major_radius - minor_radius),
+        band,
+    )
+}
+
+/// **The ring-torus convention's tube half, decided**: `r > 0`, as a
+/// length on the band under `torus_tube_positive`, the verdict keeping
+/// its reporting margin as [`ring_torus`]'s does. The door that needs
+/// both halves asks this one first ([`ring_torus`]'s docs say why), or
+/// reads both through [`require_ring_torus`].
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] when the margin lands in the
+/// escalation band.
+pub fn torus_tube<T: geom_core::Decide>(
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    tube_half_as(RingReader::Convention.sites().tube(), minor_radius, band)
+}
+
+/// The tube half's one spelling, `r` as a length, under `name`.
+fn tube_half_as<T: geom_core::Decide>(
+    name: &'static str,
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(name, geom_core::Margin::of(minor_radius), band)
+}
+
+/// **Both halves of the ring convention, as a requirement**: the ring
+/// [`RingTorus::of`] decides, a half it refuses stated as the funnel's
+/// collapsed-arm gate states it ([`NotARing::escalation`]), so a
+/// decided non-positive half is the funnel's recorded escalation under
+/// the half's own name — for a door whose only answer to a non-ring
+/// torus is to decline the query.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] under `torus_tube_positive` or
+/// `ring_torus_convention`: in-band, or definitely non-positive.
+pub fn require_ring_torus<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<RingTorus<T>, geom_core::Indeterminate> {
+    RingTorus::of(major_radius, minor_radius, band).map_err(|not| not.escalation(band))
+}
+
+/// **Whether a torus is a ring, as a reading**: both halves of the
+/// convention decided positive, the tube first ([`ring_torus`] says
+/// why), through [`RingTorus::of`]. For a door that
+/// takes a coarser construction where the convention does not hold,
+/// so a non-ring torus is an answer it has rather than an escalation
+/// it mints ([`require_ring_torus`] is the declining form). At a
+/// bracketed scalar a decided positive margin is positive over the
+/// whole bracket, so every torus the brackets admit is a ring.
+pub fn is_ring_torus<T: geom_core::Decide>(major_radius: T, minor_radius: T, band: Band) -> bool {
+    RingTorus::of(major_radius, minor_radius, band).is_ok()
+}
+
+/// **A torus's radii, decided a ring**: `R > r > 0`, the tube half
+/// ([`torus_tube`]) and then the ring half ([`ring_torus`]) decided
+/// `Positive` on these radii ([`RingTorus::of`]). The fields are private.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RingTorus<T> {
+    major_radius: T,
+    minor_radius: T,
+}
+
+/// **Radii that are not a ring**, by the first half of the convention
+/// that did not read `Positive`: the row it was decided under and its
+/// verdict, decided non-positive or left undecided.
+#[derive(Clone, Debug, PartialEq)]
+pub enum NotARing {
+    /// The tube half, `r > 0`.
+    Tube {
+        /// The row it was decided under.
+        site: &'static str,
+        /// Its verdict.
+        verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+    },
+    /// The ring half, `R − r > 0`.
+    Ring {
+        /// The row it was decided under.
+        site: &'static str,
+        /// Its verdict.
+        verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+    },
+}
+
+impl NotARing {
+    /// The refusing half's verdict: decided non-positive, or undecided.
+    ///
+    /// # Errors
+    ///
+    /// The half's [`geom_core::Indeterminate`] where it was undecided.
+    pub fn verdict(self) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+        match self {
+            Self::Tube { verdict, .. } | Self::Ring { verdict, .. } => verdict,
+        }
+    }
+
+    /// The refusal as the collapsed-arm gate states it
+    /// ([`geom_core::k_stats::gate_rejection`]): an undecided half's own
+    /// escalation, or a decided non-positive half's rejection under the
+    /// half's row.
+    #[must_use]
+    pub fn escalation(self, band: Band) -> geom_core::Indeterminate {
+        let (Self::Tube { site, verdict } | Self::Ring { site, verdict }) = self;
+        match verdict {
+            Err(diag) => diag,
+            Ok(decided) => geom_core::k_stats::gate_rejection(
+                site,
+                decided,
+                band,
+                geom_core::SizedPass::Positive,
+            ),
+        }
+    }
+}
+
+impl<T: geom_core::Decide> RingTorus<T> {
+    /// **Decides radii `(major_radius, minor_radius)` a ring** under the
+    /// convention's own rows ([`RingReader::Convention`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`RingTorus::of_at`].
+    pub fn of(major_radius: T, minor_radius: T, band: Band) -> Result<Self, NotARing> {
+        Self::of_at(
+            major_radius,
+            minor_radius,
+            RingReader::Convention.sites(),
+            band,
+        )
+    }
+
+    /// **Decides radii `(major_radius, minor_radius)` a ring under a
+    /// reader's own `sites`**: the tube half first ([`ring_torus`] says
+    /// why), then the ring half.
+    ///
+    /// # Errors
+    ///
+    /// [`NotARing`], naming the first half that does not read
+    /// `Positive`, with its row and verdict.
+    pub fn of_at(
+        major_radius: T,
+        minor_radius: T,
+        sites: RingSites,
+        band: Band,
+    ) -> Result<Self, NotARing> {
+        let positive = |d: &Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
+        let tube = tube_half_as(sites.tube(), minor_radius, band);
+        if !positive(&tube) {
+            return Err(NotARing::Tube {
+                site: sites.tube(),
+                verdict: tube,
+            });
+        }
+        let ring = ring_half_as(sites.ring(), major_radius, minor_radius, band);
+        if !positive(&ring) {
+            return Err(NotARing::Ring {
+                site: sites.ring(),
+                verdict: ring,
+            });
+        }
+        Ok(Self {
+            major_radius,
+            minor_radius,
+        })
+    }
+}
+
+impl<T: Real> RingTorus<T> {
+    /// Radii this crate has decided a ring on its own rows.
+    pub(crate) fn decided(major_radius: T, minor_radius: T) -> Self {
+        Self {
+            major_radius,
+            minor_radius,
+        }
+    }
+
+    /// `R`.
+    #[must_use]
+    pub fn major_radius(self) -> T {
+        self.major_radius
+    }
+
+    /// `r`.
+    #[must_use]
+    pub fn minor_radius(self) -> T {
+        self.minor_radius
+    }
+}
+
+/// What a refusal of the placeholder chart
+/// ([`Surface::is_placeholder_chart`]) says, wherever it is refused —
+/// one text, so every reader sees the same fact in the same words.
+pub const PLACEHOLDER_SURFACE: &str =
+    "the surface has no description yet: it is only the placeholder a construction starts from";
+
+/// An end of [`Surface::Spindle`]'s datum range `−r < R ≤ r`, `R ≠ 0`
+/// ([`spindle_sheet`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpindleEnd {
+    /// `R + r > 0`: at `R = −r` the lemon closes to a point on its axis.
+    Far,
+    /// `R ≠ 0`: at `R = 0` the sheet is a sphere, its own kind.
+    Sphere,
+    /// `r − R ≥ 0`: the horn closes the range, and past it the circle
+    /// sweeps a ring torus, its own kind.
+    Horn,
+}
+
+impl SpindleEnd {
+    /// What the end decides, as a clause.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::Far => "whether a spindle sheet's major radius lies above minus its minor radius",
+            Self::Sphere => "whether a spindle sheet's major radius is nonzero",
+            Self::Horn => "whether a spindle sheet's major radius is at most its minor radius",
+        }
+    }
+}
+
+/// A spindle sheet's datums outside its range ([`spindle_sheet`]): the
+/// end missed, and its margin's verdict — decided with a sign that
+/// refuses, or undecided.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpindleMiss {
+    /// The end of the range missed.
+    pub end: SpindleEnd,
+    /// The end's margin, decided or not.
+    pub verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+}
+
+/// **The spindle sheet's datum range, decided: its one home.** With
+/// `r > 0` asked first (the margin's own, as a torus's tube is), the
+/// two datums relate by `−r < R ≤ r` and `R ≠ 0`, each a length on the
+/// band: `R + r` decided positive (`spindle_far_end`), `R` decided
+/// nonzero (`spindle_not_sphere`), and the ring half `R − r` decided
+/// negative or zero (`spindle_horn_end`, [`ring_torus`]'s margin read
+/// from the sheet's side), its zero the horn.
+///
+/// # Errors
+///
+/// [`SpindleMiss`] naming the first end missed, in that order.
+pub fn spindle_sheet<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<(), SpindleMiss> {
+    use geom_core::Sign::{Negative, Positive, Zero};
+    let held = |verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+                end,
+                passes: &[geom_core::Sign]| match verdict {
+        Ok(d) if passes.contains(&d.sign) => Ok(()),
+        _ => Err(SpindleMiss { end, verdict }),
+    };
+    let read_as = |name, margin: T| {
+        geom_core::k_stats::decide_reported(name, geom_core::Margin::of(margin), band)
+    };
+    held(
+        read_as("spindle_far_end", major_radius + minor_radius),
+        SpindleEnd::Far,
+        &[Positive],
+    )?;
+    held(
+        read_as("spindle_not_sphere", major_radius),
+        SpindleEnd::Sphere,
+        &[Positive, Negative],
+    )?;
+    // The horn end is the ring convention's ring half read from the other
+    // side: the sheet holds where `R − r` is not positive.
+    held(
+        ring_half_as("spindle_horn_end", major_radius, minor_radius, band),
+        SpindleEnd::Horn,
+        &[Negative, Zero],
+    )
+}
+
+/// **The meridian's side, its one home**: `σ = sgn R` as an exact `±1`,
+/// the side of the axis a revolved circle's centre sits on, measured in
+/// the meridian half-plane of the surface's points. `+1` on a ring torus
+/// and an apple sheet, `−1` on a lemon sheet, where the centre lies
+/// across the axis. Formulas shared by the torus and the sheet read a
+/// meridian's out-direction, or its centre's direction, through it.
+///
+/// It transfers a sign that is DECIDED at rest, and is not a two-way
+/// choice standing in for one (`work/lathe/copysign-stands-in-for-a-nappe-and-a-max-fold-and-hulls.md`):
+/// a ring torus carries `R > r > 0` ([`require_ring_torus`]), and
+/// [`spindle_sheet`] decides a sheet's `R` clear of zero
+/// (`spindle_not_sphere`, `R = 0` is the sphere). So no datum at rest
+/// gives it a zero, and at `Interval` an enclosure of `R` that holds
+/// no zero gives the point `±1`, never the hull.
+pub fn meridian_side<T: Real>(major_radius: T) -> T {
+    major_radius.unit_sign()
+}
+
+/// A spindle sheet's apexes, as [`sheet_apex`] places them: their
+/// height `√(r² − R²)` above and below the centre along the axis, and
+/// the tube angle `v*` they lie at (`cos v* = −R/r`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SheetApex<T> {
+    /// The apexes' distance from the centre along the axis.
+    pub height: T,
+    /// The tube angle `v* ∈ (0, π]` of the upper apex; the lower is at
+    /// `−v*`.
+    pub v: T,
+}
+
+/// **A spindle sheet's apex, its one home.** The height reads the
+/// radicand as `(r − R)(r + R)`, clamped at zero, so a horn
+/// [`spindle_sheet`] accepts a hair past `R = r` (inside the band's
+/// zero) closes at its one cusp, height zero and `v* = π`, rather than
+/// at a root of a negative number. Total on every datum `spindle_sheet`
+/// accepts; past it the clamp still answers a cusp, which the range
+/// check has refused.
+pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
+    let radicand = ((minor_radius - major_radius) * (minor_radius + major_radius)).max(T::zero());
+    let height = radicand.sqrt();
+    SheetApex {
+        height,
+        v: height.atan2(-major_radius),
+    }
+}
+
+/// An analytic chart's `(u, v)` angle periods ([`Surface::angle_periods`]):
+/// `Some` on a channel that is an angle, `None` on one that is a length.
+pub type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
+
+impl<T: Real> Surface<T> {
+    /// The "no description yet" NURBS state (the former unit
+    /// placeholder variant, as data): a structurally valid payload
+    /// whose control points are all-poison, so evaluation yields the
+    /// all-poison point and every downstream certification fails
+    /// loudly (D4 ¶2) — representable ≠ described.
+    pub fn nurbs_placeholder() -> Self {
+        Surface::Nurbs(Arc::new(NurbsSurface::placeholder()))
+    }
+
+    /// The **spline chart** a surface evaluates through, when it has
+    /// one: the payload for [`Surface::Nurbs`], the fit for
+    /// [`Surface::Approx`], `None` for the analytic kinds.
+    ///
+    /// The invariant this expresses is the `Approx` variant's own — the
+    /// fit IS the geometry — so every consumer whose question is about
+    /// the surface's `(u, v)` chart (evaluation, stretch bounds, the
+    /// spline pcurve lanes, tessellation) asks here rather than
+    /// matching `Nurbs` and dropping `Approx` on the floor. A consumer
+    /// whose question is about what the surface *means* (the boolean
+    /// operand gate, the offset mint, STEP export) must NOT: it reads
+    /// the description, or refuses.
+    pub fn spline_chart(&self) -> Option<&NurbsSurface<T>> {
+        match self {
+            Surface::Plane { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. } => None,
+            Surface::Nurbs(n) => Some(n),
+            Surface::Approx(a) => Some(a.fit()),
+        }
+    }
+
+    /// **The analytic chart's angle channels, `(u, v)`, each with its
+    /// period**: [`Period::angle`] where the chart's coordinate is an
+    /// angle, none where it is a length (a plane's two, a cylinder's or a
+    /// cone's `v`). The question is whether `S` is periodic in the channel,
+    /// `S(u, v + τ) = S(u, v)`, which a lifted copy and a seam's two images
+    /// read; a sphere's latitude is such an angle, though its chart's
+    /// domain does not wrap in it (`topo`'s `Chart::v_domain_wraps` asks
+    /// that other question). `None` on a spline chart, whose periods are
+    /// its knot domains' and are decided closed at a band (`topo`'s
+    /// `chart_u_period`, `chart_v_period`).
+    ///
+    /// The one home of which analytic channel is an angle (geom-brep's
+    /// C4: "every whole-period question uses the channel's own period,
+    /// which the chart owns"), matched exhaustively so a new kind decides
+    /// here.
+    #[must_use]
+    pub fn angle_periods(&self) -> Option<AnglePeriods<T>> {
+        let angle = || Some(Period::angle());
+        match *self {
+            Surface::Plane { .. } => Some((None, None)),
+            Surface::Cylinder { .. } | Surface::Cone { .. } => Some((angle(), None)),
+            Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
+                Some((angle(), angle()))
+            }
+            Surface::Nurbs(_) | Surface::Approx(_) => None,
+        }
+    }
+
+    /// Is this surface's chart the placeholder — the
+    /// [`NurbsSurface::placeholder`] payload a construction starts from,
+    /// or an approximating surface whose fit is one? Such a chart has no
+    /// locus (its net is all-poison), so nothing can be imaged on it or
+    /// metred through it. The ONE spelling of the question: every door
+    /// that refuses the placeholder asks here, so `Nurbs` and `Approx`
+    /// cannot drift apart. The refusal text is [`PLACEHOLDER_SURFACE`].
+    pub fn is_placeholder_chart(&self) -> bool {
+        self.spline_chart()
+            .is_some_and(NurbsSurface::is_placeholder)
+    }
+
+    /// **The representability margins of this surface's datum
+    /// conventions** — each quantity a variant's docs require to be
+    /// strictly positive for its stored datum to describe the surface
+    /// its variant names at all, named by the datum it constrains and
+    /// the END of the convention it measures:
+    ///
+    /// - `Cylinder`, `Sphere`: `radius`, lower end (`radius > 0`);
+    /// - `Cone`: `half_angle` at both ends — `half_angle` (lower: at `0`
+    ///   the cone is a line) and `π/2 − half_angle` (upper: at `π/2` it
+    ///   is a plane);
+    /// - `Torus`: `minor_radius`, lower end (the `r > 0` half of the
+    ///   ring convention `R > r > 0`). The other half, `R > r`, relates
+    ///   two datums rather than bounding one, and is not a margin here;
+    /// - `Spindle`: `minor_radius`, lower end, likewise; the sheet's
+    ///   range `−r < R ≤ r`, `R ≠ 0` relates the two datums and is
+    ///   [`spindle_sheet`]'s;
+    /// - **the frame**, for `Cylinder`, `Sphere`, `Torus` and `Spindle`, after the
+    ///   scalar conventions: `axis` and `u_ref` unit and `u_ref ⊥ axis`,
+    ///   each within `band`'s coincidence threshold ε at the kind's
+    ///   radius (`convention::frame_margins`, which says what each frame
+    ///   margin protects — the locus, and on the cylinder's tilt the
+    ///   chart — and how the lever bounds the movement);
+    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame moves no
+    ///   locus a datum can lever (a non-unit `normal` or `u_ref` spans
+    ///   the same plane, and a `u_ref` off `⊥ normal` tilts the chart
+    ///   by an amount that grows with distance from `origin`, which no
+    ///   datum bounds), and a spline's datum is its net
+    ///   ([`NurbsSurface::net_state`]). The `Cone`'s frame is not
+    ///   margined either, for the same reason as the plane's tilt: it
+    ///   moves the half-angle, a deviation that grows along the slant.
+    ///
+    /// **This is the one place in code these bounds are computed for
+    /// the at-rest check**, and it is not the only place they are
+    /// stated: the variant docs above state them in prose,
+    /// `step-import`'s `CONICAL_SURFACE` arm restates the cone's as an
+    /// `f64` literal, and `geom_brep`'s section arms decide the same
+    /// datums (`torus_tube_positive`, `coc_cylinder_radius`) on the
+    /// tolerance band rather than against zero — a different posture
+    /// on the same fact, recorded where each is.
+    ///
+    /// **Nothing is decided here.** The quantities are computed at `T`
+    /// and returned; whether one is positive is the consumer's
+    /// question, asked with the consumer's posture. Evaluation does not
+    /// ask it — a value outside a convention evaluates as given, per
+    /// the crate docs' conventional-and-unchecked rule — and a margin
+    /// of a poisoned datum is poison. The variants are destructured
+    /// without `..`, so a field a variant gains is a compile error
+    /// here rather than a convention this door silently omits. The
+    /// scalar conventions come first, so a consumer reading the first
+    /// failing margin names a non-positive radius before the frame it
+    /// levers.
+    pub fn representability_margins(&self, band: Band) -> Vec<RepresentabilityMargin<T>> {
+        use crate::convention::{frame_margins, lower};
+        let frame = |axis, u_ref, arm| {
+            frame_margins(
+                axis,
+                u_ref,
+                arm,
+                band,
+                SurfaceDatum::Axis,
+                SurfaceDatum::URef,
+            )
+        };
+        match self {
+            Surface::Cylinder {
+                frame: carrier_frame,
+                radius,
+            }
+            | Surface::Sphere {
+                frame: carrier_frame,
+                radius,
+            } => {
+                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+                core::iter::once(lower(SurfaceDatum::Radius, *radius))
+                    .chain(frame(axis, u_ref, *radius))
+                    .collect()
+            }
+            Surface::Cone {
+                frame: _,
+                half_angle,
+            } => vec![
+                lower(SurfaceDatum::HalfAngle, *half_angle),
+                RepresentabilityMargin {
+                    datum: SurfaceDatum::HalfAngle,
+                    measure: crate::ConventionMeasure::Value,
+                    end: ConventionEnd::Upper,
+                    margin: T::pi() * T::from_f64(0.5) - *half_angle,
+                },
+            ],
+            Surface::Torus {
+                frame: carrier_frame,
+                major_radius,
+                minor_radius,
+            } => {
+                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+                core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
+                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
+                    .collect()
+            }
+            Surface::Spindle {
+                frame: carrier_frame,
+                major_radius,
+                minor_radius,
+            } => {
+                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+                core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
+                    .chain(frame(axis, u_ref, major_radius.abs() + *minor_radius))
+                    .collect()
+            }
+            Surface::Plane { frame: _ } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
+        }
+    }
+}
+
+/// A stored datum of an analytic [`Surface`] — the FIELD, named apart
+/// from the variant that carries it (a cylinder's and a sphere's
+/// `radius` are both [`SurfaceDatum::Radius`]). A consumer naming a
+/// datum names the surface kind beside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// Every value, for `topo`'s samples (this crate's `test-support`
+// feature, test builds only).
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
+pub enum SurfaceDatum {
+    /// A plane's or cylinder's `origin`.
+    Origin,
+    /// A plane's `normal`.
+    Normal,
+    /// The seam direction `u_ref` of any analytic kind.
+    URef,
+    /// The `axis` of a cylinder, cone, sphere, torus or spindle.
+    Axis,
+    /// A cylinder's or sphere's `radius`.
+    Radius,
+    /// A cone's `apex`.
+    Apex,
+    /// A cone's `half_angle`.
+    HalfAngle,
+    /// A sphere's, torus's or spindle's `center`.
+    Center,
+    /// A torus's or spindle's `major_radius` (signed on a spindle).
+    MajorRadius,
+    /// A torus's or spindle's `minor_radius`.
+    MinorRadius,
+}
+
+impl SurfaceDatum {
+    /// The datum's field name, as the variant spells it.
+    ///
+    /// **Hand-kept against the variants' field names**, and nothing
+    /// derives it: a renamed field leaves this string stale with
+    /// nothing red. The exhaustive match only guarantees every datum
+    /// HAS a name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Origin => "origin",
+            Self::Normal => "normal",
+            Self::URef => "u_ref",
+            Self::Axis => "axis",
+            Self::Radius => "radius",
+            Self::Apex => "apex",
+            Self::HalfAngle => "half_angle",
+            Self::Center => "center",
+            Self::MajorRadius => "major_radius",
+            Self::MinorRadius => "minor_radius",
+        }
+    }
+}
+
+/// A surface's stored data, by what kind of datum it stores
+/// ([`Surface::data`]).
+#[derive(Debug)]
+pub enum SurfaceData<'a, T: Real> {
+    /// An analytic kind's fields.
+    Analytic(AnalyticData<T, SurfaceDatum>),
+    /// A spline net, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>),
+    /// A fitted surface, unread.
+    Approx(&'a Arc<ApproxSurface<T>>),
+}
+
+/// Two surfaces read side by side ([`Surface::paired_with`]).
+#[derive(Debug)]
+pub enum SurfacePairing<'a, T: Real> {
+    /// The kinds differ, so no datum of one answers a datum of the
+    /// other.
+    KindsDiffer,
+    /// One analytic kind: each stored datum with its counterpart.
+    Analytic(AnalyticPairs<T>),
+    /// Two spline payloads, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>, &'a Arc<NurbsSurface<T>>),
+    /// Two fitted payloads, unread.
+    Approx(&'a Arc<ApproxSurface<T>>, &'a Arc<ApproxSurface<T>>),
+}
+
+/// Two surfaces of one analytic kind, datum against datum
+/// ([`SurfacePairing::Analytic`]).
+#[derive(Clone, Copy, Debug)]
+pub struct AnalyticPairs<T: Real>(AnalyticData<T, SurfaceDatum>, AnalyticData<T, SurfaceDatum>);
+
+impl<T: Real> AnalyticPairs<T> {
+    /// Each stored datum with its two values, in field order.
+    pub fn pairs(self) -> impl Iterator<Item = (SurfaceDatum, DatumValue<T>, DatumValue<T>)> {
+        self.0
+            .into_iter()
+            .zip(self.1)
+            .map(|((datum, x), (_, y))| (datum, x, y))
+    }
+}
+
+impl<T: Real> Surface<T> {
+    /// **The surface's stored data** — the one walk of the analytic
+    /// kinds' fields, which each reader that visits them field by
+    /// field folds with its own question (a poison read, a hash key, a
+    /// comparison through a comparator of its choosing), and the
+    /// payload of a spline kind.
+    ///
+    /// The variants are destructured without `..`, so a field a variant
+    /// gains is a compile error here rather than a datum every reader
+    /// silently skips; a kind that is not read as fields is a new
+    /// [`SurfaceData`] arm, which every reader matches exhaustively. A field
+    /// that takes a kind past the walk's width is caught later, by the
+    /// build that first instantiates the walk (`AnalyticData::new`'s
+    /// bound), which `cargo check` does not reach.
+    pub fn data(&self) -> SurfaceData<'_, T> {
+        use DatumValue::{Direction, Point, Scalar};
+        use SurfaceDatum as D;
+        SurfaceData::Analytic(match *self {
+            Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Origin, Point(origin)),
+                    (D::Normal, Direction(normal)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Cylinder { frame, radius } => {
+                let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Origin, Point(origin)),
+                    (D::Axis, Direction(axis)),
+                    (D::Radius, Scalar(radius)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Apex, Point(apex)),
+                    (D::Axis, Direction(axis)),
+                    (D::HalfAngle, Scalar(half_angle)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Sphere { frame, radius } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Center, Point(center)),
+                    (D::Radius, Scalar(radius)),
+                    (D::Axis, Direction(axis)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Torus {
+                frame,
+                major_radius,
+                minor_radius,
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Center, Point(center)),
+                    (D::Axis, Direction(axis)),
+                    (D::MajorRadius, Scalar(major_radius)),
+                    (D::MinorRadius, Scalar(minor_radius)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Spindle {
+                frame,
+                major_radius,
+                minor_radius,
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Center, Point(center)),
+                    (D::Axis, Direction(axis)),
+                    (D::MajorRadius, Scalar(major_radius)),
+                    (D::MinorRadius, Scalar(minor_radius)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Nurbs(ref n) => return SurfaceData::Nurbs(n),
+            Surface::Approx(ref a) => return SurfaceData::Approx(a),
+        })
+    }
+
+    /// `self` and `other` read side by side: their [`Surface::data`]
+    /// paired when they are one kind, [`SurfacePairing::KindsDiffer`]
+    /// otherwise. Each comparator folds the pairs its own way; none
+    /// walks the fields again.
+    pub fn paired_with<'a>(&'a self, other: &'a Self) -> SurfacePairing<'a, T> {
+        use SurfaceData as S;
+        if core::mem::discriminant(self) != core::mem::discriminant(other) {
+            return SurfacePairing::KindsDiffer;
+        }
+        match (self.data(), other.data()) {
+            (S::Analytic(a), S::Analytic(b)) => SurfacePairing::Analytic(AnalyticPairs(a, b)),
+            (S::Nurbs(a), S::Nurbs(b)) => SurfacePairing::Nurbs(a, b),
+            (S::Approx(a), S::Approx(b)) => SurfacePairing::Approx(a, b),
+            (S::Analytic(_) | S::Nurbs(_) | S::Approx(_), _) => SurfacePairing::KindsDiffer,
+        }
+    }
+}
+
+impl<T: SpanLocate> Surface<T> {
+    /// The point at parameters `(u, v)` — each variant's formula and
+    /// conventions are on the variant (this module's docs carry the
+    /// frame and seam rules, the crate docs the units). Evaluation
+    /// order per variant is exactly the documented formula with the
+    /// shared azimuthal frame's fixed associations
+    /// (`radial`/`tangential` from one `sin_cos`, `crate::azimuth`);
+    /// [`Surface::Nurbs`] routes to the payload's evaluator
+    /// (span selection via the sealed [`SpanLocate`] seam — the
+    /// `impl`-block bound, a sealed `Real` subtrait; see the crate
+    /// docs' evaluation-code discipline note).
+    ///
+    /// **Each analytic arm's point expression is written twice** — once
+    /// here and once in [`Surface::jet`] — and that is a duplication
+    /// this method's own collapse of the derivative accessors created.
+    /// The alternative is making `eval` a projection of the jet, which
+    /// costs [`Surface::Nurbs`] an order-2 basis pass on the workspace's
+    /// hottest evaluation door to spare five short analytic
+    /// expressions; the copies are the cheaper trade. They are not
+    /// unguarded: `eval_agrees_bitwise_with_the_jets_point` compares
+    /// the two, bit for bit, over every chart in the corpus, so a
+    /// divergence between the copies is a red test rather than a silent
+    /// fork.
+    pub fn eval(&self, u: T, v: T) -> Point3<T> {
+        match self {
+            &Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let v_ref = normal.cross(u_ref);
+                origin + u_ref * u + v_ref * v
+            }
+            &Surface::Cylinder {
+                frame: carrier_frame,
+                radius,
+            } => {
+                let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let radial = azimuth::frame(&carrier_frame, u).radial.0;
+                origin + radial * radius + axis * v
+            }
+            &Surface::Cone {
+                frame: carrier_frame,
+                half_angle,
+            } => {
+                let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let (s_a, c_a) = half_angle.sin_cos();
+                let radial = azimuth::frame(&carrier_frame, u).radial.0;
+                apex + axis * (v * c_a) + radial * (v * s_a)
+            }
+            &Surface::Sphere {
+                frame: carrier_frame,
+                radius,
+            } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let (s_v, c_v) = v.sin_cos();
+                let radial = azimuth::frame(&carrier_frame, u).radial.0;
+                center + (radial * c_v + axis * s_v) * radius
+            }
+            &Surface::Torus {
+                frame: carrier_frame,
+                major_radius,
+                minor_radius,
+            }
+            | &Surface::Spindle {
+                frame: carrier_frame,
+                major_radius,
+                minor_radius,
+            } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let (s_v, c_v) = v.sin_cos();
+                let radial = azimuth::frame(&carrier_frame, u).radial.0;
+                center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
+            }
+            Surface::Nurbs(n) => n.eval(u, v),
+            // The fit IS the geometry (the variant's docs): evaluation
+            // delegates to it, and the certificate — not this arm —
+            // carries how far it stands from the description.
+            Surface::Approx(a) => a.fit().eval(u, v),
+        }
+    }
+}
+
+impl Surface<geom_core::Interval> {
+    /// **The same surface, remembering what its chart reads**
+    /// ([`NurbsSurface::with_rect_memo`], whose caller contract this
+    /// shares: one question's chart, never a stored surface); an
+    /// analytic carrier, which keeps no memo, as it is.
+    #[must_use]
+    pub fn with_rect_memo(&self) -> Self {
+        match self {
+            Surface::Nurbs(net) => Surface::Nurbs(Arc::new(net.with_rect_memo())),
+            other => other.clone(),
+        }
+    }
+
+    /// [`Surface::jet`] at the point `(u, v)`; a spline chart's from its
+    /// memo where it keeps one ([`NurbsSurface::point_ders`]).
+    pub fn point_jet(&self, u: f64, v: f64) -> SurfaceJet<geom_core::Interval> {
+        match self {
+            Surface::Nurbs(net) => net.point_ders(u, v),
+            _ => {
+                let at = |x: f64| geom_core::Interval::from_bounds(x, x);
+                self.jet(at(u), at(v))
+            }
+        }
+    }
+
+    /// [`Surface::eval`] at the point `(u, v)`; a spline chart's from its
+    /// memo where it keeps one ([`NurbsSurface::point_eval`]).
+    pub fn point_eval(&self, u: f64, v: f64) -> Point3<geom_core::Interval> {
+        match self {
+            Surface::Nurbs(net) => net.point_eval(u, v),
+            _ => {
+                let at = |x: f64| geom_core::Interval::from_bounds(x, x);
+                self.eval(at(u), at(v))
+            }
+        }
+    }
+
+    /// [`Surface::normal`] at the point `(u, v)`: [`Self::point_jet`]'s
+    /// partials, crossed and normalised, as `normal` projects its jet.
+    pub fn point_normal(&self, u: f64, v: f64) -> Vec3<geom_core::Interval> {
+        let j = self.point_jet(u, v);
+        j.du.cross(j.dv).normalize()
+    }
+
+    /// **An enclosure of the surface over the parameter rectangle
+    /// `u × v`** that narrows as the rectangle does. A spline chart
+    /// reads its restricted control net
+    /// ([`NurbsSurface::rect_enclosure`]); an analytic carrier is
+    /// [`Surface::eval`] at the rectangle's two intervals, whose closed
+    /// forms already narrow with their arguments.
+    pub fn rect_enclosure(&self, u: (f64, f64), v: (f64, f64)) -> Point3<geom_core::Interval> {
+        match self.spline_chart() {
+            Some(net) => net.rect_enclosure(u, v),
+            None => self.eval(
+                geom_core::Interval::from_bounds(u.0, u.1),
+                geom_core::Interval::from_bounds(v.0, v.1),
+            ),
+        }
+    }
+}
+
+impl<T: SpanLocate> Surface<T> {
+    /// The whole second-order jet at `(u, v)` in **one** evaluation:
+    /// the point and every partial with `k + l ≤ 2`.
+    ///
+    /// This is the enum's primitive derivative query: the five
+    /// single-partial accessors below and [`Surface::normal`] are
+    /// defined as its projections, so each field here is, by
+    /// construction, exactly what the corresponding accessor returns,
+    /// bit for bit (pinned by test, as [`SurfaceJet3`]'s common fields
+    /// are). A caller wanting more than one partial at a point asks
+    /// once: the analytic arms build the azimuthal frame and
+    /// `sin_cos(v)` a single time, and [`Surface::Nurbs`] makes a
+    /// single [`NurbsSurface::ders`] pass rather than one per partial.
+    ///
+    /// `point` is the payload jet's own point for [`Surface::Nurbs`] —
+    /// [`Surface::eval`] keeps its dedicated pass and is **not** a
+    /// projection of this jet. That pass really is the cheaper one:
+    /// order-0 basis against this jet's order-2 tensor, measured on a
+    /// rational patch at 2 heap allocations against the jet's 40.
+    ///
+    /// Note what these arms cost the other way: on the analytic
+    /// variants the single-partial projections are now *more*
+    /// expensive than the bodies they replaced — `deriv_vv` on a
+    /// [`Surface::Plane`] was `Vec3::zero()` and now builds a whole
+    /// jet. That is deliberate, and it is affordable because no
+    /// production path calls the single-partial doors; `Surface::eval`
+    /// and `Surface::jet` are the only two that any does.
+    pub fn jet(&self, u: T, v: T) -> SurfaceJet<T> {
+        match self {
+            &Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let v_ref = normal.cross(u_ref);
+                SurfaceJet {
+                    point: origin + u_ref * u + v_ref * v,
+                    du: u_ref,
+                    dv: v_ref,
+                    duu: Vec3::zero(),
+                    duv: Vec3::zero(),
+                    dvv: Vec3::zero(),
+                }
+            }
+            &Surface::Cylinder {
+                frame: carrier_frame,
+                radius,
+            } => {
+                let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let f = azimuth::frame(&carrier_frame, u);
+                let radial = f.radial.0;
+                let tangential = f.tangential.0;
+                SurfaceJet {
+                    point: origin + radial * radius + axis * v,
+                    du: tangential * radius,
+                    dv: axis,
+                    duu: radial * (-radius),
+                    duv: Vec3::zero(),
+                    dvv: Vec3::zero(),
+                }
+            }
+            &Surface::Cone {
+                frame: carrier_frame,
+                half_angle,
+            } => {
+                let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let (s_a, c_a) = half_angle.sin_cos();
+                let f = azimuth::frame(&carrier_frame, u);
+                let radial = f.radial.0;
+                let tangential = f.tangential.0;
+                SurfaceJet {
+                    point: apex + axis * (v * c_a) + radial * (v * s_a),
+                    du: tangential * (v * s_a),
+                    dv: axis * c_a + radial * s_a,
+                    duu: radial * (-(v * s_a)),
+                    duv: tangential * s_a,
+                    dvv: Vec3::zero(),
+                }
+            }
+            &Surface::Sphere {
+                frame: carrier_frame,
+                radius,
+            } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let (s_v, c_v) = v.sin_cos();
+                let f = azimuth::frame(&carrier_frame, u);
+                let radial = f.radial.0;
+                let tangential = f.tangential.0;
+                SurfaceJet {
+                    point: center + (radial * c_v + axis * s_v) * radius,
+                    du: tangential * (radius * c_v),
+                    dv: (radial * (-s_v) + axis * c_v) * radius,
+                    duu: radial * (-(radius * c_v)),
+                    duv: tangential * (-(radius * s_v)),
+                    dvv: (radial * c_v + axis * s_v) * (-radius),
+                }
+            }
+            &Surface::Torus {
+                frame: carrier_frame,
+                major_radius,
+                minor_radius,
+            }
+            | &Surface::Spindle {
+                frame: carrier_frame,
+                major_radius,
+                minor_radius,
+            } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let (s_v, c_v) = v.sin_cos();
+                let f = azimuth::frame(&carrier_frame, u);
+                let radial = f.radial.0;
+                let tangential = f.tangential.0;
+                SurfaceJet {
+                    point: center
+                        + radial * (major_radius + minor_radius * c_v)
+                        + axis * (minor_radius * s_v),
+                    du: tangential * (major_radius + minor_radius * c_v),
+                    dv: (radial * (-s_v) + axis * c_v) * minor_radius,
+                    duu: radial * (-(major_radius + minor_radius * c_v)),
+                    duv: tangential * (-(minor_radius * s_v)),
+                    dvv: (radial * c_v + axis * s_v) * (-minor_radius),
+                }
+            }
+            Surface::Nurbs(n) => n.ders(u, v),
+            // As `eval`: the fit is the geometry, so every derivative
+            // (and therefore `normal`) is the fit's.
+            Surface::Approx(a) => a.fit().ders(u, v),
+        }
+    }
+
+    /// The first partial `∂S/∂u`.
+    ///
+    /// Plane: `u_ref` (constant). Cylinder: `tangential(u)·radius`.
+    /// Cone: `tangential(u)·(v·sin α)` — **zero at the apex** (`v = 0`,
+    /// the chart singularity). Sphere: `tangential(u)·(radius·cos v)` —
+    /// **zero at the poles**. Torus:
+    /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`
+    /// (all-poison for the placeholder state).
+    ///
+    /// [`Surface::jet`]'s `du`, projected — the enum evaluates its jet
+    /// once, and a caller wanting a second partial at the same `(u, v)`
+    /// asks for the jet rather than for two projections.
+    pub fn deriv_u(&self, u: T, v: T) -> Vec3<T> {
+        self.jet(u, v).du
+    }
+
+    /// The first partial `∂S/∂v`.
+    ///
+    /// Plane: `v_ref = normal × u_ref` (constant). Cylinder: `axis`
+    /// (constant). Cone: `axis·cos α + radial(u)·sin α` — the unit
+    /// generator direction (slant parameterization). Sphere:
+    /// `(radial(u)·(−sin v) + axis·cos v)·radius` — the meridian
+    /// tangent. Torus: `(radial(u)·(−sin v) + axis·cos v)·r`. Nurbs:
+    /// the payload jet's `dv` (all-poison for the placeholder state).
+    ///
+    /// [`Surface::jet`]'s `dv`, projected (see [`Surface::deriv_u`]).
+    pub fn deriv_v(&self, u: T, v: T) -> Vec3<T> {
+        self.jet(u, v).dv
+    }
+
+    /// The unit chart normal: `du × dv` normalized, off ONE
+    /// [`Surface::jet`] — the same value as
+    /// `self.deriv_u(u, v).cross(self.deriv_v(u, v)).normalize()`, whose
+    /// two fields it takes from a single evaluation instead of two. The
+    /// derived normal of this module's docs. Orientation is the
+    /// parameterization's; at chart singularities (sphere poles in
+    /// exact arithmetic, the cone apex) the cross vanishes and the
+    /// result is honest poison, per the singularity bullet there (no
+    /// fabricated limit directions; downstream pole machinery owns
+    /// those points).
+    pub fn normal(&self, u: T, v: T) -> Vec3<T> {
+        let j = self.jet(u, v);
+        j.du.cross(j.dv).normalize()
+    }
+
+    /// The second partial `∂²S/∂u²`.
+    ///
+    /// Plane: zero. Cylinder: `radial(u)·(−radius)`. Cone:
+    /// `radial(u)·(−(v·sin α))`. Sphere: `radial(u)·(−(radius·cos v))`.
+    /// Torus: `radial(u)·(−(R + r·cos v))`. Nurbs: the payload jet's
+    /// `duu` (all-poison for the placeholder state). (Each is the
+    /// azimuthal-rotation second derivative: `radial″ = −radial`.)
+    ///
+    /// [`Surface::jet`]'s `duu`, projected (see [`Surface::deriv_u`]).
+    pub fn deriv_uu(&self, u: T, v: T) -> Vec3<T> {
+        self.jet(u, v).duu
+    }
+
+    /// The mixed second partial `∂²S/∂u∂v` (= `∂²S/∂v∂u` — smooth
+    /// charts).
+    ///
+    /// Plane, cylinder: zero. Cone: `tangential(u)·sin α`. Sphere:
+    /// `tangential(u)·(−(radius·sin v))`. Torus:
+    /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`
+    /// (all-poison for the placeholder state).
+    ///
+    /// [`Surface::jet`]'s `duv`, projected (see [`Surface::deriv_u`]).
+    pub fn deriv_uv(&self, u: T, v: T) -> Vec3<T> {
+        self.jet(u, v).duv
+    }
+
+    /// The second partial `∂²S/∂v²`.
+    ///
+    /// Plane, cylinder, cone: zero (rulings/generators are straight).
+    /// Sphere: `(radial(u)·cos v + axis·sin v)·(−radius)` — the inward
+    /// radial. Torus: `(radial(u)·cos v + axis·sin v)·(−r)` — into the
+    /// tube. Nurbs: the payload jet's `dvv` (all-poison for the
+    /// placeholder state).
+    ///
+    /// [`Surface::jet`]'s `dvv`, projected (see [`Surface::deriv_u`]).
+    pub fn deriv_vv(&self, u: T, v: T) -> Vec3<T> {
+        self.jet(u, v).dvv
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use core::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
+
+    use geom_core::{Dual, Dual64};
+    use proptest::prelude::*;
+
+    use super::*;
+
+    // ------------------------------------------------------------------
+    // Fixtures: an exactly orthonormal tilted frame (integer Pythagorean
+    // triple over 3), so frame invariants hold to a few ulps, plus
+    // axis-aligned variants for exact closed-form checks.
+    // ------------------------------------------------------------------
+
+    fn t_axis() -> Vec3<f64> {
+        Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)
+    }
+
+    /// The cone's two margins place each end of `(0, π/2)` exactly and
+    /// label it: the datum AT an end has a margin of zero at that end
+    /// (not a small positive one), and a datum ONE ULP inside either
+    /// end has two positive margins — so a bound written with any
+    /// tolerance, or as `π − α` or `α − π/2`, reds here.
+    #[test]
+    fn cone_margins_vanish_exactly_at_each_end_of_the_convention() {
+        let cone = |half_angle: f64| Surface::Cone {
+            frame: crate::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle,
+        };
+        let margins = |a: f64| -> Vec<(ConventionEnd, f64)> {
+            cone(a)
+                .representability_margins(geom_core::Band::new(1e-9, 1e-8).unwrap())
+                .into_iter()
+                .map(|m| {
+                    assert_eq!(m.datum, SurfaceDatum::HalfAngle);
+                    (m.end, m.margin)
+                })
+                .collect()
+        };
+        use ConventionEnd::{Lower, Upper};
+        assert_eq!(margins(0.0), vec![(Lower, 0.0), (Upper, FRAC_PI_2)]);
+        assert_eq!(margins(FRAC_PI_2), vec![(Lower, FRAC_PI_2), (Upper, 0.0)]);
+        let just_above_zero = f64::from_bits(1);
+        let just_below_half_pi = f64::from_bits(FRAC_PI_2.to_bits() - 1);
+        for a in [just_above_zero, just_below_half_pi, FRAC_PI_6] {
+            assert!(
+                margins(a).iter().all(|(_, m)| *m > 0.0),
+                "{a:e} is inside the convention: {:?}",
+                margins(a)
+            );
+        }
+        assert!(margins(2.0)[1].1 < 0.0);
+    }
+
+    fn t_uref() -> Vec3<f64> {
+        Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0)
+    }
+
+    fn t_center() -> Point3<f64> {
+        Point3::new(-0.5, 4.0, 1.25)
+    }
+
+    fn all_surfaces() -> Vec<(&'static str, Surface<f64>)> {
+        vec![
+            (
+                "plane",
+                Surface::Plane {
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
+                },
+            ),
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
+                    radius: 2.5,
+                },
+            ),
+            (
+                "cone",
+                Surface::Cone {
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
+                    half_angle: FRAC_PI_6,
+                },
+            ),
+            (
+                "sphere",
+                Surface::Sphere {
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
+                    radius: 2.5,
+                },
+            ),
+            (
+                "torus",
+                Surface::Torus {
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
+                    major_radius: 3.0,
+                    minor_radius: 1.25,
+                },
+            ),
+            // A lemon (`v* = acos(0.15) ≈ 1.42`) and an apple narrow
+            // enough to read in the latitude window (`R < r·cos 1`,
+            // `v* = acos(−0.4) ≈ 1.98`). The proptests stretch their
+            // `|v| ≤ 1.4` onto `0.97·v*` on a sheet ([`sheet_v`]), so
+            // the apple's samples run past `π/2`, where it is no ring's
+            // outer half, to near its apexes.
+            (
+                "lemon",
+                Surface::Spindle {
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
+                    major_radius: -0.3,
+                    minor_radius: 2.0,
+                },
+            ),
+            (
+                "apple",
+                Surface::Spindle {
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
+                    major_radius: 0.8,
+                    minor_radius: 2.0,
+                },
+            ),
+        ]
+    }
+
+    /// A proptest's `v`, drawn from `|v| ≤ 1.4`, stretched on a spindle
+    /// sheet onto `|v| ≤ 0.97·v*` so the samples reach near its apexes;
+    /// unchanged on every other kind.
+    fn sheet_v(s: &Surface<f64>, v: f64) -> f64 {
+        match *s {
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => v * 0.97 * sheet_apex(major_radius, minor_radius).v / 1.4,
+            _ => v,
+        }
+    }
+
+    fn close3(a: Vec3<f64>, b: Vec3<f64>, tol: f64) -> bool {
+        (a.x - b.x).abs() <= tol && (a.y - b.y).abs() <= tol && (a.z - b.z).abs() <= tol
+    }
+
+    // ------------------------------------------------------------------
+    // Closed-form loci (axis-aligned exact fixtures)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn plane_evaluates_exactly() {
+        let p = Surface::Plane {
+            frame: crate::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
+        };
+        // v_ref = z × x = y: S(2, -3) = (3, -1, 3), exactly.
+        let q = p.eval(2.0, -3.0);
+        assert_eq!((q.x, q.y, q.z), (3.0, -1.0, 3.0));
+        // The chart normal is the stored normal, exactly (0/1 products).
+        let n = p.normal(2.0, -3.0);
+        assert_eq!((n.x, n.y, n.z), (0.0, 0.0, 1.0));
+        // Derivatives: ∂u = u_ref, ∂v = v_ref, all seconds zero.
+        let du = p.deriv_u(2.0, -3.0);
+        assert_eq!((du.x, du.y, du.z), (1.0, 0.0, 0.0));
+        let dv = p.deriv_v(2.0, -3.0);
+        assert_eq!((dv.x, dv.y, dv.z), (0.0, 1.0, 0.0));
+        assert_eq!(p.deriv_uu(2.0, -3.0).norm_squared(), 0.0);
+        assert_eq!(p.deriv_uv(2.0, -3.0).norm_squared(), 0.0);
+        assert_eq!(p.deriv_vv(2.0, -3.0).norm_squared(), 0.0);
+    }
+
+    #[test]
+    fn cylinder_cardinal_points_and_normal() {
+        let c = Surface::Cylinder {
+            frame: crate::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 2.0,
+        };
+        // u = 0, v = 5: (2, 0, 5) exactly.
+        let q = c.eval(0.0, 5.0);
+        assert_eq!((q.x, q.y, q.z), (2.0, 0.0, 5.0));
+        // Chart normal at u = 0 is +x (radially outward), exactly.
+        let n = c.normal(0.0, 5.0);
+        assert_eq!((n.x, n.y, n.z), (1.0, 0.0, 0.0));
+        // u = π/2: (0, 2, 5) to rounding.
+        let q = c.eval(FRAC_PI_2, 5.0);
+        assert!((q.x - 0.0).abs() <= 1e-15 && (q.y - 2.0).abs() <= 1e-15);
+    }
+
+    #[test]
+    fn sphere_cardinal_points() {
+        let s = Surface::Sphere {
+            frame: crate::Frame::new(Point3::new(1.0, 1.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 2.0,
+        };
+        // Equator seam: center + x·r.
+        let q = s.eval(0.0, 0.0);
+        assert_eq!((q.x, q.y, q.z), (3.0, 1.0, 1.0));
+        // The normal there is +x, exactly.
+        let n = s.normal(0.0, 0.0);
+        assert_eq!((n.x, n.y, n.z), (1.0, 0.0, 0.0));
+        // North pole (v = π/2): center + z·r to rounding.
+        let q = s.eval(0.7, FRAC_PI_2);
+        assert!((q.x - 1.0).abs() <= 1e-15);
+        assert!((q.y - 1.0).abs() <= 1e-15);
+        assert!((q.z - 3.0).abs() <= 1e-15);
+    }
+
+    #[test]
+    fn torus_cardinal_points() {
+        let t = Surface::Torus {
+            frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        };
+        // Outer equator at the seam: (R + r, 0, 0) exactly.
+        let q = t.eval(0.0, 0.0);
+        assert_eq!((q.x, q.y, q.z), (4.0, 0.0, 0.0));
+        // Top of the tube at the seam: (R, 0, r) to rounding.
+        let q = t.eval(0.0, FRAC_PI_2);
+        assert!((q.x - 3.0).abs() <= 1e-15 && (q.z - 1.0).abs() <= 1e-15);
+        // Inner equator: (R − r, 0, 0) to rounding.
+        let q = t.eval(0.0, PI);
+        assert!((q.x - 2.0).abs() <= 1e-15);
+        // Outward normal on the outer equator: +x exactly.
+        let n = t.normal(0.0, 0.0);
+        assert_eq!((n.x, n.y, n.z), (1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn cone_slant_parameterization() {
+        // Half-angle π/6: cos = √3/2, sin = 1/2.
+        let c = Surface::Cone {
+            frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle: FRAC_PI_6,
+        };
+        // v is slant length: |S(u, v) − apex| = |v| (unit generator).
+        for v in [0.5, 2.0, -1.5] {
+            let q = c.eval(0.3, v);
+            assert!((q.distance(Point3::origin()) - v.abs()).abs() <= 1e-14);
+        }
+        // ∂v is unit (the generator direction).
+        assert!((c.deriv_v(0.3, 2.0).norm() - 1.0).abs() <= 1e-15);
+        // v > 0 nappe opens along +axis: z-component = v·cos α > 0.
+        assert!(c.eval(0.3, 2.0).z > 0.0);
+        assert!(c.eval(0.3, -2.0).z < 0.0);
+        // The apex: parameterization singular AND surface singular —
+        // ∂u = 0 exactly at v = 0, so the derived normal is poison.
+        let du = c.deriv_u(0.9, 0.0);
+        assert_eq!(du.norm_squared(), 0.0);
+        let n = c.normal(0.9, 0.0);
+        assert!(n.x.is_nan() && n.y.is_nan() && n.z.is_nan());
+        // Away from the apex the normal is the documented closed form
+        // radial·cos α − axis·sin α (v > 0).
+        let n = c.normal(0.0, 2.0);
+        let expect = Vec3::new(FRAC_PI_6.cos(), 0.0, -FRAC_PI_6.sin());
+        assert!(close3(n, expect, 1e-15), "n = {n:?}");
+    }
+
+    // ------------------------------------------------------------------
+    // Residual properties on the tilted frame (proptest)
+    // ------------------------------------------------------------------
+
+    proptest! {
+        /// Every surface point satisfies its defining implicit residual
+        /// on the tilted fixture (the locus checks).
+        #[test]
+        fn points_lie_on_their_loci(u in -10.0..10.0f64, v in -1.4..1.4f64) {
+            let center = t_center();
+            let axis = t_axis();
+            for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
+                let p = s.eval(u, v);
+                let d = p - center;
+                let along = d.dot(axis);
+                let radial_part = d - axis * along;
+                let rho = radial_part.norm();
+                let residual = match s {
+                    Surface::Plane { .. } => along, // in-plane ⇔ no axis component
+                    Surface::Cylinder { radius, .. } => rho - radius,
+                    Surface::Cone { half_angle, .. } =>
+                        // slant |v|: axis component v·cosα, radial |v|·sinα
+                        rho - d.norm() * half_angle.sin(),
+                    Surface::Sphere { radius, .. } => d.norm() - radius,
+                    Surface::Torus { major_radius, minor_radius, .. }
+                    | Surface::Spindle { major_radius, minor_radius, .. } => {
+                        let dr = rho - major_radius;
+                        (dr.powi(2) + along.powi(2)).sqrt() - minor_radius
+                    }
+                    Surface::Nurbs(_) | Surface::Approx(_) => 0.0,
+                };
+                prop_assert!(
+                    residual.abs() <= 1e-12,
+                    "{name}: residual {residual:e} at (u, v) = ({u}, {v})"
+                );
+            }
+        }
+
+        /// Normals are unit and orthogonal to both first partials
+        /// (away from chart singularities — v is kept off the poles and
+        /// the apex by the generator ranges).
+        #[test]
+        fn normals_are_unit_and_orthogonal(
+            u in -10.0..10.0f64,
+            v in 0.1..1.4f64,
+            flip in any::<bool>(),
+        ) {
+            let v = if flip { -v } else { v };
+            for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
+                let n = s.normal(u, v);
+                prop_assert!((n.norm() - 1.0).abs() <= 1e-12, "{name}: |n|");
+                prop_assert!(n.dot(s.deriv_u(u, v)).abs() <= 1e-11, "{name}: n·∂u");
+                prop_assert!(n.dot(s.deriv_v(u, v)).abs() <= 1e-11, "{name}: n·∂v");
+            }
+        }
+
+        /// Derivative-vs-Dual consistency across ALL variants and both
+        /// parameters — the M2 test axis: seeding u (then v) as the dual
+        /// variable through `eval` reproduces `deriv_u` (then `deriv_v`)
+        /// in the tangent channel, and the value channel is bit-identical
+        /// to the f64 evaluation.
+        #[test]
+        fn first_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
+            for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
+                let sd = s.map_scalar(Dual::constant);
+                let pf = s.eval(u, v);
+
+                let pu = sd.eval(Dual::variable(u), Dual::constant(v));
+                for (channel, f64_val) in [(pu.x, pf.x), (pu.y, pf.y), (pu.z, pf.z)] {
+                    prop_assert_eq!(channel.value.to_bits(), f64_val.to_bits(), "{}", name);
+                }
+                let du = s.deriv_u(u, v);
+                prop_assert!((pu.x.deriv - du.x).abs() <= 1e-12, "{name}: ∂u x");
+                prop_assert!((pu.y.deriv - du.y).abs() <= 1e-12, "{name}: ∂u y");
+                prop_assert!((pu.z.deriv - du.z).abs() <= 1e-12, "{name}: ∂u z");
+
+                let pv = sd.eval(Dual::constant(u), Dual::variable(v));
+                let dv = s.deriv_v(u, v);
+                prop_assert!((pv.x.deriv - dv.x).abs() <= 1e-12, "{name}: ∂v x");
+                prop_assert!((pv.y.deriv - dv.y).abs() <= 1e-12, "{name}: ∂v y");
+                prop_assert!((pv.z.deriv - dv.z).abs() <= 1e-12, "{name}: ∂v z");
+            }
+        }
+
+        /// Second derivatives vs duals of the first derivatives — all
+        /// three, plus the mixed-partial symmetry check (dual-of-∂u in v
+        /// equals dual-of-∂v in u equals `deriv_uv`).
+        #[test]
+        fn second_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
+            for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
+                let sd = s.map_scalar(Dual::constant);
+
+                let duu = sd.deriv_u(Dual::variable(u), Dual::constant(v));
+                let uu = s.deriv_uu(u, v);
+                prop_assert!((duu.x.deriv - uu.x).abs() <= 1e-12, "{name}: ∂uu");
+                prop_assert!((duu.y.deriv - uu.y).abs() <= 1e-12, "{name}: ∂uu");
+                prop_assert!((duu.z.deriv - uu.z).abs() <= 1e-12, "{name}: ∂uu");
+
+                let duv = sd.deriv_u(Dual::constant(u), Dual::variable(v));
+                let vu = sd.deriv_v(Dual::variable(u), Dual::constant(v));
+                let uv = s.deriv_uv(u, v);
+                for (a, b) in [(duv.x, vu.x), (duv.y, vu.y), (duv.z, vu.z)] {
+                    // Mixed-partial symmetry between the two dual routes.
+                    prop_assert!((a.deriv - b.deriv).abs() <= 1e-12, "{name}: symmetry");
+                }
+                prop_assert!((duv.x.deriv - uv.x).abs() <= 1e-12, "{name}: ∂uv");
+                prop_assert!((duv.y.deriv - uv.y).abs() <= 1e-12, "{name}: ∂uv");
+                prop_assert!((duv.z.deriv - uv.z).abs() <= 1e-12, "{name}: ∂uv");
+
+                let dvv = sd.deriv_v(Dual::constant(u), Dual::variable(v));
+                let vv = s.deriv_vv(u, v);
+                prop_assert!((dvv.x.deriv - vv.x).abs() <= 1e-12, "{name}: ∂vv");
+                prop_assert!((dvv.y.deriv - vv.y).abs() <= 1e-12, "{name}: ∂vv");
+                prop_assert!((dvv.z.deriv - vv.z).abs() <= 1e-12, "{name}: ∂vv");
+            }
+        }
+
+        /// Periodicity in u at the value level (the honest statement is
+        /// the crate docs' bit-identity policy for periodicity; never
+        /// bitwise).
+        #[test]
+        fn azimuthal_periodicity_value_level(
+            u in -3.0..3.0f64,
+            v in -1.4..1.4f64,
+            k in -20i32..20,
+        ) {
+            for (name, s) in all_surfaces() {
+                if matches!(s, Surface::Plane { .. }) {
+                    continue; // the plane is not periodic in u
+                }
+                let p = s.eval(u, v);
+                let q = s.eval(u + f64::from(k) * TAU, v);
+                let slack = 1e-14 + 2e-14 * f64::from(k).abs();
+                prop_assert!(
+                    (p.x - q.x).abs() <= slack
+                        && (p.y - q.y).abs() <= slack
+                        && (p.z - q.z).abs() <= slack,
+                    "{name}: k = {k}"
+                );
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Chart singularities, honestly
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn sphere_pole_chart_defect() {
+        let s = Surface::Sphere {
+            frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 2.0,
+        };
+        // In exact arithmetic ∂u vanishes at v = π/2; fl(π/2) is not
+        // π/2, so at f64 the pole is *approached*, not hit: ∂u is tiny
+        // but nonzero, and the normal is still computable and outward.
+        let du = s.deriv_u(0.7, FRAC_PI_2);
+        assert!(du.norm() <= 1e-15, "|∂u| = {}", du.norm());
+        assert!(du.norm() > 0.0, "fl(π/2) does not hit the exact pole");
+        let n = s.normal(0.7, FRAC_PI_2);
+        assert!((n.z - 1.0).abs() <= 1e-12);
+        // The exact chart singularity is reachable with an exactly-zero
+        // ∂u factor via a v with cos v = 0 unreachable at f64 — but the
+        // POISON path is exact at the cone apex (tested there). Here we
+        // pin the honest near-pole conditioning: |∂u| collapses while
+        // |∂v| stays r.
+        assert!((s.deriv_v(0.7, FRAC_PI_2).norm() - 2.0).abs() <= 1e-14);
+    }
+
+    // ------------------------------------------------------------------
+    // Totality and poison
+    // ------------------------------------------------------------------
+
+    /// A described NURBS fixture: a rational degree-(2, 1) sheet — a
+    /// quadratic arch extruded linearly in `v`, weights varying along
+    /// `u` — so the payload is rational and non-trivial in both
+    /// directions.
+    fn arch_sheet_nurbs() -> Surface<f64> {
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let base = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 2.0, 0.5),
+            Point3::new(2.0, 0.0, 0.0),
+        ];
+        let wu = [1.0, 0.75, 1.25];
+        let mut control = Vec::with_capacity(6);
+        let mut weights = Vec::with_capacity(6);
+        for (b, w) in base.iter().zip(wu) {
+            control.push(*b);
+            control.push(Point3::new(b.x, b.y, b.z + 3.0));
+            weights.push(w);
+            weights.push(w);
+        }
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, weights).unwrap(),
+        ))
+    }
+
+    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
+    /// the lifted surface's value channel is the source's evaluation bit
+    /// for bit, and its `u`-tangent channel is the source's closed-form
+    /// `∂u` to rounding.
+    #[test]
+    fn described_nurbs_lifts_as_its_payload_at_dual() {
+        let s = arch_sheet_nurbs();
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
+        for (u, v) in [(0.0, 0.0), (0.3, 0.6), (0.5, 0.5), (0.8, 0.1), (1.0, 1.0)] {
+            let p = sd.eval(Dual::variable(u), Dual::constant(v));
+            let q = s.eval(u, v);
+            let du = s.deriv_u(u, v);
+            for (name, lifted, source, tangent) in [
+                ("x", p.x, q.x, du.x),
+                ("y", p.y, q.y, du.y),
+                ("z", p.z, q.z, du.z),
+            ] {
+                assert_eq!(
+                    lifted.value.to_bits(),
+                    source.to_bits(),
+                    "(u, v) = ({u}, {v}): lifted {name} = {} vs source {source}",
+                    lifted.value
+                );
+                assert!(
+                    (lifted.deriv - tangent).abs() <= 1e-12 * (1.0 + tangent.abs()),
+                    "(u, v) = ({u}, {v}): lifted d{name} = {} vs source {tangent}",
+                    lifted.deriv
+                );
+            }
+        }
+        assert!(
+            matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()),
+            "a described NURBS lifted to the placeholder"
+        );
+    }
+
+    /// The approximating variant lifts as its payload too — the fit IS
+    /// the geometry, so the lifted surface evaluates to the source —
+    /// and the description, window and certificate ride along verbatim.
+    #[test]
+    fn approx_lifts_as_its_payload_with_its_record() {
+        let Surface::Nurbs(fit) = arch_sheet_nurbs() else {
+            panic!("fixture is a NURBS");
+        };
+        let certificate = OffsetCertificate {
+            distance: 0.25,
+            cells: 4,
+            samples: 3,
+            on_locus_max: 1e-9,
+            hull_sup: 2e-9,
+            normal_floor: 0.5,
+            curvature_reach: 1.5,
+            rounds: 2,
+        };
+        let spec = SurfaceSpec {
+            description: SurfaceDescription::Offset {
+                base: Arc::clone(&fit),
+                d: 0.25,
+            },
+            fit: (*fit).clone(),
+            window: ApproxWindow::of(&*fit),
+        };
+        let approx = ApproxSurface::certify(spec, |_, _, _| Ok::<_, ()>(certificate)).unwrap();
+        let s = Surface::Approx(Arc::new(approx));
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
+        let Surface::Approx(lifted) = &sd else {
+            panic!("an approximating surface lifted to another variant");
+        };
+        assert_eq!(lifted.window(), ApproxWindow::of(&*fit));
+        assert_eq!(lifted.certificate().hull_sup, certificate.hull_sup);
+        assert_eq!(lifted.certificate().rounds, certificate.rounds);
+        let SurfaceDescription::Offset { d, .. } = lifted.description();
+        assert_eq!(d.value, 0.25);
+        for (u, v) in [(0.0, 0.0), (0.3, 0.6), (1.0, 1.0)] {
+            let p = sd.eval(Dual::constant(u), Dual::constant(v));
+            let q = s.eval(u, v);
+            assert_eq!(p.x.value.to_bits(), q.x.to_bits(), "(u, v) = ({u}, {v}): x");
+            assert_eq!(p.y.value.to_bits(), q.y.to_bits(), "(u, v) = ({u}, {v}): y");
+            assert_eq!(p.z.value.to_bits(), q.z.to_bits(), "(u, v) = ({u}, {v}): z");
+        }
+    }
+
+    /// A described NURBS with the structure the arch sheet lacks:
+    /// degree (3, 2), `u` interior knots at multiplicities 1 and 2
+    /// (= p_u − 1), a `v` interior knot at multiplicity 1 (= p_v − 1), a
+    /// 7 × 4 net, weights spanning twelve orders of magnitude.
+    fn knotted_sheet() -> Surface<f64> {
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 0.6, 1.0, 1.0, 1.0, 1.0],
+            3,
+        )
+        .unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let cycle = [1.0, 1e6, 1e-6, 4.0, 3e5, 2e-5, 1.0];
+        let mut control = Vec::with_capacity(28);
+        let mut weights = Vec::with_capacity(28);
+        for iu in 0..7 {
+            for iv in 0..4 {
+                let (u, v) = (iu as f64, iv as f64);
+                control.push(Point3::new(
+                    u * 0.7 + 0.1 * v,
+                    (u * 0.9).sin() + v * 0.4,
+                    (v * 1.3).cos() - 0.2 * u,
+                ));
+                weights.push(cycle[(iu * 4 + iv) % 7]);
+            }
+        }
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, weights).unwrap(),
+        ))
+    }
+
+    /// Every knot value and every nonempty span's midpoint of one knot
+    /// vector.
+    fn knot_and_span_params(kv: &geom_core::spline::KnotVector) -> Vec<f64> {
+        let knots = kv.knots();
+        let mut ps: Vec<f64> = knots.to_vec();
+        ps.extend(
+            knots
+                .windows(2)
+                .filter(|w| w[1] > w[0])
+                .map(|w| 0.5 * (w[0] + w[1])),
+        );
+        ps.sort_by(f64::total_cmp);
+        ps.dedup();
+        ps
+    }
+
+    /// The lift carries the STRUCTURE verbatim — both knot vectors and
+    /// every weight — and the lifted surface evaluates to the source at
+    /// every `(u, v)` drawn from knot values, span boundaries and span
+    /// midpoints in both directions. A lift that perturbs an interior
+    /// knot or a weight is red here and nowhere in the
+    /// placeholder-vs-payload rows above.
+    #[test]
+    fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
+        let s = knotted_sheet();
+        let Surface::Nurbs(source) = &s else {
+            panic!("fixture is a NURBS");
+        };
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
+        let Surface::Nurbs(lifted) = &sd else {
+            panic!("a described NURBS lifted to another variant");
+        };
+        assert_eq!(
+            lifted.knots_u_f64_interim(),
+            source.knots_u_f64_interim(),
+            "u-knots must be carried verbatim"
+        );
+        assert_eq!(
+            lifted.knots_v_f64_interim(),
+            source.knots_v_f64_interim(),
+            "v-knots must be carried verbatim"
+        );
+        assert_eq!(
+            lifted.weights_f64_interim(),
+            source.weights_f64_interim(),
+            "the weights\' value channel must be carried verbatim"
+        );
+        for u in knot_and_span_params(source.knots_u_f64_interim()) {
+            for v in knot_and_span_params(source.knots_v_f64_interim()) {
+                let p = sd.eval(Dual::variable(u), Dual::constant(v));
+                let q = s.eval(u, v);
+                let du = s.deriv_u(u, v);
+                for (name, lifted, source, tangent) in [
+                    ("x", p.x, q.x, du.x),
+                    ("y", p.y, q.y, du.y),
+                    ("z", p.z, q.z, du.z),
+                ] {
+                    assert_eq!(
+                        lifted.value.to_bits(),
+                        source.to_bits(),
+                        "(u, v) = ({u}, {v}): lifted {name} = {} vs source {source}",
+                        lifted.value
+                    );
+                    assert!(
+                        (lifted.deriv - tangent).abs() <= 1e-9 * (1.0 + tangent.abs()),
+                        "(u, v) = ({u}, {v}): lifted d{name} = {} vs source {tangent}",
+                        lifted.deriv
+                    );
+                }
+            }
+        }
+    }
+
+    /// The placeholder lifts to the placeholder: a structural map keeps
+    /// poison, so `is_placeholder` survives the lift at both scalars.
+    #[test]
+    fn placeholder_lifts_to_the_placeholder() {
+        let n: Surface<f64> = Surface::nurbs_placeholder();
+        let nd: Surface<Dual64> = n.map_scalar(Dual::constant);
+        assert!(matches!(&nd, Surface::Nurbs(p) if p.is_placeholder()));
+        let p = nd.eval(Dual::constant(0.5), Dual::constant(0.5));
+        assert!(p.x.value.is_nan() && p.y.value.is_nan() && p.z.value.is_nan());
+    }
+
+    /// The placeholder's own doc promises an ALL-poison answer, so
+    /// every channel is read: a first-channel assertion here passes on
+    /// an answer poisoned in `x` and finite in `y`/`z`, which is
+    /// exactly the state the placeholder has to be distinguishable
+    /// from.
+    #[test]
+    fn nurbs_placeholder_evaluates_to_poison() {
+        let n: Surface<f64> = Surface::nurbs_placeholder();
+        let all_poison = |x: f64, y: f64, z: f64| x.is_nan() && y.is_nan() && z.is_nan();
+        let p = n.eval(0.5, 0.5);
+        assert!(all_poison(p.x, p.y, p.z));
+        for v in [
+            n.deriv_u(0.5, 0.5),
+            n.deriv_v(0.5, 0.5),
+            n.normal(0.5, 0.5),
+            n.deriv_uu(0.5, 0.5),
+            n.deriv_uv(0.5, 0.5),
+            n.deriv_vv(0.5, 0.5),
+        ] {
+            assert!(all_poison(v.x, v.y, v.z));
+        }
+    }
+
+    #[test]
+    fn poison_parameters_poison_points_and_no_panic_on_extremes() {
+        for (name, s) in all_surfaces() {
+            let p = s.eval(f64::NAN, 0.5);
+            assert!(
+                p.x.is_nan() || p.y.is_nan() || p.z.is_nan(),
+                "{name}: NaN u must poison"
+            );
+            let p = s.eval(0.5, f64::NAN);
+            assert!(
+                p.x.is_nan() || p.y.is_nan() || p.z.is_nan(),
+                "{name}: NaN v must poison"
+            );
+            // Totality on extremes: no panic, values or poison.
+            for e in [f64::INFINITY, f64::NEG_INFINITY, 1e300, f64::MAX] {
+                let _ = s.eval(e, e);
+                let _ = s.normal(e, e);
+                let _ = s.deriv_uu(e, e);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Interval instantiation
+    // ------------------------------------------------------------------
+
+    mod interval {
+        use geom_core::{Bounds, Interval};
+
+        use super::*;
+
+        fn contains(e: Interval, x: f64) -> bool {
+            e.lo() <= x && x <= e.hi()
+        }
+
+        /// EVERY evaluator instantiates at `Interval`, and the defining
+        /// residuals enclose zero (truth containment through identities
+        /// — the transcendental-safe assertion form). Uses the sphere
+        /// (|P − c|² − r²) and cylinder (ρ² − r²) as the spot checks,
+        /// and exercises eval/deriv_u/deriv_v/normal/seconds on all
+        /// variants for instantiation coverage.
+        #[test]
+        fn evaluators_instantiate_and_residuals_enclose_zero() {
+            for (name, s) in all_surfaces() {
+                let si = s.map_scalar(Interval::from_f64);
+                let (u, v) = (Interval::from_f64(0.7), Interval::from_f64(0.4));
+                // Instantiation coverage: every method at interval type.
+                let _ = si.eval(u, v);
+                let _ = si.deriv_u(u, v);
+                let _ = si.deriv_v(u, v);
+                let _ = si.normal(u, v);
+                let _ = si.deriv_uu(u, v);
+                let _ = si.deriv_uv(u, v);
+                let _ = si.deriv_vv(u, v);
+                // Normal ⊥ partials, as an enclosure of 0.
+                let n = si.normal(u, v);
+                let orth = n.dot(si.deriv_u(u, v));
+                assert!(
+                    contains(orth, 0.0),
+                    "{name}: n·∂u = [{}, {}]",
+                    orth.lo(),
+                    orth.hi()
+                );
+            }
+
+            let sphere = all_surfaces()[3].1.map_scalar(Interval::from_f64);
+            let (center, r) = match sphere {
+                Surface::Sphere { frame, radius, .. } => {
+                    let center = frame.origin();
+                    (center, radius)
+                }
+                _ => panic!("fixture order"),
+            };
+            for (uu, vv) in [(0.0, 0.0), (0.7, 0.4), (-3.0, 1.2), (100.0, -0.9)] {
+                let p = sphere.eval(Interval::from_f64(uu), Interval::from_f64(vv));
+                let res = (p - center).norm_squared() - r.powi(2);
+                assert!(contains(res, 0.0), "sphere residual at ({uu}, {vv})");
+                assert!(res.hi() - res.lo() < 1e-12);
+            }
+
+            let cyl = all_surfaces()[1].1.map_scalar(Interval::from_f64);
+            let (origin, axis, r) = match cyl {
+                Surface::Cylinder { frame, radius, .. } => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
+                    (origin, axis, radius)
+                }
+                _ => panic!("fixture order"),
+            };
+            for (uu, vv) in [(0.0, 0.0), (2.9, -4.0), (-11.0, 7.5)] {
+                let p = cyl.eval(Interval::from_f64(uu), Interval::from_f64(vv));
+                let d = p - origin;
+                let rho2 = d.norm_squared() - d.dot(axis).powi(2);
+                let res = rho2 - r.powi(2);
+                assert!(contains(res, 0.0), "cylinder residual at ({uu}, {vv})");
+            }
+        }
+
+        /// The plane evaluator is exact-ops only, so the f64 evaluation
+        /// is contained in the interval evaluation.
+        #[test]
+        fn plane_encloses_f64_evaluation() {
+            let p = all_surfaces()[0].1.clone();
+            let pi_ = p.map_scalar(Interval::from_f64);
+            for (uu, vv) in [(0.0, 0.0), (1.75, -3.5), (1234.5, 0.125)] {
+                let q = p.eval(uu, vv);
+                let qi = pi_.eval(Interval::from_f64(uu), Interval::from_f64(vv));
+                assert!(contains(qi.x, q.x) && contains(qi.y, q.y) && contains(qi.z, q.z));
+            }
+        }
+
+        /// An input box maps to an output box containing the images of
+        /// sampled inner parameters — enclosure containment through a
+        /// genuinely wide box (inclusion monotonicity at the evaluator
+        /// level; f64 sample images are asserted against a box widened
+        /// by the box arithmetic itself, using exact-op variants only).
+        #[test]
+        fn wide_boxes_enclose_sampled_images() {
+            let p = all_surfaces()[0].1.clone(); // plane: exact ops, assertable
+            let pi_ = p.map_scalar(Interval::from_f64);
+            let ub = Interval::from_bounds(-1.0, 2.0);
+            let vb = Interval::from_bounds(0.5, 0.75);
+            let img = pi_.eval(ub, vb);
+            for uu in [-1.0, -0.3, 0.9, 2.0] {
+                for vv in [0.5, 0.6, 0.75] {
+                    let q = p.eval(uu, vv);
+                    assert!(
+                        contains(img.x, q.x) && contains(img.y, q.y) && contains(img.z, q.z),
+                        "sample ({uu}, {vv}) escapes the box image"
+                    );
+                }
+            }
+        }
+
+        /// The interval half of the payload-lift row: a described NURBS
+        /// lifts as its payload, and the lifted enclosure brackets the
+        /// source's f64 evaluation at every sampled parameter pair.
+        #[test]
+        fn described_nurbs_lifts_as_its_payload_at_interval() {
+            let s = super::arch_sheet_nurbs();
+            let si = s.map_scalar(Interval::from_f64);
+            for (u, v) in [(0.0, 0.0), (0.3, 0.6), (0.5, 0.5), (0.8, 0.1), (1.0, 1.0)] {
+                let p = si.eval(Interval::from_f64(u), Interval::from_f64(v));
+                let q = s.eval(u, v);
+                for (name, enclosure, source) in [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                {
+                    assert!(
+                        contains(enclosure, source),
+                        "(u, v) = ({u}, {v}): lifted {name} = [{}, {}] must contain source {source}",
+                        enclosure.lo(),
+                        enclosure.hi()
+                    );
+                    assert!(
+                        enclosure.hi() - enclosure.lo() < 1e-12,
+                        "(u, v) = ({u}, {v}): {name} too wide"
+                    );
+                }
+            }
+            assert!(
+                matches!(&si, Surface::Nurbs(n) if !n.is_placeholder()),
+                "a described NURBS lifted to the placeholder"
+            );
+        }
+
+        /// The interval half of the structure row: knot vectors and
+        /// weights verbatim, and the lifted enclosure brackets the
+        /// source at every knot-value / span-midpoint pair. The width
+        /// bound is a FIXTURE PIN (this net, these weights), not a
+        /// degradation guard: it measures the evaluator's cancellation
+        /// under extreme weights, not width the lift adds (none).
+        #[test]
+        fn knotted_nurbs_lift_carries_structure_verbatim_at_interval() {
+            let s = super::knotted_sheet();
+            let Surface::Nurbs(source) = &s else {
+                panic!("fixture is a NURBS");
+            };
+            let si = s.map_scalar(Interval::from_f64);
+            let Surface::Nurbs(lifted) = &si else {
+                panic!("a described NURBS lifted to another variant");
+            };
+            assert_eq!(
+                lifted.knots_u_f64_interim(),
+                source.knots_u_f64_interim(),
+                "u-knots must be carried verbatim"
+            );
+            assert_eq!(
+                lifted.knots_v_f64_interim(),
+                source.knots_v_f64_interim(),
+                "v-knots must be carried verbatim"
+            );
+            assert_eq!(
+                lifted.weights_f64_interim(),
+                source.weights_f64_interim(),
+                "the weights\' value channel must be carried verbatim"
+            );
+            for u in super::knot_and_span_params(source.knots_u_f64_interim()) {
+                for v in super::knot_and_span_params(source.knots_v_f64_interim()) {
+                    let p = si.eval(Interval::from_f64(u), Interval::from_f64(v));
+                    let q = s.eval(u, v);
+                    for (name, enclosure, source) in
+                        [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                    {
+                        assert!(
+                            contains(enclosure, source),
+                            "(u, v) = ({u}, {v}): lifted {name} = [{}, {}] must contain {source}",
+                            enclosure.lo(),
+                            enclosure.hi()
+                        );
+                        assert!(
+                            enclosure.hi() - enclosure.lo() <= 1e-8 * (1.0 + source.abs()),
+                            "(u, v) = ({u}, {v}): {name} width {} (fixture pin)",
+                            enclosure.hi() - enclosure.lo()
+                        );
+                    }
+                }
+            }
+        }
+
+        /// NaI in → NaI out, and the Nurbs placeholder poisons at
+        /// interval type.
+        #[test]
+        fn poison_propagates_at_interval() {
+            let si = all_surfaces()[1].1.map_scalar(Interval::from_f64);
+            let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
+            assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
+            let n: Surface<Interval> = Surface::nurbs_placeholder();
+            // All-poison, not first-channel-poison: the placeholder's
+            // promise is the whole point.
+            let q = n.eval(Interval::zero(), Interval::zero());
+            assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
+        }
+    }
+
+    /// **The sheet's range at both ends and at the sphere between**:
+    /// a lemon, an apple and a horn pass; `R = −r`, `R = 0` and a ring
+    /// past `r` each refuse naming their end, decided; a margin inside
+    /// the band refuses undecided.
+    #[test]
+    fn a_spindle_sheet_is_decided_inside_its_range() {
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        for (major, minor) in [(-0.4, 1.0), (0.4, 1.0), (1.0, 1.0)] {
+            assert_eq!(
+                spindle_sheet(major, minor, band),
+                Ok(()),
+                "R = {major}, r = {minor} is a sheet"
+            );
+        }
+        for (major, minor, end) in [
+            (-1.0, 1.0, SpindleEnd::Far),
+            (-1.5, 1.0, SpindleEnd::Far),
+            (0.0, 1.0, SpindleEnd::Sphere),
+            (1.5, 1.0, SpindleEnd::Horn),
+        ] {
+            let miss = spindle_sheet(major, minor, band).unwrap_err();
+            assert_eq!(miss.end, end, "R = {major}, r = {minor}");
+            assert!(miss.verdict.is_ok(), "R = {major}: decided, not in band");
+        }
+        let in_band = spindle_sheet(1.0 + 5e-9, 1.0, band).unwrap_err();
+        assert_eq!(in_band.end, SpindleEnd::Horn);
+        assert!(in_band.verdict.is_err(), "a horn in band is undecided");
+    }
+
+    /// **The apex's one home is total on the accepted range**: a lemon
+    /// and an apple read `cos v* = −R/r` and height `r·sin v*`; a horn,
+    /// and one a hair past `R = r` that `spindle_sheet` accepts in band,
+    /// both close at the centre with `v* = π`, finite.
+    #[test]
+    fn a_sheet_apex_is_finite_on_every_accepted_sheet() {
+        for (major, minor) in [(-0.3, 0.5), (0.4, 1.0)] {
+            let apex = sheet_apex(major, minor);
+            assert!((apex.v.cos() + major / minor).abs() <= 1e-15, "R = {major}");
+            assert!(
+                (apex.height - minor * apex.v.sin()).abs() <= 1e-15,
+                "R = {major}"
+            );
+        }
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        for major in [1.0, 1.0 + 0.25 * band.zero()] {
+            assert_eq!(spindle_sheet(major, 1.0, band), Ok(()));
+            assert_eq!(
+                sheet_apex(major, 1.0),
+                SheetApex {
+                    height: 0.0,
+                    v: core::f64::consts::PI
+                },
+                "R = {major}"
+            );
+        }
+    }
+
+    /// **A spindle a hair past the ring refuses without a false
+    /// tolerance offer.** `R − r ≈ −5e-10` decides zero on the negative
+    /// side of `ring_torus_convention`, which passes only a positive
+    /// margin: every smaller tolerance decides it negative, so the
+    /// refusal says so rather than offering one. A ring a hair inside
+    /// the convention, the same distance on the positive side, keeps
+    /// its offer, and the tolerance it names decides the convention.
+    #[test]
+    fn a_ring_convention_zero_on_the_spindle_side_offers_no_tolerance() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let spindle = require_ring_torus(1.0, 1.0 + 5e-10, band)
+            .unwrap_err()
+            .to_string();
+        assert!(!spindle.contains("tighten"), "{spindle}");
+        assert!(
+            spindle.contains("a reading with no size on the side this decision accepts"),
+            "{spindle}"
+        );
+        let ring = require_ring_torus(1.0 + 5e-10, 1.0, band)
+            .unwrap_err()
+            .to_string();
+        assert!(ring.contains("tighten the tolerance below"), "{ring}");
+        let offered = Band::new(1e-11, 1e-10).unwrap();
+        assert_eq!(
+            require_ring_torus(1.0 + 5e-10, 1.0, offered).map(|_| ()),
+            Ok(()),
+            "the offered tolerance decides the ring"
+        );
+    }
+}

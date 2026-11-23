@@ -1,0 +1,782 @@
+//! The measurement door reads sphere seam regions as tier 3's check 6
+//! does, and these rows hold it there on the corpus of PR 5556's review
+//! (`review/5556-01D2cmWe`): the door names the face tier 3 names, refuses
+//! an over-cover whose region the pole read encodes, and refuses a body
+//! whose structure its walk cannot follow typed, never by a panic.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::seam_region_common::{flipped, seam_region, split_outside};
+use geom::Surface;
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use profile::{Profile, SketchPlane};
+use sweep::test_support::at_rest;
+use sweep::test_support::{
+    ball_poled, ball_poled_y, ball_poled_z, brick, dome, domed_cavity, finished, lantern, waisted,
+};
+use sweep::{ExtrudeSide, Extrusion, extrude};
+use topo::{Body, FaceKey};
+type AB = topo::AtRestBody<f64>;
+
+fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
+    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
+    .into_body()
+}
+
+fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
+    topo::transform_rigid(
+        b,
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
+            Tol::witness(),
+        ),
+    )
+    .unwrap()
+}
+
+fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
+    r.ok().and_then(|r| r.body().map(|b| b.body.clone()))
+}
+
+/// The result gate's volume on a face, a trim the chart table has no
+/// lane for or a ring its lane does not read, named by the refused
+/// face's own surface (`topo::boolean::refused_face_kind`). No boolean
+/// here stops there: a chorded cylinder or sphere face measures through
+/// the rotational lane.
+const VOLUME_ON: &str = "VolumeUncomputable on a";
+
+/// The result's piece sort, whose point-in-solid walk cannot read a
+/// sphere face bounded by a spline chord
+/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
+const PIECES: &str = "the piece sort's walk on a chorded sphere face";
+
+/// Where a boolean stops: `body`, or its refusal by variant and the
+/// door that raised it.
+fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
+    let (e, kind) = match r {
+        Ok(r) if r.body().is_some() => return "body".into(),
+        Ok(_) => return "no body".into(),
+        Err(e) => (format!("{e:?}"), topo::boolean::refused_face_kind(e)),
+    };
+    let quadrature = e.contains("VolumeUncomputable") && e.contains("QuadratureUnsupported");
+    if e.starts_with("CurvedBooleanUnsupported") {
+        "CurvedBooleanUnsupported at the join's lane dispatch".into()
+    } else if (e.contains("VolumeUncomputable") && e.contains("RingOnCurvedFace"))
+        || (quadrature && e.contains("a trimmed face with no volume lane on its chart"))
+    {
+        match kind {
+            Some(kind) => format!("{VOLUME_ON} {kind:?} face"),
+            None => format!("{VOLUME_ON} face of no recorded kind"),
+        }
+    } else if e.starts_with("Pieces(Probe") && e.contains("PartialSphereFace") {
+        PIECES.into()
+    } else {
+        e.chars().take(160).collect()
+    }
+}
+
+/// Where each of a part's booleans of a ball with a cylinder stops at
+/// this build: a changed refusal, or an operation that starts to build,
+/// goes red here, and an operation that builds (`body`) hands its body to
+/// the door's assertion with the corpus's other valid bodies. The tilted
+/// ball's four booleans with the upright rod build since the join's
+/// carried lane chords closed-form components (SECTARMS stage 3b-i);
+/// they stopped at the join's lane dispatch before. Every other boolean
+/// builds but one of each rod's `b − a`, whose result's piece sort
+/// refuses ([`PIECES`]).
+fn pinned(part: Part) -> Stops {
+    const BODY: &str = "body";
+    let table: &[(&str, &str)] = match part {
+        Part::Rest => &[],
+        Part::Rod => &[
+            ("unit u rod", BODY),
+            ("unit i rod", BODY),
+            ("unit a-b rod", BODY),
+            ("unit b-a rod", PIECES),
+            ("tilt u rod", BODY),
+            ("tilt i rod", BODY),
+            ("tilt a-b rod", BODY),
+            ("tilt b-a rod", BODY),
+        ],
+        Part::UnitTurnedRod => &[
+            ("unit u rodx", BODY),
+            ("unit i rodx", BODY),
+            ("unit a-b rodx", BODY),
+            ("unit b-a rodx", PIECES),
+        ],
+        Part::TiltTurnedRod => &[
+            ("tilt u rodx", BODY),
+            ("tilt i rodx", BODY),
+            ("tilt a-b rodx", BODY),
+            ("tilt b-a rodx", PIECES),
+        ],
+        Part::Stub => &[
+            ("unit u stub", BODY),
+            ("unit i stub", BODY),
+            ("unit a-b stub", BODY),
+            ("unit b-a stub", BODY),
+            ("tilt u stub", BODY),
+            ("tilt i stub", BODY),
+            ("tilt a-b stub", BODY),
+            ("tilt b-a stub", BODY),
+        ],
+    };
+    table
+        .iter()
+        .map(|&(op, at)| (op.to_string(), at.to_string()))
+        .collect()
+}
+
+/// **A ball × cylinder boolean's volume, independently of the kernel**,
+/// for a corpus name `"{ball} {op} {cylinder}"` (`unit` or `tilt` with
+/// `rod`, `rodx` or `stub`), `None` for any other. Each cylinder is
+/// `cyl`'s about `z`, `rodx` then turned `0.7` about `x` through the
+/// origin, which fixes both balls' centres (on `x`), so every pair is
+/// read in the cylinder's own frame: the common part sliced along its
+/// axis, each slice the lens of its disc and the ball's
+/// (`cylinder_sphere_frame::lens`), by adaptive Gauss–Kronrod.
+fn ball_cylinder_volume(name: &str) -> Option<f64> {
+    use crate::cylinder_sphere_frame::{gk, lens};
+    use core::f64::consts::PI;
+    let mut words = name.split(' ');
+    let (ball, op, cylinder) = (words.next()?, words.next()?, words.next()?);
+    let centre: (f64, f64, f64) = match ball {
+        "unit" => (0.0, 0.0, 0.0),
+        "tilt" => (0.1, 0.0, 0.0),
+        _ => return None,
+    };
+    let (cx, cy, r, z0, z1): (f64, f64, f64, f64, f64) = match cylinder {
+        "rod" => (0.1, 0.0, 0.3, -2.0, 2.0),
+        "rodx" => (0.0, 0.1, 0.25, -2.0, 2.0),
+        "stub" => (0.5, 0.2, 0.4, 0.3, 2.0),
+        _ => return None,
+    };
+    let d = (cx - centre.0).hypot(cy - centre.1);
+    let (lo, hi) = ((centre.2 - 1.0_f64).max(z0), (centre.2 + 1.0_f64).min(z1));
+    let common = gk(
+        &|z: f64| lens(r, (1.0 - (z - centre.2).powi(2)).max(0.0).sqrt(), d),
+        lo,
+        hi,
+        1e-13,
+        24,
+    );
+    let (vb, vc) = (4.0 / 3.0 * PI, PI * r * r * (z1 - z0));
+    Some(match op {
+        "u" => vb + vc - common,
+        "i" => common,
+        "a-b" => vb - common,
+        "b-a" => vc - common,
+        _ => return None,
+    })
+}
+
+fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
+    Vec3::new(x, y, z)
+}
+
+/// A part of the corpus, one row each, so that each fits the nightly's
+/// ε rows on its own: a ball's booleans with a cylinder build their
+/// chords on the carried section and certify them before the result
+/// gate reads them, and cost seconds each where the rest cost
+/// milliseconds.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Part {
+    /// The balls, the domes, the booleans with balls and boxes, the
+    /// hollows and voids, and the fuzzed balls.
+    Rest,
+    /// Both balls with the upright rod.
+    Rod,
+    /// The unit ball with the turned rod.
+    UnitTurnedRod,
+    /// The tilted ball with the turned rod.
+    TiltTurnedRod,
+    /// Both balls with the stub.
+    Stub,
+}
+
+/// Each boolean of a ball with a cylinder, by name, and where it stops
+/// ([`stop`]).
+type Stops = Vec<(String, String)>;
+
+/// Every sphere-carrying body this reviewer could build, in `part`, and
+/// where its booleans of a ball with a cylinder stop.
+fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
+    let tol = Tol::witness();
+    let mut out: Vec<(String, AB)> = Vec::new();
+    let mut push = |name: String, b: Option<AB>| {
+        if let Some(b) = b {
+            out.push((name, b));
+        } else {
+            eprintln!("SKIP {name}");
+        }
+    };
+    let mut stops = Vec::new();
+    // Each stop is read right after its boolean, while the refused
+    // face's record is its own (`topo::boolean::refused_face_kind`).
+    let bool3 = |a: &AB, b: &AB| -> Vec<(&'static str, String, Option<AB>)> {
+        let read = |op, r| (op, stop(&r), g(r));
+        vec![
+            read("u", topo::boolean::union(a, b, tol)),
+            read("i", topo::boolean::intersect(a, b, tol)),
+            read("a-b", topo::boolean::subtract(a, b, tol)),
+            read("b-a", topo::boolean::subtract(b, a, tol)),
+        ]
+    };
+    let rest = part == Part::Rest;
+    if rest {
+        for &r in &[1e-3, 0.37, 1.0, 250.0] {
+            for (pi, pole) in [v(0.0, 0.0, 1.0), v(0.3, -0.5, 0.8), v(1.0, 0.0, 0.0)]
+                .iter()
+                .enumerate()
+            {
+                let p = *pole / pole.norm();
+                let c = v(0.7 * r + 3.0, -2.0, 1.5);
+                push(
+                    format!("ball r={r} pole{pi}"),
+                    Some(finished("b", ball_poled(r, c, p, tol), tol)),
+                );
+            }
+        }
+        push(
+            "ball_y".into(),
+            Some(finished("b", ball_poled_y(1.0, v(0.2, 0.0, 0.0), tol), tol)),
+        );
+        push(
+            "ball_z".into(),
+            Some(finished(
+                "b",
+                ball_poled_z(1.0, v(0.0, 0.3, -1.0), tol),
+                tol,
+            )),
+        );
+        push("dome".into(), Some(at_rest(&dome(1.0, tol), tol)));
+        push("lantern".into(), Some(at_rest(&lantern(tol), tol)));
+        push(
+            "domed_cavity".into(),
+            Some(at_rest(&domed_cavity(tol), tol)),
+        );
+        push("waisted".into(), Some(at_rest(&waisted(tol), tol)));
+    }
+    let unit = finished(
+        "a",
+        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        tol,
+    );
+    let tilt = finished(
+        "a",
+        ball_poled(1.0, v(0.1, 0.0, 0.0), v(0.6, 0.0, 0.8), tol),
+        tol,
+    );
+    let small_in = finished(
+        "s",
+        ball_poled(0.4, v(0.1, 0.2, -0.1), v(0.0, 1.0, 0.0), tol),
+        tol,
+    );
+    let small_in_z = finished(
+        "s",
+        ball_poled(0.4, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        tol,
+    );
+    let off = finished(
+        "o",
+        ball_poled(0.8, v(0.9, 0.3, 0.2), v(0.0, 0.6, 0.8), tol),
+        tol,
+    );
+    let far = finished(
+        "f",
+        ball_poled(0.5, v(5.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        tol,
+    );
+    let bigbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        tol,
+    );
+    let halfbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.2, 2.0), tol),
+        tol,
+    );
+    let tallbar = finished(
+        "k",
+        brick::<f64>((-0.3, 0.3), (-0.2, 0.2), (-2.0, 2.0), tol),
+        tol,
+    );
+    let rod = at_rest(&cyl(0.1, 0.0, 0.3, -2.0, 2.0), tol);
+    let rodx = at_rest(
+        &turned(&cyl(0.0, 0.1, 0.25, -2.0, 2.0), v(1.0, 0.0, 0.0), 0.7),
+        tol,
+    );
+    let stub = at_rest(&cyl(0.5, 0.2, 0.4, 0.3, 2.0), tol);
+    let eqbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol),
+        tol,
+    );
+    for (an, a) in [("unit", &unit), ("tilt", &tilt)] {
+        for (bn, b) in [
+            ("small_in", &small_in),
+            ("small_in_z", &small_in_z),
+            ("off", &off),
+            ("far", &far),
+            ("bigbrick", &bigbrick),
+            ("halfbrick", &halfbrick),
+            ("tallbar", &tallbar),
+            ("rod", &rod),
+            ("rodx", &rodx),
+            ("stub", &stub),
+            ("eqbrick", &eqbrick),
+        ] {
+            let of = match (an, bn) {
+                (_, "rod") => Part::Rod,
+                ("unit", "rodx") => Part::UnitTurnedRod,
+                (_, "rodx") => Part::TiltTurnedRod,
+                (_, "stub") => Part::Stub,
+                _ => Part::Rest,
+            };
+            if of != part {
+                continue;
+            }
+            for (op, at, r) in bool3(a, b) {
+                if of != Part::Rest {
+                    stops.push((format!("{an} {op} {bn}"), at));
+                }
+                push(format!("{an} {op} {bn}"), r);
+            }
+        }
+    }
+    if rest {
+        // A hollow ball with a rod through it, a void in a brick next to a ball.
+        if let Some(hollow) = g(topo::boolean::subtract(&unit, &small_in, tol)) {
+            push(
+                "hollow - rod".into(),
+                g(topo::boolean::subtract(&hollow, &rod, tol)),
+            );
+            push(
+                "hollow u far".into(),
+                g(topo::boolean::union(&hollow, &far, tol)),
+            );
+        }
+        if let Some(void) = g(topo::boolean::subtract(&bigbrick, &small_in, tol)) {
+            push(
+                "void - unit?".into(),
+                g(topo::boolean::subtract(&void, &off, tol)),
+            );
+            push(
+                "void u far".into(),
+                g(topo::boolean::union(&void, &far, tol)),
+            );
+        }
+        if let Some(two) = g(topo::boolean::union(&unit, &far, tol)) {
+            push(
+                "two - rod".into(),
+                g(topo::boolean::subtract(&two, &rod, tol)),
+            );
+        }
+        let mut rng = test_utils::fuzz::start("review_5556");
+        for i in 0..12 {
+            let rb = rng.range(0.4, 1.2);
+            let dx = rng.range(-1.5, 1.5);
+            let dy = rng.range(-1.5, 1.5);
+            let dz = rng.range(-1.5, 1.5);
+            let p = v(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(0.1, 1.0),
+            );
+            let b = finished("b", ball_poled(rb, v(dx, dy, dz), p / p.norm(), tol), tol);
+            for (op, _, r) in bool3(&tilt, &b) {
+                push(format!("fuzz{i} {op}"), r);
+            }
+        }
+    }
+    (out, stops)
+}
+
+fn sphere_faces(body: &Body<f64>) -> Vec<(FaceKey, topo::SurfaceKey)> {
+    body.faces()
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .map(|(k, f)| (k, f.surface))
+        .collect()
+}
+
+/// **The door names the face tier 3 names.** Every sphere face of every
+/// valid body of the corpus flipped alone: where tier 3 names the flipped
+/// face (`CurvedSenseInverted`), the door refuses that face, not a
+/// neighbour whose bit is right. A region whose pole read encodes its side
+/// refuses only the members it contradicts; one whose read encodes none,
+/// the lamina's members that encode none alone
+/// (`topo::props::seam_refusals`).
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names() {
+    the_door_names_the_flipped_face_in(Part::Rest);
+}
+
+/// [`the_door_names_the_flipped_face_tier_3_names`] on both balls'
+/// booleans with the upright rod.
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names_against_the_rod() {
+    the_door_names_the_flipped_face_in(Part::Rod);
+}
+
+/// [`the_door_names_the_flipped_face_tier_3_names`] on the unit ball's
+/// booleans with the turned rod.
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names_the_unit_ball_against_the_turned_rod() {
+    the_door_names_the_flipped_face_in(Part::UnitTurnedRod);
+}
+
+/// [`the_door_names_the_flipped_face_tier_3_names`] on the tilted ball's
+/// booleans with the turned rod.
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names_the_tilted_ball_against_the_turned_rod() {
+    the_door_names_the_flipped_face_in(Part::TiltTurnedRod);
+}
+
+/// [`the_door_names_the_flipped_face_tier_3_names`] on both balls'
+/// booleans with the stub.
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names_against_the_stub() {
+    the_door_names_the_flipped_face_in(Part::Stub);
+}
+
+/// The door names the flipped face tier 3 names on every valid body of
+/// `part`, and each of its booleans of a ball with a cylinder stops where
+/// [`pinned`] says.
+fn the_door_names_the_flipped_face_in(part: Part) {
+    let tol = Tol::witness();
+    let mut misnamed = Vec::new();
+    let (bodies, stops) = corpus(part);
+    let res = topo::test_support::pinned_resolution(tol);
+    let mut wrong = Vec::new();
+    for (name, b) in &bodies {
+        let Some(want) = ball_cylinder_volume(name) else {
+            continue;
+        };
+        match topo::mass_properties(b, tol, res) {
+            Ok(m)
+                if (m.enclosure.volume - want).abs()
+                    <= crate::common::differential::VOLUME_CLAIM + m.enclosure.volume_pad => {}
+            got => wrong.push(format!(
+                "{name}: {:?} against {want}",
+                got.map(|m| (m.enclosure.volume, m.enclosure.volume_pad))
+            )),
+        }
+    }
+    for (name, b) in bodies {
+        if topo::validate_geometric(&b, tol).is_err() {
+            continue;
+        }
+        for (f, _) in sphere_faces(&b) {
+            let fl = flipped(&b, &[f]);
+            let errs = topo::validate_geometric(&fl, tol).err().unwrap_or_default();
+            let named = errs.iter().any(
+                |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face } if *face == f),
+            );
+            // Raw door: the subject is a flipped face tier 3 refuses (CurvedSenseInverted), and which face the door names.
+            if let Err(topo::MassPropsError::Face { face, source }) =
+                topo::test_support::measure_unvalidated(
+                    &fl,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                )
+                && named
+                && face != f
+            {
+                misnamed.push(format!(
+                    "{name}: flipped {f:?}, the door names {face:?} ({source:?}); region {:?}",
+                    seam_region(&b, f).0
+                ));
+            }
+        }
+    }
+    assert_eq!(
+        stops,
+        pinned(part),
+        "where the ball × cylinder booleans stop moved: {stops:#?}"
+    );
+    assert!(
+        misnamed.is_empty(),
+        "the door names a correct neighbour: {misnamed:#?}"
+    );
+    assert!(
+        wrong.is_empty(),
+        "a ball × cylinder body off its volume: {wrong:#?}"
+    );
+}
+
+/// **An over-cover the pole read can encode is the census's**: an
+/// exterior meridian split on a BOUNDED region (a union of two balls, and
+/// one less the other) covers it twice, and both doors refuse it by the
+/// census, though the region's side reads.
+#[test]
+fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
+    let tol = Tol::witness();
+    let unit = finished(
+        "a",
+        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        tol,
+    );
+    let off = finished(
+        "o",
+        ball_poled(0.8, v(0.9, 0.3, 0.2), v(0.0, 0.6, 0.8), tol),
+        tol,
+    );
+    for (name, r) in [
+        ("u off", topo::boolean::union(&unit, &off, tol)),
+        ("a-b off", topo::boolean::subtract(&unit, &off, tol)),
+    ] {
+        let b = Body::clone(&r.unwrap().body().unwrap().body);
+        let mut split = false;
+        for d in [
+            v(0.0, 1.0, 0.0),
+            v(1.0, 0.0, 0.0),
+            v(0.0, 0.0, 1.0),
+            v(-0.6, 0.0, 0.8),
+        ] {
+            let mut c = b.clone();
+            if split_outside(&mut c, d, tol) {
+                let errs = topo::validate_geometric(&c, tol).unwrap_err();
+                assert!(
+                    errs.iter()
+                        .any(|e| matches!(e, topo::ValidationError::SeamRegionOvercovered { .. })),
+                    "{name} {d:?}: tier 3 refuses the over-cover by the census: {errs:?}"
+                );
+                // Raw door: the subject is an over-cover tier 3 refuses (SeamRegionOvercovered), and the door's own refusal of it.
+                let door = topo::test_support::measure_unvalidated(
+                    &c,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                );
+                assert!(
+                    matches!(
+                        door,
+                        Err(topo::MassPropsError::Face {
+                            source: geom_brep::props::PropsError::SeamRegionOvercovered { .. },
+                            ..
+                        })
+                    ),
+                    "{name} {d:?}: the door refuses it by the census: {door:?}"
+                );
+                split = true;
+                break;
+            }
+        }
+        assert!(split, "{name}: an exterior meridian splits a face");
+    }
+}
+
+/// **A corrupt body never finishes, and the raw door panics on it only
+/// where it always did**: a two-ball union with one entity removed at a
+/// time (a face, a loop, an edge, a half-edge or a vertex). No removal passes
+/// `AtRestBody::validate`, so the typed door never reads one. Read
+/// through the raw door, the seam pass refuses what it cannot follow
+/// `MassPropsError::Corrupt`, and seven removals panic in the walk's own
+/// face resolution (`live.rs`, a shell's or a face's record naming a
+/// removed key) before any seam is read — as they did before the seam
+/// pass — so the row admits those seven and no other. Each edge's curve
+/// removed in turn refuses `MassPropsError::Corrupt`, never a panic.
+#[test]
+fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
+    use topo::EntityId;
+    let tol = Tol::witness();
+    let unit = finished(
+        "a",
+        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        tol,
+    );
+    let off = finished(
+        "o",
+        ball_poled(0.8, v(0.9, 0.3, 0.2), v(0.0, 0.6, 0.8), tol),
+        tol,
+    );
+    let b = g(topo::boolean::union(&unit, &off, tol)).unwrap();
+    let mut ids: Vec<EntityId> = Vec::new();
+    ids.extend(b.faces().map(|(k, _)| EntityId::Face(k)));
+    for (_, f) in b.faces() {
+        ids.push(EntityId::Loop(f.outer));
+    }
+    ids.extend(b.edges().map(|(k, _)| EntityId::Edge(k)));
+    ids.extend(b.half_edges().map(|(k, _)| EntityId::HalfEdge(k)));
+    ids.extend(b.vertices().map(|(k, _)| EntityId::Vertex(k)));
+    let loops: Vec<String> = ids
+        .iter()
+        .filter(|id| matches!(id, EntityId::Loop(_)))
+        .map(|id| format!("{id:?}"))
+        .collect();
+    let mut panicked = Vec::new();
+    for id in ids {
+        let c = b.with_entity_removed_for_tests(id).unwrap();
+        // The typed door is not reached: no removal finishes.
+        assert!(
+            topo::finish(c.clone(), tol).is_err(),
+            "{id:?}: the body with it removed finishes"
+        );
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body with an entity removed, which tier 1 refuses, and whether the door panics on it.
+            topo::test_support::measure_unvalidated(
+                &c,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+        })) {
+            Ok(_) => {}
+            Err(_) => panicked.push(format!("{id:?}")),
+        }
+    }
+    let before_any_seam = [
+        "Face(FaceKey(1v1))",
+        "Face(FaceKey(2v1))",
+        "Face(FaceKey(3v5))",
+        "Face(FaceKey(6v5))",
+        "Loop(LoopKey(1v1))",
+        "HalfEdge(HalfEdgeKey(25v1))",
+        // The start vertex of that same half-edge: the shell's reference
+        // point reads it before any seam, as it reads the half-edge.
+        "Vertex(VertexKey(8v1))",
+    ];
+    let new: Vec<_> = panicked
+        .iter()
+        .filter(|id| !before_any_seam.contains(&id.as_str()))
+        .collect();
+    assert!(
+        new.is_empty(),
+        "the door panics past its face resolution on: {new:?}"
+    );
+    for l in &loops {
+        if !before_any_seam.contains(&l.as_str()) {
+            assert!(
+                !panicked.contains(l),
+                "a removed loop refuses Corrupt, never panics: {l}"
+            );
+        }
+    }
+    // A removed curve: every edge naming it still stands, so the raw
+    // door's walk resolves the edge and refuses its curve typed.
+    let curves: Vec<_> = b.edges().map(|(_, e)| e.curve).collect();
+    for curve in curves {
+        let c = b.with_curve_removed_for_tests(curve).unwrap();
+        assert!(
+            topo::finish(c.clone(), tol).is_err(),
+            "{curve:?}: the body with it removed finishes"
+        );
+        let door = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body whose edge names a removed curve, which tier 1 refuses, and whether the door panics on it.
+            topo::test_support::measure_unvalidated(
+                &c,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+        }));
+        assert!(
+            matches!(door, Ok(Err(topo::MassPropsError::Corrupt { .. }))),
+            "{curve:?}: a removed curve refuses Corrupt at the raw door, never panics: {:?}",
+            door.as_ref().map(|r| r.as_ref().map(|_| ()))
+        );
+    }
+}
+
+/// **A whole sphere shell flipped in a body of two shells**: the unit
+/// ball less a smaller ball inside it, every face of one shell flipped.
+/// Tier 3 refuses either flip, so the typed door never reads one; read
+/// through the raw door, the inner shell's flip measures a positive,
+/// wrong volume with no refusal, the shell's sign flipping under a total
+/// that stays positive
+/// (`a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door`, closed by PR 5590).
+#[test]
+fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wrong() {
+    let tol = Tol::witness();
+    let unit = finished(
+        "a",
+        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        tol,
+    );
+    let small_in = finished(
+        "s",
+        ball_poled(0.4, v(0.1, 0.2, -0.1), v(0.0, 1.0, 0.0), tol),
+        tol,
+    );
+    let hollow = g(topo::boolean::subtract(&unit, &small_in, tol)).expect("the hollow ball");
+    let measured = topo::test_support::pinned_volume("the measured body", &hollow, tol).volume;
+    assert_eq!(hollow.shells().count(), 2, "the hollow ball has two shells");
+    let mut wrong = 0;
+    for (shell, s) in hollow.shells() {
+        let fl = flipped(&hollow, &s.faces);
+        assert!(
+            topo::finish(fl.clone(), tol).is_err(),
+            "{shell:?} flipped does not finish"
+        );
+        // Raw door: the subject is a flipped shell tier 3 refuses, and what the door reads of it.
+        match topo::test_support::measure_unvalidated(
+            &fl,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .map(|m| m.enclosure.volume)
+        {
+            // The inner shell's sign flips and the total stays positive:
+            // the solid ball's volume, not the hollow's.
+            Ok(v) if v > measured => wrong += 1,
+            // The outer shell's flip reads the whole body inside out.
+            Ok(v) if v <= 0.0 => {}
+            other => panic!("{shell:?} flipped: the raw door reads {other:?}"),
+        }
+    }
+    assert_eq!(
+        wrong, 1,
+        "the raw door measures the flipped inner shell positive and wrong, past the \
+         hollow's {measured}"
+    );
+}
+
+/// **A member's own contradicted read is named over the region's
+/// over-cover**: the double cover split until each face reads its own
+/// side (`a_seam_region_covering_the_sphere_twice`'s `p2`), with every bit
+/// flipped. Each face's own boundary contradicts its bit, so the door
+/// leaves it to its own read in the flux arm, which refuses
+/// `SenseContradicted`, rather than naming the census's over-cover.
+#[test]
+fn a_members_own_contradicted_read_is_named_over_the_over_cover() {
+    use crate::seam_region_common::{
+        sphere_faces, split_faces_at_equator, split_meridians_at_equator,
+    };
+    let tol = Tol::witness();
+    let mut body = Body::clone(&finished(
+        "ball",
+        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        tol,
+    ));
+    assert!(split_outside(&mut body, v(0.0, 1.0, 0.0), tol));
+    split_meridians_at_equator(&mut body, tol);
+    split_faces_at_equator(&mut body, tol);
+    let faces = sphere_faces(&body);
+    assert_eq!(faces.len(), 6, "each lune split at the equator");
+    // Raw door: the subject is a double cover with every bit flipped, which tier 3 refuses, and which refusal the door names.
+    let door = topo::test_support::measure_unvalidated(
+        &flipped(&body, &faces),
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    );
+    assert!(
+        matches!(
+            door,
+            Err(topo::MassPropsError::Face {
+                face,
+                source: geom_brep::props::PropsError::SenseContradicted,
+            }) if faces.contains(&face)
+        ),
+        "the flipped faces are named by their own reads: {door:?}"
+    );
+}

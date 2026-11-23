@@ -1,0 +1,406 @@
+//! **BLEND-6 review probes (R2)** — adversarial rows against the
+//! verb-vocabulary unit's own claims, written against the public
+//! doors and the public refusal type only.
+//!
+//! Three claims are probed, each one an EXECUTION of something the
+//! unit argued in prose:
+//!
+//! 1. **The fillet door's single-render guard is blind to the very
+//!    bug shape the unit was born measuring.** The shipped row counts
+//!    occurrences of the exact string `"fillet: "`; the pre-fix
+//!    baseline rendered `"fillet assembly: "` / `"fillet chain: "`,
+//!    which that count cannot see. The stronger invariant — the
+//!    wrapper supplies the verb, so the INNER error never opens with
+//!    a verb word — is what V2 actually says, and it is asserted here
+//!    on both doors.
+//!
+//! 2. **The chamfer-purity property is preserved by an unreachability
+//!    argument that nothing guards.** The surgery's closed-chamfer arm
+//!    renders a message that DOES speak the other verb once the
+//!    conditioned assembly recourse is appended; it is unreachable
+//!    today by a geometric argument recorded only in prose.
+//!
+//! 3. **The ball-only arm list is a measurement without a mechanical
+//!    guard.** The three ball-gated variants are asserted absent from
+//!    every refusal the chamfer door produces over the shipped
+//!    fixtures, so the gate citations go red if a predicate is ever
+//!    ungated.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common::operands::half_round_end;
+use geom_core::{Point2, Tol};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, BlendKind, BlendRefusal};
+use sweep::chamfer::chamfer_edges;
+use sweep::test_support::cube;
+use sweep::{Extrusion, extrude};
+use topo::Body;
+use topo::query;
+
+/// The cube side, meters.
+const L: f64 = 1.0;
+/// The blend size (radius or setback), meters.
+const D: f64 = 0.1;
+
+/// The shipped fillet-side guard, transcribed: what
+/// `blend6_verb_vocab.rs`'s `assert_speaks_once_as_the_fillet`
+/// actually tests. Returns `true` where that row would be GREEN.
+fn shipped_fillet_guard_is_green(text: &str) -> bool {
+    text.starts_with("fillet: ")
+        && text.matches("fillet: ").count() == 1
+        && !text.contains("chamfer")
+}
+
+/// **PROBE 1a — the shipped fillet-side guard cannot see the pre-fix
+/// bug shape.**
+///
+/// Issue 917's measured residue was `Display` arms opening
+/// `"fillet assembly: "` and `"fillet chain: "`, not `"fillet: "`.
+/// Composed under the new wrapper those render the verb TWICE, and
+/// the shipped row's `matches("fillet: ").count() == 1` still passes,
+/// because `"fillet assembly: "` does not contain `"fillet: "`.
+///
+/// Built from the public refusal type with a `detail` carrying the
+/// historical prefix, so the row states the blindness rather than
+/// relying on a source mutation.
+#[test]
+fn the_shipped_fillet_single_render_guard_is_blind_to_the_prefix_family() {
+    let body = cube::<f64>(L, Tol::witness());
+    let edge = body.edges().map(|(k, _)| k).next().expect("a cube edge");
+    let regressed = BlendRefusal {
+        verb: BlendKind::Fillet,
+        error: BlendError::UnsupportedChain {
+            edge,
+            detail: "fillet assembly: a chain terminates at a trivalent vertex whose three \
+                     edges are not all requested",
+        },
+    };
+    let text = regressed.render(geom_brep::recourse::Reading::Build);
+
+    // The verb is plainly rendered twice.
+    assert!(text.starts_with("fillet: fillet assembly: "), "{text}");
+
+    // And the shipped guard is GREEN on it anyway. This is the finding.
+    assert!(
+        shipped_fillet_guard_is_green(&text),
+        "if this row ever goes red the shipped guard has been strengthened, \
+         and this probe can be retired: {text}"
+    );
+}
+
+/// **PROBE 1b — the invariant V2 actually states, on both doors.**
+///
+/// "The `Display` literals drop their hard-coded verb (the wrapper
+/// prefixes)" means the INNER error never opens with a verb word.
+/// That is one assertion, it is symmetric across the doors, and it
+/// goes red on the pre-fix shape which 1a shows the shipped row
+/// cannot see.
+#[test]
+fn no_inner_error_opens_with_a_verb_word_on_either_door() {
+    let inner_opens_with_a_verb = |error: &BlendError| -> bool {
+        let inner = error.render(geom_brep::recourse::Reading::Build);
+        inner.starts_with("fillet") || inner.starts_with("chamfer")
+    };
+
+    for (label, error) in reachable_refusals() {
+        assert!(
+            !inner_opens_with_a_verb(&error),
+            "the {label} arm's inner Display opens with a verb word; the wrapper is \
+             the one place the verb crosses: {error_at}",
+            error_at = error.render(geom_brep::recourse::Reading::Build)
+        );
+    }
+
+    // The regressed shape 1a builds is what this invariant catches.
+    let body = cube::<f64>(L, Tol::witness());
+    let edge = body.edges().map(|(k, _)| k).next().expect("a cube edge");
+    let regressed = BlendError::UnsupportedChain {
+        edge,
+        detail: "fillet assembly: a chain terminates at a trivalent vertex",
+    };
+    assert!(
+        inner_opens_with_a_verb(&regressed),
+        "the invariant must be able to see the pre-fix shape"
+    );
+}
+
+/// **PROBE 2 — a chamfer's mixed chain speaks as the chamfer.**
+///
+/// A chamfer's chain of lines and arcs reaches the junction's
+/// `UnsupportedChain` sites (`junction::shape`, here two consecutive
+/// links on one support pair), whose `Display` appends the assembly
+/// recourse, and so do its closed rims (a frustum rim sharing its host),
+/// so that recourse's closed clause names no verb ("where the verb's
+/// arms cover it"). This row holds the rendered text to the purity
+/// property `assert_speaks_as_the_chamfer` states: a chamfer refusal
+/// never says "fillet".
+#[test]
+fn a_chamfer_junction_refusal_speaks_as_the_chamfer() {
+    let body = cube::<f64>(L, Tol::witness());
+    let edge = query::all_edges(&body)[0];
+    let refusal = BlendRefusal {
+        verb: BlendKind::Chamfer,
+        error: BlendError::UnsupportedChain {
+            edge,
+            detail: "a chain of links on different supports has two consecutive links on one \
+                     support pair",
+        },
+    };
+    let text = refusal.render(geom_brep::recourse::Reading::Build);
+    let without_rosters = text.replace("fillet3_", "");
+    assert!(
+        !without_rosters.contains("fillet"),
+        "a chamfer refusal must not speak as the fillet: {text}"
+    );
+    assert!(text.starts_with("chamfer: "), "{text}");
+}
+
+/// **PROBE 3 — the ball-only list, as a guard rather than a
+/// measurement.**
+///
+/// `RadiusHeadroom`, `SpineIrregular` and `SpineUnsupported` are
+/// claimed unreachable from the chamfer battery, each with a gate
+/// cited in prose. This asserts the consequence over every chamfer
+/// refusal the shipped fixtures reach, so ungating a predicate goes
+/// red here instead of being noticed by a reader.
+#[test]
+fn no_chamfer_refusal_is_ever_one_of_the_ball_only_arms() {
+    for (label, error) in chamfer_refusals() {
+        assert!(
+            !matches!(
+                error,
+                BlendError::RadiusHeadroom { .. }
+                    | BlendError::SpineIrregular { .. }
+                    | BlendError::SpineUnsupported { .. }
+            ),
+            "the {label} chamfer request reached a ball-only arm: {error:?}"
+        );
+        // The escalation routes for the three ball-gated predicates are
+        // the same claim one layer down.
+        if let BlendError::Escalated { ref source, .. } = error {
+            assert!(
+                !matches!(
+                    source.predicate,
+                    Some(
+                        "fillet3_radius_headroom"
+                            | "fillet3_spine_regularity"
+                            | "fillet3_support_coaxiality"
+                    )
+                ),
+                "the {label} chamfer request metered a ball-only predicate: {error:?}"
+            );
+        }
+    }
+}
+
+/// **PROBE 3b — the converse half of the split, executed**: the
+/// chamfer-only arm is unreachable from the FILLET door on the same
+/// fixture that reaches it from the chamfer door.
+///
+/// The dome's equator carries a plane and a sphere. Through
+/// `chamfer_edges` that is the chamfer's own arm-table refusal; through
+/// `fillet_edges` the same edges go to the analytic table instead, so
+/// `ChamferArmUnsupported` — claimed chamfer-only — must never appear.
+/// Together with probe 3 this pins both directions of the V2 split
+/// rather than only the ball-only half.
+#[test]
+fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
+    let cyl = sweep::test_support::dome(1.0, Tol::witness());
+    let edges = query::all_edges(&cyl);
+    let t = Tol::witness();
+
+    // The chamfer door reaches its own arm on this fixture.
+    let chamfered = chamfer_edges(&sweep::test_support::at_rest(&cyl, t), &edges, D, t)
+        .expect_err("a sphere support has no chamfer band");
+    assert!(
+        matches!(chamfered.error, BlendError::ChamferArmUnsupported { .. }),
+        "the fixture must reach the chamfer's own arm: {:?}",
+        chamfered.error
+    );
+
+    // The fillet door, same fixture, same size: whatever it answers,
+    // it is never the chamfer's arm.
+    if let Err(refusal) = fillet_edges(&sweep::test_support::at_rest(&cyl, t), &edges, D, t) {
+        assert!(
+            !matches!(refusal.error, BlendError::ChamferArmUnsupported { .. }),
+            "a fillet reached the chamfer-only arm: {:?}",
+            refusal.error
+        );
+    }
+
+    // And per-edge, so a whole-body refusal cannot mask the claim.
+    for e in &edges {
+        if let Err(refusal) = fillet_edges(&sweep::test_support::at_rest(&cyl, t), &[*e], D, t) {
+            assert!(
+                !matches!(refusal.error, BlendError::ChamferArmUnsupported { .. }),
+                "a single-edge fillet reached the chamfer-only arm: {:?}",
+                refusal.error
+            );
+        }
+    }
+}
+
+/// Every refusal the shipped fixtures reach through EITHER door, each
+/// labelled. Used by the verb-neutrality invariant.
+fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
+    let mut out = chamfer_refusals();
+    let body = cube::<f64>(L, Tol::witness());
+    let edges = query::all_edges(&body);
+    let t = Tol::witness();
+
+    let (round, end) = half_round_end();
+    out.push((
+        "fillet run-out",
+        fillet_edges(&sweep::test_support::at_rest(&round, t), &[end], D, t)
+            .expect_err("a curved end face is an unbuilt end")
+            .error,
+    ));
+    out.push((
+        "fillet clearance",
+        fillet_edges(&sweep::test_support::at_rest(&body, t), &edges, 0.55, t)
+            .expect_err("a 0.55 m radius does not fit a 1 m face")
+            .error,
+    ));
+    let z = geom_core::Band::linear(t).expect("the run's band").zero() / 1e-9;
+    let (skewed, turn) =
+        crate::band_turn_overrun_verdict::corner(&crate::band_turn_overrun_probe::Cone::angles(
+            [60f64.to_radians(), (60.0 + 2e-6 * z).to_radians()],
+            90f64.to_radians(),
+        ));
+    out.push((
+        "fillet turn",
+        fillet_edges(&sweep::test_support::at_rest(&skewed, t), &turn, D, t)
+            .expect_err("a 60° corner skewed in band escalates on the turn")
+            .error,
+    ));
+    out
+}
+
+/// Every refusal the shipped fixtures reach through the CHAMFER door.
+fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
+    let body = cube::<f64>(L, Tol::witness());
+    let edges = query::all_edges(&body);
+    let t = Tol::witness();
+    let mut out = vec![(
+        "nonpositive size",
+        chamfer_edges(&sweep::test_support::at_rest(&body, t), &edges[..1], 0.0, t)
+            .expect_err("a zero setback has no band")
+            .error,
+    )];
+
+    out.push((
+        "repeated edge",
+        chamfer_edges(
+            &sweep::test_support::at_rest(&body, t),
+            &[edges[0], edges[0]],
+            D,
+            t,
+        )
+        .expect_err("a repeated edge doubles a link")
+        .error,
+    ));
+    let (round, end) = half_round_end();
+    out.push((
+        "run-out",
+        chamfer_edges(&sweep::test_support::at_rest(&round, t), &[end], D, t)
+            .expect_err("a curved end face is an unbuilt end")
+            .error,
+    ));
+    let (leaning, turn) = crate::common::operands::leaning_turn_in_band(t);
+    out.push((
+        "turn",
+        chamfer_edges(&sweep::test_support::at_rest(&leaning, t), &turn, D, t)
+            .expect_err("a turn read in band escalates")
+            .error,
+    ));
+    out.push((
+        "clearance",
+        chamfer_edges(&sweep::test_support::at_rest(&body, t), &edges, 0.55, t)
+            .expect_err("two 0.55 m setbacks do not fit a 1 m face")
+            .error,
+    ));
+    let eps = t.get().eps;
+    out.push((
+        "escalated clearance",
+        chamfer_edges(
+            &sweep::test_support::at_rest(&body, t),
+            &edges,
+            0.5 - 2.5 * eps,
+            t,
+        )
+        .expect_err("an in-band clearance margin escalates")
+        .error,
+    ));
+
+    // Square, a mixed corner's odd edge with one other chamfers; where
+    // the face the other two share leans off square to it, it refuses.
+    let bracket = l_bracket();
+    let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
+    chamfer_edges(
+        &sweep::test_support::at_rest(&bracket, t),
+        &odd_and_one,
+        D,
+        t,
+    )
+    .expect("a square mixed corner's odd edge with one other chamfers");
+    let leaning = crate::band_mixed_corner::leaning();
+    out.push((
+        "corner configuration",
+        chamfer_edges(
+            &sweep::test_support::at_rest(&leaning, t),
+            &crate::band_mixed_corner::leaning_odd_and_one(&leaning),
+            D,
+            t,
+        )
+        .expect_err("an oblique mixed corner's odd edge with one other has no rule built")
+        .error,
+    ));
+
+    let (mut two, corner_pair) = crate::common::operands::leaning_turn_in_band(t);
+    let other = cube(L, Tol::witness());
+    topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
+    // The leaning prism's turn read in band, beside a cube: escalated
+    // inside the shell it lies in.
+    out.push((
+        "two-solid body",
+        chamfer_edges(&sweep::test_support::at_rest(&two, t), &corner_pair, D, t)
+            .expect_err("a turn read in band escalates, in either solid")
+            .error,
+    ));
+
+    out
+}
+
+/// An L-bracket: the six-vertex L profile extruded by 1 m.
+fn l_bracket() -> Body<f64> {
+    let lp = bulge_loop(
+        [
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 0.5),
+            (0.5, 0.5),
+            (0.5, 1.0),
+            (0.0, 1.0),
+        ]
+        .into_iter()
+        .map(|(x, y)| (Point2::new(x, y), 0.0))
+        .collect(),
+    );
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("an L is a valid profile");
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("an L-bracket extrudes")
+    .body
+    .into_body()
+}

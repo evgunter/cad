@@ -1,0 +1,474 @@
+//! Mesh validity: the watertightness/orientation checker and the
+//! divergence-theorem signed volume (the acceptance oracles; PR 7's
+//! STL exporter and mass properties consume the same triangle data).
+
+use std::collections::BTreeMap;
+
+use crate::cert;
+use crate::types::Mesh;
+use geom_core::{Point3, Vec3};
+use topo::FaceKey;
+
+/// Typed mesh-validity failure (closed enum).
+#[derive(Clone, Debug, PartialEq)]
+pub enum MeshError {
+    /// The mesh carries no triangles at all — no patch, or every patch
+    /// empty. Not the mesh of a solid: a solid has surface, and every
+    /// closure condition below is universal over edges, so a mesh of
+    /// nothing satisfies all of them by having none, [`signed_volume`]
+    /// zero beside it.
+    ///
+    /// **Reachable by input, and invalid (D2 addendum row 1).**
+    /// [`Mesh`]'s fields are public, so a caller may hold any triangle
+    /// set at all; `tessellate` reaches the state too, most plainly on
+    /// a body with no faces (`topo::validate`'s own doc says the empty
+    /// body validates vacuously, and this lane has no face-count
+    /// guard), and on a curved face whose walk collapses to a
+    /// degenerate domain where debug assertions are off. Not row 4: a
+    /// validator is handed meshes of unknown provenance by contract, so
+    /// it answers typed rather than panics.
+    ///
+    /// **Invalid AGAINST THIS CONTRACT**, and that is the whole of what
+    /// it says — an empty body is a valid body, exactly as a single
+    /// triangle is a fine triangle, and neither is a solid's boundary.
+    /// A caller who needs to tell "nothing to show" from "a hole"
+    /// cannot learn it here: asked of the mesh alone the two are the
+    /// same bytes.
+    ///
+    /// Row 0 (can the state be made unrepresentable?) is answered no:
+    /// a non-emptiness guarantee on [`Mesh`] means a private triangle
+    /// buffer and a fallible constructor, which costs exactly the
+    /// hand-built broken mesh this validator exists to catch — and the
+    /// per-face emptiness below cannot be typed away at all without a
+    /// non-empty vector in [`crate::FacePatch`], whose whole public
+    /// surface is that vector.
+    ///
+    /// Rows: `survives_checkmesh_refuses_the_empty_mesh` and
+    /// `survives_the_empty_body_meshes_to_nothing_and_the_validator_says_so`.
+    NoTriangles,
+    /// One face's patch carries no triangles beside patches that do —
+    /// a hole where a face is. Also not the mesh of a solid, and the
+    /// same state as [`Self::NoTriangles`] one level down.
+    ///
+    /// **Why this validator names it, and `tessellate` does not.** A
+    /// REFUSAL is decided on structure and reads no count: TESS-1
+    /// ruled that (`work/tesslane/TESS-1.md`, `## Closed` — "no float
+    /// decides it"; the spec itself is deleted) and
+    /// [`crate::TessellateError::MeridianFreeCurvedFace`] is built that
+    /// way. This is the other thing: a property RE-DERIVED from the
+    /// emitted mesh, where the count is the only evidence there is.
+    /// `tessellate` re-derives it too, in the cross-face census, which
+    /// is `debug_assertions`-only; in release this arm is the whole of
+    /// what sees a hole whose structural fact no guard in front of the
+    /// walk has found yet.
+    ///
+    /// The state is not otherwise unnamed — an empty patch leaves its
+    /// face's chord segments used once by each neighbour, so the edge
+    /// census below reports [`Self::BoundaryEdge`] on one of them (a
+    /// rim-only sphere cap closed by a disc measured exactly that).
+    /// That names an edge and blames the wrong side; this arm names the
+    /// face that emitted nothing, which is the fact. Row:
+    /// `survives_checkmesh_names_the_face_of_an_empty_patch`.
+    EmptyPatch {
+        /// The face whose patch is empty.
+        face: FaceKey,
+    },
+    /// A triangle references a position index out of range.
+    IndexOutOfRange {
+        /// The offending index.
+        index: u32,
+    },
+    /// A triangle repeats a vertex (degenerate in 3-D).
+    DegenerateTriangle {
+        /// The offending triangle.
+        triangle: [u32; 3],
+    },
+    /// An undirected edge is used by more than two triangles.
+    NonManifoldEdge {
+        /// Edge endpoints (ascending).
+        edge: (u32, u32),
+        /// How many triangles use it.
+        count: u32,
+    },
+    /// An undirected edge is used by exactly one triangle — the mesh
+    /// has a boundary (a closed body's mesh must not).
+    BoundaryEdge {
+        /// Edge endpoints (ascending).
+        edge: (u32, u32),
+    },
+    /// An undirected edge is used twice **with the same direction** —
+    /// its two triangles disagree on winding.
+    MismatchedWinding {
+        /// Edge endpoints (ascending).
+        edge: (u32, u32),
+    },
+}
+
+/// Checks that the mesh is **the mesh of a solid**: a closed,
+/// consistently wound 2-manifold with surface — every patch carrying
+/// triangles, every triangle index valid and non-degenerate, every
+/// undirected edge shared by exactly two triangles traversing it in
+/// opposite directions.
+///
+/// **Surface is part of the contract, not a consequence of it.** The
+/// 2-manifold conditions are all universal over edges, so a mesh of no
+/// triangles satisfies every one of them vacuously; read as "closed
+/// 2-manifold" this function would therefore accept a mesh of nothing,
+/// and so would every caller, each of which asks it whether it is
+/// holding a solid's boundary ([`MeshError::NoTriangles`] lists the
+/// producers). An empty patch beside filled ones is the same state per
+/// face ([`MeshError::EmptyPatch`]). Both are refused before the edge
+/// census runs, so the report names the emptiness rather than a
+/// neighbour's dangling edge, and before the per-triangle checks, so
+/// an empty patch outranks a bad index in another one.
+///
+/// The check is **combinatorial only** — it inspects indices and
+/// counts, never positions: geometrically-zero-area slivers (distinct
+/// indices, coincident points) and globally-inverted shells both pass;
+/// [`signed_volume`] is the orientation backstop.
+///
+/// # Errors
+///
+/// The first failure in deterministic order (the whole mesh's
+/// emptiness, then the first empty patch in patch order, then
+/// triangles in patch order, then edges in ascending index order), as
+/// a typed [`MeshError`].
+pub fn check_mesh(mesh: &Mesh) -> Result<(), MeshError> {
+    if triangle_count(mesh) == 0 {
+        return Err(MeshError::NoTriangles);
+    }
+    if let Some(patch) = mesh.patches.iter().find(|p| p.triangles.is_empty()) {
+        return Err(MeshError::EmptyPatch { face: patch.face });
+    }
+    let n = mesh.positions.len();
+    // (min, max) -> (uses, direction balance: +1 for min->max).
+    let mut edges: BTreeMap<(u32, u32), (u32, i64)> = BTreeMap::new();
+    for patch in &mesh.patches {
+        for tri in &patch.triangles {
+            for &i in tri {
+                if (i as usize) >= n {
+                    return Err(MeshError::IndexOutOfRange { index: i });
+                }
+            }
+            if tri[0] == tri[1] || tri[1] == tri[2] || tri[0] == tri[2] {
+                return Err(MeshError::DegenerateTriangle { triangle: *tri });
+            }
+            for k in 0..3 {
+                let (a, b) = (tri[k], tri[(k + 1) % 3]);
+                let key = crate::walk::edge_key(a, b);
+                let entry = edges.entry(key).or_insert((0, 0));
+                entry.0 += 1;
+                entry.1 += if a < b { 1 } else { -1 };
+            }
+        }
+    }
+    for (edge, (count, balance)) in edges {
+        match count {
+            1 => return Err(MeshError::BoundaryEdge { edge }),
+            2 => {
+                if balance != 0 {
+                    return Err(MeshError::MismatchedWinding { edge });
+                }
+            }
+            _ => return Err(MeshError::NonManifoldEdge { edge, count }),
+        }
+    }
+    Ok(())
+}
+
+/// The mesh's signed volume by the divergence theorem,
+/// `V = (1/6)·Σ det[a−o, b−o, c−o]` over all triangles, with `o` the
+/// positions' bbox centre — positive for outward-wound closed meshes
+/// (the global orientation invariant).
+///
+/// Two distinct properties, with distinct premises:
+///
+/// * **Translation invariance holds unconditionally** — open or
+///   closed: `o` is derived from the positions, so translating the
+///   mesh translates `o` with it and every operand `p − o` is
+///   unchanged (equivariance).
+/// * **Equality to the enclosed volume needs a CLOSED mesh.** Over ℝ
+///   the sum is anchor-independent exactly when the anchor's extra
+///   terms assemble the surface's total area vector — zero iff the
+///   mesh is closed — so for a closed mesh any `o` measures the
+///   enclosed volume. For an OPEN mesh the value is the signed volume
+///   of the cone from `o` over the triangles: placement-stable (see
+///   above) but anchor-dependent, and NOT an enclosed volume.
+///
+/// Numerically, the position-derived anchor keeps the fold's operands
+/// at the body's own scale (body-SCALE, not necessarily interior — a
+/// non-convex body's bbox centre can sit outside the material), where
+/// a world-origin anchor pays cancellation proportional to the
+/// placement distance. The bbox folds over ALL positions rather than
+/// only triangle-referenced ones: in meshes this crate mints every
+/// position lies on the body's surface (topology vertices, edge chord
+/// points, face grid points), so the two sets share a bbox — and any
+/// body-scale anchor serves regardless.
+///
+/// Validity is [`check_mesh`]'s contract, not this fold's: a corrupt
+/// mesh whose triangles reference a missing position gets
+/// `IndexOutOfRange` there, while here it panics on the index — except
+/// the empty cases, which return a quiet 0.0: no position (the `else`
+/// below) and no triangle over positions that exist (the fold runs
+/// over nothing). Both are [`MeshError::NoTriangles`] at the
+/// validator.
+pub fn signed_volume(mesh: &Mesh) -> f64 {
+    let Some(&first) = mesh.positions.first() else {
+        return 0.0;
+    };
+    let (lo, hi) = mesh
+        .positions
+        .iter()
+        .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
+    let o = lo.mid(hi);
+    let mut six_v = 0.0;
+    for patch in &mesh.patches {
+        for tri in &patch.triangles {
+            let a = mesh.positions[tri[0] as usize] - o;
+            let b = mesh.positions[tri[1] as usize] - o;
+            let c = mesh.positions[tri[2] as usize] - o;
+            six_v += a.dot(b.cross(c));
+        }
+    }
+    six_v / 6.0
+}
+
+/// A mesh whose enclosed volume misses the body's ([`check_volume`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VolumeMismatch {
+    /// The mesh's [`signed_volume`].
+    pub mesh: f64,
+    /// The body's volume the mesh was checked against.
+    pub expected: f64,
+    /// The largest miss the chordal deficit allows: `δ ·` the body's
+    /// surface area.
+    pub bound: f64,
+}
+
+/// Whether the mesh encloses `volume`, the body's own, to within its
+/// chordal deficit, read off the body's own surface `area` (both from
+/// its mass properties, never from the mesh).
+///
+/// THE ARGUMENT. Every triangle of a mesh tessellated at `delta` is
+/// certified within `delta` of the surface it stands for, so along each
+/// surface normal the mesh and the surface are at most `delta` apart,
+/// on one side or the other. The region between them is therefore no
+/// thicker than `delta` over the surface, and the enclosed volumes
+/// differ by at most `delta · area` (to first order in `delta` times the
+/// surface's curvature, which the certified meshes here keep far below
+/// one). The bound is the body's area, not the mesh's: a mesh with
+/// spurious area (a folded or doubled face) must not loosen its own
+/// check.
+///
+/// What this sees that [`check_mesh`] cannot is GEOMETRY: a face meshed
+/// as its complement, or wound inward, is a closed manifold mesh whose
+/// volume misses by a face's worth.
+pub fn check_volume(mesh: &Mesh, volume: f64, area: f64, delta: f64) -> Result<(), VolumeMismatch> {
+    let got = signed_volume(mesh);
+    let bound = delta * area;
+    if (got - volume).abs() <= bound {
+        Ok(())
+    } else {
+        Err(VolumeMismatch {
+            mesh: got,
+            expected: volume,
+            bound,
+        })
+    }
+}
+
+/// **A triangle whose winding is inside the rounding of its own
+/// positions** ([`resolved_normal`]): what it is, in the numbers the one
+/// definition reads.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Unresolved {
+    /// The triangle's corners, as wound, each `[x, y, z]`.
+    pub corners: [[f64; 3]; 3],
+    /// Its height over its longest side: its cross product over that
+    /// side's length.
+    pub height: f64,
+    /// The height it would have to exceed: [`cert::ROUNDING_ULPS`] f64
+    /// epsilons of the largest of its corners' norms.
+    pub allowance: f64,
+}
+
+/// **A triangle's normal as wound, `(b − a) × (c − a)`, where its
+/// winding is resolved above the rounding of its own positions**
+/// (`crates/mesh/README.md` `[mesh.winding]`, the one definition): its
+/// cross product exceeds [`cert::rounding_allowance`] at its coordinate
+/// scale ([`cert::coordinate_scale`]) times its longest side. The cross
+/// product is the longest side times the height over it, so this holds
+/// the height against the allowance.
+///
+/// It reads no ε and no δ: a triangle may be thin, and small beside
+/// either, and be resolved.
+///
+/// # Errors
+///
+/// [`Unresolved`] otherwise, and for a triangle with a corner that is
+/// not finite.
+pub(crate) fn resolved_normal(tri: [Point3<f64>; 3]) -> Result<Vec3<f64>, Unresolved> {
+    let [a, b, c] = tri;
+    let normal = (b - a).cross(c - a);
+    let longest = (b - a).norm().max((c - b).norm()).max((a - c).norm());
+    let allowance = cert::rounding_allowance(cert::coordinate_scale(tri));
+    if normal.norm() > allowance * longest {
+        Ok(normal)
+    } else {
+        Err(Unresolved {
+            corners: tri.map(Point3::to_array),
+            height: normal.norm() / longest,
+            allowance,
+        })
+    }
+}
+
+/// The first of `triangles`, indices into `positions`, whose winding is
+/// not resolved ([`resolved_normal`]), with what it is.
+pub(crate) fn first_unresolved(
+    positions: &[Point3<f64>],
+    triangles: &[[u32; 3]],
+) -> Option<([u32; 3], Unresolved)> {
+    triangles.iter().find_map(|&t| {
+        resolved_normal(t.map(|i| positions[i as usize]))
+            .err()
+            .map(|unresolved| (t, unresolved))
+    })
+}
+
+/// A triangle whose winding f64 does not resolve ([`check_winding`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct UnresolvedWinding {
+    /// The face whose patch holds the triangle.
+    pub face: FaceKey,
+    /// The triangle, as indices into [`Mesh::positions`].
+    pub triangle: [u32; 3],
+    /// Its corners, its height and the allowance it does not exceed.
+    pub unresolved: Unresolved,
+}
+
+/// Whether **every triangle's winding is resolved above the rounding of
+/// its own positions** (`crates/mesh/README.md` `[mesh.winding]`): its
+/// height over its longest side exceeds [`cert::ROUNDING_ULPS`] f64
+/// epsilons of the largest of its corners' norms (its cross product
+/// exceeds that allowance times the side). Shape is not otherwise read:
+/// a thin triangle passes, and so does one small beside the kernel's ε.
+///
+/// [`fn@crate::tessellate`] refuses a face with a triangle that fails
+/// this ([`crate::TessellateError::UnresolvedWinding`]), by the same
+/// definition, so a mesh it returns passes; this re-derives it from the
+/// mesh alone, for a mesh of any provenance. That each winding is
+/// *outward* is not read here: it needs the body, and [`check_volume`]
+/// is the check that has it.
+///
+/// As [`signed_volume`], it indexes [`Mesh::positions`] unchecked:
+/// [`check_mesh`] is what refuses an index out of range.
+///
+/// # Errors
+///
+/// The first unresolved triangle in patch order, with its face.
+pub fn check_winding(mesh: &Mesh) -> Result<(), UnresolvedWinding> {
+    mesh.patches.iter().try_for_each(|patch| {
+        first_unresolved(&mesh.positions, &patch.triangles).map_or(
+            Ok(()),
+            |(triangle, unresolved)| {
+                Err(UnresolvedWinding {
+                    face: patch.face,
+                    triangle,
+                    unresolved,
+                })
+            },
+        )
+    })
+}
+
+/// Total triangle count across all patches.
+pub fn triangle_count(mesh: &Mesh) -> usize {
+    mesh.patches.iter().map(|p| p.triangles.len()).sum()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::types::FacePatch;
+
+    /// A triangle of longest side `scale/4` and height `h` over it, its
+    /// farthest corner at distance `scale` from the origin exactly.
+    fn sliver(scale: f64, h: f64) -> [Point3<f64>; 3] {
+        let l = scale / 4.0;
+        [
+            Point3::new(scale - l, 0.0, 0.0),
+            Point3::new(scale, 0.0, 0.0),
+            Point3::new(scale - l / 2.0, h, 0.0),
+        ]
+    }
+
+    /// **The one definition's edge** ([`resolved_normal`]): the height
+    /// over the longest side is held against eight f64 epsilons of the
+    /// largest corner norm, written out here and not read from `cert`.
+    /// One and a half allowances resolve and three quarters of one do
+    /// not, at every scale, so an allowance or a scale off by a factor of
+    /// two either way reds a cell; the longest side is a quarter of the
+    /// scale, so a threshold read at the side's length does too. The same
+    /// triangle a thousand times farther out is unresolved: the verdict
+    /// depends on where the body sits.
+    #[test]
+    fn a_winding_is_resolved_above_eight_epsilons_of_its_coordinate_scale() {
+        for scale in [1e-3, 1.0, 1e3] {
+            let allowance = 8.0 * f64::EPSILON * scale;
+            assert!(
+                resolved_normal(sliver(scale, 1.5 * allowance)).is_ok(),
+                "scale {scale:e}: a height of 1.5 allowances resolves"
+            );
+            assert!(
+                resolved_normal(sliver(scale, 0.75 * allowance)).is_err(),
+                "scale {scale:e}: a height of 0.75 allowances does not"
+            );
+        }
+        let near = sliver(1.0, 12.0 * f64::EPSILON);
+        let far = near.map(|p| p + Vec3::new(0.0, 0.0, 1e3));
+        assert!(resolved_normal(near).is_ok() && resolved_normal(far).is_err());
+        let none = [Point3::new(1.0, 2.0, 3.0); 3];
+        assert!(resolved_normal(none).is_err(), "three corners at one point");
+        let mut poison = sliver(1.0, 0.5);
+        poison[2].y = f64::NAN;
+        assert!(
+            resolved_normal(poison).is_err(),
+            "a corner that is not finite"
+        );
+    }
+
+    /// **The public check names the first unresolved triangle and its
+    /// face** ([`check_winding`]), in patch order, and passes a mesh
+    /// whose triangles are thin and resolved.
+    #[test]
+    fn check_winding_names_the_first_unresolved_triangle() {
+        let positions: Vec<Point3<f64>> = sliver(1.0, 0.1)
+            .into_iter()
+            .chain([Point3::new(0.875, 4.0 * f64::EPSILON, 0.0)])
+            .chain([Point3::new(0.875, 1e-9, 0.0)])
+            .collect();
+        let patch = |triangles: Vec<[u32; 3]>| FacePatch {
+            face: FaceKey::default(),
+            triangles,
+        };
+        let mut mesh = Mesh {
+            positions,
+            patches: vec![patch(vec![[0, 1, 2]]), patch(vec![[0, 1, 4]])],
+            boundaries: Vec::new(),
+        };
+        assert_eq!(check_winding(&mesh), Ok(()), "thin, and resolved");
+        mesh.patches[1].triangles.push([0, 1, 3]);
+        let found = check_winding(&mesh).expect_err("the last triangle is unresolved");
+        assert_eq!(
+            (found.face, found.triangle),
+            (FaceKey::default(), [0, 1, 3])
+        );
+        // The numbers it names: the triangle's own height, half the
+        // allowance at its scale, written out here.
+        assert_eq!(found.unresolved.height, 4.0 * f64::EPSILON);
+        assert_eq!(found.unresolved.allowance, 8.0 * f64::EPSILON);
+        assert_eq!(found.unresolved.corners[2], mesh.positions[3].to_array());
+    }
+}

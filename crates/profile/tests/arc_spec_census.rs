@@ -1,0 +1,373 @@
+//! **The lattice's two tables, walked cell by cell against the replay.**
+//!
+//! `Verb::states` and `arc_specs_at` are read off the declarations the
+//! replay driver is expanded from, so they cannot list a row the
+//! driver lacks. What they CAN get wrong is the one thing written by
+//! hand beside a row: the `specs [..]` annotation naming which
+//! dispatcher an arm's spec goes through. This suite puts every
+//! (state, verb) cell — and, for an arc-spec verb, every (spec
+//! position, mode, target form) cell under it — in front of `replay`,
+//! and holds that the replay refuses a cell as a lattice violation
+//! exactly when the tables say it does.
+//!
+//! A cell the tables admit may still refuse on its numbers (a
+//! `PathError`): that is the geometry's question, not the lattice's,
+//! and it counts as admitted. The numbers below are chosen so the
+//! first spec of a two-spec step resolves, because the second is
+//! dispatched only after it.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_core::{Point2, Tol};
+use profile::test_support::{every_state, prefix, way_in};
+use profile::{
+    ArcData, ArcMode, ArcSide, ArcSweep, ReplayError, ReplayErrorKind, SpecForms, Step, Target,
+    TargetKind, TipState, Verb, arc_specs_at, replay,
+};
+
+/// One step of `verb` with numbers that are not degenerate anywhere in
+/// [`prefix`]'s frame; `None` for the arc-spec verbs, which
+/// [`arc_step`] builds per cell.
+fn sample_step(verb: Verb) -> Option<Step<f64>> {
+    let p = Point2::new(3.0, 4.0);
+    Some(match verb {
+        Verb::At => Step::At(p),
+        Verb::Angle => Step::Angle(1.0),
+        Verb::Toward => Step::Toward { dx: 1.0, dy: 1.0 },
+        Verb::Tangent => Step::Tangent,
+        Verb::Cusp => Step::Cusp,
+        Verb::Turn => Step::Turn(0.5),
+        Verb::Line => Step::Line(2.0),
+        Verb::LineTo => Step::LineTo(Target::Point(p)),
+        Verb::ContinueTo => Step::ContinueTo(Target::Point(p)),
+        Verb::TangentArcTo => Step::TangentArcTo(Target::Point(p)),
+        Verb::ArcOnto => Step::ArcOnto(Target::Point(p)),
+        Verb::Fillet => Step::Fillet { radius: 1.0 },
+        Verb::FarEndTo => Step::FarEndTo(p),
+        Verb::CloseTo => Step::CloseTo,
+        Verb::Circle => Step::Circle {
+            centre: p,
+            radius: 1.0,
+        },
+        Verb::CircleSplit => Step::CircleSplit {
+            centre: p,
+            radius: 1.0,
+            n: 4,
+            phase: 0.0,
+        },
+        Verb::Rectangle => Step::Rectangle {
+            centre: p,
+            width: 2.0,
+            height: 1.0,
+        },
+        Verb::ArcTo | Verb::FilletArc | Verb::ArcFillet | Verb::ArcFilletArc => return None,
+    })
+}
+
+/// How many arc specs a step of `verb` carries.
+fn spec_count(verb: Verb) -> usize {
+    match verb {
+        Verb::ArcTo | Verb::FilletArc | Verb::ArcFillet => 1,
+        Verb::ArcFilletArc => 2,
+        _ => 0,
+    }
+}
+
+fn arc_step(verb: Verb, specs: &[ArcData<f64>]) -> Step<f64> {
+    match (verb, specs) {
+        (Verb::ArcTo, &[spec]) => Step::ArcTo(spec),
+        (Verb::FilletArc, &[spec]) => Step::FilletArc { radius: 1.0, spec },
+        (Verb::ArcFillet, &[spec]) => Step::ArcFillet { spec, radius: 1.0 },
+        (Verb::ArcFilletArc, &[spec, spec2]) => Step::ArcFilletArc {
+            spec,
+            radius: 1.0,
+            spec2,
+        },
+        other => panic!("no arc step {other:?}"),
+    }
+}
+
+/// A spec of `mode` at target form `target`. The `Center` spec's
+/// centre is equidistant from the origin and its `Point` target, which
+/// is where the entry's fused incoming starts.
+fn spec(mode: ArcMode, target: Option<TargetKind>) -> ArcData<f64> {
+    let target = match target {
+        None | Some(TargetKind::Point) => Target::Point(Point2::new(5.0, 0.0)),
+        Some(TargetKind::Start) => Target::Start,
+        Some(TargetKind::StartArriving) => Target::StartArriving,
+    };
+    match mode {
+        ArcMode::Radius => ArcData::Radius {
+            r: 3.0,
+            side: ArcSide::Left,
+        },
+        ArcMode::Bulge => ArcData::Bulge { target, b: 0.5 },
+        ArcMode::Via => ArcData::Via {
+            q: Point2::new(2.5, 2.5),
+            target,
+        },
+        ArcMode::Center => ArcData::Center {
+            c: Point2::new(2.5, 0.0),
+            winding: ArcSweep::Ccw,
+            target,
+        },
+        ArcMode::Sweep => ArcData::Sweep {
+            r: 3.0,
+            side: ArcSide::Left,
+            angle: 1.0,
+        },
+        ArcMode::ArcLen => ArcData::ArcLen {
+            r: 3.0,
+            side: ArcSide::Left,
+            len: 2.0,
+        },
+    }
+}
+
+/// Every (mode, target form) cell of the spec vocabulary.
+fn every_form() -> Vec<(ArcMode, Option<TargetKind>)> {
+    let mut forms = Vec::new();
+    for &mode in ArcMode::ALL {
+        if spec(mode, None).target().is_some() {
+            forms.extend(TargetKind::ALL.iter().map(|&kind| (mode, Some(kind))));
+        } else {
+            forms.push((mode, None));
+        }
+    }
+    forms
+}
+
+/// Whether the replay refused `steps`' last step as a lattice
+/// violation of that verb.
+/// The tip state a lattice refusal names.
+fn transition_state(e: &ReplayError<f64>) -> TipState {
+    match e.kind {
+        ReplayErrorKind::Transition { state, .. } => state,
+        ReplayErrorKind::Path(_) => unreachable!("a lattice refusal: {e}"),
+    }
+}
+
+fn lattice_refuses(steps: &[Step<f64>]) -> bool {
+    let at = steps.len() - 1;
+    matches!(
+        replay(steps, Tol::witness()),
+        Err(e @ ReplayError {
+            kind: ReplayErrorKind::Transition { verb: Some(_), .. },
+            ..
+        }) if e.step() == at
+    )
+}
+
+/// The state `steps` leave the tip in, or a panic naming `what` when
+/// they refuse before the end.
+fn reached(steps: &[Step<f64>], what: &str) -> TipState {
+    match replay(steps, Tol::witness()) {
+        Ok(_) => TipState::Closed,
+        Err(
+            e @ ReplayError {
+                kind: ReplayErrorKind::Transition { verb: None, .. },
+                ..
+            },
+        ) if e.step() == steps.len() => transition_state(&e),
+        other => panic!("{what} did not replay to a tip: {other:?}"),
+    }
+}
+
+/// Every prefix reaches its state, and so does every way in taken from
+/// a leg end.
+#[test]
+fn every_prefix_reaches_its_state() {
+    for state in every_state() {
+        assert_eq!(
+            reached(&prefix(state), &format!("prefix for {state:?}")),
+            state
+        );
+        let Some(way_in) = way_in(state) else {
+            assert_eq!(state, TipState::Entry, "only the entry has no way in");
+            continue;
+        };
+        let steps = [prefix(TipState::DirectedPoint), way_in].concat();
+        assert_eq!(reached(&steps, &format!("the way into {state:?}")), state);
+    }
+}
+
+/// **`Verb::states` is the driver's row set.** Every verb that carries
+/// no arc spec, at every state: refused as a lattice violation exactly
+/// when the table lists no row there.
+#[test]
+fn verb_states_is_the_replays_row_set() {
+    for state in every_state() {
+        for &verb in Verb::ALL {
+            let Some(step) = sample_step(verb) else {
+                continue;
+            };
+            let steps = [prefix(state), vec![step]].concat();
+            let listed = verb.states().contains(&state);
+            assert_eq!(
+                lattice_refuses(&steps),
+                !listed,
+                "{verb:?} at {state:?}: the table says {}",
+                if listed { "a row" } else { "no row" },
+            );
+        }
+    }
+}
+
+/// **`arc_specs_at` is the dispatch each row's spec goes through.**
+/// Every arc-spec verb, at every state, every spec position, every
+/// (mode, target form): refused as a lattice violation exactly when
+/// the forms at that position do not list it. The other positions
+/// carry the first form their own dispatcher admits.
+#[test]
+fn arc_specs_at_is_the_replays_spec_dispatch() {
+    for state in every_state() {
+        for &verb in Verb::ALL {
+            let count = spec_count(verb);
+            if count == 0 {
+                continue;
+            }
+            let table: &[&SpecForms] = arc_specs_at(verb, state);
+            let has_row = verb.states().contains(&state);
+            assert_eq!(
+                table.len(),
+                if has_row { count } else { 0 },
+                "{verb:?} at {state:?}: one forms entry per spec, where there is a row",
+            );
+            for position in 0..count {
+                for (mode, target) in every_form() {
+                    let specs: Vec<ArcData<f64>> = (0..count)
+                        .map(|i| {
+                            if i == position {
+                                return spec(mode, target);
+                            }
+                            let &(m, t) = table
+                                .get(i)
+                                .and_then(|forms| forms.forms().first())
+                                .unwrap_or(&(mode, target));
+                            spec(m, t)
+                        })
+                        .collect();
+                    let steps = [prefix(state), vec![arc_step(verb, &specs)]].concat();
+                    let admitted = table
+                        .get(position)
+                        .is_some_and(|forms| forms.admits(mode, target));
+                    assert_eq!(
+                        lattice_refuses(&steps),
+                        !admitted,
+                        "{verb:?} at {state:?}, spec {position} = ({mode:?}, {target:?}): \
+                         the table {} it",
+                        if admitted { "admits" } else { "refuses" },
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **`chain_shape` walks the lattice the replay walks.** Every
+/// (state, verb) cell and, for an arc-spec verb, every spec cell under
+/// it, put after [`prefix`]: the shape refuses the last step exactly
+/// where the replay refuses it as a lattice violation, and where the
+/// replay lands the chain at a tip (or closes it) the shape lands it in
+/// the same state; where the shape refuses the step's order, the
+/// replay refuses that step too. A cell whose numbers refuse is the geometry's, and
+/// says nothing about where the step lands; enough cells land for the
+/// comparison to cover every state the table can reach.
+#[test]
+fn chain_shape_lands_where_the_replay_lands() {
+    use profile::{ShapeFault, ShapeFaultKind, StepForm, chain_shape};
+    // Each prefix is a cell too: its last step is the way in.
+    let mut cells: Vec<Vec<Step<f64>>> = every_state()
+        .into_iter()
+        .map(prefix)
+        .filter(|steps| !steps.is_empty())
+        .collect();
+    for state in every_state() {
+        for &verb in Verb::ALL {
+            let count = spec_count(verb);
+            if count == 0 {
+                cells.push([prefix(state), vec![sample_step(verb).unwrap()]].concat());
+                continue;
+            }
+            for (mode, target) in every_form() {
+                for position in 0..count {
+                    let table = arc_specs_at(verb, state);
+                    let specs: Vec<ArcData<f64>> = (0..count)
+                        .map(|i| {
+                            if i == position {
+                                return spec(mode, target);
+                            }
+                            let &(m, t) = table
+                                .get(i)
+                                .and_then(|forms| forms.forms().first())
+                                .unwrap_or(&(mode, target));
+                            spec(m, t)
+                        })
+                        .collect();
+                    cells.push([prefix(state), vec![arc_step(verb, &specs)]].concat());
+                }
+            }
+        }
+    }
+    let mut landed = Vec::new();
+    for steps in &cells {
+        let at = steps.len() - 1;
+        let forms: Vec<StepForm> = steps.iter().map(Step::form).collect();
+        let shape = chain_shape(&forms);
+        let lattice_here = matches!(
+            shape,
+            Err(ShapeFault { step, kind: ShapeFaultKind::Lattice { verb: Some(_) }, .. }) if step == at
+        );
+        assert_eq!(
+            lattice_here,
+            lattice_refuses(steps),
+            "{steps:?}: the shape {} the last step on the lattice",
+            if lattice_here { "refuses" } else { "admits" },
+        );
+        let replayed = replay(steps, Tol::witness());
+        if let Err(ShapeFault {
+            step,
+            kind: ShapeFaultKind::Order(fault),
+            ..
+        }) = shape
+        {
+            assert!(
+                matches!(&replayed, Err(e) if e.step() == step),
+                "{steps:?}: the shape refuses {fault:?} at {step}, the replay {replayed:?}",
+            );
+            continue;
+        }
+        let replayed = match replayed {
+            Ok(_) => TipState::Closed,
+            Err(
+                e @ ReplayError {
+                    kind: ReplayErrorKind::Transition { verb: None, .. },
+                    ..
+                },
+            ) if e.step() == steps.len() => transition_state(&e),
+            _ => continue,
+        };
+        let shaped = match shape {
+            Ok(_) => TipState::Closed,
+            Err(f)
+                if f.kind == (ShapeFaultKind::Lattice { verb: None }) && f.step == steps.len() =>
+            {
+                f.state
+            }
+            Err(f) => {
+                panic!("{steps:?}: the replay lands at {replayed:?}, the shape refuses {f:?}")
+            }
+        };
+        assert_eq!(shaped, replayed, "{steps:?}: where the step lands");
+        if !landed.contains(&replayed) {
+            landed.push(replayed);
+        }
+    }
+    for state in every_state() {
+        if state != TipState::Entry {
+            assert!(
+                landed.contains(&state),
+                "no cell lands at {state:?}: {landed:?}"
+            );
+        }
+    }
+}

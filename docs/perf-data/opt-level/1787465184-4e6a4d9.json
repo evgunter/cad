@@ -1,0 +1,107 @@
+{
+ "arm_a": {
+  "E2": 94.0,
+  "a2": 683.0,
+  "n": 5,
+  "samples": [
+   {
+    "E2": 94.0,
+    "a2": 683.0,
+    "created_at": "2026-08-23T04:46:49Z",
+    "head_sha": "43a3bd5803a015e2c378a23c12e45a499c6f8e35",
+    "labels": [
+     "ubuntu-latest"
+    ],
+    "run_id": 32618702228,
+    "shards": 2
+   },
+   {
+    "E2": 113.0,
+    "a2": 620.0,
+    "created_at": "2026-08-23T03:45:33Z",
+    "head_sha": "4b82c7a25b585bc261da5942d9c47bf6f2229da1",
+    "labels": [
+     "ubuntu-latest"
+    ],
+    "run_id": 32616151618,
+    "shards": 2
+   },
+   {
+    "E2": 111.0,
+    "a2": 800.0,
+    "created_at": "2026-08-23T03:06:18Z",
+    "head_sha": "ded405c9539ade9b6b8928a38af5de15d8823fb2",
+    "labels": [
+     "ubuntu-latest"
+    ],
+    "run_id": 32614508611,
+    "shards": 2
+   },
+   {
+    "E2": 78.0,
+    "a2": 588.0,
+    "created_at": "2026-08-23T01:48:40Z",
+    "head_sha": "0ec67e193214e3744a4f4383db54e7109d59e531",
+    "labels": [
+     "ubuntu-latest"
+    ],
+    "run_id": 32611262591,
+    "shards": 2
+   },
+   {
+    "E2": 68.0,
+    "a2": 765.0,
+    "created_at": "2026-08-22T23:55:54Z",
+    "head_sha": "b4f5c2648e4d2a5c47943ea942c7d6c98e1c35b0",
+    "labels": [
+     "ubuntu-latest"
+    ],
+    "run_id": 32606534011,
+    "shards": 2
+   }
+  ]
+ },
+ "arm_b": {
+  "E0": 791,
+  "a0": 211,
+  "tests": "unknown"
+ },
+ "commit": "4e6a4d9089e933a6c2c14ee6102f8b82aa5e415c",
+ "derived": {
+  "L_over_T_opt0": 0.21057884231536927,
+  "L_over_T_opt2": 0.879021879021879,
+  "archive_delta_s": 472.0,
+  "margin_ratio": 1.2895752895752897,
+  "margin_s": 225.0,
+  "r_execution_ratio": 8.414893617021276,
+  "r_quoted_by_ci_yml_default_lane": 6.46,
+  "total_opt0_s": 1002.0,
+  "total_opt2_s": 777.0,
+  "verdict": "opt-2"
+ },
+ "environment": {
+  "arch": "x86_64",
+  "cargo_profile": {
+   "CARGO_PROFILE_DEV_DEBUG": "line-tables-only",
+   "CARGO_PROFILE_DEV_OPT_LEVEL": "0",
+   "CARGO_PROFILE_TEST_DEBUG": "line-tables-only",
+   "CARGO_PROFILE_TEST_OPT_LEVEL": "0",
+   "CARGO_PROFILE_TEST_STRIP": "debuginfo"
+  },
+  "debug_assertions": "default(on)",
+  "mem_total_kb": 8128880,
+  "nextest": "cargo-nextest 0.9.140 (a9fef2964 2026-07-05)\nrelease: 0.9.140\ncommit-hash: a9fef2964e34f64ed4fceeee7c0c3559ce560920\ncommit-date: 2026-07-05\nhost: x86_64-unknown-linux-gnu",
+  "nightly_suite_cfg": false,
+  "nproc": 2,
+  "os": "linux",
+  "runner": "Linux/x86_64 ubuntu-latest",
+  "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+  "rustc_wrapper": "",
+  "rustflags": "",
+  "tolerance_eps": ""
+ },
+ "measured_at_epoch_s": 1787465184,
+ "measured_at_utc": "2026-08-23T06:06:24+00:00",
+ "method": "arm A (opt-2) READ from the step durations of recent code-tier gate runs via the jobs API \u2014 real gate data, never re-run; arm B (opt-0) measured here on one clean target directory, in the GATE test population (NO --cfg nightly_suite). Verdict is the direct comparison a2+E2 < a0+E0; REPORTING ONLY, never a gate.",
+ "schema": 1
+}

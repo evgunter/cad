@@ -1,0 +1,152 @@
+---
+id: a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar
+kind: issue
+title: A carried rim or parallel arc's whole-turn miss is charged about twice its ends' enclosure width at Interval, so far legal walls of a few arcs escalate props_chart_loop_whole at eps 1e-12
+status: open
+opened: 2026-11-14
+priority: P3
+cost: M
+---
+
+
+Found by BOXFINISH's edge-turns unit and its review (branch
+`boxfinish/edge-turns`, PR 6946). That unit gave the cylinder's and the
+torus's per-edge whole-turn misses the cone's constructors
+(`EdgeTurn::short`, `EdgeTurn::carried`,
+`crates/geom-brep/src/props/closure.rs`). What it left refusing is this.
+
+## Measured
+
+**Hand-built legal walls** through `curved_face_loops`. The frame is at
+(30, −110, 200), axis (1, 1, 1)/√3; each rim or parallel is in 1 to 200
+arcs. These are the pins citing this row in
+`crates/geom-brep/tests/far_walls_of_many_arcs.rs`. At `Interval`,
+ε = 1e-12, `props_chart_loop_whole` escalates on:
+
+| wall | arcs a rim | margin |
+|---|---|---|
+| cylinder r 50 | 6 / 40 / 200 | `[0, 1.15e-12]` / `2.08e-11` / `1.14e-10` |
+| cylinder r 213 | 6 / 40 / 200 | `[0, 8.70e-12]` / `6.28e-11` / `3.14e-10` |
+| cylinder r 410 | 1 / 6 / 40 / 200 | `[0, 1.05e-12]` / `1.86e-11` / `1.16e-10` / `5.70e-10` |
+| torus major 100 (minor 2.5) | 6 / 40 / 200 | `[0, 4.57e-12]` / `4.12e-11` / `2.11e-10` |
+| torus major 300 | 1 / 6 | `[0, 3.13e-12]` / `1.43e-11` |
+
+These are the margins with the fixture's frame squared once at `f64`
+and lifted to `Interval` as the enclosure of its rotation (PR 7131).
+Before that, with the stated columns lifted as points, the cylinder
+rows read about 1.5 to 3.5 times wider and the torus major 300 rows
+narrower: r 50 `3.96e-12` / `3.84e-11` / `2.05e-10`, r 213
+`1.62e-11` / `1.10e-10` / `5.51e-10`, r 410 `3.21e-12` / `3.15e-11`,
+torus major 100 `1.02e-11` / `7.56e-11` / `3.83e-10`, torus major 300
+at 1 arc `1.70e-12`. The cylinder r 410 walls of 40 and 200 arcs and
+the torus major 300 wall of 6 arcs then escalated on the junction
+closure first
+(`a-far-walls-junctions-and-ruling-incidence-escalate-at-the-interval-scalar`);
+their junctions now close, and they reach this read.
+
+At ε = 1e-9 and 1e-6 every one of them measures.
+
+**Through a door: resolved by PR 7131.** The tilted hollow tube
+(`sweep::tube_along_arc_hollow`, axis (1, 1, 1)/√3 through the origin,
+outer 2.5, wall 0.001, full period) is built at `f64` and measured at
+`Interval`. When this row was filed it built through major 750 at ε =
+1e-12 and refused past it (800 `[0, 1.08e-12]` up to 1100
+`[0, 1.88e-12]`; main pinned 990 and 1100). What widened that miss
+was not the carried arc's own arithmetic but the mass properties'
+translation (`topo` `props::quad_lane::translated_surface`)
+re-squaring every frame it moved, at `Interval` a Gram–Schmidt over
+the frame's enclosure. PR 7131 carries the frame there, and the tube
+measures at every major from 300 to 1100 at every ε
+(`crates/sweep/tests/far_walls_read_their_whole_turns.rs`, red with
+the translation re-squared). The walls below are not through that
+door, and stay open.
+
+**What it is made of.** A carried arc's miss is the principal angle
+from its start, turned by its own turn, to its end, read about its
+centre. Inferred, not measured: at the interval scalar it is charged
+about twice the width of its two ends' enclosures, whatever its radius.
+That is arithmetic from the per-arc charge printed below; no end's
+enclosure was printed on its own.
+
+The measured part:
+
+- On the tube at 990, the own turn is a point (±τ_f64). The width is
+  all in the own-frame arms: cross ±2.1e-9 m² over dot 9.85e5 m², so
+  ±2.15e-15 rad at a lever of about 990 m, for each of the face's two
+  parallels.
+- A wall's threshold is therefore set by its count of carried arcs and
+  by the ends' distance from the origin, not by any one arc's span. A
+  rule that reads a span of exactly one period as agreeing with its ends
+  would close only the whole-turn case.
+
+**Behind it, in the tube coordinate.** A torus meridian's tube turn is
+still read back about the core circle (`EdgeTurn::new` in
+`torus_chart_loop`). On the tube at 990 each meridian's miss is
+±3.66e-13 to ±4.71e-13 rad at lever 2.499, about 1e-12 m a meridian.
+The face's two meridians take 1.83e-12 to 2.35e-12 of the 3e-12 slack.
+The cost is the ends' width, not proportional to the minor radius, so a
+third meridian arc on such a loop would pass the slack on this term
+alone.
+
+## The question this row leaves
+
+A `LoopEdge`'s ends are `carrier.eval(t0)` and `carrier.eval(t1)`, so
+through any public door a rim's stored span cannot disagree with its
+ends. Every hand-built disagreement refuses earlier and typed:
+
+- `props_cylinder_circle_tilt`;
+- `props_rim_axis_parallel`;
+- `props_rim_span_winding`;
+- `ChartLoopOpen`.
+
+These are pinned by
+`far_walls_of_many_arcs::a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns`.
+On rims, then, `props_chart_loop_whole` has no true positive reachable
+from a door. Its live subject is the pairing of the parse's rim turns
+with the loop's edges, which `props::curved::edge_turn_rows` exercises
+at that seam.
+
+Whoever takes this row decides between two readings:
+
+1. a rim's miss is measured at all, with its ends' width charged as
+   now;
+2. it is true by construction, its pairing with its edge stated
+   structurally instead.
+
+## The cone's carried rims and generators (from the review of PR 6946)
+
+PR 6946 routed the cone's rims through the same `EdgeTurn::carried`.
+The review's mutants on its head (`boxfinish/review-edge-turns`,
+`REVIEW-edge-turns-mutants-34c263a6.patch`) leave three cone mutants
+alive through every row, at both scalars and both ε:
+
+1. the cone rim's `carried` replaced by `exact`;
+2. the cone rim's lever set to zero;
+3. a cone generator's short turn replaced by a nominal zero
+   (`cone_loop_winding`).
+
+**Mutants 1 and 2** are this row's structural finding on the cone.
+The cone forms a rim's own turn in place, from the edge's own span, so
+there is no seam a test can desynchronise. A door's rim misses its
+ends by its admitted tilt squared, so no reachable loop separates
+`carried` from `exact`, or a lever from none.
+
+**Mutant 3** has no reachable twin of the cylinder's many-rulings row.
+That row was tried and refused `props_cone_loop_vertex`:
+
+- `require_cone_loop_vertices_distinct` needs every pair of
+  non-adjacent vertices more than `Kε` apart;
+- a generator's near end may sit at most `ε` off the line through the
+  apex and its far end, so it turns the axis by at most about `ε/ρ` at
+  its near end's radius `ρ`.
+
+Inferred from those two bounds: the near ends must spread along the
+slant, so the generators' total turn grows only like
+`(2/(K·sin α))·ln(ρ_max/ρ_min)`. Reaching the half turn at which a
+nominal zero would change a loop's count needs on the order of
+`ρ_max/(Kε)` edges, about 1e8 on any cone in the session box. A
+generator's turn below that is invisible to the whole-turn decision.
+
+Whoever takes this row decides whether those three readings are pinned
+some other way (a unit row at the constructor) or are true by
+construction and stated so.

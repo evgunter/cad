@@ -1,0 +1,32 @@
+
+running 1 test
+test issue897_s65_cost::issue897_guard_cost_report ... S65-COST eps = 0.000000001
+S65-COST body delta tris tess_us check_us check_pct
+S65-COST ball 0.1 116 84.9 9.8 11.50
+S65-COST ball 0.02 620 542.9 102.5 18.89
+S65-COST ball 0.004 3012 2517.9 662.6 26.32
+S65-COST cone 0.1 52 46.5 3.5 7.45
+S65-COST cone 0.02 224 160.4 19.1 11.93
+S65-COST cone 0.004 1156 897.1 198.6 22.14
+S65-COST l_prism 0.1 20 26.1 1.0 3.67
+S65-COST l_prism 0.02 20 24.7 1.0 3.87
+S65-COST l_prism 0.004 20 23.3 1.0 4.33
+S65-COST washer 0.1 100 128.1 6.8 5.33
+S65-COST washer 0.02 220 363.3 20.8 5.72
+S65-COST washer 0.004 484 978.3 61.7 6.31
+S65-COST donut 0.1 14620 14927.0 3193.4 21.39
+S65-COST donut 0.02 71820 77588.0 17604.8 22.69
+S65-COST donut 0.004 356168 486989.0 98043.6 20.13
+S65-COST sphere_wedge 0.1 46 37.5 3.2 8.45
+S65-COST sphere_wedge 0.02 212 154.2 14.9 9.66
+S65-COST sphere_wedge 0.004 1014 836.6 169.6 20.27
+S65-COST wedge 0.1 32 31.7 1.7 5.33
+S65-COST wedge 0.02 60 53.3 3.5 6.52
+S65-COST wedge 0.004 128 130.2 8.6 6.57
+S65-COST cone_wedge 0.1 4 7.7 0.1 1.93
+S65-COST cone_wedge 0.02 4 7.1 0.2 2.19
+S65-COST cone_wedge 0.004 4 7.3 0.1 2.05
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 137 filtered out; finished in 28.85s
+

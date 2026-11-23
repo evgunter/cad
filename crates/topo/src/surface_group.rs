@@ -1,0 +1,315 @@
+//! **One home for the wrap scan**: does a set of faces on one curved
+//! surface key cover a whole chart coordinate — or the whole chart — so
+//! that a trim has nothing left to do in it?
+//!
+//! Every curved containment arm asks it, and they ask the SAME question
+//! with one rule. Walk every boundary edge of every member: an edge
+//! mated to a member is a seam, interior to the union's closure, and
+//! bounds nothing. What is left — the UNMATED boundary — decides:
+//!
+//! - **the closed group** ([`surface_group`]): nothing may be left. The
+//!   union then has no boundary against any other surface, and a closed
+//!   subsurface without boundary of a connected compact surface (a
+//!   sphere, a ring torus) IS that surface;
+//! - **the wrapped coordinate** ([`wrap_rims_within`], [`wrap_rims`] for
+//!   one face): what is left must be circles that are iso-lines of the
+//!   OTHER coordinate ([`WrapRims`]) — coaxial rims for the azimuth of a
+//!   cylinder, cone or sphere. They bound the union there and never in
+//!   the wrapped coordinate, so the union attains every value of it over
+//!   the range they bound. An unmated edge of any other kind bounds the
+//!   union in the wrapped coordinate, and then it does not wrap however
+//!   wide the window its walk reads: a band merged with half of the
+//!   band beside it reads a whole turn and holds only half of it there.
+//!
+//! The members are the CALLER's choice — its scope's wearers of the key
+//! ([`ChartGroups`]), or one face — never the body's: a chart is
+//! body-wide, and a wearer outside the scope bounds material the caller
+//! is not asking about.
+//!
+//! # Structure first, margins last
+//!
+//! The walk ([`unmated_boundary`]) is exact-`f64` structure selection
+//! (C6): rings, arena keys, mate adjacency and curve VARIANTS only. It
+//! has no in-band twin and does not move with ε, and a union it rules
+//! out answers `None` without deciding anything. Only the wrapped
+//! coordinate's rim test is a margin (`bool_wrap_rim`), and it is asked
+//! only of a union whose every unmated edge is already a circle — so a
+//! windowed face, bounded by a meridian or section mated to a
+//! neighbour, never escalates here.
+//!
+//! Rings take a face out of every class: a ringed face is a trimmed one,
+//! and a ring is a boundary the scan cannot see.
+
+use crate::body::Body;
+use crate::chart_groups::ChartGroups;
+use crate::entity::FaceKey;
+use crate::live::BoundaryMember;
+use geom_brep::ladder::read_identity;
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Vec3};
+
+use crate::rim_wedge::Rim;
+use crate::solid_contain::PointInSolidError;
+
+/// The distance of `c` from the axis line `(origin, axis)`.
+pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>) -> T {
+    geom::Line { origin, dir: axis }.distance(c)
+}
+
+/// **The coaxial test, in one home**: the two margins that are zero
+/// exactly when `circle` is coaxial with the axis line `(origin, axis)`
+/// — the sine between the axes, levered by the circle's own curvature
+/// arm (its radius, the distance the circle moves per radian of tilt),
+/// and the centre's distance off the axis in metres.
+///
+/// Every site that asks it decides the margins under its own predicate
+/// name, because the names are its door's rows: [`WrapRims`]
+/// (`bool_wrap_rim`) and the sphere trim's latitude-rim class
+/// (`bool_sphere_iso_rim`).
+pub(super) fn coaxial_margins<T: Decide>(
+    axis: geom::Line<T>,
+    circle: &geom::Circle<T>,
+) -> [Margin<T>; 2] {
+    let geom::Line { origin, dir: axis } = axis;
+    [
+        Margin::levered(
+            circle.frame().axis().cross(axis).norm(),
+            geom_brep::circle_curvature_arm(circle),
+        ),
+        Margin::of(off_axis(origin, axis, circle.frame().origin())),
+    ]
+}
+
+/// The unmated boundary circles that bound a union in the azimuth's
+/// other coordinate, and so may stay unmated when it wraps the azimuth:
+/// circles COAXIAL with the carrier's axis `(origin, axis)`
+/// ([`coaxial_margins`]). On a sphere a meridian is a circle too, centred
+/// on the axis but not coaxial, so the test is both halves.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct WrapRims<T: geom_core::Real> {
+    pub(super) axis: geom::Line<T>,
+}
+
+/// The name a rim's coaxial margins are each decided under.
+pub(super) const BOOL_WRAP_RIM: &str = "bool_wrap_rim";
+
+impl<T: Decide> WrapRims<T> {
+    /// Coaxial is an identity: either margin decided apart answers
+    /// "not coaxial", whatever the other read ([`read_identity`]).
+    fn holds(self, circle: &geom::Circle<T>, band: Band) -> Result<bool, Indeterminate> {
+        read_identity(
+            coaxial_margins(self.axis, circle).map(|margin| (BOOL_WRAP_RIM, margin)),
+            band,
+        )
+        .holds()
+    }
+}
+
+/// Each unmated boundary circle, with the member it bounds.
+type Unmated<T> = Vec<(FaceKey, geom::Circle<T>)>;
+
+/// The walk: every member's unmated boundary edges, each of which must
+/// be a certified circle. `None` when a member has a ring, an outline
+/// that is not a cycle, or an unmated edge of any other kind.
+///
+/// # Errors
+///
+/// A member that does not resolve: the members are the caller's keys.
+///
+/// # Panics
+///
+/// Where a record past a resolved member does not resolve or its loop
+/// walk does not close (D2 row 4): its outer loop, a lone vertex's
+/// point, each member's edge, its mate and that mate's face, and each
+/// edge's curve. The links hold at rest
+/// and, on the reduction's working copies, by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
+fn unmated_boundary<T: Decide>(
+    body: &Body<T>,
+    members: &[FaceKey],
+) -> Result<Option<Unmated<T>>, FaceKey> {
+    let mut found = Vec::new();
+    for &member in members {
+        let f = body.face(member).ok_or(member)?;
+        if !f.record().rings.is_empty() {
+            return Ok(None);
+        }
+        for boundary in f.boundary() {
+            let BoundaryMember::Edge { he, edge, .. } = boundary else {
+                return Ok(None);
+            };
+            let hop = body.proven_mate(he, crate::live::Proven);
+            if members.contains(&body.face_of_linked(hop.mate)) {
+                continue;
+            }
+            let Some(circle) = edge
+                .certified()
+                .and_then(|c| c.carrier().as_circle().copied())
+            else {
+                return Ok(None);
+            };
+            found.push((member, circle));
+        }
+    }
+    Ok(Some(found))
+}
+
+/// **The closed group**: is the set of `charts`' wearers of `face`'s
+/// surface key closed against the rest of the body? `Some(representative)`
+/// — the first member in the scope's order, the member the arms act for
+/// — when no member's boundary is left unmated.
+///
+/// Acting for one member is not an optimization. The group's members
+/// share the trim their closure certifies, so a per-face arm would fold
+/// the same root once per member and tie the closest-hit rule into a
+/// permanent graze.
+///
+/// * `Ok(None)` — definitely NOT closed. The caller falls through to its
+///   per-face class.
+/// * `Err(face)` — a member key, `face` among them, that does not
+///   resolve, or a scope that does not hold `face`: the caller's keys. A
+///   caller that reports a stale key raises it; one whose class simply
+///   does not apply maps it to `None`.
+///
+/// # Errors
+///
+/// The member key that does not resolve, or `face` itself when the
+/// scope does not hold it.
+///
+/// # Panics
+///
+/// As [`unmated_boundary`], on a torn hop past a resolved member.
+pub(super) fn surface_group<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    charts: &ChartGroups,
+) -> Result<Option<FaceKey>, FaceKey> {
+    let members = scope_members(body, face, charts)?;
+    Ok(unmated_boundary(body, members)?
+        .filter(Vec::is_empty)
+        .map(|_| members[0]))
+}
+
+/// `charts`' wearers of `face`'s surface key, `face` among them.
+///
+/// # Errors
+///
+/// `face` when it does not resolve or the scope does not hold it.
+pub(super) fn scope_members<'c, T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    charts: &'c ChartGroups,
+) -> Result<&'c [FaceKey], FaceKey> {
+    let surface = body.get_face(face).ok_or(face)?.surface;
+    let members = charts.of(surface);
+    if !members.contains(&face) {
+        return Err(face);
+    }
+    Ok(members)
+}
+
+/// **Do `members` together wrap one coordinate of their chart?** The
+/// unmated boundary is all circles `rims` admits (see the module
+/// header). `Some(rims)`, those circles, or `None`.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a member that does not
+/// resolve; [`PointInSolidError::Escalated`] for an in-band rim margin.
+///
+/// # Panics
+///
+/// As [`unmated_boundary`], on a torn hop past a resolved member.
+pub(super) fn wrap_rims_within<T: Decide>(
+    body: &Body<T>,
+    members: &[FaceKey],
+    rims: WrapRims<T>,
+    band: Band,
+) -> Result<Option<Vec<Rim<T>>>, PointInSolidError> {
+    let Some(found) =
+        unmated_boundary(body, members).map_err(|face| PointInSolidError::CorruptFace { face })?
+    else {
+        return Ok(None);
+    };
+    for (member, circle) in &found {
+        if !rims
+            .holds(circle, band)
+            .map_err(|diag| PointInSolidError::Escalated {
+                face: *member,
+                diag,
+            })?
+        {
+            return Ok(None);
+        }
+    }
+    Ok(Some(
+        found
+            .into_iter()
+            .map(|(_, circle)| Rim {
+                center: circle.frame().origin(),
+                axis: circle.frame().axis(),
+                radius: circle.radius(),
+                u_ref: circle.frame().u_ref(),
+            })
+            .collect(),
+    ))
+}
+
+/// **Does `face` ALONE wrap one coordinate of its chart?** The one
+/// notion of "this face's window is a full period":
+/// [`wrap_rims_within`] for the face alone.
+///
+/// # Errors
+///
+/// As [`wrap_rims_within`].
+pub(super) fn wrap_rims<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    rims: WrapRims<T>,
+    band: Band,
+) -> Result<Option<Vec<Rim<T>>>, PointInSolidError> {
+    wrap_rims_within(body, &[face], rims, band)
+}
+
+/// **A margin decided apart answers "not coaxial" past one in band**
+/// ([`WrapRims::holds`] reads its two margins as one identity): a rim
+/// whose axis tilts by a mid-band width, with its centre a unit off the
+/// carrier's axis, is not coaxial. Read through the production reader.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod wrap_rims_holds_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::WrapRims;
+
+    #[test]
+    fn a_centre_off_the_axis_answers_past_a_tilt_in_band() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("a valid band");
+        let tilt = 0.5 * (1.0 + tol.k()) * tol.eps();
+        let rims = WrapRims {
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_z(),
+            },
+        };
+        let rim = |center: Point3<f64>| {
+            geom::Circle::new(
+                geom::Frame::new(
+                    center,
+                    Vec3::new(tilt, 0.0, (1.0 - tilt * tilt).sqrt()),
+                    Vec3::unit_x(),
+                ),
+                1.0,
+            )
+        };
+        assert_eq!(
+            rims.holds(&rim(Point3::new(1.0, 0.0, 0.0)), band),
+            Ok(false),
+            "a centre a unit off the axis is not coaxial, whatever the tilt read"
+        );
+        assert!(
+            rims.holds(&rim(Point3::origin()), band).is_err(),
+            "with the centre on the axis, the tilt in band refuses"
+        );
+    }
+}

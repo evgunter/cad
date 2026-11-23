@@ -1,0 +1,726 @@
+//! The vector-area boundary integral `(1/2)∮(p − ref)×dp` with exact
+//! per-carrier closed forms (module docs of [`super`]).
+
+use geom::{Curve3, NurbsCurve3};
+use geom_core::interval::Interval;
+use geom_core::spline::SpanLocate;
+use geom_core::{Point3, Real, Vec3};
+
+use super::{LoopEdge, PropsError};
+
+/// The loop's vector area `(1/2)∮(p − ref_point)×dp`, traversed in the
+/// loop's stored order — for a planar loop this is `n̂ · (signed area)`;
+/// for a curved face's boundary it equals `∮_face n dA` by Stokes.
+/// Translation-invariant in exact arithmetic (`∮dp = 0`); `ref_point`
+/// conditions the floating evaluation (pass the face's anchor).
+///
+/// Per-edge closed forms (fixed association order, D9):
+///
+/// - line `a → b`: `(1/2)·(a − ref)×(b − ref)`;
+/// - circular arc, `Δ = t1 − t0`: the triangle `ref, p0, p1` plus the
+///   segment between the chord and the arc,
+///   `(1/2)·[(p0 − ref)×(p1 − p0) + R²·(Δ − sin Δ)·axis]`, negated for
+///   reversed traversal;
+/// - ellipse arc: the same form with `R² → a·b` — `(P−C)×dP =
+///   a·b·dθ·axis` exactly (the eccentric-anomaly parameterization's
+///   constant areal rate), so the segment is the circle's under the
+///   affine map, `(1/2)·[(p0 − ref)×(p1 − p0) + a·b·(Δ − sin Δ)·axis]`.
+///
+///   **An arc's lever is its start point, never its centre.** The
+///   centre-referenced form `(C − ref)×(p1 − p0) + a·b·Δ·axis` is the
+///   same number in ℝ, but its two terms are the sector's size and
+///   cancel to the face's, so the chord's rounding reaches the sum
+///   times `|C − ref|`. The chord still carries that rounding — `p0`
+///   and `p1` are evaluated about `C`, to `ulp(|C|)` — but here it
+///   meets only the lever `|p0 − ref|`, the face's own extent: the
+///   residual is about `ulp(|C|)·|p0 − ref|` per arc, which for a
+///   carrier inside D4's 1 km session box is at the scale of the
+///   smallest ε the kernel runs at. That residual is what a closed
+///   form's zero pad leaves unbounded.
+/// - **non-rational B-spline** (D7 stage-1 promotion made this a
+///   reachable at-rest state: a promoted plane keeps its parsed
+///   spline boundary carriers): per knot span the integrand
+///   `(P − ref)×P′` is a POLYNOMIAL of degree `2k − 1`, and the fixed
+///   `k`-point Gauss–Legendre rule integrates that degree **exactly**
+///   — a closed form in the same sense as the arc's, not a truncated
+///   approximation (fixed nodes, fixed evaluation order, D9; the only
+///   error is f64 rounding). Rational carriers keep the typed
+///   refusal here — their integrand `B × B′/w²` is rational per span,
+///   and no fixed rule integrates it exactly. A plane they bound takes
+///   the certified lane instead ([`super::rational_rim`], through
+///   topo's quadrature dispatch), which encloses that integral; this
+///   arm's refusal is what a door with no quadrature lane (the
+///   structural door, a `Dual` read) answers for it.
+///
+/// # Errors
+///
+/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier (the
+/// certified lane, [`super::rational_rim`], reads it);
+/// [`PropsError::QuadratureUnsupported`] past the Gauss table's
+/// degree inventory.
+pub fn loop_vector_area<T: SpanLocate>(
+    edges: &[LoopEdge<T>],
+    ref_point: Point3<T>,
+) -> Result<Vec3<T>, PropsError> {
+    let half = T::from_f64(0.5);
+    let mut acc = Vec3::zero();
+    for e in edges {
+        let contrib = match e.carrier {
+            Curve3::Line(_) => {
+                let a = e.p0() - ref_point;
+                let b = e.p1() - ref_point;
+                a.cross(b) * half
+            }
+            Curve3::Circle(circle) => {
+                let axis = circle.frame().axis();
+                let radius = circle.radius();
+                arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
+            }
+            Curve3::Ellipse(ellipse) => {
+                let axis = ellipse.frame().axis();
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+                arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half
+            }
+            Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
+            // The spiric's sector integral `∫ P × P′ dv` carries
+            // `√((R + r cos v)² − d²)` against `sin v` and `cos v` — an
+            // elliptic integral, no closed form. A face it bounds is
+            // measured by the quadrature lane (`super::spiric`).
+            // A periodic cubic's edge is read on its clamped view, a
+            // spline: the loop itself reaches no arm here.
+            Curve3::Spiric { .. } | Curve3::Periodic(_) => return Err(PropsError::Unimplemented),
+        };
+        // Reversed traversal flips the line integral's sign.
+        acc = if e.forward {
+            acc + contrib
+        } else {
+            acc - contrib
+        };
+    }
+    Ok(acc)
+}
+
+/// Twice an arc's vector area about `ref_point`, its areal rate
+/// `rate·axis` per unit parameter: the triangle `ref_point, p0, p1` and
+/// the segment the arc cuts off its chord (module docs of
+/// [`loop_vector_area`]).
+fn arc_vector_area<T: SpanLocate>(
+    e: &LoopEdge<T>,
+    ref_point: Point3<T>,
+    axis: Vec3<T>,
+    rate: T,
+) -> Vec3<T> {
+    let p0 = e.p0();
+    (p0 - ref_point).cross(e.p1() - p0) + arc_segment_term(axis, rate, e.t1 - e.t0)
+}
+
+/// **The bulge of an arc over its chord**: `Δ − sin Δ` for the signed
+/// span `Δ`, read through its one statement, [`Real::less_sin`] (which
+/// `profile`'s loop orientation reads for its arcs too). Twice the area
+/// between a unit circle's arc and its chord; an arc of the conic
+/// `c + a·cos θ + b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area,
+/// for any signed `Δ` and any `a`, `b`. It reads no centre and no point
+/// of the conic, and a short arc's keeps its digits.
+pub fn chord_bulge<T: Real>(span: T) -> T {
+    span.less_sin()
+}
+
+/// **Twice the vector area between a conic arc and its chord**:
+/// `axis·rate·(Δ − sin Δ)`, `rate` the arc's areal rate per unit of its
+/// parameter (`R²` for a circle, the semi-axes' signed product for an
+/// ellipse) and `Δ` its signed span — the one home of the segment term
+/// every reading of a conic arc's area adds to its chord's.
+pub fn arc_segment_term<T: Real>(axis: Vec3<T>, rate: T, span: T) -> Vec3<T> {
+    axis * (rate * chord_bulge(span))
+}
+
+/// The fixed Gauss–Legendre rules on `[−1, 1]`, by node count `n`
+/// (exact through polynomial degree `2n − 1`). The inventory covers
+/// the exportable spline degrees with headroom; past it the caller
+/// refuses typed rather than truncating.
+fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
+    // Correctly-rounded f64-nearest values (R1 m-2: five 16-digit
+    // literals sat one ulp off; re-derived at 50-digit precision).
+    const X2: f64 = 0.577_350_269_189_625_7; // 1/√3
+    const X3: f64 = 0.774_596_669_241_483_4; // √(3/5)
+    const W3A: f64 = 8.0 / 9.0;
+    const W3B: f64 = 5.0 / 9.0;
+    const X4A: f64 = 0.339_981_043_584_856_26;
+    const X4B: f64 = 0.861_136_311_594_052_6;
+    const W4A: f64 = 0.652_145_154_862_546_1;
+    const W4B: f64 = 0.347_854_845_137_453_85;
+    const X5A: f64 = 0.538_469_310_105_683_1;
+    const X5B: f64 = 0.906_179_845_938_664;
+    const W5O: f64 = 0.568_888_888_888_888_9;
+    const W5A: f64 = 0.478_628_670_499_366_47;
+    const W5B: f64 = 0.236_926_885_056_189_08;
+    match n {
+        1 => Some((&[0.0], &[2.0])),
+        2 => Some((&[-X2, X2], &[1.0, 1.0])),
+        3 => Some((&[-X3, 0.0, X3], &[W3B, W3A, W3B])),
+        4 => Some((&[-X4B, -X4A, X4A, X4B], &[W4B, W4A, W4A, W4B])),
+        5 => Some((&[-X5B, -X5A, 0.0, X5A, X5B], &[W5B, W5A, W5O, W5A, W5B])),
+        _ => None,
+    }
+}
+
+/// **Whether [`loop_vector_area`] reads this carrier**, exactly as it
+/// does: a line, a circle, an ellipse, and a non-rational B-spline whose
+/// degree the fixed Gauss inventory covers. It refuses a spiric, a
+/// rational spline and a non-rational spline past that inventory (degree
+/// over 5). The one spelling of that set, which `topo`'s quadrature
+/// regions join across.
+#[must_use]
+pub fn vector_area_reads<T: SpanLocate>(carrier: &Curve3<T>) -> bool {
+    match carrier {
+        Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => true,
+        Curve3::Nurbs(c) => spline_gauss_rule(c).is_some(),
+        Curve3::Spiric { .. } | Curve3::Periodic(_) => false,
+    }
+}
+
+/// The fixed rule that integrates a spline carrier's vector area exactly
+/// ([`nurbs_vector_area`]): `None` for a rational carrier, and for a
+/// degree past the inventory.
+fn spline_gauss_rule<T: SpanLocate>(
+    curve: &NurbsCurve3<T>,
+) -> Option<(&'static [f64], &'static [f64])> {
+    if is_rational(curve) {
+        return None;
+    }
+    gauss_rule(curve.degree().max(1))
+}
+
+/// Is this carrier rational: are its weights not all one plain constant
+/// ([`NurbsCurve3::constant_weight`])? The one spelling of the question
+/// the closed form refuses on ([`nurbs_vector_area`]) and the certified
+/// lane answers ([`super::rational_rim`]).
+#[must_use]
+pub fn is_rational<T: SpanLocate>(curve: &NurbsCurve3<T>) -> bool {
+    curve.constant_weight().is_none()
+}
+
+/// `(1/2)∫_{t0}^{t1} (P(t) − ref)×P′(t) dt` for a **non-rational**
+/// B-spline carrier ([`NurbsCurve3::constant_weight`]), exact (module
+/// docs of [`loop_vector_area`]: the per-span polynomial integrand meets the fixed `k`-point Gauss rule
+/// that integrates its degree exactly). A rational carrier refuses
+/// [`PropsError::Unimplemented`]; [`super::rational_rim`] encloses it.
+///
+/// Span walking is generic-scalar sound: the covered span range comes
+/// from [`SpanLocate::locate_spans`] at the interval's ends, each
+/// span's sub-interval is clipped with the scalar's own total
+/// `min`/`max` (Q1: no raw comparisons), and a span the interval does
+/// not reach clips to length ≤ 0, whose `max(0)` half-length zeroes
+/// its contribution identically — no value branching anywhere.
+fn nurbs_vector_area<T: SpanLocate>(
+    curve: &NurbsCurve3<T>,
+    t0: T,
+    t1: T,
+    ref_point: Point3<T>,
+) -> Result<Vec3<T>, PropsError> {
+    if is_rational(curve) {
+        return Err(PropsError::Unimplemented);
+    }
+    let Some((nodes, weights)) = spline_gauss_rule(curve) else {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a non-rational B-spline boundary carrier of degree > 5 — the exact \
+                   Gauss inventory covers the exportable degrees; extend the table \
+                   before integrating higher",
+        });
+    };
+    let kv = curve.knots_f64_interim();
+    let (Some(lo_spans), Some(hi_spans)) = (t0.locate_spans(kv), t1.locate_spans(kv)) else {
+        // A poison end locates no span, and the area is poison in every
+        // channel the ends carry.
+        return Ok(Vec3::<T>::zero().map(|_| geom_core::spline::poison_from(t0 + t1)));
+    };
+    let first = lo_spans.first.index().min(hi_spans.first.index());
+    let last = lo_spans.last.index().max(hi_spans.last.index());
+    let half = T::from_f64(0.5);
+    let mut acc = Vec3::zero();
+    for index in first..=last {
+        // Emptiness check and span validation are one step.
+        let Some(span) = curve.span(index) else {
+            continue;
+        };
+        let held = curve.knot_values().values();
+        let lo = t0.max(held[index]);
+        let hi = t1.min(held[index + 1]);
+        let half_len = ((hi - lo) * half).max(T::zero());
+        let mid = (lo + hi) * half;
+        for (x, w) in nodes.iter().zip(weights) {
+            let t = mid + half_len * T::from_f64(*x);
+            // `P × P′` at one parameter: one order-1 basis pass
+            // answers both halves of the integrand.
+            let (p, d) = span.ders1_in_span(t);
+            acc = acc + (p - ref_point).cross(d) * (half_len * T::from_f64(*w));
+        }
+    }
+    Ok(acc * half)
+}
+
+/// A curved edge's term in a planar loop's winding sum.
+#[derive(Debug, Clone, Copy)]
+pub struct SegmentTerm<S: Real> {
+    /// Twice the vector area between the edge as traversed and its
+    /// chord: the vector area about the edge's own start point, which no
+    /// chord through that point changes.
+    pub bulge: Vec3<S>,
+    /// An upper bound on the edge's length.
+    pub length: S,
+}
+
+/// **How a planar winding sum reads an edge of each carrier** — the one
+/// table of it ([`segment_kind`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentKind {
+    /// A line: the edge is its chord and has no bulge.
+    Chord,
+    /// A closed form at the caller's scalar ([`closed_segment_term`]): a
+    /// circle, an ellipse, and a spline [`loop_vector_area`] integrates
+    /// exactly ([`vector_area_reads`]).
+    Closed,
+    /// A certified enclosure alone ([`SegmentQ`]): a spiric, a rational
+    /// spline, and a non-rational one past the exact rule's degrees.
+    Enclosed,
+}
+
+/// The reading a planar winding sum takes of `carrier`.
+#[must_use]
+pub fn segment_kind<T: SpanLocate>(carrier: &Curve3<T>) -> SegmentKind {
+    match carrier {
+        Curve3::Line(_) => SegmentKind::Chord,
+        Curve3::Circle(..) | Curve3::Ellipse(..) => SegmentKind::Closed,
+        Curve3::Nurbs(c) if spline_gauss_rule(c).is_some() => SegmentKind::Closed,
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => SegmentKind::Enclosed,
+    }
+}
+
+/// **The closed-form term of one traversed edge**, `(t0, t1)` the carrier
+/// interval it spans and `forward` whether the traversal runs with the
+/// carrier's parameter. `None` for a carrier that is not
+/// [`SegmentKind::Closed`].
+///
+/// - A conic: `(axis · a·b · (Δ − sin Δ), |Δ|·max(a, b))`
+///   ([`arc_segment_term`]), odd in the signed span `Δ`; the length is
+///   exact for a circle and an upper bound for an ellipse.
+/// - A non-rational spline: `∫ (P − P(t0)) × P′ dt` over the interval,
+///   exact per knot span ([`loop_vector_area`]'s rule), negated for a
+///   reversed traversal.
+///
+/// The length is summed over the edge's own stretch
+/// ([`geom::carrier_speed::length_hi`]): a circle's is exact, an
+/// ellipse's and a spline's are upper bounds that are not charged for a
+/// faster stretch elsewhere on the carrier.
+///
+/// At `Interval` the spline arm is the Gauss rule with its nodes and
+/// weights rounded to `f64`, in interval arithmetic: it carries the
+/// rounding of its own operations, not the nodes', so it is a rounded
+/// rule a few units in the last place off the integral and not an
+/// enclosure of it. [`SegmentQ`] is the enclosure.
+pub fn closed_segment_term<T: SpanLocate>(
+    (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
+    forward: bool,
+) -> Option<SegmentTerm<T>> {
+    let bulge = match carrier.conic() {
+        Some(conic) => {
+            let (a, b) = conic.semi_axes();
+            let span = if forward { t1 - t0 } else { t0 - t1 };
+            arc_segment_term(conic.frame().axis(), a * b, span)
+        }
+        None => spline_bulge(carrier, (t0, t1), forward)?,
+    };
+    Some(SegmentTerm {
+        bulge,
+        length: length_bound(carrier, (t0, t1)),
+    })
+}
+
+/// An upper bound on the length of `carrier` over `(t0, t1)`, summed
+/// over the edge's own stretch ([`geom::carrier_speed::length_hi`]).
+fn length_bound<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> T {
+    geom::carrier_speed::length_hi(carrier, t0, t1)
+}
+
+/// A spline arc's bulge where [`nurbs_vector_area`] reads it; `None` for
+/// any other carrier, and for a spline it refuses.
+fn spline_bulge<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    forward: bool,
+) -> Option<Vec3<T>> {
+    let Curve3::Nurbs(curve) = carrier else {
+        return None;
+    };
+    let half = nurbs_vector_area(curve, t0, t1, curve.eval(t0)).ok()?;
+    let bulge = half + half;
+    Some(if forward { bulge } else { -bulge })
+}
+
+/// A [`SegmentQ`] has no term at a piece count: a piece whose enclosure
+/// does not certify there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoTermAt;
+
+/// **One traversed edge as the certified winding sum reads it**, at the
+/// interval scalar: built once per edge ([`SegmentQ::of`]) and read at
+/// each piece count a refinement asks for ([`SegmentQ::term`]).
+#[derive(Debug, Clone)]
+pub enum SegmentQ {
+    /// A line (`None`, its chord) or a conic's closed form, which no
+    /// piece count moves.
+    Closed(Option<SegmentTerm<Interval>>),
+    /// A spiric arc: [`super::spiric`]'s enclosure of its vector area
+    /// about its start point, and its piecewise length bound.
+    Spiric(Box<super::spiric::SpiricEdgeQ>),
+    /// A spline arc, rational or not: [`super::rational_rim`]'s
+    /// enclosure of its vector area about its start point, and the
+    /// certified bound on its length over its own stretch.
+    Spline(super::rational_rim::RationalEdgeQ, Interval),
+}
+
+impl SegmentQ {
+    /// The edge on `carrier` over `(t0, t1)`, traversed `forward` or
+    /// against the parameter. `None` for a spline whose enclosure does
+    /// not build: its interval's ends or its knots are not exact
+    /// parameters, its decomposition refuses, or its length bound is
+    /// not certified.
+    #[must_use]
+    pub fn of(
+        (carrier, (t0, t1)): (&Curve3<Interval>, (Interval, Interval)),
+        forward: bool,
+    ) -> Option<Self> {
+        let length = || length_bound(carrier, (t0, t1));
+        // Not [`segment_kind`]'s split: every spline is enclosed here,
+        // one with a closed form too, because at this scalar that form
+        // is a rounded rule ([`closed_segment_term`]) and every term of
+        // this sum is an enclosure.
+        Some(match carrier {
+            Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => {
+                Self::Closed(closed_segment_term((carrier, (t0, t1)), forward))
+            }
+            Curve3::Spiric {
+                frame,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let rv = |v: Vec3<Interval>| [v.x, v.y, v.z];
+                Self::Spiric(Box::new(super::spiric::SpiricEdgeQ {
+                    centre: rv(center - carrier.eval(t0)),
+                    axis: rv(axis),
+                    normal: rv(u_ref),
+                    major: *major_radius,
+                    minor: *minor_radius,
+                    offset: *offset,
+                    t0,
+                    t1,
+                    forward,
+                }))
+            }
+            Curve3::Nurbs(curve) => {
+                let length = length();
+                if !length.is_certified() {
+                    return None;
+                }
+                let edge =
+                    super::rational_rim::rational_edge_q(curve, t0, t1, forward, curve.eval(t0))
+                        .ok()?;
+                Self::Spline(edge, length)
+            }
+            Curve3::Periodic(_) => return None,
+        })
+    }
+
+    /// The edge's term at `pieces` (per Bézier span on a spline):
+    /// `Ok(None)` for a line.
+    ///
+    /// # Errors
+    ///
+    /// [`NoTermAt`] for a spiric with a piece whose `f` is not certified
+    /// positive at `pieces`.
+    pub fn term(&self, pieces: usize) -> Result<Option<SegmentTerm<Interval>>, NoTermAt> {
+        let twice = |[x, y, z]: super::quad::RVec3| {
+            let half = Vec3::new(x, y, z);
+            half + half
+        };
+        match self {
+            Self::Closed(term) => Ok(*term),
+            Self::Spiric(edge) => {
+                let length = super::spiric::spiric_length_bound(edge, pieces).ok_or(NoTermAt)?;
+                Ok(Some(SegmentTerm {
+                    bulge: twice(super::spiric::spiric_vector_area(edge, pieces)),
+                    length: Interval::from_certified(length),
+                }))
+            }
+            Self::Spline(edge, length) => Ok(Some(SegmentTerm {
+                bulge: twice(super::rational_rim::rational_vector_area_split(edge, pieces).0),
+                length: *length,
+            })),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// A poison end locates no span, so the NURBS area is poison in every
+    /// channel the ends carry — at `Dual` the derivative channel too,
+    /// where a bare `from_f64(NaN)` would be a dual constant whose
+    /// derivative reads as a zero.
+    #[test]
+    fn a_poison_end_integrates_to_poison_in_every_dual_channel() {
+        use geom_core::Dual64;
+        use geom_core::spline::KnotVector;
+        let c = |x: f64, y: f64| {
+            Point3::new(
+                Dual64::constant(x),
+                Dual64::constant(y),
+                Dual64::constant(0.0),
+            )
+        };
+        let curve = NurbsCurve3::new(
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            )
+            .lift(geom_core::Real::from_f64),
+            vec![c(0.0, 0.0), c(1.0, 2.0), c(2.0, 0.0), c(3.0, 1.0)],
+            vec![geom_core::Real::one(); 4],
+        )
+        .unwrap();
+        let a = nurbs_vector_area(
+            &curve,
+            Dual64::variable(f64::NAN),
+            Dual64::constant(1.0),
+            c(0.0, 0.0),
+        )
+        .unwrap();
+        for v in [a.x, a.y, a.z] {
+            assert!(v.value.is_nan() && v.deriv.is_nan(), "{a:?}");
+        }
+    }
+
+    /// **A constant weight is the polynomial arm's**: the cubic on one
+    /// net with every weight `2` integrates to the unit-weight curve's
+    /// area to the bit (a power of two scales the homogeneous
+    /// evaluation exactly). At `3` and `0.1` it agrees to a few ulps
+    /// and no closer: the arm evaluates through the rational
+    /// evaluator, whose `Σ Nᵢ·c·Pᵢ / Σ Nᵢ·c` rounds once more than the
+    /// unit net's. A net whose weights vary refuses as the rational
+    /// carrier this arm does not integrate, and the certified lane
+    /// ([`super::super::rational_rim`]) encloses it: its bracket holds a
+    /// composite Simpson reference on the definition.
+    #[test]
+    fn a_constant_weight_carrier_integrates_as_its_polynomial() {
+        use geom_core::spline::KnotVector;
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let area = |weights: Vec<f64>| {
+            let curve = NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![p(0.0, 0.0), p(1.0, 2.0), p(2.0, 0.0), p(3.0, 1.0)],
+                weights,
+            )
+            .unwrap();
+            nurbs_vector_area(&curve, 0.1, 0.9, p(0.5, -1.0))
+        };
+        let unit = area(vec![1.0; 4]).unwrap();
+        let twos = area(vec![2.0; 4]).unwrap();
+        assert_eq!(
+            [twos.x, twos.y, twos.z].map(f64::to_bits),
+            [unit.x, unit.y, unit.z].map(f64::to_bits),
+            "weights 2: {twos:?}, unit: {unit:?}"
+        );
+        for c in [3.0, 0.1] {
+            let got = area(vec![c; 4]).unwrap();
+            assert!(
+                got.x == 0.0
+                    && got.y == 0.0
+                    && (got.z - unit.z).abs() <= 16.0 * f64::EPSILON * unit.z.abs(),
+                "weights {c}: {got:?}, unit: {unit:?}"
+            );
+        }
+        assert!(
+            matches!(
+                area(vec![1.0, 2.0, 2.0, 1.0]),
+                Err(PropsError::Unimplemented)
+            ),
+            "a varying weight vector is rational"
+        );
+        let rational = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![p(0.0, 0.0), p(1.0, 2.0), p(2.0, 0.0), p(3.0, 1.0)],
+            vec![1.0, 2.0, 2.0, 1.0],
+        )
+        .unwrap();
+        let reference = p(0.5, -1.0);
+        let simpson = {
+            let g = |t: f64| {
+                let (q, d) = rational.ders1(t);
+                0.5 * ((q - reference).cross(d)).z
+            };
+            let (m, lo, hi) = (1 << 16, 0.1, 0.9);
+            let h = (hi - lo) / f64::from(m);
+            let inner: f64 = (1..m)
+                .map(|i| if i % 2 == 1 { 4.0 } else { 2.0 } * g(lo + f64::from(i) * h))
+                .sum();
+            (g(lo) + g(hi) + inner) * h / 3.0
+        };
+        use geom_core::Bounds;
+        use geom_core::interval::certification::Certification;
+        let iv = super::super::bracket::pt;
+        let lane = super::super::rational_rim::rational_edge_q(
+            &rational.map_scalar(iv),
+            iv(0.1),
+            iv(0.9),
+            true,
+            Point3::new(iv(0.5), iv(-1.0), iv(0.0)),
+        )
+        .unwrap();
+        let (z, _) = super::super::rational_rim::rational_vector_area_split(&lane, 128);
+        assert!(
+            z[2].lo() <= simpson && simpson <= z[2].hi() && z[2].width() < 1e-9,
+            "the certified lane holds the rational carrier's area: {:?} ∌ {simpson}",
+            z[2]
+        );
+    }
+
+    /// **[`vector_area_reads`] is the set [`loop_vector_area`] reads**:
+    /// on a line, a circle, an ellipse, a polynomial spline of degree 2
+    /// and of degree 5, a rational one, and a polynomial one of degree 6,
+    /// the predicate answers exactly where the integral does.
+    #[test]
+    fn the_predicate_answers_where_the_integral_reads() {
+        use geom_core::spline::KnotVector;
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let spline = |degree: usize, weights: Vec<f64>| {
+            let n = weights.len();
+            let mut knots = vec![0.0; degree + 1];
+            knots.extend(vec![1.0; degree + 1]);
+            assert_eq!(n, degree + 1);
+            Curve3::Nurbs(std::sync::Arc::new(
+                NurbsCurve3::new(
+                    KnotVector::clamped(knots, degree).unwrap(),
+                    (0..n).map(|i| p(i as f64, (i % 2) as f64)).collect(),
+                    weights,
+                )
+                .unwrap(),
+            ))
+        };
+        let carriers = [
+            (Curve3::line(p(0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)), true),
+            (
+                Curve3::circle(
+                    p(0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    1.0,
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+                true,
+            ),
+            (
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(
+                        p(0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    2.0,
+                    1.0,
+                )),
+                true,
+            ),
+            (spline(2, vec![1.0; 3]), true),
+            (spline(5, vec![1.0; 6]), true),
+            (spline(2, vec![1.0, 2.0, 1.0]), false),
+            (spline(6, vec![1.0; 7]), false),
+        ];
+        for (carrier, reads) in carriers {
+            let edge = LoopEdge::hand_built(carrier.clone(), 0.0, 1.0, true, 0, 0);
+            let integral = loop_vector_area(core::slice::from_ref(&edge), p(0.5, -1.0));
+            assert_eq!(vector_area_reads(&carrier), reads, "{carrier:?}");
+            assert_eq!(integral.is_ok(), reads, "{carrier:?}: {integral:?}");
+        }
+    }
+
+    fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
+        let d = b - a;
+        let len = d.norm();
+        LoopEdge::hand_built(Curve3::line(a, d * (1.0 / len)), 0.0, len, forward, 0, 0)
+    }
+
+    #[test]
+    fn unit_square_vector_area_is_z() {
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let edges = vec![
+            line_edge(p(0.0, 0.0), p(1.0, 0.0), true),
+            line_edge(p(1.0, 0.0), p(1.0, 1.0), true),
+            line_edge(p(1.0, 1.0), p(0.0, 1.0), true),
+            line_edge(p(0.0, 1.0), p(0.0, 0.0), true),
+        ];
+        let va = loop_vector_area(&edges, Point3::new(5.0, -3.0, 2.0)).unwrap();
+        assert!((va.x).abs() < 1e-12 && (va.y).abs() < 1e-12);
+        assert!((va.z - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn full_circle_vector_area_is_pi_r_squared_axis() {
+        let r = 2.0;
+        let e = LoopEdge::hand_built(
+            Curve3::circle(
+                Point3::new(1.0, 2.0, 3.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                r,
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            0.0,
+            core::f64::consts::TAU,
+            true,
+            0,
+            0,
+        );
+        let va = loop_vector_area(core::slice::from_ref(&e), Point3::origin()).unwrap();
+        assert!((va.z - core::f64::consts::PI * r.powi(2)).abs() < 1e-12);
+        assert!(va.x.abs() < 1e-12 && va.y.abs() < 1e-12);
+    }
+
+    #[test]
+    fn reversed_traversal_negates() {
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1.0, 0.0, 0.0);
+        let f = loop_vector_area(&[line_edge(a, b, true)], Point3::new(0.0, 1.0, 0.0)).unwrap();
+        let r = loop_vector_area(&[line_edge(a, b, false)], Point3::new(0.0, 1.0, 0.0)).unwrap();
+        assert_eq!(f.z.to_bits(), (-r.z).to_bits());
+    }
+
+    /// **A conic arc's length term is its own stretch's**: a circle's is
+    /// `R·|Δ|` to the bit, and an ellipse arc about the end of its long
+    /// axis, where it runs at its smaller semi-axis, is charged within a
+    /// tenth of an inscribed polygon's length, where the larger semi-axis
+    /// times the span is fifty times it; a whole turn within a fifth.
+    #[test]
+    fn a_conic_arcs_length_term_is_its_own_stretchs() {
+        let (o, z, x) = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let (r, span) = (2.5, (0.3, 1.7));
+        let SegmentTerm { length, .. } =
+            closed_segment_term((&Curve3::circle(o, z, r, x), span), true).unwrap();
+        assert_eq!(length.to_bits(), (r * (span.1 - span.0)).to_bits());
+        let (a, b) = (100.0, 1.0);
+        let flat = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), a, b));
+        for ((t0, t1), slack) in [
+            ((-0.01, 0.01), 1.1),
+            ((3.1, 3.2), 1.1),
+            ((0.0, core::f64::consts::TAU), 1.2),
+        ] {
+            let SegmentTerm { length, .. } = closed_segment_term((&flat, (t0, t1)), false).unwrap();
+            let at = |k: u32| flat.eval(t0 + (t1 - t0) * f64::from(k) / 4096.0);
+            let polygon: f64 = (0..4096).map(|k| (at(k + 1) - at(k)).norm()).sum();
+            assert!(
+                polygon <= length && length < slack * polygon,
+                "{t0}..{t1}: the bound {length} against an inscribed polygon's {polygon}"
+            );
+        }
+    }
+}

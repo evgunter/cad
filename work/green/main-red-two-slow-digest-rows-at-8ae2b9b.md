@@ -1,0 +1,30 @@
+---
+id: main-red-two-slow-digest-rows-at-8ae2b9b
+kind: issue
+title: main is red on two slow-set digest rows at 8ae2b9b: seat7_sweep_lowering (corner_table) and m10_sym_profile_interval (plate)
+status: closed
+opened: 2026-11-03
+priority: P1
+cost: M
+parent: nightly-reds-editor-core-digests-and-goldens
+closed: 2026-11-14
+---
+
+
+Found by both reviewers of PLACING's PR 6394 (2026-11-02, the dual pair). Each reproduced it independently on unchanged main at `8ae2b9bf`, so it is not 6394's.
+
+- `editor-core` `seat7_sweep_lowering::the_sweep_documents_evaluate_to_their_committed_digests`: `corner_table` reads `0xc19eae46ab271546` against the pinned `0x8078f0ef…`.
+- `editor-core` `m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row`: the `plate` row fails.
+
+Both are slow-set rows, so the PR gate does not run them; the nightly does. Earlier reds on these rows (`work/cleave/sym-ledger-plain-decision-forms-red-on-main-after-edge-midpoint.md`, `work/cpair/main-red-slow-set-receipts-moved-at-5542.md`) are closed. This is a new movement. It is filed here because the owner is not clear from the names: the sweep lowering and the sym profile interval belong to different programs. Whoever owns the digest that moved re-baselines with a reason, or fixes the regression. Signed: (PLACING orchestrator)
+
+Moved from `work/issues/` to `work/green/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Bisected (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09)
+
+- seat7 `corner_table`: two moves, PR 5848 (`9fc2720b5e`, undisclosed) and PR 6328 (`0da3e56b97`, the disclosed digest spelling). Recorded on `work/green/seat7-sweep-digest-drifted-on-main.md`, the older row for the same reading.
+- the plate: its movers are bisected and filed by PR 6663, which re-pins it.
+
+## Closed (GREEN, `green/goldens`, 2026-11-14)
+
+Both halves are covered elsewhere. The plate was re-pinned by PR 6663. seat7's `corner_table` is pinned at main's reading, and the judgment of PR 5848's move is owed on `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`.

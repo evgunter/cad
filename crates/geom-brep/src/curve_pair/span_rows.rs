@@ -1,0 +1,1091 @@
+//! [`Span::contact`], and [`Span::place`] under it, on each of their
+//! answers and refusals, on a line, a circle and an ellipse: an enumeration of poses, each placed a
+//! stated number of zero bands from the place it tests.
+
+#![allow(clippy::unwrap_used, clippy::panic)]
+
+use core::f64::consts::{PI, TAU};
+
+use geom::Curve3;
+use geom_core::{Band, Point3, Vec3};
+
+use super::{Hit, Place, Span, SpanEnd};
+
+const ZERO: f64 = 1e-9;
+
+fn band() -> Band {
+    Band::new(ZERO, 10.0 * ZERO).unwrap()
+}
+
+fn line() -> Curve3<f64> {
+    Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.6, 0.0, 0.8))
+}
+
+fn circle() -> Curve3<f64> {
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::unit_z(),
+        2.0,
+        Vec3::unit_x(),
+    )
+}
+
+fn ellipse() -> Curve3<f64> {
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        3.0,
+        0.5,
+    ))
+}
+
+/// What a contact reads as, for the table: its variant's name.
+fn name(got: Result<Option<Hit<f64>>, super::SpanRefusal>) -> &'static str {
+    match got {
+        Ok(None) => "none",
+        Ok(Some(Hit::On { .. })) => "on",
+        Ok(Some(Hit::End(_))) => "end",
+        Err(_) => "escalated",
+    }
+}
+
+/// What a place reads as: its variant's name.
+fn place(got: Result<Place, geom::CarrierRefusal>) -> &'static str {
+    match got {
+        Ok(Place::Inside) => "inside",
+        Ok(Place::End(_)) => "end",
+        Ok(Place::Past) => "past",
+        Err(_) => "escalated",
+    }
+}
+
+/// `q` read on `span` at its foot, seeded at `t`.
+fn read(span: &Span<'_, f64>, q: Point3<f64>, t: f64) -> &'static str {
+    name(span.contact(q, t, band()))
+}
+
+/// **Each answer, on each kind**, with the place under it. A point is
+/// read at its foot seeded at its own parameter, moved along the carrier
+/// (`along`, metres, past the span's end at `t1` when positive) and off
+/// it (`off`, metres, along a direction square to the carrier there).
+/// Past the span is no contact whether or not the carrier reads the point
+/// on it: thirty zeros past and in the band's gap off it is none, the
+/// carrier in band and the place past (the 5154 case).
+#[test]
+fn a_point_reads_on_at_an_end_or_none() {
+    let b = band();
+    let curves = [
+        ("line", line()),
+        ("circle", circle()),
+        ("ellipse", ellipse()),
+    ];
+    for (kind, carrier) in &curves {
+        let (t0, t1) = (0.2, 1.4);
+        let span = Span::new(carrier, (t0, t1));
+        // `t1 + s` for an arc length `s` past the end, read to first
+        // order at the end's own speed.
+        let speed = geom::carrier_speed::speed_at(carrier, t1).unwrap();
+        let at = |along: f64, off: f64| {
+            let t = t1 + along / speed;
+            let (p, d) = carrier.ders1(t);
+            let normal = d.cross(Vec3::new(0.3, -0.5, 0.8)).normalize();
+            (p + normal * off, t)
+        };
+        for (label, along, off, want, placed) in [
+            ("inside, on the carrier", -0.3, 0.0, "on", "inside"),
+            ("inside, half a zero off", -0.3, 0.5 * ZERO, "on", "inside"),
+            (
+                "inside, off the carrier",
+                -0.3,
+                30.0 * ZERO,
+                "none",
+                "inside",
+            ),
+            (
+                "inside, in the gap off it",
+                -0.3,
+                3.0 * ZERO,
+                "escalated",
+                "inside",
+            ),
+            ("at the end", 0.0, 0.0, "end", "end"),
+            ("half a zero inside the end", -0.5 * ZERO, 0.0, "end", "end"),
+            ("half a zero past the end", 0.5 * ZERO, 0.0, "end", "end"),
+            (
+                "in the gap past the end",
+                3.0 * ZERO,
+                0.0,
+                "escalated",
+                "escalated",
+            ),
+            (
+                "in the gap inside the end",
+                -3.0 * ZERO,
+                0.0,
+                "escalated",
+                "escalated",
+            ),
+            (
+                "thirty zeros inside the end",
+                -30.0 * ZERO,
+                0.0,
+                "on",
+                "inside",
+            ),
+            (
+                "thirty zeros past the end",
+                30.0 * ZERO,
+                0.0,
+                "none",
+                "past",
+            ),
+            ("well past the end", 0.2, 0.0, "none", "past"),
+            (
+                "well past the end, off it",
+                0.2,
+                30.0 * ZERO,
+                "none",
+                "past",
+            ),
+            (
+                "well past the end, in the gap off it",
+                0.2,
+                3.0 * ZERO,
+                "none",
+                "past",
+            ),
+            (
+                "thirty zeros past, in the gap off it",
+                30.0 * ZERO,
+                3.0 * ZERO,
+                "none",
+                "past",
+            ),
+            (
+                "in the gap past the end and off it",
+                3.0 * ZERO,
+                3.0 * ZERO,
+                "escalated",
+                "escalated",
+            ),
+        ] {
+            let (q, t) = at(along, off);
+            assert_eq!(name(span.contact(q, t, b)), want, "{kind}, {label}");
+            assert_eq!(place(span.place(q, t, b)), placed, "{kind}, {label}: place");
+        }
+    }
+}
+
+/// **A closed carrier is read on the branch about the span's middle**: a
+/// foot seeded a whole turn away reads where the point lies, and the
+/// parameter an `On` reports is the span's.
+#[test]
+fn a_closed_carrier_reads_the_parameter_on_the_spans_branch() {
+    let b = band();
+    for carrier in [circle(), ellipse()] {
+        let span = Span::new(&carrier, (-0.4, 0.6));
+        let q = carrier.eval(0.1);
+        for turns in [-2.0, -1.0, 1.0, 3.0] {
+            let got = span.contact(q, 0.1 + turns * TAU, b).unwrap();
+            let Some(Hit::On { t, .. }) = got else {
+                panic!("{turns} turns away: {got:?}");
+            };
+            assert!((t - 0.1).abs() < 1e-12, "{turns} turns away: read at {t}");
+        }
+        // The antipode of the middle is past the span, whichever branch.
+        let far = carrier.eval(0.1 + PI);
+        assert_eq!(read(&span, far, 0.1 + PI), "none");
+        assert_eq!(read(&span, far, 0.1 - PI), "none");
+    }
+}
+
+/// **An endless span has no end to be near**: a closed edge's point at
+/// its start reads on it, where the same span with ends reads `End`.
+#[test]
+fn an_endless_span_reads_its_end_point_on_it() {
+    let carrier = circle();
+    let span = Span::new(&carrier, (0.0, TAU));
+    let q = carrier.eval(0.0);
+    assert_eq!(read(&span, q, 0.0), "end");
+    assert_eq!(read(&span.endless(), q, 0.0), "on");
+    let off = q + Vec3::unit_z() * (30.0 * ZERO);
+    assert_eq!(read(&span.endless(), off, 0.0), "none");
+}
+
+/// **An end is the end's point, on its raw chord, whatever the seed**:
+/// each end's point reads that end by name, its foot seeded at the
+/// span's other end or half a turn away.
+#[test]
+fn an_end_reads_by_name_at_any_foot() {
+    let b = band();
+    for carrier in [line(), circle(), ellipse()] {
+        let span = Span::new(&carrier, (0.2, 1.4));
+        for (end, other, which) in [(0.2, 1.4, SpanEnd::Start), (1.4, 0.2, SpanEnd::Stop)] {
+            let q = carrier.eval(end);
+            for seed in [other, end + PI] {
+                assert_eq!(
+                    span.contact(q, seed, b),
+                    Ok(Some(Hit::End(which))),
+                    "{:?}",
+                    carrier.kind()
+                );
+            }
+        }
+    }
+}
+
+/// **An end is the end's point**, on a slow arc too: where the
+/// ellipse runs at its minor semi-axis, half a zero of arc past the end
+/// reads at it and thirty zeros past it reads clear of it; one in the
+/// band's gap off the carrier and five zeros past is not read past.
+#[test]
+fn an_end_is_read_by_its_chord_on_a_slow_arc() {
+    let carrier = ellipse();
+    // At `t = 0` the ellipse runs at its minor semi-axis, 0.5 m/rad.
+    let span = Span::new(&carrier, (-PI / 2.0, 0.0));
+    let t = 0.5 * ZERO / 0.5;
+    assert_eq!(read(&span, carrier.eval(t), t), "end");
+    let t = 30.0 * ZERO / 0.5;
+    assert_eq!(read(&span, carrier.eval(t), t), "none");
+    // Five zeros of arc past the end and three off the carrier: the
+    // greatest speed meters the parameter thirty zeros past, but the
+    // chord is in the band's gap, so whether it is past is not read. Red
+    // where the place reads the side alone.
+    let t = 5.0 * ZERO / 0.5;
+    let q = carrier.eval(t) + Vec3::unit_z() * (3.0 * ZERO);
+    assert_eq!(read(&span, q, t), "escalated");
+}
+
+/// A hairpin spline: out along `y = 0` over its first knot span, back
+/// along `y = 1e-6` over forty more, the two branches a thousand zero
+/// bands apart.
+fn hairpin() -> Curve3<f64> {
+    let mut points = vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)];
+    for i in 0..=40 {
+        points.push(Point3::new(1.0 - f64::from(i) / 40.0, 1e-6, 0.0));
+    }
+    let n = points.len();
+    let last = f64::from(u32::try_from(n - 1).unwrap());
+    let mut knots = vec![0.0, 0.0];
+    knots.extend((1..n - 1).map(|i| f64::from(u32::try_from(i).unwrap()) / last));
+    knots.extend([1.0, 1.0]);
+    Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(knots, 1).unwrap(),
+            points,
+            vec![1.0; n],
+        )
+        .unwrap(),
+    ))
+}
+
+/// **Past stands only on a nearest foot or a certificate.** On a hairpin
+/// spline the span over the outgoing branch, seeded at its middle, finds
+/// some interior points' feet on the return branch, past the span. That
+/// foot is no nearest point, so `Past` is not taken from it: the span's
+/// own walk keeps a piece at the point, and every interior point reads
+/// on the span or escalates, never off it. Red where `Past` is read from
+/// any foot.
+#[test]
+fn a_foot_on_a_hairpin_spline_far_branch_is_no_past() {
+    let c = hairpin();
+    let out = 1.0 / 42.0;
+    let span = Span::new(&c, (0.0, out));
+    let mid = 0.5 * out;
+    for i in 1..100 {
+        let q = c.eval(out * f64::from(i) / 100.0);
+        assert!(
+            !matches!(span.contact(q, mid, band()), Ok(None)),
+            "{q:?}: an interior point read off the span"
+        );
+    }
+}
+
+/// **A foot held at an end reads past by its chord and the span's walk**
+/// (module docs, "The held end"): on the ellipse's span `(0, 1)`, a point
+/// of the carrier at `t = 2.5`, seeded at the span's middle. Its foot over
+/// the span stops exactly at an end, where no side reads; the chord to
+/// that end is past the band and the walk over the span clears the
+/// point, so it is past the span and off it. Red where the held foot's
+/// side is read: at the end `m` is zero, and the side straddles.
+#[test]
+fn a_foot_held_at_an_end_reads_past_by_its_chord_and_walk() {
+    let c = ellipse();
+    let span = Span::new(&c, (0.0, 1.0));
+    let q = c.eval(2.5);
+    let foot = span.foot(q, 0.5).seed();
+    assert!(
+        foot == 0.0 || foot == 1.0,
+        "the foot is held at an end: {foot}"
+    );
+    assert_eq!(place(span.place(q, 0.5, band())), "past");
+    assert_eq!(read(&span, q, 0.5), "none");
+}
+
+/// **A foot held at an enclosing end is held there** (module docs, "The
+/// held end"): at `Interval`, over an ellipse's span whose ends are
+/// enclosures (`0.1 · 3` and `0.7 · 1.3`, a few ulps wide), the carrier's
+/// point at `2.5` is held at an end, whose order against the foot's
+/// parameter straddles zero, and reads past the span by its chord and
+/// walk. Red where only an order decided zero names the end held: the
+/// side is read at `m` within a few ulps of zero, and straddles
+/// (`curve_pair_span_end_straddle`; `sweep`'s cylinder tee refused its
+/// union on that).
+#[test]
+fn a_foot_held_at_an_enclosing_end_reads_past_by_its_chord_and_walk() {
+    use geom_core::{Interval, Real};
+    let c: Curve3<Interval> = ellipse().map_scalar(Interval::from_f64);
+    let t0 = Interval::from_f64(0.1) * Interval::from_f64(3.0);
+    let t1 = Interval::from_f64(0.7) * Interval::from_f64(1.3);
+    let span = Span::new(&c, (t0, t1));
+    let q = c.eval(Interval::from_f64(2.5));
+    let got = span.place(q, Interval::from_f64(0.6), band());
+    assert_eq!(got, Ok(Place::Past), "held at an enclosing end: {got:?}");
+}
+
+/// **A foot inside the span far from its point reads past by the walk**
+/// (`Span::place`, the composition): on a steep ellipse (semi-axes 10
+/// and 1), over the span about its minor vertex at `π/2`, the carrier's
+/// point at the other minor vertex, 2 m across, has its foot over the
+/// span at a stationary point inside it, 2 m away, past the band. The
+/// walk over the span clears the point and the whole carrier reads it
+/// on, so it is on the carrier past the span, as the whole carrier's
+/// foot on the point read it. A point beside the span and off the
+/// carrier keeps its foot's place (`a_point_reads_on_at_an_end_or_none`,
+/// "inside, off the carrier"). Red where a foot inside
+/// the span reads `Inside` whatever its gap: a window through that
+/// point is not pruned past the span (`sweep`'s steep-ellipse pocket
+/// ring missed its volumes on that).
+#[test]
+fn a_foot_far_inside_the_span_reads_past_by_the_walk() {
+    let c = steep_ellipse();
+    let (t0, t1) = (PI / 2.0 - 0.5, PI / 2.0 + 0.6);
+    let span = Span::new(&c, (t0, t1));
+    let q = c.eval(-PI / 2.0);
+    let foot = span.foot(q, -PI / 2.0);
+    assert!(
+        foot.seed() > t0 && foot.seed() < t1 && foot.gap() > 1.0,
+        "the foot is inside the span, far from the point: {} at {}",
+        foot.seed(),
+        foot.gap()
+    );
+    assert_eq!(place(span.place(q, -PI / 2.0, band())), "past");
+}
+
+fn steep_ellipse() -> Curve3<f64> {
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        10.0,
+        1.0,
+    ))
+}
+
+/// **A far foot inside the span keeps its place where the walk does not
+/// clear the point** (`Span::far_inside`): on a polyline U whose branches
+/// lie 0.5 m apart, over its whole span, the point at the top branch's
+/// middle, seeded at the bottom branch's middle, has its foot there, a
+/// stationary point inside the span 0.5 m away, both ends farther. The
+/// point is on the span, so the walk over the span does not clear it,
+/// and the foot's place stands: `Inside`. Red where a far foot reads past
+/// on its gap alone.
+#[test]
+fn a_far_foot_keeps_its_place_where_the_walk_does_not_clear_the_point() {
+    let points = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(2.0, 0.0, 0.0),
+        Point3::new(2.0, 0.5, 0.0),
+        Point3::new(0.0, 0.5, 0.0),
+    ];
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0],
+                1,
+            )
+            .unwrap(),
+            points,
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ));
+    let span = Span::new(&c, (0.0, 1.0));
+    let q = Point3::new(1.0, 0.5, 0.0);
+    let foot = span.foot(q, 1.0 / 6.0);
+    assert!(
+        (foot.seed() - 1.0 / 6.0).abs() < 1e-9 && foot.gap() > 0.4,
+        "the foot is on the bottom branch: {} at {}",
+        foot.seed(),
+        foot.gap()
+    );
+    assert_eq!(place(span.place(q, 1.0 / 6.0, band())), "inside");
+}
+
+/// **A far foot inside the span keeps its place where the whole carrier
+/// does not read the point on** (`Span::far_inside`): the carrier's
+/// point at the bottom vertex, moved three zeros off the carrier, into
+/// the band's gap, read over the span about the top vertex. The walk
+/// clears it, 2 m from the span, but the whole carrier's reading
+/// escalates, so the foot's place stands: `Inside`. Red where an
+/// undecided carrier is read as on it.
+#[test]
+fn a_far_foot_keeps_its_place_where_the_carrier_is_undecided() {
+    let c = steep_ellipse();
+    let (t0, t1) = (PI / 2.0 - 0.5, PI / 2.0 + 0.6);
+    let span = Span::new(&c, (t0, t1));
+    let q = c.eval(-PI / 2.0) - Vec3::unit_y() * (3.0 * ZERO);
+    let foot = span.foot(q, -PI / 2.0);
+    assert!(
+        foot.seed() > t0 && foot.seed() < t1 && foot.gap() > 1.0,
+        "the foot is inside the span, far from the point: {} at {}",
+        foot.seed(),
+        foot.gap()
+    );
+    assert!(
+        c.on_carrier(q, -PI / 2.0, band()).is_err(),
+        "the whole carrier escalates"
+    );
+    assert_eq!(place(span.place(q, -PI / 2.0, band())), "inside");
+}
+
+/// **A point the carrier cannot read reads off where the walk over the
+/// span clears it** (module docs, "The composition"; `Span::read`'s
+/// early clearance): on an ellipse bending near the band's own scale
+/// at its major vertex (semi-axes 1 and `7·10⁻⁶`), over the span
+/// `(−10⁻⁵, 10⁻⁵)` about that vertex, the point `15z` out along the major
+/// axis is read by the carrier as neither on nor off (its closed-form
+/// lower bound in the band, its gap at the vertex past it), and its foot
+/// is the vertex, inside the span. The walk over the span clears it, so it is off the span,
+/// `OffBy::Span { carrier: AtFoot::Undecided }`. Red where the early
+/// clearance is not read: the place reads the foot inside, the far-foot
+/// place keeps it there (the whole carrier does not read it on), and the
+/// read refuses on the carrier.
+#[test]
+fn a_point_the_carrier_cannot_read_reads_off_where_the_walk_over_the_span_clears_it() {
+    let z = band().zero();
+    let c = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        1.0,
+        7e-6,
+    ));
+    let q = Point3::new(1.0 + 15.0 * z, 0.0, 0.0);
+    assert!(
+        c.on_carrier(q, 0.0, band()).is_err(),
+        "the carrier neither reads the point on nor off"
+    );
+    let span = Span::new(&c, (-1e-5, 1e-5));
+    assert_eq!(
+        span.read(q, 0.0, band()),
+        Ok(super::Reading::Off(super::OffBy::Span {
+            carrier: super::AtFoot::Undecided,
+        }))
+    );
+}
+
+/// **A circle's foot is its nearest point, so its `Past` stands**: a
+/// point on the unit circle read on the span `(0, 1)` with its seed a
+/// half turn away is still read where it lies, never at another point's
+/// foot. Red where a foot found for another point can be read.
+#[test]
+fn a_point_is_read_at_its_own_foot_whatever_the_seed() {
+    let c = circle();
+    let span = Span::new(&c, (0.0, 1.0));
+    let q = c.eval(0.5);
+    assert!(matches!(
+        span.contact(q, 3.0, band()),
+        Ok(Some(Hit::On { .. }))
+    ));
+    let far = c.eval(3.0);
+    assert_eq!(read(&span, far, 0.5), "none");
+}
+
+/// **A place the band cannot read is off where the carrier reads the
+/// point off.** A point thirty zeros off a circle beside its span's end,
+/// its foot three zeros of arc inside the end: the chord to the end is
+/// past the band, the side of the end is in the band's gap, and the
+/// carrier reads the point off, so it is off the span. Red where an
+/// undecided place escalates whatever the carrier says.
+#[test]
+fn an_undecided_place_beside_an_off_carrier_is_off() {
+    let c = circle();
+    let span = Span::new(&c, (0.2, 1.4));
+    let speed = geom::carrier_speed::speed_at(&c, 1.4).unwrap();
+    let t = 1.4 - 3.0 * ZERO / speed;
+    let q = c.eval(t) + Vec3::unit_z() * (30.0 * ZERO);
+    assert_eq!(place(span.place(q, t, band())), "escalated");
+    assert_eq!(read(&span, q, t), "none");
+}
+
+/// **A point on a circle's axis is off its span with no place read.**
+/// Every parameter of the carrier is its foot, and the one
+/// [`geom::Curve3::foot`] finds is the seed itself: the point's direction
+/// in the circle's plane is exactly zero, and [`geom::Azimuth::near`]
+/// reads a zero direction as its reference. So a seed past the span puts
+/// the foot past it, where a place read would decide a cut from an exact
+/// zero, and a move off the axis would flip it (boss_union's span
+/// branch, where a disc's three-arc rim puts the centroid of three of
+/// its vertices on the axis). The carrier reads the point off, and that
+/// is the answer at every seed, the middle included, with the carrier's
+/// reading recorded and no `curve_pair_span_*` row decided. Red where
+/// the place is read first, and where the carrier's reading is dropped.
+#[cfg(feature = "probe")]
+#[test]
+fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
+    use geom_core::Real;
+    use geom_core::k_stats::{self, Probe};
+    let p = Probe::from_f64;
+    let c = Curve3::circle(
+        Point3::new(p(0.0), p(0.0), p(1.0)),
+        Vec3::new(p(0.0), p(0.0), p(1.0)),
+        p(2.0),
+        Vec3::new(p(1.0), p(0.0), p(0.0)),
+    );
+    let centre = Point3::new(p(0.0), p(0.0), p(1.0));
+    let foot = c.foot(centre, p(4.0 * PI / 3.0)).nearest().unwrap().0;
+    assert_eq!(foot, 4.0 * PI / 3.0, "an axis point's foot is its seed");
+    for (t0, t1) in [(2.0 * PI / 3.0, 4.0 * PI / 3.0), (PI, 5.0 * PI / 3.0)] {
+        let span = Span::new(&c, (p(t0), p(t1)));
+        let mid = 0.5 * (t0 + t1);
+        for seed in [0.0, PI / 3.0, PI, 5.0 * PI / 3.0, TAU, mid] {
+            k_stats::start_recording();
+            let got = span.contact(centre, p(seed), band());
+            let names: Vec<&str> = k_stats::take_samples()
+                .iter()
+                .map(|s| s.predicate)
+                .collect();
+            let placed: Vec<&&str> = names
+                .iter()
+                .filter(|n| n.starts_with("curve_pair_span_"))
+                .collect();
+            let label = format!("span ({t0}, {t1}), seed {seed}");
+            assert!(matches!(got, Ok(None)), "{label}: {got:?}");
+            assert!(placed.is_empty(), "{label}: the place was read: {placed:?}");
+            assert!(
+                names.contains(&"curve_carrier_gap"),
+                "{label}: the carrier's reading is not recorded: {names:?}"
+            );
+        }
+    }
+}
+
+/// **On an arc, a refused member's window is its stretch of the arc**:
+/// half of the circle and of the ellipse, each against a point standing
+/// half an escalation off the carrier, out from its centre, beside a
+/// parameter `at` of the span. `at`, whose point lies within the
+/// escalation of the member, lies in the window (red where the piece it
+/// is on is cleared), and the window is a few escalations of arc about it
+/// (red where the walk keeps a piece it could clear, or falls back to the
+/// whole span). Each is read again with a second point ten metres off,
+/// so the member's ball is five metres across about a centre far from the
+/// arc: `at` still lies in the window (red where the ball's radius is
+/// left out of the reach, which clears every piece near `at`).
+#[test]
+fn a_refused_members_window_on_an_arc_is_its_stretch() {
+    let esc = band().escalate();
+    for (kind, carrier, centre) in [
+        ("circle", circle(), Point3::new(0.0, 0.0, 1.0)),
+        ("ellipse", ellipse(), Point3::origin()),
+    ] {
+        let span = Span::new(&carrier, (0.0, PI));
+        let slowest = span.speeds().0.get();
+        for at in [0.4, 1.3, 2.9] {
+            let p = carrier.eval(at);
+            let q = p + (p - centre).normalize() * (0.5 * esc);
+            let point = geom::cover::Cover::points(vec![q]).unwrap();
+            let (w0, w1) = span.window_near(Some(&point), band());
+            let widest = 8.0 * esc / slowest;
+            assert!(
+                w1 - w0 <= widest,
+                "{kind} at {at}: the window ({w0}, {w1}) is wider than {widest}"
+            );
+            assert!(
+                w0 <= at && at <= w1,
+                "{kind} at {at}: the point half an escalation from the member lies outside \
+                 ({w0}, {w1})"
+            );
+            let far = q + Vec3::new(0.0, 0.0, 10.0);
+            let pair = geom::cover::Cover::points(vec![q, far]).unwrap();
+            let (w0, w1) = span.window_near(Some(&pair), band());
+            assert!(
+                w0 <= at && at <= w1,
+                "{kind} at {at}: with a far second point, the point half an escalation from \
+                 the member lies outside ({w0}, {w1})"
+            );
+        }
+    }
+}
+
+/// **A refusal says which reading refused** ([`super::SpanRefusal`]):
+/// on the circle's span, a point half the band off the carrier at the
+/// span's middle refuses on the carrier, the place reading it inside;
+/// a point on the carrier half the band past the span's start, its chord
+/// to the start in band, refuses on the place; and a point half the band
+/// off the carrier there refuses on both, ranked by the carrier's
+/// ([`super::SpanRefusal::refused`]). Red where the readings are swapped,
+/// which reads a wedge in band as a graze at the solid door's curved
+/// edges, or the reverse, or where both rank by the place's.
+#[test]
+fn a_refusal_names_the_reading_it_rests_on() {
+    use super::SpanRefusal;
+    let half = 0.5 * (band().zero() + band().escalate());
+    let carrier = circle();
+    let span = Span::new(&carrier, (0.5, 2.5));
+    let centre = Point3::new(0.0, 0.0, 1.0);
+    let mid = carrier.eval(1.5);
+    let off = mid + (mid - centre).normalize() * half;
+    assert!(
+        matches!(span.read(off, 1.5, band()), Err(SpanRefusal::Carrier(_))),
+        "off the carrier in band, inside the span"
+    );
+    let past = carrier.eval(0.5 - half / 2.0);
+    assert!(
+        matches!(span.read(past, 0.5, band()), Err(SpanRefusal::Place(_))),
+        "on the carrier, in band of the start: {:?}",
+        span.read(past, 0.5, band())
+    );
+    let both = past + (past - centre).normalize() * (half / 2.0);
+    let read = span.read(both, 0.5, band());
+    assert!(
+        matches!(read, Err(SpanRefusal::Both(refused))
+            if refused.escalation().is_ok_and(|d| d.predicate == Some("curve_carrier_gap"))),
+        "off the carrier in band, in band of the start: {read:?}"
+    );
+}
+
+/// **A window piece whose reach ties the ball's is kept, off the verdict
+/// log** (ledger row F37): an exact tie at `f64`, and an `Interval` reach
+/// astride the ball's, each keep the piece; a reach past it halves, and
+/// one short of it keeps. Red where a tie halves, or the choice reaches
+/// the log.
+#[test]
+fn a_window_piece_at_the_balls_reach_or_astride_it_is_kept() {
+    use geom_core::Interval;
+    let bracket = geom_core::k_stats::Bracket::open();
+    assert!(!super::span::halves(0.5, 0.5), "an exact tie keeps");
+    assert!(
+        super::span::halves(0.75, 0.5),
+        "a reach past the ball's halves"
+    );
+    assert!(
+        !super::span::halves(0.25, 0.5),
+        "a reach short of the ball's keeps"
+    );
+    assert!(
+        !super::span::halves(
+            Interval::from_bounds(0.4, 0.6),
+            Interval::from_bounds(0.5, 0.5)
+        ),
+        "a reach astride the ball's keeps"
+    );
+    let recorded = bracket.finish();
+    assert!(
+        recorded.verdicts.is_empty() && recorded.escalations.is_empty(),
+        "the halving choice reached the verdict log"
+    );
+}
+
+/// **A standing's ending is its row's** ([`crate::ladder::Refusal::recourse`]):
+/// a margin sizes the tolerance it offers before moving the geometry, a
+/// reading in band with no margin moves the geometry, one a band or a
+/// budget may settle takes the kernel limit's lever, and a limit has no
+/// way through yet. Red where an ending is swapped between standings, or
+/// a margin's is flattened to a fixed one.
+#[test]
+fn a_standings_ending_is_its_rows() {
+    use crate::ladder::{Ending, Refusal};
+    let diag = geom_core::k_stats::decide(
+        "curve_carrier_gap",
+        geom_core::Margin::of(0.5 * (band().zero() + band().escalate())),
+        band(),
+    )
+    .unwrap_err();
+    for (standing, ending, words) in [
+        (
+            Refusal::Margin(diag),
+            Ending::Sized(diag),
+            diag.ending(geom_core::COINCIDENCE_RECOURSE),
+        ),
+        (
+            Refusal::InBand,
+            Ending::Move,
+            geom_core::MOVE_RECOURSE.to_owned(),
+        ),
+        (
+            Refusal::Unsettled,
+            Ending::KernelLimit,
+            geom_core::KERNEL_LIMIT_RECOURSE.to_owned(),
+        ),
+        (
+            Refusal::Limit,
+            Ending::NotYet,
+            geom_core::NOT_YET_ENDING.to_owned(),
+        ),
+    ] {
+        assert_eq!(standing.recourse(), ending, "{standing:?}");
+        assert_eq!(ending.render(), words, "{standing:?}: its words");
+    }
+}
+
+/// **A meeting's kernel fault names what faulted** ([`super::MeetKind`]):
+/// a carrier the table misread, or the readings that contradict, which
+/// every consumer of the group reports as given (`sweep`'s stacking door
+/// returns it, `ring_path` panics with it). Red where either text is
+/// rewritten or the two are swapped.
+#[test]
+fn a_meeting_fault_names_what_faulted() {
+    use super::{MeetFault, MeetKind};
+    for (fault, what) in [
+        (MeetFault::Desync, "a carrier the meeting table misread"),
+        (
+            MeetFault::Contradiction {
+                readings: "two readings",
+            },
+            "two readings",
+        ),
+    ] {
+        assert!(
+            matches!(fault.kind(), MeetKind::Fault { what: got } if got == what),
+            "{fault:?}: {:?}",
+            fault.kind()
+        );
+    }
+}
+
+/// **A point-on-span refusal stands as its carrier refusal does**, through
+/// the meeting's fault: an escalation (either kind) ranked by its margin,
+/// a walk past its budget unsettled, and a spline with no speed bound a
+/// limit. Each groups as unread or escalated ([`super::MeetFault::kind`]),
+/// and a boundary pass reads the same standing. Red where a walk refusal
+/// is ranked as anything else at any of the three.
+#[test]
+fn a_point_on_span_refusal_stands_as_its_carrier_refusal() {
+    use super::{MeetFault, MeetKind};
+    use crate::curve_face::BoundaryRefusal;
+    use crate::ladder::Refusal;
+    use geom::{CarrierEscalation, CarrierRefusal, PieceWalkRefusal};
+    let diag = geom_core::k_stats::decide(
+        "curve_carrier_gap",
+        geom_core::Margin::of(0.5 * (band().zero() + band().escalate())),
+        band(),
+    )
+    .unwrap_err();
+    for (refused, standing) in [
+        (
+            CarrierRefusal::Escalated(CarrierEscalation::InBand(diag)),
+            Refusal::Margin(diag),
+        ),
+        (
+            CarrierRefusal::Escalated(CarrierEscalation::Straddle(diag)),
+            Refusal::Margin(diag),
+        ),
+        (
+            CarrierRefusal::Unwalked(PieceWalkRefusal::Exhausted),
+            Refusal::Unsettled,
+        ),
+        (
+            CarrierRefusal::Unwalked(PieceWalkRefusal::Unbounded),
+            Refusal::Limit,
+        ),
+    ] {
+        let fault = MeetFault::from(refused);
+        assert_eq!(
+            fault.refusal(),
+            Ok(standing),
+            "{refused:?}: the meeting's standing"
+        );
+        assert_eq!(
+            BoundaryRefusal::of(fault).refusal(),
+            Ok(standing),
+            "{refused:?}: the boundary pass's standing"
+        );
+        let grouped = matches!(
+            (refused, fault.kind()),
+            (CarrierRefusal::Escalated(_), MeetKind::Escalated(_))
+                | (CarrierRefusal::Unwalked(_), MeetKind::Unread(_))
+        );
+        assert!(grouped, "{refused:?}: grouped as {:?}", fault.kind());
+    }
+}
+
+/// **A refused member's window is the whole span where the walk cannot
+/// place it**, never an empty one: the boundary pass reads a member only
+/// inside its window, so an empty window drops its meetings.
+/// - On a rational spline whose middle weight is a million times its
+///   ends', against a point a metre off it: its speed bound, set by the
+///   fast ends, is so far above its speed through the slow middle that
+///   the pieces there clear only at a width the budget does not reach,
+///   and the walk runs past its budget.
+/// - On a spline whose control points coincide: its greatest speed is
+///   zero, so its pieces have no reach and the walk does not run.
+///
+/// Red where either fallback gives anything but the whole span.
+#[test]
+fn a_window_the_walk_cannot_place_is_the_whole_span() {
+    let spline = |pts: [Point3<f64>; 3], weights: [f64; 3]| {
+        Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                pts.to_vec(),
+                weights.to_vec(),
+            )
+            .unwrap(),
+        ))
+    };
+    let greatest = |c: &Curve3<f64>| geom::carrier_speed::speed_range(c).1.get();
+    let loose = spline(
+        [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        [1.0, 1e6, 1.0],
+    );
+    assert!(
+        greatest(&loose) > 1e6,
+        "the loose spline's speed bound: {}",
+        greatest(&loose)
+    );
+    let span = Span::new(&loose, (0.0, 1.0));
+    let member = geom::cover::Cover::points(vec![Point3::new(1.0, 1.0, 1.0)]).unwrap();
+    assert_eq!(
+        span.window_near(Some(&member), band()),
+        (0.0, 1.0),
+        "a walk past its budget"
+    );
+    let at = Point3::new(1.0, 2.0, 3.0);
+    let still = spline([at; 3], [1.0; 3]);
+    assert!(
+        greatest(&still) == 0.0,
+        "the still spline's speed bound: {}",
+        greatest(&still)
+    );
+    let span = Span::new(&still, (0.0, 1.0));
+    let member = geom::cover::Cover::points(vec![at]).unwrap();
+    assert_eq!(
+        span.window_near(Some(&member), band()),
+        (0.0, 1.0),
+        "a spline with no speed bound"
+    );
+}
+
+/// The cubic hairpin of `geom`'s on-carrier rows, its branches `h`
+/// apart, and an `Interval` box of `±r` about its point at `t = 0.08`.
+fn cubic_hairpin(h: f64) -> Curve3<f64> {
+    Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+                .unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.4, 0.0, 0.0),
+                Point3::new(1.4, h, 0.0),
+                Point3::new(0.0, h, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ))
+}
+
+fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
+    let w = |x: f64| geom_core::Interval::from_bounds(x - r, x + r);
+    Point3::new(w(p.x), w(p.y), w(p.z))
+}
+
+/// **A span over a hairpin closer than the band reads `On` at the
+/// seed's branch at `Interval`**. The whole span of a hairpin whose
+/// branches lie 1e-10 apart, inside the 1e-9 zero, read the way an edge's
+/// span is read: at a ±1e-10 box about a point of the near branch
+/// (`t = 0.08`) seeded on the far branch, it reads `On` at `t ≈ 0.92`,
+/// where the tangent is reversed, with nothing logged (the two branches'
+/// gaps tie on the box, and the polish keeps the seed's); seeded at the
+/// span's middle (the census's seed) it reads `On` at the near branch;
+/// at `f64` it reads the near branch from the middle and the far branch
+/// from the far seed, the foot polishing from its seed alone over the
+/// span (`geom::Curve3::foot_within`), whose gap there is in the zero.
+///
+/// The carrier is not one an edge can hold: its tip speed is `1.5·h`, so
+/// `EdgeCurve::certify` refuses it `SpanMeterCollapsed`. The row pins the
+/// reader on a bare carrier: what a reader of the branch rests on is
+/// the at-rest gate's embedding certificate (`DESIGN.md`
+/// `[topology.tiers]`), and a reader that certifies the branch itself
+/// turns it red.
+#[test]
+fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
+    use super::Reading;
+    use geom_core::{Bounds, Interval, Real};
+    let c = cubic_hairpin(1e-10);
+    let p = c.eval(0.08);
+    for (seed, at) in [(0.5, 0.08), (0.92, 0.92)] {
+        let read = Span::new(&c, (0.0, 1.0)).read(p, seed, band());
+        assert!(
+            matches!(read, Ok(Reading::On { t, .. }) if (t - at).abs() < 1e-6),
+            "f64, seed {seed}: on at {at}, the seed's branch: {read:?}"
+        );
+    }
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let span = Span::new(&ci, (Interval::from_f64(0.0), Interval::from_f64(1.0)));
+    let far = span.read(boxed(p, 1e-10), Interval::from_f64(0.92), band());
+    assert!(
+        matches!(&far, Ok(Reading::On { t, .. }) if t.lo() > 0.5 && ci.deriv(*t).x.hi() < 0.0),
+        "Interval, far seed: on at the far branch, its tangent reversed: {far:?}"
+    );
+    let mid = span.read(boxed(p, 1e-10), Interval::from_f64(0.5), band());
+    assert!(
+        matches!(&mid, Ok(Reading::On { t, .. }) if t.hi() < 0.5),
+        "Interval, the span's middle: on at the near branch: {mid:?}"
+    );
+}
+
+/// **A box straddling a near-full arc's gap is read past the span by no
+/// copy of its parameter alone.** The arc is a gap of `1e-3` short of a
+/// turn, the box sits off the circle astride the gap's start-side edge,
+/// and its foot's parameter about the middle is renamed whole onto the
+/// copy past the stop end (`Period::near`'s tie takes the upper copy).
+/// That copy reads past the stop end, but the box's points beyond the
+/// gap have feet inside the span past its start: a turn back, the copy
+/// reads inside. So the place is not `Past`: it refuses, its side
+/// straddling.
+#[test]
+fn a_box_astride_a_near_full_arcs_gap_is_not_read_past() {
+    use geom_core::Interval;
+    let iv = |x: f64| Interval::from_bounds(x, x);
+    let circle: Curve3<Interval> = Curve3::circle(
+        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        iv(1.0),
+        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+    );
+    let span = Span::new(&circle, (iv(0.0), iv(TAU - 1e-3)));
+    // Raw azimuths about `[-9e-4, 3e-4]` at radius 2: the gap, and past
+    // the start into the span.
+    let (lo, hi) = (-9e-4f64, 3e-4f64);
+    let q = Point3::new(
+        Interval::from_bounds(2.0 * lo.cos().min(hi.cos()), 2.0),
+        Interval::from_bounds(2.0 * lo.sin(), 2.0 * hi.sin()),
+        iv(0.0),
+    );
+    let mid = geom::mid_param(iv(0.0), iv(TAU - 1e-3));
+    let got = span.place(q, mid, band());
+    assert!(
+        !matches!(got, Ok(Place::Past)),
+        "a box with feet inside the span reads past it: {got:?}"
+    );
+    // The same box wholly in the gap reads past.
+    let (lo, hi) = (-9e-4f64, -2e-4f64);
+    let q = Point3::new(
+        Interval::from_bounds(2.0 * lo.cos().min(hi.cos()), 2.0 * hi.cos()),
+        Interval::from_bounds(2.0 * lo.sin(), 2.0 * hi.sin()),
+        iv(0.0),
+    );
+    let got = span.place(q, mid, band());
+    assert!(matches!(got, Ok(Place::Past)), "a box in the gap: {got:?}");
+}
+
+/// **A gap from a span's end is metered over the gap**
+/// ([`Span::end_gap`], [`Span::end_gap_widened`]): on a thin ellipse,
+/// where the speed moves most between a parameter and an end, the `Clear`
+/// reading never exceeds the arc over the gap and the `Within` reading
+/// never falls short of it, against a Simpson quadrature of `|C′|` (the
+/// oracle). Each row reads both ends, the bare end and one widened by a
+/// hundredth of a radian, at `f64` and at `Interval`, where the whole
+/// `Clear` enclosure is at most the arc and the whole `Within` one at
+/// least. The speed at the parameter alone, the meter the door replaces,
+/// over-reads the arc on one side of a vertex and under-reads it on the
+/// other: the row counts both, so it is red against that meter.
+#[test]
+fn a_gap_from_a_spans_end_is_metered_over_the_gap() {
+    use super::GapMeter;
+    use geom_core::{Bounds, Interval, Real};
+    let thin = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        3.0,
+        0.05,
+    ));
+    let thin_iv: Curve3<Interval> = thin.map_scalar(Interval::from_f64);
+    let speed = |t: f64| thin.ders1(t).1.norm();
+    let arc = |a: f64, b: f64| {
+        let n = 4000;
+        let h = (b - a) / f64::from(n);
+        let mut sum = speed(a) + speed(b);
+        for i in 1..n {
+            sum += speed(a + h * f64::from(i)) * if i % 2 == 1 { 4.0 } else { 2.0 };
+        }
+        sum * h / 3.0
+    };
+    let iv = Interval::from_f64;
+    let (mut over, mut under, mut rows) = (0, 0, 0);
+    for k in 0..40 {
+        let (t0, t1) = (0.1 + 0.03 * f64::from(k), 0.2 + 0.07 * f64::from(k));
+        let span = Span::new(&thin, (t0, t1));
+        let span_iv = Span::new(&thin_iv, (iv(t0), iv(t1)));
+        for end in [SpanEnd::Start, SpanEnd::Stop] {
+            for by in [0.0, 1e-2] {
+                for g in [1e-3, 1e-2, 0.1, -1e-2] {
+                    // `g` inside the (widened) end, negative past it.
+                    let (at, t) = match end {
+                        SpanEnd::Start => (t0 - by, t0 - by + g),
+                        SpanEnd::Stop => (t1 + by, t1 + by - g),
+                    };
+                    let true_arc = arc(t.min(at), t.max(at)).copysign(g);
+                    let tol = 1e-12 * (1.0 + true_arc.abs());
+                    let at_f64 = |meter| span.end_gap_widened(t, end, by, meter).value();
+                    let at_iv = |meter| span_iv.end_gap_widened(iv(t), end, iv(by), meter).value();
+                    let (clear, within) = (at_f64(GapMeter::Clear), at_f64(GapMeter::Within));
+                    let (clear_iv, within_iv) = (at_iv(GapMeter::Clear), at_iv(GapMeter::Within));
+                    let row = format!("{end:?} by {by} at t0 {t0}, t1 {t1}, gap {g}");
+                    assert!(
+                        clear.abs() <= true_arc.abs() + tol,
+                        "clear over-reads: {row}"
+                    );
+                    assert!(
+                        within.abs() + tol >= true_arc.abs(),
+                        "within under-reads: {row}"
+                    );
+                    assert!(
+                        clear_iv.lo().abs().max(clear_iv.hi().abs()) <= true_arc.abs() + tol,
+                        "Interval clear over-reads: {row}"
+                    );
+                    assert!(
+                        within_iv.lo().abs().min(within_iv.hi().abs()) + tol >= true_arc.abs()
+                            && within_iv.lo().signum() == within_iv.hi().signum(),
+                        "Interval within under-reads: {row}"
+                    );
+                    assert_eq!(clear.signum(), g.signum(), "{row}");
+                    let pointwise = g * speed(t);
+                    if pointwise.abs() > true_arc.abs() + tol {
+                        over += 1;
+                    }
+                    if pointwise.abs() + tol < true_arc.abs() {
+                        under += 1;
+                    }
+                    rows += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(rows, 40 * 2 * 2 * 4);
+    assert!(
+        over > 0 && under > 0,
+        "the pointwise meter errs both ways: {over} over, {under} under"
+    );
+}
+
+/// **A ball about a point is clear of the span only where its walk
+/// decides it, in metres** (`Span::clear_by`). On the unit circle's arc
+/// `(0, π/2)`, a point `1 + R + δ` from the centre on the arc's middle
+/// ray lies `R + δ` from the arc: the ball of radius `R = 10⁻³` about it
+/// is clear for `δ = 10 e` and not for `δ = 0` (within the band) or `−10 e`,
+/// `e` the band's escalation; and an endless span is never clear.
+#[test]
+fn a_ball_is_clear_of_a_span_only_by_its_walk() {
+    let circle = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+    let span = Span::new(&circle, (0.0, PI / 2.0));
+    let (radius, e) = (1e-3, band().escalate());
+    let ray = Vec3::new(1.0, 1.0, 0.0).normalize();
+    let at = |delta: f64| Point3::origin() + ray * (1.0 + radius + delta);
+    for (delta, clear) in [(10.0 * e, true), (0.0, false), (-10.0 * e, false)] {
+        assert_eq!(span.clear_by(at(delta), radius, band()), clear, "δ {delta}");
+    }
+    let endless = Span::new(&circle, (0.0, TAU)).endless();
+    assert!(!endless.clear_by(at(1.0), radius, band()));
+}

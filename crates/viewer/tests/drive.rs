@@ -1,0 +1,436 @@
+//! **The scripted driver reaches the session through the chrome**:
+//! a control found by its label and clicked where it was painted
+//! performs what clicking it at the window performs, and a label that
+//! is not on screen is refused rather than clicked at a guess.
+
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
+test_utils::loud_skip_marker!(
+    feature = "app",
+    row = app_lane_skipped_no_driver_coverage_here,
+    absent = "coverage of the scripted driver",
+);
+
+#[cfg(feature = "app")]
+mod driven {
+    use crate::common;
+    use pncad::document::{Axis3, SlotId};
+    use viewer::app::drive::{DriveError, Driver};
+    use viewer::session::Selection;
+
+    /// The startup document, driven, over a preferences file of its own.
+    fn started(label: &str) -> Driver {
+        Driver::start(
+            common::tempdir(label).join("prefs.toml"),
+            pncad::tolerance::witness(),
+        )
+        .expect("the app starts")
+    }
+
+    #[test]
+    fn a_profile_added_through_the_chrome_lands_in_the_tree() {
+        let mut driver = started("drive-profile");
+        let before = driver.session().tree_rows().len();
+        assert!(
+            !driver.shows("New profile"),
+            "the creation sections start folded"
+        );
+        driver.click("Add feature", 0).expect("the section opens");
+        driver
+            .click("New profile", 0)
+            .expect("the profile is added");
+        driver.settle().expect("settles");
+        driver
+            .click("Add rectangle loop", 0)
+            .expect("the editor is open on it");
+        driver.settle().expect("settles");
+        let rows = driver.session().tree_rows();
+        assert_eq!(rows.len(), before + 1, "one node per New profile");
+        let added = viewer::tree::spelled(&rows.last().expect("a row").spoken);
+        assert!(
+            added.contains("Profile 2"),
+            "the new row is the profile the insert named: {added}"
+        );
+        assert!(
+            driver.dump().contains("Profile 2"),
+            "and the feature tree on screen shows it"
+        );
+    }
+
+    /// **A failed feature takes away its own picture and no other's**
+    /// — the replay of `work/chrome/a-failed-feature-hides-every-later-edit.md`.
+    /// A revolve that refuses (its axis point's x written 0, so the axis
+    /// is the profile's own y axis, across the semicircle) leaves its
+    /// copy undrawn; a second revolve of the same profile, its heading
+    /// written 0, so the axis runs along the semicircle's diameter, is
+    /// the sphere, and it is drawn and picked. Before, the first
+    /// failure refused the whole index and the sphere never reached the
+    /// picture.
+    ///
+    /// Over the slow-set bar, but `app`-gated, which the slow-set name
+    /// check cannot see
+    /// (`work/green/the-slow-set-name-check-cannot-see-app-feature-tests.md`).
+    #[test]
+    fn a_failed_revolve_does_not_hide_the_sphere_revolved_after_it() {
+        let mut driver = started("drive-partial-picture");
+        driver.resize(egui::vec2(2400.0, 1600.0));
+        driver.click("New…", 0).expect("the new-document form");
+        driver.click("document name", 0).expect("the name field");
+        driver.type_text("ball").expect("typed");
+        driver.click("Create document", 0).expect("created");
+        driver.settle().expect("settles");
+        driver.click("Add feature", 0).expect("the section opens");
+        driver
+            .click("New profile", 0)
+            .expect("the profile is added");
+        driver.settle().expect("settles");
+        driver.click("Add path loop", 0).expect("the path template");
+        driver.settle().expect("settles");
+        driver.click("line_to", 0).expect("a line row");
+        driver.click("arc_to", 0).expect("an arc row");
+        driver.settle().expect("settles");
+        driver.click("0.50", 0).expect("the arc's field");
+        driver.type_text("1").expect("typed");
+        driver
+            .key(egui::Key::Enter, egui::Modifiers::NONE)
+            .expect("entered");
+        driver.settle().expect("settles");
+        driver.click("×", 2).expect("a row removed");
+        driver.settle().expect("settles");
+        driver.click("×", 2).expect("another row removed");
+        driver.settle().expect("settles");
+        for slot in [SlotId::Origin(Axis3::X), SlotId::AxisHeading] {
+            // The tree row, by the prefix its fresh tag follows.
+            let row = driver
+                .screen()
+                .iter()
+                .filter(|landed| landed.text.starts_with("\"Profile 1\" ("))
+                .find_map(|landed| landed.visible().map(|rect| rect.center()))
+                .expect("the profile's tree row is on screen");
+            driver
+                .click_at(row, egui::PointerButton::Primary, egui::Modifiers::NONE, 1)
+                .expect("the profile is selected");
+            driver.settle().expect("settles");
+            let selected = |driver: &Driver| match driver.session().selection() {
+                Selection::Node(node) => *node,
+                other => panic!("a node is selected: {other:?}"),
+            };
+            let profile = selected(&driver);
+            let button = format!(
+                "Revolve {}",
+                pncad::document::sentence!(
+                    pncad::document::Speaker::of(driver.session().doc()).node(profile)
+                )
+            );
+            driver.click(&button, 0).expect("the profile is revolved");
+            driver.settle().expect("settles");
+            let revolve = selected(&driver);
+            let row = viewer::props::slot_rows(driver.session().doc(), revolve)
+                .into_iter()
+                .find(|row| row.slot == slot)
+                .expect("the revolve's row");
+            // The slot's field is the run just right of its label, on
+            // the label's line (`slot_group_ui`'s scalar row).
+            let label = driver
+                .screen()
+                .iter()
+                .filter(|landed| landed.text == row.label)
+                .find_map(|landed| landed.visible())
+                .unwrap_or_else(|| panic!("the {:?} row's label is on screen", row.label));
+            let field = driver
+                .screen()
+                .iter()
+                .filter_map(|landed| landed.visible())
+                .filter(|rect| {
+                    rect.left() > label.right() && (rect.center().y - label.center().y).abs() < 4.0
+                })
+                .min_by(|a, b| a.left().total_cmp(&b.left()))
+                .expect("the slot's field, right of its label")
+                .center();
+            driver
+                .click_at(
+                    field,
+                    egui::PointerButton::Primary,
+                    egui::Modifiers::NONE,
+                    1,
+                )
+                .expect("the slot's field");
+            driver.type_text("0").expect("typed");
+            driver
+                .key(egui::Key::Enter, egui::Modifiers::NONE)
+                .expect("entered");
+            driver.settle().expect("settles");
+        }
+
+        let rows = driver.session().tree_rows();
+        let said: Vec<String> = rows
+            .iter()
+            .map(|row| format!("{} {:?}", viewer::tree::spelled(&row.spoken), row.status))
+            .collect();
+        let row = |label: &str| {
+            rows.iter()
+                .find(|row| viewer::tree::spelled(&row.spoken).contains(&format!("\"{label}\"")))
+                .unwrap_or_else(|| panic!("a {label} row: {said:#?}"))
+        };
+        assert!(
+            matches!(
+                row("Revolve 1").status,
+                viewer::tree::RowStatus::Failed { .. }
+            ),
+            "the first revolve fails: {said:#?}"
+        );
+        assert!(
+            matches!(row("Revolve 2").status, viewer::tree::RowStatus::Ok),
+            "the second is the sphere: {said:#?}"
+        );
+        let (doc, _) = driver.session().landed_pair().expect("landed");
+        // Each revolve lands unplaced and is drawn itself.
+        let copies: Vec<_> = viewer::world::drawn_nodes(doc)
+            .into_iter()
+            .filter(|&node| matches!(doc.node(node), Some(pncad::document::Node::Revolve { .. })))
+            .collect();
+        assert_eq!(copies.len(), 2, "both revolves are drawn: {said:#?}");
+        let index = driver
+            .index()
+            .expect("the index builds over the failed copy");
+        assert_eq!(
+            index
+                .undrawn()
+                .iter()
+                .map(|copy| copy.node())
+                .collect::<Vec<_>>(),
+            vec![copies[0]],
+            "the failed revolve's copy, and only it, is undrawn"
+        );
+        assert!(
+            !index.ids_of_node(copies[1]).is_empty(),
+            "the sphere's copy is indexed"
+        );
+        assert!(
+            driver.scene().stats().triangles > 0,
+            "and the sphere is on screen"
+        );
+        assert_eq!(
+            driver.index_badge(),
+            None,
+            "the tree's FAILED row is the notice; the toolbar adds none"
+        );
+        // The document's first body was the first revolve at its
+        // default axis, which the camera was fitted to before its axis
+        // was written across the profile.
+        driver.click("Zoom to fit", 0).expect("the sphere framed");
+        driver.settle().expect("settles");
+        let centre = driver.in_viewport(0.5, 0.5).expect("the viewport");
+        driver
+            .click_at(
+                centre,
+                egui::PointerButton::Primary,
+                egui::Modifiers::NONE,
+                1,
+            )
+            .expect("clicked");
+        driver.settle().expect("settles");
+        match driver.session().selection() {
+            viewer::session::Selection::Face(face) => {
+                assert_eq!(face.node, copies[1], "the pick lands on the sphere");
+            }
+            other => panic!("a click on the sphere picks a face of it: {other:?}"),
+        }
+    }
+
+    /// **A click that meets nothing while a tool is open says so**: the
+    /// boolean tool takes no pick from the ground around the plate, and
+    /// the line says that rather than leaving `no picks yet` as the only
+    /// answer to the click.
+    #[test]
+    fn a_click_on_nothing_with_a_tool_open_says_no_pick_was_taken() {
+        let mut driver = started("drive-missed-pick");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        let corner = driver.in_viewport(0.02, 0.02).expect("the viewport");
+        driver
+            .click_at(
+                corner,
+                egui::PointerButton::Primary,
+                egui::Modifiers::NONE,
+                1,
+            )
+            .expect("clicked");
+        driver.settle().expect("settles");
+        assert!(
+            driver.shows("none picked"),
+            "the premise: the click took nothing"
+        );
+        assert!(
+            driver.shows("boolean tool: nothing under the cursor — no pick taken"),
+            "the miss is said on the line: {}",
+            driver.dump()
+        );
+    }
+
+    /// **The picture is the window's**: as many pixels as the window
+    /// has, and inside the viewport the startup part is drawn — the
+    /// pane's pixels are not all the ground it is painted on.
+    #[test]
+    fn a_picture_shows_the_window_with_the_part_drawn() {
+        let driver = started("drive-picture");
+        let (device, queue) = pollster::block_on(viewer::app::drive::picture_device())
+            .expect("a device to render on");
+        let picture = driver.picture(&device, &queue).expect("the window renders");
+        let window = driver.window();
+        assert_eq!(
+            picture.size,
+            [window.x as u32, window.y as u32],
+            "one pixel per point at the driver's scale"
+        );
+        let viewport = driver.viewport().expect("the viewport was drawn");
+        let pixel = |x: f32, y: f32| {
+            let at = (y as usize * picture.size[0] as usize + x as usize) * 4;
+            &picture.rgba[at..at + 4]
+        };
+        // The corner is ground: the startup view frames the part with
+        // a margin around it.
+        let ground = pixel(viewport.left() + 2.0, viewport.top() + 2.0);
+        let (mut drawn, mut all) = (0_usize, 0_usize);
+        for y in (viewport.top() as u32..viewport.bottom() as u32).step_by(4) {
+            for x in (viewport.left() as u32..viewport.right() as u32).step_by(4) {
+                all += 1;
+                if pixel(x as f32, y as f32) != ground {
+                    drawn += 1;
+                }
+            }
+        }
+        assert!(
+            drawn * 10 > all,
+            "the startup part covers more than a tenth of the viewport: {drawn} of {all} \
+             sampled pixels are not the ground"
+        );
+    }
+
+    #[test]
+    fn a_label_not_on_screen_is_refused_with_what_was_meant() {
+        let mut driver = started("drive-refusal");
+        match driver.click("add feature", 0) {
+            Err(DriveError::NotOnScreen { shown, near, .. }) => {
+                assert_eq!(shown, 0, "labels match exactly, case included");
+                assert!(
+                    near.iter().any(|label| label == "Add feature"),
+                    "the refusal names the label it was near: {near:?}"
+                );
+            }
+            other => panic!("a mis-cased label was not refused: {other:?}"),
+        }
+        assert!(
+            matches!(
+                driver.find("Add feature", 1),
+                Err(DriveError::NotOnScreen { shown: 1, .. })
+            ),
+            "a second painting of a label painted once is not on screen"
+        );
+    }
+}
+
+/// Review rows for PR 6239: the miss notice's negative and lifetime
+/// halves, which the PR's own row does not pin.
+#[cfg(feature = "app")]
+mod missed_pick_bounds {
+    use crate::common;
+    use viewer::app::drive::Driver;
+
+    fn started(label: &str) -> Driver {
+        Driver::start(
+            common::tempdir(label).join("prefs.toml"),
+            pncad::tolerance::witness(),
+        )
+        .expect("the app starts")
+    }
+
+    fn vclick(driver: &mut Driver, fx: f32, fy: f32) {
+        let at = driver.in_viewport(fx, fy).expect("the viewport");
+        driver
+            .click_at(at, egui::PointerButton::Primary, egui::Modifiers::NONE, 1)
+            .expect("clicked");
+        driver.settle().expect("settles");
+    }
+
+    /// **With no tool open a miss stays quiet**: it is a deselect.
+    #[test]
+    fn a_miss_with_no_tool_open_says_nothing() {
+        let mut driver = started("missed-pick-no-tool");
+        vclick(&mut driver, 0.02, 0.02);
+        assert!(
+            !driver.dump().contains("no pick taken"),
+            "{}",
+            driver.dump()
+        );
+    }
+
+    /// **The miss names what the tool's pick kind did not find**: under
+    /// the blend tool, which picks edges only, a click on the plate's
+    /// material away from every edge met a face, not nothing.
+    #[test]
+    fn an_edges_only_tool_says_no_edge_was_under_the_cursor() {
+        let mut driver = started("missed-pick-blend");
+        driver.click("Blend edges", 0).expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Blend tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.35, 0.5);
+        let dump = driver.dump();
+        assert!(
+            dump.contains("blend tool: no edge under the cursor — no pick taken"),
+            "{dump}"
+        );
+        assert!(!dump.contains("nothing under the cursor"), "{dump}");
+    }
+
+    /// **Closing the tool retires its miss**: once the boolean tool is
+    /// cancelled, nothing on screen says it took no pick.
+    #[test]
+    fn closing_the_tool_retires_its_miss() {
+        let mut driver = started("missed-pick-close");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.02, 0.02);
+        assert!(driver.dump().contains("no pick taken"), "the premise");
+        driver.click("Cancel", 0).expect("the tool closes");
+        driver.settle().expect("settles");
+        let dump = driver.dump();
+        assert!(!dump.contains("no pick taken"), "{dump}");
+    }
+
+    /// **Repeated misses say it once, and a pick retires it**: the line
+    /// carries one telling however many misses, and the click that
+    /// seats something clears it.
+    #[test]
+    fn repeated_misses_say_it_once_and_a_pick_retires_it() {
+        let mut driver = started("missed-pick-repeat");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.02, 0.02);
+        vclick(&mut driver, 0.03, 0.03);
+        vclick(&mut driver, 0.04, 0.02);
+        let dump = driver.dump();
+        assert_eq!(dump.matches("no pick taken").count(), 1, "{dump}");
+        // Beside the plate's central hole, on its material.
+        vclick(&mut driver, 0.35, 0.5);
+        let dump = driver.dump();
+        // A pick on the plate's copy seats the copy (Ev, PR 6353).
+        assert!(dump.contains("member 1: Place "), "the premise: {dump}");
+        assert!(!dump.contains("no pick taken"), "{dump}");
+    }
+}

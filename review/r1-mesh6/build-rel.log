@@ -1,0 +1,25 @@
+with-build-slot: waiting for a slot (0s; holding: slot-1: pid 3783 since 04:06:40 (@1788322000): shared: cargo test -p mesh --lib -- curved::tests [held 0m6s]; slot-2: pid 23880 since 20:06:11 (@1788293171): exclusive: cargo fmt --all -- --check [held 480m35s] [record is stale (pid 23880 dead); this shared request never polls slot-2 at width 1]; express: pid 9621 since 19:43:56 (@1788291836): express(580s): cargo test -p mesh --lib sizing [held 502m50s] [record is stale (pid 9621 dead); this shared request never polls express at width 1])
+   Compiling libm v0.2.16
+   Compiling version_check v0.9.5
+   Compiling autocfg v1.5.1
+   Compiling equivalent v1.0.2
+   Compiling foldhash v0.2.0
+   Compiling slotmap v1.1.1
+   Compiling allocator-api2 v0.2.21
+   Compiling num-traits v0.2.19
+   Compiling hashbrown v0.16.1
+   Compiling smallvec v1.15.2
+   Compiling robust v1.2.0
+   Compiling geom-core v0.0.0 (/root/lanes/mesh-6r1/crates/geom-core)
+   Compiling spade v2.15.1
+   Compiling test-utils v0.0.0 (/root/lanes/mesh-6r1/crates/test-utils)
+   Compiling bvh v0.0.0 (/root/lanes/mesh-6r1/crates/bvh)
+   Compiling geom v0.0.0 (/root/lanes/mesh-6r1/crates/geom)
+   Compiling profile v0.0.0 (/root/lanes/mesh-6r1/crates/profile)
+   Compiling geom-brep v0.0.0 (/root/lanes/mesh-6r1/crates/geom-brep)
+   Compiling topo v0.0.0 (/root/lanes/mesh-6r1/crates/topo)
+   Compiling mesh v0.0.0 (/root/lanes/mesh-6r1/crates/mesh)
+   Compiling sweep v0.0.0 (/root/lanes/mesh-6r1/crates/sweep)
+    Finished `release` profile [optimized] target(s) in 27.23s
+  Executable tests/all.rs (target/release/deps/all-bbbf0efdcf975416)
+exit 0

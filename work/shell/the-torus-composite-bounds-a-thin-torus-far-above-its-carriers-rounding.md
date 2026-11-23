@@ -1,0 +1,60 @@
+---
+id: the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding
+kind: issue
+title: The torus's canonical composite bounds a carrier on a thin torus (R/r 19 to 520) at 40 to 800 times the carrier's own rounding: a conditioning limit shared by spline carriers
+status: open
+opened: 2026-10-26
+priority: P2
+cost: M
+---
+
+
+
+Filed by PR 5728's implementer lane, from the measurements of fork row 203's
+fix (the one limb-2 reader framed in certification arithmetic).
+
+**Finding.** With every carrier framed at the operand before it is
+expanded (`crates/geom-brep/src/carrier_net.rs` `framed_carrier_net`),
+the rows that still refuse limb 2 against a torus refuse as
+`AnalyticRung3Refusal::KernelLimit` with a bound 40 to 800 times the
+carrier's own enclosure width there, at ε = 1e-12 (and, for the largest,
+at the default ε):
+
+| row | R, r (R/r) | bound b (m) | width w (m) | b / w |
+|---|---|---|---|---|
+| `mate7a_torus_rest::*`, `germ_circle_torus::*` (lily stem) | 5, 0.06 (83) | 2.2e-12 to 3.2e-12 | 2.6e-14 | 80 to 120 |
+| `verbs_tubewall_r2_probes::r2_inner_radius_is_the_callers_own_rounding` | 10, 0.2 (50) | 1.1e-12 | 3.0e-14 | 36 |
+| `boolean::section_cert::section_cert_rows::*` | (rows' torus) | 9.6e-12 | 6.2e-14 | 150 |
+| `verbs_tubewall_r1_probes::*` (outside the session box) | 1300, 2.5 (520) | 5.4e-9 | 7.0e-12 | 780 |
+
+The width is the net's (`CarrierNet::width`), so the excess is the
+composite's. The torus's canonical form
+`(|p|² + R² − r²)² − 4R²(x² + y²)` (`crates/geom-core/src/spline/compose.rs:1121`)
+cancels terms of size `R⁴` to leave one of size `R²r·d`, and the metre
+conversion divides by `(m + r)·((ρ + R)² − r²)`
+(`crates/geom-brep/src/pcurve_cache/projected.rs:1571`): the bound is
+about `u·R²/r` times the composite's operation count (degree 24 for a
+circle's degree-6 net, about 100 roundings) over the part's own
+rounding. A spline carrier on a torus reads through the same composite,
+so it shares the limit.
+
+**Wanted.** A conditioning that does not grow as `R²/r`: the composite
+written about the tube's core (`m − r`, the distance from the circle of
+centres) rather than about the torus's centre, or a per-span anchor of
+the composite at the span's own core point. Either is a geom-core
+composite change; neither is designed.
+
+**Not wanted.** Loosening ε; reading the bound at points.
+
+- 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+
+- 2026-11-02 — PR 6380 (`onehome/run-owns-rounding`) pins one more row
+  here: `crates/sweep/tests/session_box_reach.rs`
+  `a_bar_cutting_a_large_torus_inside_the_box_builds` (torus R = 700,
+  r = 50, R/r 14, about `(0, 300, 0)`, cut by the bar
+  `[100, 400] × [200, 400] × [400, 800]`). At ε = 1e-12 its spiric section
+  refuses limb 2 as `KernelLimit` with a bound of 8.6e-11 m over 113 m,
+  against a carrier enclosure width of 3.9e-12 m (b / w ≈ 22); it builds
+  at the default ε and at 1e-6.
+
+**Evidence from `tesslane/one-slit-band` (2026-11-23).** A plate section `[0.3, 1] × [0, 1]` with its corner rounded at r = 5e-4, revolved a full turn about `y` (`sweep::revolve`, `Revolution::Full`; the torus (0.3005, 5e-4), R/r ≈ 600), refuses at ε = 1e-12 with `Op { Certification { AnalyticRung3(KernelLimit { operand: Torus, bound: 1.81e-12, width: 1.89e-15, extent: 0.849 }) } }` (b/w ≈ 960). The same section builds at r ≥ 1e-3 for hole 0.3, and at r ≥ 1e-2 for hole 0.9. It builds at ε = 1e-9 and 1e-6. `crates/mesh/tests/the_one_slit_band.rs`'s revolved row says so when it skips at 1e-12.

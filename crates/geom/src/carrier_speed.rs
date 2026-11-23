@@ -1,0 +1,357 @@
+//! **A carrier's speed**, the metres one step of its parameter covers.
+//! [`speed_range`] bounds it over every parameter on every kind: a line's
+//! `|dir|`, a conic's semi-axes ([`crate::Conic::speed_lo`],
+//! [`crate::Conic::speed_hi`]), a spiric's and a
+//! spline's bounds. [`turn_defect_rate`] bounds it over one stretch, a
+//! window's turn defect, no looser than [`speed_range`] and tight as the
+//! defect shrinks. [`speed_at`] and [`speed_hi`] answer the line and the
+//! conics alone, `None` for a spiric or spline carrier: the speed at a
+//! point a conic's root is metered by, and the closed form a carrier's
+//! rounding resolution is summed from.
+
+use geom_core::period::{Bounded, Extent};
+use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed, Vec3};
+
+/// The speed `|C′(t)|` at `t`: a line's `|dir|`, a conic's
+/// `√((a·sin t)² + (b·cos t)²)` held to its semi-axes, so a circle's is its
+/// radius exactly at every scalar.
+pub fn speed_at<T: SpanLocate>(carrier: &crate::Curve3<T>, t: T) -> Option<T> {
+    match Kind::of(carrier) {
+        kind @ Kind::Line(_) => kind.closed_hi(),
+        Kind::Conic(c) => Some(c.speed_at(t)),
+        Kind::Spiric { .. } | Kind::Nurbs(_) => None,
+    }
+}
+
+/// **The speed `|C′(t)|` at `t` on every kind**: [`speed_at`]'s closed
+/// form on a line and a conic, the derivative's norm on a spiric or a
+/// spline, which have none.
+pub fn speed_at_any<T: SpanLocate>(carrier: &crate::Curve3<T>, t: T) -> T {
+    speed_at(carrier, t).unwrap_or_else(|| carrier.deriv(t).norm())
+}
+
+/// The greatest speed over every `t`, [`speed_at`]'s bound: an
+/// ellipse's larger semi-axis.
+pub fn speed_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
+    Kind::of(carrier).closed_hi()
+}
+
+/// Bounds on `|C′(t)|` over every `t`, on every kind: exact on a line
+/// and a circle, an ellipse's semi-axes, a spiric's minor radius `r`
+/// below (`|C′|² = r²(1 + (d/f)²·sin²v)`) and [`crate::spiric_rate_bounds`]
+/// over a whole period above, and a spline's control-net bounds
+/// ([`crate::NurbsCurve3::speed_lower_bound`], whose floor may be zero,
+/// negative or poison: its assemblies are joined by `max`, and each may
+/// read below zero where the hodograph runs near the origin). A rational spline's bounds are certified at `Interval`;
+/// at `f64` they are the same expressions in round-to-nearest, not a
+/// bound at extreme weights.
+pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, SupSpeed<T>) {
+    Kind::of(carrier).range()
+}
+
+/// **The speed floor a span on a periodic carrier is decided at**, the
+/// one spelling certification's check 2 and the conic readers share: a
+/// circle's radius, an ellipse's smaller semi-axis
+/// ([`crate::Conic::speed_lo`], either stored order; a non-positive
+/// semi-axis keeps the floor non-positive, so no span is forward at it),
+/// a spiric's minor radius
+/// (`|C′|² = r²(1 + (d/f)²·sin²v)`), a periodic cubic's bound over its
+/// whole loop ([`crate::PeriodicNurbs3::speed_lower_bound`]). `None` on
+/// a line or a clamped spline, which have no period.
+pub fn speed_floor<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
+    match carrier {
+        crate::Curve3::Circle(c) => Some(InfSpeed::new(crate::Conic::speed_lo(c))),
+        crate::Curve3::Ellipse(e) => Some(InfSpeed::new(crate::Conic::speed_lo(e))),
+        crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(*minor_radius)),
+        // Of the carriers with no closed form, the one with a period.
+        crate::Curve3::Line(_) | crate::Curve3::Nurbs(_) | crate::Curve3::Periodic(_) => carrier
+            .as_periodic()
+            .map(crate::PeriodicNurbs3::speed_lower_bound),
+    }
+}
+
+/// The **turn defect** of the window that starts at `t0` and spans
+/// `extent`: the stretch between its end and its start one period on, a
+/// gap where the headroom `h = τ − extent` is positive and an overlap
+/// where it is negative. Returned as its middle `m = t0 − h/2` (one period
+/// off, which no carrier's speed tells apart) and its **reach**, the
+/// parameter distance from `m` that every point of it lies within: half
+/// its width `|h|`, plus [`DEFECT_ROUNDING`] of `1 + |m|`.
+fn turn_defect<T: Real>(t0: T, extent: Extent<T>) -> (T, T) {
+    let half = T::from_f64(0.5);
+    let gap = T::tau() - extent.get();
+    let m = t0 - gap * half;
+    let reach = gap.abs() * half + (T::one() + m.abs()) * T::from_f64(DEFECT_ROUNDING);
+    (m, reach)
+}
+
+/// **The allowance a turn defect's reach carries for rounding**, in units
+/// of `1 + |m|`, `m` the defect's middle. At `f64`, `m` is a rounded value
+/// and lies a few units in the last place of `1 + |m|` off the true
+/// middle, and a rate read at `m` carries a few units of its own; a rate
+/// whose slope is at most `k` per radian moves by at most `k` times the
+/// first, and `k ≥` the rate itself covers the second once `1 + |m| ≥ 1`
+/// is folded in. `2⁻⁴⁶` is 64 to 128 units of `1 + |m|`'s last place; the
+/// review of PR 5724 measured the rounding it absorbs at no more than a
+/// sixteenth of it over 358k cases.
+///
+/// It is applied at **every scalar**, though an `Interval` reader needs
+/// none (its `m` and its rates are enclosures already): these functions
+/// are generic over the scalar and have no way to tell a certified one
+/// from round-to-nearest, and the allowance only widens. At `Interval` it
+/// widens a bound by `2⁻⁴⁶·(1 + |m|)` of the speed's slope — beneath any
+/// band a turn is read in, and the same widening as at `f64`, so the two
+/// lanes decide a window at the same place.
+const DEFECT_ROUNDING: f64 = 1.0 / (1u64 << 46) as f64;
+
+/// **Bounds on `|C′|` over the window of parameters within `reach` of
+/// `m`**: the one home of the window bound, which [`turn_defect_speed_hi`]
+/// and [`turn_defect_speed_lo`] read over a turn's defect and a span's
+/// end gap reads over the gap (`geom_brep::curve_pair::Span::end_gap`).
+///
+/// On a conic [`accel_hi`] (the larger semi-axis) bounds `|C″|`, so how
+/// fast `|C′|` moves: the speed at `m`, less or plus it times `reach`, held within
+/// the carrier's smaller and larger semi-axis. Never more than the speed
+/// anywhere in the window below, never less above, at `f64` as at
+/// `Interval`, and tight as the window shrinks. On a spiric the sup is
+/// [`crate::spiric_window_rate_bounds`] over the reach, and the inf the
+/// whole period's (its minor radius). On a line or a spline, the whole
+/// carrier's ([`speed_range`]).
+///
+/// `reach` is the caller's, rounding included: a reader whose `m` is
+/// itself rounded widens it, as [`turn_defect`] does.
+pub fn window_speed<T: SpanLocate>(
+    carrier: &crate::Curve3<T>,
+    m: T,
+    reach: T,
+) -> (InfSpeed<T>, SupSpeed<T>) {
+    let kind = Kind::of(carrier);
+    match kind {
+        Kind::Conic(c) => (
+            InfSpeed::new((c.speed_at(m) - kind.accel_hi() * reach).max(c.speed_lo())),
+            SupSpeed::new((c.speed_at(m) + kind.accel_hi() * reach).min(c.speed_hi())),
+        ),
+        Kind::Spiric {
+            major,
+            minor,
+            offset,
+        } => (
+            InfSpeed::new(minor),
+            SupSpeed::new(crate::spiric_window_rate_bounds((major, minor, offset), m, reach).0),
+        ),
+        kind => kind.range(),
+    }
+}
+
+/// **Bounds on `|C′|` over every parameter between `a` and `b`**, in
+/// either order: [`window_speed`] about their middle, over half their gap
+/// with [`DEFECT_ROUNDING`]'s allowance for the middle's rounding, as
+/// [`turn_defect`] widens its own.
+pub fn speed_between<T: SpanLocate>(
+    carrier: &crate::Curve3<T>,
+    a: T,
+    b: T,
+) -> (InfSpeed<T>, SupSpeed<T>) {
+    let half = T::from_f64(0.5);
+    let m = (a + b) * half;
+    let reach = (b - a).abs() * half + (T::one() + m.abs()) * T::from_f64(DEFECT_ROUNDING);
+    window_speed(carrier, m, reach)
+}
+
+/// How many equal pieces [`length_hi`] sums a line's, a conic's or a
+/// spiric's window speeds over. A power of two, so a constant speed sums
+/// to itself times the span exactly.
+const LENGTH_PIECES: usize = 32;
+
+/// **An upper bound on the carrier's length between `a` and `b`** (either
+/// order), in metres: the speed's sup summed piece by piece over the
+/// stretch itself, so it is not charged for a faster stretch elsewhere on
+/// the carrier. A line's and a circle's are their length. A conic's and a
+/// spiric's are [`speed_between`]'s sup on each of [`LENGTH_PIECES`] equal
+/// pieces: an ellipse arc at its slow end reads its own speed plus
+/// `max(a, b)` times half a piece, not the larger semi-axis. A spline's
+/// is [`crate::NurbsCurve3::length_upper_bound`], over the knot spans'
+/// pieces the stretch covers. As [`speed_range`], a spline's is certified
+/// at `Interval` and the same expression in round-to-nearest at `f64`.
+pub fn length_hi<T: SpanLocate>(carrier: &crate::Curve3<T>, a: T, b: T) -> T {
+    if let Kind::Nurbs(n) = Kind::of(carrier) {
+        return n.length_upper_bound(a, b);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let at = |i: usize| a + (b - a) * T::from_f64(i as f64 / LENGTH_PIECES as f64);
+    let width = (b - a).abs() * T::from_f64(1.0 / LENGTH_PIECES as f64);
+    (0..LENGTH_PIECES)
+        .map(|i| speed_between(carrier, at(i), at(i + 1)).1.to_meters(width))
+        .fold(T::zero(), |acc, x| acc + x)
+}
+
+/// A sup on `|C′|` over the turn defect of the window that starts at `t0`
+/// and spans `extent` ([`turn_defect`]): [`window_speed`]'s sup about the
+/// defect's middle, over its reach. Never less than the speed anywhere on
+/// the defect, never above the larger semi-axis on a conic, and finite on
+/// a spiric's defect clear of a tangent pinch.
+pub fn turn_defect_speed_hi<T: SpanLocate>(
+    carrier: &crate::Curve3<T>,
+    t0: T,
+    extent: Extent<T>,
+) -> SupSpeed<T> {
+    let (m, reach) = turn_defect(t0, extent);
+    window_speed(carrier, m, reach).1
+}
+
+/// An inf on `|C′|` over the turn defect of the window that starts at
+/// `t0` and spans `extent` ([`turn_defect`]), [`turn_defect_speed_hi`]'s
+/// twin: [`window_speed`]'s inf about the defect's middle, over its reach.
+/// Never more than the speed anywhere on the defect, and tight as it
+/// shrinks.
+pub fn turn_defect_speed_lo<T: SpanLocate>(
+    carrier: &crate::Curve3<T>,
+    t0: T,
+    extent: Extent<T>,
+) -> InfSpeed<T> {
+    let (m, reach) = turn_defect(t0, extent);
+    window_speed(carrier, m, reach).0
+}
+
+/// **The rate a turn is read at over its defect**: [`turn_defect_speed_lo`]
+/// and [`turn_defect_speed_hi`] as the turn rule's [`Bounded`] pair, the
+/// one spelling certification's check 2, `ConicArc::of` and the cone
+/// ellipse door share.
+pub fn turn_defect_rate<T: SpanLocate>(
+    carrier: &crate::Curve3<T>,
+    t0: T,
+    extent: Extent<T>,
+) -> Bounded<T> {
+    Bounded::new(
+        turn_defect_speed_lo(carrier, t0, extent),
+        turn_defect_speed_hi(carrier, t0, extent),
+    )
+}
+
+/// A bound on `|C″(t)|` over every `t`, read as a Lipschitz constant of
+/// `C′` across any window, which is what a second-order bound along the
+/// curve needs: zero on a line, a conic's larger semi-axis, a spiric's
+/// [`crate::spiric_period_rate_bounds`], a spline's
+/// [`crate::NurbsCurve3::accel_upper_bound`] (infinite where a crease
+/// lets `C′` jump; certified at `Interval`, poison where its statement
+/// refuses; at `f64` the same expression in round-to-nearest, as
+/// [`speed_range`]'s).
+pub fn accel_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
+    Kind::of(carrier).accel_hi()
+}
+
+/// A bound on the carrier's curvature over every `t`: zero on a line,
+/// `speed_hi / speed_lo²` on a conic, and `|C″|/|C′|²` from
+/// [`accel_hi`] and [`speed_range`]'s floor on a spiric (its minor
+/// radius) and a spline (the curvature `|C′ × C″|/|C′|³` is at most
+/// that). A floor not above zero is read as zero, so a spline whose
+/// floor certifies nothing (a cusp, or a hodograph near the origin,
+/// whose `f64` floor can read negative), or with a crease, bounds no
+/// finite curvature: infinite or NaN at `f64`, poison at `Interval` for
+/// a crease. At `Interval` a floor whose enclosure straddles zero gives
+/// an enclosure unbounded above, `[x, +∞]`, which reads as a length
+/// ([`geom_core::is_finite_length`]) but bounds nothing above.
+pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
+    Kind::of(carrier).curvature_hi()
+}
+
+/// A bound on the carrier's curvature over the parameters `[t0, t1]`:
+/// [`curvature_hi`]'s, except on a spline, whose `|C″|` is read over the
+/// run alone ([`crate::NurbsCurve3::accel_upper_bound_over`]) against
+/// [`speed_range`]'s floor. A crease costs only the runs not proved clear
+/// of it, so a spline with a crease bounds a finite curvature on a run
+/// inside a smooth stretch of it. On every other carrier the bound does
+/// not depend on the run.
+pub fn curvature_hi_over<T: SpanLocate>(carrier: &crate::Curve3<T>, run: (T, T)) -> T {
+    // A periodic cubic has no crease to be clear of: its whole loop's
+    // bound.
+    if matches!(carrier, crate::Curve3::Periodic(_)) {
+        return Kind::of(carrier).curvature_hi();
+    }
+    match Kind::of(carrier) {
+        Kind::Nurbs(n) => {
+            n.accel_upper_bound_over(run) / n.speed_lower_bound().get().max(T::zero()).powi(2)
+        }
+        kind => kind.curvature_hi(),
+    }
+}
+
+/// A carrier read by what bounds its rates: a conic by its semi-axes.
+enum Kind<'a, T: Real> {
+    Line(Vec3<T>),
+    Conic(&'a dyn crate::Conic<T>),
+    Spiric { major: T, minor: T, offset: T },
+    Nurbs(&'a crate::NurbsCurve3<T>),
+}
+
+impl<'a, T: SpanLocate> Kind<'a, T> {
+    fn of(carrier: &'a crate::Curve3<T>) -> Self {
+        match carrier {
+            crate::Curve3::Line(crate::Line { dir, .. }) => Self::Line(*dir),
+            crate::Curve3::Circle(c) => Self::Conic(c),
+            crate::Curve3::Ellipse(e) => Self::Conic(e),
+            crate::Curve3::Spiric {
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            } => Self::Spiric {
+                major: *major_radius,
+                minor: *minor_radius,
+                offset: *offset,
+            },
+            crate::Curve3::Nurbs(n) => Self::Nurbs(n),
+            // Its rates over every parameter are the whole loop's.
+            crate::Curve3::Periodic(p) => Self::Nurbs(p.whole_loop()),
+        }
+    }
+
+    fn range(&self) -> (InfSpeed<T>, SupSpeed<T>) {
+        let (lo, hi) = match *self {
+            Self::Line(dir) => (dir.norm(), dir.norm()),
+            Self::Conic(c) => (c.speed_lo(), c.speed_hi()),
+            Self::Spiric {
+                major,
+                minor,
+                offset,
+            } => (
+                minor,
+                crate::spiric_period_rate_bounds(major, minor, offset).0,
+            ),
+            Self::Nurbs(n) => return (n.speed_lower_bound(), n.speed_upper_bound()),
+        };
+        (InfSpeed::new(lo), SupSpeed::new(hi))
+    }
+
+    /// The greatest speed of a line or a conic; `None` on a spiric or a
+    /// spline.
+    fn closed_hi(&self) -> Option<T> {
+        match self {
+            Self::Line(_) | Self::Conic(_) => Some(self.range().1.get()),
+            Self::Spiric { .. } | Self::Nurbs(_) => None,
+        }
+    }
+
+    fn accel_hi(&self) -> T {
+        match *self {
+            Self::Line(_) => T::zero(),
+            Self::Conic(c) => c.speed_hi(),
+            Self::Spiric {
+                major,
+                minor,
+                offset,
+            } => crate::spiric_period_rate_bounds(major, minor, offset).1,
+            Self::Nurbs(n) => n.accel_upper_bound(),
+        }
+    }
+
+    fn curvature_hi(&self) -> T {
+        match *self {
+            Self::Line(_) => T::zero(),
+            Self::Conic(c) => c.curvature_hi(),
+            Self::Spiric { .. } | Self::Nurbs(_) => {
+                self.accel_hi() / self.range().0.get().max(T::zero()).powi(2)
+            }
+        }
+    }
+}

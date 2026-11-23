@@ -1,0 +1,871 @@
+//! [`Curve3::foot`] and [`Curve3::on_carrier`] on every kind: a point a
+//! stated number of zero bands off the carrier, read at its foot.
+
+use geom_core::{Band, Point3, Vec3};
+
+use super::{CarrierEscalation, CarrierRefusal, OnCarrier, PieceWalkRefusal};
+use crate::Curve3;
+
+const ZERO: f64 = 1e-9;
+
+fn band() -> Band {
+    Band::new(ZERO, 10.0 * ZERO).unwrap()
+}
+
+fn circle() -> Curve3<f64> {
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::unit_z(),
+        2.0,
+        Vec3::unit_x(),
+    )
+}
+
+fn ellipse(a: f64, b: f64) -> Curve3<f64> {
+    Curve3::Ellipse(crate::Ellipse::new(
+        crate::Frame::new(Point3::new(0.2, -0.1, 0.4), Vec3::unit_z(), Vec3::unit_x()),
+        a,
+        b,
+    ))
+}
+
+fn spiric() -> Curve3<f64> {
+    Curve3::Spiric {
+        frame: crate::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        major_radius: 3.0,
+        minor_radius: 1.0,
+        offset: 0.5,
+    }
+}
+
+fn spline() -> Curve3<f64> {
+    Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2)
+                .unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 0.5, 0.0),
+                Point3::new(2.0, -0.5, 0.0),
+                Point3::new(3.0, 0.0, 0.0),
+            ],
+            vec![1.0, 2.0, 1.0, 1.0],
+        )
+        .unwrap(),
+    ))
+}
+
+/// The curve's in-plane-or-any normal at `t`.
+fn normal(c: &Curve3<f64>, t: f64) -> Vec3<f64> {
+    let d = c.ders1(t).1;
+    let n = Vec3::unit_z().cross(d);
+    if n.norm() > 1e-6 {
+        n.normalize()
+    } else {
+        Vec3::unit_x().cross(d).normalize()
+    }
+}
+
+fn name<T>(r: Result<OnCarrier<T>, CarrierRefusal>) -> &'static str {
+    match r {
+        Ok(OnCarrier::On { .. }) => "on",
+        Ok(OnCarrier::Off) => "off",
+        Err(CarrierRefusal::Escalated(_)) => "escalated",
+        Err(CarrierRefusal::Unwalked(PieceWalkRefusal::Exhausted)) => "exhausted",
+        Err(CarrierRefusal::Unwalked(PieceWalkRefusal::Unbounded)) => "unbounded",
+    }
+}
+
+/// **Every kind reads a point by its distance**: half a zero band off
+/// the carrier is on it, thirty bands off is off it, read at the foot
+/// found from a seed a whole radian away. A thin ellipse (`a/b = 1000`)
+/// is the case the unit-coordinate angle alone gets wrong.
+#[test]
+fn a_point_is_on_or_off_every_carrier_by_its_distance() {
+    for (c, t) in [
+        (circle(), 0.7),
+        (ellipse(2.0, 1.0), 0.7),
+        (ellipse(1e3, 1.0), 0.9),
+        (ellipse(1.0, 1e-2), 2.1),
+        (spiric(), 0.8),
+        (spline(), 0.3),
+        (spline(), 0.8),
+    ] {
+        let n = normal(&c, t);
+        for (bands, want) in [(0.5, "on"), (30.0, "off")] {
+            let q = c.eval(t) + n * (bands * ZERO);
+            let got = name(c.on_carrier(q, t + 1.0, band()));
+            assert_eq!(got, want, "{:?} at {t}, {bands} bands", c.kind());
+        }
+    }
+    let line = Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.6, 0.0, 0.8));
+    let q = line.eval(4.0) + Vec3::unit_y() * (0.5 * ZERO);
+    assert_eq!(name(line.on_carrier(q, 0.0, band())), "on");
+}
+
+/// **Off needs the whole carrier clear.** An ellipse bending tighter
+/// than the band (`b²/a = ε/100`) and a point `20ε` beyond its major
+/// vertex: its gap at the vertex is `20ε`, past the band, while the
+/// ellipse's lower bound there reads within the zero band, so the two
+/// straddle the band and escalate typed, never `Off`.
+#[test]
+fn a_gap_past_the_band_with_the_bound_inside_it_straddles() {
+    let b = (ZERO / 100.0).sqrt();
+    let c = ellipse(1.0, b);
+    let q = c.eval(0.0) + Vec3::unit_x() * (20.0 * ZERO);
+    assert!(matches!(
+        c.on_carrier(q, 0.0, band()),
+        Err(CarrierRefusal::Escalated(CarrierEscalation::Straddle(_)))
+    ));
+}
+
+#[test]
+fn a_point_in_the_bands_gap_escalates() {
+    for (c, t) in [(circle(), 0.7), (ellipse(3.0, 1.0), 1.2), (spiric(), 0.8)] {
+        let q = c.eval(t) + normal(&c, t) * (5.0 * ZERO);
+        assert_eq!(
+            name(c.on_carrier(q, t, band())),
+            "escalated",
+            "{:?}",
+            c.kind()
+        );
+    }
+}
+
+/// **The foot's gap is never worse than its seed's**, and on a thin
+/// ellipse it is the point's distance where the unit-coordinate angle
+/// reads it `a/b` times farther.
+#[test]
+fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
+    let c = ellipse(1e3, 1.0);
+    let t = 0.9;
+    let q = c.eval(t) + normal(&c, t) * ZERO;
+    let foot = c.foot(q, 0.0);
+    assert!(foot.gap() < 1.5 * ZERO, "{}", foot.gap());
+    assert!((foot.seed() - t).abs() < 1e-6, "{}", foot.seed());
+    assert!(foot.point().equals_exactly(q));
+    assert!(
+        foot.nearest().is_none(),
+        "an ellipse's foot is a stationary point"
+    );
+}
+
+/// **A closed spline's point across its seam reads on through the walk**:
+/// a point on the loop just short of the domain's end, seeded at its
+/// start (the same point), and one just past the start seeded at the end.
+/// The foot polishes from its seed alone, and its descent is held at the
+/// end it stands on, so its gap is the seam's (module docs, "The foot").
+/// The Off's walk keeps the piece the point lies on, and the polish
+/// restarted there reads it on (module docs, "Where the walk keeps a
+/// piece").
+#[test]
+fn a_closed_splines_point_across_its_seam_reads_on_through_the_walk() {
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0],
+                2,
+            )
+            .unwrap(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(-1.0, 1.0, 0.0),
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+            ],
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    for (t, seed) in [(0.99, 0.0), (0.01, 1.0)] {
+        let q = c.eval(t);
+        let foot = c.foot(q, seed);
+        assert!(
+            foot.gap() > ZERO,
+            "t {t} from {seed}: the foot polishes from its seed alone, held at its end: \
+             foot at {} gap {:e}",
+            foot.seed(),
+            foot.gap()
+        );
+        assert_eq!(
+            name(c.on_carrier(q, seed, band())),
+            "on",
+            "t {t} from {seed}"
+        );
+    }
+}
+
+/// **A closed spline's point reads on from any seed**: two hundred closed
+/// quadratic and cubic loops on uneven knots, twenty points each on the
+/// loop within 0.03 of its seam, seeded at either end or anywhere: every
+/// point reads on the carrier, from its seed's foot or from a piece the
+/// Off's walk keeps (module docs, "Where the walk keeps a piece").
+#[test]
+fn a_closed_splines_point_reads_on_from_any_seed() {
+    let mut s: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut rnd = || {
+        s = s
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        ((s >> 11) as f64) / ((1u64 << 53) as f64)
+    };
+    let mut miss = 0;
+    for case in 0..200 {
+        let deg = 2 + case % 2;
+        let n = 5 + (rnd() * 6.0) as usize;
+        let mut pts: Vec<Point3<f64>> = (0..n)
+            .map(|i| {
+                let a = std::f64::consts::TAU * i as f64 / n as f64;
+                let r = 0.5 + rnd();
+                Point3::new(r * a.cos(), r * a.sin(), 0.3 * (rnd() - 0.5))
+            })
+            .collect();
+        pts.push(pts[0]);
+        let m = pts.len();
+        let w: Vec<f64> = (0..m - deg - 1).map(|_| 0.2 + rnd()).collect();
+        let tot = w.iter().sum::<f64>() + 0.2 + rnd();
+        let mut ks = vec![0.0; deg + 1];
+        let mut c = 0.0;
+        for a in &w {
+            c += a / tot;
+            ks.push(c);
+        }
+        ks.extend(vec![1.0; deg + 1]);
+        let kv = geom_core::spline::KnotVector::clamped(ks, deg).unwrap();
+        let curve = Curve3::Nurbs(std::sync::Arc::new(
+            crate::NurbsCurve3::new(kv, pts, vec![1.0; m]).unwrap(),
+        ));
+        for _ in 0..20 {
+            let t = if rnd() < 0.5 {
+                rnd() * 0.03
+            } else {
+                1.0 - rnd() * 0.03
+            };
+            let seed = [0.0, 1.0, rnd()][(rnd() * 3.0) as usize];
+            if name(curve.on_carrier(curve.eval(t), seed, band())) != "on" {
+                miss += 1;
+            }
+        }
+    }
+    assert_eq!(miss, 0, "{miss} points on a closed spline not read on");
+}
+
+/// A cubic hairpin with branches `h` apart, and the point on its near
+/// branch at `t = 0.08`.
+fn hairpin(h: f64) -> (Curve3<f64>, Point3<f64>) {
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+                .unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.4, 0.0, 0.0),
+                Point3::new(1.4, h, 0.0),
+                Point3::new(0.0, h, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ));
+    let p = c.eval(0.08);
+    (c, p)
+}
+
+/// The point `p` widened to an `Interval` box of half-width `r`.
+fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
+    let w = |x: f64| geom_core::Interval::from_bounds(x - r, x + r);
+    Point3::new(w(p.x), w(p.y), w(p.z))
+}
+
+/// **A tie across a hairpin's branches is the certificate's to read**.
+/// The hairpin's branches lie 0.2 apart. On an `Interval` box about a
+/// point on the near branch, seeded on the far one, a box as wide as
+/// half the branches' gap (±0.1) ties every polish candidate and the
+/// polish keeps the seed's branch. That
+/// pick is a heuristic's and stays out of the log (ledger row F32).
+/// What a reader can hold is the certificate, and across the box ladder
+/// it never says `On` at the far branch:
+///
+/// - ±0.05 and ±1e-3: an escalation, the walk stopping at the first
+///   piece about the point that does not clear: one descent, a reading a
+///   level, where walking every such piece to the budget refused;
+/// - ±1e-6: an escalation in the band (`Escalated(InBand)`), the
+///   driver's cue to refine;
+/// - ±1e-11: `On` at the near branch, `t ≈ 0.08`.
+#[test]
+fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
+    use geom_core::{Bounds, Interval, Real, k_stats::detached};
+    let (c, p) = hairpin(0.2);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let seed = Interval::from_f64(0.92);
+    let (foot, rec) = detached(|| ci.foot(boxed(p, 0.1), seed));
+    assert!(
+        foot.seed().lo() > 0.5,
+        "the tie keeps the seed's branch: {:?}",
+        foot.seed()
+    );
+    assert!(
+        !rec.recorded()
+            .escalations
+            .iter()
+            .any(|e| e.predicate() == "curve_foot_polish"),
+        "the polish's tie-break is a heuristic's and stays out of the log"
+    );
+    for r in [0.05, 1e-3] {
+        let (read, rec) = detached(|| ci.on_carrier(boxed(p, r), seed, band()));
+        let walk = rec
+            .recorded()
+            .escalations
+            .iter()
+            .filter(|e| e.predicate().starts_with("curve_carrier_piece"))
+            .count();
+        assert_eq!(
+            name(read),
+            "escalated",
+            "±{r}: the near piece escalates: {read:?} walk {walk}"
+        );
+        assert!(
+            walk <= 64,
+            "±{r}: the walk stops at its first near piece, one escalation a level: {walk}"
+        );
+    }
+    assert!(
+        matches!(
+            ci.on_carrier(boxed(p, 1e-6), seed, band()),
+            Err(CarrierRefusal::Escalated(CarrierEscalation::InBand(_)))
+        ),
+        "±1e-6: the certificate escalates in the band"
+    );
+    let narrow = ci.on_carrier(boxed(p, 1e-11), seed, band());
+    assert!(
+        matches!(narrow, Ok(OnCarrier::On { t, .. }) if t.lo() > 0.08 - 1e-6 && t.hi() < 0.08 + 1e-6),
+        "±1e-11: on at the near branch, not the seed's: {narrow:?}"
+    );
+}
+
+/// **A box about a point reads `On` from a seed on the far branch**.
+/// On the hairpin whose branches lie 0.2 apart, an `Interval` box of
+/// ±1e-10 about the point at `t = 0.08`, seeded at `t = 0.92`: the
+/// polish's iterates are points, so the gap at the foot carries the
+/// box's width alone and reads in the zero. Red where an iterate is held
+/// as an enclosure: the width compounds through the steps, the gap reads
+/// past the zero and the reading escalates.
+#[test]
+fn a_box_reads_on_from_a_seed_on_the_far_branch() {
+    use geom_core::{Bounds, Interval, Real};
+    let (c, p) = hairpin(0.2);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let on = ci.on_carrier(boxed(p, 1e-10), Interval::from_f64(0.92), band());
+    assert!(
+        matches!(on, Ok(OnCarrier::On { t, .. }) if (t.lo() - 0.08).abs() < 1e-9 && t.lo() == t.hi()),
+        "on at the point's own branch, at a point parameter: {on:?}"
+    );
+}
+
+/// **A box about a point reads `On` from a knot span's sample**: the
+/// case of [`a_box_reads_on_from_a_seed_on_the_far_branch`] seeded at
+/// `t = 0.125`, one of the spline's own samples, a few steps from the
+/// point. Red where an iterate is held as an enclosure: those few steps
+/// already widen the foot's parameter to ~8e-10 and its gap to ~3e-9,
+/// past the zero.
+#[test]
+fn a_box_reads_on_from_a_knot_spans_sample() {
+    use geom_core::{Bounds, Interval, Real};
+    let (c, p) = hairpin(0.2);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let on = ci.on_carrier(boxed(p, 1e-10), Interval::from_f64(0.125), band());
+    assert!(
+        matches!(on, Ok(OnCarrier::On { t, .. }) if (t.lo() - 0.08).abs() < 1e-9),
+        "on at the point's own branch: {on:?}"
+    );
+}
+
+/// **Below the band's zero, `On` certifies the point and not the
+/// branch**. A hairpin whose branches lie 1e-10 apart, inside the 1e-9
+/// zero, reads `On` at the seed's branch (`t = 0.92`, the reversed
+/// tangent): at `Interval` with nothing logged, on a ±1e-10 box whose
+/// two branches' gaps tie, and at `f64` too, since the foot polishes from
+/// its seed alone and its gap there is in the zero. Both are true of the
+/// point: it lies within the band of the carrier at either parameter. A reader of the
+/// branch (a tangent) rests on the boundary being embedded at the band,
+/// which the at-rest gate certifies (`DESIGN.md` `[topology.tiers]`),
+/// not on `On`.
+#[test]
+fn a_hairpin_closer_than_the_band_certifies_on_at_the_seeds_branch_at_interval() {
+    use geom_core::{Bounds, Interval, Real};
+    let (c, p) = hairpin(1e-10);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let on = ci.on_carrier(boxed(p, 1e-10), Interval::from_f64(0.92), band());
+    assert!(
+        matches!(on, Ok(OnCarrier::On { t, .. }) if t.lo() > 0.5),
+        "On's t is the seed's branch below the band: {on:?}"
+    );
+    assert!(
+        matches!(c.on_carrier(p, 0.92, band()), Ok(OnCarrier::On { t, .. }) if t > 0.5),
+        "at f64 too, On at the seed's branch"
+    );
+}
+
+/// **A spline's point reads on at its own branch from any seed**: on a
+/// cubic spline of five knot spans, a point on the carrier at `t = 0.35`
+/// lies 0.05 from a stationary point near `t = 0.03`. A seed in that
+/// stationary point's basin polishes there, off the zero; the Off's walk
+/// keeps the piece about `t = 0.35`, and the polish restarted there reads
+/// `On` at `t = 0.35` (module docs, "Where the walk keeps a piece"), from
+/// every seed.
+#[test]
+fn a_splines_point_reads_on_at_its_own_branch_from_any_seed() {
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap(),
+            vec![
+                Point3::new(0.25350192097619306, 1.366246580479202, 0.10734265927471985),
+                Point3::new(
+                    0.8036949878629633,
+                    0.013067913669976727,
+                    0.03308834410972377,
+                ),
+                Point3::new(1.480946409416911, 0.4537707418975514, 0.1764560519141859),
+                Point3::new(0.03646373591417751, 1.0290841026582689, 0.07594285140734353),
+                Point3::new(0.4630589620214056, 1.7067471422313527, 0.031091972942131577),
+                Point3::new(1.1544836707277542, 0.48528073793130444, 0.01100075298321821),
+                Point3::new(0.7893432608276867, 1.5915056214557455, 0.025122531729525922),
+                Point3::new(1.2935210084059152, 1.3895124153536436, 0.08367157011772855),
+            ],
+            vec![1.0; 8],
+        )
+        .unwrap(),
+    ));
+    let p = c.eval(0.35);
+    for seed in [0.0, 0.3, 0.5, 1.0] {
+        let read = c.foot(p, seed).on_carrier(band());
+        assert!(
+            matches!(read, Ok(OnCarrier::On { t, .. }) if (t - 0.35).abs() < 1e-6),
+            "seed {seed}: on at the point's own branch: {read:?}"
+        );
+    }
+}
+
+/// The reads of a foot's seed in `code` (comment- and string-blanked
+/// text): each `.seed()` call, and each path from `Foot` to `::seed` in
+/// any spelling (`Foot::seed`, `Foot::<f64>::seed`, the qualified
+/// `<geom::Foot<'_, f64>>::seed`, a method reference `.map(Foot::seed)`),
+/// the path ending at the first `(`, `)`, `;`, `{` or `}`.
+fn seed_reads(code: &str) -> usize {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let calls = code.matches(".seed()").count();
+    let paths = code
+        .match_indices("Foot")
+        .filter(|&(at, _)| !code[..at].ends_with(ident))
+        .filter(|&(at, _)| {
+            let rest = &code[at + 4..];
+            let end = rest.find(['(', ')', ';', '{', '}']).unwrap_or(rest.len());
+            rest[..end].trim_end().ends_with("::seed")
+                || rest[..end]
+                    .find("::seed")
+                    .is_some_and(|k| !rest[k + 6..].starts_with(ident))
+        })
+        .count();
+    calls + paths
+}
+
+/// **`seed_reads` sees every spelling**: a row a bug in the count could
+/// break, on text, not on the tree.
+#[test]
+fn every_spelling_of_a_seed_read_is_counted() {
+    for (code, n) in [
+        ("f.seed()", 1),
+        ("geom::Foot::seed(f)", 1),
+        ("geom::Foot::<f64>::seed(f)", 1),
+        ("<geom::Foot<'_, f64>>::seed(f)", 1),
+        ("feet.map(Foot::seed)", 1),
+        ("fn _v(f: Foot<'_, f64>) -> f64 { f.seed() }", 1),
+        ("Foot::seed_of(f); BigFoot::seed(f); Foot::nearest(f)", 0),
+        ("cell.seed(); a.seed()", 2),
+    ] {
+        assert_eq!(seed_reads(code), n, "{code}");
+    }
+}
+
+/// **A foot's seed is read only where it seeds a search or a bound**
+/// (module docs, "A foot has no bare parameter"). [`super::Foot::seed`]
+/// returns the same field as [`OnCarrier::On`]'s `t`, so the type alone
+/// cannot keep a verdict reader off it: every file under `crates/*/src`
+/// that reads it ([`seed_reads`]) is listed here with the number of reads
+/// and what they seed. A new read goes red here, in a listed file or not,
+/// and owes either a certificate (`On`'s `t`, [`super::Foot::nearest`])
+/// or its count raised with its reason.
+///
+/// Blind spots: `.seed()` is a method name, not a type, so another
+/// type's `seed()` is counted too and listed as such; a `Foot` renamed on
+/// import (`use geom::Foot as F`) is not seen; and `tests/`, `benches`
+/// and `demos` are not scanned (only `crates/*/src`, where the
+/// `#[cfg(test)]` rows are).
+#[test]
+fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
+    const READERS: &[(&str, usize, &str)] = &[
+        (
+            "geom/src/curves/on_carrier/rows.rs",
+            9,
+            "the foot's own rows",
+        ),
+        (
+            "geom-brep/src/curve_pair/walk.rs",
+            1,
+            "the end and witness feet (`polished_feet`) name where a place lies along \
+             the carrier, past the span too, not whether a point is on the span: they \
+             seed `read_both`, which reads the span's certificate; the stop reads its \
+             polished pair as a pair, no foot",
+        ),
+        (
+            "geom-brep/src/curve_pair/pose.rs",
+            1,
+            "a candidate's parameters seed the pose's reading of the pair",
+        ),
+        (
+            "geom-brep/src/curve_pair/pose/window.rs",
+            1,
+            "the bound along `b` reads the speed at the seed, anchored on the gap",
+        ),
+        (
+            "geom-brep/src/curve_pair/span.rs",
+            2,
+            "`Span::place` reads the ends' sides at the seed, and whether the foot over \
+             the span was held at an end, where the chord and the span's walk decide; \
+             `Span::read` takes `On`'s `t` for `Reading::On`",
+        ),
+        (
+            "geom-brep/src/curve_pair/span_rows.rs",
+            9,
+            "the held-end row reads that the foot over the span stopped exactly at an \
+             end, and the far-foot rows that it stopped at a stationary point inside the \
+             span: each the premise of the place it pins",
+        ),
+        (
+            "topo/src/boolean/edge_join.rs",
+            1,
+            "`read_far` inverts a periodic cubic's far end by its whole-carrier foot, \
+             named in the turn nearest the parameter walked from: the foot's parameter \
+             taken as the end's, which no reading certifies (filed with fork 275 step 3b)",
+        ),
+        (
+            "topo/src/solid_contain/curved_edges.rs",
+            1,
+            "the ray's foot iteration carries its point to the closest approach, which \
+             `Span::read` reads",
+        ),
+        (
+            "geom-brep/src/ssi/exhaust.rs",
+            2,
+            "a cell's own `seed()`, not a foot's",
+        ),
+    ];
+    let crates = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("..");
+    let mut found: Vec<(String, usize)> = test_utils::source::rust_sources(&crates)
+        .into_iter()
+        .filter_map(|f| {
+            let p = f
+                .strip_prefix(&crates)
+                .ok()?
+                .to_string_lossy()
+                .replace('\\', "/");
+            if !p.contains("/src/") {
+                return None;
+            }
+            let code = test_utils::source::code_only(&std::fs::read_to_string(&f).unwrap());
+            let n = seed_reads(&code);
+            (n > 0).then_some((p, n))
+        })
+        .collect();
+    found.sort();
+    let mut want: Vec<(String, usize)> =
+        READERS.iter().map(|&(p, n, _)| (p.to_owned(), n)).collect();
+    want.sort();
+    assert_eq!(
+        found, want,
+        "a foot's seed read outside its list, or a listed count moved"
+    );
+}
+
+#[test]
+#[ignore = "measurement: cargo nextest run -p geom --cargo-profile release --run-ignored only -E 'test(measure_spline_foot_misses)' --no-capture"]
+fn measure_spline_foot_misses() {
+    let mut rng = test_utils::fuzz::Rng::from_seed(0x5eed_f007);
+    let (mut misses, mut total) = (0usize, 0usize);
+    let mut curves_missing = 0usize;
+    let mut spent = std::time::Duration::ZERO;
+    for _ in 0..300 {
+        let ctrl: Vec<Point3<f64>> = (0..8)
+            .map(|_| {
+                Point3::new(
+                    rng.range(0.0, 1.5),
+                    rng.range(0.0, 1.8),
+                    rng.range(0.0, 0.2),
+                )
+            })
+            .collect();
+        let c = Curve3::Nurbs(std::sync::Arc::new(
+            crate::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(
+                    vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0],
+                    3,
+                )
+                .unwrap(),
+                ctrl,
+                vec![1.0; 8],
+            )
+            .unwrap(),
+        ));
+        let before = misses;
+        for k in 1..100 {
+            let p = c.eval(f64::from(k) / 100.0);
+            for s in 0..21 {
+                total += 1;
+                let clock = std::time::Instant::now();
+                let gap = c.foot(p, f64::from(s) / 20.0).gap();
+                spent += clock.elapsed();
+                if gap > 1e-6 {
+                    misses += 1;
+                }
+            }
+        }
+        curves_missing += usize::from(misses > before);
+    }
+    eprintln!(
+        "MEASURE misses {misses} of {total}; curves with a miss {curves_missing} of 300; {:.2} us a foot",
+        spent.as_secs_f64() * 1e6 / total as f64
+    );
+}
+
+/// **A point's distance from a line's span or a circle's arc**, against
+/// a dense walk of the interval as the oracle: on a segment past its end,
+/// inside an arc (the circle's clearance), past an arc's end (the nearer
+/// end), on the circle's axis (every point alike), an arc across the
+/// seam and a reversed span. None on the kinds with no closed form.
+#[test]
+fn a_points_distance_within_a_span_is_the_dense_walks_least() {
+    use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+    let segment = Curve3::Line(crate::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(1.0, 0.0, 0.0),
+    });
+    let dense = |c: &Curve3<f64>, q: Point3<f64>, (t0, t1): (f64, f64)| {
+        (0..=20_000)
+            .map(|k| (c.eval(t0 + (t1 - t0) * f64::from(k) / 20_000.0) - q).norm())
+            .fold(f64::INFINITY, f64::min)
+    };
+    let cases = [
+        (
+            "a segment past its end",
+            segment.clone(),
+            Point3::new(2.0, 1.0, 0.0),
+            (0.0, 1.0),
+        ),
+        (
+            "a reversed span",
+            segment,
+            Point3::new(-1.0, 1.0, 0.0),
+            (1.0, 0.0),
+        ),
+        (
+            "inside an arc",
+            circle(),
+            Point3::new(3.0, 3.0, 1.5),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "past an arc's end",
+            circle(),
+            Point3::new(-3.0, 0.0, 1.5),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "on the circle's axis",
+            circle(),
+            Point3::new(0.0, 0.0, 3.0),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "across the seam",
+            circle(),
+            Point3::new(1.0, -0.1, 1.0),
+            (-FRAC_PI_4, FRAC_PI_4),
+        ),
+        (
+            "past a seam arc's end",
+            circle(),
+            Point3::new(-1.0, -1.0, 1.0),
+            (-FRAC_PI_4, FRAC_PI_4),
+        ),
+        (
+            "a whole turn",
+            circle(),
+            Point3::new(-1.0, -1.0, 1.0),
+            (0.0, 2.0 * PI),
+        ),
+    ];
+    for (what, c, q, span) in cases {
+        let got = c.distance_within(q, span).unwrap();
+        let want = dense(&c, q, span);
+        assert!(
+            got <= want + 1e-12 && want - got < 1e-6,
+            "{what}: distance_within {got} against the dense walk's {want}"
+        );
+    }
+    for c in [ellipse(2.0, 1.0), spiric(), spline()] {
+        assert!(
+            c.distance_within(Point3::new(1.0, 1.0, 1.0), (0.0, 0.5))
+                .is_none(),
+            "no closed form on {c:?}"
+        );
+    }
+}
+
+/// **A box about the arc's end ray reads a floor under every point of
+/// it, and never below the whole circle's clearance**: the box holds
+/// points inside the arc and past it, and its reading encloses its
+/// centre's distance with its low end at or above the clearance, which
+/// bounds every point's distance from below. So does a box well inside
+/// the arc. A box whose azimuth is named a
+/// turn from the arc is `topo`'s `ring_path::arc_floor_rows`.
+#[test]
+fn a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance() {
+    use core::f64::consts::FRAC_PI_2;
+    use geom_core::Bounds as _;
+    let point = circle();
+    let iv = |x: f64| geom_core::Interval::from_bounds(x, x);
+    let c: Curve3<geom_core::Interval> = Curve3::circle(
+        boxed(Point3::new(0.0, 0.0, 1.0), 0.0),
+        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        iv(2.0),
+        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+    );
+    let span = (iv(0.0), iv(FRAC_PI_2));
+    // On the ray of the arc's end at `π/2`, off the circle.
+    let centre = Point3::new(0.0, 3.0, 1.5);
+    let q = boxed(centre, 0.05);
+    let got = c.distance_within(q, span).unwrap();
+    let clear = c.clearance(q).unwrap();
+    let truth = point.distance_within(centre, (0.0, FRAC_PI_2)).unwrap();
+    assert!(
+        got.lo() >= clear.lo() && got.lo() <= truth && truth <= got.hi(),
+        "the reading encloses the box centre's distance {truth} and is no lower than the \
+         clearance {clear:?}: {got:?}"
+    );
+    let inside = boxed(Point3::new(2.0, 2.0, 1.5), 0.05);
+    let (read, clear) = (
+        c.distance_within(inside, span).unwrap(),
+        c.clearance(inside).unwrap(),
+    );
+    let truth = point
+        .distance_within(Point3::new(2.0, 2.0, 1.5), (0.0, FRAC_PI_2))
+        .unwrap();
+    assert!(
+        read.lo() >= clear.lo() && read.lo() <= truth && truth <= read.hi(),
+        "a box well inside the arc reads its centre's distance {truth}, its low end the \
+         clearance's {clear:?} or above: {read:?}"
+    );
+}
+
+/// **A foot over an interval is no farther than the interval's ends**
+/// (module docs, "The foot"): on an ellipse of a 60° pair of unit
+/// cylinders, over the span `(−π/2, π/2 − 0.4)`, a point the pair's walk
+/// read on its far side is seeded at the span's stop end. There the
+/// distance grows into the span, so the held polish does not move, and
+/// the start end is nearer. The foot is the least of the polish and the
+/// ends. Red where the ends are not read: the foot stays at the stop
+/// end, and the span reads the point past it by the wrong end (`sweep`'s
+/// `bisector_nodes` rows went unsettled on that).
+#[test]
+fn a_foot_over_an_interval_is_no_farther_than_its_ends() {
+    use core::f64::consts::FRAC_PI_2;
+    let c = Curve3::Ellipse(crate::Ellipse::new(
+        crate::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.866_025_403_784_438_5, -0.5),
+            Vec3::new(0.0, 0.5, 0.866_025_403_784_438_5),
+        ),
+        2.0,
+        1.0,
+    ));
+    let span = (-FRAC_PI_2, FRAC_PI_2 - 0.4);
+    let q = Point3::new(
+        0.198_669_330_795_061_2,
+        -0.980_066_577_841_241_6,
+        -1.697_525_107_621_187_7,
+    );
+    let foot = c.foot_within(q, span, span.1);
+    let ends = [span.0, span.1].map(|t| (q - c.eval(t)).norm());
+    assert!(
+        foot.gap() <= ends[0].min(ends[1]),
+        "the foot at {} ({:e}) is farther than an end ({:e}, {:e})",
+        foot.seed(),
+        foot.gap(),
+        ends[0],
+        ends[1]
+    );
+}
+
+/// A periodic cubic through 23 points of a closed space curve, and its
+/// base turn `(u₀, u₀ + T)`.
+fn periodic_loop() -> (Curve3<f64>, (f64, f64)) {
+    let points: Vec<Point3<f64>> = (0..23)
+        .map(|i| {
+            let a = core::f64::consts::TAU * f64::from(i) / 23.0;
+            Point3::new(
+                2.0 * a.cos(),
+                a.sin() + 0.3 * (2.0 * a).cos(),
+                0.5 * (3.0 * a).sin(),
+            )
+        })
+        .collect();
+    let net = crate::PeriodicNurbs3::interpolate(&points).unwrap();
+    let turn = net.base_span();
+    (Curve3::Periodic(std::sync::Arc::new(net)), turn)
+}
+
+/// **A periodic cubic's whole-carrier foot is free** (module docs, "The
+/// foot"; [`Curve3::foot_within`]): the loop runs on past its base turn,
+/// so the foot of its point a tenth of a turn past the turn's end, seeded
+/// there, is found there, on the carrier. Red where the whole carrier's
+/// foot is held to the base turn: held at its end, its gap is a tenth of
+/// a turn's chord.
+#[test]
+fn a_periodic_cubics_whole_carrier_foot_runs_on_past_its_turn() {
+    let (c, (u0, u1)) = periodic_loop();
+    let t = u1 + 0.1 * (u1 - u0);
+    let foot = c.foot(c.eval(t), t);
+    assert!(
+        foot.gap() < ZERO,
+        "on the carrier past the turn: {:e}",
+        foot.gap()
+    );
+    assert!(
+        (foot.seed() - t).abs() < 1e-9,
+        "the foot runs on: {} against {t}",
+        foot.seed()
+    );
+}
+
+/// **A periodic cubic's foot over a span is held to it** ([`Curve3::foot_within`]):
+/// over the span a tenth to three tenths into the base turn, the foot of
+/// the carrier's point six tenths in stays in the span, as a clamped
+/// spline's does. Red where a periodic cubic's foot is free over a span
+/// too: it polishes to the point's own parameter.
+#[test]
+fn a_periodic_cubics_foot_over_a_span_is_held_to_it() {
+    let (c, (u0, u1)) = periodic_loop();
+    let at = |f: f64| u0 + f * (u1 - u0);
+    let span = (at(0.1), at(0.3));
+    let t = c.foot_within(c.eval(at(0.6)), span, at(0.2)).seed();
+    assert!(
+        (span.0..=span.1).contains(&t),
+        "the foot is held to the span: {t} in {span:?}"
+    );
+}
