@@ -5,7 +5,7 @@ title: Seven presentation rows of the injectivity certificate assert a curve or 
 status: open
 opened: 2026-11-23
 priority: P2
-cost: S
+cost: C
 ---
 
 
