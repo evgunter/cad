@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-14
 priority: P1
 cost: E
+design: true
 ---
 
 ## What
@@ -65,3 +66,7 @@ does not certify on the moved charts, is the same shape as
 `CertifyError`. It adds one more arm to every list above
 (`merge_faces`' placement match, the `every_*_error_once` table). PR 3580 left the shape alone, as this row
 asks.
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Grown to five spellings: `EulerOpError::{Certification, RebasedCarrier, RechartFalsifies, PcurveSplit}` and `BlendError::Certify`. merge_faces.rs already treats `Certification | RechartFalsifies` as twins. No accessor exists. Weighed as fork F3.

@@ -135,3 +135,22 @@ two units that delete the copies: check 9's arms 4 and 5 go in
 `profile-validation-reads-its-pairs-through-the-plane-instance`. It
 closes when both land. The circle-pair margins' third spelling in
 `arc_fillet` is out of the ruling (LB4 and its own rows).
+
+## The ellipse's pair rows ride this build (2026-11-22)
+
+The ovoid's cut (PR 7289, `work/ovoid/an-ovoid-cannot-be-authored.md`
+"Cut") puts profile validation's line × ellipse, circle × ellipse and
+ellipse × ellipse rows on this build's reader rather than on new `seg`
+rows: the table already routes them (`curve_pair`'s `Arm::LineConic`,
+`EllipseCircle`/`CircleEllipse`, `EllipseEllipse`), and
+`curve_pair/pose.rs`'s `line_conic` and `coplanar_ellipses` were not
+traced by this build's designers. OVOID's
+`profile-validation-reads-an-ellipse-arcs-pairs-on-the-planar-reader`
+and SPLINEWALL's `a-profile-segment-is-a-rational-spline-and-the-nurbs-legs-lower-to-it`
+are parked on the unit that moves profile's pair pass onto the reader,
+`profile-validation-reads-its-pairs-through-the-plane-instance`. The plane
+instance's in-plane arms should cover the conic arms too, so the
+designers' three measured defects on `meet` (an in-band carrier
+clearance escalating whatever the spans, a tangent touch read as an
+interior meeting, no kind on a meeting) are fixed for ellipses as for
+circles.
