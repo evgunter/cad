@@ -72,3 +72,13 @@ Two more, on `step-export`'s slow-set `kernel_sidecars::kernel_sidecar_fields_ma
 - PR 6509 (`e2435632d8`): the pad moved to `1022.370482199146`, and the midpoint moved back.
 
 Both moves are right (`work/measuredoor/main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket.md`, `## Closed`). The same row was moved by PR 5734 on 2026-10-27, and that move was also first seen by the nightly.
+
+## Count (2026-11-23, DOCTAIL, `work/doctail/main-red-the-identity-turns-decisions-moved-the-m10-slow-rows.md`)
+
+PR 7434 (`ccabcfb`, geom-core's least turn and editor-core's `mate/`) moved
+nine editor-core slow rows. It also moved step-export's
+`export::committed_fixtures_are_byte_golden`. That is ten slow rows whose
+files its diff did not edit, so its gate ran none of them. Editor-core was
+one of its seeds, so this is policy item 3's shape: a PR does not run its
+seeded crates' whole slow set. Step-export is a dependent, which is the
+revisit trigger's shape: the closure reached it and the seeds did not.
