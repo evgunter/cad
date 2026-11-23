@@ -344,6 +344,7 @@ pub(crate) fn tessellate_curved(
         meridian_interior,
     )?;
 
+    let metric = row.metric((u0, u1), (v0, v1), (nu, nv));
     // CDT: boundary entries (fixed walk order) + constraints + grid.
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
@@ -358,8 +359,10 @@ pub(crate) fn tessellate_curved(
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
         // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
         // floored point.
+        let p = crate::cdt::spade_point(u, v);
+        let p = if metric > 1.0 { SpadePoint::new(p.x, p.y * metric) } else { SpadePoint::new(p.x / metric, p.y) };
         let h = cdt
-            .insert(crate::cdt::spade_point(u, v))
+            .insert(p)
             .map_err(|_| TessellateError::Triangulation { face: fk })?;
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
