@@ -419,9 +419,7 @@ pub fn edge_wedge_over_as<T: Decide>(
         SecondOrderWalk::Determinate => Separation::Certified,
         SecondOrderWalk::Separated => Separation::AtStations,
         SecondOrderWalk::UnderDetermined => Separation::None,
-        SecondOrderWalk::InBand(cause) => {
-            return WedgeVerdict::InBand(WedgeEscalation::at(WedgeRung::Bend, cause));
-        }
+        SecondOrderWalk::InBand(cause) => Separation::Undecided(cause),
         SecondOrderWalk::Stopped(escalation) => return WedgeVerdict::InBand(escalation),
     };
     material_outcome(&reads.pairings, separation, &reads.ends, margin)
@@ -564,6 +562,11 @@ pub(crate) fn material_outcome(
     let bend = separation.bend();
     match pairings.first() {
         Some((_, MaterialPairing::Aligned)) => WedgeVerdict::Seam { bend, margin },
+        // Facing each other, an undecided bend is an undecided wedge: an
+        // end where the jets separate, the lamina where they osculate.
+        _ if let Separation::Undecided(cause) = separation => {
+            WedgeVerdict::InBand(WedgeEscalation::at(WedgeRung::Bend, cause))
+        }
         _ if separation == Separation::None => WedgeVerdict::Lamina,
         _ => match (MixedStations::end(&decided), ends.first()) {
             (Some(mixed), _) => WedgeVerdict::Mixed(mixed),
@@ -576,7 +579,7 @@ pub(crate) fn material_outcome(
 /// **How far a tangency's jets separate**, as the second-order walk read
 /// it: the material verdict reads the stations (the lamina is a station
 /// that osculates), the bend the certified span.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Separation {
     /// Every station positive, and the span certified.
     Certified,
@@ -584,14 +587,17 @@ pub(crate) enum Separation {
     AtStations,
     /// A station read zero or negative.
     None,
+    /// A station's bend in band, none zero or negative: a seam's bend is
+    /// under-determined, an opposed contact's wedge undecided.
+    Undecided(geom_core::Indeterminate),
 }
 
 impl Separation {
     /// The bend it leaves: determinate only where certified.
-    const fn bend(self) -> Bend {
+    const fn bend(&self) -> Bend {
         match self {
             Self::Certified => Bend::Determinate,
-            Self::AtStations | Self::None => Bend::UnderDetermined,
+            Self::AtStations | Self::None | Self::Undecided(_) => Bend::UnderDetermined,
         }
     }
 }

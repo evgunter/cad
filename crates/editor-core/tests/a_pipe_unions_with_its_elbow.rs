@@ -628,3 +628,42 @@ fn a_long_pipe_whose_ruling_meets_the_bends_carrier_again_passes_the_crossing_la
         "a pipe 4 long",
     );
 }
+
+/// **A neutral point in band of a routing station is an undecided bend,
+/// not an undecided seam**: the wedge is a decided π at every station,
+/// and only the bend's sagitta lands in the band at one, so the rim
+/// routes a seam, glues a junction, and the seam is described where it
+/// rests. Off the seam ruling by `δ` (`neutral_off_the_seam`), the
+/// neutral point sits at a rim vertex the routing reads: the junction
+/// glues, and the union reaches the crossing layer, where the edge ending
+/// there stops on its end's order or window
+/// (`an_edge_ending_near_a_neutral_point_stops_where_its_distance_says`).
+/// The axis turned `20ε` puts the neutral point in band of an edge's
+/// station, and the union builds.
+#[test]
+fn an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction() {
+    for delta in [1e-8, 3e-8, 1e-7] {
+        let off = neutral_off_the_seam(delta);
+        let what = format!("δ {delta:e} off the seam");
+        let j = join(true, CapEnd::End, off);
+        glues_its_walls_a_junction(&j, 8, &what);
+        let e = refusal(&j, &what);
+        assert!(
+            matches!(
+                e,
+                topo::BooleanError::CurvedPierceEscalated {
+                    decision: topo::BooleanDecision::JunctionEndOrder,
+                    ..
+                } | topo::BooleanError::JunctionEndUnread {
+                    gap: topo::JunctionEndGap::Window,
+                    ..
+                }
+            ),
+            "{what}: past the glue door, at the crossing layer's end read: {e:?}"
+        );
+    }
+    let (off, want) = turned(true, 20.0 * Tol::witness().eps());
+    let j = join(true, CapEnd::End, off);
+    glues_its_walls_a_junction(&j, 8, "turned 20ε");
+    builds_at(&j, want, "turned 20ε");
+}

@@ -2275,10 +2275,13 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
 /// `geom_brep::second_order_walk` at once: the rule a constructor asks
 /// (`geom_brep::must_carry_over_edge`) and tier 3's check 4. Each pair
 /// below is one radius read by both, so a change to the walk's decision
-/// moves both halves of a row together.
+/// moves both halves of a row together. In band the halves part on
+/// purpose: the rule demands no intrinsic tangency it cannot certify,
+/// and tier 3 refuses the pillow's wedge, which an undecided bend leaves
+/// undecided between an end and the lamina.
 #[test]
 fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
-    use geom_brep::{MustCarryRung, MustCarryVerdict, must_carry_over_edge};
+    use geom_brep::{MustCarryVerdict, must_carry_over_edge};
     let tol = Tol::witness();
     let eps = tol.get().eps;
     let band = geom_core::Band::linear(tol).expect("the witness band");
@@ -2336,14 +2339,10 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
 
     let r2 = 1.0 / (1.0 - 24.0 * eps);
     let (tier3, _) = kissing_cylinder_pillow(tol, r2);
-    assert!(
-        matches!(
-            rule(r2),
-            MustCarryVerdict::InBand(e) if e.rung() == MustCarryRung::Bend
-                && e.diag().predicate == Some("tangent_second_order")
-        ),
-        "in band: the rule escalates second-order: {:?}",
-        rule(r2)
+    assert_eq!(
+        rule(r2),
+        MustCarryVerdict::UnderDetermined,
+        "in band: the rule certifies no bound away from zero, so demands nothing"
     );
     assert!(
         !tier3.is_empty()

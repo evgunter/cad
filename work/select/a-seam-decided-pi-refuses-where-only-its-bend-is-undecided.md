@@ -2,7 +2,8 @@
 id: a-seam-decided-pi-refuses-where-only-its-bend-is-undecided
 kind: issue
 title: The wedge fold refuses a seam whose wedge is decided π because one station's second-order sagitta lands in band: the bend's undecidedness is the description question's, not the seam's
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-22
 priority: P2
 cost: M
@@ -49,9 +50,29 @@ pinned as
 `an_elbow_whose_neutral_point_sits_in_band_of_a_station_refuses_on_its_bend`.
 At 2ε (nearer) and 10³ε (farther) the same elbow unions.
 
-No fixture reaches it yet: the elbow lane nudged the bend's axis by
-2ε and 10³ε about the cap's normal
-(`an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction`)
-and the rim routed π at each, so no routing station landed near a
-neutral point; where the routing's stations fall on that rim was not
-traced. The finding stands on the code above.
+
+The paragraph above was written on `heldrecords/elbow-seams`; on
+`heldrecords/elbow-ends`, where the junction routing was not yet
+reached by that pose, the lane recorded instead that no fixture
+reached it. Both stood until the close below.
+
+## 2026-11-23 — Closed by PR 7471 (HELDRECORDS)
+
+`geom_brep::dihedral::second_order_walk` now reads on past a station
+whose bend is in band, and answers `InBand` only once every station is
+read and none decided `Zero`/`Negative`. The must-carry rule takes that
+as `UnderDetermined` (no bound away from zero is certified, so no
+intrinsic tangency is demanded), and the whole-edge fold
+(`edge_wedge::material_outcome`, `Separation::Undecided`) reports a
+seam whose faces face one way as `Seam { bend: UnderDetermined }`. Facing
+each other, the bend decides between an end and the lamina, which is a
+material question, so that stays `InBand` on the `Bend` rung. A station
+whose first-order wedge is in band refuses as before.
+
+Pinned: `dihedral::bend_rows::a_bend_in_band_at_a_station_leaves_the_seam_under_determined`
+(geom-brep), and
+`a_pipe_unions_with_its_elbow::an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction`
+(editor-core): the 20ε pose builds at its closed form, and the poses
+`neutral_off_the_seam(δ)` at δ = 1e-8, 3e-8, 1e-7, whose neutral point
+sits at a routed rim vertex, glue a junction and reach the crossing
+layer.
