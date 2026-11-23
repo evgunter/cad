@@ -216,3 +216,33 @@ fn a_scopes_mint_outside_a_session_meets_the_same_scopes_mint_inside_one() {
     eprintln!("H: {got:?}");
     assert_eq!(got, Ok(Sign::Zero));
 }
+
+/// I: a walk shaped as `topo::props::decide_faces` is (a detached map
+/// where decisions are thread-portable, the serial walk under a
+/// session) names its units' mints by the unit's index outside a
+/// session and by the caller scope's running count inside one: one
+/// scope's work, two sets of names, by which arm ran.
+#[test]
+fn a_walk_that_maps_outside_a_session_and_runs_serially_inside_one_names_apart() {
+    let (outside, inside) = fresh(|| {
+        let faces = |xs: &[f64]| -> Vec<SymId> {
+            if geom_core::sym::decisions_are_thread_portable() {
+                geom_core::k_stats::map_detached(xs, |&x| mint(x).node())
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect()
+            } else {
+                xs.iter().map(|&x| mint(x).node()).collect()
+            }
+        };
+        let outside = scoped(&[9], || faces(&[1.0, 2.0, 3.0]));
+        let (inside, _) = session(|| scoped(&[9], || faces(&[1.0, 2.0, 3.0])));
+        (outside, inside)
+    });
+    let shared = outside.iter().filter(|id| inside.contains(id)).count();
+    eprintln!("I: names shared between the two arms: {shared} of 3");
+    assert_eq!(
+        shared, 0,
+        "I: the same scope's three mints, no name in common"
+    );
+}
