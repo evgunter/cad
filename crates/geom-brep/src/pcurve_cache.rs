@@ -1837,8 +1837,9 @@ impl<T: SpanLocate> Pcurve<T> {
             // the second channel is a harmonic one and takes the
             // harmonic arm's box. Both are restriction-monotone.
             Pcurve::FocalSection(image) => focal_section_span_box(image, t0, t1),
-            // Per overlapped piece, the channels' ranges over the piece's
-            // sector hull (`projected`'s docs).
+            // Per overlapped piece, the channels' ranges over the piece
+            // clipped to the span (`projected`'s docs): tight under
+            // restriction.
             Pcurve::Projected(image) => image.chart_box(t0, t1),
         }
     }

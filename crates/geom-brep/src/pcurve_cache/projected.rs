@@ -913,58 +913,77 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 if s1 >= knots[knots.len() - 1] {
                     tb = tb.max(t1);
                 }
-                let rot2 = |v: Vec2<T>| {
-                    let (x, y) = theta.rotate(v.x * sigma, v.y * sigma);
-                    Vec2::new(x, y)
-                };
-                let rot = |v: Vec3<T>| rot2(radial_of(v));
-                let radial = harmonic_span_box(
-                    Point2::origin() + rot(*centre),
-                    rot(*a),
-                    rot(*b),
-                    rot(*l),
-                    ta,
-                    tb,
+                self.conic_box(k, centre, a, b, l, ta, tb)
+            }
+        }
+    }
+
+    /// The chart-frame box of a conic's or a line's carrier over
+    /// `[ta, tb]` on piece `k`'s branch, `centre + a·cos t + b·sin t +
+    /// l·t` in the frame ([`Self::frame_box_on`]'s arm).
+    #[allow(clippy::too_many_arguments)]
+    fn conic_box(
+        &self,
+        k: usize,
+        centre: &Vec3<T>,
+        a: &Vec3<T>,
+        b: &Vec3<T>,
+        l: &Vec3<T>,
+        ta: T,
+        tb: T,
+    ) -> FrameBox<T> {
+        let theta = self.theta(k);
+        let sigma = self.chart.sigma();
+        let rot2 = |v: Vec2<T>| {
+            let (x, y) = theta.rotate(v.x * sigma, v.y * sigma);
+            Vec2::new(x, y)
+        };
+        let rot = |v: Vec3<T>| rot2(radial_of(v));
+        let radial = harmonic_span_box(
+            Point2::origin() + rot(*centre),
+            rot(*a),
+            rot(*b),
+            rot(*l),
+            ta,
+            tb,
+        );
+        let axial = harmonic_span_box(
+            Point2::new(centre.z, T::zero()),
+            Vec2::new(a.z, T::zero()),
+            Vec2::new(b.z, T::zero()),
+            Vec2::new(l.z, T::zero()),
+            ta,
+            tb,
+        );
+        let radial_box = FrameBox {
+            x: (radial.u_min, radial.u_max),
+            y: (radial.v_min, radial.v_max),
+            z: (axial.u_min, axial.u_max),
+            rho: None,
+        };
+        match (&self.pole, &self.carrier) {
+            // The azimuth reads the reduced radial, a harmonic in
+            // `t/2` with no constant ([`PoleEnd`]); `ρ` and `z` stay
+            // the carrier's.
+            (Some(pole), FramedCarrier::Conic { .. }) => {
+                let (big_a, big_b) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
+                let half = T::from_f64(0.5);
+                let reduced = harmonic_span_box(
+                    Point2::origin(),
+                    rot2(big_a),
+                    rot2(big_b),
+                    Vec2::zero(),
+                    ta * half,
+                    tb * half,
                 );
-                let axial = harmonic_span_box(
-                    Point2::new(centre.z, T::zero()),
-                    Vec2::new(a.z, T::zero()),
-                    Vec2::new(b.z, T::zero()),
-                    Vec2::new(l.z, T::zero()),
-                    ta,
-                    tb,
-                );
-                let radial_box = FrameBox {
-                    x: (radial.u_min, radial.u_max),
-                    y: (radial.v_min, radial.v_max),
-                    z: (axial.u_min, axial.u_max),
-                    rho: None,
-                };
-                match (&self.pole, &self.carrier) {
-                    // The azimuth reads the reduced radial, a harmonic in
-                    // `t/2` with no constant ([`PoleEnd`]); `ρ` and `z` stay
-                    // the carrier's.
-                    (Some(pole), FramedCarrier::Conic { .. }) => {
-                        let (big_a, big_b) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
-                        let half = T::from_f64(0.5);
-                        let reduced = harmonic_span_box(
-                            Point2::origin(),
-                            rot2(big_a),
-                            rot2(big_b),
-                            Vec2::zero(),
-                            ta * half,
-                            tb * half,
-                        );
-                        FrameBox {
-                            x: (reduced.u_min, reduced.u_max),
-                            y: (reduced.v_min, reduced.v_max),
-                            z: radial_box.z,
-                            rho: Some(Self::rho_range(&radial_box)),
-                        }
-                    }
-                    _ => radial_box,
+                FrameBox {
+                    x: (reduced.u_min, reduced.u_max),
+                    y: (reduced.v_min, reduced.v_max),
+                    z: radial_box.z,
+                    rho: Some(Self::rho_range(&radial_box)),
                 }
             }
+            _ => radial_box,
         }
     }
 
@@ -1060,16 +1079,92 @@ impl<T: SpanLocate> ProjectedImage<T> {
     }
 
     /// [`Pcurve::chart_box`]'s arm: per overlapped piece, the channel
-    /// ranges over that piece's box, hulled. Restriction-monotone: a
-    /// sub-span overlaps a subset of the pieces, and an end piece is
-    /// stretched only to an end it does not already contain. A poison
-    /// end locates no piece, and the box is poison.
+    /// ranges over that piece clipped to `[t0, t1]`
+    /// ([`Self::frame_box_clipped`]), hulled. Restriction-monotone and
+    /// restriction-tight: a sub-span overlaps a subset of the pieces, and
+    /// each is boxed over only what the sub-span reads of it, so the box
+    /// shrinks with the span (the ring reader halves a span to clear a
+    /// point, `topo`'s `pcurves_rings`). A poison end locates no piece,
+    /// and the box is poison.
     pub(super) fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
         let Some((lo, hi)) = self.overlapped(t0, t1) else {
             return Self::poison_window(t0 + t1);
         };
-        let piece = |k| self.window(k, &self.frame_box(k, t0, t1));
+        let piece = |k| self.window(k, &self.frame_box_clipped(k, t0, t1));
         self.placed_hull(piece(lo), (lo + 1..=hi).map(piece))
+    }
+
+    /// Piece `k`'s chart-frame box over what `[t0, t1]` reads of it: the
+    /// piece clipped to the span, so a sub-span inside one piece is
+    /// boxed over itself and the box shrinks with it (a reader halving
+    /// a span to clear a point needs that). An end piece is stretched
+    /// to `t0` or `t1` past the partition's end, as [`Self::frame_box`]
+    /// stretches it. A conic's or a line's piece is clipped in the
+    /// carrier's own parameter; a net's in its knots' numbers, at `t0`'s
+    /// lower and `t1`'s upper bracket, so the part holds every parameter
+    /// either end may be.
+    pub(crate) fn frame_box_clipped(&self, k: usize, t0: T, t1: T) -> FrameBox<T> {
+        let knots = self.breaks.knots();
+        let (k_lo, k_hi) = (knots[k + 1], knots[k + 2]);
+        let first = k_lo <= knots[0];
+        let last = k_hi >= knots[knots.len() - 1];
+        match &self.carrier {
+            FramedCarrier::Net(_) => {
+                let (Some((a, _)), Some((_, b))) = (t0.structure_bracket(), t1.structure_bracket())
+                else {
+                    return self.frame_box(k, t0, t1);
+                };
+                match ParamRange::new(k_lo.max(a), k_hi.min(b)) {
+                    Some(part) => self.frame_box_on(k, part, t0, t1),
+                    None => self.frame_box(k, t0, t1),
+                }
+            }
+            FramedCarrier::Conic {
+                centre,
+                a,
+                b,
+                origin,
+                span,
+            } => {
+                let (ta, tb) = self.clip(*origin, *span, (k_lo, k_hi), (first, last), (t0, t1));
+                self.conic_box(k, centre, a, b, &Vec3::zero(), ta, tb)
+            }
+            FramedCarrier::Line {
+                point,
+                dir,
+                origin,
+                span,
+            } => {
+                let (ta, tb) = self.clip(*origin, *span, (k_lo, k_hi), (first, last), (t0, t1));
+                let zero = Vec3::zero();
+                self.conic_box(k, point, &zero, &zero, dir, ta, tb)
+            }
+        }
+    }
+
+    /// The carrier parameters `[ta, tb]` of piece `[k_lo, k_hi]` (piece
+    /// parameters) that `[t0, t1]` reads: each end the later (earlier)
+    /// of the piece's and the span's, and the span's own past the
+    /// partition's first (last) break.
+    fn clip(
+        &self,
+        origin: T,
+        span: T,
+        (k_lo, k_hi): (f64, f64),
+        (first, last): (bool, bool),
+        (t0, t1): (T, T),
+    ) -> (T, T) {
+        let ta = if first {
+            t0
+        } else {
+            (origin + span * T::from_f64(k_lo)).max(t0)
+        };
+        let tb = if last {
+            t1
+        } else {
+            (origin + span * T::from_f64(k_hi)).min(t1)
+        };
+        (ta, tb)
     }
 
     /// The channel ranges over `[t0, t1]` read on a cover finer than the

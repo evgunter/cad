@@ -4,10 +4,14 @@
 //! chain starts is gauge), so on a chart closed in a channel a ring can
 //! be stored whole periods from the region its outer loop's lift bounds.
 //! A ring is moved by the one deck translation — a whole number of
-//! periods per closed channel — that puts its first point in that
+//! periods per closed channel — that puts its reference point in that
 //! region, decided against the outer loop alone, in the chart's cover
 //! ([`place_ring`]). One point decides the whole ring: a ring meets no
 //! edge of its face, so its lift crosses no row of the outer loop's.
+//! The point is the middle of the ring's first row ([`reference_point`]),
+//! not a vertex: a vertex may sit on a chart singularity (a sphere's
+//! pole), where the azimuth's lever is zero and no window round the
+//! point has arms to read it by.
 //!
 //! The rule is one, and so is the ray parity that reads a point against
 //! the outer loop ([`ray_parity_as`]); each chart family supplies its
@@ -160,8 +164,8 @@ pub enum RingPlacementError {
         /// The ring.
         ring: LoopKey,
     },
-    /// No whole-period shift puts the ring's first point in the outer
-    /// loop's region.
+    /// No whole-period shift puts the ring's reference point in the
+    /// outer loop's region.
     NoShift {
         /// The ring.
         ring: LoopKey,
@@ -295,8 +299,8 @@ pub(crate) struct Shift {
     pub(crate) offset: [f64; 2],
 }
 
-/// **The ring rule**: the one shift that places a ring whose first point
-/// is `at`, against an outer loop whose chart hull is `reach`, on a chart
+/// **The ring rule**: the one shift that places a ring whose reference
+/// point ([`reference_point`]) is `at`, against an outer loop whose chart hull is `reach`, on a chart
 /// whose closed channels have `periods`. On each closed channel the
 /// candidates are the whole numbers of periods that bring `at` within
 /// `reach`; each candidate is read by `side`, in order, and the first
@@ -431,7 +435,7 @@ pub(crate) fn face_lift_as<T: Decide>(
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));
         let mut decks = Vec::with_capacity(rings.len());
         for (&ring, lift) in rings.iter().zip(&read) {
-            let at = first_point(lift);
+            let at = reference_point(lift, &reader);
             let shift = place_ring(
                 lengths,
                 reader.reach,
@@ -474,12 +478,39 @@ pub(crate) fn face_lift_as<T: Decide>(
     Ok(FaceLift { outer, rings })
 }
 
-/// The point a lift's chain starts at: its first row's entry.
-fn first_point<T: Decide>(lift: &Lift<T>) -> Point2<T> {
-    let Some(row) = lift.rows().first() else {
+/// How many points of each row [`reference_point`] ranks: the middles
+/// of that many equal parts of the row's span, none of them its ends.
+const REFERENCE_SAMPLES: usize = 8;
+
+/// **The point a ring is placed by**: of its rows' images at the middles
+/// of [`REFERENCE_SAMPLES`] equal parts of each row's span, the one where
+/// the chart's azimuth lever is greatest ([`Outer::lever`]), the first
+/// such in row order. No such point is a vertex of the loop, so none
+/// lies on a chart singularity a vertex may sit on (a sphere's pole),
+/// and of them the one farthest from a singularity is the one whose
+/// window round it gates arms soonest ([`Outer::side`]); a ring beside a
+/// pole is read where it is widest of it, a ring of one row (a whole
+/// circle) included. Every point of the ring is placed by the same
+/// shift, so the choice decides only whether the reading settles,
+/// never what it answers.
+fn reference_point<T: Decide>(lift: &Lift<T>, reader: &Outer<'_, T>) -> Point2<T> {
+    let mut best: Option<(f64, Point2<T>)> = None;
+    for row in lift.rows() {
+        let (entry, exit) = row.entry_exit();
+        for j in 0..REFERENCE_SAMPLES {
+            #[allow(clippy::cast_precision_loss)] // a handful of samples
+            let s = (2.0 * j as f64 + 1.0) / (2.0 * REFERENCE_SAMPLES as f64);
+            let at = row.pcurve.eval(entry + (exit - entry) * T::from_f64(s));
+            let lever = reader.lever(at);
+            if best.as_ref().is_none_or(|(b, _)| lever > *b) {
+                best = Some((lever, at));
+            }
+        }
+    }
+    let Some((_, at)) = best else {
         unreachable!("a ring's loop holds a half-edge")
     };
-    row.pcurve.eval(row.entry_exit().0)
+    at
 }
 
 /// One piece of an outer loop's chain: a span of a lifted row's image,
@@ -679,6 +710,33 @@ impl<'a, T: Decide> Outer<'a, T> {
             return ray_parity_as(RING_PLACE_CLEAR, &self.pieces, q, arms, PIECE_VISITS, band);
         }
         Side::Near(pending)
+    }
+
+    /// The azimuth's lever at `q`, as a number to rank points by: the
+    /// arm [`Self::arms`] reads at `q`'s copy within half a `v` period of
+    /// 0, at that one latitude. A plane's chart has no azimuth and every
+    /// point reads 1. Not a decision: a point that ranks highest is read
+    /// as any other is.
+    fn lever(&self, q: Point2<T>) -> f64 {
+        match *self.surface {
+            Surface::Plane { .. } => 1.0,
+            Surface::Nurbs(_) | Surface::Approx(_) => {
+                unreachable!("a spline chart's rings are placed by its trim")
+            }
+            _ => {
+                let v = match self.v_period {
+                    None => q.y,
+                    Some(p) => {
+                        let length = p.length().value_channel();
+                        match whole((q.y.value_channel() / length + 0.5).floor()) {
+                            Some(k) => q.y - p.times(k),
+                            None => return f64::NEG_INFINITY,
+                        }
+                    }
+                };
+                geom_brep::azimuth_lever_inf(self.surface, v, v).get().value_channel()
+            }
+        }
     }
 
     /// The chart's inf-side arms over the `v` window `[v_lo, v_hi]`, each

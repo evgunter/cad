@@ -791,22 +791,21 @@ fn sphere_torus_and_cone_pairs_record_their_period_closure() {
     }
 }
 
-/// **Two faces on one sphere record whose union is a zone record their
-/// undecided outline.** A sphere zone, swept as one band between its two
-/// rims, halved along the meridian opposite its seam ([`halved`]), is the
-/// bridging run PR 7440 opened on a simply connected carrier: the
-/// absorption kefs one meridian and `kemr` takes the other, which is left
-/// twice in one loop with its ends on the rims rather than free, so the
-/// pair glues back to one face with two rings. The role pass then has to
-/// say which ring is the outline, and on a zone neither lift places the
-/// other ring: both slots stand, `[None, Some(0)]`, and the run is left
-/// unmerged with a `PeriodClosure` skip naming the pair. The subject is
-/// the choice by elimination, filed as
-/// `work/lathe/a-merged-sphere-faces-outline-is-chosen-by-elimination-so-the-answer-depends-on-operand-order.md`;
-/// a zone is the witness no operand order rescues, since no slot is
-/// placed in either.
+/// **Two faces on one sphere record whose union is a zone keep their
+/// meridian as the period closure.** A sphere zone, swept as one band
+/// between its two rims, halved along the meridian opposite its seam
+/// ([`halved`]), is the bridging run PR 7440 opened on a simply connected
+/// carrier: the absorption kefs one meridian and `kemr` takes the other,
+/// which is left twice in one loop with its ends on the rims rather than
+/// free, so the pair would glue back to one face with two rings. The
+/// role pass then asks which ring is the outline, and on a zone neither
+/// closes in the chart: each rim winds a whole turn of azimuth, so each
+/// slot reads `OuterOpen`, a decided refusal in either order. The zone
+/// with no meridian left is a seamless band, and the meridian is the
+/// period closure its chart needs, so the run is left unmerged with a
+/// `PeriodClosure` skip naming the pair.
 #[test]
-fn a_sphere_zone_halved_by_two_meridians_records_its_undecided_outline() {
+fn a_sphere_zone_halved_by_two_meridians_keeps_its_meridian_as_the_period_closure() {
     // The unit sphere's zone |y| < 0.5, closed by the cylinder of radius
     // cos(30 deg) through its rims: the sphere wall is one band whose arc
     // sweeps 60 degrees, so the profile's bulge is tan(60 deg / 4).
