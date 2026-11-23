@@ -1,11 +1,14 @@
 ---
 id: main-red-the-identity-turns-decisions-moved-the-m10-slow-rows
 kind: issue
-title: Main red: the identity turn's decisions (PR 7434) moved nine editor-core slow rows
-status: open
+title: "Main red: the identity turn's decisions (PR 7434) moved nine editor-core slow rows and step-export's swept_elbow fixture"
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: M
+closed: 2026-11-23
+pr: 7549
+branch: doctail/the-identity-turns-decisions-repinned-on-the-m10-rows
 ---
 
 
