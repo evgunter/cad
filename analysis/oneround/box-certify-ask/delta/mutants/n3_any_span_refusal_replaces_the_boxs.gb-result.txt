@@ -1,0 +1,3 @@
+     Summary [  23.351s] 1541 tests run: 1540 passed, 1 failed, 217 skipped
+error: test run failed
+geom-brep certify::tests::a_nurbs_carrier_on_a_line_spec_refuses_and_poison_is_the_boxs_to_refuse

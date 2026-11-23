@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/certify.rs b/crates/geom-brep/src/certify.rs
+index c522180f8a..ea619763f0 100644
+--- a/crates/geom-brep/src/certify.rs
++++ b/crates/geom-brep/src/certify.rs
+@@ -5335,7 +5335,7 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
+         // its reading meets the same poison, the box's, by its cause.
+         Err(uncovered @ CertifyError::SessionBoxUncovered { .. }) => {
+             return Err(match decide_turn(spec, band) {
+-                Err(empty @ CertifyError::IntervalNotForward { .. }) => empty,
++                Err(empty) => empty,
+                 _ => uncovered,
+             });
+         }

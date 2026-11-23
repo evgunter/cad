@@ -1,0 +1,7 @@
+     Summary [  47.005s] 1541 tests run: 1536 passed, 5 failed, 217 skipped
+error: test run failed
+geom-brep certify::tests::a_nurbs_carrier_on_a_line_spec_refuses_and_poison_is_the_boxs_to_refuse
+geom-brep certify::tests::coincident_points_spelled_by_their_zero_distance_are_refused_by_their_span
+geom-brep pcurve_cache::analytic_image_rows::a_correct_image_far_out_certifies_or_ends_in_its_lever
+geom-brep session_box::tests::a_splines_cover_alone_past_the_box_is_the_limit_at_every_door
+geom-brep session_box::tests::every_certification_door_asks_the_box_before_any_residual

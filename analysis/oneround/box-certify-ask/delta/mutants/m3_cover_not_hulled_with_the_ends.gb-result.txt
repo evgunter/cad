@@ -1,0 +1,5 @@
+     Summary [  44.725s] 1541 tests run: 1538 passed, 3 failed, 217 skipped
+error: test run failed
+geom-brep session_box::tests::a_splines_end_alone_past_the_box_is_a_point_past_it
+geom-brep session_box::tests::an_end_past_the_box_refuses
+geom-brep session_box::tests::every_certification_door_asks_the_box_before_any_residual

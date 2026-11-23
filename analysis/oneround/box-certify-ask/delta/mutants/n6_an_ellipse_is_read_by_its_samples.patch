@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/extent.rs b/crates/geom-brep/src/extent.rs
+index cc1ae1f23c..79a7f98dee 100644
+--- a/crates/geom-brep/src/extent.rs
++++ b/crates/geom-brep/src/extent.rs
+@@ -821,7 +821,7 @@ pub fn edge_coordinate_reach_below<T: SpanLocate>(
+     // direction (the sinusoid's extent over the span), so its box along
+     // the world axes is the arc's own coordinate range, an ellipse's as a
+     // circle's; only its distance reads are not exact.
+-    let exact = cover_is_exact(carrier) || carrier.conic().is_some();
++    let exact = cover_is_exact(carrier);
+     match world_box.filter(|_| exact) {
+         Some(world_box) => box_reach(world_box),
+         None => sampled_reach(carrier, span, |x| (x - origin).norm_inf()),

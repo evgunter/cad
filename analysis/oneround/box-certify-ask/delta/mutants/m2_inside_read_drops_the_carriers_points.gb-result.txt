@@ -1,0 +1,4 @@
+     Summary [  45.349s] 1541 tests run: 1539 passed, 2 failed, 217 skipped
+error: test run failed
+geom-brep session_box::tests::an_arcs_bulge_past_the_box_is_a_point_past_it
+geom-brep session_box::tests::an_ellipses_crest_between_its_samples_is_a_point_past_the_box

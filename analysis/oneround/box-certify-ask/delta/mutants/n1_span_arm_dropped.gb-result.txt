@@ -1,0 +1,5 @@
+     Summary [  22.921s] 1541 tests run: 1538 passed, 3 failed, 217 skipped
+error: test run failed
+geom-brep certify::tests::a_coincident_edge_and_an_in_band_sibling_tell_one_story_in_a_file
+geom-brep certify::tests::coincident_points_spelled_by_their_zero_distance_are_refused_by_their_span
+geom-brep certify::tests::no_public_door_panics_on_a_span_it_refuses

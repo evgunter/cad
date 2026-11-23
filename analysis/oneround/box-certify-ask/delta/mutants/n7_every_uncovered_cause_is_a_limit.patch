@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/session_box.rs b/crates/geom-brep/src/session_box.rs
+index 1332711ece..e5bec2d362 100644
+--- a/crates/geom-brep/src/session_box.rs
++++ b/crates/geom-brep/src/session_box.rs
+@@ -199,7 +199,7 @@ impl UncoveredCause {
+                 unbounded_only: true,
+                 ..
+             } => Ok(geom_core::ladder::Refusal::Limit),
+-            Self::Carrier { .. } | Self::Ends => Err(geom_core::ladder::Aborts),
++            Self::Carrier { .. } | Self::Ends => Ok(geom_core::ladder::Refusal::Limit),
+         }
+     }
+ }

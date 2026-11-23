@@ -1,0 +1,19 @@
+diff --git a/crates/topo/src/finish.rs b/crates/topo/src/finish.rs
+index 807e5e3b20..42fb15533e 100644
+--- a/crates/topo/src/finish.rs
++++ b/crates/topo/src/finish.rs
+@@ -892,13 +892,7 @@ impl ValidationError {
+             Self::OutsideSessionBox { .. }
+             | Self::SessionBoxUnshown { .. }
+             | Self::SessionBoxUncovered { .. }
+-            | Self::EdgeCertification {
+-                error:
+-                    geom_brep::CertifyError::OutsideSessionBox { .. }
+-                    | geom_brep::CertifyError::SessionBoxUnshown { .. }
+-                    | geom_brep::CertifyError::SessionBoxUncovered { .. },
+-                ..
+-            } => F::SessionBox,
++            => F::SessionBox,
+             Self::Band { .. } => F::Tolerance,
+             Self::DanglingTopology { .. }
+             | Self::DanglingGeometry { .. }

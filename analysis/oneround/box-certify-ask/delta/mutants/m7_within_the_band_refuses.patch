@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/session_box.rs b/crates/geom-brep/src/session_box.rs
+index 1332711ece..2d21b10dcd 100644
+--- a/crates/geom-brep/src/session_box.rs
++++ b/crates/geom-brep/src/session_box.rs
+@@ -62,7 +62,7 @@ pub fn past_the_box_as<T: Decide>(name: &'static str, reach: T, band: Band) -> O
+     let margin = Margin::of(Lever::<T>::session_box().length() - reach);
+     match geom_core::k_stats::decide_reported(name, margin, band) {
+         Ok(geom_core::Decided {
+-            sign: Sign::Negative,
++            sign: Sign::Negative | Sign::Zero,
+             margin,
+         }) => Some(margin),
+         _ => None,

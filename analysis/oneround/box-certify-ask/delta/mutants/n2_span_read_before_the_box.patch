@@ -1,0 +1,14 @@
+diff --git a/crates/geom-brep/src/certify.rs b/crates/geom-brep/src/certify.rs
+index c522180f8a..deb463eb0d 100644
+--- a/crates/geom-brep/src/certify.rs
++++ b/crates/geom-brep/src/certify.rs
+@@ -5325,6 +5325,9 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
+     kept: &[&LocusCertificate<T>],
+ ) -> Result<Checked<T>, CertifyError> {
+     // ---- Check 0: the session box, of the edge's region with its ends.
++    if let Err(empty @ CertifyError::IntervalNotForward { .. }) = decide_turn(spec, band) {
++        return Err(empty);
++    }
+     match in_the_box(spec, (start, end), band) {
+         Ok(()) => {}
+         // An edge with no cover may owe it to its caller's own span: a

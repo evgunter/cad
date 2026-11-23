@@ -1,0 +1,44 @@
+diff --git a/crates/geom-brep/src/certify.rs b/crates/geom-brep/src/certify.rs
+index c522180f8a..d89d75e083 100644
+--- a/crates/geom-brep/src/certify.rs
++++ b/crates/geom-brep/src/certify.rs
+@@ -5295,13 +5295,36 @@ fn in_the_box<T: Decide>(
+     band: Band,
+ ) -> Result<(), CertifyError> {
+     use crate::session_box::BoxRefusal;
+-    crate::session_box::edge_in_box(
++    if std::env::var_os("CAD_BOX_ASK").is_some_and(|v| v == "off") {
++        return Ok(());
++    }
++    let got = crate::session_box::edge_in_box(
+         &spec.carrier,
+         (spec.param_start, spec.param_end),
+         ends,
+         band,
+-    )
+-    .map_err(|refusal| match refusal {
++    );
++    if let (Err(e), Some(path)) = (&got, std::env::var_os("CAD_BOX_LOG")) {
++        use std::io::Write;
++        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++            let kind = match e {
++                BoxRefusal::Point { .. } => "POINT",
++                BoxRefusal::Unshown { .. } => "UNSHOWN",
++                BoxRefusal::Uncovered(_) => "UNCOVERED",
++            };
++            let name = std::thread::current().name().unwrap_or("?").to_owned();
++            let _ = writeln!(
++                f,
++                "{kind}\tscalar={}\tcarrier={:?}\tspan=({:?},{:?})\tgot={:?}\ttest={name}",
++                core::any::type_name::<T>(),
++                spec.carrier.kind(),
++                spec.param_start,
++                spec.param_end,
++                e
++            );
++        }
++    }
++    got.map_err(|refusal| match refusal {
+         BoxRefusal::Point { margin } => CertifyError::OutsideSessionBox { margin },
+         BoxRefusal::Unshown { margin } => CertifyError::SessionBoxUnshown { margin },
+         BoxRefusal::Uncovered(why) => CertifyError::SessionBoxUncovered { why: why.cause() },

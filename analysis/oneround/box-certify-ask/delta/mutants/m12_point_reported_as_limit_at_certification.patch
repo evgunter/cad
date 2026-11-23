@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/certify.rs b/crates/geom-brep/src/certify.rs
+index c522180f8a..e75dc74321 100644
+--- a/crates/geom-brep/src/certify.rs
++++ b/crates/geom-brep/src/certify.rs
+@@ -5302,7 +5302,7 @@ fn in_the_box<T: Decide>(
+         band,
+     )
+     .map_err(|refusal| match refusal {
+-        BoxRefusal::Point { margin } => CertifyError::OutsideSessionBox { margin },
++        BoxRefusal::Point { margin } => CertifyError::SessionBoxUnshown { margin },
+         BoxRefusal::Unshown { margin } => CertifyError::SessionBoxUnshown { margin },
+         BoxRefusal::Uncovered(why) => CertifyError::SessionBoxUncovered { why: why.cause() },
+     })

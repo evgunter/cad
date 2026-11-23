@@ -1,0 +1,12 @@
+diff --git a/crates/geom-brep/src/session_box.rs b/crates/geom-brep/src/session_box.rs
+index 1332711ece..82d8160077 100644
+--- a/crates/geom-brep/src/session_box.rs
++++ b/crates/geom-brep/src/session_box.rs
+@@ -265,7 +265,6 @@ pub fn edge_points_reach<T: Decide>(
+         crate::edge_coordinate_reach_below(carrier, span, cover.map(|c| c.box_in(&BoxAxes::World)));
+     [on_it, (a - origin).norm_inf(), (b - origin).norm_inf()]
+         .into_iter()
+-        .filter(|&x| geom_core::is_finite_length(x))
+         .fold(T::zero(), T::max)
+ }
+ 

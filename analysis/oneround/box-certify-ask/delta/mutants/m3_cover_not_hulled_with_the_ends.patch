@@ -1,0 +1,14 @@
+diff --git a/crates/geom-brep/src/session_box.rs b/crates/geom-brep/src/session_box.rs
+index 1332711ece..d4c38fc77e 100644
+--- a/crates/geom-brep/src/session_box.rs
++++ b/crates/geom-brep/src/session_box.rs
+@@ -242,7 +242,8 @@ pub fn edge_cover<T: geom_core::spline::SpanLocate>(
+         .cover_over(ParamWindow::new(t0, t1))
+         .map_err(EdgeUncovered::Carrier)?;
+     let ends = Cover::points(vec![a, b]).ok_or(EdgeUncovered::Ends)?;
+-    Ok(arc.hull(ends))
++    let _ = ends;
++    Ok(arc)
+ }
+ 
+ /// **An edge's region, read from inside**: the largest `|coordinate|`

@@ -1,0 +1,3 @@
+     Summary [   2.628s] 241 tests run: 240 passed, 1 failed, 2960 skipped
+error: test run failed
+topo session_box::tests::a_face_with_no_cover_refuses_at_the_gate_alone_by_its_cause
