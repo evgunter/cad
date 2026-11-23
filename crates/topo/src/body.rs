@@ -1312,6 +1312,21 @@ impl<T: Real> Body<T> {
         }
     }
 
+    /// **A loop's vertices in cycle order, by the loop's key**: each
+    /// half-edge's start along [`Body::loop_cycle`], or a lone-vertex
+    /// loop's one vertex. `None` where the loop, or a link on the walk,
+    /// does not resolve.
+    pub(crate) fn loop_vertices(&self, r#loop: LoopKey) -> Option<Vec<VertexKey>> {
+        match self.loops.get(r#loop)?.boundary {
+            crate::entity::LoopBoundary::Cycle { first } => self
+                .loop_cycle(first)?
+                .into_iter()
+                .map(|he| self.half_edges.get(he).map(|h| h.start))
+                .collect(),
+            crate::entity::LoopBoundary::Empty { vertex } => Some(vec![vertex]),
+        }
+    }
+
     /// Whether `he` resolves and its `parent_loop` is `r#loop`.
     pub(crate) fn claims(&self, he: HalfEdgeKey, r#loop: LoopKey) -> bool {
         self.half_edges

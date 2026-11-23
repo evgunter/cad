@@ -249,6 +249,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             name: "view1b-fresh".to_owned(),
         },
         SessionOp::AddProfile { loops: vec![] },
+        SessionOp::AddDatum {
+            space: pncad::document::VarId::WORLD,
+        },
         SessionOp::AddExtrude {
             profile: node,
             distance: len(0.01),
@@ -496,6 +499,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddMate { .. } => (27, false),
         SessionOp::NewDocument { .. } => (28, false),
         SessionOp::AddProfile { .. } => (30, false),
+        SessionOp::AddDatum { .. } => (63, false),
         SessionOp::AddExtrude { .. } => (31, false),
         SessionOp::AddRevolve { .. } => (32, false),
         SessionOp::AddBoolean { .. } => (33, false),
@@ -1063,6 +1067,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::NewDocument { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::AddDatum { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }

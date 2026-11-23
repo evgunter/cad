@@ -2119,6 +2119,19 @@ is its preview.
   nothing, and a sweep of it refuses `EmptyProfile` at the sweep's own
   door. The editor's add-loop choices (circle, rectangle, path) are
   the templates.
+- **New plane**, **New axis** and **New frame** each insert a datum
+  (`SessionOp::AddDatum`, DESIGN `[placement.datums]`) into the selected
+  body's space, or the world with nothing selected, at its origin, and
+  open the placement editor on it with one mate row of that kind. The
+  datum is a frame whatever the button: a row's near side is the
+  datum's own xy plane, z axis, origin or frame (`matetool::datum_side`),
+  every pick fills its far side, and a fresh row opens flush rather than
+  turned to face it. A datum is drawn in its space as its xy plane's
+  square with its x and y axes and a z leg (`sketch::DATUM_HALF`), and
+  that square is picked under every tool rule but edges-only
+  (`PickedKind::Datum`): a datum picked whole fills a plane seat through
+  its xy plane (`PlaneSeats::feed`) and a mate's far side through the
+  role of the row's kind (`MateTool::pick_datum`).
 - **Place** on an unplaced body inserts its placement with no mates
   and opens the placement editor on it. Every mate is added there. A
   second Place of a body reads the source the first one does, so what

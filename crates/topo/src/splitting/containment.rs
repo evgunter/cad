@@ -1591,18 +1591,19 @@ enum Boundary<'a> {
 ///   that boundary reading says: behind a caller's pass the walk takes
 ///   the caller's.
 ///
-/// `normal` must be a unit normal of the loop's plane, and `q` must lie
-/// in that plane; each is certified before the walk, and a loop, normal
-/// or point that does not hold refuses rather than being read in some
-/// other plane.
+/// `plane` is the loop's plane, as its carrier's frame (a face's
+/// `Plane` chart, a split's section plane), read for its axis alone; `q`
+/// must lie in that plane. The loop and `q` are certified to lie in the
+/// plane through the loop's first vertex square to the axis before the
+/// walk, and a loop or point that does not refuses rather than being
+/// read in some other plane.
 ///
-/// # The sign of `normal`
+/// # Which of the plane's two frames
 ///
-/// `normal` is read only to recover the loop's PLANE, so a caller may
-/// hand over a raw CHART normal without folding in the face's sense —
-/// `chord_join::face_plane_normal` does exactly that. The invariance
-/// is derived here because it is this walk's property, not that
-/// producer's, and it holds over lines and conics alike.
+/// A plane has frames of opposite axes (a chart, the same chart under a
+/// face's sense), and the verdict does not depend on which is handed
+/// over: the axis is read only to recover the PLANE. The derivation is
+/// this walk's property, and it holds over lines and conics alike.
 ///
 /// - **The preconditions.** The unit row reads `|n|`; a conic's tilt
 ///   reads `|axis × n|` — both unchanged. Every plane offset
@@ -1660,10 +1661,11 @@ enum Boundary<'a> {
 pub fn point_in_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
+    let normal = plane.axis();
     let lp = body.cycle_loop(r#loop).map_err(|miss| match miss {
         NoCycle::Stale | NoCycle::Torn => PointInLoopError::CorruptLoop { r#loop },
         NoCycle::Lone(_) => PointInLoopError::LoneLoop { r#loop },
@@ -1672,7 +1674,11 @@ pub fn point_in_loop<T: Decide>(
     point_in_loop_projected(lp, normal, q, band)
 }
 
-/// [`point_in_loop`] with no precondition certified: the loop is read
+/// [`point_in_loop`] with no precondition certified (and, like it, an
+/// all-line loop's boundary read over its vertex polygon, where the
+/// face door `contain::contfp` and its one-loop reading
+/// `contain::loop_placement` read every loop's boundary edge by edge on
+/// each edge's carrier): the loop is read
 /// as its projection along `normal`. For `solid_contain`'s
 /// in-face test alone, which reads a face's trim at the face's OWN
 /// surface plane, `q` a ray's hit on that plane: an operand the
@@ -2755,7 +2761,11 @@ mod tests {
             )
             .unwrap();
         let centre = Point3::new(1.0, 0.0, 0.0);
-        let up = Vec3::new(0.0, 0.0, 1.0);
+        let up = geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         for lp in [seed.r#loop, circ.r#loop] {
             let got = point_in_loop(&body, lp, up, centre, band);
             assert!(
@@ -3249,7 +3259,13 @@ mod spline_cap_rows {
             ),
         ] {
             assert_eq!(
-                point_in_loop(&body, outer, z, q, band),
+                point_in_loop(
+                    &body,
+                    outer,
+                    geom::Frame::new(Point3::origin(), z, Vec3::unit_x()),
+                    q,
+                    band
+                ),
                 Ok(walk),
                 "{name}: the walk"
             );
@@ -3321,12 +3337,14 @@ mod lone_loop_rows {
             .map(|(k, _)| k)
             .expect("the ring");
         let band = geom_core::Band::linear(Tol::witness()).expect("a band");
-        let (normal, q) = (
+        let q = geom_core::Point3::origin();
+        let plane = geom::Frame::new(
+            q,
             geom_core::Vec3::new(0.0, 0.0, 1.0),
-            geom_core::Point3::origin(),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
         );
         assert_eq!(
-            super::point_in_loop(&body, ring, normal, q, band).err(),
+            super::point_in_loop(&body, ring, plane, q, band).err(),
             Some(PointInLoopError::LoneLoop { r#loop: ring }),
             "the ring read as a loop"
         );
