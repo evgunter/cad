@@ -138,9 +138,7 @@ impl Chart {
     /// ([`geom_brep::chart_singularity::singular_points`]), in its order,
     /// with signed zeros normalized as every point this pass mints is.
     fn singular(self) -> Vec<Point3<f64>> {
-        ChartInverse::of(&self.surface())
-            .map(|chart| home::singular_points(&chart))
-            .unwrap_or_default()
+        home::singular_points(&self.surface())
             .into_iter()
             .map(|(_, p)| crate::signed_zero::plus_zero_point(p))
             .collect()
@@ -267,7 +265,7 @@ impl Read {
                 file: self.coincidence(),
             },
             Unread::Carrier { .. } => foreign_carrier(id),
-            Unread::Loop { .. } => unreadable(id),
+            Unread::Loop { .. } | Unread::SplineSide => unreadable(id),
         }
     }
 }
@@ -468,11 +466,7 @@ fn holds(
 ) -> Result<bool, StepImportError> {
     let face = &solid.faces[fi];
     let surface = chart.surface();
-    let Some(&(singularity, _)) = ChartInverse::of(&surface)
-        .map(|c| home::singular_points(&c))
-        .unwrap_or_default()
-        .get(k)
-    else {
+    let Some(&(singularity, _)) = home::singular_points(&surface).get(k) else {
         return Err(unreadable(face.id));
     };
     let images = image_edges(solid, fi);
@@ -488,7 +482,7 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let Ok(inverse) = ChartInverse::of(&chart.surface()) else {
         return Err(unreadable(face_id));
     };
-    let points = home::singular_points(&inverse);
+    let points = home::singular_points(&chart.surface());
     let images = image_edges(solid, fi);
     let walk =
         home::walk_loop(&inverse, &points, &images[0], read.band()).ok_or(unreadable(face_id))?;

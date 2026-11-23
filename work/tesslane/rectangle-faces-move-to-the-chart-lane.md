@@ -7,7 +7,7 @@ opened: 2026-11-14
 priority: P1
 cost: H
 design: true
-blocked_on: [a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line, a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it]
+blocked_on: [a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line]
 ---
 
 

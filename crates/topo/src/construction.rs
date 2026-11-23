@@ -83,7 +83,7 @@ pub trait Construct<T: geom_core::Real> {
     /// **Geometry** (module docs, M2 policy): `curve` is certified
     /// against the endpoints **old vertex's point → `point`** (the
     /// `he_plus` forward order — `he_plus` runs old → new) before any
-    /// mutation; failure is [`EulerOpError::Certification`], body
+    /// mutation; failure is [`EulerOpError::DescriptionUncertified`], body
     /// untouched. Chord-line sugar: [`Body::mev_line`](crate::construction::Construct::mev_line).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): a face the new halves join
@@ -177,7 +177,7 @@ pub trait Construct<T: geom_core::Real> {
     /// equal start vertices ([`EulerOpError::FanStartMismatch`]).
     /// `Lone`: the loop resolves ([`BadArgument::Stale`](crate::BadArgument::Stale)); it is empty
     /// ([`EulerOpError::LoopNotEmpty`]). Then, for both sites, the
-    /// geometry gate: `curve` certifies ([`EulerOpError::Certification`];
+    /// geometry gate: `curve` certifies ([`EulerOpError::DescriptionUncertified`];
     /// an interval that runs no clear length forward or past a full turn
     /// is the caller's, [`geom_brep::CertifyError::StatedInterval`]);
     /// and at a `Fan` site, per edge of the moved run in run order: the
@@ -429,7 +429,7 @@ pub trait Construct<T: geom_core::Real> {
     /// key is not the old one's `curve`'s description is
     /// adjacency-coherent with the two
     /// ([`EulerOpError::DescriptionNotAdjacent`], `edge: None`), and
-    /// `curve` certifies ([`EulerOpError::Certification`]) — the order
+    /// `curve` certifies ([`EulerOpError::DescriptionUncertified`]) — the order
     /// [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) asks them in. Then, where the new face's key
     /// is not the old one's, no edge of the run is stranded
     /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
@@ -525,7 +525,7 @@ pub trait Construct<T: geom_core::Real> {
     /// the ring is not that face's outer loop
     /// ([`EulerOpError::RingIsOuter`]). Then the geometry gate: `curve`
     /// certifies against the anchors' points, u → w in the `he_plus`
-    /// forward order ([`EulerOpError::Certification`]; `crate::euler`
+    /// forward order ([`EulerOpError::DescriptionUncertified`]; `crate::euler`
     /// module docs, M2 geometry policy). Last, the pcurve rows, as
     /// [`Body::mev`](crate::construction::Construct::mev) states them: the face's row plan is minted
     /// ([`EulerOpError::PcurveMint`]). Chord sugar: [`Body::mekr_chord`](crate::construction::Construct::mekr_chord).
@@ -880,8 +880,8 @@ pub trait Construct<T: geom_core::Real> {
     /// ([`EulerOpError::DescriptionNotAdjacent`], or
     /// [`BadArgument::Stale`](crate::BadArgument::Stale) for a key the
     /// spec names that does not resolve); the spec certifies against
-    /// the merged endpoints ([`EulerOpError::RebasedCarrier`] naming the
-    /// edge). Then,
+    /// the merged endpoints ([`EulerOpError::DescriptionUncertified`]
+    /// naming the edge). Then,
     /// where the merged fan is not empty, the killed edge is not a null
     /// edge and a member is left unlisted, the unlisted members pass the
     /// re-basing gate in orbit order ([`EulerOpError::RebasedNullEdge`]
@@ -891,8 +891,7 @@ pub trait Construct<T: geom_core::Real> {
     /// two doors part: one refuses, this one mints. Then, where the
     /// unsplice is general and the killed edge is not a null edge (each
     /// killed half is crossed whole), `tol` builds a band
-    /// ([`EulerOpError::Certification`] with
-    /// [`geom_brep::CertifyError::Band`]) and each killed half's turn is
+    /// ([`EulerOpError::Band`]) and each killed half's turn is
     /// decided at it ([`EulerOpError::KillTurnUndecided`] naming the
     /// first half, `he` before its mate, whose turn is not decided). Then,
     /// where a member is listed, the site mint over the faces its halves
@@ -900,8 +899,8 @@ pub trait Construct<T: geom_core::Real> {
     /// [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve)'s). Last, where the killed edge is a
     /// null edge, the site mint over every other face its halves are on
     /// that a loop it releases leaves with a gap
-    /// ([`Body::plan_released_rows`]: [`EulerOpError::Certification`]
-    /// where `tol` builds no band).
+    /// ([`Body::plan_released_rows`]: [`EulerOpError::Band`] where
+    /// `tol` builds no band).
     ///
     /// # Errors
     ///
@@ -1071,8 +1070,8 @@ pub trait Construct<T: geom_core::Real> {
     /// null edge ([`EulerOpError::NullScaffoldCurve`]), is
     /// adjacency-coherent after the kill
     /// ([`EulerOpError::DescriptionNotAdjacent`]) and certifies
-    /// ([`EulerOpError::RechartFalsifies`]; `tol` builds the band,
-    /// [`EulerOpError::Certification`]); then no unlisted edge strands
+    /// ([`EulerOpError::DescriptionUncertified`]; `tol` builds the band,
+    /// [`EulerOpError::Band`]); then no unlisted edge strands
     /// ([`EulerOpError::RechartUndescribed`]); then, onto another chart
     /// that is not chartless, every certified moved edge no description
     /// names there is vouched for by residual on a plane
@@ -1568,7 +1567,7 @@ pub trait Construct<T: geom_core::Real> {
     /// FLOOR is not read here: a carrier whose speed collapses (a spline
     /// that stops, whose `speed_lower_bound` is not positive) passes on
     /// its chord and is refused by its children's certification, check 2's
-    /// `nurbs_span_meter` ([`EulerOpError::Certification`]).
+    /// `nurbs_span_meter` ([`EulerOpError::DescriptionUncertified`]).
     ///
     /// **Surgery** (derived from the interior-left rule, replacing the
     /// book's `lmev(e->he1, e->he2->nxt, p)`): with parent halves
@@ -1604,7 +1603,7 @@ pub trait Construct<T: geom_core::Real> {
     /// over the child ([`EulerOpError::SplitSmoothEscalated`],
     /// [`EulerOpError::SplitSmoothBendEscalated`],
     /// [`EulerOpError::SplitSmoothRefuted`]); both child specs certify
-    /// ([`EulerOpError::Certification`] — endpoints
+    /// ([`EulerOpError::DescriptionUncertified`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
     /// forward order on each child, through the scalar's edge door).
     ///
@@ -1889,7 +1888,7 @@ pub trait Construct<T: geom_core::Real> {
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
     /// resolve; [`EulerOpError::DescriptionNotAdjacent`] on a
     /// description whose surfaces are not the edge's faces' surfaces;
-    /// [`EulerOpError::Certification`] on a failed gate, the scalar's
+    /// [`EulerOpError::DescriptionUncertified`] on a failed gate, the scalar's
     /// edge door ([`crate::AtRestPolicy::attach_edge`]);
     /// [`EulerOpError::PcurveMint`] where a face is
     /// re-minted and a half-edge of it does not resolve.
@@ -2078,7 +2077,7 @@ pub trait Construct<T: geom_core::Real> {
     ///
     /// # Precondition check order
     ///
-    /// `tol` builds a band ([`EulerOpError::Certification`]). Per chart
+    /// `tol` builds a band ([`EulerOpError::Band`]). Per chart
     /// in order, per face in order: the face resolves
     /// ([`BadArgument::Stale`](crate::euler::BadArgument::Stale)), was not listed before
     /// ([`EulerOpError::FaceMovedTwice`]), a shared chart's key resolves
@@ -2091,7 +2090,7 @@ pub trait Construct<T: geom_core::Real> {
     /// adjacency-coherent on the moved charts
     /// ([`EulerOpError::DescriptionNotAdjacent`]) and certifies at its
     /// endpoints through the scalar's edge door
-    /// ([`EulerOpError::RechartFalsifies`]). Then no unlisted
+    /// ([`EulerOpError::DescriptionUncertified`]). Then no unlisted
     /// edge is stranded ([`EulerOpError::RechartUndescribed`], every one
     /// named). Then per moved face in order onto a chart that is not its
     /// old one, per loop (outer, then rings) and half-edge in cycle

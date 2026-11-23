@@ -91,6 +91,15 @@ on the cell's sheet, so the vertex is a corner. **Not built**; see
 - Checked: the printed clips and the vertex's edges, in all 21 sweep
   tests; the fix is not.
 
+## Two halves of one cylinder across a seam ruling (EMBED lane `embed/iso-end`, 2026-11-22)
+
+In these 2 the refusing pair is two faces of one cylinder carrier sharing a ruling that ends in the cell. Each face has one clip, its edge stopping at the shared vertex inside the cell's side, so both exit at `sides_are_the_faces`. Neither carrier signs the other, since they are the same carrier.
+
+Measured on `embed/iso-end-measure2` (`origin/embed/gate-measure` @ `ebb2e6f8e` plus `embed/iso-end`'s diff), where each refusal is the same pair, test by test, as on the trace run that named the exits (`embed/iso-end-measure` @ `030c75763`, `CV_TRACE`).
+
+- `editor-core::all emit_union_seam_rank::crossings_of_an_arc_cut_twice_name_apart_by_sense_in_every_member_order`
+- `editor-core::all emit_union_seam_rank::crossings_of_seams_with_no_start_name_apart_by_sense_in_every_member_order`
+
 ## What landed and what moved (EMBED, lane embed/clip-vertex, 2026-11-22)
 
 **What `zero_of` reads now.** A presentation's zero is the points of
@@ -195,21 +204,20 @@ Measured on the same run, each with its trace (`CVT`, `CVS` rows):
   case once a seam's line is a clip.
   `injective::presentation_rows::a_wall_and_a_corner_at_a_vertex_mid_line_certify_under_the_lines_plane`
   pins that such a pair is split today.
-- **What "holds" is true of.** The body rows hold on the dyadic build,
-  as built, turned about a generic axis, a hundred units off, and
-  mirrored across an axis plane. Mirrored across a generic plane they
-  refuse upstream of this reading
+- **What "holds" is true of** (on the landing branch `8d34076a9e`).
+  The wall row holds at both scalars, pair and whole body, on a dyadic
+  build and on one off the grid (radius 0.7, block
+  `[0.13, 0.7] × [-0.61, 0] × [0.3, 1.7]`), each as built, turned about
+  a generic axis and a hundred units off, and mirrored across an axis
+  plane. Before the cover read a joint's two stored ends as one line
+  (PR 7322) the off-grid build's lower pair refused at `f64` and held
+  at `Interval`: the ruling's two edges store the vertex's height as
+  `0.3` and `0.30000000000000004`, and a cell across that ulp was not
+  covered (`sides_are_the_faces`, 41 failures in the trace), so the
+  wall never reached `zero_of`. Mirrored across a generic plane the
+  block holds at `f64` and refuses at `Interval`, and the ring refuses
+  at both, upstream of this reading
   (`a-generic-mirror-re-mints-a-rim-circles-row-as-a-harmonic-image`).
-  Built off the dyadic grid (radius 0.7, block
-  `[0.13, 0.7] × [-0.61, 0] × [0.3, 1.7]`) the wall's lower pair refuses
-  at `f64` and holds at `Interval`, in all three rigid poses: the two
-  edges of the ruling that meet at the vertex store its height as `0.3`
-  and `0.30000000000000004`, the cover (`sides_are_the_faces`) does not
-  read two stored ends of one joint as one vertex, and the wall never
-  reaches `zero_of` (41 cover failures in the trace; at `Interval` the
-  two brackets overlap and the pair certifies). That is the bushing
-  row's second defect, the cover's; pinned as it reads in
-  `an_off_grid_walls_joint_a_rounding_apart_refuses_at_f64_and_holds_at_interval`.
 - **The one corner among several loose vertices is signed only where it
   is the first shared vertex** (review, by inspection): the
   vertex-alone plane and `anchor` take `near.vertices.first()`, and a

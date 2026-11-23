@@ -240,9 +240,9 @@ pub enum Segment<T: Real> {
 
 /// **The unit directions a segment's construction made**: a line's
 /// director, from its start to its end, or an arc's radial at each end,
-/// from its centre to that vertex. A sweep that needs a segment's
-/// direction reads it here and never divides the difference of two
-/// vertices by its own length.
+/// from its centre to that vertex, as a loop carries them into
+/// validation; a validated segment holds them in the arms of its
+/// [`SegmentKind`].
 ///
 /// Redundant with the vertices and the carrier, and never trusted:
 /// [`Profile::validate`] checks one a table carries against its vertices,
@@ -254,9 +254,9 @@ pub enum Segment<T: Real> {
 /// at arm ℓ (`geom::convention::frame_margins`) and turns by at most
 /// `ε/ℓ`; it is stored as written. Check 1 length-reads no plane or
 /// line, so a director stored as a plane's normal is a unit only at its
-/// chord's lever. A table that
-/// carries none has them decided once, at validate, from its vertices
-/// ([`ValidatedSegment::directions`]).
+/// chord's lever, and a radial accepted here is one check 1 accepts as a
+/// `u_ref` at that radius. A table that carries none has them decided
+/// once, at validate, from its vertices.
 #[derive(Clone, Copy, Debug)]
 pub enum SegmentDirections<T: Real> {
     /// A line's unit director, start to end.

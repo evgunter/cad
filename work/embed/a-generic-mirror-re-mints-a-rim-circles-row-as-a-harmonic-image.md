@@ -88,6 +88,32 @@ Valid: mirror images of valid solids.
 
 ## Evidence
 
-- Pinned as it reads:
-  `self_intersection_proves_injectivity::the_wall_and_the_ring_refuse_mirrored_across_a_generic_plane`,
+- Pinned as it reads on the landing branch:
+  `self_intersection_proves_injectivity::the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane`,
   which goes red the day this is fixed.
+
+## On the landing branch (`origin/embed/wave3-land` `8d34076a9e`, 2026-11-23)
+
+With the cover's joint reading in (PR 7322) the same poses read:
+
+- the mirrored block, on the dyadic grid and off it: **embedded at
+  `f64`** (the whole body at the verdict door, and the wall against
+  both faces at the vertex); at `Interval` the whole body refuses
+  (`Budget`), one wall pair `Budget` and the other
+  `Uncertified { Departure }` at the vertex;
+- the mirrored ring: `Uncertified { Departure }` across an edge of a
+  plane face and the cylinder wall, at both scalars.
+
+So the block's second exit (the cover) was the `f64` blocker, as
+expected, and what is left is the ring at both scalars and the block at
+`Interval`. **Not re-traced on this tree**: that the remaining refusals
+exit at `curved_walls` is the trace above, taken before the merge.
+
+**Possibly the same cause as a PCERT row**:
+`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`
+(a rim on a turned frame stores a rounding in its axial channel, so it
+is no coordinate line), with the review's step that `mirror_body`
+clears the pcurve rows and re-mints them (`mint_pcurves`) where a rigid
+pose carries its rows through. **Not checked**: the mirrored rim row's
+axial channel was not printed, so whether this sighting is that row's
+is open; if it is, this row folds into it.

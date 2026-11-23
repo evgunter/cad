@@ -652,33 +652,41 @@ fn the_reach_is_the_sides_the_pass_ends_the_section_on() {
     );
 }
 
-/// **The door decides a collapsed side clear over its whole row.** A
-/// planar wall whose side `v = 0` collapses (its two row points half a
-/// zero band apart), against the plane `x = c` placed so that the row's
-/// first point stands three tenths of a band past the escalation and its
-/// second two tenths short of it: the side is not decided clear of the
-/// plane, so the door refuses it, named. Red against clearance read off
-/// the row's first point alone (the door passes it).
+/// **The door refuses a collapsed side the band cannot clear.** A planar
+/// wall whose side `v = 0` is one stored point, the origin, against the
+/// plane `x = c` placed three tenths of a band short of the escalation
+/// from it: the side is not decided clear of the plane, so the door
+/// refuses it, named. A side whose two row points stand half a zero band
+/// apart is a regular side (DESIGN `[extensibility]`: no band decides a
+/// collapse), so the door does not read it.
 #[test]
-fn a_collapsed_side_is_cleared_over_its_whole_row() {
+fn a_collapsed_side_the_band_cannot_clear_refuses() {
     let b = band();
     let z = b.zero();
-    let wall = ruled(
-        &[pt(0.5 * z, 0.0, 0.0), pt(0.0, 0.0, 0.0)],
-        &[pt(1.0, 1.0, 0.0), pt(1.0, -1.0, 0.0)],
-    );
-    let c = 0.2 * z - b.escalate();
-    let got = pair_section(
-        &plane(pt(c, 0.0, 0.0), Vec3::unit_x()),
-        &wall,
-        None,
-        Some(SsiLane::marched()),
-        b,
-    );
+    let c = 0.3 * b.escalate() - b.escalate();
+    let section = |first: f64| {
+        let wall = ruled(
+            &[pt(first, 0.0, 0.0), pt(0.0, 0.0, 0.0)],
+            &[pt(1.0, 1.0, 0.0), pt(1.0, -1.0, 0.0)],
+        );
+        pair_section(
+            &plane(pt(c, 0.0, 0.0), Vec3::unit_x()),
+            &wall,
+            None,
+            Some(SsiLane::marched()),
+            b,
+        )
+    };
+    let got = section(0.0);
     assert!(
         matches!(&got, Err(crate::intersect::SectionError::Unaccounted { cause })
             if cause.contains("collapses to a point")),
         "the door refuses the side: {got:?}"
+    );
+    let got = section(0.5 * z);
+    assert!(
+        got.is_ok(),
+        "a side half a band wide is no collapsed side: {got:?}"
     );
 }
 

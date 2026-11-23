@@ -2,10 +2,13 @@
 id: a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it
 kind: unit
 title: A cylinder or cone face with a split side meshes at the density of the same face without it; the cures are measured, then one is built
-status: open
+status: closed
 opened: 2026-11-17
 priority: P1
 cost: H
+branch: tesslane/ruled-density
+closed: 2026-11-22
+pr: 7096
 ---
 
 Unit 4c of the chart lane (`work/tesslane/plan.md`). It follows the design fork of 2026-11-17 (row 279 of `docs/DESIGN-FORK-LOG.md`) and Ev's answer to it on PR 7046: no rule about HOW a lane makes its triangles goes on the design page. `[mesh.sizing]` and `[mesh.winding]` already say what a mesh must be (each triangle within δ of its face, each winding resolved), and the per-triangle certificate holds that whatever a lane does; Ev prefers the triangulation left at that level of abstraction, "any division into triangles so that it never deviates by more than delta", over constraints laid on it. So this unit is engineering held to the page as it reads. It measures three cures and builds one.
@@ -58,10 +61,11 @@ The strip column is a prototype that held edges in the rectangle lane, not the w
 
 ## Not measured
 
-- Cure (1) at all with a split side: convergence, count and cost.
-- The walk itself: nobody has built it.
-- Whether a triangle at a face's corner can make a chord its neighbouring face also makes under each cure (the chart lane's ear and shared-side cures exist to stop that).
-- A face on both nappes of a cone.
+As this file stood before stage 1; what stage 1 and the build then measured is under "Closed" below.
+
+- A refinement that splits the offending edge (cure 1 was measured with one rule only, a centroid insert).
+- Cure (2) run in the chart instead of the cone's development.
+- A face on both nappes of a cone (no body built here makes one).
 
 ## What the interim route left (2026-11-17, PR 7049)
 
@@ -70,3 +74,42 @@ The interim this unit follows has merged: a ruled face whose straight side holds
 - a planar neighbour narrower than δ beside a routed face refuses `Triangulation` where the rectangle lane's coarser rim meshed it (373 cells in the review's sweep; `a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`);
 - two points of one ruling closer than 2⁻²⁷ of a cone's slant radius refuse `DevelopedMerge`, which on a draft-angle cone is reached at the default ε (408 cells; `a-ruling-split-within-the-developments-resolution-merges-two-points`, with a cure inside the development in flight as `a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation`). Only the walk leaves the development;
 - a ruling split a hair from its end folds a triangle (`a-ruling-split-a-hair-from-its-end-folds-a-triangle`).
+
+## Unit (2026-11-17, TESSLANE)
+
+**Letter H. Tier: dual review.** The cure changes how the chart lane sizes and triangulates every cylinder and cone face it takes with a split side, and candidates (1) and (3) each add a mechanism to that lane (a refine loop on the certificate; a second way of writing triangles); the count relation it must hold has no oracle but measurement. The two stages above are one unit: stage 1's report is not reviewed by the tier, stage 2's build is.
+
+Branch `tesslane/ruled-density`, cut from `tesslane/ev-ruled-strips` (PR 7046, the tracker change that carries this file) on main `184e484ed2`. Two pull requests in `crates/mesh` are in review and reach main beside this unit: PR 7054 (`trimmed.rs`: the cone arm's `insert_points` and `emit`, a run of merged ruling points re-split) and PR 7041 (`tessellate.rs`, `curved.rs`: one route per face; it takes `walk::splits_a_straight_side` into `tessellate::route_of`). Stage 1's switches are throwaway, so it does not wait for them; merge main before stage 2 and build on what has landed.
+
+**Pre-push for stage 2**, on the pushed head: fmt, `scripts/run-gates.sh`, the doc gate, clippy (`mesh` and `geom-brep` all features and targets, the viewer with `--features app`, `demos/tour`); `mesh` whole with the default profile (slow set included) and the changed rows at ε 1e-6 and 1e-12; `mesh --features budget`; the three `tools` roots; `step-import`, `stl`, `sweep`'s meshing modules; the viewer with `--ignore-default-filter` for its slow-set rows pinned on mesh output (`display_budget`, `review_pick_r2`); `demos/tour` with nextest's `--cargo-profile ci-tour`; the tess-budget meter's bytes (`tools/tess-meter`), since a density change moves them and each moved row is argued.
+
+## Closed (2026-11-22, PR 7096)
+
+**Stage 1 measured the three cures** over about 1,660 cells at the default ε (the same picture at 10⁻⁶ and 10⁻¹²):
+
+| cure | meshes (walls / cones / frustums) | worst triangles against the unsplit face |
+|---|---|---|
+| the chart lane as it was | 530 of 590 / 615 of 635 / 295 of 315 | 196× on walls; 17,618× on a 0.01° cone |
+| 1. no rows, refine where the certificate refuses | 501 of 590 / 568 of 635 / 295 of 315 | 24× on walls, 102× on cones |
+| 2. no rows, one held edge per split side | all but the cells the development merges (55 / 10 / 20) | 2.4× |
+| 3. the walk | every cell, at three ε | 2.25× |
+
+Cure 1's failure to converge was measured with ONE refinement rule (a centroid insert, 400 passes); it does not show that refinement in general fails. Cure 2's refusals are the development's 27-bit merge. One finding cuts across all three: sizing the face at δ, not at the headroom, is what stops a planar neighbour narrower than δ refusing. The orchestrator ruled the walk on these numbers.
+
+**Built:** `crate::ruled_walk`. A ruled rectangle with a split straight side is `Trim::Walked` in the route's value (`tessellate::route_of`, `trimmed::walkable`), sized at δ by the rectangle lane's theorem, and has the unsplit face's triangles plus one per point its side gained, pinned as a relation against the unsplit body in the same run (`split_rulings::holds_the_relation`). Against merged main over one review's 19,426 common cells the head writes 0.80 M triangles to main's 9.76 M.
+
+What the sections above had wrong or did not foresee, each found by a review or by the integration:
+
+- **"No edge of four triangles" was false.** Where ONE neighbour holds both rims of the walked face (a ball bored through), the neighbour's triangles can join the same two rim points. The walk cuts such a side at its chart midpoint, only where the neighbour could make it (`trimmed::may_make`). The rule reads where the neighbour's surface lies, not how the neighbour is meshed, so it **over-cuts** at coarse δ on bored bodies: a kept, stated density cost, with the number of cuts pinned per cell. The question of one cure for the whole mesh is `the-mesh-cures-a-side-two-faces-can-both-make-three-ways`.
+- **A one-chord face to the apex with both sides split** needed its own triangles (`Rows::zip_sides`); the fan-from-the-opposite-corner rule put two fans on one triangle there.
+- **"A split never makes a face refuse" does not hold everywhere.** A run anchored by the apex on a needle triangle of a cone that is not walked; a split beside an apex the band cannot place; and twelve cells of a D prism thinner than δ with every line edge split, which mesh on main and refuse here at a planar cap of no area (the class of `a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`). Each is pinned.
+- **Where the walk is chosen.** Dispatched as "inside the chart lane", because PR 7041 was rebuilding the route; both first reviews named the cost of a second predicate in the lane, and after PR 7041 merged the route's value carries it.
+- **A walked face the lane cannot walk is a kernel bug**, and by `[failure.taxonomy]` it is `unreachable!` with its row-0 answer at the site, not a typed error. The orchestrator ruled a typed variant twice before a review cited the page.
+- **The walk's reach test read ε** (`trimmed::may_make`, on the orchestrator's instruction in the fix pass: a three-way comparison on the run's band). With δ held fixed the bored ball's first cut then sat at a different δ for each ε, against `[tolerance.chordal]` and `[mesh.winding]` ("No ε is read"). Neither review raised it; a designer reading the tree for another question did, after the reviews were in. It now reads none: the side stays uncut only past `δ·(1 + ALLOWANCE_SHARE)` plus two of the certificate's own rounding allowances, and `split_rulings::the_walks_cut_is_the_same_at_every_eps` holds the mesh's bytes across ε either side of the threshold.
+- **A body thinner than δ meshes inside out, on main as on this head** (`a-body-thinner-than-delta-meshes-inside-out-and-nothing-refuses-it`). The bored-ball rows pass such cells: they hold the edge count and the cut count there, and nothing of the mesh's sign.
+
+Main moved under the unit three times, the last by about 2,500 commits during a four-day outage, with TESSLIE's PR 7198 (one shared-side rule on every triangulating arm; a census that refuses an overused side) on the same ground. The walk reads that pull request's one test (`TrimPolygon::faces_holding_side`) and keeps only its own narrowing and its own cure.
+
+`[mesh.sizing]` names two kinds of worst triangle and the walk's is neither; the clause is before Ev in PR 7486, whose text drops the list.
+
+Filed by the unit: `a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles` (main's unsplit bore); `a-walked-sides-reach-exclusion-is-read-only-by-the-walk`; `a-body-thinner-than-delta-meshes-inside-out-and-nothing-refuses-it`; `pole-identification-lets-eps-choose-between-two-meshes-of-a-cone-face`; main's red slow-set row `work/green/main-red-the-viewers-pick-tally-reads-six-grazes-short-of-its-pin.md`. Closed by it: `a-cone-face-with-a-split-side-has-no-worst-triangle-theorem`, `a-ruling-split-a-hair-from-its-end-folds-a-triangle`.

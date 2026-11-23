@@ -77,3 +77,13 @@ move took only the rows at gate p90 >= 0.9 s. The second sighting's row,
 slow set. The third's, `review_m3_pr55_e2e::die_from_raw_extrudes_watertight_stl`,
 read p90 0.750 s and stays; the fourth's is in the slow set (PR 7120).
 PR 7397 decides whether the bar should red a PR for a row it does not touch.
+
+## Another sighting (2026-11-23, PR 7203, from the ONEROUND orchestrator)
+Run 45076908929: `test (kernel)`'s default-ε step went red on the bar
+alone, with no failing test: `sweep::all
+cert_m2r1_passes::m2r1_passes_interval` at 1.145 s against 1.0 s, an
+existing test the PR does not edit. The same step was green on the same
+code in run 45061549494. Timed locally, five runs each, alternating:
+the PR's head 2.936 s median, main at its merge base 2.885 s, inside a
+0.4 s spread. Hosted runners were queueing about an hour per stage that
+night. The PR merged with the red named.

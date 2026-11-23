@@ -24,11 +24,35 @@ pub(super) type Strips<T> = Vec<Vec<Vec<Vec<Point3<T>>>>>;
 /// is the start of segment `j`, and it is pinned in slab `s` where its
 /// world point in section `s` and in section `s + 1` decide one point
 /// ([`corner_pinned`]).
-struct Pinned(Vec<Vec<Vec<bool>>>);
+///
+/// With it, **which segments each slab holds flat**, `[loop][segment][slab]`:
+/// segment `j` pinned at both ends and the same curve in both sections
+/// ([`rim_pinned`]; a line always is), the edge both sections hold.
+pub(super) struct Pinned {
+    corners: Vec<Vec<Vec<bool>>>,
+    flats: Vec<Vec<Vec<bool>>>,
+}
 
 impl Pinned {
-    fn at(&self, l: usize, j: usize, slab: usize) -> bool {
-        self.0[l][j][slab]
+    /// Whether loop `l`'s corner `j` is pinned in `slab`.
+    pub(super) fn at(&self, l: usize, j: usize, slab: usize) -> bool {
+        self.corners[l][j][slab]
+    }
+
+    /// Whether loop `l`'s segment `j` is held flat in `slab`.
+    pub(super) fn flat(&self, l: usize, j: usize, slab: usize) -> bool {
+        self.flats[l][j][slab]
+    }
+
+    /// Whether loop `l`'s corner `j` is pinned in every slab of `slabs`.
+    pub(super) fn at_through(&self, l: usize, j: usize, slabs: core::ops::Range<usize>) -> bool {
+        slabs.into_iter().all(|s| self.at(l, j, s))
+    }
+
+    /// Whether loop `l`'s segment `j` is held flat in every slab of
+    /// `slabs`.
+    pub(super) fn flat_through(&self, l: usize, j: usize, slabs: core::ops::Range<usize>) -> bool {
+        slabs.into_iter().all(|s| self.flat(l, j, s))
     }
 }
 
@@ -89,12 +113,15 @@ const LOFT_RIM_PINNED: &str = "loft_rim_pinned";
 ///    [`LoftError::ReversedStacking`], [`LoftError::FarSectionNotForward`]
 ///    and their escalations).
 ///
-/// Then, once every slab has passed, **a pinned corner the kernel cannot
-/// build** ([`LoftError::PinnedCornerUnsupported`]): one pinned
-/// throughout the span its wall covers. It waits for every slab, because
-/// a corner pinned in an early slab is class 2 if a later one moves it,
-/// and because a kernel limit is reported only where no slab holds a
-/// fault of the sections.
+/// What passes is each corner's class per slab ([`Pinned`]): a corner
+/// pinned throughout the span its wall covers is one vertex there, and
+/// the skin writes it as one point ([`mod@crate::skin`]'s `pin_strips`), so
+/// each wall beside it has a collapsed side. Then, once every slab has
+/// passed, **a one-segment loop's pinned vertex**
+/// ([`LoftError::PinnedCornerUnsupported`]), which the assembly does not
+/// build: its wall is the whole turn, and the vertex its wrap edge. It
+/// waits for every slab, because a kernel limit is reported only where
+/// no slab holds a fault of the sections.
 ///
 /// Every refusal names the first loop, corner or segment pair within its
 /// slab.
@@ -113,7 +140,7 @@ pub(super) fn stacking_door<T: Decide>(
     v_degree: usize,
     band: Band,
     tol: Tol,
-) -> Result<(), LoftError> {
+) -> Result<Pinned, LoftError> {
     let k = places.len();
     let shaped = canonical.len() == k
         && strips.len() == canonical[0].loops().len()
@@ -125,12 +152,16 @@ pub(super) fn stacking_door<T: Decide>(
         return Err(LoftError::SectionStructure);
     }
     let slabs = k - 1;
-    let mut pinned = Pinned(
+    let table = || -> Vec<Vec<Vec<bool>>> {
         strips
             .iter()
             .map(|lp| vec![vec![false; slabs]; lp.len()])
-            .collect(),
-    );
+            .collect()
+    };
+    let mut pinned = Pinned {
+        corners: table(),
+        flats: table(),
+    };
     for slab in 0..slabs {
         classify(strips, &mut pinned, slab, band)?;
         if v_degree >= 2 {
@@ -140,24 +171,24 @@ pub(super) fn stacking_door<T: Decide>(
         step(strips, places, &pinned, slab, band)?;
     }
     for slab in 0..slabs {
-        for (l, lp) in pinned.0.iter().enumerate() {
-            if let Some(j) = lp.iter().position(|slabs| slabs[slab]) {
+        for (l, lp) in pinned.corners.iter().enumerate() {
+            if lp.len() == 1 && lp[0][slab] {
                 return Err(LoftError::PinnedCornerUnsupported {
                     loop_index: l,
-                    at: site(&pinned, l, j, slab),
+                    at: PinnedSite::Corner(0),
                     slab,
                 });
             }
         }
     }
-    Ok(())
+    Ok(pinned)
 }
 
 /// Corner `j` of loop `l`, pinned in `slab`, as a refusal names it: the
 /// segment it starts where the next corner is pinned there too, the one
 /// it ends where the previous one is, and the corner alone otherwise.
 fn site(pinned: &Pinned, l: usize, j: usize, slab: usize) -> PinnedSite {
-    let n = pinned.0[l].len();
+    let n = pinned.corners[l].len();
     if pinned.at(l, (j + 1) % n, slab) {
         PinnedSite::Segment(j)
     } else if pinned.at(l, (j + n - 1) % n, slab) {
@@ -177,7 +208,7 @@ fn classify<T: Decide>(
 ) -> Result<(), LoftError> {
     for (l, lp) in strips.iter().enumerate() {
         for (j, strip) in lp.iter().enumerate() {
-            pinned.0[l][j][slab] = corner_pinned(strip[slab][0], strip[slab + 1][0], band)
+            pinned.corners[l][j][slab] = corner_pinned(strip[slab][0], strip[slab + 1][0], band)
                 .map_err(|source| LoftError::CornerEscalated {
                     loop_index: l,
                     corner: j,
@@ -186,27 +217,28 @@ fn classify<T: Decide>(
                 })?;
         }
     }
-    if pinned.0.iter().flatten().all(|slabs| slabs[slab]) {
-        let mut coincident = true;
-        for (l, lp) in strips.iter().enumerate() {
-            for (j, strip) in lp.iter().enumerate() {
-                let segment = LoopSegment {
-                    loop_index: l,
-                    segment: j,
-                };
-                coincident &=
-                    rim_pinned(&strip[slab], &strip[slab + 1], band).map_err(|source| {
-                        LoftError::ClearanceUndecided {
-                            slab,
-                            segments: [segment, segment],
-                            source,
-                        }
-                    })?;
+    for (l, lp) in strips.iter().enumerate() {
+        let n = lp.len();
+        for (j, strip) in lp.iter().enumerate() {
+            if !(pinned.corners[l][j][slab] && pinned.corners[l][(j + 1) % n][slab]) {
+                continue;
             }
+            let segment = LoopSegment {
+                loop_index: l,
+                segment: j,
+            };
+            pinned.flats[l][j][slab] =
+                rim_pinned(&strip[slab], &strip[slab + 1], band).map_err(|source| {
+                    LoftError::ClearanceUndecided {
+                        slab,
+                        segments: [segment, segment],
+                        source,
+                    }
+                })?;
         }
-        if coincident {
-            return Err(LoftError::DegenerateStacking { slab });
-        }
+    }
+    if pinned.flats.iter().flatten().all(|slabs| slabs[slab]) {
+        return Err(LoftError::DegenerateStacking { slab });
     }
     Ok(())
 }
@@ -214,9 +246,25 @@ fn classify<T: Decide>(
 /// Step 1's class 2 at v-degree 2 or more, once slab `slab` is
 /// classified: a corner pinned in one of slabs `0..=slab` and moving in
 /// another, named by the first slab that pins it and the first it moves
-/// in.
+/// in; and a segment held flat in one and not another, named as the
+/// segment, whose wall through every section holds one curve twice.
 fn retraced(pinned: &Pinned, slab: usize) -> Result<(), LoftError> {
-    for (l, lp) in pinned.0.iter().enumerate() {
+    for (l, lp) in pinned.flats.iter().enumerate() {
+        for (j, by_slab) in lp.iter().enumerate() {
+            let read = &by_slab[..=slab];
+            if let (Some(first), Some(moving)) =
+                (read.iter().position(|&p| p), read.iter().position(|&p| !p))
+            {
+                return Err(LoftError::PinnedCorner {
+                    loop_index: l,
+                    at: PinnedSite::Segment(j),
+                    slab: first,
+                    moving,
+                });
+            }
+        }
+    }
+    for (l, lp) in pinned.corners.iter().enumerate() {
         for (j, by_slab) in lp.iter().enumerate() {
             let read = &by_slab[..=slab];
             if let (Some(first), Some(moving)) =
@@ -285,7 +333,7 @@ fn pieces<T: Decide>(
                         segment: j,
                     },
                     ends,
-                    line: matches!(profile_loop.segments()[j].kind, SegmentKind::Line),
+                    line: matches!(profile_loop.segments()[j].kind, SegmentKind::Line { .. }),
                     carrier: spec.carrier,
                     span: (spec.param_start, spec.param_end),
                 }
@@ -450,9 +498,12 @@ fn arc_pair_meets<T: Decide>(
 /// Zero where the held loop fixes the sections' common plane (three
 /// corners off one line) and the holes move in it, and a direction only
 /// where the held loop is a chord's two ends (a lens) and the sections
-/// turn about it. Where no corner moves at all (a lens turned about its
-/// chord) it decides nothing: such a slab has a pinned corner, which
-/// [`stacking_door`] decides once every slab has passed.
+/// turn about it. Where no corner moves at all (a loop turned about the
+/// chord its two corners span) each segment that moves steps on its own:
+/// the mean displacement of its interior control rows, decided as the
+/// corners' is, so a half disc turned about its chord steps and a lens
+/// turned about its chord, whose two arcs move to opposite sides, is a
+/// slab stacking against itself.
 fn step<T: Decide>(
     strips: &Strips<T>,
     places: &[SketchPlane<T>],
@@ -478,10 +529,37 @@ fn step<T: Decide>(
     // moving corners are the holes'.
     let holes_under_a_held_outer = || moving(strips);
     let Some((d, count)) = outer().or_else(holes_under_a_held_outer) else {
+        for (l, lp) in strips.iter().enumerate() {
+            for (j, strip) in lp.iter().enumerate() {
+                if pinned.flat(l, j, slab) {
+                    continue;
+                }
+                let (a, b) = (&strip[slab], &strip[slab + 1]);
+                let inner = 1..a.len().saturating_sub(1);
+                let d = inner
+                    .clone()
+                    .fold(Vec3::new(T::zero(), T::zero(), T::zero()), |d, i| {
+                        d + (b[i] - a[i])
+                    });
+                facing_both(places, slab, d, inner.len(), band)?;
+            }
+        }
         return Ok(());
     };
+    facing_both(places, slab, d, count, band)
+}
+
+/// The step `d` summed over `count` rows, decided along section `slab`'s
+/// normal and then section `slab + 1`'s ([`step`]).
+fn facing_both<T: Decide>(
+    places: &[SketchPlane<T>],
+    slab: usize,
+    d: Vec3<T>,
+    count: usize,
+    band: Band,
+) -> Result<(), LoftError> {
     #[allow(clippy::cast_precision_loss)]
-    let count = T::from_f64(count as f64);
+    let count = T::from_f64(count.max(1) as f64);
     let facing = |place: &SketchPlane<T>| {
         decide(
             "loft_stacking",

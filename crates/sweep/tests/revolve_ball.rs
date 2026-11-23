@@ -171,7 +171,7 @@ fn a_full_revolves_two_seam_meridians_share_one_frame() {
                 .unwrap()
                 .carrier()
             {
-                geom::Curve3::Circle(geom::Circle { frame, .. }) => *frame,
+                geom::Curve3::Circle(the_circle) => the_circle.frame(),
                 other => panic!("a meridian is a circle: {other:?}"),
             }
         };

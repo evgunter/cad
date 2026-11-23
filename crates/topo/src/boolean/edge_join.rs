@@ -417,34 +417,23 @@ enum Locus {
     PairIso(bool, geom_brep::IsoFamily),
 }
 
-/// Whether `s`'s chart is singular at its point `p`: a cone's apex, a
-/// sphere's poles, a torus's points on its axis — where the `u`
-/// coordinate's lever arm (the distance from the apex or the axis)
-/// collapses. A pole is never joinable, whichever arm the edges are
-/// on: no chart image runs one branch through it.
+/// Whether `s`'s chart is singular at its point `p`: on one of its
+/// singular points, from their one home
+/// ([`geom_brep::chart_singularity::singular_points`]: a sphere's poles,
+/// a cone's apex, a sheet's apexes, a spline net's collapsed sides),
+/// where a chart coordinate stops naming a point. A pole is never
+/// joinable, whichever arm the edges are on: no chart image runs one
+/// branch through it.
 pub(super) fn singular_at<T: Decide>(
     s: &geom::Surface<T>,
     p: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
-        geom::Line { origin, dir: axis }.distance(p)
+    let mut points = geom_brep::chart_singularity::singular_points(s).into_iter();
+    let Some((_, first)) = points.next() else {
+        return Ok(false);
     };
-    let arm = match *s {
-        geom::Surface::Cone { frame, .. } => {
-            let apex = frame.origin();
-            (p - apex).norm()
-        }
-        geom::Surface::Sphere { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
-            off_axis(center, axis)
-        }
-        geom::Surface::Torus { frame, .. } | geom::Surface::Spindle { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
-            off_axis(center, axis)
-        }
-        _ => return Ok(false),
-    };
+    let arm = points.fold((p - first).norm(), |d, (_, x)| d.min((p - x).norm()));
     geom_core::k_stats::decide("join_regular_point", Margin::of(arm), band)
         .map(|sign| sign != Sign::Positive)
 }

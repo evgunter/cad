@@ -74,6 +74,25 @@ fn radials<T: Real>(d: SegmentDirections<T>) -> (Vec2<T>, Vec2<T>) {
     }
 }
 
+/// A validated arc's radials.
+fn arc_radials<T: Real>(k: profile::SegmentKind<T>) -> (Vec2<T>, Vec2<T>) {
+    match k {
+        profile::SegmentKind::Arc {
+            radials: [start, end],
+            ..
+        } => (start, end),
+        profile::SegmentKind::Line { .. } => panic!("an arc's directions are radials"),
+    }
+}
+
+/// A validated line's director.
+fn line_director<T: Real>(k: profile::SegmentKind<T>) -> Vec2<T> {
+    match k {
+        profile::SegmentKind::Line { director } => director,
+        profile::SegmentKind::Arc { .. } => panic!("a line's direction is its director"),
+    }
+}
+
 fn director<T: Real>(d: SegmentDirections<T>) -> Vec2<T> {
     match d {
         SegmentDirections::Line(d) => d,
@@ -96,7 +115,7 @@ fn a_circles_radials_are_exactly_plus_and_minus_x_over_a_box() {
     let (one, zero) = (1.0f64, 0.0f64);
     let want = [((one, zero), (-one, zero)), ((-one, zero), (one, zero))];
     for (k, ((sx, sy), (ex, ey))) in want.into_iter().enumerate() {
-        let (start, end) = radials(segs[k].directions);
+        let (start, end) = arc_radials(segs[k].kind);
         assert_eq!(
             bits(start),
             bits(Vec2::new(sx, sy)),
@@ -118,7 +137,7 @@ fn a_circles_radials_are_exactly_plus_and_minus_x_over_a_box() {
         let band = geom_core::Band::linear(tol()).unwrap();
         let segs = vp.loops()[0].segments();
         for (k, ((sx, sy), (ex, ey))) in want.into_iter().enumerate() {
-            let (start, end) = radials(segs[k].directions);
+            let (start, end) = arc_radials(segs[k].kind);
             assert_eq!(
                 bounds(start),
                 [(sx, sx), (sy, sy)],
@@ -163,8 +182,8 @@ fn a_reversed_loop_swaps_its_radials_and_negates_its_directors() {
     assert_eq!(hole.role(), profile::LoopRole::Hole);
     let n = hole.segments().len();
     for k in 0..n {
-        let (s, e) = radials(hole.segments()[k].directions);
-        let (os, oe) = radials(outer.loops()[0].segments()[(n - k - 1) % n].directions);
+        let (s, e) = arc_radials(hole.segments()[k].kind);
+        let (os, oe) = arc_radials(outer.loops()[0].segments()[(n - k - 1) % n].kind);
         assert_eq!((bits(s), bits(e)), (bits(oe), bits(os)), "hole segment {k}");
     }
     // A table read both ways: reversing negates a director exactly.
@@ -197,7 +216,7 @@ fn a_rectangles_directors_are_the_axes_over_a_box() {
         let vp = validated(vec![lp.into()]);
         let want = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
         for (k, (x, y)) in want.into_iter().enumerate() {
-            let d = director(vp.loops()[0].segments()[k].directions);
+            let d = line_director(vp.loops()[0].segments()[k].kind);
             assert_eq!(bounds(d), [(x, x), (y, y)], "side {k}");
         }
     });
@@ -228,7 +247,7 @@ fn a_directed_leg_records_its_director_and_a_hop_its_true_width() {
             .unwrap();
         let vp = validated(vec![lp.loop_]);
         let segs = vp.loops()[0].segments();
-        let d0 = director(segs[0].directions);
+        let d0 = line_director(segs[0].kind);
         assert_eq!(
             bounds(d0),
             [(1.0, 1.0), (0.0, 0.0)],
@@ -236,7 +255,7 @@ fn a_directed_leg_records_its_director_and_a_hop_its_true_width() {
         );
         // The hop from (t + 1, 0) to (2t, t + 1): direction (t − 1, t + 1)/|·|,
         // whose x runs from negative to positive across the box.
-        let d1 = bounds(director(segs[1].directions));
+        let d1 = bounds(line_director(segs[1].kind));
         let truth = |tv: f64| {
             let (dx, dy) = (tv - 1.0, tv + 1.0);
             let n = dx.hypot(dy);
@@ -271,7 +290,7 @@ fn bulge_and_tangent_arcs_record_their_centre_to_vertex_radials() {
             let profile::SegmentKind::Arc { arc, .. } = s.kind else {
                 continue;
             };
-            let (rs, re) = radials(s.directions);
+            let (rs, re) = arc_radials(s.kind);
             for (v, r, end) in [(s.start, rs, "start"), (s.end, re, "end")] {
                 let want = (v - arc.centre) / arc.radius;
                 assert!(
@@ -345,7 +364,7 @@ fn table(lp: ProfileLoop<f64>) -> Result<ValidatedProfile<f64>, ProfileError> {
 fn a_tables_recorded_direction_is_checked_and_refused_typed() {
     let ok = table(square_with_directors(1.0)).expect("an agreeing table validates");
     assert_eq!(
-        bits(director(ok.loops()[0].segments()[0].directions)),
+        bits(line_director(ok.loops()[0].segments()[0].kind)),
         bits(Vec2::new(1.0, 0.0))
     );
     let refuse = |lp: ProfileLoop<f64>| table(lp).expect_err("the table refuses");
@@ -388,13 +407,13 @@ fn a_tables_recorded_direction_is_checked_and_refused_typed() {
         ])
     };
     let good = table(arcs(Vec2::new(1.0, 0.0))).expect("agreeing radials validate");
-    let (s, e) = radials(good.loops()[0].segments()[0].directions);
+    let (s, e) = arc_radials(good.loops()[0].segments()[0].kind);
     assert_eq!(
         (bits(s), bits(e)),
         (bits(Vec2::new(1.0, 0.0)), bits(Vec2::new(-1.0, 0.0)))
     );
     // The unrecorded arc's radials are decided from its vertices.
-    let (s, e) = radials(good.loops()[0].segments()[1].directions);
+    let (s, e) = arc_radials(good.loops()[0].segments()[1].kind);
     assert!((s - Vec2::new(-1.0, 0.0)).norm() < 1e-15 && (e - Vec2::new(1.0, 0.0)).norm() < 1e-15);
     assert!(
         matches!(
@@ -493,7 +512,7 @@ fn a_tables_direction_is_a_unit_by_check_ones_measure_at_its_lever() {
             let ok = table(square_of_side(l, d)).unwrap_or_else(|e| {
                 panic!("side {l:e}: a director {what} by {off:e} validates: {e:?}")
             });
-            let stored = director(ok.loops()[0].segments()[0].directions);
+            let stored = line_director(ok.loops()[0].segments()[0].kind);
             assert_eq!(
                 bits(stored),
                 bits(d),
@@ -737,7 +756,7 @@ fn the_lift_carries_a_recorded_direction_and_never_rederives_it() {
         (Point2::new(-1.0, 3.0), Segment::Line, None),
     ]);
     let vp = table(lp).expect("the table validates");
-    let stored = director(vp.loops()[0].segments()[0].directions);
+    let stored = line_director(vp.loops()[0].segments()[0].kind);
     assert_eq!(
         bits(stored),
         bits(d),
@@ -747,11 +766,11 @@ fn the_lift_carries_a_recorded_direction_and_never_rederives_it() {
         .clone()
         .lift_onto(SketchPlane::<Interval>::xy())
         .expect("the lift");
-    let l = director(lifted.loops()[0].segments()[0].directions);
+    let l = line_director(lifted.loops()[0].segments()[0].kind);
     assert_eq!(bounds(l), [(d.x, d.x), (d.y, d.y)], "the lifted director");
     let channel = lifted.value_channel().expect("a point channel");
     assert_eq!(
-        bits(director(channel.loops()[0].segments()[0].directions)),
+        bits(line_director(channel.loops()[0].segments()[0].kind)),
         bits(d),
         "the value channel"
     );
@@ -782,7 +801,7 @@ fn a_hop_along_an_axis_mints_its_director_with_no_width() {
         let vp = validated(vec![lp.loop_]);
         let want = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
         for (k, (x, y)) in want.into_iter().enumerate() {
-            let d = director(vp.loops()[0].segments()[k].directions);
+            let d = line_director(vp.loops()[0].segments()[k].kind);
             assert_eq!(bounds(d), [(x, x), (y, y)], "side {k}");
         }
     });
@@ -1100,8 +1119,8 @@ fn quad_hop<T: Decide + Bounds>(x1: T, x2: T) -> [(f64, f64); 2] {
         .unwrap()
         .line_to(Start, tol())
         .unwrap();
-    bounds(director(
-        validated(vec![lp.loop_]).loops()[0].segments()[1].directions,
+    bounds(line_director(
+        validated(vec![lp.loop_]).loops()[0].segments()[1].kind,
     ))
 }
 
@@ -1306,8 +1325,8 @@ fn a_radial_takes_one_branch_at_every_valuation() {
                         .iter()
                         .find(|s| matches!(s.kind, profile::SegmentKind::Arc { .. }))
                         .expect("the arc")
-                        .directions;
-                    let (s, e) = radials(arc);
+                        .kind;
+                    let (s, e) = arc_radials(arc);
                     (bounds(s), bounds(e))
                 })
             })
@@ -1347,8 +1366,8 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
     let check = |vp: &ValidatedProfile<f64>, what: &str| {
         for (k, s) in vp.loops()[0].segments().iter().enumerate() {
             let want = |v: Vec2<f64>| v / v.norm();
-            match (s.kind, s.directions) {
-                (_, SegmentDirections::Line(d)) => {
+            match s.kind {
+                profile::SegmentKind::Line { director: d } => {
                     let c = s.end - s.start;
                     assert_eq!(bits(d), bits(want(c)), "{what}: side {k}");
                     if c.x == 0.0 {
@@ -1360,12 +1379,15 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
                         assert_eq!(d.x.abs(), 1.0, "{what}: side {k}");
                     }
                 }
-                (profile::SegmentKind::Arc { arc, .. }, SegmentDirections::Arc { start, end }) => {
+                profile::SegmentKind::Arc {
+                    arc,
+                    radials: [start, end],
+                    ..
+                } => {
                     for (v, r) in [(s.start, start), (s.end, end)] {
                         assert_eq!(bits(r), bits(want(v - arc.centre)), "{what}: arc {k}");
                     }
                 }
-                (kind, d) => panic!("{what}: segment {k}: {kind:?} with {d:?}"),
             }
         }
     };
@@ -1422,7 +1444,7 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
         .unwrap();
     let vp = validated(vec![quad.loop_]);
     check(&vp, "a side from +0 to −0");
-    let last = director(vp.loops()[0].segments().last().unwrap().directions);
+    let last = line_director(vp.loops()[0].segments().last().unwrap().kind);
     assert_eq!(
         bits(last),
         bits(Vec2::new(-0.0, -1.0)),
@@ -1449,4 +1471,53 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
             &format!("arc about ({cx:?}, 0)"),
         );
     }
+}
+
+/// **The value channel keeps each arc's radial at the end it was
+/// recorded at.** A quarter arc's two radials differ, so a channel that
+/// handed the end radial back as the start one reads differently from
+/// the `f64` form it was lifted from.
+#[test]
+fn the_value_channel_keeps_an_arcs_radials_at_their_own_ends() {
+    use profile::SegmentKind;
+    fn radials<T: geom_core::Real>(kind: SegmentKind<T>) -> [Vec2<T>; 2] {
+        match kind {
+            SegmentKind::Arc { radials, .. } => radials,
+            SegmentKind::Line { .. } => panic!("an arc"),
+        }
+    }
+    let q = (std::f64::consts::PI / 8.0).tan();
+    let vp = Profile::new(
+        SketchPlane::<f64>::xy(),
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), q),
+            (Point2::new(1.0, 1.0), q),
+        ])],
+    )
+    .validate(geom_core::Tol::witness())
+    .expect("the D validates");
+    let channel = vp
+        .clone()
+        .lift_onto(SketchPlane::<Interval>::xy())
+        .expect("the lift")
+        .value_channel()
+        .expect("a point channel");
+    let bits = |v: Vec2<f64>| (v.x.to_bits(), v.y.to_bits());
+    let mut arcs = 0;
+    for (s, c) in vp.loops()[0]
+        .segments()
+        .iter()
+        .zip(channel.loops()[0].segments())
+    {
+        if matches!(s.kind, SegmentKind::Line { .. }) {
+            continue;
+        }
+        arcs += 1;
+        let ([rs, re], [cs, ce]) = (radials(s.kind), radials(c.kind));
+        assert_ne!(bits(rs), bits(re), "a quarter arc's radials differ");
+        assert_eq!(bits(cs), bits(rs), "the channel's start radial");
+        assert_eq!(bits(ce), bits(re), "the channel's end radial");
+    }
+    assert_eq!(arcs, 2, "the D has two arcs");
 }

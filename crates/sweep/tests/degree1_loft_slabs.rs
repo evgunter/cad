@@ -313,6 +313,7 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         for (j, walls) in lofted.side_faces[0].iter().enumerate() {
             assert_eq!(walls.len(), slabs, "{what}: segment {j}'s slabs");
             for &w in walls {
+                let w = w.unwrap();
                 let face = body.get_face(w).unwrap();
                 let Some(Surface::Nurbs(net)) = body.face_surface(w) else {
                     panic!("{what}: wall {w:?} is a spline")
@@ -331,6 +332,7 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         for (j, struts) in lofted.seam_edges[0].iter().enumerate() {
             assert_eq!(struts.len(), slabs, "{what}: vertex {j}'s struts");
             for &e in struts {
+                let e = e.unwrap();
                 let c = body.stored_curve(e).unwrap();
                 let Curve3::Nurbs(net) = c.carrier() else {
                     panic!("{what}: strut {e:?} is a wall's boundary column")
@@ -346,7 +348,10 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         // `s − 1`'s and slab `s`'s wall of each segment.
         for s in 1..slabs {
             for j in 0..segs {
-                let (below, above) = (lofted.side_faces[0][j][s - 1], lofted.side_faces[0][j][s]);
+                let (below, above) = (
+                    lofted.side_faces[0][j][s - 1].unwrap(),
+                    lofted.side_faces[0][j][s].unwrap(),
+                );
                 let shared = shared_edges(body, below, above);
                 let [rim] = shared[..] else {
                     panic!("{what}: section {s}, segment {j}: walls share {shared:?}")

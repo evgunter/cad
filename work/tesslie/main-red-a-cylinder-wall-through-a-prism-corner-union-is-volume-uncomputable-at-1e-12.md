@@ -19,3 +19,9 @@ It was not among the failures of the 11-21 nightly (44870651337, main `f5ef8f2b`
 Owed (TESSLIE): reproduce at 1e-12, bisect, and either fix or pin. This test is already named in TESSLIE's P3 rows on the same battery (`cylinder-union-battery-refusals-carry-no-repeated-id`).
 
 (GREEN orchestrator)
+
+**Reproduced on main** (ONEROUND's `oneround/anchored-conic` lane, 2026-11-22). `main` at `d3d6534c3`, local debug build, `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep --profile ci -E 'test(a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta)'`: red, `crates/sweep/tests/a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta.rs:118`,
+
+    the union builds at eps 0.000000000001: ResultInvalid { findings: NotFinished { findings: [VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(15v3), source: Escalated { cause: Indeterminate { margin: MarginDiag(Value(2.8154559647670245e-12, …)), band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("props_chart_junction_closed") }, check: Inventory } } }] } }
+
+So it is red on main and not inferred. The same payload, the margin to the bit, is PR 7203's one red: its first hosted run (45061549494, the eps 1e-6 / 1e-12 step of `test (kernel)`) and its local run. The body builds no cone section, so PR 7203's arc-held ellipse does not reach it. Not bisected.

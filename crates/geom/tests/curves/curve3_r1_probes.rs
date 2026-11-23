@@ -240,7 +240,7 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_interval() {
 /// Totality and poison for the jet door in one place — the same census
 /// `curves.rs`'s `poison_parameter_poisons_the_point`,
 /// `extreme_parameters_do_not_panic` and
-/// `nurbs_placeholder_evaluates_to_poison` rows keep beside the doors
+/// `a_poisoned_nurbs_net_evaluates_to_poison` rows keep beside the doors
 /// they enumerate — with both halves read at every poison input.
 #[test]
 fn probe_ders1_is_total_and_poisons_like_its_evaluators() {
@@ -267,7 +267,7 @@ fn probe_ders1_is_total_and_poisons_like_its_evaluators() {
     // The line's tangent is data: a poison parameter does not reach it.
     assert!((line.ders1(f64::NAN).1.x - 1.0).abs() < f64::EPSILON);
 
-    let n: Curve3<f64> = Curve3::nurbs_placeholder();
+    let n: Curve3<f64> = geom::test_support::poisoned_nurbs_segment();
     let (p, d) = n.ders1(0.5);
     assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "point {p:?}");
     assert!(

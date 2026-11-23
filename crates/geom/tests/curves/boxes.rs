@@ -258,11 +258,11 @@ fn nurbs_box_is_the_control_hull_and_contains_samples() {
 }
 
 #[test]
-fn placeholder_nurbs_box_is_poison() {
-    let Curve3::Nurbs(placeholder) = Curve3::<f64>::nurbs_placeholder() else {
-        panic!("placeholder is a Nurbs variant");
+fn an_all_poison_nurbs_box_is_poison() {
+    let Curve3::Nurbs(poisoned) = geom::test_support::poisoned_nurbs_segment::<f64>() else {
+        panic!("the fixture is a Nurbs variant");
     };
-    let b = nurbs_curve_aabb(&placeholder);
+    let b = nurbs_curve_aabb(&poisoned);
     assert!(b.min_x.is_nan());
     // Poison never prunes.
     assert!(b.overlaps(&Aabb {

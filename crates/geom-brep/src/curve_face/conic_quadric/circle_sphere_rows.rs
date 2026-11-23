@@ -365,12 +365,16 @@ impl SlackTerms {
             Point3::from_array(sc),
             r,
         );
-        let (lo_n, hi_n) = (h.lo_error + h.frame_error, h.hi_error + h.frame_error);
-        let (swing, slope) = (h.hi - h.lo, (-h.lo * h.hi).max(0.0).sqrt());
-        let (near, far) = if h.lo.abs() <= h.hi.abs() {
-            (h.hi * lo_n, -h.lo * hi_n)
+        let (lo, hi) = (
+            h.lo.with_charge(h.frame_error),
+            h.hi.with_charge(h.frame_error),
+        );
+        let (lo_n, hi_n) = (lo.error, hi.error);
+        let (swing, slope) = (hi.value - lo.value, (-lo.value * hi.value).max(0.0).sqrt());
+        let (near, far) = if lo.value.abs() <= hi.value.abs() {
+            (hi.value * lo_n, -lo.value * hi_n)
         } else {
-            (-h.lo * hi_n, h.hi * lo_n)
+            (-lo.value * hi_n, hi.value * lo_n)
         };
         Self {
             near: rho * near / swing / slope,
@@ -378,8 +382,8 @@ impl SlackTerms {
             phase: rho * h.phase_error / h.e_u.hypot(h.e_v),
             angle: rho * geom_core::rounding_charge(core::f64::consts::TAU),
             noise: lo_n.max(hi_n),
-            lo: h.lo,
-            hi: h.hi,
+            lo: lo.value,
+            hi: hi.value,
         }
     }
 

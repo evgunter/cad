@@ -92,10 +92,9 @@
 //! and undescribed cases produce the scalar's poison value (NaN at
 //! `f64`, NaI/empty at the interval scalar) which flows through values
 //! and is caught at the predicate/certification layer — in particular,
-//! evaluating a [`Curve3::nurbs_placeholder`] or
-//! [`Surface::nurbs_placeholder`] "no description yet" state yields an
-//! all-poison point (representable ≠ described; the poison fails every
-//! downstream certification loudly, per D4 ¶2).
+//! evaluating the [`Surface::nurbs_placeholder`] "no description yet"
+//! state yields an all-poison point (representable ≠ described; the
+//! poison fails every downstream certification loudly, per D4 ¶2).
 //!
 //! **There are THREE states, and telling them apart is one rule with
 //! one spelling.** The discriminator is the control net's poison. A
@@ -110,8 +109,7 @@
 //! are defined; [`NurbsSurface::net_state`] is the door that answers
 //! it, and a consumer that must tell all three apart matches on that
 //! rather than composing predicates or re-deriving the test inline.
-//! [`NurbsCurve3::is_placeholder`] and
-//! [`NurbsSurface::is_placeholder`] answer the placeholder question
+//! [`NurbsSurface::is_placeholder`] answers the placeholder question
 //! alone, for the consumers that only ask it.
 //!
 //! **Which poison, per scalar, because the sets differ in extension.**
@@ -133,9 +131,11 @@
 //! poisoned bracket bounds its locus on no axis. That door and its
 //! reason are `net::any_poison`'s.
 //!
-//! Only the two 3-D payloads carry the state at all: `NurbsCurve2`
-//! has no placeholder and no discriminator, so nothing exercises this
-//! rule at two channels.
+//! Only the surface payload carries the state at all: no curve has a
+//! placeholder, so a curve's net is described, and a poisoned one
+//! reaches its consumer's described arm. Not every such arm fails on
+//! it yet: `topo`'s rigid map moves a poisoned carrier net (SHELL's
+//! `transform-rigid-maps-a-poisoned-net-into-the-placeholder`).
 //!
 //! # Evaluation-code discipline
 //!
