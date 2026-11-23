@@ -67,15 +67,12 @@ which cannot match a site composing `net::is_placeholder` or
 `net::any_poison` directly (`geom`'s own `net.rs`, the implementation,
 is excluded).
 
-<<<<<<< HEAD
-## The question to Ev (2026-11-22, fork F2)
-
-Two designers weighed it independently and converged: the two (in fact four) doors exist only because "this face has no surface yet" is stored as an in-band all-NaN NURBS net. Their recommendation: tag the body's surface SLOT in `topo` (undescribed | described `Surface`), retire `NetState`, `net_state`, both `is_placeholder`s, `Surface::is_placeholder_chart` and the placeholder constructors, and leave one finiteness predicate (NaN and ±∞) as the only question asked of a net. That reverses geom's crate-doc "three states" doctrine and possibly an earlier retirement of a unit variant, and is moderately hard to reverse, so it goes to Ev. The curve placeholder (no producer outside tests) is deleted regardless, by `walks/curve-placeholder`.
-=======
 ## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
 
 Still live; about 27 production `is_placeholder()` sites now against the row's ~20 (new: clearance, props/quad_lane, ring_path spline_wall and sector_face, geom-brep dihedral_side, mesh chart_table, step-export writer, step-import build; gone from pcurves, props top level, pcurve_cache, mesh trimmed, step-import adopt). The described-net row the `!is_placeholder()`-as-described sites deferred to is closed, so those sites (geom-brep certify.rs, step-import build.rs, geom's `matches!` guards) have no other owner. Re-priced M; weighed as fork F2.
->>>>>>> origin/main
+## The question to Ev (2026-11-22, fork F2)
+
+Two designers weighed it independently and converged: the two (in fact four) doors exist only because "this face has no surface yet" is stored as an in-band all-NaN NURBS net. Their recommendation: tag the body's surface SLOT in `topo` (undescribed | described `Surface`), retire `NetState`, `net_state`, both `is_placeholder`s, `Surface::is_placeholder_chart` and the placeholder constructors, and leave one finiteness predicate (NaN and ±∞) as the only question asked of a net. That reverses geom's crate-doc "three states" doctrine and possibly an earlier retirement of a unit variant, and is moderately hard to reverse, so it goes to Ev. The curve placeholder (no producer outside tests) is deleted regardless, by `walks/curve-placeholder`.
 
 ## Decided (Ev, 2026-11-22, PR 7423)
 
