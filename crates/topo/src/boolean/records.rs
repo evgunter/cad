@@ -1029,7 +1029,8 @@ mod tests {
             .filter(|&e| ends(e).contains(&corner))
             .collect();
         let beside: Vec<crate::VertexKey> = at_corner.iter().flat_map(|&e| ends(e)).collect();
-        // An edge neither at the corner nor at one of its neighbours.
+        // An edge neither at the corner nor at one of its neighbours: a
+        // cube has three.
         let far = *edges
             .iter()
             .find(|&&e| {
@@ -1037,7 +1038,7 @@ mod tests {
                     .iter()
                     .all(|v| !beside.contains(v) && *v != strut.vertex)
             })
-            .expect("a cube has edges across from a corner");
+            .unwrap();
         let pair = |a, b| Contact::of(Cell::Edge(a), Cell::Edge(b)).unwrap();
         assert!(
             at_corner.iter().any(|&near| crate::census::decided_apart(
