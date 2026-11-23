@@ -834,7 +834,7 @@ fn register_placed_carrier_ends<T: Real>(
             "a placed arc's carrier end from its placed sketch carrier end",
         ),
     ] {
-        let built = Curve3::circle_at(&circle.frame, circle.radius(), param);
+        let built = Curve3::circle_at(&circle.frame(), circle.radius(), param);
         let held = place.point(sketch);
         for (b, h) in [(built.x, held.x), (built.y, held.y), (built.z, held.z)] {
             b.register_equal(h, tol).handle(fact);
@@ -1784,21 +1784,15 @@ mod tests {
             let placing = Placing::from(place);
             let (q_from, q_to) = (placing.point(seg.a), placing.point(seg.b));
             let spec = placed_segment_spec(&seg, place, q_from, tol);
-            let Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: carrier_frame,
-                    ..
-                },
-            ) = spec.carrier
-            else {
+            let Curve3::Circle(circle) = spec.carrier else {
                 panic!("an arc places onto a circle carrier");
             };
-            let center = carrier_frame.origin();
+            let center = circle.frame().origin();
             let radius = circle.radius();
             let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
-            let start = Curve3::circle_at(&circle.frame, radius, lit(0.0));
+            let start = Curve3::circle_at(&circle.frame(), radius, lit(0.0));
             let rim = q_from - center;
-            let end = Curve3::circle_at(&circle.frame, radius, spec.param_end);
+            let end = Curve3::circle_at(&circle.frame(), radius, spec.param_end);
             [
                 sign(start.distance(q_from)),
                 sign(rim.dot(rim) - radius.powi(2)),

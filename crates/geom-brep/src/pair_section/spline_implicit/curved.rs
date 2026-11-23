@@ -287,7 +287,7 @@ pub(super) fn door(
     net: &NurbsSurface<f64>,
     band: Band,
 ) -> Result<(), SectionError> {
-    door_on(net, band, form.name(), |p| {
+    door_on(net, form.name(), |p| {
         let q = form.framed_point(p);
         decide(
             "section_nurbs_implicit_pole",

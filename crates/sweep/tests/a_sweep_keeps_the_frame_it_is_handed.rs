@@ -347,7 +347,7 @@ fn assert_latitudes_exact(what: &str, body: &Body<S>, rims: &[Vec<Option<topo::E
         let circle = carrier.as_circle().expect("a latitude is a circle");
         assert_exact_unit(
             &format!("{what} latitude {rim:?} u_ref"),
-            circle.frame.u_ref(),
+            circle.frame().u_ref(),
         );
         seen += 1;
     }
@@ -666,7 +666,7 @@ where
             carrier
                 .as_circle()
                 .expect("a latitude is a circle")
-                .frame
+                .frame()
                 .u_ref(),
         );
     }
@@ -1231,7 +1231,7 @@ fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
                             .ok()
                             .and_then(|carrier| carrier.as_circle());
                         if let Some(circle) = circle {
-                            unit(&format!("{verb} rim {edge:?} u_ref"), circle.frame.u_ref());
+                            unit(&format!("{verb} rim {edge:?} u_ref"), circle.frame().u_ref());
                             rims += 1;
                         }
                     }
@@ -1323,7 +1323,7 @@ fn a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written() {
             .ok()
             .and_then(|carrier| carrier.as_circle());
         if let Some(circle) = circle {
-            longest = longest.max(circle.frame.u_ref().norm() - 1.0);
+            longest = longest.max(circle.frame().u_ref().norm() - 1.0);
         }
     }
     println!("stretch {small:e}, longest u_ref defect {longest:e}");

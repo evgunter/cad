@@ -917,9 +917,10 @@ pub fn require_one_chart_branch<T: Decide>(
             // As on the cone: a definite crossing anywhere refuses first.
             let mut undecided = None;
             for (i, e) in outer.iter().enumerate() {
-                let Curve3::Circle(geom::Circle { frame, .. }) = e.carrier else {
+                let Curve3::Circle(the_circle @ geom::Circle { .. }) = e.carrier else {
                     continue;
                 };
+                let frame = the_circle.frame();
                 let n_c = frame.axis();
                 // Meridians only (see the fn docs): the parse's own
                 // rim/meridian split, on the parse's own margin.
@@ -1789,7 +1790,8 @@ fn cylinder_windings<T: Decide>(
                 .map(|e| {
                     let ends = e.traversal_ends();
                     Ok([match e.carrier {
-                        Curve3::Circle(geom::Circle { frame, .. }) => {
+                        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                            let frame = the_circle.frame();
                             let center = frame.origin();
                             let du = rim_turns.next().ok_or(mismatch.clone())?;
                             EdgeTurn::carried(axis, origin, center, du, ends, radius)
@@ -2205,16 +2207,11 @@ fn cylinder_boundary<T: Decide>(
                 levels.push((e.p1() - origin).dot(axis));
                 sides.push(IsoFamily::U);
             }
-            Curve3::Circle(
-                conic_k @ geom::Circle {
-                    frame: carrier_frame_16,
-                    ..
-                },
-            ) => {
+            Curve3::Circle(conic_k) => {
                 let (center, n_c, u_c) = (
-                    carrier_frame_16.origin(),
-                    carrier_frame_16.axis(),
-                    carrier_frame_16.u_ref(),
+                    conic_k.frame().origin(),
+                    conic_k.frame().axis(),
+                    conic_k.frame().u_ref(),
                 );
                 let r_c = conic_k.radius();
                 let s = classify_as(
@@ -2651,8 +2648,8 @@ fn require_on_cone<T: Decide>(
         Curve3::Line(geom::Line { dir, .. }) => {
             require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
         }
-        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-            let (center, n_c) = (frame.origin(), frame.axis());
+        Curve3::Circle(circle) => {
+            let (center, n_c) = (circle.frame().origin(), circle.frame().axis());
             let r_c = circle.radius();
             require_cone_circle(
                 apex,
@@ -2778,19 +2775,13 @@ fn require_cone_ellipse<T: Decide>(
     e: &LoopEdge<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    let Curve3::Ellipse(
-        conic_k @ geom::Ellipse {
-            frame: carrier_frame_15,
-            ..
-        },
-    ) = e.carrier
-    else {
+    let Curve3::Ellipse(conic_k) = e.carrier else {
         return Err(PropsError::Unimplemented);
     };
     let (center, n, u_ref) = (
-        carrier_frame_15.origin(),
-        carrier_frame_15.axis(),
-        carrier_frame_15.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let (a, b) = (u_ref * semi_u, n.cross(u_ref) * semi_v);
@@ -3367,7 +3358,8 @@ fn cone_loop_winding<T: Decide>(
         let step = match e.carrier {
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
-            Curve3::Circle(geom::Circle { frame, .. }) => {
+            Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                let frame = the_circle.frame();
                 let (n, center) = (frame.axis(), frame.origin());
                 let own = sense(n, ends_arm)? * (e.t1 - e.t0);
                 let own = if e.forward { own } else { -own };
@@ -3380,7 +3372,8 @@ fn cone_loop_winding<T: Decide>(
                     lever,
                 ))
             }
-            Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
+            Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {
+                let frame = the_ellipse.frame();
                 let n = frame.axis();
                 let third = (e.t1 - e.t0) / T::from_f64(3.0);
                 let (q1, q2) = (e.carrier.eval(e.t0 + third), e.carrier.eval(e.t1 - third));
@@ -3491,8 +3484,8 @@ fn cone_boundary<T: Decide>(
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
                 sides.push(IsoFamily::U);
             }
-            Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                let (center, n_c) = (frame.origin(), frame.axis());
+            Curve3::Circle(circle) => {
+                let (center, n_c) = (circle.frame().origin(), circle.frame().axis());
                 let r_c = circle.radius();
                 let s = require_cone_circle(
                     apex,
@@ -4086,7 +4079,7 @@ fn sphere_loop<T: Decide>(
     let mut curvature = T::zero();
     let mut arcs = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = e.carrier else {
+        let Curve3::Circle(conic_k) = e.carrier else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
                     PropsError::Unimplemented
@@ -4096,6 +4089,7 @@ fn sphere_loop<T: Decide>(
                 },
             });
         };
+        let frame = conic_k.frame();
         let (c_c, n_c) = (frame.origin(), frame.axis());
         let r_c = conic_k.radius();
         let w = c_c - center;
@@ -5297,9 +5291,10 @@ fn sphere_boundary<T: Decide>(
     };
     let mut sides = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = e.carrier else {
+        let Curve3::Circle(conic_k) = e.carrier else {
             return Err(IsoChart::Sphere { center, radius }.kind_refusal(e, band));
         };
+        let frame = conic_k.frame();
         let (c_c, n_c) = (frame.origin(), frame.axis());
         let r_c = conic_k.radius();
         let s = classify_as(
@@ -5924,11 +5919,12 @@ fn torus_chart_loop<T: Decide>(
     // a torus 990 m out at the interval scalar, whatever the minor radius.
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
-        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = p.edge.carrier else {
+        let Curve3::Circle(conic_k) = p.edge.carrier else {
             return Err(PropsError::Defect {
                 what: "a torus piece that is no circle",
             });
         };
+        let frame = conic_k.frame();
         let centre = frame.origin();
         let r_c = conic_k.radius();
         let (wa, wb) = (a - center, b - center);
@@ -6296,7 +6292,7 @@ fn torus_classify<'a, T: Decide>(
 ) -> Result<Vec<TorusEdge<'a, T>>, PropsError> {
     let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = e.carrier else {
+        let Curve3::Circle(conic_k) = e.carrier else {
             return Err(IsoChart::Torus {
                 center,
                 axis,
@@ -6305,6 +6301,7 @@ fn torus_classify<'a, T: Decide>(
             }
             .kind_refusal(e, band));
         };
+        let frame = conic_k.frame();
         let (c_c, n_c) = (frame.origin(), frame.axis());
         let r_c = conic_k.radius();
         let s = classify_as(
