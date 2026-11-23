@@ -3745,7 +3745,7 @@ where
     /// nominal's alone (DESIGN `[scalars]`). The form's own zero is the
     /// follow-up (BOXFINISH's EX1, `Expression::proves_zero`).
     fn zero_everywhere(self) -> bool {
-        self.value.exactly_zero()
+        self.value().exactly_zero()
     }
 
     fn spins_by_frames() -> bool {
