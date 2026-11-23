@@ -29,10 +29,6 @@ fn n1r2_curve_interval_lift_encloses_source_on_adversarial_nets() {
     for (name, c) in curves3() {
         let e = Curve3::Nurbs(Arc::new(c.clone()));
         let ei: Curve3<Interval> = e.map_scalar(Interval::from_f64);
-        assert!(
-            matches!(&ei, Curve3::Nurbs(n) if !n.is_placeholder()),
-            "{name}"
-        );
         for t in params(c.knots_f64_interim()) {
             let ti = Interval::from_f64(t);
             for (label, li, s) in [
@@ -155,11 +151,8 @@ fn n1r2_surface_interval_lift_encloses_source_on_adversarial_nets() {
 
 #[test]
 fn n1r2_placeholder_and_poison_at_interval_and_dual_interval() {
-    let c: Curve3<f64> = Curve3::nurbs_placeholder();
-    let ci = c.map_scalar(Interval::from_f64);
-    assert!(matches!(&ci, Curve3::Nurbs(n) if n.is_placeholder()));
-    let cdi = ci.map_scalar(Dual::constant);
-    assert!(matches!(&cdi, Curve3::Nurbs(n) if n.is_placeholder()));
+    let c: Curve3<f64> = geom::test_support::poisoned_nurbs_segment();
+    let cdi = c.map_scalar(Interval::from_f64).map_scalar(Dual::constant);
     assert!(
         cdi.eval(Dual::variable(Interval::from_f64(0.5)))
             .x
@@ -181,7 +174,6 @@ fn n1r2_placeholder_and_poison_at_interval_and_dual_interval() {
     control[4] = Point3::new(f64::NAN, f64::NAN, f64::NAN);
     let c = NurbsCurve3::new(knots, control, vec![1.0, 2.0, 0.5, 1.0, 1.0]).unwrap();
     let ci = c.map_scalar(Interval::from_f64);
-    assert!(!ci.is_placeholder(), "lift widened into the placeholder");
     let p = ci.eval(Interval::from_f64(0.1));
     let q = c.eval(0.1);
     assert!(contains(p.x, q.x) && width_ok(p.x, q.x, 1e-12));

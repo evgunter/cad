@@ -109,7 +109,7 @@ fn read_loop<T: AtRestPolicy>(
         // off the set is decided and every image derived, and no joint
         // on it is asked for a turn in a chart the face may not be on.
         let singular = match singular_at(described, entry_vertex(body, cycle[first]), band) {
-            Singular::Undecided(cause) => Some(cause),
+            Singular::Undecided(cause) | Singular::SideUndecided(cause) => Some(cause),
             _ => None,
         };
         for (k, &start) in fenced.iter().enumerate() {
@@ -537,10 +537,14 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                         elements[i] = Some(element);
                         if let Some((edge, tip)) = tip_at(he) {
                             let reading = match singular_at(chart, entry_vertex(body, he), band) {
-                                Singular::On(_) | Singular::Collapsed => continue,
+                                Singular::On(_) | Singular::Sides(_) | Singular::Collapsed => {
+                                    continue;
+                                }
                                 Singular::Off if has_singular_points => TipReading::Off,
                                 Singular::Off => TipReading::NoSingularSet,
-                                Singular::Undecided(cause) => TipReading::Undecided(cause),
+                                Singular::Undecided(cause) | Singular::SideUndecided(cause) => {
+                                    TipReading::Undecided(cause)
+                                }
                             };
                             tips.push(TipOff {
                                 face: face_key,

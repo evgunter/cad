@@ -82,13 +82,13 @@ fn reading(c: &Curve3<f64>, t: f64, origin: Point3<f64>, n: Vec3<f64>) -> f64 {
 /// crest angle `atan2(q, p)`.
 fn crest_angle(c: &Curve3<f64>, n: Vec3<f64>) -> f64 {
     let (axis, u, a, b) = match *c {
-        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-            let (axis, u_ref) = (frame.axis(), frame.u_ref());
+        Curve3::Circle(circle) => {
+            let (axis, u_ref) = (circle.frame().axis(), circle.frame().u_ref());
             let radius = circle.radius();
             (axis, u_ref, radius, radius)
         }
-        Curve3::Ellipse(ellipse @ geom::Ellipse { frame, .. }) => {
-            let (axis, u_ref) = (frame.axis(), frame.u_ref());
+        Curve3::Ellipse(ellipse) => {
+            let (axis, u_ref) = (ellipse.frame().axis(), ellipse.frame().u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (axis, u_ref, semi_u, semi_v)
         }

@@ -1532,6 +1532,10 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
         },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::CollapsedSideMadeOne { moved_by } => {
+            named::<&f64>(moved_by);
+            "collapsed_side_made_one"
+        }
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",

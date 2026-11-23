@@ -772,7 +772,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        206,
+        217,
         105,
         "the 105 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), the focal image's four (10, below), \
@@ -804,7 +804,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          the low end of `1 − β·cos E` (1) and `Focal::rate` its denominator's (1), each \
          behind its own ask and each answering the whole line otherwise; `Focal::on` the \
          piece's two parameters (2), a parameter read, and the two end evaluations' ends (4, \
-         two per sense), a hull it forms only where both evaluations certify. Of the other 101, \
+         two per sense), a hull it forms only where both evaluations certify. Of the other 112, \
          `reaching_its_singular_points`' 4 \
          read the ends of a singular latitude, a sphere pole's `±π/2` or a cone apex's `0`, to \
          compare the stored extent with it and move the extent to it: the constant's own \
@@ -814,8 +814,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          whole turns, read outward so `Along::under_graph`'s containment is conservative, \
          `present_wall`'s wall curve's parameter enclosure stored as its `Params` (2), the \
          same parameters its curve already carries, the parameter reads (`monotone_run`, `narrowed`, \
-         `leaves_graph`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
-         the placement asks, are sound. The rest read the window's carrier and the face's boundary, which \
+         `leaving`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
+         the placement asks, are sound. `joints`' 4 are the hull of a joint's two readings, \
+         behind `forward`'s ask in `line_ends`. The run through a corner's vertex reads 7 more, none \
+         asking, each a refusal when not met: `line_onward` (3) the other edge's far \
+         coordinate against the columns' far end, one-sided so a bracket that holds nothing \
+         refuses, and its share of the columns, taken at its upper end and refused unless \
+         finite; `graph_read` (2) the hull of the other edge's reach into \
+         `R`, refused unless bounded; `graph_of` (2) the run's vertex's parameter, the span's \
+         end, which a piece `edge_piece` returns finite is then compared against, a piece \
+         past it or no number answering nothing. The rest read the window's carrier and the face's boundary, which \
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
          presentations' speed bounds also read an enclosure computed from them that may clamp, \

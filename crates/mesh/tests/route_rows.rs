@@ -47,7 +47,7 @@ fn fnv(h: &mut u64, bytes: &[u8]) {
 
 /// The mesh's bytes (positions, then each patch's face and triangles), or
 /// the refusal's `Debug`.
-fn mesh_digest(body: &Body<f64>, delta: f64) -> u64 {
+pub(super) fn mesh_digest(body: &Body<f64>, delta: f64) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325;
     match mesh::tessellate(body, delta, Tol::witness()) {
         Ok(m) => {
@@ -615,4 +615,58 @@ fn an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes() {
         0xac0a_86a0_1d7d_e5b0,
         "main's bytes"
     );
+}
+
+/// **A body whose ruled face has a split side records the walk's
+/// decisions.** Beside [`a_body_that_meshes_records_mains_k_stream`], on
+/// two bodies the route walks: a frustum wall turned a full turn (two cone
+/// faces), every line edge split at its middle, at δ 5e-2; the bored ball
+/// of `split_rulings` with its seam split at its middle, at δ 0.1, where
+/// the walk cuts. The walk adds one kind of decision to a run:
+/// **`chart_singularity_at_vertex`**, inside the route, once per singular
+/// point of the face's chart per vertex of its outer loop
+/// (`trimmed::walkable`, `chart_table::at_a_pole`). A cone has one, its
+/// apex, so the frustum's two faces of six vertices each add 12 of the
+/// run's 36 (the other 24 are the trimmed lane's own reads of its
+/// vertices, `trimmed::singular_vertices`); a cylinder has none, so the
+/// bore adds none. Its cuts record nothing: whether a face across can
+/// reach a side (`trimmed::may_make`) reads no band.
+///
+/// A memo hit records none of it: the route's decisions are spliced only
+/// where the lane runs. Each body's count, and its whole run's stream, are
+/// pinned.
+#[test]
+fn a_split_side_body_records_the_walks_decisions() {
+    use crate::split_rulings::{bored_ball, rulings, split_and_placed, turned};
+    let frustum = turned(
+        &[(1.0, 0.0), (3.0, 0.0), (2.0, 1.0), (1.5, 1.0)],
+        sweep::Revolution::Full,
+    );
+    let bore = bored_ball(1.0);
+    let rows = [
+        (
+            "a frustum wall",
+            &frustum,
+            5e-2,
+            36,
+            0xd351_00ba_acb8_3421_u64,
+        ),
+        ("the bored ball", &bore, 0.1, 0, 0xb042_5d70_935d_9752),
+    ];
+    for (name, body, delta, apex, stream) in rows {
+        let split = split_and_placed(body, &rulings(body), &[0.5]);
+        let bracket = Bracket::open();
+        let _ = mesh::tessellate(&split, delta, Tol::witness());
+        let recorded = bracket.finish();
+        let apexes = recorded
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == "chart_singularity_at_vertex")
+            .count();
+        assert_eq!(apexes, apex, "{name}: apex reads");
+        let got = k_digest(|| {
+            let _ = mesh::tessellate(&split, delta, Tol::witness());
+        });
+        assert_eq!(got, stream, "{name}: the run's K stream");
+    }
 }

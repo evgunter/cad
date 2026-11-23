@@ -438,12 +438,8 @@ pub(crate) fn tessellate_curved(
 
     // Emit: drop pole-degenerate triangles, certify the rest.
     let mut triangles = Vec::new();
-    let mut worst: f64 = 0.0;
-    // The face's verdict, kept per triangle rather than read off
-    // `worst`: [`cert::verdict`] reads each bound at its own rounding
-    // magnitude. An exceeded triangle outranks an unresolved one.
-    let mut exceeded = false;
-    let mut unresolved: Option<f64> = None;
+    // The face's verdict over its triangles (`cert::FaceVerdict`).
+    let mut verdict = cert::FaceVerdict::new();
     for f in cdt.inner_faces() {
         let vs = f.vertices();
         let m: Vec<(f64, f64, PatchVertex, bool)> =
@@ -461,16 +457,7 @@ pub(crate) fn tessellate_curved(
         let pole = [m[0].3, m[1].3, m[2].3];
         // A pole or apex entry has no azimuth (`crate::chart_table`).
         let (bound, scale) = row.cert(tri, uv, pole);
-        match cert::verdict(bound, tol.delta, scale, tol.eps) {
-            cert::Verdict::Certified => {}
-            cert::Verdict::Exceeded => exceeded = true,
-            cert::Verdict::Unresolved { allowance } => {
-                unresolved = Some(unresolved.map_or(allowance, |a: f64| a.max(allowance)));
-            }
-        }
-        // The face's worst bound, a NaN kept once met (`cert::worse`):
-        // what a refusal reports is what refused.
-        worst = cert::worse(worst, bound);
+        verdict.read(bound, tol.delta, scale, tol.eps);
         triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
     }
 
@@ -530,21 +517,7 @@ pub(crate) fn tessellate_curved(
         );
     }
 
-    if exceeded {
-        return Err(TessellateError::CertificateExceeded {
-            face: fk,
-            bound: worst,
-            requested: tol.delta,
-        });
-    }
-    if let Some(allowance) = unresolved {
-        return Err(TessellateError::RoundingUnresolved {
-            face: fk,
-            bound: worst,
-            requested: tol.delta,
-            allowance,
-        });
-    }
+    verdict.refusal(fk, tol.delta)?;
     Ok(patch)
 }
 
@@ -2840,10 +2813,11 @@ mod tests {
         let mesh = crate::tessellate(&body, 0.1, Tol::witness()).expect("must not refuse");
         crate::validate::check_mesh(&mesh).expect("must mesh watertight");
         // The split ruling's face is the trimmed lane's
-        // (`walk::splits_a_straight_side`), which lays rows this face
-        // does not need: 38 where the rectangle lane's chart CDT made 28.
+        // (`walk::splits_a_straight_side`), which walks its two rows
+        // (`tessellate::Lane::Walked`) and lays no point inside it: 28,
+        // where the chart lane's lattice and CDT made 38.
         let n: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
-        assert_eq!(n, 38, "the split+placed wedge's triangle count at δ = 0.1");
+        assert_eq!(n, 28, "the split+placed wedge's triangle count at δ = 0.1");
     }
 
     /// **What the refusal replaces**, replayed through this lane's own

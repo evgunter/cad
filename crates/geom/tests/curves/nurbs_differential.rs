@@ -230,7 +230,7 @@ fn bezier_special_case_matches_binomial_closed_form() {
     }
 }
 
-/// The enum arm routes to the payload (and the placeholder poisons).
+/// The enum arm routes to the payload (and an all-poison net poisons).
 #[test]
 fn curve3_nurbs_arm_evaluates_the_payload() {
     let n = nurbs_circle();
@@ -243,12 +243,12 @@ fn curve3_nurbs_arm_evaluates_the_payload() {
             (b.x.to_bits(), b.y.to_bits(), b.z.to_bits())
         );
     }
-    let ph: Curve3<f64> = Curve3::nurbs_placeholder();
-    // ALL-poison, which is the placeholder's own promise: a
-    // first-channel read passes on a net poisoned only in x.
-    let pp = ph.eval(0.5);
+    let poisoned: Curve3<f64> = geom::test_support::poisoned_nurbs_segment();
+    // ALL-poison from an all-poison net: a first-channel read passes on
+    // a net poisoned only in x.
+    let pp = poisoned.eval(0.5);
     assert!(pp.x.is_nan() && pp.y.is_nan() && pp.z.is_nan());
-    for v in [ph.deriv(0.5), ph.deriv2(0.5)] {
+    for v in [poisoned.deriv(0.5), poisoned.deriv2(0.5)] {
         assert!(v.x.is_nan() && v.y.is_nan() && v.z.is_nan());
     }
 }

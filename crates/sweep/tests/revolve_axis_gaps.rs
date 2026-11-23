@@ -699,7 +699,7 @@ fn a_kink_in_a_pocket_has_the_outer_loops_reading() {
             // work/lathe/a-near-collinear-kink-on-a-full-revolve-refuses-as-a-kernel-defect.md.
             Err(e)
                 if e.render(geom_brep::recourse::Reading::Build)
-                    .contains("geometry attachment gate") =>
+                    .contains("description does not certify") =>
             {
                 println!(
                     "SKIPPED at ε {eps:e}: {what}: the filed kink attachment defect: {e_at}",

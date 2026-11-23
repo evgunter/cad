@@ -145,10 +145,13 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Point3, Sign, Tol};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey};
+use crate::entity::{
+    EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
+};
 use crate::euler::{MefSite, MevSite};
 use crate::euler_kill::MergedMember;
 use crate::euler_ring::{KemrResult, MekrSite};
+use crate::glue::{FaceSetComponents, LoopClaims, face_set_glue};
 use crate::iso::canonical_form;
 use crate::readback::{EulerCounts, euler_counts};
 
@@ -910,57 +913,39 @@ fn any_movefac(body: &Body<f64>, _tol: Tol) -> bool {
 }
 
 fn movefac_sites(body: &Body<f64>) -> impl Iterator<Item = ShellKey> + '_ {
+    let claims = LoopClaims::of(body);
     body.shells()
-        .filter(move |&(shell, _)| shell_components(body, shell) >= 2)
+        .filter(move |&(shell, _)| shell_glue(body, &claims, shell).count >= 2)
         .map(|(shell, _)| shell)
 }
 
-/// The number of connected components of `shell`'s incidence complex,
-/// under the relation `movefac` partitions on and the validator's
-/// pass 11 enumerates: a face glues all its loops, a cycle loop glues
-/// across each edge via `mate`, and an empty-loop face is its own
-/// dartless component.
+/// The number of connected components of `shell`'s incidence complex
+/// under the glue relation `movefac` partitions on
+/// ([`crate::glue::face_set_glue`]).
 pub(crate) fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
-    shell_component_faces(body, shell).len()
+    shell_glue(body, &LoopClaims::of(body), shell).count
 }
 
-/// [`shell_components`]' components themselves, labelled as `movefac`
-/// labels them: seeded in the shell's face-list order, each listing its
-/// faces in that order. Component `k` is the one `movefac`'s result
-/// puts in its `k`-th shell.
+/// [`shell_components`]' components themselves, as `movefac` reads
+/// them: seeded in the shell's face-list order, each listing its faces
+/// in that order. Component `k` is the one `movefac`'s result puts in
+/// its `k`-th shell.
 fn shell_component_faces(body: &Body<f64>, shell: ShellKey) -> Vec<Vec<FaceKey>> {
     let faces = &body.get_shell(shell).expect("shell resolves").faces;
-    let mut label: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
-    let mut count = 0;
-    for &seed in faces {
-        if label.contains_key(seed) {
-            continue;
-        }
-        label.insert(seed, count);
-        let mut pending = vec![seed];
-        while let Some(face_key) = pending.pop() {
-            let face = body.proven_face(face_key);
-            for (_, loop_data, _) in face.loops() {
-                let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                    continue; // empty loop: glues only its vertex
-                };
-                for member in body.loop_cycle(first).expect("valid body: cycle closes") {
-                    let mate = body.mate(member).expect("valid body: mate resolves");
-                    let mate_loop = body.get_half_edge(mate).expect("half resolves").parent_loop;
-                    let neighbor = body.get_loop(mate_loop).expect("loop resolves").face;
-                    if label.insert(neighbor, count).is_none() {
-                        pending.push(neighbor);
-                    }
-                }
-            }
-        }
-        count += 1;
-    }
-    let mut components = vec![Vec::new(); count];
-    for &face in faces {
-        components[label[face]].push(face);
-    }
-    components
+    shell_glue(body, &LoopClaims::of(body), shell).components(faces)
+}
+
+/// `shell`'s glue, for a body the generator built through the
+/// operators: a torn record, or a hop off the shell, panics naming it.
+fn shell_glue(body: &Body<f64>, claims: &LoopClaims, shell: ShellKey) -> FaceSetComponents {
+    let faces = &body.get_shell(shell).expect("shell resolves").faces;
+    let glue = face_set_glue(body, claims, faces, EntityId::Shell(shell));
+    assert!(
+        glue.leaving.is_empty(),
+        "seqgen: shell {shell:?}'s glue walk leaves it: {:?}",
+        glue.leaving
+    );
+    glue
 }
 
 /// The re-make of `movefac(shell)`, read BEFORE the partition: `f1`,
@@ -1513,7 +1498,9 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
 fn fusion_remake_shell(body: &Body<f64>, f1: FaceKey, f2: FaceKey) -> Option<ShellKey> {
     let shell1 = body.get_face(f1)?.shell;
     let shell2 = body.get_face(f2)?.shell;
-    if shell_components(body, shell1) != 1 || shell_components(body, shell2) != 1 {
+    let claims = LoopClaims::of(body);
+    if shell_glue(body, &claims, shell1).count != 1 || shell_glue(body, &claims, shell2).count != 1
+    {
         return None;
     }
     let solid = body.get_shell(shell2)?.solid;

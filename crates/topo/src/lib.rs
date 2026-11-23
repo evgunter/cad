@@ -177,6 +177,7 @@ mod finish;
 pub(crate) mod fixtures;
 pub(crate) mod fuse;
 pub mod geometry;
+pub(crate) mod glue;
 pub(crate) mod injective;
 pub(crate) mod region;
 mod rim_wedge;
@@ -1549,7 +1550,7 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, LoopRole, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-pub use euler::{BadArgument, EulerOpError, RechartDoor};
+pub use euler::{BadArgument, EdgeSubject, EulerOpError, RechartDoor};
 pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
 pub use live::FaceView;
 pub use sweep_trace::SweepPairs;

@@ -12,8 +12,8 @@ use crate::dihedral::{decide, decide_reported};
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
     ParallelAxes, PlaneCylinder, RuledFrame, RuledSection, cylinder_axes_parallel_reported,
-    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, ruled_frame, ruled_gap,
-    ruled_parallel, ruled_section,
+    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, ruled_gap, ruled_parallel,
+    ruled_section,
 };
 use geom_core::k_stats::decide_across_reported;
 
@@ -286,7 +286,7 @@ fn closed_form_locus<T: Decide>(
                 a: axis,
                 r: radius,
             };
-            let frame = ruled_frame(&pc, reach);
+            let frame = reach.ruled_pivot_lever(&pc);
             let plane_first = matches!(a, Surface::Plane { .. });
             let read = plane_cylinder_locus(&pc, &frame, band);
             let pending = Pending::PlaneCylinder {

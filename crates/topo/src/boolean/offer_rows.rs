@@ -132,8 +132,9 @@ struct Case {
     /// (`crate::test_support::offer_key`).
     key: &'static str,
     /// The margin its first raise quotes, computed from its geometry
-    /// (signed): the offer a valued case makes is this margin's `|m|/K`,
-    /// and a withdrawn case executes that value. The two cases
+    /// (signed): the offer a valued case makes is this margin's `|m|/K`
+    /// as an offered bound is told, and a withdrawn case executes
+    /// `|m|/K` itself. The two cases
     /// [`QUOTED_AS_A_LENGTH`] names declare a negative margin and quote
     /// its magnitude.
     margin: f64,
@@ -593,7 +594,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
 // edges'), so the wedge reads in the band only where the pair itself
 // nearly turns tangent at the vertex: a vertex near a crossing of the
 // locus. A few-ε arc is not the way in: its own certification refuses
-// it at mint (`Certification` `Escalated { Transversality }`), so no
+// it at mint (`DescriptionUncertified` `Escalated { Transversality }`), so no
 // certified edge beside the vertex is that short
 // (`crates/sweep/tests/join_lever_is_the_joined_edge.rs`).
 const EDGE_JOIN_SITE: Door = Door::Site(
@@ -1884,12 +1885,6 @@ fn a_quoted_enclosure_is_its_end_nearer_zero() {
     );
 }
 
-/// Whether `got` is `want` to the precision a fixed pose's margin is
-/// computed to.
-fn near(got: f64, want: f64) -> bool {
-    (got - want).abs() <= 1e-4 * want.abs() + 1e-15
-}
-
 /// The cases declared negative whose first raise quotes their margin's
 /// magnitude: the conic root lane reads a root against an end, and two
 /// roots against each other, by the chord between their points, a
@@ -1903,8 +1898,11 @@ const QUOTED_AS_A_LENGTH: [&str; 2] = ["arc_root_just_outside_its_span", "roots_
 /// **The value a case's first raise quotes and offers is its computed
 /// margin's**: the quoted margin is the one the case computes from its
 /// geometry, and a valued offer is that margin's `|m|/K` at the design
-/// band (the coincfr4 review's MY1: a chain's outcome alone cannot see
-/// an inflated value that still reaches a pass).
+/// band as an offered bound is told, for a margin within [`test_utils::offer::near_margin`] of it
+/// (the coincfr4 review's MY1: a chain's outcome alone cannot see an
+/// inflated value that still reaches a pass). Held by
+/// [`every_offered_tolerance_passes_just_below_it`] and
+/// [`every_withdrawn_tolerance_stays_withdrawn`].
 fn check_value(case: &Case, text: &str) -> Result<(), String> {
     let quoted = quoted_margin(text);
     let computed = if QUOTED_AS_A_LENGTH.contains(&case.name) {
@@ -1912,20 +1910,32 @@ fn check_value(case: &Case, text: &str) -> Result<(), String> {
     } else {
         case.margin
     };
-    if !quoted.is_some_and(|m| near(m, computed)) {
+    if !quoted.is_some_and(|m| test_utils::offer::near_margin(m, computed)) {
         return Err(format!(
             "{}: quotes margin {quoted:?}, computed {computed:e}: {text}",
             case.name
         ));
     }
     let offered = test_utils::offer::offered_below(text);
-    let want = (case.offer == Valued).then(|| design_band().tolerance_deciding(case.margin));
-    match (offered, want) {
-        (Some(v), Some(w)) if near(v, w) => Ok(()),
-        (None, None) => Ok(()),
+    let within = |v| {
+        geom_core::test_support::is_offer_of_a_margin_within(
+            design_band(),
+            v,
+            case.margin,
+            test_utils::offer::margin_precision(case.margin),
+        )
+    };
+    match (offered, case.offer == Valued) {
+        (Some(v), true) if within(v) => Ok(()),
+        (None, false) => Ok(()),
         _ => Err(format!(
-            "{}: offers {offered:?}, its margin gives {want:?}: {text}",
-            case.name
+            "{}: offers {offered:?}, where a valued case quotes the told offer of a margin \
+             within {:e} of {:e} over K, at most |m|/K and within the grid's step of it \
+             (valued: {}): {text}",
+            case.name,
+            test_utils::offer::margin_precision(case.margin),
+            case.margin,
+            case.offer == Valued
         )),
     }
 }
@@ -2048,10 +2058,10 @@ fn every_offered_tolerance_passes_just_below_it() {
     );
 }
 
-/// The value a refusal's quoted point margin gives at the band its child
-/// ran at ([`DESIGN_EPS`], the default `K`): the offer the arm would make
-/// were it valued, through the renderer's own home
-/// (`Band::tolerance_deciding`).
+/// The deciding tolerance of a case's margin at the band its child ran
+/// at ([`DESIGN_EPS`], the default `K`), `|m|/K`
+/// (`Band::tolerance_deciding`): what a withdrawn arm's offer would sit
+/// at, untold, were it valued.
 fn would_offer(case: &Case) -> f64 {
     design_band().tolerance_deciding(case.margin)
 }
@@ -2098,11 +2108,9 @@ fn every_withdrawn_tolerance_stays_withdrawn() {
     }
 }
 
-/// The band every case's first raise runs at: [`DESIGN_EPS`] and the
-/// default `K`, which the children run at whatever the parent's own
-/// tolerance is.
+/// The band every case's first raise runs at.
 fn design_band() -> Band {
-    Band::new(DESIGN_EPS, geom_core::tolerance::DEFAULT_K * DESIGN_EPS).unwrap()
+    geom_core::test_support::default_k_band(DESIGN_EPS)
 }
 
 /// Every refusal of `kind` that quotes a margin of its own, at `diag`'s

@@ -421,6 +421,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("clear_as"),
     NameCarrier::Call("contains_step"),
     NameCarrier::Call("decided_as"),
+    NameCarrier::Call("definite_as"),
     NameCarrier::Call("definitely_positive"),
     NameCarrier::Call("enclosure_reading"),
     NameCarrier::Call("face_placement"),
@@ -712,6 +713,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "clearance.rs: reading: self.as_bound().predicate()",
         CLOSED_TYPE,
     ),
+    ("injective.rs: definite_as: row", FORWARDS),
     ("injective.rs: interval_sign_as: row", FORWARDS),
     ("injective.rs: of: carrier", CARRIER_CALL),
     (
@@ -809,6 +811,23 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: decide_plain_joint: chart", NOT_A_NAME),
+    // PR 7325 (`charttail/collapsed-column`): `decide_joint` now makes
+    // the element and hands its chart to `decide_joint_by`, which decides
+    // the deck; that call's first argument is the joint's chart, not a
+    // name, like `decide_plain_joint`'s above.
+    ("pcurves/decision.rs: decide_joint: chart", NOT_A_NAME),
+    // PR 7325's collapsed-side rows build their joints through
+    // `decide_plain_joint`, whose first argument is the face's chart
+    // (`DescribedChart::of(surface)`), not a name: the test fixtures
+    // `joint` and `joint_at`.
+    (
+        "pcurves/collapsed_side_rows.rs: joint: DescribedChart::of(surface).unwrap()",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/collapsed_side_rows.rs: joint_at: DescribedChart::of(surface).unwrap()",
+        NOT_A_NAME,
+    ),
     ("pcurves/tier3.rs: pcurve_pass: chart", NOT_A_NAME),
     // The pass's closure over one joint of a cycle, by its index.
     ("pcurves/tier3.rs: pcurve_pass: i", NOT_A_NAME),

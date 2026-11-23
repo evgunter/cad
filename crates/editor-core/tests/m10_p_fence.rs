@@ -325,7 +325,8 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x9391_711d_3fce_042c, 0x283e_b2e7_b94a_9c38),
+        // Re-taken: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
+        (0x375b_2835_06ca_7ce8, 0x4b47_74d1_fc64_7cf4),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -401,7 +402,8 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x9391_711d_3fce_042c, 0x283e_b2e7_b94a_9c38),
+        // Re-taken: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
+        (0x375b_2835_06ca_7ce8, 0x4b47_74d1_fc64_7cf4),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -474,7 +476,8 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x9663_b4e2_023f_3622, 0xb57f_4c97_7804_d49e),
+        // Re-taken: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
+        (0x3939_a856_d1df_9676, 0x4c68_e1af_3193_f6b2),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );
