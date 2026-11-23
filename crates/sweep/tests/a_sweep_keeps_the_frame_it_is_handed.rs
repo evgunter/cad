@@ -1231,7 +1231,10 @@ fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
                             .ok()
                             .and_then(|carrier| carrier.as_circle());
                         if let Some(circle) = circle {
-                            unit(&format!("{verb} rim {edge:?} u_ref"), circle.frame().u_ref());
+                            unit(
+                                &format!("{verb} rim {edge:?} u_ref"),
+                                circle.frame().u_ref(),
+                            );
                             rims += 1;
                         }
                     }
@@ -1353,8 +1356,10 @@ fn split_circle<T: profile::ArcCarrierScalar>(r: f64) -> ProfileLoop<T> {
 }
 
 /// **A loft of arc sections at `Interval` turns its rims onto radials
-/// that enclose a unit.** Two three-arc circles lofted at `Interval`:
-/// the sections are points, so the loft encloses its `f64` loft and
+/// that enclose a unit.** Two three-arc circles drawn at `f64` and
+/// lofted at `Interval`: the sections are points (drawn at `Interval`
+/// their arcs' weights are not, and the skin refuses them), so the loft
+/// encloses its `f64` loft and
 /// builds its caps' rims from the `f64` canonical form lifted onto the
 /// lane's placements (`ValidatedProfile::lift_onto`). A lifted radial's
 /// two numbers are a unit to rounding, and an arc's rim frame is turned
@@ -1374,8 +1379,8 @@ fn a_loft_of_arc_sections_at_interval_turns_its_rims_onto_enclosed_units() {
     ));
     let lofted = loft_body(
         &[
-            vec![split_circle::<Interval>(1.0)],
-            vec![split_circle::<Interval>(0.6)],
+            vec![split_circle::<f64>(1.0).map_scalar(Interval::from_f64)],
+            vec![split_circle::<f64>(0.6).map_scalar(Interval::from_f64)],
         ],
         &[SketchPlane::xy(), top],
         1,
