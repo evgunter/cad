@@ -768,9 +768,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        211,
-        98,
-        "the 98 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        213,
+        100,
+        "the 100 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), \
          `Psi::lipschitz` (2: the graph gradient's norm, its least end over its greatest, read \
          only behind its own `is_certified()` ask, and no worth of `ψ` in metres where it does \
