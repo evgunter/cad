@@ -10,3 +10,4 @@ Fable usage was exhausted from 2026-11-20 until 2026-11-22 00:40 UTC (the user, 
 |---|---|---|---|---|---|---|
 | 2026-11-22 | co-surface-direction-table-and-spiric-plane-door | H | single FULL | implementer | 86 | Opus |
 | 2026-11-23 | main-red-axis-normal-snap-refuses-nist-ftc-09 | M | single FULL | implementer | 172 | Opus |
+| 2026-11-23 | main-red-axis-normal-snap-refuses-nist-ftc-09 | M | single FULL | reviewer (head 453dbbcc11) | 9 | Fable |
