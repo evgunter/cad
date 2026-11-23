@@ -5725,6 +5725,37 @@ pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanEr
 }
 
 impl Operand {
+    /// Both operands, A then B: the order every per-operand pair
+    /// (`[_; 2]`) holds them in, so `Operand::BOTH[i]` is the operand at
+    /// place `i`.
+    pub const BOTH: [Self; 2] = [Self::A, Self::B];
+
+    /// This operand's place in a per-operand pair ([`Self::BOTH`]).
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+        }
+    }
+
+    /// This operand's position among a boolean's inputs, as a row's
+    /// [`crate::Backing::Carried`] cites it: [`Self::index`] as a `u32`.
+    #[must_use]
+    pub const fn input(self) -> u32 {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+        }
+    }
+
+    /// The operand at position `input` among a boolean's inputs
+    /// ([`Self::input`]'s inverse), where a boolean has one there.
+    #[must_use]
+    pub fn of_input(input: u32) -> Option<Self> {
+        Self::BOTH.into_iter().find(|o| o.input() == input)
+    }
+
     /// The other operand.
     pub fn other(self) -> Self {
         match self {

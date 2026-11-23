@@ -180,9 +180,9 @@ pub(crate) enum OpChoice {
     Kef(HalfEdgeKey, Door),
     Kvfs(SolidKey),
     /// The non-Euler public mutator (`ring_move(ring, to_face)`).
-    /// ring_move's tier-1 preservation is the demotion claim's least
-    /// obvious case (the separating-curve argument; see its docs in
-    /// `crate::euler_ring`).
+    /// ring_move's tier-1 preservation is by the records (see its docs
+    /// in `crate::euler_ring`); what it leaves χ is the per-component
+    /// theorem's ([`crate::euler_theorem`]).
     RingMove(LoopKey, FaceKey, Door),
     /// `split_edge(edge, t)`. The parameter is derived from the edge's
     /// own certified interval by [`split_site`], not carried here, so
@@ -514,23 +514,11 @@ impl Ledger {
     /// are the only ops that may move it and a ledger that stopped
     /// saying so would stop noticing.
     ///
-    /// Derived h is NOT required to be non-negative: `mfkrh` applied to
-    /// a ring that never plugged a handle (a kemr-planted floating ring)
-    /// legitimately drives it negative — the promotion disconnects the
-    /// shell's surface into two components while keeping one shell
-    /// entity, so eq. 9.2's h stops meaning "genus of a connected
-    /// closed surface" and starts double-counting components. A legal
-    /// tier-1 intermediate (like empty loops and struts), and one
-    /// `movefac` pays back: distributing the components into real
-    /// shells raises `s`, and eq. 9.2 raises the derived `h` with it
-    /// ([`OpChoice::Movefac`]'s vector is `h +1, s +1` for that
-    /// reason). The
-    /// component-aware per-shell form (per component
-    /// v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per shell the sum is
-    /// 2(c − Σgᵢ)) was ratified at M1 PR 5, corrected by PR 4, and
-    /// is implemented as the validator's pass 11
-    /// (`crate::validate`); this ledger keeps the per-body eq. 9.2 view
-    /// because the generator tracks the operator algebra, not surfaces.
+    /// The derived h may go negative on a tier-1 transient
+    /// ([`EulerCounts::h`]); `movefac` pays it back
+    /// ([`OpChoice::Movefac`]'s vector is `h +1, s +1`). The
+    /// per-component form is the theorem checked last
+    /// ([`crate::euler_theorem`]).
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
         let counts = euler_counts(body);
         let EulerCounts { v, e, f, r, s } = counts;
@@ -543,14 +531,14 @@ impl Ledger {
         }
         // Eq. 9.2 rearranged: h = s − (v − e + f − r) / 2, with the
         // parity checked before the halving by the door itself.
-        let derived_h = counts.genus().map_err(|refusal| refusal.to_string())?;
+        let derived_h = counts.h().map_err(|refusal| refusal.to_string())?;
         if derived_h != self.h {
             return Err(format!(
-                "genus mismatch: derived h = {derived_h}, ledger h = {}",
+                "h mismatch: derived h = {derived_h}, ledger h = {}",
                 self.h
             ));
         }
-        Ok(())
+        crate::euler_theorem::check_component_theorem(body)
     }
 }
 

@@ -63,6 +63,8 @@ mod wire;
 mod a_blend_refusal_names_its_edge;
 #[path = "a_bore_taken_alone_is_smooth_at_its_seams_interval.rs"]
 mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
+#[path = "a_check_carries_the_assertion_that_quiets_it.rs"]
+mod a_check_carries_the_assertion_that_quiets_it;
 #[path = "a_dual_is_bound_to_its_build_of_record.rs"]
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
@@ -699,6 +701,8 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
+#[path = "the_tours_die_with_two_pips_run_together_refuses_their_turned_seam.rs"]
+mod the_tours_die_with_two_pips_run_together_refuses_their_turned_seam;
 #[path = "trim_3_windows_interval.rs"]
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
