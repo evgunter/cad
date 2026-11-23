@@ -174,3 +174,5 @@ after Ev's answer.
   - a bare `[xs, a]` refuses;
   - `Union([…xs])` names like `Union(xs)`.
   The binder build is dispatched to the cloud session `formwords/binders`, in three PRs (kernel, Python, viewer), each with a dual review.
+
+- 2026-11-22 — (FORMWORDS orchestrator) Datum PR 7382 dual-reviewed (two cloud-session reviewers). A: mergeable. B: two MAJORs, flatten strands a datum (refactor.rs) and Python cannot read a datum's bundle. Both trace to one class, also behind a coincidence MINOR: "placement" has two extents in the code. `Doc::placements()` excludes datums while `bundle_of` includes them, and about 15 sites hand-match `Place | InstantiatePart | Datum`. The fix pass makes `placements()` mean every bundle holder, as `[placement.datums]` says, and names the copy-making subset. It also adds "its frame" to `[placement.datums]`'s near-side parenthetical, since the code admits a frame-to-frame mate. That is an elaboration of an approved design, recorded here for Ev.
