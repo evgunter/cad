@@ -1390,7 +1390,7 @@ struct Along {
 /// the site into the face along the germ, and the sweep would split it
 /// where it crossed out. Called by every site kind, before that site's
 /// surgery moves the orbit the bounds are read from.
-pub(super) fn germ_locus<T: Decide>(
+pub(super) fn germ_locus<T: Decide + crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     partner: (&Body<T>, FaceKey),
     contacts: &super::ReductionContacts,
@@ -1674,7 +1674,7 @@ impl ClosedReach {
 /// inside and the reading leaves the edge's carrier unread against some
 /// face's surface ([`super::slit::Placed::Unread`]); the reading's
 /// own escalations, and a trim the walk cannot read.
-fn closed_reach<T: Decide>(
+fn closed_reach<T: Decide + crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     e: Along,
     (body, faces): (&Body<T>, &[FaceKey]),

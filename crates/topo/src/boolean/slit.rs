@@ -895,7 +895,7 @@ struct LiesIn {
 /// vertex of them on the edge. A closed edge is asked as an open one is:
 /// its ends are one vertex, so the faces both its ends lie on are the
 /// faces that vertex lies on.
-fn riders<T: Decide>(
+fn riders<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -1053,7 +1053,7 @@ struct Names {
 /// where an unread carrier's edge has both its faces going into `f`'s
 /// material. [`walls_inside`]'s refusals but `Crossed`, where it
 /// reads the faces.
-fn holding<T: Decide>(
+fn holding<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     named: &[&Contact],
     e: EdgeKey,
@@ -1344,7 +1344,7 @@ pub(super) enum Placed {
 ///
 /// [`BooleanError::Escalated`] where no point is definitely off and an
 /// offset, or the torus's bound between them, is in band.
-pub(super) fn carrier_on_surface<T: Decide>(
+pub(super) fn carrier_on_surface<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
@@ -1356,7 +1356,7 @@ pub(super) fn carrier_on_surface<T: Decide>(
 }
 
 /// [`carrier_on_surface`] on `surface` itself.
-fn conic_or_line_on<T: Decide>(
+fn conic_or_line_on<T: Decide + crate::props::AtRestPolicy>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
@@ -1464,11 +1464,14 @@ fn conic_or_line_on<T: Decide>(
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)
             if surface.spline_chart().is_none() =>
         {
-            return Ok(if clears_plane(carrier, surface, band) {
-                Placed::Off
-            } else {
-                Placed::Unread(EdgeInFaceGap::CarrierUnread)
-            });
+            return Ok(
+                if clears_plane(carrier, surface, band) || spline_crosses(carrier, (t0, t1), surface, band)
+                {
+                    Placed::Off
+                } else {
+                    Placed::Unread(EdgeInFaceGap::CarrierUnread)
+                },
+            );
         }
         _ => return Ok(Placed::Unread(EdgeInFaceGap::SplineFace)),
     };
@@ -1539,6 +1542,30 @@ fn clears_plane<T: Decide>(
         }
         _ => false,
     }
+}
+
+/// **Whether a spline carrier meets an analytic surface at isolated
+/// points only over `(t0, t1)`**: the curve × face table's composite door
+/// ([`geom_brep::curve_face::cross()`]) read every piece of the span
+/// clear of the surface or monotone across it, so no piece lies on it. A
+/// touch, or a piece within the band of the surface, refuses there, and
+/// is no reading that the carrier is on.
+fn spline_crosses<T: Decide + crate::props::AtRestPolicy>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    let geom::Curve3::Nurbs(net) = carrier else {
+        return false;
+    };
+    let composite = geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
+        == geom_brep::curve_face::Door::SplineComposite;
+    composite
+        && matches!(
+            T::spline_face_crossings(net, (t0.min(t1), t0.max(t1)), surface, band),
+            Some(Ok(_))
+        )
 }
 
 /// The rows [`spiric_on_curved`] reads a spiric's regime under
