@@ -1467,11 +1467,12 @@ fn a_profile_junction_on_one_carrier_refuses_at_evaluation() {
         Some(editor_core::NodeErrorKind::ProfileReplay {
             loop_: 0,
             error:
-                profile::ReplayError {
-                    step: 2,
+                error @ profile::ReplayError {
                     kind: profile::ReplayErrorKind::Path(e),
+                    ..
                 },
-        }) if e.kind() == profile::PathErrorKind::JunctionTurnWithinTolerance => {}
+        }) if error.step() == 2
+            && e.kind() == profile::PathErrorKind::JunctionTurnWithinTolerance => {}
         other => panic!("the junction refuses as tangent at step 2, got {other:?}"),
     }
 }
