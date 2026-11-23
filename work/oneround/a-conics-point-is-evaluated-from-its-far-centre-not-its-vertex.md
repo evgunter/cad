@@ -49,13 +49,11 @@ The margin-scale designers split on the far-centre ellipse: (A) mint a fitted sp
   `line_conic`, the window terms), `splitting::containment::conic_arc_ball`
   (since retired on main by the edge-cover refactor),
   `circle_roots::conic_off_plane` (so `ruled_region`'s leg roots),
-  `ellipse_torus`, `section_loops::conics_clear` (a relative pad, lean),
+  `ellipse_torus`,
   `curve_face::spline_face`, `carrier_net::harmonic`. Bounds only (an
   extent or a lever, which rounding loosens): `extent::conic_arc_reach`,
   `Reach::lever_from`, `ruled_region::reach_bound`, `splitting::section`'s
   reported chart. **Decided margins reading the far terms uncharged:**
-  - `topo::splitting::section_loops::line_clears_conic` (`m·(c − p)`
-    less the reach, `split_nest_line_conic`);
   - `topo::census::depth_gap` (`conic_ring`'s minor `speed_hi − speed_lo`,
     and its depth origin at the centre; the band-only `sweep_pad`);
   - `topo::splitting::join` (the conic excess of `split_section_area`);

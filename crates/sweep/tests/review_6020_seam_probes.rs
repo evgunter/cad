@@ -305,11 +305,11 @@ fn review_6020_boolean_seam_poses() {
 /// cylinder's ellipse, and each half carries one cut face. Each half
 /// passes tiers 1, 3 and 3′ and holds the polar quadrature's volume.
 ///
-/// A pose may instead refuse `SliverSector` on `enters_material` with
-/// its point margin inside its own escalation band: the plane leaning 0.05 in
-/// at azimuth 0.3 makes a sector at the bore rim about 1e-5 wide, in
-/// the band at ε 1e-6 and decided below it. Any other refusal is red,
-/// as is that one's past the band or at any other pose.
+/// At ε 1e-6 alone, the pose leaning 0.05 in at azimuth 0.3 refuses
+/// instead, under both normals: `SliverSector` on `enters_material`
+/// with its point margin inside its escalation band, a sector at the
+/// bore rim about 1e-5 wide that the 1e-6 band does not resolve. Every
+/// pose builds at every other ε, and any other refusal is red.
 #[test]
 fn a_plane_touching_a_counterbores_floor_rim_splits_at_tier_three_prime() {
     let y = Vec3::new(0.0, 1.0, 0.0);
@@ -347,7 +347,10 @@ fn a_plane_touching_a_counterbores_floor_rim_splits_at_tier_three_prime() {
                             }
                             _ => false,
                         };
-                        assert!(in_band, "{label}: the split refuses: {e:?}");
+                        assert!(
+                            in_band && tol().eps() == 1e-6,
+                            "{label}: the split refuses: {e:?}"
+                        );
                         refused.push(label.clone());
                     });
                     let Ok(res) = res else { continue };

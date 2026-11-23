@@ -71,9 +71,10 @@ constructor to add.
 ## Leaves for later
 
 - `outlines_disjoint`'s own carrier screens for ellipse pairs
-  (`split_nest_line_conic`, `split_nest_conic_conic`) are a further
-  reading of the same question on splitting ground (ONEHOME); the lane
-  files them there, citing this unit, if the instance answers them.
+  (`split_nest_line_conic`, `split_nest_conic_conic`) were a further
+  reading of the same question on splitting ground. PR 7436 deleted
+  them: an ellipse pair is read through `geom_brep::curve_pair::meet`
+  over the edges' spans (`section_loops::edges_clear`).
 - Arms 1–3 (vertex on vertex, vertex on edge, edge along edge) stay:
   the ruling removes arms 4 and 5.
 - Non-planar faces and spiric or NURBS edges stay silent

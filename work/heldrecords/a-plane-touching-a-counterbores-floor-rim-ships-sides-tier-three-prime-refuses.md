@@ -94,7 +94,8 @@ a 0.3 refuses under both normals, upstream of the nesting, with
 `Reduce(SliverSector { .. "enters_material" })`. Its margin is −9.9e-6,
 inside that ε's escalation band (1e-5): a sector about 1e-5 wide at the
 bore rim, which that band does not resolve, so the refusal is right
-there. The row pins it as that typed refusal at that pose, and refuses
+there. The row pins it as that typed refusal at that pose at ε 1e-6
+alone, and requires every pose to build at every other ε; it refuses
 any other. It replaces
 `a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point`,
 whose two faces no longer exist; the census's `Degenerate` reading of
