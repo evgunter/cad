@@ -659,7 +659,7 @@ impl<T: Decide> Curve3<T> {
     /// cone's ruling, neither of them zero.
     #[expect(
         clippy::disallowed_methods,
-        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+        reason = "a circle's centre frame, which a circle stores: a circle's datum (work/oneround/a-circles-centre-is-read-as-a-datum-under-the-conic-gate.md)"
     )]
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {

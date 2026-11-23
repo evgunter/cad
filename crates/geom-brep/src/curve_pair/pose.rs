@@ -1928,7 +1928,7 @@ fn conic_conic<T: Decide>(
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
     for h in sides {
-        if matches!(extremes_as(row::PARALLEL, (h.lo, h.hi), band), Ok(true)) {
+        if matches!(parallel_as((h.lo, h.hi), band), Ok(true)) {
             return Ok(Pose::Apart);
         }
     }
@@ -2025,7 +2025,8 @@ pub(super) fn one_curve<T: Decide>(
 /// **The one-curve reading's margin** (module docs): a bound on how far
 /// a point of either conic lies from the other, a tilt out of the plane
 /// included. Each conic is `c + L·x` over the unit circle's `x`, with
-/// `L = [a·û, b·v̂]`. For any orthogonal `Q`, pairing `c_e + L_e·x` with
+/// `L = [a·û, b·v̂]`, `c` the mean of its points at `0` and `π`. For any
+/// orthogonal `Q`, pairing `c_e + L_e·x` with
 /// `c_f + L_f·Q·x` pairs every point of each with a point of the other
 /// within `|c_e − c_f| + ‖L_e − L_f·Q‖` ([`frame_gap`]). The stored order
 /// and signs of the semi-axes change `L` by an orthogonal factor, which
@@ -2040,20 +2041,24 @@ pub(super) fn one_curve<T: Decide>(
 /// [`crate::carrier_resolution`]'s fitted one. With `m` a conic's larger
 /// semi-axis magnitude, the computed
 /// semi-axis vectors are off by `√17·u·m` (`v̂ = n̂ × û` by `4u`), the
-/// computed `Q`'s columns are unit to within about `4.5u`, and its
-/// products and the norms round by `4u·m` and `5u·g`: within
-/// `12.1u·(m_e + m_f) + 5u·g` of a gap the bound holds for, inside
+/// computed `Q`'s columns are unit to within about `4.5u`, its
+/// products and the norms round by `4u·m` and `5u·g`, and each centre,
+/// two of its points' mean (the sine of `f64`'s `π` moving one by `u·m/2`),
+/// by `2.5u·m` past its coordinates' own rounding, which the admission
+/// rule covers: within `14.6u·(m_e + m_f) + 5u·g` of a gap the bound
+/// holds for, inside
 /// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
 /// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
 /// is NaN: the reading escalates.
-#[expect(
-    clippy::disallowed_methods,
-    reason = "the centres' distance, a reading at the semi-axes' scale charged at that scale (rounding_charge of the larger semi-axes), whose slack holds a derived centre's rounding (work/oneround/an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre.md)"
-)]
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
-    let gap =
-        (e.frame().origin() - f.frame().origin()).norm() + frame_gap(e, f).max(frame_gap(f, e));
+    // Each centre read through its conic, the mean of two antipodal
+    // points.
+    let centre = |k: &dyn Conic<T>| {
+        let (p, q) = (k.point_at(T::zero()), k.point_at(T::pi()));
+        p + (q - p) * T::from_f64(0.5)
+    };
+    let gap = (centre(e) - centre(f)).norm() + frame_gap(e, f).max(frame_gap(f, e));
     gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
@@ -2182,23 +2187,26 @@ fn constant_as<T: Decide>(
     }
 }
 
-/// [`constant_as`] for a quantity whose least and greatest are read
-/// apart, `(lo, hi)`.
+/// Whether a quantity whose least and greatest are read apart, `(lo,
+/// hi)`, is definitely clear of zero (`true`) or in the zero band all
+/// round (`false`), read under `curve_pair_pose_parallel`, as
+/// [`constant_as`] reads a value and its spread.
 ///
 /// # Errors
 ///
 /// An end in the band's gap, or ends that straddle the band.
-fn extremes_as<T: Decide>(
-    row: &'static str,
-    (lo, hi): (T, T),
-    band: Band,
-) -> Result<bool, MeetFault> {
-    let read = |x: T| geom_core::k_stats::decide_reported(row, Margin::of(x), band);
+fn parallel_as<T: Decide>((lo, hi): (T, T), band: Band) -> Result<bool, MeetFault> {
+    let read = |x: T| geom_core::k_stats::decide_reported(row::PARALLEL, Margin::of(x), band);
     let (below, above) = (read(lo)?, read(hi)?);
     match (below.sign, above.sign) {
         (Sign::Positive, _) | (_, Sign::Negative) => Ok(true),
         (Sign::Zero, Sign::Zero) => Ok(false),
-        _ => Err(MeetFault::Escalated(straddle(row, below, above, band))),
+        _ => Err(MeetFault::Escalated(straddle(
+            row::PARALLEL,
+            below,
+            above,
+            band,
+        ))),
     }
 }
 

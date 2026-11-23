@@ -6,6 +6,8 @@
 //! through, and the same pose lifted `1000ε` off is read apart; both at
 //! `f64` and at `Interval`, which may refuse but never answers wrongly.
 
+#![allow(clippy::unwrap_used, clippy::panic)]
+
 use geom::{Conic, Curve3, Ellipse};
 use geom_core::{Band, Interval, Point3, Real, Tol, Vec3};
 
