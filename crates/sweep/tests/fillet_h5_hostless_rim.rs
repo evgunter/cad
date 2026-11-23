@@ -557,11 +557,22 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
             seq.enclosure.volume_pad, 0.0,
             "closed-form faces only, order {order:?}"
         );
+        // The same construction either way; the order its faces' terms
+        // are summed in is not part of it, so the volume agrees to the
+        // summation order, and the cells agree exactly.
         assert_eq!(
-            one.enclosure.volume.to_bits(),
-            seq.enclosure.volume.to_bits(),
-            "the one-call result IS the sequential composition, bit for bit \
+            topo::readback::euler_counts(&one_call.body),
+            topo::readback::euler_counts(&body),
+            "the one-call result IS the sequential composition, cell for cell \
              (order {order:?})"
+        );
+        assert!(
+            (one.enclosure.volume - seq.enclosure.volume).abs()
+                <= 4.0 * f64::EPSILON * one.enclosure.volume.abs(),
+            "the one-call volume is the sequential one to the summation order \
+             (order {order:?}): {} vs {}",
+            one.enclosure.volume,
+            seq.enclosure.volume
         );
     }
 }

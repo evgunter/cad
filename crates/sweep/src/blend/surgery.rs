@@ -1869,9 +1869,10 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   so the earlier carve leaves the later rim's plan nothing stale.
 ///   Identity is all that
 ///   moves: every decision stays the plan's (#935; the one-call result
-///   is pinned against the sequential composition, bit-equal on a
-///   shared WALL and to within a summation ulp on a shared PLANE —
-///   `blend_tworims::a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call`,
+///   is pinned against the sequential composition to within the
+///   integrator's summation order, on a shared WALL and on a shared
+///   PLANE —
+///   `blend_tworims::a_lantern_rim_pair_on_a_shared_wall_composes_in_one_call`,
 ///   `blend2_r2_probes::r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call`).
 /// - **A MIXED rim** carves beside a ladder or another mixed rim. Its
 ///   plan names the junction vertices and the rim arcs, which no other
