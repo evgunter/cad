@@ -1779,7 +1779,7 @@ impl<T: Real> Body<T> {
 
     /// **A face's loops in one sheet** ([`crate::pcurves::FaceLift`]):
     /// its outer loop's lift as [`Body::loop_lift`] reads it, and each
-    /// ring's moved by the one whole number of periods per closed
+    /// cycle ring's moved by the one whole number of periods per closed
     /// channel that puts the ring's first point in the region the outer
     /// loop's lift bounds, decided at `band` against the outer loop
     /// alone (`crate::pcurves`' ring rule).
@@ -1787,9 +1787,10 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`crate::pcurves::RingPlacementError`]: a loop has no lift, the
-    /// outer loop or a ring does not close in the chart, the outer loop
-    /// of a ringed face or a ring is one vertex, or a ring has no one
-    /// decided place.
+    /// outer loop or a ring does not close in the chart, the face has no
+    /// outline (its outer loop is one vertex), or a ring has no one
+    /// decided place. A lone-vertex ring bounds no area and is no ring
+    /// of the lift.
     ///
     /// # Panics
     ///

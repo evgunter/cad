@@ -4043,6 +4043,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             reading("its structure is incomplete", DEFECT.into())
         }
+        M::NoOutline(_) => reading(LONE_LOOP, DEFECT.into()),
         M::ResolutionFinerThanEps { .. } => reading(
             "a measurement was asked for finer than the tolerance",
             "Recourse: ask for a resolution of at least the tolerance".into(),
@@ -4452,6 +4453,7 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
+        ChartRegionError::NoOutline(_) => (LONE_LOOP, DEFECT),
         ChartRegionError::FaceUncovered(_) => (
             "a face's region cannot be bounded (its carrier or a boundary edge has no cover)",
             DEFECT,
@@ -7658,6 +7660,16 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 // availability differs by caller: bundling them into one struct would
 // hide behind a single name exactly the thing each parameter is here to
 // make the caller state.
+/// Each cycle of `face`'s region flattened ([`crate::props::loop_edges`]),
+/// outer first: `Err` where the face has no outline or a loop does not
+/// flatten.
+fn flatten_area<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<FlatLoops<T>, ()> {
+    let area = body.proven_face(face).area_loops().map_err(|_| ())?;
+    area.cycles()
+        .map(|(lp, _)| crate::props::loop_edges(lp).map_err(|_| ()))
+        .collect()
+}
+
 pub(crate) fn tier3_local_checks_marked<
     'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -7928,48 +7940,29 @@ pub(crate) fn tier3_local_checks_marked<
     // S10 CATEGORY C (orientation-free): a distance from the plane does
     // not depend on which side the material is.
     // ------------------------------------------------------------------
-    for (face_key, face) in body.faces.iter() {
-        let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(face.surface) else {
+    for face in body.face_views() {
+        let face_key = face.key();
+        let plane @ Surface::Plane { .. } = face.surface() else {
             continue;
         };
-        for loop_key in face.loop_keys() {
-            let Some(loop_) = body.loops.get(loop_key) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_.boundary else {
-                continue; // tier 2 banned empty loops; unreachable
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                let Some(he_data) = body.half_edges.get(he) else {
-                    continue;
-                };
-                let vertex = he_data.start;
-                let Some(vertex_data) = body.vertices.get(vertex) else {
-                    continue;
-                };
-                let Some(&point) = body.points.get(vertex_data.point) else {
-                    continue;
-                };
-                match geom_brep::read_point_incidence(point, plane, band)
-                    .map_err(|e| geom_brep::IncidenceRead::of(&e))
-                {
-                    Ok(()) => {}
-                    Err(Some(geom_brep::IncidenceRead::Undecided(cause))) => {
-                        errors.push(ValidationError::PlanarFaceEscalated {
-                            face: face_key,
-                            vertex,
-                            cause,
-                        });
-                    }
-                    Err(_) => {
-                        errors.push(ValidationError::PlanarFaceResidual {
-                            face: face_key,
-                            vertex,
-                        });
-                    }
+        for member in face.boundary() {
+            let (vertex, point) = (member.vertex(), body.member_point(&member));
+            match geom_brep::read_point_incidence(point, plane, band)
+                .map_err(|e| geom_brep::IncidenceRead::of(&e))
+            {
+                Ok(()) => {}
+                Err(Some(geom_brep::IncidenceRead::Undecided(cause))) => {
+                    errors.push(ValidationError::PlanarFaceEscalated {
+                        face: face_key,
+                        vertex,
+                        cause,
+                    });
+                }
+                Err(_) => {
+                    errors.push(ValidationError::PlanarFaceResidual {
+                        face: face_key,
+                        vertex,
+                    });
                 }
             }
         }
@@ -8316,11 +8309,7 @@ pub(crate) fn tier3_local_checks_marked<
             // One whose loops do not flatten is kept in `unflattened`, as
             // a spindle face is, and its sides refused there unshown.
             if !geom_brep::chart_singularity::singular_points(surface).is_empty() {
-                match face
-                    .loop_keys()
-                    .map(|l| crate::props::loop_edges(body, l))
-                    .collect::<Result<FlatLoops<T>, _>>()
-                {
+                match flatten_area(body, face_key) {
                     Ok(full) => {
                         flattened.insert(face_key, full);
                     }
@@ -8333,11 +8322,7 @@ pub(crate) fn tier3_local_checks_marked<
         // its whole boundary's chart Green form, rings included, as its
         // flux does, each loop that bounds area.
         let sheet = matches!(surface, Surface::Spindle { .. });
-        let Ok(full) = face
-            .loop_keys()
-            .map(|l| crate::props::loop_edges(body, l))
-            .collect::<Result<FlatLoops<T>, _>>()
-        else {
+        let Ok(full) = flatten_area(body, face_key) else {
             if sheet {
                 unflattened.push(face_key);
             }
@@ -8945,7 +8930,7 @@ pub(crate) fn tier3_local_checks_marked<
                 }
             }
         }
-        pinch_corner_errors(body, face_key, face, band, &mut errors);
+        pinch_corner_errors(body, face_key, band, &mut errors);
     }
 
     // ------------------------------------------------------------------
@@ -9124,31 +9109,14 @@ fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceK
 fn pinch_corner_errors<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
-    face: &crate::entity::Face,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
     if orientation_refused(errors).any(|face| face == face_key) {
         return;
     }
-    for l in face.loop_keys() {
-        // The battery runs behind the tier-1 gate, so a loop that does
-        // not resolve is that gate's finding, reported here rather than
-        // read past.
-        let corners = match crate::loop_points::loop_corners(body, l) {
-            Ok(corners) => corners,
-            Err(crate::Unresolved::Walk(_)) => {
-                errors.push(ValidationError::LoopCycleOverrun { loop_: l });
-                continue;
-            }
-            Err(unresolved) => {
-                errors.push(ValidationError::DanglingTopology {
-                    from: EntityId::Face(face_key),
-                    to: unresolved.entity(),
-                });
-                continue;
-            }
-        };
+    for (lp, _) in body.proven_face(face_key).cycle_loops() {
+        let corners = crate::loop_points::loop_corners(lp);
         for group in corners.groups() {
             if let Err(error) =
                 pinch_corners_at(body, face_key, corners.cycle(), group.corners(), band)
@@ -9814,10 +9782,13 @@ fn ring_outer_meeting<T: Decide>(
     };
 
     // ---- Arm 4: two whole circles. ----
-    if let (Ok(Some(o)), Ok(Some(r))) = (
-        crate::contain::loop_circle(body, outer, band),
-        crate::contain::loop_circle(body, ring, band),
-    ) {
+    // A lone-vertex loop is no circle.
+    let circle = |lk: LoopKey| {
+        body.cycle_loop(lk)
+            .ok()
+            .and_then(|lp| crate::contain::loop_circle(lp, band).ok().flatten())
+    };
+    if let (Some(o), Some(r)) = (circle(outer), circle(ring)) {
         return match circle_pair(
             circles_of(
                 o.frame().origin(),
@@ -14643,9 +14614,8 @@ mod tests {
                 )
             })
             .unwrap();
-            let face = body.get_face(bottom).unwrap().clone();
             let mut errors = Vec::new();
-            pinch_corner_errors(&body, bottom, &face, band, &mut errors);
+            pinch_corner_errors(&body, bottom, band, &mut errors);
             let crossed = errors.iter().any(|e| {
                 matches!(e, ValidationError::PinchCornerCrossed { face, .. } if *face == bottom)
             });
@@ -15802,7 +15772,10 @@ mod tests {
             let rp = vertex_point(&body, body.get_half_edge(first).unwrap().start).unwrap();
             assert_eq!(
                 crate::splitting::containment::point_in_vertex_polygon(
-                    &body, outer_loop, normal, rp, band
+                    body.cycle_loop(outer_loop).expect("a cycle"),
+                    normal,
+                    rp,
+                    band
                 )
                 .unwrap(),
                 crate::splitting::LoopContainment::Out,
@@ -16160,7 +16133,7 @@ mod tests {
         recarry_loop(&mut body, outer_loop, Point3::new(0.0, 0.0, 0.0), tol);
         assert!(
             matches!(
-                crate::contain::loop_circle(&body, outer_loop, band),
+                crate::contain::loop_circle(body.cycle_loop(outer_loop).expect("a cycle"), band),
                 Ok(Some(_))
             ),
             "three arcs of one circle are the disc class"
@@ -16250,7 +16223,7 @@ mod tests {
         let f = body.get_face(face).unwrap();
         assert!(
             matches!(
-                crate::contain::loop_circle(&body, f.outer, band),
+                crate::contain::loop_circle(body.cycle_loop(f.outer).expect("a cycle"), band),
                 Ok(Some(_))
             ),
             "one circle on every outer edge is the disc class"

@@ -88,7 +88,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_BUILD=true|false          any cargo/grep row at all (false only for docs)
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
-  RUN_STEP_EXPORT=true|false    step import (freecad) row
+  RUN_STEP_EXPORT=true|false    step export fixtures (freecad) row
   RUN_PNCAD_PY=true|false       whether this diff's SEEDS reach the members a
                                 BUILD OF THE WHEEL compiles (pncad-py's non-dev
                                 dependency closure; see `pncad_py_seeds`).
