@@ -669,7 +669,7 @@ fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let failed = |rows: &[viewer::tree::TreeRow]| match common::status_of(rows, extrude) {
-        viewer::tree::RowStatus::Failed { message, .. } => message,
+        viewer::tree::RowStatus::Failed { message, .. } => message.to_string(),
         other => panic!("the extrude fails: {other:?}"),
     };
     let before = failed(&session.tree_rows());
@@ -726,7 +726,7 @@ fn batch_line(session: &mut DocSession, ops: &[SessionOp]) -> Option<viewer::fra
     let mut line = None;
     viewer::frame::apply(
         &mut line,
-        viewer::frame::frame_status(&[], ops, refusal.as_ref()),
+        viewer::frame::frame_status_untargeted(&[], ops, refusal.as_ref()),
     );
     line
 }
@@ -778,7 +778,7 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
     let mut line = line;
     viewer::frame::apply(
         &mut line,
-        viewer::frame::frame_status(&[], &[rename("post")], None),
+        viewer::frame::frame_status_untargeted(&[], &[rename("post")], None),
     );
     assert!(session.perform(rename("post")).refusal.is_none());
     assert_eq!(
@@ -1019,7 +1019,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     // placements (A10).
     let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
-        row.sentence.contains(&format!(
+        row.sentence.to_string().contains(&format!(
             "Place {} and Place {} overlap",
             copy(big),
             copy(small)
@@ -1028,7 +1028,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
         row.sentence
     );
     assert!(
-        !row.sentence.contains("renamed") && !row.button.contains("renamed"),
+        !row.sentence.to_string().contains("renamed") && !row.button.contains("renamed"),
         "and never the committed label: {row:?}"
     );
 }
@@ -1082,6 +1082,7 @@ fn an_unused_variables_row_selects_the_variable() {
     assert!(
         rows[1]
             .sentence
+            .to_string()
             .contains("check unused: spare: used by nothing"),
         "{}",
         rows[1].sentence

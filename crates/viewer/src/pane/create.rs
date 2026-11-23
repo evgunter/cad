@@ -1157,10 +1157,10 @@ impl ViewerBehavior<'_> {
             .repoint_button(source, self.session.selection().node());
         ui.horizontal_wrapped(|ui| {
             ui.label("copy of:");
-            crate::pane::properties::related_entry(ui, &copied, self.ops);
+            crate::pane::properties::related_entry(ui, doc, &copied, self.ops);
             if let Some(through) = &through {
                 ui.label(crate::pane::properties::THROUGH);
-                crate::pane::properties::related_entry(ui, through, self.ops);
+                crate::pane::properties::related_entry(ui, doc, through, self.ops);
             }
             crate::widgets::repoint_button(ui, button, self.ops);
         });

@@ -26,10 +26,9 @@
 //! the whole face by necessity (a triangulator that merges equal
 //! positions, `mesh::planar::Pinches`) keeps its own reading.
 
-use crate::body::Body;
-use crate::entity::{EntityId, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::geometry::PointKey;
-use crate::unresolved::Unresolved;
+use crate::live::{CycleLoop, linked, proven};
 use geom_core::Real;
 
 /// **One loop's corners, grouped by point key**: the loop's cycle, and
@@ -52,7 +51,7 @@ pub struct PointCorners {
 
 impl LoopCorners {
     /// The loop's half-edges in cycle order: a corner is an index into
-    /// it. Empty for a lone-vertex loop.
+    /// it.
     #[must_use]
     pub fn cycle(&self) -> &[HalfEdgeKey] {
         &self.cycle
@@ -100,40 +99,29 @@ impl PointCorners {
     }
 }
 
-/// **Loop `r#loop`'s corners, grouped by point key** ([`LoopCorners`]).
-///
-/// # Errors
-///
-/// [`Unresolved::Record`] of the loop or of a corner's vertex, or
-/// [`Unresolved::Walk`] of the loop where its cycle does not close.
-pub fn loop_corners<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Result<LoopCorners, Unresolved> {
-    let record = body
-        .loops
-        .get(r#loop)
-        .ok_or(Unresolved::Record(EntityId::Loop(r#loop)))?;
-    let cycle = match record.boundary {
-        LoopBoundary::Cycle { first } => body
-            .loop_cycle(first)
-            .ok_or(Unresolved::Walk(EntityId::Loop(r#loop)))?,
-        LoopBoundary::Empty { .. } => Vec::new(),
-    };
-    let mut keyed = cycle
+/// **A loop's corners, grouped by point key** ([`LoopCorners`]). A
+/// lone-vertex loop has none, and is no [`CycleLoop`]; the handle's
+/// proof is that every corner's vertex resolves.
+#[must_use]
+pub fn loop_corners<T: Real>(lp: CycleLoop<'_, T>) -> LoopCorners {
+    let body = lp.body();
+    let cycle = lp.cycle();
+    let mut keyed: Vec<(PointKey, usize, VertexKey)> = cycle
         .iter()
         .enumerate()
         .map(|(i, &he)| {
-            let vertex = body
-                .half_edges
-                .get(he)
-                .unwrap_or_else(|| unreachable!("the closed loop walk resolved {he:?}"))
-                .start;
-            let point = body
-                .vertices
-                .get(vertex)
-                .ok_or(Unresolved::Record(EntityId::Vertex(vertex)))?
-                .point;
-            Ok((point, i, vertex))
+            let vertex = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+            let point = linked(
+                &body.vertices,
+                vertex,
+                EntityId::Vertex,
+                EntityId::HalfEdge(he),
+                "start",
+            )
+            .point;
+            (point, i, vertex)
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect();
     keyed.sort_unstable_by_key(|&(point, i, _)| (point, i));
     let groups = keyed
         .chunk_by(|x, y| x.0 == y.0)
@@ -144,17 +132,14 @@ pub fn loop_corners<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Result<LoopCorn
             vertices: group.iter().map(|&(_, _, v)| v).collect(),
         })
         .collect();
-    Ok(LoopCorners { cycle, groups })
+    LoopCorners { cycle, groups }
 }
 
-/// **Whether loop `r#loop` pinches**: passes one point key at two
-/// distinct vertices ([`LoopCorners::pinches`]).
-///
-/// # Errors
-///
-/// As [`loop_corners`].
-pub fn loop_pinches<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Result<bool, Unresolved> {
-    Ok(loop_corners(body, r#loop)?.pinches())
+/// **Whether a loop pinches**: passes one point key at two distinct
+/// vertices ([`LoopCorners::pinches`]).
+#[must_use]
+pub fn loop_pinches<T: Real>(lp: CycleLoop<'_, T>) -> bool {
+    loop_corners(lp).pinches()
 }
 
 #[cfg(test)]
@@ -190,7 +175,7 @@ mod tests {
             body.vertices.get_mut(p.bottom[5]).unwrap().point = keep;
         }
         let outer = body.faces[p.bottom_face].outer;
-        let corners = loop_corners(&body, outer).expect("the cap's loop resolves");
+        let corners = loop_corners(body.cycle_loop(outer).expect("a cycle"));
         (corners, [p.bottom[2], p.bottom[5]])
     }
 
@@ -245,7 +230,7 @@ mod tests {
             tol,
         )
         .expect("a strut into the cap");
-        let corners = loop_corners(&body, outer).expect("the cap's loop resolves");
+        let corners = loop_corners(body.cycle_loop(outer).expect("a cycle"));
         assert_eq!(
             corners.cycle().len(),
             6,
@@ -260,10 +245,13 @@ mod tests {
         assert!(!corners.pinches(), "one vertex met twice is no pinch");
     }
 
-    /// Each miss names what did not resolve: the loop, a corner's
-    /// vertex, or the loop whose cycle does not close.
+    /// A loop key that misses, a cycle that does not walk and a corner
+    /// whose vertex is dead are each named at the door that hands out a
+    /// [`CycleLoop`] ([`Body::cycle_loop`](crate::Body::cycle_loop)),
+    /// never met inside the corners' walk.
     #[test]
-    fn a_miss_is_named() {
+    fn a_miss_is_named_at_the_door() {
+        use crate::NoCycle;
         let fresh = || {
             let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], 1.0, Tol::witness());
             let outer = p.body.faces[p.bottom_face].outer;
@@ -272,31 +260,38 @@ mod tests {
         };
         let (mut body, outer, _) = fresh();
         body.loops.remove(outer);
-        assert!(
-            matches!(
-                loop_corners(&body, outer),
-                Err(Unresolved::Record(EntityId::Loop(l))) if l == outer
-            ),
+        assert_eq!(
+            body.cycle_loop(outer).err(),
+            Some(NoCycle::Stale),
             "a dead loop"
         );
         let (mut body, outer, cycle) = fresh();
         let vertex = body.half_edges[cycle[1]].start;
         body.vertices.remove(vertex);
-        assert!(
-            matches!(
-                loop_corners(&body, outer),
-                Err(Unresolved::Record(EntityId::Vertex(v))) if v == vertex
-            ),
+        assert_eq!(
+            body.cycle_loop(outer).err(),
+            Some(NoCycle::Torn),
             "a dead corner vertex"
         );
         let (mut body, outer, cycle) = fresh();
         body.half_edges.remove(cycle[1]);
-        assert!(
-            matches!(
-                loop_corners(&body, outer),
-                Err(Unresolved::Walk(EntityId::Loop(l))) if l == outer
-            ),
+        assert_eq!(
+            body.cycle_loop(outer).err(),
+            Some(NoCycle::Torn),
             "a torn cycle"
+        );
+        let (mut body, outer, cycle) = fresh();
+        let other = body
+            .faces
+            .iter()
+            .map(|(_, f)| f.outer)
+            .find(|&l| l != outer)
+            .unwrap();
+        body.half_edges.get_mut(cycle[1]).unwrap().parent_loop = other;
+        assert_eq!(
+            body.cycle_loop(outer).err(),
+            Some(NoCycle::Torn),
+            "a member that claims another loop"
         );
     }
 }
