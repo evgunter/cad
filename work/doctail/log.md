@@ -693,3 +693,34 @@ body has the reasons):
   `main-red-geom-core-test-support-fails-items-after-test-module-under-all-targets`
   (P2 E).
 - 2026-11-23 — (OFFER orchestrator) Main's rustdoc gate was red from #7554: `eval/mod.rs:3743`'s doc linked to `Self::exactly_zero` inside a trait impl, where rustdoc cannot resolve it. #7560 fixes it by naming it in code text, verified with the gate's own lints.
+- 2026-11-23 16:45 — **7549 merged** (`b4ffffe`): main's red from 7434
+  is fixed, on local evidence (17 of 17 rows at all three ε on the
+  merged tree).
+  - **Re-pinned and attributed:** the three m10_bulge tables (the
+    identity chart's `least_turn_conditioning` / `mate_chart_pole`) and
+    step-export's `swept_elbow.step` (five DIRECTION lines, an ulp each,
+    from the Rodrigues spelling).
+  - **Superseded:** the numeric re-pins in four receipt files fell away,
+    because CIW's #7501 narrowed those receipts to the symbolic and
+    frozen columns.
+  - **Item 6 (the race row)** was a gain in certification, red since
+    2026-11-19 and not 7434's; it stays with SCALAR's row.
+  - **Filed on GREEN:** two unowned slow reds and an OFFER slow-set name.
+  - Lane archived.
+- 2026-11-23 16:50 — **Sitting ends; the track goes back `ready`.** No
+  P0 or P1 is dispatchable; the only P0 is the deferred
+  `no-docedit-splices-a-deleted-node`, which waits on a ruling. The P2
+  and lower tail (15 P2, 37 P3, 26 P4) is the successor's. This sitting
+  landed:
+  - 7082, 7116, 7122, 7126, 7129, 7148, 7149, 7150, 7151, 7330, 7353,
+    7396, 7434, 7549 and 7554;
+  - Ev's rulings on 7082, 7122, 7129 and 7353;
+  - the design forks `tracecarry`, `movedchart` and `valexact`.
+
+  Left for others (all rows):
+  - the seat rule, a design question for Ev;
+  - the one-carrier-verdict build;
+  - the mated-box pin (P3 E);
+  - GERM's span-local pose and the 7411 revalue red;
+  - the E12 "and for nothing else" wording, for when `aligned` asks
+    BOXFINISH's EX1 question.
