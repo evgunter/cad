@@ -121,8 +121,9 @@ fn whole_conic_principal<T: Real>(
         return None;
     }
     match *curve.carrier() {
-        geom::Curve3::Circle(geom::Circle { frame, .. })
-        | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.u_ref()),
+        ref conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => {
+            conic.frame().map(|frame| frame.u_ref())
+        }
         _ => None,
     }
 }

@@ -84,8 +84,9 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("kitchen_sink", 203, 0x77bf_cc33_c746_6f89),
     ("kitchen_sink", 220, 0x2422_5544_5591_c336),
     ("kitchen_sink", 237, 0x392d_ba99_0d9e_30e8),
-    ("cut_cylinder", 46, 0xcca5_bbcf_71e7_1ba1),
-    ("cut_cylinder", 61, 0x72b3_f745_d255_c01b),
+    // Re-cut, both halves: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
+    ("cut_cylinder", 46, 0x6b46_72c6_e1f0_2a46),
+    ("cut_cylinder", 61, 0xdd0d_1457_d05d_a9dc),
     ("measured_web", 47, 0x5b66_b559_a071_2879),
     ("measured_web", 67, 0x3584_2878_7aa0_e2ed),
     ("boss_union", 43, 0x31c7_169b_091e_4970),

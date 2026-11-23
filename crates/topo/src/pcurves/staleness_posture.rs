@@ -249,6 +249,13 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
                  as found; a row the new datum stales is the tier-3 pass's to report",
         ),
         (
+            "restate_geometry",
+            Neither,
+            "a test-support door that restates the stored points, carriers and surfaces \
+                 and leaves every row as found; a row the new data stale is the tier-3 \
+                 pass's to report",
+        ),
+        (
             "rotate_shell_faces",
             Neither,
             "a test-support door that rotates each shell's stored face list; no face, \
