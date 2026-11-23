@@ -160,3 +160,40 @@ at-rest gate asking (measured on `75224e843`):
 `a_lattice_drawn_rounded_plate_fillets_whole`,
 `an_l_plates_rounded_corner_run_fillets_whole_at_interval`,
 `two_arcs_in_one_run_build`.
+
+## A second body: the three-arc disc's rim band (EMBED collinear-cover lane, 2026-11-23)
+
+`crates/sweep/tests/self_intersection_proves_injectivity.rs`
+`a_three_arc_discs_filleted_rim_holds_across_its_joints`: the disc of
+radius `0.5` whose circle is three arcs, its top rim filleted at `0.1`.
+At `f64` it holds in four poses. At `Interval`, on the landing tree
+(`5764e4b84` merged), every pose refuses at the top plane `1v1` against
+the band `9v1` across their circle `18v1`:
+`Uncertified { .., Departure }` as built (discharged 26,705, splits
+38,542), turned one radian about a generic axis (48,312 / 64,888) and
+a hundred units off (29,452 / 38,929);
+`Budget { Pairs { 65536 }, a: 1v1, b: 9v1 }` mirrored across a generic
+plane. The row pins the body as built at that refusal, by the owner's
+word on PR 7320
+(https://github.com/evgunter/cad/pull/7320#issuecomment-7093255162).
+
+**The probe that puts it on this row and not on
+`a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth`.**
+On `c76b74b2c` alone (the sliver still read) the same body holds at
+`Interval`, and a print at each sliver `Zero` and at `graph`'s `None`
+shows how: the band `9v1` is closed by the sliver 458 times, 237 at the
+top circle and 221 at the foot parallel on the wall, while the plane
+`1v1` ALREADY fails to read its graph there (`graph_read` is `None`
+7,039 times on `1v1`). So the plane's cell was never presented on
+either tree; the pair was certified by the band's side reading
+`Vacuous` through the sliver, and with the sliver gone nothing closes
+it. On the landing tree the depth stop is at plane cell
+`u ∈ (−0.396875, −0.395313)`, `v ∈ (−0.052344, −0.051563)` (the
+circle at about 187°, no joint near: the joints are at 0°, 120°, 240°)
+against band cell `u ∈ (1.17503, 1.17810)`, `v ∈ (π/2, 1.57693)`;
+`graph` exits 2,837 times in the run, and none of the cover's readers
+(`vacuous`, the clip merge, `sides_are_the_faces`) refuses.
+
+The foot parallel, the band against the wall, is tangent too and was
+closed by the same sliver (221 closures); the top circle refuses first,
+so what the wall's seam reads without it is not measured.

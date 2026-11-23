@@ -772,7 +772,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        204,
+        208,
         95,
         "the 95 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), \
@@ -811,7 +811,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          same parameters its curve already carries, the read behind \
          `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
          `leaving`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
-         the placement asks, are sound. The run through a corner's vertex reads 7 more, none \
+         the placement asks, are sound. `joints`' 4 are the hull of a joint's two readings, \
+         behind `forward`'s ask in `line_ends`. The run through a corner's vertex reads 7 more, none \
          asking, each a refusal when not met: `line_onward` (3) the other edge's far \
          coordinate against the columns' far end, one-sided so a bracket that holds nothing \
          refuses, and its share of the columns, taken at its upper end and refused unless \

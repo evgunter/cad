@@ -21,6 +21,9 @@
 //!   cell-pair counts printed;
 //! - a windowed tube holds across its caps' circles, where each cap's
 //!   two semicircles meet on the walls' seams;
+//! - a three-arc disc's filleted rim holds across the joints of its
+//!   band's foot parallel, as built, turned and far from the origin, and
+//!   two such discs through each other at a joint read `Violated`;
 //! - lofts whose walls reach every extreme in one half of an axis are
 //!   admitted and decided: the arc spine past a full turn, the closed
 //!   spine and the carvetail loft read `Violated`, and the arc spine
@@ -2942,6 +2945,210 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             }
         }
     }
+}
+
+/// **The three-arc disc, its top rim filleted**: the disc of radius
+/// `0.5` and height `1` whose circle is authored as three equal arcs,
+/// its top rim filleted at `0.1`. The band is one torus face whose foot
+/// parallel is three arcs, joined at the wall's three seams, at azimuths
+/// `0`, `2π/3` and `4π/3`. `Err` where the fillet refuses it, which at
+/// `Interval` and ε = 1e-12 it does (its pcurve envelope escalates).
+fn filleted_arc_disc<T: Scalar>() -> Result<topo::AtRestBody<T>, String> {
+    use sweep::blend::fillet_edges;
+    use sweep::test_support::{arc_polygon, finished, prism_at};
+    let at = T::from_f64;
+    let verts = arc_polygon(3, 0.5, Point2::new(0.0, 0.0))
+        .into_iter()
+        .map(|(p, bulge)| (p.map(at), at(bulge)))
+        .collect();
+    let disc = finished(
+        "the disc",
+        prism_at(verts, T::zero(), T::one(), tol()),
+        tol(),
+    );
+    let rim: Vec<topo::EdgeKey> = disc
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                disc.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
+                Some(geom::Curve3::Circle(the_circle @ geom::Circle { .. })) if (mid(the_circle.frame().origin().z) - 1.0).abs() < 1e-9
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(rim.len(), 3, "the rim is three arcs");
+    fillet_edges(&disc, &rim, at(0.1), tol())
+        .map(|blended| blended.body)
+        .map_err(|e| format!("{:?}", e.error))
+}
+
+/// A pose of [`filleted_arc_disc`].
+#[derive(Clone, Copy)]
+enum Pose {
+    AsBuilt,
+    /// Moved rigidly.
+    Moved(geom_core::Affine3<f64>),
+    /// Mirrored across the plane through a point with a normal.
+    Mirrored([f64; 3], [f64; 3]),
+}
+
+/// [`filleted_arc_disc`] in `pose`; `Err` where it, or its pose, is not
+/// built.
+fn posed_arc_disc<T: Scalar>(pose: Pose) -> Result<Body<T>, String> {
+    let home = filleted_arc_disc::<T>()?;
+    let at = T::from_f64;
+    match pose {
+        Pose::AsBuilt => Ok(home.into_body()),
+        Pose::Moved(m) => {
+            let rigid = geom_core::test_support::rigid(&m.map(at), tol());
+            T::finish(topo::transform_rigid(&home, &rigid).unwrap(), tol())
+                .map(topo::AtRestBody::into_body)
+                .map_err(|e| format!("{e:?}"))
+        }
+        Pose::Mirrored(p, n) => {
+            let across = topo::Reflection::across(
+                Point3::new(at(p[0]), at(p[1]), at(p[2])),
+                geom_core::Vec3::new(at(n[0]), at(n[1]), at(n[2])),
+                tol(),
+            )
+            .map_err(|e| format!("{e:?}"))?;
+            topo::mirror_body(&home.into_body(), &across, tol()).map_err(|e| format!("{e:?}"))
+        }
+    }
+}
+
+/// A rigid turn of one radian about a generic axis through a point off
+/// the origin, a placement a hundred units from the origin, and a
+/// mirror across a generic plane.
+fn generic_poses() -> [(&'static str, Pose); 4] {
+    use geom_core::{Affine3, Vec3};
+    [
+        ("as built", Pose::AsBuilt),
+        (
+            "turned about a generic axis",
+            Pose::Moved(Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(0.48, -0.6, 0.64),
+                1.0,
+            )),
+        ),
+        (
+            "a hundred units from the origin",
+            Pose::Moved(Affine3::translation(Vec3::new(60.0, -80.0, 0.0))),
+        ),
+        (
+            "mirrored across a generic plane",
+            Pose::Mirrored([0.3, -0.2, 0.1], [0.48, -0.6, 0.64]),
+        ),
+    ]
+}
+
+/// **Whether an `Interval` twin's refusal is the one this file skips
+/// on**: at ε = 1e-12, a pcurve envelope that escalates where the body
+/// is built or finished
+/// (`work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`).
+/// Any other refusal, or that one at another ε, is a failure.
+fn envelope_at_the_tightest_eps(refusal: &str) -> bool {
+    band().zero() < 1e-11 && refusal.contains("pcurve_envelope")
+}
+
+/// **A rim band whose foot parallel is split at the wall's seams holds
+/// across the joints.** On the band's chart the parallel is three edges
+/// of one line, each ending at the vertex the next starts at. Their
+/// stored ends at a joint are two readings of one point (equal at one
+/// joint of the body as built, an ulp apart at another), and in a frame
+/// that is not the chart's their rows hold the parallel's own value a
+/// rounding apart (mirrored across a generic plane: `0` and `4.0e-16`).
+/// A cell beside the line across a joint is covered by the two edges
+/// together: below the parallel it holds none of the band, above it the
+/// parallel is its side. Holds at `f64` as built, turned about a generic
+/// axis, a hundred units from the origin and mirrored across a generic
+/// plane. Red if a side is read against one edge of its line alone (the
+/// wall against the band then runs out of depth at a joint), if two
+/// edges are joined only where their stored ends agree, or if two rows
+/// are one line only where their values agree (the mirrored pose).
+///
+/// **At `Interval` the body refuses off the joints, and is pinned
+/// there**: the top plane against the torus band across the circle they
+/// share, `Uncertified` on the departure arm, the tangent seam of
+/// `work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`,
+/// which the band's sliver closed until the sliver retired. It is asked
+/// of the body as built; the other poses' twins are built and not asked
+/// (each refuses at the same seam, a minute a pose). The pin flips to
+/// holding the day a tangent seam is read at `Interval`. At ε = 1e-12
+/// the twin's pcurve envelope escalates
+/// ([`envelope_at_the_tightest_eps`]) and that half is skipped, said.
+#[test]
+fn a_three_arc_discs_filleted_rim_holds_across_its_joints() {
+    for (what, pose) in generic_poses() {
+        let what = format!("the three-arc disc's filleted rim, {what}");
+        let body = posed_arc_disc::<f64>(pose).expect("the f64 body builds");
+        let report = injective(&body, None, BUDGET);
+        assert_holds(&what, &report, &body);
+        println!("[joint] {what}: {:?}", report.receipt);
+        match posed_arc_disc::<Interval>(pose) {
+            Ok(twin) if matches!(pose, Pose::AsBuilt) => {
+                let report = injective(&twin, None, BUDGET);
+                let BoundVerdict::Refused(EngineRefusal::Uncertified {
+                    a,
+                    b,
+                    shared: SharedCell::Edge(_),
+                    arm: CertificateArm::Departure,
+                }) = report.verdict
+                else {
+                    panic!(
+                        "{what} at Interval refuses at its tangent seam: {:?} {:?}",
+                        report.verdict, report.receipt
+                    )
+                };
+                let mut kinds = [kind(&twin, a), kind(&twin, b)];
+                kinds.sort_unstable();
+                assert_eq!(kinds, ["plane", "torus"], "the top plane against the band");
+            }
+            Ok(_) => {}
+            Err(refusal) if envelope_at_the_tightest_eps(&refusal) => {
+                println!("SKIPPED: {what} at Interval, its twin unbuilt: {refusal}");
+            }
+            Err(refusal) => panic!("{what}: the Interval twin builds: {refusal}"),
+        }
+    }
+}
+
+/// **Two filleted discs through each other at a joint read violated.**
+/// The second, grafted in as a solid of its own, is moved `0.5` along
+/// `x` and `0.95` up, so its bottom plane cuts the first's band at
+/// `z = 0.95`, through the azimuth `0` where the band's foot parallel
+/// has a joint. Faces of two solids share nothing, so the crossing is
+/// decided by distance; the row pins that the joint reading leaves a
+/// crossing beside a joint to be found. A crossing of two faces that
+/// share the joint is no kernel operation's to build; the joint's own
+/// guards are `injective`'s unit rows. In one class at `Interval` where
+/// the twin builds ([`filleted_arc_disc`]).
+#[test]
+fn two_filleted_discs_through_each_other_at_a_joint_read_violated() {
+    fn folded_at<T: Scalar>() -> Result<Body<T>, String> {
+        use geom_core::{Affine3, Vec3};
+        let disc = filleted_arc_disc::<T>()?;
+        let mut folded = disc.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.5, 0.0, 0.95)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&disc, &rigid).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        Ok(folded)
+    }
+    let folded = folded_at::<f64>().expect("the f64 body builds");
+    let report = injective(&folded, None, BUDGET);
+    match folded_at::<Interval>() {
+        Ok(twin) => same_class("the folded discs", &report, &injective(&twin, None, BUDGET)),
+        Err(refusal) if envelope_at_the_tightest_eps(&refusal) => println!(
+            "SKIPPED: the folded discs are asked at f64 alone, their Interval twin unbuilt: {refusal}"
+        ),
+        Err(refusal) => panic!("the folded discs' Interval twin builds: {refusal}"),
+    }
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the two discs cross: {:?}", report.verdict)
+    };
+    assert!(w.d < 1e-9, "a coincidence: {w:?}");
 }
 
 /// The unit disc on the `xy` sketch plane, at `T`.
