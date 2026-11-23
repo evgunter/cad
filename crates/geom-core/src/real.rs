@@ -1292,7 +1292,7 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// - `Sym<T>`: the value channel is `T`'s sentence; a zero form over an
 ///   invalid value refuses.
 pub fn radius_gap<T: Real>(norm_sq: T, norm: T, radius: T) -> T {
-    (norm_sq - radius * radius) / (norm + radius)
+    (norm_sq - radius.powi(2)) / (norm + radius)
 }
 
 /// Whether `x` is EXACTLY zero, of either sign: at the point scalars

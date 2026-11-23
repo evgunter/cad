@@ -282,7 +282,7 @@ fn ivp(p: Point3<f64>) -> Point3<Interval> {
 /// it is up to five times the direct one's width, a rounding of the
 /// offset still.
 ///
-/// Red with [`super::wall_distance`] handing the gap the radius's
+/// Red with [`super::wall_gap`] handing the gap the radius's
 /// square for the radius (run by hand: no site in `mutants`).
 #[test]
 fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
@@ -453,7 +453,7 @@ fn a_rulings_direction_reads_the_angle_of_its_offset_to_its_rounding() {
 /// a finite quotient of two roundings, which decides off; it never
 /// decides on.
 ///
-/// Red with [`super::wall_distance`] taking the `abs` of the numerator
+/// Red with [`super::wall_gap`] taking the `abs` of the numerator
 /// alone (run by hand: no site in `mutants`): a point inside the mirror
 /// wall reads a negative distance, which decides as on the chart.
 #[test]
@@ -555,8 +555,8 @@ fn a_point_built_on_an_exactly_orthonormal_tilt_is_on_it_over_a_box() {
 /// half-width `0.1` it is undecided, `[0, 0.32]` where the direct
 /// spelling's is `[0, 0.21]`; from a half-width of `1e-3` down the two
 /// spellings' enclosures agree to four digits (`2.06e-6` at `1e-6`),
-/// and at `2.5e-10` it reads Zero, unproven, as the direct spelling
-/// does.
+/// and at a quarter of the band's zero (`2.5e-10` at the default ε) it
+/// reads Zero, unproven, as the direct spelling does.
 #[test]
 fn a_point_built_on_a_normalized_tilt_is_not_proven_on_it_over_a_box() {
     let (axis, u_ref, _, c) = tilted();
@@ -583,7 +583,7 @@ fn a_point_built_on_a_normalized_tilt_is_not_proven_on_it_over_a_box() {
         mid.is_none() && (2.0e-6..2.1e-6).contains(&hi),
         "a box of half-width 1e-6: undecided at the box's own width, read {mid:?} at {hi}"
     );
-    let (narrow, hi) = at(2.5e-10);
+    let (narrow, hi) = at(0.25 * band().zero());
     assert_eq!(
         narrow,
         Some((Sign::Zero, false)),

@@ -6977,7 +6977,7 @@ fn rim_slant<T: Real>(h: T, radius: T, half_angle: T, nappe: Nappe) -> T {
 /// for a length `p` that is no stored radius and whose square the
 /// caller holds in its own spelling `p_sq` (a root's radicand, a
 /// magnitude's signed square, a product). `p ≥ 0`; a chart's own radius
-/// is read through [`wall_distance`].
+/// is read through [`wall_gap`].
 fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)).abs() / (p + q.norm())
 }
@@ -6989,7 +6989,7 @@ fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
 /// radius is positive wherever the surface is at rest (check 1's
 /// `radius > 0`); the `abs` is of the whole quotient so that a radius
 /// `−R` that reaches here all the same reads `‖w‖ + R`, never on.
-fn wall_distance<T: Real>(radius: T, w: Vec3<T>) -> T {
+fn wall_gap<T: Real>(radius: T, w: Vec3<T>) -> T {
     #[cfg(test)]
     if mutants::distance_raw_norm() {
         return (w.norm() - radius).abs();
@@ -7175,7 +7175,7 @@ fn incidence<T: Decide>(
                 // the moving arm is a conic's, whose `l` is zero.
                 _ => {
                     terms.add(Line, radial(l).norm() * reach);
-                    terms.add(Radius, wall_distance(radius, w_r));
+                    terms.add(Radius, wall_gap(radius, w_r));
                     terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
             }
@@ -11569,7 +11569,7 @@ fn derive_class_zero<T: Decide>(
             // amplitude.
             let moving = match carrier {
                 Curve3::Line(line) => {
-                    let standoff = wall_distance(radius, w_r);
+                    let standoff = wall_gap(radius, w_r);
                     #[cfg(test)]
                     let standoff = if mutants::meridian_standoff_unread() {
                         T::zero()
@@ -13259,7 +13259,7 @@ const INCIDENCE_SAMPLES: u32 = 64;
 
 /// The exact distance of `p` from an analytic curved chart: the sphere's
 /// and the cylinder's `|‖w‖ − R|`, `w` the point's offset from the centre
-/// or the axis ([`wall_distance`]), the double cone's `|elevation|`
+/// or the axis ([`wall_gap`]), the double cone's `|elevation|`
 /// ([`crate::implicit::cone_elevation`], exact on the double cone), the
 /// torus's `|√((ρ − R)² + h²) − r|`. On a spindle sheet the torus's
 /// form is the distance from the sheet's whole revolved circle, which
@@ -13267,7 +13267,7 @@ const INCIDENCE_SAMPLES: u32 = 64;
 /// reading [`incidence_over_span_as`] decides.
 fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     match *surface {
-        Surface::Sphere { frame, radius, .. } => wall_distance(radius, p - frame.origin()),
+        Surface::Sphere { frame, radius, .. } => wall_gap(radius, p - frame.origin()),
         Surface::Cone {
             frame, half_angle, ..
         } => {
@@ -13307,7 +13307,7 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
         Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             let (_, w) = crate::implicit::axial_radial(p, origin, axis);
-            wall_distance(radius, w)
+            wall_gap(radius, w)
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("chart_distance: the incidence test reads an analytic chart")

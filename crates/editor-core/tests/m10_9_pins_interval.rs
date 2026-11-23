@@ -337,6 +337,14 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Door shut the link certifies whole: four decisions the
             // registry discharges are numeric, inside the band.
             without_the_registry: Some(((790, 939), None)),
+            // 786 -> 802: sixteen incidence readings of carriers on
+            // their own walls (8 `pcurve_cylinder_chart_incident`, 8
+            // `pcurve_line_chart_incident`) are theorems through the
+            // rationalized gap (`geom_core::radius_gap`), where they
+            // were numeric Zeros. Then 802 -> 794: the tangent arcs'
+            // radius is a rational function of the half width where it
+            // was an `abs` atom, and eight forms over it reach the
+            // coefficient budget.
             symbolic: [794, 794, 794],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
