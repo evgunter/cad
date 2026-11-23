@@ -4745,6 +4745,18 @@ impl EditError {
                                 ),
                             )
                         }
+                        // One body spliced in, `…a`, where a splice takes a
+                        // family: it is one member, written alone.
+                        (
+                            VarKind::Body,
+                            SlotId::Operand(
+                                crate::OperandSlot::Member(_) | crate::OperandSlot::Cut(_),
+                            ),
+                        ) if matches!(expected, crate::SlotKind::Is(VarKind::Bodies)) => tail
+                            .recourse(
+                                f,
+                                sentence!("write it as one member, `[", by.var(var), "]`"),
+                            ),
                         _ => tail.recourse(f, format_args!("read {expected} there")),
                     }
                 }
