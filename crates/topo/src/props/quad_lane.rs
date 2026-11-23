@@ -3194,7 +3194,11 @@ pub(super) fn material_sign<T: Decide + Bounds + CertifiedEnclosure>(
                     .iter()
                     .all(|&p| at(e.traversal_start(), p) == Ok(false))
             });
-            let holds = |p| held.iter().map(|&h| at(h, p)).collect::<Result<Vec<_>, _>>();
+            let holds = |p| {
+                held.iter()
+                    .map(|&h| at(h, p))
+                    .collect::<Result<Vec<_>, _>>()
+            };
             match (clear, holds(poles[0]), holds(poles[1])) {
                 (true, Ok(n), Ok(s)) => Some([n.contains(&true), s.contains(&true)]),
                 _ => None,

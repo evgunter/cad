@@ -1984,7 +1984,11 @@ pub fn rotational_material_sign<T: Decide>(
     let total = entries
         .iter()
         .fold(Interval::zero(), |l, e| l + loop_length(e));
-    let anchor = if sphere { 0.0 } else { level_anchor(&face.loops)? };
+    let anchor = if sphere {
+        0.0
+    } else {
+        level_anchor(&face.loops)?
+    };
     let connectors: Vec<Interval> = if sphere {
         connector_terms(
             face,
@@ -2014,12 +2018,9 @@ pub fn rotational_material_sign<T: Decide>(
     loop {
         let mut removable = 0.0_f64;
         // `A₀`, each loop's `−∮ G du` at this round, connectors included.
-        let whole = face
-            .loops
-            .iter()
-            .zip(&entries)
-            .zip(&connectors)
-            .fold(Interval::zero(), |a, ((edges, entries), &connectors)| {
+        let whole = face.loops.iter().zip(&entries).zip(&connectors).fold(
+            Interval::zero(),
+            |a, ((edges, entries), &connectors)| {
                 a + edges
                     .iter()
                     .zip(entries)
@@ -2034,7 +2035,8 @@ pub fn rotational_material_sign<T: Decide>(
                         removable += rem;
                         acc + g
                     })
-            });
+            },
+        );
         let stop = run.stop(
             round,
             FaceCutBounds {

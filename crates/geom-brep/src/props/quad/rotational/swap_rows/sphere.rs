@@ -574,11 +574,31 @@ fn the_poles_a_face_holds_say_which_side_of_its_loops_it_lies_on() {
     );
     for (label, loops, poles, want) in [
         ("the cap", cap(true), north, Encoded(Positive)),
-        ("the cap holding the south pole", cap(true), south, Encoded(Negative)),
+        (
+            "the cap holding the south pole",
+            cap(true),
+            south,
+            Encoded(Negative),
+        ),
         ("the rest", cap(false), south, Encoded(Positive)),
-        ("the rest holding the north pole", cap(false), north, Encoded(Negative)),
-        ("the sphere less the disc", disc(false), both, Encoded(Positive)),
-        ("the sphere less the disc holding neither", disc(false), neither, Encoded(Negative)),
+        (
+            "the rest holding the north pole",
+            cap(false),
+            north,
+            Encoded(Negative),
+        ),
+        (
+            "the sphere less the disc",
+            disc(false),
+            both,
+            Encoded(Positive),
+        ),
+        (
+            "the sphere less the disc holding neither",
+            disc(false),
+            neither,
+            Encoded(Negative),
+        ),
         ("the disc", disc(true), neither, Encoded(Positive)),
         ("the disc holding both", disc(true), both, Encoded(Negative)),
         ("a pole on a loop", disc(true), None, Unencoded),
