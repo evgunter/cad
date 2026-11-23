@@ -552,7 +552,8 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
                 continue;
             }
             sheets += 1;
-            let (edges, _) = topo::props::loop_edges(&body, f.outer).unwrap();
+            let (edges, _) =
+                topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
             let got = geom_brep::props::boundary_material_sign_loops(s, &[&edges], band);
             let want = if encodes {
                 geom_brep::props::MaterialSign::Encoded(if f.sense {

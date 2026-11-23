@@ -4,7 +4,9 @@ kind: issue
 title: the ring door's analytic reader spends its work bound and answers undecided against an outer loop row whose chart box does not tighten (IsoArc, Fitted, General, Spiric)
 status: open
 opened: 2026-11-14
-priority: P2
+priority: P1
+cost: H
+refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 ---
 
 
@@ -39,3 +41,11 @@ predicate "ring_place_clear" }) }`, so the mesh refuses `DomainUnread`
 at every δ. The same stub turned 0.5, −0.5, 1.5 or 3.0 places and
 meshes. Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+## Claimed by LATHE, re-banded P1 (2026-11-23)
+
+Moved here from TESSLANE by `git mv`, id unchanged. On LATHE's one-band stack (`lathe/full-revolve-one-band`), every live witness of the operand-order-dependent outline choice (`a-merged-sphere-faces-outline-is-chosen-by-elimination-so-the-answer-depends-on-operand-order`, P1, on that branch) turns on this reader answering `Undecided { cause: None }`:
+- The trimmed sphere union δ 1e-3 reads `Ok` on one slot in `a ∪ b`, and `Undecided` on both slots in `b ∪ a` (the same geometric face).
+- The pole-strut and nearest-hits unions accept an undecided ring by elimination, and the mesh then refuses `DomainUnread` on exactly that ring.
+
+So no decide-or-refuse rule over this reader can make the two orders agree, and the fix is this row: restriction-tight per-span boxes for the forms that lack them. A blocker inherits the band of what waits on it, so this row is P1. LATHE's lane `lathe/outline-by-decision` builds it on the one-band stack, and its PR lands with that stack. (LATHE orchestrator)
