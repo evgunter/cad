@@ -73,3 +73,21 @@ PR 7032: one image function on the carrier's own knots, with the
 uniform 33-to-257-sample climb gone. Its build is briefed to measure
 at-rest cost against main. Re-measure this row when
 `a-node-arcs-chord-misses-its-at-rest-chart-image` closes.
+
+## Re-measured on `sectarms/one-image-function` (2026-11-23)
+
+Debug, local, one run each, default ε, the rest rows' arcs
+(`spline_implicit::rest_rows`), after the wall's image became the one
+function of the carrier (`carrier_image`) and limb 3 came to read the
+wall's chart on its own cells before the certificate's grid:
+
+| arc | the whole reading | the image alone | one at-rest certificate (was) |
+|---|---|---|---|
+| sphere, s = 0.01 | 1.7 s | 20 ms, 176 control points | 1.1 s (4.9 s) |
+| sphere, s = 1 | 4.9 s | 56 ms, 556 control points | 3.5 s (5.9 s) |
+| cylinder, s = 1 | 0.17 s | 0.9 ms, 4 control points | 0.024 s (1.5 s) |
+| torus, s = 1 | 5.0 s | 23 ms, 219 control points | 1.9 s (12.1 s) |
+
+The tube still has one box per span of the image, and the image holds
+the carrier's knots, so a bent arc's certificate is still seconds. Each
+chord still pays for the whole carrier.
