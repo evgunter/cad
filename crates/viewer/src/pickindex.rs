@@ -192,6 +192,9 @@ crate::vocab::vocabulary! {
         /// Faces only: the edge test is not run, so the answer is the
         /// ray path's face or nothing.
         FacesOnly,
+        /// Faces and datums' squares: what a seat reading a plane picks
+        /// with — a face's, or a datum's through its role.
+        FacesAndDatums,
         /// Edges only: the edge test runs, and a cursor that no edge wins
         /// answers NOTHING rather than the face the ray met.
         EdgesOnly,
@@ -221,8 +224,9 @@ crate::vocab::vocabulary! {
         Vertex,
         /// A committed profile, by its outline.
         Profile,
-        /// A datum, by its drawn square: a plane or an axis seat reads
-        /// it through a role.
+        /// A datum, by its drawn square (D10 `[placement.datums]`): a
+        /// mate's far side of any kind but a direction, and a mirror's or
+        /// a split's plane, read it through a role of its frame.
         Datum,
     }
 
@@ -255,12 +259,14 @@ impl PickKinds {
         match (self, kind) {
             (Self::Any, K::Face | K::Edge | K::Profile | K::Datum)
             | (Self::FacesAndEdges, K::Face | K::Edge | K::Datum)
-            | (Self::FacesOnly, K::Face | K::Datum)
+            | (Self::FacesOnly, K::Face)
+            | (Self::FacesAndDatums, K::Face | K::Datum)
             | (Self::EdgesOnly, K::Edge)
             | (Self::WithVertices, K::Face | K::Edge | K::Vertex | K::Datum) => true,
             (Self::Any, K::Vertex)
             | (Self::FacesAndEdges, K::Vertex | K::Profile)
-            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile)
+            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile | K::Datum)
+            | (Self::FacesAndDatums, K::Edge | K::Vertex | K::Profile)
             | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile | K::Datum)
             | (Self::WithVertices, K::Profile) => false,
         }
@@ -274,6 +280,7 @@ impl PickKinds {
         match self {
             Self::Any | Self::FacesAndEdges | Self::WithVertices => "nothing",
             Self::FacesOnly => "no face",
+            Self::FacesAndDatums => "no face or datum",
             Self::EdgesOnly => "no edge",
         }
     }
@@ -1112,6 +1119,10 @@ impl Rims {
     }
 }
 
+/// **One outline the picture draws**: its node, whether it is a datum's
+/// square, and its loops in world coordinates.
+type DrawnOutline<'a> = (RecipeNodeId, bool, &'a [Vec<Point3<f64>>]);
+
 /// **A committed profile's drawn outline**: the loops
 /// [`crate::sketch::committed`] draws for one profile node, each as
 /// [`crate::sketch::PreviewLoop::drawn_on`] places it, at the picture's
@@ -1131,7 +1142,7 @@ struct Outline {
 }
 
 impl Outline {
-    fn of(doc: &Doc<ProfileProgram>, profile: crate::sketch::CommittedProfile) -> Self {
+    fn of(profile: crate::sketch::CommittedProfile) -> Self {
         let loops = profile
             .loops
             .iter()
@@ -1140,10 +1151,7 @@ impl Outline {
         Self {
             node: profile.node,
             loops,
-            datum: matches!(
-                doc.node(profile.node),
-                Some(pncad::document::Node::Datum { .. })
-            ),
+            datum: profile.datum,
         }
     }
 }
@@ -1176,6 +1184,7 @@ enum Line {
 enum Near {
     Edge(EdgePick),
     Profile(RecipeNodeId),
+    Datum(RecipeNodeId),
 }
 
 /// **What a picture IS**: the landed generation an index describes,
@@ -1434,7 +1443,7 @@ impl PickIndex {
         let outlines = crate::sketch::committed(doc, eval, key.delta().get(), None)
             .drawn
             .into_iter()
-            .map(|drawn| Outline::of(doc, drawn))
+            .map(Outline::of)
             .collect();
         Ok(Self {
             outlines,
@@ -2154,7 +2163,7 @@ impl PickIndex {
         Ok(
             match self.near(eval, camera, viewport, cursor, display, edges)? {
                 Some(Near::Edge(edge)) => Some(edge),
-                Some(Near::Profile(_)) | None => None,
+                Some(Near::Profile(_) | Near::Datum(_)) | None => None,
             },
         )
     }
@@ -2328,6 +2337,7 @@ impl PickIndex {
                 return Ok(Some(Hovered::Edge(edge.selection())));
             }
             Some(Near::Profile(node)) => return Ok(Some(Hovered::Profile(node))),
+            Some(Near::Datum(node)) => return Ok(Some(Hovered::Datum(node))),
             None => {}
         }
         if front.is_empty() {
@@ -2487,11 +2497,7 @@ impl PickIndex {
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
         if lines.outlines || lines.datums {
-            for (rank, (node, loops)) in outlines.iter().enumerate() {
-                let datum = self
-                    .outlines
-                    .iter()
-                    .any(|outline| outline.node == *node && outline.datum);
+            for (rank, &(_, datum, loops)) in outlines.iter().enumerate() {
                 if !(if datum { lines.datums } else { lines.outlines }) {
                     continue;
                 }
@@ -2616,7 +2622,10 @@ impl PickIndex {
                 continue;
             }
             return Ok(Some(match line {
-                Line::Outline(rank) => Near::Profile(outlines[rank].0),
+                Line::Outline(rank) => match outlines[rank] {
+                    (node, true, _) => Near::Datum(node),
+                    (node, false, _) => Near::Profile(node),
+                },
                 Line::Edge(rank) => {
                     let part = bodies[rank];
                     let id = EdgeId {
@@ -2674,19 +2683,24 @@ impl PickIndex {
     /// ([`PickIndex::drawn_outline`]): the committed ones in document
     /// order, the previewed node's in its committed one's place, or
     /// last where the index holds no committed outline of it.
-    fn drawn_outlines<'a>(
-        &'a self,
-        display: &'a DisplayView,
-    ) -> Vec<(RecipeNodeId, &'a [Vec<Point3<f64>>])> {
-        let mut drawn: Vec<(RecipeNodeId, &[Vec<Point3<f64>>])> = self
+    fn drawn_outlines<'a>(&'a self, display: &'a DisplayView) -> Vec<DrawnOutline<'a>> {
+        // Each committed outline is its own drawing: a profile or datum
+        // shown through two copies is drawn, and picked, at both.
+        let mut drawn: Vec<DrawnOutline<'a>> = self
             .outlines
             .iter()
-            .map(|outline| (outline.node, self.drawn_outline(outline.node, display)))
+            .map(|outline| {
+                let loops = match &display.previewed_profile {
+                    Some(previewed) if previewed.node == outline.node => &previewed.outline,
+                    _ => &outline.loops,
+                };
+                (outline.node, outline.datum, loops.as_slice())
+            })
             .collect();
         if let Some(previewed) = &display.previewed_profile
-            && !drawn.iter().any(|(node, _)| *node == previewed.node)
+            && !drawn.iter().any(|(node, _, _)| *node == previewed.node)
         {
-            drawn.push((previewed.node, previewed.outline.as_slice()));
+            drawn.push((previewed.node, false, previewed.outline.as_slice()));
         }
         drawn
     }

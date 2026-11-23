@@ -260,7 +260,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::AddProfile { loops: vec![] },
         SessionOp::AddDatum {
             space: pncad::document::VarId::WORLD,
-            kind: pncad::document::VarKind::Plane,
         },
         SessionOp::AddExtrude {
             profile: node,

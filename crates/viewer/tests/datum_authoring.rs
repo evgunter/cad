@@ -20,10 +20,7 @@ fn a_new_plane_is_a_datum_its_editor_mates_flush_on_a_picked_face() {
     let (doc, block, _) = viewer::test_support::boss_on_block("datum-authoring", tol);
     let space = doc.node_space(block).expect("the block is in its space");
     let mut session = DocSession::inline(doc, tol);
-    let outcome = session.perform(SessionOp::AddDatum {
-        space,
-        kind: VarKind::Plane,
-    });
+    let outcome = session.perform(SessionOp::AddDatum { space });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let datum = outcome.made.expect("the op makes the datum");
     assert!(
@@ -106,7 +103,6 @@ fn a_datum_is_drawn_as_a_square_on_its_xy_plane() {
     let datum = session
         .perform(SessionOp::AddDatum {
             space: pncad::document::VarId::WORLD,
-            kind: VarKind::Axis,
         })
         .made
         .expect("the op makes the datum");
@@ -146,7 +142,6 @@ fn a_datum_picked_whole_is_a_mates_far_side_through_its_role() {
     let datum = session
         .perform(SessionOp::AddDatum {
             space: pncad::document::VarId::WORLD,
-            kind: VarKind::Plane,
         })
         .made
         .expect("the op makes the datum");
@@ -215,10 +210,7 @@ fn a_datum_picked_whole_is_a_plane_seats_plane_through_its_xy() {
     let space = doc.node_space(block).expect("the block is in its space");
     let mut session = DocSession::inline(doc, tol);
     let datum = session
-        .perform(SessionOp::AddDatum {
-            space,
-            kind: VarKind::Plane,
-        })
+        .perform(SessionOp::AddDatum { space })
         .made
         .expect("the op makes the datum");
     let doc = session.committed_doc();
@@ -270,10 +262,7 @@ fn a_datum_offset_from_a_face_stands_off_it_along_its_normal() {
     let depth = viewer::test_support::BOSS_BLOCK[2];
     let mut session = DocSession::inline(doc, tol);
     let datum = session
-        .perform(SessionOp::AddDatum {
-            space,
-            kind: VarKind::Plane,
-        })
+        .perform(SessionOp::AddDatum { space })
         .made
         .expect("the op makes the datum");
     let mut tool = MateTool::edit(session.doc(), datum).expect("the editor opens on a datum");

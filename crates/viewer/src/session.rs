@@ -2415,7 +2415,7 @@ impl DocSession {
     fn creation_door(&self, op: SessionOp) -> Result<Creating, Refusal> {
         match op {
             SessionOp::AddProfile { loops } => self.add_profile(loops),
-            SessionOp::AddDatum { space, .. } => Ok(creating(move |run| {
+            SessionOp::AddDatum { space } => Ok(creating(move |run| {
                 run.insert(Node::datum(
                     Operand::Var(space),
                     pncad::document::stand().bundle(),

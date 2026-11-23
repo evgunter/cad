@@ -1166,3 +1166,85 @@ pub fn product_without(doc: &Doc<ProfileProgram>, copy: VarId) -> Vec<Operand> {
         .map(Operand::Var)
         .collect()
 }
+
+/// **Why no space is offered to put a new datum in** for a selection
+/// ([`datum_space`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum DatumSpaceFault {
+    /// The selected node stands in no space (a measure, say).
+    NoSpace {
+        /// The node, as said.
+        node: pncad::document::SpokenNode,
+    },
+    /// The selected body's space is shown only through copies standing
+    /// in more than one space, so no one place it is drawn names a space.
+    ShownTwice {
+        /// The node, as said.
+        node: pncad::document::SpokenNode,
+        /// How many spaces its copies stand in.
+        spaces: usize,
+    },
+}
+
+impl core::fmt::Display for DatumSpaceFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoSpace { node } => write!(
+                f,
+                "{node} stands in no space to put a datum in: select a body, or nothing for the world"
+            ),
+            Self::ShownTwice { node, spaces } => write!(
+                f,
+                "{node} is drawn through copies in {spaces} spaces: pick a face on the copy the datum goes with"
+            ),
+        }
+    }
+}
+
+/// **The space a new datum goes in for the selected `node`**: the space
+/// `node` is drawn in — its own where the picture shows that space, or
+/// else the space of the one copy that shows it ([`shown_spaces`]), as a
+/// face picked in the viewport on that copy reads — so the tree's path
+/// and the viewport's agree. Its own where nothing shows it.
+///
+/// # Errors
+///
+/// [`DatumSpaceFault`]: a node in no space, or one drawn through two
+/// copies or more.
+pub fn datum_space(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<VarId, DatumSpaceFault> {
+    let said = || doc.spoken(node);
+    let space = doc
+        .node_space(node)
+        .ok_or_else(|| DatumSpaceFault::NoSpace { node: said() })?;
+    let shown = shown_spaces(doc);
+    let mut space = space;
+    // A space shown only through a copy is drawn where that copy's own
+    // space is, which may itself be shown only through one.
+    for _ in 0..doc.len() {
+        if shown.contains(&space) {
+            return Ok(space);
+        }
+        let targets: BTreeSet<VarId> = doc
+            .copies()
+            .into_iter()
+            .filter(|&copy| {
+                doc.copied_read(copy).and_then(|read| doc.space_of(read)) == Some(space)
+            })
+            .filter_map(|copy| doc.node_space(copy))
+            .collect();
+        match targets.len() {
+            0 => return Ok(space),
+            1 => space = *targets.iter().next().unwrap_or(&space),
+            spaces => {
+                return Err(DatumSpaceFault::ShownTwice {
+                    node: said(),
+                    spaces,
+                });
+            }
+        }
+    }
+    Ok(space)
+}

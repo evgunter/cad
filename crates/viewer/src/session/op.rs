@@ -617,14 +617,13 @@ pub enum SessionOp {
     },
     /// **A datum** (D10 `[placement.datums]`): a bare frame inserted into
     /// `space` at its origin, every value zero, which the placement
-    /// editor then places (create, then edit), opened with one mate row
-    /// of `kind`. A plane or an axis is read off it through a role.
+    /// editor then places (create, then edit). A plane or an axis is
+    /// read off it through a role; which one the editor's first row
+    /// reads is the tool's, not the document's.
     AddDatum {
-        /// The space it is placed into: the selected body's, or the world.
+        /// The space it is placed into: where the selected body is
+        /// drawn, or the world.
         space: VarId,
-        /// The kind of the editor's first mate row: a plane, an axis or
-        /// a frame. The datum is a frame whatever it is.
-        kind: pncad::document::VarKind,
     },
     /// **"Sketch on this face"** (spec §5): `loops` drawn as a profile
     /// on its own plane, extruded `distance` up its own `z`, the

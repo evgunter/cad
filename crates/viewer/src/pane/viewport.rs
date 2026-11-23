@@ -300,10 +300,7 @@ pub(crate) fn push_committed(
             push_loop(lane, &profile.plane, polyline);
         }
         // A datum's z axis stands off its plane, so it is no loop on it.
-        if matches!(
-            doc.node(profile.node),
-            Some(pncad::document::Node::Datum { .. })
-        ) {
+        if profile.datum {
             let frame = profile.plane.frame();
             let origin = frame.origin();
             lane.leg(

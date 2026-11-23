@@ -408,13 +408,34 @@ pub(crate) const EXTRUDE: &str = "Extrude";
 /// The button that inserts an empty profile.
 pub(crate) const NEW_PROFILE: &str = "New profile";
 
-/// The buttons that insert a datum, each with the kind of the placement
-/// editor's first mate row.
-pub(crate) const NEW_DATUMS: [(&str, pncad::document::VarKind); 3] = [
-    ("New plane", pncad::document::VarKind::Plane),
-    ("New axis", pncad::document::VarKind::Axis),
-    ("New frame", pncad::document::VarKind::Frame),
-];
+crate::vocab::vocabulary! {
+    /// **The buttons that insert a datum** (D10 `[placement.datums]`),
+    /// in the row's order, each the kind of the placement editor's first
+    /// mate row ([`NewDatum::kind`]).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum NewDatum {
+        /// A datum whose editor opens on a plane row.
+        Plane = "New plane",
+        /// A datum whose editor opens on an axis row.
+        Axis = "New axis",
+        /// A datum whose editor opens on a frame row.
+        Frame = "New frame",
+    }
+
+    /// Every button, with its label.
+    pub(crate) const ALL;
+}
+
+impl NewDatum {
+    /// The kind of the mate row the datum's editor opens with.
+    pub(crate) fn kind(self) -> pncad::document::VarKind {
+        match self {
+            Self::Plane => pncad::document::VarKind::Plane,
+            Self::Axis => pncad::document::VarKind::Axis,
+            Self::Frame => pncad::document::VarKind::Frame,
+        }
+    }
+}
 
 /// What the revolve button says, before the selected profile's name.
 pub(crate) const REVOLVE: &str = "Revolve";
@@ -783,10 +804,11 @@ impl ViewerBehavior<'_> {
             ToolKind::Mate.says(&match tool.door() {
                 None => "pick a body to place it, or a copy to edit its placement".to_owned(),
                 Some(door)
-                    if matches!(
-                        self.session.committed_doc().node(door.placement),
-                        Some(pncad::document::Node::Datum { .. })
-                    ) =>
+                    if self
+                        .session
+                        .committed_doc()
+                        .node(door.placement)
+                        .is_some_and(pncad::document::Node::is_datum) =>
                 {
                     format!(
                         "editing the datum {}: pick what it meets, {}, or a datum",
@@ -1302,43 +1324,37 @@ impl ViewerBehavior<'_> {
     }
 
     /// **New plane, New axis, New frame**: three buttons, each inserting
-    /// a datum ([`SessionOp::AddDatum`]) into the selected body's space,
-    /// or the world with nothing selected, at its origin, and opening the
-    /// placement editor on it with one mate row of its kind (create,
-    /// then edit). Each is a frame; a plane or an axis is read off it
-    /// through its role.
+    /// a datum ([`SessionOp::AddDatum`]) at its space's origin, and
+    /// opening the placement editor on it with one mate row of its kind
+    /// (create, then edit; the kind is the tool's,
+    /// [`crate::tools::Tools::awaiting_datum`]). Each is a frame; a plane
+    /// or an axis is read off it through its role.
     ///
-    /// A selection that stands in no space (a measure, say) withholds
-    /// the buttons and says so, rather than putting the datum in the
-    /// world as though nothing were selected.
+    /// The space is the one the selected body is drawn in
+    /// ([`crate::world::datum_space`]): its own where it is drawn itself,
+    /// the copy's where it is drawn only through one — where a face
+    /// picked on it in the viewport is — or the world with nothing
+    /// selected; the hover says which. A selection that names no one
+    /// space withholds the buttons and says why.
     pub(crate) fn new_datum_ui(&mut self, ui: &mut egui::Ui) {
-        let space = {
-            let doc = self.session.committed_doc();
-            match self.session.selection().seat_node() {
-                None => Ok(pncad::document::VarId::WORLD),
-                Some(node) => doc.node_space(node).ok_or_else(|| {
-                    format!(
-                        "{} stands in no space to put a datum in: select a body, or nothing for the world",
-                        doc.spoken(node)
-                    )
-                }),
-            }
+        let doc = self.session.committed_doc();
+        let space = match self.session.selection().seat_node() {
+            None => Ok(pncad::document::VarId::WORLD),
+            Some(node) => crate::world::datum_space(doc, node),
         };
+        let into = space
+            .as_ref()
+            .map(|&space| format!("a datum in {}", doc.spoken_space(space)));
         ui.horizontal(|ui| {
-            for (label, kind) in NEW_DATUMS {
+            for (datum, label) in NewDatum::ALL {
                 let button = ui.add_enabled(space.is_ok(), egui::Button::new(label));
-                let button = match &space {
-                    Ok(_) => button,
-                    Err(why) => button.on_disabled_hover_text(why.as_str()),
+                let button = match &into {
+                    Ok(into) => button.on_hover_text(into.as_str()),
+                    Err(fault) => button.on_disabled_hover_text(fault.to_string()),
                 };
                 if let (true, Ok(space)) = (button.clicked(), &space) {
-                    self.push_labelled(
-                        DATUM_NOUN,
-                        SessionOp::AddDatum {
-                            space: *space,
-                            kind,
-                        },
-                    );
+                    self.tools.awaiting_datum(datum.kind());
+                    self.push_labelled(DATUM_NOUN, SessionOp::AddDatum { space: *space });
                 }
             }
         });
@@ -2713,7 +2729,6 @@ mod creation_nouns {
         assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
         let datum = SessionOp::AddDatum {
             space: pncad::document::VarId::WORLD,
-            kind: pncad::document::VarKind::Plane,
         };
         assert_eq!(minted_noun(&mut session, datum), DATUM_NOUN);
     }

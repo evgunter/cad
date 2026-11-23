@@ -158,11 +158,13 @@ impl ToolKind {
     /// so a body tool is never handed a node it cannot seat.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
-            // The mirror's and the split's plane is a face, and their
-            // body is picked by a face or in the tree.
+            // The mirror's and the split's plane is a face or a datum's
+            // xy plane, and their body is picked by a face or in the
+            // tree; the placement editor's far side may be a datum too.
+            Self::Mate | Self::Mirror | Self::Split => PickKinds::FacesAndDatums,
             // The assertion tool's face seats are faces, and its body
             // seats are picked in the tree.
-            Self::Mate | Self::Mirror | Self::Split | Self::Assertion => PickKinds::FacesOnly,
+            Self::Assertion => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
             // Their seats read bodies, picked through a face or an
             // edge; none reads a profile, so none is offered one.
@@ -582,6 +584,9 @@ fn on_body_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId, Option<u3
 #[derive(Debug, Default)]
 pub struct Tools {
     open: Option<OpenTool>,
+    /// The kind of the mate row a datum being made opens its editor with
+    /// ([`Self::awaiting_datum`]).
+    datum_kind: Option<pncad::document::VarKind>,
 }
 
 impl Tools {
@@ -850,10 +855,17 @@ impl Tools {
         }
     }
 
+    /// **A New plane, New axis or New frame button clicked**: the kind
+    /// of the mate row the placement editor opens the datum with once it
+    /// is made ([`Self::datum_made`]) — the tool's state, not the op's.
+    pub fn awaiting_datum(&mut self, kind: pncad::document::VarKind) {
+        self.datum_kind = Some(kind);
+    }
+
     /// **A datum made** ([`SessionOp::AddDatum`], committed): the
     /// placement editor opens on it with one mate row of the kind its
-    /// button names, so every pick fills that row's far side (create,
-    /// then edit).
+    /// button named ([`Self::awaiting_datum`]), so every pick fills that
+    /// row's far side (create, then edit); with none named, a plane's.
     pub fn datum_made(
         &mut self,
         op: &SessionOp,
@@ -864,11 +876,15 @@ impl Tools {
             SessionOp::CreateLabelled { creation, .. } => creation.op(),
             op => op,
         };
-        let (SessionOp::AddDatum { kind, .. }, Some(datum)) = (op, made) else {
+        let (SessionOp::AddDatum { .. }, Some(datum)) = (op, made) else {
             return;
         };
+        let kind = self
+            .datum_kind
+            .take()
+            .unwrap_or(pncad::document::VarKind::Plane);
         if let Ok(mut tool) = MateTool::edit(doc, datum) {
-            tool.add_mate(*kind);
+            tool.add_mate(kind);
             self.open_mate(tool);
         }
     }
@@ -904,10 +920,15 @@ impl Tools {
     /// rebuilt below (kept), or written `_` and left to
     /// `..Self::default()` (dropped).
     pub fn document_replaced(&mut self) {
-        let Self { open } = core::mem::take(self);
+        let Self {
+            open,
+            datum_kind: _,
+        } = core::mem::take(self);
         *self = Self {
             // Which tool is open is chrome; what it holds is not.
             open: open.map(|tool| OpenTool::fresh(tool.kind())),
+            // A datum awaited was to be made in the document replaced.
+            ..Self::default()
         };
     }
 
@@ -1220,7 +1241,8 @@ pub(crate) fn datum_frame(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
 ) -> Option<pncad::document::VarId> {
-    matches!(doc.node(node), Some(pncad::document::Node::Datum { .. }))
+    doc.node(node)
+        .is_some_and(pncad::document::Node::is_datum)
         .then(|| doc.output(node, 0))
         .flatten()
 }

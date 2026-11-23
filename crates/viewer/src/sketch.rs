@@ -1945,21 +1945,26 @@ fn drew_only_its_leg(prefix: &[Step<f64>], tol: Tol) -> Option<ConstructedLoop<f
     only_its_leg.then_some(replayed)
 }
 
-/// **One committed profile, flattened for drawing**: the node it is,
-/// the plane its evaluation placed it on, and its loops.
+/// **One committed outline, flattened for drawing**: a profile, or a
+/// datum's square (D10 `[placement.datums]`) — the node it is, the
+/// plane it is drawn on where the picture shows it, and its loops.
 #[derive(Clone, Debug)]
 pub struct CommittedProfile {
-    /// The profile node this draws.
+    /// The profile or datum node this draws.
     pub node: RecipeNodeId,
     /// The plane the landed value is on — the VALUE's, not a second
     /// lookup of the frame the node names, for
-    /// [`ProfilePreview::plane`]'s reason.
+    /// [`ProfilePreview::plane`]'s reason — carried to where the picture
+    /// shows its space ([`committed`]).
     pub plane: SketchPlane<f64>,
-    /// One closed polyline per loop, in the value's canonical order
-    /// (outer first). Every one ends `LoopEnd::Closed`: a validated profile
-    /// has no open chain. A datum's square closes and its two axes do
-    /// not ([`DATUM_HALF`]).
+    /// One polyline per loop, in the value's canonical order (outer
+    /// first). A profile's every one ends `LoopEnd::Closed`: a validated
+    /// profile has no open chain. A datum's square closes and its two
+    /// axes do not ([`DATUM_HALF`]).
     pub loops: Vec<PreviewLoop>,
+    /// Whether this is a datum's square rather than a profile's loops:
+    /// what a pick of it is ([`crate::pickindex::PickedKind::Datum`]).
+    pub datum: bool,
 }
 
 /// **What the landed evaluation's profiles came to as drawings**: the
@@ -1996,6 +2001,13 @@ pub struct CommittedProfiles {
 /// its own replay of the node in the preview lane, and a loop drawn
 /// both as it was committed and as it is being changed would show two
 /// shapes where there is one.
+///
+/// Each datum is drawn too ([`datum_drawing`]), as a display aid. A
+/// profile or datum in a space the picture shows only through copies
+/// ([`crate::world::shown_spaces`]) is drawn where each copy shows it,
+/// as the bodies of that space are: one drawing per copy, carried by
+/// the copy's motion ([`shown_placings`]). The viewport draws and the
+/// pick index measures these same drawings.
 pub fn committed(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
@@ -2003,21 +2015,69 @@ pub fn committed(
     except: Option<RecipeNodeId>,
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
+    let shown = crate::world::shown_spaces(doc);
     for node in doc.ids() {
         if Some(node) == except {
             continue;
         }
-        if let Some(drawn) = datum_drawing(doc, evaluation, node) {
-            out.drawn.push(drawn);
-            continue;
-        }
-        match drawing(doc, evaluation, chord, node) {
-            Some(Ok(drawn)) => out.drawn.push(drawn),
-            Some(Err(())) => out.undrawn.push(node),
-            None => {}
+        let drawn = match datum_drawing(doc, evaluation, node) {
+            Some(drawn) => drawn,
+            None => match drawing(doc, evaluation, chord, node) {
+                Some(Ok(drawn)) => drawn,
+                Some(Err(())) => {
+                    out.undrawn.push(node);
+                    continue;
+                }
+                None => continue,
+            },
+        };
+        for placing in shown_placings(doc, evaluation, &shown, doc.node_space(node)) {
+            let Ok(frame) = placing.compose(drawn.plane.frame()) else {
+                continue;
+            };
+            out.drawn.push(CommittedProfile {
+                plane: SketchPlane::from_frame(frame),
+                ..drawn.clone()
+            });
         }
     }
     out
+}
+
+/// **Where the picture shows the space `space`**: the identity where it
+/// shows the space itself (or the node stands in none), else each
+/// copy out of it, carried on through the copies showing the copy's own
+/// space; the identity where nothing shows it, so a drawing in a space
+/// no body is drawn in still stands where its space is.
+fn shown_placings(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    shown: &std::collections::BTreeSet<pncad::document::VarId>,
+    space: Option<pncad::document::VarId>,
+) -> Vec<pncad::geom_core::RigidMotion<f64>> {
+    let identity = pncad::geom_core::RigidMotion::identity;
+    let Some(space) = space.filter(|space| !shown.contains(space)) else {
+        return vec![identity()];
+    };
+    let through: Vec<_> = doc
+        .copies()
+        .into_iter()
+        .filter(|&copy| doc.copied_read(copy).and_then(|read| doc.space_of(read)) == Some(space))
+        .flat_map(|copy| {
+            let motion = evaluation
+                .value(copy)
+                .and_then(|value| value.motion)
+                .unwrap_or_else(identity);
+            shown_placings(doc, evaluation, shown, doc.node_space(copy))
+                .into_iter()
+                .filter_map(move |outer| outer.compose(motion).ok())
+        })
+        .collect();
+    if through.is_empty() {
+        vec![identity()]
+    } else {
+        through
+    }
 }
 
 /// **Half the side of the square a datum is drawn as**, metres: a
@@ -2034,7 +2094,7 @@ fn datum_drawing(
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
 ) -> Option<CommittedProfile> {
-    if !matches!(doc.node(node), Some(pncad::document::Node::Datum { .. })) {
+    if !doc.node(node)?.is_datum() {
         return None;
     }
     let pncad::document::ValuePayload::Datum(frame) = &evaluation.value(node)?.payload else {
@@ -2059,6 +2119,7 @@ fn datum_drawing(
             open(vec![[0.0, 0.0], [h, 0.0]]),
             open(vec![[0.0, 0.0], [0.0, h]]),
         ],
+        datum: true,
     })
 }
 
@@ -2098,6 +2159,7 @@ fn drawing(
                 node,
                 plane: *profile.validated.plane(),
                 loops,
+                datum: false,
             })
             .map_err(|_| ()),
     )

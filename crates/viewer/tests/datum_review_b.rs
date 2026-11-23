@@ -25,8 +25,8 @@ fn cap(node: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> FaceSelection {
     }
 }
 
-fn datum_in(session: &mut DocSession, space: VarId, kind: VarKind) -> RecipeNodeId {
-    let outcome = session.perform(SessionOp::AddDatum { space, kind });
+fn datum_in(session: &mut DocSession, space: VarId, _kind: VarKind) -> RecipeNodeId {
+    let outcome = session.perform(SessionOp::AddDatum { space });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let datum = outcome.made.expect("the op makes the datum");
     session.pump();
