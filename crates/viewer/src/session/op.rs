@@ -89,8 +89,10 @@ pub enum SessionOp {
         /// The placement: a `Place` or an instance.
         placement: RecipeNodeId,
     },
-    /// Write a value into a node's slot. Refused if the slot is
-    /// driven by an expression.
+    /// Write a value into a node's slot: the slot reads a literal of
+    /// it in the unit it is written in, whatever it read before, so a
+    /// number written over an expression replaces the expression. Only a
+    /// drag over an expression is refused ([`SessionOp::BeginGesture`]).
     SetSlot {
         /// The node.
         node: RecipeNodeId,
@@ -114,10 +116,10 @@ pub enum SessionOp {
     /// every candidate is applied to a scratch copy that is dropped.
     ///
     /// A slot driven by an expression is refused, exactly as
-    /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
-    /// it: the range would be a range of numbers for a field that
-    /// takes no number. The affordance names the driving variables,
-    /// which are the fields to probe instead.
+    /// [`SessionOp::BeginGesture`] refuses it: the range would be how far
+    /// a number can move a slot whose number nothing moves until an
+    /// entry replaces the expression. The affordance names the driving
+    /// variables, which are the fields to probe instead.
     ProbeBounds {
         /// The field to probe.
         target: BoundsTarget,
@@ -148,7 +150,7 @@ pub enum SessionOp {
     },
     /// Replace a slot's expression from source text, through the
     /// shipped `parse_formula` door. This is the affordance's editing
-    /// half: a driven slot refuses a NUMBER, never an expression.
+    /// half: a driven slot refuses a DRAG, never an expression.
     SetSlotExpression {
         /// The node.
         node: RecipeNodeId,
@@ -681,11 +683,11 @@ pub enum SessionOp {
     ///
     /// Every argument of a kept step that did not move is written as
     /// the document holds it, so only what moved takes the editor's
-    /// notation. A kept step's argument an expression drives refuses
-    /// with the affordance if the program does not hold it unmoved
-    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
-    /// does. The program itself, and `ids`' shape, are the edit door's
-    /// to judge, and refuse in its words ([`Refusal::Edit`]).
+    /// notation. A kept step's argument the program writes anew is
+    /// written as the program holds it, over an expression as over a
+    /// literal, exactly as [`SessionOp::SetSlot`] writes a slot. The
+    /// program itself, and `ids`' shape, are the edit door's to judge,
+    /// and refuse in its words ([`Refusal::Edit`]).
     ///
     /// A name on a step the program does not keep, or on a kept step's
     /// piece it stops drawing, is stranded, and the door's report of it
@@ -794,9 +796,8 @@ pub enum SessionOp {
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
     /// The plane is any plane the document reads in the target's space
-    /// ([`SplitPlane`]): a picked face's own, read where it was picked
-    /// as the mirror reads its plane, or a plane read the caller
-    /// writes. A target seat of the wrong kind refuses
+    /// ([`ToolPlane`]): a picked face's own, read where it was picked,
+    /// or a plane read the caller writes. A target seat of the wrong kind refuses
     /// [`Refusal::WrongNodeKind`]; a plane read in another space refuses
     /// at the insert door (`EditError::SpaceMismatch`). Whether the
     /// face is planar, and which side is empty, are the split's own to
@@ -805,12 +806,14 @@ pub enum SessionOp {
         /// The body split.
         target: Operand,
         /// The plane it is cut along.
-        plane: SplitPlane,
+        plane: ToolPlane,
     },
-    /// **Mirror an existing body across the plane of a picked face** —
-    /// the mirror tool's one committed action. The plane is the face's
-    /// own, read where it was picked: a pick on a copy is read on that
-    /// copy, in the copy's space, where the mirrored body stands.
+    /// **Mirror an existing body across a plane** — the mirror tool's
+    /// one committed action. The plane is any plane the document reads
+    /// in the body's space ([`ToolPlane`]), as the split's is: a picked
+    /// face's own, read where it was picked — a pick on a copy is read
+    /// on that copy, in the copy's space, where the mirrored body
+    /// stands — or a plane read the caller writes.
     ///
     /// The body becomes the symmetric part: the image (`Node::Mirror`)
     /// and the union of the body and its image, in the body's space,
@@ -821,15 +824,15 @@ pub enum SessionOp {
     /// PR 6353). The made node is the image, the piece the gesture adds.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
-    /// a face read in another space — another construction's, or its
+    /// a plane read in another space — another construction's, or its
     /// image's — refuses at the insert door (`EditError::SpaceMismatch`).
-    /// Whether the face is planar is the mirror's own refusal where it
+    /// Whether a face is planar is the mirror's own refusal where it
     /// evaluates.
     AddMirror {
         /// The body reflected.
         body: Operand,
-        /// The face whose plane it is reflected across.
-        plane: FaceSelection,
+        /// The plane it is reflected across.
+        plane: ToolPlane,
     },
     /// **Add an assertion** — the assertion tool's one committed action:
     /// a recorded claim between two seats, each a body, a face picked in
@@ -1300,6 +1303,20 @@ pub struct PlacementBase {
 }
 
 impl SessionOp {
+    /// **The slot a value field's typed entry is aimed at**: a number
+    /// ([`Self::SetSlot`]) and text ([`Self::SetSlotExpression`]) are
+    /// the two doors of one field, so either is that field's edit.
+    /// `None` for every other op.
+    #[must_use]
+    pub fn field_entry(&self) -> Option<(RecipeNodeId, SlotId)> {
+        match self {
+            Self::SetSlot { node, slot, .. } | Self::SetSlotExpression { node, slot, .. } => {
+                Some((*node, *slot))
+            }
+            _ => None,
+        }
+    }
+
     /// **The viewer's Place of `body`**: into the space the body is in,
     /// so the copy stands where the body is. `None` for a read in no
     /// space, which names no body to place.
@@ -1936,9 +1953,10 @@ impl SessionOp {
     }
 }
 
-/// **The plane a split cuts along** ([`SessionOp::AddSplit`]).
+/// **The plane a split cuts along or a mirror reflects across**
+/// ([`SessionOp::AddSplit`], [`SessionOp::AddMirror`]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum SplitPlane {
+pub enum ToolPlane {
     /// A face, read as its plane on the body it was picked on
     /// (`crate::matetool::plane_of`).
     Face(FaceSelection),

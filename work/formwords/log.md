@@ -88,3 +88,76 @@ and its DESIGN.md diff writes the frame-only reading.
 A class finding with no home: the placement editor never writes a slid
 far side. Filed as P0 on DOORS:
 `the-placement-editor-cannot-author-an-offset-from-a-face`.
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7374 (seat-vocab) merged after a style review with correctness claims and a fix pass. It closes `a-fifth-spelling-of-this-seat-is-empty`, `four-pick-state-vocabularies-in-one-create-module` and the ride-along `a-per-kind-sentence-lives-in-the-widget-not-on-the-choice`. Merged on the fix pass's green CI and the orchestrator's read, without a delta review.
+## 2026-11-22 — mirror-plane reviewed
+
+(FORMWORDS orchestrator) PR 7373's review found it mergeable. It
+raised two MINORs: a variable picked before a face was silently
+dropped, and a hover sentence pointed at a pick the GUI cannot make. A
+fix pass is running on both. A class to watch: seats that decline a
+pick **silently** although `Tools::feed`'s doc promises a notice. The
+fix pass closes it for the plane seats; a datum or seat unit that adds
+a pick route checks its own seats against that doc.
+
+## 2026-11-22 — friction: disk and runners
+
+(FORMWORDS orchestrator)
+- **Disk.** Eight concurrent viewer lanes, each with its own target,
+  filled this container's ~60 GB allowance twice. Two lanes lost a
+  build to it and deleted their own targets. The rule applied since:
+  `CARGO_INCREMENTAL=0`, `-p <crate>` only, and the orchestrator
+  reclaims a review lane's clone and target the moment its report is
+  in. More than five or six concurrent lanes belong in their own cloud
+  sessions (`memories/orchestration-model.md`).
+- **Runners.** A docs-only PR waited about 17 minutes for its first
+  job, and one lane's `gate ok` sat queued for over an hour after its
+  jobs were green. The time queued is a finding of its own; nothing in
+  this track's diffs causes it.
+- **Review tiers dispatched:** held-pick full, seat-vocab style with
+  correctness claims (its commit-withholding is a behaviour change),
+  and refused-entry, denotes-body and mirror-plane full.
+
+## 2026-11-22 — reviews in; two P0s found
+
+(FORMWORDS orchestrator)
+- **PR 7379 (denotes-body)** was not mergeable: its merged head did
+  not compile, and its review found an evaluator panic.
+  `split_port` hits `unreachable!` on a split of a family that a
+  placement reads, which an ordinary split gesture reaches. Claimed
+  `a-split-of-a-family-has-no-halves-a-read-reaches` from REFS at P0
+  and dispatched `formwords/split-of-family` (dual review). The same
+  review found that the subtract tool seat cuts once per member when
+  handed a pattern whole (N plates, one hole each). Filed
+  `a-subtract-tool-seat-takes-a-whole-family-and-cuts-once-per-member`
+  (P0, design), and two designers are weighing it.
+- **PRs 7376, 7374 and 7378** are mergeable, each with a fix pass
+  running.
+- **Class: the slow-set rule is judged at CI speed.** Lanes timed rows
+  locally at opt-0 and over-applied the 0.5 s bar. CI's
+  `check-fast-set-times` is the instrument, and briefs now say so.
+- **Class: a test whose premise excludes the failing mode.** Two
+  reviews (7374, 7379) found rows that a mutation of the very gate
+  they name leaves green. Each review's mutations were the instrument
+  that caught it; future briefs ask reviewers for one mutation per new
+  gate row.
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7378 (refused-entry, Ev's report) merged after a full review and a fix pass, on green CI. A class finding with no home yet: app-feature test rows can be neither in the slow set (`check-slow-set-names.py` reads them as dead) nor timed (`check-fast-set-times` times only the default-eps step). So the app-feature job has no time bar, and a 12 s row runs on every viewer PR.
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7372 (dimension-ladders) merged after a style review with correctness claims and a fix pass, on green CI. It closes the three ladder rows. The fix pass added API to editor-core, quantity and geom-core (`Dimension::quantity`, `Notation::unit_of`, `UnitQuantity::units`), and its PR names their owners.
+## 2026-11-22 — subtract-by-family weighed
+
+(FORMWORDS orchestrator) Both designers agree, independently: the
+evaluator is right by D10's letter, and the defect is one level up, in
+the subtract's tool being a `Body` seat. Their recommendation is to
+make it `Bodies`, which reverses agent text approved in passing on
+FORK-DM4, in D10 and in REFERENCES DM4. Put to Ev on `[ev]` 7386. That
+branch also carries this branch's tracker state, so this branch will
+need no PR of its own if 7386 lands first. Off the question, both name
+the `ValuePayload::Instances` doc (`crates/editor-core/src/eval/mod.rs`)
+as stale: it says a body seat meeting a family whole refuses
+`WrongOperand`, while reach makes it map. It belongs with the build
+after Ev's answer.
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7373 (mirror-plane) merged after a full review and a fix pass, on green CI and the orchestrator's read. The fix pass added the shared `PlaneTool<E>` and did not get a delta review. `a-plane-other-than-a-face-cannot-be-authored-in-the-viewer` stays open for the datum build (`formwords/datum`).
+- 2026-11-22 — (FORMWORDS orchestrator) `[ev]` 7386 approved and merged: a subtract's tool is a `Bodies` seat. Ev then questioned implicit mapping itself ("we shouldn't be implicitly mapping over lists!"). Filed `a-family-read-at-a-body-seat-maps-implicitly` (P1, design), with two designers weighing it. The split-of-family lane is told to keep its fix minimal meanwhile.
+- 2026-11-22 — (FORMWORDS orchestrator) Every lane stopped at the weekly usage limit and resumed when usage came back.

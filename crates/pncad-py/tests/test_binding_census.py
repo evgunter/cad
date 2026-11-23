@@ -1442,7 +1442,7 @@ BOUND_AS = {
     # loops-in-hand seat to spell the Rust door at: `Node.polygon`
     # names a frame and mints a node, and the refusals it can raise are
     # the same PATHS refusals, tagged (`polygon_too_few_vertices`,
-    # `junction_tangent`).
+    # `junction_turn_within_tolerance`).
     "polygon": "Node.polygon",
     "revolve": "Node.revolve",
     "save": "Doc.save",
@@ -2447,6 +2447,11 @@ NOT_BOUND = {
     # Python's document keeps no edit log and a save file holds none,
     # so the replay door has no Python shape to bind.
     "apply_replayed": SHAPE,
+    # A stranded name's carrier: Python reads which store holds the name
+    # off the `Maintenance` row's own variant (`Strand` is a payload's,
+    # `StrandedSelection` a selection's, `StrandedAppearance` the
+    # appearance store's), so the carrier is never a separate value.
+    "NameCarrier": SHAPE,
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
@@ -2782,9 +2787,12 @@ NOT_BOUND = {
     "FilletLeg": INTERIOR,
     "FilletLegCarrier": INTERIOR,
     "SegmentRef": INTERIOR,
-    # `PathNoCornerReason::TurnWithinTolerance`'s lever: the reason
-    # itself crosses nowhere (`no_corner_for_fillet` is the whole
-    # word), so its lever kind does not either.
+    # `PathNoCornerReason::TurnWithinTolerance`'s and the junction and
+    # seam turn refusals' payload, and its lever kind: Python carries
+    # those refusals by tag and sentence (`no_corner_for_fillet`,
+    # `junction_turn_within_tolerance`, `seam_turn_within_tolerance`),
+    # so their payload does not cross either.
+    "LeveredTurn": INTERIOR,
     "TurnLever": INTERIOR,
     "ContentBits": INTERIOR,
     # `BlendError::ConvexitySignFlip`'s payload, and part of the
@@ -3834,10 +3842,10 @@ MEMBERS_BOUND_AS = {
     "ParseError::WrongArity": "ParseError.variant",
     "ParseError::UnknownParam": "ParseError.variant",
     "ParseError::Dimension": "ParseError.variant",
-    "PathError::JunctionTangent": "PathError.variant",
+    "PathError::JunctionTurnWithinTolerance": "PathError.variant",
     "PathError::JunctionCusp": "PathError.variant",
     "PathError::CuspDoublesBackOverLeg": "PathError.variant",
-    "PathError::SeamTangent": "PathError.variant",
+    "PathError::SeamTurnWithinTolerance": "PathError.variant",
     "PathError::SeamArrivalOffDirection": "PathError.variant",
     "PathError::SeamArrivalLeverTooShort": "PathError.variant",
     "PathError::ContinuationTargetOffRay": "PathError.variant",
@@ -3871,6 +3879,9 @@ MEMBERS_BOUND_AS = {
     "PathError::Structure": "PathError.variant",
     "PathError::UnderdeterminedLeg": "PathError.variant",
     "PathError::OverdeterminedJunction": "PathError.variant",
+    # A refusal a later step raises about an earlier one: `variant` is
+    # its refusal's tag, and the message names the step that raised it.
+    "PathError::Deferred": "PathError.variant",
     "PersistError::NonFinite": "PersistError.variant",
     "PersistError::ProfileProgram": "PersistError.variant",
     "PersistError::Distribution": "PersistError.variant",
