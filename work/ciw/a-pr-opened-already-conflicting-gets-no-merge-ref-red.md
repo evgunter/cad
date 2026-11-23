@@ -21,9 +21,11 @@ closed. That workflow runs on `push` (its header says why not
   The silence lasts until the next push, which does go red. Rare for a lane
   that branches from a fresh base, common for a stacked PR opened on a base
   that already moved. A fix needs an event that fires on `opened` without a
-  merge ref, which today is only `pull_request_target` (blocked by default
-  on public repositories from 2026-12-02 unless an Actions event policy
-  allows that one workflow: Ev's setting), or a poll helper
+  merge ref, which today is only `pull_request_target` (which runs only the
+  default branch's copy, and which a GitHub changelog of 2026-11-02, read
+  but not verified here, says public repositories block by default from
+  2026-12-02 unless an Actions event policy allows the workflow: Ev's
+  setting), or a poll helper
   (`local-scripts/bt-wait-pr.sh` reads only checks) that reads
   `mergeable_state` when a head has no run.
 - **The check queues like every other job.** On the probe (PR 7413, run

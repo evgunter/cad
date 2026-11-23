@@ -229,18 +229,20 @@ green; only a lane that asserts a positive job count notices.
 push to a branch other than `main` its one job, `merge ref`, finds the
 open PRs whose head is that branch, waits up to a minute for GitHub to
 compute each one's mergeability at the pushed sha, and fails if any is
-`mergeable: false`, with the annotation *"no merge ref: merge the PR's
+`mergeable: false` for six polls running while ci.yml has no
+`pull_request` run for that sha, with the annotation *"no merge ref: merge the PR's
 base branch into it"* naming the base to merge. A clean PR, a branch with
-no PR, or a mergeability GitHub has not computed after a minute passes.
+no PR, an API error, or a mergeability not settled after 75 s passes.
 It is not in `gate ok`'s needs, checks nothing out, and holds
-`pull-requests: read` alone. The discipline sentence lives in that
+`pull-requests: read` and `actions: read`. The discipline sentence lives in that
 annotation: *a push with no run is a conflict with the PR's own base,
 not a queue.*
 
 It runs on `push`, not on `pull_request_target` as sketched above:
-`pull_request_target` now runs only the default branch's copy of a
-workflow (so it could not be probed before merging) and GitHub blocks it
-by default in public repositories from 2026-12-02. The cost of `push` is
+a probe under `pull_request_target` (PRs 7413 and 7417, against a
+scratch base holding the workflow) produced no run at all, dirty or
+clean, consistent with GitHub's documentation that it runs only the
+default branch's copy. The cost of `push` is
 a PR opened when it already conflicts, which stays silent until its next
 push; that and the check's own queueing are
 `a-pr-opened-already-conflicting-gets-no-merge-ref-red`.
@@ -252,7 +254,11 @@ of `54bfd63b13` got run 45062549663, `merge ref` failed with the
 annotation above and showed on the PR's checks, and ci.yml created no run
 for that sha. Merging the base in and resolving (`3f29ff7e17`) gave a
 ci.yml `pull_request` run at once (45063131261) and a green `merge ref`
-(45063127056, "merges cleanly", `mergeable_state: unstable`), so a fix push
-is not read through a stale `false`. Clean control PR 7417
+(45063127056, "merges cleanly", `mergeable_state: unstable`). That job
+started minutes after its push and answered on its first poll, so the
+probe did not exercise the window where `mergeable` still carries the
+previous head's `false`; the workflow guards it by construction instead
+(a `false` must hold for six polls and ci.yml must have no `pull_request`
+run for the sha). Clean control PR 7417
 (`51befdf984`): green, 45062552623.
 
