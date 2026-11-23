@@ -139,6 +139,8 @@ mod imported_chart_arc_rim;
 mod interior_iso_column;
 #[path = "interior_iso_review.rs"]
 mod interior_iso_review;
+#[path = "conic_sizes_are_decided.rs"]
+mod conic_sizes_are_decided;
 #[path = "intersect_table.rs"]
 mod intersect_table;
 #[path = "m4_remint_headroom.rs"]

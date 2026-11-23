@@ -956,7 +956,7 @@ impl std::error::Error for SectionError {}
 #[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
 pub enum SectionRadius {
     /// The cylinder's radius (`cs_cylinder_radius`,
-    /// `coc_cylinder_radius`).
+    /// `coc_cylinder_radius`, `pc_cylinder_radius`).
     Cylinder,
     /// The sphere's radius (`cs_sphere_radius`).
     Sphere,
@@ -1055,7 +1055,11 @@ fn closed_form_shown<T: Decide>(
 /// rows read at the foot of its point on the cylinder's axis, so where
 /// the carrier's origin is stored does not enter them.
 ///
-/// Trileans, in order (named lever arms per D4 ¶1):
+/// Trileans, in order (named lever arms per D4 ¶1), after the operand
+/// guard `pc_cylinder_radius` (margin `r`, metres: the rim is stated at
+/// exactly that radius, so it is a positive length; in band
+/// [`SectionError::RadiusEscalated`], decided otherwise
+/// [`SectionError::DegenerateOperand`]):
 ///
 /// 1. `pc_axis_plane_parallel` — margin `c·lever`, `c = axis·normal`,
 ///    the axis' angle off the plane levered over `reach` from the
@@ -1125,6 +1129,20 @@ pub(crate) fn plane_cylinder_classified<T: Decide>(
     band: Band,
 ) -> Result<(PlaneCylinderSection<T>, Decided, Option<DecidingRow>), SectionError> {
     let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
+    match decide("pc_cylinder_radius", Margin::of(pc.r), band).map_err(|diag| {
+        SectionError::RadiusEscalated {
+            radius: SectionRadius::Cylinder,
+            diag,
+        }
+    })? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(SectionError::DegenerateOperand {
+                what: "the cylinder's radius is not definitely positive, and this arm \
+                       states its rim circle at exactly that radius",
+            });
+        }
+    }
     let (parallel, ruled) =
         plane_cylinder_ruled_read(&pc, reach, band).map_err(SectionError::Escalated)?;
     if let Some(ruled) = ruled {
