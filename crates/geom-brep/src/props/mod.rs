@@ -432,7 +432,8 @@ pub enum PropsError {
     },
     /// A cone face (`curved::cone_face_closed_form`) fails a premise of
     /// its vector-area closed form: a loop that sweeps past a turn
-    /// through the apex, that meets itself at a vertex, or a ring that
+    /// through the apex, that meets itself at a vertex off the apex,
+    /// whose lobes at the apex cover it other than once, or a ring that
     /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
     /// the deciding predicate's name.
     ///

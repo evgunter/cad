@@ -3252,8 +3252,9 @@ fn require_apex_lobes<T: Decide>(
         )
     };
     // The side of the first lobe's leaving ruling a ruling lies on picks
-    // the principal angle's branch, so no reading straddles its cut; one
-    // on that ruling's line, either way, is at `0` or half a turn.
+    // the branch, a quarter turn or three from it, so no reading meets its
+    // cut; one on that ruling's line, either way, is at `0` or half a
+    // turn.
     let origin = lobes[0].1;
     let azimuth = |u: Vec3<T>| -> Result<T, PropsError> {
         let (dot, cross) = turn_arms(axis, origin, u);
@@ -3265,9 +3266,10 @@ fn require_apex_lobes<T: Decide>(
                 PropsCheck::Inventory,
             )
         };
+        let read = geom::Azimuth::of(cross, dot);
         Ok(match side(cross)? {
-            Sign::Positive => cross.atan2(dot),
-            Sign::Negative => cross.atan2(dot) + tau,
+            Sign::Positive => read.about(geom::Quarter(1)),
+            Sign::Negative => read.about(geom::Quarter(3)),
             Sign::Zero => match side(dot)? {
                 Sign::Positive => T::zero(),
                 Sign::Negative => T::pi(),
