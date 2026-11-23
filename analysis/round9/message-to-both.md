@@ -1,0 +1,8 @@
+Round 9 on the turn-lever fork. Both round-8 reports are in, and you agree on nearly everything: drop "whatever acts on the verdict" and "No consumer takes one bound." from (A); (B) and (C) unchanged; the bound from below reads the boundary's curves at the line site (reversing "not built"); the [ev] PR waits for a second run on the build as designed (both bounds at every levered decision, the curve-reading bound from below, a closed-form truth added for a cylinder or cone wall along a ruling). That run is being dispatched now on the union of your two descriptions. The other designer's round-8 report is at the path given in the message that pointed you here; read it in full.
+
+Three differences remain. For each: does the other's argument answer yours, and what is your position now? Give any sentence of (A) exactly as you would sign it.
+1. (A), the bound from below: one of you keeps "from below off points of the region" (what the bound must read at a line is code, not text); the other writes "from below off curves and points known to lie on the region".
+2. (A), the not-built face: one keeps "Where a face is not built yet nothing proves a Zero over it."; the other removes it (it follows from "from above off its cover" and arises only mid-construction).
+3. Step 2's contents: one adds "a closed-form distance from a line for arc pieces in the cover home" (the run shows the bound from above loose on over a third of arc reads, and that looseness becomes refused Zeros); the other does not mention the bound from above. Is the arc cover's line distance part of the line-site decision, a separate fix, or neither?
+
+Under 40 lines: `## For Ev` only as the changed sentences, then `## For the orchestrator`. Return it as your final message; write no file.
