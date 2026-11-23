@@ -82,3 +82,21 @@ fix every face above winds zero.
 The mesh's own read of the copy, and `Chart::poles`' one listing of the
 cusp, are filed on TESSLIE as
 `the-mesh-names-a-horns-cusp-copy-off-a-chord-point-beside-the-stored-lift`.
+
+## Review fixes (PR 7511, 2026-11-23)
+
+The fix section above names `apex_reached` and `Singular::SheetApex`.
+After review, the incidence reads `Singular::On(AnalyticPoint)`, whose
+`SpindleApexes` holds no Up/Down label. One function, `face_above`,
+reads the face's side for every analytic point. For a cone's apex it
+reads the nappe each edge leaves on (`apex_nappe`) and refuses
+`TwoNappes`. For a sheet's apex it reads the copy of `v` each chart end
+holds (`apex_side`) and refuses the new `CuspCrossed`, or `CuspUnsided`
+where an end's `v` decides zero.
+
+A kill across a closed meridian through a horn's cusp
+(`kev_describing`'s `turn_element`) is reachable through the doors. On
+main it wrote a body tier 3 refuses (`LoopNotClosed`). It now refuses
+the kill (`KillTurnUndecided`). The row is
+`crates/sweep/tests/the_football_revolves.rs`
+`a_kill_across_a_closed_meridian_through_a_horns_cusp_has_no_turn`.
