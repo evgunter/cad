@@ -445,10 +445,11 @@ curve pairs.
   scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
   values, it is wrong everywhere else, so the lane builds it. The one
-  such value a lane takes from `f64` is a solved parameter with no
-  closed form, admitted by a check at the lane scalar that leaves
-  every member of the box within the band, and refused where no one
-  number does (`crates/geom-core/README.md`, DL5.2).
+  such value a lane takes from `f64` is a proposal: a solved parameter
+  with no closed form, or a fitted image, admitted by a check at the
+  lane scalar that leaves every member of the box within the band, and
+  refused where no one value does (`crates/geom-core/README.md`,
+  DL5.2).
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
