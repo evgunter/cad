@@ -13,10 +13,9 @@
 //! change it exists to catch.
 //!
 //! **This is the shared answer, not the only one in the tree.**
-//! `crates/test-utils/tests/reader_census.rs` enumerates every site
-//! that reads Rust source as text and says which reader each uses; the
-//! readers still outside this module are named there with the track
-//! that owns each, and the shell gates under `scripts/gates/` have a
+//! `crates/test-utils/tests/reader_census.rs` holds every site that
+//! reads Rust source as text to reaching this module; the readers still
+//! outside it are named there with the track that owns each, and the shell gates under `scripts/gates/` have a
 //! second home of their own in awk. **Read the ledger for the count —
 //! this paragraph deliberately carries none**, because a number here
 //! is a copy that goes stale in the direction that matters.
@@ -1375,8 +1374,8 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 /// the `include_str!("all.rs")` handed to this function was the single
 /// extra one, so `named > mounted` held by a margin of exactly one —
 /// which one `#[path = "` written inside a string literal in an
-/// `all.rs` would have closed, silently, leaving that file's `Shared`
-/// ledger line to red as `stale`. The row is now
+/// `all.rs` would have closed, silently, leaving that file unread. The
+/// row is now
 /// [`crate::every_suite_file_is_aggregated!`], which carries those
 /// tokens in its expansion rather than in the file's text: every
 /// aggregator's margin is zero, and the census recognises the
@@ -1512,14 +1511,13 @@ pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<
 ///
 /// # What the collapse cost, which is redundancy
 ///
-/// Fifteen copies were fifteen INDEPENDENTLY CHECKED facts.
-/// `crates/test-utils/tests/reader_census.rs` reads each `all.rs` and
-/// asserts a `Shared` ledger line against that file's own text, so a
-/// reversion in one of them red'd one file and named it. One macro is
-/// one fact: this body answers for fifteen call sites, and the file it
-/// lives in is dispositioned `Home`, which that row filters out before
-/// it looks at anything. Rewriting this expansion into a hand-rolled
-/// `read_dir` walk therefore leaves all fifteen `Shared` lines green.
+/// Fifteen copies were fifteen INDEPENDENTLY CHECKED facts: a reversion
+/// in one of them red'd one file and named it. One macro is one fact:
+/// this body answers for fifteen call sites, and
+/// `crates/test-utils/tests/reader_census.rs` reads each invoking file
+/// as reaching the shared lexer by its invocation alone. Rewriting this
+/// expansion into a hand-rolled `read_dir` walk therefore leaves every
+/// invoking file reading as converted.
 ///
 /// `the_aggregation_row_macro_reaches_the_shared_lexer` is the row that
 /// closes it, by reading THIS body as text and asserting it still calls

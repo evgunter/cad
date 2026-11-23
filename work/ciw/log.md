@@ -3128,3 +3128,4 @@ Signed (ONECOPY slow-set-reach lane).
   - On slow runners the job's 16-20 saved minutes come about 10 from moving the scalpel and the rest from opt 1.
   - The scalpel is now its own job (`topo-scalpel`), and the ciw scalpel row says so.
   - `scripts/gates/build-default-env-agrees.sh` now also holds equal the env blocks of nightly.yml jobs that share a rust-cache key (`nightly-opt2`: the build and the scalpel).
+- 2026-11-23 — **Hand-kept census lists (PR `ciw: hand-kept census lists derived or deleted`):** the family named in `census-and-digest-pins-cost-a-fix-a-day-and-caught-eight-real-defects-in-a-month` is derived or dropped; the binding census goes to Ev; the box-door `PINNED` inventory was already retired into `scripts/gates/cover-kind-match.sh`.

@@ -155,8 +155,6 @@ use std::path::{Path, PathBuf};
 // reads two views of every file — structure from the code-only one,
 // the format string from the one that keeps literals — and spells no
 // comment, quote, bracket or generic-list scanner of its own.
-// `crates/test-utils/tests/reader_census.rs` carries the line that
-// says so.
 use test_utils::source::{
     angle_end, balanced_end, code_and_literals, code_only, crate_dir, rust_sources, top_level_split,
 };
