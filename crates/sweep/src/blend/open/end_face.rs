@@ -912,8 +912,12 @@ impl<T: Decide + Bounds> CapSliver<T> {
                         SectionShape::Circle(circle.centred_at(origin)),
                     ),
                     Curve3::Ellipse(the_ellipse) => {
-                        let (semi_u, semi_v) = the_ellipse.semi_axes();
-                        let major_first = the_ellipse.quarter_turned_where(semi_v - semi_u);
+                        // Turned where the major semi-axis is the second,
+                        // its phase a quarter turn on (`MajorFrame::phase`).
+                        let Some(major) = arc.major_frame() else {
+                            unreachable!("an Ellipse carrier has a major frame")
+                        };
+                        let major_first = the_ellipse.quarter_turned_where(major.phase);
                         (
                             the_ellipse.frame().origin(),
                             the_ellipse.axis(),
