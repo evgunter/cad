@@ -1898,8 +1898,13 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
 ///   [`NameCarrier::Const`], which reads the name out of it.
 /// - Where the roster lists its indirect sites (`listed`, as
 ///   `(site, what carries the name there)`), the census's indirect sites
-///   are exactly those. A roster that admits them by a rule of its own
-///   passes `None` and holds them itself.
+///   are exactly those. A roster that passes `None` lists none, and is
+///   held instead to the one shape that hides names: an indirect site
+///   whose name is a bare parameter of its enclosing `fn` is a forwarder,
+///   and the forwarder must be a declared [`NameCarrier::Call`] (or be
+///   spelled `decide*`), so its callers' names are read
+///   ([`undeclared_forwarders`]). Any other indirect site — a field, a
+///   binding, another type's method — is silent.
 #[must_use]
 pub fn roster_violations(
     src: &std::path::Path,
@@ -1932,6 +1937,9 @@ pub fn roster_violations(
                 "a site names the const `{last}`, not declared a carrier: {site}"
             ));
         }
+    }
+    if listed.is_none() {
+        out.extend(undeclared_forwarders(src, census, carriers));
     }
     if let Some(listed) = listed {
         let named: std::collections::BTreeSet<&str> =
@@ -1985,6 +1993,97 @@ pub fn roster_violations(
                 None => out.push(format!("a FORWARDS entry that names no forwarder: {site}")),
             }
         }
+    }
+    out
+}
+
+/// **Every indirect site that is an undeclared forwarder**: its name is
+/// a bare parameter of the `fn` it stands in, and that `fn` is no
+/// declared [`NameCarrier::Call`] nor spelled `decide*`, so the names
+/// its callers hand it are read nowhere. Derived from the site and its
+/// file; no list.
+#[must_use]
+pub fn undeclared_forwarders(
+    src: &std::path::Path,
+    census: &PredicateCensus,
+    carriers: &[NameCarrier],
+) -> Vec<String> {
+    let calls: std::collections::BTreeSet<&str> = carriers
+        .iter()
+        .filter_map(|carrier| match carrier {
+            NameCarrier::Call(token) => Some(*token),
+            NameCarrier::Const(_) | NameCarrier::Table(_) => None,
+        })
+        .collect();
+    let mut out = Vec::new();
+    for site in &census.indirect {
+        let Some((file, scope, head)) = indirect_key(site) else {
+            continue;
+        };
+        let name = head.trim_start_matches(['&', '*']).trim();
+        if scope == "-"
+            || name.is_empty()
+            || !name.chars().all(|c| c.is_alphanumeric() || c == '_')
+            || calls.contains(scope)
+            || scope.starts_with("decide")
+        {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(src.join(file)) else {
+            continue;
+        };
+        if fn_parameters(&code_only(&text), scope)
+            .iter()
+            .any(|params| params.iter().any(|p| p == name))
+        {
+            out.push(format!(
+                "a forwarder no carrier declares: `{scope}` hands its parameter `{name}` to a \
+                 decide site, so its callers' names are read nowhere — declare it a \
+                 `NameCarrier::Call`: {site}"
+            ));
+        }
+    }
+    out
+}
+
+/// The parameter names of every `fn` named `name` in `bare` (a
+/// code-only view), one list per item: each parameter's pattern before
+/// its `:`, with `mut`, `&` and a receiver's `self` read as written.
+fn fn_parameters(bare: &str, name: &str) -> Vec<Vec<String>> {
+    let mut out = Vec::new();
+    for (at, _) in bare.match_indices("fn ") {
+        if !boundary_before(bare, at) {
+            continue;
+        }
+        let name_at = skip_ws(bare, at + 3);
+        if ident(bare, name_at) != name {
+            continue;
+        }
+        let mut open = skip_ws(bare, name_at + name.len());
+        if bare[open..].starts_with('<') {
+            let Some(end) = angle_end(bare, open) else {
+                continue;
+            };
+            open = skip_ws(bare, end + 1);
+        }
+        if !bare[open..].starts_with('(') {
+            continue;
+        }
+        let Some(close) = balanced_end(bare, open) else {
+            continue;
+        };
+        let list = &bare[open + 1..close];
+        let params = top_level_split(list, ',')
+            .into_iter()
+            .filter_map(|range| {
+                let param = list[range].trim();
+                let pattern = param.split_once(':').map_or(param, |(p, _)| p).trim();
+                let pattern = pattern.trim_start_matches('&').trim();
+                let pattern = pattern.strip_prefix("mut ").unwrap_or(pattern).trim();
+                (!pattern.is_empty()).then(|| pattern.to_string())
+            })
+            .collect();
+        out.push(params);
     }
     out
 }
@@ -3494,6 +3593,34 @@ mod tests {
             Some(("a.rs", "f", "name"))
         );
         assert_eq!(super::indirect_key("a.rs: read_identity#1(x)"), None);
+    }
+
+    /// **A forwarder no carrier declares hides its callers' names, and
+    /// reds**: with no listed sites, a `decide` site whose name is a bare
+    /// parameter of its `fn` reds unless that `fn` is a declared `Call`
+    /// carrier. A field or a local binding at the site stays silent.
+    #[test]
+    fn an_undeclared_forwarder_reds_with_no_list() {
+        let dir = std::env::temp_dir().join(format!("tu-forwarder-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn my_gate(m: f64, name: &'static str) { decide(name, m); }\n\
+             fn declared_as<T>(name: &str) { decide(name, 0.0); }\n\
+             fn field(row: Row) { decide(row.name, 0.0); }\n\
+             fn local() { let name = pick(); decide(name, 0.0); }\n\
+             fn caller() { my_gate(1.0, \"wrong_prefix_name\"); }\n",
+        )
+        .expect("write");
+        let carriers = [super::NameCarrier::Call("declared_as")];
+        let census = super::predicate_census(&dir, &carriers);
+        let said = super::roster_violations(&dir, &census, &carriers, None);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(said.len(), 1, "{said:#?}");
+        assert!(
+            said[0].starts_with("a forwarder no carrier declares: `my_gate`"),
+            "{said:#?}"
+        );
     }
 
     /// **The roster harness reports each kind of gap once and passes a

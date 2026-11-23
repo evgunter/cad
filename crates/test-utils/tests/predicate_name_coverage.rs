@@ -1,5 +1,11 @@
-//! **Every name a predicate literal references is one some crate
-//! decides.**
+//! **Every crate that decides a predicate name runs a roster, and every
+//! name a predicate literal references is one some crate decides.**
+//!
+//! A roster (`crates/<crate>/tests/recourse_roster.rs`, on the shared
+//! harness `test_utils::source::roster_violations`) holds that its
+//! crate's census reads every site it meets. This row walks every
+//! crate's `src`, and **a crate with a decide site that runs no roster
+//! is red**: read off the tree, with no list of crates excused.
 //!
 //! **References.** A literal a `predicate` field or comparison names
 //! (`predicate: Some("…")`, `d.predicate == Some("…")`, every
@@ -93,12 +99,21 @@ fn has_sites(census: &PredicateCensus) -> bool {
         || !census.unreadable.is_empty()
 }
 
-/// **Every referenced name resolves.** One walk of the tree.
+/// **Every crate with a site runs a roster, and every referenced name
+/// resolves.** One walk of the tree for both halves.
 #[test]
-fn every_referenced_name_is_decided() {
+fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
     let crates = crates();
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let mut out = Vec::new();
+    for (name, c) in &crates {
+        if has_sites(&c.census) && !c.runs_roster {
+            out.push(format!(
+                "`{name}` decides predicate names and runs no roster — give it \
+                 `tests/recourse_roster.rs` on `test_utils::source::roster_violations`"
+            ));
+        }
+    }
     let union: BTreeSet<String> = crates
         .values()
         .flat_map(|c| c.census.names.iter().chain(&c.test_names).cloned())
