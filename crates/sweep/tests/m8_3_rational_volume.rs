@@ -232,4 +232,3 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         got.volume_pad,
     );
 }
-

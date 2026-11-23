@@ -152,7 +152,9 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
 }
 
 /// How many times each theorem was read, by its node.
-fn reads_per_theorem<N: Ord>(nodes: impl Iterator<Item = N>) -> std::collections::BTreeMap<N, usize> {
+fn reads_per_theorem<N: Ord>(
+    nodes: impl Iterator<Item = N>,
+) -> std::collections::BTreeMap<N, usize> {
     let mut reads = std::collections::BTreeMap::new();
     for node in nodes {
         *reads.entry(node).or_insert(0) += 1;
