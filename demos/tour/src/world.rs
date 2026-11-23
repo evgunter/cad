@@ -55,7 +55,7 @@ pub fn set_product(doc: &Doc<ProfileProgram>, bodies: &[Operand], tol: Tol) -> D
         several => {
             let insert = DocEdit::InsertNode {
                 node: Box::new(pncad::document::Node::Assemble {
-                    members: pncad::document::Bodies::Spelled(
+                    members: pncad::document::Bodies::spelled(
                         several.iter().cloned().map(BodyRead::plain).collect(),
                     ),
                 }),

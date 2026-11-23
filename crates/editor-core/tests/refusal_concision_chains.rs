@@ -791,12 +791,12 @@ test_utils::f6_variants! {
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, RecordRefused, RecordMispaired, WrongOperand, EmptyOperand, EmptyMember,
-        NotFinished, UnfinishedLeaf, EmptyHalf, HalfOfAFamily, MemberOutOfRange, MemberRefused, IndicesUnrelated,
+        NotFinished, UnfinishedLeaf, EmptyHalf, MemberOutOfRange, MemberRefused, TwoBinders, YieldsNothing,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, UnschedulableCycle,
-        Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
+        Naming, FoldStep, Shell, ShellLaneUnsupported,
         WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
         MeasureNotParallel, MeasureUnsupported, PayloadExpr,
@@ -1262,10 +1262,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::HalfOfAFamily { .. }
         | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::MemberOutOfRange { .. }
-        | NodeErrorKind::IndicesUnrelated { .. }
+        | NodeErrorKind::TwoBinders { .. }
+        | NodeErrorKind::YieldsNothing { .. }
         | NodeErrorKind::NoSuchPiece { .. }
         | NodeErrorKind::PieceShape { .. }
         | NodeErrorKind::DegenerateDirection { .. }
@@ -1280,7 +1280,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::CountOutOfRange { .. }
         | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::UnionFoldStep { .. }
+        | NodeErrorKind::FoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
         | NodeErrorKind::CrossingUnverified { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
@@ -1826,14 +1826,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "HalfOfAFamily",
-            NodeErrorKind::HalfOfAFamily {
-                read: editor_core::VarId::new(0, tagged(2)),
-                input: RecipeNodeId::new(0, tagged(3)),
-                half: editor_core::SplitHalf::Below,
-            },
-        ),
-        row(
             "ContactCarry",
             NodeErrorKind::ContactCarry {
                 refusal: topo::CarryRefusal::Stale { record: 0 },
@@ -1847,10 +1839,16 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "IndicesUnrelated",
-            NodeErrorKind::IndicesUnrelated {
+            "TwoBinders",
+            NodeErrorKind::TwoBinders {
                 a: editor_core::VarId::new(0, tagged(2)),
                 b: editor_core::VarId::new(0, tagged(4)),
+            },
+        ),
+        row(
+            "YieldsNothing",
+            NodeErrorKind::YieldsNothing {
+                binder: editor_core::VarId::new(0, tagged(2)),
             },
         ),
         row(
@@ -5494,8 +5492,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
-            "UnionFoldStep",
-            NodeErrorKind::UnionFoldStep {
+            "FoldStep",
+            NodeErrorKind::FoldStep {
                 member: 2,
                 read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {

@@ -1519,6 +1519,7 @@ pub fn assemble_world_copies_edits(
         });
     // A product already the world's copies is kept as it is, so a
     // document written twice is the one document.
+    let binders = doc.binders();
     let world: Vec<crate::VarId> = doc
         .copies()
         .into_iter()
@@ -1528,12 +1529,22 @@ pub fn assemble_world_copies_edits(
             doc.var(copy)
                 .is_some_and(|v| v.kind() == crate::VarKind::Body)
         })
+        // A copy inside a binder is read outside it only as what the
+        // binder yields (D10 `[repetition]`).
+        .filter(|&copy| binders.yielding(copy).is_some() || doc.var_reach(copy).is_none())
         .collect();
+    // A family the binder yields is spliced in whole.
+    let entry = |doc: &ProfileDoc, copy: crate::VarId| {
+        binders.spell(doc, copy, crate::BodyRead::plain(crate::Operand::Var(copy)))
+    };
     let spelled = |copies: &[crate::VarId]| {
         crate::Bodies::Spelled(
             copies
                 .iter()
-                .map(|&copy| crate::BodyRead::plain(copy))
+                .map(|&copy| match entry(&doc, copy) {
+                    crate::Spell::All(_) => crate::Spell::All(crate::BodyRead::plain(copy)),
+                    crate::Spell::One(_) => crate::Spell::One(crate::BodyRead::plain(copy)),
+                })
                 .collect(),
         )
     };
@@ -1558,10 +1569,7 @@ pub fn assemble_world_copies_edits(
             let insert = crate::DocEdit::InsertNode {
                 node: Box::new(Node::Assemble {
                     members: crate::Bodies::Spelled(
-                        several
-                            .iter()
-                            .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
-                            .collect(),
+                        several.iter().map(|&copy| entry(&doc, copy)).collect(),
                     ),
                 }),
                 fresh: Vec::new(),
@@ -1764,6 +1772,102 @@ pub fn node_error_witnesses(
     tol: geom_core::Tol,
 ) -> Vec<(crate::NodeErrorClass, crate::NodeErrorKind)> {
     crate::eval::class::witnesses::all(tol)
+}
+
+/// **The slab**: a unit square extruded by `depth` (declared with a
+/// uniform spread of ±1 mm), measured cap to cap — the thickness, whose
+/// derivative in `depth` is 1.
+pub fn measured_slab(seed: &str, depth: f64, tol: geom_core::Tol) -> MeasuredSlab {
+    use crate::{CapEnd, DocEdit, Formula, Node, RoleSeg, SitedRef, StableName};
+    let push = |doc: &crate::doc::Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>| {
+        let applied = crate::apply(doc, &edit, tol).expect("the edit applies");
+        (applied.doc, applied.record.minted)
+    };
+    let doc = crate::doc::Doc::empty_derived(seed, tol);
+    let (doc, _) = push(
+        &doc,
+        DocEdit::DeclareVar {
+            name: crate::VarName::from_static("depth"),
+            def: crate::VarDecl::Free(crate::FreeVar::Continuous {
+                dim: crate::Dimension::Length,
+                value: depth,
+                display_unit: crate::UnitSym::canonical_for(crate::Dimension::Length),
+                distribution: Some(crate::Distribution::Uniform {
+                    lo: -1e-3,
+                    hi: 1e-3,
+                }),
+            }),
+        },
+    );
+    let depth_var = doc.var_named("depth").expect("declared");
+    let (doc, profile) = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Profile(ProfileProgram {
+                loops: vec![
+                    crate::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+                        .expect("finite corners"),
+                ],
+                ids: Vec::new(),
+                on: None,
+            })),
+            fresh: Vec::new(),
+        },
+    );
+    let (doc, block) = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Extrude {
+                profile: profile.expect("minted").into(),
+                distance: Formula::named(
+                    crate::VarName::from_static("depth"),
+                    crate::Dimension::Length,
+                ),
+            }),
+            fresh: Vec::new(),
+        },
+    );
+    let (profile, block) = (profile.expect("minted"), block.expect("minted"));
+    let cap = |end| {
+        SitedRef::new(
+            block,
+            StableName {
+                kind: crate::EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(end)],
+            },
+        )
+    };
+    let measured = crate::measure(
+        &doc,
+        &[crate::MeasurePrimitive::Distance {
+            a: cap(CapEnd::Start),
+            b: cap(CapEnd::End),
+        }],
+        tol,
+    )
+    .expect("the measure inserts");
+    MeasuredSlab {
+        doc: measured.doc,
+        depth: depth_var,
+        thickness: measured.measured.outputs[0],
+        profile,
+        block,
+    }
+}
+
+/// [`measured_slab`]'s document and the ids a row reads.
+pub struct MeasuredSlab {
+    /// The document.
+    pub doc: crate::doc::Doc<ProfileProgram>,
+    /// The varying `depth`.
+    pub depth: crate::VarId,
+    /// The measured thickness.
+    pub thickness: crate::VarId,
+    /// The square profile.
+    pub profile: crate::RecipeNodeId,
+    /// The extrude.
+    pub block: crate::RecipeNodeId,
 }
 
 #[cfg(test)]

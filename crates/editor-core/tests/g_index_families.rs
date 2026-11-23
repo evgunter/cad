@@ -22,10 +22,7 @@ pub(crate) fn index(doc: ProfileDoc, name: &str, count: Formula) -> (ProfileDoc,
         doc,
         DocEdit::DeclareVar {
             name: name.clone(),
-            def: VarDecl::Index {
-                count,
-                within: None,
-            },
+            def: VarDecl::Index { count, after: None },
         },
     )
     .0;
@@ -66,6 +63,8 @@ pub(crate) fn ring(n: i64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         placed.bundle(),
     );
     let (doc, ring) = insert(doc, node);
+    // The ring is the binder's yield (D10 `[repetition]`).
+    let doc = fixture::yielded(doc, ring);
     (doc, the_block, ring)
 }
 
@@ -148,7 +147,7 @@ fn a_union_reads_the_family_whole_and_an_indexed_read_one_member() {
     let (doc, one) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+            members: Bodies::spelled(vec![editor_core::BodyRead::indexed(
                 ring,
                 vec![Formula::count(2)],
             )]),
@@ -192,13 +191,20 @@ fn sunk_fins(n: i64) -> (ProfileDoc, VarId, RecipeNodeId, RecipeNodeId) {
         placed.bundle(),
     );
     let (doc, fins) = insert(doc, node);
-    let doc = editor_core::test_support::assemble_world_copies(doc, Tol::witness());
+    // The fins are the binder's yield, `{k in 0..n: fins = place(fin)}`,
+    // and join the world's copies as one.
+    let doc = fixture::yielded(doc, fins);
     let (doc, gap) = fixture::measure_node(
         &doc,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
+        // Inside the binder the measure reads the fin of its own member,
+        // `fins[k]` (DM3): a selection of the member read at the key.
         vec![
-            SitedRef::new(fins, fixture::fname(fin, RoleSeg::Cap(CapEnd::Start))),
-            SitedRef::new(base_copy, fixture::fname(base, RoleSeg::Cap(CapEnd::End))),
+            Operand::select(
+                editor_core::BodyRead::indexed(fins, vec![Formula::var(k, Dimension::Count)]),
+                vec![fixture::fname(fin, RoleSeg::Cap(CapEnd::Start))],
+            ),
+            SitedRef::new(base_copy, fixture::fname(base, RoleSeg::Cap(CapEnd::End))).into(),
         ],
     );
     let value = fixture::value_of(&doc, gap);
@@ -267,7 +273,7 @@ fn one_assertion_over_a_family_quiets_each_members_own_finding() {
             var: editor_core::VarRef::Id(k),
             def: VarDecl::Index {
                 count: Formula::count(16),
-                within: None,
+                after: None,
             },
             fresh: Vec::new(),
         },
@@ -276,7 +282,7 @@ fn one_assertion_over_a_family_quiets_each_members_own_finding() {
 }
 
 /// A block of unit footprint at the origin, its own space.
-fn unit_block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn unit_block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     block(doc, (0.0, 0.5), (0.0, 0.5), 0.5)
 }
 
@@ -322,11 +328,11 @@ fn a_grid_is_two_indices_one_within_the_other() {
     assert!(named.contains(&vec![(i, 2), (j, 1)]));
 }
 
-/// **Two unrelated indices meet in no reader**: a placement reading
-/// both refuses at the edit door, naming both. Red if the door admits
-/// it (the evaluation would then have to pick an order).
+/// **A reader repeats inside one binder**: a placement reading the
+/// indices of two binders refuses at the edit door, naming both. Red if
+/// the door admits it (it would repeat over both unwritten).
 #[test]
-fn a_reader_of_two_unrelated_indices_refuses_at_the_door() {
+fn a_reader_of_two_binders_indices_refuses_at_the_door() {
     let doc = ProfileDoc::empty_derived("g-unrelated", Tol::witness());
     let (doc, i) = fixture::index(doc, "i", 2);
     let (doc, j) = fixture::index(doc, "j", 2);
@@ -349,12 +355,12 @@ fn a_reader_of_two_unrelated_indices_refuses_at_the_door() {
             placed.bundle(),
         ),
     );
-    let editor_core::EditError::IndicesUnrelated { a, b, .. } = &refused else {
-        panic!("unrelated indices refuse: {refused:?}")
+    let editor_core::EditError::TwoBinders { a, b, .. } = &refused else {
+        panic!("two binders' indices refuse: {refused:?}")
     };
     assert_eq!([a.id(), b.id()], [i, j], "{refused}");
     assert!(
-        refused.to_string().contains("neither is within the other"),
+        refused.to_string().contains("which are of two binders"),
         "{refused}"
     );
 }
@@ -371,7 +377,7 @@ fn a_member_read_out_of_range_refuses_typed() {
         let (doc, read) = insert(
             doc.clone(),
             Node::Union {
-                members: Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+                members: Bodies::spelled(vec![editor_core::BodyRead::indexed(
                     row,
                     vec![Formula::count(at)],
                 )]),
@@ -423,6 +429,8 @@ fn a_construction_reading_the_index_is_built_per_member() {
             distance: depth(0),
         },
     );
+    // Both extrusions are the binder's yields.
+    let doc = fixture::yielded(fixture::yielded(doc, tall), flat);
     let ev = run(&doc);
     let members = ev
         .value(tall)
@@ -473,7 +481,7 @@ fn a_rings_neighbours_are_read_through_mod() {
     let (doc, pairs) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 editor_core::BodyRead::indexed(ring, vec![Formula::var(k, Dimension::Count)]),
                 editor_core::BodyRead::indexed(ring, vec![next]),
             ]),
@@ -526,7 +534,7 @@ fn a_member_is_reused_by_its_key() {
             var: editor_core::VarRef::Id(k),
             def: VarDecl::Index {
                 count: Formula::count(6),
-                within: None,
+                after: None,
             },
             fresh: Vec::new(),
         },
@@ -556,7 +564,7 @@ fn comb(doc: ProfileDoc, width: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 editor_core::BodyRead::plain(Operand::Node(a)),
                 editor_core::BodyRead::plain(Operand::Node(b)),
             ]),
@@ -704,6 +712,8 @@ fn a_profile_reading_the_index_is_a_family_named_by_its_pieces() {
             distance: fixture::len(1.0),
         },
     );
+    // The extrusion is the binder's yield.
+    let doc = fixture::yielded(doc, ext);
     let ev = run(&doc);
     let profiles = ev.value(profile).unwrap().members.as_ref();
     assert_eq!(
@@ -823,6 +833,8 @@ fn a_members_own_values_decide_which_pieces_it_names() {
             distance: fixture::len(1.0),
         },
     );
+    // The extrusion is the binder's yield.
+    let doc = fixture::yielded(doc, ext);
     let ev = run(&doc);
     assert_eq!(bodies(&ev, ext), 3, "one extruded body per member");
     let Some(Node::Profile(program)) = doc.node(profile) else {
@@ -891,6 +903,8 @@ fn a_profile_member_that_refuses_refuses_the_family() {
             distance: fixture::len(1.0),
         },
     );
+    // The extrusion is the binder's yield.
+    let doc = fixture::yielded(doc, ext);
     let ev = run(&doc);
     match ev.result(profile).and_then(|r| r.error()).map(|e| &e.kind) {
         Some(editor_core::NodeErrorKind::MemberRefused { at, source }) => {
