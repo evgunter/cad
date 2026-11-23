@@ -17024,8 +17024,11 @@ mod posed_rows {
     /// not close. Red if the wrap goes unchecked.
     #[test]
     fn a_cap_holding_its_poses_pole_is_granted_no_extent() {
-        for sense in [true, false] {
-            let p = on_sphere([if sense { 1.0 } else { -1.0 }, 0.1, 0.1]);
+        // Each cap with a point of the hemisphere it holds, stated per
+        // case: the cap `x ≥ A` towards `+x`, the larger cap `x ≤ A`
+        // towards `−x`. A fixture's coordinate, no face normal.
+        for (sense, towards) in [(true, 1.0), (false, -1.0)] {
+            let p = on_sphere([towards, 0.1, 0.1]);
             assert_eq!(
                 holding(&x_cap(sense), p),
                 vec![None],
