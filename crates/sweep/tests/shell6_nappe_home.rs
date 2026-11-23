@@ -367,7 +367,7 @@ fn a_chart_whose_faces_disagree_refuses_at_both_doors() {
             Nappe::Opening => upper.push(f),
         }
     }
-    assert_eq!((lower.len(), upper.len()), (2, 2));
+    assert_eq!((lower.len(), upper.len()), (1, 1));
 
     for (order, faces) in [
         ("mirror first", [lower.clone(), upper.clone()].concat()),

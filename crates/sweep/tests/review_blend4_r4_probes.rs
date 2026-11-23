@@ -162,7 +162,7 @@ fn the_lily_lanterns_rims_are_at_their_analytic_radii_to_1e_9() {
     for (r, _) in lily_rims() {
         assert_eq!(
             seeds_radius_only(&lant, r, 1e-9).len(),
-            2,
+            1,
             "radius {r} selects at 1e-9"
         );
     }

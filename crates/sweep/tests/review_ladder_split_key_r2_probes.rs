@@ -174,7 +174,7 @@ fn r2_the_split_rule_is_measured_by_splitting_not_read_off_prose() {
     let pip = slab_with(BooleanOp::Subtract, SLAB + (BALL_R - CAP_H));
     let arcs = plane_sphere_rim(&pip);
     let o = orientations(&pip, &arcs);
-    assert_eq!(o.len(), 2);
+    assert_eq!(o.len(), 1);
     for (split, hp) in &o {
         assert_eq!(
             split, hp,

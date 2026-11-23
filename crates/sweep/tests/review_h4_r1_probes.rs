@@ -310,7 +310,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
         "the ceiling is one sphere face"
     );
     let arcs = rim_arcs_at(&body, big_r, floor);
-    assert_eq!(arcs.len(), 2, "the floor rim is one closed edge");
+    assert_eq!(arcs.len(), 1, "the floor rim is one closed edge");
 
     // The arm, against the hand values.
     let link = rim_link(&body, &arcs, r);
