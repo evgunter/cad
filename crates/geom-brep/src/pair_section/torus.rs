@@ -245,7 +245,7 @@ impl<T: Decide> Ring<T> {
     /// the convention's margins as poison, so the torus is not shown a
     /// ring and refuses typed there: every ring this mints has finite
     /// data.
-    fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
+    pub(super) fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
         let Surface::Torus {
             frame: carrier_frame,
             major_radius,
@@ -340,7 +340,7 @@ impl<T: Real> Ring<T> {
     /// The size of the torus's coordinates: its centre's distance from
     /// the origin and its reach from it, what a reading's rounding is a
     /// charge of.
-    fn size(self) -> T {
+    pub(super) fn size(self) -> T {
         (self.center - Point3::origin()).norm() + self.big_r + self.r
     }
 
@@ -383,7 +383,7 @@ pub(super) const TT_GAP: GapRows = crate::rows::TT_GAP;
 const ST_GAP: [&str; 2] = ["st_critical_gap", "st_critical_gap_floor"];
 
 /// The sweep's verdict as the pose holds it.
-fn swept<T: Decide>(
+pub(super) fn swept<T: Decide>(
     ring: Ring<T>,
     spine: Spine<T>,
     radii: [T; 2],
@@ -423,7 +423,7 @@ pub enum TorusGap<T: Real> {
 }
 
 impl<T: Real> TorusGap<T> {
-    fn tangency(self) -> Option<ZeroVerdict> {
+    pub(super) fn tangency(self) -> Option<ZeroVerdict> {
         match self {
             Self::Transverse => None,
             Self::Tangent { row, margin, .. } => Some(ZeroVerdict {
@@ -512,7 +512,10 @@ fn crossing_parallels<T: Real>(
 
 /// The one component a tangent pose lists: a point where the arm reads a
 /// touch there, else a tangent loop.
-fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> SectionComponent<T> {
+pub(super) fn tangent_component<T: Real>(
+    touch: Option<Point3<T>>,
+    winds: [bool; 2],
+) -> SectionComponent<T> {
     let (shape, winds) = if touch.is_some() {
         (ComponentShape::Point, [false, false])
     } else {

@@ -3524,8 +3524,8 @@ fn measure_the_stage6_axis_identities() {
                         side,
                     };
                     let (Some(on), Some(to)) = (
-                        axis_of(side(editor_core::MateSide::On), mate.on),
-                        axis_of(side(editor_core::MateSide::To), mate.to),
+                        axis_of(side(editor_core::MateSide::On), mate.on.read),
+                        axis_of(side(editor_core::MateSide::To), mate.to.read),
                     ) else {
                         continue;
                     };

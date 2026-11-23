@@ -31,12 +31,34 @@ use crate::validate::{RingOuterVerdict, ring_outer_contact_about_as};
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Torn(pub(super) Unresolved);
 
+/// Whether `side`'s section faces face against the split plane's
+/// normal: above (module docs). The one statement of the sign rule
+/// [`section_normal`] and [`section_frame`] read.
+fn faces_against_normal(side: PlaneSide) -> bool {
+    matches!(side, PlaneSide::Above)
+}
+
 /// The outward normal of `side`'s section face, for the split plane's
-/// normal `n` (module docs): `−n` above, `+n` below.
+/// normal `n`: `−n` above, `+n` below ([`faces_against_normal`]).
 pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
-    match side {
-        PlaneSide::Above => -n,
-        _ => n,
+    if faces_against_normal(side) { -n } else { n }
+}
+
+/// The split plane `plane` (its frame, [`super::SplitPlane::frame`]) as
+/// `side`'s section faces' plane, its axis their outward normal
+/// ([`faces_against_normal`]).
+///
+/// [`point_in_loop`] is blind to which of a plane's two frames it is
+/// handed, so a containment read alone takes the split plane's frame as
+/// it is. [`nest`] takes this one: it also runs the contact arms
+/// ([`outlines_disjoint`]), whose `lines_meet` margin is signed along
+/// the axis, and handing them the side's outward normal keeps the sign
+/// they have always read.
+pub(super) fn section_frame<T: Real>(plane: geom::Frame<T>, side: PlaneSide) -> geom::Frame<T> {
+    if faces_against_normal(side) {
+        plane.reversed()
+    } else {
+        plane
     }
 }
 
@@ -218,16 +240,19 @@ pub(super) fn nest<T: Decide, O, H>(
     body: &Body<T>,
     outlines: Vec<(O, LoopKey)>,
     holes: Vec<(H, LoopKey)>,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: geom_core::Band,
 ) -> Result<Nesting<O, H>, NestFault<H>> {
+    // Disjointness is proved first, so the two loops are nested or apart
+    // and one point of `inner` reads which: not a containment reading
+    // ([`crate::loop_side`]'s module docs).
     let encloses = |outer: LoopKey, inner: LoopKey| -> Result<bool, Torn> {
-        if !outlines_disjoint(body, outer, inner, normal, band)? {
+        if !outlines_disjoint(body, outer, inner, plane.axis(), band)? {
             return Ok(false);
         }
         let q = ring_representative(body, inner).map_err(Torn)?;
         Ok(matches!(
-            point_in_loop(body, outer, normal, q, band),
+            point_in_loop(body, outer, plane, q, band),
             Ok(LoopContainment::In)
         ))
     };

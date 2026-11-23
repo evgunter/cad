@@ -38,7 +38,7 @@
 //! (`finish::discarded`).
 
 use geom_brep::LeverBounds;
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Climb, Rung};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
@@ -49,6 +49,7 @@ use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, Vertex
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::lineage::FaceDivisions;
+use crate::loop_side::side_of_a_loop_the_division_does_not_cross;
 
 /// An edge of a kept coincident copy that bounds its region inside the
 /// dropped copy (module docs).
@@ -1361,7 +1362,9 @@ fn loop_of<T: geom_core::Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<LoopKe
 /// into it (Mäntylä's `laringmv`): a lone vertex minted for a later cut,
 /// or a cut's dangling run; the division's own `remainder`, where it
 /// split a ring, stays. A ring is read at its first vertex `new`
-/// decides strictly inside or outside; one no vertex of which is
+/// decides strictly inside or outside
+/// ([`crate::loop_side::side_of_a_loop_the_division_does_not_cross`]:
+/// the division is the cut that made `new`); one no vertex of which is
 /// decided refuses, as the reading's escalation where one read in band.
 fn rehome<T: Decide>(
     body: &mut Body<T>,
@@ -1379,27 +1382,14 @@ fn rehome<T: Decide>(
     // lone vertex's loop in `new`.
     let mut moved = Vec::new();
     for ring in rings.into_iter().filter(|&r| r != remainder) {
-        let vertices: Vec<VertexKey> = match body
-            .get_loop(ring)
-            .ok_or_else(|| desync("a ring no longer resolves"))?
-            .boundary
-        {
-            LoopBoundary::Empty { vertex } => vec![vertex],
-            LoopBoundary::Cycle { first } => body
-                .loop_cycle(first)
-                .ok_or_else(|| desync("a ring does not walk"))?
-                .into_iter()
-                .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
-                .collect(),
-        };
-        // The ladder ([`climb`]) whose answer is the first vertex placed:
-        // a ring the cut does not cross is on one side, and a touch
-        // switches no side, so every vertex placed reads it alike
-        // ([`Answering::Any`]; the premise and its residual, a vertex
-        // the cut did not identify: `chord_join::paths_rung`). A vertex on the
-        // boundary passes; a limit and a vertex in band are kept, ranked,
-        // and refuse only where no vertex places the ring.
-        let placed = climb(Answering::Any, vertices, |v| {
+        let vertices = body
+            .loop_vertices(ring)
+            .ok_or_else(|| desync("a ring does not walk"))?;
+        // The premise's residual, a vertex the cut did not identify:
+        // `chord_join::paths_rung`. A vertex on the boundary passes; a
+        // limit and a vertex in band are kept, ranked, and refuse only
+        // where no vertex places the ring.
+        let placed = side_of_a_loop_the_division_does_not_cross(vertices, |v| {
             let Some(p) = body
                 .get_vertex(v)
                 .and_then(|v| body.get_point(v.point))

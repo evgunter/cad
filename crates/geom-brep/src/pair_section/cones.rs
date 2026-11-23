@@ -28,6 +28,11 @@
 //! ruling meets the partner doubly there. Both apexes on the other cone
 //! refuse.
 //!
+//! A loop the region holds whole claims its winding about both carriers:
+//! about the ruled cone where it is one sheet over the whole turn, and
+//! about the partner's axis as the sweep reads it, walking the loop's own
+//! cells ([`ruling::sweep_about`]).
+//!
 //! Every component is the general rung's ([`ClassCarrier::General`]),
 //! save the points a tangency or a touch lists. A crossing tangency is a
 //! node (C5), its arcs ending at it, one node-joined set. No march
@@ -133,6 +138,9 @@ pub struct ConeRuledPose<T: Real> {
     region: ExtentBall<T>,
     apex: Decided,
     stance: ConeStance<T>,
+    /// Each whole loop whose winding about the partner did not settle,
+    /// by the margin that failed ([`Self::unclaimed_windings`]).
+    unclaimed: Vec<&'static str>,
 }
 
 /// **What a cone pair's pose answers**: the pose, or a pose whose
@@ -288,6 +296,7 @@ impl<T: Decide> ConeRuledPose<T> {
             region,
             apex,
             stance,
+            unclaimed: Vec::new(),
         }))
     }
 
@@ -516,6 +525,14 @@ impl<T: Decide> ConeRuledPose<T> {
         self.apex
     }
 
+    /// **Each whole loop whose winding about the partner did not settle**,
+    /// by the margin that failed: such a loop claims no winding on the
+    /// partner, which is weaker than its true class and never wrong. Empty
+    /// on a pose not yet swept ([`Self::decide`]'s).
+    pub fn unclaimed_windings(&self) -> &[&'static str] {
+        &self.unclaimed
+    }
+
     /// The side the ruled cone is, in the order the pose was asked of.
     pub fn ruled_side(&self) -> PairSide {
         if self.ruled_first {
@@ -575,7 +592,7 @@ impl<T: Real> RuledCone<T> {
 /// [`SectionError::Unaccounted`] where its readings disagree or the
 /// passes through the apex are not the stance's.
 pub(super) fn cone_ruled<T: Decide>(
-    pose: ConeRuledPose<T>,
+    mut pose: ConeRuledPose<T>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
     let region = pose.region;
@@ -594,9 +611,21 @@ pub(super) fn cone_ruled<T: Decide>(
             ClassCarrier::Unminted(why),
         )
     };
+    let partner = if pose.ruled_first {
+        &pose.second
+    } else {
+        &pose.first
+    };
+    // The axis a loop winds about on the partner: a cylinder's or a
+    // cone's. A partner with no essential channel claims none.
+    let about = match partner {
+        Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. } => Some(*frame),
+        _ => None,
+    };
+    let unclaimed;
     let (arcs, found) = match pose.stance {
         ConeStance::Sheets => {
-            let swept = ruling::sweep(&pose.ruled, region, band)?;
+            let swept = ruling::sweep_about(&pose.ruled, region, band, about)?;
             for t in &swept.touches {
                 decided.push(ZeroVerdict {
                     decision: SectionDecision::Tangency(ruling::TANGENCY),
@@ -606,6 +635,7 @@ pub(super) fn cone_ruled<T: Decide>(
                     listed.push(point(t.at, NoCarrier::Tangent));
                 }
             }
+            unclaimed = swept.unclaimed;
             (swept.components, Found::Crossings)
         }
         ConeStance::Node { .. } | ConeStance::Touch { .. } => {
@@ -613,7 +643,7 @@ pub(super) fn cone_ruled<T: Decide>(
                 decision: SectionDecision::Coincidence(Coincident::ConeApex),
                 margin: pose.apex.margin,
             });
-            let divided = ruling::sweep_divided(&pose.ruled, region, band)?;
+            let divided = ruling::sweep_divided(&pose.ruled, region, band, about)?;
             let node = matches!(pose.stance, ConeStance::Node { .. });
             let passes = if node && held(apex) { 2 } else { 0 };
             if divided.nodes.len() != passes {
@@ -634,6 +664,7 @@ pub(super) fn cone_ruled<T: Decide>(
                 // to none.
                 ConeStance::Touch { .. } | ConeStance::Sheets => Found::Crossings,
             };
+            unclaimed = divided.unclaimed;
             (divided.arcs, found)
         }
     };
@@ -642,7 +673,7 @@ pub(super) fn cone_ruled<T: Decide>(
         let Some([from, to]) = arc.ends else {
             listed.push(SectionComponent::closed_form(
                 ComponentShape::Loop,
-                pose.order([arc.encircles, false]),
+                pose.order([arc.encircles, arc.winds_partner]),
                 Some(arc.witness),
                 ClassCarrier::General,
             ));
@@ -673,16 +704,12 @@ pub(super) fn cone_ruled<T: Decide>(
     }
     let nodes = nodes.listed;
     let node_sets = node_joined(&listed, nodes.len(), [false, false]);
-    let partner = if pose.ruled_first {
-        &pose.second
-    } else {
-        &pose.first
-    };
     let partner_arm = match partner {
         Surface::Cylinder { .. } => crate::uniform_curvature_arm(partner),
         _ => region.lever_from(pose.ruled.partner.at),
     };
     let lever = pose.ruled.lever.min(partner_arm);
+    pose.unclaimed = unclaimed;
     let pose = match (&pose.first, &pose.second) {
         (Surface::Cone { .. }, Surface::Cone { .. }) => PairPose::ConeCone(pose),
         _ => PairPose::ConeCylinder(pose),

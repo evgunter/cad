@@ -1861,6 +1861,8 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
             source: Some(source.read),
         }),
         Node::InstantiatePart { .. } => Some(VerbatimEdge::Copied { source: None }),
+        // A datum's frame has no cells to name.
+        Node::Datum { .. } => None,
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }

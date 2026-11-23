@@ -590,8 +590,8 @@ mate: Mate = Mate(PoseDef.plane(instance, "a-name"), floor)
 between: Mate = Mate(
     PoseDef.plane(instance, "a-name"), PoseDef.flip(PoseDef.plane(sideways, "b-name"))
 )
-mate_on: PoseDef = mate.on
-mate_to: PoseDef = mate.to
+mate_on: PoseDef | RoleRead = mate.on
+mate_to: PoseDef | RoleRead = mate.to
 pinned_on: DocEdit = DocEdit.add_constraint(instance, mate)
 placer: Node = Node.place(
     sideways, doc.world, [mate, MateValue(Coord.slide("x"), 0.1 * m)]

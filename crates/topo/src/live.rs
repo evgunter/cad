@@ -1276,24 +1276,17 @@ impl<T: Real> Body<T> {
         })
     }
 
-    /// **Each vertex on the face's boundary, lone ones included**, as
-    /// [`Body::unchecked_face_boundary`] reads it: a lone loop's vertex,
-    /// and each cycle member's start that resolves. A loop the body
-    /// cannot read contributes none, and is the caller's to notice
-    /// through the boundary walk itself.
+    /// **Each vertex on the face's boundary, lone ones included**: each
+    /// loop's [`Body::loop_vertices`], in [`Face::loop_keys`]' order. A
+    /// loop the body cannot read contributes none, and is the caller's to
+    /// notice through the boundary walk itself
+    /// ([`Body::unchecked_face_boundary`]).
     pub(crate) fn unchecked_face_vertices<'a>(
         &'a self,
         face: &'a Face,
     ) -> impl Iterator<Item = VertexKey> + 'a {
-        self.unchecked_face_boundary(face)
-            .filter_map(Result::ok)
-            .flat_map(move |read| match read {
-                UncheckedLoop::Lone(vertex) => vec![vertex],
-                UncheckedLoop::Cycle(cycle) => cycle
-                    .into_iter()
-                    .filter_map(|he| self.half_edges.get(he).map(|h| h.start))
-                    .collect(),
-            })
+        face.loop_keys()
+            .flat_map(move |lk| self.loop_vertices(lk).unwrap_or_default())
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's

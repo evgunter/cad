@@ -4996,6 +4996,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // structural refusal whose full text lives at the SSI door, and
         // the kernel's defect here, since this door ran no march.
         E::Escalated { .. }
+        | E::DegenerateCone { .. }
         | E::ChartRow { .. }
         | E::RefinementExhausted { .. }
         | E::TubeStraddles { .. }

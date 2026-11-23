@@ -121,7 +121,8 @@
 //!
 //! - **R-reach**: a kind pair or pose with no arm (torus against a
 //!   cylinder neither parallel nor square to its axis, a torus tilted
-//!   to it; a cone against a non-coaxial torus; a NURBS or approximated
+//!   to it; a cone whose apex lies on a torus off its axis, a node or a
+//!   touch the march does not end at; a NURBS or approximated
 //!   face paired with anything but a plane or another spline face, and a
 //!   spline pair the whole reading refused short of a tangency). Every
 //!   pair with a face that is not a
@@ -285,8 +286,10 @@
 //!   two-component section is therefore always essential.
 //! - **Torus × coaxial {cylinder, torus}**: parallels, essential on both.
 //!
-//! Every torus pair but the plane and the cone is the section value's
-//! ([`geom_brep::pair_section()`]): its pose decided once, the critical
+//! Every torus pair but the plane is the section value's
+//! ([`geom_brep::pair_section()`]), the coaxial cone's count read here
+//! on the value's pose ([`geom_brep::ConeTorusPose`]) across its slack:
+//! its pose decided once, the critical
 //! gap read before any count, and its components classified by these
 //! arms there, read here by [`of_pair_section`]. The parallel- and
 //! square-axis cylinder, the parallel-axis torus and the sphere below
@@ -399,7 +402,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 use crate::contain::FaceContainment;
 use crate::validate::decide;
 use geom_brep::pair_section::{Pinch, signs_across, signs_as};
-use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};
+use geom_brep::{AxisPose, ExtentBall, Reach, axis_pose};
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -753,6 +756,10 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
     match (f, g) {
+        // Served, its coaxial pose read here on the value's pose.
+        (S::Torus { .. }, S::Cone { .. }) | (S::Cone { .. }, S::Torus { .. }) => {
+            cone_torus(f, g, band, marched)
+        }
         _ if geom_brep::pair_section::serves(f.kind(), g.kind()) => {
             match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
@@ -762,10 +769,8 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
                 Err(e) => of_pair_section(&Err(e), band, marched),
             }
         }
-        (S::Torus { .. }, S::Plane { .. } | S::Cone { .. }) => torus_pair(f, g, reach, band),
-        (S::Plane { .. } | S::Cone { .. }, S::Torus { .. }) => {
-            swapped(torus_pair(g, f, reach, band))
-        }
+        (S::Torus { .. }, S::Plane { .. }) => torus_pair(f, g, band),
+        (S::Plane { .. }, S::Torus { .. }) => swapped(torus_pair(g, f, band)),
         (
             S::Cone { .. },
             S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
@@ -852,14 +857,9 @@ pub(super) fn of_listed<
     })
 }
 
-/// The torus arms the section value does not build: `t` is a torus, `p`
-/// a plane or a cone.
-fn torus_pair<T: Decide>(
-    t: &geom::Surface<T>,
-    p: &geom::Surface<T>,
-    reach: &Reach<T>,
-    band: Band,
-) -> Section<T> {
+/// The torus arm the section value does not build: `t` is a torus, `p`
+/// a plane.
+fn torus_pair<T: Decide>(t: &geom::Surface<T>, p: &geom::Surface<T>, band: Band) -> Section<T> {
     let &geom::Surface::Torus {
         frame: carrier_frame,
         major_radius: big_r,
@@ -886,63 +886,66 @@ fn torus_pair<T: Decide>(
                 band,
             )
         }
-        geom::Surface::Cone {
-            frame, half_angle, ..
-        } => {
-            let (apex, d) = (frame.origin(), frame.axis());
-            let d = UnitVec3::squared(d);
-            // `z` is read along the cone's axis from its own apex: the
-            // turn onto the torus axis moves it by the torus centre's
-            // station from the pivot times `1 − cos` (at most `sin²`),
-            // and by the offset's part along the tilted axis.
-            let turn =
-                |t: &Turn<T>| (c - t.at).dot(a.get()).abs() * t.tilt.powi(2) + t.offset * t.tilt;
-            match axis_pose(
-                geom::Line { origin: c, dir: a },
-                geom::Line {
-                    origin: apex,
-                    dir: d,
-                },
-                turn,
-                reach.ball(),
-                band,
-            ) {
-                AxisPose::Coaxial { slack, .. } => {
-                    // In the meridian half-plane about the apex, each
-                    // nappe's generator is a line through it at `α` from
-                    // the axis; the tube circle, centred `(R, z)`, lies in
-                    // `ρ > 0`, which only the nappe's own half of the line
-                    // reaches.
-                    let (s, co) = half_angle.sin_cos();
-                    let z = (c - apex).dot(d.get());
-                    match signs_across(
-                        [
-                            (
-                                "section_torus_coaxial_cone_near",
-                                "section_torus_coaxial_cone_near_floor",
-                                r - (big_r * co - z * s).abs(),
-                            ),
-                            (
-                                "section_torus_coaxial_cone_far",
-                                "section_torus_coaxial_cone_far_floor",
-                                r - (big_r * co + z * s).abs(),
-                            ),
-                        ],
-                        slack,
-                        band,
-                    ) {
-                        Ok([false, false]) => none(),
-                        Ok(_) => essential_pair(true, true),
-                        Err(tan) => tan.into(),
-                    }
-                }
-                AxisPose::Undecided(diag) => {
-                    Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
-                }
-                AxisPose::Parallel { .. } | AxisPose::Other => Section::Intractable,
-            }
-        }
         _ => Section::Intractable,
+    }
+}
+
+/// **Cone × torus**, read on the section value's pose
+/// ([`geom_brep::ConeTorusPose`]): the coaxial pose here in closed form,
+/// across the pose's own slack, every other one the section value's.
+fn cone_torus<T: crate::props::AtRestPolicy>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    band: Band,
+    marched: impl FnOnce(&geom_brep::PairSection<T>) -> Section<T>,
+) -> Section<T> {
+    let pose = match geom_brep::ConeTorusPose::decide(f, g, band) {
+        Some(Ok(pose)) => pose,
+        Some(Err(e)) => return of_pair_section(&Err(e.into()), band, marched),
+        None => unreachable!("`classify_known` routes a cone and a torus here alone"),
+    };
+    let geom_brep::KtStance::Coaxial { slack, .. } = pose.stance() else {
+        return of_pair_section(
+            &geom_brep::pair_section::cone_torus::cone_torus(pose),
+            band,
+            marched,
+        );
+    };
+    let (
+        &geom::Surface::Cone {
+            frame, half_angle, ..
+        },
+        ring,
+    ) = (pose.cone(), pose.ring())
+    else {
+        unreachable!("a cone × torus pose holds its cone as a cone")
+    };
+    let [big_r, r] = ring.radii();
+    // In the meridian half-plane about the apex, each nappe's generator
+    // is a line through it at `α` from the axis; the tube circle, centred
+    // `(R, z)`, lies in `ρ > 0`, which only the nappe's own half of the
+    // line reaches.
+    let (s, co) = half_angle.sin_cos();
+    let z = (ring.center() - frame.origin()).dot(frame.axis().normalize());
+    match signs_across(
+        [
+            (
+                "section_torus_coaxial_cone_near",
+                "section_torus_coaxial_cone_near_floor",
+                r - (big_r * co - z * s).abs(),
+            ),
+            (
+                "section_torus_coaxial_cone_far",
+                "section_torus_coaxial_cone_far_floor",
+                r - (big_r * co + z * s).abs(),
+            ),
+        ],
+        slack,
+        band,
+    ) {
+        Ok([false, false]) => none(),
+        Ok(_) => essential_pair(true, true),
+        Err(tan) => tan.into(),
     }
 }
 

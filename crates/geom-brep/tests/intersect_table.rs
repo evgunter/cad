@@ -100,7 +100,9 @@ fn route_inventory() {
         (Cylinder, Nurbs, Rung::General, false),
         (Cone, Cone, Rung::General, false),
         (Cone, Sphere, Rung::General, false),
-        (Cone, Torus, Rung::General, false),
+        // The ℝ³ implicit-pair march past the pose's apex and gap
+        // (`ssi::cone_torus_ssi`); the coaxial pose stays closed form.
+        (Cone, Torus, Rung::General, true),
         (Cone, Nurbs, Rung::General, false),
         // VERBS-SPHSPH retired this arm: the closed-form radical-plane
         // Circle (sphere_sphere_section — the same algebra profile's
@@ -3281,7 +3283,8 @@ fn a_coaxial_cone_torus_section_is_circles_on_both() {
 }
 
 /// **A torus off the cone's axis routes to the general rung**: the
-/// closed form holds only the coaxial pose.
+/// closed form holds only the coaxial pose, and the general rung's door
+/// is `ssi::cone_torus_ssi`.
 #[test]
 fn an_off_axis_cone_torus_routes_to_the_general_rung() {
     use geom_brep::intersect::cone_torus_section;

@@ -1411,7 +1411,7 @@ impl<'a> Speaker<'a> {
 
     /// The node `id` as this speaker's document holds it, its subject
     /// or not.
-    fn spoken(self, id: RecipeNodeId) -> SpokenNode {
+    pub(crate) fn spoken(self, id: RecipeNodeId) -> SpokenNode {
         let said = match self.doc {
             None => SpokenNode::absent(id),
             Some(doc) => doc.speak(id),
@@ -1710,6 +1710,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
+        Node::Datum { .. } => "Datum",
         Node::World => "World",
         Node::Space => "Space",
         Node::Union { .. } => "Union",

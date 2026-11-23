@@ -903,8 +903,8 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
     let (doc, c) = insert(doc, fixture::mated_instance(doc_ref));
     let rest_on = |to| Mate {
-        on: fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))),
-        to: fixture::flip(to),
+        on: fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))).into(),
+        to: fixture::flip(to).into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     // A floor's top, and a second turned `0.25` about the world's `x`.

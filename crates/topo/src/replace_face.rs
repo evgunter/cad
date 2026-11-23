@@ -5286,6 +5286,65 @@ mod pose_reach_rows {
         }
     }
 
+    /// **A cone × torus pose is served at the neighbour gate, coaxial
+    /// or not**, since `route(Cone, Torus)` is implemented. Past the gate
+    /// the offset door derives the coaxial pose's edge in closed form, a
+    /// crossing circle of `cone_torus_section`; an off-axis pose has no
+    /// closed form, and its refusal names none of the doors the offset
+    /// cannot reach. Red where a coaxial neighbour stops being derived,
+    /// or where the off-axis refusal sends the caller to the march.
+    #[test]
+    fn a_cone_torus_neighbour_is_served_and_derived_coaxial_alone() {
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle: core::f64::consts::FRAC_PI_4,
+        };
+        let torus = |x: f64| Surface::Torus {
+            frame: geom::Frame::new(Point3::new(x, 0.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+        };
+        // On the coaxial pose's outer crossing circle, `λ = 2√2 + 1` from
+        // the apex: radius and height `λ/√2`.
+        let at = (2.0 * 2.0_f64.sqrt() + 1.0) / 2.0_f64.sqrt();
+        let edge = Curve3::line(Point3::new(at, 0.0, at), geom_core::UnitVec3::exact_y());
+        for x in [0.0, 0.5] {
+            let got = pose_route(&cone, &torus(x), &span(&edge, (0.0, 0.1)), band());
+            assert!(
+                matches!(got, Ok(ref r) if r.implemented),
+                "the pose with the torus {x} off the axis is served, got {got:?}"
+            );
+        }
+        let derive = |x: f64| {
+            crate::offset_derive::section_closed(
+                &cone,
+                &torus(x),
+                (&edge, (0.0, 0.1)),
+                &span(&edge, (0.0, 0.1)),
+                super::corner_arm(&edge, 0.0, 0.1),
+                band(),
+            )
+        };
+        let coaxial = derive(0.0);
+        assert!(
+            matches!(
+                &coaxial,
+                Ok(Ok(Curve3::Circle(c))) if (c.radius() - at).abs() < 1e-12
+            ),
+            "the coaxial edge is the crossing circle, got {coaxial:?}"
+        );
+        let off = derive(0.5);
+        assert!(
+            matches!(
+                &off,
+                Ok(Err(crate::offset_derive::SectionVerdict::Closed(
+                    geom_brep::SectionError::RoutesToGeneralRung { why, .. }
+                ))) if !why.contains("ssi")
+            ),
+            "the off-axis edge refuses as no closed form, got {off:?}"
+        );
+    }
+
     #[test]
     fn a_cone_cylinder_pose_is_read_at_the_apex() {
         let theta: f64 = 0.5 * band().zero() / 1.5;
