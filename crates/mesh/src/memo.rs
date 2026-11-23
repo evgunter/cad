@@ -133,7 +133,10 @@ impl PatchDigest {
 /// The identity of one memo entry, minted at the insert that created
 /// it and never reused.
 ///
-/// **The invariant.** Two faces reported under one id have the same
+/// **The invariant.** A face is reported under an id only where its
+/// placed corners are its entry's: a patch the join split
+/// (`crate::join`) carries points no entry holds, and is reported under
+/// none. Two faces reported under one id have the same
 /// key bytes — a hit compares the entry's FULL key, so this is decided
 /// on the far side of that comparison, which a digest is not — and
 /// therefore the same PLACED corners, bit for bit: a face's corners
@@ -172,10 +175,11 @@ struct FaceRow {
 /// — and the id of the memo entry its patch came from or became, where
 /// there is one ([`StoredPatchId`]).
 ///
-/// The id is absent exactly where the memo holds no entry for the
-/// face: its lane refused, or it named a shared id outside its own
-/// boundary walk (the key-completeness defect [`PatchMemo::record`]
-/// names).
+/// The id is absent where the memo holds no entry for the face (its
+/// lane refused, or it named a shared id outside its own boundary walk:
+/// the key-completeness defect [`PatchMemo::record`] names), and where
+/// the face has an entry but the join split its patch, so that its
+/// placed corners are not the entry's (`crate::join`).
 ///
 /// **Equality is over the digests alone, and the ids are excluded on
 /// purpose.** A digest is a function of the face's inputs, so two
@@ -221,23 +225,30 @@ impl PatchKeys {
 
     /// The memo entry the face at position `i` was answered from or
     /// stored as — the identity its placed corners are bit-identical
-    /// under ([`StoredPatchId`]).
+    /// under ([`StoredPatchId`]) — and `None` where there is none or the
+    /// join split the face's patch.
     pub fn stored(&self, i: usize) -> Option<StoredPatchId> {
         self.0.get(i).and_then(|row| row.stored)
     }
 
-    /// Every entry id the tessellation used, in face-arena order,
-    /// skipping the faces the memo holds nothing for.
+    /// Every entry id the tessellation reports, in face-arena order,
+    /// skipping the faces it reports none for ([`Self::stored`]).
     pub fn stored_ids(&self) -> impl Iterator<Item = StoredPatchId> + '_ {
         self.0.iter().filter_map(|row| row.stored)
     }
 
     /// Names no entry for the face at position `i`: its placed corners are
     /// not the entry's (the join split it, `crate::join`).
+    ///
+    /// # Panics
+    ///
+    /// Where no face is at `i`: the fold names only faces it placed, so
+    /// one out of range is a bug.
     pub(crate) fn unstore(&mut self, i: usize) {
-        if let Some(row) = self.0.get_mut(i) {
-            row.stored = None;
-        }
+        let Some(row) = self.0.get_mut(i) else {
+            panic!("face {i} of {}: the join names only faces it placed", self.0.len());
+        };
+        row.stored = None;
     }
 
     pub(crate) fn push(&mut self, digest: PatchDigest, stored: Option<StoredPatchId>) {

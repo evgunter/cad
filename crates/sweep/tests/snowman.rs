@@ -1265,8 +1265,12 @@ fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
         // convex and cuts an ear of it, and the sphere face used to cut
         // the same one, so the mesh came back `Ok` with an edge of four
         // triangles (`NonManifoldEdge { count: 4 }` at δ 4e-3 and others).
-        // The sphere arm keeps no side its neighbour may make, so the cap meshes manifold
-        // and encloses its volume at every δ the review swept.
+        // Where the patches join, a side both make is split in each, and
+        // where both faces lay nothing but the circle's points, every
+        // side inside those triangles is split at the foot on each face's
+        // own surface (`mesh::join`): the cap meshes manifold at every δ
+        // the review swept, and encloses its volume to the margin
+        // [`a_cap_thinner_than_delta_encloses_its_volume`] holds.
         let cap = run(
             BooleanOp::Intersect,
             &carve,
@@ -1288,6 +1292,80 @@ fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
             );
         }
     }
+}
+
+/// **A cap thinner than δ encloses its volume** (`mesh::join`). A cap of
+/// the ball less the box `x ≥ 0.5` (the row above's carve) is one sphere
+/// face and one plane face on one circle, and where δ passes its height
+/// both faces lay nothing but the circle's points: without the join's
+/// pair trigger the two patches cover the disc with the same points, and
+/// the cap toward latitude −60° meshed flat (signed volume `−7·10⁻²⁰`) at
+/// every δ from 4e-2 to 4e-3 and at the viewer's scale probe, δ 10⁹. Each
+/// cell here reads the mesh's signed volume against the body's own:
+/// within it, and above half of it.
+///
+/// - The snowman's cap, height 0.001, toward latitude ±60°, azimuth 30°,
+///   at δ 10⁹, 1, 4e-2 … 4e-3.
+/// - A cap of height 0.03 toward latitude ±75°, azimuth 30° and 300°,
+///   reaching within a degree of the pole, at δ 0.3, 0.09, 0.03, 9e-3,
+///   where the sphere's chart is far from its surface: before the join
+///   split at the foot and on the pair trigger, these refused
+///   `FoldedTriangle` where main meshed them.
+///
+/// **Measured, the margin a half**: 0.663 to 0.692 of the body's on the
+/// snowman's caps, 0.688 to 0.961 on the near-pole ones (main's sphere arm
+/// gave 0.73 to 0.92 on these cells), at the default ε, `10⁻⁶` and
+/// `10⁻¹²` alike.
+///
+/// **What the trigger does not reach**, pinned as measured: the cap of
+/// height 0.03 toward latitude 45°, azimuth 300°, also meets the box's
+/// face, so it is three faces, and at δ 0.3 the sphere's triangles take a
+/// point of the box's arc, so no triangle of either face toward the other
+/// is all circle points. It meshes positive, at 0.238 of the body's
+/// (main's 0.656), and nothing splits.
+#[test]
+fn a_cap_thinner_than_delta_encloses_its_volume() {
+    let box_ = finished(
+        "the box",
+        sweep::test_support::brick::<f64>((0.5, 2.0), (-2.0, 2.0), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let carve = run(BooleanOp::Subtract, &ball(1.0, 0.0), &box_);
+    let cap = |lat: f64, az: f64, h: f64| {
+        run(BooleanOp::Intersect, &carve, &brick_toward(dir(lat, az), 1.0 - h, 3.0, 1.0))
+    };
+    let enclosed = |what: &str, body: &AtRestBody<f64>, delta: f64| {
+        let m = mesh::tessellate(body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}, δ {delta}: meshes, got {e:?}"));
+        assert_eq!(mesh::validate::check_mesh(&m), Ok(()), "{what}, δ {delta}: a closed manifold");
+        mesh::validate::signed_volume(&m) / crate::common::differential::body_volume(body)
+    };
+    let mut cells = 0usize;
+    for (h, lats, azs, deltas) in [
+        (1e-3, [60.0, -60.0], &[30.0][..], &[1e9, 1.0, 4e-2, 2e-2, 1e-2, 5e-3, 4e-3][..]),
+        (3e-2, [75.0, -75.0], &[30.0, 300.0][..], &[0.3, 0.09, 0.03, 9e-3][..]),
+    ] {
+        for lat in lats {
+            for &az in azs {
+                let body = cap(lat, az, h);
+                for &delta in deltas {
+                    let what = format!("the cap of height {h} toward latitude {lat}, azimuth {az}");
+                    let ratio = enclosed(&what, &body, delta);
+                    assert!(
+                        (0.5..=1.0 + 1e-9).contains(&ratio),
+                        "{what}, δ {delta}: encloses {ratio} of the body's volume"
+                    );
+                    cells += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(cells, 30, "the cells this row reads");
+    let ratio = enclosed("the three-face cap", &cap(45.0, 300.0, 3e-2), 0.3);
+    assert!(
+        (ratio - 0.238).abs() < 5e-4,
+        "the three-face cap, δ 0.3: positive at its measured 0.238 of the body's, got {ratio}"
+    );
 }
 
 /// **A millimetre lens inside a ball builds at every tolerance.** The

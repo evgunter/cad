@@ -225,8 +225,8 @@ fn a_node_within_rounding_of_a_loop_vertex_is_not_laid() {
 /// the body's.** A rod's wall between two parallel tilted cuts `w` apart
 /// is a band oblique to the chart, far narrower than a lattice row at
 /// the widths below, so its triangles stand on the two cuts' chord points
-/// and on the points the shared-side cure adds, and each is certified within δ
-/// as any other ([`geometry`]). What the row holds is that such a face
+/// and on any point the join's split adds (`mesh::join`), and each is
+/// certified within δ as any other ([`geometry`]). What the row holds is that such a face
 /// does not refuse; which of its nodes are laid is `mesh::trimmed`'s
 /// `lay` rows' to hold.
 #[test]

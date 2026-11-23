@@ -184,8 +184,9 @@ fn holds_the_count_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, de
 }
 
 /// The points of `face`'s patch on no edge's polyline: the points the
-/// lane laid inside the face. A walked face lays one per side it cuts
-/// (`trimmed::walk_face`) and no other.
+/// lane laid inside the face and the join's split points. A walked face
+/// lays none of its own (`trimmed::walk_face`): every point inside it is
+/// a side the join split (`mesh::join`).
 fn interior_points(mesh: &mesh::Mesh, face: topo::FaceKey) -> usize {
     let on_edges: std::collections::HashSet<u32> = mesh
         .boundaries
@@ -205,9 +206,9 @@ fn interior_points(mesh: &mesh::Mesh, face: topo::FaceKey) -> usize {
 }
 
 /// [`holds_the_count_relation`] where the split ruled faces gain `cuts`
-/// points between them where the patches join (`mesh::join`): a side
-/// that face and a face across both make, split at a point between its
-/// ends ([`interior_points`]), two triangles past the relation per point;
+/// points between them where the patches join (`mesh::join`): a side the
+/// join's census splits in that face, at a point between its ends
+/// ([`interior_points`]), two triangles past the relation per point;
 /// every other face holds the relation exactly. So a split the join does
 /// not make, and one it makes that the pin does not ask for, are both red.
 ///
@@ -241,7 +242,7 @@ fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f
         eprintln!("CUTS\t{what}\t{delta}\t{cut}");
         return;
     }
-    assert_eq!(cut, cuts, "{what}, δ {delta}: the sides the walk cut");
+    assert_eq!(cut, cuts, "{what}, δ {delta}: the sides the join split in the walked faces");
     let base = mesh::tessellate(solid, delta, tol())
         .unwrap_or_else(|e| panic!("{what}, δ {delta}: the unsplit body refuses {e:?}"));
     for patch in &mesh.patches {

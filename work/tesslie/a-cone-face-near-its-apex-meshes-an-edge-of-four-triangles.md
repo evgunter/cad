@@ -72,7 +72,7 @@ Over the 288-mesh grid of this builder (s `0.6 … 1e-3` × xf
 with the arm reading the ear alone, 0 with the rule, no refusal. Over all
 six ops of the same poses at δ `2e-2, 5e-3, 1e-3` (432 meshes, 2026-11-16,
 ringed cone faces included): 0 non-manifold. Pinned by
-`reach_probes::a_cone_face_keeps_no_side_its_plane_neighbour_can_make` and
+`reach_probes::a_cone_sliver_between_two_plane_faces_meshes_manifold` and
 `a_ringless_cone_face_near_its_apex_meshes_sound`.
 
 **Left: the other arms.** They still read the ear alone. Measured

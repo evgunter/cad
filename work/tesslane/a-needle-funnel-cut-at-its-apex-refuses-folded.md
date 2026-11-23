@@ -1,7 +1,7 @@
 ---
 id: a-needle-funnel-cut-at-its-apex-refuses-folded
 kind: issue
-title: A needle funnel cut 1e-5 above its apex refuses FoldedTriangle or UnclearedSharedSide (then BoundaryEar) at every δ tried: its upper half's cone face
+title: A needle funnel cut 1e-5 above its apex refuses FoldedTriangle at δ 1e-3 and 2e-4 (once also UnclearedSharedSide, then BoundaryEar, both retired): its upper half's cone face
 status: open
 opened: 2026-11-16
 priority: P3

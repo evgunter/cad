@@ -95,8 +95,10 @@
 //! the shared chord points, which the one chord rule in [`chords`] sizes
 //! from both faces, never as the neighbour's identity or its geometry. A
 //! patch is a function of its face and δ, and the join adds the split
-//! points: a side two patches both have inside is split in each where
-//! they join (`join`), at a point of that face's own surface.
+//! points: a side two patches both have inside, and a side of a triangle
+//! two faces both lay on only the points they share, is split in each
+//! patch that has it inside where they join (`join`), at the foot on that
+//! face's own surface of the side's straight midpoint.
 
 //! # Structure kept, structure dropped
 //!
@@ -180,7 +182,8 @@
 //! footing as the pole half: the two entries of a wrap edge never share
 //! one interior column. A side two patches have inside is split there
 //! (`crate::join`), and one still used past two triangles per chord
-//! carrying it is the join's own defect and panics, in every profile; a
+//! carrying it is a lane's or the join's own bug and panics, in every
+//! profile; a
 //! chord segment used fewer times,
 //! and the per-patch census, are `#[cfg(debug_assertions)]`, which cargo's release
 //! default would drop — so whether a release build carries more than

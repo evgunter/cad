@@ -189,7 +189,8 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
 /// and the memo entry the face was placed from
 /// ([`mesh::StoredPatchId`](crate::StoredPatchId)), so a caller
 /// caching anything derived from the face's placed corners can key it
-/// by that.
+/// by that. A face the join split (`crate::join`) has placed corners no
+/// entry holds, and names none.
 #[derive(Clone, Debug)]
 pub struct Tessellation {
     /// The mesh — byte-identical to [`tessellate`]'s for the same
@@ -1048,11 +1049,13 @@ fn tessellate_impl(
 /// It reads ids and counts, no tolerance.
 ///
 /// A side of more than two triangles per chord carrying it is an edge
-/// that is not manifold. Every side the patches had inside past that was
-/// split before they were placed (`crate::join::census`), and a chord's
-/// side is used once by each face along it, so one here is the join's own
-/// defect, observable in this branch: it panics (`[failure.taxonomy]`,
-/// row 4).
+/// that is not manifold. The census split such a side in every patch that
+/// has it inside (two of its triangles on it) before they were placed
+/// (`crate::join::census`); a chord's side is used once by each face
+/// along it; and a patch uses a side at most twice unless its own lane
+/// folded its triangulation over it. So one here is a lane's or the
+/// join's own bug, observable in this branch: it panics
+/// (`[failure.taxonomy]`, row 4).
 fn joined(mesh: Mesh, shared_below: u32) -> Mesh {
     let polylines: Vec<&[u32]> = mesh
         .boundaries

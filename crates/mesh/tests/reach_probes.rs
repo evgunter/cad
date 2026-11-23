@@ -1377,7 +1377,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
     }
 }
 
-/// **A cone face keeps no side its plane neighbour can make too.** The
+/// **A cone sliver between two plane faces meshes manifold.** The
 /// cone of [`a_cone_wall_holding_a_ring_meshes_on_the_cone_row`]
 /// met by the same box, its edge scaled toward the apex by `s` (and
 /// shifted `xf·s` across the axis): the intersection is a sliver of
@@ -1385,13 +1385,13 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
 /// plane faces those arcs bound. Each plane face's triangulation has no
 /// interior point, so it joins the points of its arc to one another; the
 /// cone face is one or two lattice cells across, so its triangulation
-/// joins boundary points too. A side both make is an edge of four
-/// triangles, which `tessellate` returns and only `check_mesh` sees: the
-/// trimmed lane's shared-side cure (`mesh::trimmed`, `attempt`) keeps the
-/// cone face off every such side. Each cell meshes, passes `check_mesh`
-/// and is the body's ([`geometry`]).
+/// joins boundary points too. A side both make would be an edge of four
+/// triangles, which only `check_mesh` sees; the
+/// join splits, in each face that has it inside, every side two patches both make, and every side of a triangle all of whose corners are points two faces share where both lay such a triangle (`mesh::join`). Each cell meshes, passes
+/// `check_mesh` and is the body's ([`geometry`]).
 ///
-/// With the cone arm reading the ear alone, `xf = 0`, `s = 10⁻³` is
+/// Before any of that, with the cone arm reading the ear alone, `xf = 0`,
+/// `s = 10⁻³` was
 /// non-manifold at every δ here in both orders, on the edge between mesh
 /// points five chord steps apart on one arc, under rows uniform in `v`
 /// and under the arm's graded rows alike; `xf = 0`, `s = 0.03`, `A ∩ B` at
@@ -1406,7 +1406,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
 /// pierce), each printed and skipped, and the built ones mesh: the row
 /// prints how many.
 #[test]
-fn a_cone_face_keeps_no_side_its_plane_neighbour_can_make() {
+fn a_cone_sliver_between_two_plane_faces_meshes_manifold() {
     use core::f64::consts::FRAC_PI_6;
     let height = 1.2 / FRAC_PI_6.tan();
     let cone = posed(
@@ -2008,9 +2008,9 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
 /// `check_mesh` and is the body's. With the cone arm reading the ear
 /// alone, the cone face and the plane face across one section arc both
 /// made the chord between two points of that arc four steps apart, an
-/// edge of four triangles in a mesh `tessellate` returned; the arm's
-/// shared-side cure keeps the cone face off it
-/// ([`a_cone_face_keeps_no_side_its_plane_neighbour_can_make`] holds the
+/// edge of four triangles in a mesh `tessellate` returned; the join splits
+/// that side in each (`mesh::join`;
+/// [`a_cone_sliver_between_two_plane_faces_meshes_manifold`] holds the
 /// family). The same at ε `10⁻⁶` and `10⁻¹²`.
 #[test]
 fn a_ringless_cone_face_near_its_apex_meshes_sound() {
@@ -2072,7 +2072,7 @@ fn a_cone_face_met_on_its_axis_meshes_at_every_delta() {
     }
 }
 
-/// **A rod's sliver keeps no side its plane neighbours can make.** The
+/// **A rod's sliver between two plane faces meshes manifold.** The
 /// rod `rod(r, 0, 2)` met by `brick((0, 6), (−3, 3), (−0.4, 0.4))` turned
 /// `0.05` about `y` and moved to `(r·(1 − s), 0, 1)`: the intersection's
 /// cylinder face is a strip a lattice cell or two across between two
@@ -2081,10 +2081,10 @@ fn a_cone_face_met_on_its_axis_meshes_at_every_delta() {
 /// reading the ear alone, each cell here meshed with an edge of four
 /// triangles (`check_mesh`'s `NonManifoldEdge { count: 4 }`), one plane
 /// face and the cylinder face each using one chord of an arc as an
-/// interior edge; the trimmed lane's shared-side cure (`mesh::trimmed`,
-/// `attempt`) keeps the cylinder face off every such side.
+/// interior edge; now the
+/// join splits, in each face that has it inside, every side two patches both make, and every side of a triangle all of whose corners are points two faces share where both lay such a triangle (`mesh::join`).
 #[test]
-fn a_rod_sliver_keeps_no_side_its_plane_neighbour_can_make() {
+fn a_rod_sliver_between_two_plane_faces_meshes_manifold() {
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.05);
     for (r, s, deltas) in [
         (1.0, 1e-2, &[2e-2, 5e-3][..]),
@@ -2116,15 +2116,15 @@ fn a_rod_sliver_keeps_no_side_its_plane_neighbour_can_make() {
     }
 }
 
-/// **A ball less a half-space a hair under its pole keeps no side its
-/// plane face can make.** The unit ball less `brick((−3, 3), (−3, 3),
+/// **A ball less a half-space a hair under its pole meshes manifold.** The unit ball less `brick((−3, 3), (−3, 3),
 /// (−6, 0))` moved to `z = 1 − 3·10⁻³` and then turned `0.8` about `y`:
 /// the cap's sphere face is a cell or two across under one circle, whose
 /// plane face joins the circle's points freely. With the sphere arm
 /// reading the ear alone it meshed at δ `2·10⁻²` with an edge of four
-/// triangles.
+/// triangles; now the
+/// join splits, in each face that has it inside, every side two patches both make, and every side of a triangle all of whose corners are points two faces share where both lay such a triangle (`mesh::join`).
 #[test]
-fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
+fn a_ball_less_a_half_space_under_its_pole_meshes_manifold() {
     let ball = posed(
         "the ball",
         ball_poled_z(1.0, Vec3::zero(), tol()),
@@ -2153,15 +2153,15 @@ fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
     }
 }
 
-/// **Two crossing rods keep no side a neighbour can make.** A rod
+/// **Two crossing rods mesh manifold.** A rod
 /// `rod(r, −2, 4)` met by a second `rod(r′, −2, 4)` turned `θ` about `y`:
 /// each cylinder face of the result is bounded by arcs of the two rods'
 /// intersection curve, and the face across each arc joins its points
 /// freely at a coarse δ. With the cylinder arm reading the ear alone each
-/// cell here meshed with an edge of four triangles; the shared-side cure
-/// (`mesh::trimmed`, `attempt`) keeps every face off such a side.
+/// cell here meshed with an edge of four triangles; now the
+/// join splits, in each face that has it inside, every side two patches both make, and every side of a triangle all of whose corners are points two faces share where both lay such a triangle (`mesh::join`).
 #[test]
-fn crossing_rods_keep_no_side_a_neighbour_can_make() {
+fn crossing_rods_mesh_manifold() {
     for (r, r2, theta, op, deltas) in [
         (1.0, 0.999, FRAC_PI_2, "A ∖ B", &[0.5, 0.1, 2e-2][..]),
         (1.0, 0.999, 1.2, "A ∖ B", &[0.5, 0.1, 2e-2][..]),

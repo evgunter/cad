@@ -630,9 +630,10 @@ fn a_section_near_a_pole_meshes_at_every_delta() {
 /// at `d = 1e-3`: the sphere arm meshes it at both δ, enclosing the body
 /// and wound outward. At 4e-2 a triangle beside the pole stands on three
 /// boundary points, one of its sides joining two points of the circle
-/// that are not neighbours on it and that the other ball's face holds
-/// too; the trimmed lane's shared-side cure splits it, which also takes
-/// it off the chord it folded over.
+/// that are not neighbours on it, and it folds over the chord beside it;
+/// the trimmed lane's winding census inserts a point inside it and meshes
+/// the face again (`mesh::trimmed`, its fold rounds), which takes it off
+/// that chord.
 #[test]
 fn a_circle_near_the_pole_meshes_at_a_coarse_delta() {
     let c = Vec3::new(2.0, 2.0, 0.5);
