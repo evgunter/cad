@@ -788,8 +788,8 @@ fn a_faces_chart_reads_a_trace_before_anything_is_drawn_there() {
 
 /// **A boss on a cylinder tilted by a variable at zero, tracing an upright
 /// cylinder it is coaxial with only there, is not proved tangent**: the
-/// tilted cylinder placed by values (`a` at `0`), an upright one sketched
-/// on the box's top cap on the same axis, and a boss drawn on the tilted
+/// tilted cylinder placed by values (`a` at `0`), an upright one drawn on
+/// the box's top cap's chart and extruded, on the same axis, and a boss drawn on the tilted
 /// cylinder's top cap tracing the upright wall, unioned with it. At `a = 0`
 /// the boss is tangent; at any other `a` the tilted cap's chart leans with
 /// the cylinder and the boss runs off the upright wall. So no identity
@@ -801,29 +801,23 @@ fn a_boss_traced_across_two_cylinders_coaxial_only_at_zero_tilt_is_not_proved() 
     let (doc, a) = with_angle("a", 0.0);
     let (doc, block) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
     let (doc, tilted) = turned_cylinder(doc, block, a, ([0.0, 0.0], 0.0));
-    let placed = editor_core::sketch_on_face(
+    let drawn = editor_core::draw_on_face(
         &doc,
         BodyRead::plain(Operand::output(block, 0)),
         cap(block, CapEnd::End),
-        ProfileProgram {
-            loops: vec![LoopProgram::Circle {
-                centre: [len(0.0), len(0.0)],
-                radius: len(RADIUS),
-            }],
-            ids: Vec::new(),
-            on: None,
-        },
-        len(2.0),
-        fixture::ang(0.0),
-        None,
+        vec![LoopProgram::Circle {
+            centre: [len(0.0), len(0.0)],
+            radius: len(RADIUS),
+        }],
+        editor_core::OnFace::nearest(),
         &EvalOptions::default(),
         &CancelToken::new(),
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("the upright cylinder is placed on the box: {e}"));
-    let upright = placed.sketched.placement;
-    let tilted_cap = cap_of(&eval(&placed.doc), tilted, CapEnd::End);
-    let (doc, traced) = boss_tracing(placed.doc, (tilted, tilted_cap), upright, unslid(), BOSS_H);
+    .unwrap_or_else(|e| panic!("the upright disc is drawn on the box's top: {e}"));
+    let (doc, upright) = extruded_by(drawn.doc, drawn.profile, 2.0);
+    let tilted_cap = cap_of(&eval(&doc), tilted, CapEnd::End);
+    let (doc, traced) = boss_tracing(doc, (tilted, tilted_cap), upright, unslid(), BOSS_H);
     let proof = tangency_of(doc, upright, traced);
     assert!(
         matches!(proof, Proof::Unproven { .. }),
