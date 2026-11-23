@@ -198,7 +198,7 @@ fn corner(distinct: bool, n: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     [p, along(n[1], 0.7), along(n[2], -1.3)]
 }
 
-fn ball<T: Real>(verts: [[f64; 3]; 3], n: [[f64; 3]; 3], r: f64) -> Point3<T> {
+fn ball<T: geom_core::Decide>(verts: [[f64; 3]; 3], n: [[f64; 3]; 3], r: f64) -> Point3<T> {
     let p = |v: [f64; 3]| Point3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]));
     let v = |v: [f64; 3]| Vec3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]));
     corner_ball(
@@ -206,7 +206,9 @@ fn ball<T: Real>(verts: [[f64; 3]; 3], n: [[f64; 3]; 3], r: f64) -> Point3<T> {
         [v(n[0]), v(n[1]), v(n[2])],
         T::from_f64(r),
         Convexity::Convex,
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
     )
+    .expect("the sphere's frame mints")
     .center
 }
 

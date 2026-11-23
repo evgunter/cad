@@ -573,6 +573,8 @@ mod blend_band_reach_oracle;
 mod blend_band_reach_rows;
 #[path = "blend_bore_two_rims.rs"]
 mod blend_bore_two_rims;
+#[path = "blend_carrier_frames_refuse.rs"]
+mod blend_carrier_frames_refuse;
 #[path = "blend_dual_tangent.rs"]
 mod blend_dual_tangent;
 #[path = "blend_margin_payload_interval.rs"]

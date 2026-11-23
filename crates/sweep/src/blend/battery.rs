@@ -4072,10 +4072,12 @@ mod coaxial_spine_rows {
                     panic!("the base rim is a circle");
                 };
                 let p = carrier.eval(geom::mid_param(t0, t1));
-                let sheet = Meridian {
-                    axis: rim.frame().axis_line(),
-                    rim: p,
-                };
+                let sheet = Meridian::new(
+                    rim.frame().axis_line(),
+                    p,
+                    geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+                )
+                .expect("the sheet's frame mints");
                 let radial = sheet.radial();
                 let side = |f: FaceKey| {
                     let sense = body.get_face(f).unwrap().sense;
@@ -4087,7 +4089,7 @@ mod coaxial_spine_rows {
                 };
                 let (ta, tb) = (side(link.face_a), side(link.face_b));
                 let ball = sheet_center(p, sheet.sheet_normal(), ta, tb, r, Branch::Rim);
-                let s = (ball - sheet.axis.origin).dot(radial);
+                let s = (ball - sheet.axis().origin).dot(radial);
                 assert!(
                     s < 0.0,
                     "r = {r}: the premise, a centre past the axis (s = {s})"

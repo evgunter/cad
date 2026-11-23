@@ -230,13 +230,15 @@ fn the_equator_takes_the_sphere_sphere_arm_at_zero_departure() {
 fn the_sphere_sphere_arm_folds_both_sense_bits() {
     use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
     let r = 0.05;
-    let sheet = Meridian {
-        axis: geom::Line {
+    let sheet = Meridian::new(
+        geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: geom_core::UnitVec3::exact_y(),
         },
-        rim: Point3::new(RIM_R, 0.0, 0.0),
-    };
+        Point3::new(RIM_R, 0.0, 0.0),
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sheet's frame mints");
     let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: SPHERE_R,
@@ -250,7 +252,7 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
     ] {
         let (sa, sb) = (sigma(side_a), sigma(side_b));
         let center = sheet_center(
-            sheet.rim,
+            sheet.rim(),
             sheet.sheet_normal(),
             trace(-HALF_SEP, side_a),
             trace(HALF_SEP, side_b),

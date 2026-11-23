@@ -484,12 +484,16 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     let base_n = Vec3::new(0.0, -1.0, 0.0);
     let top_n = Vec3::new(0.0, 1.0, 0.0);
     let shoulder = Point3::new(SHOULDER.0, SHOULDER.1, 0.0);
-    let sheet_at = |p: Point3<f64>| Meridian {
-        axis: geom::Line {
-            origin,
-            dir: geom_core::UnitVec3::exact_y(),
-        },
-        rim: p,
+    let sheet_at = |p: Point3<f64>| {
+        Meridian::new(
+            geom::Line {
+                origin,
+                dir: geom_core::UnitVec3::exact_y(),
+            },
+            p,
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the sheet's frame mints")
     };
     let sphere = |side: SurfaceSide| SupportTrace::Round {
         center: origin,
@@ -550,7 +554,7 @@ fn the_lanterns_arms_fold_both_sense_bits() {
         ] {
             let (sa, sb) = (sigma(side_a), sigma(side_b));
             let c = sheet_center(
-                sheet.rim,
+                sheet.rim(),
                 sheet.sheet_normal(),
                 ta(side_a),
                 tb(side_b),

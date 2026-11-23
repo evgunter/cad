@@ -576,8 +576,12 @@ mod tests {
         // The corner's OWN faces still chart, so the refusals below are
         // about the pairing and not about the corner.
         let mine = CornerFaces::admit(body, vertex).expect("a cube corner is trivalent");
+        let at = (
+            geom_core::Point3::origin(),
+            geom_core::Band::linear(Tol::witness()).expect("the band"),
+        );
         assert!(
-            super::octant_chart(body, &mine, &corner, convexity).is_ok(),
+            super::octant_chart(body, &mine, &corner, convexity, at).is_ok(),
             "a corner charted against its own three supports must still yield"
         );
 
@@ -592,7 +596,7 @@ mod tests {
             .expect("a cube has a corner sharing neither of a given edge's supports");
         assert!(
             matches!(
-                super::octant_chart(body, &elsewhere, &corner, convexity),
+                super::octant_chart(body, &elsewhere, &corner, convexity, at),
                 Err(BlendError::BodyNotIntact { .. })
             ),
             "a chart derived from a link whose supports are not the corner's own must \
@@ -618,7 +622,7 @@ mod tests {
         );
         assert!(
             matches!(
-                super::octant_chart(body, &adjacent, &corner, convexity),
+                super::octant_chart(body, &adjacent, &corner, convexity, at),
                 Err(BlendError::BodyNotIntact { .. })
             ),
             "a chart offered the face orbit of the edge's OTHER end must refuse: both \

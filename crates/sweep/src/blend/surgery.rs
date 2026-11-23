@@ -6756,7 +6756,9 @@ mod tests {
             0.02,
             false,
             Convexity::Convex,
-        );
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the torus's frame mints");
         let mut swapped = blend.clone();
         core::mem::swap(&mut swapped.trim_a, &mut swapped.trim_b);
         // The edge only names the site of a refusal; this pin takes

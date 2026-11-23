@@ -302,20 +302,36 @@ fn the_corner_balls_pole_is_a_foot_or_its_antipode_on_either_side() {
                 -1.0
             };
             let feet = normals.map(|n| n * sign);
-            let f64_axis = match corner_ball([Point3::origin(); 3], normals, 0.1, side).surface {
+            let f64_axis = match corner_ball(
+                [Point3::origin(); 3],
+                normals,
+                0.1,
+                side,
+                geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+            )
+            .expect("the sphere's frame mints")
+            .surface
+            {
                 Surface::Sphere { frame, .. } => frame.axis(),
                 _ => panic!("the corner ball is a sphere"),
             };
             let iv_normals = normals.map(|n| n.map(iv));
-            let iv_axis =
-                match corner_ball([Point3::origin().map(iv); 3], iv_normals, iv(0.1), side).surface
-                {
-                    Surface::Sphere { frame, .. } => {
-                        let axis = frame.axis();
-                        mid3(Point3::new(axis.x, axis.y, axis.z))
-                    }
-                    _ => panic!("the corner ball is a sphere"),
-                };
+            let iv_axis = match corner_ball(
+                [Point3::origin().map(iv); 3],
+                iv_normals,
+                iv(0.1),
+                side,
+                geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+            )
+            .expect("the sphere's frame mints")
+            .surface
+            {
+                Surface::Sphere { frame, .. } => {
+                    let axis = frame.axis();
+                    mid3(Point3::new(axis.x, axis.y, axis.z))
+                }
+                _ => panic!("the corner ball is a sphere"),
+            };
             for (lane, axis) in [("f64", f64_axis), ("Interval", iv_axis)] {
                 let tag = format!("{lane} {side} {normals:?}");
                 assert!(

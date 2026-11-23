@@ -62,6 +62,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SWEEP_PATH_TURN"),
     NameCarrier::Const("SWEEP_STATION_ROLL"),
     NameCarrier::Const("SWEEP_STATION_STILL"),
+    NameCarrier::Const("EXTRUSION_WALL_FRAME"),
     // The loft's pinned rim is an identity over its control rows, read
     // by `geom_brep::ladder::read_identity` under this constant's name.
     NameCarrier::Const("LOFT_RIM_PINNED"),
@@ -138,6 +139,7 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("revolve_angle_headroom", REVOLVE),
     ("extrusion_normal_component", EXTRUDE),
     ("extrusion_obliquity", EXTRUDE),
+    ("extrusion_wall_frame", EXTRUDE),
     ("loft_corner_pinned", LOFT),
     ("loft_rim_pinned", LOFT),
     ("loft_stacking", LOFT),
@@ -256,6 +258,10 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     (
         BlendDecision::MitreSection,
         sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
+    (
+        BlendDecision::CarrierFrame,
+        sweep::blend::FILLET3_CARRIER_FRAME_RECOURSE,
     ),
 ];
 

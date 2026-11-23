@@ -36,7 +36,9 @@ fn plane_plane_blend_on_a_right_dihedral_is_the_quarter_cylinder() {
         Vec3::new(0.0, -1.0, 0.0),
         r,
         Convexity::Convex,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the cylinder's frame mints");
     let Surface::Cylinder { frame, radius, .. } = b.surface else {
         panic!("a plane–plane blend is a cylinder");
     };
@@ -74,7 +76,9 @@ fn plane_plane_setback_is_r_times_tan_half_the_normal_angle() {
             n_b,
             r,
             Convexity::Convex,
-        );
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the cylinder's frame mints");
         let want = r * (phi / 2.0).tan();
         assert!(
             (b.trim_a.1 - want).abs() < 1e-12,
@@ -99,7 +103,9 @@ fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
         n_b,
         r,
         Convexity::Convex,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the cylinder's frame mints");
     let concave = plane_plane_blend(
         Point3::new(0.0, 0.0, 0.0),
         geom_core::UnitVec3::exact_z(),
@@ -107,7 +113,9 @@ fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
         n_b,
         r,
         Convexity::Concave,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the cylinder's frame mints");
     let (
         Surface::Cylinder {
             frame: cylinder_frame_2,
@@ -142,7 +150,9 @@ fn the_corner_ball_is_the_point_at_depth_r_inside_all_three_planes() {
         ],
         r,
         Convexity::Convex,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sphere's frame mints");
     assert!((ball.center - Point3::new(r, r, r)).norm() < 1e-15);
     assert!((ball.independence - 1.0).abs() < 1e-15);
     let Surface::Sphere {
@@ -179,7 +189,9 @@ fn the_corner_ball_centre_lies_on_every_incident_cylinder_axis() {
         normals,
         r,
         Convexity::Convex,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sphere's frame mints");
     // The three edges at the corner, each between a pair of planes.
     for (i, j, tau) in [
         (0usize, 1usize, Vec3::new(0.0, 0.0, 1.0)),
@@ -193,7 +205,9 @@ fn the_corner_ball_centre_lies_on_every_incident_cylinder_axis() {
             normals[j],
             r,
             Convexity::Convex,
-        );
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the cylinder's frame mints");
         let Surface::Cylinder {
             frame: carrier_frame,
             radius,
@@ -231,7 +245,9 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         false,
         // A CONVEX chain: the ball rests on the material side of both.
         Convexity::Convex,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the torus's frame mints");
     let h = c + r;
     let s = ((big_r + r).powi(2) - h * h).sqrt();
     let a = (big_r * big_r - c * c).sqrt();
@@ -298,7 +314,9 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         true,
         // A CONVEX chain: the ball rests on the material side of both.
         Convexity::Convex,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the torus's frame mints");
     let h = r;
     let s = ((big_r - r).powi(2) - h * h).sqrt();
     assert!(s < big_r, "s = {s} must fall inside the rim radius {big_r}");
@@ -368,7 +386,9 @@ fn plane_sphere_blend_radii_hold_near_the_pole() {
         r,
         false,
         Convexity::Convex,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the torus's frame mints");
     let s = (gap * (2.0 * big_r + 2.0 * r - gap)).sqrt();
     let a = (gap * (2.0 * big_r - gap)).sqrt();
     let Surface::Torus { major_radius, .. } = b.surface else {
@@ -422,7 +442,9 @@ fn the_rim_trimlines_are_tangency_loci_with_definite_second_order_separation() {
         false,
         // A CONVEX chain: the ball rests on the material side of both.
         Convexity::Convex,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the torus's frame mints");
     for (support, trim, want) in [
         (&plane, &b.trim_a.0, 1.0 / r),
         (&sphere, &b.trim_b.0, 1.0 / big_r + 1.0 / r),

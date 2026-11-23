@@ -244,13 +244,15 @@ impl Row {
         senses: (SurfaceSide, SurfaceSide),
     ) -> (EdgeBlend<f64>, Point3<f64>) {
         if let Some((origin, axis)) = self.axis {
-            let sheet = Meridian {
-                axis: geom::Line {
+            let sheet = Meridian::new(
+                geom::Line {
                     origin,
                     dir: geom::stated_direction(axis),
                 },
-                rim: self.rim,
-            };
+                self.rim,
+                geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+            )
+            .expect("the sheet's frame mints");
             let (ta, da) = sheet.trace(&self.a, senses.0).expect("a coaxial trace");
             let (tb, db) = sheet.trace(&self.b, senses.1).expect("a coaxial trace");
             assert!(
@@ -283,7 +285,15 @@ impl Row {
                 "{}: the fixture shares its ruling, departures {da}/{db}",
                 self.arm.name()
             );
-            let b = sheet.blend(ta, tb, radius, Branch::Rim);
+            let b = sheet
+                .blend(
+                    ta,
+                    tb,
+                    radius,
+                    Branch::Rim,
+                    geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+                )
+                .expect("the cylinder's frame mints");
             let center = sweep::blend::arms::sheet_center(
                 self.rim,
                 sheet.tau.get(),
@@ -492,14 +502,18 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
             sphere_sense,
             // A CONVEX chain: the ball rests on the material side of both.
             Convexity::Convex,
-        );
-        let sheet = Meridian {
-            axis: geom::Line {
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the torus's frame mints");
+        let sheet = Meridian::new(
+            geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
                 dir: geom_core::UnitVec3::exact_y(),
             },
             rim,
-        };
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the sheet's frame mints");
         // The plane's stored normal IS `n` and its material side is the
         // one the outward normal already names, so its sense is `true`.
         let (tp, _) = sheet

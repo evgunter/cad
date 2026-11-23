@@ -865,7 +865,14 @@ mod tests {
                     .iter()
                     .find(|o| o.link().start == *v || o.link().end == *v)
                     .unwrap();
-                let c = cut_off_plan(&body, o, *v, section.clone()).unwrap();
+                let c = cut_off_plan(
+                    &body,
+                    o,
+                    *v,
+                    section.clone(),
+                    geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+                )
+                .unwrap();
                 let l = o.link();
                 PlannedStation {
                     vertex: *v,

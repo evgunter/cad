@@ -2030,8 +2030,15 @@ mod tests {
                     .also(*o)
                     .expect("every filtered link touches v");
             }
-            let corner = corner_plan(&body, corner_links, None, R, BlendKind::Fillet)
-                .expect("either verdict plans");
+            let corner = corner_plan(
+                &body,
+                corner_links,
+                None,
+                R,
+                BlendKind::Fillet,
+                geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+            )
+            .expect("either verdict plans");
             let super::CornerArcs::Ball(centre, _) = corner.arcs else {
                 panic!("a fillet corner plans an arc centre");
             };

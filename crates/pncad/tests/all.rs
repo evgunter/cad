@@ -414,6 +414,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::TurnOverrunChord => "turn_overrun_chord",
         BlendDecision::TurnFeet => "turn_feet",
         BlendDecision::MitreSection => "mitre_section",
+        BlendDecision::CarrierFrame => "carrier_frame",
     }
 }
 

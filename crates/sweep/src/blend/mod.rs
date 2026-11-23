@@ -3100,4 +3100,71 @@ mod recourse_tests {
             );
         }
     }
+
+    /// **A carrier frame's refusal is its decision's**, fed the
+    /// degenerate input at the two mint doors every private band seam
+    /// routes through (`arms::frame_about`, `arms::frame_along`): a
+    /// residual in band escalates `fillet3_carrier_frame`; a zero axis
+    /// or a non-finite reference is the surgery's own invariant. A
+    /// corner chart's, at the same doors, is the corner independence's.
+    #[test]
+    fn a_carrier_frame_refuses_as_its_decision_at_both_mint_doors() {
+        use geom_core::{Point3, Tol, UnitVec3, Vec3};
+        let band = Band::linear(Tol::witness()).expect("the band");
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let aim = UnitVec3::exact_z();
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let edge = EdgeKey::default();
+        let refused = super::carrier_frame_refused(BlendSite::Link { edge }, EntityId::Edge(edge));
+        let in_band = super::arms::frame_about(o, aim, Vec3::new(mid, 0.0, 1.0), band)
+            .expect_err("a seam in band of the axis");
+        match refused(in_band) {
+            BlendError::Escalated {
+                decision: BlendDecision::CarrierFrame,
+                source,
+                ..
+            } => assert_eq!(source.predicate, Some("fillet3_carrier_frame")),
+            other => panic!("an in-band seam escalates the carrier frame: {other:?}"),
+        }
+        let clear = super::arms::frame_about(o, aim, Vec3::new(1.0, 0.0, 1.0), band)
+            .expect("a seam clear of the axis mints");
+        let u = clear.u_ref();
+        assert_eq!([u.x, u.y, u.z], [1.0, 0.0, 0.0], "the seam, bit for bit");
+        let zero =
+            super::arms::frame_along(o, Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), band)
+                .expect_err("a zero axis");
+        assert!(
+            matches!(refused(zero), BlendError::SurgeryInvariant { .. }),
+            "a zero axis is the surgery's invariant"
+        );
+        let poison = super::arms::frame_about(o, aim, Vec3::new(f64::NAN, 0.0, 0.0), band)
+            .expect_err("a non-finite seam");
+        assert!(
+            matches!(refused(poison), BlendError::SurgeryInvariant { .. }),
+            "a non-finite seam is the surgery's invariant"
+        );
+        let vertex = VertexKey::default();
+        let corner = super::build::corner_frame_refused(vertex);
+        let feet = |c: Vec3<f64>| {
+            super::arms::corner_chart(
+                o,
+                [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), c],
+                band,
+            )
+        };
+        match corner(feet(Vec3::new(1.0, 0.0, mid)).expect_err("a turn in band")) {
+            BlendError::Escalated {
+                decision: BlendDecision::CornerIndependence,
+                ..
+            } => {}
+            other => panic!("an in-band corner turn escalates the independence: {other:?}"),
+        }
+        assert!(
+            matches!(
+                corner(feet(Vec3::new(1.0, 1.0, 0.0)).expect_err("dependent feet")),
+                BlendError::UnbuiltEnd(super::UnbuiltEnd::DependentNormals { .. })
+            ),
+            "dependent feet are the dependent-normals end"
+        );
+    }
 }
