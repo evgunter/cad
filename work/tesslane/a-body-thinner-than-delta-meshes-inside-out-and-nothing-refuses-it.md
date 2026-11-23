@@ -23,7 +23,7 @@ A ball of radius 1.05 bored through at radius 1 is a shell 0.05 thick (volume ab
 | arc sign +1, δ 0.3 | 102, +0.0387 | 104, +0.0282 |
 | arc sign +1, δ 0.1 | 152, +0.0591 | 220, +0.1076 |
 
-From δ 0.05 down both trees return +0.095 to +0.117. The unsplit body refuses `OverusedSide` at these δ on both trees.
+From δ 0.05 down both trees return +0.082 to +0.117. Two reviewers of PR 7096 measured the same cells apart and agree. One of them also found the sign depends on where the body sits: at sign −1 and δ 0.1 the body is negative on both trees unplaced and under the implementer's oblique placement, and positive on both under that reviewer's own oblique rigid map (+0.082 on main, +0.052 on the head). The unsplit body refuses `OverusedSide` at these δ on both trees.
 
 Written as STL, the negative meshes have every facet reversed by admesh, which the nightly export gate (`scripts/check_admesh.sh`) fails.
 
