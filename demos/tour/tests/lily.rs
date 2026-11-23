@@ -585,10 +585,9 @@ mod review_probes {
     /// The census is what the re-authoring changed structurally: the
     /// meridian gained one segment (the neck cone) between the throat
     /// disk and the belly, and a FULL revolve emits every CURVED wall as
-    /// two half-bands on one carrier, so the neck arrives as two faces
-    /// with the seam struts and rim vertices that go with them. Its two
-    /// planar caps it sweeps whole (BAND, one wall per run: 10 faces,
-    /// 18 edges, 10 vertices became 8, 14, 8). The
+    /// one band with one seam meridian, so the neck arrives as one face
+    /// with its seam and the rim vertex that goes with it. Its two
+    /// planar caps it sweeps whole. The
     /// exact volume is the same closed form
     /// `finding_13_tessellation_table_reproduces` measures the mesh
     /// against, taken here from the kernel's own `mass_properties`
@@ -1641,9 +1640,9 @@ mod verbs_gate_r1_probes {
         // {tightest} on its tightest axis, so the pair-scoped gate
         // ADMITS — and what answers is not a germ class at all but
         // the operand-shape precondition. WHICH faces, corrected at
-        // M9-5 and re-measured here: NOT the zone's two half-bands —
-        // same-key CURVED adjacency is the canonical maximal form —
-        // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
+        // M9-5 and re-measured here: NOT the zone, one band — the
+        // canonical maximal form of a curved wall — but the lantern's
+        // two AXIS-TOUCHING PLANAR CAPS.
         //
         // With the caps swept whole, the crossing layer's circle × sphere
         // roots, the radical-plane join and its chords' arcs, taken from
@@ -1716,8 +1715,9 @@ mod verbs_gate_r1_probes {
         pncad::mesh::validate::check_volume(&draw, va - lens, carved_area, 2e-3)
             .unwrap_or_else(|e| panic!("the carve's mesh encloses the carve, got {e:?}"));
         // All three draw: the seam a third of a turn round lies inside
-        // one half-band of the zone, a ring of that face, which the
-        // trimmed lane meshes as the face's outer loop less the ring.
+        // the zone's one face, off its seam meridian, a ring of that
+        // face, which the trimmed lane meshes as the face's outer loop
+        // less the ring.
         let seamed = demo_tour::lily::seamed_lantern(lant.clone().into_body(), tol)
             .unwrap_or_else(|e| panic!("the three seams carve, got {e:?}"));
         assert!(

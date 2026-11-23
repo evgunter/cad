@@ -1990,9 +1990,9 @@ fn meridian_residuals(circle: Circle, torus: TorusCarrier) -> (f64, f64, f64) {
 /// than a transverse SSI curve nobody has a closed form for.
 ///
 /// Stated as a MEASUREMENT, not a search. The lantern's cones offer
-/// EIGHT station circles at the tube's minor radius — two conical
-/// WALLS, each halved at the full revolve's seam, each half-band
-/// offering both nappes; the best of them must satisfy the torus's
+/// FOUR station circles at the tube's minor radius — two conical
+/// WALLS, each one face offering both nappes; the best of them must
+/// satisfy the torus's
 /// meridian membership, the nearest DISTINCT one must miss by a
 /// distance no tolerance could confuse with zero, and the winner must
 /// sit on the tube's END — the frame `sweep::revolved_caps` reports —
@@ -2054,9 +2054,8 @@ pub fn weld_circle<S: Scalar>(
          one at its END station — the flower is threaded on the tube, not \
          welded to its rim"
     );
-    // The neck's two half-bands offer the SAME circle, so the miss
-    // that matters is the nearest DISTINCT station circle — the neck's
-    // other nappe, or either of the pucker's.
+    // The miss that matters is the nearest DISTINCT station circle —
+    // the neck's other nappe, or either of the pucker's.
     let runner_up = ranked
         .iter()
         .filter(|(_, c)| (c.c - best.c).norm() > 1e-9)
@@ -2370,8 +2369,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    frustum (measured in this module's `verbs_gate_r1_probes`). The
     //    three seams are the same ball turned a third of a turn about the
     //    lantern's axis ([`seamed_lantern`]); the seam a third of a turn
-    //    round meets neither of the zone's seam meridians, so its section
-    //    is a ring of one half-band, and the trimmed lane meshes that
+    //    round misses the zone's seam meridian, so its section is a
+    //    ring of the zone's one face, and the trimmed lane meshes that
     //    face's outer loop less the ring. The scene's lanterns do not
     //    carry the seams yet
     //    (`work/tesslane/the-lily-lanterns-can-take-their-three-tepal-seams.md`).

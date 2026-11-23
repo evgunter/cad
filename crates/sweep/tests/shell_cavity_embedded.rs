@@ -257,10 +257,9 @@ fn the_curved_dumbbell_waits_on_the_offset_door_at_interval() {
 /// `x = 3.9` wall at an angle the planar `moved_walls_cross` reads, so
 /// both scalars refuse `OffsetsCross`. At `Interval` the walls'
 /// crossings along the cut line are ordered first
-/// (`shell_moved_wall_order`). While the void's wall was two half-band
-/// faces, two of those crossings read as an enclosure straddling the
-/// band's edge and the order escalated; with the wall one face the
-/// order decides, and the overlap refuses as at `f64`.
+/// (`shell_moved_wall_order`). The void's wall is one face, so no
+/// crossing straddles a band's edge: the order decides, and the overlap
+/// refuses as at `f64`.
 #[test]
 fn the_box_with_a_cylindrical_void_refuses_at_the_moved_walls_read() {
     let at_f64 = shell(box_with_void::<f64>(), 0.1);
