@@ -1115,15 +1115,19 @@ counts carries; a site's component is its foot on the carried section,
 its one reading. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
 rim ends as the reading fitted and certified it, its pad the farthest
-its carrier stands from the cells of its chart tube's windows, cut to
-the knot rectangle, that the partner's form does not clear of the band,
-imaged on the wall, refined until the section's arcs read apart. A site
-is read on the arc whose cells hold it, each cell read against the
-whole carrier. The cells of two arcs that stand within the band of each
-other are halved, the cleared halves dropped, until none do; where
-halving stops narrowing them, or at a work bound, the two arcs carry
-neither (`CarryRefusal::PadsMeet`). An arc with no close neighbour
-keeps its first reading, cells a rung wide. A pair traced
+from its carrier that the cells of its chart tube's windows stand, cut
+to the knot rectangle, less those the partner's form clears of the
+band, imaged on the wall, refined until the section's arcs read apart.
+A site is read on the arc whose cells hold it, each cell widened by the
+band's escalation along every axis and read against the whole carrier.
+The cells of two arcs that, widened so, share a point are halved, the
+cleared halves dropped, until none do. The pair has stopped narrowing
+where two cycles of halvings running, one along each chart axis, clear
+no half and part none, or where no cell still meeting can be halved;
+there, or at a work bound that grows with the section's first reading,
+the two arcs carry neither (`CarryRefusal::PadsMeet`, naming the stop).
+An arc with no close neighbour keeps its first reading, cells a rung
+wide. A pair traced
 in ℝ³ is read over its own ball where its pose proves one, cut by one
 region per operation, as at one band:
 the ball about the overlap of the two operands' boxes, padded, which

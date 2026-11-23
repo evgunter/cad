@@ -540,19 +540,30 @@ fn a_node_box_another_arc_does_not_share_does_not_stall_its_neighbour() {
 
 /// **Two arcs ending at different nodes whose boxes meet carry
 /// neither**: on the flat wall, the lines `v = ½ ∓ r` each end in a
-/// node's box `0.116` across, at two nodes, and the boxes stand `0.064`
-/// apart, within twice the escalation of `0.038`. The lines' own cells,
-/// a rung of `0.06` across, meet at first and part once refined; the two
-/// boxes are kept whole and never do. Nothing that still meets can be
-/// halved, so the pair stalls and refuses.
+/// node's box, at two nodes, and the boxes stand within twice the
+/// band's escalation of each other. The boxes are kept whole and never
+/// part, and nothing else that still meets can be halved, so the pair
+/// stalls and refuses, in two cases:
+///
+/// - at a rung of `0.06` and an escalation of `0.038`, the lines' own
+///   cells meet at first and part once refined, the boxes (`0.116`
+///   across, `0.064` apart) left meeting;
+/// - at a rung of `0.08` and an escalation of `0.036`, only the boxes
+///   (`0.11` across, `0.07` apart) meet, and the pair stalls at once
+///   with no cell halved.
+///
+/// The same boxes at one node both arcs end at are where the arcs meet,
+/// and both carry.
 ///
 /// Red against: two arcs that each end at a node read as sharing one
 /// (the boxes stand at the node, and both carry); a cell that cannot be
 /// halved dropped from the next round's scan (the lines' cells part and
-/// both carry); a node's box halved in refinement (its halves clear).
+/// both carry); a node's box halved in refinement (its halves clear); a
+/// cell that cannot be halved counted as one that can (the second case
+/// runs a round a box to the work bound).
 #[test]
 fn two_arcs_ending_at_different_nodes_whose_boxes_meet_carry_neither() {
-    let (r, rung, h) = (0.09, 0.06, 0.058);
+    let r = 0.09;
     let net = flat();
     let p = flat_rod(r);
     let form = ImplicitForm::of(&p).expect("a cylinder has a form");
@@ -560,42 +571,48 @@ fn two_arcs_ending_at_different_nodes_whose_boxes_meet_carry_neither() {
         surface: &p,
         form: &form,
     };
-    let bd = band_escalating(0.038);
-    let a = line(0.5 - r, 0.0, &[0.5, 0.9], rung, [None, Some((h, h))]);
-    let b = line(0.5 + r, 0.0, &[0.5, 0.9], rung, [None, Some((h, h))]);
-    let read = |ends: [usize; 2]| {
-        let mut arcs = vec![
-            Listed::Arc(Enclosure::first(
-                &a,
-                &net,
-                partner,
-                [None, Some(ends[0])],
-                bd,
-            )),
-            Listed::Arc(Enclosure::first(
-                &b,
-                &net,
-                partner,
-                [None, Some(ends[1])],
-                bd,
-            )),
-        ];
-        let before = rects(&arcs);
-        let meets = apart(&mut arcs, bd);
-        (meets, before != rects(&arcs))
-    };
-    let (meets, refined) = read([0, 1]);
-    assert!(refined, "the lines' own cells met and were refined");
-    assert_eq!(
-        stops(&meets),
-        [PadsStop::Stall; 2],
-        "boxes of two nodes that meet cannot be halved apart"
-    );
-    let (meets, _) = read([0, 0]);
-    assert!(
-        meets.iter().all(Option::is_none),
-        "the same boxes at one node both arcs end at are where the arcs meet: {meets:?}"
-    );
+    for (rung, escalate, h, refines) in [(0.06, 0.038, 0.058, true), (0.08, 0.036, 0.055, false)] {
+        let bd = band_escalating(escalate);
+        let a = line(0.5 - r, 0.0, &[0.5, 0.9], rung, [None, Some((h, h))]);
+        let b = line(0.5 + r, 0.0, &[0.5, 0.9], rung, [None, Some((h, h))]);
+        let read = |ends: [usize; 2]| {
+            let mut arcs = vec![
+                Listed::Arc(Enclosure::first(
+                    &a,
+                    &net,
+                    partner,
+                    [None, Some(ends[0])],
+                    bd,
+                )),
+                Listed::Arc(Enclosure::first(
+                    &b,
+                    &net,
+                    partner,
+                    [None, Some(ends[1])],
+                    bd,
+                )),
+            ];
+            let before = rects(&arcs);
+            let meets = apart(&mut arcs, bd);
+            (meets, before != rects(&arcs))
+        };
+        let (meets, refined) = read([0, 1]);
+        assert_eq!(
+            refined, refines,
+            "rung {rung}: whether the lines' own cells met and were refined"
+        );
+        assert_eq!(
+            stops(&meets),
+            [PadsStop::Stall; 2],
+            "rung {rung}: boxes of two nodes that meet cannot be halved apart"
+        );
+        let (meets, _) = read([0, 0]);
+        assert!(
+            meets.iter().all(Option::is_none),
+            "rung {rung}: the same boxes at one node both arcs end at are where the arcs \
+             meet: {meets:?}"
+        );
+    }
 }
 
 /// **A window that holds no cell is a desync**: a hand-built line on the

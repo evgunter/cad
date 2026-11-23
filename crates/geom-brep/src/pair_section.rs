@@ -3275,7 +3275,7 @@ pub struct CarriedComponent<T: Real> {
     /// A point of the carrier, `carrier(mid)`: the witness the component
     /// is read by.
     pub witness: Point3<T>,
-    /// **The cells a site is read in** (C2's carry), empty for a marched
+    /// **The cells a site is read in** (C5's carry), empty for a marched
     /// loop and a closed form, which are read whole: a fitted spline ×
     /// implicit arc's surviving cells (`spline_implicit::cells`), each an
     /// enclosure of the cell's image on the wall with the farthest it

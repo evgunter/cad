@@ -89,7 +89,7 @@ tube pads every window by the rung imaged across the carrier
 (pad/rung 1.10 on every rod at s = 0.01, 1 and 10). So the Remedy
 above cannot meet the done-when. The pad reads closeness off the
 region limb 3 uses for isolation, and never consults the partner.
-C2's carry sentence ("its pad the chart tube's windows imaged on the
+C5's carry sentence ("its pad the chart tube's windows imaged on the
 wall by its chart speeds", PR 6862) says exactly that, so a pad read
 another way changes it. How a rim arc's pad is bounded, and how far
 it is refined, is the decision.
@@ -111,7 +111,7 @@ Ev took designer A's answer ("let's do (A)").
     check separates.**
 - **The change is in the carry only.** Limb 3, the certificate and rest
   are unchanged, and `PadsMeet` is kept.
-- **C2's carry sentence and its node-end clause** in
+- **C5's carry sentence and C2's node-end clause** in
   `crates/geom-brep/README.md` are rewritten to say this.
 - The marched-loop door's reader is a later step.
 
@@ -127,11 +127,14 @@ The carry reads a fitted arc on its cells
 (`pair_section::spline_implicit::cells`): each tube window cut to the
 knot rectangle, halved to cells a rung wide, the cells the partner's
 form clears of the band dropped, each read against the whole carrier.
-The section's arcs are held apart on those cells, and the cells of two
-arcs within the band of each other are halved until none are, or the
-loop stops as `crate::descent` stops one (a stall, or a work bound of
-`2¹¹` halved cells), where the pair refuses `PadsMeet`. A site is read
-in the same cells (`CarriedComponent::boxes`).
+The section's arcs are held apart on those cells, each widened by the
+band's escalation along every axis, as a site's read widens them. The
+cells of two arcs that share a point so are halved until none do, or
+the loop stops as `crate::descent` stops one, where the pair refuses
+`PadsMeet` naming the stop: a stall (two cycles of halvings that clear
+no half and part none, or nothing left to halve) or a work bound of
+sixteen halvings a cell of the section's first reading (`2¹¹` at
+least). A site is read in the same cells (`CarriedComponent::boxes`).
 
 - The witnesses moved to later stops. The rods of radius `0.09` and
   `0.095` are carried, as is every rod from `0.045` up, two rungs apart
