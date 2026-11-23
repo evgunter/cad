@@ -61,24 +61,20 @@
 //! enclosure's own arithmetic, so each control point's box holds the
 //! exact one, and the floors are decided as they are.
 //!
-//! At `f64` each homogeneous control point carries a first-order bound
-//! on each channel's rounding, set where the point is made and carried
-//! through every blend `x + (y − x)·t` of the insertions and the
-//! halvings ([`blend`]): the inputs' bounds blend as the values do,
-//! and each blend adds `u·|y − x|·t` for the difference, `u·|result|`
-//! for the sum, and, at an insertion's ratio of knots, `u·|y − x|·t`
-//! more for the product by the ratio and `|y − x|·δt` for the ratio's
-//! own rounding (`δt` three units of roundoff of `t`). A halving's
-//! product by the exact half is exact.
-//! Out of homogeneous form a point is off by at most
-//! `(e_xyz + |P|·e_w)/(w − e_w) + u·|P|` per coordinate, and the floor is
-//! charged the root sum of the worst per channel ([`cut_rounding`]). Every
-//! bound is read at the point it belongs to, so a weight far from the
-//! cell's own charges nothing there. The floor is also charged
-//! [`geom_core::rounding_charge`] of twice the reach of the points, the
-//! sample and `c`, which covers the moves and the read of a box or a
-//! slab, as [`super::incidence_at`] charges its read. It is a
-//! first-order rounding estimate, the `f64` lane's contract, as
+//! At `f64` each channel of a homogeneous control point carries its
+//! rounding ([`geom_core::running::Tracked`]), set where the point is
+//! made and carried through every blend `x + (y − x)·t` of the
+//! insertions and the halvings ([`Tracked::step`]): an insertion's ratio
+//! of knots is formed with its own rounding ([`Tracked::ratio`]), and a
+//! halving's exact half rounds nothing. Out of homogeneous form a point
+//! is off by its quotient's bound ([`Tracked::dehomogenized`]), and the
+//! floor is charged the root sum of the worst per channel
+//! ([`cut_rounding`]). Every bound is read at the point it belongs to,
+//! so a weight far from the cell's own charges nothing there. The floor
+//! is also charged [`geom_core::rounding_charge`] of twice the reach of
+//! the points, the sample and `c`, which covers the moves and the read
+//! of a box or a slab, as [`super::incidence_at`] charges its read. It
+//! is a first-order rounding estimate, the `f64` lane's contract, as
 //! [`geom_core::running`]'s is.
 //!
 //! The upper bound is the chart's own evaluation at `f64`, so its
@@ -657,7 +653,7 @@ impl<'a, T: Decide<Value = T>> Net<'a, T> {
         let points: Vec<Point3<T>> = cell
             .net
             .iter()
-            .map(|h| point(h.map(Tracked::value)))
+            .map(|h| point(h.map(|c| c.value())))
             .collect();
         #[cfg(test)]
         if super::mutants::spline_floor_net() {
@@ -739,7 +735,7 @@ impl<T: Decide> Cell<T> {
     /// span between equal rows of equal weights) is never cut.
     fn longer_along_u(&self, pu: usize, pv: usize) -> bool {
         let at = |i: usize, j: usize| {
-            let h = self.net[i * (pv + 1) + j].map(Tracked::value);
+            let h = self.net[i * (pv + 1) + j].map(|c| c.value());
             let w = middle(h[3]);
             [0, 1, 2].map(|k| middle(h[k]) / w)
         };

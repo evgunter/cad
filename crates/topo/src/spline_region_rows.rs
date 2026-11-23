@@ -1923,6 +1923,43 @@ fn a_cell_with_a_nan_bound_has_no_floor() {
     assert!(floor.is_nan(), "a NaN bound leaves the floor {floor}");
 }
 
+/// `1` carrying the rounding bound `e`, by the arithmetic: `a·1 − (a − 1)`
+/// for `a = e/u` an integer at most `2⁵³`, whose product rounds by
+/// `u·|a| = e` and whose difference is exact.
+fn one_carrying(e: f64) -> Tracked<f64> {
+    let a = Tracked::exact(e / UNIT_ROUNDOFF);
+    a * Tracked::exact(1.0) - Tracked::exact(e / UNIT_ROUNDOFF - 1.0)
+}
+
+/// **A cell whose weight's rounding reaches the weight has no floor**
+/// ([`super::Patch::floor`]): a unit square whose corner's weight is `1`
+/// carrying `1 + u` may hold a zero weight, so its point out of
+/// homogeneous form has no bound and the cell no floor; the same weight
+/// carrying `0.5` floors.
+#[test]
+fn a_cell_whose_weights_rounding_reaches_it_has_no_floor() {
+    let cell = |e: f64| {
+        let mut cell = square_cell(Vec3::new(0.0, 0.0, 0.0), 0.0);
+        cell.net[3][3] = one_carrying(e);
+        cell
+    };
+    let w = one_carrying(1.0);
+    assert!(
+        w.value() == 1.0 && w.rounding() >= 1.0,
+        "the fixture's weight is 1 ± 1: {w:?}"
+    );
+    let floor = cell(1.0).floor(Point3::new(0.5, 0.5, -1.0)).at_f64();
+    assert!(
+        floor.is_nan(),
+        "a weight within its rounding of zero floors at {floor}"
+    );
+    let floor = cell(0.5).floor(Point3::new(0.5, 0.5, -1.0)).at_f64();
+    assert!(
+        floor.is_finite() && floor < 1.0,
+        "a weight clear of its rounding floors at {floor}, below the gap by the point's bound"
+    );
+}
+
 /// `0` carrying the rounding bound `e`, by the arithmetic: `a·1 − a` for
 /// `a = e/u`, whose product rounds by `u·|a| = e` and whose difference
 /// lands on an exact zero.

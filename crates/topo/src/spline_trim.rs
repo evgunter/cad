@@ -40,10 +40,11 @@
 //! de Casteljau), and the trim is read in `f64` at every scalar. A box
 //! of rounded points can exclude a point the exact box holds, so every
 //! box that decides is widened by a first-order bound on its points'
-//! rounding: each homogeneous point carries one per channel, set where
-//! it is made and carried through every blend ([`blend`]), and is off by
-//! at most `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|` out of homogeneous
-//! form ([`point_rounding`]). The net is held about the middle of the
+//! rounding: each channel of a homogeneous point carries one
+//! ([`geom_core::running::Tracked`] in a cell, a [`Rounded`] in a piece),
+//! set where it is made and carried through every blend ([`blend`]), and
+//! out of homogeneous form a point is off by its quotient's bound
+//! ([`Tracked::dehomogenized`], [`dehomogenized`]). The net is held about the middle of the
 //! chart's control box, so the cut is in the patch's own size. A cell's
 //! floor is less the root sum of its worst per channel and
 //! [`geom_core::rounding_charge`] of twice the reach of its points, the
@@ -196,7 +197,7 @@ impl<T: Decide<Value = T>> Patch<T> {
     fn points(&self) -> impl Iterator<Item = Point3<T>> + '_ {
         self.net
             .iter()
-            .map(|h| h.map(Tracked::value))
+            .map(|h| h.map(|c| c.value()))
             .map(|h| Point3::new(h[0] / h[3], h[1] / h[3], h[2] / h[3]))
     }
 
@@ -1340,7 +1341,7 @@ pub(crate) fn bezier_pieces<T: Decide<Value = T>>(
         return None;
     }
     // Out of the scalar: each channel's bracket middle.
-    let out_of_scalar = |h: Control<T, 3>| -> Node { h.map(Tracked::at_middle) };
+    let out_of_scalar = |h: Control<T, 3>| -> Node { h.map(|c| c.at_middle()) };
     let mut out = Vec::new();
     for k in 0..bk.len() - 1 {
         if bk[k] < a || bk[k + 1] > b {

@@ -515,7 +515,7 @@ fn cut_drift(rng: &mut test_utils::fuzz::Rng) -> f64 {
         }
         for (got, exact) in cell.net.iter().zip(&reference) {
             let bound = point_bound(got);
-            let at = super::point(got.map(Tracked::value));
+            let at = super::point(got.map(|c| c.value()));
             for (k, x) in [at.x, at.y, at.z].into_iter().enumerate() {
                 let drift = Dd::of(x).sub(exact[k].div(exact[3])).abs_hi();
                 points += 1;
@@ -531,6 +531,52 @@ fn cut_drift(rng: &mut test_utils::fuzz::Rng) -> f64 {
     }
     let _ = points;
     worst
+}
+
+/// **A cell whose weight's rounding reaches the weight has no bound on
+/// its cut** ([`super::cut_rounding`]): a bilinear cell whose corner's
+/// weight is `1` carrying `1 + u` (a product that rounds by `1`, less a
+/// value it cancels against exactly) may hold a zero weight, so its
+/// cut's bound is infinite and its floor cannot clear; the same weight
+/// carrying `0.5` is charged a finite bound, the weight's share at
+/// least.
+#[test]
+fn a_cells_cut_has_no_bound_where_a_weights_rounding_reaches_it() {
+    use geom_core::UNIT_ROUNDOFF;
+    let one_carrying = |e: f64| {
+        let a = Tracked::exact(e / UNIT_ROUNDOFF);
+        a * Tracked::exact(1.0) - Tracked::exact(e / UNIT_ROUNDOFF - 1.0)
+    };
+    let cell = |e: f64| {
+        let corner = |x: f64, y: f64| [x, y, 0.0, 1.0].map(Tracked::exact);
+        let mut net = vec![
+            corner(0.0, 0.0),
+            corner(0.0, 1.0),
+            corner(1.0, 0.0),
+            corner(1.0, 1.0),
+        ];
+        net[3][3] = one_carrying(e);
+        super::Cell {
+            rect: [0.0, 1.0, 0.0, 1.0],
+            net,
+            depth: 0,
+        }
+    };
+    let w = one_carrying(1.0);
+    assert!(
+        w.value() == 1.0 && w.rounding() >= 1.0,
+        "the fixture's weight is 1 ± 1: {w:?}"
+    );
+    let cut = super::cut_rounding(&cell(1.0));
+    assert!(
+        cut.is_infinite(),
+        "a weight within its rounding of zero: cut {cut:e}"
+    );
+    let cut = super::cut_rounding(&cell(0.5));
+    assert!(
+        cut.is_finite() && cut >= 0.5,
+        "a weight clear of its rounding: cut {cut:e}, at least the weight's share"
+    );
 }
 
 /// A control point's bound out of homogeneous form, per coordinate:
@@ -728,7 +774,7 @@ fn knotted_drift(rng: &mut test_utils::fuzz::Rng) -> f64 {
             }
             for (got, exact) in cell.net.iter().zip(&reference) {
                 let bound = point_bound(got);
-                let at = super::point(got.map(Tracked::value));
+                let at = super::point(got.map(|c| c.value()));
                 for (k, x) in [at.x, at.y, at.z].into_iter().enumerate() {
                     let drift = Dd::of(x).sub(exact[k].div(exact[3])).abs_hi();
                     worst = worst.max(drift / bound[k]);
@@ -769,7 +815,7 @@ fn a_floor_is_below_the_exact_cells_hull() {
             let points: Vec<Point3<f64>> = cell
                 .net
                 .iter()
-                .map(|h| super::point(h.map(Tracked::value)))
+                .map(|h| super::point(h.map(|c| c.value())))
                 .collect();
             let axis = rng.below(3);
             let high = rng.below(2) == 0;
