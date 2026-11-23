@@ -425,7 +425,7 @@ fn the_strip_mints_an_outward_normal_on_a_concave_edge() {
     let tau = Vec3::new(0.0, 0.0, 1.0);
     let n_a = Vec3::new(0.0, 1.0, 0.0);
     let n_b = Vec3::new(1.0, 0.0, 0.0);
-    let strip = chamfer_strip(p, tau, n_a, n_b, D);
+    let strip = chamfer_strip(p, geom::stated_direction(tau), n_a, n_b, D);
     let Surface::Plane { frame, .. } = strip.surface else {
         panic!("a chamfer strip is a plane");
     };

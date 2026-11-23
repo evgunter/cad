@@ -121,7 +121,8 @@
 //!
 //! - **R-reach**: a kind pair or pose with no arm (torus against a
 //!   cylinder neither parallel nor square to its axis, a torus tilted
-//!   to it; a cone against a non-coaxial torus; a NURBS or approximated
+//!   to it; a cone whose apex lies on a torus off its axis, a node or a
+//!   touch the march does not end at; a NURBS or approximated
 //!   face paired with anything but a plane or another spline face, and a
 //!   spline pair the whole reading refused short of a tangency). Every
 //!   pair with a face that is not a
@@ -285,8 +286,10 @@
 //!   two-component section is therefore always essential.
 //! - **Torus × coaxial {cylinder, torus}**: parallels, essential on both.
 //!
-//! Every torus pair but the plane and the cone is the section value's
-//! ([`geom_brep::pair_section()`]): its pose decided once, the critical
+//! Every torus pair but the plane is the section value's
+//! ([`geom_brep::pair_section()`]), the coaxial cone's count read here
+//! on the value's pose ([`geom_brep::ConeTorusPose`]) across its slack:
+//! its pose decided once, the critical
 //! gap read before any count, and its components classified by these
 //! arms there, read here by [`of_pair_section`]. The parallel- and
 //! square-axis cylinder, the parallel-axis torus and the sphere below
@@ -393,12 +396,13 @@
 //! blanket gate could only refuse. The conservative refusal they were
 //! known for — a cube standing in a donut's hole — is W0 or W2 here.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use crate::contain::FaceContainment;
 use crate::validate::decide;
 use geom_brep::pair_section::{Pinch, signs_across, signs_as};
-use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};
+use geom_brep::{AxisPose, ExtentBall, Reach, axis_pose};
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -752,6 +756,10 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
     match (f, g) {
+        // Served, its coaxial pose read here on the value's pose.
+        (S::Torus { .. }, S::Cone { .. }) | (S::Cone { .. }, S::Torus { .. }) => {
+            cone_torus(f, g, band, marched)
+        }
         _ if geom_brep::pair_section::serves(f.kind(), g.kind()) => {
             match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
@@ -761,10 +769,8 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
                 Err(e) => of_pair_section(&Err(e), band, marched),
             }
         }
-        (S::Torus { .. }, S::Plane { .. } | S::Cone { .. }) => torus_pair(f, g, reach, band),
-        (S::Plane { .. } | S::Cone { .. }, S::Torus { .. }) => {
-            swapped(torus_pair(g, f, reach, band))
-        }
+        (S::Torus { .. }, S::Plane { .. }) => torus_pair(f, g, band),
+        (S::Plane { .. }, S::Torus { .. }) => swapped(torus_pair(g, f, band)),
         (
             S::Cone { .. },
             S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
@@ -851,14 +857,9 @@ pub(super) fn of_listed<
     })
 }
 
-/// The torus arms the section value does not build: `t` is a torus, `p`
-/// a plane or a cone.
-fn torus_pair<T: Decide>(
-    t: &geom::Surface<T>,
-    p: &geom::Surface<T>,
-    reach: &Reach<T>,
-    band: Band,
-) -> Section<T> {
+/// The torus arm the section value does not build: `t` is a torus, `p`
+/// a plane.
+fn torus_pair<T: Decide>(t: &geom::Surface<T>, p: &geom::Surface<T>, band: Band) -> Section<T> {
     let &geom::Surface::Torus {
         frame: carrier_frame,
         major_radius: big_r,
@@ -872,7 +873,7 @@ fn torus_pair<T: Decide>(
     if geom::require_ring_torus(big_r, r, band).is_err() {
         return Section::Intractable;
     }
-    let a = axis.normalize();
+    let a = UnitVec3::squared(axis);
     match *p {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
@@ -885,62 +886,66 @@ fn torus_pair<T: Decide>(
                 band,
             )
         }
-        geom::Surface::Cone {
-            frame, half_angle, ..
-        } => {
-            let (apex, d) = (frame.origin(), frame.axis());
-            let d = d.normalize();
-            // `z` is read along the cone's axis from its own apex: the
-            // turn onto the torus axis moves it by the torus centre's
-            // station from the pivot times `1 − cos` (at most `sin²`),
-            // and by the offset's part along the tilted axis.
-            let turn = |t: &Turn<T>| (c - t.at).dot(a).abs() * t.tilt.powi(2) + t.offset * t.tilt;
-            match axis_pose(
-                geom::Line { origin: c, dir: a },
-                geom::Line {
-                    origin: apex,
-                    dir: d,
-                },
-                turn,
-                reach.ball(),
-                band,
-            ) {
-                AxisPose::Coaxial { slack, .. } => {
-                    // In the meridian half-plane about the apex, each
-                    // nappe's generator is a line through it at `α` from
-                    // the axis; the tube circle, centred `(R, z)`, lies in
-                    // `ρ > 0`, which only the nappe's own half of the line
-                    // reaches.
-                    let (s, co) = half_angle.sin_cos();
-                    let z = (c - apex).dot(d);
-                    match signs_across(
-                        [
-                            (
-                                "section_torus_coaxial_cone_near",
-                                "section_torus_coaxial_cone_near_floor",
-                                r - (big_r * co - z * s).abs(),
-                            ),
-                            (
-                                "section_torus_coaxial_cone_far",
-                                "section_torus_coaxial_cone_far_floor",
-                                r - (big_r * co + z * s).abs(),
-                            ),
-                        ],
-                        slack,
-                        band,
-                    ) {
-                        Ok([false, false]) => none(),
-                        Ok(_) => essential_pair(true, true),
-                        Err(tan) => tan.into(),
-                    }
-                }
-                AxisPose::Undecided(diag) => {
-                    Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
-                }
-                AxisPose::Parallel { .. } | AxisPose::Other => Section::Intractable,
-            }
-        }
         _ => Section::Intractable,
+    }
+}
+
+/// **Cone × torus**, read on the section value's pose
+/// ([`geom_brep::ConeTorusPose`]): the coaxial pose here in closed form,
+/// across the pose's own slack, every other one the section value's.
+fn cone_torus<T: crate::props::AtRestPolicy>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    band: Band,
+    marched: impl FnOnce(&geom_brep::PairSection<T>) -> Section<T>,
+) -> Section<T> {
+    let pose = match geom_brep::ConeTorusPose::decide(f, g, band) {
+        Some(Ok(pose)) => pose,
+        Some(Err(e)) => return of_pair_section(&Err(e.into()), band, marched),
+        None => unreachable!("`classify_known` routes a cone and a torus here alone"),
+    };
+    let geom_brep::KtStance::Coaxial { slack, .. } = pose.stance() else {
+        return of_pair_section(
+            &geom_brep::pair_section::cone_torus::cone_torus(pose),
+            band,
+            marched,
+        );
+    };
+    let (
+        &geom::Surface::Cone {
+            frame, half_angle, ..
+        },
+        ring,
+    ) = (pose.cone(), pose.ring())
+    else {
+        unreachable!("a cone × torus pose holds its cone as a cone")
+    };
+    let [big_r, r] = ring.radii();
+    // In the meridian half-plane about the apex, each nappe's generator
+    // is a line through it at `α` from the axis; the tube circle, centred
+    // `(R, z)`, lies in `ρ > 0`, which only the nappe's own half of the
+    // line reaches.
+    let (s, co) = half_angle.sin_cos();
+    let z = (ring.center() - frame.origin()).dot(frame.axis().normalize());
+    match signs_across(
+        [
+            (
+                "section_torus_coaxial_cone_near",
+                "section_torus_coaxial_cone_near_floor",
+                r - (big_r * co - z * s).abs(),
+            ),
+            (
+                "section_torus_coaxial_cone_far",
+                "section_torus_coaxial_cone_far_floor",
+                r - (big_r * co + z * s).abs(),
+            ),
+        ],
+        slack,
+        band,
+    ) {
+        Ok([false, false]) => none(),
+        Ok(_) => essential_pair(true, true),
+        Err(tan) => tan.into(),
     }
 }
 
@@ -955,8 +960,8 @@ fn torus_plane<T: Decide>(
 ) -> Section<T> {
     let geom::Line { origin: c, dir: a } = axis;
     let h = n.dot(p0 - c);
-    let na = n.dot(a);
-    let (s, in_pi) = meridian(c, a, n);
+    let na = n.dot(a.get());
+    let (s, in_pi) = meridian(c, a.get(), n);
     // In Π, with x along ê = n⊥/s and y along a: the tube circle T_σ is
     // centred (σR, 0), radius r, and the plane is the line
     // s·x + n_a·y = h, whose unit normal is (s, n_a); `d` is the
@@ -1058,7 +1063,7 @@ pub(super) fn torus_plane_loops<T: Decide>(
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let (a, n) = (axis.dir.normalize(), n.normalize());
+    let (a, n) = (axis.dir.get().normalize(), n.normalize());
     let (_, s) = perp_to(n, a);
     match plane_cut(big_r, r, n.dot(p0 - axis.origin), s, band) {
         PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
@@ -1112,7 +1117,7 @@ fn cone_pair<T: Decide>(
                 },
                 geom::Line {
                     origin,
-                    dir: d.normalize(),
+                    dir: UnitVec3::squared(d),
                 },
                 |_| T::zero(),
                 reach.ball(),
@@ -1129,7 +1134,7 @@ fn cone_pair<T: Decide>(
                     &cone,
                     geom::Line {
                         origin,
-                        dir: d.normalize(),
+                        dir: UnitVec3::squared(d),
                     },
                     rc,
                     reach,
@@ -1149,7 +1154,7 @@ fn cone_pair<T: Decide>(
                 },
                 geom::Line {
                     origin: apex2,
-                    dir: d.normalize(),
+                    dir: UnitVec3::squared(d),
                 },
                 // The apexes' gap is read off `apex2` itself, which the turn
                 // onto the first axis moves along it by its station from the
@@ -1169,7 +1174,7 @@ fn cone_pair<T: Decide>(
                     [(
                         "section_cone_coaxial_apexes",
                         "section_cone_coaxial_apexes_floor",
-                        (apex2 - apex).dot(cone.a).abs(),
+                        (apex2 - apex).dot(cone.a.get()).abs(),
                     )],
                     slack,
                     band,
@@ -1200,7 +1205,7 @@ fn cone_pair<T: Decide>(
 /// `(sin α, cos α)`, and the unit seam direction square to the axis.
 struct Cone<T: Real> {
     apex: Point3<T>,
-    a: Vec3<T>,
+    a: UnitVec3<T>,
     alpha: T,
     sc: (T, T),
     u_ref: Vec3<T>,
@@ -1211,7 +1216,10 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
         let frame = geom::Frame::new(apex, axis, u_ref).square();
         Self {
             apex,
-            a: frame.axis,
+            // The square frame's axis, `a/|a|` (`Frame::square`): a
+            // normalization, so in interval arithmetic it encloses the
+            // unit axis.
+            a: UnitVec3::checked(frame.axis),
             alpha,
             sc: alpha.sin_cos(),
             u_ref: frame.u_ref,
@@ -1222,7 +1230,7 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
     /// `r` (unit, `⊥ a`): `t > 0` along it is the `v > 0` nappe.
     fn generator(&self, r: Vec3<T>) -> Vec3<T> {
         let (s, c) = self.sc;
-        self.a * c + r * s
+        self.a.get() * c + r * s
     }
 
     /// A point's signed distance from the double carrier, in metres.
@@ -1248,7 +1256,11 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
         ruling::Chart {
             base: self.apex,
             offset: ruling::Swing::fixed(zero),
-            dir: ruling::Swing::round([self.a * c, self.u_ref * s, self.a.cross(self.u_ref) * s]),
+            dir: ruling::Swing::round([
+                self.a.get() * c,
+                self.u_ref * s,
+                self.a.get().cross(self.u_ref) * s,
+            ]),
             reach_speed: lever * s,
             lever: lever + lever,
         }
@@ -1309,7 +1321,7 @@ fn cone_cylinder<T: Decide>(
 ) -> Section<T> {
     let geom::Line { origin: o, dir: d } = wall;
     let (_, c) = cone.sc;
-    let (off, dist) = perp_to(cone.apex - o, d);
+    let (off, dist) = perp_to(cone.apex - o, d.get());
     let foot = cone.apex - off;
     let lever = reach.lever_from(cone.apex).length();
     if let Err(tan) = signs_as([("section_cone_cylinder_apex", dist - rc)], band) {
@@ -1318,7 +1330,7 @@ fn cone_cylinder<T: Decide>(
     match sign_as(
         "section_cone_cylinder_aperture",
         Margin::levered(
-            d.dot(cone.a).abs() - c,
+            d.get().dot(cone.a.get()).abs() - c,
             reach.ball().twice_lever_from(cone.apex),
         ),
         band,
@@ -1334,7 +1346,7 @@ fn cone_cylinder<T: Decide>(
     let wall = ruling::Chart {
         base: foot,
         offset: ruling::Swing::round([zero, f1 * rc, f2 * rc]),
-        dir: ruling::Swing::fixed(d),
+        dir: ruling::Swing::fixed(d.get()),
         reach_speed: rc,
         lever: lever + lever,
     };
@@ -1393,7 +1405,8 @@ fn cone_cone<T: Decide>(
         let lever = reach.lever_from(one.apex).max(reach.lever_from(two.apex));
         let mut lines = 0;
         for a2 in [two.a, -two.a] {
-            let m = geom_brep::cone_cone_apex_meeting((one.a, one.sc.1), (a2, two.sc.1));
+            let m =
+                geom_brep::cone_cone_apex_meeting((one.a.get(), one.sc.1), (a2.get(), two.sc.1));
             match sign_as(RULINGS, Margin::levered(m.disc, lever), band) {
                 Some(Sign::Positive) => lines += 2,
                 Some(Sign::Negative) => {}
@@ -1456,7 +1469,7 @@ fn cone_plane_pair<T: Decide>(
     band: Band,
 ) -> Section<T> {
     let delta = one.apex - two.apex;
-    let w = one.a * one.a.dot(delta) - delta * one.sc.1.powi(2);
+    let w = one.a.get() * one.a.get().dot(delta) - delta * one.sc.1.powi(2);
     let mid = two.apex + delta * T::from_f64(0.5);
     match cone_plane(one, mid, w.normalize(), reach, band) {
         Section::Components { parts, single } => Section::Components {
@@ -1499,7 +1512,7 @@ fn cone_plane<T: Decide>(
 ) -> Section<T> {
     let (s, _) = cone.sc;
     let lever = reach.ball().lever_from_point_and_plane(cone.apex, (p0, n));
-    let na = n.dot(cone.a);
+    let na = n.dot(cone.a.get());
     match sign_as(
         "section_cone_plane_aperture",
         Margin::levered(na.abs() - s, lever),
@@ -1535,7 +1548,7 @@ fn cone_plane<T: Decide>(
                 Some(Sign::Negative) => -n,
                 _ => return Section::Tangent("section_cone_plane_facing"),
             };
-            let (across, width) = perp_to(facing, cone.a);
+            let (across, width) = perp_to(facing, cone.a.get());
             let r = match sign_as(
                 "section_cone_plane_meridian",
                 Margin::levered(width, lever),
@@ -1585,7 +1598,7 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         Ok([out]) => out,
         Err(tan) => return tan.into(),
     };
-    let (across, offset) = perp_to(delta, cone.a);
+    let (across, offset) = perp_to(delta, cone.a.get());
     let r = match sign_as("section_cone_sphere_axis", Margin::of(offset), band) {
         Some(Sign::Positive) => across / offset,
         Some(Sign::Zero) => cone.u_ref,
@@ -1683,7 +1696,8 @@ fn cone_parallel_cylinder<T: Decide>(
     };
     let foot = cone.apex + toward * (e - rc);
     let h = (e - rc).abs() * c / s;
-    let part = |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a * h));
+    let part =
+        |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a.get() * h));
     Section::Components {
         parts: vec![part(h), part(-h)],
         single: false,

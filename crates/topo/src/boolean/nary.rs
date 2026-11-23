@@ -1134,7 +1134,9 @@ fn sides<T: Real>(v: &PairVerdict<T>, member: usize) -> Option<(MemberFace, Face
 /// # Errors
 ///
 /// [`NaryRefusal::VerdictsDisagree`] where two verdicts glue one pair
-/// under two relations.
+/// under two relations; [`NaryRefusal::Step`] with
+/// [`BooleanError::TangencyUnsupported`] where a rim junction would be
+/// given through a face the accumulation holds turned.
 fn given_pairs<T: Real>(
     op: NaryOp,
     verdicts: &[PairVerdict<T>],
@@ -1153,9 +1155,15 @@ fn given_pairs<T: Real>(
                 continue;
             }
             // A verdict read through a face the accumulation holds turned
-            // has its senses reversed ([`NaryOp::holds_turned`]).
+            // has its senses reversed ([`NaryOp::holds_turned`]). A rim
+            // junction has no reversed reading, so the step that would be
+            // given one through a turned face refuses it, typed, rather
+            // than glue a junction its own door would not.
             let decision = if op.holds_turned(at.0) {
-                v.decision.reversed()
+                v.decision.reversed().ok_or_else(|| NaryRefusal::Step {
+                    member,
+                    error: Box::new(BooleanError::TangencyUnsupported),
+                })?
             } else {
                 v.decision
             };
