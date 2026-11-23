@@ -1198,8 +1198,9 @@ pub(crate) fn analytic_root<T: Decide>(
 /// the wall. Poison for a net with a non-finite point, which the SSI
 /// domain's check refuses.
 fn net_reach_from(wall: &NurbsSurface<f64>, at: Point3<f64>) -> f64 {
-    geom::cover::Cover::net(wall.control().to_vec())
-        .map_or(f64::NAN, |net| net.distance_range(&geom::cover::Site::Point(at)).1)
+    geom::cover::Cover::net(wall.control().to_vec()).map_or(f64::NAN, |net| {
+        net.distance_range(&geom::cover::Site::Point(at)).1
+    })
 }
 
 /// Newton's fixed step count on an analytic root: quadratic from a seed
@@ -1823,7 +1824,7 @@ mod square {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod regions {
-    use super::{SectionVerdict, Wall, plane_wall_section, wall_row};
+    use super::{SectionVerdict, Wall, net_reach_from, plane_wall_section, wall_row};
     use geom::{Curve3, NurbsSurface, Surface};
     use geom_brep::ssi::ChartAxis;
     use geom_core::spline::KnotVector;
@@ -1851,6 +1852,27 @@ mod regions {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("the witness band")
+    }
+
+    /// **A wall's reach from a point is its control net's far corner**:
+    /// the level net over `[0, 1]²` stands `√2` from the origin at its
+    /// corner `(1, 1, 0)`, and `√1.25` from `(0.5, 0, 0)`. Red against the
+    /// slab read as twice the reach plus a lever, and against a reach
+    /// read from the net's own centre.
+    #[test]
+    fn a_walls_reach_is_its_nets_far_corner() {
+        let wall = net(&|_, _| 0.0);
+        let close = |got: f64, want: f64| (got - want).abs() <= 1e-12;
+        let from_origin = net_reach_from(&wall, Point3::origin());
+        assert!(
+            close(from_origin, 2f64.sqrt()),
+            "from the origin: {from_origin}"
+        );
+        let from_edge = net_reach_from(&wall, Point3::new(0.5, 0.0, 0.0));
+        assert!(
+            close(from_edge, 1.25f64.sqrt()),
+            "from the edge: {from_edge}"
+        );
     }
 
     /// **A plane holding a wall's boundary row is that row.** The wall

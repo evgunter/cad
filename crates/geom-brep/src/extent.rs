@@ -2176,6 +2176,34 @@ mod geometry_door_rows {
         Reach::Region(Cover::segment(a, b).expect("a segment's cover"))
     }
 
+    /// **A point's stand-off is read from the ball's own centre and
+    /// radius**: the ball of radius 2 about `(1, 0, 0)` holds `(2, 0, 0)`
+    /// a unit inside its surface and leaves `(1, 5, 0)` 3 outside it. Red
+    /// against the stand-off read from the origin (`2 − 2 = 0`, and
+    /// `√26 − 2`), and against the radius added rather than taken away.
+    #[test]
+    fn a_points_stand_off_is_read_from_the_balls_centre() {
+        let ball = ExtentBall::new(Point3::new(1.0, 0.0, 0.0), 2.0);
+        assert_eq!(ball.stand_off(Point3::new(2.0, 0.0, 0.0)), -1.0, "inside");
+        assert_eq!(ball.stand_off(Point3::new(1.0, 5.0, 0.0)), 3.0, "outside");
+    }
+
+    /// **A line's run toward the ball is centred on its closest
+    /// approach**: the line through `(−10, 3, 0)` along `x` passes
+    /// closest to the centre `(4, 0, 0)` at `t = 14`, and a radius of 5
+    /// reaches 5 either way of it. Red against a run centred on the
+    /// line's origin (`(−5, 5)`), and against one read about the line's
+    /// distance from the centre rather than its foot.
+    #[test]
+    fn a_lines_run_toward_the_ball_is_centred_on_its_closest_approach() {
+        let ball = ExtentBall::new(Point3::new(4.0, 0.0, 0.0), 5.0);
+        let line = Line {
+            origin: Point3::new(-10.0, 3.0, 0.0),
+            dir: UnitVec3::exact_x(),
+        };
+        assert_eq!(ball.run_on(&line), (9.0, 19.0));
+    }
+
     /// **A ball's lever from two pivots is its reach from the farther**,
     /// whichever is named first: the unit ball about the origin stands 4
     /// from `(3, 0, 0)` and 6 from `(0, 5, 0)`. Red against the reach from
