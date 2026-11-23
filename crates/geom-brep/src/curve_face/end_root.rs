@@ -158,15 +158,14 @@ fn pow<T: Real>(s: T, j: usize) -> T {
 
 /// The carrier from the end: its homogeneous point `X/W` as polynomials
 /// in the local parameter, the local length the window starts from,
-/// whether that run reaches the span's far end, the local parameter's
-/// top speed in metres, and the map back to the carrier's parameter.
+/// whether that run reaches the span's far end, and the map back to the
+/// carrier's parameter.
 struct Local<T: Real> {
     x: [Poly<T>; 3],
     w: Poly<T>,
     run: T,
     covers: bool,
-    t_far: T,
-    speed: T,
+    t_other: T,
     kind: LocalKind,
     t_end: T,
     toward: T,
@@ -178,7 +177,18 @@ enum LocalKind {
     HalfAngle,
 }
 
-impl<T: Real> Local<T> {
+impl<T: Decide> Local<T> {
+    /// The local parameter's top speed in metres: the carrier's own
+    /// ([`geom::carrier_speed::speed_hi`]), twice it on a half angle,
+    /// whose `dφ/dτ = 2/(1 + τ²)` is at most two.
+    fn speed(&self, carrier: &Curve3<T>) -> Option<T> {
+        let top = geom::carrier_speed::speed_hi(carrier)?;
+        Some(match self.kind {
+            LocalKind::Line => top,
+            LocalKind::HalfAngle => top * T::from_f64(2.0),
+        })
+    }
+
     fn param(&self, s: T) -> T {
         match self.kind {
             LocalKind::Line => self.t_end + self.toward * s,
@@ -188,11 +198,11 @@ impl<T: Real> Local<T> {
 }
 
 fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Option<Local<T>> {
-    let (t_end, t_far, toward) = match end {
+    let (t_end, t_other, toward) = match end {
         SpanEnd::Start => (t0, t1, T::one()),
         SpanEnd::End => (t1, t0, -T::one()),
     };
-    let span = (t_far - t_end).abs();
+    let span = (t_other - t_end).abs();
     match carrier {
         Curve3::Line(line) => {
             let p = line.origin + line.dir * t_end;
@@ -202,8 +212,7 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
                 w: vec![T::one()],
                 run: span,
                 covers: true,
-                t_far,
-                speed: line.dir.norm(),
+                t_other,
                 kind: LocalKind::Line,
                 t_end,
                 toward,
@@ -236,8 +245,7 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
                 w,
                 run: (turned / two).tan(),
                 covers,
-                t_far,
-                speed: two * r,
+                t_other,
                 kind: LocalKind::HalfAngle,
                 t_end,
                 toward,
@@ -330,6 +338,7 @@ pub fn end_window<T: Decide>(
     band: Band,
 ) -> Result<EndWindow<T>, EndRootRefusal> {
     let local = local(carrier, span, end).ok_or(EndRootRefusal::NoLane)?;
+    let speed = local.speed(carrier).ok_or(EndRootRefusal::NoLane)?;
     let (n, g) = composite(surface, &local).ok_or(EndRootRefusal::NoLane)?;
     let run = local.run;
     // The order: the least `j ≥ 1` decided nonzero. A Zero is charged at
@@ -392,7 +401,11 @@ pub fn end_window<T: Decide>(
         // The window is the whole span exactly when its run is the span's
         // own, unhalved: its far end is then the span's other end.
         let whole = unhalved && local.covers;
-        let at = if whole { local.t_far } else { local.param(s_w) };
+        let at = if whole {
+            local.t_other
+        } else {
+            local.param(s_w)
+        };
         let far: Point3<T> = carrier.eval(at);
         match decide(
             END_ROOT_WINDOW_CLEAR,
@@ -404,7 +417,7 @@ pub fn end_window<T: Decide>(
                 // excess is proven positive at.
                 let (mut lo, mut hi) = (T::zero(), s_w);
                 for _ in 0..HALVINGS {
-                    let mid = (lo + hi) * T::from_f64(0.5);
+                    let mid = geom_core::mid_param(lo, hi);
                     if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(mid)))
                         == Ok(Sign::Positive)
                     {
@@ -417,7 +430,7 @@ pub fn end_window<T: Decide>(
                     at,
                     whole,
                     order: u32::try_from(m).unwrap_or(u32::MAX),
-                    spread: hi * local.speed,
+                    spread: hi * speed,
                 });
             }
             Ok(Sign::Zero) => {}

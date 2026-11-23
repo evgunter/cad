@@ -2328,16 +2328,16 @@ fn junction_end_window<T: Decide>(
         SpanEnd::End => (q.span.1, -T::one()),
     };
     let (_, d) = q.carrier.ders1(t_end);
-    let along = d * toward / d.norm();
+    let along = (d * toward).normalize();
     let rim_tangent = q.rim.axis.cross(q.p - q.rim.center);
     let ridden = match q.rides {
-        Sign::Positive => rim_tangent / rim_tangent.norm(),
-        Sign::Negative => -rim_tangent / rim_tangent.norm(),
+        Sign::Positive => rim_tangent.normalize(),
+        Sign::Negative => -rim_tangent.normalize(),
         // A ride along no direction names no side.
         Sign::Zero => return Err(no_window),
     };
     let conormal = q.normal.cross(ridden);
-    let departure = along.dot(conormal / conormal.norm());
+    let departure = along.dot(conormal.normalize());
     match junction_side(
         departure,
         (bend_e, T::one() / q.rim.radius),
