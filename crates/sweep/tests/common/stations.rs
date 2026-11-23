@@ -68,9 +68,10 @@ pub fn cut_stations(
 /// different surfaces. Curved carriers included, which
 /// `topo::joinable_vertices` does not yet read
 /// (`curved-joinable-vertices-are-left-unjoined` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`)). Two
-/// faces on ONE surface at such a vertex are a full revolve's two
-/// π-bands meeting at a pole, which keeps valence 2 by construction:
-/// a curved join that row owns, not a station.
+/// faces on ONE surface at such a vertex are two branches of one chart
+/// meeting at a pole (an imported two-half sphere, or a cap cut along a
+/// meridian), which keeps valence 2 by construction: a curved join that
+/// row owns, not a station.
 pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
     let carrier = |e: EdgeKey| {
         let curve = body.get_edge(e).unwrap().curve;
