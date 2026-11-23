@@ -659,17 +659,15 @@ fn iso_side_starts(
 /// curved lane refuses one that reaches it otherwise
 /// (`curved::PINCHED_FACE_ROUTED_HERE`).
 pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateError> {
-    topo::loop_points::loop_pinches(body, lk).map_err(|unresolved| TessellateError::MissingEntity {
-        what: match unresolved.entity() {
-            topo::EntityId::Solid(_) => "solid",
-            topo::EntityId::Shell(_) => "shell",
-            topo::EntityId::Face(_) => "face",
-            topo::EntityId::Loop(_) => "loop",
-            topo::EntityId::HalfEdge(_) => "half-edge",
-            topo::EntityId::Edge(_) => "edge",
-            topo::EntityId::Vertex(_) => "vertex",
-        },
-    })
+    match body.cycle_loop(lk) {
+        Ok(lp) => Ok(topo::loop_points::loop_pinches(lp)),
+        // A lone vertex has no corners, so passes no point twice.
+        Err(topo::NoCycle::Lone(_)) => Ok(false),
+        Err(topo::NoCycle::Stale) => Err(TessellateError::MissingEntity { what: "loop" }),
+        Err(topo::NoCycle::Torn) => Err(TessellateError::MissingEntity {
+            what: "a loop that does not walk",
+        }),
+    }
 }
 
 /// **Whether a straight side of face `fk`'s outer loop holds a point

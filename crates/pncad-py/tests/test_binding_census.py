@@ -3982,6 +3982,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::Dangling": "ReadbackError.variant",
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
+    "ReadbackError::PendingSurface": "ReadbackError.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
     # are separate here (`ResolveError`/`ResolveIndeterminate` in

@@ -52,6 +52,7 @@
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
+mod euler_cube_support;
 mod mate2_common;
 mod revolve_common;
 mod seam_region_common;

@@ -6,8 +6,7 @@
 //! face, refuses `BodyNotIntact { breach: Scaffolding }` at that face for
 //! fillet and chamfer alike; the bottom edges, which end on planes, read.
 #![allow(clippy::unwrap_used, clippy::panic)]
-#[path = "euler_cube_support/cube.rs"]
-mod cube;
+use crate::euler_cube_support as cube;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::blend::battery::{BlendRequest, run_battery_for};
 use sweep::blend::{BlendError, BlendKind, Breach};

@@ -18,7 +18,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, EdgeView, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
@@ -347,9 +347,9 @@ fn face_cover_in<T: Decide>(
         return Err(FaceUncovered::pending());
     };
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    // A lone-vertex outer loop bounds nothing: a ruled face holds no
-    // hull of it.
-    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
+    // A face with no outline bounds no region: no hull of its boundary
+    // holds it, and its carrier's cover is the one that does.
+    let bounded = f.area_loops().is_ok();
     match surface {
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
             carrier
@@ -672,7 +672,7 @@ pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 /// axis, reads its latitude zone.
 ///
 /// `face` resolved to `f` in the caller, so its outer loop and that
-/// loop's members are links ([`Body::loop_members_linked`]), and a
+/// loop's members are links ([`FaceView::area_loops`]), and a
 /// record the flattening of that loop names is one too: a flattening
 /// that refuses past a cycle loop is a torn body and panics
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
@@ -693,14 +693,10 @@ fn sphere_window<T: Decide>(
     if !radius.structure_positive() {
         return None;
     }
-    let (outer, outer_loop) = f.outer();
-    if matches!(
-        body.loop_members_linked(outer, outer_loop).as_slice(),
-        [BoundaryMember::Isolated { .. }]
-    ) {
+    let Ok(area) = f.area_loops() else {
         return None;
-    }
-    let outer = match crate::props::chart_image_edges(body, outer) {
+    };
+    let outer = match crate::props::chart_image_edges(area.outer()) {
         Ok((outer, _)) if outer.is_empty() => return None,
         Ok((outer, _)) => outer,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,

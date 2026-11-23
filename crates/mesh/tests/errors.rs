@@ -62,14 +62,16 @@ fn infinite_delta_is_refused() {
 }
 
 #[test]
-fn a_pending_face_is_refused() {
-    // The mvfs seed face's surface is still pending — tessellation
-    // refuses it typed.
+fn an_mvfs_seed_face_is_refused() {
+    // The mvfs seed face's surface is still pending (and its outer loop
+    // is one vertex). The pending slot is refused at the one door the
+    // tessellator reads a surface through, before the domain is read.
     let mut body = topo::Body::<f64>::new();
-    body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+    let seed = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap();
     match tessellate(&body, 0.1, Tol::witness()) {
-        Err(TessellateError::UnsupportedSurface { .. }) => {}
+        Err(TessellateError::UnsupportedSurface { face }) => assert_eq!(face, seed.face),
         other => panic!("expected UnsupportedSurface, got {:?}", other.map(|_| ())),
     }
 }
@@ -616,11 +618,6 @@ fn each_domain_unread_cause_has_its_own_sentence_and_word() {
             "ring_open",
             "a ring of it does not close",
         ),
-        (
-            R::RingEmpty { ring },
-            "ring_empty",
-            "a ring of it is one vertex",
-        ),
         (R::OuterEmpty, "outer_empty", "its outer loop is one vertex"),
         (R::NoShift { ring }, "no_shift", "no whole number"),
         (R::Shifts { ring }, "shifts", "more than one whole number"),
@@ -651,16 +648,15 @@ fn each_domain_unread_cause_has_its_own_sentence_and_word() {
         R::OuterOpen { .. } => 1,
         R::RingOpen { .. } => 2,
         R::OuterEmpty => 3,
-        R::RingEmpty { .. } => 4,
-        R::NoShift { .. } => 5,
-        R::Shifts { .. } => 6,
-        R::Copies { .. } => 7,
-        R::Undecided { .. } => 8,
-        R::SplineTrimUnread { .. } => 9,
+        R::NoShift { .. } => 4,
+        R::Shifts { .. } => 5,
+        R::Copies { .. } => 6,
+        R::Undecided { .. } => 7,
+        R::SplineTrimUnread { .. } => 8,
     };
     let mut numbered: Vec<usize> = cases.iter().map(|(c, _, _)| variant(c)).collect();
     numbered.sort_unstable();
-    assert_eq!(numbered, (0..10).collect::<Vec<_>>(), "one case per cause");
+    assert_eq!(numbered, (0..9).collect::<Vec<_>>(), "one case per cause");
     let mut sentences = Vec::new();
     for (cause, word, says) in cases {
         let text = TessellateError::DomainUnread {

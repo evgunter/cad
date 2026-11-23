@@ -238,6 +238,11 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             face: crate::FaceKey::default(),
         },
         ChartRegionError::Corrupt,
+        ChartRegionError::NoOutline(crate::NoOutline {
+            face: FaceKey::default(),
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
     ];
     v.push(ChartRegionError::ChartDivergence {
         detail: "two descriptions that do not read bit-identical — no one chart holds both",
@@ -1065,6 +1070,11 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         MassPropsError::PendingFace {
             face: FaceKey::default(),
         },
+        MassPropsError::NoOutline(crate::NoOutline {
+            face,
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
         MassPropsError::ResolutionFinerThanEps {
             resolution: 1e-10,
             eps: 1e-9,

@@ -773,7 +773,8 @@ fn true_reach(body: &topo::Body<f64>) -> (f64, usize) {
     let (mut best, mut circles) = (0.0_f64, 0usize);
     for (fk, _) in body.faces() {
         for (lk, _, _) in body.face(fk).expect("a live face").loops() {
-            let (edges, _) = topo::props::loop_edges(body, lk).expect("the loop walks");
+            let (edges, _) = topo::props::loop_edges(body.cycle_loop(lk).expect("a cycle loop"))
+                .expect("the loop walks");
             for e in &edges {
                 match &e.carrier {
                     geom::Curve3::Line(_) => {

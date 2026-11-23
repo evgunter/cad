@@ -1291,7 +1291,9 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
                     && surface.kind() == SurfaceKind::Sphere
                     && geom_brep::props::require_iso_rectangle(
                         surface,
-                        &topo::props::loop_edges(&cut, f.outer).expect("a loop").0,
+                        &topo::props::loop_edges(cut.cycle_loop(f.outer).expect("a cycle loop"))
+                            .expect("a loop")
+                            .0,
                         band,
                     ) == Err(geom_brep::props::PropsError::NotIsoRectangle {
                         what: "props_rim_level",

@@ -2,8 +2,7 @@
 //! Euler cube whose six faces are all pending is refused
 //! `UnsupportedSurface` at its first face, and the text says pending.
 #![allow(clippy::unwrap_used, clippy::panic)]
-#[path = "euler_cube_support/cube.rs"]
-mod cube;
+use crate::euler_cube_support as cube;
 
 #[test]
 fn a_pending_face_is_refused_before_meshing() {
