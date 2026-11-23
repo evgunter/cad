@@ -3537,8 +3537,9 @@ pub fn march_cone_torus(
 
 /// **A cone against an oblique cylinder, another cone or a sphere** —
 /// the ℝ³ implicit-pair arm, as [`sphere_torus_ssi`]: the pose decided
-/// once ([`crate::pair_section::ConeRuledPose`], over the ball about `domain`'s cube
-/// for a cylinder or cone partner, the sphere's own for a sphere), its
+/// once ([`crate::pair_section::ConeRuledPose`], over `region` for a cylinder or
+/// cone partner, which the caller holds as the operation's, the sphere's
+/// own ball for a sphere), its
 /// section classified to read the tangency (the sphere's closed form, or
 /// the ruling sweep's double root), and the march over `domain` past a
 /// transverse pose whose apex is clear of the partner. No production
@@ -3557,6 +3558,7 @@ pub fn march_cone_torus(
 pub fn cone_ruled_ssi(
     a: &Surface<f64>,
     b: &Surface<f64>,
+    region: crate::ExtentBall<f64>,
     domain: SsiDomain,
     band: Band,
 ) -> Result<SsiOutcome, SsiError> {
@@ -3565,12 +3567,7 @@ pub fn cone_ruled_ssi(
         expected: "a cone against a cylinder, a cone or a sphere in ℝ³ on their implicit pair",
     };
     checked([("first operand", a), ("second operand", b)], domain)?;
-    let h = domain.half_extent;
-    let ball = crate::ExtentBall::of_box(
-        domain.center - geom_core::Vec3::new(h, h, h),
-        domain.center + geom_core::Vec3::new(h, h, h),
-    );
-    let read = ConeRuledPose::decide(a, b, ball, band)
+    let read = ConeRuledPose::decide(a, b, region, band)
         .or_else(|| ConeRuledPose::decide_sphere(a, b, band))
         .ok_or_else(wrong)?
         .map_err(SsiError::of_cone_section)?;

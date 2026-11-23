@@ -297,7 +297,9 @@ impl<T: Decide> ConeRuledPose<T> {
 
     /// **Decides the pose of a cone and a sphere**, `a` and `b` in either
     /// order (module docs), over the ball the sweep reads a sphere's
-    /// section against ([`sweep_ball`]). `None` for any other pair.
+    /// section against (`CylinderSpherePose::sweep_ball`'s: every meeting
+    /// lies on the sphere, the boundary of its own ball, where no leaf
+    /// decides a side, so its ball is padded). `None` for any other pair.
     ///
     /// # Errors
     ///
@@ -309,12 +311,13 @@ impl<T: Decide> ConeRuledPose<T> {
         b: &Surface<T>,
         band: Band,
     ) -> Option<Result<ConeRead<T>, SectionError>> {
-        let sphere = match (a, b) {
-            (Surface::Cone { .. }, Surface::Sphere { .. }) => b,
-            (Surface::Sphere { .. }, Surface::Cone { .. }) => a,
+        let (sphere, radius) = match (a, b) {
+            (Surface::Cone { .. }, &Surface::Sphere { radius, .. }) => (b, radius),
+            (&Surface::Sphere { radius, .. }, Surface::Cone { .. }) => (a, radius),
             _ => return None,
         };
-        Some(Self::decide_read(a, b, sweep_ball(sphere, band), band))
+        let ball = super::sphere_sweep_ball(sphere, radius, band);
+        Some(Self::decide_read(a, b, ball, band))
     }
 
     fn decide_read(
@@ -400,7 +403,7 @@ impl<T: Decide> ConeRuledPose<T> {
         let w = c - cone.apex;
         let h = w.dot(cone.axis);
         let across = w - cone.axis * h;
-        let rho = across.norm();
+        let (out, rho) = across.direction_and_length();
         if read(ConeDecision::SphereOnAxis, Margin::of(rho), band)?.sign == Sign::Zero {
             return Ok(None);
         }
@@ -414,7 +417,6 @@ impl<T: Decide> ConeRuledPose<T> {
             return Ok(Some((ruled, apex, None)));
         }
         let (s, co) = cone.sc;
-        let out = across * (T::one() / rho);
         let mut touch = None;
         for side in [T::one(), T::zero() - T::one()] {
             // The line `apex + t·v`, `v = cos α·â ± sin α·ê`, at distance
@@ -722,23 +724,6 @@ impl<T: Real> RuledCone<T> {
 /// A cone's rulings against a sphere, the apex margin, and the tangency's
 /// `Zero` margin and touch point.
 type SphereRead<T> = (RuledCone<T>, Decided, Option<(MarginDiag, Point3<T>)>);
-
-/// **The ball the ruling sweep reads a sphere's section against**: the
-/// sphere's cover's ball widened by `max(R, 64·escalate)`, as for a
-/// cylinder against a sphere ([`super::CylinderSpherePose`]'s
-/// `sweep_ball`): every meeting lies on the sphere, the boundary of its
-/// own ball, where no leaf decides a side, and stands well inside this
-/// one, so no component is cut.
-fn sweep_ball<T: Decide>(sphere: &Surface<T>, band: Band) -> ExtentBall<T> {
-    let &Surface::Sphere { radius, .. } = sphere else {
-        unreachable!("a sphere's sweep ball")
-    };
-    let pad = radius.max(T::from_f64(64.0 * band.escalate()));
-    sphere.cover().map_or_else(
-        |_| ExtentBall::of_covered(None),
-        |cover| ExtentBall::of_cover_within(&cover, pad),
-    )
-}
 
 /// **The section of a cone pair's pose** (module docs).
 ///

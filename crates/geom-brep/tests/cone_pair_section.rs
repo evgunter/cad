@@ -1272,7 +1272,7 @@ fn a_ball_touching_a_generator_is_decided_tangent() {
                 point.witness
             );
             assert!(matches!(
-                ssi::cone_ruled_ssi(a, b, domain(), band()),
+                ssi::cone_ruled_ssi(a, b, region(), domain(), band()),
                 Err(SsiError::PairTangent {
                     pair: ssi::TangentPair::ConeRuled,
                     ..
@@ -1322,7 +1322,7 @@ fn a_ball_through_the_apex_crossing_it_is_a_node() {
         "the ball's outward normal, −x"
     );
     assert!(matches!(
-        ssi::cone_ruled_ssi(&unit_cone(), &ball, domain(), band()),
+        ssi::cone_ruled_ssi(&unit_cone(), &ball, region(), domain(), band()),
         Err(SsiError::UnsupportedCertificate { .. })
     ));
 }
@@ -1368,6 +1368,7 @@ fn a_ball_on_the_axis_is_read_elsewhere() {
         ssi::cone_ruled_ssi(
             &unit_cone(),
             &sphere(p(0.0, 0.0, 1.5), 0.5),
+            region(),
             domain(),
             band()
         ),
@@ -1399,8 +1400,12 @@ fn carried_on_both(what: &str, section: &PairSection<f64>) -> CarriedSection<f64
         .carry(Some(SsiLane::marched()), band())
         .unwrap_or_else(|e| panic!("{what}: the carry refused: {e:?}"));
     let listed = section.counted().unwrap();
-    assert_eq!(carried.components.len(), listed.len(), "{what}: one to one");
-    for (c, l) in carried.components.iter().zip(listed) {
+    assert_eq!(
+        carried.components().len(),
+        listed.len(),
+        "{what}: one to one"
+    );
+    for (c, l) in carried.components().iter().zip(listed) {
         assert_eq!(c.shape, l.shape, "{what}: the listed shape");
         let (t0, t1) = c.span;
         for k in 0..=32 {
@@ -1464,7 +1469,7 @@ fn a_cone_pairs_components_are_carried_on_both_surfaces() {
             let section = built(a, b, region);
             assert_eq!(section.counted().unwrap().len(), count, "{what}: the count");
             let carried = carried_on_both(what, &section);
-            for (c, l) in carried.components.iter().zip(section.counted().unwrap()) {
+            for (c, l) in carried.components().iter().zip(section.counted().unwrap()) {
                 if let Some(ends) = l.cut_ends {
                     let (t0, t1) = c.span;
                     let got = [c.carrier.eval(t0), c.carrier.eval(t1)];

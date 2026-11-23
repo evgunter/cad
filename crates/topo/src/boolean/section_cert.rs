@@ -759,12 +759,14 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
         (S::Torus { .. }, S::Cone { .. }) | (S::Cone { .. }, S::Torus { .. }) => {
             cone_torus(f, g, band, marched)
         }
-        // Served by the value, which the join carries; the certificate
-        // still reads them on its own classifier.
-        (S::Cone { .. }, S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. }) => {
-            cone_pair(f, g, reach, band)
-        }
-        (S::Sphere { .. } | S::Cylinder { .. }, S::Cone { .. }) => {
+        // A cone against a plane, a sphere, a cylinder or a cone: the
+        // value serves all but the plane and the join carries them, and
+        // the certificate still reads them on its own classifier.
+        (
+            S::Cone { .. },
+            S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
+        ) => cone_pair(f, g, reach, band),
+        (S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. }, S::Cone { .. }) => {
             swapped(cone_pair(g, f, reach, band))
         }
         _ if geom_brep::pair_section::serves(f.kind(), g.kind()) => {
@@ -778,8 +780,6 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
         }
         (S::Torus { .. }, S::Plane { .. }) => torus_pair(f, g, band),
         (S::Plane { .. }, S::Torus { .. }) => swapped(torus_pair(g, f, band)),
-        (S::Cone { .. }, S::Plane { .. }) => cone_pair(f, g, reach, band),
-        (S::Plane { .. }, S::Cone { .. }) => swapped(cone_pair(g, f, reach, band)),
         (
             S::Nurbs(_) | S::Approx(_),
             S::Plane { .. } | S::Cylinder { .. } | S::Sphere { .. } | S::Torus { .. },

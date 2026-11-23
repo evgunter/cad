@@ -465,13 +465,10 @@ impl<T: Decide> CylinderSpherePose<T> {
     /// still has room many bands past the band. A cell's two ends then
     /// always read inside, so a sheet is never cut, and the sweep's
     /// reading of a sheet's monotonicity and velocity can answer nothing
-    /// but inside: neither enters this pair's count.
+    /// but inside: neither enters this pair's count. A cone's rulings
+    /// against a sphere read the same ball ([`sphere_sweep_ball`]).
     pub(crate) fn sweep_ball(&self, band: Band) -> ExtentBall<T> {
-        let pad = self.big_r.max(T::from_f64(64.0 * band.escalate()));
-        self.sphere.cover().map_or_else(
-            |_| ExtentBall::of_covered(None),
-            |sphere| ExtentBall::of_cover_within(&sphere, pad),
-        )
+        sphere_sweep_ball(&self.sphere, self.big_r, band)
     }
 
     /// **The cylinder's rulings against the sphere**
@@ -1375,6 +1372,21 @@ impl PairPose<f64> {
 /// lists, read against the region.
 pub(crate) fn covered_ball<T: Decide>(whole: &geom::cover::Covered<T>) -> ExtentBall<T> {
     ExtentBall::of_covered(whole.as_ref().ok())
+}
+
+/// **The ball a ruled side's sweep reads a sphere of radius `radius`
+/// against** ([`CylinderSpherePose::sweep_ball`]'s docs): its cover's
+/// ball widened by `max(R, 64·escalate)`.
+pub(crate) fn sphere_sweep_ball<T: Decide>(
+    sphere: &Surface<T>,
+    radius: T,
+    band: Band,
+) -> ExtentBall<T> {
+    let pad = radius.max(T::from_f64(64.0 * band.escalate()));
+    sphere.cover().map_or_else(
+        |_| ExtentBall::of_covered(None),
+        |cover| ExtentBall::of_cover_within(&cover, pad),
+    )
 }
 
 /// [`covered_ball`] of a bounded side.
