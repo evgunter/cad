@@ -2415,13 +2415,18 @@ fn rooted(
         let (plus, minus) = sides[&e];
         let held = [solid.faces[plus].record, solid.faces[minus].record];
         let spec = &solid.edges[&e];
-        let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1);
         for &f in faces {
             if held.contains(&solid.faces[f].record) {
                 continue;
             }
             let surface = solid.surface(f);
-            match root_on(surface, carrier, printed, extent, band) {
+            match root_on(
+                surface,
+                carrier,
+                printed,
+                (&spec.carrier, (spec.t0, spec.t1)),
+                band,
+            ) {
                 Ok(Ok(point)) => return Ok(Rooted::At(point)),
                 Ok(Err(topo::CornerVerdict::Unsupported { what })) => {
                     unsupported.get_or_insert_with(|| {
@@ -2463,12 +2468,14 @@ fn rooted(
 /// **The root of `surface` along `carrier` from `printed`, settled**
 /// ([`settled`]): Newton seeded at its own root again, so building the
 /// vertex from its own point gives it back. `None` where no root lies
-/// along the carrier there.
+/// along the carrier there. `edge` is the file's edge as its carrier over
+/// its span, whose reach from each point a graze is read at levers it
+/// ([`topo::root_along`]).
 fn root_on(
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
     printed: Point3<f64>,
-    extent: geom_core::Lever<f64>,
+    edge: (&Curve3<f64>, (f64, f64)),
     band: geom_core::Band,
 ) -> Result<Result<Point3<f64>, topo::CornerVerdict<f64>>, geom_core::Indeterminate> {
     let mut verdict = None;
@@ -2477,7 +2484,7 @@ fn root_on(
             return Ok(None);
         };
         Ok(
-            match topo::root_along(surface, carrier, seed, extent, band)? {
+            match topo::root_along(surface, carrier, seed, edge, band)? {
                 Ok(t) => Some(carrier.eval(t)),
                 Err(v) => {
                     verdict.get_or_insert(v);

@@ -199,7 +199,7 @@ pub use enters::{
 pub use extent::{
     ExtentBall, Forgets, LeverBounds, Reach, anchored_at, cover_diameter,
     edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
-    edges_extent_inf, points_diameter, points_lever_from, surface_anchored_at,
+    edges_extent_inf, points_diameter, points_lever_from, span_reach_bounds, surface_anchored_at,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane, FittedLaneOf};
 /// The ring-torus convention's one home is `geom` (below this crate, so

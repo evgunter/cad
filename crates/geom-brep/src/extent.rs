@@ -910,6 +910,24 @@ pub fn edge_reach_bounds<T: SpanLocate>(
     }
 }
 
+/// **How far `carrier` over `[t0, t1]` reaches from `pivot`, bounded
+/// from both sides** ([`edge_reach_bounds`]), the region from above
+/// being the carrier's cover over the span ([`Curve3::cover_over`]): the
+/// lever of a datum read at `pivot` (a coefficient centred there, a
+/// sine at a root or a sample), which moves over the span by at most the
+/// datum times this reach. A span with no cover reads the poison ball
+/// from above ([`ExtentBall::of_cover_from`]), which a reading levered
+/// at it escalates.
+pub fn span_reach_bounds<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    pivot: Point3<T>,
+) -> LeverBounds<T> {
+    let cover = carrier.cover_over(ParamWindow::new(t0, t1)).ok();
+    let above = ExtentBall::of_cover_from(cover.as_ref(), pivot).lever();
+    edge_reach_bounds(carrier, (t0, t1), pivot, above)
+}
+
 /// **What a section classifier reads its axis rows across**: where on
 /// an axis the gap is read ([`Reach::foot_on`]), and the lever a tilt
 /// pinned there is metered at ([`Reach::lever_from`]). The module docs

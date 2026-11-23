@@ -213,8 +213,7 @@ impl<T: Decide> IsoPiece<T> {
 
     /// The piece's extent from below ([`geom_brep::edge_extent_inf`], no
     /// longer than the piece), which the wall's arrival reads as its
-    /// length and [`Self::reach`] bounds the lean's arm by, and its
-    /// direction of travel where it stops.
+    /// length, and its direction of travel where it stops.
     pub(super) fn travel(&self) -> (Lever<T>, Vec3<T>) {
         let carrier = self.carrier();
         let extent = geom_brep::edge_extent_inf(&carrier, self.span.0, self.span.1);
@@ -227,8 +226,9 @@ impl<T: Decide> IsoPiece<T> {
     }
 
     /// **The arm the lean of an arrival along this piece is levered
-    /// at**: the piece's extent from below ([`Self::travel`]), no longer
-    /// than the piece's radius of curvature where it stops.
+    /// at**: the piece's reach from where it stops, from below
+    /// ([`crate::cover::piece_reach_bounds`]), no longer than the piece's
+    /// radius of curvature there.
     ///
     /// The lean is the cosine between the piece's direction where it
     /// stops and the closing chord's left normal, and it says which side
@@ -236,7 +236,8 @@ impl<T: Decide> IsoPiece<T> {
     /// `δ` along the piece turns that direction by `δ·κ`, so a cosine is
     /// decided against a displacement only at an arm of `1/κ` or less;
     /// and the piece runs on the side its stop's direction names only
-    /// over its own length, which its extent from below does not exceed. The lesser
+    /// as far as it reaches from the stop, which its reach from below
+    /// does not exceed: the lean's verdict is its definite sign. The lesser
     /// of the two is an arm no reading of the stop within the band
     /// overturns: shorter than either, it only stands a lean down.
     pub(super) fn reach(&self) -> Lever<T> {
@@ -246,6 +247,9 @@ impl<T: Decide> IsoPiece<T> {
         } else {
             self.span.0
         };
-        geom_brep::within_carrier_bend(self.travel().0, &carrier, stop)
+        let ends = (self.curve.eval(self.span.0), self.curve.eval(self.span.1));
+        let reach =
+            crate::cover::piece_reach_bounds(&carrier, self.span, ends, carrier.eval(stop)).below();
+        geom_brep::within_carrier_bend(reach, &carrier, stop)
     }
 }

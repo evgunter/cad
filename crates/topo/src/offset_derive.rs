@@ -1045,7 +1045,10 @@ fn coaxial_with_cone<T: Decide>(
 /// **The root of `surface` along `carrier` nearest `seed`**, at `f64`:
 /// the plane's root along a spline carrier through the spline lane
 /// ([`SectionLane::f64`]), and [`analytic_root`] along any other
-/// carrier. `lever` levers the graze.
+/// carrier. `region` is the edge the root is sought on, a carrier over
+/// its span, whose reach levers the graze: from each point the analytic
+/// arm reads its sine at, and over the whole span for the spline lane,
+/// which isolates its roots over it.
 ///
 /// # Errors
 ///
@@ -1054,18 +1057,24 @@ pub fn root_along(
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
     seed: f64,
-    lever: geom_core::Lever<f64>,
+    region: (&Curve3<f64>, (f64, f64)),
     band: Band,
 ) -> Result<Result<f64, CornerVerdict<f64>>, Indeterminate> {
     match (surface, carrier) {
         (Surface::Plane { .. }, Curve3::Nurbs(spline)) => Ok(
-            match SectionLane::f64().root(surface, spline, seed, lever, band) {
+            match SectionLane::f64().root(
+                surface,
+                spline,
+                seed,
+                geom_brep::edge_extent_inf(region.0, region.1.0, region.1.1),
+                band,
+            ) {
                 Ok(SplineRoot::At(t)) => Ok(t),
                 Ok(SplineRoot::Short { .. }) => Err(CornerVerdict::NoRoot),
                 Err(verdict) => Err(verdict),
             },
         ),
-        _ => analytic_root(surface, carrier, seed, lever, band),
+        _ => analytic_root(surface, carrier, seed, region, band),
     }
 }
 
@@ -1122,18 +1131,31 @@ fn plane_plane<T: Decide>(
 /// along any other analytic carrier. A carrier meeting the surface at a
 /// decided-zero angle grazes, and a Newton that does not land on the
 /// surface has no root there.
+///
+/// The graze's sine is read at a point (the root, or an iterate on the
+/// way to it), so it is levered at `region`'s reach from that point
+/// ([`geom_brep::span_reach_bounds`]), the edge the root is sought on
+/// as a carrier over its span: what the sine moves that edge by. Both
+/// signs are acted on (a definite one takes the root as transversal, a
+/// Zero is served as a graze), so it is read at both bounds and decides
+/// only where they agree ([`crate::validate::decide_levered`]).
 pub(crate) fn analytic_root<T: Decide>(
     surface: &Surface<T>,
     carrier: &Curve3<T>,
     seed: T,
-    extent: geom_core::Lever<T>,
+    (edge, span): (&Curve3<T>, (T, T)),
     band: Band,
 ) -> Result<Result<T, CornerVerdict<T>>, Indeterminate> {
-    let graze = |sine: T| -> Result<bool, Indeterminate> {
-        Ok(matches!(
-            decide("offset_corner_graze", Margin::levered(sine, extent), band)?,
-            Sign::Zero
-        ))
+    let graze_at = |sine: T, at: Point3<T>| {
+        crate::validate::decide_levered(
+            ("offset_corner_graze", "offset_corner_graze_straddle"),
+            sine,
+            geom_brep::span_reach_bounds(edge, span, at),
+            band,
+        )
+    };
+    let graze = |sine: T, at: Point3<T>| -> Result<bool, Indeterminate> {
+        Ok(matches!(graze_at(sine, at)?, Sign::Zero))
     };
     if let (
         Surface::Plane {
@@ -1144,10 +1166,18 @@ pub(crate) fn analytic_root<T: Decide>(
     {
         let (q, m) = (plane_frame.origin(), plane_frame.axis());
         let sine = dir.get().dot(m);
-        if graze(sine.abs())? {
+        let root = (q - *origin).dot(m) / sine;
+        // Read at the root, or at the seed's point where the sine leaves
+        // the line no root to stand at.
+        let at = carrier.eval(if geom_core::is_finite_length(root) {
+            root
+        } else {
+            seed
+        });
+        if graze(sine.abs(), at)? {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }
-        return Ok(Ok((q - *origin).dot(m) / sine));
+        return Ok(Ok(root));
     }
     if matches!(carrier, Curve3::Nurbs(_)) {
         return Ok(Err(CornerVerdict::Unsupported {
@@ -1166,14 +1196,7 @@ pub(crate) fn analytic_root<T: Decide>(
     for _ in 0..NEWTON_STEPS {
         let (p, d) = carrier.ders1(t);
         let sine = sine_at(p, d);
-        if !matches!(
-            decide(
-                "offset_corner_graze",
-                Margin::levered(sine.abs(), extent),
-                band
-            ),
-            Ok(Sign::Positive)
-        ) {
+        if !matches!(graze_at(sine.abs(), p), Ok(Sign::Positive)) {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }
         let f = geom_brep::implicit_residual(surface, p);
@@ -1187,7 +1210,7 @@ pub(crate) fn analytic_root<T: Decide>(
         return Ok(Err(CornerVerdict::NoRoot));
     }
     let sine = g.dot(d) / (g.norm() * d.norm());
-    if graze(sine.abs())? {
+    if graze(sine.abs(), p)? {
         return Ok(Err(CornerVerdict::Graze { sine }));
     }
     Ok(Ok(t))

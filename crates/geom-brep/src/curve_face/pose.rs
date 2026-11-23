@@ -1140,7 +1140,8 @@ pub(super) enum ConeRead<T: Real> {
 ///   (`curve_face_pose_not_lies`), it passes through the apex, its roots
 ///   within the spread (`curve_face_pose_cone_apex_spread`, which must be
 ///   in the zero band: past it, a meter that refused);
-/// - **the lead** off the apex, `A/|d|²` levered by the run: Zero, a
+/// - **the lead** off the apex, `A/|d|²` levered by the run's reach
+///   from the apex's foot, where the quadratic is centred: Zero, a
 ///   generator's segment off the apex lies on the cone (its reach through
 ///   the floor in the zero band), and otherwise, `Lies` excluded, the
 ///   line runs parallel to a generator, the method's degenerate form;
@@ -1180,11 +1181,19 @@ pub(super) fn line_cone_read<T: Decide>(
     let foot = line.param_within(apex, (lo, hi));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let [a2, b2, c2] = centred.coeffs;
-    let length = crate::edge_extent_inf(&geom::Curve3::Line(line), lo, hi);
+    // The lead is the quadratic's centred at the foot, so what it moves
+    // the run by is levered at the run's reach from there; a line's
+    // cover is its own, so that reach is exact, as both of the lead's
+    // signs, acted on, need.
+    let crate::LeverBounds::Exact(run) =
+        crate::span_reach_bounds(&geom::Curve3::Line(line), (lo, hi), line.at(foot))
+    else {
+        unreachable!("a line's reach from a point is read off its own cover")
+    };
     let lead = || {
         decide(
             "curve_face_pose_cone_lead",
-            Margin::levered(a2 / dd, length),
+            Margin::levered(a2 / dd, run),
             band,
         )
         .map_err(PoseRefusal::in_band(PoseRung::ConeLead))
