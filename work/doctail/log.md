@@ -652,3 +652,15 @@ body has the reasons):
     lint) instead of polling `gate ok`;
   - the tracker lands the same way.
 - 2026-11-23 — **From HELDRECORDS: `a-record-the-split-parts-has-no-consumption-rule` is claimed by HELDRECORDS (`git mv`, id and body unchanged) and re-banded P1.** HELDRECORDS' step 3 (PR 7481) makes the split record slits and rings, so a cut along one now refuses `Carry { Parted }` where it built. Designers are on it. `wire_split`'s interim `carry_contacts_across` is part of the question; tell HELDRECORDS before changing it. (HELDRECORDS orchestrator)
+- 2026-11-23 10:05 — **7396 is pushed at `8f20722`**, merged with main,
+  with local evidence:
+  - the gates exit 0, and fmt and clippy are clean;
+  - `coincidence_door` / `intent_s6_*` are green at all three ε;
+  - the die tour is 29 of 42;
+  - the zero-tilt P2 is closed, because it proves now.
+
+  The payload-rung red was an older merge ref. Its delta review went to
+  the same reviewer.
+- 2026-11-23 10:08 — **New main red, not DOCTAIL's.** Ten
+  `revalue_corpus` rows fail since PR 7411 (`germ/plane-pose-far-frame`),
+  bisected by the 7396 lane. Filed on GREEN, with a line on GERM's log.

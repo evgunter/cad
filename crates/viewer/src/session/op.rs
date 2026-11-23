@@ -411,8 +411,7 @@ pub enum SessionOp {
     /// does not hold its parts silently rebinds to that directory and
     /// its instances refuse at the next evaluation — typed on the tree
     /// badges, and recoverable by saving back, but nothing warns
-    /// first. Recorded with the rest of the seam's newly-reachable
-    /// edges in issue #1387.
+    /// first (`work/versions/document-seam-no-in-session-change-detection.md`).
     Save(PathBuf),
     /// **Save as a new document** (DI4): the committed document under
     /// a fresh random id, written at the path through that folder's
@@ -614,31 +613,6 @@ pub enum SessionOp {
     AddProfile {
         /// The loop programs, in description order.
         loops: Vec<LoopProgram<Formula>>,
-    },
-    /// **"Sketch on this face"** (spec §5): `loops` drawn as a profile
-    /// on its own plane, extruded `distance` up its own `z`, the
-    /// extrude's copy placed against the picked face — a `Plane` mate
-    /// from its start cap, flipped, to the face's plane, its origin
-    /// over the face body's own and turned `spin` about the face's
-    /// normal — and the face's body and the copy fused, as ONE action
-    /// (`Recording::sketch_on_face`), the union taking over the `⊔`
-    /// operands and the product slot that read the face's body (A10).
-    /// The made node is the profile, the piece the gesture adds.
-    ///
-    /// A pick on a copy is read on that copy (Ev, PR 6353). A face whose
-    /// node is no body refuses [`Refusal::WrongNodeKind`]; every other
-    /// refusal is the edit door's ([`Refusal::Edit`]), and a face that
-    /// is not planar or does not resolve refuses at evaluation, on the
-    /// placement's badge.
-    SketchOnFace {
-        /// The picked face.
-        face: FaceSelection,
-        /// The loop programs, in description order.
-        loops: Vec<LoopProgram<Formula>>,
-        /// The extrusion depth (`Length`).
-        distance: Formula,
-        /// The turn about the face's normal (`Angle`).
-        spin: Formula,
     },
     /// **A profile drawn on a face, tracing faces of its body** (D10
     /// `[placement]`; REFERENCES DM1; "Constructing a coincidence"):
@@ -1337,7 +1311,6 @@ impl SessionOp {
     pub fn creates_a_node(&self) -> bool {
         match self {
             Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1464,7 +1437,6 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1694,7 +1666,6 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1828,7 +1799,6 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1927,7 +1897,6 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }

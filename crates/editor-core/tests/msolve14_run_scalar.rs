@@ -2327,3 +2327,48 @@ fn r1_clearance_answers_alike_in_either_order() {
     }
     assert!(apart.is_empty(), "the order decides: {apart:#?}");
 }
+
+/// **A document that instantiates parts is admitted to the certified
+/// range search**, which takes the session's resolver: the witness
+/// builds through it and so does every replay. Over the bolts' spacing
+/// the search proves ground; without the resolver the witness does not
+/// build, as a drive's does not
+/// (`work/scalar/the-box-driver-carries-no-part-resolver`).
+///
+/// *Breaks if* the search's witness or its replays lose the resolver.
+#[test]
+fn a_part_instancing_document_is_admitted_to_the_range_search() {
+    use editor_core::drive::DriveRefusal;
+    use editor_core::range::{RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, Step};
+    let b = bolted("msolve14-range");
+    let resolver = b.opts.resolver.clone().expect("the store resolves");
+    let field = RangeField::Param(b.doc.var_named("s").expect("the spacing parameter"));
+    let seed = RangeSeed::symmetric(narrow(1.0).1);
+    let config = RangeBudget::new(8, 20);
+    let stop = editor_core::Stop::default();
+    let search = |resolver| {
+        RangeSearch::new(
+            &b.doc,
+            &field,
+            seed,
+            &config,
+            resolver,
+            &stop,
+            Tol::witness(),
+        )
+    };
+    let Err(RangeRefusal::Drive(refusal)) = search(None).map(|_| ()) else {
+        panic!("with no resolver the instance does not build");
+    };
+    assert!(
+        matches!(*refusal, DriveRefusal::WitnessDoesNotBuild { .. }),
+        "got {refusal:?}"
+    );
+    let mut search = search(Some(resolver)).expect("the witness builds through the resolver");
+    while search.answer().nothing_proven() && search.step(&stop) == Step::Advanced {}
+    let answer = search.answer();
+    assert!(
+        !answer.nothing_proven(),
+        "a replay that resolves its parts proves ground: {answer:?}"
+    );
+}

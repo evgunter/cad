@@ -1,28 +1,15 @@
-//! **The certified locally-valid range** — the on-demand query that
+//! **The certified locally-valid range** — the on-demand search that
 //! proves instead of sampling (`editor_core::range`).
 //!
 //! Everything here goes through the public doors a consumer has:
-//! `derive` for the query's own document, `certified_range` for the
-//! answer, the answer's accessors for reading it. Nothing reaches past
-//! them and nothing edits the driver.
+//! `admit` and `derive` for the request, `RangeSearch` and
+//! `certified_range` for the answer, the answer's accessors for reading
+//! it.
 //!
-//! # The probe this is compared against
-//!
-//! The sampling probe itself lives above this crate (`viewer::bounds`),
-//! so what is reproduced here is its QUESTION — the failing-node set,
-//! tested for growth against the value the field has now
-//! ([`no_new_failure`]) — which is what "a certified range is a subset
-//! of the LOCALLY-VALID RANGE" is a claim about. It is not a claim
-//! about the probe's reported bracket, and the row that runs the real
-//! probe beside the query is `viewer::docm9_range_vs_probe`.
-//!
-//! # What is NOT here
-//!
-//! The walk and the arm-separating predicate over leaf lists no
-//! document produces are `range::tests`, in the crate: a
-//! `NewFailure` needs a flip whose evidence carries a standing change,
-//! and no fixture reaches one
-//! (`work/props/coincidence-zone-priced-budget-at-the-floor`).
+//! The answer as a FUNCTION of a side's intervals, over lists no
+//! document produces (a standing change in the evidence —
+//! `work/verdict/coincidence-zone-priced-budget-at-the-floor`), is
+//! `range::tests`, in the crate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -32,7 +19,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{BudgetKind, DriveConfig, RefusalReason};
 use editor_core::range::{
-    CertifiedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range, derive,
+    CertifiedRange, DifferenceKind, RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed,
+    Step, Unproven, admit, certified_range, derive,
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
@@ -55,14 +43,10 @@ fn param(n: &'static str) -> Formula {
     Formula::named(name(n), Dimension::Length)
 }
 
-/// The drive's budgets, both of them the caller's: the query is on
-/// demand, so what it spends is what it was asked to spend.
-fn budget(max_depth: u32, max_leaves: usize) -> DriveConfig {
-    DriveConfig {
-        max_depth,
-        max_leaves,
-        ..DriveConfig::default()
-    }
+/// The search's budgets, both of them the caller's: how many times a
+/// side may be halved, and how many replays it may take.
+fn budget(max_depth: u32, max_replays: usize) -> RangeBudget {
+    RangeBudget::new(max_depth, max_replays)
 }
 
 fn declare(r: &mut Recorder, n: &'static str, value: f64) {
@@ -321,75 +305,78 @@ fn range_of(
     doc: &editor_core::ProfileDoc,
     p: &'static str,
     seed: RangeSeed,
-    config: &DriveConfig,
+    config: &RangeBudget,
 ) -> CertifiedRange {
     certified_range(
         doc,
         &RangeField::Param(var(doc, p)),
         seed,
         config,
+        None,
         &editor_core::Stop::default(),
         tol(),
     )
     .expect("the fixture has an axis and a witness that builds")
 }
 
-// -------------------------------------------------- the certified arm
+// ---------------------------------------------------------- the answer
 
-/// A side with nothing to find stops at the SEED's edge, never at
-/// "unbounded": outside the seed nothing was replayed.
+/// A side with nothing to find reaches the SEED's end, never
+/// "unbounded": outside the seed nothing was replayed. The slab's two
+/// sides each certify whole, so the answer is the answer after two
+/// replays.
 #[test]
-fn a_certified_side_stops_at_the_seeds_edge() {
+fn a_side_with_nothing_to_find_reaches_the_seeds_end() {
     let doc = slab(1.0);
     let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
-    assert_eq!(*r.lo(), RangeSide::Certified { to: -0.25 });
-    assert_eq!(*r.hi(), RangeSide::Certified { to: 0.25 });
-    assert_eq!(r.certified_interval(), (0.75, 1.25));
+    for (side, edge) in [(r.lo(), -0.25), (r.hi(), 0.25)] {
+        assert!(side.reached_seed_end(), "got {side:?}");
+        assert_eq!(side.proven_to(), edge);
+        assert!(side.not_decided().is_none());
+    }
+    assert_eq!(r.proven_interval(), (0.75, 1.25));
     assert_eq!(r.nominal(), 1.0);
+    assert_eq!(r.seed(), RangeSeed::symmetric(0.25));
+    assert_eq!(r.steps(), 2, "each side is replayed whole, once");
 }
 
-// ------------------------------------------------ the four-arm contract
-
-/// **A2.** A branch change whose flipped leaf still builds every node
-/// is a [`RangeSide::DecisionFlip`] and never a
-/// [`RangeSide::NewFailure`]: the evidence names the predicate that
-/// decided otherwise, and no node's standing moved IN THE LEAF THE
-/// ARM WAS CHOSEN BY.
-///
-/// It pins the fold in one direction — a document that reaches
-/// `DecisionFlip` cannot be answered `NewFailure`. The PREDICATE
-/// itself, both directions, is pinned at the function in
-/// `range::tests::a_standing_change_is_what_makes_a_flip_a_new_failure`,
-/// because no document reaches `NewFailure` at all
-/// (`work/props/coincidence-zone-priced-budget-at-the-floor`).
+/// **A boundary past undecided ground is PROVEN DIFFERENT.** The notch
+/// builds on another branch past the crossing; the ground just short of
+/// it is undecided at any depth, and the side still reports the point
+/// beyond, with the predicate that decided otherwise and no standing
+/// moved.
 #[test]
-fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
+fn a_boundary_past_undecided_ground_is_proven_different() {
     let doc = notch(NOMINAL);
     let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
-    assert_eq!(*r.lo(), RangeSide::Certified { to: NOTCH_SEED.lo });
-    let RangeSide::DecisionFlip {
-        certified_to,
-        within,
-        evidence,
-    } = r.hi()
-    else {
-        panic!("the branch change is a decision flip, got {:?}", r.hi());
-    };
-    // The certificate stops short of the crossing, and the bracket
-    // holds it.
+    assert!(r.lo().reached_seed_end(), "got {:?}", r.lo());
+    let hi = r.hi();
+    let different = hi
+        .different()
+        .unwrap_or_else(|| panic!("the branch change is proven, got {hi:?}"));
     let crossing = THROUGH - NOMINAL;
     assert!(
-        0.0 < *certified_to && *certified_to < crossing,
-        "certified to {certified_to}"
+        0.0 < hi.proven_to() && hi.proven_to() < crossing,
+        "proven to {}",
+        hi.proven_to()
     );
     assert!(
-        within.0 <= crossing && crossing <= within.1,
-        "the crossing at offset {crossing} is inside {within:?}"
+        crossing < different.at() && different.at() < NOTCH_SEED.hi,
+        "the difference at {} is past the crossing at {crossing}",
+        different.at()
     );
-    assert_eq!(within.0, *certified_to);
-    // NAMED, by the driver's own engine: the vertex's turn decided
-    // the other way.
-    let named: Vec<_> = evidence
+    let gap = hi
+        .not_decided()
+        .expect("undecided ground lies between the proof and the difference");
+    assert_eq!(gap.past(), hi.proven_to());
+    assert!(
+        !gap.more_time_helps(),
+        "a finished search's frontier is at its floor: {:?}",
+        gap.reason()
+    );
+    assert_eq!(different.kind(), DifferenceKind::BuildsDifferently);
+    let named: Vec<_> = different
+        .evidence()
         .verdicts
         .nodes
         .values()
@@ -402,79 +389,64 @@ fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
             && *to == geom_core::Sign::Negative),
         "the flip was not named: {named:?}"
     );
-    // And it is a decision flip BECAUSE no standing moved — the
-    // predicate this arm is chosen by, asserted rather than implied.
-    assert!(
-        evidence
-            .verdicts
-            .nodes
-            .values()
-            .all(|d| d.old_status == d.new_status),
-        "a standing changed, so this should have been a new failure"
-    );
 }
 
-/// **A3.** A budget too small to reach the boundary answers
-/// [`RangeSide::Indeterminate`], which is NOT a bound; the same
-/// document with the budget raised answers the boundary.
+/// A depth too small to reach the boundary leaves the side NOT DECIDED
+/// — never a bound, and not something more replays move; the same
+/// document with the depth raised proves the difference and more
+/// ground.
 #[test]
-fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
+fn a_depth_too_small_is_not_decided_and_never_a_bound() {
     let doc = notch(NOMINAL);
     let starved = range_of(&doc, "height", NOTCH_SEED, &budget(1, 2048));
-    let RangeSide::Indeterminate {
-        certified_to,
-        reason,
-        ..
-    } = starved.hi()
-    else {
-        panic!("a starved drive is indeterminate, got {:?}", starved.hi());
-    };
-    assert!(matches!(
-        **reason,
-        RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 })
-    ));
-    // Proven ground, short of the seed's edge and short of the
-    // crossing: an indeterminate side still carries what it proved.
-    assert!(
-        0.0 < *certified_to && *certified_to < THROUGH - NOMINAL,
-        "certified to {certified_to}"
+    let hi = starved.hi();
+    assert!(hi.end().is_none(), "a starved side has no end: {hi:?}");
+    let gap = hi.not_decided().expect("the starved side is undecided");
+    assert_eq!(
+        *gap.reason(),
+        Unproven::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 }))
     );
-    assert!(!starved.hi().is_bound(), "indeterminate is not a bound");
+    assert!(!gap.more_time_helps());
+    assert!(
+        0.0 < hi.proven_to() && hi.proven_to() < THROUGH - NOMINAL,
+        "an undecided side still carries what it proved: {}",
+        hi.proven_to()
+    );
 
     let funded = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
-    assert!(funded.hi().is_bound(), "got {:?}", funded.hi());
+    assert!(funded.hi().different().is_some(), "got {:?}", funded.hi());
     assert!(
-        funded.hi().certified_to() > starved.hi().certified_to(),
-        "more budget proves more ground"
+        funded.hi().proven_to() > hi.proven_to(),
+        "more depth proves more ground"
     );
 }
 
 /// **A line pair's gap is a boundary of its own.** From a nominal below
-/// the first of the [`GAP_ZEROS`], the walk up stops at it, which the
-/// seed holds short of the crossing, and names `segment_gap` leaving Negative: the two lines'
-/// projections go from overlapping to apart there (through the zero
-/// band, which a coarse ε reaches first), and nothing else about the
-/// notch changes.
+/// the first of the [`GAP_ZEROS`], the upward side is proven different
+/// just past it, short of the crossing, and names `segment_gap` leaving
+/// Negative: the two lines' projections go from overlapping to apart
+/// there (through the zero band, which a coarse ε reaches first).
 #[test]
-fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
+fn a_gap_between_two_lines_is_proven_different_below_the_crossing() {
     let nominal = -0.25;
     let doc = notch(nominal);
     let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
-    let RangeSide::DecisionFlip {
-        within, evidence, ..
-    } = r.hi()
-    else {
-        panic!("the gap's zero is a decision flip, got {:?}", r.hi());
-    };
-    // The bracket closes where the gap's margin enters the band, which
-    // at a coarse ε lies short of its exact zero by about ε.
+    let hi = r.hi();
+    let different = hi
+        .different()
+        .unwrap_or_else(|| panic!("the gap's zero is proven different, got {hi:?}"));
+    // The undecided ground closes where the gap's margin enters the
+    // band, which at a coarse ε lies short of its exact zero by about ε.
     let zero = GAP_ZEROS[0] - nominal;
-    let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
+    let resolution = NOTCH_SEED.hi / 2f64.powi(24);
     assert!(
-        within.0 <= zero && zero - within.1 < 100.0 * resolution.max(tol().eps()),
-        "the gap's zero at offset {zero} closes {within:?}"
+        hi.proven_to() <= zero && zero - different.at() < 100.0 * resolution.max(tol().eps()),
+        "the gap's zero at offset {zero} closes ({}, {})",
+        hi.proven_to(),
+        different.at()
     );
-    let named: Vec<_> = evidence
+    let named: Vec<_> = different
+        .evidence()
         .verdicts
         .nodes
         .values()
@@ -489,107 +461,137 @@ fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
     );
 }
 
-/// **A MEASUREMENT, and a defect's cost.** `within` is a bracket
-/// around a boundary whose interior the driver did not decide, and
-/// today that interior CONTAINS values at which the document does not
-/// build at all: `drive::classify_replay` bisects a leaf whose node
-/// definitely fails to the budget floor and prices it `Budget`
-/// (`work/props/coincidence-zone-priced-budget-at-the-floor`) rather
-/// than naming the failure, so the failure never reaches a leaf class
-/// the walk can report.
-///
-/// The row exists so that the arm's documentation and the behaviour
-/// cannot drift apart: a consumer rendering `within` as valid would
-/// be confidently wrong, and when the PROPS row lands this assertion
-/// is the one that will turn over and say so.
+/// **A MEASUREMENT, and a defect's cost.** The ground between the proof
+/// and the point proven different is undecided, and today it CONTAINS a
+/// value at which the document does not build at all:
+/// `drive::classify_replay` bisects an interval on which a node
+/// definitely fails to the floor and prices it `Budget`
+/// (`work/verdict/coincidence-zone-priced-budget-at-the-floor`). A
+/// consumer rendering that ground as valid would be wrong, and when
+/// that row lands this assertion turns over.
 #[test]
-fn a_decision_flips_within_contains_a_value_that_does_not_build() {
+fn the_undecided_ground_contains_a_value_that_does_not_build() {
     let doc = notch(NOMINAL);
     let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
-    let RangeSide::DecisionFlip { within, .. } = r.hi() else {
-        panic!(
-            "the A2 fixture's hi side is a decision flip, got {:?}",
-            r.hi()
-        );
-    };
-    // The crossing itself is one of the sampled offsets, by
-    // construction rather than by a grid's luck: at a tight eps the
-    // window that refuses is narrower than any ten-way split of the
-    // bracket, and a row that relied on the split would be a row about
-    // the eps the gate happened to run.
+    let hi = r.hi();
+    let different = hi.different().expect("the hi side is proven different");
     let crossing = THROUGH - NOMINAL;
-    let broken: Vec<f64> = (0..=10)
-        .map(|k| within.0 + (within.1 - within.0) * f64::from(k) / 10.0)
-        .chain(std::iter::once(crossing))
-        .filter(|&off| !no_new_failure(&doc, "height", r.absolute(off)))
-        .collect();
     assert!(
-        !broken.is_empty(),
-        "`within` {within:?} is expected to hold values that do not build, and none of the \
-         eleven sampled offsets did — if the driver now names such a leaf, this arm can say \
-         more than it does and the docs must be re-cut"
+        hi.proven_to() < crossing && crossing < different.at(),
+        "the crossing is in the undecided ground ({}, {})",
+        hi.proven_to(),
+        different.at()
     );
-    // And the crossing itself is one of them: named rather than left
-    // to a sweep's luck.
     assert!(
         !no_new_failure(&doc, "height", THROUGH),
         "at the crossing the vertex is collinear with its neighbours, which does not build"
     );
-    assert!(
-        within.0 <= crossing && crossing <= within.1,
-        "and it is inside the bracket: {within:?}"
-    );
 }
 
-// ----------------------------------------------- against the probe
-
-/// **The certificate is inside the LOCALLY-VALID RANGE**, on a
-/// fixture with a real boundary: every value it covers passes the
-/// probe's own validity test, and the frontier stops orders short of
-/// the crossing rather than at it.
-///
-/// It is NOT a claim about the sampling probe's reported bracket —
-/// those are different questions, and the row that runs the real
-/// probe beside the query is
-/// `viewer::docm9_range_vs_probe::the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket`.
-/// This one reproduces the probe's QUESTION, which is all a crate
-/// below the viewer can do.
+/// **The proof is inside the LOCALLY-VALID RANGE**, on a fixture with a
+/// real boundary: every value it covers passes the sampling question
+/// (does anything new fail), and the frontier stops at the driver's
+/// floor short of the crossing rather than at it.
 #[test]
-fn the_certificate_is_inside_the_locally_valid_range() {
+fn the_proof_is_inside_the_locally_valid_range() {
     let doc = notch(NOMINAL);
     let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
-    let (lo, hi) = r.certified_interval();
+    let (lo, hi) = r.proven_interval();
     assert!(lo < hi);
     for i in 0..=32 {
         let v = lo + (hi - lo) * f64::from(i) / 32.0;
         assert!(
             no_new_failure(&doc, "height", v),
-            "the certificate covers {v}, which the probe's test calls invalid"
+            "the proof covers {v}, at which something new fails"
         );
     }
-    // The crossing is at THROUGH and the proof stops below it, at the
-    // DRIVER's own floor rather than at the boundary. The bound is
-    // DERIVED from the two mechanisms that set that floor — the run's
-    // ambiguity band and the drive's resolution over this seed —
-    // because a constant here is a claim about one eps row and the
-    // gate runs three. It caught exactly that: a literal `1e-6` passed
-    // at the shipped eps and red at 1e-6 and 1e-12.
-    let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
-    assert!(
-        hi < THROUGH,
-        "the certificate must not reach the crossing: {hi}"
-    );
+    // The bound is DERIVED from the two mechanisms that set the floor —
+    // the run's ambiguity band and the search's resolution on this side
+    // — because the gate runs three ε rows.
+    let resolution = NOTCH_SEED.hi / 2f64.powi(24);
+    assert!(hi < THROUGH, "the proof must not reach the crossing: {hi}");
     assert!(
         THROUGH - hi < 100.0 * resolution.max(tol().eps()),
         "the frontier is the driver's stopping point, not the boundary: {hi}"
     );
 }
 
-/// **A4.** Validity is not monotone, and the query says so by
-/// stopping: the far branch is valid to the probe and is NOT in the
-/// certificate. A seed placed on that branch certifies it.
+/// The certifying vector of the plain `f64` build at absolute value
+/// `value`, built as the witness is (the derived document, the witness
+/// options), less the `canonical_order_*` verdicts.
+///
+/// Those are left out because the leaf protocol replays the witness's
+/// REPRESENTATION choices as recorded rather than deciding them afresh:
+/// a `canonical_order_*` verdict picks where a loop's statement starts,
+/// and a build at another value can record it differently and build the
+/// same shape (`CertifiedRange::proven_offsets`,
+/// `work/scalar/the-leaf-protocol-pins-representation-choices-the-witness-recorded`).
+fn decisions_at(doc: &ProfileDoc, value: f64) -> editor_core::VerdictVector {
+    let at = editor_core::apply(
+        doc,
+        &DocEdit::SetVarValue {
+            var: name("height").into(),
+            value: editor_core::FreeValue::Continuous(value),
+        },
+        tol(),
+    )
+    .expect("a value edit")
+    .doc;
+    let field = RangeField::Param(var(&at, "height"));
+    let derived = derive(&at, &field, RangeSeed::symmetric(1e-3), tol()).expect("admitted");
+    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+    let stop = editor_core::Stop::default();
+    let built: Evaluation<f64> = evaluate(
+        &derived.doc,
+        None,
+        &stop.cancel,
+        &editor_core::drive::witness_options(&analyzed, &stop),
+        tol(),
+    );
+    let mut vector = editor_core::drive::certifying_vector(&derived.doc, &built);
+    for row in &mut vector.rows {
+        row.verdicts
+            .retain(|v| !v.predicate.starts_with("canonical_order_"));
+    }
+    vector
+}
+
+/// **Every value inside the proof decides as the witness did**: the
+/// plain `f64` build's certifying vector, at the proof's two ends and at
+/// points across it, is the witness's, on both fixtures with a boundary
+/// either side (representation choices aside, [`decisions_at`]).
 #[test]
-fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
+fn every_value_inside_the_proof_decides_as_the_witness_did() {
+    for (label, doc, seed) in [
+        ("the notch", notch(NOMINAL), NOTCH_SEED),
+        (
+            "two boundaries",
+            two_sided(NOMINAL),
+            RangeSeed::symmetric(0.5),
+        ),
+    ] {
+        let (_, _, r) = settle(&doc, seed, &budget(24, 1500));
+        let witness = decisions_at(&doc, r.nominal());
+        let (lo, hi) = r.proven_interval();
+        assert!(
+            lo < r.nominal() && r.nominal() < hi,
+            "{label}: something is proven"
+        );
+        let inside = (0..=16).map(|i| lo + (hi - lo) * f64::from(i) / 16.0);
+        for value in inside.chain([lo, hi]) {
+            assert!(
+                decisions_at(&doc, value) == witness,
+                "{label}: the proof [{lo}, {hi}] covers {value}, whose build decides otherwise"
+            );
+        }
+    }
+}
+
+/// Validity is not monotone, and the search says so by stopping: the
+/// far branch builds and is NOT in the proof. A search around a value
+/// on that branch proves it.
+#[test]
+fn the_first_boundary_stops_the_proof_and_a_search_on_the_island_proves_it() {
     let doc = notch(NOMINAL);
     let r = range_of(
         &doc,
@@ -597,15 +599,12 @@ fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
         RangeSeed { lo: -0.25, hi: 0.5 },
         &budget(24, 2048),
     );
-    assert!(r.hi().is_bound(), "got {:?}", r.hi());
+    assert!(r.hi().different().is_some(), "got {:?}", r.hi());
     assert!(
-        r.certified_interval().1 < THROUGH,
-        "the certificate must stop at the crossing, not leap it"
+        r.proven_interval().1 < THROUGH,
+        "the proof must stop at the crossing, not leap it"
     );
-    assert!(
-        no_new_failure(&doc, "height", 0.2),
-        "the far branch is valid to the probe"
-    );
+    assert!(no_new_failure(&doc, "height", 0.2), "the far branch builds");
 
     let island = notch(0.2);
     let on_it = range_of(
@@ -614,8 +613,452 @@ fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
         RangeSeed::symmetric(0.1),
         &budget(24, 2048),
     );
-    assert_eq!(*on_it.lo(), RangeSide::Certified { to: -0.1 });
-    assert_eq!(*on_it.hi(), RangeSide::Certified { to: 0.1 });
+    assert!(on_it.lo().reached_seed_end() && on_it.hi().reached_seed_end());
+    assert_eq!(on_it.proven_offsets(), (-0.1, 0.1));
+}
+
+// ---------------------------------------------------------- the search
+
+fn notch_search(config: &RangeBudget) -> RangeSearch {
+    let doc = notch(NOMINAL);
+    RangeSearch::new(
+        &doc,
+        &RangeField::Param(var(&doc, "height")),
+        NOTCH_SEED,
+        config,
+        None,
+        &editor_core::Stop::default(),
+        tol(),
+    )
+    .expect("the notch is admitted and its witness builds")
+}
+
+/// The answer after `n` replays of a fresh search.
+fn after(n: usize) -> CertifiedRange {
+    let mut search = notch_search(&budget(24, 2048));
+    for _ in 0..n {
+        assert_eq!(search.step(&editor_core::Stop::default()), Step::Advanced);
+    }
+    assert_eq!(search.steps(), n);
+    search.answer()
+}
+
+/// **Stopping after `n` steps keeps what was proven**: the answer is an
+/// answer at every step, never a refusal, its proven interval only
+/// grows, and the ground it has not finished with is priced as the
+/// budget of the steps taken. A replay that is cancelled decides
+/// nothing and leaves the answer where it stood.
+#[test]
+fn stopping_after_n_steps_keeps_what_was_proven() {
+    let mut search = notch_search(&budget(24, 2048));
+    let before = search.answer();
+    assert!(before.nothing_proven(), "no replay has run: {before:?}");
+    assert_eq!(before.steps(), 0);
+    for side in [before.lo(), before.hi()] {
+        let gap = side.not_decided().expect("nothing is decided yet");
+        assert_eq!(*gap.reason(), Unproven::Unfinished { replays: 0 });
+        assert!(gap.more_time_helps());
+    }
+
+    let mut last = before;
+    for n in 1..=12 {
+        assert_eq!(search.step(&editor_core::Stop::default()), Step::Advanced);
+        let now = search.answer();
+        let ((lo0, hi0), (lo1, hi1)) = (last.proven_offsets(), now.proven_offsets());
+        assert!(
+            lo1 <= lo0 && hi0 <= hi1,
+            "step {n} shrank the proof: {:?} then {:?}",
+            (lo0, hi0),
+            (lo1, hi1)
+        );
+        last = now;
+    }
+    assert!(
+        last.lo().reached_seed_end() && last.hi().proven_to() > 0.0,
+        "twelve replays prove the low side and some of the high: {last:?}"
+    );
+    let gap = last.hi().not_decided().expect("the boundary is not closed");
+    assert_eq!(
+        *gap.reason(),
+        Unproven::Unfinished { replays: 12 },
+        "unfinished ground is priced under the steps taken"
+    );
+    assert!(gap.more_time_helps());
+
+    let cancelled = editor_core::Stop::default();
+    cancelled.cancel.cancel();
+    assert!(
+        matches!(search.step(&cancelled), Step::Stopped(_)),
+        "a cancelled replay stops"
+    );
+    assert_eq!(search.answer(), last, "and decides nothing");
+
+    // The replay cap is the same stop, taken by the search itself.
+    let capped = range_of(&notch(NOMINAL), "height", NOTCH_SEED, &budget(24, 12));
+    assert_eq!(capped, last);
+}
+
+/// **The answer after `n` steps is a function of the inputs and `n`**:
+/// two fresh searches agree at every count, and with the answer a
+/// running search gave on the way past.
+#[test]
+fn the_same_steps_give_the_same_answer() {
+    let mut running = notch_search(&budget(24, 2048));
+    for n in 0..=9 {
+        let here = running.answer();
+        if [0, 1, 4, 9].contains(&n) {
+            assert_eq!(after(n), here, "a fresh search differs after {n} steps");
+            assert_eq!(after(n), here, "and a second fresh one");
+        }
+        assert_eq!(running.step(&editor_core::Stop::default()), Step::Advanced);
+    }
+    // Where the two sides tie — a symmetric seed's two whole sides —
+    // the low side goes first, in every search: nothing outside the
+    // inputs breaks the tie.
+    let doc = slab(1.0);
+    let one_step = || {
+        let mut search = RangeSearch::new(
+            &doc,
+            &RangeField::Param(var(&doc, "depth")),
+            RangeSeed::symmetric(0.25),
+            &budget(24, 2048),
+            None,
+            &editor_core::Stop::default(),
+            tol(),
+        )
+        .expect("the slab is admitted");
+        assert_eq!(search.step(&editor_core::Stop::default()), Step::Advanced);
+        search.answer()
+    };
+    let first = one_step();
+    assert_eq!(
+        first.proven_offsets(),
+        (-0.25, 0.0),
+        "the low side goes first"
+    );
+    for again in 0..3 {
+        assert_eq!(
+            one_step(),
+            first,
+            "fresh search {again} broke the tie another way"
+        );
+    }
+}
+
+/// **Two boundaries, one each side**: [`notch`]'s bottom vertex
+/// `(0.5, h)`, which crosses at `h = 0`, and a top vertex
+/// `(0.5, 1.3 + 2h)`, which crosses the top edge at `h = −0.15`.
+fn two_sided(height: f64) -> ProfileDoc {
+    let mut r = Recorder::new();
+    declare(&mut r, "height", height);
+    let top = Formula::add(
+        len(1.3),
+        Formula::mul(param("height"), scl(2.0)).expect("a length times a scalar"),
+    )
+    .expect("a length plus a length");
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [len(0.5), param("height")],
+            [len(1.0), len(0.0)],
+            [len(1.0), len(1.0)],
+            [len(0.5), top],
+            [len(0.0), len(1.0)],
+        ])],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(1.0),
+    });
+    r.doc
+}
+
+/// How many replays past the last move of its answer's ends a finished
+/// search may have taken: [`editor_core::range::STALL_LEVELS`]
+/// halvings, two replays each, at each of a side's two ends, on both
+/// sides.
+const SETTLE_SLACK: usize = 2 * editor_core::range::STALL_LEVELS as usize * 2 * 2;
+
+/// A side's ends: the proof's, and the point proven different.
+type Ends = (f64, Option<f64>);
+
+fn ends(r: &CertifiedRange) -> [Ends; 2] {
+    [r.lo(), r.hi()].map(|s| (s.proven_to(), s.different().map(|d| d.at())))
+}
+
+/// Steps a search to its end, and says how many replays it took and at
+/// which replay its ends last moved.
+fn settle(
+    doc: &ProfileDoc,
+    seed: RangeSeed,
+    budget: &RangeBudget,
+) -> (usize, usize, CertifiedRange) {
+    let stop = editor_core::Stop::default();
+    let mut search = RangeSearch::new(
+        doc,
+        &RangeField::Param(var(doc, "height")),
+        seed,
+        budget,
+        None,
+        &stop,
+        tol(),
+    )
+    .expect("the fixture is admitted and its witness builds");
+    let (mut last, mut moved) = (ends(&search.answer()), 0);
+    while search.step(&stop) == Step::Advanced {
+        let now = ends(&search.answer());
+        if now != last {
+            (last, moved) = (now, search.steps());
+        }
+    }
+    (search.steps(), moved, search.answer())
+}
+
+/// **The search finishes soon after its answer stops moving, at any
+/// depth**: on the notch at depth 48 and on two boundaries at the
+/// default depth, it reports [`Step::Finished`] well short of a cap ten
+/// times what it needs, within [`SETTLE_SLACK`] replays of the last
+/// move of either side's ends, and says more time will not help.
+#[test]
+fn the_search_finishes_soon_after_its_answer_stops_moving() {
+    for (label, doc, seed, depth) in [
+        ("the notch", notch(NOMINAL), NOTCH_SEED, 48),
+        (
+            "two boundaries",
+            two_sided(NOMINAL),
+            RangeSeed::symmetric(0.5),
+            editor_core::drive::DEFAULT_MAX_DEPTH,
+        ),
+    ] {
+        let cap = 1500;
+        let (steps, moved, answer) = settle(&doc, seed, &budget(depth, cap));
+        assert!(
+            steps < cap && steps <= moved + SETTLE_SLACK,
+            "{label} at depth {depth}: {steps} replays, its ends last moved at replay {moved}"
+        );
+        for side in [answer.lo(), answer.hi()] {
+            assert!(
+                side.not_decided().is_none_or(|gap| !gap.more_time_helps()),
+                "{label}: a finished search has nothing left to do: {side:?}"
+            );
+        }
+    }
+}
+
+/// **One side does not starve the other.** On two boundaries at a depth
+/// far past what either needs, a cap that the depth-24 search finishes
+/// under proves the high side at least as far as that search does: work
+/// is taken widest first, so the low side's deep refinement waits for
+/// the high side's shallow one.
+#[test]
+fn one_side_does_not_starve_the_other() {
+    let doc = two_sided(NOMINAL);
+    let seed = RangeSeed::symmetric(0.5);
+    let (steps, _, shallow) = settle(&doc, seed, &budget(24, 1500));
+    let (_, _, deep) = settle(&doc, seed, &budget(64, steps));
+    assert!(
+        deep.hi().proven_to() >= shallow.hi().proven_to() && deep.lo().proven_to() < 0.0,
+        "under {steps} replays at depth 64 the sides reached {:?}, at depth 24 {:?}",
+        deep.proven_offsets(),
+        shallow.proven_offsets()
+    );
+}
+
+/// How many halvings of the plate's seed [`plate_seed`] the row below
+/// allows: enough to reach a width that certifies with room to spare.
+const PLATE_DEPTH: u32 = 12;
+
+/// The replay cap both searches of the plate row are held to.
+const PLATE_CAP: usize = 2 * PLATE_DEPTH as usize + 2;
+
+/// The corpus plate, its hole radius, and a one-sided seed `32 ε` up.
+fn plate() -> (ProfileDoc, RangeField, RangeSeed) {
+    let doc = crate::corpus::plate_param::document().doc;
+    let field = RangeField::Param(var(&doc, crate::corpus::plate_param::HOLE_R));
+    let seed = RangeSeed {
+        lo: 0.0,
+        hi: 32.0 * tol().eps(),
+    };
+    (doc, field, seed)
+}
+
+/// **The directed search proves a non-empty interval on the corpus
+/// plate's `hole_r` within a replay cap under which the level-by-level
+/// drive certifies nothing.** The plate certifies only at about `ε/4`
+/// (an arc rim's endpoint pinning), which is 2⁷ halvings of this seed:
+/// about 2·7 replays towards the current value, and 2⁷ leaves across
+/// the whole seed.
+#[test]
+fn the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot() {
+    let (doc, field, seed) = plate();
+    let config = budget(PLATE_DEPTH, PLATE_CAP);
+    let stop = editor_core::Stop::default();
+
+    let mut search =
+        RangeSearch::new(&doc, &field, seed, &config, None, &stop, tol()).expect("admitted");
+    while search.answer().nothing_proven() && search.step(&stop) == Step::Advanced {}
+    let proven = search.answer();
+    assert!(
+        proven.hi().proven_to() > 0.0,
+        "the directed search proved nothing in {} replays: {proven:?}. While the leaf protocol \
+         refuses the plate's narrow leaves as a flip that names nothing, this row is held by \
+         work/boxfinish/a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-\
+         curved-leaf-certifies",
+        search.steps()
+    );
+    assert!(search.steps() <= PLATE_CAP);
+    assert!(proven.lo().reached_seed_end(), "the low side has no width");
+
+    // The level-by-level drive over the same seed, under the same cap.
+    let derived = derive(&doc, &field, seed, tol()).expect("admitted");
+    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+    let level = DriveConfig {
+        max_depth: PLATE_DEPTH,
+        max_leaves: PLATE_CAP,
+        ..DriveConfig::default()
+    };
+    let verdict = editor_core::drive::drive(&derived.doc, &analyzed, &level, &stop, tol())
+        .expect("the plate builds");
+    assert!(
+        verdict.certified().is_empty(),
+        "the level drive certified {} of {} leaves under the cap, so the cap separates nothing",
+        verdict.certified().len(),
+        verdict.certified().len() + verdict.refused().len()
+    );
+}
+
+/// **The per-replay cost on the corpus documents**, printed: the
+/// measurement `range.rs`'s module docs record. Asserts nothing, so it
+/// is not a gate:
+/// `cargo nextest run -p editor-core --test all -E
+/// 'test(=docm9_range::the_per_replay_cost_on_the_corpus)' --run-ignored
+/// only --no-capture`.
+#[test]
+#[ignore = "a measurement, printed; run it by name"]
+fn the_per_replay_cost_on_the_corpus() {
+    let stop = editor_core::Stop::default();
+    let die = crate::corpus::die::document().doc;
+    let cube = die
+        .ids()
+        .into_iter()
+        .find(|&id| matches!(die.node(id), Some(Node::Extrude { .. })))
+        .expect("the die extrudes its cube");
+    let (plate, hole_r, _) = plate();
+    let rows = [
+        ("plate_param", "hole_r", plate, hole_r),
+        (
+            "die",
+            "pip_depth",
+            die.clone(),
+            RangeField::Param(var(&die, "pip_depth")),
+        ),
+        (
+            "die",
+            "the cube's Distance slot",
+            die,
+            RangeField::Slot {
+                node: cube,
+                slot: SlotId::Distance,
+            },
+        ),
+    ];
+    for (name, label, doc, field) in rows {
+        let seed = RangeSeed::of(&doc, &field).expect("a seed");
+        let t = std::time::Instant::now();
+        let mut search = RangeSearch::new(&doc, &field, seed, &budget(64, 8), None, &stop, tol())
+            .expect("admitted");
+        let witness = t.elapsed();
+        let mut times = Vec::new();
+        loop {
+            let t = std::time::Instant::now();
+            if search.step(&stop) != Step::Advanced {
+                break;
+            }
+            times.push(t.elapsed().as_secs_f64());
+        }
+        println!(
+            "{name} ({} nodes) | {label} | seed {seed:?} | witness {witness:?} | replays {times:.2?} | proven {:?}",
+            doc.len(),
+            search.answer().proven_offsets()
+        );
+    }
+}
+
+// ----------------------------------------------------------- admission
+
+/// **The admission door runs no geometry and says what the search would
+/// refuse**: handed the caller's own build of a document that does not
+/// build, it refuses as the witness would, naming the node; handed
+/// none, or a build that stands, it admits.
+#[test]
+fn admission_refuses_a_document_that_does_not_build_from_the_callers_build() {
+    let broken = slab(0.0);
+    let field = RangeField::Param(var(&broken, "depth"));
+    let seed = RangeSeed::symmetric(0.25);
+    let built = f64_run(&broken);
+    assert!(
+        !failing(&built).is_empty(),
+        "a depth of zero does not build"
+    );
+    let Err(RangeRefusal::Drive(refusal)) = admit(&broken, &field, seed, Some(&built)) else {
+        panic!("a build with a failed node is not admitted");
+    };
+    assert!(
+        matches!(
+            *refusal,
+            editor_core::drive::DriveRefusal::WitnessDoesNotBuild { .. }
+        ),
+        "got {refusal:?}"
+    );
+    // The search's own witness says the same thing.
+    let searched = RangeSearch::new(
+        &broken,
+        &field,
+        seed,
+        &budget(4, 8),
+        None,
+        &editor_core::Stop::default(),
+        tol(),
+    )
+    .map(|_| ())
+    .expect_err("the witness does not build");
+    assert_eq!(searched, RangeRefusal::Drive(refusal));
+    // Without the build the door cannot know, and with a standing one
+    // it admits.
+    let admitted = admit(&broken, &field, seed, None).expect("the request itself is sound");
+    assert_eq!(admitted.axis, var(&broken, "depth"));
+    let sound = slab(1.0);
+    let field = RangeField::Param(var(&sound, "depth"));
+    let admitted =
+        admit(&sound, &field, seed, Some(&f64_run(&sound))).expect("a standing build admits");
+    assert_eq!(admitted.nominal, 1.0);
+}
+
+/// **The seed this module chooses** reaches from zero to twice the
+/// current value, and one unit either way for a field at zero.
+#[test]
+fn the_chosen_seed_spans_zero_to_twice_the_current_value() {
+    for (value, half) in [(0.25, 0.25), (-4.0, 4.0), (0.0, 1.0)] {
+        let doc = slab(value);
+        let seed = RangeSeed::of(&doc, &RangeField::Param(var(&doc, "depth"))).expect("a seed");
+        assert_eq!(seed, RangeSeed::symmetric(half), "at {value}");
+    }
+    let (doc, node) = slab_slot(1.5);
+    let field = RangeField::Slot {
+        node,
+        slot: SlotId::Distance,
+    };
+    let seed = RangeSeed::of(&doc, &field).expect("a seed");
+    assert_eq!(seed, RangeSeed::symmetric(1.5));
+    assert_eq!(
+        RangeSeed::of(&doc, &RangeField::Slot { node, slot: INDEX }),
+        Err(RangeRefusal::UnknownSlot {
+            node: doc.spoken(node),
+            slot: INDEX
+        })
+    );
 }
 
 // ------------------------------------------------- purity and identity
@@ -635,6 +1078,7 @@ fn the_query_does_not_touch_the_input_document() {
         },
         RangeSeed::symmetric(0.25),
         &budget(24, 2048),
+        None,
         &editor_core::Stop::default(),
         tol(),
     )
@@ -735,7 +1179,7 @@ fn a_parameter_field_boxes_directly() {
     assert_eq!(derived.doc.ids(), doc.ids());
     assert_eq!(derived.nominal, 1.0);
     let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
-    assert!(matches!(r.lo(), RangeSide::Certified { .. }));
+    assert!(r.lo().reached_seed_end());
 }
 
 /// **A6.** A slot the rewrite cannot name refuses TYPED, at the door,
@@ -921,19 +1365,9 @@ fn a_profile_step_argument_widens() {
     );
 }
 
-/// **The three guard arms**, which the doors cannot reach and which
-/// stay anyway: what a reader would be told if a driver or analysis
-/// change ever fired one.
-///
-/// `SeedIsNotTheAnalyzedAxis` and `MoreThanOneAxisVaries` are
-/// unreachable through [`derive`] (whose `Band` states the seed's own
-/// offsets, and which clears every other spread), and
-/// `LeavesAreNotAPartition` is unreachable through the driver
-/// (`ParamBox::split` refuses a midpoint on an endpoint, so the halves
-/// tile). The walk-side behaviour is pinned at the function in
-/// `range::tests`; what is pinned here is that each refusal RENDERS
-/// both of the facts its payload carries, since a guard that fires
-/// with half a message costs exactly the debugging it exists to save.
+/// **The two guard arms**, which the doors cannot reach: each renders
+/// both facts its payload carries, and ends as a kernel defect does,
+/// since neither is anything the caller wrote.
 #[test]
 fn the_guard_refusals_render_what_they_carry() {
     let axis = RangeRefusal::SeedIsNotTheAnalyzedAxis {
@@ -946,9 +1380,11 @@ fn the_guard_refusals_render_what_they_carry() {
     }
     let axes = RangeRefusal::MoreThanOneAxisVaries { varying: 3 }.to_string();
     assert!(axes.contains('3'), "{axes:?} omits the count");
-    let gap = RangeRefusal::LeavesAreNotAPartition { at: (1.5, 2.5) }.to_string();
-    for fragment in ["1.5", "2.5"] {
-        assert!(gap.contains(fragment), "{gap:?} omits {fragment}");
+    for text in [&axis, &axes] {
+        assert!(
+            text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "{text:?} does not end as a kernel defect"
+        );
     }
 }
 
@@ -1083,43 +1519,4 @@ fn every_other_parameter_is_pinned() {
         ),
         "the other parameter keeps its value and loses its spread"
     );
-}
-
-/// The stop clause's third condition, checked on a real drive: the
-/// one-axis leaves tile the seed end to end, with no gap and no
-/// overlap, so the walk has something to walk.
-#[test]
-fn the_one_axis_leaves_tile_the_seed() {
-    let doc = slab(1.0);
-    let seed = RangeSeed { lo: -1.05, hi: 0.5 };
-    let derived = derive(&doc, &RangeField::Param(var(&doc, "depth")), seed, tol())
-        .expect("the parameter boxes");
-    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
-    let verdict = editor_core::drive::drive(
-        &derived.doc,
-        &analyzed,
-        &budget(24, 512),
-        &editor_core::Stop::default(),
-        tol(),
-    )
-    .expect("the nominal builds");
-    let mut spans: Vec<(f64, f64)> = verdict
-        .certified()
-        .iter()
-        .map(|l| l.box_.clone())
-        .chain(verdict.refused().iter().map(|l| l.box_.clone()))
-        .map(|b| {
-            let varying: Vec<_> = b.varying().collect();
-            assert_eq!(varying.len(), 1, "a one-axis drive varies one axis");
-            assert_eq!(varying[0].0, derived.axis);
-            (varying[0].1, varying[0].2)
-        })
-        .collect();
-    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
-    assert_eq!(spans.first().expect("some leaf").0, seed.lo);
-    assert_eq!(spans.last().expect("some leaf").1, seed.hi);
-    for pair in spans.windows(2) {
-        assert_eq!(pair[0].1, pair[1].0, "a gap or an overlap at {pair:?}");
-    }
-    assert!(verdict.receipt().holds());
 }
