@@ -120,8 +120,11 @@ pub(crate) const SELF_INTERSECTION_GRAPH: &str = "self_intersection_graph";
 /// The funnel site of a planar presentation's reach along its edge:
 /// how far inside the edge's two ends the cell's extent stays, metres.
 pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
-/// The funnel site of a planar corner's convexity: how far the second
-/// edge's far end stands on the first edge's face side, metres.
+/// The funnel site of a planar corner: at two line edges, how far, over
+/// an edge's length, the ray into the face stands on that edge's face
+/// side ([`ray_inside`]); at a line meeting a curve, how far the second
+/// axis leans to the line's face side ([`present_vertex_corner`]).
+/// Metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
 /// The funnel site of a vertex at a collapse of its face's chart, a
 /// cone's apex or a sphere's pole: its distance from that point, metres.
@@ -2391,8 +2394,25 @@ fn ray_inside(m: [Interval; 2], u: [Interval; 2], l: Interval, band: Band) -> bo
 }
 
 /// The planar presentation: the plane's chart through an affine map in
-/// which one line edge is `y = 0` and the face `y ≥ 0`, or two line edges
-/// at a convex corner are the positive axes.
+/// which one line edge is `y = 0` and the face `y ≥ 0`, or, at a corner
+/// of two line edges, two of them.
+///
+/// **A two-line corner is two pieces** ([`Presentation::Pair`]). The
+/// face near the vertex is the sector from one edge round to the other
+/// on the face's side, whatever its angle: convex, straight, straight to
+/// a rounding, reflex. The ray `m` into the face, the sum of the two
+/// edges' unit toward-face normals, bisects it, and each piece is the
+/// cone of one edge and a ray a little past `m`, the image of
+/// `[0, x̄] × [0, ȳ]` with the vertex at the origin: a convex corner of
+/// its own, read as one. The two cover the sector and overlap about `m`.
+/// Which side of straight the corner lies on is never asked.
+///
+/// Nothing else bounds the face in the cell: the cell's edges are these
+/// two, its only vertex theirs, and each piece's reach along its edge
+/// stays inside the edge's far end. A piece the cell lies wholly off is
+/// not presented, and the face is vacuous only where neither is. Each
+/// piece has its own zero: its edge where the pair shares it, else its
+/// corner where the vertex is on the shared cell, else none.
 fn present_plane<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -5881,6 +5901,14 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
 /// **The departure arm.** Each separator in turn: one face's carrier
 /// with the other presented, a plane through straight shared edges or a
 /// conic one's own plane, the shared edge's graph.
+///
+/// A face presented in two pieces ([`Presentation::Pair`]) is read piece
+/// by piece: a carrier parts the pair only where it signs every piece of
+/// the other face, and otherwise every piece of one face is asked
+/// against every piece of the other, each pair under a separator of its
+/// own. The pieces cover each face's part of its cell, so a coincidence
+/// of the faces is one of some piece pair, and the pair is certified
+/// only where all of them are.
 fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
     let shared = near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face));
     let split = Outcome::Split {
