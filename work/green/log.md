@@ -639,3 +639,21 @@ move was toward exact:
 It re-pinned to `0xfe07_0805_06b3_9e32` in 7597. The GERM log note
 says nothing is owed. I added this instance to the respelling row. The
 gate on `c837247c3d` is running, with a waiter on it.
+
+## 2026-11-23: two pins moved again on main's later merges
+
+- **7597:** the kite gate read `0x5533_9c14_5231_454e` on `c837247c3d`,
+  so something after 7411 moved the digest again. U15 is sent back to
+  find the commit and judge the move.
+- **7558:** the merge of main brought ONEHOME's check-1 change
+  (7323/7349), and U13's probe run 45244053101 found it moved 10 of 14
+  rows at 1e-12:
+  - six band rims now read `shared_row_touch` at hi 2e-11 to 5e-11;
+  - the rod and far-off carrier margins grew to 1.3e-12 to 1.7e-12;
+  - 7131's ruling pin reads 1.112e-12 against its (1e-12, 1.1e-12)
+    window, so main's 1e-12 leg is presumably red on it.
+
+  I ruled the probe before merging, and U13 re-pins all of them,
+  the ruling pin included, in 7558. The pattern: a kernel change that
+  moves f64 rounding moves every pin at 1e-12, and PR gates run slow-set
+  pins at the default ε only.
