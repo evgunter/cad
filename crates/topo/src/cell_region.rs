@@ -34,9 +34,8 @@
 //! subdivision consumer's looseness has to run.
 //!
 //! Both doors read a body at any certifying scalar `T`. The station is
-//! evaluated at `T`, its chart point entering as
-//! [`Real::from_computed`](geom_core::Real::from_computed), and the
-//! point-in-face doors place it at `T`. The ball is interval
+//! evaluated at `T`, its chart point a place handed over as an `f64`, and
+//! the point-in-face doors place it at `T`. The ball is interval
 //! arithmetic: the carrier, the station and every boundary feature are
 //! lifted through [`Interval::from_certified`], which keeps every bound
 //! at `T = Interval`.
@@ -137,10 +136,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 ) -> CellRegion {
     let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
     let (mu, mv) = centre(u, v);
-    let station = surface.eval(
-        <Interval as geom_core::Real>::from_computed(mu),
-        <Interval as geom_core::Real>::from_computed(mv),
-    );
+    let station = surface.eval_at(mu, mv);
     let reach = (surface.eval(span(u), span(v)) - station).norm();
     let clear_as = |row: &'static str, distance: Interval| {
         matches!(
@@ -153,7 +149,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     {
         return CellRegion::Undecided;
     }
-    let at = stored.eval(T::from_computed(mu), T::from_computed(mv));
+    let at = stored.eval_at(mu, mv);
     match place(body, face, stored, at, band) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,
@@ -185,7 +181,7 @@ pub fn station_region<T: Decide + CertifiedBounds>(
     band: Band,
 ) -> Option<FaceContainment> {
     let surface = body.face(face)?.surface();
-    let station = surface.eval(T::from_computed(u), T::from_computed(v));
+    let station = surface.eval_at(u, v);
     place(body, face, surface, station, band)
 }
 

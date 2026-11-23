@@ -6,7 +6,7 @@ status: review
 opened: 2026-09-14
 refs: [edge-carrier-kind-has-no-readback-door, 2587]
 priority: P1
-cost: E
+cost: M
 branch: walks/edge-view
 pr: 7437
 ---
@@ -97,18 +97,25 @@ gone with them; a site that reads an edge key out of the body maps
 
 - 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` rung (`Unexaminable`) is gone.
 
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Premise changed. split.rs, revert.rs and euler_kill.rs keep hand walks only inside `#[cfg(test)]`; coherence.rs is gone. Production walks survive at attach.rs (5), props.rs `run_edges` and seqgen.rs `split_site`, and every one needs the whole `EdgeCurve`, which `edge_carrier_ref` (returns `&Curve3`) cannot give; `Body::stored_curve` (`Result<&EdgeCurve, EulerOpError>`, ~23 callers) already serves that need, and TOPO's `topo-internal-stored-curve-ladders-can-read-through-body-stored-curve` aims the same sites at it. `CarrierAbsence` has two arms now. `Body::edge_curve_linked` has ~87 non-test callers. Key-only tag reads duplicating `query::edge_carrier_matches`: census `on_circle` (dangling reads false), mesh trimmed.rs `carried_by_a_line`, editor-core names/emit_shell.rs, possibly boolean/arcs.rs and chord_join.rs. Re-priced M with the door question open; weighed as fork F1.
+
 ## Decided
 
 An edge is read through a resolved handle, as a face is (`FaceView`):
 `topo::EdgeView` in `crates/topo/src/live.rs`. The door that builds it
 states where the key came from, once (DESIGN D2): `Body::edge` (public,
-`None` = the caller's key is stale), `Body::edge_views` (every edge),
-and crate-private `Body::proven_edge` (miss panics) and
-`Body::linked_edge` (miss panics naming the holding record). On the
+`None` = stale: a key a caller passed, or one whose reader refuses its
+own miss on a body tier 1 has not vouched for — the census, the
+validator), `Body::edge_views` (every edge), and crate-private
+`Body::proven_edge` (miss panics) and `Body::linked_edge` (a key a
+record holds on a body tier 1 vouches for; miss panics naming the
+holder). On the
 view: `key()`, the record (crate-private), `curve() -> &CurveGeom` (a
 link; a miss panics naming the edge) and `certified() ->
 Option<&EdgeCurve>` (`None` = null scaffolding, the one absence left).
-`BoundaryMember::Edge` carries its edge as a view.
+`BoundaryMember::Edge` carries its edge as a view (and no separate key).
 
 `readback::edge_carrier_ref`, `CarrierAbsence` and
 `Body::edge_curve_linked` are gone; readback's crate-private
@@ -119,7 +126,16 @@ take a caller's key. A kernel reader's tag question (is it straight, is
 it a circle) is the carrier's own (`is_curved`, `as_line`,
 `as_circle`) on the carrier the view reaches, so a torn link panics
 rather than reading as "no"; `query::edge_carrier_matches` stays the
-selection predicate only. `validate::certified_carrier` and
-`census/curved.rs`'s tangent read stay raw arena reads (they report a
-miss as a finding).
+selection predicate only.
+
+The curve arena is read raw only by readers that refuse or report
+their own miss on a body tier 1 has not vouched for, and the guard
+`live::tests::production_reads_an_edges_curve_only_through_the_view`
+lists them: `validate`'s `certified_carrier`, `closed_by_tier` and
+tier-3 local checks, `census/curved.rs`'s tangent read, `props`'s
+`run_edges` (the raw mass-properties door: a removed curve is
+`Corrupt`), mesh's one `walk::edge_curve` (`tessellate` takes a body it
+does not re-validate and refuses a dangling key typed),
+`transform::map_isometry`'s arena remap and `euler_kill`'s
+`kev_merge_moves`, beside the doors themselves.
 

@@ -1183,6 +1183,66 @@ fn a_point_on_a_far_rational_sheet_is_not_read_off_its_carrier() {
     );
 }
 
+/// **At a dual the carrier walk is the `f64` one**: a chart whose every
+/// stored scalar carries a tangent is cut into cells and walked without
+/// its tangent (`value_view`, as `read_capped` reads it), and reads what
+/// the same chart reads at `f64`, for a point on it, inside the band, in
+/// the gap and clear of it. Red where the view keeps the tangent in what
+/// it decides or folds it into the value.
+#[test]
+fn at_a_dual_the_carrier_walk_is_the_f64_one_across_the_band() {
+    use geom_core::{Dual64, Real};
+    let chart = NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        (0..4)
+            .flat_map(|i| {
+                let x = f64::from(i) * 0.7;
+                [Point3::new(x, 0.0, 0.1), Point3::new(x, 1.0, 0.2 * x + 0.1)]
+            })
+            .collect(),
+        vec![1.0, 1.25, 1.0, 1.25, 1.0, 1.25, 1.0, 1.25],
+    )
+    .unwrap();
+    let dual = chart.map_scalar(Dual64::variable);
+    let on_dual = dual.value_view();
+    let (plain_cells, dual_cells) = (
+        bezier_cells(&chart).unwrap(),
+        bezier_cells(&on_dual).unwrap(),
+    );
+    let band = tight_band();
+    let foot = chart.eval(0.3, 0.6);
+    let mut kinds = std::collections::BTreeSet::new();
+    for lift in [
+        0.0,
+        0.3 * band.zero(),
+        0.5 * (band.zero() + band.escalate()),
+        1e-3,
+    ] {
+        let q = foot + Vec3::new(0.0, 0.0, lift);
+        let at_f64 = super::carrier_walk(&chart, &plain_cells, q, band, Caps::READ, |_| Side::In);
+        let at_dual = super::carrier_walk(
+            &on_dual,
+            &dual_cells,
+            q.map(Dual64::variable).map(Real::without_tangent),
+            band,
+            Caps::READ,
+            |_| Side::In,
+        );
+        let f = format!("{at_f64:?}");
+        assert_eq!(
+            f,
+            format!("{at_dual:?}"),
+            "lift {lift}: the dual walks what f64 walks"
+        );
+        kinds.insert(f.split('(').next().unwrap_or_default().to_owned());
+    }
+    assert!(
+        kinds.len() >= 2,
+        "the lifts read more than one way: {kinds:?}"
+    );
+}
+
 /// A double-double `hi + lo`: the cut's reference arithmetic, near
 /// enough exact that its own rounding is a few units of `u²`.
 #[derive(Clone, Copy, Debug)]
