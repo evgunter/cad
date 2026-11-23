@@ -1030,3 +1030,9 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - main's census drift left to its owners.
 - Blind-coding byte 173, so A = R2. The coding finds these bilateral: the metric mismatch (A MINOR, B MAJOR), the false choice 2 and its surviving no-stall mutant, `REFINE_CELLS`, the done-when, and several text and style items.
 - Tally: none. B's node-box stall is unilateral and demonstrated, but it was raised "at the MAJOR/MINOR line", not at MAJOR, so criterion (a) is not met. I record it as borderline and do not tally it.
+
+## 2026-11-23 — Fable limit again (resets 2026-11-30 00:00 UTC); paired work paused
+
+- The rim-pad lane hit the Fable limit at the very end of PR 7499's fix pass. Its code fixes are pushed (head `1baa24a5b9`, CI running). Only the PR body's "Fix pass" section and the CI report remain, so it resumes as the same agent after the reset.
+- The image-function lane opened PR 7537 (head `68e8d3c249`) before the overloads. It still needs its dual review, which needs a Fable reviewer.
+- Following Ev's PR 7061 ruling (no unmatched rows), the paired work waits for the reset. Two retry reminders fired today; none is left armed.
