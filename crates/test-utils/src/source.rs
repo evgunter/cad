@@ -13,10 +13,9 @@
 //! change it exists to catch.
 //!
 //! **This is the shared answer, not the only one in the tree.**
-//! `crates/test-utils/tests/reader_census.rs` enumerates every site
-//! that reads Rust source as text and says which reader each uses; the
-//! readers still outside this module are named there with the track
-//! that owns each, and the shell gates under `scripts/gates/` have a
+//! `crates/test-utils/tests/reader_census.rs` holds every site that
+//! reads Rust source as text to reaching this module; the readers still
+//! outside it are named there with the track that owns each, and the shell gates under `scripts/gates/` have a
 //! second home of their own in awk. **Read the ledger for the count —
 //! this paragraph deliberately carries none**, because a number here
 //! is a copy that goes stale in the direction that matters.
@@ -1375,8 +1374,8 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 /// the `include_str!("all.rs")` handed to this function was the single
 /// extra one, so `named > mounted` held by a margin of exactly one —
 /// which one `#[path = "` written inside a string literal in an
-/// `all.rs` would have closed, silently, leaving that file's `Shared`
-/// ledger line to red as `stale`. The row is now
+/// `all.rs` would have closed, silently, leaving that file unread. The
+/// row is now
 /// [`crate::every_suite_file_is_aggregated!`], which carries those
 /// tokens in its expansion rather than in the file's text: every
 /// aggregator's margin is zero, and the census recognises the
@@ -1512,14 +1511,13 @@ pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<
 ///
 /// # What the collapse cost, which is redundancy
 ///
-/// Fifteen copies were fifteen INDEPENDENTLY CHECKED facts.
-/// `crates/test-utils/tests/reader_census.rs` reads each `all.rs` and
-/// asserts a `Shared` ledger line against that file's own text, so a
-/// reversion in one of them red'd one file and named it. One macro is
-/// one fact: this body answers for fifteen call sites, and the file it
-/// lives in is dispositioned `Home`, which that row filters out before
-/// it looks at anything. Rewriting this expansion into a hand-rolled
-/// `read_dir` walk therefore leaves all fifteen `Shared` lines green.
+/// Fifteen copies were fifteen INDEPENDENTLY CHECKED facts: a reversion
+/// in one of them red'd one file and named it. One macro is one fact:
+/// this body answers for fifteen call sites, and
+/// `crates/test-utils/tests/reader_census.rs` reads each invoking file
+/// as reaching the shared lexer by its invocation alone. Rewriting this
+/// expansion into a hand-rolled `read_dir` walk therefore leaves every
+/// invoking file reading as converted.
 ///
 /// `the_aggregation_row_macro_reaches_the_shared_lexer` is the row that
 /// closes it, by reading THIS body as text and asserting it still calls
@@ -1896,14 +1894,17 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
 ///   `include!` or `#[path]` pulling source from outside `src` — a
 ///   `#[path = "x.rs"]` naming a file under `src`, which the walk reads
 ///   whole, is not a gap.
-/// - No declared carrier is stale: each [`NameCarrier`] matched
-///   something ([`PredicateCensus::unfound`]).
 /// - Every site whose name is a `const` names a declared
 ///   [`NameCarrier::Const`], which reads the name out of it.
 /// - Where the roster lists its indirect sites (`listed`, as
 ///   `(site, what carries the name there)`), the census's indirect sites
-///   are exactly those. A roster that admits them by a rule of its own
-///   passes `None` and holds them itself.
+///   are exactly those. A roster that passes `None` lists none, and is
+///   held instead to the one shape that hides names: an indirect site
+///   whose name is a bare parameter of its enclosing `fn` is a forwarder,
+///   and the forwarder must be a declared [`NameCarrier::Call`] (or be
+///   spelled `decide*`), so its callers' names are read
+///   ([`undeclared_forwarders`]). Any other indirect site — a field, a
+///   binding, another type's method — is silent.
 #[must_use]
 pub fn roster_violations(
     src: &std::path::Path,
@@ -1921,12 +1922,6 @@ pub fn roster_violations(
             out.push(format!("source the reader does not walk: {site}: {why}"));
         }
     }
-    out.extend(
-        census
-            .unfound
-            .iter()
-            .map(|carrier| format!("a declared carrier matched nothing in src: {carrier}")),
-    );
     let consts: std::collections::BTreeSet<&str> = carriers
         .iter()
         .filter_map(|carrier| match carrier {
@@ -1942,6 +1937,9 @@ pub fn roster_violations(
                 "a site names the const `{last}`, not declared a carrier: {site}"
             ));
         }
+    }
+    if listed.is_none() {
+        out.extend(undeclared_forwarders(src, census, carriers));
     }
     if let Some(listed) = listed {
         let named: std::collections::BTreeSet<&str> =
@@ -1995,6 +1993,104 @@ pub fn roster_violations(
                 None => out.push(format!("a FORWARDS entry that names no forwarder: {site}")),
             }
         }
+    }
+    out
+}
+
+/// **Every indirect site that is an undeclared forwarder**: its name is
+/// a bare parameter of the `fn` it stands in, and that `fn` is no
+/// declared [`NameCarrier::Call`] nor spelled `decide*`, so the names
+/// its callers hand it are read nowhere. Derived from the site and its
+/// file; no list.
+#[must_use]
+pub fn undeclared_forwarders(
+    src: &std::path::Path,
+    census: &PredicateCensus,
+    carriers: &[NameCarrier],
+) -> Vec<String> {
+    let calls: std::collections::BTreeSet<&str> = carriers
+        .iter()
+        .filter_map(|carrier| match carrier {
+            NameCarrier::Call(token) => Some(*token),
+            NameCarrier::Const(_) | NameCarrier::Table(_) => None,
+        })
+        .collect();
+    let mut out = Vec::new();
+    for site in &census.indirect {
+        let Some((file, scope, head)) = indirect_key(site) else {
+            continue;
+        };
+        let name = head.trim_start_matches(['&', '*']).trim();
+        if scope == "-"
+            || name.is_empty()
+            || !name.chars().all(|c| c.is_alphanumeric() || c == '_')
+            || calls.contains(scope)
+            || scope.starts_with("decide")
+        {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(src.join(file)) else {
+            continue;
+        };
+        if fn_parameters(&code_only(&text), scope)
+            .iter()
+            .any(|params| params.iter().any(|p| p == name))
+        {
+            out.push(format!(
+                "a forwarder no carrier declares: `{scope}` hands its parameter `{name}` to a \
+                 decide site, so its callers' names are read nowhere — declare it a \
+                 `NameCarrier::Call`: {site}"
+            ));
+        }
+    }
+    out
+}
+
+/// The text-typed parameter names of every `fn` named `name` in `bare`
+/// (a code-only view), one list per item: each parameter whose type
+/// spells `str` (a name is a `&'static str`), by its pattern before the
+/// `:`, `mut` and `&` dropped. A parameter of any other type is no name,
+/// so a decide site handed one is another type's method, not a
+/// forwarder.
+fn fn_parameters(bare: &str, name: &str) -> Vec<Vec<String>> {
+    let mut out = Vec::new();
+    for (at, _) in bare.match_indices("fn ") {
+        if !boundary_before(bare, at) {
+            continue;
+        }
+        let name_at = skip_ws(bare, at + 3);
+        if ident(bare, name_at) != name {
+            continue;
+        }
+        let mut open = skip_ws(bare, name_at + name.len());
+        if bare[open..].starts_with('<') {
+            let Some(end) = angle_end(bare, open) else {
+                continue;
+            };
+            open = skip_ws(bare, end + 1);
+        }
+        if !bare[open..].starts_with('(') {
+            continue;
+        }
+        let Some(close) = balanced_end(bare, open) else {
+            continue;
+        };
+        let list = &bare[open + 1..close];
+        let params = top_level_split(list, ',')
+            .into_iter()
+            .filter_map(|range| {
+                let param = list[range].trim();
+                let (pattern, ty) = param.split_once(':')?;
+                if !ty.contains("str") {
+                    return None;
+                }
+                let pattern = pattern.trim();
+                let pattern = pattern.trim_start_matches('&').trim();
+                let pattern = pattern.strip_prefix("mut ").unwrap_or(pattern).trim();
+                (!pattern.is_empty()).then(|| pattern.to_string())
+            })
+            .collect();
+        out.push(params);
     }
     out
 }
@@ -2377,7 +2473,8 @@ pub fn after_visibility(item: &str) -> &str {
 /// The byte ranges of the test-only items in a blanked view: those
 /// under `#[cfg(test)]` or `#[cfg(any(test, …))]` (a test-support
 /// feature beside `test`).
-fn cfg_test_extents(bare: &str) -> Vec<std::ops::Range<usize>> {
+#[must_use]
+pub fn cfg_test_extents(bare: &str) -> Vec<std::ops::Range<usize>> {
     const ATTR: &str = "#[cfg(";
     let mut out = Vec::new();
     let mut at = 0usize;
@@ -2648,7 +2745,7 @@ pub fn crate_roster(crate_dir: &std::path::Path) -> Option<Vec<NameCarrier>> {
 /// decided**: each `const NAME: &str` (or tuple or array of them) it
 /// declares. Never a reference site and never an arbitrary literal, so a
 /// hold is only ever a decide-shaped spelling of the name (the coverage
-/// row's `KNOWN_MISSING`). A closed type's table is not held: a roster
+/// row's holds). A closed type's table is not held: a roster
 /// declares it ([`NameCarrier::Table`]) and the census reads it.
 #[must_use]
 pub fn held_spellings(src: &std::path::Path) -> std::collections::BTreeSet<String> {
@@ -3506,10 +3603,41 @@ mod tests {
         assert_eq!(super::indirect_key("a.rs: read_identity#1(x)"), None);
     }
 
+    /// **A forwarder no carrier declares hides its callers' names, and
+    /// reds**: with no listed sites, a `decide` site whose name is a bare
+    /// text parameter of its `fn` reds unless that `fn` is a declared
+    /// `Call` carrier. A field, a local binding, or a parameter of
+    /// another type (another type's `decide*` method) stays silent.
+    #[test]
+    fn an_undeclared_forwarder_reds_with_no_list() {
+        let dir = std::env::temp_dir().join(format!("tu-forwarder-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn my_gate(m: f64, name: &'static str) { decide(name, m); }\n\
+             fn declared_as<T>(name: &str) { decide(name, 0.0); }\n\
+             fn field(row: Row) { decide(row.name, 0.0); }\n\
+             fn local() { let name = pick(); decide(name, 0.0); }\n\
+             fn other(sys: &System) { decide(sys, 0.0); }\n\
+             fn caller() { my_gate(1.0, \"wrong_prefix_name\"); }\n",
+        )
+        .expect("write");
+        let carriers = [super::NameCarrier::Call("declared_as")];
+        let census = super::predicate_census(&dir, &carriers);
+        let said = super::roster_violations(&dir, &census, &carriers, None);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(said.len(), 1, "{said:#?}");
+        assert!(
+            said[0].starts_with("a forwarder no carrier declares: `my_gate`"),
+            "{said:#?}"
+        );
+    }
+
     /// **The roster harness reports each kind of gap once and passes a
     /// clean tree**: a `#[path]` to a file under `src` is walked, one
-    /// outside it is not; a stale carrier, an undeclared const site, and
-    /// an indirect site missing from or stale in the list each red.
+    /// outside it is not; an undeclared const site, and an indirect site
+    /// missing from or stale in the list each red; a stale carrier does
+    /// not.
     #[test]
     fn the_roster_harness_names_each_gap() {
         let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));
@@ -3541,7 +3669,6 @@ mod tests {
         );
         let expect = [
             "source the reader does not walk: a.rs:3",
-            "a declared carrier matched nothing in src: Call(gone)",
             "a site names the const `OTHER`, not declared a carrier: a.rs: OTHER",
             "an indirect site not listed: a.rs: f: name",
             "a listed indirect site the census no longer finds: a.rs: stale",
