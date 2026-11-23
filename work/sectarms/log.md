@@ -1010,3 +1010,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   1. resume the rim-pad lane and the image-function lane as the same agents;
   2. once rim pad lands, dispatch the cover-halving build (measurement in the sliver item; a chunked `refine_knots`; the pad-holds-tube row to rewrite);
   3. then the node-arc carry.
+- 2026-11-23 — **Usage back (Ev). Resumed both Fable lanes as the same agents** (rim pad, image function), on their arms, each told to merge main first. The image-function lane is to say what its build does to the three rows PR 7065 parked on it.
