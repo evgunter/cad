@@ -1,0 +1,22 @@
+MERGED-RUN lane — MEASUREMENT (base = branch as cut, 0700268f2a; nothing built yet).
+
+1. Cells reproduced. Bodies as the spec gives them (wall `(1,0),(2+tan α,0),(2,1),(1,1)` and solid `(0,0),(2+tan α,0),(2,1),(0,1)`, full and half turn, each line edge split in turn, placed obliquely, δ 0.1/0.01/0.001), α ∈ {0.01°, 0.1°, 1°, 3°, 26.6°}, gap g ∈ {1e-4 … 1e-10} of the ruling's range, four split shapes (g from start; g from end; two splits g apart at mid; THREE splits g apart at mid).
+ - Default ε: 7480 cells = 5337 Meshed, 1296 `SphereTrimShape{DevelopedMerge}`, 27 `UnresolvedWinding` on a PLANE face, 820 no-split (`split_edge` refuses the split). The merge thresholds match the spec: 0.01° from g=1e-5 down, 0.1° from 1e-6 (and 57 of the 1e-5 cells), 1° and 3° from 1e-7, 26.6° at 3e-8 and 1e-8. `split_edge` admits 1e-8 and refuses 1e-9 at the default ε.
+ - ε 1e-12: 1479 DevelopedMerge, 4269 Meshed, 300 `UnresolvedWinding` on a Plane face; gaps down to 1e-10 all split. Two things the spec does not say: the α = 0.01° bodies cannot be REVOLVED at ε 1e-12 (`Certification … ChartResidual`, margin 1.8e-12 in the band), and the α = 0.1° bodies revolve but are not finished bodies there (`VolumeUncomputable`, `props_cone_circle_off_axis`), so the enclosing-volume oracle cannot read them; they still tessellate/refuse as the others (1248 such cells mesh with the oracle unread).
+ - The Plane `UnresolvedWinding` cells are all the three-splits shape on a half turn: the planar cut face holds the same ruling and the planar lane makes a triangle of three near-collinear points. Not the chart lane's, present on the base; after the cure some cone-refusing cells may show this plane refusal instead. I will count and report them, not touch the planar lane.
+
+2. Census of what reaches `developed_merge` today (temporary instrumentation at the refusal, classifying every merged group by polygon order):
+ - the measured cells, both ε: 100% "run on one ruling" — consecutive polygon points, one chart column bit for bit, no apex member: 1446 groups of 2 and 420 of 3 at the default ε; about 1500 of 2 and 450 of 3 at 1e-12. Zero two-sides, zero point-and-lattice-node, zero two-loops, zero apex merges.
+ - `mesh` suite whole, default profile incl. slow set (503 tests): 0 faces refuse DevelopedMerge at the default ε (the one existing pin is ε 1e-12 only).
+ - `sweep`'s meshing modules (64 modules naming `mesh::`/`tessellate`, 584 tests): 0.
+ - `step-import` whole (329 tests): 0.
+ - `demos/tour`: still running (its eps_regression rows take > 20 min in a debug container); 0 so far, will confirm.
+ So the cure reaches everything measured; the non-run kinds have no instance anywhere I looked and will be pinned by hand-built polygons at the unit level.
+
+3. Where the spec's quoted analysis is wrong or incomplete, from reading the code (to be confirmed by building):
+ a. "a, P, b are collinear in the development" is false for the commonest measured cell. A split near an END of the ruling merges the split vertex with the ruling's end vertex, which is a CORNER of the polygon: one neighbour of the run is on the ruling, the other on a rim. The spec's fixed rule (thin triangles hang off the triangle on side a–P) then puts them, when the run STARTS at the corner (a on the rim), on a triangle whose third corner x may lie on the ruling itself (an ear a–P–b' at the corner): `(p_i, p_{i+1}, x)` would be three points of one ruling. So the anchor side must be chosen: the neighbour of the run that is on the run's own ruling (same column bit for bit, or the apex); the CDT's exactness then gives x off the ruling. Both neighbours on the ruling (mid-ruling) → the a side, as the spec says; neither → still refuses DevelopedMerge.
+ b. The run's handle today would be read as a PINCH (`planar::Pinches`: one handle, two mesh ids) and refuse `PinchWedge`; the run's later members must stay out of the walk's pinch table.
+ c. The shared-side (ear) cure inserts a point inside a kept triangle where the CDT runs; a thin triangle has no inside there. A thin triangle with a shared side must queue its parent CDT triangle's point, once.
+ d. Two runs anchored on one CDT triangle (possible only with both runs next to the apex) has no consistent fan under the rule; I will refuse it DevelopedMerge rather than invent a second rule.
+
+Digest baseline taken (per-patch FNV over position bits, as a multiset): mesh 49,728 patches, sweep modules 31,646, step-import 108, tour in progress. Building the cure next.

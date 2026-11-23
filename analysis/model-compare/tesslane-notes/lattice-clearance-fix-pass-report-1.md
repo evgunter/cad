@@ -1,0 +1,43 @@
+IMPLEMENTER tesslane/lattice-clearance — PR 7043 FIX PASS REPORT (message 1 of 4; the whole PR body follows in 2–4).
+
+HEAD `6f41f1b0ef6247d74e5270ea8ed9e646e4f63c86` (ls-remote confirmed), main merged. Line numbers are that head's. One item is a FOUND MISS (7) and one is a judgement I would rather you made (3).
+
+A. THE REFUSALS THIS PR ADDS
+1. Done: the body's new first section, "Bodies that mesh on main and refuse here": the nine T1 cells stated plainly with the reviewers' 36 triangles; the rectangle-lane class (84 cells of plain cones; 5° and 1° at every δ); "nothing that meshes on main refuses" scoped to the chart lane and corrected for the rectangle lane; pointers to `tesslane/cone-axis-winding` and `[ev]` PR 7046; the 1,349-cell census. The 84 cells and the 36 triangles are stated as the later unit's and the reviewers'; I did not re-measure them.
+2. Not edited further.
+
+B. UNPINNED DECISIONS
+3. DECIDED: an attempt holding an unresolved triangle refuses the face at once, `UnresolvedWinding`, from `TrimmedFace::emit` (`crates/mesh/src/trimmed.rs:1532`); the fold census then reads the sign of a resolved normal only; the three-state `Winding` and `validate::winding` are gone. Measured (can a retry resolve it?): on the one body that makes such a triangle in this lane (the ball under a box face, δ 0.04, the lane handed clearance 0) the bare-sign reading returns `Ok(238)` with the triangle still in the patch; the noise read outward and no retry ran. Pinned by `trimmed::tests::a_lattice_laid_without_clearance_cuts_a_triangle_the_lane_refuses` (trimmed.rs:5014), which calls the lane as `tessellate` does, clearance as a value; the bare-sign mutant reds it (run). HONEST LIMIT: at the shipped clearance no suite body holds an unresolved triangle in the trimmed lane (the whole suite is byte-for-byte unchanged by the at-once refusal), so through the public door the two readings answer alike on every body I have. The row tells them apart at the lane's own answer, on a real body, at clearance 0. If that is not body level for you, your item's other branch (the reading goes from `emit`, the join alone refuses) is a five-line revert: say which.
+4. "Its own step" is stated once, on `trimmed::Node` (trimmed.rs:2443, doc above). Two bands: a location two bands lay is two nodes and is laid only where BOTH clear (was: either), in `lay` (1758); row `a_location_two_bands_lay_is_laid_only_where_both_clear` (4573). Crease node: laid once per band on its line at that band's steps (`Creases::cut_candidates`, 3016), same rule. No digest and no suite mesh moved. The two cone choices are said at their sites, with which is permissive and that no measured body distinguishes them: smaller gap (`lattice_candidates`, 2283: the smaller is permissive); development against chart (`Side`'s doc: they differ by the bow on either side, neither is permissive). I searched no further than the suite for a body. `in_the_development_a_nodes_box_is_its_sector` (4874): 200,000 samples, and the thousandth is justified at the row (sample pitch 1.2e-5 against a half-height of 7.5e-3); the factor stays 1.001.
+5. `a_node_is_laid_just_outside_a_creases_clearance_and_not_just_inside` (4520): nodes at 0.99 and 1.01 of `c·h` either side of a crease, both axes. The band row's doc is trimmed to what it asserts (`crates/mesh/tests/winding_rows.rs`): "none is laid" and "0.67" are gone. I did not make clearance 0 red it; from outside it can observe only that the face meshes.
+
+C. CODE
+6. `Side::of`: a side with an end at the apex has an unbounded `u` window (the `apex.0 || apex.1` arm; `Side::window` at 1914 says so). Row `a_side_from_the_apex_is_searched_at_every_azimuth` (4643): `lay` against `meets` read side by side with no window; reds under the old window (run).
+7. A MISS, FOUND. Reported and filed, not cured. Row `a_point_placed_inside_a_kept_triangle_is_strictly_inside_it` (4729), held to spade's exact location. CHART (4,050 needle triangles, three metrics): strictly inside whenever the height is at least 4 f64 epsilons of the largest coordinate; the 336 misses are all under half an epsilon of it. DEVELOPMENT (21,870 needle triangles; α 0.02, 0.5, 1.4; both nappes): strictly inside whenever the developed height over the longest side is at least 2⁻²⁵ of the farthest radius; below that 744 misses, the thickest at 7.1e-9 of the radius, 586 of them ON a side or vertex, where the lane now refuses `Triangulation` (main dropped and retried). THE TRIANGLE, pinned in the row: half-angle 0.5, nappe +1, chart corners (6, 0) [apex], (6, 50), (6.00000001, 50.449999999999996); its point (6.000000008625545, 33.4833…) lands on an edge. As measured, the point is read back to the chart and developed again through the 26-bit direction cut. No body is known to reach it. `inside_point`'s doc (952) says what the row covers. Filed: `work/tesslane/a-point-placed-inside-a-developed-needle-triangle-can-land-on-its-side.md` (P3).
+8. Done: `boundary_clearance()` and the `CLEARANCE` thread-local are gone. `tessellate_trimmed` takes `clearance: f64` (505), `tessellate` passes `trimmed::BOUNDARY_CLEARANCE`, `TrimmedFace::clearance` (841).
+9. Done: `Node::on_crease` carries the fact; `Creases::on` is gone. A lattice column that coincides with a crease is not laid; the crease's own node there is.
+10. Done: `TessellateError::UnresolvedWinding { face, unresolved: Box<validate::Unresolved> }` (`crates/mesh/src/types.rs:615`): corners, height, allowance. BOXED because `clippy -p viewer --features app` fails `result_large_err` on the grown type (62 errors unboxed). Display prints height, allowance, corners and `ROUNDING_ULPS` (984). Python: `value` = height, `bound` = allowance (`crates/pncad-py/src/py/mesh.rs:118`), stub doc updated, tag unchanged. The variant's doc names the lanes. `check_winding`'s error carries the same `Unresolved`.
+
+D. DOCS
+11. Done: `check_winding`'s doc and `Unresolved` name `cert::ROUNDING_ULPS` (now `pub`, `cert.rs:511`); Display formats it. The unit row keeps `8.0` written out as its own oracle.
+12. Done: `crates/stl/tests/common/mod.rs:46`. `review_m2_pr7.rs` read: its doc is accurate. STL writer doc: the promise is of the f64 mesh, and what the f32 file can and cannot carry (`crates/stl/src/lib.rs:33-50`).
+13. Done: `cert.rs:590`'s doc.
+14. Done: `Next::Rebuild`'s doc (829), the crease chain's comment, `lay`'s doc. `grid_ids`: I found no false comment on it and left it.
+15. Done, two sentences: `crates/mesh/README.md:78` and `:81`; listed in the body.
+16. Done in the body.
+
+E. FILED
+17. `work/tesslane/the-winding-verdicts-scale-reads-corner-norms-not-what-an-evaluation-rounds-at.md` (P2): both measurements, the far-centred case unmeasured. Scale unchanged.
+
+RUN: in the body's last section. Two things to know. (i) `-p sweep` whole: 3,773 of 3,775; the two reds are `mass_props_are_thread_count_invariant::the_walk_matches_the_serial_golden_at_four_threads` and `…_at_one_thread`. That row calls no mesh code and this branch differs from main only in mesh, stl and the Python binding, so I take them as main's (they arrived with a merge of main; the first pass's sweep was 3,762 of 3,762). I did not build main to confirm. (ii) The last merge of main brought `cert.rs` changes; after it I re-ran the mesh suite (497/497), clippy (mesh, stl, binding, viewer), the gates, tracker lint, fmt and the ε rows, not the rest. Viewer GPU rows: the same 3 fail for no adapter.
+
+THE DELTA'S CLAIMS
+a. `emit` refuses at once on an unresolved triangle; nothing else in the retry loop changed; no suite mesh and none of the 40 digests moved.
+b. `lay`: a location laid by two bands is laid only if both clear; a crease node is known by `on_crease` and laid once per band on its line; no digest moved.
+c. `Side::of`: unbounded `u` window for an apex-ended side; `meets` unchanged.
+d. The clearance reaches the lane as a parameter; no `cfg(test)` switch remains on it (`STEP_SCALE` and `LAST_ATTEMPT`, older than this PR, are untouched).
+e. `UnresolvedWinding` carries a boxed `Unresolved`; `resolved_normal` returns `Result<Vec3, Unresolved>`; `cert::ROUNDING_ULPS` is `pub`.
+f. `inside_point` is strictly inside in the chart above 4 ε of the largest coordinate and in the development above 2⁻²⁵ of the radius, over the row's table; below that in the development it is not, with one pinned triangle.
+g. README: two sentences re-worded, no decision moved.
+h. `trimmed::tests`: four rows added, one rewritten (the lane row), the development sampling row tightened; `validate`'s three-answer row removed with its function; two tracker rows filed.
+i. Slowed me: the disk allowance filled three times and killed two suite runs; sweep is two hours of wall time per run here.

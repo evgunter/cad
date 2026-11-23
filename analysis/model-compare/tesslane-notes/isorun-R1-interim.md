@@ -1,0 +1,12 @@
+INTERIM from a reviewer lane on PR 7526 at frozen head 553d4d6310 (full report follows; runs still going).
+
+Verdict so far: leaning NOT-MERGEABLE-AS-IS, on one MAJOR that is DEMONSTRATED on the head and whose base half I am still running.
+
+MAJOR (claim 1, head half demonstrated; base half pending): a pipe wall with TWO SMALL HOLES at mid-height, about 1.5 column steps of free wall between them, refuses `CertificateExceeded` on the head. Body: `rod(r, -h/2, h)` less two stub bricks `x in (0.5r, 1.1r)`, half-width 0.04 column, `z in (-0.02h, 0.02h)`, turned to `c -/+ (0.75 col + w)` with `c` half a column off a rim chord point. Refusing cells: r=1, δ=1e-2, h=1.0 and 1.9, gap 1.5 and 1.6 columns (bound 0.01082 and 0.01231 against 0.01); r=1, δ=1e-3, h=1.33 (0.00111, 0.00126 against 0.001); r=1e-3, δ=1e-5, same cells. Mechanism (by inspection, consistent with the numbers): with no node between the holes, the CDT joins the two holes' facing corners; that side spans 1.5 to 1.6 columns round the axis, and the headroom's ½ covers only √2 columns. Which heights refuse follows the power-of-two rounding of `AnalyticRow::metric`'s `column step / window height`. I expect main (rows laid) to mesh these, since a lattice node sits between the holes; that run is next and I will say if it does not.
+
+Also so far:
+- Claim 7: `tessellate.rs`, `memo.rs`, `chords.rs`, `walk.rs` are byte-identical to origin/main (`git diff origin/main HEAD` on them is empty); no `IsoBounded`/`runs_on_iso_lines`/env read left in `crates/mesh/src`. Left behind: `trimmed.rs:1536-1537` still says the repeated-id ingredient "is checked at the cylinder arm's `nu`", the check this PR deletes; `curved.rs:1096` still says `lattice_steps` lays "rows every `lever·hu` on a ruled chart".
+- Claim 5: the tilt row's `1/cos φ` reads as a fit, not a theorem (measured 1.36 at φ=0.8 matches (1 + cos^-1.5 φ)/2, which passes 1/cos φ near φ ≈ 1.18); the holed row's 1.4 depends on the hole's share of the turn. Both to be run.
+- Claim 11: hosted CI on this head has run nothing: `change filter` is queued, `prime the build cache` skipped; no test job exists yet. Locally `mesh` whole with the slow set at ε 1e-9 on the head: 554/554 (551 + my 3 probe rows).
+
+Next: main's mesher on the same probes; per-patch digest differential base vs head over `mesh` at three ε and `sweep`'s meshing modules; the two viewer pins on both trees; the budget-refusal mutant.

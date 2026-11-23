@@ -1,0 +1,29 @@
+MERGED-RUN lane — FIX PASS, ADDENDUM (your two later messages reached me only after my fix-pass report; both are now folded into one more push).
+
+SHA: 8c28b0b61293831639c6dc4796919dc6f9138a41 on tesslane/merged-run (`git ls-remote` confirmed; origin/main merged again). One new commit of mine over b65ca44f83: "a run on a cone face cut by an oblique slab meshes …". Tests only; no source change.
+
+M. DONE — a door builds it and it meshes. Body: the 1° wall `(1,0),(2+tan 1°,0),(2,1),(1,1)` under a slab (`brick((-6,6),(-6,0),(-6,6))`, moved up 0.5 and tilted 0.1 about the axis (0.6, 0, 0.8)), `A ∩ B`. The cone face keeps its lower rim and its rulings and its upper boundary is the slab's section of the cone, so it is the chart lane's by its trim carrier whether or not a ruling is split. A ruling split 1e-7 of its range from either end is a run, and the cell is `Meshed` through `got_enclosing` (volume read off the unsplit cut body). Measured with the temporary run counter: one run of 2 on the half turn's face (49 polygon points, one loop), one on each of the seam's two rays on the full turn's (94 points).
+ Two rows, both fast (0.36 s and 0.25 s at the default ε, so in the per-PR gate, not the slow set): `split_rulings::a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes` (half turn) and `a_run_on_a_cut_cone_faces_seam_meshes` (full turn). Both RED under the re-split mutant at the default ε and at 1e-12, so they reach the cure and will go on reaching it after the strip unit. By ε: 1e-7 at the default and 1e-12; at 1e-6 the smallest split of the cut rulings (1e-4 of the ruling) is wider than the 1° cone merges, and the rows hold that the cut face meshes with its points apart (stated in the doc). Not tried: a cone face holding a ring, a T1-like body; the oblique cut answered the question.
+ One detail for whoever reads the rows: my ruling filter (line edges whose ends differ in radius and height) also takes the slab's two straight cut edges on the half turn's planar faces; those cells split a planar face's edge, mesh, and have no run.
+
+THE REVIEWER'S THREE ROWS. Mine already used its three bodies; now at its cell counts and in item F's form (table by ε, no early return):
+ 1. `a_run_at_a_corner_is_anchored_along_its_ruling`: both cone rulings × start and end × δ 0.1, 0.01, 0.001 = the reviewer's 12 cells, all Meshed at the default ε and 1e-12 (gap 1e-8) and at 1e-6 (gap 1e-5, no merge, stated). CONFIRMED: red under the literal-anchor mutant at the default ε and 1e-12.
+ 2. `two_runs_anchored_by_the_apex_mesh`: the reviewer's body and split; 3 triangles at δ 10, 1, 0.1. CONFIRMED: red under "fanned as one" at the default ε and 1e-12.
+ 3. `a_run_anchored_on_a_needle_triangle_refuses_unresolved`, default ε: δ 100 and 10 mesh (check_mesh + check_winding), δ 1 refuses Unresolved(Cone). One ruling, not both.
+
+THE TWO THINGS THE REVIEWER SAW (reported, not fixed; neither is filed — say if you want rows):
+ - `reach_probes::geometry_enclosing` panics at `pinned_volume` on the cone `(0,0),(1000,0),(0,1000)` at the default ε. Reproduced: my probe got the panic on every cell of that cone that tessellates (all gaps, δ 1000 to 1), and on none of the height-1, 100 (2°, 10°) or 1000 (2°) cones. So it is that body's mass properties, not the split or the mesh: the unsplit body is what `pinned_volume` reads. I did not read the payload. The needle row therefore reads check_mesh and check_winding, not the volume, where that cone meshes, and says so.
+ - That cone does not revolve at ε 1e-12. Reproduced (`NOBODY` at 1e-12 for height 1000 at 45°; height 4000 at 45° does not revolve at any ε). Cause not read. The needle row uses the unit cone at 1e-12, as before.
+ Related, from this pass: at ε 1e-6 the 0.01° wall's 0.05 wedge does not revolve (`ChartSingularityUndecided { point: Apex }` on its cone face).
+
+WHAT RAN on the merged tree before this push, all green: fmt --all --check; clippy mesh --all-features --all-targets; work.py lint; split_rulings + the development's unit rows at 1e-6, default, 1e-12: 20/20 each; mesh whole with the slow set 520/520; slow-set names for mesh. Mutants re-run with the new rows: re-split removed, literal rule, queue-once (still red on nothing, as tabled), the refusal arm, prefer-second. Not re-run for this tests-only commit: the digests, step-import, the viewer rows, the doc gate, run-gates (all green on b65ca44f83's tree).
+
+CHANGED PR-BODY PARAGRAPHS (beyond those of my fix-pass report)
+
+--- "Rows", add to the `split_rulings.rs` list:
+- `a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes` and `a_run_on_a_cut_cone_faces_seam_meshes`: **a cone face that is no rectangle.** The 1° wall, a half turn and a full turn, under a slab tilted about an oblique axis (`A ∩ B`): the cone face's upper boundary is the slab's section of the cone, so it is the chart lane's by its trim carrier, split or not. A ruling split `10⁻⁷` from either end is a run (one on the half turn's face, one on each of the seam's two rays on the full turn's), and every cell is `Meshed`. These are the rows that keep reaching `developed_runs` when a split-ruling rectangle is no longer the chart lane's: the limit is the development's, and older than the split-side route.
+- and change the corner row's line to: `a_run_at_a_corner_is_anchored_along_its_ruling`: the wall at 26.6°, a wedge of 0.05, each cone ruling split `10⁻⁸` from its start and from its end, δ 0.1, 0.01, 0.001 (12 cells).
+
+--- "Mutants", in the first row's red list add: `a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes`, `a_run_on_a_cut_cone_faces_seam_meshes`.
+
+--- "What still refuses", the needle bullet: after "δ 1, reads height `3.3·10⁻¹³` against allowance `1.78·10⁻¹²`" add: "(δ 100 and 10 mesh; where it meshes the row reads `check_mesh` and `check_winding`, since `pinned_volume` panics on that cone at the default ε and the volume is not read)".
