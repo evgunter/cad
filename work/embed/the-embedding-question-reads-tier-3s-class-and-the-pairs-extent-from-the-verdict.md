@@ -182,3 +182,68 @@ separator's own face brings no sine.
 **The shell's cavity (R, 8c)** runs the local battery on its moved
 clone to ask; a refusal there is `ShellError::NotValid`. This retires
 with EMBEDGATE's lane C.
+
+
+## Measured and landed (lane `embed/verdict-read`, 2026-11-23)
+
+Before is `embed/remeter` at `18d52c6e9`; after is this lane's head.
+Every figure names the population it was measured on.
+
+**Verdicts.** None moved, on any population read:
+
+| population | before | after |
+|---|---|---|
+| `crates/sweep/tests/self_intersection_proves_injectivity.rs`, default ε, 1e-6 and 1e-12, `f64` and `Interval` twins | 52 of 52 rows pass at each ε | the same 52 and 3 new, 55 of 55 at each ε |
+| the tour's walk, 85 bodies at `f64`, default ε | 78 hold, 7 refuse | 78 hold, 7 refuse; no line of the walk differs, exits included |
+| the 43 `sweep::all` tests the census (`c2a0c41f40`) read `Uncertified/SecondOrder/Edge`, every finish asked through a log-and-pass gate hook (`embed/verdict-read-measure`), 180 s cap per test | 1 of 43 has every ask embedded; asks read 234 second-order, 72 + 14 departure (edge, vertex), 26 out of depth, 2 crossings | the same counts, class for class |
+| `editor-core`'s clearance rows (the document's strict same-body question) | pass | 94 of 94 pass |
+| the shell rows of `sweep::all` (`shell_cavity_embedded`, 287 tests with the filter `shell`) | 287 pass | 287 pass |
+
+One COUNT moved: `a_rod_less_a_tilted_slab_holds_across_its_curved_corners`
+read 14 certificates through a corner at both scalars; it reads 16 at
+`f64` and 18 at `Interval`, the verdict `Holds` at both. Re-pinned per
+scalar.
+
+The wider census set (the 507 `sweep::all` tests of the three
+departure shapes) was started through the same hook and stopped: 131
+ran in an hour, several past 30 minutes each, every finish in them
+being asked. It is not reported.
+
+**What does not hold that the spec's pins expected.**
+- *The cone that owns its apex, cut through its axis, refuses, before
+  and after.* The triangle `(0, 0), (1.1, 0), (0, 0.9)` revolved half
+  a turn: tier 3 classes each ruling a convex crease and keeps one
+  extent (0.70, the cut plane's run, against the cone's 1.39). Four
+  cells at the apex's collapsed side are presented by no reading, on
+  `embed/remeter` too, and the exit moves with the pose there as here
+  (`a-cone-cell-presented-by-its-apex-side-is-signed-by-no-separator`).
+  Pinned refusing in every pose.
+- *The curling sliver is not buildable through the profile door*
+  (`NonSimple`, as `embed/wedge-measure` found), so it and the flat
+  twin are unit rows on fixtures whose extent the real door reads.
+
+**Newly refusing valid-looking bodies.** None on the populations
+above. Class (a), truly inside the band at the narrower face's far
+side: the two fixtures the ruling was weighed on, and no built body.
+Class (c), no bound available: one shape is known and filed, a face
+bounded by one closed spline edge
+(`a-face-bounded-by-one-closed-spline-edge-has-no-spanned-run`); no
+body of the suite or the tour builds it.
+
+**A consequence found on the way.** With "one stored conic" read by
+`injective::one_conic`, ten of the suite's rows held at `f64` and
+refused at `Interval` (every revolved cap, every tilted cut: `revolve`
+cuts a rim in two arcs, and at a box scalar no two arcs are one
+value), and the shell's cavity gate refused those bodies at
+`Interval`. The crossing count above replaced it before anything
+landed.
+
+**Callers found beyond the spec's list.** The strict same-body sweep
+is reachable without `embedded`, through `Sweep::run` and the lane's
+`sweep`: the document's clearance door (`editor-core`), and test
+helpers in `sweep`, `topo`, `editor-core` and `demos/tour`. A touching
+pair whose windows carry no facts refuses typed. The document door
+runs tier 3's local battery for the facts
+(`ClearanceLaneOf::reading_unfinished`); hand-built construction state
+in tests is asked on fixture facts (`topo::Geometric::fixture`,
+test-support).
