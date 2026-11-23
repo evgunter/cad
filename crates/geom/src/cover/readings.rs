@@ -29,8 +29,9 @@ impl<T: Real> Surface<T> {
     ///
     /// [`Uncovered`] naming the kind: [`Unknown::Unbounded`] for a plane,
     /// a cylinder or a cone, [`Unknown::PoisonedNet`] for a net that is
-    /// not finite, and
-    /// [`Unknown::NonFinite`] for data that is not a finite number.
+    /// not finite (NaN or `±∞` alike: a spline never reads
+    /// `NonFinite`), and [`Unknown::NonFinite`] for an analytic datum
+    /// that is not a finite number.
     pub fn cover(&self) -> Covered<T> {
         let entity = Entity::Surface(self.kind());
         let refuse = |what| Uncovered::new(entity, what);

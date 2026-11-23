@@ -1557,8 +1557,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Cone: `tangential(u)·(v·sin α)` — **zero at the apex** (`v = 0`,
     /// the chart singularity). Sphere: `tangential(u)·(radius·cos v)` —
     /// **zero at the poles**. Torus:
-    /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`
-    /// (all-poison for the placeholder state).
+    /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`.
     ///
     /// [`Surface::jet`]'s `du`, projected — the enum evaluates its jet
     /// once, and a caller wanting a second partial at the same `(u, v)`
@@ -1574,7 +1573,7 @@ impl<T: SpanLocate> Surface<T> {
     /// generator direction (slant parameterization). Sphere:
     /// `(radial(u)·(−sin v) + axis·cos v)·radius` — the meridian
     /// tangent. Torus: `(radial(u)·(−sin v) + axis·cos v)·r`. Nurbs:
-    /// the payload jet's `dv` (all-poison for the placeholder state).
+    /// the payload jet's `dv`.
     ///
     /// [`Surface::jet`]'s `dv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_v(&self, u: T, v: T) -> Vec3<T> {
@@ -1601,7 +1600,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Plane: zero. Cylinder: `radial(u)·(−radius)`. Cone:
     /// `radial(u)·(−(v·sin α))`. Sphere: `radial(u)·(−(radius·cos v))`.
     /// Torus: `radial(u)·(−(R + r·cos v))`. Nurbs: the payload jet's
-    /// `duu` (all-poison for the placeholder state). (Each is the
+    /// `duu`. (Each is the
     /// azimuthal-rotation second derivative: `radial″ = −radial`.)
     ///
     /// [`Surface::jet`]'s `duu`, projected (see [`Surface::deriv_u`]).
@@ -1614,8 +1613,7 @@ impl<T: SpanLocate> Surface<T> {
     ///
     /// Plane, cylinder: zero. Cone: `tangential(u)·sin α`. Sphere:
     /// `tangential(u)·(−(radius·sin v))`. Torus:
-    /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`
-    /// (all-poison for the placeholder state).
+    /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`.
     ///
     /// [`Surface::jet`]'s `duv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_uv(&self, u: T, v: T) -> Vec3<T> {
@@ -1627,8 +1625,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Plane, cylinder, cone: zero (rulings/generators are straight).
     /// Sphere: `(radial(u)·cos v + axis·sin v)·(−radius)` — the inward
     /// radial. Torus: `(radial(u)·cos v + axis·sin v)·(−r)` — into the
-    /// tube. Nurbs: the payload jet's `dvv` (all-poison for the
-    /// placeholder state).
+    /// tube. Nurbs: the payload jet's `dvv`.
     ///
     /// [`Surface::jet`]'s `dvv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_vv(&self, u: T, v: T) -> Vec3<T> {
@@ -2096,7 +2093,7 @@ mod tests {
         ))
     }
 
-    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
+    /// A NURBS lifts as its PAYLOAD:
     /// the lifted surface's value channel is the source's evaluation bit
     /// for bit, and its `u`-tangent channel is the source's closed-form
     /// `∂u` to rounding.
@@ -2229,8 +2226,8 @@ mod tests {
     /// every weight — and the lifted surface evaluates to the source at
     /// every `(u, v)` drawn from knot values, span boundaries and span
     /// midpoints in both directions. A lift that perturbs an interior
-    /// knot or a weight is red here and nowhere in the
-    /// placeholder-vs-payload rows above.
+    /// knot or a weight is red here and nowhere in the payload rows
+    /// above.
     #[test]
     fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
         let s = knotted_sheet();

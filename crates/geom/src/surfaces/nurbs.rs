@@ -814,9 +814,8 @@ impl<T: Real> NurbsSurface<T> {
     /// [`Self::from_validated_parts`], which states why no
     /// re-validation is run. The contract is
     /// [`NurbsCurve3::map_scalar`]'s one dimension up: `f` is a lift
-    /// that keeps every value's point; what the placeholder and a
-    /// poisoned net lift to is argued once, in `crate::scalar_lift`'s
-    /// module docs.
+    /// that keeps every value's point, so a net that is not finite lifts
+    /// to one that is not finite (`crate::scalar_lift`'s module docs).
     ///
     /// [`NurbsCurve3::map_scalar`]: crate::curves::NurbsCurve3::map_scalar
     #[must_use]
