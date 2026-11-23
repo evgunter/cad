@@ -26,6 +26,8 @@ branch: oneround/sizes-from-geometry
 
 **Left by the converting unit (PR 7628), one line each:**
 
-- `ConicDeparture::of`, `BoundSupport::point`, `Bound::ray`: a direction and its lever packed into one vector read both as a lever and as geometry, the records question: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`.
+- `ConicDeparture::of`: `dir` is the unit tangent times the extent lever, a vector read both as a lever and as geometry, the records question: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`.
+- `BoundSupport::point`: places a point at the bound's lever along its direction, the same packing: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`.
+- `Bound::ray`: scales the bound's direction by its lever for readers of both, the same packing: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`.
 - `cone_cylinder_section` (`coc_station_reach`): the honest read is the consumed region's window along the cone's axis, which needs the function to take a `&Reach`, on PR 7442's ground: `apex-reaches-read-a-lever-as-a-window-along-the-axis` (sect).
 - `vtxfac::held_reads`: `PlannedRun.order` holds a lever and no region, the records question again: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`, and `pierce-and-rim-balls-are-built-from-an-arm` (heldrecords).
