@@ -159,10 +159,10 @@ fn a_split_at_an_annulus_plane_merges_it_keeping_its_rims_carrier_bits() {
             .edges()
             .filter_map(|(_, e)| {
                 let c = b.get_curve_geom(e.curve)?.certified()?;
-                let geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = *c.carrier()
-                else {
+                let geom::Curve3::Circle(conic_k) = *c.carrier() else {
                     return None;
                 };
+                let frame = conic_k.frame();
                 let center = frame.origin();
                 let radius = conic_k.radius();
                 (center.y == 1.0 && radius == r).then(|| {
