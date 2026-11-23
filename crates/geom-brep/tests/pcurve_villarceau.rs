@@ -447,19 +447,13 @@ fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_
         "the crest circle's envelope is inside the band"
     );
 
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame_17,
-            ..
-        },
-    ) = villarceau(0.4, 1.0, 1.0, 0.0)
-    else {
+    let Curve3::Circle(conic_k) = villarceau(0.4, 1.0, 1.0, 0.0) else {
         unreachable!()
     };
     let (c, n, e) = (
-        carrier_frame_17.origin(),
-        carrier_frame_17.axis(),
-        carrier_frame_17.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let radius = conic_k.radius();
     let lifted = Curve3::circle(c + axis * (5.0 * k * eps()), n, radius, e);
@@ -590,19 +584,13 @@ fn each_villarceau_gate_alone_refuses_typed() {
         unreachable!()
     };
     let (tc, axis) = (carrier_frame.origin(), carrier_frame.axis());
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame_16,
-            ..
-        },
-    ) = villarceau(0.4, 1.0, 1.0, 0.0)
-    else {
+    let Curve3::Circle(conic_k) = villarceau(0.4, 1.0, 1.0, 0.0) else {
         unreachable!()
     };
     let (center, n, u_ref) = (
-        carrier_frame_16.origin(),
-        carrier_frame_16.axis(),
-        carrier_frame_16.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let radius = conic_k.radius();
     let delta = 3.0 * Tol::witness().k() * eps();
@@ -849,5 +837,63 @@ fn a_tube_rate_gates_rejected_zero_is_a_class_reading() {
         "pcurve certification: ChartClass at sample 0 escalated: margin 9e-10 lies within \
          the zero band (±1e-9). There is no way through yet",
         "the rendered refusal"
+    );
+}
+
+/// **The tilt gate chooses the lane in the sliver the incidence test
+/// leaves.** The incidence test reads a circle's distance from the torus
+/// at its 65 samples, and the least it reads for any first-order move that
+/// puts the tilt gate at `m` is `0.9966·m` (a move found by linear
+/// programming over the circle's centre, plane and radius, written down
+/// here: the centre `0.508·m` in toward the axis, the plane turned
+/// `0.534·m` about the centre's direction, the radius `0.488·m` short).
+/// So a tilt just past the band's zero can be on the torus by its
+/// samples: at `1.0015·ε` the samples read `0.998·ε` and every other gate
+/// about `ε/2`. There the tilt reads in band and the circle takes the
+/// general lane (a projected image); just under the zero it takes the
+/// closed form. An arm shorter than the circle's own reads that tilt Zero
+/// and takes the closed form past the band.
+#[test]
+fn a_tilt_just_past_the_band_takes_the_general_lane() {
+    let surface = torus();
+    let Surface::Torus { frame, .. } = surface else {
+        unreachable!()
+    };
+    let (tc, axis) = (frame.origin(), frame.axis());
+    let Curve3::Circle(conic_k) = villarceau(0.4, 1.0, 1.0, 0.0) else {
+        unreachable!()
+    };
+    let (center, n, u_ref) = (
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
+    );
+    let d = {
+        let w = center - tc;
+        (w - axis * w.dot(axis)).normalize()
+    };
+    let moved = |m: f64| {
+        let turn = d * (-0.533_760_513 * m);
+        let n2 = (n + turn.cross(n)).normalize();
+        let u = u_ref + turn.cross(u_ref);
+        Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(
+                center + d * (-0.508_328_923 * m),
+                n2,
+                (u - n2 * u.dot(n2)).normalize(),
+            ),
+            conic_k.radius() - 0.488_316_311 * m,
+        ))
+    };
+    let lane = |m: f64| match chart_pcurve(&moved(m), &surface, band()) {
+        Ok(Pcurve::FocalSection(_)) => "closed form",
+        Ok(Pcurve::Projected(_)) => "general lane",
+        other => panic!("a move of {m:e} is on the torus by its samples: {other:?}"),
+    };
+    assert_eq!(lane(0.99 * eps()), "closed form", "a tilt under the zero");
+    assert_eq!(
+        lane(1.0015 * eps()),
+        "general lane",
+        "a tilt just past the zero, on the torus by its samples"
     );
 }

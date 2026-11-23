@@ -75,7 +75,9 @@ fn six([a, b]: &[AtRestBody<f64>; 2], tol: Tol) -> [Run; 6] {
 }
 
 /// Asserts `out` is the corner's crossing refusal at `margin`, offering
-/// `margin/K`.
+/// its measured margin over K as an offered bound is told: what
+/// `an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt` holds
+/// every pose to. That the offer executes is `the_corners_offer_executes`'s.
 fn assert_corner_crossing(
     label: &str,
     out: &Result<topo::BooleanResult<f64>, BooleanError>,
@@ -114,15 +116,23 @@ fn assert_corner_crossing(
         "{label}: the tilt levered at the arm, {margin:e}, got {m:e}"
     );
     let text = err.render(geom_brep::recourse::Reading::Build);
-    // The offer is the arm's tilt over K, where a run admits it.
+    // The offer is the measured tilt over K as an offered bound is told,
+    // where a run admits it.
     match (
-        band.offer_deciding(margin),
+        band.offer_deciding(m),
         test_utils::offer::offered_below(&text),
     ) {
-        (Some(want), Some(offer)) => assert!(
-            (offer - want).abs() <= 1e-6 * want,
-            "{label}: offers the arm's tilt over K, {want:e}: {text}"
-        ),
+        (Some(want), Some(offer)) => {
+            assert!(
+                geom_core::test_support::is_told_offer_of(offer, band.tolerance_deciding(m)),
+                "{label}: offers {offer:e}, not the measured tilt over K, {:e}, told: {text}",
+                band.tolerance_deciding(m)
+            );
+            assert_eq!(
+                offer, want,
+                "{label}: offers the rule's telling of the tilt over K: {text}"
+            );
+        }
         (None, None) => assert!(
             text.contains("no tolerance a run admits decides this rise"),
             "{label}: below the floor, says so: {text}"
@@ -235,9 +245,10 @@ fn hinged_corner_six_runs() {
 
 /// **The corner's offer executes.** At the design tolerance (1e-9) the
 /// tool at tilt `1e-7` refuses on the arm's tilt, `1e-7·1 mm`, offering
-/// that over K. Just under the offer the generic pose builds in all six
-/// runs; the hinged pose, whose faces cross along the short edge, meets
-/// the contact edge's placement in band there, a decision of its own.
+/// that over K. Just under the offer the sentence quotes, the generic
+/// pose builds in all six runs; the hinged pose, whose faces cross along
+/// the short edge, meets the contact edge's placement in band there, a
+/// decision of its own.
 #[test]
 fn the_corners_offer_executes() {
     let module = module_path!()
@@ -245,8 +256,8 @@ fn the_corners_offer_executes() {
         .map_or(module_path!(), |(_, m)| m);
     let design = 1e-9;
     let k = geom_core::tolerance::DEFAULT_K;
-    let offer = 1e-7 / (1.0 + 1e-14_f64).sqrt() * ARM / k;
-    let below = test_utils::offer::BELOW * offer;
+    let margin = 1e-7 / (1.0 + 1e-14_f64).sqrt() * ARM;
+    let band = Band::new(design, k * design).expect("the design band");
     for (row, want) in [
         ("generic_corner_six_runs", None),
         ("hinged_corner_six_runs", Some("bool_contact_edge")),
@@ -261,9 +272,16 @@ fn the_corners_offer_executes() {
         );
         let quoted = test_utils::offer::offered_below(text).expect("an offer");
         assert!(
-            (quoted - offer).abs() <= 1e-6 * offer,
-            "{row}: offers {offer:e}, quoted {quoted:e}"
+            geom_core::test_support::is_offer_of_a_margin_within(
+                band,
+                quoted,
+                margin,
+                1e-6 * margin
+            ),
+            "{row}: quotes {quoted:e}, not the told offer of a tilt within 1e-6 of {margin:e} \
+             over K: {text}"
         );
+        let below = test_utils::offer::BELOW * quoted;
         let got = run(&format!("{module}::{row}"), below);
         match (want, &got) {
             (None, Outcome::Pass) => {}
