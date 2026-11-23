@@ -790,9 +790,8 @@ impl ViewerBehavior<'_> {
         // two operations. What a slot contributes is what the field
         // shows and what its edit opens on ([`slot_showing`]): a
         // number typed over a driven slot's reading is no echo of
-        // anything, so the driven slot's refusal stays reachable and
-        // is owed its affordance even when the number happens to
-        // match.
+        // anything, so it replaces the expression even when the number
+        // happens to match.
         value_field_ops(
             ui,
             slot_showing(row, draft, *self.notation),
@@ -1483,11 +1482,11 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
         // which says `no … reading` where the working notation cannot
         // name the value), and the field under that text is its door
         // to the expression. The number the field holds is never
-        // written: a drag or a typed number over a driven slot is
-        // refused by the session's driven-slot guard, so a zero held
-        // there lands nowhere — the same zero held under the text of a
-        // slot with no one value: one that did not evaluate, or one
-        // with a value per member.
+        // written: a drag over a driven slot is refused by the
+        // session's driven-slot guard, and a typed number writes what
+        // was typed, so a zero held there lands nowhere — the same zero
+        // held under the text of a slot with no one value: one that did
+        // not evaluate, or one with a value per member.
         Err(_) if row.driver.is_driven() => Ok(0.0),
         number => number,
     };
@@ -1596,8 +1595,8 @@ pub(crate) fn variable_doors(
 }
 
 /// **The two doors a slot's field has**: a bare number through
-/// `SessionOp::SetSlot` (refused on a driven slot, with the
-/// affordance), anything else through `SessionOp::SetSlotExpression`.
+/// `SessionOp::SetSlot`, which replaces an expression as it replaces a
+/// literal, anything else through `SessionOp::SetSlotExpression`.
 pub(crate) fn slot_doors(
     node: RecipeNodeId,
     slot: SlotId,
@@ -2236,7 +2235,7 @@ mod tests {
         // home; this line does not.
         assert_eq!(
             rendered,
-            "driven by an expression over thickness (currently 4 mm) — edit the expression?"
+            "driven by an expression over thickness (currently 4 mm) — edit the expression, or type a number over it"
         );
     }
 
