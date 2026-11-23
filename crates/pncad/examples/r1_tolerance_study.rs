@@ -10,7 +10,8 @@
 
 use pncad::analysis::{AnalysisPolicy, analyzed_box, box_mass, tail_mass};
 use pncad::document::{
-    Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, VarName, apply, load, save,
+    Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, Speaker, VarName, apply, load, save,
+    sentence,
 };
 use pncad::geom_core::Tol;
 
@@ -99,7 +100,7 @@ fn main() {
         let (lo, hi) = axis.absolute();
         println!(
             "  {:<8} nominal {:>8}  offsets [{:+.3e}, {:+.3e}]  absolute [{lo}, {hi}]{}",
-            b.spoken(var).to_string(),
+            sentence!(Speaker::TAG.var(&b.spoken(var))).to_string(),
             axis.nominal,
             axis.offsets.lo,
             axis.offsets.hi,
@@ -116,9 +117,10 @@ fn main() {
     for (var, axis) in b.varying() {
         let dist = axis.distribution.expect("varying implies annotated");
         let name = b.spoken(var);
+        let said = sentence!(Speaker::TAG.var(&name)).to_string();
         match tail_mass(&name, &dist, &axis.offsets) {
-            Ok(t) => println!("  {:<8} {t:.3e}", name.to_string()),
-            Err(e) => println!("  {:<8} REFUSED: {e}", name.to_string()),
+            Ok(t) => println!("  {said:<8} {t:.3e}"),
+            Err(e) => println!("  {said:<8} REFUSED: {e}"),
         }
     }
 

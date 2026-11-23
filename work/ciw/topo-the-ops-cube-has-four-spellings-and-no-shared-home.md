@@ -4,7 +4,7 @@ kind: issue
 title: The bare-topology ops cube (mev_line/mef_chord) is written out four times in topo, with no shared door
 status: open
 opened: 2026-09-16
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -110,3 +110,5 @@ members: the census counts call sites, so a looping fixture's counts
 understate it and none of the three was opened.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Duplicated test fixture code; the row itself says it is "not a merge on sight". The copies are still present (cube_by_hand.rs:54, m3_pr1_surgery.rs:21, review_m3_pr1.rs:151-177). By README this is non-architectural code improvement, so P4.

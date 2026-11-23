@@ -144,6 +144,8 @@ mod a_profile_touching_its_axis_twice_revolves;
 mod a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
+#[path = "a_revolve_takes_a_profile_on_either_side_of_its_axis.rs"]
+mod a_revolve_takes_a_profile_on_either_side_of_its_axis;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
 #[path = "a_rim_arc_on_a_cylinder_beside_a_spline_wall.rs"]
@@ -448,6 +450,8 @@ mod spiric_faces_fuzz;
 mod sym11_far_placement_rows;
 #[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
 mod the_door_reads_seam_regions_as_tier_3_does;
+#[path = "the_nary_door_reads_a_re_charted_accumulation_through_its_shell.rs"]
+mod the_nary_door_reads_a_re_charted_accumulation_through_its_shell;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]

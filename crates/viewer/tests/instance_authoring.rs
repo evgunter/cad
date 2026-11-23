@@ -1194,9 +1194,20 @@ fn an_instances_part_row_names_its_file_and_is_no_link() {
     let [entry] = &part.entries[..] else {
         panic!("one file: {part:?}")
     };
-    assert_eq!(entry.said, files.name(bench.post.id), "the part's file");
-    assert!(entry.said.ends_with(".pncad"), "a file name: {entry:?}");
-    assert_eq!(entry.selects, None, "the part is no node of this document");
+    assert_eq!(
+        entry.said().to_string(),
+        files.name(bench.post.id),
+        "the part's file"
+    );
+    assert!(
+        entry.said().to_string().ends_with(".pncad"),
+        "a file name: {entry:?}"
+    );
+    assert_eq!(
+        entry.selects(),
+        None,
+        "the part is no node of this document"
+    );
 }
 
 /// **An instance's constraint reading its own copy links nowhere, both
@@ -1233,7 +1244,7 @@ fn an_instances_own_copy_side_links_nowhere_either_way() {
         related.reads.iter().any(|row| row
             .entries
             .iter()
-            .any(|entry| entry.said == OWN_COPY && entry.selects.is_none())),
+            .any(|entry| *entry.said() == *OWN_COPY && entry.selects().is_none())),
         "the own-copy side reads as words: {:?}",
         related.reads
     );
@@ -1241,7 +1252,7 @@ fn an_instances_own_copy_side_links_nowhere_either_way() {
         !related.reads.iter().any(|row| row
             .entries
             .iter()
-            .any(|entry| entry.selects == Some(Selection::Node(shelf)))),
+            .any(|entry| entry.selects() == Some(Selection::Node(shelf)))),
         "no read links the instance to itself: {:?}",
         related.reads
     );
