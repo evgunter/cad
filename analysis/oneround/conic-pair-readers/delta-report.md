@@ -88,7 +88,8 @@ has no row.
 `curve_face/pose.rs:684-692`: the graze's side is decided on
 `(|hi| − |lo|).select_le_zero(hi − r, lo + r)`. `hi − r` and `lo + r` are the same number in ℝ, the centre's height,
 which is what `mean()` returned; the selection chooses only which rounding of it is read. Mutant N1 swaps the two
-arms and all 516 rows pass at both ε, because the arms are equal. K8 ruled the side "read from the extremes (crest
+arms and all 516 rows of geom and geom-brep pass at both ε, because the arms are equal (topo's zero-margin row,
+which may tell the two roundings apart, was not in that run). K8 ruled the side "read from the extremes (crest
 and trough)" and asked to be told if the reading truly needs what only `mean()` gives; the doc comment calls it "the
 height's level between them". The side that is wanted is already decided by the sign of `|hi| − |lo|` on the line
 above. As before, numerically safe; the new graze row is green and the topo zero-margin row did not move.
