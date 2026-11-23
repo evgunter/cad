@@ -205,3 +205,9 @@
   - **The merge order** is up the stack, each lane merging the one below after it reports.
   - **The cost** is coupling: PR 7432's `GlueClass::Junction` and convex-rim rule reach `junction_window`, which the `elbow-ends` lane is told. (HELDRECORDS orchestrator)
 - 2026-11-23 — **Delta re-reads out:** PR 7481 (the fix pass and the parted-record build, head `278c5d50ed`) and PR 7436 (head `f8fdb799d2`), both on their frozen heads while CI sits queued at about 104 runs repo-wide. `heldrecords/nary-lineage` opened PR 7516. (HELDRECORDS orchestrator)
+- 2026-11-23 — **PR 7516 (`heldrecords/nary-lineage`, `579d220d5f`) fixes the n-ary door's panic; its single FULL review is out (05:50Z, `session_018u3gVFvC9B8r34Y9AHZV6t`; brief `briefs/review-nary-lineage.md`).**
+  - **Cause:** the extent scan re-charts a sphere shell, `BooleanNaming::recharted` records the turned cells, and `Holdings` read that record while the lineage step did not.
+  - **The fix:** a new `FaceDescent::input_faces` and `shell_faces`, one door for both readers.
+  - **The row is P0:** the edits are pip-centre drags, two dimples running together, which is a valid part.
+  - **The eight edits** now refuse typed `UnsupportedTurnedCell { Edge }` at the union. That refusal's way through is ORBIT's `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`, **re-banded P0 here** (a blocker inherits its waiter's band), with a dated note on the row and on ORBIT's log.
+  - **Filed by the lane on ORBIT:** a P2, `a-re-cut-booleans-verdicts-keep-the-re-cut-keys-its-rows-are-respelled-off`. (HELDRECORDS orchestrator)
