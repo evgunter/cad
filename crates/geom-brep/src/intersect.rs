@@ -2848,9 +2848,9 @@ pub enum PlaneTorusSection<T: Real> {
     /// `h = (q − c)·a`): TWO concentric circles — radii
     /// `R ± √((r−|h|)(r+|h|))`, common centre `c + a·h` on the axis,
     /// carrier axis the torus axis, `u_ref` the torus's own seam
-    /// direction as stored: ⊥ the axis only to the torus's at-rest
-    /// frame margin (`Surface::representability_margins`, a tilt under
-    /// `ε/(R + r)`), so the circles stand within `ε` of their plane.
+    /// direction as stored: ⊥ the axis by the torus's [`geom::Frame`],
+    /// rigid by its type to its rounding (`Frame::rounding`), so the
+    /// circles stand in their plane to that rounding at `R + r`.
     /// Zero-residual-by-construction against both implicit forms in ℝ.
     ConcentricCircles {
         /// The outer circle, radius `R + √(r² − h²)`.
