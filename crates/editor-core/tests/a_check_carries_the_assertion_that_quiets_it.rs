@@ -259,7 +259,7 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
     let mut offered = Vec::new();
     let mut unoffered = Vec::new();
     for (found, row, quieting) in coincidences(&report) {
-        let said = editor_core::Said(found, by).to_string();
+        let said = editor_core::Said(found, by).sentence().to_string();
         if found.quiet.is_some() {
             assert!(
                 !said.contains("Recourse"),
@@ -340,8 +340,8 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
                 Some(*assertion),
                 "{what}: the row is quiet under the assertion authored for {claim}: {found}"
             );
-            let named = by.node_as(*assertion, "assertion").to_string();
-            let said = editor_core::Said(found, by).to_string();
+            let named = editor_core::sentence!(by.node_as(*assertion, "assertion")).to_string();
+            let said = editor_core::Said(found, by).sentence().to_string();
             assert!(
                 said.contains(&format!("quiet: {named} says so")),
                 "{what}: the quiet row names the new assertion {named}: {said}"
@@ -355,7 +355,7 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
                     !verdicts(&ev, quiet).iter().all(|&holds| holds),
                     "{what}: a row carrying no assertion is quieted by {}, which holds at every \
                  member: {found}",
-                    by.node_as(quiet, "assertion")
+                    editor_core::sentence!(by.node_as(quiet, "assertion"))
                 );
             }
         }

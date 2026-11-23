@@ -1118,7 +1118,7 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
     // words.
     let bracket = viewer::props::source_rows(session.committed_doc())
         .into_iter()
-        .find(|row| row.label.to_string() == "bracket")
+        .find(|row| viewer::tree::spelled_var(&row.label) == "bracket")
         .expect("bracket's source row")
         .var;
     assert_eq!(

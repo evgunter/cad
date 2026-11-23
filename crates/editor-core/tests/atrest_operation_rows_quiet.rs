@@ -1487,7 +1487,7 @@ fn a_splits_unnamed_tool_is_named_by_a_free_name() {
             "{claim:?}"
         );
         assert!(
-            claim.said(by).contains("tool_3"),
+            claim.said(by).to_string().contains("tool_3"),
             "the sentence names the tool as its edits do: {}",
             claim.said(by)
         );
@@ -1509,7 +1509,8 @@ fn a_splits_unnamed_tool_is_named_by_a_free_name() {
     let by = editor_core::Speaker::of(&doc);
     for claim in first.iter().chain(&second) {
         assert!(
-            claim.said(by).contains("tool_2") && named_by(&doc, claim).as_deref() == Some("tool_2"),
+            claim.said(by).to_string().contains("tool_2")
+                && named_by(&doc, claim).as_deref() == Some("tool_2"),
             "each tool, found in this document, is tool_2 there: {}",
             claim.said(by)
         );

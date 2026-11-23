@@ -62,6 +62,7 @@
 //! and deliberately NOT built: a wrong margin design shipped into a
 //! public API is far more expensive than a follow-up unit.
 
+use crate::say;
 use geom_core::{Band, BandError, Decide, Sign};
 use topo::query;
 
@@ -301,13 +302,8 @@ pub enum SelectRefusal {
 // tolerance where one decides. A query takes no declaration. The arms
 // that wrap another layer's refusal forward that layer's words.
 impl crate::spoken::Say for SelectRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        let named =
-            |f: &mut core::fmt::Formatter<'_>, name: &StableName| write!(f, "{}", by.name(name));
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
+        let named = |f: &mut crate::Sentence, name: &StableName| say!(f, by.name(name));
         match self {
             // The name rides in its bracket, so a name whose words run on
             // (a join, a qualifier's list) never reads as more of the
@@ -316,16 +312,16 @@ impl crate::spoken::Say for SelectRefusal {
                 name,
                 predicate,
                 source,
-            } => write!(
+            } => say!(
                 f,
-                "{}",
-                source.undecided(
-                    format_args!(
-                        "whether the {} ({}) is in or out of the selection",
-                        name.kind.noun(),
-                        by.name(name)
-                    ),
-                    crate::decision::ending(Some(predicate), source)
+                // The subject is written ahead of the refusal's own
+                // words, which an empty subject leaves whole.
+                format_args!("whether the {} (", name.kind.noun()),
+                by.name(name),
+                ") is in or out of the selection",
+                format_args!(
+                    "{}",
+                    source.undecided("", crate::decision::ending(Some(predicate), source))
                 )
             ),
             Self::TiedDisagrees {
@@ -347,9 +343,9 @@ impl crate::spoken::Say for SelectRefusal {
             Self::Unreadable { name, error } => {
                 f.write_str("select: ")?;
                 named(f, name)?;
-                write!(
+                say!(
                     f,
-                    " could not be read to decide the query: {}",
+                    " could not be read to decide the query: ",
                     crate::spoken::Said(error, by)
                 )
             }
@@ -388,17 +384,23 @@ impl crate::spoken::Say for SelectRefusal {
                 "select: the ambiguity band itself could not be built from the ambient \
                  tolerance, so no comparison below it can be trusted: {error}"
             ),
-            Self::NoMember { node, member } => write!(
+            Self::NoMember { node, member } => say!(
                 f,
-                "select: {} holds no member at {member:?}. {}",
+                "select: ",
                 by.node(*node),
-                crate::sentence::Recourse("read a member the family has, one value per index")
+                format_args!(
+                    " holds no member at {member:?}. {}",
+                    crate::sentence::Recourse("read a member the family has, one value per index")
+                )
             ),
-            Self::Family { node } => write!(
+            Self::Family { node } => say!(
                 f,
-                "select: {} is a family, and a selection reads one body. {}",
+                "select: ",
                 by.node(*node),
-                crate::sentence::Recourse("select from one member of it, `xs[i]`")
+                format_args!(
+                    " is a family, and a selection reads one body. {}",
+                    crate::sentence::Recourse("select from one member of it, `xs[i]`")
+                )
             ),
         }
     }
@@ -407,7 +409,7 @@ impl crate::spoken::Say for SelectRefusal {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for SelectRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -422,7 +424,7 @@ impl SelectRefusal {
         &self,
         doc: &crate::doc::Doc<P>,
         evaluation: &dyn crate::NameTables,
-    ) -> String {
+    ) -> crate::Sentence {
         crate::spoken::spoken_within(self, doc, evaluation)
     }
 }

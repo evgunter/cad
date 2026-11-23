@@ -454,7 +454,7 @@ fn body_check_tells_an_absent_node_from_one_that_builds_no_body() {
             .to_string(),
         format!(
             "{} builds no body, so the picture draws nothing of it",
-            doc.spoken(profile)
+            viewer::tree::spelled(&doc.spoken(profile))
         ),
     );
 }

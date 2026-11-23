@@ -337,7 +337,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             word(crate::tags::distribution_fault_tag(fault)),
             none(),
             none(),
-            text(&p.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             none(),
             none(),
             none(),
@@ -357,7 +357,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&p.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             dim(*measures),
             dim(*was),
             none(),
@@ -666,7 +666,7 @@ fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::Prof
         Some(d::Node::Profile(program)) => Ok(program),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
             "{} is not a profile",
-            doc.spoken(node.0)
+            pncad::document::sentence!(pncad::document::Speaker::TAG.mention(&doc.spoken(node.0)))
         ))),
     }
 }
@@ -1103,7 +1103,9 @@ impl Doc {
                 {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                         "{} is an operation's output of kind {}, which no expression reads",
-                        self.inner.spoken_var(var),
+                        pncad::document::sentence!(
+                            pncad::document::Speaker::TAG.var(&self.inner.spoken_var(var))
+                        ),
                         held.kind()
                     )));
                 }
@@ -1364,7 +1366,9 @@ impl Doc {
                 .collect()),
             None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} is not a loft",
-                self.inner.spoken(loft.0)
+                pncad::document::sentence!(
+                    pncad::document::Speaker::TAG.mention(&self.inner.spoken(loft.0))
+                )
             ))),
         }
     }
@@ -1437,7 +1441,9 @@ impl Doc {
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "{} has no pieces under the current values: {refusal}",
-                    self.inner.spoken(profile.0)
+                    pncad::document::sentence!(
+                        pncad::document::Speaker::TAG.mention(&self.inner.spoken(profile.0))
+                    )
                 ))
             })?;
         pieces
@@ -1673,7 +1679,7 @@ impl Doc {
                 };
                 let message = format!(
                     "{}. Recourse: ask for the kind of a node this document holds",
-                    err.problem()
+                    pncad::document::Said(&err.problem(), pncad::document::Speaker::TAG).sentence()
                 );
                 edit_err_saying(py, &err, message)
             })
@@ -2175,7 +2181,7 @@ impl Doc {
             };
             let message = format!(
                 "{}. Recourse: ask for the label of a node this document holds",
-                err.problem()
+                pncad::document::Said(&err.problem(), pncad::document::Speaker::TAG).sentence()
             );
             return Err(edit_err_saying(py, &err, message));
         }
@@ -2298,7 +2304,9 @@ impl Doc {
             Some(var) => Ok(Some(Var::of(&self.inner, var))),
             None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} defines {} port(s), so it has no port {port}",
-                self.inner.spoken(node.0),
+                pncad::document::sentence!(
+                    pncad::document::Speaker::TAG.mention(&self.inner.spoken(node.0))
+                ),
                 signature.len()
             ))),
         }

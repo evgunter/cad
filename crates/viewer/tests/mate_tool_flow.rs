@@ -316,7 +316,9 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     );
     assert!(held_line.ends_with(&format!("to: {said}")), "{held_line:?}");
     assert_eq!(
-        Said(&events[0], viewer::frame::landed_speaker(Some((doc, eval)))).to_string(),
+        Said(&events[0], viewer::frame::landed_speaker(Some((doc, eval))))
+            .sentence()
+            .to_string(),
         format!("the mate 1 to pick ({said}) no longer resolves; the tool dropped it")
     );
     let row = &tool.rows()[0];

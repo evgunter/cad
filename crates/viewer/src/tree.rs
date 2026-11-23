@@ -110,6 +110,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::say;
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
     HeldNodes, Label, MateFault, MateRef, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
@@ -690,20 +691,22 @@ fn cleared(
             canonical,
             dimension: pncad::document::Dimension::Length,
         }),
-        Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var)),
+        Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var).to_string()),
     };
     // A face seat is its face, said; a body seat its read — a copy's
     // as the body it places ([`crate::world::copy_source`]), the
     // part the author picked.
     let seat = |var: pncad::document::VarId| match doc.selection(var).and_then(|s| s.names.first())
     {
-        Some(face) => by.name(face).to_string(),
-        None => by.read(
-            doc.defined_by(var)
-                .and_then(|(node, _)| crate::world::copy_source(doc, node, 0))
-                .filter(|source| !source.member)
-                .map_or(var, |source| source.body_var),
-        ),
+        Some(face) => pncad::document::sentence!(by.name(face)).to_string(),
+        None => by
+            .read(
+                doc.defined_by(var)
+                    .and_then(|(node, _)| crate::world::copy_source(doc, node, 0))
+                    .filter(|source| !source.member)
+                    .map_or(var, |source| source.body_var),
+            )
+            .to_string(),
     };
     Cleared {
         a: seat(a),
@@ -729,14 +732,19 @@ pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId, files: &PartFiles
     named(&doc.spoken(id), which.as_deref())
 }
 
+/// **A spoken node as text**, and a variable: the kernel's own
+/// ([`pncad::document::node_text`]), under the names the chrome reads
+/// them by.
+pub use pncad::document::{node_text as spelled, var_text as spelled_var};
+
 /// A spoken node and which one of its kind it is, as [`node_label`]
 /// draws them: `InstantiatePart 000000000002 — bracket.pncad`, or
-/// `InstantiatePart "left" (000000000002) — bracket.pncad` when the
-/// node is labelled.
+/// `"left" (000000000002) — bracket.pncad` when the node is labelled.
 pub fn named(spoken: &SpokenNode, which: Option<&str>) -> String {
+    let spoken = spelled(spoken);
     match which {
         Some(which) => format!("{spoken} — {which}"),
-        None => spoken.to_string(),
+        None => spoken,
     }
 }
 
@@ -752,20 +760,15 @@ pub struct Headline {
 }
 
 /// **What a feature-tree row's headline says** (DESIGN.md Band 1,
-/// "Node labels"): a labelled node leads with its label, with its kind
-/// and tag muted beside it (`base plate` · `Extrude 3fa9c1d2a0b1`); an
-/// unlabelled one reads as [`named`] says it, kind, tag and which.
+/// "Node labels"): the node as every sentence spells it ([`spelled`]),
+/// `"base plate" (3fa9c1d2a0b1)` or `Extrude 3fa9c1d2a0b1`, with which
+/// one of its kind it is (an instance's part file) muted beside it, as
+/// [`named`] joins them (`— bracket.pncad`).
 #[must_use]
 pub fn headline(spoken: &SpokenNode, which: Option<&str>) -> Headline {
-    match (spoken.label(), spoken.kind()) {
-        (Some(label), Some(kind)) => Headline {
-            lead: label.to_string(),
-            muted: Some(format!("{kind} {}", spoken.id())),
-        },
-        _ => Headline {
-            lead: named(spoken, which),
-            muted: None,
-        },
+    Headline {
+        lead: spelled(spoken),
+        muted: which.map(|which| format!("— {which}")),
     }
 }
 
@@ -832,19 +835,19 @@ impl DrawnBody {
 /// grew a third component while the sentence still named two would
 /// name the wrong scope.
 impl Say for DrawnBody {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self { node, body } = *self;
         if body != 0 {
             write!(f, "body {body} of ")?;
         }
-        write!(f, "{}", by.node(node))
+        say!(f, by.node(node))
     }
 }
 
 /// The sentence where no document is at hand: the node by its tag.
 impl core::fmt::Display for DrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -910,11 +913,11 @@ impl<'a> PickedName<'a> {
 }
 
 impl Say for PickedName<'_> {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self { name, on } = *self;
-        write!(f, "{}", by.name(name))?;
+        say!(f, by.name(name))?;
         if on.body != 0 || !leaf_role(name).nodes(by).contains(&on.node) {
-            write!(f, ", on {}", pncad::document::Said(&on, by))?;
+            say!(f, ", on ", pncad::document::Said(&on, by))?;
         }
         Ok(())
     }
@@ -923,7 +926,7 @@ impl Say for PickedName<'_> {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickedName<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -1045,7 +1048,7 @@ impl<P: PickedEntity + crate::session::select::Follows> crate::session::select::
 /// The pick as the chrome says one ([`PickedName`]), on the body kept at
 /// the pick; a node `by` does not hold, as the pick kept it.
 impl<P: PickedEntity> Say for HeldPick<P> {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         PickedName::new(self.pick.name(), self.on).say(f, by.or_held(&self.said))
     }
 }
@@ -1053,7 +1056,7 @@ impl<P: PickedEntity> Say for HeldPick<P> {
 /// The sentence where no document is at hand: each node as kept.
 impl<P: PickedEntity> core::fmt::Display for HeldPick<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::held(&self.said))
+        pncad::document::display_said(self, Speaker::held(&self.said), f)
     }
 }
 
@@ -1271,7 +1274,7 @@ pub fn carried_lines(
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
                 CarriedIn::Part { doc_ref, .. } => files.name(doc_ref.id).to_owned(),
             },
-            line: level.line_in(doc),
+            line: level.line_in(doc).to_string(),
         })
         .collect()
 }
@@ -1327,7 +1330,7 @@ fn status_of(
             message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
         Standing::Failed(error, evaluation) => RowStatus::Failed {
-            message: error.spoken(doc, evaluation),
+            message: error.spoken(doc, evaluation).to_string(),
             carried: carried_lines(doc, &error.kind, files),
         },
     }
@@ -1508,14 +1511,17 @@ pub fn interrogation_as_drawn(
 /// The row pointed at is named as the document speaks it
 /// ([`SpokenNode`]): this sentence is chrome, drawn in the tree.
 pub fn downstream_wording(through: &SpokenNode) -> String {
-    format!("upstream failure at {through} — that row carries the cause")
+    format!(
+        "upstream failure at {through} — that row carries the cause",
+        through = crate::tree::spelled(through)
+    )
 }
 
 /// **What a link to a node says**: the node as the document speaks it,
 /// and nothing about why — the why is drawn elsewhere, so this names
 /// only WHERE to go.
 pub fn link_wording(at: &SpokenNode) -> String {
-    format!("see {at}")
+    format!("see {at}", at = crate::tree::spelled(at))
 }
 
 /// Another node whose own slot refused, when a `Failed` row's error
@@ -1853,7 +1859,9 @@ mod picked_name {
             }],
         };
         let said = |name: &StableName, node, body| {
-            Said(&PickedName::new(name, DrawnBody::new(node, body)), by).to_string()
+            Said(&PickedName::new(name, DrawnBody::new(node, body)), by)
+                .sentence()
+                .to_string()
         };
         let tag = |id: RecipeNodeId| test_utils::refusal::tag(id.0.digest());
         let (b, p, u, s) = (tag(boss), tag(place), tag(union), tag(subtract));
@@ -1879,7 +1887,7 @@ mod picked_name {
         let on_copy = PickedName::new(&end, DrawnBody::new(place, 0));
         assert_eq!(
             on_copy.to_string(),
-            Said(&on_copy, Speaker::TAG).to_string(),
+            Said(&on_copy, Speaker::TAG).sentence().to_string(),
             "with no document at hand, each node by its tag"
         );
         assert_eq!(

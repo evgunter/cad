@@ -59,3 +59,25 @@ description puts it moves the edge by `√(2·r·g)`, which is not O(ε_in).
 A ruling between (a) and (b). Under (b), the build's tangent arm reads
 the printed carrier on its surfaces and the vertex readings follow.
 Under (a), this row closes as the file's, with `nist_ftc_09`'s row.
+
+## 2026-11-23 (GERM): `nist_ftc_09` no longer reaches these edges; a synthetic row witnesses them
+
+Since PR 7171 the snap refuses a pair it reads in the file's band. In this
+file, the cylinder `#5130` between parallel planes `#5116` and `#5144`
+bites `#5116` by 56.8 µm (edge `#5118`), which is in the file's band;
+`#5130` × `#5144` (edge `#5132`) is in band too. The snap refuses at `#5130`
+(`step_snap_relation`) before any tangency is made exact, and the build
+reads the same gap at `#5118` (`step_edge_on_description`, `Ambiguous`).
+So `nist_ftc_09` refuses under (a) and (b) alike. The table above was
+measured before that and stays true of the file. Its pins are re-aimed at
+`#5130` (`work/germ/main-red-axis-normal-snap-refuses-nist-ftc-09.md`).
+
+The in-tree witness of question (b) is now
+`a_tangent_edge_printed_as_a_crossing_line_is_read_off_its_ruling`
+(`crates/step-import/tests/a_relation_the_file_band_reads_zero_is_snapped.rs`).
+It takes the unit fillet (r = 1), states its radius `g` long and prints the
+edge on `x = 2` as a crossing line, `d = √(2rg + g²)` along the plane. A
+1 or 2 nm bite refuses `MissInBand { step_edge_on_description }` at that
+line edge, with a miss of `d` within `g`. A 2 µm bite refuses
+`EvidenceMiss`. This holds at ε unset, 1e-6 and 1e-12. Under (b) that row
+would import.

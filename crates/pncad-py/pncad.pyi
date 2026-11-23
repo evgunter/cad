@@ -216,7 +216,8 @@ class EvaluationError(PncadError):
     (attributes never go missing).
 
     The message speaks the failed node as the document holds it: its
-    kind, its label and its tag, `Extrude "base plate" (3fa9c1d2a0b1)`.
+    label and its tag, `"base plate" (3fa9c1d2a0b1)`, or its kind and
+    tag when it has no label, `Extrude 3fa9c1d2a0b1`.
     It is read off the document the evaluation is OF, the one
     `evaluate` was handed. So a label set after `evaluate` shows on the
     next evaluation, not on this one's errors. `node` is the `NodeId`,
@@ -695,7 +696,7 @@ class ProductError(PncadError):
     or not at all — there are no partial products.
 
     Its message names each node as the evaluation's own document holds
-    it (kind, label and tag): the document the gather was taken of.
+    it (its label and tag, or its kind and tag with no label): the document the gather was taken of.
     `node` and `through` carry the full ids: a failed or poisoned
     operation and the failed node that poisoned it. `empty_product` is
     a slot reading nothing; `stranded_product` a slot whose body is
@@ -1120,7 +1121,7 @@ class McRefusal(PncadError):
     estimate (`no_samples`). Or the document does not build at its
     nominal, so there is nothing to replay
     (`nominal_does_not_build`, with `node` and `cause`). Its message
-    speaks that node as the document holds it, kind, label and tag;
+    speaks that node as the document holds it, label and tag (kind and tag with no label);
     `node` keeps the full id. Or an evaluation the run made — its
     nominal build or a sample — stopped short (`stopped`): this door
     takes no `cancel=`, so it ran out of its member budget, the budget

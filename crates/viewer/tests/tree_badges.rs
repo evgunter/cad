@@ -1256,14 +1256,14 @@ fn relation_edges(
         let related = viewer::relations::relations(doc, &index, node, &files);
         for row in related.reads {
             for entry in &row.entries {
-                if let Some(Selection::Node(at)) = entry.selects {
+                if let Some(Selection::Node(at)) = entry.selects() {
                     reads.push((node, row.seat, at));
                 }
             }
         }
         for row in related.read_by {
             for entry in &row.entries {
-                let Some(Selection::Node(reader)) = entry.selects else {
+                let Some(Selection::Node(reader)) = entry.selects() else {
                     panic!("a reader is a node: {entry:?}")
                 };
                 read_by.push((reader, row.seat, node));

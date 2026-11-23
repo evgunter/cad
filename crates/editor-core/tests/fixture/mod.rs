@@ -2023,10 +2023,7 @@ pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stabl
 /// **A union of every member of each of `families`**, each spliced in
 /// whole, `[…xs, …ys]` (D10 `[repetition]`): one body. Panics where one
 /// of `families` is no yield.
-pub fn union_of_families(
-    doc: ProfileDoc,
-    families: &[RecipeNodeId],
-) -> (ProfileDoc, RecipeNodeId) {
+pub fn union_of_families(doc: ProfileDoc, families: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
     let members = families
         .iter()
         .map(|&family| {

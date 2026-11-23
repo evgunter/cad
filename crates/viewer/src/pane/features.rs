@@ -45,9 +45,8 @@ pub(crate) fn nested_indent(ui: &egui::Ui, level: usize) -> f32 {
 }
 
 /// **What one feature-tree row reads as, drawn**: its headline
-/// ([`tree::headline`]) — a labelled node's label with its kind and tag
-/// muted beside it, an unlabelled node's kind, tag and which one of its
-/// kind it is — and the world badge.
+/// ([`tree::headline`]) — the node as every sentence spells it, with
+/// which one of its kind it is muted beside it — and the world badge.
 ///
 /// **The kind alone is not a name.** A tree of rows reading `Extrude`
 /// twice asks a person to tell two extrudes apart by clicking; the tag
@@ -1390,8 +1389,8 @@ mod tests {
         let id = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
         let row = |answer| TreeRow {
             readout: Some(Readout::Clearance(Cleared {
-                a: "Extrude \"left\" (0009)".to_owned(),
-                b: "Extrude \"right\" (000a)".to_owned(),
+                a: "\"left\" (0009)".to_owned(),
+                b: "\"right\" (000a)".to_owned(),
                 bounds: ClearanceBounds::AtLeast(Bound::Value(crate::props::Computed {
                     canonical: 0.02,
                     dimension: pncad::document::Dimension::Length,
@@ -1408,7 +1407,7 @@ mod tests {
             face_b: pncad::topo::FaceKey::default(),
             bodies: [(id, 0); 2],
         }));
-        let equation = "clearance(Extrude \"left\" (0009), Extrude \"right\" (000a)) ≥ 0.02 m";
+        let equation = "clearance(\"left\" (0009), \"right\" (000a)) ≥ 0.02 m";
         for (answer, state, detail, loud) in [
             (
                 violated,

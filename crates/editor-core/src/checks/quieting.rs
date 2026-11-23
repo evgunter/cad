@@ -172,19 +172,20 @@ impl Quieting {
     /// its name and a split's unnamed tool by the name [`Self::edits`]
     /// gives it: `Gap(the end cap of …, the start cap of …) = 0`.
     #[must_use]
-    pub fn said(&self, by: crate::spoken::Speaker<'_>) -> String {
+    pub fn said(&self, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
         let reference = |r: &QuietingRef| match r {
-            QuietingRef::Read(var) => by
-                .tool_name(*var)
-                .map_or_else(|| by.read(*var), |name| name.to_string()),
+            QuietingRef::Read(var) => by.tool_name(*var).map_or_else(
+                || by.read(*var),
+                |name| crate::Sentence::from(name.as_str()),
+            ),
             QuietingRef::Entity { name, pose, .. } => {
-                let cell = by.name(name).to_string();
-                match pose {
-                    None => cell,
-                    Some(VarKind::Axis) => format!("the axis of {cell}"),
-                    Some(VarKind::Point) => format!("the centre of {cell}"),
-                    Some(_) => format!("the plane of {cell}"),
-                }
+                let pose = match pose {
+                    None => "",
+                    Some(VarKind::Axis) => "the axis of ",
+                    Some(VarKind::Point) => "the centre of ",
+                    Some(_) => "the plane of ",
+                };
+                crate::sentence!(pose, by.name(name))
             }
         };
         // The measure as a claim spells it: the verb, capitalized.
@@ -194,7 +195,7 @@ impl Quieting {
             MeasureVerb::Angle => "Angle",
         };
         let [a, b] = &self.references;
-        format!("{measure}({}, {}) = 0", reference(a), reference(b))
+        crate::sentence!(measure, "(", reference(a), ", ", reference(b), ") = 0")
     }
 }
 
@@ -243,12 +244,12 @@ impl OpposedPair {
     /// The pair in words, each reference's face as `by` speaks its name,
     /// outer then inner.
     #[must_use]
-    pub fn said(&self, by: crate::spoken::Speaker<'_>) -> String {
+    pub fn said(&self, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
         let face = |r: &QuietingRef| match r {
-            QuietingRef::Entity { name, .. } => by.name(name).to_string(),
+            QuietingRef::Entity { name, .. } => crate::sentence!(by.name(name)),
             QuietingRef::Read(var) => by.read(*var),
         };
         let [outer, inner] = &self.references;
-        format!("{} and {}", face(outer), face(inner))
+        crate::sentence!(face(outer), " and ", face(inner))
     }
 }
