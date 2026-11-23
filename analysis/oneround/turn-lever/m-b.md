@@ -79,7 +79,18 @@ no recorded margin moved against its lever.
 **(iii) The bool sites** (`stands_on`, `sheets_part`). Every pair is equal, so
 there is no straddle to split by action.
 
-**Pairing caveat.** 610 `classify_shared_rim` calls (f64) made 135 decisions at
+**Pairing caveat: the poison rows say nothing past the arm gate.** Pairing
+stops at the first decision that differs. Where the bound from above is poison,
+that decision is the arm gate (`dihedral_arm`, the first decision of WV, MC
+and the seam), and the run at the bound from above escalates there. Every
+later decision of that composite (`dihedral_wedge`, the bend, the material
+reads) is left unpaired. So the zero counts for those predicates cover only
+the reads whose bound from above was finite. They say nothing about faces with
+no surface (M-a's placeholders and unbounded faces). Pairing past the gate
+would need the arm passed from below to the gate and from above to the rest:
+a different instrument.
+
+**Rim pairing.** 610 `classify_shared_rim` calls (f64) made 135 decisions at
 the bound from below and 45 at the bound from above. The common prefix is
 equal and the verdict identical. The most likely cause is a cache the first run
 fills: the second run is the detached one. It was not chased.
