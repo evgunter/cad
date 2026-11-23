@@ -1583,8 +1583,7 @@ pub fn first_within<C, T: Decide>(
 ///   carrier reads the fitted path below, a sound certificate of its own,
 ///   whether the exact image refused or read in band.
 /// - **Any other carrier**: the carrier's fitted chart image
-///   ([`chart_image`], from the same fixed schedule of foot points as
-///   the full lane's) and limbs 1 and 2 over it.
+///   ([`chart_image`], the full lane's) and limbs 1 and 2 over it.
 ///
 /// Incidence on an `Approx` wall's description is this bound plus the
 /// fit's own recorded distance from it, which the surface carries
@@ -1718,9 +1717,9 @@ fn exact_arc_rim<T: Decide>(
 
 /// **The certified NURBS × NURBS derivation** — [`plane_nurbs_limbs`]
 /// for an edge between two spline charts, a described wall or a fit on
-/// either side: the carrier's chart image on EACH chart, from the same
-/// fixed schedule of foot points ([`chart_image`], the edge
-/// certificates' producer of that image), the normal angle between the two charts at each
+/// either side: the carrier's chart image on EACH chart
+/// (`carrier_image::carrier_images`, the two on one list of spans), the
+/// normal angle between the two charts at each
 /// interior sample's feet decided definitely transverse, and C2's
 /// certificate against both, its limb 3 the two-chart tube
 /// ([`crate::ssi::SsiTube::TwoChart`]).

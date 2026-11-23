@@ -20,7 +20,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::test_support::upper;
 use geom_core::{Dual64, Tol, Vec3};
 use topo::construction::Construct;
 use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError};

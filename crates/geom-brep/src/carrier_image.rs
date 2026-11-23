@@ -251,7 +251,7 @@ where
         );
         let at = wall.eval(T::from_computed(next.x), T::from_computed(next.y));
         let moved = mid((at - p).norm());
-        if !(moved <= distance) || next.equals_exactly(uv) {
+        if moved.is_nan() || moved > distance || next.equals_exactly(uv) {
             break;
         }
         best = (next, at, moved);
@@ -531,7 +531,7 @@ fn chain<T: Decide + Bounds>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Optio
     match carrier {
         Curve3::Nurbs(net) => {
             let width = t1 - t0;
-            if !(width > 0.0) {
+            if width.is_nan() || width <= 0.0 {
                 return None;
             }
             let raise = degree - net.degree();
@@ -793,7 +793,7 @@ where
     let (su, sv) = (mid3(jet.du), mid3(jet.dv));
     let (a, b, d) = (su.dot(su), su.dot(sv), sv.dot(sv));
     let det = a * d - b.powi(2);
-    if !(det > 1e-12 * a * d) {
+    if det.is_nan() || det <= 1e-12 * a * d {
         return None;
     }
     let (fu, fv) = (su.dot(dc), sv.dot(dc));

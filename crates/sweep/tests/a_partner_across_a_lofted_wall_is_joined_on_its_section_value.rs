@@ -20,18 +20,7 @@
 
 use geom_core::{Tol, Vec3};
 use sweep::test_support::{ball_poled_z, finished, loft_prism};
-use topo::{BooleanError, EulerOpError, JoinError};
-
-/// The run's refusal as the chord edge's certification, if it is one.
-fn chord_certificate(e: &BooleanError) -> Option<&geom_brep::CertifyError> {
-    let BooleanError::Join(join) = e else {
-        return None;
-    };
-    match join.error() {
-        JoinError::Euler(EulerOpError::Certification { error }) => Some(error),
-        _ => None,
-    }
-}
+use topo::{BooleanError, JoinError};
 
 /// **A ball across the prism's wall and its bottom cap**: the ball meets
 /// the wall in an arc from the wall's bottom rim back to it, which the

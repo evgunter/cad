@@ -18,7 +18,7 @@
 
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2};
 use geom::{NurbsSurface, Surface};
-use geom_brep::{CertifyError, EdgeDescriptionSpec, PlaneNurbsRefusal, SsiLimb, SurfacePair};
+use geom_brep::{EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::{KnotVector, Knots};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -27,7 +27,7 @@ use sweep::{TubeWindow, tube_along_arc};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
 use topo::pcurves::PcurveMintError;
-use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, Pcurve};
+use topo::{Body, FaceKey, HalfEdgeKey, Pcurve};
 
 fn tol() -> Tol {
     Tol::witness()
