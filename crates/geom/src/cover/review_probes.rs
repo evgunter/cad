@@ -8,6 +8,8 @@
 //! range-reduced by a double-double `π/2`, and the point
 //! `A + u·a·(cos θ − cos θ₀) + (n × u)·b·(sin θ − sin θ₀)`.
 
+#![allow(clippy::approx_constant, reason = "the three-double π/2 of the oracle")]
+
 use core::f64::consts::{PI, TAU};
 
 use geom_core::exact::{two_product, two_sum};
