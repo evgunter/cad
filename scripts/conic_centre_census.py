@@ -89,7 +89,9 @@ def read_pins(path):
 
 def compare(reads, crates, pins):
     """The lines that say where the census and the pins differ."""
-    held = lambda f: any(f.startswith(c) for c in crates)
+    def held(file):
+        return any(file.startswith(c) for c in crates)
+
     out = []
     for file in sorted(set(reads) | set(pins)):
         if not held(file):
@@ -109,16 +111,23 @@ def selftest():
             "message": {"code": {"code": LINT}, "spans": [
                 {"is_primary": True, "file_name": file, "line_start": line, "column_start": 5}]},
         })
-    twice = lambda file, line: [message(file, line, "lib")] * 2
+    def twice(file, line):
+        return [message(file, line, "lib")] * 2
+
     harness = json.dumps({"reason": "compiler-artifact", "manifest_path": "/r/crates/geom/Cargo.toml", "profile": {"test": True}})
-    clean = [harness] + twice("crates/geom/src/a.rs", 3) + [message("crates/geom/src/a.rs", 90, "lib")]
-    clean += [message("crates/geom/tests/t.rs", 4, "test")] * 2 + twice(HOME, 7)
+    clean = [
+        harness,
+        *twice("crates/geom/src/a.rs", 3),
+        message("crates/geom/src/a.rs", 90, "lib"),
+        *[message("crates/geom/tests/t.rs", 4, "test")] * 2,
+        *twice(HOME, 7),
+    ]
     pins = {"crates/geom/src/a.rs": 1, "crates/topo/src/unchecked.rs": 4}
     cases = [
         ("a clean census, a test-only read, the home module and an unchecked crate's pin", clean, pins, False),
-        ("a new production read", clean + twice("crates/geom/src/a.rs", 40), pins, True),
-        ("a read in a file with no pin", clean + twice("crates/geom/src/b.rs", 1), pins, True),
-        ("a pinned read that has gone", [clean[0]] + clean[3:], pins, True),
+        ("a new production read", [*clean, *twice("crates/geom/src/a.rs", 40)], pins, True),
+        ("a read in a file with no pin", [*clean, *twice("crates/geom/src/b.rs", 1)], pins, True),
+        ("a pinned read that has gone", [clean[0], *clean[3:]], pins, True),
     ]
     for name, lines, pins_, red in cases:
         reads, crates = census(lines)
