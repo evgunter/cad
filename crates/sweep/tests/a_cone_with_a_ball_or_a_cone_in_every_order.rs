@@ -24,6 +24,7 @@ use profile::ProfileLoop;
 use sweep::test_support::{ball_poled_y, finished};
 use sweep::{Revolution, revolve};
 use topo::AtRestBody;
+use topo::construction::Construct;
 
 use crate::revolve_common::{axis_y, validated};
 
