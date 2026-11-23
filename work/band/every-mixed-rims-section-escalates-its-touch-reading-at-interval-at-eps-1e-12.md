@@ -37,5 +37,8 @@ Pinned both ways by `crates/sweep/tests/band_closed_mixed_chain_shapes.rs::tight
   doors, keeping a stored axis bit for bit where `Frame::new` re-squared
   it): `band_mixed_corner_reach`'s inset boss 0.25 tall (both its
   fillet rows) and `band_closed_mixed_chain_shapes`' slot at 30°
-  chamfered. Both rows now hold them to tier 3 at every ε; every other
-  rim these rows read still escalates or refuses as before.
+  chamfered. Both rows now hold them to tier 3 at every ε. And the four
+  rims PR 7558 pinned as `UNADMITTED_AT_THE_FRAME_COST` (the pentagon,
+  the hexagon, the rectangle and the slot at 30°, filleted) now admit
+  their sections and escalate `shared_row_touch` with every other rim,
+  as that pin's F1X mutant predicted; the list is gone.
