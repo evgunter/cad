@@ -141,23 +141,18 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
     }
 }
 
-/// `None` where `f` returned, the panic's message where it panicked.
-fn panicked<R>(f: impl FnOnce() -> R) -> Option<String> {
-    catch_unwind(AssertUnwindSafe(f)).err().map(|e| {
-        e.downcast_ref::<String>()
-            .cloned()
-            .or_else(|| e.downcast_ref::<&str>().map(|s| (*s).to_owned()))
-            .unwrap_or_default()
-    })
+/// Whether `f` panicked (the hook prints its message).
+fn panicked<R>(f: impl FnOnce() -> R) -> bool {
+    catch_unwind(AssertUnwindSafe(f)).is_err()
 }
 
 /// **No public door panics on a cube whose six faces are all pending.**
 #[test]
 fn no_public_door_panics_on_an_all_pending_cube() {
-    let mut panics: Vec<(&str, String)> = Vec::new();
-    let mut run = |name: &'static str, p: Option<String>| {
-        if let Some(why) = p {
-            panics.push((name, why));
+    let mut panics: Vec<&str> = Vec::new();
+    let mut run = |name: &'static str, p: bool| {
+        if p {
+            panics.push(name);
         }
     };
     let mut body = Body::<f64>::new();
@@ -277,6 +272,7 @@ fn no_public_door_panics_on_an_all_pending_cube() {
         "group_nappe",
         panicked(|| topo::group_nappe(&body, &faces, band).map(|_| ())),
     );
+    // Raw door: the measured body has pending faces, which tier 3 refuses (UncertifiableSurface).
     run(
         "classify_unvalidated",
         panicked(|| topo::test_support::classify_unvalidated(&body, tol).map(|_| ())),

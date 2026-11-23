@@ -10,23 +10,18 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use geom_core::{Band, Point3, RigidMotion, Tol, Vec3};
 
-/// `None` where `f` returned, the panic's message where it panicked.
-fn panicked<R>(f: impl FnOnce() -> R) -> Option<String> {
-    catch_unwind(AssertUnwindSafe(f)).err().map(|e| {
-        e.downcast_ref::<String>()
-            .cloned()
-            .or_else(|| e.downcast_ref::<&str>().map(|s| (*s).to_owned()))
-            .unwrap_or_default()
-    })
+/// Whether `f` panicked (the hook prints its message).
+fn panicked<R>(f: impl FnOnce() -> R) -> bool {
+    catch_unwind(AssertUnwindSafe(f)).is_err()
 }
 
 /// Every door here, run on `body`, the names of those that panicked.
-fn doors_that_panic(body: &crate::Body<f64>, tol: Tol) -> Vec<(String, String)> {
+fn doors_that_panic(body: &crate::Body<f64>, tol: Tol) -> Vec<String> {
     let band = Band::linear(tol).unwrap();
     let mut out = Vec::new();
-    let mut door = |name: &str, p: Option<String>| {
-        if let Some(why) = p {
-            out.push((name.to_owned(), why));
+    let mut door = |name: &str, p: bool| {
+        if p {
+            out.push(name.to_owned());
         }
     };
     door("validate", panicked(|| crate::validate::validate(body)));
