@@ -74,3 +74,10 @@ reading 0 wrong at 1e5 and 1e6, with no charge.
   - **Its readers:** the plane arm (and through it the co-surface arm and the ring path), `line_conic`, `conic_conic`'s parallel screen and `transverse`, and `section_loops::line_clears_conic`.
   - **A second row:** `curve_pair::far_graze_rows::a_line_grazing_a_far_centred_conic_is_read_wrong_nowhere`.
   - **The sibling** is filed as `an-arc-held-ellipses-plane-is-read-at-its-derived-centre`.
+- 2026-11-23, fix pass on PR 7553 (its review: MAJOR-1, the across-seam term read from a rounded `v_ref`).
+  - **The belly is now the conic's own door**, `Conic::belly_along(o, n)` in `conic.rs`. It reads the stored placement (stored point and phase, axis, seam, semi-axes) with `B = b·((axis × u_ref)·n)` crossed exactly (`exact::triple_product`). An arc-held ellipse is read from its anchor.
+  - **Out of the exact range** (decided on the inputs' lowest bits) the `f64` reading is poison and escalates.
+  - **Every row now grazes at any angle round the turn, both placements**, judged by an exact dyadic oracle on the stored data (`geom_core::test_support::stored_belly`), never through `Expansion` or `v_ref`.
+  - **Rows added for each swept reader:** the parallel screen, the near extreme, and `line_clears_conic`.
+  - **The probe:** 0 wrong at far 1e4 / 1e5 / 1e6 on seeds 0x1 and 0x2. Under the old belly (M1, seed 0x1) it reads 50 / 317 / 406 centre-held and 52 / 308 / 395 arc-held.
+  - **The sibling** is closed as a duplicate of ONEROUND's unit, its plane readers folded in there.

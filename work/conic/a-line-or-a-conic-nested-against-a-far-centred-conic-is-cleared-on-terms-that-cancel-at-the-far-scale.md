@@ -88,3 +88,11 @@ stored); a plain `c + u·a` still rounds at `u·far`.
 ## Moved to CONIC (2026-11-23)
 
 Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
+
+## 2026-11-23 — `line_clears_conic` fixed by GERM's PR 7553; `conics_clear` stays open
+
+PR 7553 (`germ/harmonic-belly`) re-poses `line_clears_conic`. Its gap `|m·(c − p)| − reach` is now the negated belly `−Conic::belly_along(p, m)`. That reads the conic's stored placement (its stored point and phase, the axis, the seam, and the across-seam direction crossed exactly) and forms `(A² + B² − d₀²)/(√(A² + B²) + |d₀|)` with the numerator exact (`geom_core::Real::harmonic_belly`, within 7u of the belly to first order).
+- **The row:** `splitting::section_loops::far_clear_rows::a_line_clears_a_far_centred_conic_only_where_it_is_clear`, judged by an exact dyadic oracle on the stored data.
+  - It reads 0 wrong clears at far 1e4 / 1e5 / 1e6: 481 / 370 / 580 clears at seed 0x1, centre- and arc-held, the line grazing at any angle round the turn.
+  - Under the mutant that restores the plain gap it reads wrong (PR 7553's body).
+- **Not fixed:** `conics_clear`, which bounds a conic's distance from the origin of another's unit coordinates by a singular value. It is not a first harmonic's belly, and it still reads `c′` and `M` about the far centre. This row stays open for it.

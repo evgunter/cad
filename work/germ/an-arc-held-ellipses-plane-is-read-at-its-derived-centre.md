@@ -2,11 +2,12 @@
 id: an-arc-held-ellipses-plane-is-read-at-its-derived-centre
 kind: issue
 title: An arc-held ellipse's plane, and its height's offset, are read at its derived centre, which rounds at u·far off the plane
-status: open
+status: closed
 opened: 2026-11-23
 priority: P2
 cost: M
 refs: [7510, 7523]
+closed: 2026-11-23
 ---
 
 
@@ -73,3 +74,8 @@ and these three readers move onto it. The settling measurement:
 `curve_face::pose_rows::a_graze_of_a_far_centred_conic_is_read_wrong_nowhere`
 re-run as above (an arc-held ellipse, the oracle about its anchor),
 reading 0 wrong at far 1e4, 1e5 and 1e6.
+
+## Closed (2026-11-23, PR 7553): a duplicate of ONEROUND's unit
+
+- **The belly half is fixed by PR 7553.** `Conic::belly_along` reads an arc-held ellipse from its anchor and phase. The plane probe on arc-held ellipses (`curve_face::pose_rows::a_graze_of_a_far_centred_conic_is_read_wrong_nowhere`) now reads 0 wrong at far 1e4 / 1e5 / 1e6, where it read 21 / 134 / 410 above.
+- **The plane half is folded into `work/oneround/an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre.md`.** That covers `OnSurface::plane` and `LoopArc::plane`, which still read the derived centre. It is a dispatched P1 unit whose scope already covers `curve_pair/` and the class, so it is noted there with a dated section rather than kept as a second row.

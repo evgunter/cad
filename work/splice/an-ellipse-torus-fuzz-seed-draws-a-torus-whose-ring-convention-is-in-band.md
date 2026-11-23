@@ -86,3 +86,5 @@ panicked in `circle_roots::door_answer` on a `ring_torus_convention`
 refusal in its 1e-6 pass (margin `9.674e-6` against the band
 `1e-6 / 1e-5`). Replayed on `origin/main` at `b80352cd` it fails the
 same way. Two of fourteen runs of the row here drew a failing seed.
+
+- 2026-11-23 (GERM, PR 7553's review): another seed draws the same failure. At `CAD_FUZZ_SEED=0x12ef5c0007e519b4`, `ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance` fails with `ring_torus_convention` Undecided, and it fails the same way on the merge base, outside PR 7553's diff.
