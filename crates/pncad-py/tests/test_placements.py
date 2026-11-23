@@ -178,8 +178,8 @@ class TestTheDieTool(unittest.TestCase):
         body = ev.value(pipped).body()
         body.validate()
         # Six cavities, each contributing its faces to the ONE solid:
-        # 6 box faces + 6 x 2 cap half-bands.
-        self.assertEqual(len(ev.all_faces(pipped)), 18)
+        # 6 box faces + 6 caps, each one face.
+        self.assertEqual(len(ev.all_faces(pipped)), 12)
 
         # The oracle is `die_pips`': L^3 - 6 * cap(R, H), pi-valued and
         # so not dyadic — asserted at rounding scale, which is why the

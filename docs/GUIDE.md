@@ -1270,9 +1270,9 @@ The scene below is the composed die's shape in miniature: a cube
 with one spherical pip cut into its top face, then ONE fillet whose
 selection is said twice geometrically — the box edges by carrier
 kind, the pip rim by the plane/sphere pair across it. What is NOT
-selected is the point: the cavity's two meridian seams are sphere on
-BOTH sides (no dihedral wedge — a fillet would leave them as they
-are), and they match neither filter, so the exclusion falls out of
+selected is the point: the cavity's meridian seam is sphere on BOTH
+sides (no dihedral wedge — a fillet would leave it as it is), and it
+matches neither filter, so the exclusion falls out of
 the geometry.
 
 ```python
@@ -1359,13 +1359,13 @@ rims = ev.select_where(
     pipped, edges, [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Sphere)]
 )
 assert len(straight) == 12  # the box edges the subtraction kept
-assert len(rims) == 2       # the pip rim is two arcs, not one circle
+assert len(rims) == 1       # the pip rim is one circle
 
 # The excluded remainder, BY GEOMETRY: sphere-on-both-sides.
 meridians = ev.select_where(
     pipped, edges, [GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Sphere)]
 )
-assert len(meridians) == 2 and len(ev.all_edges(pipped)) == 16
+assert len(meridians) == 1 and len(ev.all_edges(pipped)) == 14
 
 # One fillet takes both selections — stored, frozen, never re-queried.
 blended = doc.insert(Node.fillet(pipped, Formula.length_in(0.05, m), straight + rims))
