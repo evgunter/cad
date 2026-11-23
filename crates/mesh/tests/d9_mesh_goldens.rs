@@ -46,7 +46,9 @@
 //!   the pcurve-driven lane with `cert::cert_cylinder` certificates.
 //! - trimmed on NURBS: `loft_prism` (walls of degree 1×2) and
 //!   `swept_elbow` (1×3), the described-NURBS lane with its
-//!   hull-derived certificate and its cert-driven refinement. A
+//!   hull-derived certificate and its cert-driven refinement;
+//!   `pinned_wedge` and `corner_pinned_through_three`, walls with a
+//!   collapsed side, which the lane walks through its vertex. A
 //!   `Surface::Approx` face shares the `Nurbs` dispatch arm and the
 //!   same lane, on its fit, so these rows cover its code path; what no
 //!   fixture in this crate carries is a body that reaches it through
@@ -220,6 +222,12 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
             [0.05, 0.15],
         ),
         ("loft_prism", nurbs_bodies::loft_prism(), [6e-3, 2e-2]),
+        ("pinned_wedge", nurbs_bodies::pinned_wedge(), [1e-2, 3e-2]),
+        (
+            "corner_pinned_through_three",
+            nurbs_bodies::corner_pinned_through_three(),
+            [1e-2, 3e-2],
+        ),
         (
             "swept_elbow",
             sweep::test_support::swept_elbow(Tol::witness()),
@@ -283,6 +291,39 @@ pub(crate) mod nurbs_bodies {
 
     pub(crate) fn loft_prism() -> Body<f64> {
         sweep::test_support::loft_prism(Tol::witness())
+    }
+
+    /// A two-section loft of `sweep::test_support::pinned_square` placed
+    /// by `ms`, at `v_degree`: `sweep`'s `pinned_corners_build` bodies.
+    fn pinned(ms: &[geom_core::Affine3<f64>], v_degree: usize) -> Body<f64> {
+        use sweep::test_support::{pinned_square, rigid_places};
+        let tol = Tol::witness();
+        sweep::loft_body::<f64>(
+            &vec![pinned_square(); ms.len()],
+            &rigid_places(ms, tol),
+            v_degree,
+            tol,
+        )
+        .expect("the pinned loft builds")
+        .body
+        .into_body()
+    }
+
+    /// The square turned half a radian about its edge x = −1: a hinge,
+    /// its two triangle walls each with a collapsed side.
+    pub(crate) fn pinned_wedge() -> Body<f64> {
+        let hinge = sweep::test_support::turn_about([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], 0.5);
+        pinned(&[geom_core::Affine3::identity(), hinge], 1)
+    }
+
+    /// The square's corner (−1, −1) pinned through three sections at
+    /// v-degree 2: one wall over the three, collapsed at the corner.
+    pub(crate) fn corner_pinned_through_three() -> Body<f64> {
+        let corner = |a| sweep::test_support::turn_about([-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], a);
+        pinned(
+            &[geom_core::Affine3::identity(), corner(0.3), corner(0.6)],
+            2,
+        )
     }
 }
 
@@ -349,6 +390,14 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         [0x9cdd_b7a3_543d_b550, 0x9cdd_b7a3_543d_b550],
     ),
     ("loft_prism", [0xd3ce_dece_149d_e356, 0x6d45_152a_ef26_f951]),
+    (
+        "pinned_wedge",
+        [0x12ff_02e0_5d1f_4e27, 0xb6d0_baab_eae4_fad2],
+    ),
+    (
+        "corner_pinned_through_three",
+        [0x9789_7a1f_84e0_bbe9, 0x656e_bbf8_8ac8_da74],
+    ),
     (
         "swept_elbow",
         [0xca97_2f70_8e56_d5a9, 0xe8f8_263b_c340_6dd9],

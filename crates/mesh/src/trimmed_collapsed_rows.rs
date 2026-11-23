@@ -1,5 +1,5 @@
 //! **Rows for a spline chart's collapsed side** (`super::CollapsedSides`,
-//! `super::SideWalk`): the walls a loft builds beside a pinned corner, a
+//! `super::SidePoints`): the walls a loft builds beside a pinned corner, a
 //! hinge or a lune, each with a side of its chart that is one point.
 #![allow(
     clippy::unwrap_used,
@@ -8,15 +8,14 @@
     clippy::float_cmp
 )]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{pinned_square, rigid_places, turn_about};
 use topo::Body;
 
-use super::{CollapsedSides, SideWalk};
+use super::{Along, CollapsedSide, CollapsedSides, PolygonOf, SidePoints};
 use crate::chart_table::ChartRow;
-use crate::chords::ChordPass;
 
 /// The square turned about the diagonal through its corner (−1, −1),
 /// then lifted `off` along z: at `off = 0` that corner is pinned.
@@ -48,11 +47,13 @@ fn loft(sections: usize, ms: &[Affine3<f64>], v_degree: usize) -> Body<f64> {
 }
 
 /// **Every collapsed side the loft builds**, by name: a hinge (the wedge,
-/// and a hinge in the first, middle or last slab), a pinned corner (in
-/// one slab, through three at v-degree 1, and through three at v-degree
-/// 2, where one wall spans the three), and a lune, collapsed at both ends
-/// of its chart's `u`. Every side is a `u` column: no door builds a
-/// collapsed `v` row.
+/// and a hinge in the first, middle or last slab, whose rim is a cap's
+/// in the first and last), a pinned corner (in a lone slab, in the first
+/// or last slab of two, through three at v-degree 1, and through three at
+/// v-degree 2, where one wall spans the three), and a lune, collapsed at
+/// both ends of its chart's `u`. Every side is a `u` column: the loft
+/// builds no collapsed `v` row, and no import fixture holds a collapsed
+/// side, so a `v` side is covered by the unit rows alone.
 fn the_class() -> Vec<(&'static str, Body<f64>)> {
     let hinge = |a| turn_about([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], a);
     let far = || turn_about([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], -0.3);
@@ -63,6 +64,14 @@ fn the_class() -> Vec<(&'static str, Body<f64>)> {
     vec![
         ("wedge", loft(4, &[id(), hinge(0.5)], 1)),
         ("one corner", loft(4, &[id(), corner(0.5)], 1)),
+        (
+            "one corner, first slab of two",
+            loft(4, &[id(), corner(0.5), lift(2.0) * corner(0.5)], 1),
+        ),
+        (
+            "one corner, last slab of two",
+            loft(4, &[lift(-2.0), id(), corner(0.5)], 1),
+        ),
         (
             "corner through three, v-degree 1",
             loft(4, &[id(), corner(0.3), corner(0.6)], 1),
@@ -151,26 +160,6 @@ fn a_collapsed_side_walls_samples_stay_under_their_certificates() {
     }
 }
 
-/// The run's chord pass on `body` at `delta`, with the shared positions.
-fn chord_pass(
-    body: &Body<f64>,
-    delta: f64,
-) -> (ChordPass, Vec<Point3<f64>>, crate::nurbs_cert::FaceBounds) {
-    let mut positions = Vec::new();
-    let mut vids = HashMap::new();
-    for (vk, p) in body.vertex_points() {
-        #[allow(clippy::cast_possible_truncation)]
-        vids.insert(vk, positions.len() as u32);
-        positions.push(p);
-    }
-    let mut bounds = crate::nurbs_cert::FaceBounds::new();
-    let routes = crate::tessellate::Routes::witness(body);
-    let chords =
-        crate::chords::compute_chords(body, delta, &routes, &vids, &mut positions, &mut bounds)
-            .unwrap();
-    (chords, positions, bounds)
-}
-
 /// **A collapsed side is walked as its unpinned twin's edge is chorded.**
 /// The wall beside a corner pinned in one slab, and the same wall with
 /// the corner moved off by a hair, which builds a strut edge where the
@@ -183,23 +172,24 @@ fn a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded() {
     let band = band();
     for delta in [1e-1, 1e-2, 1e-3] {
         let pinned = loft(4, &[Affine3::identity(), about_corner(0.5, 0.0)], 1);
-        let (chords, shared, bounds) = chord_pass(&pinned, delta);
+        let (chords, shared, bounds) = crate::chords::tests::witness_pass(&pinned, delta);
         let mut pieces = Vec::new();
         for fk in collapsed(&pinned) {
             let surface = pinned.face_surface(fk).unwrap();
             let row = ChartRow::of(&pinned, fk, surface, &bounds).unwrap();
             let lift = pinned.face_lift(fk, band).unwrap();
-            let (singular, polygon) = super::face_polygon(
-                &pinned,
+            let (singular, polygon) = super::face_polygon(&PolygonOf {
+                body: &pinned,
                 fk,
-                (surface, &row),
-                &lift,
-                &chords,
-                &shared,
+                surface,
+                row: &row,
+                lift: &lift,
+                creases: None,
+                chords: &chords,
+                shared: &shared,
                 band,
                 delta,
-                None,
-            )
+            })
             .unwrap();
             assert_eq!(singular.len(), 1, "δ = {delta}, {fk:?}: one pinned vertex");
             let copies: Vec<(f64, f64)> = polygon
@@ -216,7 +206,7 @@ fn a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded() {
             pieces.push(copies.len() - 1);
         }
         let twin = loft(4, &[Affine3::identity(), about_corner(0.5, 1e-4)], 1);
-        let (chords, shared, _) = chord_pass(&twin, delta);
+        let (chords, shared, _) = crate::chords::tests::witness_pass(&twin, delta);
         // The strut: the one edge a hair long.
         let struts: Vec<usize> = chords
             .ids
@@ -247,7 +237,7 @@ fn a_collapsed_sides_vertex_is_decided_at_the_band() {
     let body = loft(4, &[Affine3::identity(), about_corner(0.5, 0.0)], 1);
     let fk = collapsed(&body)[0];
     let sides = CollapsedSides::of(body.face_surface(fk).unwrap());
-    let p = sides.0[0].1;
+    let p = sides.0[0].point;
     let along = |d: f64| Point3::new(p.x + d, p.y, p.z);
     assert_eq!(sides.holds(p, band), Ok(true), "the side's own point");
     assert_eq!(
@@ -273,51 +263,81 @@ fn a_collapsed_sides_vertex_is_decided_at_the_band() {
     );
 }
 
-/// **A side is walked along its own axis, at that axis's step, by a
-/// vertex on it alone.** A `u` side runs along `v`, a `v` side along `u`;
-/// a vertex on two sides is their corner and is walked by neither.
+/// **A side is walked along its own axis, at that axis's step and held
+/// value, by a vertex on it alone.** A `u` side runs along `v`, a `v` side
+/// along `u`; a vertex on two sides is their corner and is walked by
+/// neither.
 #[test]
 fn a_side_is_walked_along_its_axis_and_a_corner_is_not() {
     use geom_brep::{ChartAxis, ChartEnd, ChartSide};
-    let side = |fixed, end| ChartSide { fixed, end };
+    let side = |fixed, end, point, held| CollapsedSide {
+        side: ChartSide { fixed, end },
+        point,
+        held,
+    };
     let (p, q) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     let shared = [p, q];
     let singular: HashSet<u32> = [0, 1].into_iter().collect();
     let sides = CollapsedSides(vec![
-        (side(ChartAxis::U, ChartEnd::Low), p),
-        (side(ChartAxis::V, ChartEnd::High), q),
-        (side(ChartAxis::U, ChartEnd::High), q),
+        side(ChartAxis::U, ChartEnd::Low, p, 0.0),
+        side(ChartAxis::V, ChartEnd::High, q, 1.0),
+        side(ChartAxis::U, ChartEnd::High, q, 1.0),
     ]);
-    let walk = sides.walk(&shared, &singular, (0.25, 0.1), band());
-    assert_eq!(walk.steps.get(&0), Some(&(1, 0.1)), "a u side runs along v");
+    let walk = sides.points(&shared, &singular, (0.25, 0.1), band());
     assert_eq!(
-        walk.steps.get(&1),
+        walk.along.get(&0),
+        Some(&Along {
+            fixed: ChartAxis::U,
+            held: 0.0,
+            step: 0.1
+        }),
+        "a u side runs along v"
+    );
+    assert_eq!(
+        walk.along.get(&1),
         None,
         "a corner of two sides is not walked"
     );
-    let sides = CollapsedSides(vec![(side(ChartAxis::V, ChartEnd::Low), q)]);
-    let walk = sides.walk(&shared, &singular, (0.25, 0.1), band());
+    let sides = CollapsedSides(vec![side(ChartAxis::V, ChartEnd::Low, q, 2.0)]);
+    let walk = sides.points(&shared, &singular, (0.25, 0.1), band());
     assert_eq!(
-        walk.steps.get(&1),
-        Some(&(0, 0.25)),
+        walk.along.get(&1),
+        Some(&Along {
+            fixed: ChartAxis::V,
+            held: 2.0,
+            step: 0.25
+        }),
         "a v side runs along u"
     );
 }
 
 /// **A walked side holds `⌈span/h⌉` pieces between its copies**, each
-/// point on the segment between them and beside the edge of the copy it
-/// follows, the loop's closing pair included; a copy pair of another
-/// vertex, and two points of the walked vertex at one place on the axis,
-/// are left as they are.
+/// point at the side's held value on its fixed axis (whatever the copies'
+/// rounding there) and spaced evenly along the other, beside the edge of
+/// the copy it follows, the loop's closing pair included; a copy pair of
+/// another vertex, and two points of the walked vertex at one place on
+/// the axis, are left as they are.
 #[test]
 fn a_walked_side_holds_its_pieces_between_its_copies() {
+    use geom_brep::ChartAxis;
     let keys = super::tests::twelve_edge_keys();
     let e = |k: usize| keys[k];
-    let walk = SideWalk {
-        steps: [(7, (1, 0.3))].into_iter().collect(),
+    let walk = SidePoints {
+        along: [(
+            7,
+            Along {
+                fixed: ChartAxis::U,
+                held: 0.0,
+                step: 0.3,
+            },
+        )]
+        .into_iter()
+        .collect(),
     };
-    // The side runs from (0, 1) down to (0, 0) and closes the loop.
-    let points = vec![(0.0, 0.0, 7), (1.0, 0.0, 2), (1.0, 1.0, 3), (0.0, 1.0, 7)];
+    // The side runs from the copy an ulp off it at (0⁺, 1) down to (0, 0),
+    // and closes the loop.
+    let off = 0.0f64.next_up();
+    let points = vec![(0.0, 0.0, 7), (1.0, 0.0, 2), (1.0, 1.0, 3), (off, 1.0, 7)];
     let edges = vec![e(1), e(2), e(3), e(4)];
     let (got, got_edges) = walk.along((points, edges)).unwrap();
     let side: Vec<(f64, f64)> = got[4..].iter().map(|&(u, v, _)| (u, v)).collect();
@@ -329,7 +349,7 @@ fn a_walked_side_holds_its_pieces_between_its_copies() {
     assert_eq!(
         side,
         [(0.0, 0.75), (0.0, 0.5), (0.0, 0.25)],
-        "on the side, in walk order"
+        "on the side's held u, in walk order"
     );
     assert!(
         got[4..].iter().all(|p| p.2 == 7),
@@ -387,24 +407,25 @@ fn a_lune_walks_both_its_collapsed_sides() {
         1,
     );
     let delta = 1e-3;
-    let (chords, shared, bounds) = chord_pass(&body, delta);
+    let (chords, shared, bounds) = crate::chords::tests::witness_pass(&body, delta);
     let walls = collapsed(&body);
     assert_eq!(walls.len(), 1, "the lune is one wall");
     let fk = walls[0];
     let surface = body.face_surface(fk).unwrap();
     let row = ChartRow::of(&body, fk, surface, &bounds).unwrap();
     let lift = body.face_lift(fk, band).unwrap();
-    let (singular, polygon) = super::face_polygon(
-        &body,
+    let (singular, polygon) = super::face_polygon(&PolygonOf {
+        body: &body,
         fk,
-        (surface, &row),
-        &lift,
-        &chords,
-        &shared,
+        surface,
+        row: &row,
+        lift: &lift,
+        creases: None,
+        chords: &chords,
+        shared: &shared,
         band,
         delta,
-        None,
-    )
+    })
     .unwrap();
     assert_eq!(singular.len(), 2, "one vertex per side");
     let (_, hv) = row.steps(super::face_target(
@@ -458,7 +479,7 @@ fn a_vertex_in_a_sides_band_is_on_it_and_meshes_as_the_vertex_on_its_point() {
     let fk = collapsed(&off)[0];
     let surface = off.face_surface(fk).unwrap();
     let sides = CollapsedSides::of(surface);
-    let (_, side_point) = sides.0[0];
+    let side_point = sides.0[0].point;
     let (vertex, gap) = off
         .vertex_points()
         .map(|(_, p)| (p, (p - side_point).norm()))
@@ -468,20 +489,21 @@ fn a_vertex_in_a_sides_band_is_on_it_and_meshes_as_the_vertex_on_its_point() {
         gap > 0.0 && sides.holds(vertex, band) == Ok(true),
         "the vertex is {gap} off the side's point and decided on it"
     );
-    let (chords, shared, bounds) = chord_pass(&off, 1e-2);
+    let (chords, shared, bounds) = crate::chords::tests::witness_pass(&off, 1e-2);
     let row = ChartRow::of(&off, fk, surface, &bounds).unwrap();
     let lift = off.face_lift(fk, band).unwrap();
-    let (singular, polygon) = super::face_polygon(
-        &off,
+    let (singular, polygon) = super::face_polygon(&PolygonOf {
+        body: &off,
         fk,
-        (surface, &row),
-        &lift,
-        &chords,
-        &shared,
+        surface,
+        row: &row,
+        lift: &lift,
+        creases: None,
+        chords: &chords,
+        shared: &shared,
         band,
-        1e-2,
-        None,
-    )
+        delta: 1e-2,
+    })
     .unwrap();
     assert_eq!(singular.len(), 1, "the vertex is read singular");
     assert!(
@@ -528,9 +550,11 @@ fn fnv(h: &mut u64, x: u64) {
 /// `work/tesslane/pole-identification-lets-eps-choose-between-two-meshes-of-a-cone-face.md`'s.
 #[test]
 fn the_class_meshes_to_one_digest_at_every_eps() {
-    let pinned: [u64; 9] = [
+    let pinned: [u64; 11] = [
         0x64da_6acc_06e7_1657,
         0xae0a_c8ac_6b69_faa2,
+        0x6cd1_df2c_f0c6_0eb9,
+        0x06bc_c7d0_141f_a080,
         0xd42d_7b0e_e0bd_87e2,
         0xcfb1_f8f9_0dfb_b012,
         0x7cae_777e_ef9e_68ce,

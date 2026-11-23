@@ -899,7 +899,7 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::nurbs_cert::tests::Domination;
     use crate::sizing::{
@@ -1002,6 +1002,18 @@ mod tests {
 
     /// The chord pass over `body`, its vertex ids minted first.
     fn chords_of(body: &Body<f64>, delta: f64) -> ChordPass {
+        witness_pass(body, delta).0
+    }
+
+    /// **The chord pass a witness run makes over `body` at `delta`**: the
+    /// pass, the shared positions (the vertices' points in arena order,
+    /// then the chord points it mints) and the face bounds it assembled,
+    /// on the witness route table. The setup a unit row of one face's
+    /// polygon reads.
+    pub(crate) fn witness_pass(
+        body: &Body<f64>,
+        delta: f64,
+    ) -> (ChordPass, Vec<geom_core::Point3<f64>>, FaceBounds) {
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
         for (vk, p) in body.vertex_points() {
@@ -1011,7 +1023,9 @@ mod tests {
         }
         let mut bounds = FaceBounds::new();
         let routes = crate::tessellate::Routes::witness(body);
-        compute_chords(body, delta, &routes, &vids, &mut positions, &mut bounds).unwrap()
+        let pass =
+            compute_chords(body, delta, &routes, &vids, &mut positions, &mut bounds).unwrap();
+        (pass, positions, bounds)
     }
 
     /// For every side of every edge of `body` whose lattice the rule reads:

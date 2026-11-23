@@ -267,8 +267,14 @@ failure-output = "immediate-final"
 #    0.33 s  mesh trimmed::collapsed_rows::the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked
 #    0.37 s  mesh trimmed::collapsed_rows::a_vertex_in_a_sides_band_is_on_it_and_meshes_as_the_vertex_on_its_point
 #    2.53 s  mesh trimmed::collapsed_rows::the_class_meshes_to_one_digest_at_every_eps
+# The D9 goldens, which this change edits (two bodies with a collapsed side
+# join the corpus; 1.48 s and 1.58 s before, 1.91 s and 2.12 s after, the
+# same local run):
+#    1.91 s  mesh::all d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest
+#    2.12 s  mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
 default-filter = """
 not (
+  (binary_id(mesh::all) & (test(=d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest) | test(=d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads))) |
   (binary_id(mesh) & (test(=trimmed::collapsed_rows::every_collapsed_side_the_loft_builds_meshes_at_a_fine_chordal) | test(=trimmed::collapsed_rows::a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded) | test(=trimmed::collapsed_rows::a_lune_walks_both_its_collapsed_sides) | test(=trimmed::collapsed_rows::the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked) | test(=trimmed::collapsed_rows::a_vertex_in_a_sides_band_is_on_it_and_meshes_as_the_vertex_on_its_point) | test(=trimmed::collapsed_rows::the_class_meshes_to_one_digest_at_every_eps))) |
   (binary_id(sweep::all) & (test(=pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune) | test(=pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab))) |
   (binary_id(sweep::all) & (test(=band_planar_cut_off_meters::a_far_side_arc_with_no_vertex_in_the_tube_is_clear_of_the_strip) | test(=band_planar_mitre::a_frustum_top_rim_mitres_at_leaning_walls) | test(=join_pierce_runs_sweep::six_crossing_corners_build_every_op))) |
