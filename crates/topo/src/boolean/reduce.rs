@@ -2285,23 +2285,35 @@ fn face_corner_within_pi<T: Decide>(
     for (_, members, _) in view.boundary_by_loop() {
         let n = members.len();
         for i in 0..n {
-            let crate::live::BoundaryMember::Edge { he, half, .. } = &members[i] else {
-                continue;
+            let at_p = |q: Point3<T>| {
+                geom_core::k_stats::decide(
+                    "junction_end_corner_vertex",
+                    Margin::of((q - p).norm()),
+                    band,
+                )
+                .map(|s| s == Sign::Zero)
+            };
+            // A lone vertex of `face` at `p`: `face` holds the whole
+            // neighbourhood round it, no corner within π.
+            let (he, half) = match &members[i] {
+                crate::live::BoundaryMember::Isolated { point, .. } => {
+                    if at_p(*point)? {
+                        return Ok(false);
+                    }
+                    continue;
+                }
+                crate::live::BoundaryMember::Edge { he, half, .. } => (he, half),
             };
             let Some(at) = y.get_vertex(half.start).and_then(|v| y.get_point(v.point)) else {
-                continue;
+                return Ok(false);
             };
-            if geom_core::k_stats::decide(
-                "junction_end_corner_vertex",
-                Margin::of((*at - p).norm()),
-                band,
-            )? != Sign::Zero
-            {
+            if !at_p(*at)? {
                 continue;
             }
-            let crate::live::BoundaryMember::Edge { he: prev, .. } = &members[(i + n - 1) % n]
-            else {
-                return Ok(false);
+            // A cycle's members are its half-edges, each loop's own.
+            let prev = match &members[(i + n - 1) % n] {
+                crate::live::BoundaryMember::Edge { he, .. } => he,
+                crate::live::BoundaryMember::Isolated { .. } => return Ok(false),
             };
             let Some(record) = y.get_half_edge(*prev).and_then(|h| y.get_edge(h.edge)) else {
                 return Ok(false);
