@@ -1365,9 +1365,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                     let at = deltas.iter().position(|&d| d == delta);
                     Some(refused[at.expect("a δ of the table")])
                 };
-                if exact && std::env::var_os("JS_RULES_OFF").is_some() {
-                    eprintln!("PINFAIL {what} {delta:e} {refusal:?} want {want:?}");
-                } else if exact {
+                if exact {
                     assert_eq!(refusal, want, "{what}, δ = {delta:e}");
                 } else {
                     eprintln!("{what}, δ = {delta:e}, ε {:e}: {refusal:?}", tol().eps());
@@ -1773,12 +1771,7 @@ fn assert_ops(
                     .body()
                     .unwrap_or_else(|| panic!("{what}, {op}: a body"))
                     .body;
-                if std::env::var_os("JS_RULES_OFF").is_some() {
-                    let g = got(body, *delta);
-                    if &g != want { eprintln!("PINFAIL {what} {op} {delta:e} {g:?} want {want:?}"); }
-                } else {
-                    assert_eq!(&got(body, *delta), want, "{what}, {op}, δ = {delta:e}");
-                }
+                assert_eq!(&got(body, *delta), want, "{what}, {op}, δ = {delta:e}");
             }
             (Err(e), Some(variant)) => {
                 let text = format!("{e:?}");

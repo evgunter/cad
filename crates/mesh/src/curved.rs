@@ -440,7 +440,6 @@ pub(crate) fn tessellate_curved(
     let mut triangles = Vec::new();
     // The face's verdict over its triangles (`cert::FaceVerdict`).
     let mut verdict = cert::FaceVerdict::new();
-    let mut splits = crate::join_split::Splits::for_surface(surface);
     for f in cdt.inner_faces() {
         let vs = f.vertices();
         let m: Vec<(f64, f64, PatchVertex, bool)> =
@@ -459,25 +458,6 @@ pub(crate) fn tessellate_curved(
         // A pole or apex entry has no azimuth (`crate::chart_table`).
         let (bound, scale) = row.cert(tri, uv, pole);
         verdict.read(bound, tol.delta, scale, tol.eps);
-        if crate::join_split::Splits::armed() {
-                        let outward = crate::join_split::outward_of(surface, face.sense);
-            splits.offer(
-                &crate::join_split::Offer {
-                    ids: crate::join_split::wound(flip, ids),
-                    uv: crate::join_split::wound(flip, uv),
-                    singular: crate::join_split::wound(flip, pole),
-                    shared,
-                    interior: &interior,
-                },
-                "rect",
-                tol.delta,
-                tol.eps,
-                &|t, u, s| row.cert(t, u, s),
-                Some(&|u, v| surface.eval(u, v)),
-                Some(&outward),
-                &|p| surface.foot(p),
-            );
-        }
         triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
     }
 
@@ -523,7 +503,6 @@ pub(crate) fn tessellate_curved(
     let patch = Patch {
         interior,
         triangles,
-        splits,
     };
     #[cfg(debug_assertions)]
     {

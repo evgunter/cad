@@ -82,8 +82,6 @@ pub(crate) struct Patch {
     /// contract), naming shared points by mesh id and interior points
     /// by their index in `interior`.
     pub(crate) triangles: Vec<[PatchVertex; 3]>,
-    /// STAGE-1 INSTRUMENT: the splits this lane offers.
-    pub(crate) splits: crate::join_split::Splits,
 }
 
 impl Patch {
@@ -96,7 +94,6 @@ impl Patch {
         #[allow(clippy::cast_possible_truncation)]
         let base = positions.len() as u32;
         positions.extend(self.interior);
-        let _ = self.splits;
         self.triangles
             .into_iter()
             .map(|t| t.map(|v| v.rebase(base)))
@@ -653,34 +650,6 @@ fn tessellate_impl(
     tol: Tol,
     memo: Option<&mut PatchMemo>,
 ) -> Result<(Mesh, PatchKeys), TessellateError> {
-    let r = tessellate_impl_inner(body, chordal, tol, memo);
-    if std::env::var_os("JS_LOG").is_some() {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        for (_, p) in body.vertex_points() {
-            p.x.to_bits().hash(&mut h);
-            p.y.to_bits().hash(&mut h);
-            p.z.to_bits().hash(&mut h);
-        }
-        body.faces().count().hash(&mut h);
-        let outcome = match &r {
-            Ok((m, _)) => format!("ok tris={}", m.patches.iter().map(|p| p.triangles.len()).sum::<usize>()),
-            Err(e) => {
-                let s = format!("{e:?}");
-                format!("err {}", s.split([' ', '{', '(']).next().unwrap_or(""))
-            }
-        };
-        crate::join_split::log(&format!("CALL fp={:016x} d={:e} {outcome}", h.finish(), chordal));
-    }
-    r
-}
-
-fn tessellate_impl_inner(
-    body: &Body<f64>,
-    chordal: f64,
-    tol: Tol,
-    memo: Option<&mut PatchMemo>,
-) -> Result<(Mesh, PatchKeys), TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
@@ -912,7 +881,6 @@ fn tessellate_impl_inner(
     // memo's counters and entries — so splitting them changes nothing
     // either produces, and both walk the faces in arena order.
     let mut patches = Vec::with_capacity(work.len());
-    let mut offered: Vec<crate::join_split::Splits> = Vec::new();
     let mut pending: Vec<Option<FaceMemo>> = Vec::with_capacity(work.len());
     let mut refusal = None;
     for (face, (asked, read)) in work.into_iter().zip(recorded) {
@@ -940,18 +908,6 @@ fn tessellate_impl_inner(
             // the lane's or the memo's, against the positions it has in
             // the mesh. A face with a triangle f64 cannot wind refuses.
             Ok(placement) => {
-                offered.push(match &placement {
-                    Placement::Lane(p) => {
-                        if std::env::var_os("JS_OFFERED").is_some() {
-                            p.splits.log_offered(
-                                face_surface(body, face.face).map_or("?", crate::join_split::surface_kind),
-                                chordal,
-                            );
-                        }
-                        p.splits.clone()
-                    }
-                    Placement::Memo { .. } => Default::default(),
-                });
                 let triangles = placement.place(&mut positions);
                 if let Some((_, unresolved)) =
                     crate::validate::first_unresolved(&positions, &triangles)
@@ -992,174 +948,16 @@ fn tessellate_impl_inner(
     // known to reach the census inside it (the trimmed lane's shared-side
     // cure clears every one measured), so its rows drive `joined` itself
     // on a real mesh (`side_census`), and this call is held by reading.
-    let mut mesh = Mesh {
-        positions,
-        patches,
-        boundaries,
-    };
-    if crate::join_split::Splits::armed() {
-        #[allow(clippy::cast_possible_truncation)]
-        split_at_join(&mut mesh, &offered, shared_below as u32, body, chordal)?;
-    }
     #[allow(clippy::cast_possible_truncation)]
-    let mesh = joined(mesh, shared_below as u32)?;
+    let mesh = joined(
+        Mesh {
+            positions,
+            patches,
+            boundaries,
+        },
+        shared_below as u32,
+    )?;
     Ok((mesh, keys))
-}
-
-/// STAGE-1 INSTRUMENT: every side more than one patch has inside is
-/// split in every such patch at the point that patch's lane offered.
-#[allow(clippy::all, clippy::pedantic)]
-fn split_at_join(
-    mesh: &mut Mesh,
-    offered: &[crate::join_split::Splits],
-    shared_below: u32,
-    body: &Body<f64>,
-    delta: f64,
-) -> Result<(), TessellateError> {
-    use crate::join_split::{log, surface_kind};
-    let census = |mesh: &Mesh| {
-        let pl: Vec<&[u32]> = mesh.boundaries.iter().map(|b| b.points.as_slice()).collect();
-        let uses = side_uses(&pl, mesh.patches.iter().map(|p| p.triangles.as_slice()), shared_below);
-        let mut over: Vec<((u32, u32), (usize, usize))> = uses
-            .iter()
-            .filter(|&(_, &(c, n))| n > 2 * c.max(1))
-            .map(|(&s, &v)| (s, v))
-            .collect();
-        over.sort_unstable();
-        over
-    };
-    let over = census(mesh);
-    // Each face's own boundary sides.
-    let mut by_edge: HashMap<topo::EdgeKey, &[u32]> = HashMap::new();
-    for b in &mesh.boundaries {
-        by_edge.insert(b.edge, &b.points);
-    }
-    let boundary_of = |fk: FaceKey| -> std::collections::HashSet<(u32, u32)> {
-        let mut out = std::collections::HashSet::new();
-        if let Some(face) = body.face(fk) {
-            for (lk, _, _) in face.loops() {
-                if let Ok(walk) = crate::walk::loop_edges(body, lk, fk) {
-                    for (ek, _) in walk {
-                        if let Some(pts) = by_edge.get(&ek) {
-                            for w in pts.windows(2) {
-                                out.insert(crate::walk::edge_key(w[0], w[1]));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        out
-    };
-    let kind_of = |fk: FaceKey| face_surface(body, fk).map_or("?", surface_kind);
-    let mut new_points: Vec<Point3<f64>> = Vec::new();
-    let mut refusal: Option<TessellateError> = None;
-    let mut splits = 0usize;
-    for (side, (chords, n)) in &over {
-        let mut inside = Vec::new();
-        let mut holders = Vec::new();
-        for (pi, p) in mesh.patches.iter().enumerate() {
-            let k = p.triangles.iter().filter(|&&t| crate::walk::sides(t).contains(side)).count();
-            if k == 0 {
-                continue;
-            }
-            if k == 2 && !boundary_of(p.face).contains(side) {
-                inside.push(pi);
-            } else {
-                holders.push(pi);
-            }
-        }
-        let mut kinds: Vec<String> = inside
-            .iter()
-            .map(|&pi| format!("{}:{}", offered[pi].get(*side).map_or("nocand", |c| c.kind), kind_of(mesh.patches[pi].face)))
-            .collect();
-        kinds.sort();
-        let mut hk: Vec<String> = holders.iter().map(|&pi| format!("B:{}", kind_of(mesh.patches[pi].face))).collect();
-        hk.sort();
-        kinds.extend(hk);
-        let pair = kinds.join("+");
-        for &pi in &inside {
-            let fk = mesh.patches[pi].face;
-            let Some(c) = offered[pi].get(*side) else {
-                log(&format!("NOCAND pair={pair} chords={chords} uses={n}"));
-                continue;
-            };
-            let mut worst = 0f64;
-            let (mut exceeded, mut unres_cert, mut unres_wind, mut fold, mut fold_parent) = (0, 0, 0, 0, 0);
-            for h in &c.halves {
-                worst = worst.max(h.bound);
-                match h.verdict {
-                    crate::cert::Verdict::Certified => {}
-                    crate::cert::Verdict::Exceeded => exceeded += 1,
-                    crate::cert::Verdict::Unresolved { .. } => unres_cert += 1,
-                }
-                unres_wind += usize::from(h.unresolved);
-                fold += usize::from(h.folded == Some(true));
-                fold_parent += usize::from(h.folded_vs_parent);
-            }
-            log(&format!(
-                "SPLIT pair={pair} chords={chords} uses={n} halves={} exceeded={exceeded} unres_cert={unres_cert} unres_wind={unres_wind} fold={fold} fold_parent={fold_parent} worst_half_d={:.4} parent_d={:.4} apex={} disagree={} footgap_d={:.4e} sag_d={:.4e}",
-                c.halves.len(),
-                worst / delta,
-                c.parent_worst / delta,
-                c.apex,
-                c.disagree,
-                c.foot_gap / delta,
-                c.sag / delta,
-            ));
-            if refusal.is_none() {
-                if exceeded > 0 {
-                    refusal = Some(TessellateError::CertificateExceeded { face: fk, bound: worst, requested: delta });
-                } else if unres_cert > 0 {
-                    refusal = Some(TessellateError::CertificateExceeded { face: fk, bound: worst, requested: delta });
-                } else if fold > 0 && c.kind != "rect" && c.kind != "plane" {
-                    refusal = Some(TessellateError::FoldedTriangle { face: fk });
-                }
-            }
-            #[allow(clippy::cast_possible_truncation)]
-            let m = mesh.positions.len() as u32;
-            mesh.positions.push(c.point);
-            new_points.push(c.point);
-            let (a, b) = *side;
-            let mut out = Vec::with_capacity(mesh.patches[pi].triangles.len() + 2);
-            for &t in &mesh.patches[pi].triangles {
-                let at = (0..3).find(|&q| {
-                    let (x, y) = (t[q], t[(q + 1) % 3]);
-                    (x == a && y == b) || (x == b && y == a)
-                });
-                match at {
-                    None => out.push(t),
-                    Some(q) => {
-                        let (x, y, z) = (t[q], t[(q + 1) % 3], t[(q + 2) % 3]);
-                        out.push([x, m, z]);
-                        out.push([m, y, z]);
-                    }
-                }
-            }
-            mesh.patches[pi].triangles = out;
-            splits += 1;
-            if refusal.is_none() {
-                if let Some((_, unresolved)) = crate::validate::first_unresolved(&mesh.positions, &mesh.patches[pi].triangles) {
-                    refusal = Some(TessellateError::UnresolvedWinding { face: fk, unresolved: Box::new(unresolved) });
-                }
-            }
-        }
-        if inside.is_empty() {
-            log(&format!("NOINSIDE pair={pair} chords={chords} uses={n}"));
-        }
-    }
-    let mut bits: Vec<[u64; 3]> = new_points.iter().map(|p| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]).collect();
-    let n0 = bits.len();
-    bits.sort_unstable();
-    bits.dedup();
-    let left = census(mesh).len();
-    if !over.is_empty() {
-        log(&format!("JOIN overused={} splits={splits} coincident_new={} left={left}", over.len(), n0 - bits.len()));
-    }
-    match refusal {
-        Some(e) => Err(e),
-        None => Ok(()),
-    }
 }
 
 /// **The faces' patches as the body's mesh**, once the census of the
@@ -1487,7 +1285,6 @@ mod patch_tests {
 
         let first = Patch {
             interior: vec![p(100.0), p(101.0)],
-            splits: Default::default(),
             triangles: vec![
                 [
                     PatchVertex::Shared(3),
@@ -1511,7 +1308,6 @@ mod patch_tests {
 
         let second = Patch {
             interior: vec![p(200.0)],
-            splits: Default::default(),
             triangles: vec![[
                 PatchVertex::Local(0),
                 PatchVertex::Shared(1),
@@ -1533,7 +1329,6 @@ mod patch_tests {
         let mut positions: Vec<Point3<f64>> = (0..4).map(|i| p(f64::from(i))).collect();
         let patch = Patch {
             interior: Vec::new(),
-            splits: Default::default(),
             triangles: vec![[
                 PatchVertex::Shared(0),
                 PatchVertex::Shared(2),
@@ -1553,7 +1348,6 @@ mod patch_tests {
         let shared: Vec<Point3<f64>> = (0..3).map(|i| p(f64::from(i))).collect();
         let patch = Patch {
             interior: vec![p(9.0), p(10.0)],
-            splits: Default::default(),
             triangles: vec![[
                 PatchVertex::Shared(2),
                 PatchVertex::Local(0),
