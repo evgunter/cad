@@ -103,8 +103,9 @@ now says it lacks the proof that audits `movefac`'s.
 ## Decided
 
 The movefac / generator / open-face half lands on branch
-`walks/glue-home`; the validator half (pass 11) is still being
-decided, so this row stays open for it.
+`walks/glue-home`. Pass 11 stays out of the shared walk, as Ev ruled
+on PR 7424: it is the independent instrument for the relation it
+validates.
 
 - `crates/topo/src/glue.rs`'s `face_set_glue` is the one `pub(crate)`
   walk of the relation over a face set: seeded in the set's order, it
