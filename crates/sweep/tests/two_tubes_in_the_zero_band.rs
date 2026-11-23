@@ -250,41 +250,87 @@ fn a_quarter_rod_in_the_bore() {
     );
 }
 
-/// A rod `r = 0.25` lying along `x` over `[−1.5, 1.5]` on a unit puck's
-/// top face `y = 0` (the puck `y ∈ [−0.3, 0]`, spun 1 rad), its axis
-/// `0.5·ε` above the tangency and its seam on the contact ruling, which
-/// the puck's rim circle crosses at `x = ±1`. ∪ records the rim's two
-/// touches on the seam and the seam lying in the top face between them
-/// (the sweep's record of a line in a plane face), which the result
-/// carries on its seam edge, the rod's whole length.
-#[test]
-fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
+/// The rod's radius in [`rod_on_puck`].
+const ROD_R: f64 = 0.25;
+
+/// The puck `y ∈ [−0.3, 0]`, `r = 1`, spun 1 rad, and the rod
+/// `r = 0.25` lying along `x` over `[−1.5, 1.5]` on its top, its axis
+/// `0.5·ε` above the tangency and its seam on the contact ruling.
+fn rod_on_puck() -> (topo::Body<f64>, topo::Body<f64>) {
     let gap = 0.5 * band().zero();
-    let r = 0.25;
     let rod = topo::transform_rigid(
-        &about_y(tol(), (0.0, r), (-1.5, 1.5), None, 0.0, 0.0),
+        &about_y(tol(), (0.0, ROD_R), (-1.5, 1.5), None, 0.0, 0.0),
         &geom_core::test_support::rigid(
-            &(Affine3::translation(Vec3::new(0.0, r + gap, 0.0))
+            &(Affine3::translation(Vec3::new(0.0, ROD_R + gap, 0.0))
                 * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), -FRAC_PI_2)),
             tol(),
         ),
     )
     .unwrap();
+    let puck = about_y(tol(), (0.0, 1.0), (-0.3, 0.0), None, 1.0, 0.0);
+    (puck, rod)
+}
+
+/// **The union keeps the rod's seam one edge**, in both operand orders:
+/// the puck rim's two touches on the seam split it during the op, and
+/// the join takes both stations back, so the rod's one wall holds one
+/// wrap edge from `x = −1.5` to `x = 1.5`, as the rod alone does.
+#[test]
+fn the_rod_on_the_puck_keeps_its_seam_one_edge_in_both_orders() {
+    let (puck, rod) = rod_on_puck();
+    let (x, y) = (at_rest(puck), at_rest(rod));
+    for (order, p, q) in [("puck, rod", &x, &y), ("rod, puck", &y, &x)] {
+        let Ok(BooleanResult::Body(u)) = topo::union(p, q, tol()) else {
+            panic!("{order}: the union builds");
+        };
+        let body: &topo::Body<f64> = &u.body;
+        let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        // The rod's seam lies on `z = 0`; the puck's seam does not.
+        let seams: Vec<(f64, f64)> = body
+            .edges()
+            .filter(|&(_, d)| {
+                body.face_of_half_edge(d.he_plus) == body.face_of_half_edge(d.he_minus)
+            })
+            .filter_map(|(e, _)| {
+                let (a, b) = body.edge_vertices(e).unwrap();
+                let (a, b) = (point(a), point(b));
+                (a.z.abs() < 1e-9 && b.z.abs() < 1e-9).then(|| (a.x.min(b.x), a.x.max(b.x)))
+            })
+            .collect();
+        assert_eq!(
+            seams.len(),
+            1,
+            "{order}: the rod's seam is one edge: {seams:?}"
+        );
+        let (lo, hi) = seams[0];
+        assert!(
+            (lo + 1.5).abs() < 1e-9 && (hi - 1.5).abs() < 1e-9,
+            "{order}: the seam runs the rod's length: [{lo}, {hi}]"
+        );
+    }
+}
+
+/// A rod `r = 0.25` lying along `x` over `[−1.5, 1.5]` on a unit puck's
+/// top face `y = 0` (the puck `y ∈ [−0.3, 0]`, spun 1 rad), its axis
+/// `0.5·ε` above the tangency and its seam on the contact ruling, which
+/// the puck's rim circle crosses at `x = ±1`. ∪ records the rim touching
+/// the seam and the seam lying in the top face (the sweep's record of a
+/// line in a plane face): the join takes the rim's two touches off the
+/// seam, a wrap edge of the rod's one wall, so both records name the
+/// whole seam, the rod's length, and the rim, one closed edge, touches
+/// it in one record.
+#[test]
+fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
+    let (puck, rod) = rod_on_puck();
+    let r = ROD_R;
     let records = every_op_in_both_orders(
         "rod on puck",
-        (
-            about_y(tol(), (0.0, 1.0), (-0.3, 0.0), None, 1.0, 0.0),
-            PI * 0.3,
-        ),
+        (puck, PI * 0.3),
         (rod, PI * r * r * 3.0),
         &Want {
-            records: 3,
+            records: 2,
             findings: &[
                 "undecided Cylinder / Cylinder",
-                "undecided Cylinder / Cylinder",
-                "undecided Cylinder / Cylinder",
-                "undecided Cylinder / Cylinder",
-                "undecided Cylinder / Plane",
                 "undecided Cylinder / Plane",
                 "undecided Solid / Solid",
             ],
