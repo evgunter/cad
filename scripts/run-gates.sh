@@ -10,8 +10,9 @@
 # exit 0, and that is not a self-test.
 #
 # The gates run GATE_JOBS at a time (default: one per CPU). Each is a
-# single-threaded scan of the tree that shares no file with another (its
-# scratch is mktemp or PID-keyed), so they are independent. Each gate's
+# single-threaded scan of the tree that writes no file another reads (its
+# scratch is mktemp or PID-keyed) and reads the view cache below only once
+# it is complete, so they are independent. Each gate's
 # output is held until it finishes and then printed whole, in name order,
 # so the log reads as a serial run would.
 set -u
@@ -45,6 +46,34 @@ case "$jobs_max" in ''|*[!0-9]*|0) printf 'GATE_JOBS must be a positive integer,
 held=$(mktemp -d) || exit 2
 trap 'rm -rf "$held"' EXIT
 
+# THE VIEW CACHE (lib.sh, "THE VIEW CACHE"): a plain run reads the tree
+# once, into the views every gate's reader would otherwise rebuild, and
+# every gate reads them from there. A self-test reads its own fixtures,
+# so it is handed no cache. A cache that could not be built is a red,
+# and the gates then read the tree directly.
+unset GATE_VIEW_CACHE
+rc=0
+if [ "$mode" = plain ]; then
+  mkdir "$held/view-cache" || exit 2
+  start=$SECONDS
+  if (cd "$(dirname "$0")/.." && bash -c '. scripts/gates/lib.sh && gate_view_cache_build "$1"' view-cache "$held/view-cache"); then
+    export GATE_VIEW_CACHE=$held/view-cache
+    printf 'view cache: %s files, built in %s s\n' "$(wc -l < "$held/view-cache/index")" "$((SECONDS - start))"
+  else
+    fail "the view cache could not be built (above); every gate reads the tree directly"
+  fi
+else
+  # The Python gates' shared lexer is no gate of its own, so its table
+  # runs here, beside the gates that import it.
+  if ! out=$(python3 "$(dirname "$0")/gates/rust_strip.py" --selftest 2>&1) \
+      || ! grep -q '^rust_strip selftest OK' <<<"$out"; then
+    printf '%s\n' "$out"
+    fail "scripts/gates/rust_strip.py --selftest failed"
+  else
+    printf '%s\n' "$out"
+  fi
+fi
+
 # One gate, its output and exit status written under $held/<name>.
 run_one() {
   local g=$1 name=$2 start=$SECONDS status=0
@@ -69,7 +98,6 @@ for g in "${gates[@]}"; do
 done
 wait
 
-rc=0
 for g in "${gates[@]}"; do
   name=$(basename "$g" .sh)
   if [ "$mode" = plain ]; then group "$g"; else group "$g --selftest"; fi

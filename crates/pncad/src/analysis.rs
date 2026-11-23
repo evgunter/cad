@@ -57,7 +57,7 @@ pub use editor_core::{
 pub use editor_core::{
     BoxAxis, BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig,
     DriveRefusal, LeafResults, MeasureAccounting, ParamBox, ParamBoxVerdict, ReasonClass, Receipt,
-    RefusalReason, RefusedLeaf, drive,
+    RefusalReason, RefusedLeaf, Unsettled, drive,
 };
 
 /// The E4/E5 sensitivity and stackup report — the answer to "does this
@@ -86,6 +86,34 @@ pub use editor_core::drive::assertion_at;
 /// reasons its third state carries — a consumer that cannot NAME the
 /// states cannot keep them three.
 pub use editor_core::{AssertionVerdict, UnevaluatedReason};
+
+/// **The certified range of one field**: over which interval around a
+/// parameter's or a slot's current value the document is PROVABLY the
+/// same build. [`RangeSearch`] is the stepped search — one replay per
+/// step, an answer readable after any of them — and [`certified_range`]
+/// runs it until it finishes, under the search's own [`RangeBudget`].
+///
+/// The replays run at the certified scalar inside the search and the
+/// answer is plain numbers — offsets from the field's nominal, a point
+/// proven different, the reason ground is undecided — so a consumer
+/// that never evaluates at the certified scalar itself still holds the
+/// whole of it. [`CertifiedRange::pinned`] is the condition the answer
+/// holds under and is part of the answer.
+pub use editor_core::{
+    Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
+    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unproven,
+    certified_range,
+};
+
+/// The range query's doors whose names only read beside it:
+/// [`admit`](range::admit) says whether a request can be searched at
+/// all with no geometry run, [`derive`](range::derive) is the document
+/// the search replays, and [`Step`](range::Step) is what one
+/// [`RangeSearch::step`] did, and [`STALL_LEVELS`](range::STALL_LEVELS)
+/// is the schedule's one constant.
+pub mod range {
+    pub use editor_core::range::{STALL_LEVELS, Step, admit, derive};
+}
 
 /// **The E11.1 advisory estimator**: pure `f64` replay, as E11.1 says.
 /// [`summarize`] rides here for the reason it is public at all: a
