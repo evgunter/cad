@@ -38,3 +38,9 @@ Acted on outside the fork: unit 4b no longer builds a δ target for its class; i
 ## The `[ev]` pull request
 
 PR 7486, opened 00:52Z on 2026-11-23 on `tesslane/ev-sizing` (from main). Diff: `crates/mesh/README.md` `[mesh.sizing]` (the theorem and headroom bullets become "the step is a first guess, and the certificate decides" and "a lane that can prove its first guess is never corrected says so"; the rim-chord and clearance bullets re-worded where they named the headroom or the lattice theorem), the unit `a-refused-certificate-adds-a-point-and-no-face-sizes-below-delta` (P1, H, spec), the log entry, and fork-log row 7486, recommendation half, labels only (`b7d1fb3c62`). Body: the decision, the alternative, the one question ("without extra work"), each designer's first-report `For Ev` section verbatim under its label. The mapping for the second commit, once Ev decides: bytes 225 (two designers), 92 (even): Opus 5.5 = A, Fable 5.2 = B.
+
+## Ev's decision (2026-11-23)
+
+Ev, 02:30Z on PR 7486: "'without extra work' just means, like, if refining to only delta would actually be *more* work then slightly overrefining, then just slightly overrefine, instead of doing something extra to get a less precise result on purpose". The orchestrator wrote that into the clause, said the change was measured at less work in total, flagged that the correction is a second pass over about 15% of faces, and asked for the sign-off. Ev, 04:47Z: "yeah, if it's not an instance of doing extra work to get a less precise result, it's good".
+
+Decision: the recommendation, on that condition. Match: both first recommendations. Fork-log second commit `52792255d7` on `tesslane/ev-sizing`: bytes 225 and 92, Opus 5.5 = A, Fable 5.2 = B. The unit is dispatched on `tesslane/certificate-decides` with a stage 1 that measures work per face family.
