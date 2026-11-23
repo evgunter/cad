@@ -78,3 +78,37 @@ The early forms are in `crates/editor-core/tests/m10_bulge_renders.txt`
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## The line × line arm takes the shared ends (2026-11-20)
+
+`pair_contacts` now carries an adjacent pair's shared ends as
+`seg::SharedEnds` (which end of each is the stored vertex), and
+`line_line` reads neither side nor span there; its contact is
+`CKind::SharedVertex`, which `judge_pair` discounts unread. This row's
+fix extends the same value to `line_arc` and `arc_arc`. Their
+`end_touches` also reads the shared end against the other segment
+(`touches` → `line_span` / `arc_span`), the same re-reading.
+
+## Raise to P1 (2026-11-21, PR 7264's review)
+
+PR 7264 left the curved arms reading the shared vertex. That leaves two
+recognisers in one pass, and a user-facing audit can now see it:
+- `line_line` takes the shared vertex by construction (`seg::SharedEnds`,
+  `CKind::SharedVertex`), its collinear arm included;
+- `line_arc`, `arc_arc` and `end_touches` still read it, and
+  `judge_pair` still discounts their Touches through
+  `contact_at_shared_vertex`.
+
+`editor-core`'s `m4_pr6_eps_diff` golden now reports a `chord_side`
+Zero → Positive shift that no reading made. The fixture's straight
+branch no longer reads its shared vertices, while its arc branch's
+line × arc pairs still read theirs as Zero sides, and the residual
+pairing matches the difference. The golden's comment names this row as
+the one whose fix removes the shift.
+
+This lane did not take the curved arms. Their second candidate is a root
+of the carriers' intersection, so recognising the shared end there is
+this row's own restructure (the second candidate spelled from the
+vertex, the bit moves measured), not a contained change. **The
+orchestrator is asked to raise this row to P1**: it is the remaining
+half of one recogniser.

@@ -2,13 +2,13 @@
 id: three-refusal-variants-nest-a-certification-error
 kind: issue
 title: three EulerOpError variants and one BlendError nest a certification error with four spellings of the same refusal
-status: review
+status: closed
 opened: 2026-09-14
 priority: P1
 cost: E
-design: true
 pr: 7477
 branch: walks/refusal-split
+closed: 2026-11-23
 ---
 
 ## What
@@ -82,3 +82,7 @@ Two designers converged (fork F3, 2026-11-22). Each variant now has one meaning:
 - **`PcurveSplit`** is unchanged.
 - **`BlendError::PcurveMint { source }`** forwards `mint_pcurves`' refusal. It replaces `Certify { site, source }`, whose `site` was constant.
 - **`EulerOpError::Band(BandError)`** is a tolerance that gives no band, which `Tolerance` admits (K·ε can overflow), and is not a certification failure.
+
+## Closed
+
+2026-11-23: PR 7477 merged.

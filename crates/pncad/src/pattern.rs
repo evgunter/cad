@@ -190,8 +190,8 @@ pub fn circular_pattern(
         RingAxis::Mated { on, to, slide } => Placed::of(
             doc,
             vec![Mate {
-                on,
-                to,
+                on: on.into(),
+                to: to.into(),
                 orient: editor_core::Orientation::IDENTITY,
             }],
             vec![(Coord::SPIN, spun), (Coord::SLIDE, slide)],

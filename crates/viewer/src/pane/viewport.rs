@@ -299,6 +299,15 @@ pub(crate) fn push_committed(
         for polyline in &profile.loops {
             push_loop(lane, &profile.plane, polyline);
         }
+        // A datum's z axis stands off its plane, so it is no loop on it.
+        if profile.datum {
+            let frame = profile.plane.frame();
+            let origin = frame.origin();
+            lane.leg(
+                origin,
+                origin + frame.w().get() * (2.0 * sketch::DATUM_HALF),
+            );
+        }
     }
     committed.undrawn.len()
 }
@@ -1602,7 +1611,10 @@ mod tests {
         // The end of that frame: the ranking weighs what the frame
         // said against a batch that did nothing, and the winner
         // becomes the line.
-        frame::apply(&mut status, frame::frame_status(&notices, &[], None));
+        frame::apply(
+            &mut status,
+            frame::frame_status_untargeted(&notices, &[], None),
+        );
         let landed = status.clone().expect("the ranking put the refusal up");
         assert_eq!(
             landed.subject(),
@@ -2360,7 +2372,7 @@ mod tests {
             said.contains("Extrude") && !said.contains(&format!("{:?}", face.name.path)),
             "the face's minter is said as the landed document holds it, and no path: {said}"
         );
-        let texts: Vec<&str> = news.iter().map(frame::Message::text).collect();
+        let texts: Vec<String> = news.iter().map(frame::Message::text).collect();
         assert_eq!(
             texts,
             [format!(
