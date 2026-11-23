@@ -54,7 +54,7 @@
 //!   that triangulation's bytes, which no ε moves.
 //! - trimmed on NURBS: `loft_prism` (walls of degree 1×2) and
 //!   `swept_elbow` (1×3), the described-NURBS lane with its
-//!   hull-derived certificate and its cert-driven refinement;
+//!   hull-derived certificate and its correction;
 //!   `pinned_wedge` and `corner_pinned_through_three`, walls with a
 //!   collapsed side, which the lane walks through its vertex. A
 //!   `Surface::Approx` face shares the `Nurbs` dispatch arm and the
@@ -386,17 +386,17 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("washer", [0x965c_cafc_821b_7545, 0x569e_8f0f_f9a7_3ad5]),
     (
         "tilted_above",
-        [0x6466_4bd0_261a_bdbe, 0xcad3_6378_e4a6_6b22],
+        [0xe75f_4c20_8757_5320, 0x7287_50f8_fda6_89b9],
     ),
     (
         "tilted_below",
-        [0x9236_cb96_aa8e_253d, 0x6846_9195_68cc_ec82],
+        [0x9f02_f8b1_d709_be52, 0x066c_5095_98ac_554d],
     ),
     (
         "notched_wall",
-        [0xd6d3_dbb7_1e3f_5f8f, 0xe61d_4386_75ed_2af5],
+        [0x4950_051c_3ec1_9c1d, 0x9372_d3b9_4167_c97a],
     ),
-    ("holed_wall", [0xc6e1_d324_8da0_118f, 0xcbed_4748_98f9_7e0e]),
+    ("holed_wall", [0xe1ff_b951_d586_0e3c, 0xb30d_7e3b_965c_37c6]),
     ("keyway", [0xe457_7191_dbec_3540, 0xe457_7191_dbec_3540]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),
     (

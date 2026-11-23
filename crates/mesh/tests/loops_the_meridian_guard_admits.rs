@@ -169,6 +169,14 @@ fn cap_with_a_spur(tip: f64) -> Body<f64> {
 ///   not a hole, but it is a comparison of a deviation bound against δ
 ///   and not a statement about the loop: nothing structural refuses
 ///   this face, and the row does not claim the answer holds at every δ.
+///
+/// **The correction does not reach it within its budget.** The short
+/// spur's face is the rectangle lane's, and its first guess reads 1.2 δ
+/// at δ 0.1 and 7.6 δ at δ 0.01. Measured with the round budget lifted:
+/// the shipped point (the middle of the free side whose chord sags most)
+/// needs more than 40 rounds at δ 0.1 and 8 at δ 0.01; a centroid 36 and
+/// more than 40; the middle of the longest free side 5 and more than 60.
+/// Past `trimmed::MAX_CORRECTION_ROUNDS` (6) the face refuses, as here.
 #[test]
 fn a_spur_on_a_rim_only_cap_gets_past_the_guard_and_this_is_what_answers() {
     let measured: Vec<(&str, f64, String)> = [

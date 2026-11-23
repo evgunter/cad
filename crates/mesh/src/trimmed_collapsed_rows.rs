@@ -428,11 +428,7 @@ fn a_lune_walks_both_its_collapsed_sides() {
     })
     .unwrap();
     assert_eq!(singular.len(), 2, "one vertex per side");
-    let (_, hv) = row.steps(super::face_target(
-        surface,
-        crate::tessellate::Lane::Trimmed,
-        delta,
-    ));
+    let (_, hv) = row.steps(delta);
     let want = crate::sizing::ceil_count(1.0, hv).unwrap() + 1;
     for id in &singular {
         let copies: Vec<(f64, f64)> = polygon

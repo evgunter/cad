@@ -1317,7 +1317,8 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
 /// The funnel of rim radius `0.02` cut by the tilted plane of
 /// [`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`] through
 /// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`
-/// and `3·10⁻⁵` and `UnclearedSharedSide` at `2·10⁻⁴`, the half below meshes, and
+/// and `2·10⁻⁴` and `UnclearedSharedSide` at `3·10⁻⁵`, the half below
+/// meshes, and
 /// a cut at `10⁻³` meshes both halves. No mesh is returned where it
 /// refuses. Off the default ε a split that refuses or leaves no half is
 /// printed and skipped, and each cell's answer is printed, not held.
@@ -1327,7 +1328,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [1e-3, 2e-4, 3e-5];
     // The half above the cut at `h = 10⁻⁵`, at each δ.
-    let refused = ["FoldedTriangle", "UnclearedSharedSide", "FoldedTriangle"];
+    let refused = ["FoldedTriangle", "FoldedTriangle", "UnclearedSharedSide"];
     let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     for h in [1e-3, 1e-5] {
         let body = finished(
@@ -2175,10 +2176,9 @@ fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
 /// **What the cure costs here: measured, pinned by nothing.** On these
 /// faces nearly every triangle of the first triangulation holds a side
 /// the face across can make, and the cure puts a point inside each.
-/// Measured on the first pair: `n = 28` at δ 0.5, 26 sides cured then 4,
-/// 86 triangles; `n = 60` at δ 0.1, 58 then 4, 182; `n = 130` at δ 0.02,
-/// 128 then 10 then 2, 408; up to 2.2 times what the face took when it
-/// laid rows, whose nodes kept most of its triangles off the arcs. The
+/// Measured on the first pair: `n = 22` at δ 0.5, 76 triangles, the most
+/// against `n`; every other face at most `3.1n` (`n = 94` at δ 0.02, 288).
+/// A face that laid rows kept most of its triangles off the arcs. The
 /// cure itself retires with PR 7573's unit; the rule that decides such a
 /// side is `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`.
 #[test]

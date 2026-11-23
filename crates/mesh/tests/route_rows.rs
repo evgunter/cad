@@ -233,14 +233,14 @@ fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
 #[test]
 fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
     const MAIN: [(f64, f64, u64); 8] = [
-        (0.3, 2e-9, 0x8f44_f884_2b54_c898),
-        (0.3, 3e-9, 0x0596_3e5f_aff7_827f),
-        (0.3, 5e-9, 0x3a24_2f4d_5df2_2351),
-        (0.3, 8e-9, 0x63f8_de94_5085_4eb9),
-        (0.6, 2e-9, 0x5f5b_7e07_e15f_1436),
-        (0.6, 3e-9, 0x33aa_c942_b3f8_59c6),
-        (0.6, 5e-9, 0x02eb_fa12_532b_212e),
-        (0.6, 8e-9, 0xbb9a_30df_a7b3_36b0),
+        (0.3, 2e-9, 0xaba1_48c2_062f_65a7),
+        (0.3, 3e-9, 0x42f7_f16d_7d17_3359),
+        (0.3, 5e-9, 0x5c06_0093_b3eb_915a),
+        (0.3, 8e-9, 0x6a4b_6898_3c04_0a5c),
+        (0.6, 2e-9, 0xa680_2895_c1b1_0a76),
+        (0.6, 3e-9, 0x37cf_58a6_d21e_75c7),
+        (0.6, 5e-9, 0xc459_6873_8f86_da2b),
+        (0.6, 8e-9, 0x6264_1277_2d6f_c48d),
     ];
     for (x0, theta, want) in MAIN {
         let body = ball_less_a_tilted_slab(x0, theta);
@@ -331,25 +331,25 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball less a slab turned 0.3",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0xc7c8_23ba_ac8c_455f,
+            0x2fff_fd17_b006_0cf5,
         ),
         (
             "pipe cut on a tilt",
             0xcbf2_9ce4_8422_2325,
             0xcbf2_9ce4_8422_2325,
-            0xcdc8_47b7_d422_010b,
+            0x8f77_3aac_ed26_1997,
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0x8f44_f884_2b54_c898,
+            0xaba1_48c2_062f_65a7,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0xbb9a_30df_a7b3_36b0,
+            0x6264_1277_2d6f_c48d,
         ),
     ];
     let corpus = k_corpus();

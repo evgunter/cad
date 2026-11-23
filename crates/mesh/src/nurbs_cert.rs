@@ -680,8 +680,8 @@ impl BandCounts {
 /// and fewer raised rows; it is the lane's sizing split, typed rather
 /// than measured
 /// (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`). The only slack is the ceil (`s_u < 1`). The
-/// centroid retries of `trimmed::MAX_GRID_RETRIES` are a backstop,
-/// not part of the bound.
+/// correction's rounds (`trimmed::MAX_CORRECTION_ROUNDS`) are not part
+/// of the bound.
 ///
 /// A single off-row vertex has margin: the empty circle keeps its
 /// triangles within `(a + 1)/2` columns, which at this share would

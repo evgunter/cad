@@ -391,88 +391,107 @@ pub(crate) fn tessellate_curved(
 
     // `meta`, the grid and every certificate read UV.
     let metric = cdt_metric(&row, (u0, u1), (v0, v1), (nu, nv));
-    // CDT: boundary entries (fixed walk order) + constraints + grid.
-    let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
-        ConstrainedDelaunayTriangulation::new();
-    // Per-CDT-vertex metadata, indexed by handle index (insertion order).
-    let mut meta: Vec<(f64, f64, PatchVertex, bool)> = Vec::new();
-    let insert = |cdt: &mut ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-                  meta: &mut Vec<(f64, f64, PatchVertex, bool)>,
-                  u: f64,
-                  v: f64,
-                  id: PatchVertex,
-                  pole: bool|
-     -> Result<spade::handles::FixedVertexHandle, TessellateError> {
-        // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
-        // floored point.
-        let h = cdt
-            .insert(crate::cdt::lattice_point(u, v, metric))
-            .map_err(|_| TessellateError::Triangulation { face: fk })?;
-        if h.index() == meta.len() {
-            meta.push((u, v, id, pole));
-        }
-        // Two mesh ids at one point (two vertices, or two coincident
-        // edges' chord points) would share this handle's one id. A walk
-        // that is its own UV box (`require_swept_rectangle`) passes no
-        // point twice but at a pole, where one id repeats; the pinch read
-        // is `planar::Pinches`, and this lane refuses rather than mesh
-        // the second id's triangles under the first.
-        match (meta[h.index()].2, id) {
-            (PatchVertex::Shared(was), PatchVertex::Shared(now)) if was != now => {
-                Err(TessellateError::PinchWedge { face: fk })
+    // THE CORRECTION (`crates/mesh/README.md` `[mesh.sizing]`; module
+    // docs): the grid is a first guess, and a triangle on a chord point
+    // the grid did not place can read over δ. Each such triangle adds a
+    // point (`correction_point`) and the face is triangulated again, at
+    // most `trimmed::correction_rounds()` times; past that the face
+    // refuses `CertificateExceeded`. No ε is read.
+    let mut added: Vec<(f64, f64)> = Vec::new();
+    let mut corrections = 0usize;
+    let (interior, triangles, verdict) = loop {
+        // CDT: boundary entries (fixed walk order) + constraints + grid.
+        let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
+            ConstrainedDelaunayTriangulation::new();
+        // Per-CDT-vertex metadata, indexed by handle index (insertion order).
+        let mut meta: Vec<(f64, f64, PatchVertex, bool)> = Vec::new();
+        let insert = |cdt: &mut ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
+                      meta: &mut Vec<(f64, f64, PatchVertex, bool)>,
+                      u: f64,
+                      v: f64,
+                      id: PatchVertex,
+                      pole: bool|
+         -> Result<spade::handles::FixedVertexHandle, TessellateError> {
+            // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
+            // floored point.
+            let h = cdt
+                .insert(crate::cdt::lattice_point(u, v, metric))
+                .map_err(|_| TessellateError::Triangulation { face: fk })?;
+            if h.index() == meta.len() {
+                meta.push((u, v, id, pole));
             }
-            _ => Ok(h),
-        }
-    };
-    let mut handles = Vec::with_capacity(polygon.len());
-    for e in &polygon {
-        handles.push(insert(
-            &mut cdt,
-            &mut meta,
-            e.u,
-            e.v,
-            PatchVertex::Shared(e.id),
-            e.pole,
-        )?);
-    }
-    for i in 0..handles.len() {
-        let (a, b) = (handles[i], handles[(i + 1) % handles.len()]);
-        if a != b && !cdt.exists_constraint(a, b) {
-            // `add_constraint` panics on crossing constraints (corrupt
-            // input geometry) — pre-check to keep failure typed.
-            if !cdt.can_add_constraint(a, b) {
-                return Err(TessellateError::Triangulation { face: fk });
+            // Two mesh ids at one point (two vertices, or two coincident
+            // edges' chord points) would share this handle's one id. A walk
+            // that is its own UV box (`require_swept_rectangle`) passes no
+            // point twice but at a pole, where one id repeats; the pinch read
+            // is `planar::Pinches`, and this lane refuses rather than mesh
+            // the second id's triangles under the first.
+            match (meta[h.index()].2, id) {
+                (PatchVertex::Shared(was), PatchVertex::Shared(now)) if was != now => {
+                    Err(TessellateError::PinchWedge { face: fk })
+                }
+                _ => Ok(h),
             }
-            cdt.add_constraint(a, b);
+        };
+        let mut handles = Vec::with_capacity(polygon.len());
+        for e in &polygon {
+            handles.push(insert(
+                &mut cdt,
+                &mut meta,
+                e.u,
+                e.v,
+                PatchVertex::Shared(e.id),
+                e.pole,
+            )?);
         }
-    }
-    // GRID AFTER CONSTRAINTS, and it costs this lane nothing: the open
-    // ranges below put every grid point strictly inside every
-    // constraint BECAUSE `require_swept_rectangle` above has already
-    // established that the boundary polygon IS this box — to within
-    // the ε band it measures against, which is the honest statement of
-    // what the GUARD proves. Since #653 the walk proves more: every
-    // iso side gets one coordinate however many edges carry it, so the
-    // polygon is its own box bitwise and the residual ulps that used to
-    // make the CDT emit slivers here are gone at the source. The
-    // premise, not the ordering, is what carries the argument — which
-    // is why it is a refusal rather than a comment. (The hazard
-    // `planar::triangulate_chart`'s header warns about is a
-    // precondition of PLANAR's crossing bookkeeping, which this lane
-    // does not build; the tests below pin what spade actually does on
-    // a split, which is what that warning turns on.)
-    let (uspan, vspan) = (u1 - u0, v1 - v0);
-    // The face's OWN points, numbered from zero: a grid point takes the
-    // next local index, and takes it only if the CDT did not dedupe it
-    // onto a vertex already inserted. One index per point KEPT, so the
-    // indices are exactly `0..interior.len()`.
-    let mut interior: Vec<Point3<f64>> = Vec::new();
-    for j in 1..nv {
-        #[allow(clippy::cast_precision_loss)]
-        let v = v0 + vspan * (j as f64 / nv as f64);
-        for i in 1..nu {
+        for i in 0..handles.len() {
+            let (a, b) = (handles[i], handles[(i + 1) % handles.len()]);
+            if a != b && !cdt.exists_constraint(a, b) {
+                // `add_constraint` panics on crossing constraints (corrupt
+                // input geometry) — pre-check to keep failure typed.
+                if !cdt.can_add_constraint(a, b) {
+                    return Err(TessellateError::Triangulation { face: fk });
+                }
+                cdt.add_constraint(a, b);
+            }
+        }
+        // GRID AFTER CONSTRAINTS, and it costs this lane nothing: the open
+        // ranges below put every grid point strictly inside every
+        // constraint BECAUSE `require_swept_rectangle` above has already
+        // established that the boundary polygon IS this box — to within
+        // the ε band it measures against, which is the honest statement of
+        // what the GUARD proves. Since #653 the walk proves more: every
+        // iso side gets one coordinate however many edges carry it, so the
+        // polygon is its own box bitwise and the residual ulps that used to
+        // make the CDT emit slivers here are gone at the source. The
+        // premise, not the ordering, is what carries the argument — which
+        // is why it is a refusal rather than a comment. (The hazard
+        // `planar::triangulate_chart`'s header warns about is a
+        // precondition of PLANAR's crossing bookkeeping, which this lane
+        // does not build; the tests below pin what spade actually does on
+        // a split, which is what that warning turns on.)
+        let (uspan, vspan) = (u1 - u0, v1 - v0);
+        // The face's OWN points, numbered from zero: a grid point takes the
+        // next local index, and takes it only if the CDT did not dedupe it
+        // onto a vertex already inserted. One index per point KEPT, so the
+        // indices are exactly `0..interior.len()`.
+        let mut interior: Vec<Point3<f64>> = Vec::new();
+        for j in 1..nv {
             #[allow(clippy::cast_precision_loss)]
-            let u = u0 + uspan * (i as f64 / nu as f64);
+            let v = v0 + vspan * (j as f64 / nv as f64);
+            for i in 1..nu {
+                #[allow(clippy::cast_precision_loss)]
+                let u = u0 + uspan * (i as f64 / nu as f64);
+                let p = surface.eval(u, v);
+                #[allow(clippy::cast_possible_truncation)]
+                let id = PatchVertex::Local(interior.len() as u32);
+                let h = insert(&mut cdt, &mut meta, u, v, id, false)?;
+                if h.index() == meta.len() - 1 && meta[meta.len() - 1].2 == id {
+                    interior.push(p);
+                }
+            }
+        }
+        for &(u, v) in &added {
             let p = surface.eval(u, v);
             #[allow(clippy::cast_possible_truncation)]
             let id = PatchVertex::Local(interior.len() as u32);
@@ -481,32 +500,55 @@ pub(crate) fn tessellate_curved(
                 interior.push(p);
             }
         }
-    }
+        // This pass's correction points, each location once: a side's middle
+        // is asked by both its triangles.
+        let mut refine: Vec<(f64, f64)> = Vec::new();
+        let mut refined = std::collections::HashSet::new();
 
-    // Emit: drop pole-degenerate triangles, certify the rest.
-    let mut triangles = Vec::new();
-    // The face's verdict over its triangles (`cert::FaceVerdict`).
-    let mut verdict = cert::FaceVerdict::new();
-    for f in cdt.inner_faces() {
-        let vs = f.vertices();
-        let m: Vec<(f64, f64, PatchVertex, bool)> =
-            vs.iter().map(|v| meta[v.fix().index()]).collect();
-        let ids = [m[0].2, m[1].2, m[2].2];
-        if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
-            continue; // pole-collapsed sliver
+        // Emit: drop pole-degenerate triangles, certify the rest.
+        let mut triangles = Vec::new();
+        // The face's verdict over its triangles (`cert::FaceVerdict`).
+        let mut verdict = cert::FaceVerdict::new();
+        for f in cdt.inner_faces() {
+            let vs = f.vertices();
+            let m: Vec<(f64, f64, PatchVertex, bool)> =
+                vs.iter().map(|v| meta[v.fix().index()]).collect();
+            let ids = [m[0].2, m[1].2, m[2].2];
+            if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
+                continue; // pole-collapsed sliver
+            }
+            let tri = [
+                ids[0].position(shared, &interior),
+                ids[1].position(shared, &interior),
+                ids[2].position(shared, &interior),
+            ];
+            let uv = [[m[0].0, m[0].1], [m[1].0, m[1].1], [m[2].0, m[2].1]];
+            let pole = [m[0].3, m[1].3, m[2].3];
+            // A pole or apex entry has no azimuth (`crate::chart_table`).
+            let (bound, scale) = row.cert(tri, uv, pole);
+            if verdict.read(bound, tol.delta, scale, tol.eps) == cert::Verdict::Exceeded {
+                let free = core::array::from_fn(|k| {
+                    !cdt.exists_constraint(vs[k].fix(), vs[(k + 1) % 3].fix())
+                });
+                let (u, v) = correction_point(surface, &uv, tri, free);
+                if refined.insert((u.to_bits(), v.to_bits())) {
+                    refine.push((u, v));
+                }
+            }
+            triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
         }
-        let tri = [
-            ids[0].position(shared, &interior),
-            ids[1].position(shared, &interior),
-            ids[2].position(shared, &interior),
-        ];
-        let uv = [[m[0].0, m[0].1], [m[1].0, m[1].1], [m[2].0, m[2].1]];
-        let pole = [m[0].3, m[1].3, m[2].3];
-        // A pole or apex entry has no azimuth (`crate::chart_table`).
-        let (bound, scale) = row.cert(tri, uv, pole);
-        verdict.read(bound, tol.delta, scale, tol.eps);
-        triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
-    }
+        if !refine.is_empty()
+            && !verdict.worst().is_nan()
+            && corrections < crate::trimmed::correction_rounds()
+        {
+            added.extend(refine);
+            corrections += 1;
+            continue;
+        }
+        #[cfg(test)]
+        crate::trimmed::tests::note_corrections(corrections);
+        break (interior, triangles, verdict);
+    };
 
     // D2 addendum row 5 (`DESIGN.md`: kernel bug detectable only by
     // re-derivation -> `debug_assert`). The pole-fan argument in the
@@ -566,6 +608,46 @@ pub(crate) fn tessellate_curved(
 
     verdict.refusal(fk, tol.delta)?;
     Ok(patch)
+}
+
+/// **The point a triangle read over δ adds**: the chart middle of its
+/// side whose own chord stands farthest from the surface, among its sides
+/// that are no constraint (`free`), and its chart centroid where all
+/// three are. The rule is the chart lane's
+/// (`trimmed::TrimmedFace::correction_point`), in the chart this lane's
+/// triangulation runs in.
+fn correction_point(
+    surface: &Surface<f64>,
+    uv: &[[f64; 2]; 3],
+    p: [Point3<f64>; 3],
+    free: [bool; 3],
+) -> (f64, f64) {
+    let middle = |k: usize| {
+        let j = (k + 1) % 3;
+        (
+            geom::mid_param(uv[k][0], uv[j][0]),
+            geom::mid_param(uv[k][1], uv[j][1]),
+        )
+    };
+    let sag = |k: usize| {
+        let (a, b) = (p[k], p[(k + 1) % 3]);
+        let (u, v) = middle(k);
+        let s = surface.eval(u, v);
+        ((s.x - geom::mid_param(a.x, b.x)).powi(2)
+            + (s.y - geom::mid_param(a.y, b.y)).powi(2)
+            + (s.z - geom::mid_param(a.z, b.z)).powi(2))
+        .sqrt()
+    };
+    match (0..3)
+        .filter(|&k| free[k])
+        .max_by(|&a, &b| sag(a).total_cmp(&sag(b)))
+    {
+        Some(k) => middle(k),
+        None => (
+            (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
+            (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
+        ),
+    }
 }
 
 /// **The two doors' "rectangle" answer, as a value**: minted by
@@ -1151,6 +1233,14 @@ fn grid_counts(
     has_pole: bool,
     meridian_interior: usize,
 ) -> Result<(usize, usize), TessellateError> {
+    // A row's coarser first guess (`tests::STEP_SCALE`, test-only).
+    #[cfg(test)]
+    let steps = {
+        let scale = tests::STEP_SCALE.with(std::cell::Cell::get);
+        let (hu, hv) = row.steps(delta);
+        (hu * scale, hv * scale)
+    };
+    #[cfg(not(test))]
     let steps = row.steps(delta);
     let (hu, hv) = steps;
     // The lattice the row lays: the periodic steps capped on a torus and
@@ -1312,6 +1402,78 @@ mod tests {
             raw_outside > 0,
             "the thin band's raw aspect is past the lemma's bound"
         );
+    }
+
+    thread_local! {
+        /// Scales the grid's steps, for the row that needs a first guess
+        /// too coarse (`super::grid_counts`). `cfg(test)` only.
+        pub(crate) static STEP_SCALE: std::cell::Cell<f64> =
+            const { std::cell::Cell::new(1.0) };
+    }
+
+    /// **The rectangle lane's grid is a first guess, and the certificate
+    /// decides** (`crates/mesh/README.md` `[mesh.sizing]`). A sphere
+    /// band (a partial revolve of the unit ball, its walk pole to pole)
+    /// at `δ = 10⁻²` and `10⁻³`, its grid's steps doubled
+    /// (`STEP_SCALE`, test-only), so the grid's cells deviate by about
+    /// four times δ:
+    ///
+    /// - with no correction round (`trimmed::MAX_CORRECTION_ROUNDS`
+    ///   overridden to zero) the face refuses `CertificateExceeded`;
+    /// - with the shipped budget each triangle read over δ adds a point,
+    ///   the body meshes and checks within at least one round and at most
+    ///   the budget, and no triangle over δ is returned on either path;
+    /// - at the lane's own steps no round is run.
+    ///
+    /// The face map runs on rayon, so the switches are set inside a
+    /// one-thread pool, on the worker that runs the faces.
+    #[test]
+    fn an_over_delta_grid_is_corrected_and_refuses_typed_without_the_correction() {
+        use crate::trimmed::tests::{corrections_used, set_correction_rounds};
+        let body = sphere_band(1.0);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("a one-thread pool");
+        let run = |scale: f64, budget: Option<usize>, delta: f64| {
+            pool.install(|| {
+                STEP_SCALE.with(|s| s.set(scale));
+                set_correction_rounds(budget);
+                let mesh = crate::tessellate(&body, delta, Tol::witness());
+                let rounds = corrections_used();
+                STEP_SCALE.with(|s| s.set(1.0));
+                set_correction_rounds(None);
+                (mesh, rounds)
+            })
+        };
+        for delta in [1e-2, 1e-3] {
+            let (uncorrected, _) = run(2.0, Some(0), delta);
+            assert!(
+                matches!(
+                    uncorrected,
+                    Err(TessellateError::CertificateExceeded { bound, requested, .. })
+                        if bound > requested
+                ),
+                "δ {delta:e}, steps doubled, no correction round: refuses typed, got {:?}",
+                uncorrected.map(|m| m.patches.len())
+            );
+            let (corrected, rounds) = run(2.0, None, delta);
+            let mesh = corrected.unwrap_or_else(|e| {
+                panic!("δ {delta:e}, steps doubled: the correction meshes the band, got {e:?}")
+            });
+            crate::validate::check_mesh(&mesh).expect("and the mesh checks");
+            assert!(
+                (1..=crate::trimmed::MAX_CORRECTION_ROUNDS).contains(&rounds),
+                "δ {delta:e}, steps doubled: {rounds} rounds, of a budget of {}",
+                crate::trimmed::MAX_CORRECTION_ROUNDS
+            );
+            let (sized, rounds) = run(1.0, None, delta);
+            sized.unwrap_or_else(|e| panic!("δ {delta:e}: at the lane's steps, {e:?}"));
+            assert_eq!(
+                rounds, 0,
+                "δ {delta:e}: at the lane's steps no round is run"
+            );
+        }
     }
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {

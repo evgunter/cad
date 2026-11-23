@@ -14,13 +14,13 @@
 //!   δ itself ([`SizingTols::delta`]), spent through the lane's own
 //!   worst-triangle theorem (`crates/mesh/README.md` `[mesh.sizing]`).
 //!   The edge chords, the cylinder, cone, sphere and torus lanes take
-//!   the coarsest step whose worst admissible triangle lands at δ. Two
-//!   lanes do not land there: the NURBS lane spends its
-//!   `nurbs_cert::LATTICE_SHARE` of δ on its lattice (its sliver lands
-//!   at δ, its lattice cells at an eighth of it), and the trimmed
-//!   lane's analytic arms, which have no theorem, size at
-//!   `trimmed::UNPROVED_HEADROOM` of δ — but for a cylinder or cone face
-//!   it walks (`crate::ruled_walk`), which lands at δ by the theorems at
+//!   the coarsest step whose worst admissible triangle lands at δ. The
+//!   NURBS lane spends its `nurbs_cert::LATTICE_SHARE` of δ on its
+//!   lattice (its sliver lands at δ, its lattice cells at an eighth of
+//!   it). The trimmed lane's analytic arms size at δ from their charts'
+//!   cell bounds, a first guess its certificate corrects (`trimmed`'s
+//!   "The correction"); a cylinder or cone face it walks
+//!   (`crate::ruled_walk`) lands at δ by the theorems at
 //!   [`sagitta_step`] and [`cone_grid_step`].
 //! - a **step** — an increment in a *parameter* (a curve parameter, a
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
@@ -81,8 +81,9 @@
 //! `nurbs_cert::LATTICE_SHARE` for the NURBS lane's sliver, whose share
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
-//! The lanes without a theorem say so at their call sites: the trimmed
-//! lane's analytic arms size at `trimmed::UNPROVED_HEADROOM` of δ. A
+//! A triangle beside a trim chord has no theorem on any chart: the
+//! trimmed lane sizes at δ all the same and adds a point where one reads
+//! over δ (`trimmed`'s "The correction"). A
 //! cylinder or cone face whose straight side holds a point is the
 //! trimmed lane's (`walk::splits_a_straight_side`), which walks it
 //! (`crate::ruled_walk`) at δ, by the theorems at [`sagitta_step`] and

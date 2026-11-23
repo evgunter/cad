@@ -19,9 +19,10 @@
 //! `crate::ruled_walk`): no lattice and no CDT, its triangles written along
 //! its two rows in order of angle, a side shared with a neighbour that may
 //! make it cut at its midpoint ([`may_make`]), and each triangle read by
-//! the row's certificate. Its target is δ ([`face_target`]), by the
-//! theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`; every
-//! other analytic face here sizes at [`UNPROVED_HEADROOM`] of δ.
+//! the row's certificate. Every face here sizes at δ: a walked face by
+//! the theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`,
+//! every other from its chart's cell bound as a first guess the
+//! certificate corrects (below, "The correction").
 //!
 //! # Watertightness is inherited, not re-derived
 //!
@@ -280,41 +281,43 @@
 //!
 //! # The retry loop
 //!
-//! The lane rebuilds a face, at most [`MAX_GRID_RETRIES`] times, for
-//! three causes: a triangle folded over the chord beside it drops its
-//! lattice corners, a triangle with a side a neighbour may make too is
-//! split by a point inside it, and (below) a triangle certified above δ
-//! is refined. Lattice nodes are a fixed, (v, u)-sorted list computed
-//! once, before the loop; a fold drops a node by its index, and the
-//! shared-side and refinement arms append, so indices only grow. A
-//! cylinder face lays no lattice node, so a fold there drops only a point
+//! The lane rebuilds a face for three causes: a triangle folded over the
+//! chord beside it drops its lattice corners, a triangle with a side a
+//! neighbour may make too is split by a point inside it, and (below) a
+//! triangle read over δ adds a point. The first two count against
+//! [`MAX_GRID_RETRIES`], the third against its own
+//! [`MAX_CORRECTION_ROUNDS`]. Lattice nodes are a fixed, (v, u)-sorted
+//! list computed once, before the loop; a fold drops a node by its index,
+//! and the shared-side and correction arms append, so indices only grow.
+//! A cylinder face lays no lattice node, so a fold there drops only a point
 //! one of those arms inserted, and a fold with none of its corners such a
 //! point refuses typed ([`TessellateError::FoldedTriangle`]).
+//! An attempt's interior positions belong to that attempt: the patch
+//! this lane returns is the ACCEPTED attempt's, and a retried attempt's
+//! points are dropped with it.
 //!
-//! The same loop carries TESS-SPAN's second arm, **certificate-driven
-//! refinement**: after the emit pass, any NURBS or cylinder triangle
-//! whose certificate exceeds δ — one that would otherwise refuse —
-//! queues its UV centroid as a new candidate and the attempt rebuilds.
-//! The cylinder lays no lattice
-//! (`chart_table::AnalyticRow::lattice_rows`), so a triangle on its
-//! boundary points can span more columns than the target allows; it is
-//! that face's only way to a triangle the certificate refuses, and one
-//! round has cleared every such face measured. This
-//! is deliberately a LAST-RESORT backstop, not the sliver cure: in a
-//! lattice that is anisotropic in the CDT's own coordinates, a
-//! centroid is one more off-lattice point and re-admits the empty
-//! circumcircle beside itself (measured on the #316 leaf, and on a
-//! lofted circle's wall, where the ladder walked the sliver inward a
-//! step per round: `work/tesslane/lofted-rational-walls-refuse-at-some-deltas`).
-//! The cure is the lattice metric and the row raise (above), which
-//! make the lattice near square where the CDT runs
-//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
-//! that still certifies above δ after the shared round budget refuses
-//! typed ([`TessellateError::CertificateExceeded`]) — the
-//! certificate, as everywhere, is the guarantee. An attempt's interior
-//! positions belong to that attempt: the patch this lane returns is
-//! the ACCEPTED attempt's, and a retried attempt's points are dropped
-//! with it.
+//! # The correction
+//!
+//! A face's lattice and rim chords are sized at δ from its chart's cell
+//! bound, the coarsest step the bound allows (`crates/mesh/README.md`
+//! `[mesh.sizing]`). That is a first guess: a triangle the constrained
+//! triangulation makes on a trim chord point the lattice did not place
+//! can reach past one cell, and nothing bounds by how much. So the
+//! certificate decides. On every row, analytic and spline, each triangle
+//! read over δ (`cert::Verdict::Exceeded`) adds one point
+//! ([`TrimmedFace::correction_point`]: the middle of its side, of those
+//! that are no constraint, whose own chord stands farthest from the
+//! surface) and the face is triangulated again. A face still over δ when
+//! [`MAX_CORRECTION_ROUNDS`] ends refuses typed
+//! ([`TessellateError::CertificateExceeded`]). Nothing but the verdict is
+//! read, and the verdict reads no ε.
+//!
+//! On a spline row the sliver's cure is the lattice metric and the row
+//! raise (above), which make the lattice near square where the CDT runs
+//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an added point
+//! in a lattice still anisotropic there re-admits the empty circumcircle
+//! beside itself (measured on the #316 leaf and a lofted circle's wall:
+//! `work/tesslane/lofted-rational-walls-refuse-at-some-deltas`).
 //!
 //! A BOUNDARY point as intermediate is a
 //! self-touching trim loop, refused typed
@@ -340,29 +343,51 @@ use topo::pcurves::{FaceLift, Lift};
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::chart_table::{
-    Analytic, AnalyticRow, ChartRow, RowEnd, SingularPoint, at_a_singular_point,
-};
+use crate::chart_table::{AnalyticRow, ChartRow, RowEnd, SingularPoint, at_a_singular_point};
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid};
 use crate::planar::{Pinches, Walk, shoelace2};
 use crate::region::{Crossings, classify_faces, edge_key};
 use crate::sizing::{SizingTols, ceil_count};
-use crate::tessellate::{Lane, Patch, PatchVertex};
+use crate::tessellate::{Patch, PatchVertex};
 use crate::types::{SphereTrimCause, TessellateError};
 
-/// Retry budget for the rebuild loop (module docs). **Termination.**
+/// Retry budget for the rebuild loop's fold drops and shared-side
+/// splits (module docs). **Termination.**
 ///
-/// One round budget covers all three retry kinds — the
-/// certificate-driven refinement, the fold drops and the shared-side
-/// splits — and it is a typed-refusal backstop rather than a tuning
-/// knob: exhausting it raises [`TessellateError`], it never coarsens or
-/// accepts a mesh. The loop reads it through [`last_attempt`].
+/// It is a typed-refusal backstop rather than a tuning knob: exhausting
+/// it raises [`TessellateError`], it never coarsens or accepts a mesh.
+/// The loop reads it through [`last_attempt`]. The correction of a
+/// refused certificate counts against its own budget
+/// ([`MAX_CORRECTION_ROUNDS`]).
 const MAX_GRID_RETRIES: usize = 6;
 
-/// The retry loop's last attempt: [`MAX_GRID_RETRIES`], or under
-/// `cfg(test)` an override a row sets to reach an exhaustion refusal
-/// through the real call path (`tests::LAST_ATTEMPT`).
+/// **The correction's round budget** (module docs, "The correction").
+/// **Termination.**
+///
+/// A face whose triangles still read over δ after this many rounds of
+/// added points refuses [`TessellateError::CertificateExceeded`]. It is
+/// a budget, not a proof: nothing bounds the rounds a face needs. The
+/// most any face took is 3, over every chart-lane face the `mesh` suite,
+/// `sweep`'s meshing modules and `step-import` build (about 3,300
+/// analytic and 2,500 spline meshings) at ε `10⁻⁹`, `10⁻⁶` and `10⁻¹²`.
+/// The rectangle lane reads the same constant (`curved`). The loop reads
+/// it through [`correction_rounds`].
+pub(crate) const MAX_CORRECTION_ROUNDS: usize = 6;
+
+/// The correction's budget: [`MAX_CORRECTION_ROUNDS`], or under
+/// `cfg(test)` an override a row sets (`tests::CORRECTION_ROUNDS`).
+pub(crate) fn correction_rounds() -> usize {
+    #[cfg(test)]
+    if let Some(k) = tests::CORRECTION_ROUNDS.with(std::cell::Cell::get) {
+        return k;
+    }
+    MAX_CORRECTION_ROUNDS
+}
+
+/// The retry loop's last structural attempt: [`MAX_GRID_RETRIES`], or
+/// under `cfg(test)` an override a row sets to reach an exhaustion
+/// refusal through the real call path (`tests::LAST_ATTEMPT`).
 fn last_attempt() -> usize {
     #[cfg(test)]
     if let Some(k) = tests::LAST_ATTEMPT.with(std::cell::Cell::get) {
@@ -370,41 +395,6 @@ fn last_attempt() -> usize {
     }
     MAX_GRID_RETRIES
 }
-
-/// **The trimmed lane's unproved headroom**: the chord pass chords a
-/// cylinder face's edges (`chords::edge_target`) at this share of δ
-/// rather than at δ ([`face_target`]).
-///
-/// The lane has no worst-triangle theorem (`crates/mesh/README.md`
-/// `[mesh.sizing]`). It lays no lattice on the cylinder
-/// (`chart_table::AnalyticRow::lattice_rows`), so the face is triangulated
-/// on its boundary points. What bounds a triangle's span round the axis
-/// there is only where those points lie: a rim chord spans one column at
-/// this target, but a triangle joining two boundary features across free
-/// wall spans as many columns as lie between them, and nothing bounds
-/// that. The certificate reads every triangle; one that it refuses gets a
-/// point inside it and the face is triangulated again
-/// ([`TrimmedFace::attempt`], under [`MAX_GRID_RETRIES`]). This factor
-/// keeps those refusals rare, and it is a debt
-/// (`work/tesslane/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
-/// the fix is the theorem, not a retuned factor.
-///
-/// The sphere arm reads it the same way and for the same reason, at its
-/// lattice steps ([`arm_steps`]) and its edges' chords: its
-/// cells are the curved lane's sphere cells, whose theorem
-/// (`sizing::sphere_grid_steps`) does not cover a CDT triangle beside a
-/// trim chord the lattice did not place
-/// (`work/tesslane/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
-/// The cone, torus and spindle arms read it for the same reason: each
-/// chart's cell bound is proved (`crate::chart_table`'s steps), and what
-/// is missing on every chart alike is the lemma that bounds a triangle
-/// beside a boundary run crossing lattice lines
-/// (`work/tesslane/one-containment-lemma-for-an-oblique-boundary.md`).
-///
-/// A face the lane walks (`tessellate::Lane::Walked`) does not read it: its triangles
-/// are no CDT's, and the step functions' theorems hold them at δ
-/// (`crate::ruled_walk`).
-pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
 /// **The sphere arm's per-edge chord budget**, `2^16`. **Work**: it
 /// bounds what one face's CDT is asked to hold, as `sizing::MAX_COUNT`
@@ -434,21 +424,6 @@ pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
 /// Read by `tessellate`, which hands it to [`tessellate_trimmed`]; the
 /// lane takes its clearance as a value ([`TrimmedFace::clearance`]).
 pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
-
-/// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face
-/// this lane meshes on an analytic chart (one whose surface has no spline
-/// chart), δ for every other face, a face it walks among them
-/// (`tessellate::Lane::Walked`). The one statement those arms size
-/// their lattices at and the chord pass chords the face's boundary at
-/// (`chords::edge_target`), each reading the face's lane from the run's
-/// route (`tessellate::Routes`).
-pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64 {
-    if lane == Lane::Trimmed && surface.spline_chart().is_none() {
-        delta * UNPROVED_HEADROOM
-    } else {
-        delta
-    }
-}
 
 /// **Whether the walk takes a face the route sends to this lane for a
 /// split straight side** (`tessellate::route_of`'s fourth fact, which
@@ -515,8 +490,8 @@ fn edge_carrier(body: &Body<f64>, ek: EdgeKey) -> Result<&geom::Curve3<f64>, Tes
 }
 
 /// **The trimmed lane's steps on an analytic chart** `(h_u, h_v)`: the
-/// row's steps ([`AnalyticRow::steps`]) at the face's target
-/// ([`face_target`]). The chord pass reads the same steps to bound each
+/// row's steps ([`AnalyticRow::steps`]) at `target`, which the lane and
+/// the chord pass hand it as δ. The chord pass reads the same steps to bound each
 /// boundary chord's UV step (`chords::tighten`), so the lattice and the
 /// trim polygon are sized from one value.
 pub(crate) fn arm_steps(row: &AnalyticRow<'_>, target: f64) -> (f64, f64) {
@@ -651,8 +626,7 @@ pub(crate) fn tessellate_trimmed(
             // The row's steps at the face's target, the steps the chord
             // pass bounded this face's boundary UV steps by (`arm_steps`),
             // and the lattice the row lays from them.
-            let (hu, hv) =
-                a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
+            let (hu, hv) = a.lattice_steps(arm_steps(a, tol.delta));
             let columns = ceil_count(u1 - u0, hu)?;
             // The pole-side rule thins the columns a lattice lays beside a
             // singular point; a cylinder has none, so it keeps `columns`,
@@ -714,14 +688,7 @@ pub(crate) fn tessellate_trimmed(
     // reset at the top of each; `worst_ratio` above deliberately is
     // not. They live out here so the single hand-off below can read
     // them whichever way the loop ends.
-    let mut measure = AttemptMeasure::fresh();
-    // THE FACE'S ONE EXIT. Every path out of the retry loop lands
-    // here, so the measurement hand-off below is on all of them —
-    // including the two typed REFUSALS, which is the case the
-    // falsification accumulator above exists for. It is never `None`
-    // after the loop: an attempt asks for a rebuild only below
-    // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
-    let mut outcome: Option<Result<Patch, TessellateError>> = None;
+    let mut measure;
     let plane = CdtPlane::of(&row, metric, &polygon, &singular);
     let straight = |i: usize| carried_by_a_line(body, polygon.edges[i]);
     let runs = developed_runs(plane, &polygon, &singular, &straight).map_err(|i| {
@@ -752,7 +719,17 @@ pub(crate) fn tessellate_trimmed(
     // shared-side and refinement points, each strictly inside a kept
     // triangle.
     let mut candidates = trimmed.lay(&lattice);
-    for attempt in 0..=last_attempt() {
+    // The loop's two budgets (module docs, "The retry loop"): the fold
+    // drops and shared-side splits count against `MAX_GRID_RETRIES`, the
+    // correction's rounds against `MAX_CORRECTION_ROUNDS`. Each rebuild
+    // raises one of them and an attempt asks for one only below its
+    // budget, so the loop ends.
+    //
+    // THE FACE'S ONE EXIT. Every path out of the loop lands on the
+    // hand-off below, the typed refusals included, which is the case the
+    // falsification accumulator above exists for.
+    let (mut structural, mut corrections) = (0usize, 0usize);
+    let outcome = loop {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
         // that describe the mesh the face exits on, and every path out
@@ -760,24 +737,23 @@ pub(crate) fn tessellate_trimmed(
         // pass — reaches the hand-off below. (`worst_ratio` is
         // deliberately not among them; see above.)
         measure = AttemptMeasure::fresh();
-        match trimmed.attempt(
-            attempt,
+        let next = trimmed.attempt(
+            structural,
+            corrections,
             &mut candidates,
             &mut dropped,
             &mut measure,
             &mut falsification,
-        ) {
-            Ok(Next::Rebuild) => {}
-            Ok(Next::Accept(patch)) => {
-                outcome = Some(Ok(patch));
-                break;
-            }
-            Err(e) => {
-                outcome = Some(Err(e));
-                break;
-            }
+        );
+        match next {
+            Ok(Next::Rebuild(Cause::Certificate)) => corrections += 1,
+            Ok(Next::Rebuild(Cause::Fold | Cause::SharedSide)) => structural += 1,
+            Ok(Next::Accept(patch)) => break Ok(patch),
+            Err(e) => break Err(e),
         }
-    }
+    };
+    #[cfg(test)]
+    tests::note_corrections(corrections);
 
     // BUDGET METER (dead in normal runs): this face's measurements,
     // handed over ONCE, however the face ENDED — everything derivable
@@ -835,12 +811,7 @@ pub(crate) fn tessellate_trimmed(
             dev_samples: measure.dev_samples,
         });
     }
-    outcome.unwrap_or_else(|| {
-        unreachable!(
-            "the last attempt accepts or refuses: `TrimmedFace::attempt` asks for a \
-             rebuild only below MAX_GRID_RETRIES"
-        )
-    })
+    outcome
 }
 
 /// Handle-index → (mesh id or grid candidate index, uv).
@@ -882,9 +853,20 @@ impl AttemptMeasure {
 enum Next {
     /// Rebuild: a fold's lattice corners dropped, or a shared side's or a
     /// refinement's points appended.
-    Rebuild,
+    Rebuild(Cause),
     /// The attempt's patch, accepted.
     Accept(Patch),
+}
+
+/// Why an attempt asks for a rebuild, which is the budget it counts
+/// against ([`tessellate_trimmed`]'s loop).
+enum Cause {
+    /// A triangle read over δ: the correction's round.
+    Certificate,
+    /// A folded triangle's lattice corners dropped.
+    Fold,
+    /// A shared side split.
+    SharedSide,
 }
 
 /// What every attempt on one face reads and none changes.
@@ -1019,6 +1001,67 @@ impl TrimmedFace<'_> {
         }
     }
 
+    /// **The point a triangle read over δ adds** (module docs, "The
+    /// correction"): the middle, where the CDT runs, of the triangle's
+    /// side whose own chord stands farthest from the surface, among its
+    /// sides that are no constraint (`free`; a boundary side's middle is
+    /// the neighbouring face's to place, and a crease link's is the
+    /// crease's). A triangle of three constraint sides takes its
+    /// [`Self::inside_point`].
+    ///
+    /// A side's distance is its chord's middle against the surface at the
+    /// side's middle in the chart, one evaluation a side. The side is the
+    /// one whose split lowers the reading: on a ruled chart the longest
+    /// side can lie along a ruling, where a point moves no certificate.
+    /// No ε is read, and nothing but the triangle's own corners.
+    fn correction_point(
+        plane: CdtPlane,
+        surface: &Surface<f64>,
+        uv: &[[f64; 2]; 3],
+        at: [SpadePoint<f64>; 3],
+        apex: [bool; 3],
+        p: [Point3<f64>; 3],
+        free: [bool; 3],
+    ) -> (f64, f64) {
+        let middle = |k: usize| {
+            let j = (k + 1) % 3;
+            match plane {
+                CdtPlane::Lattice { .. } => (
+                    geom::mid_param(uv[k][0], uv[j][0]),
+                    geom::mid_param(uv[k][1], uv[j][1]),
+                ),
+                // The side's middle in the development, read back to the
+                // chart as the inside point is: of the triangle that is
+                // the middle three times, at the azimuth of the side's
+                // end that is no apex.
+                CdtPlane::Development { .. } => {
+                    let m = SpadePoint::new(
+                        geom::mid_param(at[k].x, at[j].x),
+                        geom::mid_param(at[k].y, at[j].y),
+                    );
+                    let near = if apex[k] { uv[j] } else { uv[k] };
+                    Self::inside_point(plane, &[near; 3], [m; 3], [false; 3])
+                }
+            }
+        };
+        let sag = |k: usize| {
+            let (a, b) = (p[k], p[(k + 1) % 3]);
+            let (u, v) = middle(k);
+            let s = surface.eval(u, v);
+            ((s.x - geom::mid_param(a.x, b.x)).powi(2)
+                + (s.y - geom::mid_param(a.y, b.y)).powi(2)
+                + (s.z - geom::mid_param(a.z, b.z)).powi(2))
+            .sqrt()
+        };
+        match (0..3)
+            .filter(|&k| free[k])
+            .max_by(|&a, &b| sag(a).total_cmp(&sag(b)))
+        {
+            Some(k) => middle(k),
+            None => Self::inside_point(plane, uv, at, apex),
+        }
+    }
+
     /// The lattice the face lays ([`lay`]) at its clearance.
     fn lay(&self, nodes: &[Node]) -> Vec<(f64, f64)> {
         lay(
@@ -1051,6 +1094,7 @@ impl TrimmedFace<'_> {
     fn attempt(
         &self,
         attempt: usize,
+        corrections: usize,
         candidates: &mut Vec<(f64, f64)>,
         dropped: &mut HashSet<usize>,
         measure: &mut AttemptMeasure,
@@ -1098,7 +1142,7 @@ impl TrimmedFace<'_> {
                 return Err(TessellateError::UnclearedSharedSide { face: fk });
             }
             candidates.extend(shared_sides);
-            return Ok(Next::Rebuild);
+            return Ok(Next::Rebuild(Cause::SharedSide));
         }
         // THE WINDING CENSUS (every analytic arm): a triangle whose
         // normal points into the surface is folded over the chord beside
@@ -1114,24 +1158,20 @@ impl TrimmedFace<'_> {
                     return Err(TessellateError::FoldedTriangle { face: fk });
                 }
                 dropped.extend(grid);
-                return Ok(Next::Rebuild);
+                return Ok(Next::Rebuild(Cause::Fold));
             }
             _ => {}
         }
-        // Refinement retry (module docs): a centroid is strictly
-        // interior to its kept triangle, hence inside the trim polygon;
-        // splitting an offending triangle shrinks the empty region its
-        // circumcircle spanned. Fires only for a triangle that would
-        // otherwise REFUSE (bound > δ) — a RARE backstop: the lattice
-        // metric (module docs) is the sliver cure, because an
-        // insertion cannot converge against a strip
-        // still anisotropic where the CDT runs (measured — anchors and
-        // centroids each re-admit the empty circle beside themselves).
+        // THE CORRECTION (module docs): every triangle read over δ has
+        // queued a point, and the face is triangulated again with them.
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid).
-        if !refine.is_empty() && !measure.verdict.worst().is_nan() && attempt < last_attempt() {
+        if !refine.is_empty()
+            && !measure.verdict.worst().is_nan()
+            && corrections < correction_rounds()
+        {
             candidates.extend(refine);
-            return Ok(Next::Rebuild);
+            return Ok(Next::Rebuild(Cause::Certificate));
         }
         measure.verdict.refusal(fk, self.tol.delta)?;
         // D2 addendum row 5, the same re-derivation `curved`'s emit
@@ -1444,14 +1484,11 @@ impl TrimmedFace<'_> {
             None
         };
         let mut triangles = Vec::new();
-        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): a NURBS or a
-        // cylinder triangle certifying above δ gets its centroid queued as
-        // a new candidate for the next round.
+        // The correction's points (module docs, "The correction"), one
+        // per triangle read over δ, each location once: a side's middle
+        // is asked by both its triangles.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let refine_lane = match self.row {
-            ChartRow::Spline { .. } => true,
-            ChartRow::Analytic(a) => matches!(a.kind(), Analytic::Cylinder { .. }),
-        };
+        let mut refined: HashSet<(u64, u64)> = HashSet::new();
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the shared-side test below.
@@ -1527,6 +1564,19 @@ impl TrimmedFace<'_> {
                 let uv = corners.map(|c| c.uv);
                 let apex = corners.map(|c| c.is_singular(self.singular));
                 move || Self::inside_point(plane, &uv, developed, apex)
+            };
+            let correction_point = {
+                let uv = corners.map(|c| c.uv);
+                let apex = corners.map(|c| c.is_singular(self.singular));
+                let at = corners.map(|c| c.id);
+                let free: [bool; 3] = core::array::from_fn(|k| {
+                    !cdt.exists_constraint(vs[k].fix(), vs[(k + 1) % 3].fix())
+                });
+                let interior = &interior;
+                move || {
+                    let p = at.map(|id| id.position(shared, interior));
+                    Self::correction_point(plane, surface, &uv, developed, apex, p, free)
+                }
             };
             let mut a_shared_side = false;
             for corners in core::iter::once(corners).chain(between) {
@@ -1700,8 +1750,11 @@ impl TrimmedFace<'_> {
                         }
                     }
                 }
-                if refine_lane && verdict == cert::Verdict::Exceeded {
-                    refine.push(inside_point());
+                if verdict == cert::Verdict::Exceeded {
+                    let (u, v) = correction_point();
+                    if refined.insert((u.to_bits(), v.to_bits())) {
+                        refine.push((u, v));
+                    }
                 }
                 triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
             }
@@ -2543,12 +2596,9 @@ fn face_polygon(of: &PolygonOf<'_>) -> Result<(HashSet<u32>, TrimPolygon), Tesse
         ChartRow::Analytic(_) | ChartRow::Spline { .. } => HashSet::new(),
     };
     let walk = match row {
-        ChartRow::Spline { .. } if !singular.is_empty() => sides.points(
-            shared,
-            &singular,
-            row.steps(face_target(surface, Lane::Trimmed, delta)),
-            band,
-        ),
+        ChartRow::Spline { .. } if !singular.is_empty() => {
+            sides.points(shared, &singular, row.steps(delta), band)
+        }
         ChartRow::Analytic(_) | ChartRow::Spline { .. } => SidePoints::default(),
     };
     let spline = matches!(row, ChartRow::Spline { .. });
@@ -4044,7 +4094,7 @@ mod collapsed_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-pub(super) mod tests {
+pub(crate) mod tests {
     use super::{
         ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, TrimPolygon,
         chain_creases, one_location_per_branch, trim_polygon,
@@ -4082,10 +4132,36 @@ pub(super) mod tests {
         /// only.
         pub(crate) static STEP_SCALE: std::cell::Cell<f64> =
             const { std::cell::Cell::new(1.0) };
+        /// The most correction rounds a face on this thread ran
+        /// (`note_corrections`). `cfg(test)` only.
+        pub(crate) static CORRECTIONS_USED: std::cell::Cell<usize> =
+            const { std::cell::Cell::new(0) };
+        /// The correction's budget, when a row sets it
+        /// (`super::correction_rounds`). `cfg(test)` only.
+        pub(crate) static CORRECTION_ROUNDS: std::cell::Cell<Option<usize>> =
+            const { std::cell::Cell::new(None) };
         /// The retry loop's last attempt, when a row sets it
         /// (`super::last_attempt`). `cfg(test)` only.
         pub(crate) static LAST_ATTEMPT: std::cell::Cell<Option<usize>> =
             const { std::cell::Cell::new(None) };
+    }
+
+    /// Records the correction rounds a face ran (`CORRECTIONS_USED`): the
+    /// trimmed lane's loop and the curved lane's call it.
+    pub(crate) fn note_corrections(rounds: usize) {
+        CORRECTIONS_USED.with(|used| used.set(used.get().max(rounds)));
+    }
+
+    /// Sets the correction's budget (`None`: the shipped one) and clears
+    /// the rounds counter, for the curved lane's row.
+    pub(crate) fn set_correction_rounds(budget: Option<usize>) {
+        CORRECTION_ROUNDS.with(|b| b.set(budget));
+        CORRECTIONS_USED.with(|u| u.set(0));
+    }
+
+    /// The most rounds a face on this thread ran since the last set.
+    pub(crate) fn corrections_used() -> usize {
+        CORRECTIONS_USED.with(std::cell::Cell::get)
     }
 
     /// **The MAJOR-1 backstop's end-to-end guard**: a face left with a
@@ -4702,10 +4778,7 @@ pub(super) mod tests {
             }
             faces += 1;
             let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-            let (hu, hv) = super::arm_steps(
-                &row,
-                super::face_target(surface, crate::tessellate::Lane::Trimmed, delta),
-            );
+            let (hu, hv) = super::arm_steps(&row, delta);
             for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap() {
                 let image = body.pcurve(hek).unwrap().pcurve();
                 let uv: Vec<_> = chords.params[&ek].iter().map(|&t| image.eval(t)).collect();
@@ -4943,10 +5016,7 @@ pub(super) mod tests {
                     }
                     faces += 1;
                     let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-                    let (hu, hv) = super::arm_steps(
-                        &row,
-                        super::face_target(surface, crate::tessellate::Lane::Trimmed, delta),
-                    );
+                    let (hu, hv) = super::arm_steps(&row, delta);
                     for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap()
                     {
                         let image = body.pcurve(hek).unwrap().pcurve();
@@ -4979,18 +5049,7 @@ pub(super) mod tests {
                             .certified()
                             .unwrap()
                             .carrier();
-                        let target =
-                            super::face_target(surface, crate::tessellate::Lane::Trimmed, delta);
-                        // The new arms size at the lane's headroom, as the
-                        // cylinder and sphere arms do: it stands in for
-                        // the containment lemma no arm has yet.
-                        assert_eq!(
-                            target.to_bits(),
-                            (delta * super::UNPROVED_HEADROOM).to_bits(),
-                            "{name}, δ {delta:e}, face {fk:?}: a trimmed {:?} face sizes at the \
-                             lane's headroom",
-                            surface.kind()
-                        );
+                        let target = delta;
                         let own = match *carrier {
                             geom::Curve3::Spiric {
                                 major_radius,
@@ -5061,47 +5120,100 @@ pub(super) mod tests {
         }
     }
 
-    /// **An over-δ triangle on the sphere arm refuses typed through
-    /// `crate::tessellate`.** The arm's lattice and boundary steps are
-    /// scaled four-fold (`STEP_SCALE`, test-only), so its cells
-    /// deviate by about sixteen times the share of δ they were sized at,
-    /// and the per-triangle certificate refuses the face
-    /// `CertificateExceeded`; at scale one the same body meshes. The face
-    /// map runs on rayon, so the switch is set inside a one-thread pool,
-    /// on the worker that runs the face.
+    /// **The step is a first guess and the certificate decides**
+    /// (`crates/mesh/README.md` `[mesh.sizing]`), through
+    /// `crate::tessellate` on the tilted pair of balls at `δ = 10⁻²`. The
+    /// face map runs on rayon, so the switches are set inside a one-thread
+    /// pool, on the worker that runs the faces.
+    ///
+    /// - **A first guess that is too coarse is corrected.** With the
+    ///   sphere arm's lattice and boundary steps doubled (`STEP_SCALE`,
+    ///   test-only) its cells deviate by about four times δ. The lane
+    ///   adds a point at each triangle read over δ and the body meshes,
+    ///   checks and encloses its volume, in at least one round and no
+    ///   more than [`super::MAX_CORRECTION_ROUNDS`].
+    /// - **With no correction round the same face refuses typed**
+    ///   (`CORRECTION_ROUNDS` at zero): `CertificateExceeded`, so no
+    ///   triangle over δ is returned on either path.
+    /// - **The correction has its own budget.** With the fold and
+    ///   shared-side budget at nothing (`LAST_ATTEMPT` at zero) the
+    ///   correction still runs and the body meshes.
+    /// - **At its own steps the first guess stands**: no round is run, and
+    ///   the mesh holds under 0.6 of the triangles of the mesh at `δ/2`,
+    ///   the lattice a share of a half of δ laid at δ.
     #[test]
-    fn an_over_delta_sphere_arm_triangle_refuses_typed() {
+    fn an_over_delta_first_guess_is_corrected_and_refuses_typed_without_the_correction() {
         use geom_core::Tol;
         let body = tilted_sphere_pair();
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(1)
             .build()
             .expect("a one-thread pool");
-        let (coarse, sized) = pool.install(|| {
-            STEP_SCALE.with(|s| s.set(4.0));
-            let coarse = crate::tessellate(&body, 1e-2, Tol::witness());
-            STEP_SCALE.with(|s| s.set(1.0));
-            (coarse, crate::tessellate(&body, 1e-2, Tol::witness()))
-        });
+        let triangles =
+            |m: &crate::Mesh| m.patches.iter().map(|p| p.triangles.len()).sum::<usize>();
+        let run = |scale: f64, budget: Option<usize>, last: Option<usize>, delta: f64| {
+            pool.install(|| {
+                STEP_SCALE.with(|s| s.set(scale));
+                CORRECTION_ROUNDS.with(|b| b.set(budget));
+                LAST_ATTEMPT.with(|a| a.set(last));
+                CORRECTIONS_USED.with(|u| u.set(0));
+                let mesh = crate::tessellate(&body, delta, Tol::witness());
+                STEP_SCALE.with(|s| s.set(1.0));
+                CORRECTION_ROUNDS.with(|b| b.set(None));
+                LAST_ATTEMPT.with(|a| a.set(None));
+                (mesh, CORRECTIONS_USED.with(std::cell::Cell::get))
+            })
+        };
+        // Two unit balls 1.4 apart: twice the ball less their lens,
+        // `π(4r + d)(2r − d)²/12`; two spheres less the cap each loses,
+        // `2πrh` at `h = 1 − 0.7`.
+        let pi = core::f64::consts::PI;
+        let volume = 2.0 * 4.0 / 3.0 * pi - pi * 5.4 * 0.6f64.powi(2) / 12.0;
+        let area = 8.0 * pi - 2.0 * 2.0 * pi * 0.3;
+        let sound = |mesh: &crate::Mesh, what: &str| {
+            crate::validate::check_mesh(mesh).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            crate::validate::check_volume(mesh, volume, area, 1e-2)
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        };
+
+        let (uncorrected, _) = run(2.0, Some(0), None, 1e-2);
         assert!(
             matches!(
-                coarse,
+                uncorrected,
                 Err(TessellateError::CertificateExceeded { bound, requested, .. })
                     if bound > requested
             ),
-            "steps scaled four-fold: the face refuses typed, got {:?}",
-            coarse.map(|m| m.patches.len())
+            "steps doubled, no correction round: the face refuses typed, got {:?}",
+            uncorrected.map(|m| m.patches.len())
         );
-        let mesh = sized.expect("at the arm's own steps the body meshes");
-        crate::validate::check_mesh(&mesh).expect("and the mesh checks");
-        // Two unit balls 1.4 apart: twice the ball less their lens,
-        // `π(4r + d)(2r − d)²/12`.
-        let pi = core::f64::consts::PI;
-        let volume = 2.0 * 4.0 / 3.0 * pi - pi * 5.4 * 0.6f64.powi(2) / 12.0;
-        // Its area: two spheres less the cap each loses, `2πrh` at
-        // `h = 1 − 0.7`.
-        let area = 8.0 * pi - 2.0 * 2.0 * pi * 0.3;
-        crate::validate::check_volume(&mesh, volume, area, 1e-2).expect("and it encloses the body");
+        let (corrected, rounds) = run(2.0, None, None, 1e-2);
+        sound(
+            &corrected.expect("steps doubled: the correction brings every triangle within δ"),
+            "steps doubled, corrected",
+        );
+        assert!(
+            (1..=super::MAX_CORRECTION_ROUNDS).contains(&rounds),
+            "steps doubled: the correction ran {rounds} rounds, of a budget of {}",
+            super::MAX_CORRECTION_ROUNDS
+        );
+        let (own_budget, _) = run(2.0, None, Some(0), 1e-2);
+        sound(
+            &own_budget.expect("the correction counts against its own budget alone"),
+            "steps doubled, no fold or shared-side rebuild allowed",
+        );
+
+        let (sized, rounds) = run(1.0, None, None, 1e-2);
+        let sized = sized.expect("at the arm's own steps the body meshes");
+        sound(&sized, "at the arm's own steps");
+        assert_eq!(rounds, 0, "at the arm's own steps no face is corrected");
+        let (finer, _) = run(1.0, None, None, 5e-3);
+        let finer = finer.expect("and at δ/2");
+        assert!(
+            10 * triangles(&sized) < 6 * triangles(&finer),
+            "the mesh at δ holds {} triangles, the mesh at δ/2 {}",
+            triangles(&sized),
+            triangles(&finer)
+        );
     }
 
     /// **A singular vertex is a side of the polygon** (`crate::chart_table`,
@@ -6139,7 +6251,7 @@ pub(super) mod tests {
 
     /// **The clearance is what keeps a node off the boundary, and the
     /// lane refuses a triangle f64 cannot wind as soon as it holds one.**
-    /// The ball under a box face at `δ = 0.04`: at the shipped clearance
+    /// The ball under a box face at `δ = 0.02`: at the shipped clearance
     /// the lane meshes its sphere face. Handed a clearance of zero, a
     /// node is kept off a side only where it lies on it exactly, the node
     /// within rounding of the loop's vertex is laid, and the triangle
@@ -6149,12 +6261,12 @@ pub(super) mod tests {
     #[test]
     fn a_lattice_laid_without_clearance_cuts_a_triangle_the_lane_refuses() {
         let body = ball_under_a_box_face();
-        let shipped = lane_answers(&body, 0.04, super::BOUNDARY_CLEARANCE);
+        let shipped = lane_answers(&body, 0.02, super::BOUNDARY_CLEARANCE);
         assert!(
             !shipped.is_empty() && shipped.iter().all(|(_, answer)| answer.is_ok()),
             "at the shipped clearance every face the lane takes meshes: {shipped:?}"
         );
-        let bare = lane_answers(&body, 0.04, 0.0);
+        let bare = lane_answers(&body, 0.02, 0.0);
         let unresolved: Vec<_> = bare
             .iter()
             .filter_map(|(_, answer)| match answer {

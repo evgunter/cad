@@ -40,18 +40,33 @@ triangle may be thin, and it may be small beside ε.
 `[mesh.sizing]`
 
 **Make the mesh as coarse as possible without extra work.** Each lane
-(curved, trimmed, NURBS) chooses its grid step from a bound on its own
-worst triangle, and takes the coarsest step that bound allows.
+(curved, trimmed, NURBS) chooses its grid step from the bound on a
+triangle inside one cell of its grid, and takes the coarsest step that
+bound allows at δ. The step chooses how dense the mesh is. What holds
+a triangle within δ is its certificate.
 
-- **Each lane has a theorem.** It names the worst triangle the lane's
-  triangulation can produce and bounds that triangle's deviation in
-  closed form. Depending on the lane, the worst triangle is half a
-  grid cell, or a Delaunay sliver beside a point the grid did not place
-  (a trim or chord point). The theorem is pinned by a test next to the
-  lane's step function. The shape to follow is
-  `torus_grid_steps_meet_the_bound_with_equality`.
+"Without extra work" means: where refining to exactly δ would be more
+work than refining slightly past it, the lane refines slightly past
+it. It never does something extra to get a less precise mesh on
+purpose. The work meant is centrally the work of writing the code,
+more than the work of running it.
+
+- **The step is a first guess, and the certificate decides.** Each
+  chart has a cell bound: a closed-form bound on the deviation of a
+  triangle inside one cell of the lane's grid, pinned by a test next
+  to the lane's step function. A triangle is not always inside one
+  cell: a point the grid did not place (a trim or chord point) can
+  join nodes further off. So every triangle is held to its
+  certificate, and where one reads over δ the lane adds a point there
+  and triangulates the face again. It refuses typed when its round
+  budget ends.
+- **A lane that can prove its first guess is never corrected says
+  so**, in closed form, pinned beside its step function. The shape to
+  follow is `torus_grid_steps_meet_the_bound_with_equality`. Such a
+  proof is worth writing where it is cheap. Where there is none,
+  nothing is owed and nothing is shrunk in its place.
 - **No safety factor.** A step is never shrunk "for margin". Where the
-  step can be solved for exactly, its worst triangle lands at δ. Where
+  step can be solved for exactly, a cell's worst triangle lands at δ. Where
   the schedule is discrete (a repeated halving, say), it lands at that
   schedule's coarsest step. ε and rounding sit outside this choice,
   exactly as the promise says ("honestly δ + ε").
@@ -60,9 +75,9 @@ worst triangle, and takes the coarsest step that bound allows.
   For example, the NURBS lane's `MAX_RESIDUAL_SQ` is its sliver theorem
   solved for the aspect.
 - **Rim chords use the face's grid step.** A rim chord point that the
-  grid did not place creates triangles the lattice theorem does not
-  cover. So a lane whose theorem is about grid cells chords its rims
-  at its own grid step. The chord pass states this once
+  grid did not place creates triangles the cell bound does not
+  cover. So a lane chords its rims at its own grid step, and its
+  first guess is then rarely corrected there. The chord pass states this once
   (`chords::tighten`): on each chart axis, a boundary's chord count is
   at least its image's speed along that axis times the parameter span,
   over the face's lattice step on that axis. The image is the one the
@@ -81,9 +96,6 @@ worst triangle, and takes the coarsest step that bound allows.
   point already there serves. A triangle that joins the boundary to a
   node then reaches `1 + BOUNDARY_CLEARANCE` steps, and the bound for a
   boundary run is a function of that reach.
-- **A lane without its theorem yet** keeps an explicitly named
-  `UNPROVED_HEADROOM` factor at its call site, filed as a debt. The fix
-  is to write the theorem, not to tune the factor.
 
 ## The mesher's other constants
 
@@ -102,11 +114,16 @@ defined:
   clearance, and the value is small enough that a face which meshes
   with no clearance still does. The value nobody has to choose is 1/2,
   a node not laid where the boundary crosses its own cell, and that is
-  where this constant goes: at 1/2 the worst triangle beside the
-  boundary passes the headroom and faces refuse, so it waits on the
-  bound for a boundary run, as `UNPROVED_HEADROOM` does.
+  where this constant goes. At 1/2 the worst triangle beside the
+  boundary is larger and more certificates add a point; what that
+  costs is not measured, and the constant moves when it is.
 - **termination:** `trimmed::MAX_GRID_RETRIES` decides when to stop and
   refuse, and never changes a mesh's shape.
+- **termination:** `trimmed::MAX_CORRECTION_ROUNDS` (6) is the rounds a
+  face's triangles read over δ may add points before it refuses typed,
+  on the trimmed and the curved lane. It is a budget, not a proof:
+  nothing bounds the rounds a face needs, and the most measured is 3,
+  stated where it is defined.
 - **work:** `trimmed::MAX_SPHERE_EDGE_CHORDS` (2¹⁶) is the chords the
   trimmed sphere's tightening may ask of one edge before it refuses
   typed. It keeps one face's CDT at about a second in release, and its

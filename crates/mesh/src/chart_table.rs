@@ -425,8 +425,9 @@ impl<'a> AnalyticRow<'a> {
     /// target allows along the surface at the gap's own radius, is laid
     /// between rows. Nothing proves a triangle beside the boundary has no
     /// side longer than a gap, or none far round the axis: the rows shape
-    /// the triangulation, the certificate is the guarantee, and the arm
-    /// keeps `trimmed::UNPROVED_HEADROOM`. Rows uniform in `v` lay that
+    /// the triangulation, and the certificate decides, adding a point
+    /// where a triangle reads over δ (`trimmed`'s "The correction"). Rows
+    /// uniform in `v` lay that
     /// gap at the widest radius alone; beside a small end the first row
     /// then stands many such chords from the boundary, the triangulation
     /// joins it to boundary points far round the axis, and a face ending

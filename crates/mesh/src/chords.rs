@@ -6,10 +6,7 @@
 //!
 //! **The carrier's own count**: a chord's worst point lands at the
 //! edge's target from its carrier (the edge-chord theorem at
-//! `sizing::sagitta_step`). The target is the least of the two faces'
-//! ([`edge_target`], `trimmed::face_target`): δ, or the headroom's share
-//! of it beside an arm that sizes its lattice there, so that arm's trim
-//! polygon is the one its lattice was sized beside.
+//! `sizing::sagitta_step`). The target is δ, on every lane.
 //!
 //! - Line carriers: 1 chord (a segment of the exact locus).
 //! - Circle carriers (radius ρ, forward span Δt): per-chord step
@@ -139,15 +136,14 @@ pub(crate) fn compute_chords(
         let curve = crate::walk::edge_curve(body, ek)?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
-        let target = edge_target(body, routes, ek, delta)?;
         let n = match *curve.carrier() {
             Curve3::Line(_) => 1,
             Curve3::Circle(..) => {
-                ceil_count(span, sagitta_step(target, circle_radius(curve.carrier())))?
+                ceil_count(span, sagitta_step(delta, circle_radius(curve.carrier())))?
             }
             // Ellipse arcs (curved-cut boundaries, M5 PR 5): the
             // certified-conservative curvature-bound step.
-            Curve3::Ellipse(ref e) => ceil_count(span, ellipse_step(target, e))?,
+            Curve3::Ellipse(ref e) => ceil_count(span, ellipse_step(delta, e))?,
             // Spiric arcs (the hollowed partial revolve's torus rim):
             // the curvature-bound step from the closed-form `sup|C″|`
             // (`spiric_step`).
@@ -156,10 +152,7 @@ pub(crate) fn compute_chords(
                 minor_radius,
                 offset,
                 ..
-            } => ceil_count(
-                span,
-                spiric_step(target, major_radius, minor_radius, offset),
-            )?,
+            } => ceil_count(span, spiric_step(delta, major_radius, minor_radius, offset))?,
             // B-spline carriers (rung-3 edges at rest, M5 PR 9):
             // the hull-bounded sagitta generalization (C9/PR 11) —
             // secant deviation on a parameter step h is ≤ h²·sup|C″|/8
@@ -171,7 +164,7 @@ pub(crate) fn compute_chords(
             // for a RATIONAL one (M8-5; a
             // rational-walled body's seam edges read back rational,
             // so this gate is what makes the face bound reachable).
-            Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, target, ek)?,
+            Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, delta, ek)?,
             // An edge on a periodic cubic is read on its clamped view
             // over the edge's span (`EdgeCurve::carrier`), the arm
             // above; the loop itself is no edge's reading.
@@ -518,8 +511,7 @@ impl FaceLattice {
     /// `work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`).
     /// Its steps are the face's chart row's ([`ChartRow::steps`]):
     ///
-    /// Every lattice is sized at the face's target
-    /// ([`crate::trimmed::face_target`]).
+    /// Every lattice is sized at δ.
     ///
     /// - **Curved lane**, beside a circle (its rims and meridians, the iso
     ///   sides its lattice is sized against: a ruling moves along a ruled
@@ -543,7 +535,6 @@ impl FaceLattice {
         bounds: &mut FaceBounds,
     ) -> Result<Option<Self>, TessellateError> {
         use crate::tessellate::Lane;
-        let target = crate::trimmed::face_target(surface, lane, delta);
         Ok(match lane {
             Lane::Planar => None,
             Lane::Curved => {
@@ -551,7 +542,7 @@ impl FaceLattice {
                     what: "a curved-lane face the doors gave no rectangle (router defect)",
                 })?;
                 Some(Self {
-                    steps: AnalyticRow::of(body, fk, surface)?.steps(target),
+                    steps: AnalyticRow::of(body, fk, surface)?.steps(delta),
                     reads: Reads::Iso(rectangle.clone()),
                 })
             }
@@ -566,11 +557,11 @@ impl FaceLattice {
                 }
                 match ChartRow::of(body, fk, surface, bounds)? {
                     row @ ChartRow::Spline { .. } => Some(Self {
-                        steps: row.steps(target),
+                        steps: row.steps(delta),
                         reads: Reads::SplineRows,
                     }),
                     ChartRow::Analytic(row) if row.chorded_to_lattice() => Some(Self {
-                        steps: crate::trimmed::arm_steps(&row, target),
+                        steps: crate::trimmed::arm_steps(&row, delta),
                         reads: Reads::ChartRows {
                             singular: !row.singular_points().is_empty(),
                             budget: row.chord_budget(),
@@ -795,29 +786,6 @@ fn lcm(a: usize, b: usize) -> usize {
     a / x * b
 }
 
-/// The deviation target an edge's own carrier is chorded at: the least
-/// of its faces' targets ([`crate::trimmed::face_target`]), so the trim
-/// polygon of an arm that sizes at its headroom is the one its lattice
-/// was sized beside.
-fn edge_target(
-    body: &Body<f64>,
-    routes: &crate::tessellate::Routes,
-    ek: EdgeKey,
-    delta: f64,
-) -> Result<f64, TessellateError> {
-    adjacent_faces(body, ek)?
-        .into_iter()
-        .try_fold(delta, |least, fk| {
-            let lane = match routes.lane(fk)? {
-                crate::tessellate::Routed::To(lane) => lane,
-                // As in `tighten`: reported at its own turn.
-                crate::tessellate::Routed::Refused => return Ok(least),
-            };
-            let surface = crate::tessellate::face_surface(body, fk)?;
-            Ok(least.min(crate::trimmed::face_target(surface, lane, delta)))
-        })
-}
-
 /// The radius of a circle carrier (caller guarantees the variant).
 fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     match *carrier {
@@ -874,16 +842,6 @@ pub(crate) fn edge_ends(
 fn sides_of(body: &Body<f64>, ek: EdgeKey) -> Result<topo::EdgeSides, TessellateError> {
     topo::readback::edge_sides(body, ek)
         .map_err(|_| TessellateError::MissingEntity { what: "edge" })
-}
-
-/// The (≤ 2 distinct) faces adjacent to an edge.
-fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, TessellateError> {
-    let (plus, minus) = sides_of(body, ek)?.faces();
-    Ok(if plus == minus {
-        vec![plus]
-    } else {
-        vec![plus, minus]
-    })
 }
 
 #[cfg(test)]
@@ -1054,14 +1012,13 @@ pub(crate) mod tests {
                 else {
                     continue;
                 };
-                let target = crate::trimmed::face_target(surface, lane, delta);
                 let want = match (&lattice.reads, surface) {
                     (
                         Reads::Iso(_) | Reads::ChartRows { .. },
                         geom::Surface::Sphere { radius, .. },
                     ) => {
                         let widest = sphere_face_widest_cos(body, s.face, surface).unwrap();
-                        sphere_grid_steps(target, *radius, widest)
+                        sphere_grid_steps(delta, *radius, widest)
                     }
                     (
                         Reads::Iso(_) | Reads::ChartRows { .. },
@@ -1075,16 +1032,16 @@ pub(crate) mod tests {
                             minor_radius,
                             ..
                         },
-                    ) => torus_grid_steps(target, *major_radius, *minor_radius),
+                    ) => torus_grid_steps(delta, *major_radius, *minor_radius),
                     (Reads::Iso(_), geom::Surface::Cylinder { radius, .. }) => {
-                        (sagitta_step(target, *radius), f64::INFINITY)
+                        (sagitta_step(delta, *radius), f64::INFINITY)
                     }
                     (
                         Reads::Iso(_) | Reads::ChartRows { .. },
                         geom::Surface::Cone { half_angle, .. },
                     ) => (
                         cone_grid_step(
-                            target,
+                            delta,
                             *half_angle,
                             cone_face_rho_max(body, s.face, *half_angle).unwrap(),
                         ),
@@ -1097,7 +1054,7 @@ pub(crate) mod tests {
                         let payload = surface.spline_chart().unwrap();
                         face_bound(&mut bounds, payload, s.face)
                             .unwrap()
-                            .grid_steps(crate::nurbs_cert::lattice_budget(target))
+                            .grid_steps(crate::nurbs_cert::lattice_budget(delta))
                     }
                 };
                 seen[match lattice.reads {
@@ -1118,13 +1075,7 @@ pub(crate) mod tests {
                 Curve3::Line(_) => Some(1),
                 Curve3::Circle(circle) => {
                     let radius = circle.radius();
-                    Some(
-                        ceil_count(
-                            span,
-                            sagitta_step(edge_target(body, &routes, ek, delta).unwrap(), radius),
-                        )
-                        .unwrap(),
-                    )
+                    Some(ceil_count(span, sagitta_step(delta, radius)).unwrap())
                 }
                 _ => None,
             };
