@@ -81,3 +81,9 @@ Token counts, first report / last of four rounds: A 150,820 / 236,815; B 141,548
 PR 7485, opened 00:42Z on 2026-11-23 on `tesslane/ev-shared-side`, stacked on `tesslane/ruled-density` (base that branch, since the row it edits is filed there; retargets to main when PR 7096 merges). Body: the decision, the alternative with the thin-body table, the one question, and each designer's round-four `For Ev` section verbatim under its label. Fork-log row 7485, recommendation half, labels only (`65948a8bd3`). The mapping for the second commit, once Ev decides: bytes 82 (three designers), 152 (mod 3 = 2): Fable 5.2 = C, Opus 5.5 = A and B (versions as the harness reported for the subagents' models at dispatch; confirm before writing). Tokens first report / total: A 150,820 / 236,815; B 141,548 / 221,700; C 269,861 / 396,047.
 
 The designers' probe diffs and volume outputs are copied under `tesslane-a-side-two-faces-can-both-make-evidence/` (the STLs are not).
+
+## Ev's decision (2026-11-23)
+
+Ev, 02:25Z on PR 7485: "what bad thing happens when there's zero volume?" The orchestrator answered (02:28Z): one thing, for a reader that takes the mesh as a solid (no inside: orientation by rounding; admesh reversed every facet on 4 of 28 cells); nothing else breaks; the straight midpoint is the simpler build if such a mesh is only ever a picture; the designers had leaned on the export gate, whose own bodies are not in this regime. Ev, 04:09Z: "ok yeah allowing zero volume sounds annoying; this plan sounds good".
+
+Decision: the recommendation as put (a point of each face's own surface, every patch). Match: A's first recommendation, with the two companions only C's first report found. The fork-log row's second commit is `f5135fb4e8` on `tesslane/ev-shared-side`: tokens and the mapping, bytes 82 and 152, Fable 5.2 = C, Opus 5.5 = A and B (`claude-fable-5-2` and `claude-opus-5-5` in each subagent's transcript). The unit is dispatched on `tesslane/join-split`.
