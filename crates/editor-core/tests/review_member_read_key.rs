@@ -597,3 +597,57 @@ fn measure_an_inner_count_grows_under_a_read_of_ones_own_index() {
         keys(&one, &[1, 0]) == keys(&two, &[1, 0]),
     );
 }
+
+/// MEASURE (ignored: a clock reading): a family of `N` prisms and a
+/// reader per member of two of them; the evaluation over an unchanged
+/// prior, where every member is a key and a lookup, and over a prior
+/// with `p` moved.
+#[test]
+#[ignore = "a clock reading: --run-ignored only"]
+fn measure_latency_of_a_wide_family() {
+    const N: i64 = 400;
+    let (doc, k) = fixture::index_of(with_p("rv-latency"), "k", Formula::count(N), None);
+    let (doc, tall) = prism(doc, 0.0, depth(scalar(var(k))));
+    let after = Formula::modulo(
+        Formula::add(var(k), Formula::count(1)).unwrap(),
+        Formula::count(N),
+    )
+    .unwrap();
+    let (doc, _) = assemble(
+        doc,
+        vec![
+            BodyRead::indexed(tall, vec![var(k)]),
+            BodyRead::indexed(tall, vec![after]),
+        ],
+    );
+    let median = |mut xs: Vec<std::time::Duration>| {
+        xs.sort();
+        xs[xs.len() / 2]
+    };
+    let t = std::time::Instant::now();
+    let prior = evaluate::<f64>(&doc, None);
+    let cold = t.elapsed();
+    let warm = median(
+        (0..7)
+            .map(|_| {
+                let t = std::time::Instant::now();
+                let ev = evaluate::<f64>(&doc, Some(&prior));
+                assert_eq!(ev.recomputed, 0);
+                t.elapsed()
+            })
+            .collect(),
+    );
+    let moved_doc = set(doc, "p", FreeValue::Continuous(0.5));
+    let moved = median(
+        (0..5)
+            .map(|_| {
+                let t = std::time::Instant::now();
+                let _ = evaluate::<f64>(&moved_doc, Some(&prior));
+                t.elapsed()
+            })
+            .collect(),
+    );
+    eprintln!(
+        "PROBE latency N={N}: cold {cold:?}; over an unchanged prior {warm:?}; p moved {moved:?}"
+    );
+}
