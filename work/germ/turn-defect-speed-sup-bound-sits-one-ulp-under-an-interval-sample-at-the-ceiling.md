@@ -4,7 +4,7 @@ kind: issue
 title: turn_defect_speed_hi's sup bound sits below an Interval sample of the speed at the ceiling, by 1 ulp at 1e-6 and about 11 ulps at 1e-12: an enclosure that does not enclose, found by r2_turn_probes' varying-seed fuzz
 status: open
 opened: 2026-10-29
-priority: P2
+priority: P1
 cost: M
 ---
 
