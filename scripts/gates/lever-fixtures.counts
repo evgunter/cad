@@ -4,4 +4,4 @@ crates/editor-core 2
 crates/geom-core 25
 crates/geom-brep 496
 crates/sweep 34
-crates/topo 313
+crates/topo 318
