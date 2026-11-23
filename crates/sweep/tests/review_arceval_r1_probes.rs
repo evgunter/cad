@@ -141,8 +141,9 @@ mod certified {
         let Err(topo::BooleanError::CrossingInsertion { source, .. }) = cut else {
             panic!("below the constant the chain must escalate, got {cut:?}");
         };
-        let topo::EulerOpError::Certification {
+        let topo::EulerOpError::DescriptionUncertified {
             error: geom_brep::CertifyError::Escalated { check, cause, .. },
+            ..
         } = source
         else {
             panic!("expected a certification escalation, got {source:?}");

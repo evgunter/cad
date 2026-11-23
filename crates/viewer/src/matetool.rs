@@ -30,7 +30,7 @@
 //! # Live commits
 //!
 //! Each change to the draft — a pick seated, a kind or a sense chosen, a
-//! row added or struck, a value typed — is offered to the document's
+//! row added or struck, an offset set or cleared, a value typed — is offered to the document's
 //! door once it is made ([`MateTool::offer`]), and taken, it is one
 //! [`SessionOp::SetBundle`] keeping the id of every row loaded from the
 //! bundle: one undo step. A draft the door refuses, or one that writes
@@ -44,7 +44,12 @@
 //! # The draft
 //!
 //! A **mate row** ([`MateRow`]) holds a kind (any of [`MATE_KINDS`]), a
-//! sense ([`senses`]) and its seats, and may be struck out. The **value
+//! sense ([`senses`]) and its seats, and may be struck out. A plane's or
+//! a frame's row also holds an **offset** ([`MateTool::set_offset`]): a
+//! length, a number or a formula, its `to` slid by along the outward
+//! normal of the face it is read off, a frame's `z` ([`offset_side`]) — the standoff DESIGN `[placement.mates]` makes a
+//! construction on the target, never a value, so the copy follows the
+//! face as the face moves. The **value
 //! rows** are derived, never held: exactly the freedoms the live mates
 //! leave, by the kernel's own rule ([`Placed::freedoms`]), each prefilled
 //! where the copy stands snapped onto the mates (`session/snap.rs`), its
@@ -427,6 +432,131 @@ fn toggled(side: Operand) -> Operand {
     }
 }
 
+/// **The role a mate of `kind`'s far side is slid along by its
+/// offset**: a plane's normal, a frame's `z`; `None` for a kind whose
+/// far side no slide along its own direction moves in a way its
+/// equation reads — an axis slid along itself is the same axis, and a
+/// point and a direction have no direction of their own to stand off
+/// along. A number the kind's own equation fixes is a construction on
+/// the target, never a value (DESIGN `[placement.mates]`), so this is
+/// the one way such a row stands its copy off its target.
+#[must_use]
+pub fn offset_role(kind: VarKind) -> Option<pose::PoseRole> {
+    match kind {
+        VarKind::Plane => Some(pose::PoseRole::Normal),
+        VarKind::Frame => Some(pose::PoseRole::Z),
+        _ => None,
+    }
+}
+
+/// **`side` stood off by `by`**: one slide ([`pose::PoseDef::Slide`])
+/// along the outward `role` of the pose the side is read off
+/// ([`face_pose`]: a face's own plane, a frame through its picks),
+/// never along the side's own `role`, so the offset runs out of the face
+/// however the side is spelled: a plain flip it carries stays outermost,
+/// and a slide written elsewhere (the API's `Slide(Flip P, ..)`) stays
+/// beneath, as written. The editor's slide is one layer: one `side`
+/// already carries ([`side_offset`]) is replaced, never stacked.
+#[must_use]
+pub fn offset_side(side: Operand, role: pose::PoseRole, by: Formula) -> Operand {
+    fn wrap(side: Operand, role: pose::PoseRole, by: Formula) -> Operand {
+        match side {
+            Operand::Pose(def) => match *def {
+                pose::PoseDef::Flip {
+                    pose: pose::RoleRead { read, role: None },
+                } => turned(wrap(read, role, by)),
+                other => slid(Operand::Pose(Box::new(other)), role, by),
+            },
+            other => slid(other, role, by),
+        }
+    }
+    wrap(side_offset(&side, role).0, role, by)
+}
+
+/// `pose` slid `by` along the outward `role` of the pose it is read off.
+fn slid(pose: Operand, role: pose::PoseRole, by: Formula) -> Operand {
+    let face = face_pose(&pose).clone();
+    Operand::Pose(Box::new(pose::PoseDef::Slide {
+        pose: pose::RoleRead::plain(pose),
+        along: pose::RoleRead::through(face, role),
+        by,
+    }))
+}
+
+/// **The pose `side` is read off**: `side` with every plain flip and
+/// every slide it is built by taken off — a face's plane, whose normal
+/// is the face's outward one, or a frame through its picks.
+#[must_use]
+pub fn face_pose(side: &Operand) -> &Operand {
+    let mut at = side;
+    while let Operand::Pose(def) = at {
+        match &**def {
+            pose::PoseDef::Flip {
+                pose: pose::RoleRead { read, role: None },
+            }
+            | pose::PoseDef::Slide {
+                pose: pose::RoleRead { read, role: None },
+                ..
+            } => at = read,
+            _ => break,
+        }
+    }
+    at
+}
+
+/// **`side` with the editor's offset taken off, and the offset**: the
+/// inverse of [`offset_side`] — the slide outermost but for a plain
+/// flip, along the outward `role` of the pose the side is read off
+/// ([`face_pose`]). Any other slide (along a flipped plane's normal, or
+/// another role) is not the editor's: no offset, and the side as
+/// written. `side` is read as written, an anonymous pose as its
+/// definition ([`written_side`]).
+#[must_use]
+pub fn side_offset(side: &Operand, role: pose::PoseRole) -> (Operand, Option<Formula>) {
+    let unslid = |side: &Operand| match side {
+        Operand::Pose(def) => match &**def {
+            pose::PoseDef::Slide {
+                pose: pose::RoleRead { read, role: None },
+                along:
+                    pose::RoleRead {
+                        read: along,
+                        role: Some(along_role),
+                    },
+                by,
+            } if *along_role == role && along == face_pose(read) => {
+                Some((read.clone(), by.clone()))
+            }
+            _ => None,
+        },
+        _ => None,
+    };
+    let found = match side {
+        Operand::Pose(def) => match &**def {
+            pose::PoseDef::Flip {
+                pose: pose::RoleRead { read, role: None },
+            } => unslid(read).map(|(inner, by)| (turned(inner), by)),
+            _ => unslid(side),
+        },
+        _ => None,
+    };
+    match found {
+        Some((side, by)) => (side, Some(by)),
+        None => (side.clone(), None),
+    }
+}
+
+/// **`side` as written** in `doc`: an anonymous pose variable as its
+/// definition, each read within written the same way and each scalar as
+/// the formula it was written as ([`Doc::written_operand`]) — the form
+/// [`side_offset`] reads.
+#[must_use]
+pub fn written_side(doc: &Doc<ProfileProgram>, side: &Operand) -> Operand {
+    match side {
+        Operand::Var(var) => doc.written_operand(*var),
+        other => other.clone(),
+    }
+}
+
 /// **The entity kinds a mate of `kind` reads**, at any of its seats, in
 /// the order a reader lists them.
 #[must_use]
@@ -540,6 +670,10 @@ impl MateSeat {
 pub struct MateSideDraft {
     /// The side as loaded from the bundle, in its loaded sense.
     written: Option<Operand>,
+    /// A `to` as loaded, as written ([`written_side`]) with its offset
+    /// taken off ([`side_offset`]), and that offset: what the side is
+    /// written over once its offset changes.
+    unslid: Option<(Operand, Option<Formula>)>,
     /// The one seat's pick, or a frame's axis pick.
     first: Option<HeldPick<MatePick>>,
     /// A frame's point pick.
@@ -583,6 +717,9 @@ pub struct MateRow {
     flip: bool,
     on: MateSideDraft,
     to: MateSideDraft,
+    /// How far `to` stands off along its own direction
+    /// ([`offset_role`]), `None` where it does not.
+    offset: Option<Formula>,
     struck: bool,
     loaded: Option<LoadedMate>,
 }
@@ -605,6 +742,7 @@ impl MateRow {
             flip: opens_turned(kind),
             on: MateSideDraft::default(),
             to: MateSideDraft::default(),
+            offset: None,
             struck: false,
             loaded: None,
         }
@@ -625,6 +763,10 @@ impl MateRow {
             written: Some(side.clone()),
             ..MateSideDraft::default()
         };
+        let unslid = read
+            .and_then(offset_role)
+            .map(|role| side_offset(&written_side(doc, &mate.to), role));
+        let offset = unslid.as_ref().and_then(|(_, by)| by.clone());
         Self {
             // A kind that does not resolve is said, never guessed: the
             // row keeps its sides as written and its bundle refuses
@@ -633,7 +775,11 @@ impl MateRow {
             unread: read.is_none(),
             flip,
             on: written(&mate.on),
-            to: written(&mate.to),
+            to: MateSideDraft {
+                unslid,
+                ..written(&mate.to)
+            },
+            offset,
             struck: false,
             loaded: loaded.map(|id| LoadedMate {
                 id,
@@ -653,6 +799,13 @@ impl MateRow {
     #[must_use]
     pub fn flip(&self) -> bool {
         self.flip
+    }
+
+    /// How far the row's `to` stands off along its own direction
+    /// ([`offset_role`]), `None` where it does not.
+    #[must_use]
+    pub fn offset(&self) -> Option<&Formula> {
+        self.offset.as_ref()
     }
 
     /// Whether the row is struck out.
@@ -860,6 +1013,7 @@ enum Change {
     AddWritten(Mate<Formula>),
     ChooseKind(usize, VarKind),
     Sense(usize, bool),
+    Offset(usize, Option<Formula>),
     Strike(usize, bool),
     StrikeReading(Vec<Reading>),
     Type(Coord, Formula),
@@ -1702,21 +1856,48 @@ pub fn typed_value(
     coord: Coord,
     text: &str,
 ) -> Result<Formula, TypedValueError> {
+    typed_at(doc, text, coord.dimension())?
+        .map_err(|found| TypedValueError::Dimension { coord, found })
+}
+
+/// **What a person typed in a mate row's offset field, as its offset**
+/// ([`MateTool::set_offset`]): `None` for a field left empty, which
+/// takes the offset off; otherwise the text read as [`typed_value`]
+/// reads it, a `Length`.
+///
+/// # Errors
+///
+/// [`TypedValueError`]: text that does not parse, or a quantity of
+/// another dimension than a length.
+pub fn typed_offset(
+    doc: &Doc<ProfileProgram>,
+    text: &str,
+) -> Result<Option<Formula>, TypedValueError> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    typed_at(doc, text, Dimension::Length)?
+        .map(Some)
+        .map_err(|found| TypedValueError::OffsetDimension { found })
+}
+
+/// `text` read at `wanted`, or the dimension it read at instead.
+fn typed_at(
+    doc: &Doc<ProfileProgram>,
+    text: &str,
+    wanted: Dimension,
+) -> Result<Result<Formula, Dimension>, TypedValueError> {
     let by = crate::session::parse_text(doc, text).map_err(TypedValueError::Parse)?;
-    let wanted = coord.dimension();
     // A bare `0` is every dimension's zero: the text a zero value's field
     // shows ([`value_text`]) reads back as that zero.
     if by.dim() != wanted && (by == Formula::count(0) || by.literal_value() == Some(0.0)) {
-        return Ok(Formula::zero(wanted));
+        return Ok(Ok(Formula::zero(wanted)));
     }
-    if by.dim() == wanted {
+    Ok(if by.dim() == wanted {
         Ok(by)
     } else {
-        Err(TypedValueError::Dimension {
-            coord,
-            found: by.dim(),
-        })
-    }
+        Err(by.dim())
+    })
 }
 
 /// Why a typed value field's text is no value (closed enum, D4 ¶3).
@@ -1728,6 +1909,12 @@ pub enum TypedValueError {
     Dimension {
         /// The freedom.
         coord: Coord,
+        /// The dimension typed.
+        found: Dimension,
+    },
+    /// The text of an offset field is a quantity of another dimension
+    /// than a length.
+    OffsetDimension {
         /// The dimension typed.
         found: Dimension,
     },
@@ -1743,6 +1930,9 @@ impl core::fmt::Display for TypedValueError {
                 coord.name(),
                 coord.dimension()
             ),
+            Self::OffsetDimension { found } => {
+                write!(f, "the offset is a length, and the text is a {found}")
+            }
         }
     }
 }
@@ -2261,6 +2451,15 @@ impl MateTool {
         self.make(None, Change::Sense(row, flip));
     }
 
+    /// **Stand row `row`'s `to` off by `by`** along its own direction
+    /// ([`offset_side`]), or, with `None`, take the offset off: a
+    /// written `0` is an offset of zero, kept as written, so a formula
+    /// that comes to read zero keeps its slide. A kind with no offset
+    /// ([`offset_role`]) takes none.
+    pub fn set_offset(&mut self, row: usize, by: Option<Formula>) {
+        self.make(None, Change::Offset(row, by));
+    }
+
     /// Strike row `row` out, or take the stroke off.
     pub fn strike(&mut self, row: usize, struck: bool) {
         self.make(None, Change::Strike(row, struck));
@@ -2318,6 +2517,7 @@ impl MateTool {
                 let held = HeldPick::new(doc, pick);
                 let drafted = row.side_mut(side);
                 drafted.written = None;
+                drafted.unslid = None;
                 *drafted.seat_mut(seat) = Some(held);
             }
             Change::AddMate(kind) => {
@@ -2354,6 +2554,16 @@ impl MateTool {
                     return false;
                 };
                 row.flip = flip && senses(row.kind).is_some();
+            }
+            Change::Offset(at, by) => {
+                let Some(row) = draft.rows.get_mut(at) else {
+                    return false;
+                };
+                let by = by.filter(|_| offset_role(row.kind).is_some());
+                if row.offset == by {
+                    return false;
+                }
+                row.offset = by;
             }
             Change::Strike(at, struck) => {
                 let Some(row) = draft.rows.get_mut(at) else {
@@ -2890,11 +3100,21 @@ impl MateTool {
         let sided = |side: MateSide| -> Result<(Operand, Vec<SitedRef>), MateToolError> {
             let drafted = row.side(side);
             if let Some(written) = &drafted.written {
+                // A `to` whose offset changed is written over: its side
+                // with the loaded offset taken off, the new one put on.
+                let (written, restood) = match &drafted.unslid {
+                    Some((unslid, loaded)) if *loaded != row.offset => (unslid, true),
+                    _ => (written, false),
+                };
                 let read = match (side, row.loaded) {
                     (MateSide::To, Some(loaded)) if loaded.flip != row.flip => {
                         toggled(written.clone())
                     }
                     _ => written.clone(),
+                };
+                let read = match (restood, &row.offset, offset_role(row.kind)) {
+                    (true, Some(by), Some(role)) => offset_side(read, role, by.clone()),
+                    _ => read,
                 };
                 return Ok((read, Vec::new()));
             }
@@ -2946,6 +3166,10 @@ impl MateTool {
                 }
                 [(one, read)] => one.side(read.clone(), flip),
                 _ => unreachable!("a side reads one pick a seat, of one or two seats"),
+            };
+            let pose = match (side, &row.offset, offset_role(row.kind)) {
+                (MateSide::To, Some(by), Some(role)) => offset_side(pose, role, by.clone()),
+                _ => pose,
             };
             Ok((pose, sites))
         };

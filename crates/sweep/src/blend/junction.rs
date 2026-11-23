@@ -606,32 +606,22 @@ pub(super) fn rim_trim_circles<T: Real>(
     first_is_a: bool,
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame,
-            ..
-        },
-    ) = *first_trim
-    else {
+    let Curve3::Circle(conic_k) = *first_trim else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let carrier_frame = conic_k.frame();
     let pc = carrier_frame.origin();
     let pr = conic_k.radius();
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame,
-            ..
-        },
-    ) = *other_trim
-    else {
+    let Curve3::Circle(conic_k) = *other_trim else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let carrier_frame = conic_k.frame();
     let sc = carrier_frame.origin();
     let sr = conic_k.radius();
     Ok(((pc, pr), (sc, sr)))
@@ -663,11 +653,7 @@ pub(super) fn rim_carrier<T: Decide>(
     let c = certified_curve(body, e)?;
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        ..
-    }) = *c.carrier()
-    else {
+    let Curve3::Circle(circle_3 @ geom::Circle { .. }) = *c.carrier() else {
         return Err(unbuilt_geometry(
             EntityId::Edge(e),
             "a rim edge's carrier is not a circle, the only rim carrier the band is built \
@@ -676,7 +662,7 @@ pub(super) fn rim_carrier<T: Decide>(
     };
     let (t0, t1) = c.params();
     Ok(RimCarrier {
-        frame: carrier_frame,
+        frame: circle_3.frame(),
         t0,
         t1,
         plus_on_host: ed.he_plus == host_half,

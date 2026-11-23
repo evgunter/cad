@@ -980,20 +980,21 @@ impl ParamBox {
             })
     }
 
-    /// The DETERMINISTIC split axis (D9): the varying axis of greatest
-    /// width RELATIVE to `root`'s width on that axis, ties broken to the
-    /// EARLIEST-DECLARED variable, the least id — the order every box
-    /// iterates in. `None` when nothing varies.
+    /// The DETERMINISTIC split axis (D9): of the varying axes `among`
+    /// admits, the one of greatest width RELATIVE to `root`'s width on
+    /// that axis, ties broken to the EARLIEST-DECLARED variable, the
+    /// least id — the order every box iterates in. `None` when `among`
+    /// admits no varying axis.
     ///
     /// Relative rather than absolute because axes carry different
     /// dimensions and different spreads: a 10 mm band and a 0.01°
     /// band are not comparable as numbers, and bisecting the numerically
     /// widest would subdivide one axis forever. Relative width is
     /// dimensionless and is 1 on every axis of the root box, so the
-    /// recursion refines the box uniformly.
-    pub fn split_axis(&self, root: &Self) -> Option<VarId> {
+    /// recursion refines the admitted axes uniformly.
+    pub fn split_axis(&self, root: &Self, among: impl Fn(VarId) -> bool) -> Option<VarId> {
         let mut best: Option<(VarId, f64)> = None;
-        for (name, lo, hi) in self.varying() {
+        for (name, lo, hi) in self.varying().filter(|&(name, _, _)| among(name)) {
             let full = root.get(name).map_or(0.0, BoxAxis::width);
             // A varying axis of a box whose root axis is degenerate has
             // no relative width to speak of; rank it by its own width so

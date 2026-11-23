@@ -1559,7 +1559,7 @@ fn circular_reach<T: Decide + Bounds>(
     if sections.contains(&link.start) && sections.contains(&link.end) {
         let (c, t0, t1) = carrier_of(body, link.edge)?;
         if let (Some(circle), Some(pieces)) = (c.as_circle(), super::surgery::arc_pieces(t0, t1)) {
-            let o = circle.frame.origin();
+            let o = circle.frame().origin();
             for (ta, tb) in pieces {
                 let mid = c.eval(geom::mid_param(ta, tb));
                 wedges.push(vec![

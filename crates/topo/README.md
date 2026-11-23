@@ -642,11 +642,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    the lone vertex of exactly one Empty loop); vertex-orbit closure
    (manifoldness — watertightness is structural in the half-edge
    form); the ownership/back-pointer partition; shell-partition/
-   edge-adjacency coherence; arity floors; bidirectional [identity] provenance;
-   and the **component-aware per-shell Euler–Poincaré**: per connected
+   edge-adjacency coherence; arity floors; bidirectional [identity] provenance.
+   The checklist guarantees, and no check of its own repeats, the
+   **component-aware per-shell Euler–Poincaré**: per connected
    component of a shell's incidence complex, v − e + f − r = 2(1 − g)
    with g a non-negative integer, summing per shell to 2(c − Σgᵢ) over
-   its c components. The naive per-body form is wrong for tier-1
+   its c components — each component is a closed, connected,
+   orientable surface by the checks above. The validator counts each
+   shell's components (for tier 2's c = 1) with its own walk, apart from
+   the operators' shared one. The naive per-body form is wrong for tier-1
    bodies — `mfkrh` on a detached ring disconnects a shell's surface
    while a single shell entity remains.
 2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
@@ -882,7 +886,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      beside the record; any other op refuses one. A record
      that lands on no pair, every pair read definitely, is consumed
      where one of its cells was removed, divided with its remainder
-     removed, or moved, and is stale otherwise; a cell the lineage does not cover
+     removed, or moved, or where the op put its two cells in different
+     result bodies, each holding images of one cell alone and each
+     reaching the cut by a decision the op made: the touch is
+     then a meeting between two bodies, as a split's two sides meet
+     across its plane, which no body's records state. It is stale
+     otherwise; a cell the lineage does not cover
      refuses. A cell that replaces another without holding its interior
      (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is

@@ -341,23 +341,31 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     );
 }
 
-/// What the embedding question reads on the `∩` of
-/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]:
-/// a sliver 10 m long and 1 mm wide whose top (a piece of the block's
-/// `z = 0`) and bottom (the wedge's tilted face) share its 1 mm tip
-/// edge and part at 5e-8 rad, so they are within ε of each other for
-/// about 20 mm from it and 500ε apart at the far end.
+/// The embedding ask on the `∩` of
+/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]
+/// runs out of its pairs: a sliver 10 m long and 1 mm wide whose top
+/// (a piece of the block's `z = 0`) and bottom (the wedge's tilted
+/// face) share its 1 mm tip edge and part at 5e-8 rad, so they are
+/// within ε of each other for about 20 mm from it and 500ε apart at
+/// the far end.
 ///
-/// **Pinned at its refusal**: the ask runs out of its pairs, on faces
-/// 1 mm wide that no presentation reads at this depth (EMBED's
+/// **Pinned at its refusal and at the pair it names**: `Budget(Pairs)`
+/// on the top against one of the two long side walls, a face 10 m long
+/// and at most 500ε tall, with no crossing found. That wall is a face
+/// thinner than any cell reaches at this depth, which no presentation
+/// reads (EMBED's
 /// `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`).
-/// No departure is read across the tip edge, so the margin is not what
-/// refuses. Once those faces are presented the departure there is the
-/// faces' 5e-8 rad levered at their reach from the edge, about 10 m:
-/// 500ε, outside the band, where a cell 20 mm across read at its own
-/// reach would be inside it. Red the day the ask answers.
+/// Traced by PR 7329's review and not visible to this row: every
+/// departure the ask does read is decided (295 reads on that head, at
+/// arms of 5.03 and 10.05 m), so the margin is not what refuses. The
+/// count of pairs certified is not pinned: it moves with the walk's
+/// order (295 on PR 7329's own head, 273 with `embed/first-finding`).
+/// Once those faces are presented, the departure across the tip edge
+/// is the faces' 5e-8 rad at their lever, which is
+/// `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`'s
+/// to say. Red the day the ask answers, or stops on another pair.
 #[test]
-fn the_sector_slivers_meet_is_read_at_its_faces_reach() {
+fn the_sector_slivers_meet_runs_out_of_pairs_with_its_millimetre_faces_unread() {
     let tol = Tol::witness();
     let dip = DIP * tol.eps();
     let block = common::finished(
@@ -380,13 +388,24 @@ fn the_sector_slivers_meet_is_read_at_its_faces_reach() {
             max_cell_pairs: 65_536,
         },
     );
+    let topo::clearance::Embedding::Refused(topo::clearance::EngineRefusal::Budget {
+        stop: topo::clearance::CellBudget::Pairs { .. },
+        a,
+        b,
+    }) = report.verdict
+    else {
+        panic!("the sector's sliver runs out of its pairs: {report:?}");
+    };
+    let top = face_with_normal(&meet, [0.0, 0.0, 1.0]);
+    let wall = |k: FaceKey| {
+        matches!(face_carrier_desc(&meet, k), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. }))
+            if normal.z == 0.0 && normal.y.abs() > 0.9)
+    };
     assert!(
-        matches!(
-            report.verdict,
-            topo::clearance::Embedding::Refused(topo::clearance::EngineRefusal::Budget(_))
-        ),
-        "the sector's sliver runs out of its budget: {report:?}"
+        (a == top && wall(b)) || (b == top && wall(a)),
+        "the pair is the top against a long side wall: {report:?}"
     );
+    assert_eq!(report.receipt.violated, 0, "no crossing: {report:?}");
 }
 
 /// The plane arm's lever, on a 10 m wedge resting at the origin on a

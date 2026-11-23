@@ -453,7 +453,8 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xe5a6_6d83_0fff_478c_u64),
+        // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
+        ("cut_cylinder", 0xed03_1d8e_bcfb_2ed4_u64),
         ("part_select", 0x323e_0e72_9c73_bca0),
         ("kitchen_sink", 0x4080_aff5_e382_f53d),
     ] {

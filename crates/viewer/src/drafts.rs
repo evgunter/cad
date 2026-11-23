@@ -55,8 +55,8 @@ pub(crate) struct Drafts {
     /// has to remember: text a parse refusal sent back
     /// ([`crate::frame::retype_draft`]). Acting on the refusal — going off to
     /// declare the variable it named — must not cost the text that
-    /// raised it, so the field keeps showing it until an expression
-    /// edit for that slot lands.
+    /// raised it, so the field keeps showing it until the next entry at
+    /// a field, a number or a text ([`crate::session::SessionOp::field_entry`]).
     pub(crate) expr_target: Option<(RecipeNodeId, SlotId)>,
     /// The refused text itself.
     pub(crate) expr_text: String,
@@ -84,6 +84,13 @@ pub(crate) struct Drafts {
     /// The placement editor's value fields being typed in, by freedom:
     /// the text, until the field loses focus and the draft takes it.
     pub(crate) mate_value_edits: Vec<(pncad::document::Coord<pncad::document::Operand>, String)>,
+    /// The placement editor's offset fields being typed in, by the
+    /// placement the editor edits and the mate row within its draft: the
+    /// text, until the field loses focus and the draft takes it. Keyed by
+    /// placement as well as row, so every editor drawing
+    /// `pane::create::mate_offset_row` over this one buffer reads only
+    /// its own rows' text.
+    pub(crate) mate_offset_edits: Vec<((pncad::document::RecipeNodeId, usize), String)>,
     /// The door the value edits were typed under: a different door, or
     /// the same one over another bundle (a reload), drops them.
     pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
@@ -281,6 +288,16 @@ impl Pending {
 }
 
 pncad::geom_brep::ended_by_write!(Pending);
+
+/// **What one entry at a held field writes** ([`ProfileEdit::write_entry`]):
+/// the field's two doors, as the slot row's are.
+#[derive(Clone, Debug)]
+pub(crate) enum HeldEntry {
+    /// Text, for the draft to parse.
+    Text(String),
+    /// A typed number, as the literal it writes (`props::typed_formula`).
+    Literal(Formula),
+}
 
 /// **One change to the shape of the profile editor's draft** — what a
 /// click asks for, applied after the fields of its frame
@@ -541,9 +558,9 @@ impl ProfileEdit {
     /// **`step` written over held row `row` of loop `loop_`**
     /// ([`HeldStep::written`]) — what its fields write back: every
     /// argument the view did not move keeps the formula it is written
-    /// as, a driven one beside its reading on `landed` included; a
-    /// moved one is written in the unit `noted` names for its
-    /// committed slot, else in `notation`.
+    /// as, and so does every driven one; a moved literal is written in
+    /// the unit `noted` names for its committed slot, else in
+    /// `notation`.
     ///
     /// # Errors
     ///
@@ -552,20 +569,14 @@ impl ProfileEdit {
         &mut self,
         (loop_, row): (usize, usize),
         step: Step<f64>,
-        landed: &Doc<ProfileProgram>,
         notation: Notation,
         noted: &dyn Fn(SlotId) -> Option<UnitDef>,
     ) -> Result<(), RecordedProgramError> {
         let kept = self.loaded_at(loop_).get(row).copied().flatten();
-        let written = self.loops[loop_][row].written(
-            step,
-            &|arg| self.reading(landed, (loop_, row), arg),
-            notation,
-            &|arg| {
-                let (loop_, step) = kept?;
-                noted(SlotId::Profile { loop_, step, arg })
-            },
-        )?;
+        let written = self.loops[loop_][row].written(step, notation, &|arg| {
+            let (loop_, step) = kept?;
+            noted(SlotId::Profile { loop_, step, arg })
+        })?;
         self.loops[loop_][row] = written;
         Ok(())
     }
@@ -587,29 +598,43 @@ impl ProfileEdit {
         doc: &Doc<ProfileProgram>,
     ) -> Result<Formula, Refusal> {
         let formula = crate::session::parse_text(doc, text)?;
-        slot_admits(Self::held_slot(at, arg), &formula)
-            .map_err(|error| Refusal::Edit(Box::new(error)))?;
+        Self::admit(at, arg, &formula)?;
         Ok(formula)
     }
 
-    /// **`text` typed into argument `arg` of held row `at`**, judged
-    /// ([`Self::judge_text`]) and written into the held step as the
-    /// formula it reads, committed with the rest of the program. A
-    /// refusal changes nothing the draft holds.
+    /// Whether argument `arg` of held row `at` takes `formula`: the
+    /// edit door's own rule ([`slot_admits`]), in its words.
+    fn admit(at: (usize, usize), arg: StepArg, formula: &Formula) -> Result<(), Refusal> {
+        slot_admits(Self::held_slot(at, arg), formula)
+            .map_err(|error| Refusal::Edit(Box::new(error)))
+    }
+
+    /// **What a held field's entry writes into argument `arg` of held
+    /// row `at`** — a text, judged ([`Self::judge_text`]) and written as
+    /// the formula it reads, or a number, as the literal it types
+    /// (`props::typed_formula`) — over whatever the argument held, a
+    /// literal or an expression alike, committed with the rest of the
+    /// program. A refusal changes nothing the draft holds.
     ///
     /// # Errors
     ///
     /// [`Self::judge_text`]'s, and [`Refusal::NoSuchSlot`] where the
     /// row no longer has that role (a row edit landed between the
-    /// field's frame and this one): the text is dropped and said.
-    pub(crate) fn write_text(
+    /// field's frame and this one): the entry is dropped and said.
+    pub(crate) fn write_entry(
         &mut self,
         (loop_, row): (usize, usize),
         arg: StepArg,
-        text: &str,
+        entry: &HeldEntry,
         doc: &Doc<ProfileProgram>,
     ) -> Result<(), Refusal> {
-        let formula = Self::judge_text((loop_, row), arg, text, doc)?;
+        let formula = match entry {
+            HeldEntry::Text(text) => Self::judge_text((loop_, row), arg, text, doc)?,
+            HeldEntry::Literal(formula) => {
+                Self::admit((loop_, row), arg, formula)?;
+                formula.clone()
+            }
+        };
         let written = self
             .loops
             .get(loop_)
@@ -979,7 +1004,7 @@ impl ProfileEdit {
     ) {
         let rows = props::slot_rows(landed, self.node);
         let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
-        self.write_step(at, step, landed, Notation::CANONICAL, &noted)
+        self.write_step(at, step, Notation::CANONICAL, &noted)
             .unwrap_or_else(|error| panic!("{error}"));
     }
 }
@@ -1085,6 +1110,7 @@ impl Default for Drafts {
             new_variable_value: 0.0,
             new_variable_offer: None,
             mate_value_edits: Vec::new(),
+            mate_offset_edits: Vec::new(),
             mate_value_door: None,
             new_doc_name: None,
             on_face_open: false,
@@ -1517,19 +1543,37 @@ impl Drafts {
         }
     }
 
-    /// **Keep the placement editor's value edits to its draft**: dropped
-    /// when the editor closes (`door` is `None`), opens on another door
-    /// or reloads its bundle, and each edit whose freedom the draft no
-    /// longer lists (`coords`) dropped with its row.
+    /// **Keep the placement editor's value and offset edits to its
+    /// draft**: [`Self::sync_mate_door`], then
+    /// [`Self::retain_mate_values`].
     pub(crate) fn sync_mate_edits(
         &mut self,
         door: Option<&crate::matetool::PlaceDoor>,
         coords: &[pncad::document::Coord<pncad::document::Operand>],
     ) {
+        self.sync_mate_door(door);
+        self.retain_mate_values(coords);
+    }
+
+    /// **Drop the placement editor's value and offset edits when its
+    /// door changes**: the editor closed (`door` is `None`), opened on
+    /// another door, or reloaded its bundle. Called before any of the
+    /// editor's fields is drawn, so a field never shows or commits text
+    /// typed under another draft.
+    pub(crate) fn sync_mate_door(&mut self, door: Option<&crate::matetool::PlaceDoor>) {
         if self.mate_value_door.as_ref() != door {
             self.mate_value_edits.clear();
+            self.mate_offset_edits.clear();
             self.mate_value_door = door.cloned();
         }
+    }
+
+    /// **Drop each value edit whose freedom the draft no longer lists**
+    /// (`coords`), with its row.
+    pub(crate) fn retain_mate_values(
+        &mut self,
+        coords: &[pncad::document::Coord<pncad::document::Operand>],
+    ) {
         self.mate_value_edits
             .retain(|(coord, _)| coords.contains(coord));
     }

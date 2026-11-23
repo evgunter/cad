@@ -69,8 +69,8 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             let u = dir.normalize();
             (w - u * w.dot(u)).norm()
         }
-        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-            let (center, axis) = (frame.origin(), frame.axis());
+        Curve3::Circle(circle) => {
+            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
             let radius = circle.radius();
             let w = q - center;
             let h = w.dot(axis);
@@ -2431,17 +2431,17 @@ fn circles_on_one_sphere_meet_at_the_certified_scalar() {
     let band = Band::new(1e-12, 1e-11).unwrap();
     let i = Interval::from_f64;
     let lift = |c: &Curve3<f64>| {
-        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = *c else {
+        let Curve3::Circle(conic_k) = *c else {
             unreachable!("a circle")
         };
         let radius = conic_k.radius();
         let v = |v: Vec3<f64>| Vec3::new(i(v.x), i(v.y), i(v.z));
-        let o = frame.origin();
+        let o = conic_k.frame().origin();
         Curve3::circle(
             Point3::new(i(o.x), i(o.y), i(o.z)),
-            v(frame.axis()),
+            v(conic_k.frame().axis()),
             i(radius),
-            v(frame.u_ref()),
+            v(conic_k.frame().u_ref()),
         )
     };
     let mid = |x: Interval| geom::bracket_mid((geom_core::Bounds::lo(x), geom_core::Bounds::hi(x)));

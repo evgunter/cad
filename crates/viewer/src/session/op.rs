@@ -89,8 +89,10 @@ pub enum SessionOp {
         /// The placement: a `Place` or an instance.
         placement: RecipeNodeId,
     },
-    /// Write a value into a node's slot. Refused if the slot is
-    /// driven by an expression.
+    /// Write a value into a node's slot: the slot reads a literal of
+    /// it in the unit it is written in, whatever it read before, so a
+    /// number written over an expression replaces the expression. Only a
+    /// drag over an expression is refused ([`SessionOp::BeginGesture`]).
     SetSlot {
         /// The node.
         node: RecipeNodeId,
@@ -114,10 +116,10 @@ pub enum SessionOp {
     /// every candidate is applied to a scratch copy that is dropped.
     ///
     /// A slot driven by an expression is refused, exactly as
-    /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
-    /// it: the range would be a range of numbers for a field that
-    /// takes no number. The affordance names the driving variables,
-    /// which are the fields to probe instead.
+    /// [`SessionOp::BeginGesture`] refuses it: the range would be how far
+    /// a number can move a slot whose number nothing moves until an
+    /// entry replaces the expression. The affordance names the driving
+    /// variables, which are the fields to probe instead.
     ProbeBounds {
         /// The field to probe.
         target: BoundsTarget,
@@ -148,7 +150,7 @@ pub enum SessionOp {
     },
     /// Replace a slot's expression from source text, through the
     /// shipped `parse_formula` door. This is the affordance's editing
-    /// half: a driven slot refuses a NUMBER, never an expression.
+    /// half: a driven slot refuses a DRAG, never an expression.
     SetSlotExpression {
         /// The node.
         node: RecipeNodeId,
@@ -681,11 +683,11 @@ pub enum SessionOp {
     ///
     /// Every argument of a kept step that did not move is written as
     /// the document holds it, so only what moved takes the editor's
-    /// notation. A kept step's argument an expression drives refuses
-    /// with the affordance if the program does not hold it unmoved
-    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
-    /// does. The program itself, and `ids`' shape, are the edit door's
-    /// to judge, and refuse in its words ([`Refusal::Edit`]).
+    /// notation. A kept step's argument the program writes anew is
+    /// written as the program holds it, over an expression as over a
+    /// literal, exactly as [`SessionOp::SetSlot`] writes a slot. The
+    /// program itself, and `ids`' shape, are the edit door's to judge,
+    /// and refuse in its words ([`Refusal::Edit`]).
     ///
     /// A name on a step the program does not keep, or on a kept step's
     /// piece it stops drawing, is stranded, and the door's report of it
@@ -1301,6 +1303,20 @@ pub struct PlacementBase {
 }
 
 impl SessionOp {
+    /// **The slot a value field's typed entry is aimed at**: a number
+    /// ([`Self::SetSlot`]) and text ([`Self::SetSlotExpression`]) are
+    /// the two doors of one field, so either is that field's edit.
+    /// `None` for every other op.
+    #[must_use]
+    pub fn field_entry(&self) -> Option<(RecipeNodeId, SlotId)> {
+        match self {
+            Self::SetSlot { node, slot, .. } | Self::SetSlotExpression { node, slot, .. } => {
+                Some((*node, *slot))
+            }
+            _ => None,
+        }
+    }
+
     /// **The viewer's Place of `body`**: into the space the body is in,
     /// so the copy stands where the body is. `None` for a read in no
     /// space, which names no body to place.

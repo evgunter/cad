@@ -283,30 +283,47 @@ impl Ball {
     }
 }
 
-/// Is the carrier's singular set decided clear of the ball: a cone's
-/// apex, and a torus's or spindle sheet's axis, which holds a sheet's
-/// apexes (a ring torus never comes near it). The other carriers have
-/// none.
+/// Is the carrier's singular set decided clear of the ball: the
+/// singular points of its one home but a sphere's poles, and a torus's
+/// or spindle sheet's axis.
+///
+/// A sphere's poles are not read. The carrier is a smooth sphere there,
+/// so a patch through a pole is connected in the carrier minus the
+/// boundary exactly when it is connected away from it, which is all step
+/// 2 of the module's reading needs; reading them would keep every cell
+/// of a polar row undecided, and a sphere zone's cavity then exhausts its
+/// pair budget (`sweep` `sf2b_interval_probe`).
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
-    match *surface {
-        Surface::Cone { frame, .. } => {
-            let apex = frame.origin();
-            clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
-        }
+    // The singular points from their one home but a sphere's poles: a
+    // cone's apex, a sheet's apexes, a spline net's collapsed sides.
+    let points_clear = geom_brep::chart_singularity::singular_points(surface)
+        .into_iter()
+        .filter(|(which, _)| {
+            !matches!(
+                which,
+                geom_brep::chart_singularity::Singularity::North
+                    | geom_brep::chart_singularity::Singularity::South
+            )
+        })
+        .all(|(_, x)| clear_as(CELL_REGION_SINGULAR, (station - x).norm()));
+    // A torus's or spindle sheet's axis, where its azimuth's lever
+    // collapses: no singular point of a ring torus, which never comes
+    // near it, and a sheet's apexes lie on it.
+    let axis_clear = match *surface {
         Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
             let axis_line = geom::Line {
-                origin: center,
-                dir: axis,
+                origin: frame.origin(),
+                dir: frame.axis(),
             };
             clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
         }
         _ => true,
-    }
+    };
+    points_clear && axis_clear
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:

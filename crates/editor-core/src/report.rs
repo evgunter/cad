@@ -136,7 +136,7 @@ pub struct MassBudget {
     pub certified: Result<f64, MeasureUnavailable>,
     /// Refused mass plus tail — the number a CI row bounds.
     pub unresolved: Result<f64, MeasureUnavailable>,
-    /// Refused mass per reason class, in class order.
+    /// Refused mass per reason class, by the class's name.
     pub refused: BTreeMap<&'static str, Result<f64, MeasureUnavailable>>,
     /// The tail outside the analyzed box (E2).
     pub tail: Result<f64, MeasureUnavailable>,

@@ -548,15 +548,16 @@ pub(crate) struct GestureVocabulary<Preview, Op = SessionOp> {
 
 impl<Preview, Op> GestureVocabulary<Preview, Op> {
     /// **A gesture over a HELD value** — one a draft holds rather than
-    /// the session: every frame the value moves is `preview` of it, and
-    /// the press, the release and Escape are `rest`, since nothing is
-    /// opened to land or abandon.
-    pub(crate) fn held(preview: Preview, rest: Op) -> Self
+    /// the session: the press is `begin`, where the held field judges
+    /// the drag as the session judges a slot's, every frame the value
+    /// moves is `preview` of it, and the release and Escape are `rest`,
+    /// since nothing is opened to land or abandon.
+    pub(crate) fn held(begin: Op, preview: Preview, rest: Op) -> Self
     where
         Op: Clone,
     {
         Self {
-            begin: rest.clone(),
+            begin,
             preview,
             commit: rest.clone(),
             cancel: rest,
@@ -4051,8 +4052,8 @@ mod value_field_tests {
                 self.emitted.push(op.clone());
                 let outcome = self.session.perform(op.clone());
                 // The harness drives the paths a row can DRIVE: every
-                // refusal this field can reach (a driven slot's number
-                // door, an unparseable text) is a path `Row` cannot
+                // refusal this field can reach (a drag over a driven
+                // slot, an unparseable text) is a path `Row` cannot
                 // hold, because a refused frame stops here. Those stay
                 // with `tests/panel_edits.rs`, which reads them at the
                 // session door.
@@ -4448,8 +4449,8 @@ mod value_field_tests {
     /// the no-reading marker after the driven mark, and still opens its
     /// keyboard edit on its SOURCE, because the field under that text is
     /// the slot's only door to its expression; the number the field
-    /// holds is one the driven guard refuses to write. In metres the
-    /// same row reads a number.
+    /// holds is one no drag writes, since the driven guard refuses it.
+    /// In metres the same row reads a number.
     #[test]
     fn a_driven_slot_past_its_notations_range_keeps_its_text_door() {
         let mut row = Row::extrude_distance("vgeom-driven-unnameable", 0.008);

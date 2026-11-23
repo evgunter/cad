@@ -806,9 +806,9 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 // it mints (VARIABLES VR4): the digest feeds every node id, and one more
 // minted variable per placement moves the ids after it.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x49aa_a7be_d3c8_eae9),
-    (1e-6, 0xcb88_5110_3f96_3ea8),
-    (1e-12, 0x34c6_123b_5cf3_4184),
+    (1e-9, 0x4002_fb45_280f_d40c),
+    (1e-6, 0xef4a_8f5e_5e94_2b77),
+    (1e-12, 0xe32b_2a40_e733_2c0d),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -892,6 +892,13 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// blends' squared frames (a chamfer plane's normal renormalized, a
 /// fillet's `u_ref` zero signed `+0`), measured by dumping every corpus
 /// body on both trees.
+///
+/// RE-PINNED when the least turn's Rodrigues arm became
+/// `v + k × v + k × (k × v)/(1 + c)` (no read of whether the pair is one
+/// direction): a generic turn's entries move by rounding (its landing
+/// defect 2.54u → 2.29u, its rigidity defect 6u → 3u over the spelling
+/// probe's draws), so the digest's bits moved; a pair one direction keeps
+/// the identity bit for bit.
 #[test]
 fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

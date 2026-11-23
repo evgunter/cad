@@ -58,3 +58,120 @@ none names this range.
 
 **Owed:** bisect the range on the first parent; re-pin with the moving
 PR's reason, or fix what it moved.
+
+## Bisected (2026-11-22, BOXFINISH's measurement lane; every step a clean checkout)
+
+Two first-parent merges moved the eleven rows between them; none is
+left unexplained. Steps run: `c390e1f9` 11 pass; `2ecec12e84` and
+`abe288332a` 11 pass; `4a94f7109b` 5 red; `f7dd37696d` the same 5,
+same payloads; `54e6a5c5b8` 11 red; `6e524e45d8`, `5a21dc9b95`,
+`69f31a4e` and `0b3433786b` (main at 23:00 UTC) 11 red with one and
+the same failure text.
+
+- **PR 7354, `sectcone/conic-pairs-on-the-value` (merge `4a94f7109b`),
+  moves five:** `seat7_sweep_lowering`'s `boss_union` digest,
+  `m10_p_fence::the_corpus_evaluation_is_bit_identical_at_interval`,
+  `revalue_corpus::revalue_boss_union_apart_to_its_parting`, and
+  `sweep`'s `bisector_nodes::the_near_node_poses_at_the_witness_band`
+  and `section_end_poses::a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds`.
+  Its body re-baselines `mesh` `route_rows` because "each section
+  conic's edges are now the carried component's arcs, seated once per
+  component ... the same conic, parametrized from another seat", and
+  names none of these five; its diff touches none of their files. Read
+  from the diff, not shown: `boss_union`'s section circle is the same
+  re-seating; the two `sweep` rows are band-edge poses whose decisions
+  now escalate (`TransversalityArm` inside a `RebasedCarrier`;
+  `Coincidence(Section, Moot)` at margin `1.0000000272e-9`) after the
+  PR changed what reads a pair's pose.
+- **PR 7299, `germ/crossing-consumers` (merge `54e6a5c5b8`), moves the
+  other six** and adds `cut_cylinder` to `seat7`'s payload:
+  `seat8_split_lowering`, `intent_s2_c_world`, `m10_p_fence`'s `f64`
+  and id-masked rows, `edit_placement_corpus_bits`,
+  `perf12_census_goldens`. Its body describes behaviour and refusal
+  changes and says nothing of geometry bits moving. Read from the
+  diff, not shown: a split vertex once placed by interpolating its
+  ends' sides is now placed at `curve_face::cross`'s root, so a
+  plane-cut cylinder's vertex bits differ in the last places.
+
+**Owed, by the program that moved each:** SECTCONE re-pins or fixes
+its five, GERM its six, each judging the move first (the two `sweep`
+rows are decisions that changed, not bits: a refusal's kind at a band
+edge). A branch that merged main at or past `54e6a5c5b8` inherits all
+eleven with these payloads; any other payload on these rows is the
+branch's own.
+
+**Also moved on these rows by an open PR:** BOXFINISH's PR 7370
+lowers `revalue_boss_union_apart_to_its_parting`'s `moved` floor for
+its own reasons (stated there); whoever re-cuts that row's other pin
+should do so on a tree that holds it if it has landed.
+
+## GERM's six (2026-11-23, GERM's `germ/repin-u3b-moves`)
+
+**What moved, measured.** Every corpus document evaluated at `f64` on
+`54e6a5c5b8^1` and on `54e6a5c5b8`, every node's outcome and every
+body point's bits dumped and diffed: one point moved, in `cut_cylinder`
+only. The split vertex on the `x = -0.5` seam went from
+`z = 0.6546681248048115` (`0x3fe4f30a9138a665`) to `0.6546681248048116`
+(`…a666`), one ulp. It is the same point in the two placed halves
+(nodes 46 and 61) and the product (69). Every node's outcome, every
+other point and each body's face, edge, vertex and point counts held.
+The other seam vertex, `(0.5, 0, 0.3453318751951884)`, did not move.
+
+**Judged sound.** The exact crossing of the split plane with the seam
+line, computed in rationals from the plane's `f64` origin and normal,
+is `t = 0.65466812480481157…`. The parent's interpolation
+`t₀ + (t₁ − t₀)·d₁/(d₁ − d₂)` read `…115`, 0.58 ulp below it, which is
+not the nearest double. `cross`'s root reads `…116`, 0.42 ulp above
+it, which is the correctly rounded crossing. At `Interval`, 7299
+narrowed both seam vertices' `z` enclosures, and each new enclosure lies
+inside the old one and holds the exact crossing: `x = 0.5` went from
+98 ulp wide to 60, and `x = -0.5` from 71 to 34.
+
+The census golden's line 95 at every ε row is the witness of the same
+`VertexVertex` contact (`4v1`/`8v1`), `…115` to `…116`. No finding,
+kind or count moved. Main at `7691e4f872` reads the merge's values on
+every row: the same digests, and the same census diff after a bless.
+
+**Re-pinned**, each with a one-line reason at the pin:
+- `seat8_split_lowering`'s `cut_cylinder`;
+- `seat7_sweep_lowering`'s `cut_cylinder`, which is one-digest-two-suites
+  with seat8 (`fixture/one-digest-of-one-document-is-pinned-in-two-suites-and-re-blessed-in-one`).
+  `boss_union`'s pin in the same table is SECTCONE's and stays red at
+  `0x2ea09f26ff2947dd`;
+- `intent_s2_c_world`'s `cut_cylinder` row;
+- `m10_p_fence`'s `f64` row, together with the `probe` row that pins the
+  same number, and its id-masked row;
+- `edit_placement_corpus_bits`'s two `cut_cylinder` placements;
+- `perf12_census_goldens`' three files, blessed per ε with
+  `PERF12_BLESS_CENSUS=1`.
+
+These rows were run at the default ε, 1e-6 and 1e-12, with
+`CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL=1`. The `probe` row was run at the
+default ε only, with `--features probe`. At the default ε, the whole
+`editor-core` suite was run with its slow set. Every slow-set pin of
+these documents passes: `lib_g16_corpus_name_digests`,
+`perf2_name_keying_differential`, `revalue_cut_cylinder`, `m5_pr5_corpus`,
+`m5_pr11_corpus_curved` and `m10_di_dual_corpus`. Four GERM-free reds
+remain at the default ε. Three are SECTCONE's: seat7's `boss_union`,
+the Interval fence and `revalue_boss_union_apart_to_its_parting`. The
+fourth, `split_pinch_keeps`' kite moat, is already held by
+`main-red-rows-two-lanes-found-red-on-their-merge-base-are-held-by-closed-rows-or-none`.
+That row also holds `m10_sym_drive_memo_interval`'s race row.
+
+**Not left to SECTCONE alone: PR 7299 also moved the Interval fence.**
+On `54e6a5c5b8^1` it reads `(2a1ab4f085f8c0a6, b6848d57920aac6a)`.
+That is already SECTCONE's move off the pin. On `54e6a5c5b8` and on
+main it reads `(86435b89a5aa3a4a, 84b17f3f33c05abe)`. The only
+difference 7299 makes there is the narrowing above: the two seam
+vertices of `cut_cylinder`, in nodes 46, 61 and 69. The row is left
+unpinned, as SECTCONE's. Whoever re-takes it re-takes both moves, and
+GERM's is judged here.
+
+**Seen again, 2026-11-22 (PR 7219's delta review):** the two `sweep`
+rows are red on `3900eb46` and on that PR's head `c65b9292` alike, with
+no seed and no ε set, on a binary carrying only a decision logger
+(`analysis/oneround/lever-sites-brep/delta-review-report.md` on
+`oneround/lever-sites-brep-review`, finding D5). That PR does not move
+them: its head merged with main at `5d5cb7d8` gives the two payloads
+above. (Carried here from the PR's branch by ONEROUND's orchestrator,
+whose copy of this row trailed main's.)

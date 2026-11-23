@@ -122,9 +122,10 @@ fn a_sphere_cone_seam_at_a_second_latitude_fillets_to_its_hand_torus() {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = *c.carrier() else {
+        let Curve3::Circle(conic_k) = *c.carrier() else {
             panic!("a trim circle")
         };
+        let frame = conic_k.frame();
         let center = frame.origin();
         let radius = conic_k.radius();
         assert!((radius - want_r).abs() < 1e-12, "{which} trim radius");

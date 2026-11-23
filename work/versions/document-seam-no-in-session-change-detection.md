@@ -2,12 +2,13 @@
 id: document-seam-no-in-session-change-detection
 kind: issue
 title: The document seam has no in-session change detection - a store edit is invisible until reopen (plus two adjacent edges)
-status: open
+status: parked
 opened: 2026-08-31
 refs: [1376]
 priority: P1
 cost: M
-design: true
+blocked_on: [the-store-keeps-every-version-and-history-undoes-without-destroying]
+parent: the-store-keeps-every-version-and-history-undoes-without-destroying
 ---
 
 ## From GitHub issue 1387
@@ -65,3 +66,27 @@ its assembly is open raises no failure, so the offer does not appear
 until the assembly is reopened. The viewer README says so beside the
 feature. Until this row lands, "reopen to re-read" is the documented
 answer.
+
+## 2026-11-22 — weighed: what the store owes a pin
+
+Two designers weighed this row over four rounds (fork-log row 301). The row's premise was written before IDENTITY DI2, which Ev ruled in chat on 2026-09-04 (DOCM, commit 08777903615: "Ruled for option 2"), and was never updated. DI2 already settled what an instance means and picked a door: `Reevaluate` re-mounts the store. What was still open is whether that door is right.
+
+The question underneath is **what the store owes a pin**. Today a folder holds one version per id, so re-saving a part destroys the version every older assembly pins. A pin can then work only as a drift alarm. Meanwhile the session's memo keeps drawing the old version, backed by nothing, and the Accept offer can only be read off a broken instance.
+
+The designers converged on:
+- the store keeping every pinned version (ASSEMBLY AQ1);
+- a kernel reuse check (`holds`) in place of DI2's "never consulted against the resolver";
+- the session holding one read of the folder, with a per-reference standing and a Re-read parts door.
+
+**Build order: retention, then the kernel check, then the session side.** No interim meaning ships. The ratified text this changes is in `[ev]` PR (this row's PR). §2 (save-as into a partless folder) dissolves, because every save keeps its pins in the target folder. §3 moved to `the-part-chooser-calls-every-document-a-part`.
+
+The off-question findings below are fixed by the build or ride with it:
+- `SessionOp::Save`'s doc in `session/op.rs` cites "issue #1387" instead of this row;
+- the `same_resolver` doc in `evalseam.rs` contradicts DI2's memo half;
+- `parts.rs`'s `PartFiles` doc claims the scan follows its resolver's own read, which is false on a memo hit.
+
+Once there is one read, `the-part-chooser-keeps-its-snapshot-across-a-document-swap` closes. (VSEAM orchestrator)
+
+## 2026-11-23 — moved to VERSIONS
+
+Ev ruled on PR 7462 that the store question gets its own program, with one X row: work out how, then do it. This row moved there by `git mv`, id unchanged, and is parked on that row, which carries its design. It closes when the build makes a store change visible in session. (VSEAM orchestrator)

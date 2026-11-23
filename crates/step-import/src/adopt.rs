@@ -556,7 +556,8 @@ fn mapped_self_description(
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
         })),
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(circle @ geom::Circle { .. }) => {
+            let frame = circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             Some(MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: Point2::new(0.0, 0.0),

@@ -116,8 +116,8 @@ fn the_waist_arm_rests_the_ball_on_the_void_side_at_the_hand_value() {
 
     // The feet, from the trimlines, and the FACE each one must lie in.
     let foot = |c: &Curve3<f64>| match *c {
-        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-            let center = frame.origin();
+        Curve3::Circle(circle) => {
+            let center = circle.frame().origin();
             let radius = circle.radius();
             (radius, center.y)
         }
@@ -227,9 +227,10 @@ fn the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants() {
 
         // (3) The plane's trimline is ON the plane, and the hole widens
         // exactly on the outer offset.
-        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = blend.trim_a.0 else {
+        let Curve3::Circle(conic_k) = blend.trim_a.0 else {
             panic!("the plane trimline is a circle")
         };
+        let frame = conic_k.frame();
         let tc = frame.origin();
         let radius = conic_k.radius();
         assert!(
@@ -337,7 +338,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
         "the spine rides the INNER offset sphere, s = √((R−r)² − r²) = {s}, got {major_radius}"
     );
     let (plane_trim, sphere_trim) = {
-        let is_plane = |t: &(Curve3<f64>, f64)| matches!(t.0, Curve3::Circle(geom::Circle { frame, .. }) if (frame.origin().y - floor).abs() < 1e-15);
+        let is_plane = |t: &(Curve3<f64>, f64)| matches!(t.0, Curve3::Circle(the_circle @ geom::Circle { .. }) if (the_circle.frame().origin().y - floor).abs() < 1e-15);
         if is_plane(&link.blend.trim_a) {
             (&link.blend.trim_a, &link.blend.trim_b)
         } else {
@@ -360,9 +361,10 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
         plane_trim.1
     );
     let scale = big_r / (big_r - r);
-    let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = sphere_trim.0 else {
+    let Curve3::Circle(conic_k) = sphere_trim.0 else {
         panic!("the sphere trim is a circle")
     };
+    let frame = conic_k.frame();
     let sc = frame.origin();
     let sr = conic_k.radius();
     assert!(

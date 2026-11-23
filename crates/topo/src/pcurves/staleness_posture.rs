@@ -164,10 +164,10 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             "mint_pcurves_of",
             Maintains,
             "IS the pass restricted to a face subset: clears exactly those faces' rows, \
-             then re-mints exactly those faces. `Maintains` FOR A CALLER THAT KILLS NO \
-             HALF-EDGE, which is the whole of its production population (the two \
-             simultaneous offset doors); it cannot discharge the whole-body claim, and its \
-             own docs carry why",
+             then re-mints exactly those faces. `Maintains` FOR A CALLER THAT LEAVES NO ROW \
+             OF A DEAD HALF-EDGE: the two simultaneous offset doors kill none, and \
+             `join_edges_within` drops its dead half-edges' rows first; it cannot \
+             discharge the whole-body claim by itself, and its own docs carry why",
         ),
         // ---- Transfers: the graft's remap-and-drop, and the
         // split's restriction onto the two keys it leaves. ----
@@ -237,6 +237,13 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             Neither,
             "a test-support door that overwrites one surface datum and leaves every row \
                  as found; a row the new datum stales is the tier-3 pass's to report",
+        ),
+        (
+            "restate_geometry",
+            Neither,
+            "a test-support door that restates the stored points, carriers and surfaces \
+                 and leaves every row as found; a row the new data stale is the tier-3 \
+                 pass's to report",
         ),
         (
             "rotate_shell_faces",

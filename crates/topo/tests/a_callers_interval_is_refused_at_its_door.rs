@@ -35,8 +35,9 @@ fn circle(r: f64) -> Curve3<f64> {
 /// panic).
 fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> SpanDecision {
     let error = result.expect_err(row);
-    let EulerOpError::Certification {
+    let EulerOpError::DescriptionUncertified {
         error: CertifyError::StatedInterval { refused, .. },
+        ..
     } = &error
     else {
         panic!("{row}: not the caller's interval: {error:?}");

@@ -183,13 +183,14 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
                 "the seam's certified sup does not fit a finer ε_in"
             );
         }
-        Err(topo::EulerOpError::Certification {
+        Err(topo::EulerOpError::DescriptionUncertified {
             error:
                 geom_brep::CertifyError::Escalated {
                     check: geom_brep::CertCheck::PlaneNurbsHull,
                     cause,
                     ..
                 },
+            ..
         }) => {
             assert!(eps < 1e-13, "only the ε-fine cell refuses: {cause:?}");
             let geom_core::ErrorTextReading::Value(sup) =
@@ -330,7 +331,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::DescriptionNotAdjacent { edge: Some(e) } if e == edge
+            topo::EulerOpError::DescriptionNotAdjacent { edge: topo::EdgeSubject::Keyed(e) } if e == edge
         ),
         "P-F: expected the adjacency refusal naming the seam, got {err:?}"
     );

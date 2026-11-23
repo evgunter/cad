@@ -124,7 +124,6 @@ crates/geom/src/cover.rs	1	constant	f64::from(k)	a piece index
 crates/geom/src/cover/readings.rs	1	constant	cut	a spline window's interior cut, a point the cover chooses from the window's point ends (geom-brep `net_param`'s posture)
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
 crates/geom/src/curves/fit.rs	1	constant	degree as f64	the fit degree, a count
-crates/geom/src/curves/nurbs.rs	1	constant	<fn>	the placeholder's unit knots (Knots::lift)
 crates/geom/src/curves/nurbs.rs	1	constant	at	derivative_at's parameter, a point its caller states at f64 (a station's sample site, as `span_at`'s)
 crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
 crates/geom/src/curves/nurbs.rs	1	constant	j as f64 / per as f64	a speed piece's end as a fraction of its knot span, a fixed schedule (length_upper_bound)
@@ -132,6 +131,7 @@ crates/geom/src/curves/nurbs.rs	1	constant	v	a value a knot operation brings in 
 crates/geom/src/surfaces/nurbs.rs	1	constant	u	a removal's reinsertion of the removed knot where the surface does not hold it: the caller's f64 parameter (unreachable: the removal took it from the surface)
 crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a value other than the removed knot: the caller's f64 parameter (unreachable: a reinsertion brings in the removed knot alone)
 crates/geom/src/surfaces/nurbs.rs	3	constant	<fn>	the placeholder's unit knots, and a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
+crates/geom/src/test_support.rs	1	fixture	<fn>	the fixture NURBS segments' unit knots lifted into T (Knots::lift)
 crates/geom/src/test_support/held_arc.rs	1	constant	m as f64	a sub-arc count
 crates/geom/src/test_support/held_arc.rs	2	constant	k as f64	a sub-arc index
 crates/pncad/src/authoring.rs	2	constant	z	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
@@ -144,11 +144,11 @@ crates/profile/src/seg.rs	1	constant	ulps * f64::EPSILON	an ulp count's relative
 crates/profile/src/sugar.rs	1	constant	0.5 * band.zero()	half the band's coincidence threshold: how far past its boundary a recourse's value still fits exactly
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
-crates/profile/src/validate.rs	5	launders(the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants)	<fn>	ValidatedProfile::lift_onto (its stored scalars and its recorded directions): its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)
+crates/profile/src/validate.rs	4	launders(the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants)	<fn>	ValidatedProfile::lift_onto (its stored scalars and its recorded directions): its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)
 crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
-crates/sweep/src/loft/stacking.rs	1	constant	count as f64	a count
+crates/sweep/src/loft/stacking.rs	1	constant	count.max(1) as f64	a count
 crates/sweep/src/skin.rs	1	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at
 crates/sweep/src/skin.rs	1	constant	at	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
@@ -206,6 +206,6 @@ crates/topo/src/test_support_fixtures.rs	1	fixture	frame.radius	a fixture surfac
 crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
-crates/topo/src/test_support_fixtures.rs	10	fixture	<fn>	a fixture's f64 frame lifted into T
+crates/topo/src/test_support_fixtures.rs	11	fixture	<fn>	a fixture's f64 frame lifted into T
 crates/topo/src/test_support_meeting.rs	1	fixture	<fn>	posed_pyramid_kept: a fixture's posed f64 corners lifted into T
 crates/topo/src/validate.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths

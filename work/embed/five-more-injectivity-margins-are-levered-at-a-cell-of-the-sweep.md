@@ -1,7 +1,7 @@
 ---
 id: five-more-injectivity-margins-are-levered-at-a-cell-of-the-sweep
 kind: issue
-title: Five more margins of the injectivity check multiply an angle or a sign by an extent of the engine's own subdivision, as the departure did: three by a cell's (the graph's advance, the cusp, the monotone arm), two by a piece of an edge's span (the column, a corner's turn)
+title: Five more sites of the injectivity check multiply an angle or a sign by an extent of the engine's own subdivision, as the departure did, in six functions: four by a cell's (the graph's advance, a corner's turn off a curve, the cusp, the monotone arm), two by a piece of an edge's span (the column, a corner's turn off a line)
 status: open
 opened: 2026-11-22
 priority: P1

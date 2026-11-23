@@ -405,9 +405,9 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
 }
 
 /// **A driven slot is refused, with the affordance.** The probe's
-/// answer would be a range of numbers for a field that takes no
-/// number, so the door refuses it exactly as the numeric write and the
-/// drag do — and the payload names the variable to probe instead.
+/// answer would be how far a number can move a slot only its
+/// variables move, so the door refuses it exactly as the drag is
+/// refused — and the payload names the variable to probe instead.
 #[test]
 fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
     let tol = Tol::witness();

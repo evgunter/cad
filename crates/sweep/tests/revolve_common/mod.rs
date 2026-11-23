@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 // one instance per binary; no single consumer uses all of it
 // Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_brep::{EdgeAuthority, EdgeDescription};
@@ -21,9 +21,15 @@ pub fn eps() -> f64 {
 }
 
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
-    Profile::new(SketchPlane::xy(), loops)
-        .validate(Tol::witness())
-        .unwrap()
+    validated_on(SketchPlane::xy(), loops)
+}
+
+/// [`validated`] on another sketch plane.
+pub fn validated_on(
+    plane: SketchPlane<f64>,
+    loops: Vec<ProfileLoop<f64>>,
+) -> ValidatedProfile<f64> {
+    Profile::new(plane, loops).validate(Tol::witness()).unwrap()
 }
 
 /// The y-axis of the sketch plane (the canonical test axis: profiles
@@ -428,4 +434,52 @@ pub fn full_pappus_y(t: &sweep::Revolved<f64>) -> f64 {
 /// band. `m5_pr9c_sphere_doors` uses a different expression entirely.
 pub fn probe_offset() -> f64 {
     (1e6 * Tol::witness().get().eps).clamp(1e-3, 0.1)
+}
+
+/// **A half turn's caps are left on the start cap's record, with the row
+/// naming start cap then end cap.** `start_record` is the plane the same
+/// profile's start cap wears where the caps stay two records (a turn
+/// short of π with the same sign): the start cap's plane depends on the
+/// turn's sign alone, so the record that survives must state it bit for
+/// bit, and an act that kept the end cap's record (the turned plane)
+/// fails here. The cells are compared in the order the act writes them,
+/// not sorted.
+pub fn assert_half_turn_caps(t: &sweep::Revolved<f64>, start_record: &geom::Surface<f64>) {
+    let sweep::RevolvedKind::Partial {
+        start_cap,
+        end_cap,
+        coplanar_caps,
+        ..
+    } = &t.kind
+    else {
+        panic!("a partial revolve");
+    };
+    let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
+    assert_eq!(key(start_cap), key(end_cap), "the caps wear one record");
+    let kept = t.body.get_surface(key(start_cap)).unwrap();
+    assert!(
+        kept.same_content_by(start_record, |a, b| a == b),
+        "the start cap's record survives: kept {kept:?}, start cap's {start_record:?}"
+    );
+    let row = coplanar_caps.expect("the caps' coincidence is recorded");
+    let cells = row.cells.map(|c| match c {
+        topo::RowCell::Result {
+            cell: topo::Cell::Face(f),
+        } => Some(f),
+        _ => None,
+    });
+    assert_eq!(
+        cells,
+        [Some(*start_cap), Some(*end_cap)],
+        "the row names the start cap, then the end cap: {row:?}"
+    );
+}
+
+/// The start cap's record of a partial revolve, as a surface value.
+pub fn start_cap_record(t: &sweep::Revolved<f64>) -> geom::Surface<f64> {
+    let sweep::RevolvedKind::Partial { start_cap, .. } = &t.kind else {
+        panic!("a partial revolve");
+    };
+    let key = t.body.get_face(*start_cap).unwrap().surface;
+    t.body.get_surface(key).unwrap().clone()
 }

@@ -260,9 +260,10 @@ fn parse_said(f: &mut core::fmt::Formatter<'_>, error: &ParseError) -> core::fmt
 /// failure.
 #[derive(Debug)]
 pub enum Refusal {
-    /// The slot is driven by an expression, so a direct numeric edit
-    /// is refused with the affordance G4 ratifies for a drag, which
-    /// this layer extends to a typed write. The payload is what the
+    /// The slot is driven by an expression, so a drag over it is
+    /// refused with the affordance G4 ratifies, and so is a range probe
+    /// of it. A typed number is not refused: it replaces the expression
+    /// ([`crate::session::SessionOp::SetSlot`]). The payload is what the
     /// affordance needs: which variables drive it (each navigable and
     /// editable), and what the slot evaluates to today.
     DrivenByExpression {
@@ -936,10 +937,10 @@ impl Refusal {
         };
         match current {
             Some(value) => format!(
-                "driven by {over} (currently {}) — edit the expression?",
+                "driven by {over} (currently {}) — edit the expression, or type a number over it",
                 props::computed_text(slot.expr_dimension(), value.as_f64(), notation)
             ),
-            None => format!("driven by {over} — edit the expression?"),
+            None => format!("driven by {over} — edit the expression, or type a number over it"),
         }
     }
 

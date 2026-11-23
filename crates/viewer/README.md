@@ -79,8 +79,8 @@ one opens an empty name field instead, because a variable two slots
 share has a name. Typing a name and pressing **Name** or Enter names the
 variable and makes the slot read it, as one undo step. **keep
 separate** keeps the typed value distinct. A slot reading a shared
-variable is driven by it: a value typed there is refused, naming the
-variable, and the slot's expression text makes it its own again. A
+variable is driven by it: a drag there is refused, naming the
+variable, and a value typed there makes it its own again. A
 slot whose variable has no name has a **name…** button that opens an
 empty field; nothing is stored until you type a name and press
 **Name** or Enter.
@@ -2413,7 +2413,16 @@ The draft is **mate rows** (`matetool::MateRow`), each a kind of
 frame), a sense of two named values (`matetool::senses`: `opposed` or
 `flush` for a plane, `same` or `reversed` for an axis and a direction,
 `same` or `turned over` for a frame, none for a point) written as the
-flip of `to`, its seats, and a stroke. **Picks are seated by body**: a
+flip of `to`, its seats, and a stroke. A plane's and a frame's row also
+has an **offset** (`MateTool::set_offset`, `pane::create::mate_offset_row`):
+a length field taking a number or a formula, which writes `to` slid along
+the outward normal of the face it is read off, a frame's `z`
+(`matetool::offset_side`: one `PoseDef::Slide` under the sense's flip and
+over any slide written elsewhere, its direction read off the face, so a
+positive offset runs out of the face in either sense and however the side
+is spelled); left empty it takes the slide off, and `0` is an offset
+written as zero. It is the standoff DESIGN `[placement.mates]` makes a
+construction on the target, so the copy follows the face. **Picks are seated by body**: a
 pick on the draft's copy fills the active row's `on` seat and any other
 pick its `to` seat; order carries nothing. A frame's side has an axis
 seat an edge fills and a point seat a vertex fills, written

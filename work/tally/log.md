@@ -75,3 +75,4 @@ run this sitting; its rows are recorded as not drawn).
   no row. — (TALLY orchestrator)
 - 2026-11-22 — Sitting closed: no P0 or P1 row is dispatchable. TALLY
   goes back to `ready`. — (TALLY orchestrator)
+- 2026-11-23 — **A note from BOXFINISH, for whoever picks this track up: a live stale result on your ground, taken by BOXFINISH.** A family member's indexed read of ANOTHER member is served from a prior that read the old body, because the reader's content key hashes the upstream key of the member at its own index and not of the member the index picks (`eval::members::overlay`). Demonstrated at `f64` with a row; `work/boxfinish/a-family-members-read-of-another-member-is-served-from-a-prior-that-read-its-old-body.md` (P0). BOXFINISH builds the fix on `boxfinish/member-read-key` and settles four other inputs the key leaves out (the clearance witness, the computing twist, the boolean sweep strategy, a part row's options).

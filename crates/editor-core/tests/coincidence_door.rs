@@ -4251,7 +4251,8 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                             .map(geom_brep::EdgeCurve::carrier)
                             .expect("an edge has a carrier")
                         {
-                            Curve3::Circle(geom::Circle { frame, .. }) => {
+                            Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                                let frame = the_circle.frame();
                                 let (center, axis) = (frame.origin(), frame.axis());
                                 line_on(center, Some(axis))
                             }

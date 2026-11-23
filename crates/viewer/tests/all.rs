@@ -106,6 +106,8 @@ mod edit_maintenance;
 mod error_display;
 #[path = "eval_seam.rs"]
 mod eval_seam;
+#[path = "face_offset.rs"]
+mod face_offset;
 #[path = "focus_highlight.rs"]
 mod focus_highlight;
 #[path = "frame_policy.rs"]

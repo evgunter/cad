@@ -57,7 +57,7 @@ pub use editor_core::{
 pub use editor_core::{
     BoxAxis, BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig,
     DriveRefusal, LeafResults, MeasureAccounting, ParamBox, ParamBoxVerdict, ReasonClass, Receipt,
-    RefusalReason, RefusedLeaf, drive,
+    RefusalReason, RefusedLeaf, Unsettled, drive,
 };
 
 /// The E4/E5 sensitivity and stackup report — the answer to "does this
