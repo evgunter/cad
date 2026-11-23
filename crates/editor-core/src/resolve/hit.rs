@@ -21,6 +21,8 @@
 //! lookup's refusal by itself, so its type says exactly what can
 //! happen there.
 
+use crate::say;
+use crate::sentence;
 use geom_core::Decide;
 use topo::{EdgeKey, FaceKey, VertexKey};
 
@@ -53,19 +55,18 @@ pub struct UnnamedEntity {
 // nothing to a person — so the sentence names the kind and the body
 // index and calls the violation what it is.
 impl crate::spoken::Say for UnnamedEntity {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "name lookup: {}'s {} in output body {} evaluated but \
+            "name lookup: ",
+            by.node(self.node),
+            format_args!(
+                "'s {} in output body {} evaluated but \
              has no name in its table — naming emission is total, so \
              this is a kernel bug",
-            by.node(self.node),
-            self.entity.key.kind().noun(),
-            self.entity.body
+                self.entity.key.kind().noun(),
+                self.entity.body
+            )
         )
     }
 }
@@ -73,7 +74,7 @@ impl crate::spoken::Say for UnnamedEntity {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UnnamedEntity {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -82,7 +83,7 @@ impl UnnamedEntity {
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
     /// reads an evaluation alone, so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -184,14 +185,10 @@ impl From<crate::ident::Mispaired> for HitTestError {
 // payload's own sentence under this door's prefix: the hit test ran,
 // and the node it needed had no table, or its lookup refused.
 impl crate::spoken::Say for HitTestError {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Standing(standing) => {
-                write!(f, "hit test: {}", crate::spoken::Said(standing, by))
+                say!(f, "hit test: ", crate::spoken::Said(standing, by))
             }
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
@@ -204,9 +201,9 @@ impl crate::spoken::Say for HitTestError {
                 // A name does not say the node holding it, so two copies
                 // of one body hold names alike: then each face is said
                 // with the node it was hit on.
-                let said: Vec<String> = hits
+                let said: Vec<crate::Sentence> = hits
                     .iter()
-                    .map(|hit| by.name(&hit.name).to_string())
+                    .map(|hit| crate::sentence!(by.name(&hit.name)))
                     .collect();
                 let alike = said
                     .iter()
@@ -216,9 +213,9 @@ impl crate::spoken::Say for HitTestError {
                     if i > 0 {
                         f.write_str(if i + 1 == hits.len() { " and " } else { ", " })?;
                     }
-                    f.write_str(words)?;
+                    f.append(words.clone());
                     if alike {
-                        write!(f, " on {}", by.node(hit.node))?;
+                        say!(f, " on ", by.node(hit.node))?;
                     }
                 }
                 write!(
@@ -233,15 +230,21 @@ impl crate::spoken::Say for HitTestError {
                 )
             }
             Self::Unnamed(unnamed) => {
-                write!(f, "hit test: {}", crate::spoken::Said(unnamed, by))
+                say!(f, "hit test: ", crate::spoken::Said(unnamed, by))
             }
-            Self::AcrossSpaces { a, b } => write!(
+            Self::AcrossSpaces { a, b } => say!(
                 f,
-                "hit test: the targets live in different spaces, {} and {}, and {}. {}",
+                "hit test: the targets live in different spaces, ",
                 by.space(*a),
-                by.space(*b),
-                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
-                crate::sentence::Recourse("pick each space by itself")
+                sentence!(
+                    " and ",
+                    by.space(*b),
+                    format_args!(
+                        ", and {}. {}",
+                        crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
+                        crate::sentence::Recourse("pick each space by itself")
+                    )
+                )
             ),
         }
     }
@@ -250,7 +253,7 @@ impl crate::spoken::Say for HitTestError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for HitTestError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -265,7 +268,7 @@ impl HitTestError {
         &self,
         doc: &crate::doc::Doc<P>,
         evaluation: &dyn crate::NameTables,
-    ) -> String {
+    ) -> crate::Sentence {
         crate::spoken::spoken_within(self, doc, evaluation)
     }
 }

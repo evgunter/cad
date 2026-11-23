@@ -5,7 +5,7 @@ title: A refusal's payload holds a told quantity: build the type, retire the thr
 status: open
 opened: 2026-08-30
 refs: [1267, 7154]
-priority: P1
+priority: P2
 cost: H
 ---
 
@@ -55,3 +55,7 @@ what nobody checked (who reads a refusal payload's scalar field; whether
 `PathError<T>` keeps `T`), the signed-zero disagreement pinned both
 ways, the content key that hashes a `Readable` rendering, and the rows
 this one absorbs.
+
+## Re-banded P1 to P2 (2026-11-22)
+
+Ev, in chat: work that is only about how a number or a refusal is formatted, with no further design ramification and little risk of compounding when built on, is skipped or P2 once the P0s are done. What entrenches here (the told type, the notation plumbing, what a typed number means) is built or in review; what is left on this row is coverage of that pattern, crate by crate.

@@ -1631,7 +1631,10 @@ pub fn spline_pair_section<T: Decide>(
 /// spline side is not among them, whether against an implicit surface
 /// or another spline: its section is a whole reading, read per pair
 /// through [`pair_section`]'s march door ([`spline_pair_section`] where
-/// rows are handed in) by the reader that asks it ([`builds`]).
+/// rows are handed in) by the reader that asks it ([`builds`]). A
+/// cone against a torus is among them, though its coaxial pose is read
+/// elsewhere ([`ConeTorusPose`]), as a sphere on a cone's axis is, so a
+/// reader of a served pair still meets `Elsewhere` there.
 #[must_use]
 pub fn serves(a: SurfaceKind, b: SurfaceKind) -> bool {
     match arm(a, b) {

@@ -378,9 +378,9 @@ fn a_slab_wall_is_said_between_its_sections_and_a_whole_loft_wall_by_none() {
     let ids = section_ids(&doc, loft);
     let all = names(&doc, loft);
     let middle = wall_over(&all, &ids[1..3]);
-    let said = doc.spoken_name(&middle).to_string();
+    let said = editor_core::test_support::said_text(&doc.spoken_name(&middle));
     assert!(said.contains("between sections 2 and 3 "), "{said}");
-    let by_tag = SpokenName::absent(middle).to_string();
+    let by_tag = editor_core::test_support::said_text(&SpokenName::absent(middle));
     let tagged = format!("between sections {} and {} ", ids[1], ids[2]);
     assert!(by_tag.contains(&tagged), "{by_tag} says {tagged}");
 
@@ -396,17 +396,17 @@ fn a_slab_wall_is_said_between_its_sections_and_a_whole_loft_wall_by_none() {
         names(&dropped, loft).contains(&last),
         "the last slab's wall is kept"
     );
-    let now = dropped.spoken_name(&last).to_string();
+    let now = editor_core::test_support::said_text(&dropped.spoken_name(&last));
     assert!(now.contains("between sections 2 and 3 "), "{now}");
-    let then = doc.spoken_name(&last).to_string();
+    let then = editor_core::test_support::said_text(&doc.spoken_name(&last));
     assert!(then.contains("between sections 3 and 4 "), "{then}");
 
     let (whole, _, cubic) = loft_at(&[0.5, 0.45, 0.4], 2);
     let ids = section_ids(&whole, cubic);
     let wall = wall_over(&names(&whole, cubic), &ids);
     for said in [
-        whole.spoken_name(&wall).to_string(),
-        SpokenName::absent(wall.clone()).to_string(),
+        editor_core::test_support::said_text(&whole.spoken_name(&wall)),
+        editor_core::test_support::said_text(&SpokenName::absent(wall.clone())),
     ] {
         assert!(
             said.starts_with("the loft wall over ") && !said.contains("section"),

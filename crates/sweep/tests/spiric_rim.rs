@@ -381,7 +381,7 @@ fn the_census_refusals_through_public_doors() {
 /// `0.05` row does not take, so the moved caps cut the torus at two
 /// other stand-offs `d = t` and the cavity's minor radius moves with
 /// them. Once this row's door was check 7's `Unimplemented` at a cap,
-/// and before that the attach layer's `RechartFalsifies { EdgeKey(2v1),
+/// and before that the attach layer's `DescriptionUncertified { Keyed(EdgeKey(2v1)),
 /// IntervalNotForward }` — a rim window read backwards by `π·r′` on
 /// `atan2`'s branch cut.
 #[test]
@@ -449,7 +449,8 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
         .expect("a spiric rim bounds a torus face");
     let face = cavity.get_face(torus_face).expect("face");
     let surface = cavity.face_surface(torus_face).expect("surface");
-    let (edges, _) = topo::props::loop_edges(&cavity, face.outer).expect("the loop reads");
+    let (edges, _) = topo::props::loop_edges(cavity.cycle_loop(face.outer).expect("a cycle loop"))
+        .expect("the loop reads");
     let band = Band::linear(tol()).expect("band");
     let e = geom_brep::curved_face(surface, &edges, face.sense, band)
         .expect_err("the rim-or-meridian parse has no arm for a spiric");

@@ -136,7 +136,7 @@ pub(crate) fn compute_chords(
     let mut counts: HashMap<EdgeKey, usize> = HashMap::new();
     let mut holders = HashMap::new();
     for (ek, _) in body.edges() {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
         let target = edge_target(body, routes, ek, delta)?;
@@ -192,12 +192,12 @@ pub(crate) fn compute_chords(
     // The short-loop floor (module docs): raised through `tighten`, so a
     // raised count still lands on every crease joint.
     for (ek, floor) in short_loop_floors(body, &counts) {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, floor)?;
         counts.insert(ek, n);
     }
     for (ek, _) in body.edges() {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
         let n = counts[&ek];
@@ -555,7 +555,7 @@ impl FaceLattice {
                     reads: Reads::Iso(rectangle.clone()),
                 })
             }
-            Lane::Trimmed => {
+            Lane::Trimmed | Lane::Walked => {
                 // The spline row borrows the face's cell table, which this
                 // pass is the one to assemble (`face_bound`).
                 if let Some(payload) = surface.spline_chart() {
@@ -826,17 +826,6 @@ fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     }
 }
 
-/// An edge's certified curve.
-fn certified(body: &Body<f64>, ek: EdgeKey) -> Result<&geom_brep::EdgeCurve<f64>, TessellateError> {
-    let edge = body
-        .get_edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    body.get_curve_geom(edge.curve)
-        .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-        .certified()
-        .ok_or(TessellateError::NullScaffoldEdge { edge: ek })
-}
-
 /// **The short-loop floor**: the counts a loop's edges are raised to
 /// where its traversals' chords sum to fewer than three, `⌈3/k⌉` for a
 /// loop of `k` traversals, so every loop draws a polygon of at least
@@ -899,7 +888,7 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::nurbs_cert::tests::Domination;
     use crate::sizing::{
@@ -1002,6 +991,18 @@ mod tests {
 
     /// The chord pass over `body`, its vertex ids minted first.
     fn chords_of(body: &Body<f64>, delta: f64) -> ChordPass {
+        witness_pass(body, delta).0
+    }
+
+    /// **The chord pass a witness run makes over `body` at `delta`**: the
+    /// pass, the shared positions (the vertices' points in arena order,
+    /// then the chord points it mints) and the face bounds it assembled,
+    /// on the witness route table. The setup a unit row of one face's
+    /// polygon reads.
+    pub(crate) fn witness_pass(
+        body: &Body<f64>,
+        delta: f64,
+    ) -> (ChordPass, Vec<geom_core::Point3<f64>>, FaceBounds) {
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
         for (vk, p) in body.vertex_points() {
@@ -1011,7 +1012,9 @@ mod tests {
         }
         let mut bounds = FaceBounds::new();
         let routes = crate::tessellate::Routes::witness(body);
-        compute_chords(body, delta, &routes, &vids, &mut positions, &mut bounds).unwrap()
+        let pass =
+            compute_chords(body, delta, &routes, &vids, &mut positions, &mut bounds).unwrap();
+        (pass, positions, bounds)
     }
 
     /// For every side of every edge of `body` whose lattice the rule reads:

@@ -93,7 +93,7 @@ use geom_core::{Bounds as _, Interval, Point3, Vec3};
 pub(crate) type Piece = (Box3, Vec3<f64>, (f64, f64));
 
 /// **A loop's turns about one surface's channels**: about its axis
-/// (cylinder and torus) and about its core circle (torus); zero on a
+/// (cylinder, cone and torus) and about its core circle (torus); zero on a
 /// channel the surface does not have.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Winding {
@@ -181,7 +181,7 @@ impl WindsRefusal {
 /// **The largest principal difference trusted as a piece's turning**:
 /// `3π/4`, leaving `π/4` before the branch cut, which an end's angle
 /// error (its rounding over the tube radius, module docs) cannot cross.
-const TRUSTED_TURN: f64 = 0.75 * core::f64::consts::PI;
+pub(super) const TRUSTED_TURN: f64 = 0.75 * core::f64::consts::PI;
 
 /// **How far the turns may miss a whole number and still close**, in
 /// radians: the loop's closing gap (its fitted ends one point to the
@@ -219,7 +219,7 @@ impl Channel {
         match self {
             Self::Axis(frame) => frame.azimuth(p),
             Self::Core(circle) => {
-                let frame = circle.frame;
+                let frame = circle.frame();
                 let (_, rho) = super::square_part(p - frame.origin(), frame.axis());
                 geom::Azimuth::tube(frame.height(p), rho, circle.radius())
             }
@@ -241,7 +241,7 @@ impl Channel {
                 clears(x) || clears(y)
             }
             Self::Core(circle) => {
-                let (h, rho) = over_core(&circle.frame, b);
+                let (h, rho) = over_core(&circle.frame(), b);
                 clears(rho - lift(circle.radius())) || clears(h)
             }
         }

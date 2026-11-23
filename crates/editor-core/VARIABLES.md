@@ -40,12 +40,12 @@ variable's uncertainty is the pushforward of its inputs'. The
 definitions are arms of the same enum: a source is a `Body` defined as
 a read of one body (VR4), which evaluates as that body. A source reading
 itself, at any depth down further sources, is a definition reaching its
-own variable. A `Count` may be defined as an index,
-`index(N)` or `index(N) within j`, and every kind has a family keyed by
-index tuples, which no free variable holds (DESIGN `[repetition]`).
+own variable. A `Count` may be a binder's index (`{k in D: …}`), and
+every kind has a family keyed by index tuples, which a binder yields
+and no free variable holds (DESIGN `[repetition]`).
 
-**VR4 — A slot holds a `VarId`.** Every slot — a feature's depth, an
-index's count, a member read's index, a profile step's argument, a
+**VR4 — A slot holds a `VarId`.** Every slot — a feature's depth, a
+binder's range, a member read's index, a profile step's argument, a
 placement step, an assertion's value and its bound — holds a read, one
 variable id, or a list of reads (a union's or intersect's `Bodies`
 spelled as its members, a placement's shapes: REFERENCES DM4), and

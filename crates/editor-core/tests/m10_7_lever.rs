@@ -172,8 +172,8 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         doc,
         upper,
         editor_core::Mate {
-            on: fixture::plane(bottom),
-            to: tilted,
+            on: fixture::plane(bottom).into(),
+            to: tilted.into(),
             // The bottom cap faces the frame's `xy` normal unflipped:
             // the upper plate stands upended, its `z` along `−z`.
             orient: editor_core::Orientation::new(

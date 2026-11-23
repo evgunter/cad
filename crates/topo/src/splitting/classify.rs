@@ -39,8 +39,8 @@ use geom::cover::BoxAxes;
 /// axes, so whether a cut clears a face is a fact about the two of
 /// them and not about how the body is turned.
 ///
-/// Edge carriers: `Line`, `Circle` and `Ellipse` pass. A `Spiric` or
-/// `Nurbs` carrier refuses typed only when the plane may meet it
+/// Edge carriers: `Line`, `Circle`, `Ellipse` and `Spiric` pass. A
+/// spline carrier refuses typed only when the plane may meet it
 /// ([`edge_clears`]). A face whose surface key, or an edge whose curve
 /// key, does not resolve is a torn body and panics (the operand is a
 /// public body, at rest), and so does a null edge: every door that
@@ -76,14 +76,16 @@ pub(super) fn carrier_gate<T: Decide>(
             }
         }
     }
-    for (edge_key, edge) in body.edges() {
-        match body.edge_curve_linked(edge_key, edge) {
+    for view in body.edge_views() {
+        let edge_key = view.key();
+        match view.curve() {
             CurveGeom::Certified(curve) => match curve.carrier() {
-                geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {}
-                // No crossing-root arm reads a spiric or a spline.
-                geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_)
-                | geom::Curve3::Periodic(_) => {
+                geom::Curve3::Line(_)
+                | geom::Curve3::Circle(..)
+                | geom::Curve3::Ellipse(..)
+                | geom::Curve3::Spiric { .. } => {}
+                // No crossing-root arm reads a spline.
+                geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                     if !edge_clears(body, edge_key, plane, band, &frame) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
@@ -317,8 +319,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   ([`PoseRefusal::Enclosed`]): it is read by the ring composite at
 ///   this scalar (`AtRestPolicy::spline_face_crossings`), and refuses
 ///   where the scalar has none.
-/// - Any window is [`SplitReduceError::CrossingEscalated`], a spiric
-///   carrier's unbuilt route included.
+/// - Any window is [`SplitReduceError::CrossingEscalated`].
 ///
 /// Every split is certified by `split_edge` itself (the span's place of
 /// the parameter and the children's re-certification). New vertices are
@@ -360,9 +361,9 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         let u = start(body, edge.he_plus, "he_plus");
         let v = start(body, edge.he_minus, "he_minus");
         // The snapshot's record is the live one: no `split_edge` before
-        // this one touched this edge. So the curve is a link, and its
-        // miss panics (`live::OPERATORS_KEEP_LINKS`).
-        let curve = match body.edge_curve_linked(edge_key, &edge) {
+        // this one touched this edge. So the edge resolves and its curve
+        // is a link, and a miss panics (`live::OPERATORS_KEEP_LINKS`).
+        let curve = match body.proven_edge(edge_key).curve() {
             CurveGeom::Certified(c) => c.clone(),
             CurveGeom::NullScaffold(_) => unreachable!(
                 "{edge_key:?} is a null edge, and every door reaching here holds its body tier-2 \
@@ -610,15 +611,8 @@ mod tests {
         );
         let (mut sides, mut on, on_plane) = super::classify_vertices(&body, &plane, band).unwrap();
         let lines: Vec<_> = body
-            .edges()
-            .map(|(k, e)| {
-                (
-                    k,
-                    body.edge_curve_linked(k, e)
-                        .certified()
-                        .map(|c| c.carrier().clone()),
-                )
-            })
+            .edge_views()
+            .map(|e| (e.key(), e.certified().map(|c| c.carrier().clone())))
             .collect();
         let got = super::insert_crossings(&mut body, &plane, (&mut sides, &mut on, &on_plane), tol);
         let Err(crate::SplitReduceError::CrossingEscalated {

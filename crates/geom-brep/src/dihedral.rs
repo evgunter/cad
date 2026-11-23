@@ -888,10 +888,11 @@ pub enum SeamEscalation {
 /// may be spline faces (module docs, "A seam with a spline face"): the
 /// wedge between `faces` at the seam's point `p`, over the same arm
 /// gate and wedge decision, with each face's normal and curvature arm
-/// read by its kind. `chart_arm` reads a certified lower bound on a
-/// spline chart's arm at the seam's point over the reach, at this scalar
-/// ([`crate::NurbsLane::chart_arm`] where the scalar certifies); where it
-/// reads none, that lower end is poison.
+/// read by its kind. `lane` is this scalar's certification lane, `None`
+/// where the scalar does not certify: it reads a certified lower bound on
+/// a spline chart's arm at the seam's point over the reach
+/// ([`crate::chart_curvature_arm`]); where it reads none, that lower end
+/// is poison.
 ///
 /// A spline face's arm is bracketed rather than read: it lies between
 /// that lower bound and the reach, the fold's own ceiling. The seam reads
@@ -912,12 +913,12 @@ pub fn classify_seam<T: Decide>(
     faces: [SeamFace<'_, T>; 2],
     p: Point3<T>,
     reach: geom_core::Lever<T>,
-    chart_arm: impl Fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
+    lane: Option<impl crate::NurbsLaneOf<T>>,
     band: Band,
 ) -> Result<DihedralClass, SeamEscalation> {
     let [a, b] = [
-        seam_face_reading(faces[0], p, reach, &chart_arm, band)?,
-        seam_face_reading(faces[1], p, reach, &chart_arm, band)?,
+        seam_face_reading(faces[0], p, reach, lane, band)?,
+        seam_face_reading(faces[1], p, reach, lane, band)?,
     ];
     let class = wedge_of(a.normal, b.normal, fold_arms(a.hi, b.hi, reach), band)
         .map(|(class, _)| class)
@@ -947,7 +948,7 @@ fn seam_face_reading<T: Decide>(
     face: SeamFace<'_, T>,
     p: Point3<T>,
     reach: geom_core::Lever<T>,
-    chart_arm: &impl Fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
+    lane: Option<impl crate::NurbsLaneOf<T>>,
     band: Band,
 ) -> Result<SeamFaceReading<T>, SeamEscalation> {
     let (chart, uv) = match face {
@@ -976,10 +977,7 @@ fn seam_face_reading<T: Decide>(
         .map_err(SeamEscalation::Crease)?;
     Ok(SeamFaceReading {
         normal: normal.vec(),
-        lo: geom_core::Lever::curvature_radius(
-            chart_arm(chart, p, reach.length())
-                .map_or_else(crate::implicit::poison, T::from_computed),
-        ),
+        lo: crate::chart_curvature_arm(lane, chart, p, reach),
         hi: reach,
         bracketed: true,
     })
@@ -1135,6 +1133,7 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
             // Unsourced lever: the band's own escalation edge, the arm
             // rescaled to the tolerance that decides it; a tolerance, not
             // an extent, a curvature or a rate.
+            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
             Margin::levered(
                 sin_theta,
                 geom_core::Lever::unsourced(T::from_f64(band.escalate()))
@@ -2325,6 +2324,7 @@ fn wedge_reads_zero_at_the_offer<T: Decide>(sin_theta: T, cos_theta: T, band: Ba
             "material_pairing_offer_wedge",
             // Unsourced lever: the band's own escalation edge, as
             // `wedge_reads_zero_at_the_arm`'s.
+            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
             Margin::levered(
                 sin_theta / cos_theta.abs(),
                 geom_core::Lever::unsourced(T::from_f64(band.escalate()))
@@ -3832,7 +3832,13 @@ mod seam_rows {
         b: SeamFace<'_, f64>,
         reach: f64,
     ) -> Result<DihedralClass, SeamEscalation> {
-        classify_seam([a, b], ORIGIN, fixture_lever(reach), chart_arm, band())
+        classify_seam(
+            [a, b],
+            ORIGIN,
+            fixture_lever(reach),
+            Some(NurbsLane::certified()),
+            band(),
+        )
     }
 
     /// A plane through the seam point with normal `n`.
@@ -3988,6 +3994,81 @@ mod seam_rows {
                 if e.rung() == crate::LeverRung::Arm
                     && e.diag().predicate == Some("dihedral_arm")),
             "in band over the lower arm, transverse over the reach: {got:?}"
+        );
+    }
+
+    /// A lever `length` long, read off a segment of that length from
+    /// the origin.
+    fn reach_of(length: f64) -> geom_core::Lever<f64> {
+        let run = geom::cover::Cover::segment(ORIGIN, Point3::new(length, 0.0, 0.0)).unwrap();
+        crate::ExtentBall::of_cover_from(Some(&run), ORIGIN).lever()
+    }
+
+    /// **A spline face's lower arm is the lane's bound on its own chart,
+    /// at the point and over the reach it is asked at.** On the wall that
+    /// bends 0.05 m out: over a reach of 0.02, short of the bend, the arm
+    /// is the reach (red against the reach doubled); and at a point 0.04
+    /// out, a centimetre from the bend, the arm is under half what it is
+    /// at the seam (red against the chart read at the world origin in
+    /// place of the point).
+    #[test]
+    fn a_charts_arm_is_read_at_its_point_over_its_reach() {
+        let wall = bent(0.05, 1.0, 0.0);
+        let arm = |p: Point3<f64>, reach: f64| {
+            crate::chart_curvature_arm(Some(NurbsLane::certified()), &wall, p, reach_of(reach))
+                .length()
+        };
+        assert_eq!(arm(ORIGIN, 0.02), 0.02, "short of the bend, the reach");
+        let (at_seam, near_bend) = (arm(ORIGIN, 1.0), arm(Point3::new(0.0, 0.04, 0.0), 1.0));
+        assert!(
+            at_seam > 0.02 && at_seam <= 0.05,
+            "the arm stops at the bend: {at_seam}"
+        );
+        assert!(
+            near_bend > 0.0 && near_bend < 0.5 * at_seam,
+            "a centimetre from the bend: {near_bend} against {at_seam} at the seam"
+        );
+    }
+
+    /// **A spline face's lower arm is poison where no bound is read.** A
+    /// crease within the reach is the lane's refusal (red against a
+    /// refusal read as a long arm). With no lane there is no bound, and a
+    /// seam steep over the reach escalates at the arm, never transverse
+    /// (red against a lane-less arm read as the reach).
+    #[test]
+    fn a_charts_arm_is_poison_where_no_bound_is_read() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let creased = ruled(
+            kv,
+            &[(0.0, 0.0), (0.0, 0.5), (0.0, 1.0), (0.5, 1.5), (1.0, 2.0)],
+            &[1.0, 0.8, 1.0, 0.8, 1.0],
+        );
+        let lane = Some(NurbsLane::certified());
+        assert!(
+            crate::chart_curvature_arm(lane, &creased, ORIGIN, reach_of(1.0))
+                .length()
+                .is_nan(),
+            "a crease in reach, no bound"
+        );
+        let wall = bent(0.05, 1.0, 0.0);
+        assert!(
+            crate::chart_curvature_arm(None::<geom_core::NoLane>, &wall, ORIGIN, reach_of(1.0))
+                .length()
+                .is_nan(),
+            "no lane, no bound"
+        );
+        let (steep, ground) = (bent(0.05, 0.6, 0.8), floor());
+        let unread = classify_seam(
+            [at(&steep, 0.0), at(&ground, 0.0)],
+            ORIGIN,
+            reach_of(1.0),
+            None::<geom_core::NoLane>,
+            band(),
+        );
+        assert!(
+            matches!(unread, Err(SeamEscalation::Lever(e))
+                if e.rung() == crate::LeverRung::Arm),
+            "with no lane the lower arm is poison: {unread:?}"
         );
     }
 
@@ -4221,7 +4302,7 @@ mod seam_rows {
                         [SeamFace::Analytic(a), SeamFace::Analytic(b)],
                         ORIGIN,
                         fixture_lever(1.0),
-                        chart_arm,
+                        Some(NurbsLane::certified()),
                         band()
                     ),
                     wedge_decided(a, b, ORIGIN, fixture_lever(1.0), band())
@@ -4250,7 +4331,7 @@ mod seam_rows {
                 [SeamFace::Analytic(&wall), SeamFace::Analytic(&flat)],
                 ORIGIN,
                 fixture_lever(1.0),
-                chart_arm,
+                Some(NurbsLane::certified()),
                 band()
             ),
             Err(SeamEscalation::SplineReadAsAnalytic)

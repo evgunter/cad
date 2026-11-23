@@ -320,8 +320,12 @@ fn turn_reach(at: Point3<f64>) -> (Reach<f64>, f64) {
 /// offset. With the apex at the pivot it is served: the coaxial cones'
 /// two parallels. A cone at the pivot against a torus a little way up
 /// its axis is the section value's pose, read over the torus's own ball
-/// as every torus pair is, where `sin²` of a tilt in the band times a
-/// station inside the ball is far below it: apart at either height.
+/// as every torus pair is. That lever is far longer than this row's
+/// fixture reach, so the tilt that reads in the band here reads well
+/// past it there: the pose is the general one, marched, and the march
+/// finds the cone apart from the torus at either height. (The pose's
+/// own in-band tilt and offset rows are geom-brep's
+/// `cone_torus_pose::a_tilt_and_an_offset_in_the_band_read_the_axis_pose`.)
 #[test]
 fn the_turn_of_a_point_read_off_the_pivot_counts() {
     let at = p(0.0, 0.0, 0.0);

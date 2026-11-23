@@ -2,11 +2,12 @@
 id: a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses
 kind: issue
 title: a plane touching a counterbore's floor rim ships sides tier 3′ refuses with unrecorded vertex-on-face contacts
-status: dispatched
+status: review
 opened: 2026-10-29
 priority: P1
 cost: M
 branch: heldrecords/nesting
+pr: 7436
 ---
 
 

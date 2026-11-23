@@ -639,7 +639,8 @@ fn face_closures<T: geom_core::Real>(
         .map(|view| {
             let mut cells = vec![Cell::Face(view.key())];
             for member in view.boundary() {
-                if let crate::live::BoundaryMember::Edge { ek, .. } = member {
+                if let crate::live::BoundaryMember::Edge { edge, .. } = member {
+                    let ek = edge.key();
                     cells.push(Cell::Edge(ek));
                 }
                 cells.push(Cell::Vertex(member.vertex()));

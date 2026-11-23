@@ -14,7 +14,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use viewer::props::{self, SlotValue};
-use viewer::session::{BoundsTarget, DocSession, Refusal, SessionOp};
+use viewer::session::{DocSession, RangeTarget, Refusal, SessionOp};
 
 /// Two extrudes of one square, depths 8 mm and 10 mm, and two declared
 /// variables holding the same number at different kinds: `w`, a
@@ -98,7 +98,10 @@ fn a_typed_value_is_offered_the_variables_of_equal_value_and_kind() {
     let said = &session.offered(a, SlotId::Distance)[0].label;
     assert_eq!(
         said,
-        &format!("the distance of {}", session.committed_doc().spoken(b)),
+        &format!(
+            "the distance of {}",
+            viewer::tree::spelled(&session.committed_doc().spoken(b))
+        ),
         "an anonymous variable is said by the slot that reads it (VR2)"
     );
 }
@@ -419,58 +422,71 @@ fn a_named_offer_takes_no_second_name() {
     assert_eq!(reads(&session, a), minted, "and the slot its read");
 }
 
-/// **Two slots that share a variable are made two by the text door,
-/// not by a typed value** (VR2: a shared variable is named, and a slot
-/// reading a named variable is driven by it): a value typed at either
-/// is refused, naming the variable, and moves nothing; a written
-/// quantity set as its text makes it its own.
+/// **Two slots that share a variable are made two by an entry at
+/// either** (VR2: a shared variable is named, and a slot reading a named
+/// variable is driven by it): a drag at either is refused, naming the
+/// variable, and moves nothing; a value typed there, as a number or as a
+/// written quantity, makes it its own, and the other keeps the variable.
 #[test]
-fn a_shared_slot_is_made_its_own_by_its_text() {
-    let (mut session, a, b, _w, _k) = two_extrudes();
-    typed(&mut session, a, 0.010);
-    let shared = reads(&session, b);
-    let name = VarName::from_static("depth");
-    let accepted = session.perform(SessionOp::SetSlotVariable {
-        node: a,
-        slot: SlotId::Distance,
-        var: shared,
-        name: Some(name.clone()),
-    });
-    assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
-    assert_eq!(reads(&session, a), shared, "a and b read one variable");
-
-    let refused = session.perform(SessionOp::SetSlot {
-        node: a,
+fn a_shared_slot_is_made_its_own_by_an_entry() {
+    let number = |node| SessionOp::SetSlot {
+        node,
         slot: SlotId::Distance,
         value: SlotValue::Continuous(0.020),
-    });
-    let named: Option<Vec<_>> = match &refused.refusal {
-        Some(Refusal::DrivenByExpression { variables, .. }) => {
-            Some(variables.iter().map(|var| var.name().cloned()).collect())
-        }
-        _ => None,
     };
-    assert_eq!(
-        named,
-        Some(vec![Some(name.clone())]),
-        "a typed value at a shared slot is refused, naming depth: {:?}",
-        refused.refusal
-    );
-    assert_eq!(reads(&session, a), shared, "nothing moved");
-
-    let own = session.perform(SessionOp::SetSlotExpression {
-        node: a,
+    let quantity = |node| SessionOp::SetSlotExpression {
+        node,
         slot: SlotId::Distance,
         text: "20 mm".to_owned(),
-    });
-    assert!(own.refusal.is_none(), "{:?}", own.refusal);
-    assert_ne!(reads(&session, a), shared, "a reads a new variable");
-    assert_eq!(reads(&session, b), shared, "b keeps the one it read");
-    assert_eq!(
-        session.committed_doc().free(shared).map(FreeVar::dim),
-        Some(Dimension::Length),
-        "and it still holds b's depth"
-    );
+    };
+    let doors: [(&str, &dyn Fn(RecipeNodeId) -> SessionOp); 2] =
+        [("a number", &number), ("a written quantity", &quantity)];
+    for (door, entry) in doors {
+        let (mut session, a, b, _w, _k) = two_extrudes();
+        typed(&mut session, a, 0.010);
+        let shared = reads(&session, b);
+        let name = VarName::from_static("depth");
+        let accepted = session.perform(SessionOp::SetSlotVariable {
+            node: a,
+            slot: SlotId::Distance,
+            var: shared,
+            name: Some(name.clone()),
+        });
+        assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
+        assert_eq!(reads(&session, a), shared, "a and b read one variable");
+
+        let refused = session.perform(SessionOp::BeginGesture {
+            node: a,
+            slot: SlotId::Distance,
+        });
+        let named: Option<Vec<_>> = match &refused.refusal {
+            Some(Refusal::DrivenByExpression { variables, .. }) => {
+                Some(variables.iter().map(|var| var.name().cloned()).collect())
+            }
+            _ => None,
+        };
+        assert_eq!(
+            named,
+            Some(vec![Some(name.clone())]),
+            "a drag at a shared slot is refused, naming depth: {:?}",
+            refused.refusal
+        );
+        assert_eq!(reads(&session, a), shared, "nothing moved");
+
+        let own = session.perform(entry(a));
+        assert!(own.refusal.is_none(), "{door}: {:?}", own.refusal);
+        assert_ne!(reads(&session, a), shared, "{door}: a reads a new variable");
+        assert_eq!(
+            reads(&session, b),
+            shared,
+            "{door}: b keeps the one it read"
+        );
+        assert_eq!(
+            session.committed_doc().free(shared).map(FreeVar::dim),
+            Some(Dimension::Length),
+            "{door}: and it still holds b's depth"
+        );
+    }
 }
 
 /// **A name is stored only on commit, and naming moves no reader**
@@ -509,35 +525,54 @@ fn with_defined(session: &mut DocSession) -> VarId {
     d
 }
 
-/// **The range probe reads a defined variable as held, and says it is
-/// defined**: not the absent variable's refusal, which it is not.
+/// **`range?` on a defined variable, and on an absent one, is refused
+/// by the kernel's admission door in its own words**, and the control
+/// greys with the same value before the click. Both read today as "not
+/// a continuous parameter": the door does not tell a defined variable
+/// from an absent one
+/// (`work/doctail/range-admission-says-a-defined-variable-is-absent`).
 #[test]
-fn the_range_probe_says_a_defined_variable_is_defined() {
-    let (mut session, _a, _b, _w, _k) = two_extrudes();
+fn range_on_a_defined_or_absent_variable_is_refused_by_the_kernels_admission() {
+    let (mut session, _a, _b, w, _k) = two_extrudes();
     let d = with_defined(&mut session);
-    let refused = session
-        .perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Variable { var: d },
-        })
-        .refusal
-        .expect("a defined variable has no value to probe");
-    assert!(
-        matches!(&refused, Refusal::VariableIsDefined(var) if var.id() == d),
-        "{refused:?}"
-    );
-    let said = refused.to_string();
-    assert!(said.starts_with("d is defined by a formula"), "{said}");
-
     let absent = pncad::document::VarId::new(0, 0x0123_4567_89ab_cdef);
-    let refused = session
-        .perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Variable { var: absent },
-        })
-        .refusal
-        .expect("an absent variable refuses");
-    assert!(
-        matches!(refused, Refusal::NoSuchVariable(var) if var == absent),
-        "{refused:?}"
+    // A run already in flight, so the refusals below are seen to clear
+    // nothing as well as to set nothing.
+    let started = session.perform(SessionOp::ProveRange {
+        target: RangeTarget::Variable { var: w },
+    });
+    assert!(started.refusal.is_none(), "{:?}", started.refusal);
+    for var in [d, absent] {
+        let target = RangeTarget::Variable { var };
+        let greyed = session.range_refusal(&target).expect("the control greys");
+        let refused = session
+            .perform(SessionOp::ProveRange { target })
+            .refusal
+            .expect("and the click is refused");
+        assert_eq!(
+            refused.to_string(),
+            greyed.to_string(),
+            "one door, one sentence"
+        );
+        assert!(
+            matches!(
+                &refused,
+                Refusal::Range(refusal)
+                    if matches!(**refusal, pncad::analysis::RangeRefusal::NotAContinuousParam { .. })
+            ),
+            "{refused:?}"
+        );
+        assert!(
+            refused
+                .to_string()
+                .contains("there is no axis to certify over"),
+            "{refused}"
+        );
+    }
+    assert_eq!(
+        session.range().map(|reading| reading.target.clone()),
+        Some(RangeTarget::Variable { var: w }),
+        "a refused run neither sets a reading nor clears the one in flight"
     );
 }
 

@@ -904,7 +904,7 @@ fn cone_torus<T: crate::props::AtRestPolicy>(
     let pose = match geom_brep::ConeTorusPose::decide(f, g, band) {
         Some(Ok(pose)) => pose,
         Some(Err(e)) => return of_pair_section(&Err(e.into()), band, marched),
-        None => return Section::Intractable,
+        None => unreachable!("`classify_known` routes a cone and a torus here alone"),
     };
     let geom_brep::KtStance::Coaxial { slack, .. } = pose.stance() else {
         return of_pair_section(
@@ -920,7 +920,7 @@ fn cone_torus<T: crate::props::AtRestPolicy>(
         ring,
     ) = (pose.cone(), pose.ring())
     else {
-        return Section::Intractable;
+        unreachable!("a cone × torus pose holds its cone as a cone")
     };
     let [big_r, r] = ring.radii();
     // In the meridian half-plane about the apex, each nappe's generator

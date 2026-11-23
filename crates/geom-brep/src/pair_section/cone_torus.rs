@@ -53,6 +53,24 @@ use crate::ExtentBall;
 use crate::intersect::SectionError;
 use crate::torus_convention::TorusRefusal;
 
+/// An undecided gap beside an apex within this fraction of the tube
+/// radius of the torus is read as the apex's question, not the gap's.
+const NEAR_APEX_FRACTION: f64 = 64.0;
+
+/// Why an apex whose tangent plane holds a ruling is not built.
+pub(crate) const APEX_RULING: &str = "the cone's apex lies on the torus and the torus's tangent plane there holds a ruling: \
+     contact of higher order at the apex";
+
+/// **Why a decided pose is not marched**, where it is not: the one
+/// statement the section value and the march door both read.
+#[derive(Clone, Copy, Debug)]
+pub enum Unmarched {
+    /// Coaxial: the closed form's pose, the march the wrong lane.
+    Coaxial(&'static str),
+    /// The apex on the torus, a node or a touch.
+    Apex(&'static str),
+}
+
 /// The apex-on-torus row, read across its rounding.
 const APEX_ON_TORUS: [&str; 2] = ["kt_apex_on_torus", "kt_apex_on_torus_floor"];
 /// The apex form's row.
@@ -112,8 +130,9 @@ impl From<ConeTorusRefusal> for SectionError {
                 at_band: false,
                 what,
             } => Self::DegenerateOperand { what },
-            ConeTorusRefusal::ApexRuling { .. } => Self::Pinched {
-                predicate: APEX_FORM,
+            ConeTorusRefusal::ApexRuling { .. } => Self::RoutesToGeneralRung {
+                pair: "cone×torus",
+                why: APEX_RULING,
             },
             ConeTorusRefusal::Undecided { diag, .. } => Self::Escalated(diag),
         }
@@ -124,15 +143,9 @@ impl From<ConeTorusRefusal> for SectionError {
 #[derive(Clone, Copy, Debug)]
 pub enum ApexContact {
     /// The form indefinite: two rulings in the tangent plane, a node.
-    Node {
-        /// `kt_apex_on_torus`'s `Zero` margin.
-        on: MarginDiag,
-    },
+    Node,
     /// The form definite: the apex an isolated point of the section.
-    Touch {
-        /// `kt_apex_on_torus`'s `Zero` margin.
-        on: MarginDiag,
-    },
+    Touch,
 }
 
 /// **How the cone stands to the torus**, decided.
@@ -141,8 +154,6 @@ pub enum KtStance<T: Real> {
     /// The cone's axis on the torus's ([`AxisPose::Coaxial`]): the
     /// closed form's pose ([`crate::cone_torus_section`]).
     Coaxial {
-        /// The coaxiality's margin.
-        coaxial: MarginDiag,
         /// The coaxial reading's slack.
         slack: T,
     },
@@ -198,6 +209,8 @@ impl<T: Decide> ConeTorusPose<T> {
                 // the cone's axis from the apex: the turn onto the torus
                 // axis moves it by that station times `1 − cos` (at most
                 // `sin²`), and by the offset's part along the tilted axis.
+                // The pivot is the foot of the torus's ball's centre, so
+                // both are second order beside the swing.
                 |t: &Turn<T>| {
                     (ring.center() - t.at).dot(ring.axis()).abs() * t.tilt.powi(2)
                         + t.offset * t.tilt
@@ -205,13 +218,11 @@ impl<T: Decide> ConeTorusPose<T> {
                 ball,
                 band,
             ) {
-                AxisPose::Coaxial { slack, margin } => KtStance::Coaxial {
-                    coaxial: margin,
-                    slack,
-                },
+                AxisPose::Coaxial { slack, .. } => KtStance::Coaxial { slack },
                 AxisPose::Undecided(diag) => return Err(undecided(KtQuestion::Axis, diag)),
                 AxisPose::Parallel { .. } | AxisPose::Other => {
-                    match apex_on_torus(ring, apex, cone_axis.dir, sin, band)? {
+                    let (contact, apex_off) = apex_on_torus(ring, apex, cone_axis.dir, sin, band)?;
+                    match contact {
                         Some(contact) => KtStance::Apex(contact),
                         None => KtStance::Apart(
                             super::torus::swept(
@@ -226,8 +237,27 @@ impl<T: Decide> ConeTorusPose<T> {
                                 band,
                             )
                             .map_err(|refusal| match refusal {
+                                // A gap undecided beside an apex barely off
+                                // the torus is the near-node's: its two
+                                // branches are what the sweep cannot part.
                                 TorusPoseRefusal::Undecided { diag, .. } => {
-                                    undecided(KtQuestion::Gap, diag)
+                                    let near = matches!(
+                                        decide(
+                                            "kt_apex_near",
+                                            Margin::of(
+                                                ring.radii()[1] / T::from_f64(NEAR_APEX_FRACTION)
+                                                    - apex_off,
+                                            ),
+                                            band,
+                                        ),
+                                        Ok(Sign::Positive)
+                                    );
+                                    let question = if near {
+                                        KtQuestion::Apex
+                                    } else {
+                                        KtQuestion::Gap
+                                    };
+                                    undecided(question, diag)
                                 }
                                 other => {
                                     unreachable!("the gap's sweep refuses undecided, not {other:?}")
@@ -279,6 +309,26 @@ impl<T: Decide> ConeTorusPose<T> {
     /// How the cone stands.
     pub fn stance(&self) -> KtStance<T> {
         self.stance
+    }
+
+    /// **Why the pose is not marched**, if it is not (module docs, the
+    /// section): coaxial, or the apex on the torus.
+    pub fn unmarched(&self) -> Option<Unmarched> {
+        match self.stance {
+            KtStance::Coaxial { .. } => Some(Unmarched::Coaxial(
+                "a cone off the torus's axis: the coaxial pose is the closed form's \
+                 (cone_torus_section)",
+            )),
+            KtStance::Apex(ApexContact::Node) => Some(Unmarched::Apex(
+                "the cone's apex lies on the torus with its form there indefinite, a node of the \
+                 section, and the ℝ³ march ends no branch at a node",
+            )),
+            KtStance::Apex(ApexContact::Touch) => Some(Unmarched::Apex(
+                "the cone's apex touches the torus with its form there definite, an isolated \
+                 point of the section, which the ℝ³ march does not account",
+            )),
+            KtStance::Apart(_) => None,
+        }
     }
 
     /// **The tangency the pose decided**, if any: the critical gap's
@@ -339,27 +389,28 @@ fn aperture<T: Decide>(
 }
 
 /// **The apex against the torus** (module docs, reading 3): `None` where
-/// it is clear of it.
+/// it is clear of it, with its distance from the torus.
 fn apex_on_torus<T: Decide>(
     ring: Ring<T>,
     apex: Point3<T>,
     axis: Vec3<T>,
     sin: T,
     band: Band,
-) -> Result<Option<ApexContact>, ConeTorusRefusal> {
+) -> Result<(Option<ApexContact>, T), ConeTorusRefusal> {
     let [big_r, r] = ring.radii();
     let q = apex - ring.center();
     let (perp, s) = square_part(q, ring.axis());
     let h = q.dot(ring.axis());
-    let (sign, on) = decide_across_reported(
+    let off = Vec2::new(s - big_r, h).norm() - r;
+    let (sign, _) = decide_across_reported(
         APEX_ON_TORUS,
-        Vec2::new(s - big_r, h).norm() - r,
+        off,
         rounding_charge(ring.size() + q.norm()),
         band,
     )
     .map_err(|diag| undecided(KtQuestion::Apex, diag))?;
     if sign != Sign::Zero {
-        return Ok(None);
+        return Ok((None, off.abs()));
     }
     // On the torus, the apex stands `r` from the core point in its
     // meridian half-plane, off the axis since `R > r`.
@@ -376,11 +427,11 @@ fn apex_on_torus<T: Decide>(
         geom_core::Decided {
             sign: Sign::Positive,
             ..
-        } => Ok(Some(ApexContact::Touch { on })),
+        } => Ok((Some(ApexContact::Touch), T::zero())),
         geom_core::Decided {
             sign: Sign::Negative,
             ..
-        } => Ok(Some(ApexContact::Node { on })),
+        } => Ok((Some(ApexContact::Node), T::zero())),
         geom_core::Decided {
             sign: Sign::Zero,
             margin,
@@ -396,25 +447,19 @@ fn apex_on_torus<T: Decide>(
 /// torus: a node or a touch, which no march here ends a branch at or
 /// accounts.
 pub fn cone_torus<T: Decide>(pose: ConeTorusPose<T>) -> Result<PairSection<T>, SectionError> {
+    match pose.unmarched() {
+        Some(Unmarched::Coaxial(expected)) => return Err(SectionError::WrongLane { expected }),
+        Some(Unmarched::Apex(why)) => {
+            return Err(SectionError::RoutesToGeneralRung {
+                pair: "cone×torus",
+                why,
+            });
+        }
+        None => {}
+    }
     let components = match pose.stance {
-        KtStance::Coaxial { .. } => {
-            return Err(SectionError::WrongLane {
-                expected: "a cone off the torus's axis: the coaxial pose is the closed form's",
-            });
-        }
-        KtStance::Apex(ApexContact::Node { .. }) => {
-            return Err(SectionError::RoutesToGeneralRung {
-                pair: "cone×torus",
-                why: "the cone's apex lies on the torus with its form there indefinite, a node \
-                      of the section, and the ℝ³ march ends no branch at a node",
-            });
-        }
-        KtStance::Apex(ApexContact::Touch { .. }) => {
-            return Err(SectionError::RoutesToGeneralRung {
-                pair: "cone×torus",
-                why: "the cone's apex touches the torus with its form there definite, an \
-                      isolated point of the section, which the ℝ³ march does not account",
-            });
+        KtStance::Coaxial { .. } | KtStance::Apex(_) => {
+            unreachable!("`unmarched` answers every pose but an apart one")
         }
         KtStance::Apart(TorusGap::Tangent { .. }) => {
             Components::Counted(vec![super::torus::tangent_component(None, [false, false])])

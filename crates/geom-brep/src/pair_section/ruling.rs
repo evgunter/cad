@@ -38,6 +38,38 @@
 //! a branch cell at the floor escalates, a boundary within band of a
 //! branch point.
 //!
+//! # The partner's winding
+//!
+//! A sweep handed the partner's frame ([`sweep_about`], [`sweep_divided`])
+//! also reads whether each loop the ball holds whole winds about the
+//! partner's axis: a cylinder's, or a cone's through its apex. The loop is
+//! walked as pieces in its own order (one sheet's cells over the turn;
+//! or an arc's rise, the plus sheet to its fall and the minus sheet back,
+//! a branch cell read on both sheets at once), each piece's meetings in
+//! one box ([`Ruled::meeting`]). Neighbouring pieces' boxes both hold the
+//! loop's point where they meet, so a joint point is read in their meet;
+//! a branch cell's box holds both sheets either side of the branch point.
+//!
+//! The lever is `winds.rs`'s (its module docs, "The lever"), read here
+//! on the sweep's own cells rather than a march's tube boxes: each
+//! piece's box, with its two joints, is decided clear of the axis in the
+//! frame's plane. Its rectangle there is convex and misses the axis, so
+//! the stretch of the loop it holds and the chord between its joints
+//! turn about the axis alike, by less than half a turn: the chord's turn
+//! is the principal difference of its ends' azimuths, trusted within
+//! `winds.rs`'s `TRUSTED_TURN`. The loop is homotopic, off the axis, to
+//! the polygon through its joints, so it winds as that polygon's turns
+//! sum, a whole number of turns decided past half a turn or short of it.
+//! A piece that does not settle is split, a branch cell where `Δ`
+//! decides. On a cylinder the loop stands its radius off the axis; on a
+//! cone off the apex, so the pieces settle once they are small beside
+//! that. **A read that still does not settle** — a piece at the floor or
+//! past the budget, a branch cell `Δ` decides at no cut, a sum in band of
+//! half a turn — claims nothing: the loop's partner winding is unclaimed,
+//! which every reader takes as weaker, never wrong, and the sweep records
+//! the margin that failed (`Sweep::unclaimed`). It never refuses the
+//! section.
+//!
 //! Every cell is decided at the band through `k_stats` (D4). A cell no
 //! test settles is split, down to a floor; a cell at the floor, or the
 //! cell that spends the budget, escalates on its own reading.
@@ -96,6 +128,9 @@ enum Row {
     Monotone,
     /// Both meetings' side of the ball over a branch point's cell.
     Branch,
+    /// A piece of a loop clear of the partner's axis, and its turn about
+    /// it trusted or the loop's whole turns decided (`Sweeper::winds_about`).
+    Winds,
 }
 
 impl Row {
@@ -106,6 +141,7 @@ impl Row {
             Self::Cut => "ruling_cut",
             Self::Monotone => "ruling_cut_monotone",
             Self::Branch => "ruling_branch_cut",
+            Self::Winds => "ruling_partner_winding",
         }
     }
 
@@ -118,6 +154,9 @@ impl Row {
             Self::Cut => "ruling_cut_straddle",
             Self::Monotone => "ruling_cut_monotone_straddle",
             Self::Branch => "ruling_branch_cut_straddle",
+            // A partner winding that does not settle claims nothing, so
+            // it never escalates (`Sweeper::read_windings`).
+            Self::Winds => unreachable!(),
         }
     }
 }
@@ -383,6 +422,24 @@ impl<T: Real> V3<T> {
             x: self.y.scale(v.z).plus(self.z.scale(T::zero() - v.y)),
             y: self.z.scale(v.x).plus(self.x.scale(T::zero() - v.z)),
             z: self.x.scale(v.y).plus(self.y.scale(T::zero() - v.x)),
+        }
+    }
+
+    /// The box holding both.
+    fn hull(self, o: Self) -> Self {
+        Self {
+            x: self.x.hull(o.x),
+            y: self.y.hull(o.y),
+            z: self.z.hull(o.z),
+        }
+    }
+
+    /// The part both enclose, axis by axis ([`Iv::meet`]).
+    fn meet(self, o: Self) -> Self {
+        Self {
+            x: self.x.meet(o.x),
+            y: self.y.meet(o.y),
+            z: self.z.meet(o.z),
         }
     }
 
@@ -1317,6 +1374,10 @@ pub(crate) struct Swept<T: Real> {
     /// A loop of one sheet over the whole turn, which winds about the
     /// ruled side.
     pub(crate) encircles: bool,
+    /// A loop the sweep read winding about the partner's axis (`Sweeper::winds_about`):
+    /// read only where the sweep was handed that axis, and only for a
+    /// loop the ball holds whole.
+    pub(crate) winds_partner: bool,
 }
 
 impl<T: Real> Swept<T> {
@@ -1374,6 +1435,10 @@ pub(crate) struct Sweep<T: Real> {
     pub(crate) loops: usize,
     /// The double roots of `Δ` decided tangencies.
     pub(crate) touches: Vec<Touch<T>>,
+    /// Each whole loop whose winding about the partner's axis did not
+    /// settle, by the margin that failed: it claims none
+    /// (`Sweeper::read_windings`).
+    pub(crate) unclaimed: Vec<&'static str>,
 }
 
 /// **Why a sweep refused.**
@@ -1383,7 +1448,9 @@ pub(crate) enum SweepRefusal {
     /// own reading.
     Escalated(Indeterminate),
     /// Two of the sweep's readings disagree about the side of the ball
-    /// one stretch of a sheet lies on.
+    /// one stretch of a sheet lies on. A winding about the partner's axis
+    /// never refuses: one that does not settle claims nothing
+    /// ([`Sweep::unclaimed`]).
     Inconsistent(&'static str),
 }
 
@@ -1433,6 +1500,79 @@ struct Arc<T: Real> {
     rise: Cell<T>,
     fall: Cell<T>,
     smooth: Vec<Cell<T>>,
+}
+
+/// Why a partner winding read claims nothing: a piece's box, with its
+/// joints, at the floor or past the budget and not decided clear of the
+/// partner's axis.
+const UNCLEARED: &str = "a piece of the loop's walk stood undecided or short of clear of the partner's axis at the floor";
+/// A chord's turn about the axis not decided within
+/// [`super::winds::TRUSTED_TURN`] at the floor or past the budget.
+const UNTRUSTED: &str =
+    "a chord of the loop's walk turned past the trusted turn about the partner's axis at the floor";
+/// A branch cell whose `Δ` decides at no cut the split offers.
+const UNCUT: &str = "a branch cell of the loop's walk read `Δ` undecided at every cut";
+/// The walk's summed turns in band of half a turn.
+const UNTURNED: &str =
+    "the loop's whole turns about the partner's axis read in band of half a turn";
+
+/// **One piece of a loop's walk** (module docs, "The partner's winding"):
+/// a cell read on one sheet, run against the angle where `backward`, or a
+/// branch cell read on both sheets at once, `rising` where `Δ` rises
+/// through its zero as the angle grows, so that the walk enters it on the
+/// minus sheet and leaves it on the plus.
+#[derive(Clone, Copy, Debug)]
+enum Piece<T: Real> {
+    Sheet {
+        cell: Cell<T>,
+        sheet: Sheet,
+        backward: bool,
+    },
+    Branch {
+        cell: Cell<T>,
+        rising: bool,
+    },
+}
+
+impl<T: Real> Piece<T> {
+    fn sheet(cell: Cell<T>, sheet: Sheet, backward: bool) -> Self {
+        Self::Sheet {
+            cell,
+            sheet,
+            backward,
+        }
+    }
+
+    fn cell(&self) -> Cell<T> {
+        match *self {
+            Self::Sheet { cell, .. } | Self::Branch { cell, .. } => cell,
+        }
+    }
+
+    /// **An arc's loop as a walk**: its rise, the plus sheet on to its
+    /// fall, then the minus sheet back.
+    fn arc(arc: &Arc<T>) -> Vec<Self> {
+        let mut walk = vec![Self::Branch {
+            cell: arc.rise,
+            rising: true,
+        }];
+        walk.extend(
+            arc.smooth
+                .iter()
+                .map(|&c| Self::sheet(c, Sheet::Plus, false)),
+        );
+        walk.push(Self::Branch {
+            cell: arc.fall,
+            rising: false,
+        });
+        walk.extend(
+            arc.smooth
+                .iter()
+                .rev()
+                .map(|&c| Self::sheet(c, Sheet::Minus, true)),
+        );
+        walk
+    }
 }
 
 /// A sheet's reading of one cell against the ball.
@@ -1487,7 +1627,25 @@ pub(crate) fn sweep<T: Decide, R: Ruled<T>>(
     ball: ExtentBall<T>,
     band: Band,
 ) -> Result<Sweep<T>, SweepRefusal> {
-    Sweeper::new(ruled, ball, band).run()
+    Sweeper::new(ruled, ball, band, None).run()
+}
+
+/// [`sweep`], each loop the ball holds whole also read for its winding
+/// about the axis of `about`, the partner's frame, where the partner has
+/// an essential channel (`Sweeper::winds_about`): a cylinder or a cone,
+/// not a sphere.
+///
+/// # Errors
+///
+/// [`SweepRefusal`]; a winding no piece of the loop's walk settles
+/// escalates on its own reading.
+pub(crate) fn sweep_about<T: Decide, R: Ruled<T>>(
+    ruled: &R,
+    ball: ExtentBall<T>,
+    band: Band,
+    about: Option<geom::Frame<T>>,
+) -> Result<Sweep<T>, SweepRefusal> {
+    Sweeper::new(ruled, ball, band, about).run()
 }
 
 /// **An end of an arc of a sheet** ([`Swept::ends`]): a cut end on the
@@ -1504,6 +1662,8 @@ pub(crate) enum End<T: Real> {
 pub(crate) struct Divided<T: Real> {
     pub(crate) arcs: Vec<Swept<T>>,
     pub(crate) nodes: Vec<f64>,
+    /// As [`Sweep::unclaimed`].
+    pub(crate) unclaimed: Vec<&'static str>,
 }
 
 /// **The sweep of a cone whose apex lies on its partner** ([`DividedCone`]):
@@ -1519,12 +1679,13 @@ pub(crate) fn sweep_divided<T: Decide>(
     cone: &RuledCone<T>,
     ball: ExtentBall<T>,
     band: Band,
+    about: Option<geom::Frame<T>>,
 ) -> Result<Divided<T>, SweepRefusal> {
     let side = DividedCone(cone);
-    let mut sweeper = Sweeper::new(&side, ball, band);
+    let mut sweeper = Sweeper::new(&side, ball, band, about);
     let cells = sweeper.tiled()?;
     let mut events = Vec::new();
-    for (cell, disc) in cells {
+    for &(cell, disc) in &cells {
         match disc {
             Disc::Rise | Disc::Fall => events.extend(sweeper.passes(cell, disc == Disc::Rise)?),
             Disc::Positive | Disc::Negative | Disc::Touch { .. } => {
@@ -1541,8 +1702,19 @@ pub(crate) fn sweep_divided<T: Decide>(
             Event::Side(..) | Event::Cut { .. } => None,
         })
         .collect();
-    let arcs = cut_noded(&events, true, events.len() / 2)?;
-    Ok(Divided { arcs, nodes })
+    let mut arcs = cut_noded(&events, true, events.len() / 2)?;
+    // A loop the ball holds whole passes no node, so the sheet passes
+    // through the apex nowhere on it: every cell is one of the sheet's.
+    let turn: Vec<Piece<T>> = cells
+        .iter()
+        .map(|&(cell, _)| Piece::sheet(cell, Sheet::Plus, false))
+        .collect();
+    sweeper.read_windings(&mut arcs, || turn);
+    Ok(Divided {
+        arcs,
+        nodes,
+        unclaimed: sweeper.unclaimed,
+    })
 }
 
 /// **A walk's readings cut into its arcs**: each stretch inside the ball
@@ -1594,6 +1766,7 @@ fn cut_noded<T: Real>(
                 ends: Some([from, to]),
                 witness,
                 encircles: false,
+                winds_partner: false,
             })
         };
     let mut open = opened(events[start]);
@@ -1646,10 +1819,15 @@ struct Sweeper<'a, T: Real, R> {
     /// The angles of the crossing tangencies the ball holds, each a node
     /// every walk through it passes.
     crossings: Vec<f64>,
+    /// The partner's frame, its origin on its axis, where the sweep reads
+    /// each whole loop's winding about that axis (`Sweeper::winds_about`).
+    about: Option<geom::Frame<T>>,
+    /// The windings read and not settled ([`Sweep::unclaimed`]).
+    unclaimed: Vec<&'static str>,
 }
 
 impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
-    fn new(ruled: &'a R, ball: ExtentBall<T>, band: Band) -> Self {
+    fn new(ruled: &'a R, ball: ExtentBall<T>, band: Band, about: Option<geom::Frame<T>>) -> Self {
         Self {
             ruled,
             ball,
@@ -1657,6 +1835,8 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             spent: 0,
             touches: Vec::new(),
             crossings: Vec::new(),
+            about,
+            unclaimed: Vec::new(),
         }
     }
 
@@ -1681,12 +1861,19 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             for sheet in [Sheet::Plus, Sheet::Minus] {
                 let leaves = self.leaves(&turn, sheet)?;
                 let events = self.walk(leaves, sheet, false);
-                components.extend(cut_noded(&events, true, 0)?);
+                let mut sheets = cut_noded(&events, true, 0)?;
+                self.read_windings(&mut sheets, || {
+                    turn.iter()
+                        .map(|&cell| Piece::sheet(cell, sheet, false))
+                        .collect()
+                });
+                components.extend(sheets);
             }
             return Ok(Sweep {
                 components,
                 loops: 2,
                 touches: core::mem::take(&mut self.touches),
+                unclaimed: core::mem::take(&mut self.unclaimed),
             });
         }
         let arcs = arcs(cells)?;
@@ -1698,6 +1885,7 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             components,
             loops: arcs.len(),
             touches: core::mem::take(&mut self.touches),
+            unclaimed: core::mem::take(&mut self.unclaimed),
         })
     }
 
@@ -2040,7 +2228,9 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
         let mut back = self.leaves(&smooth, Sheet::Minus)?;
         back.reverse();
         events.extend(self.walk(back, Sheet::Minus, true));
-        cut_noded(&events, false, 1 + middle)
+        let mut components = cut_noded(&events, false, 1 + middle)?;
+        self.read_windings(&mut components, || Piece::arc(arc));
+        Ok(components)
     }
 
     /// **A walk along `sheet` over `leaves`**, in the walk's order
@@ -2372,6 +2562,181 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             },
         }
     }
+
+    /// **Each loop of `components` the ball holds whole read for its
+    /// winding about the partner's axis** ([`Self::winds_about`]), over
+    /// the walk `walk` gives, where the sweep was handed that axis. A
+    /// walk is one sheet's turn or one arc's loop, so it makes one loop
+    /// or none. A read that does not settle claims nothing (a weaker
+    /// claim, never a wrong one), and is recorded with the margin that
+    /// failed ([`Sweep::unclaimed`]).
+    fn read_windings(&mut self, components: &mut [Swept<T>], walk: impl FnOnce() -> Vec<Piece<T>>) {
+        let Some(frame) = self.about else {
+            return;
+        };
+        if let Some(whole) = components.iter_mut().find(|c| c.ends.is_none()) {
+            match self.winds_about(&frame, walk()) {
+                Ok(winds) => whole.winds_partner = winds,
+                Err(why) => self.unclaimed.push(why),
+            }
+        }
+    }
+
+    /// **Whether the loop `walk` runs round winds about `frame`'s axis**
+    /// (module docs, "The partner's winding"): each piece's box, with the
+    /// joints it shares with its neighbours, decided clear of the axis in
+    /// the frame's plane and its turn there decided within
+    /// [`super::winds::TRUSTED_TURN`]; a piece that is not is split. The
+    /// turns' sum is then decided past half a turn or short of it.
+    ///
+    /// # Errors
+    ///
+    /// The margin that did not settle, named: a piece at the floor or
+    /// past the budget, a branch cell `Δ` decides at no cut, or a sum in
+    /// band of half a turn. The caller claims nothing for it.
+    fn winds_about(
+        &mut self,
+        frame: &geom::Frame<T>,
+        mut walk: Vec<Piece<T>>,
+    ) -> Result<bool, &'static str> {
+        let trusted = T::from_f64(super::winds::TRUSTED_TURN);
+        let lever = self.ruled.lever();
+        loop {
+            let boxes: Vec<V3<T>> = walk.iter().map(|p| self.piece_box(p)).collect();
+            let n = boxes.len();
+            let joint = |i: usize| boxes[(i + n - 1) % n].meet(boxes[i % n]);
+            let start = frame.azimuth(joint(0).mid()).near(T::zero());
+            let mut from = start;
+            let mut unsettled = None;
+            for (i, piece) in boxes.iter().enumerate() {
+                let (into, out) = (joint(i), joint(i + 1));
+                let clear = Margin::of(self.clearance(frame, piece.hull(into).hull(out)));
+                if !self.positive(Row::Winds, clear) {
+                    unsettled = Some((i, UNCLEARED));
+                    break;
+                }
+                let to = frame.azimuth(out.mid()).near(from);
+                let short = Margin::levered(trusted - (to - from).abs(), lever);
+                if !self.positive(Row::Winds, short) {
+                    unsettled = Some((i, UNTRUSTED));
+                    break;
+                }
+                from = to;
+            }
+            match unsettled {
+                None => return self.whole_turns(from - start, lever),
+                Some((i, why)) => self.split_piece(&mut walk, i, why)?,
+            }
+        }
+    }
+
+    /// **The box a piece's meetings lie in**: its sheet's, or both sheets'
+    /// over a branch cell.
+    fn piece_box(&self, piece: &Piece<T>) -> V3<T> {
+        match *piece {
+            Piece::Sheet { cell, sheet, .. } => self.ruled.meeting(&cell, sheet),
+            Piece::Branch { cell, .. } => self
+                .ruled
+                .meeting(&cell, Sheet::Plus)
+                .hull(self.ruled.meeting(&cell, Sheet::Minus)),
+        }
+    }
+
+    /// **How far the box `b` stands clear of `frame`'s axis**, read in
+    /// the frame's plane: the largest of its rectangle's four distances
+    /// past the axis, positive where the rectangle misses it.
+    fn clearance(&self, frame: &geom::Frame<T>, b: V3<T>) -> T {
+        let w = b.less(frame.origin());
+        let (x, y) = (w.toward(frame.u_ref()), w.toward(frame.v_ref()));
+        x.lo.max(T::zero() - x.hi).max(y.lo.max(T::zero() - y.hi))
+    }
+
+    /// **The walk's whole turns read from its turning `total`**: decided
+    /// past half a turn (it winds) or short of it (it does not). The sum
+    /// telescopes: each chord's turn ends at the azimuth the next one
+    /// starts from, so `total` is the last joint's azimuth less the
+    /// first's, the same joint read twice, a whole number of turns to
+    /// rounding, and no closing check is read.
+    fn whole_turns(&self, total: T, lever: geom_core::Lever<T>) -> Result<bool, &'static str> {
+        match decide(
+            Row::Winds.name(),
+            Margin::levered(total.abs() - T::pi(), lever),
+            self.band,
+        ) {
+            Ok(Sign::Positive) => Ok(true),
+            Ok(Sign::Negative) => Ok(false),
+            Ok(Sign::Zero) | Err(_) => Err(UNTURNED),
+        }
+    }
+
+    /// **Piece `i` of `walk` split** where its `reading` did not settle:
+    /// a sheet's cell in two, in the walk's order; a branch cell where
+    /// `Δ` decides, the zero's half staying the branch, the positive half
+    /// a cell of both sheets either side of it, the negative half dropped
+    /// (no meeting lies over it). At the floor or past the budget, the
+    /// margin `why` names did not settle.
+    fn split_piece(
+        &mut self,
+        walk: &mut Vec<Piece<T>>,
+        i: usize,
+        why: &'static str,
+    ) -> Result<(), &'static str> {
+        let piece = walk[i];
+        let cell = piece.cell();
+        self.spend();
+        if self.spent_on(&cell) {
+            return Err(why);
+        }
+        match piece {
+            Piece::Sheet {
+                sheet, backward, ..
+            } => {
+                let (l, r) = self.split(&cell, |_| true);
+                let (a, b) = if backward { (r, l) } else { (l, r) };
+                walk[i] = Piece::sheet(a, sheet, backward);
+                walk.insert(i + 1, Piece::sheet(b, sheet, backward));
+            }
+            Piece::Branch { rising, .. } => {
+                let cut = off_a_zero(cell.mid(), cell.width()).find_map(|at| {
+                    self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(at)))
+                        .map(|reads| (at, reads == Reads::Above))
+                });
+                let Some((at, positive)) = cut else {
+                    return Err(UNCUT);
+                };
+                let (l, r) = (Cell::new(cell.lo, at), Cell::new(at, cell.hi));
+                let (zero, clear) = match (positive, rising) {
+                    (true, true) => (l, Some(r)),
+                    (false, true) => (r, None),
+                    (true, false) => (r, Some(l)),
+                    (false, false) => (l, None),
+                };
+                walk[i] = Piece::Branch { cell: zero, rising };
+                if let Some(c) = clear {
+                    // A rise is entered on the minus sheet and left on the
+                    // plus; a fall the other way round.
+                    let (before, after) = if rising {
+                        (
+                            Piece::sheet(c, Sheet::Minus, true),
+                            Piece::sheet(c, Sheet::Plus, false),
+                        )
+                    } else {
+                        (
+                            Piece::sheet(c, Sheet::Plus, false),
+                            Piece::sheet(c, Sheet::Minus, true),
+                        )
+                    };
+                    walk.insert(i + 1, after);
+                    if i == 0 {
+                        walk.push(before);
+                    } else {
+                        walk.insert(i, before);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// **`Δ`'s cells grouped into its arcs**: a rise, the positive cells
@@ -2471,6 +2836,7 @@ fn cut_loop<T: Real>(
             ends: None,
             witness,
             encircles,
+            winds_partner: false,
         }]);
     };
     // From just past a leaving cut end: outside, until the next entering.
@@ -2506,6 +2872,7 @@ fn cut_loop<T: Real>(
                     ends: Some([End::Cut(from), End::Cut(at)]),
                     witness: points.get(points.len() / 2).copied().unwrap_or(inside),
                     encircles: false,
+                    winds_partner: false,
                 });
                 None
             }
@@ -3158,5 +3525,106 @@ mod tests {
             edge > 0.0 && wide >= edge,
             "a wide cell's ceiling {wide:e} reaches its edge's clearance {edge:e}"
         );
+    }
+
+    /// **A branch cell split in the walk keeps the loop's order**: the rod
+    /// through the cone (about `y = 0, z = 1` along `x`, radius `0.2`),
+    /// whose arc loops wind about the rod. Each branch piece is split until
+    /// it sheds a positive half: the rise's at the walk's start, so its
+    /// minus half goes to the walk's end, and the fall's in the middle.
+    /// The plus half must follow a rise and precede a fall, the minus half
+    /// the other way round, and the split walk must read the winding the
+    /// unsplit one does. Swapping the halves either side of the branch, or
+    /// inserting the rise's minus half at the front: red.
+    #[test]
+    fn a_split_branch_cell_keeps_the_walks_order() {
+        use super::{Arc, Form, Piece, RuledCone, Sheet, Sweeper, arcs};
+        use core::f64::consts::FRAC_PI_4;
+        let cone = RuledCone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            n: Vec3::unit_x(),
+            m: Vec3::unit_y(),
+            sc: FRAC_PI_4.sin_cos(),
+            partner: Form::cylinder(
+                geom::Line {
+                    origin: Point3::new(0.0, 0.0, 1.0),
+                    dir: Vec3::unit_x(),
+                },
+                0.2,
+            ),
+            lever: ExtentBall::fixture(Point3::origin(), 5.0).lever(),
+        };
+        let about = geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_x(), Vec3::unit_y());
+        let ball = ExtentBall::fixture(Point3::origin(), 5.0);
+        let mut sweeper = Sweeper::new(&cone, ball, band(), Some(about));
+        let cells = sweeper.tiled().unwrap();
+        let loops: Vec<Arc<f64>> = arcs(cells).unwrap();
+        assert_eq!(loops.len(), 2, "two arcs of the discriminant");
+        let is_sheet = |p: &Piece<f64>, want: Sheet, back: bool| matches!(*p, Piece::Sheet { sheet, backward, .. } if sheet == want && backward == back);
+        for arc in &loops {
+            let whole = Piece::arc(arc);
+            assert_eq!(
+                sweeper.winds_about(&about, whole.clone()),
+                Ok(true),
+                "round the rod"
+            );
+            // The rise, at the walk's start.
+            let mut walk = whole.clone();
+            let n = walk.len();
+            while walk.len() == n {
+                sweeper
+                    .split_piece(&mut walk, 0, "the test's split")
+                    .unwrap();
+            }
+            assert!(matches!(walk[0], Piece::Branch { rising: true, .. }));
+            assert!(
+                is_sheet(&walk[1], Sheet::Plus, false),
+                "the rise's plus half after it"
+            );
+            assert!(
+                is_sheet(walk.last().unwrap(), Sheet::Minus, true),
+                "the rise's minus half at the walk's end, before the rise"
+            );
+            assert_eq!(
+                walk[1].cell().lo,
+                walk.last().unwrap().cell().lo,
+                "one half, both sheets"
+            );
+            assert_eq!(
+                sweeper.winds_about(&about, walk.clone()),
+                Ok(true),
+                "the split rise"
+            );
+            // The fall, in the middle.
+            let fall = walk
+                .iter()
+                .position(|p| matches!(p, Piece::Branch { rising: false, .. }))
+                .unwrap();
+            let n = walk.len();
+            let mut k = fall;
+            while walk.len() == n {
+                sweeper
+                    .split_piece(&mut walk, k, "the test's split")
+                    .unwrap();
+                k = walk
+                    .iter()
+                    .position(|p| matches!(p, Piece::Branch { rising: false, .. }))
+                    .unwrap();
+            }
+            assert!(
+                is_sheet(&walk[k - 1], Sheet::Plus, false),
+                "the fall's plus half before it"
+            );
+            assert!(
+                is_sheet(&walk[k + 1], Sheet::Minus, true),
+                "the fall's minus half after it"
+            );
+            assert_eq!(
+                sweeper.winds_about(&about, walk),
+                Ok(true),
+                "the split fall"
+            );
+        }
     }
 }

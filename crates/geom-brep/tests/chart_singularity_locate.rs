@@ -607,9 +607,10 @@ fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
 fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
     use geom_brep::chart_singularity::holds;
     let rim = section(Vec3::new(1.0, 0.0, 0.0), 0.6);
-    let Curve3::Circle(geom::Circle { frame, .. }) = rim.clone() else {
+    let Curve3::Circle(the_circle @ geom::Circle { .. }) = rim.clone() else {
         unreachable!()
     };
+    let frame = the_circle.frame();
     let (center, u_ref) = (frame.origin(), frame.u_ref());
     let p0 = center + u_ref * 0.8;
     let w = p0 - Point3::new(0.0, 0.0, 0.0);

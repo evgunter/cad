@@ -38,6 +38,10 @@ use crate::tree::HeldPick;
 /// Layer-3 state that never enters the document: an expression the
 /// user is typing is not an edit until they commit it, and a draft
 /// abandoned by selecting elsewhere leaves nothing behind.
+///
+/// **Two kinds of field**: chrome, which outlives the document, and
+/// what is held about the document, which a replacement drops — every
+/// field is one or the other at [`Self::document_replaced`].
 #[derive(Debug)]
 pub(crate) struct Drafts {
     /// The View pane's δ field, in the working length unit AS TYPED: `Some` only
@@ -55,8 +59,8 @@ pub(crate) struct Drafts {
     /// has to remember: text a parse refusal sent back
     /// ([`crate::frame::retype_draft`]). Acting on the refusal — going off to
     /// declare the variable it named — must not cost the text that
-    /// raised it, so the field keeps showing it until an expression
-    /// edit for that slot lands.
+    /// raised it, so the field keeps showing it until the next entry at
+    /// a field, a number or a text ([`crate::session::SessionOp::field_entry`]).
     pub(crate) expr_target: Option<(RecipeNodeId, SlotId)>,
     /// The refused text itself.
     pub(crate) expr_text: String,
@@ -64,7 +68,7 @@ pub(crate) struct Drafts {
     pub(crate) name_draft: Option<NameDraft>,
     /// **Whether the add-variable form is open** — its `New variable…`
     /// door clicked, or an unknown-variable refusal's offer landed
-    /// ([`crate::frame::creation_offer`]). Closed, the form's fields
+    /// ([`crate::recourse::Heard::CreateVariable`]). Closed, the form's fields
     /// below are not drawn.
     pub(crate) new_variable_open: bool,
     /// The add-variable form's name field.
@@ -78,12 +82,19 @@ pub(crate) struct Drafts {
     /// Its value field.
     pub(crate) new_variable_value: f64,
     /// The name an unknown-variable refusal offered to create
-    /// ([`crate::frame::creation_offer`]); shown over the form while the
+    /// ([`crate::recourse::Heard::CreateVariable`]); shown over the form while the
     /// name field still says it.
     pub(crate) new_variable_offer: Option<VarName>,
     /// The placement editor's value fields being typed in, by freedom:
     /// the text, until the field loses focus and the draft takes it.
     pub(crate) mate_value_edits: Vec<(pncad::document::Coord<pncad::document::Operand>, String)>,
+    /// The placement editor's offset fields being typed in, by the
+    /// placement the editor edits and the mate row within its draft: the
+    /// text, until the field loses focus and the draft takes it. Keyed by
+    /// placement as well as row, so every editor drawing
+    /// `pane::create::mate_offset_row` over this one buffer reads only
+    /// its own rows' text.
+    pub(crate) mate_offset_edits: Vec<((pncad::document::RecipeNodeId, usize), String)>,
     /// The door the value edits were typed under: a different door, or
     /// the same one over another bundle (a reload), drops them.
     pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
@@ -105,12 +116,6 @@ pub(crate) struct Drafts {
     /// selection IS this form's picker, and an author who picks a face
     /// and then clicks the feature tree to check something must not
     /// lose it.
-    ///
-    /// **Across documents it would be a hazard**: a `RecipeNodeId` is a
-    /// small integer and a `StableName` carries no document identity,
-    /// so a stale latch would commit against a same-numbered face of
-    /// the next document. A document replacement therefore drops it
-    /// ([`Self::document_replaced`]).
     ///
     /// Held as every face pick is ([`HeldPick`]), its nodes spoken again
     /// from each later document ([`Self::respeak`]).
@@ -281,6 +286,16 @@ impl Pending {
 }
 
 pncad::geom_brep::ended_by_write!(Pending);
+
+/// **What one entry at a held field writes** ([`ProfileEdit::write_entry`]):
+/// the field's two doors, as the slot row's are.
+#[derive(Clone, Debug)]
+pub(crate) enum HeldEntry {
+    /// Text, for the draft to parse.
+    Text(String),
+    /// A typed number, as the literal it writes (`props::typed_formula`).
+    Literal(Formula),
+}
 
 /// **One change to the shape of the profile editor's draft** — what a
 /// click asks for, applied after the fields of its frame
@@ -541,9 +556,9 @@ impl ProfileEdit {
     /// **`step` written over held row `row` of loop `loop_`**
     /// ([`HeldStep::written`]) — what its fields write back: every
     /// argument the view did not move keeps the formula it is written
-    /// as, a driven one beside its reading on `landed` included; a
-    /// moved one is written in the unit `noted` names for its
-    /// committed slot, else in `notation`.
+    /// as, and so does every driven one; a moved literal is written in
+    /// the unit `noted` names for its committed slot, else in
+    /// `notation`.
     ///
     /// # Errors
     ///
@@ -552,20 +567,14 @@ impl ProfileEdit {
         &mut self,
         (loop_, row): (usize, usize),
         step: Step<f64>,
-        landed: &Doc<ProfileProgram>,
         notation: Notation,
         noted: &dyn Fn(SlotId) -> Option<UnitDef>,
     ) -> Result<(), RecordedProgramError> {
         let kept = self.loaded_at(loop_).get(row).copied().flatten();
-        let written = self.loops[loop_][row].written(
-            step,
-            &|arg| self.reading(landed, (loop_, row), arg),
-            notation,
-            &|arg| {
-                let (loop_, step) = kept?;
-                noted(SlotId::Profile { loop_, step, arg })
-            },
-        )?;
+        let written = self.loops[loop_][row].written(step, notation, &|arg| {
+            let (loop_, step) = kept?;
+            noted(SlotId::Profile { loop_, step, arg })
+        })?;
         self.loops[loop_][row] = written;
         Ok(())
     }
@@ -587,29 +596,43 @@ impl ProfileEdit {
         doc: &Doc<ProfileProgram>,
     ) -> Result<Formula, Refusal> {
         let formula = crate::session::parse_text(doc, text)?;
-        slot_admits(Self::held_slot(at, arg), &formula)
-            .map_err(|error| Refusal::Edit(Box::new(error)))?;
+        Self::admit(at, arg, &formula)?;
         Ok(formula)
     }
 
-    /// **`text` typed into argument `arg` of held row `at`**, judged
-    /// ([`Self::judge_text`]) and written into the held step as the
-    /// formula it reads, committed with the rest of the program. A
-    /// refusal changes nothing the draft holds.
+    /// Whether argument `arg` of held row `at` takes `formula`: the
+    /// edit door's own rule ([`slot_admits`]), in its words.
+    fn admit(at: (usize, usize), arg: StepArg, formula: &Formula) -> Result<(), Refusal> {
+        slot_admits(Self::held_slot(at, arg), formula)
+            .map_err(|error| Refusal::Edit(Box::new(error)))
+    }
+
+    /// **What a held field's entry writes into argument `arg` of held
+    /// row `at`** — a text, judged ([`Self::judge_text`]) and written as
+    /// the formula it reads, or a number, as the literal it types
+    /// (`props::typed_formula`) — over whatever the argument held, a
+    /// literal or an expression alike, committed with the rest of the
+    /// program. A refusal changes nothing the draft holds.
     ///
     /// # Errors
     ///
     /// [`Self::judge_text`]'s, and [`Refusal::NoSuchSlot`] where the
     /// row no longer has that role (a row edit landed between the
-    /// field's frame and this one): the text is dropped and said.
-    pub(crate) fn write_text(
+    /// field's frame and this one): the entry is dropped and said.
+    pub(crate) fn write_entry(
         &mut self,
         (loop_, row): (usize, usize),
         arg: StepArg,
-        text: &str,
+        entry: &HeldEntry,
         doc: &Doc<ProfileProgram>,
     ) -> Result<(), Refusal> {
-        let formula = Self::judge_text((loop_, row), arg, text, doc)?;
+        let formula = match entry {
+            HeldEntry::Text(text) => Self::judge_text((loop_, row), arg, text, doc)?,
+            HeldEntry::Literal(formula) => {
+                Self::admit((loop_, row), arg, formula)?;
+                formula.clone()
+            }
+        };
         let written = self
             .loops
             .get(loop_)
@@ -778,8 +801,11 @@ impl ProfileEdit {
                     let why = match &found.value {
                         Ok(props::Reading::One(_)) => continue,
                         Ok(props::Reading::PerMember(members)) => {
-                            let indices: Vec<String> =
-                                members.over().iter().map(ToString::to_string).collect();
+                            let indices: Vec<String> = members
+                                .over()
+                                .iter()
+                                .map(crate::tree::spelled_var)
+                                .collect();
                             format!(
                                 "it reads index {}, so it has a value per member and the editor \
                                  holds one",
@@ -979,7 +1005,7 @@ impl ProfileEdit {
     ) {
         let rows = props::slot_rows(landed, self.node);
         let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
-        self.write_step(at, step, landed, Notation::CANONICAL, &noted)
+        self.write_step(at, step, Notation::CANONICAL, &noted)
             .unwrap_or_else(|error| panic!("{error}"));
     }
 }
@@ -1085,6 +1111,7 @@ impl Default for Drafts {
             new_variable_value: 0.0,
             new_variable_offer: None,
             mate_value_edits: Vec::new(),
+            mate_offset_edits: Vec::new(),
             mate_value_door: None,
             new_doc_name: None,
             on_face_open: false,
@@ -1267,7 +1294,8 @@ impl Drafts {
                 };
                 self.let_go(why);
                 let base = sketch::held_written(doc, node)?;
-                let mut loaded = ProfileEdit::load(node, base, doc.spoken(node).to_string());
+                let mut loaded =
+                    ProfileEdit::load(node, base, crate::tree::spelled(&doc.spoken(node)));
                 if !deferred.is_empty() {
                     loaded.offer = Offer::Deferred(deferred);
                 }
@@ -1469,6 +1497,59 @@ impl Drafts {
         core::mem::take(&mut self.dropped)
     }
 
+    /// **Take a drawn lead** ([`crate::recourse::Lead`]): open the form
+    /// its act is authored in, filled with what the failure determines,
+    /// over `doc`, the committed document. The interference's pair opens
+    /// the assertion tool on a `Gap` bounded from above, its seats the
+    /// pair's faces; the bound's value stays the person's. A refused
+    /// bundle opens its placement editor. Answers the editor's refusal,
+    /// for the line, where it cannot open.
+    #[must_use = "an editor that did not open says why"]
+    pub(crate) fn take_lead(
+        &mut self,
+        lead: crate::recourse::Lead,
+        tools: &mut crate::tools::Tools,
+        doc: &Doc<ProfileProgram>,
+    ) -> Option<crate::frame::Message> {
+        match lead {
+            crate::recourse::Lead::AssertGap { pair, .. } => {
+                tools.open_assertion(crate::combine::AssertionTool::led(&pair));
+                self.assertion_measure = AssertionMeasure::Gap;
+                self.assertion_bound = BoundChoice::AtMost;
+                None
+            }
+            crate::recourse::Lead::EditPlacement { placement, .. } => {
+                match crate::matetool::MateTool::edit(doc, placement) {
+                    Ok(tool) => {
+                        tools.open_mate(tool);
+                        None
+                    }
+                    Err(error) => Some(crate::frame::tool_news(
+                        &crate::tools::ToolKind::Mate.refuses(&error),
+                    )),
+                }
+            }
+        }
+    }
+
+    /// **Take a refusal's heard lead** ([`crate::recourse::Heard`]), as
+    /// the refusal is heard: a variable to create opens the add-variable
+    /// form on its name; a held target change opens the placement
+    /// editor holding it, over `doc`, the committed document.
+    pub(crate) fn take_heard(
+        &mut self,
+        heard: crate::recourse::Heard,
+        tools: &mut crate::tools::Tools,
+        doc: &Doc<ProfileProgram>,
+    ) {
+        match heard {
+            crate::recourse::Heard::CreateVariable { name } => self.offer_variable(name),
+            crate::recourse::Heard::HoldTarget { placement, target } => {
+                tools.hold_target(placement, target, doc);
+            }
+        }
+    }
+
     /// **Offer to declare `name`**, the variable a refused expression
     /// read and the document does not hold: the add-variable form opens
     /// with the name in it and no dimension picked, since the text it
@@ -1480,19 +1561,76 @@ impl Drafts {
         self.new_variable_open = true;
     }
 
-    /// **Another document replaced the one the held face was picked
-    /// in** (an open, a new document): the latch names nothing in it,
-    /// and the profile editor's draft edits nothing in it.
+    /// **Another document replaced the one these drafts were made
+    /// over** (an open, a new document): everything held about that
+    /// document goes, and only the chrome stays — text typed into a
+    /// form that names nothing in either document, which form is open,
+    /// the choices a form offers. The profile editor's draft is said as
+    /// it goes.
+    ///
+    /// A value naming a node, slot, variable, face or placement of the
+    /// outgoing document is never kept: node and variable ids are drawn
+    /// from a mint chain every document starts alike, so the next
+    /// document may hold the same id as something else, and a kept
+    /// value would resolve, mark and commit there. The fields are
+    /// destructured whole, so a field added to [`Drafts`] does not
+    /// compile until it is put on one side.
     pub(crate) fn document_replaced(&mut self) {
-        for latch in self.latches() {
-            *latch = None;
-        }
         self.let_go(DropWhy::DocumentMoved);
+        let Self {
+            delta_text,
+            new_variable_open,
+            new_variable_name,
+            new_variable_dimension,
+            new_variable_value,
+            new_doc_name,
+            on_face_open,
+            trace_gesture,
+            pattern_kind,
+            pattern_output,
+            part_instance,
+            blend_kind,
+            assertion_measure,
+            assertion_bound,
+            creation_labels,
+            dropped,
+            // Held about the outgoing document.
+            expr_target: _,
+            expr_text: _,
+            name_draft: _,
+            new_variable_offer: _,
+            mate_value_edits: _,
+            mate_offset_edits: _,
+            mate_value_door: _,
+            on_face: _,
+            trace_face: _,
+            trace_shown: _,
+            profile_edit: _,
+            label_text: _,
+        } = core::mem::take(self);
+        *self = Self {
+            delta_text,
+            new_variable_open,
+            new_variable_name,
+            new_variable_dimension,
+            new_variable_value,
+            new_doc_name,
+            on_face_open,
+            trace_gesture,
+            pattern_kind,
+            pattern_output,
+            part_instance,
+            blend_kind,
+            assertion_measure,
+            assertion_bound,
+            creation_labels,
+            dropped,
+            ..Self::default()
+        };
     }
 
-    /// **The faces the forms latch**, the one list of them: what a
-    /// replaced document drops, an operation speaks again and a takeover
-    /// moves.
+    /// **The faces the forms latch**, the one list of them: what an
+    /// operation speaks again and a takeover moves.
     fn latches(&mut self) -> [&mut Option<HeldPick>; 2] {
         [&mut self.on_face, &mut self.trace_face]
     }
@@ -1517,19 +1655,37 @@ impl Drafts {
         }
     }
 
-    /// **Keep the placement editor's value edits to its draft**: dropped
-    /// when the editor closes (`door` is `None`), opens on another door
-    /// or reloads its bundle, and each edit whose freedom the draft no
-    /// longer lists (`coords`) dropped with its row.
+    /// **Keep the placement editor's value and offset edits to its
+    /// draft**: [`Self::sync_mate_door`], then
+    /// [`Self::retain_mate_values`].
     pub(crate) fn sync_mate_edits(
         &mut self,
         door: Option<&crate::matetool::PlaceDoor>,
         coords: &[pncad::document::Coord<pncad::document::Operand>],
     ) {
+        self.sync_mate_door(door);
+        self.retain_mate_values(coords);
+    }
+
+    /// **Drop the placement editor's value and offset edits when its
+    /// door changes**: the editor closed (`door` is `None`), opened on
+    /// another door, or reloaded its bundle. Called before any of the
+    /// editor's fields is drawn, so a field never shows or commits text
+    /// typed under another draft.
+    pub(crate) fn sync_mate_door(&mut self, door: Option<&crate::matetool::PlaceDoor>) {
         if self.mate_value_door.as_ref() != door {
             self.mate_value_edits.clear();
+            self.mate_offset_edits.clear();
             self.mate_value_door = door.cloned();
         }
+    }
+
+    /// **Drop each value edit whose freedom the draft no longer lists**
+    /// (`coords`), with its row.
+    pub(crate) fn retain_mate_values(
+        &mut self,
+        coords: &[pncad::document::Coord<pncad::document::Operand>],
+    ) {
         self.mate_value_edits
             .retain(|(coord, _)| coords.contains(coord));
     }
@@ -1828,7 +1984,7 @@ pub(crate) fn latch(slot: &mut Option<HeldPick>, doc: &Doc<ProfileProgram>, face
 pub(crate) fn latch_said(held: Option<&HeldPick>, by: Speaker<'_>) -> String {
     held.map_or_else(
         || crate::seats::NONE_PICKED.to_owned(),
-        |held| pncad::document::Said(held, by).to_string(),
+        |held| pncad::document::Said(held, by).sentence().to_string(),
     )
 }
 
@@ -1869,6 +2025,155 @@ mod tests {
         drafts.label_text = Some((typed_for, "lid".to_owned()));
         drafts.rename_shown_for(None);
         assert_eq!(drafts.label_text, None, "dropped with no node shown");
+    }
+
+    /// **A replaced document takes every draft that names something in
+    /// it, and leaves the chrome**: every field of [`Drafts`] set off its
+    /// default, then each one read after the door — the kept ones as
+    /// set, the dropped ones empty.
+    #[test]
+    fn a_replaced_document_keeps_only_the_chrome() {
+        use crate::blend::BlendKindChoice;
+        use crate::combine::{AssertionMeasure, BoundChoice, PatternOutputChoice};
+        use crate::forms::PatternLayoutChoice;
+        use pncad::document::{
+            Coord, Dimension, Operand, ProfileProgram, SlotId, TargetAxis, VarId, VarName,
+        };
+        let node = RecipeNodeId::new(0, 3);
+        let face = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node,
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
+            },
+            node,
+            body: 0,
+        };
+        let gesture = sketch::TraceGesture {
+            sense: pncad::document::TraceSense::Against,
+            ..sketch::TraceGesture::default()
+        };
+        let notice = super::Dropped {
+            said: "Profile".to_owned(),
+            why: super::DropWhy::Undo,
+            editor: super::Editor::Profile,
+        };
+        let mut drafts = Drafts {
+            // Chrome.
+            delta_text: Some("0.1".to_owned()),
+            new_variable_open: true,
+            new_variable_name: "zz".to_owned(),
+            new_variable_dimension: Some(Dimension::Length),
+            new_variable_value: 0.25,
+            new_doc_name: Some("next".to_owned()),
+            on_face_open: true,
+            trace_gesture: gesture,
+            pattern_kind: PatternLayoutChoice::Circular,
+            pattern_output: PatternOutputChoice::Fused,
+            part_instance: 3,
+            blend_kind: BlendKindChoice::Chamfer,
+            assertion_measure: AssertionMeasure::Gap,
+            assertion_bound: BoundChoice::Between,
+            dropped: vec![notice.clone()],
+            // Held about the document.
+            expr_target: Some((node, SlotId::Distance)),
+            expr_text: "zz/2".to_owned(),
+            name_draft: Some(super::NameDraft {
+                node,
+                slot: SlotId::Distance,
+                var: VarId::new(0, 5),
+                share: false,
+                text: "depth".to_owned(),
+            }),
+            new_variable_offer: Some(VarName::from_static("zz")),
+            mate_value_edits: vec![(<Coord<Operand>>::slide(TargetAxis::X), "5 mm".to_owned())],
+            mate_offset_edits: vec![((node, 0), "5 mm".to_owned())],
+            mate_value_door: Some(crate::matetool::PlaceDoor {
+                placement: node,
+                base: crate::session::PlacementBase {
+                    target: Operand::Var(VarId::WORLD),
+                    constraints: Vec::new(),
+                },
+            }),
+            trace_shown: Some(super::TraceShown {
+                plane: face.clone(),
+                face,
+                against: std::sync::Weak::new(),
+                read: Err(crate::session::SketchTraceFault::Unevaluated),
+            }),
+            profile_edit: Some(ProfileEdit::load(
+                node,
+                ProfileProgram {
+                    loops: Vec::new(),
+                    ids: Vec::new(),
+                    on: None,
+                },
+                "Profile".to_owned(),
+            )),
+            label_text: Some((node, "lid".to_owned())),
+            ..Drafts::default()
+        };
+        drafts
+            .creation_labels
+            .insert("extrude", "plinth".to_owned());
+        drafts.document_replaced();
+
+        assert_eq!(drafts.delta_text.as_deref(), Some("0.1"), "the δ field");
+        assert_eq!(
+            (
+                drafts.new_variable_open,
+                drafts.new_variable_name.as_str(),
+                drafts.new_variable_dimension,
+                drafts.new_variable_value,
+            ),
+            (true, "zz", Some(Dimension::Length), 0.25),
+            "the add-variable form"
+        );
+        assert_eq!(drafts.new_doc_name.as_deref(), Some("next"), "New…");
+        assert!(drafts.on_face_open, "the profile-on-a-face form stays open");
+        assert_eq!(drafts.trace_gesture, gesture, "the trace's branches");
+        assert_eq!(
+            (
+                drafts.pattern_kind,
+                drafts.pattern_output,
+                drafts.part_instance,
+                drafts.blend_kind,
+                drafts.assertion_measure,
+                drafts.assertion_bound,
+            ),
+            (
+                PatternLayoutChoice::Circular,
+                PatternOutputChoice::Fused,
+                3,
+                BlendKindChoice::Chamfer,
+                AssertionMeasure::Gap,
+                BoundChoice::Between,
+            ),
+            "the forms' choices"
+        );
+        assert_eq!(
+            drafts.creation_labels.get("extrude").map(String::as_str),
+            Some("plinth"),
+            "a create form's typed label"
+        );
+        assert_eq!(drafts.dropped, [notice], "a drop not yet said");
+
+        assert_eq!(
+            (drafts.expr_target, drafts.expr_text.as_str()),
+            (None, ""),
+            "the refused text"
+        );
+        assert_eq!(drafts.name_draft, None, "the naming field");
+        assert_eq!(drafts.new_variable_offer, None, "the offer");
+        assert!(
+            drafts.mate_value_edits.is_empty()
+                && drafts.mate_offset_edits.is_empty()
+                && drafts.mate_value_door.is_none(),
+            "the placement editor's typed values and offsets"
+        );
+        assert!(drafts.trace_shown.is_none(), "the trace shown");
+        assert!(drafts.profile_edit.is_none(), "the profile editor's draft");
+        assert_eq!(drafts.label_text, None, "the rename");
     }
 
     /// A labelled creation settles its form as the bare creation does,

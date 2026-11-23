@@ -174,7 +174,7 @@ fn spin_moves_nothing(
     let Some(NodeResult::Ok(value)) = ev.result(placement) else {
         return false;
     };
-    let to = crate::eval::read_pose_in(doc, ev, crate::pose::RoleRead::plain(mate.to), tol);
+    let to = crate::eval::read_pose_in(doc, ev, mate.to, tol);
     let copy_origin = value.motion.map_or_else(Point3::origin, |m| {
         Point3::origin() + m.to_affine().translation
     });

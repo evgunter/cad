@@ -1427,8 +1427,7 @@ impl SsiError {
             ConeTorusRefusal::Torus(t) => Self::DegenerateTorus(t),
             ConeTorusRefusal::Aperture { what, .. } => Self::DegenerateCone { what },
             ConeTorusRefusal::ApexRuling { .. } => Self::UnsupportedCertificate {
-                what: "the cone's apex lies on the torus and the torus's tangent plane there \
-                       holds a ruling: contact of higher order at the apex",
+                what: crate::pair_section::cone_torus::APEX_RULING,
             },
             ConeTorusRefusal::Undecided { question, diag } => match question {
                 KtQuestion::Aperture => TraceDecision::ConeAperture,
@@ -1794,12 +1793,23 @@ impl core::fmt::Display for OperandDatum {
 }
 
 /// A parameter axis of a NURBS operand's chart.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChartAxis {
     /// The first parameter.
     U,
     /// The second parameter.
     V,
+}
+
+impl ChartAxis {
+    /// The chart's other parameter.
+    #[must_use]
+    pub const fn other(self) -> Self {
+        match self {
+            Self::U => Self::V,
+            Self::V => Self::U,
+        }
+    }
 }
 
 /// Why a NURBS operand's chart cannot carry a length in metres into its
@@ -3507,7 +3517,7 @@ pub fn cone_torus_ssi(
     let pose = crate::ConeTorusPose::decide(a, b, band)
         .ok_or_else(wrong)?
         .map_err(SsiError::of_cone_torus_pose)?;
-    march_cone_torus(&pose, domain, band)
+    march_decided_cone_torus(&pose, domain, band)
 }
 
 /// **The ℝ³ march of a decided cone × torus pose** over `domain`, in the
@@ -3525,22 +3535,23 @@ pub fn march_cone_torus(
     domain: SsiDomain,
     band: Band,
 ) -> Result<SsiOutcome, SsiError> {
-    use crate::{ApexContact, KtStance};
     checked([("cone", pose.cone()), ("torus", pose.torus())], domain)?;
-    match pose.stance() {
-        KtStance::Coaxial { .. } => Err(SsiError::WrongLane {
-            expected: "a cone off the torus's axis: the coaxial pose is the closed form's \
-                       (cone_torus_section)",
-        }),
-        KtStance::Apex(ApexContact::Node { .. }) => Err(SsiError::UnsupportedCertificate {
-            what: "the cone's apex lies on the torus, a node of the section, and the ℝ³ march \
-                   ends no branch at a node",
-        }),
-        KtStance::Apex(ApexContact::Touch { .. }) => Err(SsiError::UnsupportedCertificate {
-            what: "the cone's apex touches the torus, an isolated point of the section, which \
-                   the ℝ³ march does not account",
-        }),
-        KtStance::Apart(_) => past_the_gap(
+    march_decided_cone_torus(pose, domain, band)
+}
+
+/// [`march_cone_torus`] past the door's own checks: the pose's
+/// [`crate::ConeTorusPose::unmarched`] refused, else the march past the
+/// gap.
+fn march_decided_cone_torus(
+    pose: &crate::ConeTorusPose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    use crate::pair_section::cone_torus::Unmarched;
+    match pose.unmarched() {
+        Some(Unmarched::Coaxial(expected)) => Err(SsiError::WrongLane { expected }),
+        Some(Unmarched::Apex(what)) => Err(SsiError::UnsupportedCertificate { what }),
+        None => past_the_gap(
             TangentPair::ConeTorus,
             pose.operands(),
             pose.tangency(),

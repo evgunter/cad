@@ -2,11 +2,14 @@
 id: drag-tick-has-three-homes
 kind: issue
 title: The drag tick has three homes and a count field has two answers — the creation forms pick from the four constants by hand
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1776]
 priority: P1
 cost: E
+pr: 7372
+branch: formwords/dimension-ladders
+closed: 2026-11-22
 ---
 
 
@@ -200,3 +203,7 @@ the defect it exists to close:
   what its three lines are.
 
 **FORMS, PR 6431 (2026-11-03).** `widgets::vec3_row`, which this row cites, is deleted with the split form's point and normal fields; `unit_vec3_row` with it.
+
+## Closed (2026-11-22)
+
+PR 7372. The Dimension→quantity relation has one home in the kernel: `Dimension::quantity`, with `UnitSym::measures` and `canonical_for` reading it, and `Notation::unit_of` as the read half of `with`. The viewer keeps only `props::drag_tick` (the tick and the whole-number rule). The `*_DRAG_SPEED` constants are gone, a count steps by 1, and `probe_seed` is `props::authored_in(unit, 1.0)`.

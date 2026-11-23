@@ -1195,7 +1195,7 @@ on `(D²)′` shrunk by its own rounding before anything divides it, so a
 slope within its rounding of zero reads no sign however small `D` is,
 and what is left, over the most `D` reaches, bounds the sine of the
 crossing, levered by the core radius. Where the core crosses a torus
-partner's axis `D` has a kink, and no cell holding one clears on its
+or a cone partner's axis `D` has a kink, and no cell holding one clears on its
 slope: a tangency on a kink always escalates, unless it is the least
 distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap
 the symmetric poses (coaxial, parallel, square) count their components
@@ -1203,11 +1203,11 @@ in closed form, the coaxial ones as circles and the rest the general
 rung's, marched by `carry` over a ball that holds the whole section
 (`PairPose::ball`: the sphere, else the torus's `|x − c| ≤ R + r`, the
 smaller of two tori's), every branch closing inside it; a general
-sphere × torus pose is the sphere arm's, marched; a general cylinder or
-torus pose has no closed-form count of its components, and its
+sphere × torus pose is the sphere arm's, marched; a general cylinder,
+cone or torus pose has no closed-form count of its components, and its
 components are the march's (`Components::Marched`), which the general
-rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches
-past a transverse gap. `implemented` covers the whole operation.
+rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`,
+`ssi::cone_torus_ssi`) marches past a transverse gap. `implemented` covers the whole operation.
 The conic pairs' poses are their closed-form doors' (`PlaneSpherePose`,
 `SphereSpherePose`, `PlaneCylinderPose`): each circle or tilted ellipse
 is one loop whose carrier is the whole closed curve, plane×cylinder's
@@ -1247,6 +1247,8 @@ neither is marched, since the ℝ³ march ends no branch at a node, and
 the pair's value refuses them as not built. Past a clear apex the gap
 is the sweep, its transverse components the march's
 (`ssi::cone_torus_ssi`); a parallel axis is that general pose too. A
+gap undecided beside an apex within a sixty-fourth of the tube radius
+of the torus escalates as the apex's question, the near-node's. A
 coaxial cone is `cone_torus_section`'s closed form, which the value
 reads elsewhere. Every other pair with a cone refuses: the cone
 against a plane is rung 2's, and against a spline side it has no arm.
@@ -1330,6 +1332,12 @@ spiric's own plane, so it meets a plane not parallel to that one only
 on the line where the two planes meet, which the line × torus door reads
 against the spiric's own torus over the stretch of the line on the
 oval's side of the axis's projection on the spiric's plane, each root's minor angle the span's parameter.
+It reads the count again on the two lines of the spiric's plane that
+stand the band's escalation above and below the cutting plane, and
+refuses as a tangency where either differs: an oval with one extreme of
+its height within the band of the cutting plane, a near miss or a shallow
+dip. An oval wholly within the band on one side of the cutting plane
+keeps a count of none on all three lines and reads as a miss.
 A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached

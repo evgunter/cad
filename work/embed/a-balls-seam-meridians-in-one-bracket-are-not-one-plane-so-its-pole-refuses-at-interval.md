@@ -2,10 +2,12 @@
 id: a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval
 kind: issue
 title: A ball whose centre is a bracket stores its two seam meridians in one bracket, which is not one value, so no plane lists both and its pole refuses Departure at Interval
-status: open
+status: dispatched
 opened: 2026-11-13
 priority: P0
 cost: M
+pr: 7328
+branch: embed/one-plane
 ---
 
 

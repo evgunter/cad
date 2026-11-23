@@ -2,10 +2,11 @@
 id: split-cylindrical-feature-box-copy-of-projectbox-has-drifted
 kind: issue
 title: split_cylindrical_feature_box.rs says it copies projectbox::build but still builds square bosses sunk 1/16 with pockets
-status: open
+status: closed
 opened: 2026-10-02
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -38,3 +39,7 @@ asserts still holds. If it is a standalone fixture, say that, and drop
 the claim that it is a copy.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+Took the standalone-fixture answer: `project_box`'s doc and the module doc now say it is shaped after the tour's box and not kept in step with it, and the copy claim is gone.

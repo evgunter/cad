@@ -629,7 +629,7 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
         .err()
         .map(|e| e.spoken(&doc))
         .unwrap_or_default();
-    assert!(said.contains("Recourse:"), "{said}");
+    assert!(said.to_string().contains("Recourse:"), "{said}");
     let checked =
         crate::fixture::at_rest(&doc, &ev).expect("an empty world is checked all the same");
     assert!(

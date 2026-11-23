@@ -31,6 +31,7 @@
 //! twice. That is what makes the key the proof (D9) and what lets
 //! [`ReportCache`] serve a report without re-deriving it.
 
+use crate::{Sentence, Speaker, sentence};
 use std::collections::BTreeMap;
 
 use crate::analysis::{AnalyzedBox, MeasureUnavailable};
@@ -105,20 +106,21 @@ impl MassBasis {
 impl MassBasis {
     /// The basis spelled out, each band-carrying variable spoken by
     /// `speak` — at display time, so the basis itself holds ids alone.
-    pub fn sentence(&self, speak: impl Fn(VarId) -> SpokenVar) -> String {
+    pub fn sentence(&self, speak: impl Fn(VarId) -> SpokenVar, by: Speaker<'_>) -> Sentence {
         match self {
-            Self::Priced => "priced: every varying parameter carries a stated distribution, \
-                             so these masses are integrals of a stated measure"
-                .to_owned(),
-            Self::Forced { by } => format!(
-                "FORCED, not priced: {} carr{} a band — limits with no shape — so these \
+            Self::Priced => Sentence::from(
+                "priced: every varying parameter carries a stated distribution, so these \
+                 masses are integrals of a stated measure",
+            ),
+            Self::Forced { by: forced } => sentence!(
+                "FORCED, not priced: ",
+                Sentence::joined(forced.iter().map(|&id| sentence!(by.var(&speak(id)))), ", "),
+                format_args!(
+                    " carr{} a band — limits with no shape — so these \
                  masses are what set theory forces on any measure consistent with those \
                  limits, and none of them is a probability",
-                by.iter()
-                    .map(|&id| speak(id).to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                if by.len() == 1 { "ies" } else { "y" }
+                    if forced.len() == 1 { "ies" } else { "y" }
+                )
             ),
         }
     }
@@ -136,7 +138,7 @@ pub struct MassBudget {
     pub certified: Result<f64, MeasureUnavailable>,
     /// Refused mass plus tail — the number a CI row bounds.
     pub unresolved: Result<f64, MeasureUnavailable>,
-    /// Refused mass per reason class, in class order.
+    /// Refused mass per reason class, by the class's name.
     pub refused: BTreeMap<&'static str, Result<f64, MeasureUnavailable>>,
     /// The tail outside the analyzed box (E2).
     pub tail: Result<f64, MeasureUnavailable>,
@@ -223,7 +225,12 @@ impl MassBudget {
             Err(e) => percent(&Err(e.respoken(doc))),
         };
         let mut s = String::new();
-        let _ = writeln!(s, "{}", self.basis.sentence(|id| doc.spoken_var(id)));
+        let _ = writeln!(
+            s,
+            "{}",
+            self.basis
+                .sentence(|id| doc.spoken_var(id), crate::Speaker::TAG)
+        );
         let _ = writeln!(s, "  certified   {}", percent(&self.certified));
         for (class, m) in &self.refused {
             let _ = writeln!(s, "  refused ({class}) {}", percent(m));
@@ -335,7 +342,12 @@ impl LeafHistogram {
              (E11.6), and nothing here claims one.",
             doc.spoken_value(self.measurement)
         );
-        let _ = writeln!(s, "{}", self.basis.sentence(|id| doc.spoken_var(id)));
+        let _ = writeln!(
+            s,
+            "{}",
+            self.basis
+                .sentence(|id| doc.spoken_var(id), crate::Speaker::TAG)
+        );
         for row in &self.rows {
             let (lo, hi) = row.enclosure;
             let _ = writeln!(

@@ -189,7 +189,9 @@ mod tests {
     #[test]
     fn the_step_to_a_place_is_this_files_own() {
         let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        let own = std::fs::read_to_string(src.join("places.rs")).expect("places.rs reads");
+        let own = test_utils::source::code_only(
+            &std::fs::read_to_string(src.join("places.rs")).expect("places.rs reads"),
+        );
         let body = own.split("#[cfg(test)]").next().unwrap_or_default();
         let declared: Vec<&str> = body.lines().filter(|l| l.contains("fn at_place")).collect();
         assert_eq!(
@@ -197,23 +199,16 @@ mod tests {
             ["fn at_place<T: Real<Value = T>>(x: f64) -> T {"],
             "at_place is declared once, at column zero, with no visibility"
         );
-        let mut stack = vec![src];
-        let mut elsewhere = Vec::new();
-        while let Some(dir) = stack.pop() {
-            for entry in std::fs::read_dir(&dir).expect("the source tree reads") {
-                let path = entry.expect("an entry reads").path();
-                if path.is_dir() {
-                    stack.push(path);
-                } else if path.extension().is_some_and(|e| e == "rs")
-                    && !path.ends_with("places.rs")
-                    && std::fs::read_to_string(&path)
-                        .expect("a source file reads")
-                        .contains("at_place")
-                {
-                    elsewhere.push(path);
-                }
-            }
-        }
+        let elsewhere: Vec<std::path::PathBuf> = test_utils::source::rust_sources(&src)
+            .into_iter()
+            .filter(|path| {
+                !path.ends_with("places.rs")
+                    && test_utils::source::code_only(
+                        &std::fs::read_to_string(path).expect("a source file reads"),
+                    )
+                    .contains("at_place")
+            })
+            .collect();
         assert!(
             elsewhere.is_empty(),
             "at_place named outside places.rs: {elsewhere:?}"
