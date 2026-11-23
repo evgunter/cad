@@ -1147,7 +1147,7 @@ fn faces_using(mesh: &Mesh, (a, b): (u32, u32)) -> Vec<FaceKey> {
 /// each segment is a triangle edge twice per chord carrying it: once
 /// per side, or twice within one patch where a `Seam` edge is traversed
 /// both ways by the same face. A use past that is [`overused_side`]'s,
-/// refused typed before this runs.
+/// a panic before this runs.
 ///
 /// A count of 1 on a single chord is the class this guard exists for —
 /// the two sides emitted the segment under DIFFERENT ids, so neither
