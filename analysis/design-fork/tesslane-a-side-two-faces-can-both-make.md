@@ -75,3 +75,9 @@ All three recommend the same final state, each on its own measurement of the cel
 What each leaves for Ev, in its own words, is the same question put three ways: whether a mesh of a body thinner than δ must keep the body's sign and most of its volume, or a zero-volume mesh is acceptable there because δ promises distance and nothing else. All three answer it the first way by recommending the surface point; C would not make it a written promise; A offers one sentence beside `[mesh.winding]` if Ev wants it stated.
 
 Token counts, first report / last of four rounds: A 150,820 / 236,815; B 141,548 / 221,700; C 269,861 / 396,047.
+
+## The `[ev]` pull request
+
+PR 7485, opened 00:42Z on 2026-11-23 on `tesslane/ev-shared-side`, stacked on `tesslane/ruled-density` (base that branch, since the row it edits is filed there; retargets to main when PR 7096 merges). Body: the decision, the alternative with the thin-body table, the one question, and each designer's round-four `For Ev` section verbatim under its label. Fork-log row 7485, recommendation half, labels only (`65948a8bd3`). The mapping for the second commit, once Ev decides: bytes 82 (three designers), 152 (mod 3 = 2): Fable 5.2 = C, Opus 5.5 = A and B (versions as the harness reported for the subagents' models at dispatch; confirm before writing). Tokens first report / total: A 150,820 / 236,815; B 141,548 / 221,700; C 269,861 / 396,047.
+
+The designers' probe diffs and volume outputs are copied under `tesslane-a-side-two-faces-can-both-make-evidence/` (the STLs are not).

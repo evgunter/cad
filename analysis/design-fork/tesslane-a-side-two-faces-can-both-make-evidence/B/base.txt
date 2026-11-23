@@ -1,0 +1,94 @@
+
+running 1 test
+CELL r=1.05 sign=1 unsplit d=3
+RESULT err OverusedSide { faces: [FaceKey(3v1), FaceKey(4v1)], uses: 4 }
+CELL r=1.05 sign=1 unsplit d=1
+RESULT err OverusedSide { faces: [FaceKey(3v1), FaceKey(4v1)], uses: 4 }
+CELL r=1.05 sign=1 unsplit d=0.3
+RESULT err OverusedSide { faces: [FaceKey(3v1), FaceKey(4v1)], uses: 4 }
+CELL r=1.05 sign=1 unsplit d=0.1
+BPROBE RESULT ok tris=132 vol=9.75646331256043e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 22, 22]
+CELL r=1.05 sign=1 unsplit d=0.05
+BPROBE RESULT ok tris=186 vol=9.822792595189833e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 31, 31]
+CELL r=1.05 sign=1 unsplit d=0.04
+BPROBE RESULT ok tris=210 vol=9.837332876861528e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 35, 35]
+CELL r=1.05 sign=1 unsplit d=0.03
+BPROBE RESULT ok tris=320 vol=1.1682950233029743e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[3, 1, 40, 40]
+CELL r=1.05 sign=1 split d=3
+BPROBE RESULT ok tris=64 vol=7.150058932750937e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=1 split d=1
+BPROBE RESULT ok tris=64 vol=7.150058932750937e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=1 split d=0.3
+BPROBE RESULT ok tris=104 vol=2.82009571582278e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 13, 13, 1]
+CELL r=1.05 sign=1 split d=0.1
+BPROBE RESULT ok tris=220 vol=1.0761288421875037e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 22, 22, 1]
+CELL r=1.05 sign=1 split d=0.05
+BPROBE RESULT ok tris=310 vol=1.0332414038509467e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 31, 31, 1]
+CELL r=1.05 sign=1 split d=0.04
+BPROBE RESULT ok tris=350 vol=1.0237843991043272e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 35, 35, 1]
+CELL r=1.05 sign=1 split d=0.03
+BPROBE RESULT ok tris=322 vol=1.1682950233029686e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[3, 1, 40, 40, 1]
+CELL r=1.05 sign=-1 unsplit d=3
+RESULT err OverusedSide { faces: [FaceKey(3v1), FaceKey(4v1)], uses: 4 }
+CELL r=1.05 sign=-1 unsplit d=1
+RESULT err OverusedSide { faces: [FaceKey(3v1), FaceKey(4v1)], uses: 4 }
+CELL r=1.05 sign=-1 unsplit d=0.3
+RESULT err OverusedSide { faces: [FaceKey(3v1), FaceKey(4v1)], uses: 4 }
+CELL r=1.05 sign=-1 unsplit d=0.1
+RESULT err OverusedSide { faces: [FaceKey(3v1), FaceKey(4v1)], uses: 4 }
+CELL r=1.05 sign=-1 unsplit d=0.05
+BPROBE RESULT ok tris=90 vol=9.929218794335908e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 15, 15]
+CELL r=1.05 sign=-1 unsplit d=0.04
+BPROBE RESULT ok tris=102 vol=9.994412721924704e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 17, 17]
+CELL r=1.05 sign=-1 unsplit d=0.03
+BPROBE RESULT ok tris=114 vol=1.004027715286799e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 19, 19]
+CELL r=1.05 sign=-1 split d=3
+BPROBE RESULT ok tris=64 vol=-7.150058932751031e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=-1 split d=1
+BPROBE RESULT ok tris=64 vol=-7.150058932751031e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=-1 split d=0.3
+BPROBE RESULT ok tris=64 vol=-7.150058932751031e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=-1 split d=0.1
+BPROBE RESULT ok tris=88 vol=-3.897248116670072e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 11, 11, 1]
+CELL r=1.05 sign=-1 split d=0.05
+BPROBE RESULT ok tris=120 vol=9.929218794335966e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 15, 15, 1]
+CELL r=1.05 sign=-1 split d=0.04
+BPROBE RESULT ok tris=136 vol=9.994412721924674e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 17, 17, 1]
+CELL r=1.05 sign=-1 split d=0.03
+BPROBE RESULT ok tris=116 vol=1.004027715286799e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 19, 19, 1]
+CELL r=1.3 sign=1 unsplit d=3
+BPROBE RESULT ok tris=50 vol=1.1845632044350112e0 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 8, 8]
+CELL r=1.3 sign=1 unsplit d=0.5
+BPROBE RESULT ok tris=66 vol=1.333797274916629e0 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 11, 11]
+CELL r=1.3 sign=1 unsplit d=0.25
+BPROBE RESULT ok tris=120 vol=1.623077131083483e0 check_mesh=Ok(()) geometry=Ok(()) chords=[3, 1, 15, 15]
+CELL r=1.3 sign=1 unsplit d=0.1
+BPROBE RESULT ok tris=240 vol=1.7433144974578099e0 check_mesh=Ok(()) geometry=Ok(()) chords=[4, 1, 24, 24]
+CELL r=1.3 sign=1 split d=3
+BPROBE RESULT ok tris=82 vol=1.3700753011856797e0 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 8, 8, 1]
+CELL r=1.3 sign=1 split d=0.5
+BPROBE RESULT ok tris=110 vol=1.4349134582209937e0 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 11, 11, 1]
+CELL r=1.3 sign=1 split d=0.25
+BPROBE RESULT ok tris=180 vol=1.6784292186114034e0 check_mesh=Ok(()) geometry=Ok(()) chords=[3, 1, 15, 15, 1]
+CELL r=1.3 sign=1 split d=0.1
+BPROBE RESULT ok tris=242 vol=1.7433144974578096e0 check_mesh=Ok(()) geometry=Ok(()) chords=[4, 1, 24, 24, 1]
+CELL r=1.3 sign=-1 unsplit d=3
+BPROBE RESULT ok tris=48 vol=1.550648896430137e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.3 sign=-1 unsplit d=0.5
+BPROBE RESULT ok tris=48 vol=1.550648896430137e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.3 sign=-1 unsplit d=0.25
+BPROBE RESULT ok tris=48 vol=1.550648896430137e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.3 sign=-1 unsplit d=0.1
+BPROBE RESULT ok tris=96 vol=1.9981497885476793e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 3, 12, 12]
+CELL r=1.3 sign=-1 split d=3
+BPROBE RESULT ok tris=80 vol=1.365136799679468e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8, 1]
+CELL r=1.3 sign=-1 split d=0.5
+BPROBE RESULT ok tris=80 vol=1.365136799679468e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8, 1]
+CELL r=1.3 sign=-1 split d=0.25
+BPROBE RESULT ok tris=64 vol=1.550648896430137e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8, 1]
+CELL r=1.3 sign=-1 split d=0.1
+BPROBE RESULT ok tris=98 vol=1.99814978854768e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 3, 12, 12, 1]
+test split_rulings::zz_probe_join ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 307 filtered out; finished in 0.44s
+

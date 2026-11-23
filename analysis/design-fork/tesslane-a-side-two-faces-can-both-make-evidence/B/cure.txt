@@ -1,0 +1,129 @@
+
+running 1 test
+CELL r=1.05 sign=1 unsplit d=3
+CHORDFLOOR -> 2
+JOINPROBE overused 12 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 12
+BPROBE RESULT ok tris=58 vol=1.5092308563562676e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 8, 8]
+CELL r=1.05 sign=1 unsplit d=1
+CHORDFLOOR -> 2
+JOINPROBE overused 12 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 12
+BPROBE RESULT ok tris=58 vol=1.5092308563562676e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 8, 8]
+CELL r=1.05 sign=1 unsplit d=0.3
+CHORDFLOOR -> 2
+JOINPROBE overused 21 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 21
+BPROBE RESULT ok tris=96 vol=9.918934022033874e-3 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 13, 13]
+CELL r=1.05 sign=1 unsplit d=0.1
+BPROBE RESULT ok tris=132 vol=9.75646331256043e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 22, 22]
+CELL r=1.05 sign=1 unsplit d=0.05
+BPROBE RESULT ok tris=186 vol=9.822792595189833e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 31, 31]
+CELL r=1.05 sign=1 unsplit d=0.04
+BPROBE RESULT ok tris=210 vol=9.837332876861528e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 35, 35]
+CELL r=1.05 sign=1 unsplit d=0.03
+BPROBE RESULT ok tris=320 vol=1.1682950233029743e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[3, 1, 40, 40]
+CELL r=1.05 sign=1 split d=3
+JOINPROBE overused 13 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 13
+BPROBE RESULT ok tris=60 vol=1.5265566588595902e-16 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=1 split d=1
+JOINPROBE overused 13 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 13
+BPROBE RESULT ok tris=60 vol=1.5265566588595902e-16 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=1 split d=0.3
+JOINPROBE overused 20 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 20
+BPROBE RESULT ok tris=94 vol=-2.498001805406602e-16 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 13, 13, 1]
+CELL r=1.05 sign=1 split d=0.1
+BPROBE RESULT ok tris=134 vol=9.756463312560393e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 22, 22, 1]
+CELL r=1.05 sign=1 split d=0.05
+BPROBE RESULT ok tris=188 vol=9.822792595189822e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 31, 31, 1]
+CELL r=1.05 sign=1 split d=0.04
+BPROBE RESULT ok tris=212 vol=9.837332876861549e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 35, 35, 1]
+CELL r=1.05 sign=1 split d=0.03
+BPROBE RESULT ok tris=322 vol=1.1682950233029686e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[3, 1, 40, 40, 1]
+CELL r=1.05 sign=-1 unsplit d=3
+CHORDFLOOR -> 2
+JOINPROBE overused 10 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 10
+BPROBE RESULT ok tris=54 vol=1.509230856356237e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.05 sign=-1 unsplit d=1
+CHORDFLOOR -> 2
+JOINPROBE overused 10 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 10
+BPROBE RESULT ok tris=54 vol=1.509230856356237e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.05 sign=-1 unsplit d=0.3
+CHORDFLOOR -> 2
+JOINPROBE overused 10 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 10
+BPROBE RESULT ok tris=54 vol=1.509230856356237e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.05 sign=-1 unsplit d=0.1
+CHORDFLOOR -> 2
+JOINPROBE overused 16 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 16
+BPROBE RESULT ok tris=78 vol=1.1539301073318242e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 11, 11]
+CELL r=1.05 sign=-1 unsplit d=0.05
+BPROBE RESULT ok tris=90 vol=9.929218794335908e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 15, 15]
+CELL r=1.05 sign=-1 unsplit d=0.04
+BPROBE RESULT ok tris=102 vol=9.994412721924704e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 17, 17]
+CELL r=1.05 sign=-1 unsplit d=0.03
+BPROBE RESULT ok tris=114 vol=1.004027715286799e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 19, 19]
+CELL r=1.05 sign=-1 split d=3
+JOINPROBE overused 13 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 13
+BPROBE RESULT ok tris=60 vol=6.152485928131076e-16 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=-1 split d=1
+JOINPROBE overused 13 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 13
+BPROBE RESULT ok tris=60 vol=6.152485928131076e-16 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=-1 split d=0.3
+JOINPROBE overused 13 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 13
+BPROBE RESULT ok tris=60 vol=6.152485928131076e-16 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 8, 8, 1]
+CELL r=1.05 sign=-1 split d=0.1
+JOINPROBE overused 17 (on a chord: 0) coincident_chord_sides 0
+JOINCUT 17
+BPROBE RESULT ok tris=80 vol=1.4802973661668753e-16 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 1, 11, 11, 1]
+CELL r=1.05 sign=-1 split d=0.05
+BPROBE RESULT ok tris=92 vol=9.929218794335937e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 15, 15, 1]
+CELL r=1.05 sign=-1 split d=0.04
+BPROBE RESULT ok tris=104 vol=9.994412721924734e-2 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 17, 17, 1]
+CELL r=1.05 sign=-1 split d=0.03
+BPROBE RESULT ok tris=116 vol=1.004027715286799e-1 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 19, 19, 1]
+CELL r=1.3 sign=1 unsplit d=3
+BPROBE RESULT ok tris=50 vol=1.1845632044350112e0 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 8, 8]
+CELL r=1.3 sign=1 unsplit d=0.5
+BPROBE RESULT ok tris=66 vol=1.333797274916629e0 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 11, 11]
+CELL r=1.3 sign=1 unsplit d=0.25
+BPROBE RESULT ok tris=120 vol=1.623077131083483e0 check_mesh=Ok(()) geometry=Ok(()) chords=[3, 1, 15, 15]
+CELL r=1.3 sign=1 unsplit d=0.1
+BPROBE RESULT ok tris=240 vol=1.7433144974578099e0 check_mesh=Ok(()) geometry=Ok(()) chords=[4, 1, 24, 24]
+CELL r=1.3 sign=1 split d=3
+BPROBE RESULT ok tris=52 vol=1.1845632044350114e0 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 8, 8, 1]
+CELL r=1.3 sign=1 split d=0.5
+BPROBE RESULT ok tris=68 vol=1.3337972749166294e0 check_mesh=Ok(()) geometry=Ok(()) chords=[2, 1, 11, 11, 1]
+CELL r=1.3 sign=1 split d=0.25
+BPROBE RESULT ok tris=122 vol=1.6230771310834828e0 check_mesh=Ok(()) geometry=Ok(()) chords=[3, 1, 15, 15, 1]
+CELL r=1.3 sign=1 split d=0.1
+BPROBE RESULT ok tris=242 vol=1.7433144974578096e0 check_mesh=Ok(()) geometry=Ok(()) chords=[4, 1, 24, 24, 1]
+CELL r=1.3 sign=-1 unsplit d=3
+BPROBE RESULT ok tris=48 vol=1.550648896430137e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.3 sign=-1 unsplit d=0.5
+BPROBE RESULT ok tris=48 vol=1.550648896430137e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.3 sign=-1 unsplit d=0.25
+BPROBE RESULT ok tris=48 vol=1.550648896430137e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8]
+CELL r=1.3 sign=-1 unsplit d=0.1
+BPROBE RESULT ok tris=96 vol=1.9981497885476793e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 3, 12, 12]
+CELL r=1.3 sign=-1 split d=3
+BPROBE RESULT ok tris=50 vol=1.550648896430136e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8, 1]
+CELL r=1.3 sign=-1 split d=0.5
+BPROBE RESULT ok tris=50 vol=1.550648896430136e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8, 1]
+CELL r=1.3 sign=-1 split d=0.25
+BPROBE RESULT ok tris=50 vol=1.550648896430136e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 2, 8, 8, 1]
+CELL r=1.3 sign=-1 split d=0.1
+BPROBE RESULT ok tris=98 vol=1.99814978854768e0 check_mesh=Ok(()) geometry=Ok(()) chords=[1, 3, 12, 12, 1]
+test split_rulings::zz_probe_join ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 307 filtered out; finished in 0.45s
+

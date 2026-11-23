@@ -1,0 +1,42 @@
+SURFSPLIT cuts 24 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.025 worst_parent/d 0.025 kinds ["cyl", "torus"]
+CSTL unsplit r=1.05 sign=1 d=3 tris=82 check_mesh=true winding=true vol=0.089268 body_vol=0.132058
+SURFSPLIT cuts 24 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.076 worst_parent/d 0.076 kinds ["cyl", "torus"]
+CSTL unsplit r=1.05 sign=1 d=1 tris=82 check_mesh=true winding=true vol=0.089268 body_vol=0.132058
+SURFSPLIT cuts 42 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.167 worst_parent/d 0.167 kinds ["cyl", "torus"]
+CSTL unsplit r=1.05 sign=1 d=0.3 tris=138 check_mesh=true winding=true vol=0.092023 body_vol=0.132058
+CSTL unsplit r=1.05 sign=1 d=0.1 tris=132 check_mesh=true winding=true vol=0.097565 body_vol=0.132058
+SURFSPLIT cuts 26 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.025 worst_parent/d 0.025 kinds ["cyl", "torus"]
+CSTL split r=1.05 sign=1 d=3 tris=86 check_mesh=true winding=true vol=0.077779 body_vol=0.132058
+SURFSPLIT cuts 26 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.076 worst_parent/d 0.076 kinds ["cyl", "torus"]
+CSTL split r=1.05 sign=1 d=1 tris=86 check_mesh=true winding=true vol=0.077779 body_vol=0.132058
+SURFSPLIT cuts 40 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.167 worst_parent/d 0.167 kinds ["cyl", "torus"]
+CSTL split r=1.05 sign=1 d=0.3 tris=134 check_mesh=true winding=true vol=0.079814 body_vol=0.132058
+CSTL split r=1.05 sign=1 d=0.1 tris=134 check_mesh=true winding=true vol=0.097565 body_vol=0.132058
+SURFSPLIT cuts 20 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.042 worst_parent/d 0.042 kinds ["cyl", "sphere"]
+CSTL unsplit r=1.05 sign=-1 d=3 tris=74 check_mesh=true winding=true vol=0.082556 body_vol=0.137459
+SURFSPLIT cuts 20 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.126 worst_parent/d 0.126 kinds ["cyl", "sphere"]
+CSTL unsplit r=1.05 sign=-1 d=1 tris=74 check_mesh=true winding=true vol=0.082556 body_vol=0.137459
+SURFSPLIT cuts 20 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.420 worst_parent/d 0.420 kinds ["cyl", "sphere"]
+CSTL unsplit r=1.05 sign=-1 d=0.3 tris=74 check_mesh=true winding=true vol=0.082556 body_vol=0.137459
+SURFSPLIT cuts 32 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.905 worst_parent/d 0.905 kinds ["cyl", "sphere"]
+CSTL unsplit r=1.05 sign=-1 d=0.1 tris=110 check_mesh=true winding=true vol=0.089562 body_vol=0.137459
+SURFSPLIT cuts 26 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.042 worst_parent/d 0.042 kinds ["cyl", "sphere"]
+CSTL split r=1.05 sign=-1 d=3 tris=86 check_mesh=true winding=true vol=0.091136 body_vol=0.137459
+SURFSPLIT cuts 26 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.126 worst_parent/d 0.126 kinds ["cyl", "sphere"]
+CSTL split r=1.05 sign=-1 d=1 tris=86 check_mesh=true winding=true vol=0.091136 body_vol=0.137459
+SURFSPLIT cuts 26 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.420 worst_parent/d 0.420 kinds ["cyl", "sphere"]
+CSTL split r=1.05 sign=-1 d=0.3 tris=86 check_mesh=true winding=true vol=0.091136 body_vol=0.137459
+SURFSPLIT cuts 34 folds 0 devfail 0 nofoot 0 chorded 0 worst_child/d 0.905 worst_parent/d 0.905 kinds ["cyl", "sphere"]
+CSTL split r=1.05 sign=-1 d=0.1 tris=114 check_mesh=true winding=true vol=0.086244 body_vol=0.137459
+CSTL unsplit r=1.3 sign=1 d=3 tris=50 check_mesh=true winding=true vol=1.184563 body_vol=1.881506
+CSTL unsplit r=1.3 sign=1 d=0.5 tris=66 check_mesh=true winding=true vol=1.333797 body_vol=1.881506
+CSTL unsplit r=1.3 sign=1 d=0.25 tris=120 check_mesh=true winding=true vol=1.623077 body_vol=1.881506
+CSTL split r=1.3 sign=1 d=3 tris=52 check_mesh=true winding=true vol=1.184563 body_vol=1.881506
+CSTL split r=1.3 sign=1 d=0.5 tris=68 check_mesh=true winding=true vol=1.333797 body_vol=1.881506
+CSTL split r=1.3 sign=1 d=0.25 tris=122 check_mesh=true winding=true vol=1.623077 body_vol=1.881506
+CSTL unsplit r=1.3 sign=-1 d=3 tris=48 check_mesh=true winding=true vol=1.550649 body_vol=2.400835
+CSTL unsplit r=1.3 sign=-1 d=0.5 tris=48 check_mesh=true winding=true vol=1.550649 body_vol=2.400835
+CSTL unsplit r=1.3 sign=-1 d=0.25 tris=48 check_mesh=true winding=true vol=1.550649 body_vol=2.400835
+CSTL split r=1.3 sign=-1 d=3 tris=50 check_mesh=true winding=true vol=1.550649 body_vol=2.400835
+CSTL split r=1.3 sign=-1 d=0.5 tris=50 check_mesh=true winding=true vol=1.550649 body_vol=2.400835
+CSTL split r=1.3 sign=-1 d=0.25 tris=50 check_mesh=true winding=true vol=1.550649 body_vol=2.400835
