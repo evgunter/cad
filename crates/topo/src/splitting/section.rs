@@ -307,7 +307,8 @@ where
     let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
-    let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);
+    let below = section_loops::section_frame(plane.frame(), PlaneSide::Below);
+    let normal = below.axis();
 
     let mut u_ref = None;
     let mut v_ref = None;
@@ -394,19 +395,20 @@ where
             holes.push((polygon, section.below_loop));
         }
     }
-    let nesting = section_loops::nest(&red.body, outlines, holes, normal, band).map_err(
-        |fault| match fault {
-            // `section_walk` resolved, on this body, every record the
-            // nesting reads of these loops.
-            NestFault::Torn(unresolved) => unreachable!(
-                "the section nesting read a torn scratch body ({unresolved}), over loops whose \
+    let nesting =
+        section_loops::nest(&red.body, outlines, holes, below, band).map_err(|fault| {
+            match fault {
+                // `section_walk` resolved, on this body, every record the
+                // nesting reads of these loops.
+                NestFault::Torn(unresolved) => unreachable!(
+                    "the section nesting read a torn scratch body ({unresolved}), over loops whose \
                  every record the section walk resolved on the same body"
-            ),
-            NestFault::Contradiction(hole) => SectionError::NestingContradiction {
-                corner: hole.points()[0],
-            },
-        },
-    )?;
+                ),
+                NestFault::Contradiction(hole) => SectionError::NestingContradiction {
+                    corner: hole.points()[0],
+                },
+            }
+        })?;
     if let Some(hole) = nesting.unplaced.first() {
         return Err(SectionError::UnplacedHole {
             corner: hole.points()[0],

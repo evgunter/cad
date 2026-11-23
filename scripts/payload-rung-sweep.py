@@ -407,6 +407,14 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Stopped": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
                           "once, beside `Stop` and `Evaluation`; the general rule is at "
                           "the payload-rule header of crates/pncad/src/document.rs"),
+    # A failure's class is the evaluation vocabulary too — `NodeErrorKind::class`'s
+    # answer, carried beside `NodeErrorKind` on `document`; the analysis list's
+    # drive refusal carries it as `Unsettled::Failed`'s `class`, the failure
+    # without its payload.
+    "NodeErrorClass": ("argued", "the evaluation vocabulary is `document`'s and is "
+                                 "spelled once, beside `NodeErrorKind`; the general rule "
+                                 "is at the payload-rule header of "
+                                 "crates/pncad/src/document.rs"),
     # A slot's address is the recipe's vocabulary, carried beside `Node` on
     # `document`; the analysis list's range field and its refusals name the
     # slot they were asked about with it.

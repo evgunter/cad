@@ -1755,6 +1755,17 @@ fn spells_a_mention(words: &str) -> bool {
     })
 }
 
+/// **One witness of every [`crate::NodeErrorClass`]**, each with its
+/// class: the census a consumer that answers each class walks, so a
+/// class it answers wrongly, or one added to the kernel, reds there.
+/// `tol` is the band the escalation witnesses carry.
+#[must_use]
+pub fn node_error_witnesses(
+    tol: geom_core::Tol,
+) -> Vec<(crate::NodeErrorClass, crate::NodeErrorKind)> {
+    crate::eval::class::witnesses::all(tol)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{axes_at, moves_at};

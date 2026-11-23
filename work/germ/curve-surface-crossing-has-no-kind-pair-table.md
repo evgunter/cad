@@ -84,3 +84,4 @@ was never set on this row; the U0 PR settled the shape.
 - **U2** (PR 7209): the conic × quadric door is in geom-brep.
 - **U3a** (PR 7226): `curve_face::pose` and `curve_face::cross` are built, and the trace and the census touch confirm read them. Its dual review found one class, cone readings that skipped the floor on narrow cones, now fixed across every cone rung.
 - **Remaining:** U3b (the ring path, classify, `on_surface`, region; in flight); U4 (the sweep merge, which needs local windows plumbed first); U5 (the remaining readers).
+- **U4 spec**: `docs/GERM-CROSSING-U4-SPEC.md` stages U4 as U4a (local windows), U4b (the face reading and the curved lane), U4c (the planar lane, `slit`, `factored_crossing`) and U4d (the spline arms, after a fork put to Ev on its PR).

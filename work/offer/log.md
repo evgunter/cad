@@ -297,3 +297,30 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The unit is closed**, and the residue is in `viewer-pane-lines-spell-their-nodes-as-text` (P2).
   - **#7562 R1 is in:** APPROVE-WITH-FIXES, no MAJOR. The `Quieting` type allows hand-building; the tolerance words flicker; the NodeErrorClass census is missing; two offer shapes are uninventoried; the same-batch race is caught by the door. R2 is pending.
   - #7562's fix pass ports #7557. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 13:07Z — **The next cut begins.** Only P2/P3 rows remain besides the offers function, which is in dual review.
+  - **Dispatched now on Opus:** `some-spoken-causes-and-reports-are-still-text` (kernel side, so it is clear of the offers PR's viewer sites): session_013QoYWXqCH3gHdpWprRxMis, branch `offer/spoken-causes-are-sentences`.
+  - **After offers merges:** `viewer-pane-lines-spell-their-nodes-as-text` and `the-wheels-modifier-decisions-are-outside-the-binding-table`.
+  - **Held:** the four +design P2 rows (stranded-name rebind, expected component count, the tolerance door, the member-budget door). The design-fork protocol needs a Fable designer, and Fable is out until Nov 28 15:00 UTC. (OFFER orchestrator)
+- 2026-11-23 13:09Z — **#7562 adjudicated on the union of R1 and R2. Both say APPROVE-WITH-FIXES.**
+  - **R2 demonstrated a MAJOR, which R1 rated MINOR:** the "ruled out by type" claim is false. `Quieting` and `QuietingRef` have pub fields, so a raw-name `Minted` seat is still buildable. The fix privatises them, with a compile_fail doctest.
+  - **The rest of the union:**
+    - the door has no check of its own: a duplicate or same-batch Commit is accepted (a batch rule plus a door check);
+    - the tolerance words flicker;
+    - there is no census of the no-offer class arms;
+    - the mate arms need Leads into the placement editor;
+    - two inventory gaps;
+    - five surviving mutants;
+    - `Current`'s pairing is untyped;
+    - style items, including one source for the beside-its-assertion rule.
+  - **The fix pass** went to the lane with the #7557 port. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 16:25Z — **#7562 merged** (ca373503) at f9b31535: one offers function. All OFFER's P1 units have now landed.
+  - **The merge:** the orchestrator resolved a second main conflict itself. In `tools.rs` it kept main's datum functions with the PR's `hold_target`; in the gesture table it moved `AssertQuieting` to index 64, past main's `AddDatum`.
+  - **Verification** (orchestrator, local): at 43d380c2, 101/102 rows (the red is a flake, filed on GREEN) and 3/3 compile_fail doctests; at 77d14d6d, 45/45 plus 13/13; on the merged tree, 67/67, and clippy is clean.
+  - **The unit is closed.**
+  - **#7576 (kernel residue)** is in single review: session_013QoYWWfzMp4rzNLA6sxZTw.
+  - **Dispatched on Opus:**
+    - `viewer-pane-lines-spell-their-nodes-as-text`: session_013QoYWV9XkZLMg2qDsZc77R, branch `offer/pane-lines-are-sentences`;
+    - `the-wheels-modifier-decisions-are-outside-the-binding-table`: session_013QoYWVGtGVxZeqAdBE7szS, branch `offer/the-wheel-is-in-the-binding-table`.
+  - **Costed:** `the-body-a-placement-copies-has-three-answers` is M. It waits for the pane-lines PR, which shares `pane/create.rs`.
+  - **Held:** the four +design P2 rows, until Fable resets on Nov 28.
+  - No row (rule 12). (OFFER orchestrator)
