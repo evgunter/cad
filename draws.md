@@ -23,3 +23,4 @@ Fable usage was exhausted from 2026-11-20 until 2026-11-22 00:40 UTC (the user, 
 | 2026-11-23 | turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling | M | single FULL | implementer | 224 | Opus |
 | 2026-11-23 | conic-constructions-from-computed-sizes-unaudited | H | single FULL | implementer | 227 | Fable |
 | 2026-11-23 | turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling | M | single FULL | reviewer (head 91b3e0bd0b) | 62 | Opus |
+| 2026-11-23 | conic-constructions-from-computed-sizes-unaudited | H | single FULL | reviewer (head ab8dd4aca) | 185 | Fable |
