@@ -2,11 +2,14 @@
 id: cell-region-clear-of-singular-reads-a-spline-chart-as-having-no-singular-point
 kind: issue
 title: cell_region's clear_of_singular reads a spline (or Approx) chart as having no singular point, by kind
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
 refs: [a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint, edge-join-singular-at-reads-a-spline-pole-as-not-singular]
+closed: 2026-11-22
+rides_with: a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint
+pr: 7325
 ---
 
 Filed by SPLICE's `splice/kind-reads` lane, from its sweep for doors that
@@ -40,3 +43,14 @@ Give the arm a spline chart's reading (a collapsed boundary row or column,
 read off the net, as the loop joint row would read it) or refuse typed,
 with a row on a spline face whose chart collapses a boundary column.
 
+
+## Closed (2026-11-22, with `a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint`)
+
+`crates/topo/src/cell_region.rs` `clear_of_singular` reads a NURBS or
+`Approx` face's collapsed sides from the singular set's one home
+(`geom_brep::chart_singularity::singular_points`). A station must be
+decided clear of each side's point by the cell's reach, as a cone's
+apex is. The last arm now names the plane, the cylinder and the sphere,
+whose poles this reader has never read (unchanged). A collapsed side
+is one stored point (DESIGN `[extensibility]`, ratified on PR 7287),
+so no band decides which sides there are.

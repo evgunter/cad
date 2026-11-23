@@ -886,7 +886,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      beside the record; any other op refuses one. A record
      that lands on no pair, every pair read definitely, is consumed
      where one of its cells was removed, divided with its remainder
-     removed, or moved, and is stale otherwise; a cell the lineage does not cover
+     removed, or moved, or where the op put its two cells in different
+     result bodies, each holding images of one cell alone and each
+     reaching the cut by a decision the op made: the touch is
+     then a meeting between two bodies, as a split's two sides meet
+     across its plane, which no body's records state. It is stale
+     otherwise; a cell the lineage does not cover
      refuses. A cell that replaces another without holding its interior
      (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is

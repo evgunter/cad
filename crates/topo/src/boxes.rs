@@ -283,7 +283,11 @@ use crate::entity::{EdgeKey, FaceKey};
 /// pairs and never changes an answer (the differential suite pins
 /// that). At `separation`'s and at `boolean::ops`'s fallback it can
 /// only make a certificate harder to obtain, never wrongly grant one
-/// — the same direction, but a cost rather than a free one.
+/// — the same direction, but a cost rather than a free one. The depth
+/// gap (`census::depth_gap`) takes it off each face too, and through it
+/// the census's arm 1 and the clearance engine's root reading
+/// (`clearance`'s `parted_in_depth`, so the embedding certificate):
+/// there a smaller pad parts faces a larger one would not.
 pub(crate) fn sweep_pad(band: Band) -> f64 {
     band.escalate() + 2.0 * band.zero()
 }
@@ -489,7 +493,7 @@ pub(crate) mod tests {
         match (try_arc_sector_from(r, span, phi_deg.to_radians()), pinned) {
             (Ok(built), false) => Some(built),
             (
-                Err(crate::euler::EulerOpError::Certification {
+                Err(crate::euler::EulerOpError::DescriptionUncertified {
                     error:
                         geom_brep::certify::CertifyError::AnalyticRung3(
                             geom_brep::edge_nurbs::AnalyticRung3Refusal::KernelLimit {
@@ -498,6 +502,7 @@ pub(crate) mod tests {
                                 ..
                             },
                         ),
+                    ..
                 }),
                 true,
             ) if bound > 1.0e-12 && bound <= 1.1e-12 => None,
@@ -3431,30 +3436,20 @@ pub(crate) mod tests {
     /// point at parameter `t` is `centre_i + (a·û)_i·cos t + (b·v̂)_i·sin t`.
     fn conic_frame(carrier: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
         match carrier {
-            Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: carrier_frame_6,
-                    ..
-                },
-            ) => {
+            Curve3::Circle(circle) => {
                 let (center, axis, u_ref) = (
-                    carrier_frame_6.origin(),
-                    carrier_frame_6.axis(),
-                    carrier_frame_6.u_ref(),
+                    circle.frame().origin(),
+                    circle.frame().axis(),
+                    circle.frame().u_ref(),
                 );
                 let radius = circle.radius();
                 (center, u_ref * radius, axis.cross(u_ref) * radius)
             }
-            Curve3::Ellipse(
-                ellipse @ geom::Ellipse {
-                    frame: carrier_frame_5,
-                    ..
-                },
-            ) => {
+            Curve3::Ellipse(ellipse) => {
                 let (center, axis, u_ref) = (
-                    carrier_frame_5.origin(),
-                    carrier_frame_5.axis(),
-                    carrier_frame_5.u_ref(),
+                    ellipse.frame().origin(),
+                    ellipse.frame().axis(),
+                    ellipse.frame().u_ref(),
                 );
                 let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 (center, u_ref * semi_u, axis.cross(u_ref) * semi_v)
@@ -4015,13 +4010,10 @@ pub(crate) mod sphere_rect_rows {
             )
             .unwrap();
         let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
-            let Curve3::Circle(geom::Circle {
-                frame: carrier_frame,
-                ..
-            }) = carrier
-            else {
+            let Curve3::Circle(the_circle @ geom::Circle { .. }) = carrier else {
                 unreachable!("a sheet edge is a circle");
             };
+            let carrier_frame = the_circle.frame();
             let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             let plane = body.add_surface(Surface::Plane {
                 frame: geom::Frame::new(
@@ -4284,13 +4276,10 @@ pub(crate) mod sphere_rect_rows {
         // reference; the strut's contains the axis and takes it.
         let arc =
             |body: &mut Body<f64>, carrier: Curve3<f64>, u_ref: Vec3<f64>, (t0, t1): (f64, f64)| {
-                let Curve3::Circle(geom::Circle {
-                    frame: carrier_frame,
-                    ..
-                }) = carrier
-                else {
+                let Curve3::Circle(the_circle @ geom::Circle { .. }) = carrier else {
                     unreachable!("a cap edge is a circle");
                 };
+                let carrier_frame = the_circle.frame();
                 let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let plane = body.add_surface(Surface::Plane {
                     frame: geom::Frame::new(center, axis, u_ref),
@@ -4371,7 +4360,7 @@ pub(crate) mod sphere_rect_rows {
             let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
             let base = outer
                 .iter()
-                .find(|e| matches!(e.carrier, Curve3::Circle(geom::Circle { frame, .. }) if frame.axis().dot(z) > 0.5))
+                .find(|e| matches!(e.carrier, Curve3::Circle(circle_2 @ geom::Circle { .. }) if circle_2.frame().axis().dot(z) > 0.5))
                 .expect("the base rim runs about +ẑ");
             body.set_face_sense(north, base.forward == (hc > h0))
                 .unwrap();

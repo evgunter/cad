@@ -95,3 +95,45 @@ corner against the partner. The quadrant reading stays refused
 Cheapest edge reproducer:
 `topo::all records_cite_their_decision::a_cell_reached_from_both_sides_cites_its_shortest_chain`
 (0.12 s).
+
+## Census tests whose partner stops at the lean gate (EMBED lane `embed/iso-end`, 2026-11-22)
+
+A plane face's reflex corner is read by the face's own carrier in the carrier arm, against the partner's presentation, where the partner is presented and lies on one side of the face's plane in the cell; no other first-order separator signs the face's part there (`a-cell-past-an-iso-edges-end-is-clipped-by-its-whole-line`, What a fix needs). Across a shared edge that holds for a valid body; at a vertex alone a valid partner may cross the plane in the quadrant the face lacks, and there the reflex half of this row stands (`embed/corner-pieces`). The census refusals below are partner readings.
+
+**Cylinder bucket, 6 tests.** The cylinder's pair now certifies, and the test refuses at a plane pair whose face exits at `present_plane`'s lean gate:
+
+- `editor-core::all emit_curved_rim_chord::a_cavity_cut_by_the_notched_prism_names_its_rim_pieces`
+- `editor-core::all emit_curved_rim_chord::a_post_across_the_other_piece_of_a_notched_circle_unites`
+- `editor-core::all wire_legal_union_refusals::two_bars_that_sever_a_sunk_boss_wall_only_together_name_the_glue`
+- `editor-core::all wire_legal_union_refusals::two_blocks_that_open_a_sunk_boss_wall_only_together_name_the_glue`
+- `editor-core::all emit_union_curved_flush::a_wall_across_two_flush_arcs_publishes_one_table_in_every_order`
+- `editor-core::all wire_legal_union_refusals::a_chord_across_the_glued_pieces_line_names_wherever_the_cut_crosses`
+
+**Plane/plane departure census.** Here the refusing pair holds a reflex lean (both < 0) on one face. Of 212 tests (vertex and edge buckets, ≤30 s each) on main `a29fd3695`, with the trace prints on `embed/iso-end-measure`, 31 do. In 13 of them the partner is unpresented (a straight corner, leans exactly 0, or another exit; not classed per test):
+
+- `editor-core::all emit_union_borders::two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle`
+- `step-import::all onb_wild_normal_census::no_wild_face_sits_on_the_frame_seam`
+- `step-import::all wild::wild_bodies_are_a_fixed_point_of_our_own_dialect`
+- `step-import::all wild::wild_files_import_and_agree_with_the_oracle`
+- `sweep::all a_long_bound_beside_a_short_arm::a_boss_beside_a_holes_long_edge_at_every_angle`
+- `sweep::all a_long_bound_beside_a_short_arm::a_boss_poking_out_of_a_hole`
+- `sweep::all join2_r2_probes::a_channel_whose_arm_ends_join_two_ring_vertices_builds_sound`
+- `sweep::all join2_r2_probes::an_island_of_ring_vertex_segments_builds_sound`
+- `sweep::all reach_continuation::a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order`
+- `sweep::all rest_zip_admission::a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice`
+- `sweep::all rest_zip_admission::the_tangent_site_keeps_building_pure_contacts`
+- `topo::all a_corner_flat_at_its_short_bounds::a_long_edge_beside_a_corner_flat_at_its_short_bounds_is_classed_where_it_runs`
+- `topo::all a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pieces_stand_out_of_a_plate_builds_or_refuses_typed`
+
+## 2026-11-22: what the vertex-alone separator reads of a straight corner (embed/vertex-bisector)
+
+At a vertex two faces share alone, `planes_through` parts two quadrant
+presentations (`Zero::Point` on both) by the wedge plane
+(`wedges_apart`): the point nearest the origin of the hull of the two
+corners' axes, one corner's negated. A straight corner presented as a
+quadrant has antiparallel axes (`a₁ = −a₂`), so the origin is in that
+hull whatever the partner is, and the wedge plane never parts it. A
+straight corner read through the `[e]` arm's half-plane at a vertex
+alone needs a separator of its own there: one through the corner's
+line, leaning off the partner, which the one-line arm builds only
+where the line is a shared edge.

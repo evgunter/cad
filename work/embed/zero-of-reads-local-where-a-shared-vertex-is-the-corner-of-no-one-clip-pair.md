@@ -59,3 +59,12 @@ signs no `Past` side here whatever `zero_of` reads. The row was
 assigned to the rim bucket of
 `vacuous-reads-a-cell-at-a-corner-local-at-every-depth` by family and
 is unchanged by that row's joint reading.
+
+## Census tests the cylinder fix leaves at zero_of (EMBED lane `embed/iso-end`, 2026-11-22)
+
+In these 2 the refusing pair's partner exits at `zero_of`'s loose-vertex arm (the shared vertex is the corner of no one clip pair).
+
+Measured on `embed/iso-end-measure2` (`origin/embed/gate-measure` @ `ebb2e6f8e` plus `embed/iso-end`'s diff), where each refusal is the same pair, test by test, as on the trace run that named the exits (`embed/iso-end-measure` @ `030c75763`, `CV_TRACE`).
+
+- `sweep::all a_minted_vertex_on_a_curved_face::a_wedge_on_the_ruling_answers_every_op_in_both_slots`
+- `sweep::all parallel_cylinder_join::a_seam_lying_on_the_other_wall_joins_along_the_carried_ruling`

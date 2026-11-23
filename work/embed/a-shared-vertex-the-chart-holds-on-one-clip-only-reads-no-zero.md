@@ -84,3 +84,12 @@ on the cell's sheet, so the vertex is a corner. `zero_of`, cost M.
   (0.21 s, mid-side).
 - Checked: the printed clips and the vertex's edges, in all 21 sweep
   tests; the fix is not.
+
+## Two halves of one cylinder across a seam ruling (EMBED lane `embed/iso-end`, 2026-11-22)
+
+In these 2 the refusing pair is two faces of one cylinder carrier sharing a ruling that ends in the cell. Each face has one clip, its edge stopping at the shared vertex inside the cell's side, so both exit at `sides_are_the_faces`. Neither carrier signs the other, since they are the same carrier.
+
+Measured on `embed/iso-end-measure2` (`origin/embed/gate-measure` @ `ebb2e6f8e` plus `embed/iso-end`'s diff), where each refusal is the same pair, test by test, as on the trace run that named the exits (`embed/iso-end-measure` @ `030c75763`, `CV_TRACE`).
+
+- `editor-core::all emit_union_seam_rank::crossings_of_an_arc_cut_twice_name_apart_by_sense_in_every_member_order`
+- `editor-core::all emit_union_seam_rank::crossings_of_seams_with_no_start_name_apart_by_sense_in_every_member_order`

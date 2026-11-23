@@ -866,7 +866,9 @@ fn cavity_refusal_said(
     use crate::clearance::EngineRefusal as R;
     match refusal {
         R::Sliver { .. } => "a separation sits wholly inside the ambiguity band".into(),
-        R::Budget(_) => "the search spent its budget with pairs of walls still undecided".into(),
+        R::Budget { .. } => {
+            "the search spent its budget with pairs of walls still undecided".into()
+        }
         R::Unsupported { carrier, .. } => {
             format!("a wall is {carrier}, which the certificate does not read").into()
         }
@@ -904,7 +906,7 @@ fn cavity_refusal_ending(
 ) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
-        R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
+        R::Sliver { .. } | R::Budget { .. } | R::WitnessUnverified { .. } => {
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
         }
         // A torus off its ring convention ends in its half's lever, in band
@@ -5595,6 +5597,7 @@ fn check_designation<T: Decide>(
             return Err(ShellError::OpenFaceChartPartial { face, other });
         }
     }
+    let claims = crate::glue::LoopClaims::of(body);
     for (shell, data) in body.shells() {
         let remaining: Vec<FaceKey> = data
             .faces
@@ -5605,7 +5608,7 @@ fn check_designation<T: Decide>(
         if remaining.is_empty() {
             return Err(ShellError::OpenFacesExhaustShell { shell });
         }
-        let components = count_components(body, &remaining);
+        let components = count_components(body, &claims, shell, &data.faces, &remaining);
         if components != 1 {
             return Err(ShellError::OpenFacesDisconnect { shell, components });
         }
@@ -5613,29 +5616,31 @@ fn check_designation<T: Decide>(
     Ok(())
 }
 
-/// How many edge-adjacency components `faces` falls into — the
-/// validator's own pass-11 relation, restricted to a subset.
+/// How many components `remaining`, the faces of `shell`'s list that
+/// are not open, fall into under the glue relation
+/// ([`crate::glue::face_set_glue`]). A hop into an open face is not
+/// followed; a hop out of the shell, or a torn record, panics naming it.
 #[track_caller]
-fn count_components<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> usize {
-    let mut seen: Vec<FaceKey> = Vec::new();
-    let mut components = 0usize;
-    for seed in faces {
-        if seen.contains(seed) {
-            continue;
-        }
-        components += 1;
-        let mut work = vec![*seed];
-        seen.push(*seed);
-        while let Some(face) = work.pop() {
-            for neighbour in face_neighbours(body, face) {
-                if faces.contains(&neighbour) && !seen.contains(&neighbour) {
-                    seen.push(neighbour);
-                    work.push(neighbour);
-                }
-            }
-        }
+fn count_components<T: Decide>(
+    body: &Body<T>,
+    claims: &crate::glue::LoopClaims,
+    shell: ShellKey,
+    listed: &[FaceKey],
+    remaining: &[FaceKey],
+) -> usize {
+    let glue = crate::glue::face_set_glue(body, claims, remaining, EntityId::Shell(shell));
+    for hop in &glue.leaving {
+        assert!(
+            listed.contains(&hop.to),
+            "shell {shell:?}'s face {:?} reaches {:?} across {:?}, which the shell does not \
+             list: on a tier-1-valid body an edge's two faces share a shell and a face's \
+             shell lists it",
+            hop.from,
+            hop.to,
+            hop.member
+        );
     }
-    components
+    glue.count
 }
 
 /// The faces `face` shares an edge with, for a face a shell's record

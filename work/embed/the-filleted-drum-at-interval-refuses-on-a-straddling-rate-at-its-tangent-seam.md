@@ -75,10 +75,88 @@ enclosure will need.
 
 ## What closing it takes
 
-The drum at `Interval` holds with `present_chart`'s sliver refused,
-pinned so. It gates that sliver's retirement
-(`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`).
+The drum at `Interval` holds, and its row's `Interval` half goes back
+to asserting so. The sliver is retired without waiting for this row
+(Ev, PR 7095: the drum is a test and no demo): since `embed/remeter`
+(PR 7329) `a_filleted_drum_certifies_across_its_fillet` pins the
+`Interval` half at its refusal, `Uncertified`, the top plane against
+the band across their circle, arm `Departure`, and is red the day it
+holds.
 `teapotlid`, `hollowring` and `hollowtorus` refuse the same way once
 the touch concession's `few_ulps` is also 0 (the measurement's section
 8): the touch is not this row's, but the reading that closes this row
 is the first thing to try there.
+
+## A second witness: a rounded plate filleted all round, at `Interval` (EMBED, lane `embed/remeter`, 2026-11-22)
+
+`sweep::all band_closed_mixed_chain::a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval`
+(26 faces, at the blend's door, the at-rest gate asking on
+`embed/remeter-measure` at `343977aa0`, traced with `RM_TRACE`, one
+thread). With the sliver retired it runs out of its 65,536 pairs
+(65,408 leaves, 50 s) where the drum refuses `Uncertified`.
+
+- **Where the pairs go.** Eight pairs of a wall plane against a fillet
+  cylinder across their shared ruling take 49,836 of 69,498 visits:
+  `5v1`/`21v1`, `5v1`/`29v1`, `9v1`/`25v1` and `9v1`/`33v1` at 8,125
+  each; `1v1`/`29v1` at 4,254; `1v1`/`33v1`, `2v1`/`21v1` and
+  `2v1`/`25v1` at 3,694 each.
+- **Both faces are read**: presented with the ruling as a zero side in
+  over 99% of those visits.
+- **The seam is tangent.** The carrier arm's sine straddles zero in
+  every visit of a pair (at the deepest, `[-3.1e-14, 7.3e-14]`, at an
+  arm of 0.5 m). The plane through the ruling and the graph separator
+  decide in about 200 of a pair's 8,125 visits and straddle in 160.
+- **The cylinder's rectangle is the line's enclosure**: at the deep
+  visits `u ∈ (2.3561944901923053, 2.3561944901923453)`, 4e-14 rad
+  across, about 3π/4. The drum's is 2.1e-14 rad.
+
+**Inferred, not measured**: that main certified these strips through
+`present_chart`'s sliver, as it did the drum's 16. Sliver decisions
+were not counted for this test before the change, and before it the
+ask refused earlier, at another pair (`1v1`/`27v1`, edge `57v1`), so
+these eight pairs' readings on main are in no log. That count is what
+tells this from the next most likely cause, the pairs having certified
+shallower by another separator.
+
+Any of the three changes above is what it needs.
+
+## A third sighting: a support plane against its corner patch across their arc (EMBED, lane `embed/tangent-corner`, PR 7320, 2026-11-23)
+
+`sweep::all self_intersection_proves_injectivity::a_support_face_c1_through_a_vertex_at_interval`:
+the rounded plate (`2 × 1.2 × 0.5`, corner radius `0.3`, every edge
+filleted at `0.1`) built at `Interval`, a cap plane and a corner
+patch (torus) asked alone through `topo::clearance::embedded`. On the
+landing tree (`embed/wave3-land` with PR 7329 in) the pair reads
+`Uncertified`, arm `Departure`, plane × torus across an edge, at the
+default ε and at `1e-6`. On the lane's head before that merge
+(`560e75596`) it held.
+
+- **Where it refuses** (a print in `sign_on`'s departure, taken on the
+  merged tree and removed): at mid-arc cells, not at the joint. The
+  plane is presented with the arc as a `Zero::Curve` with no run, the
+  torus with it as a `Zero::Side`, both under the graph separator, and
+  the sine of departure straddles zero on both down to the depth
+  floor: `(-1.8e-6, 2.2e-6)`, `(-7.1e-8, 2.8e-8)` on the plane,
+  `(-6.8e-8, 8.6e-9)` on the torus; where one is definite it is
+  `8e-8 .. 2e-7`. 1,256 of the plane's 1,313 such decisions and 1,697
+  of the torus's 2,406 answer nothing.
+- **The joint is read**: of the 72 decisions on a run through the
+  arc's end vertex, 66 decide; the 6 that do not are coarse cells.
+- **The sliver, counted on the head before the merge**: the same row
+  on `560e75596` with a print at `present_chart`'s sliver `Zero`:
+  170 sliver decisions in the row's run, 20 on each of four faces and
+  11 on each of four more of the plate's band, and the row passes.
+  With the sliver retired the row refuses. That is the count the
+  second witness above did not have; it was not broken down by pair.
+- **At `f64` the same bodies hold**
+  (`a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints`,
+  six `Embedded`).
+- **Why no one saw it**: without the run through a vertex the pair
+  refused earlier, at the joint, so its mid-arc cells were never
+  reached at `Interval`.
+
+Census tests that now get past `f64` and stop at this exit with the
+at-rest gate asking (measured on `75224e843`):
+`a_lattice_drawn_rounded_plate_fillets_whole`,
+`an_l_plates_rounded_corner_run_fillets_whole_at_interval`,
+`two_arcs_in_one_run_build`.
