@@ -332,11 +332,12 @@ failure-output = "immediate-final"
 #    1.91 s  mesh::all d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest
 #    2.12 s  mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
 # The pair doors read apart: unions of a spline-capped box beside a rod
-# and between a ball's lumps, and the lumps split clear of their patches
-# (a local run):
-#    2.30 s  sweep::all pair_doors_read_apart::a_spline_cap_beside_a_rods_wall_unions_until_it_touches
-#    1.62 s  sweep::all pair_doors_read_apart::the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them
-#    0.28 s  sweep::all pair_doors_read_apart::a_split_between_the_lumps_clears_their_sphere_patches
+# and between a ball's lumps, each read for its volume, and the lumps
+# split clear of their patches (a local run; the lumps' less its 13.5 s
+# NURBS patch-crossing pose, which the row reads on the Approx cap):
+#    3.48 s  sweep::all pair_doors_read_apart::a_spline_cap_beside_a_rods_wall_unions_until_it_touches
+#    1.70 s  sweep::all pair_doors_read_apart::the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them
+#    0.22 s  sweep::all pair_doors_read_apart::a_split_between_the_lumps_clears_their_sphere_patches
 default-filter = """
 not (
   (binary_id(sweep::all) & (test(=pair_doors_read_apart::a_spline_cap_beside_a_rods_wall_unions_until_it_touches) | test(=pair_doors_read_apart::the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them) | test(=pair_doors_read_apart::a_split_between_the_lumps_clears_their_sphere_patches))) |

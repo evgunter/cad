@@ -183,9 +183,10 @@ fn a_spline_cap_beside_a_rods_wall_unions_until_it_touches() {
 /// of the `+x` patch's rim at `x ≈ 0.88`. Along `x` the patch holds
 /// neither pole, so it reaches no further than its rim
 /// (`cover::face_cover_toward`), and the NURBS cap parts from it: the
-/// union is the three solids, the lumps' volume and the box's 4. At
-/// `x = 0.92` the cap cuts the patch, and the union never builds as
-/// three solids. The `Approx` cap passes the operand gate the same way;
+/// union is the three solids, the lumps' volume and the box's 4. The
+/// `Approx` cap at `x = 0.92` cuts the patch, and the operand gate
+/// refuses it there. Short of the rim, it passes the gate as the NURBS
+/// cap does;
 /// the sphere extent scan then refuses it, since the ball the patches
 /// leave holds it
 /// (`work/orbit/sphere-extent-scan-refuses-an-approx-face-the-ball-holds-but-no-patch-reaches.md`).
@@ -218,53 +219,12 @@ fn the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them() {
             }
         }
     }
-    let (name, cap) = caps().into_iter().next().unwrap();
-    let built = union_of(&lumps, &stood_at(name, &cap, 0.92));
+    let (name, cap) = caps().into_iter().nth(1).unwrap();
+    let e = union_of(&lumps, &stood_at(name, &cap, 0.92)).expect_err("the cap cuts the patch");
     assert!(
-        !matches!(built, Ok((3, _))),
-        "{name} cutting the patch is no three solids side by side: {built:?}"
+        refused_on_the_cap(name, &e),
+        "{name} cutting the patch: {e:?}"
     );
-}
-
-#[test]
-fn measure_more() {
-    let t = std::time::Instant::now();
-    let (name, cap) = caps().into_iter().next().unwrap();
-    let cap = finished(name, cap, tol());
-    for gap in [-1e-3, -0.1] {
-        let t0 = std::time::Instant::now();
-        let r = union_of(&cap, &rod_by_the_edge(gap));
-        eprintln!("MEASURE nurbs rod {gap}: {r:?} in {:?}", t0.elapsed());
-    }
-    let t0 = std::time::Instant::now();
-    let r = union_of(
-        &lumps(),
-        &stood_at(name, &caps().into_iter().next().unwrap().1, 0.92),
-    );
-    eprintln!("MEASURE nurbs lumps 0.92: {r:?} in {:?}", t0.elapsed());
-    // walk_pairs: a plain box beside the rod, and a thin rod beside the rod.
-    for gap in [0.04, 1e-3] {
-        let s = (0.5 + gap) * FRAC_1_SQRT_2;
-        let block = sweep::test_support::brick((s, s + 1.0), (0.0, 1.0), (s, s + 1.0), tol());
-        let block = finished("block", block, tol());
-        let r = union_of(&finished("rod", rod(), tol()), &block);
-        eprintln!("MEASURE box beside rod {gap}: {r:?}");
-        let d = (0.55 + gap) * FRAC_1_SQRT_2;
-        let thin = sweep::test_support::revolved_about_y(
-            vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(0.05, 0.0), 0.0),
-                (Point2::new(0.05, 1.0), 0.0),
-                (Point2::new(0.0, 1.0), 0.0),
-            ],
-            sweep::Revolution::Full,
-            tol(),
-        );
-        let thin = finished("thin", moved(&thin, None, Vec3::new(d, 0.0, d)), tol());
-        let r = union_of(&finished("rod", rod(), tol()), &thin);
-        eprintln!("MEASURE thin rod beside rod {gap}: {r:?}");
-    }
-    eprintln!("MEASURE total {:?}", t.elapsed());
 }
 
 /// **A split between the lumps clears their sphere patches.** The
