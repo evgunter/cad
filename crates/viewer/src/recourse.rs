@@ -326,11 +326,12 @@ fn node_offers(kind: &NodeErrorKind, files: &crate::parts::PartFiles) -> Vec<Off
                 SessionOp::AcceptPartVersion { id: doc_ref.id },
             )]
         }
-        // The part records another ε, or the document does: the edit is
-        // the tolerance's.
-        C::PartEpsilonSeam | C::ToleranceConflict => vec![Offer::Unoffered(Unoffered::Tolerance)],
+        // The part records another ε: its recourse is the tolerance's
+        // edit.
+        C::PartEpsilonSeam => vec![Offer::Unoffered(Unoffered::Tolerance)],
         // Each names the geometry, an input, a kernel capability or
-        // another document's node, which no one door here makes.
+        // another document's node, which no one door here makes. The
+        // tolerance conflict names no act at all.
         C::Expr
         | C::Profile
         | C::ProfileReplay
@@ -353,6 +354,7 @@ fn node_offers(kind: &NodeErrorKind, files: &crate::parts::PartFiles) -> Vec<Off
         | C::MissingInput
         | C::UnresolvedRead
         | C::SelectResolve
+        | C::ToleranceConflict
         | C::ParamBox
         | C::Seed
         | C::RecordRefused
