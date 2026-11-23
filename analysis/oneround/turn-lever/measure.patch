@@ -1,5 +1,5 @@
 diff --git a/crates/geom-brep/src/dihedral.rs b/crates/geom-brep/src/dihedral.rs
-index 8f60664c..8e4623dc 100644
+index 8f60664c..661682d5 100644
 --- a/crates/geom-brep/src/dihedral.rs
 +++ b/crates/geom-brep/src/dihedral.rs
 @@ -914,6 +914,21 @@ pub fn classify_seam<T: Decide>(
@@ -24,7 +24,18 @@ index 8f60664c..8e4623dc 100644
  ) -> Result<DihedralClass, SeamEscalation> {
      let [a, b] = [
          seam_face_reading(faces[0], p, reach, &chart_arm, band)?,
-@@ -1534,6 +1549,36 @@ pub fn must_carry_over_edge<T: Decide>(
+@@ -1192,6 +1207,10 @@ fn fold_arms<T: Real>(
+     arm2: geom_core::Lever<T>,
+     reach: geom_core::Lever<T>,
+ ) -> geom_core::Lever<T> {
++    crate::tl_shadow::fold_seen(
++        format!("{:?}", arm1.min(arm2).length()).parse::<f64>().ok(),
++        format!("{:?}", reach.length()).parse::<f64>().ok(),
++    );
+     arm1.min(arm2).min(reach)
+ }
+ 
+@@ -1534,6 +1553,48 @@ pub fn must_carry_over_edge<T: Decide>(
      t1: T,
      reach: geom_core::Lever<T>,
      band: Band,
@@ -36,6 +47,18 @@ index 8f60664c..8e4623dc 100644
 +        crate::tl_shadow::action_of,
 +    );
 +    if crate::tl_shadow::path().is_some() {
++        if crate::tl_shadow::poison_of(reach) == Some(true) {
++            let net = |s: &Surface<T>| match s { Surface::Nurbs(n) => format!("{:?}:{:?}", s.kind(), n.net_state()), _ => format!("{:?}", s.kind()) };
++            crate::tl_shadow::count(format!(
++                "MCPOISON\tverdict_reads={},{}\tdoor_faces={}\t{}",
++                net(s1), net(s2), crate::tl_shadow::class_of_below(reach), crate::tl_shadow::action_of(&v)
++            ));
++        }
++        crate::tl_shadow::phase_verdict(
++            "mc-vs-tier3-fold",
++            crate::tl_shadow::mc_key(format!("{s1:?}"), format!("{s2:?}"), format!("{carrier:?}"), format!("{:?}", (t0, t1))),
++            crate::tl_shadow::mc_class(&crate::tl_shadow::action_of(&v)).to_string(),
++        );
 +        let (x1, x2) = (format!("{s1:?}"), format!("{s2:?}"));
 +        let (x1, x2) = if x1 <= x2 { (x1, x2) } else { (x2, x1) };
 +        let key = crate::tl_shadow::hash_of(&[
@@ -62,10 +85,10 @@ index 8f60664c..8e4623dc 100644
      let stations = interior_stations(carrier, t0, t1);
      let reads = match crate::edge_wedge::class_pass(s1, s2, stations, reach, band) {
 diff --git a/crates/geom-brep/src/edge_wedge.rs b/crates/geom-brep/src/edge_wedge.rs
-index cbb032b2..1fc77f6d 100644
+index cbb032b2..cc9ccd7f 100644
 --- a/crates/geom-brep/src/edge_wedge.rs
 +++ b/crates/geom-brep/src/edge_wedge.rs
-@@ -320,6 +320,31 @@ pub fn edge_wedge_over_as<T: Decide>(
+@@ -320,6 +320,43 @@ pub fn edge_wedge_over_as<T: Decide>(
      reach: geom_core::Lever<T>,
      band: Band,
      side: Role,
@@ -85,6 +108,18 @@ index cbb032b2..1fc77f6d 100644
 +            format!("{:?}{:?}", walk.carrier, walk.span),
 +        ]);
 +        crate::tl_shadow::phase_verdict("edge_wedge_over_as", key, crate::tl_shadow::action_of(&v));
++        if crate::tl_shadow::is_tier3() {
++            crate::tl_shadow::phase_verdict(
++                "mc-vs-tier3-fold",
++                crate::tl_shadow::mc_key(
++                    format!("{:?}", walk.plus.surface),
++                    format!("{:?}", walk.minus.surface),
++                    format!("{:?}", walk.carrier),
++                    format!("{:?}", walk.span),
++                ),
++                crate::tl_shadow::mc_class(&format!("{v:?}")).to_string(),
++            );
++        }
 +    }
 +    v
 +}
@@ -407,7 +442,7 @@ index af5756d1..ef9efb3c 100644
          Ok(band) => band,
          Err(error) => return (vec![ValidationError::Band { error }], None),
 diff --git a/crates/topo/src/wedge_reach.rs b/crates/topo/src/wedge_reach.rs
-index ff643caa..07d3bb74 100644
+index ff643caa..bb3bf092 100644
 --- a/crates/topo/src/wedge_reach.rs
 +++ b/crates/topo/src/wedge_reach.rs
 @@ -64,6 +64,7 @@ use crate::live::BoundaryMember;
@@ -476,7 +511,7 @@ index ff643caa..07d3bb74 100644
              ..Self::new(body, band)
          }
      }
-@@ -152,22 +169,132 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -152,22 +169,154 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          let [a, b] = faces;
          let reads = [Some(self.face(a)), (b != a).then(|| self.face(b))];
          let reads = reads.iter().flatten();
@@ -524,7 +559,29 @@ index ff643caa..07d3bb74 100644
 +            let ns = clock.elapsed().as_nanos() as u64;
 +            geom_brep::tl_shadow::add(format!("MD-NS\t{lane}"), ns);
 +            geom_brep::tl_shadow::count(format!("MD-CALLS\t{lane}"));
-+            geom_brep::tl_shadow::register(below, above, below_d);
++            let faceclass: Vec<String> = [Some(a), (b != a).then_some(b)]
++                .iter()
++                .flatten()
++                .map(|&f| {
++                    let s = self.body.proven_face(f).surface();
++                    let net = match s { geom::Surface::Nurbs(n) => format!(":{:?}", n.net_state()), _ => String::new() };
++                    format!("{:?}{net}:{}", s.kind(), if self.face(f).cover.is_ok() { "covered" } else { "uncovered" })
++                })
++                .collect();
++            let faceclass = faceclass.join(",");
++            geom_brep::tl_shadow::register_tagged(below, above, below_d, &faceclass, None);
++            if format!("{:?}", above.length()).contains("NaN") && !faceclass.contains("uncovered") {
++                geom_brep::tl_shadow::count(format!("POISON-COVERED\t{loc}"));
++                geom_brep::tl_shadow::detail(
++                    &format!("POISON-COVERED\t{loc}"),
++                    format!(
++                        "POISON-COVERED\t{loc}\t{faceclass}\tcarrier={:?}\town_cover={}\tbelow={:?}",
++                        carrier.kind(),
++                        if own.is_some() { "ok" } else { "NONE" },
++                        below.length()
++                    ),
++                );
++            }
 +            if let (Some(b), Some(d), Some(u)) = (
 +                tl_f64(below.length()),
 +                tl_f64(below_d.length()),
@@ -581,7 +638,7 @@ index ff643caa..07d3bb74 100644
 +                    ));
 +                }
 +            }
-         }
++        }
 +        if format!("{:?}", above.length()).contains("NaN") {
 +            if let Ok(path) = std::env::var("TL_POISON") {
 +                use std::io::Write;
@@ -610,12 +667,12 @@ index ff643caa..07d3bb74 100644
 +                    let _ = f.write_all(line.as_bytes());
 +                }
 +            }
-+        }
+         }
 +        LeverBounds::Between { below, above }
      }
  
      /// [`edge_wedge_reach`], reading faces through this cache.
-@@ -182,6 +309,292 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -182,6 +331,292 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          Some(self.reach(edge_faces(self.body, edge), curve.carrier(), curve.params()))
      }
  
@@ -908,7 +965,7 @@ index ff643caa..07d3bb74 100644
      /// `face`'s read (module docs): every loop's vertices, a lone vertex
      /// included, and its cover. Read on first ask.
      fn face(&self, face: FaceKey) -> Rc<FaceRead<T>> {
-@@ -191,11 +604,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -191,11 +626,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          let body = self.body;
          let view = body.proven_face(face);
          let mut points = Vec::new();
@@ -922,7 +979,7 @@ index ff643caa..07d3bb74 100644
                          points.push(body.linked_vertex_point(
                              half.start,
                              EntityId::HalfEdge(he),
-@@ -205,13 +620,23 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -205,13 +642,23 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
                  }
              }
          }
