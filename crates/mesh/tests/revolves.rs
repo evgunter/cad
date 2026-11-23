@@ -1,6 +1,6 @@
 //! Acceptance: full revolves with chart singularities — the ball
-//! (two-band sphere, pole fans, no rims in either loop) and the cone
-//! (apex fan, wire-case half-rims, base disc from swept radial
+//! (one-face sphere, pole fans, no rims in its loop) and the cone
+//! (apex fan, one closed base rim, base disc from swept radial
 //! segments).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

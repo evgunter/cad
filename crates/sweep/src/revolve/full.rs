@@ -462,22 +462,6 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
     // file docs). ----
     body.kfmrh(start_disc, seed.face)?;
-    // Each copied-chain edge is read before the `kef` that kills it.
-    let c_plus = |body: &Body<T>, edge: EdgeKey| -> topo::HalfEdgeKey {
-        body.get_edge(edge)
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "copied-chain edge {edge:?} was minted by this sweep and is not yet killed"
-                )
-            })
-            .he_plus
-    };
-    let e_minus = |body: &Body<T>, he: topo::HalfEdgeKey| -> topo::HalfEdgeKey {
-        let edge = he_edge(body, he);
-        body.get_edge(edge)
-            .unwrap_or_else(|| unreachable!("edge {edge:?} was read off live half-edge {he:?}"))
-            .he_minus
-    };
     // Copied-chain edges (the walls' mef edges), all present in the
     // lamina case (nothing is pinned). The defensive fallback to the
     // chain edge is unreachable; were it ever taken, the zip's own
@@ -491,7 +475,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     }
     // The site's two keys are read out before the call: a `Surgery`
     // guard derefs, and a deref is not a two-phase borrow.
-    let (target, ring) = (e_minus(&body, hes[n - 1]), c_plus(&body, tops[0]));
+    let (target, ring) = (chain_minus(&body, hes[n - 1]), copied_plus(&body, tops[0]));
     let n0 = body.mekr(
         MekrSite::Cycles { target, ring },
         EdgeCurveSpec::self_loop_circle_at(qs[0]),
@@ -501,20 +485,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // across a certified closing circle; the merged fan keeps its
     // carriers, re-certified at the survivor under the run's band.
     body.kev_describing(n0.he_plus, &[], tol)?;
-    for j in 1..n {
-        let (he1, he2) = (e_minus(&body, hes[j - 1]), c_plus(&body, tops[j]));
-        let nj = body.mef(
-            MefSite::Chords { he1, he2 },
-            EdgeCurveSpec::self_loop_circle_at(qs[j]),
-            FaceSurface::Inherit,
-            tol,
-        )?;
-        body.kev_describing(nj.he_plus, &[], tol)?;
-        let victim = c_plus(&body, tops[j - 1]);
-        body.kef(victim)?;
-    }
-    let victim = c_plus(&body, tops[n - 1]);
-    body.kef(victim)?;
+    zip_seam(&mut body, &hes, &tops, &qs, tol)?;
 
     // ---- Phase 4: each surviving chain edge now has both halves in
     // its wall. A periodic wall's takes `Seam`; a plane wall's is a
@@ -574,6 +545,58 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         },
         scalar: core::marker::PhantomData,
     })
+}
+
+/// The `+` half of a copied-chain edge, read before the `kef` that kills
+/// it.
+fn copied_plus<T: Decide>(body: &Body<T>, edge: EdgeKey) -> topo::HalfEdgeKey {
+    body.get_edge(edge)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "copied-chain edge {edge:?} was minted by this sweep and is not yet killed"
+            )
+        })
+        .he_plus
+}
+
+/// The `−` half of the chain edge `he` walks.
+fn chain_minus<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> topo::HalfEdgeKey {
+    let edge = he_edge(body, he);
+    body.get_edge(edge)
+        .unwrap_or_else(|| unreachable!("edge {edge:?} was read off live half-edge {he:?}"))
+        .he_minus
+}
+
+/// **The seam zip past its first vertex** (the lamina's and the wire's):
+/// at each chain vertex `j ≥ 1` a closing-circle `mef` at `at[j]` between
+/// the chain edge before it and the copied meridian at it, the `kev`
+/// that merges the copied vertex into its original across that circle,
+/// and the `kef` of the copied meridian before it; then the last copied
+/// meridian's `kef`. Each merged fan keeps its carriers, re-certified at
+/// the survivor under the run's band.
+fn zip_seam<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    hes: &[topo::HalfEdgeKey],
+    tops: &[EdgeKey],
+    at: &[Point3<T>],
+    tol: Tol,
+) -> Result<(), topo::EulerOpError> {
+    let n = tops.len();
+    for j in 1..n {
+        let (he1, he2) = (chain_minus(body, hes[j - 1]), copied_plus(body, tops[j]));
+        let nj = body.mef(
+            MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::self_loop_circle_at(at[j]),
+            FaceSurface::Inherit,
+            tol,
+        )?;
+        body.kev_describing(nj.he_plus, &[], tol)?;
+        let victim = copied_plus(body, tops[j - 1]);
+        body.kef(victim)?;
+    }
+    let victim = copied_plus(body, tops[n - 1]);
+    body.kef(victim)?;
+    Ok(())
 }
 
 /// The lamina case of a one-segment loop (D1's full turn): ONE torus
@@ -871,35 +894,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // merges the copied vertex into its original, then the `kef` of the
     // copied meridian before it, and the last copied meridian's `kef`.
     // The wire face goes with the first of them. ----
-    let c_plus = |body: &Body<T>, edge: EdgeKey| -> topo::HalfEdgeKey {
-        body.get_edge(edge)
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "copied-chain edge {edge:?} was minted by this sweep and is not yet killed"
-                )
-            })
-            .he_plus
-    };
-    let e_minus = |body: &Body<T>, he: topo::HalfEdgeKey| -> topo::HalfEdgeKey {
-        let edge = he_edge(body, he);
-        body.get_edge(edge)
-            .unwrap_or_else(|| unreachable!("edge {edge:?} was read off live half-edge {he:?}"))
-            .he_minus
-    };
-    for j in 1..k {
-        let (he1, he2) = (e_minus(&body, hes[j - 1]), c_plus(&body, tops[j]));
-        let nj = body.mef(
-            MefSite::Chords { he1, he2 },
-            EdgeCurveSpec::self_loop_circle_at(qw[j]),
-            FaceSurface::Inherit,
-            tol,
-        )?;
-        body.kev_describing(nj.he_plus, &[], tol)?;
-        let victim = c_plus(&body, tops[j - 1]);
-        body.kef(victim)?;
-    }
-    let victim = c_plus(&body, tops[k - 1]);
-    body.kef(victim)?;
+    zip_seam(&mut body, &hes, &tops, &qw, tol)?;
 
     // ---- Phase 4: each chain edge now has both halves in its wall. A
     // plane wall's is a slit: it goes with the pole it ends at (`kev`:

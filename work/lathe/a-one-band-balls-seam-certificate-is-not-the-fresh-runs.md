@@ -2,11 +2,13 @@
 id: a-one-band-balls-seam-certificate-is-not-the-fresh-runs
 kind: issue
 title: A one-band ball's seam meridian carries a certificate a fresh re-certification does not reproduce
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: E
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
+closed: 2026-11-23
+pr: 7414
 ---
 
 
@@ -50,7 +52,9 @@ property, not the revolve's, and it may be the cleavetail row's cause
 too (`work/cleavetail/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`,
 "Cause: not established"); not checked there.
 
-## Fixed
+## Closed
+
+2026-11-23, on PR 7414 (`lathe/full-revolve-one-band`).
 
 `crates/sweep/src/revolve/upgrade.rs` `upgrade_meridian_wrap` restates
 the meridian once more from what it stores, through

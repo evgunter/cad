@@ -230,7 +230,7 @@ fn two_holes_two_cavities() {
 }
 
 /// An axis-touching OUTER with a hole: the outer builds as the
-/// two-π-band wire (poles at the run's ends), the hole still inserts
+/// one-band wire (poles at the run's ends), the hole still inserts
 /// as a lamina cavity — the case split composes.
 #[test]
 fn wire_outer_with_hole_cavity() {

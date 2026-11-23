@@ -574,8 +574,8 @@ fn a_revolved_ball_holds_only_after_it_splits() {
 }
 
 /// **A cone holds**: the triangle `(0,0) (1,0) (0,1)` revolved a full
-/// turn about `y` — two half-cones sharing their two meridians and the
-/// apex, each sharing a half rim with the base disc.
+/// turn about `y` — one cone face, its meridian walked out from the apex
+/// and back, sharing its closed rim with the base disc.
 #[test]
 fn a_revolved_cone_holds() {
     fn cone<T: Scalar>() -> Body<T> {

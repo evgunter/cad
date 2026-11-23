@@ -84,14 +84,12 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
         [ends.0, ends.1] == [poles[0], poles[1]] || [ends.1, ends.0] == [poles[0], poles[1]],
         "the meridian runs pole to pole: {ends:?} vs {poles:?}"
     );
-    // Orientation: positive volume, by Pappus over the meridian (a
-    // boundary fan spans nothing here: the loop walks one meridian out
-    // and back).
-    let v = full_pappus_y(&t);
-    // The oracle's chords (256 per edge) are good to ~1e-4 here.
+    // Orientation: the volume, signed (each face's flux under its
+    // stored sense), positive and at the closed form.
+    let v = measured_volume(&t.body);
     let exact = 4.0 * core::f64::consts::PI / 3.0;
     assert!(
-        (v - exact).abs() / exact < 1e-3,
+        v > 0.0 && (v - exact).abs() / exact < 1e-9,
         "ball volume {v} vs {exact}"
     );
 }

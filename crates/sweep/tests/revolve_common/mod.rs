@@ -233,8 +233,9 @@ pub fn signed_volume(body: &Body<f64>) -> f64 {
 /// happens by two DISTINCT mechanisms — the second one cost a row its
 /// meaning before it was named:
 ///
-/// * **Coplanar boundary.** The two-band sphere/cone patches, whose two
-///   meridians lie in one plane, so every fan triangle is degenerate.
+/// * **Coplanar boundary.** The one-band sphere/cone faces, each bounded
+///   by its one wrap meridian walked out and back, so the loop lies in
+///   one plane and every fan triangle is degenerate.
 /// * **Mirror-paired faces.** The donut's two half-tori are bounded by
 ///   the same pair of full-period rims plus the two halves of one seam
 ///   meridian, so their fans are mirror images and cancel each other
@@ -390,6 +391,23 @@ pub fn full_pappus_y(t: &sweep::Revolved<f64>) -> f64 {
         Point3::origin(),
         geom_core::Vec3::new(0.0, 1.0, 0.0),
     )
+}
+
+/// **A body's volume, signed**: the kernel's mass properties at
+/// `Tol::witness()`, which reads each face's flux under its stored sense,
+/// so an inverted body reads negative (or is refused) where a Pappus
+/// oracle over the meridian (`full_pappus_y`, unsigned) still reads the
+/// magnitude.
+pub fn measured_volume(body: &Body<f64>) -> f64 {
+    let tol = geom_core::Tol::witness();
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", Body::clone(body), tol),
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("the body measures")
+    .enclosure
+    .volume
 }
 
 /// **The containment suites' probe offset**, in one home.

@@ -1807,8 +1807,7 @@ fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
     }
     let want = [
         // A full revolve's wall is one face reaching its apex or pole by
-        // one wrap edge: one whole turn there, where two half-bands took
-        // half a turn each.
+        // one wrap edge: one whole turn there.
         ("common::cone (outer)", 0.0, -TAU),
         ("the T1 cone (outer)", 0.0, -TAU),
         ("the funnel (outer)", 0.0, TAU),

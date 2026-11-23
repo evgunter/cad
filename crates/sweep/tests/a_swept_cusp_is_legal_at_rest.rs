@@ -63,7 +63,7 @@ fn sphere_cone_crescent() -> ProfileLoop<f64> {
 
 /// The same sphere–cone cusp closed ON the axis: up the axis from the
 /// sphere's pole, down the tangent line, back along the sphere — the
-/// full revolve's wire case, whose two π-bands each carry the cusp.
+/// full revolve's wire case, whose one band carries the cusp.
 fn sphere_cone_on_axis() -> ProfileLoop<f64> {
     let tol = Tol::witness();
     Open.at(Point2::new(0.0, 1.0))

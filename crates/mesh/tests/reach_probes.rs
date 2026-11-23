@@ -1062,7 +1062,7 @@ fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
 
 /// **A ball face holed by a tilted tube's rim meshes on the sphere
 /// row.** `sweep`'s `a_tube_ending_on_a_ball` pose "tilted 1.2": the rim
-/// crosses neither seam meridian and stays a ring of one half-band. Both
+/// misses the seam meridian and stays a ring of the one sphere face. Both
 /// unions and ball ∖ tube mesh it as a ring. On ball ∖ tube the ring is
 /// one whole projected circle stored a `u` period below its outer loop
 /// (`lift_probes`), and the lane meshes it where `Body::face_lift` moves

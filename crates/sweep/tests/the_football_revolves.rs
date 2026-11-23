@@ -124,10 +124,9 @@ fn holds_by(
 }
 
 /// **The football and the apple build through the revolve door** with
-/// their apexes as vertices: two sheet faces, each a π-band between the
-/// two meridians that end at both apexes (the pole form), meshed closed
-/// with a fan at each apex, through tier 3, and measuring their exact
-/// volume and area.
+/// their apexes as vertices: one sheet face, its meridian a wrap edge
+/// whose tips are the two apexes, meshed closed with a fan at each apex,
+/// through tier 3, and measuring their exact volume and area.
 #[test]
 fn the_football_and_the_apple_revolve() {
     for (what, big, r) in [
@@ -486,10 +485,10 @@ fn bodies_with_an_apex_as_a_vertex_revolve() {
 }
 
 /// **A football cavity**: a cylinder of radius 1.5 and height 3 with the
-/// football hollowed out on its axis. The sheet faces are π-bands with
-/// the material outside them, the bit clear, whose boundary encodes no
-/// side: a side read off one reading of them, as if they encoded one,
-/// is the inverted face this refuses.
+/// football hollowed out on its axis. The sheet face is one band with
+/// the material outside it, the bit clear, whose boundary encodes no
+/// side: a side read off one reading of it, as if it encoded one, is
+/// the inverted face this refuses.
 #[test]
 fn a_football_cavity_revolves() {
     for big in [-0.5_f64, 0.4] {

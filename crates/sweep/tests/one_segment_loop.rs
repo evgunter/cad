@@ -1316,3 +1316,48 @@ fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
         }
     }
 }
+
+/// **Every wrap edge stores the certificate a fresh run mints**: the
+/// full-turn torus of a one-segment circle (its strut the latitude wrap
+/// edge, `revolve::turn`), the same circle extruded (its strut), and the
+/// full revolve of a half disc (the ball's pole-to-pole meridian). Each
+/// wrap edge is restated once more from what it stores
+/// (`swept::describe_wrap_edge`), since a run over the chart image the
+/// wrap restatement derives and a run over the same image stated can
+/// differ in the last bits. Red where a wrap edge keeps the derived
+/// run's certificate.
+#[test]
+fn every_wrap_edge_stores_the_certificate_a_fresh_run_mints() {
+    use super::common::certificates::assert_certificates_fresh;
+    let revolved = |loops: Vec<ProfileLoop<f64>>| {
+        sweep::revolve(&validated(loops), y_axis(), sweep::Revolution::Full, tol())
+            .unwrap()
+            .body
+            .into_body()
+    };
+    for (label, body) in [
+        ("torus", revolved(vec![circle(2.0, 0.0, 0.5, TAU)])),
+        (
+            "cylinder",
+            topo::Body::clone(
+                &extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body,
+            ),
+        ),
+        (
+            "ball",
+            sweep::test_support::ball_poled_y(1.0, geom_core::Vec3::zero(), tol()),
+        ),
+    ] {
+        let wraps: Vec<EdgeKey> = body
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|&e| is_wrap(&body, e))
+            .collect();
+        assert!(!wraps.is_empty(), "{label}: a wrap edge");
+        assert_eq!(
+            assert_certificates_fresh(label, &body, wraps.iter().copied(), tol()),
+            wraps.len(),
+            "{label}: every wrap edge compared"
+        );
+    }
+}

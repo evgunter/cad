@@ -2100,21 +2100,36 @@ pub fn whole_surface<T: Decide>(
             (T::from_f64(6.0) * ring * minor, T::from_f64(4.0) * ring)
         }
         Some(ClosedSurface::Sheet { major, minor }) => {
-            // Pappus over the region the sheet's meridian arc bounds
-            // with the axis, the arc of half angle `v* = acos(−R/r)`
-            // (the sheet's own closed `v` range) and its chord on the
-            // axis at height `±h`, `h = √(r² − R²)`: the region's area
-            // is `r²v* + R·h` and its moment about the axis
-            // `R·(r²v* + R·h) + 2h³/3`; the arc's moment is
-            // `r·(R·v* + r·sin v*)`. One form for the lemon (`R < 0`,
-            // the minor arc), the apple and the horn (`v* = π`).
-            let v_star = (-major / minor).acos();
-            let h = (minor * minor - major * major).sqrt();
-            let region = minor * minor * v_star + major * h;
-            let two_pi = T::from_f64(2.0) * pi;
-            let volume =
-                two_pi * (major * region + T::from_f64(2.0) * h.powi(3) / T::from_f64(3.0));
-            let area = T::from_f64(2.0) * two_pi * minor * (major * v_star + minor * v_star.sin());
+            // The region the sheet's meridian arc bounds with the axis:
+            // the arc of half angle `v*` (the sheet's own closed `v`
+            // range, `cos v* = −R/r`) and its chord on the axis. With
+            // `w = r + R` the region's width at the equator,
+            // `sin²(v*/2) = w/2r` and `sin v* = √(w(2r − w))/r`, and
+            //
+            // - area  `4πr²·g(v*)`,  `g(v) = sin v − v cos v
+            //                                = 2v·sin²(v/2) − (v − sin v)`;
+            // - volume `2πr³·(g(v*) − sin³v*/3)`, by Pappus over the
+            //   region (area `r²v* + R·h`, moment `R·(r²v* + R·h) + 2h³/3`
+            //   about the axis, `h = r·sin v*`), rewritten in `v*`.
+            //
+            // One form for the lemon (`R < 0`), the apple and the horn
+            // (`v* = π`). Every term is read off `w` rather than off
+            // `−R/r` and `√(r² − R²)`, which round where the lemon is
+            // thin (`R → −r`), and `v − sin v` is `less_sin`'s
+            // conditioned reading: the three terms are each of order
+            // `v*³` while the volume is of order `v*⁵`, so a thin
+            // lemon keeps `ε/v*²` of its volume's digits, where the
+            // Pappus terms as written (each of order `v*`) kept `ε/v*⁴`
+            // and the rounding of their inputs besides.
+            let two = T::from_f64(2.0);
+            let w = minor + major;
+            let half = w / (two * minor);
+            let v_star = two * half.sqrt().asin();
+            let g = v_star * w / minor - v_star.less_sin();
+            let sin_v = (w * (two * minor - w)).sqrt() / minor;
+            let r3 = minor.powi(3);
+            let volume = two * pi * r3 * (g - sin_v.powi(3) / T::from_f64(3.0));
+            let area = T::from_f64(4.0) * pi * minor * minor * g;
             (T::from_f64(3.0) * volume, area)
         }
         None => return Err(PropsError::DegenerateFace),
@@ -5984,11 +5999,11 @@ fn sheet_tip_closure<T: Decide>(
         }
     }
     let level = if up { apex.v } else { -apex.v };
-    let sin_apex = apex.height / minor;
+    let (sin_apex, cos_apex) = apex_tube_angle(major, minor, up);
     pieces[last].apex_after = Some(ApexJump {
         du: -turn,
-        sin_v: if up { sin_apex } else { -sin_apex },
-        cos_v: -major / minor,
+        sin_v: sin_apex,
+        cos_v: cos_apex,
         lever: minor,
         climb: Some(level - torus_angle(sin_v, cos_v)),
     });
@@ -6292,6 +6307,16 @@ enum ApexSide {
 /// and so in `(0, 2π)`; a turn in the band of zero, two meridians on one
 /// half-plane, refuses (`props_sheet_apex_turn`), the face pinched to
 /// nothing there.
+
+/// **A spindle sheet's apex in its tube angle `v`, its one home**: the
+/// upper apex (`up`) at `sin v = h/r`, the lower at `−h/r`, both at
+/// `cos v = −R/r`, with `h` the apex height ([`geom::sheet_apex`]). The
+/// tip closure ([`sheet_tip_closure`]) and the apex jumps between two
+/// meridians ([`sheet_apex_jumps`]) both land their piece there.
+fn apex_tube_angle<T: Real>(major: T, minor: T, up: bool) -> (T, T) {
+    let sin_v = geom::sheet_apex(major, minor).height / minor;
+    (if up { sin_v } else { -sin_v }, -major / minor)
+}
 fn sheet_apex_jumps<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
@@ -6301,7 +6326,6 @@ fn sheet_apex_jumps<T: Decide>(
     side: ApexSide,
     band: Band,
 ) -> Result<(), PropsError> {
-    let apex = geom::sheet_apex(major, minor);
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: center,
@@ -6348,12 +6372,12 @@ fn sheet_apex_jumps<T: Decide>(
             (true, false) => turn + Period::<T>::angle().length(),
             (false, true) => turn - Period::<T>::angle().length(),
         };
-        let sin_v = apex.height / minor;
+        let (sin_v, cos_v) = apex_tube_angle(major, minor, rising);
         pieces[next].apex_before = true;
         pieces[j].apex_after = Some(ApexJump {
             du,
-            sin_v: if rising { sin_v } else { -sin_v },
-            cos_v: -major / minor,
+            sin_v,
+            cos_v,
             lever,
             climb: None,
         });

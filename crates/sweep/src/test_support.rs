@@ -800,8 +800,8 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
 /// **The waisted body**: two cones meeting at radius `0.5` —
 /// `(0,0)→(1,0)→(0.5,0.5)→(1,1)→(0,1)` revolved fully. The waist rim is
 /// CONCAVE (the void wedge at the waist vertex is 90°) and the base and
-/// top rims are convex; pole-touching, so every rim is a pair of arcs
-/// meeting at chart-seam vertices. The closed-rim suites' concave
+/// top rims are convex; pole-touching, and every rim one closed edge
+/// on the walls' seam vertex. The closed-rim suites' concave
 /// fixture, beside its own convex twins.
 ///
 /// Its rims, for [`rim_arcs_at`]: waist `(0.5, 0.5)`, base `(1, 0)`,

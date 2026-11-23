@@ -175,7 +175,7 @@ fn metered_lever(body: &Body<f64>, edge: EdgeKey) -> Option<f64> {
 
 /// A dome ring: a sphere zone of radius `r` rising off a flat base
 /// annulus, bored on-axis so the profile stays ANNULAR (an on-axis
-/// profile revolves into half-bands whose latitude rims are open).
+/// profile's walls reach the axis at a wrap edge's tip).
 /// Its equator is a CLOSED plane–sphere rim of radius `r`.
 fn dome(r: f64, zone: f64, bore_frac: f64, rev: Revolution<f64>) -> Body<f64> {
     let bulge = (zone / 4.0).tan();
