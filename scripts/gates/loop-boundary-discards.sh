@@ -289,6 +289,10 @@ GATE_REGISTER_FILE=
 gate() {
   gate_require_crate_sources
   local lineview winview report entries
+  # The two views go through files, not shell variables: the window view
+  # is hundreds of megabytes, and holding it in the shell was most of
+  # this gate's time.
+  lineview=$GATE_VIEW_FILE.lines; winview=$GATE_VIEW_FILE.windows
   if [ -n "$GATE_REGISTER_FILE" ]; then
     if ! entries=$(cat "$GATE_REGISTER_FILE" 2>/dev/null); then
       gate_error "$(gate_name): cannot read the register at $GATE_REGISTER_FILE, so there is nothing to check the tree against"
@@ -301,21 +305,21 @@ gate() {
   # matcher that did not run is not a clean scan; this gate reads
   # through awk rather than grep, so `gate_grep`'s marker cannot speak
   # for it and the check is written here instead.
-  if ! lineview=$(gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}"); then
+  if ! (gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}") > "$lineview"; then
     gate_error "$(gate_name): the shared Rust reader could not build the code-only line view, so what it did not match is unknown — that is not a pass"
     exit 1
   fi
-  if ! winview=$(gate_rust_code --skip-cfg-test --window "$WINDOW" "${GATE_SOURCE_FILES[@]}"); then
+  if ! (gate_rust_code --skip-cfg-test --window "$WINDOW" "${GATE_SOURCE_FILES[@]}") > "$winview"; then
     gate_error "$(gate_name): the shared Rust reader could not build the code-only window view, so what it did not match is unknown — that is not a pass"
     exit 1
   fi
-  if [ -z "$lineview" ] || [ -z "$winview" ]; then
+  if [ ! -s "$lineview" ] || [ ! -s "$winview" ]; then
     gate_error "$(gate_name): the shared Rust reader returned NOTHING over $GATE_SCAN_FILES source file(s) — the scan decided nothing, which is not a pass"
     exit 1
   fi
   gate_build_matchers
   export LBD_ANCHOR="$ANCHOR_RE" LBD_LET="$LET_RE" LBD_ARM="$ARM_RE"
-  if ! report=$(printf '%s\n' "$entries" "===" "$lineview" "===" "$winview" \
+  if ! report=$({ printf '%s\n' "$entries" "==="; cat "$lineview"; printf '===\n'; cat "$winview"; } \
     | gate_record_awk '
       BEGIN {
         ANCHOR = ENVIRON["LBD_ANCHOR"]

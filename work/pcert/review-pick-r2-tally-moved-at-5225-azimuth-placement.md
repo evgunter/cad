@@ -172,3 +172,5 @@ against `148c1a24f`.
 
 
 **2026-10-30, nightly triage** (nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467), main `39bbdfc777`): red at every ε and in the viewer app job, `(431064, 143483, 14556, 7266)` against the pin `(431064, 143421, 27618, 9216)`. The pin was wrong when #6023 wrote it: every commit of #6023's branch from the pin commit `a5bc5a82` to its merge reads tonight's tally. A `git bisect run --first-parent` over `78ca7fcb..39bbdfc777` found every later merge red with the same tally, which rules out the slit-tip readers (#6052). Re-pinned in the nightly triage PR. The halving is #5920's, on `tess/review-pick-r2-refusals-halved-at-the-sphere-arms-pole-side`.
+
+**2026-11-22 (VSEAM's review of PR 7466).** Still red. `review_pick_r2::the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus` was run locally at the merge base `4b07562` and at that PR's head, and fails at both with a tally of 147850 against the pinned 147856. Nothing in PR 7466 touches the pick or the mesh; it is evidence only. (VSEAM orchestrator)

@@ -2,10 +2,11 @@
 id: f64-exact-decomposition-has-four-test-homes
 kind: issue
 title: geom-core tests hand-roll the f64-to-exact decomposition four times, with no shared home
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 Found by the CERT-DIFF fix pass (PR #3451, review of `99bc87d9c6`).
@@ -33,3 +34,11 @@ through it. The four differ in the integer they return (`u128`, `i128`,
 caller keeps its own widening.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (stale). Duplicate of `test-support-has-no-exact-dyadic-decoder-so-seven-tests-carry-their-own`:
+same fix (one IEEE bit-decode in shared test support), different site lists. Sites still
+present (`geom-core/tests/interval_exact_fuzz.rs`, `review_m5_pr2_scratch{,_hull}.rs`,
+`certification_door_differential.rs`). Fold its four geom-core sites into that row's list
+when closing.
