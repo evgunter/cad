@@ -2255,7 +2255,7 @@ pub fn box_with_a_lone_ring(tol: Tol) -> (Body<f64>, FaceKey, crate::VertexKey) 
     let top = body
         .face_views()
         .find(|f| {
-            matches!(*f.surface(), Surface::Plane { frame } if frame.axis().z.abs() > 0.5)
+            matches!(f.surface(), Ok(&Surface::Plane { frame }) if frame.axis().z.abs() > 0.5)
                 && f.boundary().map(|m| m.vertex()).all(|v| {
                     body.get_vertex(v)
                         .and_then(|v| body.get_point(v.point))

@@ -688,7 +688,7 @@ pub mod test_support {
         key: crate::SurfaceKey,
         surface: geom::Surface<T>,
     ) -> bool {
-        body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
+        body.surfaces.get_mut(key).map(|s| *s = surface.into()).is_some()
     }
 
     /// `host` holding `cavity` as [`crate::insert_void`] would graft it,
@@ -1382,7 +1382,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.face(face).map(|f| f.surface()) else {
+        let Some(Ok(surface)) = body.face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1441,7 +1441,7 @@ pub mod test_support {
             let f = body.proven_face(face);
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
-                kind: f.surface().kind(),
+                kind: f.surface().map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind),
             });
         };
         crate::solid_contain::point_in_face(body, face, normal, p, band)

@@ -911,7 +911,7 @@ pub struct EdgeFrame {
 pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
         body.face(f)
-            .map(|f| f.surface())
+            .and_then(|f| f.surface().ok())
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };
     let mut out = Vec::new();

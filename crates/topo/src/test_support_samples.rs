@@ -515,7 +515,6 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },
-        PlaneNurbsRefusal::PlaceholderWall,
         PlaneNurbsRefusal::WrongLane {
             expected: "a spline chart as the wall",
         },
@@ -930,7 +929,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             stored: [Some(1), None],
             derived: [Some(-1), None],
         },
-        PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
         PcurveCertifyError::PlacementTurnsExceeded,
         PcurveCertifyError::TubePeriodExceeded,

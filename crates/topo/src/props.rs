@@ -3866,7 +3866,7 @@ pub fn quadrature_rounds(
             round = run.next_round();
         }
         if quadrature {
-            rounds.push((face, body.proven_face(face).surface().kind(), met));
+            rounds.push((face, body.proven_face(face).described().kind(), met));
         }
     }
     Ok(rounds)
