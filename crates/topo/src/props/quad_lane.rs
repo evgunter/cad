@@ -556,7 +556,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
 /// reads it** ([`quad::RotationalFaceQ`]): its chart under `sense`, its
 /// chart term about `centre` (the world origin where `None`) and each
 /// loop's edge terms off its stored pcurves.
-fn rotational_face<T: Decide + Bounds + CertifiedEnclosure>(
+fn rotational_face<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     surface: &Surface<T>,
     sense: bool,
@@ -3174,7 +3174,7 @@ mod tests {
 ///
 /// [`PropsError::QuadratureUnsupported`] on any other kind; the lane's
 /// own refusals.
-pub(super) fn material_sign<T: Decide + Bounds + CertifiedEnclosure>(
+pub(super) fn material_sign<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     surface: &Surface<T>,
     loops: &[super::FlatLoop<T>],
@@ -3184,13 +3184,12 @@ pub(super) fn material_sign<T: Decide + Bounds + CertifiedEnclosure>(
     let at = |a: Point3<T>, b: Point3<T>| {
         geom_brep::chart_singularity::vertex_at_singular_point(a, b, band)
     };
-    let poles = match *surface {
-        Surface::Cylinder { .. } => None,
-        Surface::Sphere { frame, radius, .. } => {
-            let up = frame.axis().normalize() * radius;
-            let poles = [frame.origin() + up, frame.origin() - up];
+    // The chart's singular points, north first: a sphere's poles, and
+    // none on a cylinder. Any other kind refuses at `rotational_face`.
+    let poles = match geom_brep::chart_singularity::singular_points(surface)[..] {
+        [(_, north), (_, south)] => {
             let clear = loops.iter().flat_map(|(edges, _)| edges).all(|e| {
-                poles
+                [north, south]
                     .iter()
                     .all(|&p| at(e.traversal_start(), p) == Ok(false))
             });
@@ -3199,17 +3198,12 @@ pub(super) fn material_sign<T: Decide + Bounds + CertifiedEnclosure>(
                     .map(|&h| at(h, p))
                     .collect::<Result<Vec<_>, _>>()
             };
-            match (clear, holds(poles[0]), holds(poles[1])) {
+            match (clear, holds(north), holds(south)) {
                 (true, Ok(n), Ok(s)) => Some([n.contains(&true), s.contains(&true)]),
                 _ => None,
             }
         }
-        _ => {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "a face's side read by the rotational lane on a chart other than the \
-                       cylinder or the sphere",
-            });
-        }
+        _ => None,
     };
     let face = rotational_face(body, surface, true, loops, None)?;
     quad::rotational_material_sign::<T>(&face, poles, band)

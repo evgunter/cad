@@ -25,5 +25,3 @@ crates/topo/src/census.rs 1
 # offset_derive: a net with no interior iso column is no planar-offset
 # candidate; a structural refusal, not an escalation.
 crates/topo/src/offset_derive.rs 1
-# validate check 3's flux arm: argued in place; check 7 reports the cause.
-crates/topo/src/validate.rs 1
