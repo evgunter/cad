@@ -3685,6 +3685,91 @@ mod rim_seam_rows {
     }
 }
 
+#[cfg(test)]
+mod pcurve_finding_endings {
+    #![allow(clippy::unwrap_used)]
+    use super::ShellError;
+    use crate::entity::{FaceKey, HalfEdgeKey};
+    use crate::pcurves::PcurveMintError;
+    use crate::validate::ValidationError;
+    use geom_brep::{OffMargin, PcurveCertifyError};
+    use geom_core::MarginDiag;
+
+    /// The thin solid's finding set holding `finding` alone, as the
+    /// finish or the cavity's completion reports it.
+    fn not_valid(finding: PcurveMintError) -> ShellError<f64> {
+        ShellError::NotValid {
+            findings: crate::NotFinished::new(vec![ValidationError::Pcurve { finding }]),
+        }
+    }
+
+    /// **A completion refusal at the shell door ends as the finish's
+    /// finding does, at rest** (D4 ¶1 (iv); [`crate::NotFinished`] reads
+    /// its findings at rest at every door): an incidence read in band
+    /// ends in the pose lever, never a defect, and a definite miss in the
+    /// at-rest "kernel defect or a damaged file"; an undecided reading of
+    /// the walk "not yet", a torn loop a defect. No arena key is spelled.
+    #[test]
+    fn a_completion_refusal_ends_by_its_own_ending() {
+        let incidence = |margin| PcurveMintError::Certify {
+            half_edge: HalfEdgeKey::default(),
+            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
+                margin,
+            )),
+        };
+        let in_band = Some(OffMargin::InBand(MarginDiag::value(4e-9)));
+        for (margin, defect) in [(in_band, false), (None, true)] {
+            let text = not_valid(incidence(margin)).render(geom_brep::recourse::Reading::Build);
+            assert_eq!(
+                text.matches("kernel defect").count(),
+                usize::from(defect),
+                "{text}"
+            );
+            assert_eq!(
+                text.contains(geom_brep::recourse::INCIDENCE_AT_POSE.lever),
+                !defect,
+                "{text}"
+            );
+        }
+        let cause = geom_core::Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_loop_v_stretch"),
+            terminal_sliver: false,
+        };
+        for (finding, defect) in [
+            (
+                PcurveMintError::NetStretchUndecided {
+                    half_edge: HalfEdgeKey::default(),
+                    cause,
+                },
+                false,
+            ),
+            (
+                PcurveMintError::LoopNotClosed {
+                    face: FaceKey::default(),
+                },
+                true,
+            ),
+        ] {
+            let text = not_valid(finding).render(geom_brep::recourse::Reading::Build);
+            assert_eq!(
+                text.matches("kernel defect").count(),
+                usize::from(defect),
+                "{text}"
+            );
+            assert_eq!(text.contains("no way through yet"), !defect, "{text}");
+            assert!(
+                !text.contains("FaceKey") && !text.contains("HalfEdgeKey"),
+                "{text}"
+            );
+        }
+    }
+}
+
 /// **A cavity wall's torus off its ring convention ends in its half's
 /// lever**, in band or decided, as the convention ends it at every door
 /// (`geom_brep::TorusRefusal::recourse`), and is said in the half's own

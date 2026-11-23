@@ -102,7 +102,10 @@ fn p1c_rows_of_another_support_whose_images_are_current_finish() {
     let other = sweep::test_support::lofted_cylinder(2.2, tol());
     let (f, hes) = curved_face(&b);
     println!("[probe] p1c face kind {}", kind(&b, f));
-    assert_eq!(row_faces(&other).iter().find(|(g, _)| *g == f).unwrap().1, hes);
+    assert_eq!(
+        row_faces(&other).iter().find(|(g, _)| *g == f).unwrap().1,
+        hes
+    );
     for &he in &hes {
         assert_eq!(
             format!("{:?}", b.pcurve(he).unwrap().pcurve()),
@@ -112,9 +115,15 @@ fn p1c_rows_of_another_support_whose_images_are_current_finish() {
         b.attach_pcurve(he, other.pcurve(he).unwrap().clone());
     }
     let mut gap = b.clone();
-    assert!(verdict("p1c support moved, complete", b).is_ok(), "a current image refused");
+    assert!(
+        verdict("p1c support moved, complete", b).is_ok(),
+        "a current image refused"
+    );
     gap.detach_pcurve(hes[0]);
-    assert!(verdict("p1c support moved, one gap", gap).is_ok(), "a current image refused");
+    assert!(
+        verdict("p1c support moved, one gap", gap).is_ok(),
+        "a current image refused"
+    );
 }
 
 /// Claim 1d: a face whose images are all off but whose joint elements
@@ -130,7 +139,11 @@ fn p1d_stale_element_on_an_imageless_face() {
         clean.detach_pcurve(he);
     }
     let mut b = clean.clone();
-    let he = hes.iter().copied().find(|&h| b.joint(h).is_some()).expect("a joint");
+    let he = hes
+        .iter()
+        .copied()
+        .find(|&h| b.joint(h).is_some())
+        .expect("a joint");
     let el = b.joint(he).unwrap().deck();
     b.attach_joint(he, topo::JointElement(topo::Deck { u: el.u + 1, ..el }));
     let _ = verdict("p1d imageless, elements kept", clean);
@@ -149,7 +162,10 @@ fn p1d_stale_element_on_an_imageless_face() {
     }
     half.attach_joint(he, topo::JointElement(topo::Deck { u: el.u + 1, ..el }));
     let _ = verdict("p1d one image kept, stale element", half);
-    assert!(r.is_err(), "stale element laundered by the derive-whole arm");
+    assert!(
+        r.is_err(),
+        "stale element laundered by the derive-whole arm"
+    );
 }
 
 /// Claim 2: per face, half the rows off (every other one, joints kept)
@@ -162,7 +178,10 @@ fn p2_fill_matches_whole_derivation() {
         ("frustum", frustum(0.5, 1.0)),
         ("torus_barrel", torus_barrel()),
         ("two_arc_sphere", two_arc_sphere()),
-        ("lofted_cylinder", sweep::test_support::lofted_cylinder(2.0, tol())),
+        (
+            "lofted_cylinder",
+            sweep::test_support::lofted_cylinder(2.0, tol()),
+        ),
     ];
     let mut differ = Vec::new();
     for (name, body) in bodies {
@@ -225,7 +244,10 @@ fn p5_finish_cost() {
         ("frustum", frustum(0.5, 1.0)),
         ("torus_barrel", torus_barrel()),
         ("two_arc_sphere", two_arc_sphere()),
-        ("lofted_cylinder", sweep::test_support::lofted_cylinder(2.0, tol())),
+        (
+            "lofted_cylinder",
+            sweep::test_support::lofted_cylinder(2.0, tol()),
+        ),
     ];
     for (name, body) in bodies {
         let n = 5;
@@ -244,7 +266,9 @@ fn p5_finish_cost() {
             topo::test_support::completed(body.clone(), tol()).unwrap();
         }
         let comp = t.elapsed() / n;
-        println!("[p5] {name}: tier3 check {check:?} finish {fin:?} (tiers1-2 + completion alone {comp:?})");
+        println!(
+            "[p5] {name}: tier3 check {check:?} finish {fin:?} (tiers1-2 + completion alone {comp:?})"
+        );
     }
 }
 

@@ -87,8 +87,11 @@ pub trait FinishedBody:
     ///
     /// # Errors
     ///
-    /// [`MoveError::Map`] where a re-minted row refuses ([`crate::mirror`]);
-    /// [`MoveError::NotFinished`] holding the session box's finding.
+    /// [`MoveError::Map`] where the data map refuses;
+    /// [`MoveError::NotFinished`] holding the session box's finding, and
+    /// completion's refusal of a row the image derives again
+    /// ([`crate::mirror`] drops the rows, [`complete_in_place`] derives
+    /// them).
     fn mirrored(
         &self,
         reflection: &crate::Reflection<Self::Scalar>,

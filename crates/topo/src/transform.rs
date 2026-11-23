@@ -647,7 +647,8 @@ impl OrientationClass {
 /// `sense`, since their mapped frames carry the outward normal across,
 /// and an edge image on an analytic chart has its azimuth negated with
 /// the chart. Its pcurve rows and joints are left as found, for the
-/// mirror to re-mint ([`crate::mirror`]).
+/// mirror to drop and the image's completion to derive again
+/// ([`crate::mirror`]).
 pub(crate) fn map_isometry<T: Decide>(
     body: &Body<T>,
     iso: &Isometry<T>,

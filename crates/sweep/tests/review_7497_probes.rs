@@ -133,7 +133,12 @@ fn p2_a_half_minted_face_fills_as_the_whole_derivation() {
                         .iter()
                         .zip(&got)
                         .filter(|(a, b)| a != b)
-                        .map(|(a, b)| format!("{:?}\n  whole: {} {}\n  fill:  {} {}", a.0, a.1, a.2, b.1, b.2))
+                        .map(|(a, b)| {
+                            format!(
+                                "{:?}\n  whole: {} {}\n  fill:  {} {}",
+                                a.0, a.1, a.2, b.1, b.2
+                            )
+                        })
                         .collect();
                     report.push(format!(
                         "{name} k={k} phase={phase}: stripped {stripped}, {} rows differ",
@@ -155,7 +160,11 @@ fn p2_a_half_minted_face_fills_as_the_whole_derivation() {
     let text = report.join("\n");
     println!("{text}");
     assert!(
-        !text.contains("differ") || text.lines().filter(|l| l.contains("differ")).all(|l| l.contains(" 0 rows differ")),
+        !text.contains("differ")
+            || text
+                .lines()
+                .filter(|l| l.contains("differ"))
+                .all(|l| l.contains(" 0 rows differ")),
         "fill differs from whole derivation:\n{text}"
     );
     assert!(!text.contains("REFUSED"), "{text}");
@@ -176,7 +185,8 @@ fn p1a_a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
                     continue;
                 }
                 let (a, b) = (cycle[0], cycle[1]);
-                let (Some(ra), Some(rb)) = (reference.pcurve(a).cloned(), reference.pcurve(b).cloned())
+                let (Some(ra), Some(rb)) =
+                    (reference.pcurve(a).cloned(), reference.pcurve(b).cloned())
                 else {
                     continue;
                 };
@@ -202,7 +212,10 @@ fn p1a_a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
                         );
                     }
                     let r = topo::test_support::validate_completed(&body, tol());
-                    assert!(r.is_err(), "{name} face {face:?} half={half}: a swapped row FINISHED (laundered)");
+                    assert!(
+                        r.is_err(),
+                        "{name} face {face:?} half={half}: a swapped row FINISHED (laundered)"
+                    );
                 }
             }
         }
@@ -221,9 +234,7 @@ fn p1b_an_element_kept_without_its_images_is_not_replaced() {
         for face in faces {
             let cycles = face_half_edges(&reference, face);
             let all: Vec<_> = cycles.iter().flatten().copied().collect();
-            let Some((he, element)) = all
-                .iter()
-                .find_map(|&h| reference.joint(h).map(|e| (h, e)))
+            let Some((he, element)) = all.iter().find_map(|&h| reference.joint(h).map(|e| (h, e)))
             else {
                 continue;
             };
@@ -276,7 +287,12 @@ fn p1c_rows_over_a_moved_support_are_refused() {
             (Point2::new(0.0, 2.0), 0.0),
         ])
     };
-    let torus = |big: f64| rev(vec![(Point2::new(big, -0.5), 1.0), (Point2::new(big, 0.5), 1.0)]);
+    let torus = |big: f64| {
+        rev(vec![
+            (Point2::new(big, -0.5), 1.0),
+            (Point2::new(big, 0.5), 1.0),
+        ])
+    };
     let cone = |h: f64| {
         rev(vec![
             (Point2::new(0.0, 0.0), 0.0),
@@ -304,7 +320,9 @@ fn p1c_rows_over_a_moved_support_are_refused() {
             let mut planted = 0;
             for (he, row) in other.pcurves() {
                 if moved.get_half_edge(he).is_some()
-                    && moved.pcurve(he).is_some_and(|r| format!("{r:?}") != format!("{row:?}"))
+                    && moved
+                        .pcurve(he)
+                        .is_some_and(|r| format!("{r:?}") != format!("{row:?}"))
                 {
                     if planted == 0 && !gap {
                         println!("ORIG {:?}\nPLNT {row:?}", moved.pcurve(he).unwrap());
@@ -317,13 +335,23 @@ fn p1c_rows_over_a_moved_support_are_refused() {
                 // strip one non-planted-irrelevant half-edge per curved face
                 let faces: Vec<_> = moved.faces().map(|(f, _)| f).collect();
                 for face in faces {
-                    if let Some(c) = face_half_edges(&moved, face).into_iter().find(|c| c.len() >= 3) {
+                    if let Some(c) = face_half_edges(&moved, face)
+                        .into_iter()
+                        .find(|c| c.len() >= 3)
+                    {
                         strip(&mut moved, [c[0]]);
                     }
                 }
             }
             let r = topo::test_support::validate_completed(&moved, t);
-            println!("{name} gap={gap}: planted {planted}, finish -> {}", if r.is_ok() { "OK (LAUNDERED?)".to_string() } else { format!("{} findings", r.as_ref().unwrap_err().len()) });
+            println!(
+                "{name} gap={gap}: planted {planted}, finish -> {}",
+                if r.is_ok() {
+                    "OK (LAUNDERED?)".to_string()
+                } else {
+                    format!("{} findings", r.as_ref().unwrap_err().len())
+                }
+            );
             assert!(planted > 0, "{name}: nothing transplanted");
             if stale && r.is_ok() {
                 laundered.push(format!("{name} gap={gap}"));

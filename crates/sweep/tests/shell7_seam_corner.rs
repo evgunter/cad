@@ -704,8 +704,8 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
 /// reverted cavity's stored pcurve rows arrive on the twins verbatim
 /// and continuous — the reversal moves each loop's anchor with its
 /// direction, so the grafted body is tier-3 valid on the carried rows
-/// (`shell9_probe`, the sphere rows) — and the verb's closing mint
-/// re-derives them all the same, the `Transfers` row's contract.
+/// (`shell9_probe`, the sphere rows) — and the finish keeps them as
+/// carried, deriving only the rows that are missing.
 #[test]
 fn a_two_arc_sphere_shells_to_its_closed_form() {
     let (r, t) = (1.0, 0.05);

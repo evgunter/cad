@@ -7,8 +7,8 @@
 //! there, at the mint site (the site mint, `topo::pcurves`).
 //!
 //! Each row runs a pipeline on a minted curved operand up to the end
-//! of its join — every null edge killed, before the finish and the
-//! closing mint — and reads every face that stores a row: it is
+//! of its join — every null edge killed, before the finish completes
+//! the rows — and reads every face that stores a row: it is
 //! complete, and its rows are the minting pass's, byte for byte. At
 //! this unit's merge base the join left the cut wall half-minted: the
 //! chord halves the join's `mef`s added went rowless, because the face

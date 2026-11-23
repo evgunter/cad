@@ -1324,7 +1324,7 @@ fn mef_onto_a_chart_that_mints_nothing_drops_the_moved_runs_rows() {
 
 /// **Through this door.** Onto a rowless CURVED chart the moved rows
 /// are dropped and the new face stores no row at all, its minted half
-/// rowless with them: an unminted face is the closing mint's. At rest,
+/// rowless with them: an unminted face is the finish's to complete. At rest,
 /// tier 3 re-derives it and names the run's refusal in that chart. What the trade buys is the same as at the loop
 /// doors: the body no longer holds curves stated in a chart the face
 /// is not on.

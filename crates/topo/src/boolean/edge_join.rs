@@ -820,8 +820,8 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Vec<EdgeJoin>, Vec<ClassZero>), BooleanError> {
-    // The boolean's own surgery body, re-minted whole after the carry:
-    // no staging and no re-mint here.
+    // The boolean's own surgery body, its rows completed at the gate
+    // after the carry: no staging and no mint here.
     let free = free_vertices(body, recorded);
     let (joined, _, zeros) = join_all(body, band, tol, &|_| true, &free)?;
     for j in &joined {

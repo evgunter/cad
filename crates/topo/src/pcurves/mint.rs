@@ -134,7 +134,7 @@ pub enum PcurveMintError {
     },
     /// A face on a chart that mints stores none of its rows, and the
     /// minting pass derives and certifies every one of them: the body
-    /// was not minted after it was built or edited. Rows are mandatory
+    /// was not finished after it was built or edited. Rows are mandatory
     /// at rest (C4), and the finish completes every face that stores
     /// none, so this is a body that reached tier 3 without a finish.
     Unminted {
@@ -259,14 +259,16 @@ impl PcurveMintError {
                 f,
                 "the pcurve of half-edge {half_edge:?} does not meet its predecessor's in \
                  its face's chart. \
-                 Recourse: re-mint the body if it was edited after minting; if a fresh mint \
-                 refuses too, repair the face's boundary"
+                 Recourse: drop the face's rows if it was edited after they were stored, \
+                 for the finish to derive them again; if that derivation refuses too, repair \
+                 the face's boundary"
             ),
             Self::LoopNotClosed { face } => write!(
                 f,
                 "the pcurves of a loop of face {face:?} do not close in its chart (the \
-                 azimuth advance is neither zero nor one full period). Recourse: re-mint the body after any \
-                 surgery; if a fresh mint refuses too, repair the loop"
+                 azimuth advance is neither zero nor one full period). Recourse: drop the \
+                 loop's rows after any surgery, for the finish to derive them again; if that \
+                 derivation refuses too, repair the loop"
             ),
             Self::JointWithoutRoom {
                 face,
@@ -282,14 +284,15 @@ impl PcurveMintError {
             Self::MissingCache { half_edge } => write!(
                 f,
                 "half-edge {half_edge:?} carries no pcurve although its face's chart mints \
-                 them: the body changed after minting. Recourse: re-mint the \
-                 body, and report the op that returned it"
+                 them: the body changed after its rows were completed. Recourse: finish the \
+                 body, which completes its rows, and report the op that returned it"
             ),
             Self::Unminted { face } => write!(
                 f,
                 "face {face:?} stores no pcurve although its chart mints them and every one \
-                 derives and certifies: the body was not minted after it was built or edited. \
-                 Recourse: re-mint the body, and report the op that returned it"
+                 derives and certifies: the body was not finished after it was built or \
+                 edited. Recourse: finish the body, which completes its rows, and report the \
+                 op that returned it"
             ),
             Self::RowInterval { half_edge } => write!(
                 f,

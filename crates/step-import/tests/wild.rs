@@ -621,7 +621,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
             // them: check 7 decides a SIGN, and an admitted body whose
             // volume is unmeasurable imports with the refusal on its
             // enclosure.
-            StepImportError::TierInvalid { solid, errors } => {
+            StepImportError::TierInvalid { solid, errors, .. } => {
                 solid.is_some_and(|id| id > 0) && !errors.is_empty()
             }
             other => panic!("{name}: unexpected refusal kind: {other:?}"),

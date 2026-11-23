@@ -114,7 +114,11 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         // another: the bracket's two walls are exact cylinders that
         // promote whole, so no C⁰-knot split mints vertices along their
         // rims for a bolt's vertex to land on.
-        Err(StepImportError::TierInvalid { solid, errors }) => {
+        Err(StepImportError::TierInvalid {
+            solid,
+            errors,
+            file,
+        }) => {
             assert!(
                 solid.is_none() && !errors.is_empty(),
                 "dm1's frontier is the aggregate gate: solid {solid:?}, verdicts {errors:?}"
@@ -130,7 +134,12 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 "the aggregate gate reads one instance's vertex on another's edge as \
                  unrecorded: {errors:?}"
             );
-            let shown = StepImportError::TierInvalid { solid, errors }.render();
+            let shown = StepImportError::TierInvalid {
+                solid,
+                errors,
+                file,
+            }
+            .render();
             assert!(
                 !shown.contains("this tolerance targets"),
                 "a BUDGET refusal at the at-rest gate is check 7 back to consuming a \

@@ -532,6 +532,12 @@ pub enum StepImportError {
         /// own, tiers 1–3′ (the contact-record census) for the
         /// assembled body.
         errors: Vec<topo::ValidationError>,
+        /// The file's ε_in: the import door a pcurve finding is read at.
+        /// A pcurve row is derived from the file's own curves and
+        /// surfaces, so at the import door its refusal is the file's
+        /// and names the file (D4 ¶1 (iv)); every other verdict reads as
+        /// at rest.
+        file: FileCoincidence,
     },
 }
 
@@ -712,7 +718,11 @@ impl StepImportError {
                     geom_brep::recourse::undecided_at(source, BUILD_SUBJECT, ending)
                 )
             }
-            Self::TierInvalid { solid, errors } => {
+            Self::TierInvalid {
+                solid,
+                errors,
+                file,
+            } => {
                 // Both forms of each verdict: the Debug shape names
                 // the failing CHECK and its entity keys structurally
                 // (greppable, and what a caller matching on
@@ -720,10 +730,17 @@ impl StepImportError {
                 // check means and carries the margins the measured
                 // checks report.
                 // The at-rest gate's findings, ended there.
+                // A pcurve finding is the file's, read at its door.
                 let at_rest = ended.then_some(ReadAt::Run(Reading::AtRest));
                 let verdicts: Vec<String> = errors
                     .iter()
-                    .map(|e| format!("{e:?} — {}", read_at(e, at_rest)))
+                    .map(|e| {
+                        let at = match e {
+                            topo::ValidationError::Pcurve { .. } => door(file),
+                            _ => at_rest,
+                        };
+                        format!("{e:?} — {}", read_at(e, at))
+                    })
                     .collect();
                 let subject = match solid {
                     Some(id) => format!("solid #{id}, asked about on its own,"),
@@ -963,6 +980,56 @@ mod nested_at_the_door {
             text.starts_with("step import: the assembly placement stated at #9 refused")
                 && text.ends_with(DAMAGED_FILE_ENDING),
             "{text}"
+        );
+    }
+
+    /// **A pcurve finding at the at-rest gate is the file's** (D4 ¶1
+    /// (iv)): a row is derived from the file's own curves and surfaces,
+    /// so at the import door its refusal names the file — a definite
+    /// incidence miss ends in the damaged file, with no ε_in offer, and
+    /// an undecided reading on the file's door as rest reads it (the last
+    /// resort, not the damaged file). Every other verdict reads as at
+    /// rest.
+    #[test]
+    fn a_pcurve_finding_at_the_gate_names_the_file() {
+        let tier = |finding| StepImportError::TierInvalid {
+            solid: None,
+            errors: vec![topo::ValidationError::Pcurve { finding }],
+            file: FileCoincidence::new(1e-6),
+        };
+        let off = tier(topo::PcurveMintError::Certify {
+            half_edge: topo::HalfEdgeKey::default(),
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Cone,
+                    geom::CurveKind::Circle,
+                    "the circle dips below the apex",
+                    None,
+                ),
+            ),
+        })
+        .render();
+        assert!(off.contains(DAMAGED_FILE_ENDING), "{off}");
+        for word in ["ε_in", "kernel defect"] {
+            assert!(!off.contains(word), "{word}: {off}");
+        }
+        let undecided = tier(topo::PcurveMintError::Certify {
+            half_edge: topo::HalfEdgeKey::default(),
+            error: geom_brep::PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::ChartWinding,
+                sample: 0,
+                cause: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::value(5e-9),
+                    band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: None,
+                    terminal_sliver: false,
+                },
+            },
+        })
+        .render();
+        assert!(
+            undecided.contains(geom_core::KERNEL_LIMIT_RECOURSE),
+            "{undecided}"
         );
     }
 }

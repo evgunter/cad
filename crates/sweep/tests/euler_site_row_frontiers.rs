@@ -108,9 +108,9 @@ fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
 /// cone's axis is outside the cone chart's closed-form classes (rims
 /// and rulings): the op, mid-surgery, returns `Ok` with no row on the
 /// wall. A circle whose plane is not ⊥ the axis is no plane section of
-/// a right circular cone, so the strut does not lie on its face; left
-/// at rest without a closing mint, the wall reads loud at tier 3, which
-/// re-derives a rowless face and reports why it stores nothing, and the
+/// a right circular cone, so the strut does not lie on its face; read
+/// at rest before the finish completes it, the wall reads loud at tier
+/// 3, which re-derives a rowless face and reports why it stores nothing, and the
 /// minting pass, re-run, refuses it the same way. The strut and the
 /// wall are both the kernel's, so the build door ends the miss as the
 /// kernel's defect and tier 3 as the stored culprit's, though the strut

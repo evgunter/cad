@@ -438,8 +438,9 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
     );
     assert_eq!(dead_rows(&whole), 0, "the whole-body pass clears first");
 
-    // The verb: its rim surgery retires half-edges, its closing mint is
-    // whole-body, so the result carries no retired row.
+    // The verb: its rim surgery retires half-edges, and the finish's
+    // completion drops every row on a dead half-edge, so the result
+    // carries no retired row.
     let ves = vessel(1.0, 2.0);
     let shell = ves.shells().next().unwrap().0;
     let top = cap(&ves, shell, Vec3::new(0.0, 1.0, 0.0), 2.0);

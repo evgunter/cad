@@ -532,8 +532,8 @@ fn a_surface_with_no_live_face_glues_nothing() {
     );
     assert!(faces_on(&body, pk, pk).is_empty());
     assert_eq!(validate_closed(&body), Ok(()));
-    // At rest: the re-charted walls store their rows again, so the
-    // door's closing mint has nothing to change.
+    // At rest: the re-charted walls store their rows again, minted
+    // here so the door reads a body whose rows are current.
     topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
     let want = body.merge_coplanar_faces(Tol::witness()).unwrap();
     assert!(
