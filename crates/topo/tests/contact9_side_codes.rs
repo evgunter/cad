@@ -656,3 +656,48 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
         );
     }
 }
+
+/// REVIEW PROBE (strip, claim 4): the embedding verdict on each body
+/// `a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`
+/// builds, and the witness's two faces.
+#[test]
+fn review2_probe_the_tilted_wedges_bodies_through_the_embedding_door() {
+    use topo::clearance::{Budgets, DEFAULT_MAX_CELL_DEPTH, Embedding, Side, embedded};
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let dip = DIP * tol.eps();
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
+    let e = [[10.0, 1.0, -dip], [0.2e-3, 1e-3, 0.0], [0.0, 0.0, 1e-3]];
+    let corner = Vec3::new(5.0, 5.0, 0.0);
+    let point = move |u, v, w| at(e, u, v, w) + corner;
+    let wedge = common::finished("wedge", common::mapped_cube(point, tol), tol);
+    let bodies = [
+        ("∩", body_of(intersect(&block, &wedge, tol), "∩")),
+        ("−", body_of(subtract(&block, &wedge, tol), "−")),
+        ("∪", body_of(union(&block, &wedge, tol), "∪")),
+    ];
+    for (op, body) in &bodies {
+        let side = Side {
+            body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        };
+        let budgets = Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 65_536,
+        };
+        let verdict = embedded(&side, band, budgets).verdict;
+        println!("[c9] {op}: {} faces, verdict {verdict:?}", body.faces().count());
+        if let Embedding::Crosses(c) = &verdict {
+            for f in [c.faces.0, c.faces.1] {
+                println!("[c9]   face {f:?}: {:?}", face_carrier_desc(body, f));
+            }
+        }
+        for (k, p) in body.vertex_points() {
+            println!("[c9]   vertex {k:?} {p:?}");
+        }
+    }
+}
