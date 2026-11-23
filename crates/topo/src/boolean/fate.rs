@@ -2599,7 +2599,7 @@ mod straight_corner_rows {
     /// over the other's piece would reach the farther end both ways.
     #[test]
     fn a_straight_corners_bounds_each_reach_to_their_own_end() {
-        let line = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
+        let line = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let p = Point3::new(0.1, 0.0, 0.0);
         let (a, b) = (Point3::origin(), Point3::new(1.0, 0.0, 0.0));
         for (forward, (start, end), (ahead, behind)) in

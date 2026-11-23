@@ -22,8 +22,13 @@
 //! Every certificate is **carried**, never re-derived. A certificate
 //! states distances (an edge's `{samples, max_residual}`, a pcurve
 //! row's norms, an offset fit's limbs) and a turn in the carrier's own
-//! parameter, and an isometry keeps every distance and every
-//! parameter, so each certificate of the source is one of the image.
+//! parameter, and an isometry keeps every distance, so each certificate
+//! of the source is one of the image. It keeps every parameter too, but
+//! for one rescale rounding forces: a line whose image direction a chain
+//! of maps carried past its rounding is squared, and its parameter, arc
+//! length, stretched by the length divided by. That edge's span, its
+//! description's chart image and its half-edges' pcurve rows are read on
+//! the stretched parameter ([`map_carrier_stretched`]).
 //! The map decides nothing: [`transform_rigid`] and [`crate::mirror`]
 //! return construction state, which the finish that follows decides,
 //! and a finished body's own door ([`crate::FinishedBody::moved`])
@@ -257,7 +262,7 @@ impl Hand {
 ///
 /// `motion` is the map as the rigid motion it is, where it is one: an
 /// analytic frame is then that frame moved ([`geom::Frame::moved`]), a
-/// rigid image of a rigid frame, as [`map_carrier`] moves a conic's. A
+/// rigid image of a rigid frame, as [`map_carrier_stretched`] moves a conic's. A
 /// reflection, or a map handed only as an affine, maps the frame's three
 /// data and squares them ([`geom::Frame::new`]), the plane's normal as
 /// the axial image.
@@ -398,13 +403,29 @@ fn map_approx<T: Real>(
     }
 }
 
-/// The carrier `map ∘ c` on `c`'s own parameter, under either hand: a
-/// carrier has no outward side, and keeping its parameter keeps every
-/// edge's range and its forward half-edge.
+/// The carrier `map ∘ c`, under either hand, its stretch dropped
+/// ([`map_carrier_stretched`]): the rows that read a mapped carrier's
+/// kind and form, not a span on it.
+#[cfg(test)]
 pub(crate) fn map_carrier<T: Real>(
     iso: &Isometry<T>,
     c: &Curve3<T>,
 ) -> Result<Curve3<T>, TransformError> {
+    map_carrier_stretched(iso, c).map(|(c, _)| c)
+}
+
+/// The carrier `map ∘ c` under either hand, and the factor its parameter
+/// is the old one's times. A carrier has no outward side, so the map
+/// keeps its parameter, every edge's range and its forward half-edge, but
+/// for one rescale rounding can force: a line whose image direction a
+/// chain of maps carried past its rounding, which the door squares
+/// ([`geom_core::UnitVec3::through_isometry`]), so arc length along the
+/// squared direction is the old parameter times the length divided by.
+/// The factor is `one` everywhere else.
+pub(crate) fn map_carrier_stretched<T: Real>(
+    iso: &Isometry<T>,
+    c: &Curve3<T>,
+) -> Result<(Curve3<T>, T), TransformError> {
     let (map, hand) = (&iso.to_affine(), iso.hand());
     // A conic's frame: the frame's own image under a motion, and under a
     // reflection the axial axis, so the image keeps its parameter.
@@ -413,60 +434,69 @@ pub(crate) fn map_carrier<T: Real>(
         Isometry::Improper(_) => None,
     };
     let frame = |f: &geom::Frame<T>| map_frame(map, hand, motion, f, true);
-    Ok(match *c {
-        Curve3::Line(geom::Line { origin, dir }) => {
-            Curve3::line(map.transform_point(origin), map_vec(map, dir))
-        }
-        // A rigid map preserves the sizes and the frame's orthonormality —
-        // the ellipse's axis ordering transfers unchanged, so no
-        // re-decision is needed (the constructor decided at mint; this is
-        // evaluation-lane data motion).
-        Curve3::Circle(c) => Curve3::Circle(c.placed(frame)),
-        Curve3::Ellipse(e) => Curve3::Ellipse(e.mapped(frame)),
-        // The same argument: a rigid map preserves both radii, the
-        // stand-off and the frame's orthonormality, so the two-oval
-        // regime and the carried side transfer unchanged — no
-        // re-decision (the mint decided; this is data motion).
-        Curve3::Spiric {
-            frame: carrier_frame,
-            major_radius,
-            minor_radius,
-            offset,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
-            // one oval; under a reflection the image keeps its `v` with
-            // `axis` mapped and the plane's side negated.
-            // Under a motion the frame is moved, as a conic's is.
-            let (frame, offset) = match iso {
-                Isometry::Proper(motion) => (carrier_frame.moved(motion), offset),
-                Isometry::Improper(_) => (
-                    geom::Frame::new(
-                        map.transform_point(center),
-                        map_vec(map, axis),
-                        -map_vec(map, u_ref),
-                    ),
-                    -offset,
-                ),
-            };
+    Ok((
+        match *c {
+            Curve3::Line(geom::Line { origin, dir }) => {
+                // An isometry's image of a unit direction: measured, and
+                // squared past its rounding with the parameter stretched
+                // to match.
+                let (dir, stretch) = dir.through_isometry(map.linear);
+                return Ok((Curve3::line(map.transform_point(origin), dir), stretch));
+            }
+            // A rigid map preserves the sizes and the frame's orthonormality —
+            // the ellipse's axis ordering transfers unchanged, so no
+            // re-decision is needed (the constructor decided at mint; this is
+            // evaluation-lane data motion).
+            Curve3::Circle(c) => Curve3::Circle(c.placed(frame)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.mapped(frame)),
+            // The same argument: a rigid map preserves both radii, the
+            // stand-off and the frame's orthonormality, so the two-oval
+            // regime and the carried side transfer unchanged — no
+            // re-decision (the mint decided; this is data motion).
             Curve3::Spiric {
-                frame,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 offset,
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
+                // one oval; under a reflection the image keeps its `v` with
+                // `axis` mapped and the plane's side negated.
+                // Under a motion the frame is moved, as a conic's is.
+                let (frame, offset) = match iso {
+                    Isometry::Proper(motion) => (carrier_frame.moved(motion), offset),
+                    Isometry::Improper(_) => (
+                        geom::Frame::new(
+                            map.transform_point(center),
+                            map_vec(map, axis),
+                            -map_vec(map, u_ref),
+                        ),
+                        -offset,
+                    ),
+                };
+                Curve3::Spiric {
+                    frame,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                }
             }
-        }
-        // A net maps by its control points, weights and knots verbatim,
-        // as a periodic cubic's cyclic net does.
-        Curve3::Nurbs(ref n) => Curve3::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p)))),
-        Curve3::Periodic(ref n) => {
-            Curve3::Periodic(Arc::new(n.map_points(|p| map.transform_point(p))))
-        }
-    })
+            // A net maps by its control points, weights and knots verbatim,
+            // as a periodic cubic's cyclic net does.
+            Curve3::Nurbs(ref n) => {
+                Curve3::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
+            }
+            Curve3::Periodic(ref n) => {
+                Curve3::Periodic(Arc::new(n.map_points(|p| map.transform_point(p))))
+            }
+        },
+        T::one(),
+    ))
 }
 
 /// Applies the rigid motion to every geometric datum of `body`, returning
@@ -507,8 +537,13 @@ pub fn surface_at<T: Real>(
     map_surface(&motion.to_affine(), Hand::Proper, Some(motion), s)
 }
 
-/// **One curve carrier read at a rigid motion**: `motion ∘ c` on `c`'s
-/// own parameter, as [`surface_at`] reads a surface.
+/// **One curve carrier read at a rigid motion**: `motion ∘ c`, as
+/// [`surface_at`] reads a surface, with the factor its parameter is
+/// `c`'s times, `k` ([`map_carrier_stretched`]): `one`, but for a line
+/// whose image direction the door squared. The point `c` reads at `t`
+/// moves to the point the image reads at `k·t`, so a span `(t0, t1)` on
+/// `c` is the span `(k·t0, k·t1)` on the image, as [`transform_rigid`]
+/// scales an edge's.
 ///
 /// # Errors
 ///
@@ -516,8 +551,8 @@ pub fn surface_at<T: Real>(
 pub fn carrier_at<T: Real>(
     motion: &RigidMotion<T>,
     c: &Curve3<T>,
-) -> Result<Curve3<T>, TransformError> {
-    map_carrier(&Isometry::Proper(*motion), c)
+) -> Result<(Curve3<T>, T), TransformError> {
+    map_carrier_stretched(&Isometry::Proper(*motion), c)
 }
 
 /// The chart image `image` on `surface` of `body` under a map of `hand`:
@@ -545,7 +580,7 @@ fn mapped_image<T: Real>(
 /// image's own terms** ([`map_isometry`] at [`Hand::Improper`]).
 ///
 /// A spiric image is restated for its mapped carrier, whose stand-off
-/// is `−d` ([`map_carrier`]): `f(t) = √((R + r·cos t)² − d²)` is even in
+/// is `−d` ([`map_carrier_stretched`]): `f(t) = √((R + r·cos t)² − d²)` is even in
 /// `d`, so a plane cap keeps its coefficients (its chart is unmoved),
 /// and a torus wall, whose chart reverses its azimuth, reads
 /// `−u0 − σμ·atan2(f, d) = u0′ + σμ·atan2(f, −d)` with
@@ -701,7 +736,28 @@ pub(crate) fn map_isometry<T: Decide>(
             continue;
         }
         let (param_start, param_end) = old.params();
-        let carrier = map_carrier(iso, old.stored_carrier())?;
+        let (carrier, stretch) = map_carrier_stretched(iso, old.stored_carrier())?;
+        let (param_start, param_end) = (param_start * stretch, param_end * stretch);
+        // A squared line's parameter is stretched: its chart images, the
+        // description's and each half-edge's pcurve row, are read on the
+        // new one ([`geom_brep::Pcurve::stretched`]). Every image a line
+        // carries is affine in its parameter, so one that is not is no
+        // image a door builds.
+        let stretched = stretch.structure_bracket() != Some((1.0, 1.0));
+        const UNSTRETCHED: &str = "a line's chart image is not affine in its parameter";
+        if stretched {
+            let edge = out.edges.get(ek).ok_or(TransformError::Corrupt {
+                found: "an edge vanished mid-walk",
+            })?;
+            for he in [edge.he_plus, edge.he_minus] {
+                if let Some(row) = out.pcurves.get(he) {
+                    let row = row
+                        .stretched(stretch)
+                        .ok_or(TransformError::Corrupt { found: UNSTRETCHED })?;
+                    out.pcurves.insert(he, row);
+                }
+            }
+        }
         let description = match old.description() {
             EdgeDescription::Intersection { pair, selector } => EdgeDescription::Intersection {
                 pair: *pair,
@@ -738,7 +794,16 @@ pub(crate) fn map_isometry<T: Decide>(
             // reflection the image is restated with its chart.
             EdgeDescription::Chart(c) => EdgeDescription::Chart(geom_brep::ChartCurve {
                 surface: c.surface,
-                pcurve: mapped_image(body, c.surface, &c.pcurve, hand)?,
+                pcurve: {
+                    let image = mapped_image(body, c.surface, &c.pcurve, hand)?;
+                    if stretched {
+                        image
+                            .stretched(stretch)
+                            .ok_or(TransformError::Corrupt { found: UNSTRETCHED })?
+                    } else {
+                        image
+                    }
+                },
                 wrap: c.wrap,
             }),
             EdgeDescription::Scaffold(mc) => {
@@ -753,7 +818,8 @@ pub(crate) fn map_isometry<T: Decide>(
                 geom_brep::EdgeAuthority::Declared(map_mapped_curve(map, hand, &mc))
             }
         };
-        out.curves[curve_key] = CurveGeom::Certified(old.carried(carrier, description, authority));
+        out.curves[curve_key] =
+            CurveGeom::Certified(old.carried(carrier, stretch, description, authority));
         rewritten.insert(curve_key, ());
     }
     if out.curves.iter().any(|(k, _)| !rewritten.contains_key(k)) {
@@ -805,7 +871,13 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
                 place: *map * place,
                 axis: geom::Line {
                     origin: map.transform_point(axis.origin),
-                    dir: hand.axial(map, axis.dir),
+                    // An isometry's image of the unit axis, its sense
+                    // kept under either hand ([`Hand::axial`]); an axis
+                    // has no span to stretch.
+                    dir: match hand {
+                        Hand::Proper => axis.dir.through_isometry(map.linear).0,
+                        Hand::Improper => -axis.dir.through_isometry(map.linear).0,
+                    },
                 },
                 angle,
             },
@@ -1178,5 +1250,163 @@ mod approx_rows {
         let spec = mapped.spec();
         geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol)
             .expect("the mapped pair certifies at the run's ε");
+    }
+}
+
+/// A body under a chain of maps: its lines stay unit and on their
+/// vertices.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod chain_rows {
+    use geom_core::{Tol, Vec3};
+
+    /// **A brick moved forty times keeps its lines unit and on their
+    /// vertices** (`[topology.tiers]`): sixty poses, each a chain of forty
+    /// rigid motions about skew axes, each with a short translation,
+    /// applied to a long brick about the origin in turn, so it stays in
+    /// the session box. After every chain each line carrier's direction
+    /// is unit to its rounding ([`UnitVec3::stated`]), each line edge's
+    /// ends lie on its vertices, and the body validates, structurally and
+    /// at tier 3, at the run's ε. Some chain carries a direction past its
+    /// rounding, so the door squares it and the edge's span is stretched.
+    /// Red under the door keeping every image's bits (the lines drift off
+    /// unit), and under a squared line keeping its span, which no chain
+    /// then stretches. The stretch itself is the span times a squaring's
+    /// `≤ 8ε`, the size of the points' own drift over the chain (both
+    /// read under `8e-13 m` here), so the ends' bound holds with it or
+    /// without; it is kept because it is the map's exact reading.
+    #[test]
+    fn a_brick_moved_forty_times_keeps_its_lines_unit_and_on_their_vertices() {
+        use super::{Body, Curve3, CurveGeom, RigidMotion, transform_rigid};
+        use geom_core::UnitVec3;
+        let tol = Tol::witness();
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+        };
+        let start = crate::test_support_fixtures::brick::<f64>(
+            (-300.0, 300.0),
+            (-1.0, 2.0),
+            (-1.0, 1.0),
+            tol,
+        );
+        let spans = |body: &Body<f64>| -> Vec<(u64, u64)> {
+            body.edges()
+                .filter_map(|(_, e)| match body.curves.get(e.curve) {
+                    Some(CurveGeom::Certified(c)) => {
+                        let (a, b) = c.params();
+                        Some((a.to_bits(), b.to_bits()))
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
+        let mut stretched = 0;
+        for pose in 0..60 {
+            let mut body = start.clone();
+            for _ in 0..40 {
+                let axis = UnitVec3::squared(Vec3::new(next(), next(), next()));
+                let motion = RigidMotion::rotation_then_translation(
+                    axis,
+                    3.0 * next(),
+                    Vec3::new(next(), next(), next()) * 5.0,
+                )
+                .expect("a rotation about a unit axis");
+                body = transform_rigid(&body, &motion).expect("a brick moves");
+            }
+            for (ek, edge) in body.edges() {
+                let Some(CurveGeom::Certified(c)) = body.curves.get(edge.curve) else {
+                    panic!("pose {pose}: a certified edge");
+                };
+                let Curve3::Line(line) = c.carrier() else {
+                    continue;
+                };
+                assert!(
+                    UnitVec3::stated(line.dir.get()).is_some(),
+                    "pose {pose}: {line:?} is unit to its rounding"
+                );
+                let (v0, v1) = body.edge_vertices(ek).expect("an edge has two ends");
+                let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                let (t0, t1) = c.params();
+                for (t, v) in [(t0, v0), (t1, v1)] {
+                    let off = (line.at(t) - at(v)).norm();
+                    assert!(off <= 1e-12, "pose {pose}: an end {off:e} m off its vertex");
+                }
+            }
+            crate::validate(&body).unwrap_or_else(|e| panic!("pose {pose}: {e:?}"));
+            crate::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("pose {pose}: {e:?}"));
+            stretched += usize::from(spans(&body) != spans(&start));
+        }
+        assert!(
+            stretched > 0,
+            "some chain squares a line and stretches its span"
+        );
+    }
+
+    /// **A brick moved a thousand times by a motion a little off rigid
+    /// keeps its frames and lines rigid and its ends on its vertices**:
+    /// the motion is a rotation whose columns are scaled by `1 + 4ε`,
+    /// which [`RigidMotion::check_rigid`] admits (each column `8ε` off
+    /// unit, within its `16ε`), applied a thousand times to a `2 m`
+    /// brick. Unmeasured, the frames' axes drift by about `8ε` a move
+    /// (`809ε` at a hundred) and fail the door; measured, each surface's
+    /// frame stays within the door's rounding, each line unit to its
+    /// rounding, each line edge's ends within `2e-13 m` of its vertices,
+    /// and the body valid at tier 3. Red under the frame door keeping
+    /// what it should square (the frames fail the door), under the line
+    /// door the same, and under a squared line keeping its span: a line
+    /// is squared every second move or so, and its ends then stand about
+    /// `2e-12 m` off their vertices.
+    #[test]
+    fn a_brick_moved_by_a_motion_off_rigid_keeps_its_frames_and_its_ends() {
+        // Each move translates the brick; a small step keeps a thousand
+        // of them inside the session box.
+        use super::{Curve3, CurveGeom, RigidMotion, transform_rigid};
+        use geom_core::{Affine3, Point3, UnitVec3};
+        let tol = Tol::witness();
+        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.7, 0.64), 0.83);
+        let off = 1.0 + 4.0 * f64::EPSILON;
+        let scaled =
+            Affine3::from_parts(turn.linear.map(|x| x * off), Vec3::new(0.01, -0.02, 0.03));
+        let motion =
+            RigidMotion::check_rigid(&scaled).expect("the door admits a column 8ε off unit");
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((-1.0, 1.0), (-0.5, 0.5), (0.0, 0.5), tol);
+        for _ in 0..1000 {
+            body = transform_rigid(&body, &motion).expect("a brick moves");
+        }
+        for (_, s) in body.surfaces.iter() {
+            if let Some(frame) = s.frame() {
+                assert!(
+                    RigidMotion::check_rigid(&frame.motion().to_affine()).is_ok(),
+                    "a surface's frame stays within the door's rounding: {frame:?}"
+                );
+            }
+        }
+        let mut worst = 0.0_f64;
+        for (ek, edge) in body.edges() {
+            let Some(CurveGeom::Certified(c)) = body.curves.get(edge.curve) else {
+                panic!("a certified edge");
+            };
+            let Curve3::Line(line) = c.carrier() else {
+                continue;
+            };
+            assert!(
+                UnitVec3::stated(line.dir.get()).is_some(),
+                "{line:?} is unit"
+            );
+            let (v0, v1) = body.edge_vertices(ek).expect("an edge has two ends");
+            let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            let (t0, t1) = c.params();
+            for (t, v) in [(t0, v0), (t1, v1)] {
+                worst = worst.max((line.at(t) - at(v)).norm());
+            }
+        }
+        assert!(worst <= 2e-13, "an end stands {worst:e} m off its vertex");
+        crate::validate(&body).unwrap_or_else(|e| panic!("{e:?}"));
+        crate::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("{e:?}"));
     }
 }

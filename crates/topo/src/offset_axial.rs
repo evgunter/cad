@@ -296,6 +296,7 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_brep::{ExtentBall, LeverBounds};
+use geom_core::UnitVec3;
 use geom_core::k_stats::decide;
 use geom_core::ladder::{FreeOf, Uncarried, Undecided, argmin_decided};
 use geom_core::{
@@ -1078,7 +1079,7 @@ fn axial_frame<T: Decide>(
             surface @ (Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. }) => surface.axis_line().map(geom::Line::unit),
+            | Surface::Torus { .. }) => surface.axis_line(),
             Surface::Plane { .. } => None,
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {
@@ -1187,7 +1188,7 @@ fn classify<T: Decide>(
     let on_axis = |p: Point3<T>| {
         centre_on_axis(frame, p, band).map_err(|source| ReplaceFaceError::Escalated { source })
     };
-    let parallel = |v: Vec3<T>| v.normalize().cross(frame.axis.dir).norm();
+    let parallel = |v: Vec3<T>| v.normalize().cross(frame.axis.dir.get()).norm();
     Ok(match surface {
         Surface::Plane {
             frame: carrier_frame,
@@ -1203,7 +1204,7 @@ fn classify<T: Decide>(
                 // else cuts the body obliquely to its own axis of
                 // revolution — a corner this reduction has no
                 // coordinates for.
-                if !sine(n.dot(frame.axis.dir).abs(), origin, AXIS_PARALLEL)? {
+                if !sine(n.dot(frame.axis.dir.get()).abs(), origin, AXIS_PARALLEL)? {
                     return Err(not_axial(
                         "a plane neither normal to the axis nor parallel to it",
                     ));
@@ -1656,10 +1657,10 @@ fn solve_corner<T: Decide>(
         // to a line's `t = 0` anchor.
         [] => Ok(frame.place(rho, h, e_old)),
         [(m, c)] => {
-            let w = frame.axis.dir.cross(e_old);
+            let w = frame.axis.dir.get().cross(e_old);
             let a_co = rho * m.dot(e_old);
             let b_co = rho * m.dot(w);
-            let rhs = c - m.dot(vec_of(frame.axis.origin)) - m.dot(frame.axis.dir) * h;
+            let rhs = c - m.dot(vec_of(frame.axis.origin)) - m.dot(frame.axis.dir.get()) * h;
             let amp = Vec3::new(a_co, b_co, T::zero()).norm();
             // The two azimuths are `φ₀ ± Δ`, and the points they name are
             // `2ρ·sin Δ` apart — a LENGTH, which dies exactly as the
@@ -1786,8 +1787,8 @@ fn cap_pair_corner<T: Decide>(
     // pair's transversality is the sine between their cross-section
     // normals, levered by the corner's own arms exactly as the profile
     // pairs' is: the solve divides by it, so it is decided first.
-    let mp0 = m0 - frame.axis.dir * m0.dot(frame.axis.dir);
-    let mp1 = m1 - frame.axis.dir * m1.dot(frame.axis.dir);
+    let mp0 = m0 - frame.axis.dir.get() * m0.dot(frame.axis.dir.get());
+    let mp1 = m1 - frame.axis.dir.get() * m1.dot(frame.axis.dir.get());
     let (n0, n1) = (mp0.norm(), mp1.norm());
     // The divisors are certified UPSTREAM, not here: `m0`/`m1` are unit
     // meridian normals whose axial component `classify` decided Zero at
@@ -1795,7 +1796,7 @@ fn cap_pair_corner<T: Decide>(
     // each cross-section projection keeps norm ~1 — a certified
     // distance from zero this division stands on, cited rather than
     // re-decided (one derivation, the module's own law).
-    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.axis.dir);
+    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.axis.dir.get());
     for &arm in arms {
         match decide(
             "offset_axial_cap_pair",
@@ -1813,7 +1814,7 @@ fn cap_pair_corner<T: Decide>(
         }
     }
     let e1 = mp0 / n0;
-    let e2 = frame.axis.dir.cross(e1);
+    let e2 = frame.axis.dir.get().cross(e1);
     let rhs0 = c0 - m0.dot(vec_of(frame.axis.origin));
     let rhs1 = c1 - m1.dot(vec_of(frame.axis.origin));
     let alpha = rhs0 / n0;
@@ -2393,11 +2394,13 @@ fn mint_carrier<T: Decide>(
             .below();
         return match decide(
             "offset_axial_generator_sense",
-            Margin::levered(old_dir.normalize().dot(dir.normalize()), lever),
+            Margin::levered(old_dir.normalize().dot(dir.get().normalize()), lever),
             band,
         ) {
             Ok(Sign::Positive) => Ok(Curve3::Line(geom::Line { origin, dir })),
-            Ok(Sign::Negative) => Ok(Curve3::line(origin, Vec3::zero() - dir)),
+            // The reversed direction, `0 − dir` as it was spelled, its
+            // zeros positive ([`UnitVec3::reversed`]).
+            Ok(Sign::Negative) => Ok(Curve3::line(origin, dir.reversed())),
             Ok(Sign::Zero) => Err(refuse(
                 "a generator edge whose moved line stands square to its old one",
             )),
@@ -2807,7 +2810,7 @@ fn latitude_posture<T: Decide>(
     // that are not latitudes, where a sphere's mints a great circle. So
     // the reach is read at both bounds and acted on where they agree, a
     // straddle escalating under `offset_axial_latitude_tilt_straddle`.
-    let tilt = axis.normalize().cross(frame.axis.dir).norm();
+    let tilt = axis.get().normalize().cross(frame.axis.dir.get()).norm();
     match crate::validate::decide_levered(
         (
             "offset_axial_latitude_tilt",
@@ -2934,14 +2937,14 @@ fn param_on<T: Decide>(
         Curve3::Circle(the_circle @ geom::Circle { .. }) => {
             let frame = the_circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
-            let n = axis.normalize();
+            let n = UnitVec3::squared(axis);
             let axis_line = geom::Line {
                 origin: center,
                 dir: n,
             };
             let ray = |x: Point3<T>| axis_line.offset(x);
             let (a, b) = (ray(q), ray(p));
-            anchor + a.cross(b).dot(n).atan2(a.dot(b))
+            anchor + a.cross(b).dot(n.get()).atan2(a.dot(b))
         }
         _ => carrier.param_near(p, anchor).ok_or_else(unread)?,
     };
@@ -3294,7 +3297,7 @@ fn reauthor<T: Decide>(
                     None => p,
                     Some(theta) => geom_core::Affine3::rotate_point_about_axis(
                         axis.origin,
-                        axis.dir,
+                        axis.dir.get(),
                         -theta,
                         p,
                     ),
@@ -3370,11 +3373,11 @@ fn azimuth_turn_as<T: Decide>(
     match decide(name, Margin::of(off), band) {
         Ok(Sign::Zero) => Ok(None),
         Ok(_) => {
-            let a = dir.normalize();
+            let a = UnitVec3::squared(dir.get());
             let axis_line = geom::Line { origin, dir: a };
             let radial = |p: Point3<T>| axis_line.offset(p);
             let (from, to) = (radial(old), radial(moved));
-            Ok(Some(a.dot(from.cross(to)).atan2(from.dot(to))))
+            Ok(Some(a.get().dot(from.cross(to)).atan2(from.dot(to))))
         }
         Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
@@ -3719,7 +3722,7 @@ mod tests {
             place: Affine3::translation(Vec3::new(lift(x), lift(y), lift(z))),
             axis: geom::Line {
                 origin: Point3::new(lift(1.0 + x), lift(2.0 + y), lift(z)),
-                dir: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+                dir: geom_core::UnitVec3::exact_z(),
             },
             angle: lift(core::f64::consts::TAU),
         })
@@ -3741,7 +3744,15 @@ mod tests {
             place,
             axis: geom::Line {
                 origin: place.transform_point(Point3::new(lift(0.5), lift(1.0), lift(0.0))),
-                dir: place.transform_vec(Vec3::new(lift(1.0), lift(0.4), lift(0.0))),
+                // `(1, 0.4, 0)` over its length, lifted, then turned by the
+                // rigid `place`.
+                dir: {
+                    let len = 1.16_f64.sqrt();
+                    geom_core::UnitVec3::checked(Vec3::new(1.0 / len, 0.4 / len, 0.0))
+                        .map_scalar(&lift)
+                        .through_isometry(place.linear)
+                        .0
+                },
             },
             angle: lift(1.9),
         })
@@ -3780,7 +3791,7 @@ mod tests {
             ),
             axis: geom::Line {
                 origin: p3(axis.origin),
-                dir: v3(axis.dir),
+                dir: axis.dir.map_scalar(iv),
             },
             angle: iv(angle),
         })
@@ -3833,7 +3844,7 @@ mod tests {
     ) -> geom_brep::MappedCurve<T> {
         let carrier = Curve3::line(
             Point3::new(T::zero(), T::zero(), T::zero()),
-            Vec3::new(T::one(), T::zero(), T::zero()),
+            geom_core::UnitVec3::exact_x(),
         );
         reauthor(
             mapped,
@@ -3848,21 +3859,24 @@ mod tests {
     /// `rim`'s placed point turned `theta` about its own axis — a start
     /// corner an offset moved round the axis.
     fn turned<T: Decide>(rim: &Rim<T>, theta: T) -> Point3<T> {
-        Affine3::rotate_point_about_axis(rim.axis.origin, rim.axis.dir, theta, placed(rim))
+        Affine3::rotate_point_about_axis(rim.axis.origin, rim.axis.dir.get(), theta, placed(rim))
     }
 
     /// The turn main read off a moved start: the azimuth about the axis
     /// from the radial of its start sample — the placed point under the
     /// rotation by `0·angle` — to the corner's.
     fn main_turn<T: Decide>(rim: &Rim<T>, corner: Point3<T>) -> T {
-        let a = rim.axis.dir.normalize();
+        let a = rim.axis.dir.get().normalize();
         let radial = |p: Point3<T>| {
             let v = p - rim.axis.origin;
             v - a * v.dot(a)
         };
-        let start =
-            Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir, T::zero() * rim.angle)
-                .transform_point(placed(rim));
+        let start = Affine3::rotation_about_axis(
+            rim.axis.origin,
+            rim.axis.dir.get(),
+            T::zero() * rim.angle,
+        )
+        .transform_point(placed(rim));
         let (from, to) = (radial(start), radial(corner));
         a.dot(from.cross(to)).atan2(from.dot(to))
     }
@@ -3870,7 +3884,8 @@ mod tests {
     /// Main's reading of a start turned by `phi`: the turn composed into
     /// the placement and the corner read back through that composite.
     fn composed_reading<T: Decide>(rim: &Rim<T>, phi: T, p: Point3<T>) -> (Point3<T>, Affine3<T>) {
-        let plane = Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir, phi) * rim.place;
+        let plane =
+            Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir.get(), phi) * rim.place;
         (plane.inverse().transform_point(p), plane)
     }
 
@@ -4005,7 +4020,7 @@ mod tests {
             for k in 0..200 {
                 let theta = -3.0 + 6.0 * f64::from(k) / 199.0;
                 let corner = turned(&rim, theta);
-                let a = n.normalize();
+                let a = n.get().normalize();
                 let radial = |p: Point3<f64>| {
                     let v = p - q;
                     v - a * v.dot(a)
@@ -4031,7 +4046,7 @@ mod tests {
                 let off = |x: f64, y: f64| {
                     let f = Affine3::rotate_point_about_axis(
                         lift(q),
-                        Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                        Vec3::new(iv(n.get().x), iv(n.get().y), iv(n.get().z)),
                         iv(phi),
                         place_iv.transform_point(Point3::new(iv(x), iv(y), iv(0.0))),
                     );
@@ -4447,7 +4462,7 @@ mod frame_extent_rows {
         Frame {
             axis: geom::Line {
                 origin: Point3::origin(),
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             },
             region: ScopeRegion {
                 cover: geom::cover::Cover::segment(
@@ -4541,7 +4556,7 @@ mod frame_extent_rows {
     fn tilted_axis(center: Point3<f64>, theta: f64) -> geom::Line<f64> {
         geom::Line {
             origin: center,
-            dir: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+            dir: geom_core::UnitVec3::checked(Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt())),
         }
     }
 
@@ -4574,7 +4589,7 @@ mod frame_extent_rows {
         let frame = Frame {
             axis: geom::Line {
                 origin: Point3::origin(),
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             },
             region: ScopeRegion {
                 cover: geom::cover::Cover::segment(
@@ -4603,7 +4618,7 @@ mod frame_extent_rows {
         let frame = Frame {
             axis: geom::Line {
                 origin: up,
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             },
             region: ScopeRegion {
                 cover: geom::cover::Cover::segment(
@@ -4664,7 +4679,7 @@ mod frame_extent_rows {
         let frame = Frame {
             axis: geom::Line {
                 origin: Point3::origin(),
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             },
             region: ScopeRegion {
                 cover: geom::cover::Cover::segment(

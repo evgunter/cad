@@ -2,9 +2,11 @@
 id: a-spiric-plane-near-miss-shift-is-measured-in-the-ovals-plane-not-off-the-cutting-plane
 kind: issue
 title: The spiric × plane door's near-miss reread shifts L by the band's escalation inside the oval's plane, which is a height off the cutting plane only times the tilt sine s: a sub-ε miss decides once s is below about 0.1
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-23
 priority: P1
+cost: M
 ---
 
 
@@ -75,3 +77,7 @@ first where the line or a moved line reads in the ladder's band; no other
 refusal passes. In-band gaps that decided, per lean `1, 0.2, 0.05, 0.01,
 1e-5, 4.9e-9`: with the in-plane shift 0, 15, 30, 30, 40, 42; with the
 change none.
+
+## Closed
+
+2026-11-23, by the GERM orchestrator. Closed by PR 7571 (merge `81162c9be9`). The re-read lines are `P ∩ (Q ± escalate·n̂)`: a gap off the cutting plane with one extreme inside the band refuses at every lean down to the smallest sine the parallel rung admits. The case of an oval wholly inside the band on one side of Q is filed as `a-spiric-oval-wholly-inside-the-band-on-one-side-of-the-cutting-plane-reads-as-a-miss` (P1).

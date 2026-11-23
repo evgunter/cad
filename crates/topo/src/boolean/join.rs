@@ -2233,7 +2233,7 @@ fn nearest_sign<T: Decide>(
 /// `p`'s radius. Each factor's length is a scale on the whole, so the
 /// axis need not be unit for a sign or for a ratio of two of these.
 fn turn_of<T: geom_core::Real>(axis: geom::Line<T>, p: geom_core::Point3<T>, v: Vec3<T>) -> T {
-    axis.dir.dot((p - axis.origin).cross(v))
+    axis.dir.get().dot((p - axis.origin).cross(v))
 }
 
 /// **How far `p` has turned past `from`'s site, along the conic**: the
@@ -2277,7 +2277,7 @@ fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Ma
 /// cancelling with [`turn_of`]'s.
 fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> Margin<T> {
     let axis = from.frame();
-    let cot = from.tangent().dot(from.site() - axis.origin).abs() * axis.dir.norm()
+    let cot = from.tangent().dot(from.site() - axis.origin).abs() * axis.dir.get().norm()
         / turn_of(from.frame(), from.site(), from.tangent()).abs();
     // Unsourced lever: the band's ε, how far a site may stand off the
     // conic, which is a tolerance and no extent, curvature or box.
@@ -3699,7 +3699,7 @@ pub(super) fn line_of<T: Decide>(
         [true, true] => {
             let mut along = [false; 2];
             for (k, d) in lines.dirs.iter().enumerate() {
-                let sine = dir.cross(*d).norm() / (dir.norm() * d.norm());
+                let sine = dir.cross(d.get()).norm() / (dir.norm() * d.get().norm());
                 along[k] = on_as("bool_germ_apex_heading", Margin::levered(sine, lines.lever))?;
             }
             along
@@ -4322,8 +4322,8 @@ fn pt_germ_frame<T: Decide>(
             "the plane×torus frame was handed another kind pair",
         ));
     };
-    let (q, n) = (plane_frame.origin(), plane_frame.axis());
-    let (c, a) = (torus_frame.origin(), torus_frame.axis());
+    let (q, n) = (plane_frame.origin(), plane_frame.axis_unit());
+    let (c, a) = (torus_frame.origin(), torus_frame.axis_unit());
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
         geom::Curve3::Circle(the_circle @ geom::Circle { .. }) => {
@@ -4339,7 +4339,7 @@ fn pt_germ_frame<T: Decide>(
     let split = section
         .as_ref()
         .ok()
-        .and_then(|s| LoopSplit::plane_torus(s, (c, a, big_r), n));
+        .and_then(|s| LoopSplit::plane_torus(s, (c, a.get(), big_r), n.get()));
     let two = |loops| match split {
         Some(split) => Ok(Some(SectionLoops::Two { loops, split })),
         None => Err(carried()),
@@ -4386,7 +4386,7 @@ fn pt_germ_frame<T: Decide>(
         )),
         Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => {
             let axis = geom::Line { origin: c, dir: a };
-            match super::section_cert::torus_plane_loops((axis, big_r, r), (q, n), band) {
+            match super::section_cert::torus_plane_loops((axis, big_r, r), (q, n.get()), band) {
                 Ok(Some(loops)) => Err(FrameError::Spiric { loops, section: e }),
                 Ok(None) => Err(FrameError::section(crate::invalid_margin::invalid(
                     band,
@@ -6328,7 +6328,7 @@ mod travel_rows {
                 turn: Turn::facing(
                     geom::Line {
                         origin: Point3::origin(),
-                        dir: Vec3::unit_z(),
+                        dir: geom_core::UnitVec3::exact_z(),
                     },
                     (germ, Vec3::unit_x()),
                     (site, tangent),
@@ -6400,7 +6400,7 @@ mod travel_rows {
             let turn = Turn::facing(
                 geom::Line {
                     origin: Point3::origin(),
-                    dir: Vec3::unit_z(),
+                    dir: geom_core::UnitVec3::exact_z(),
                 },
                 (germ, dir * -1.0),
                 (site, tangent),
@@ -6473,7 +6473,7 @@ mod self_check_rows {
         let err = super::germs_face_each_other(
             Some(&super::SectionLoops::conic(geom::Line {
                 origin: o,
-                dir: z,
+                dir: geom::stated_direction(z),
             })),
             &germ(Vec3::new(1.0, w, 0.0)),
             &germ(Vec3::new(0.0, 1.0, 0.0)),
@@ -6996,7 +6996,10 @@ mod rulings_lane_rows {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
         let (fa, fb) = (face(3), face(7));
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let line = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         let circle = geom::Curve3::circle(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
@@ -7359,7 +7362,7 @@ mod first_pair_rows {
 
         let frame = geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         let germ = (Point3::new(1.0, 0.0, 0.0), Vec3::unit_y());
         let turn = |t: f64| {
@@ -7521,7 +7524,7 @@ mod first_pair_rows {
     ) -> Result<Vec<(usize, usize)>, BooleanError> {
         let frame = geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         let site = |t: f64| Point3::new(10.0 * t.cos(), t.sin(), 0.0);
         let dir = |(t, ccw): (f64, bool)| {
@@ -7925,7 +7928,7 @@ mod foot_rows {
     use super::{
         Along, BooleanError, FootSpeed, PartnerDistance, along_sign, germ_arm, nearest_of,
     };
-    use geom_core::{Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Point3, Tol};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -7934,7 +7937,7 @@ mod foot_rows {
     /// A partner `travel` along the line `x` from the germ at the origin,
     /// its site `off` across it.
     fn partner(travel: f64, off: f64) -> PartnerDistance<f64> {
-        let line = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
+        let line = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let speed = FootSpeed::of(&line, (-10.0, 10.0), band()).unwrap();
         let site = Point3::new(travel, off, 0.0);
         PartnerDistance {
