@@ -62,9 +62,11 @@ minus the lens now name every face and edge, and refuse only
 `ConventionalVertex` at the circle's one vertex
 (`crates/editor-core/tests/emit_sphere_cut_in_cap.rs`,
 `a_sphere_cut_in_refuses_only_where_its_rows_are_filed`). The union and the
-lens minus the brick keep the cut unglued
-(`work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick`).
-When this lands, those three rows publish a table, and the pin gains
+lens minus the brick, in either order, now glue the cut too and refuse
+only `ConventionalVertex` as well (measured 2026-11-23 on PR 7414 once
+PR 7440's sphere bridge landed;
+`work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick`
+is closed). When this lands, those six rows publish a table, and the pin gains
 what it cannot assert today: the lens entities the cap's names cite,
 the faces the cut divided among them.
 
