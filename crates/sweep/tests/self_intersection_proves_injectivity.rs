@@ -2593,6 +2593,29 @@ fn in_pose<T: Scalar>(b: topo::AtRestBody<T>, m: Option<&geom_core::Affine3<f64>
     }
 }
 
+/// **The wall of a half rod holds against each block face that meets it
+/// at one vertex in the middle of its ruling**, as built, at `f64`: the
+/// per-PR row of
+/// [`a_wall_holds_against_a_face_at_a_vertex_mid_ruling`], which runs
+/// the poses, the off-grid build, `Interval` and the whole body in the
+/// slow set. Red if a shared vertex on one side of a wall's cell, at no
+/// corner of it, has no zero.
+#[test]
+fn a_wall_holds_against_a_face_at_a_vertex_mid_ruling_as_built() {
+    let body = half_rod_on_a_block::<f64>().into_body();
+    let (wall, alone) = wall_and_the_faces_at_a_vertex_alone(&body);
+    assert_eq!(alone.len(), 2, "two faces share one vertex with the wall");
+    for f in alone {
+        let report = injective(&body, Some(vec![wall, f]), BUDGET);
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "the wall against {f:?}: {:?} {:?}",
+            report.verdict,
+            report.receipt
+        );
+    }
+}
+
 /// **A wall holds against a face that meets it at one vertex in the
 /// middle of its ruling**, at both scalars: the half rod's wall against
 /// each of the block's two horizontal faces, whose corner is on the
