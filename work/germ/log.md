@@ -1747,3 +1747,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - Waiting on CI, which is queued (95 runs repo-wide).
   - **P0 owed by GERM found on main**: BOXFINISH bisected `work/green/main-red-eleven-...-after-c390e1f9` and found that U3b (PR 7299) moved six editor-core default-set rows: `cut_cylinder`'s split vertex is now placed at `cross`'s root. I did not see this sooner. A lane is dispatched to judge the move with numbers and re-pin GERM's six; SECTCONE owns the other five. Tier: the orchestrator's read (a re-pin with a measured judgement), so no model-compare draw.
   - Closed `main-red-recourse-roster-misses-intersect-rs-closed-form-shown-and-shown`: PR 7217 fixed it, but the row was left open.
+- 2026-11-23 02:30 — **P0 re-pin merged** (PR 7500, `194131e40b`).
+  - Measured judgement: across the whole corpus dump at f64, U3b moved one point, `cut_cylinder`'s x = −0.5 seam vertex z, by 1 ulp. It went from `…115`, 0.58 ulp below the exact crossing, to `…116`, the correctly rounded value. No outcome, count or verdict moved.
+  - GERM's six rows are re-pinned. SECTCONE's five are untouched, and the green row stays open for them.
+  - The bisect missed that U3b also moved the Interval fence row: both seam z intervals narrowed and still hold the exact crossing. That is recorded on the green row for whoever re-pins it.
+  - Merged over CI queued about 95 minutes, under Ev's 2026-11-22 rule that low-risk changes may merge over a running CI: the change is test pins only, run locally at three ε, and fixes a main red.
+- 2026-11-23 02:30 — **Friction: runner queue.** PR 7411's fix-pass head `ea6e47e9f3` sat queued from about 00:40 to past 02:14. 88–95 runs were queued repo-wide throughout.
