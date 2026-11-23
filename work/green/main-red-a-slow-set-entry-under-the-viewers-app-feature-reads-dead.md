@@ -54,9 +54,10 @@ PR 7599. The default-feature listings (ci.yml's `test` job, nightly.yml's
 entries over `cargo nextest list -p viewer --features app`. The PR viewer
 job also runs the slow-set tests its diff adds or edits
 (`slow_set.py --new-expr`) under `--features app`; the nightly's viewer job
-already ran them (`--ignore-default-filter`). The entry PR 7574 had
-dropped is restored beside PR 7562's
-`an_offer_an_earlier_op_of_its_frame_outran_is_dropped_and_said`, the
-second app-feature entry, which the old check read dead the same way. Of
+already ran them (`--ignore-default-filter`). Both app-feature entries
+main had dropped to get past the old check are restored: PR 7548's (dropped
+by PR 7574) and PR 7562's
+`an_offer_an_earlier_op_of_its_frame_outran_is_dropped_and_said` (dropped
+by `0f2bca5254`). The probe timed them at 1.871 s and 0.489 s. Of
 the slow set's other 2395 entries on `bba39ef945`, none sits under a
 positive `cfg(feature …)` gate.
