@@ -1826,3 +1826,15 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - the implementer and the reviewer each ran the slow set locally at three ε, plus fmt, clippy and the gates;
     - it fixes a main red that skips the nightly render lanes.
   - The queue held 113 runs, and no CI job had run on any head of this branch.
+- 2026-11-23 11:20 — **PR 7553 review adjudicated: NOT-MERGEABLE-AS-IS** (single FULL, drawn arm). Every finding is TAKEN.
+  - **MAJOR, demonstrated:** `B` was read from `Frame::v_ref()`, which is rounded on every read. Grazes at general angles therefore still read 6/40/121 wrong at far 1e4/1e5/1e6 against a stored-terms oracle. The rows only grazed near the u-vertex, and their oracles read `v_ref` too.
+  - **Class, logged:** an oracle that mirrors the implementation shares its blind spot. Oracles must be computed from stored data independently.
+  - **Ruling (mine):** `belly` moves onto the conic in geom's `conic.rs`. As written it was a new reader of `Conic::frame()` outside `conic.rs`, which runs against Ev's PR 7523 ratification ("no code outside `conic.rs` takes a conic's centre or frame"). The door is to stay consistent with ONEROUND's PR 7510 gating. The alternative, keeping it in `curve_pair::pose`, was rejected because the ratified direction retires exactly that.
+  - **Minors:**
+    - rows for the swept readers, since two mutants survived;
+    - a note on CONIC's nested-clearance row;
+    - fold the sibling row into ONEROUND's dispatched unit;
+    - the range fallback;
+    - the estimate proof;
+    - the order pin.
+  - Filed via the lane: `trace.rs:521`'s cylinder `|d| − radius`.
