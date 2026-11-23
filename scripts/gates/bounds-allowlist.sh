@@ -564,7 +564,7 @@ BOUNDS_ALLOWLIST=(
   # by material and the pipeline (`boolean_op_given`), and reads no
   # bracket of its own (without `Bounds` neither call compiles).
   # 26 + 1 = 27.
-  'crates/topo/src/boolean/ops.rs 27 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boolean/ops.rs 26 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
