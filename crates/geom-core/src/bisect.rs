@@ -37,14 +37,11 @@ use crate::{Margin, Real, SupSpeed};
 /// Over the `topo` and `sweep`
 /// suites at ε 1e-9 a walk that answered read at most 117 pieces in
 /// `half_angle`, 249 in `carrier_touch`, 271 in `spiric_arc`'s point
-/// and ray readings, 367 in `census::curved` and 2559 in `spiric_arc`'s
-/// segment reading. Three rows run a walk past it by construction, each
-/// a reading with no answer outside the band: `sweep`'s
-/// `a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on`
+/// and ray readings and 367 in `census::curved`. Two rows run a walk past
+/// it by construction, each a reading with no answer outside the band:
+/// `sweep`'s `a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on`
 /// (`carrier_touch`) and `a_spiric_bounded_face_answers_off_its_spiric_edge`
-/// (`spiric_arc`'s ray reading), and `topo`'s
-/// `a_spiric_arc_never_clears_a_segment_through_it` (its segment
-/// reading). The tangency floor and the
+/// (`spiric_arc`'s ray reading). The tangency floor and the
 /// tangency's own half-length both scale with `√(K·ε)`, so the pieces a
 /// touch keeps open per level do not depend on K; the levels down to the
 /// floor grow as `½·log₂(1/(K·ε))`, a few more per decade of either.

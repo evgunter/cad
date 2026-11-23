@@ -84,12 +84,18 @@ is the elliptic row's cause: face 11 in the earlier measurement is the
 outline's face, and face 13 the hole's. The contacts tier 3′ reported
 are the hole's vertices and edges lying in the outline's face.
 
-With the arc walk of `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses`
-the hole nests as a ring, each half carries one cut face, and
+With the edge reading of `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses`
+the hole nests as a ring, and each half carries one cut face.
 `review_6020_seam_probes::a_plane_touching_a_counterbores_floor_rim_splits_at_tier_three_prime`
 pins tiers 1, 3 and 3′ (no records) and the quadrature's volume on each
-half at t 0.05 and 0.2, a 0 and 0.3, both leans and both normals, at
-ε 1e-6, 1e-9 and 1e-12. It replaces
+half at t 0.05 and 0.2, a 0 and 0.3, both leans and both normals. Every
+pose builds at ε 1e-9 and 1e-12. At ε 1e-6 the pose leaning 0.05 in at
+a 0.3 refuses under both normals, upstream of the nesting, with
+`Reduce(SliverSector { .. "enters_material" })`. Its margin is −9.9e-6,
+inside that ε's escalation band (1e-5): a sector about 1e-5 wide at the
+bore rim, which that band does not resolve, so the refusal is right
+there. The row pins it as that typed refusal at that pose, and refuses
+any other. It replaces
 `a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point`,
 whose two faces no longer exist; the census's `Degenerate` reading of
 two planar faces on each other keeps its own rows in `link` and

@@ -53,9 +53,8 @@ The margin-scale designers split on the far-centre ellipse: (A) mint a fitted sp
   extent or a lever, which rounding loosens): `extent::conic_arc_reach`,
   `Reach::lever_from`, `ruled_region::reach_bound`, `splitting::section`'s
   reported chart. **Decided margins reading the far terms uncharged:**
-  - `topo::splitting::section_loops::arc_clears` (a piece's middle
-    `point_at` from the centre, its gap from a segment or another
-    piece less the reach, `split_nest_segment_arc`, `split_nest_arc_arc`);
+  - `topo::splitting::section_loops::line_clears_conic` (`m·(c − p)`
+    less the reach, `split_nest_line_conic`);
   - `topo::census::depth_gap` (`conic_ring`'s minor `speed_hi − speed_lo`,
     and its depth origin at the centre; the band-only `sweep_pad`);
   - `topo::splitting::join` (the conic excess of `split_section_area`);

@@ -2880,17 +2880,17 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ),
         (
             "UnplacedHole(outline)",
-            F::UnplacedHole {
+            F::UnplacedHole(topo::splitting::UnplacedHole {
                 hole: face,
                 beside: None,
-            },
+            }),
         ),
         (
             "UnplacedHole(beside)",
-            F::UnplacedHole {
+            F::UnplacedHole(topo::splitting::UnplacedHole {
                 hole: face,
                 beside: Some(face),
-            },
+            }),
         ),
         (
             "NestingContradiction",

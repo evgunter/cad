@@ -304,9 +304,16 @@ fn review_6020_boolean_seam_poses() {
 /// leaning in, the bore's ellipse through `P`): it nests as a ring of the
 /// cylinder's ellipse, and each half carries one cut face. Each half
 /// passes tiers 1, 3 and 3′ and holds the polar quadrature's volume.
+///
+/// A pose may instead refuse `SliverSector` on `enters_material` with
+/// its point margin inside its own escalation band: the plane leaning 0.05 in
+/// at azimuth 0.3 makes a sector at the bore rim about 1e-5 wide, in
+/// the band at ε 1e-6 and decided below it. Any other refusal is red,
+/// as is that one's past the band or at any other pose.
 #[test]
 fn a_plane_touching_a_counterbores_floor_rim_splits_at_tier_three_prime() {
     let y = Vec3::new(0.0, 1.0, 0.0);
+    let mut refused = Vec::new();
     for t in [0.05f64, 0.2] {
         for az in [0.0f64, 0.3] {
             let d = Vec3::new(az.cos(), 0.0, az.sin());
@@ -325,7 +332,25 @@ fn a_plane_touching_a_counterbores_floor_rim_splits_at_tier_three_prime() {
                         &plane,
                         tol(),
                     )
-                    .unwrap_or_else(|e| panic!("{label}: the split refuses: {e:?}"));
+                    .map_err(|e| {
+                        let in_band = match &e {
+                            topo::splitting::SplitError::Reduce(
+                                topo::splitting::SplitReduceError::SliverSector {
+                                    reading: topo::splitting::SectorReading::Escalated(diag),
+                                    ..
+                                },
+                            ) => {
+                                // A point margin escalates only inside its band.
+                                diag.predicate == Some("enters_material")
+                                    && diag.margin.kind() == geom_core::MarginKind::Value
+                                    && diag.margin.rejected_sign().is_none()
+                            }
+                            _ => false,
+                        };
+                        assert!(in_band, "{label}: the split refuses: {e:?}");
+                        refused.push(label.clone());
+                    });
+                    let Ok(res) = res else { continue };
                     let want = quadrature(true, p, n);
                     for ((side, part), w) in [("below", res.below), ("above", res.above)]
                         .into_iter()
@@ -360,4 +385,10 @@ fn a_plane_touching_a_counterbores_floor_rim_splits_at_tier_three_prime() {
             }
         }
     }
+    assert!(
+        refused
+            .iter()
+            .all(|l| l == "t0.05 a0.3 in s1" || l == "t0.05 a0.3 in s-1"),
+        "a pose other than the sliver's refuses in band: {refused:?}"
+    );
 }

@@ -59,18 +59,16 @@ lift the tilted arm of that test's 3′ pin.
 
 ## 2026-11-22 — fixed on `heldrecords/nesting`
 
-`section_loops::outlines_disjoint` reads a segment against an elliptic
-arc, and an elliptic arc against another conic arc, by a piece walk
-over the arcs (`arc_clears`: a piece is clear where its middle point's
-gap from the other, less the piece's reach at the carrier's speed over
-it, is definitely positive; middle points within the band stop the walk
-undecided). `line_clears_conic`, which read the segment's whole line
-against the whole carrier, is gone. The square hole nests as a ring of
-the ellipse's face at 15°, and both arms of
+`section_loops::outlines_disjoint` reads a pair with an ellipse edge on
+the carriers first, as before (`line_clears_conic`, `conics_clear`), and
+then, where the carriers meet, on the edges: the curve-pair meeting
+reader `geom_brep::curve_pair::meet` over the two spans, apart where it
+reads no meeting and no shared run (`edges_clear`). The square hole
+nests as a ring of the ellipse's face at 15°, and both arms of
 `a_keel_ring_on_an_island_in_a_hole_nests_on_the_island` pass tier 3′
 with no records, trench or no trench, at ε 1e-6, 1e-9 and 1e-12.
 
 A hole the rule still cannot place, or one the ring guard turns away,
 now refuses `SplitFinishError::UnplacedHole` instead of keeping a face
-of its own over the outline's: the "sound by cancellation" allowance is
-retired. Nothing in the topo, sweep or editor-core suites needed it.
+of its own over the outline's. The "sound by cancellation" allowance
+is retired. Nothing in the topo, sweep or editor-core suites needed it.

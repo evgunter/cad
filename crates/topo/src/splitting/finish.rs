@@ -1006,20 +1006,10 @@ pub enum SplitFinishError {
         /// the island's plane piece (in its side's body).
         hole: FaceKey,
     },
-    /// A hole of the section (a loop winding clockwise about its face's
-    /// outward normal) that the section nesting rule places in no
-    /// outline of its side, or (`beside`) that is not decided disjoint
-    /// from a hole the outline around it already holds: a contact
-    /// between the loops too close to call, or two holes that meet. A
-    /// hole left on a face of its own would lie over the face around it,
-    /// two faces of opposite sense on one area of the plane, which no
-    /// finished body holds.
-    UnplacedHole {
-        /// The hole's section face (in the discarded scratch body).
-        hole: FaceKey,
-        /// The hole's section face it is not decided clear of.
-        beside: Option<FaceKey>,
-    },
+    /// A hole of the section no outline is decided to enclose
+    /// ([`super::UnplacedHole`], each hole its section face in the
+    /// discarded scratch body).
+    UnplacedHole(super::UnplacedHole<FaceKey>),
     /// A slit trace's slit, read definitely, lies in no section region of
     /// its side: no outline holds a vertex of it, or the innermost one
     /// that does has it in a ring (`in_hole`), or it lies on a loop. The slit lies on edges its side's material
@@ -1308,18 +1298,10 @@ impl SplitFinishError {
                 )?;
                 defect_ended(f, at)
             }
-            Self::UnplacedHole { beside: None, .. } => write!(
+            Self::UnplacedHole(hole) => write!(
                 f,
-                "no cut face can be shown to enclose a hole of the cut: a contact between \
-                 the hole and the outline around it is too close to call. Recourse: {}",
-                super::SPLIT_COINCIDENCE_RECOURSE
-            ),
-            Self::UnplacedHole {
-                beside: Some(_), ..
-            } => write!(
-                f,
-                "two holes of one cut face cannot be shown apart: they meet, or come too \
-                 close to call. Recourse: {}",
+                "{}. Recourse: {}",
+                hole.reason(),
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::SlitUnplaced {
@@ -1727,7 +1709,10 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                 }
             })?;
         if let Some(&(hole, _)) = nesting.unplaced.first() {
-            return Err(SplitFinishError::UnplacedHole { hole, beside: None });
+            return Err(SplitFinishError::UnplacedHole(super::UnplacedHole {
+                hole,
+                beside: None,
+            }));
         }
         for (parent, holes) in nesting.regions {
             let mut rings: Vec<(FaceKey, crate::entity::LoopKey)> = Vec::new();
@@ -1738,10 +1723,10 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                             SplitFinishError::Desync(FinishDesync::Unresolved(key))
                         })?
                     {
-                        return Err(SplitFinishError::UnplacedHole {
+                        return Err(SplitFinishError::UnplacedHole(super::UnplacedHole {
                             hole,
                             beside: Some(ring),
-                        });
+                        }));
                     }
                 }
                 rings.push((hole, hole_loop));
