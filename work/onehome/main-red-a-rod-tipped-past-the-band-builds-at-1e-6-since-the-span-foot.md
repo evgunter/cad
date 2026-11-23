@@ -134,3 +134,5 @@ stale. The door did not regress.
 poses refuse every op with `CurvedPierceUnsupported`, alike, and the
 half-200 tipped rod is not a finished body. The latter is
 `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted`, above.
+
+**Re-pinned as 7131's cost (GREEN U13, 2026-11-23, PR 7558).** Ev ruled on PR 7505 that PR 7131's frame cost stands. At ε 1e-12 both tipped-rod rows now pin the half-length-200 rods to refuse their own finish (`TIPPED_ROD_FRAME_COST`, `props_cylinder_circle_off_axis` in (1.15e-12, 1.25e-12]) and read the half-length-50 poses as before. Mutant A turns the pin red. The 1e-6 pins this row owns are untouched, and so is its status. On merging main's rewrite of these rows (2026-11-23), the pin moved into `tipped_poses`, which now holds no half-length-200 rod at 1e-12.
