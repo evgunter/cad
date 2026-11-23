@@ -5597,6 +5597,11 @@ fn tip_points<T: Real>(
 /// [`loop_edges`]' flattening over any closed run of half-edges, in
 /// the order given: a loop's cycle, or a chain of half-edges from
 /// several faces that closes on itself.
+///
+/// The raw mass-properties door reads it over a body tier 1 has not
+/// vouched for, so every record the run names, an edge's curve
+/// included, is read raw, and one that does not resolve is
+/// [`LoopEdgesError::Corrupt`].
 pub(crate) fn run_edges<T: Decide>(
     body: &Body<T>,
     cycle: &[crate::entity::HalfEdgeKey],
@@ -9817,6 +9822,41 @@ mod shell_reference_rows {
         assert!(
             volume.lo() <= 6.0 && 6.0 <= volume.hi(),
             "the carried sum encloses the prism's 6 m³: {volume:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod review_7437_probe {
+    #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+    use geom_core::Tol;
+
+    /// A body with one edge's curve removed, read through the raw
+    /// mass-properties door, refuses `Corrupt`, typed: the door reads a
+    /// body tier 1 has not vouched for (`run_edges`).
+    #[test]
+    fn raw_door_on_a_removed_curve() {
+        let tol = Tol::witness();
+        let mut body = crate::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let curve = body.edges.iter().next().unwrap().1.curve;
+        body.curves.remove(curve).expect("the curve was there");
+        let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body whose edge names a removed curve, which tier 1 refuses, and the door's typed refusal of it.
+            crate::test_support::measure_unvalidated(
+                &body,
+                tol,
+                crate::test_support::pinned_resolution(tol),
+            )
+            .map(|_| ())
+            .map_err(|e| format!("{e:?}"))
+        }));
+        let Ok(refusal) = got else {
+            panic!("the raw door panicked on a removed curve")
+        };
+        let refusal = refusal.expect_err("a body naming a removed curve measures nothing");
+        assert!(
+            refusal.contains("Corrupt") && refusal.contains("curve key does not resolve"),
+            "the raw door refuses a removed curve Corrupt: {refusal}"
         );
     }
 }
