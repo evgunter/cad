@@ -1848,3 +1848,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - `germ/a-parallel-leg-near-cos-v-minus-r-over-r-reads-touch-against-a-villarceau-edge` (P2, for Ev's eye);
     - `export/step-imports-one-record-folds-the-sense-bit-by-hand`.
   - The same reviewer (the drawn arm) is confirming its findings on the new head, as a confirmation of its own findings, not a second review.
+- 2026-11-23 — **Spiric × plane near-miss guard reads a height off the cutting plane** (`germ/spiric-near-miss-off-q`). The reread moves `L` by `escalate/s` across itself in the spiric's plane, `s` the pose's tilt sine. The new row `a_leaned_plane_missing_the_oval_by_less_than_the_band_refuses` has in-band gaps deciding on main in 0, 12, 24, 24 of 32 at `s` = 1, 0.2, 0.05, 0.01, and in none with the change. The row `a-spiric-plane-near-miss-shift-is-measured-in-the-ovals-plane-not-off-the-cutting-plane` carries the progress note and stays open for review.

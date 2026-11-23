@@ -37,3 +37,23 @@ file) leaves this open: it sets its tangents square to P.
 The reread shift is a height off Q: `±escalate/s` along `across`, or an
 equivalent height. A row over `s ∈ {1, 0.2, 0.05, 0.01}` must refuse a
 miss of the oval off Q between zero and escalate at every `s`.
+
+## Progress (germ/spiric-near-miss-off-q, 2026-11-23)
+
+The reread now reads the two lines of the spiric's plane a height
+`escalate` off the cutting plane: `L` moved `escalate/s` across itself,
+`s` the pose's tilt sine, carried on the form (`Formed::SpiricPlane`'s
+`tilt`). The move stays under the radius of the span's cover ball,
+because the pose's parallel rung has `s` times that radius past the band.
+
+The row `a_leaned_plane_missing_the_oval_by_less_than_the_band_refuses`
+(`curve_face::spiric_plane`) reads `s ∈ {1, 0.2, 0.05, 0.01}` at four
+points of the oval, a miss and a dip either side, against an oracle that
+finds the oval's extreme height off the plane by sampling and ternary
+search on `Curve3::eval`. Gaps of 0.001, 0.1, 0.3 and 0.9 of the
+escalation must refuse; gaps of 2 and 10 must answer the oracle's
+crossings.
+
+In-band gaps that decided, of 32 per lean: on main 0, 12, 24, 24 for
+`s` = 1, 0.2, 0.05, 0.01; with the change 0 at every lean. Gaps between
+1 and 2 escalations are not pinned either way.
