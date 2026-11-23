@@ -20,11 +20,10 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::ProfileLoop;
+use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{ball_poled_y, finished};
 use sweep::{Revolution, revolve};
 use topo::AtRestBody;
-use topo::construction::Construct;
 
 use crate::revolve_common::{axis_y, validated};
 
