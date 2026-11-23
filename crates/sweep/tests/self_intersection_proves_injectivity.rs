@@ -6658,7 +6658,9 @@ fn a_cap_cut_under_a_generic_tilt_refuses_on_its_cut_cap_alone() {
 /// **A body through a cut cone's wall beside its section crosses**: a
 /// ball of radius 0.02 grafted with its centre on the wall, at the
 /// vertex where a ruling meets the section, at the vertex where the top
-/// rim meets it, and on the section between two vertices; and the cut
+/// rim meets it, and on the section between two vertices; a block of
+/// side 0.04 through the wall just inside the face, beside an arc's far
+/// end and beside its lowest point; and the cut
 /// cone's own copy, moved 0.05 along the section's plane, grafted over
 /// it, so a second pair of half-cones overlaps the first across the
 /// section. A graft's solids share no cell, so each crossing is found by
@@ -6700,69 +6702,77 @@ fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
     let cap = (0.86, 0.3, 0.0);
     let rim_theta = (-(0.3f64.cos()) * (0.9 - 0.86) / (0.3f64.sin() * 0.31)).acos();
     let rim_corner = Point3::new(0.31 * rim_theta.cos(), 0.9, 0.31 * rim_theta.sin());
-    let crossings: [(&str, Embedding, Embedding); 4] = [
+    // A point of the wall `up` above the section at azimuth `theta`.
+    let beside = |cut: Cut, theta: f64, up: f64| {
+        let (r0, r1, h) = OFF_GRID;
+        let y = on_section(OFF_GRID, cut, theta).y + up;
+        let r = r0 + (r1 - r0) / h * y;
+        Point3::new(r * theta.cos(), y, r * theta.sin())
+    };
+    let tilted = (0.43, 0.3, 0.7);
+    let both = |body: &dyn Fn() -> (Body<f64>, Body<Interval>)| {
+        let (float, twin) = body();
+        (
+            door(&float, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+            door(&twin, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        )
+    };
+    let ball = |cut: Cut, above: bool, at: Point3<f64>| {
+        both(&|| {
+            (
+                with_ball::<f64>(OFF_GRID, cut, above, at),
+                with_ball::<Interval>(OFF_GRID, cut, above, at),
+            )
+        })
+    };
+    // The cut cone with a block of side 0.04 about `at` grafted in.
+    fn with_block<T: Scalar>(cut: Cut, at: Point3<f64>) -> Body<T> {
+        let mut body = cone_cut::<T>(OFF_GRID, cut, true).into_body();
+        let side = |c: f64| (c - 0.02, c + 0.02);
+        let block = sweep::test_support::brick::<T>(side(at.x), side(at.y), side(at.z), tol());
+        topo::graft_disjoint_all_keyed(&mut body, &block).expect("the block grafts");
+        body
+    }
+    let block = |cut: Cut, at: Point3<f64>| {
+        both(&|| (with_block::<f64>(cut, at), with_block::<Interval>(cut, at)))
+    };
+    let crossings: Vec<(&str, (Embedding, Embedding))> = vec![
         (
             "a ball at the ruling's corner",
-            door(
-                &with_ball::<f64>(OFF_GRID, wall, true, on_section(OFF_GRID, wall, 0.0)),
-                DEFAULT_MAX_CELL_DEPTH,
-                BUDGET,
-            )
-            .verdict,
-            door(
-                &with_ball::<Interval>(OFF_GRID, wall, true, on_section(OFF_GRID, wall, 0.0)),
-                DEFAULT_MAX_CELL_DEPTH,
-                BUDGET,
-            )
-            .verdict,
+            ball(wall, true, on_section(OFF_GRID, wall, 0.0)),
         ),
-        (
-            "a ball at the rim's corner",
-            door(
-                &with_ball::<f64>(OFF_GRID, cap, false, rim_corner),
-                DEFAULT_MAX_CELL_DEPTH,
-                BUDGET,
-            )
-            .verdict,
-            door(
-                &with_ball::<Interval>(OFF_GRID, cap, false, rim_corner),
-                DEFAULT_MAX_CELL_DEPTH,
-                BUDGET,
-            )
-            .verdict,
-        ),
+        ("a ball at the rim's corner", ball(cap, false, rim_corner)),
         (
             "a ball on the section",
-            door(
-                &with_ball::<f64>(OFF_GRID, wall, true, on_section(OFF_GRID, wall, 1.3)),
-                DEFAULT_MAX_CELL_DEPTH,
-                BUDGET,
-            )
-            .verdict,
-            door(
-                &with_ball::<Interval>(OFF_GRID, wall, true, on_section(OFF_GRID, wall, 1.3)),
-                DEFAULT_MAX_CELL_DEPTH,
-                BUDGET,
-            )
-            .verdict,
+            ball(wall, true, on_section(OFF_GRID, wall, 1.3)),
+        ),
+        // The face's extent is read off the arc's enclosure: a ball
+        // through the wall just inside the face beside the arc's far end,
+        // and beside its lowest point, which is interior to the arc under
+        // a generic tilt, is in a part of the face an extent drawn from
+        // the arc's end values alone would leave unasked. Off every edge
+        // the walk runs out of depth on the crossing pair at `f64` (a ball
+        // or a block alike) and finds it at `Interval`, so these two are
+        // read as never embedded and never certified, at every ε.
+        (
+            "a block beside the arc's far end",
+            block(tilted, beside(tilted, core::f64::consts::PI - 0.05, 0.03)),
+        ),
+        (
+            "a block beside the arc's lowest point",
+            block(tilted, beside(tilted, 0.7, 0.03)),
         ),
         (
             "the cut's copy across the section",
-            door(
-                &folded::<f64>(OFF_GRID, wall),
-                DEFAULT_MAX_CELL_DEPTH,
-                BUDGET,
-            )
-            .verdict,
-            door(
-                &folded::<Interval>(OFF_GRID, wall),
-                DEFAULT_MAX_CELL_DEPTH,
-                BUDGET,
-            )
-            .verdict,
+            both(&|| {
+                (
+                    folded::<f64>(OFF_GRID, wall),
+                    folded::<Interval>(OFF_GRID, wall),
+                )
+            }),
         ),
     ];
-    for (what, float, twin) in crossings {
+    for (what, (float, twin)) in crossings {
         println!("[cone] {what}: f64 {float:?} | Interval {twin:?}");
         let found = |v: &Embedding| {
             matches!(
@@ -6772,7 +6782,7 @@ fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
         };
         assert!(found(&float), "{what}: {float:?}");
         assert!(found(&twin), "{what} at Interval: {twin:?}");
-        if tol().eps() == geom_core::tolerance::DEFAULT_EPS {
+        if tol().eps() == geom_core::tolerance::DEFAULT_EPS && !what.starts_with("a block") {
             assert!(matches!(float, Embedding::Crosses(_)), "{what}: {float:?}");
             assert!(matches!(twin, Embedding::Crosses(_)), "{what}: {twin:?}");
         }

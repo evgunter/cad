@@ -20677,6 +20677,51 @@ mod focal_rows {
         }
     }
 
+    /// **The image over a whole arc holds the arc: both its ends, entire,
+    /// and its slant's extreme between them.** A face's extent is read
+    /// off this enclosure (`clearance`'s `row_of` calls
+    /// [`ChartCurve::at`] over the edge's whole span), and there a hull
+    /// that is too small is not a refusal: the part of the face it misses
+    /// is never asked. The arc runs through the section's far vertex
+    /// (`E = π`), where the slant is greatest and neither end is; the
+    /// enclosure holds the stored row there, and holds each end's own
+    /// evaluation whole, by the row's evaluator at the interval scalar.
+    /// Red if the slant is read at the span's two ends alone, or the
+    /// azimuth's hull is drawn inside an end evaluation.
+    #[test]
+    fn a_focal_images_enclosure_over_an_arc_holds_its_ends_and_its_slants_extreme() {
+        use core::f64::consts::PI;
+        for (what, image) in [
+            ("with the frame", section(0.4, true)),
+            ("against the frame", section(5.9, false)),
+        ] {
+            let (t0, t1) = (PI - 1.2, PI + 0.9);
+            let lifted = lifted(&image, 0.0);
+            let [u, v] =
+                ChartCurve::Focal(Focal::of(&lifted).unwrap()).at(Interval::from_bounds(t0, t1));
+            let (far_u, far_v) = stored(&image, PI);
+            let ends = [stored(&image, t0), stored(&image, t1)];
+            assert!(
+                far_v > ends[0].1.max(ends[1].1) + 0.01,
+                "{what}: the slant's extreme is interior: {far_v} against {ends:?}"
+            );
+            assert!(
+                v.lo() <= far_v && far_v <= v.hi() && u.lo() <= far_u && far_u <= u.hi(),
+                "{what}: the far vertex ({far_u}, {far_v}) is held: {u:?} {v:?}"
+            );
+            for t in [t0, t1] {
+                let end = Pcurve::FocalSection(lifted).eval(iv0(t));
+                assert!(
+                    u.lo() <= end.x.lo()
+                        && end.x.hi() <= u.hi()
+                        && v.lo() <= end.y.lo()
+                        && end.y.hi() <= v.hi(),
+                    "{what}: the end at {t} is held whole: {end:?} in {u:?} {v:?}"
+                );
+            }
+        }
+    }
+
     /// **A focal image builds only where its azimuth is monotone for
     /// every member**: a `β` whose enclosure touches `±1`, or a sense
     /// that is not exactly `±1`, builds none; `β = 1 − 1e-9` builds. Red
