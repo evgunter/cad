@@ -1696,6 +1696,17 @@ FAMILIES: dict[str, str] = {
     # since nothing bound folds the rows. `crates/pncad-py/*` is
     # LIB's ground; `work/pydoor/python-has-no-maintenance-net-door`
     # carries the finding.
+    "B-READS": (
+        "what a node reads and what reads it — `Doc::operand_reads` "
+        "(each read a node's operand seats make, as `OperandRead`) and "
+        "`Doc::read_index` (the whole document's reads and read-by, as "
+        "`ReadIndex`), which the viewer's Properties draw as links. "
+        "Python has no node-payload reader, so it cannot compose either "
+        "caller-side. Closing it needs a `Doc.reads(node)` / "
+        "`Doc.read_by(node)` door, `pncad.pyi` entries, and one Python "
+        "row asserting the inverse law on a corpus document "
+        "(work/pydoor/python-cannot-ask-what-a-node-reads-or-what-reads-it.md)."
+    ),
     "B-MAINT-NET": (
         "the net of a sequence of accepted edits' maintenance rows — "
         "`MaintenanceNet`, pushed one applied edit at a time and "
@@ -2452,6 +2463,8 @@ NOT_BOUND = {
     # `StrandedSelection` a selection's, `StrandedAppearance` the
     # appearance store's), so the carrier is never a separate value.
     "NameCarrier": SHAPE,
+    "OperandRead": f"{GAP}: B-READS one read a node's operand seat makes, and the node it reaches",
+    "ReadIndex": f"{GAP}: B-READS the whole document's reads and read-by, built in one walk",
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
