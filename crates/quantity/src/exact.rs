@@ -19,17 +19,22 @@
 //! bits and every number in a `u128`; the next most are decided at 112.
 //! The bits a decision needs grow with how closely the exact real comes
 //! to a step, about 3.3 bits for each figure a decimal shares with an
-//! irrational boundary, and π past 2048 bits is computed once at twice
-//! the precision asked and kept. A decimal the text door reads is cut
-//! to [`crate::DECIDING_FIGURES`] figures and a sticky rest
+//! irrational boundary, and π past 2048 bits is computed once per
+//! precision reached and kept. A decimal the text door reads is cut to
+//! its first [`crate::DECIDING_FIGURES`] figures and a sticky rest
 //! ([`crate::UnitDef::canonical`]), so its length costs nothing past
-//! that, save a decimal in `in`, `deg` or `pi rad` that agrees with a
-//! rounding boundary through all of those figures, which is decided at
-//! its full length. Measured (an optimized build, CPU time, a shared
-//! box): a random decimal of a million figures, under a millisecond in
-//! `mm` and in `deg`; a degree decimal that agrees with a boundary
-//! through 1,000 figures, 10 ms; through 3,000, 0.12 s; through
-//! 10,000, 1.6 s, growing as the square of its length.
+//! that, a run of zeros or nines among them included, save one class: a
+//! decimal in `in`, `deg` or `pi rad` that agrees through all of those
+//! figures with a rounding boundary, a repeating decimal in `in` and an
+//! irrational one in `deg` and `pi rad`. No number a person types or
+//! pastes, a float spells, or a file carries agrees with one of those by
+//! chance; it has to be computed to, and it is decided at its full
+//! length. Measured (an optimized build without debug assertions, CPU
+//! time, one fresh process each, a shared box): a random decimal of a
+//! million figures, and `1.` then a million zeros then `1`, a few
+//! milliseconds in `mm`, `in` and `deg`; a degree decimal that agrees
+//! with a boundary through 1,000 figures, 30 ms; through 3,000, 0.29 s;
+//! through 10,000, 3.7 s, growing as the square of its length.
 
 use core::cmp::Ordering;
 use std::borrow::Cow;
@@ -112,7 +117,7 @@ impl Nat {
         })
     }
 
-    fn from_u128(value: u128) -> Self {
+    pub(crate) fn from_u128(value: u128) -> Self {
         let mut n = Self((0..4).map(|i| (value >> (32 * i)) as u32).collect());
         n.trim();
         n
@@ -406,30 +411,37 @@ fn machin(bits: u64) -> (Nat, Nat) {
 
 /// π enclosed at `bits` bits: `[lo, hi] / 2^bits`, from an enclosure at
 /// [`PI_KEPT`] bits, or past that from the finest any call has asked
-/// for, kept between calls. A call past the finest computes one at
-/// twice what it asks and keeps that, so a run of refinements computes Machin's series a number of
-/// times logarithmic in the finest precision reached, never once per
-/// decision.
+/// for, kept between calls, so a refinement computes Machin's series
+/// once per precision it reaches rather than once per decision.
 fn pi(bits: u64) -> (Nat, Nat) {
     // The precision nearly every decision reads, without a lock.
     static FIRST: OnceLock<(Nat, Nat)> = OnceLock::new();
     if bits <= PI_KEPT {
         let (lo, hi) = FIRST.get_or_init(|| machin(PI_KEPT));
-        let coarser = PI_KEPT - bits;
-        return (lo.shr(coarser), hi.shr(coarser).add(&Nat::from_u64(1)));
+        return cut(lo, hi, PI_KEPT, bits);
     }
     static KEPT: Mutex<Option<(u64, Nat, Nat)>> = Mutex::new(None);
     let mut kept = KEPT
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
+    pi_kept(&mut kept, bits)
+}
+
+/// π at `bits` bits from `kept`, extended to `bits` first where it is
+/// coarser or absent.
+fn pi_kept(kept: &mut Option<(u64, Nat, Nat)>, bits: u64) -> (Nat, Nat) {
     if kept.as_ref().is_none_or(|(at, _, _)| *at < bits) {
-        let at = bits.saturating_mul(2);
-        let (lo, hi) = machin(at);
-        *kept = Some((at, lo, hi));
+        let (lo, hi) = machin(bits);
+        *kept = Some((bits, lo, hi));
     }
     let Some((at, lo, hi)) = kept.as_ref() else {
         unreachable!("an enclosure was kept on the lines above")
     };
+    cut(lo, hi, *at, bits)
+}
+
+/// `[lo, hi] / 2^at` cut to `bits ≤ at` bits, rounded outward.
+fn cut(lo: &Nat, hi: &Nat, at: u64, bits: u64) -> (Nat, Nat) {
     let coarser = at - bits;
     (lo.shr(coarser), hi.shr(coarser).add(&Nat::from_u64(1)))
 }
@@ -653,7 +665,7 @@ fn ldexp(m: f64, p: i64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Nat, PI_KEPT, machin, pi, round_to_f64};
+    use super::{Nat, PI_KEPT, machin, pi, pi_kept, round_to_f64};
     use core::cmp::Ordering;
 
     /// π to a hundred places, truncated: `P / 10^100 < π < (P + 1) / 10^100`.
@@ -698,10 +710,14 @@ mod tests {
             let (lo, hi) = pi(bits);
             assert!(holds_pi(&lo, &hi, bits), "{bits}");
         }
+        // The extension is read through a kept enclosure of this test's
+        // own, so its branches do not hang on what other tests asked of
+        // the process-wide one: empty, kept coarser, and kept finer.
         let fine = 3 * PI_KEPT;
         let (flo, fhi) = machin(fine);
-        for bits in [300, PI_KEPT, PI_KEPT + 1, fine] {
-            let (lo, hi) = pi(bits);
+        let mut kept = None;
+        for bits in [PI_KEPT + 1, 2 * PI_KEPT, PI_KEPT + 7, fine, 300] {
+            let (lo, hi) = pi_kept(&mut kept, bits);
             let coarser = fine - bits;
             assert!(
                 lo.shl(coarser).cmp_value(&flo) != Ordering::Greater,
@@ -716,6 +732,10 @@ mod tests {
                 "{bits}: width"
             );
         }
+        assert!(
+            kept.is_some_and(|(at, _, _)| at == fine),
+            "kept at the finest asked"
+        );
     }
 
     /// Ties go to the even float at the bottom of the format and at its

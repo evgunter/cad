@@ -119,7 +119,7 @@ impl Scale {
         if *self == Self::one() {
             return raw;
         }
-        Decimal::of_float(raw).map_or(raw, |number| number.times(&self.0).to_f64())
+        Decimal::of_float(raw).map_or(raw, |number| number.times_to_f64(&self.0))
     }
 }
 

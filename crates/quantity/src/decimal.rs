@@ -166,31 +166,24 @@ impl Decimal {
         (!self.is_zero()).then(|| self.exponent + self.digits.len() as i64 - 1)
     }
 
-    /// The first `figures` significant digits, the rest dropped.
-    pub(crate) fn truncated(&self, figures: usize) -> Self {
-        let kept = figures.min(self.digits.len());
-        let dropped = (self.digits.len() - kept) as i64;
-        Self::new(
-            self.negative,
-            &self.digits[..kept],
-            self.exponent.saturating_add(dropped),
-        )
-    }
-
-    /// This decimal with a `5` after its last digit: a point strictly
-    /// inside the step of its last digit above it.
-    pub(crate) fn with_sticky(&self) -> Self {
-        Self::new(
-            self.negative,
-            &format!("{}5", self.digits),
-            self.exponent.saturating_sub(1),
-        )
-    }
-
-    /// This decimal's magnitude one unit of its last digit up.
-    pub(crate) fn stepped_up(&self) -> Self {
-        let mut digits = self.digits.clone().into_bytes();
-        let carried = digits.iter_mut().rev().all(|d| {
+    /// The step of the `figures`-th significant figure that this
+    /// decimal's magnitude lies strictly inside, for a decimal of more
+    /// figures than that: its two ends (the first `figures` digits, and
+    /// those one unit of the last up) and a point strictly between
+    /// them (the first `figures` digits with a `5` after them). The
+    /// figures are positional: a zero among the first `figures` is a
+    /// figure, so the step is always that of the `figures`-th digit.
+    pub(crate) fn bracket(&self, figures: usize) -> [Self; 3] {
+        assert!(
+            self.digits.len() > figures,
+            "a decimal of {} figures is inside no step of its {figures}-th",
+            self.digits.len()
+        );
+        let head = &self.digits[..figures];
+        let dropped = (self.digits.len() - figures) as i64;
+        let exponent = self.exponent.saturating_add(dropped);
+        let mut up = head.as_bytes().to_vec();
+        let carried = up.iter_mut().rev().all(|d| {
             if *d == b'9' {
                 *d = b'0';
                 true
@@ -200,12 +193,20 @@ impl Decimal {
             }
         });
         if carried {
-            digits.insert(0, b'1');
+            up.insert(0, b'1');
         }
-        let Ok(digits) = String::from_utf8(digits) else {
+        let Ok(up) = String::from_utf8(up) else {
             unreachable!("ASCII digits stay ASCII")
         };
-        Self::new(self.negative, &digits, self.exponent)
+        [
+            Self::new(self.negative, head, exponent),
+            Self::new(self.negative, &up, exponent),
+            Self::new(
+                self.negative,
+                &format!("{head}5"),
+                exponent.saturating_sub(1),
+            ),
+        ]
     }
 
     /// The product of two decimals, exactly.
@@ -217,6 +218,55 @@ impl Decimal {
             &product.to_digits(),
             self.exponent.saturating_add(other.exponent),
         )
+    }
+
+    /// The float nearest this decimal times `factor`, ties to even: the
+    /// exact product rounded once, as [`Decimal::times`] then
+    /// [`Decimal::to_f64`] would give it.
+    ///
+    /// Where the product's digits are an integer below `2^53` and its
+    /// power of ten is at most 22 either way, both are floats and one
+    /// float multiply or divide is the product correctly rounded (IEEE
+    /// 754); where the digits fit `u128` the quotient is rounded in
+    /// integers without building the product's decimal; past both, the
+    /// exact path.
+    #[must_use]
+    pub fn times_to_f64(&self, factor: &Self) -> f64 {
+        const POWERS: [f64; 23] = [
+            1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15,
+            1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22,
+        ];
+        let sign = if self.negative != factor.negative {
+            -1.0
+        } else {
+            1.0
+        };
+        let digits = |d: &Self| {
+            (d.digits.len() <= 19)
+                .then(|| d.digits.parse::<u64>().ok())
+                .flatten()
+        };
+        if self.is_zero() || factor.is_zero() {
+            return sign * 0.0;
+        }
+        if let (Some(a), Some(b)) = (digits(self), digits(factor)) {
+            let product = u128::from(a) * u128::from(b);
+            let exponent = self.exponent.saturating_add(factor.exponent);
+            let power = usize::try_from(exponent.unsigned_abs())
+                .ok()
+                .and_then(|k| POWERS.get(k));
+            if let Some(&power) = power
+                && product < 1 << 53
+            {
+                let n = product as f64;
+                return sign * if exponent >= 0 { n * power } else { n / power };
+            }
+            if (-36..=0).contains(&exponent) {
+                let d = Nat::pow10(exponent.unsigned_abs());
+                return sign * crate::exact::round_to_f64(&Nat::from_u128(product), &d);
+            }
+        }
+        self.times(factor).to_f64()
     }
 
     /// The float nearest this decimal, ties to even (the canonical
@@ -319,6 +369,46 @@ mod tests {
             let decimal = Decimal::of_float(v).unwrap_or_else(|| panic!("{v:e} is finite"));
             assert_eq!(decimal.to_string(), want, "{v:e}");
             assert_eq!(want.parse::<f64>().map(f64::to_bits), Ok(v.to_bits()));
+        }
+    }
+
+    /// A product's float takes one of three paths (one float operation,
+    /// a rounding in integers, the exact decimal), and each answers as
+    /// the exact one does: over a seeded draw of decimals of 1 to 19
+    /// figures and the factors a file states (powers of ten, an inch in
+    /// metres and in millimetres, a degree).
+    #[test]
+    fn a_products_float_is_the_exact_products_on_every_path() {
+        let factors = [
+            "1e-3",
+            "1e-2",
+            "1e3",
+            "1e-18",
+            "0.0254",
+            "25.4e-3",
+            "0.0174532925199433",
+        ];
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..20_000 {
+            let figures = 1 + (next() % 19) as u32;
+            let digits = next() % 10u64.pow(figures);
+            let exponent = (next() % 80) as i64 - 50;
+            let negative = next() % 2 == 0;
+            let number = Decimal::from_parts(negative, digits, exponent);
+            for factor in factors {
+                let factor = d(factor);
+                assert_eq!(
+                    number.times_to_f64(&factor).to_bits(),
+                    number.times(&factor).to_f64().to_bits(),
+                    "{number} times {factor}"
+                );
+            }
         }
     }
 }

@@ -414,8 +414,8 @@ impl UnitDef {
     /// of more than [`DECIDING_FIGURES`] figures that agrees with one
     /// through all of them is decided at its full length, at a cost
     /// quadratic in that length (the module docs of `exact` give the
-    /// measured figures). No decimal a person types or a float spells
-    /// is such a decimal.
+    /// measured figures). No number a person types or pastes, a float
+    /// spells, or a file carries agrees with such a boundary by chance.
     #[must_use]
     pub fn canonical(self, number: &Decimal) -> f64 {
         let sign = if number.is_negative() { -1.0 } else { 1.0 };
@@ -431,16 +431,13 @@ impl UnitDef {
             return sign * 0.0;
         }
         if number.figures() > DECIDING_FIGURES {
-            let head = number.truncated(DECIDING_FIGURES);
+            let [head, up, inside] = number.bracket(DECIDING_FIGURES);
             if self.exact.is_power_of_ten() {
                 // No boundary strictly inside the step: any point of it
                 // rounds as the decimal does.
-                return sign * self.magnitude_of(&head.with_sticky());
+                return sign * self.magnitude_of(&inside);
             }
-            let (below, above) = (
-                self.magnitude_of(&head),
-                self.magnitude_of(&head.stepped_up()),
-            );
+            let (below, above) = (self.magnitude_of(&head), self.magnitude_of(&up));
             if below.to_bits() == above.to_bits() {
                 return sign * below;
             }
