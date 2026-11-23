@@ -124,7 +124,8 @@ fn n3r2_dispatcher_is_its_two_arms() {
     );
     let p = Point3::new(0.0, 0.0, 0.0);
     assert!(conic_arc_aabb(&l, 0.0, 1.0, p, p).is_none());
-    let n = Curve3::<f64>::nurbs_placeholder();
+    let n: Curve3<f64> =
+        geom::test_support::nurbs_segment(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     assert!(conic_arc_aabb(&n, 0.0, 1.0, p, p).is_none());
 }
 

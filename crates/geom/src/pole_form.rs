@@ -64,10 +64,10 @@ pub fn half_turn_curve<T: Real>(
             dir.half_turned(axis).map_scalar(&entry),
         )),
         Curve3::Circle(c) => Some(Curve3::circle(
-            place(c.frame.origin()),
-            turn(c.frame.axis()),
+            place(c.frame().origin()),
+            turn(c.frame().axis()),
             c.radius(),
-            turn(c.frame.u_ref()),
+            turn(c.frame().u_ref()),
         )),
         _ => None,
     }

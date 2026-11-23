@@ -1043,8 +1043,8 @@ impl<T: Decide> Round<T> {
     /// The angle round the circle between the start and `y`, a point of
     /// the circle, the shorter way, in `[0, π]` ([`between`]).
     fn swept(&self, y: Point3<T>) -> T {
-        let w = y - self.circle.frame.origin();
-        between(w.normalize(), self.circle.frame.u_ref())
+        let w = y - self.circle.frame().origin();
+        between(w.normalize(), self.circle.frame().u_ref())
     }
 
     /// The arc length from the start round to `y`, a point of the
@@ -1052,7 +1052,7 @@ impl<T: Decide> Round<T> {
     /// of the start's diameter, the longer way where it lies behind.
     pub(crate) fn arc(&self, y: Point3<T>) -> T {
         let s = self.swept(y);
-        let ahead = (y - self.circle.frame.origin()).dot(self.circle.frame.v_ref());
+        let ahead = (y - self.circle.frame().origin()).dot(self.circle.frame().v_ref());
         let turn = geom::conic_period::<T>().length();
         self.circle.radius() * (T::zero() - ahead).select_le_zero(s, turn - s)
     }
@@ -1081,9 +1081,9 @@ impl<T: Decide> Course<T> for Round<T> {
     fn heading(&self, y: Point3<T>) -> Vec3<T> {
         let h = self
             .circle
-            .frame
+            .frame()
             .axis()
-            .cross(y - self.circle.frame.origin());
+            .cross(y - self.circle.frame().origin());
         h.normalize()
     }
 

@@ -595,22 +595,31 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
             sense: true,
         }),
-        ellipse @ Curve3::Ellipse(geom::Ellipse { frame, .. }) => { let (center, axis) = (frame.origin(), frame.axis()); Ok(Pose {
-            origin: center,
-            axis,
-            u_ref: ellipse.major_frame().map(|f| f.major_dir),
-            sense: true,
-        }) },
-        Curve3::Circle(geom::Circle { frame, .. })
+        ellipse @ Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {
+            let frame = the_ellipse.frame();
+            let (center, axis) = (frame.origin(), frame.axis());
+            Ok(Pose {
+                origin: center,
+                axis,
+                u_ref: ellipse.major_frame().map(|f| f.major_dir),
+                sense: true,
+            })
+        }
         // The spiric's frame is a canonical one: the torus centre, its
         // axis and the cutting plane's normal — the frame the model
         // holds, answered as the pose.
-        | Curve3::Spiric { frame, .. } => { let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref()); Ok(Pose {
-            origin: center,
-            axis,
-            u_ref: Some(u_ref),
-            sense: true,
-        }) },
+        curve @ (Curve3::Circle(_) | Curve3::Spiric { .. }) => {
+            let frame = curve
+                .frame()
+                .unwrap_or_else(|| unreachable!("a circle and a spiric have a frame"));
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            Ok(Pose {
+                origin: center,
+                axis,
+                u_ref: Some(u_ref),
+                sense: true,
+            })
+        }
         Curve3::Nurbs(_) | Curve3::Periodic(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs curve",
         }),

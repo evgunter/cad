@@ -85,8 +85,8 @@ fn size(carrier: &Curve3<f64>, t1: f64) -> f64 {
         Curve3::Line(geom::Line { origin, dir }) => {
             (*origin + dir.get() * t1 - Point3::origin()).norm()
         }
-        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-            let center = frame.origin();
+        Curve3::Circle(circle) => {
+            let center = circle.frame().origin();
             let radius = circle.radius();
             (center - Point3::origin()).norm() + radius
         }
