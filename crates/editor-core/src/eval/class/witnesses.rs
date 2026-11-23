@@ -397,7 +397,7 @@ fn witness(class: C, tol: Tol) -> K {
                     C::PartEpsilonSeam => crate::ResolveFault::EpsilonSeam,
                     _ => crate::ResolveFault::Unresolved,
                 },
-                message: "the resolver's own words".to_owned(),
+                message: "the resolver's own words".into(),
             })
         }
         C::PartProductFailed => part(crate::PartFault::PartProductFailed {

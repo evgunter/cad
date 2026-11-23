@@ -468,22 +468,22 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         &self,
         doc: &Doc<P>,
         var: crate::VarId,
-    ) -> Result<T, (Option<RecipeNodeId>, String)>
+    ) -> Result<T, (Option<RecipeNodeId>, crate::Sentence)>
     where
         T: Copy,
     {
         self.reading(doc, var).map_err(|refusal| match refusal {
             measure::ObservedRefusal::Measure(standing) => {
                 self.node_error(standing.node()).map_or_else(
-                    || (Some(standing.node()), standing.to_string()),
-                    |e| (Some(e.node), e.kind_spoken(doc).to_string()),
+                    || (Some(standing.node()), standing.spoken(doc)),
+                    |e| (Some(e.node), e.kind_spoken(doc)),
                 )
             }
             measure::ObservedRefusal::Expr(source) => (
                 doc.observed_outputs(var)
                     .first()
                     .and_then(|out| doc.operation_of(*out)),
-                source.to_string(),
+                crate::Sentence::from(source.to_string()),
             ),
         })
     }
@@ -3120,7 +3120,7 @@ pub(crate) mod leaf {
     /// something different — a consumer reading it should meet the three
     /// states by name rather than by unwrapping.
     pub(crate) type MeasureRead =
-        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, String)>;
+        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, crate::Sentence)>;
 
     /// What came back.
     #[derive(Debug, Clone, Default)]

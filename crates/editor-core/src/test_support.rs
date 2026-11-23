@@ -1766,6 +1766,102 @@ pub fn node_error_witnesses(
     crate::eval::class::witnesses::all(tol)
 }
 
+/// **The slab**: a unit square extruded by `depth` (declared with a
+/// uniform spread of ±1 mm), measured cap to cap — the thickness, whose
+/// derivative in `depth` is 1.
+pub fn measured_slab(seed: &str, depth: f64, tol: geom_core::Tol) -> MeasuredSlab {
+    use crate::{CapEnd, DocEdit, Formula, Node, RoleSeg, SitedRef, StableName};
+    let push = |doc: &crate::doc::Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>| {
+        let applied = crate::apply(doc, &edit, tol).expect("the edit applies");
+        (applied.doc, applied.record.minted)
+    };
+    let doc = crate::doc::Doc::empty_derived(seed, tol);
+    let (doc, _) = push(
+        &doc,
+        DocEdit::DeclareVar {
+            name: crate::VarName::from_static("depth"),
+            def: crate::VarDecl::Free(crate::FreeVar::Continuous {
+                dim: crate::Dimension::Length,
+                value: depth,
+                display_unit: crate::UnitSym::canonical_for(crate::Dimension::Length),
+                distribution: Some(crate::Distribution::Uniform {
+                    lo: -1e-3,
+                    hi: 1e-3,
+                }),
+            }),
+        },
+    );
+    let depth_var = doc.var_named("depth").expect("declared");
+    let (doc, profile) = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Profile(ProfileProgram {
+                loops: vec![
+                    crate::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+                        .expect("finite corners"),
+                ],
+                ids: Vec::new(),
+                on: None,
+            })),
+            fresh: Vec::new(),
+        },
+    );
+    let (doc, block) = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Extrude {
+                profile: profile.expect("minted").into(),
+                distance: Formula::named(
+                    crate::VarName::from_static("depth"),
+                    crate::Dimension::Length,
+                ),
+            }),
+            fresh: Vec::new(),
+        },
+    );
+    let (profile, block) = (profile.expect("minted"), block.expect("minted"));
+    let cap = |end| {
+        SitedRef::new(
+            block,
+            StableName {
+                kind: crate::EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(end)],
+            },
+        )
+    };
+    let measured = crate::measure(
+        &doc,
+        &[crate::MeasurePrimitive::Distance {
+            a: cap(CapEnd::Start),
+            b: cap(CapEnd::End),
+        }],
+        tol,
+    )
+    .expect("the measure inserts");
+    MeasuredSlab {
+        doc: measured.doc,
+        depth: depth_var,
+        thickness: measured.measured.outputs[0],
+        profile,
+        block,
+    }
+}
+
+/// [`measured_slab`]'s document and the ids a row reads.
+pub struct MeasuredSlab {
+    /// The document.
+    pub doc: crate::doc::Doc<ProfileProgram>,
+    /// The varying `depth`.
+    pub depth: crate::VarId,
+    /// The measured thickness.
+    pub thickness: crate::VarId,
+    /// The square profile.
+    pub profile: crate::RecipeNodeId,
+    /// The extrude.
+    pub block: crate::RecipeNodeId,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{axes_at, moves_at};

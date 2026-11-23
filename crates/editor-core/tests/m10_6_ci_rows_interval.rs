@@ -748,7 +748,9 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
         Tol::witness(),
     )
     .expect("the nominal builds");
-    let rendered = MassBudget::of(verdict.accounting(), &analyzed).render(&band);
+    let rendered = MassBudget::of(verdict.accounting(), &analyzed)
+        .render(&band)
+        .to_string();
     assert!(
         rendered.contains("FORCED, not priced"),
         "the rendering must not let a forced mass read as a priced one: {rendered}"
