@@ -309,9 +309,8 @@ mod tests {
     }
 
     fn line(a: Point3<f64>, b: Point3<f64>) -> (Curve3<f64>, (f64, f64)) {
-        let d = b - a;
-        let len = d.norm();
-        (Curve3::line(a, d / len), (0.0, len))
+        let (line, len) = geom::Line::chord(a, b);
+        (Curve3::Line(line), (0.0, len))
     }
 
     /// **An edge is read with its ends, its carrier over its span, and
@@ -336,7 +335,7 @@ mod tests {
             edge_in_box(&near, span, (o, Point3::new(999.0, 0.0, 0.0)), band()),
             Ok(())
         );
-        let stored = Curve3::line(Point3::new(1e5, 0.0, 0.0), Vec3::unit_x());
+        let stored = Curve3::line(Point3::new(1e5, 0.0, 0.0), geom_core::UnitVec3::exact_x());
         let ends = (Point3::origin(), Point3::new(1.0, 0.0, 0.0));
         assert_eq!(
             edge_in_box(&stored, (-1e5, -1e5 + 1.0), ends, band()),
@@ -472,7 +471,8 @@ mod tests {
         )
         .unwrap();
         let far = home.carried(
-            Curve3::line(Point3::new(2e3, 0.0, 0.0), Vec3::unit_x()),
+            Curve3::line(Point3::new(2e3, 0.0, 0.0), geom_core::UnitVec3::exact_x()),
+            1.0,
             home.description().clone(),
             home.authority(),
         );

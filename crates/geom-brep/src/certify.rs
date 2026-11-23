@@ -7052,7 +7052,7 @@ mod tests {
             .unwrap_err()
         };
         let reversed = EdgeCurveSpec {
-            carrier: Curve3::line(q, Vec3::unit_x()),
+            carrier: Curve3::line(q, geom_core::UnitVec3::exact_x()),
             param_start: 1.0,
             param_end: 0.0,
             ..EdgeCurveSpec::line_between(q, q + Vec3::unit_x())
