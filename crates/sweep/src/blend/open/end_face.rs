@@ -48,7 +48,7 @@ use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use crate::blend::arms::perp_unit;
+use crate::blend::arms::frame_along;
 use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
@@ -57,7 +57,9 @@ use crate::blend::surgery::{
     face_of_half, halves_of, op, piece_along, piece_distance, point_of, retire_fragment,
     split_fragment, split_param_in_span, stored_piece, unbuilt_end, unbuilt_geometry, unresolved,
 };
-use crate::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd, classify};
+use crate::blend::{
+    BlendDecision, BlendError, BlendSite, UnbuiltEnd, carrier_frame_refused, classify,
+};
 
 /// The band's section by the end face, between the two feet.
 #[derive(Clone)]
@@ -125,7 +127,7 @@ impl<T: Decide + Bounds> EndCut<T> {
         (q_a, q_b): (Point3<T>, Point3<T>),
         along: Vec3<T>,
         section: EndSection<T>,
-        band: &Surface<T>,
+        (band, tolerance): (&Surface<T>, Band),
     ) -> Result<Self, BlendError> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
@@ -192,13 +194,14 @@ impl<T: Decide + Bounds> EndCut<T> {
                 // The band's own seam reference points at `face_a`'s
                 // trimline (`arms`), so laid into the cap it points at
                 // `foot_a`.
-                let n = n.normalize();
-                let u_ref = perp_unit(u_ref, n);
+                let frame = frame_along(center, n, u_ref, tolerance).map_err(
+                    carrier_frame_refused(BlendSite::Joint { vertex }, EntityId::Vertex(vertex)),
+                )?;
                 debug_assert!(
-                    (foot_a - center).dot(u_ref).lo() > 0.0,
+                    (foot_a - center).dot(frame.u_ref()).lo() > 0.0,
                     "the band's seam reference points at face_a's foot"
                 );
-                let circle = Curve3::circle(center, n, radius, u_ref);
+                let circle = Curve3::Circle(geom::Circle::new(frame, radius));
                 round(Some(circle), center)?
             }
             (EndSection::Ellipse(ellipse), Some((spine, ..))) => {

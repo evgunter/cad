@@ -351,12 +351,20 @@ pub enum BlendDecision {
     /// the axes not parallel, the axes coplanar), whose in-band verdict
     /// is reported as this decision.
     MitreSection,
+    /// `fillet3_carrier_frame`: a band's or a patch's surface has a
+    /// frame, its axis a definite direction and its seam reference
+    /// definitely off that axis ([`geom_core::RigidMotion::from_aim_and_reference`],
+    /// [`geom_core::RigidMotion::from_axis_and_reference`]). Each mint is
+    /// reached past the gates that rule its degenerate input out, so a
+    /// definite zero is the surgery contradicting itself
+    /// ([`BlendError::SurgeryInvariant`]) and only the band refuses here.
+    CarrierFrame,
 }
 
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 24] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -380,6 +388,7 @@ impl BlendDecision {
         Self::TurnOverrunChord,
         Self::TurnFeet,
         Self::MitreSection,
+        Self::CarrierFrame,
     ];
 
     /// The wording of the rung an edge's wedge fold escalated at
@@ -432,6 +441,7 @@ impl BlendDecision {
             Self::TurnOverrunChord => "fillet3_turn_overrun_chord",
             Self::TurnFeet => "fillet3_turn_feet",
             Self::MitreSection => "cylinder_cylinder_section",
+            Self::CarrierFrame => "fillet3_carrier_frame",
         }
     }
 
@@ -505,6 +515,10 @@ impl BlendDecision {
                 "whether a filleted turn's two bands meet in an ellipse (the margin is the \
                  section's: the radii's difference, the axes' parallelism or their coplanarity)"
             }
+            Self::CarrierFrame => {
+                "whether a band's or a corner patch's surface has an axis and a seam direction \
+                 clearly off it (the margin is the shorter of the two before it is normalized)"
+            }
         }
     }
 
@@ -541,6 +555,7 @@ impl BlendDecision {
             Self::TurnFeetGap | Self::TurnOverrunChord | Self::TurnFeet | Self::MitreSection => {
                 FILLET3_TURN_RECOURSE
             }
+            Self::CarrierFrame => FILLET3_CARRIER_FRAME_RECOURSE,
         }
     }
 
@@ -565,6 +580,7 @@ impl BlendDecision {
             // it can quote instead is read in `sized_on`.
             Self::MaterialSide => Some(("length", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
+            Self::CarrierFrame => Some(("length", SizedPass::Positive)),
             // Either definite sign of the sagitta picks a description.
             Self::ContactSecondOrder | Self::LinkBend => Some(("separation", SizedPass::AnySign)),
             Self::ChainG1
@@ -657,6 +673,33 @@ pub(crate) fn classify<T: Decide>(
         decision,
         source,
     })
+}
+
+/// **A carrier-frame mint's refusal, at `site` holding `at`**
+/// ([`BlendDecision::CarrierFrame`]): in band, the escalation; a
+/// definite zero, a non-finite or an underflowed length, the surgery's
+/// own invariant, since the gates before every mint rule its degenerate
+/// input out.
+pub(crate) fn carrier_frame_refused(
+    site: BlendSite,
+    at: EntityId,
+) -> impl Fn(geom_core::OrthonormalizeError) -> BlendError {
+    move |e| match e.error {
+        geom_core::UnitVec3Error::Escalated(source) => BlendError::Escalated {
+            site,
+            decision: BlendDecision::CarrierFrame,
+            source,
+        },
+        geom_core::UnitVec3Error::Degenerate
+        | geom_core::UnitVec3Error::NonFiniteLength
+        | geom_core::UnitVec3Error::UnderflowedLength => BlendError::SurgeryInvariant {
+            at,
+            detail: match e.axis {
+                geom_core::OrthoAxis::U => "a band's surface axis has no direction",
+                geom_core::OrthoAxis::V => "a band's surface seam lies along its axis",
+            },
+        },
+    }
 }
 
 /// [`classify`], with the margin the sign was decided on.
@@ -1252,6 +1295,14 @@ pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex'
 /// kind, plainly.
 pub const FILLET3_CAP_TILT_RECOURSE: &str = "square the end face to the edge, where the band ends \
      in a circle, or tilt it clearly off square, where the band ends in an ellipse";
+/// The lever of `fillet3_carrier_frame`: the band's or patch's axis or
+/// seam direction is a difference that nearly cancels, which happens
+/// only where its supports nearly take a configuration the gates before
+/// it refuse (faces nearly opposed or nearly parallel, a rim nearly on
+/// its axis), so the way out is to move them clearly off it.
+pub const FILLET3_CARRIER_FRAME_RECOURSE: &str = "move the faces the blend rounds clearly off \
+     meeting edge-on, back to back or along one line, so the band's surface has an axis and a \
+     seam it can read";
 /// The lever of `fillet3_corner_independence`'s in-band arm.
 ///
 /// The corner it is read at is already trivalent and requested as some
@@ -2419,7 +2470,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 31] = [
+pub const ALL_RECOURSES: [(&str, &str); 32] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2451,6 +2502,7 @@ pub const ALL_RECOURSES: [(&str, &str); 31] = [
     ("feet-cross", FEET_CROSS_RECOURSE),
     ("foot-inside", FOOT_INSIDE_A_FACE_RECOURSE),
     ("dependent-normals", FILLET3_DEPENDENT_NORMALS_RECOURSE),
+    ("carrier-frame", FILLET3_CARRIER_FRAME_RECOURSE),
 ];
 
 #[cfg(test)]

@@ -44,7 +44,7 @@ use topo::construction::{Construct, MevSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::admit::{RequestedBoundary, StationKind};
-use super::arms::{BallSection, EdgeBlend, radial_about};
+use super::arms::{BallSection, EdgeBlend, frame_about};
 use super::battery::{Link, same_supports};
 use super::build::{fan_at, outward_of};
 use super::naming::BlendNaming;
@@ -54,7 +54,7 @@ use super::surgery::{
     halves_of, host_side_half, op, point_of, seam_split_param, split_fragment, stored_piece,
     unbuilt_chain, unbuilt_end, unbuilt_geometry, unresolved, unwalked,
 };
-use super::{BlendError, UnbuiltEnd};
+use super::{BlendError, BlendSite, UnbuiltEnd, carrier_frame_refused};
 
 /// **What a junction is, read once for every admission**: the face its
 /// two links share (the HOST), each link's other support (its MATE,
@@ -295,12 +295,20 @@ pub(super) fn read<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`stored_piece`]'s, for a torus or frustum link's arc.
+/// [`stored_piece`]'s, for a torus or frustum link's arc; a seam that
+/// does not mint ([`carrier_frame_refused`]).
 pub(super) fn band_chart<T: Decide>(
     body: &Body<T>,
     l: &Link<T>,
     at: Option<&JunctionReading<T>>,
+    band: Band,
 ) -> Result<Surface<T>, BlendError> {
+    let seamed = |origin: Point3<T>, axis, reference| {
+        frame_about(origin, axis, reference, band).map_err(carrier_frame_refused(
+            BlendSite::Link { edge: l.edge },
+            EntityId::Edge(l.edge),
+        ))
+    };
     Ok(match (&l.blend.surface, at) {
         (
             &Surface::Torus {
@@ -311,11 +319,14 @@ pub(super) fn band_chart<T: Decide>(
             },
             _,
         ) => {
-            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+            let center = torus_frame.origin();
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
-            let radial = radial_about(center, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Torus {
-                frame: geom::Frame::new(center, axis, -radial),
+                frame: seamed(
+                    center,
+                    torus_frame.axis_unit(),
+                    center - c.eval(geom::mid_param(t0, t1)),
+                )?,
                 major_radius,
                 minor_radius,
             }
@@ -328,11 +339,14 @@ pub(super) fn band_chart<T: Decide>(
             },
             _,
         ) => {
-            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
+            let apex = cone_frame.origin();
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
-            let radial = radial_about(apex, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Cone {
-                frame: geom::Frame::new(apex, axis, -radial),
+                frame: seamed(
+                    apex,
+                    cone_frame.axis_unit(),
+                    apex - c.eval(geom::mid_param(t0, t1)),
+                )?,
                 half_angle,
             }
         }
@@ -348,10 +362,9 @@ pub(super) fn band_chart<T: Decide>(
                 section: Section::Circle(section),
             }),
         ) => {
-            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
             let mid = (*host_foot - section.centre) + (*mate_foot - section.centre);
             Surface::Cylinder {
-                frame: geom::Frame::new(origin, axis, -(mid - axis * mid.dot(axis)).normalize()),
+                frame: seamed(cylinder_frame.origin(), cylinder_frame.axis_unit(), -mid)?,
                 radius,
             }
         }

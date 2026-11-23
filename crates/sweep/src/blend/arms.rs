@@ -88,7 +88,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceSide;
 use geom_core::UnitVec3;
-use geom_core::{Circles, Point3, Real, Vec3};
+use geom_core::{Band, Circles, Decide, OrthonormalizeError, Point3, Real, RigidMotion, Vec3};
 
 use super::battery::{Convexity, ball_side, sided, signed};
 
@@ -187,7 +187,8 @@ pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> 
     match trim {
         Curve3::Line(line) => Some(line.foot(p)),
         Curve3::Circle(c) => Some(
-            c.frame().origin() + perp_unit(p - c.frame().origin(), c.frame().axis()) * c.radius(),
+            c.frame().origin()
+                + perp_unit(p - c.frame().origin(), c.frame().axis_unit()) * c.radius(),
         ),
         _ => None,
     }
@@ -412,17 +413,57 @@ impl BlendArm {
     ];
 }
 
-/// The unit component of `x` orthogonal to the unit direction `a` —
-/// the seam reference every chart below takes from real geometry the
-/// caller already stored (a support's own `u_ref`, a corner normal),
-/// never from a coordinate-axis tie-break. Poison propagates when `x`
-/// is parallel to `a`, which is the honest answer: there is no
-/// distinguished perpendicular there.
-pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
+/// **The name every band's and patch's frame mint decides under**,
+/// [`super::BlendDecision::CarrierFrame`]'s.
+pub(crate) fn carrier_frame() -> &'static str {
+    super::BlendDecision::CarrierFrame.predicate()
+}
+
+/// **A band's or patch's frame about an axis already decided**: `aim`
+/// kept bit for bit, its seam the part of `reference` off it, decided
+/// ([`RigidMotion::from_aim_and_reference`] under [`carrier_frame`]).
+///
+/// # Errors
+///
+/// [`OrthonormalizeError`] under [`geom_core::OrthoAxis::V`] where
+/// `reference` lies along `aim`, or in band of it.
+pub(crate) fn frame_about<T: Decide>(
+    origin: Point3<T>,
+    aim: UnitVec3<T>,
+    reference: Vec3<T>,
+    band: Band,
+) -> Result<geom::Frame<T>, OrthonormalizeError> {
+    RigidMotion::from_aim_and_reference(origin, aim, reference, carrier_frame(), band)
+        .map(|m| geom::Frame::of_motion(&m))
+}
+
+/// **A band's or patch's frame about a raw axis**: [`frame_about`] with
+/// the axis's own length decided first
+/// ([`RigidMotion::from_axis_and_reference`]).
+///
+/// # Errors
+///
+/// [`OrthonormalizeError`] under [`geom_core::OrthoAxis::U`] where
+/// `axis` has no decided direction, and [`frame_about`]'s.
+pub(crate) fn frame_along<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    reference: Vec3<T>,
+    band: Band,
+) -> Result<geom::Frame<T>, OrthonormalizeError> {
+    RigidMotion::from_axis_and_reference(origin, axis, reference, carrier_frame(), band)
+        .map(|m| geom::Frame::of_motion(&m))
+}
+
+/// **The unit radial of a point's offset `x` about the axis `a`**: a
+/// reading of where a point is about a circle's or a cone's axis, never
+/// a chart's seam (those are minted, [`frame_about`]). Poison where `x`
+/// lies along `a`, a point on the axis, which has no azimuth.
+pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: UnitVec3<T>) -> Vec3<T> {
+    let a = a.get();
     // Named binding so the interval-square tripwire's self-multiplication
     // grep does not false-positive on `a * a.dot(x)` (a vector scaled by a
-    // projection coefficient, not a scalar square) — the affine.rs
-    // restructuring precedent; no numeric change.
+    // projection coefficient, not a scalar square).
     let along = a.dot(x);
     (x - a * along).normalize()
 }
@@ -444,15 +485,19 @@ pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
 /// `convexity` picks the side through [`signed`]: on a
 /// concave chain the ball rolls on the far side of both supports, which
 /// is the same formula with `r` negated.
-#[must_use]
-pub fn plane_plane_blend<T: Real>(
+///
+/// # Errors
+///
+/// [`frame_about`]'s, for the cylinder's seam: `n_a` along `tau`.
+pub fn plane_plane_blend<T: Decide>(
     p: Point3<T>,
     tau: UnitVec3<T>,
     n_a: Vec3<T>,
     n_b: Vec3<T>,
     radius: T,
     convexity: Convexity,
-) -> EdgeBlend<T> {
+    band: Band,
+) -> Result<EdgeBlend<T>, OrthonormalizeError> {
     let signed = signed(convexity, radius);
     let d = n_a.dot(n_b);
     let one = T::one();
@@ -465,9 +510,9 @@ pub fn plane_plane_blend<T: Real>(
     let foot_a = a.contact(center, radius);
     let foot_b = b.contact(center, radius);
     let setback = radius * ((one - d) / (one + d)).sqrt();
-    EdgeBlend {
+    Ok(EdgeBlend {
         surface: Surface::Cylinder {
-            frame: geom::Frame::new(center, tau.get(), a.foot(center)),
+            frame: frame_about(center, tau, a.foot(center), band)?,
             radius,
         },
         spine_curvature: T::zero(),
@@ -485,7 +530,7 @@ pub fn plane_plane_blend<T: Real>(
             }),
             setback,
         ),
-    }
+    })
 }
 
 /// **The plane–sphere rim blend**: a plane with outward normal `n`
@@ -555,10 +600,15 @@ pub fn plane_plane_blend<T: Real>(
 ///   `SpineIrregular` on the FINITE curvature.
 ///
 /// Total arithmetic in, classification at the caller: the crate's
-/// standing posture.
-#[must_use]
+/// standing posture. The torus's frame alone is decided here: its seam
+/// is the plane's own `u_ref` laid square to `n`.
+///
+/// # Errors
+///
+/// [`frame_along`]'s, for the torus's frame: `n` with no direction, or
+/// `plane_u_ref` along it.
 #[allow(clippy::too_many_arguments)]
-pub fn plane_sphere_blend<T: Real>(
+pub fn plane_sphere_blend<T: Decide>(
     origin: Point3<T>,
     n: Vec3<T>,
     plane_u_ref: Vec3<T>,
@@ -567,7 +617,8 @@ pub fn plane_sphere_blend<T: Real>(
     radius: T,
     sphere_convex: bool,
     convexity: Convexity,
-) -> EdgeBlend<T> {
+    band: Band,
+) -> Result<EdgeBlend<T>, OrthonormalizeError> {
     let PlaneSphereFold {
         signed,
         depth,
@@ -586,7 +637,8 @@ pub fn plane_sphere_blend<T: Real>(
     let s2 = (offset - h) * (offset + h);
     let s = s2.sqrt();
     let spine_center = sphere_c - n * h;
-    let u_ref = perp_unit(plane_u_ref, n);
+    let frame = frame_along(spine_center, n, plane_u_ref, band)?;
+    let u_ref = frame.u_ref();
     // The rim circle the blend replaces: the sphere ∩ plane locus.
     let rim2 = (sphere_r - depth) * (sphere_r + depth);
     let rim = rim2.max(T::zero()).sqrt();
@@ -602,9 +654,9 @@ pub fn plane_sphere_blend<T: Real>(
     // straight-line extent would be comparing different quantities.
     let rim_pt = sphere_c - n * depth + u_ref * rim;
     let con_pt = sphere_trim_c + u_ref * sphere_trim_r;
-    EdgeBlend {
+    Ok(EdgeBlend {
         surface: Surface::Torus {
-            frame: geom::Frame::new(spine_center, n, u_ref),
+            frame,
             major_radius: s,
             minor_radius: radius,
         },
@@ -622,7 +674,7 @@ pub fn plane_sphere_blend<T: Real>(
             Curve3::circle(sphere_trim_c, n, sphere_trim_r, u_ref),
             (con_pt - rim_pt).norm(),
         ),
-    }
+    })
 }
 
 /// The plane–sphere pair's one fold, read by [`plane_sphere_blend`] and
@@ -1040,31 +1092,75 @@ pub fn sheet_center<T: Real>(
 /// The axis is the RIM CIRCLE's own stored frame — a coaxial pair meets
 /// in a circle about the common axis, so the edge the caller asked to
 /// blend already carries the axis, and nothing is fitted or guessed.
+///
+/// It holds the sheet's frame, minted once ([`Meridian::new`]): origin
+/// the axis point, `w` the axis, `u` the radial at the rim. Every arm
+/// read in the sheet places that frame rather than re-reading the
+/// radial.
 #[derive(Clone, Copy, Debug)]
 pub struct Meridian<T: Real> {
-    /// The common axis, through the rim circle's centre, its `dir` the
-    /// rim circle's unit axis. The readings below take `dir` as unit
-    /// (each `·dir` is a length along the axis, and `dir × radial` the
-    /// sheet's unit normal), which the type does not carry: a circle's
-    /// axis is unit by convention
-    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
-    pub axis: geom::Line<T>,
-    /// The rim point the sheet passes through.
-    pub rim: Point3<T>,
+    frame: RigidMotion<T>,
+    rim: Point3<T>,
+}
+
+impl<T: Decide> Meridian<T> {
+    /// **The sheet through `rim` about `axis`**: its radial the part of
+    /// `rim − axis.origin` off the axis, its length decided under
+    /// `fillet3_carrier_frame` ([`carrier_frame`]).
+    ///
+    /// # Errors
+    ///
+    /// [`OrthonormalizeError`] under [`geom_core::OrthoAxis::V`] where
+    /// the rim lies on the axis, or in band of it.
+    pub fn new(
+        axis: geom::Line<T>,
+        rim: Point3<T>,
+        band: Band,
+    ) -> Result<Self, OrthonormalizeError> {
+        let frame = RigidMotion::from_aim_and_reference(
+            axis.origin,
+            axis.dir,
+            rim - axis.origin,
+            carrier_frame(),
+            band,
+        )?;
+        Ok(Self { frame, rim })
+    }
 }
 
 impl<T: Real> Meridian<T> {
-    /// The sheet's radial unit at the rim — poison on an on-axis rim,
-    /// where no meridian is distinguished ([`perp_unit`]).
+    /// The common axis, through the rim circle's centre, its `dir` the
+    /// rim circle's unit axis.
+    #[must_use]
+    pub fn axis(&self) -> geom::Line<T> {
+        geom::Line {
+            origin: self.frame.origin(),
+            dir: self.frame.w(),
+        }
+    }
+
+    /// The rim point the sheet passes through.
+    #[must_use]
+    pub fn rim(&self) -> Point3<T> {
+        self.rim
+    }
+
+    /// The sheet's radial unit at the rim.
     #[must_use]
     pub fn radial(&self) -> Vec3<T> {
-        perp_unit(self.rim - self.axis.origin, self.axis.dir.get())
+        self.frame.u().get()
+    }
+
+    /// The sheet's frame placed at `origin`: a surface of revolution
+    /// about the axis, seamed in the sheet.
+    fn placed(&self, origin: Point3<T>) -> RigidMotion<T> {
+        self.frame.with_origin(origin)
     }
 
     /// The unit normal of the sheet (the meridian half-plane's own).
     #[must_use]
     pub fn sheet_normal(&self) -> Vec3<T> {
-        self.axis.dir.get().cross(self.radial())
+        self.axis().dir.get().cross(self.radial())
     }
 
     /// The rim's radius — the **named lever arm** every angular
@@ -1072,7 +1168,7 @@ impl<T: Real> Meridian<T> {
     /// margin is a length in the same metres as every other one.
     #[must_use]
     pub fn lever(&self) -> T {
-        (self.rim - self.axis.origin).dot(self.radial())
+        (self.rim - self.axis().origin).dot(self.radial())
     }
 
     /// Reduce one support to its meridian trace, with the **departure
@@ -1098,7 +1194,7 @@ impl<T: Real> Meridian<T> {
                 let normal = frame.axis();
                 Some((
                     SupportTrace::Straight { normal, side },
-                    normal.cross(self.axis.dir.get()).norm() * lever,
+                    normal.cross(self.axis().dir.get()).norm() * lever,
                 ))
             }
             // A coaxial cylinder: the meridian trace is the line through
@@ -1111,7 +1207,7 @@ impl<T: Real> Meridian<T> {
                         normal: radial,
                         side,
                     },
-                    axis.cross(self.axis.dir.get()).norm() * lever,
+                    axis.cross(self.axis().dir.get()).norm() * lever,
                 ))
             }
             // A coaxial cone: the generator through the rim, whose chart
@@ -1125,13 +1221,13 @@ impl<T: Real> Meridian<T> {
                 let (apex, axis) = (frame.origin(), frame.axis());
                 let (sin_a, cos_a) = half_angle.sin_cos();
                 let nappe =
-                    ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir.get())).unit_sign();
+                    ((self.rim - apex).dot(axis) * axis.dot(self.axis().dir.get())).unit_sign();
                 Some((
                     SupportTrace::Straight {
-                        normal: radial * cos_a - self.axis.dir.get() * (nappe * sin_a),
+                        normal: radial * cos_a - self.axis().dir.get() * (nappe * sin_a),
                         side,
                     },
-                    axis.cross(self.axis.dir.get()).norm() * lever,
+                    axis.cross(self.axis().dir.get()).norm() * lever,
                 ))
             }
             // A sphere centred on the axis: its meridian trace is the
@@ -1140,7 +1236,7 @@ impl<T: Real> Meridian<T> {
             // centre's own distance off the axis.
             Surface::Sphere { frame, radius, .. } => {
                 let center = frame.origin();
-                let level = self.axis.foot(center);
+                let level = self.axis().foot(center);
                 Some((
                     SupportTrace::Round {
                         center: level,
@@ -1186,22 +1282,26 @@ impl<T: Real> Meridian<T> {
     ) -> EdgeBlend<T> {
         let radial = self.radial();
         let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius, branch);
-        let level = |q: Point3<T>| self.axis.foot(q);
-        let s = (center - self.axis.origin).dot(radial);
+        let level = |q: Point3<T>| self.axis().foot(q);
+        let s = (center - self.axis().origin).dot(radial);
         // The setback is the EUCLIDEAN displacement of the trimline from
         // the rim, the metric predicate 2 measures face extents in.
         let trim = |t: SupportTrace<T>| {
             let q = t.contact(center, radius);
-            let (rho, toward) = ring_radius((q - self.axis.origin).dot(radial), radial);
+            let (rho, toward) = ring_radius((q - self.axis().origin).dot(radial), radial);
             (
-                Curve3::circle(level(q), self.axis.dir.get(), rho, toward),
+                Curve3::circle(level(q), self.axis().dir.get(), rho, toward),
                 (q - self.rim).norm(),
             )
         };
-        let (spine, toward) = ring_radius(s, radial);
+        let spine = s.abs();
+        // The seam turned to the centre's side: the sheet's frame, half
+        // turned about the axis where the centre has crossed it.
+        let at = self.placed(level(center));
+        let frame = RigidMotion::select_le_zero(T::zero() - s, at, at.half_turned());
         EdgeBlend {
             surface: Surface::Torus {
-                frame: geom::Frame::new(level(center), self.axis.dir.get(), toward),
+                frame: geom::Frame::of_motion(&frame),
                 major_radius: spine,
                 minor_radius: radius,
             },
@@ -1286,25 +1386,33 @@ impl<T: Real> Ruling<T> {
     /// predicate 3 saturates exactly as it does on [`plane_plane_blend`].
     /// Offsets that do not cross never reach this arm: the caller
     /// refuses them from [`offset_room`] first.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// [`frame_about`]'s, for the cylinder's seam: the ball's foot on
+    /// `a` along the ruling.
     pub fn blend(
         &self,
         a: SupportTrace<T>,
         b: SupportTrace<T>,
         radius: T,
         branch: Branch<T>,
-    ) -> EdgeBlend<T> {
+        band: Band,
+    ) -> Result<EdgeBlend<T>, OrthonormalizeError>
+    where
+        T: Decide,
+    {
         let center = sheet_center(self.rim, self.tau.get(), a, b, radius, branch);
         let (q_a, q_b) = (a.contact(center, radius), b.contact(center, radius));
-        EdgeBlend {
+        Ok(EdgeBlend {
             surface: Surface::Cylinder {
-                frame: geom::Frame::new(center, self.tau.get(), a.foot(center)),
+                frame: frame_about(center, self.tau, a.foot(center), band)?,
                 radius,
             },
             spine_curvature: T::zero(),
             trim_a: (Curve3::line(q_a, self.tau), (q_a - self.rim).norm()),
             trim_b: (Curve3::line(q_b, self.tau), (q_b - self.rim).norm()),
-        }
+        })
     }
 }
 
@@ -1327,18 +1435,26 @@ impl<T: Real> Ruling<T> {
 /// patch is large enough to hold an antipodal pair and none is refused.
 ///
 /// **The sign is folded, not branched**: `axis = f_c·sign(f_c·(f_x × f_y))`,
-/// spelled as a positive multiple so it is total over `T` and poisons
-/// where the feet are dependent. It makes `(axis × u_ref)·f_y > 0`, so
+/// spelled as a positive multiple of `f_c` whose length is the turn
+/// itself, so the frame mint decides it: dependent feet refuse there. It makes `(axis × u_ref)·f_y > 0`, so
 /// the patch spans `u ∈ [0, θ]` with `θ < π`, bounded by the meridians
 /// through `f_x` and `f_y` and the arc `f_x f_y`, which is the equator
 /// exactly when `f_x, f_y ⊥ f_c` (the iso-rectangle `build`'s octant
 /// pick scores for).
-#[must_use]
-pub fn corner_chart<T: Real>(feet: [Vec3<T>; 3]) -> (Vec3<T>, Vec3<T>) {
+///
+/// # Errors
+///
+/// [`frame_along`]'s: under [`geom_core::OrthoAxis::U`] where the feet
+/// are dependent, under [`geom_core::OrthoAxis::V`] where `f_x` lies
+/// along the pole.
+pub fn corner_chart<T: Decide>(
+    center: Point3<T>,
+    feet: [Vec3<T>; 3],
+    band: Band,
+) -> Result<geom::Frame<T>, OrthonormalizeError> {
     let [f_x, f_y, f_c] = feet;
     let turn = f_c.dot(f_x.cross(f_y));
-    let axis = (f_c * turn).normalize();
-    (perp_unit(f_x, axis), axis)
+    frame_along(center, f_c * turn, f_x, band)
 }
 
 /// **The corner ball** of a uniform trihedral vertex: the sphere of
@@ -1369,13 +1485,17 @@ pub fn corner_chart<T: Real>(feet: [Vec3<T>; 3]) -> (Vec3<T>, Vec3<T>) {
 /// foot directions `±n_i` (`+` convex, `−` concave) in argument order,
 /// so its pole is the third foot or that foot's antipode and the
 /// patch holds no chart singularity off its vertices.
-#[must_use]
-pub fn corner_ball<T: Real>(
+///
+/// # Errors
+///
+/// [`corner_chart`]'s.
+pub fn corner_ball<T: Decide>(
     verts: [Point3<T>; 3],
     normals: [Vec3<T>; 3],
     radius: T,
     convexity: Convexity,
-) -> CornerBall<T> {
+    band: Band,
+) -> Result<CornerBall<T>, OrthonormalizeError> {
     let [n1, n2, n3] = normals;
     // The rest DEPTH: the NEGATIVE of the one fold, `battery::signed`,
     // which every consumer spells as a FOOT displacement
@@ -1397,15 +1517,14 @@ pub fn corner_ball<T: Real>(
     // The feet lie along `n_i` from a convex rest and along `−n_i` from
     // a concave one — the same fold as the centre's.
     let foot = |n: Vec3<T>| sided(ball_side(convexity, true), n);
-    let (u_ref, axis) = corner_chart([foot(n1), foot(n2), foot(n3)]);
-    CornerBall {
+    Ok(CornerBall {
         surface: Surface::Sphere {
-            frame: geom::Frame::new(c, axis, u_ref),
+            frame: corner_chart(c, [foot(n1), foot(n2), foot(n3)], band)?,
             radius,
         },
         center: c,
         independence: det.abs(),
-    }
+    })
 }
 
 // ------------------------------------------------------------------
@@ -1473,18 +1592,23 @@ pub fn chamfer_feet<T: Real>(
 /// chamfer never reads [`super::battery::blend_sense`]. For a
 /// symmetric setback the strip plane is the supports' bisector plane,
 /// which is the same statement.
-#[must_use]
-pub fn chamfer_strip<T: Real>(
+///
+/// # Errors
+///
+/// [`frame_along`]'s, for the strip's frame: `n_a + n_b` with no
+/// direction (supports back to back), or `tau` along it.
+pub fn chamfer_strip<T: Decide>(
     p: Point3<T>,
     tau: UnitVec3<T>,
     n_a: Vec3<T>,
     n_b: Vec3<T>,
     distance: T,
-) -> EdgeBlend<T> {
+    band: Band,
+) -> Result<EdgeBlend<T>, OrthonormalizeError> {
     let (foot_a, foot_b) = chamfer_feet(p, tau.get(), n_a, n_b, distance);
-    EdgeBlend {
+    Ok(EdgeBlend {
         surface: Surface::Plane {
-            frame: geom::Frame::new(foot_a, (n_a + n_b).normalize(), tau.get()),
+            frame: frame_along(foot_a, n_a + n_b, tau.get(), band)?,
         },
         spine_curvature: T::zero(),
         trim_a: (
@@ -1501,7 +1625,7 @@ pub fn chamfer_strip<T: Real>(
             }),
             distance,
         ),
-    }
+    })
 }
 
 /// **The plane–cylinder chamfer frustum**: the band that replaces a
@@ -1537,30 +1661,27 @@ pub fn chamfer_frustum<T: Real>(
     distance: T,
 ) -> EdgeBlend<T> {
     let radial = sheet.radial();
-    let k = sheet.axis.dir;
-    let (foot_a, foot_b) = chamfer_feet(sheet.rim, tau, n_a, n_b, distance);
+    let axis = sheet.axis();
+    let k = axis.dir;
+    let (foot_a, foot_b) = chamfer_feet(sheet.rim(), tau, n_a, n_b, distance);
     let g = foot_b - foot_a;
     let g_r = g.dot(radial);
-    let rho_a = (foot_a - sheet.axis.origin).dot(radial);
+    let rho_a = (foot_a - axis.origin).dot(radial);
     let apex = foot_a - g * (rho_a / g_r);
     let trim = |q: Point3<T>| {
         (
-            Curve3::circle(
-                sheet.axis.foot(q),
-                k.get(),
-                (q - sheet.axis.origin).dot(radial),
-                radial,
-            ),
+            Curve3::circle(axis.foot(q), k.get(), (q - axis.origin).dot(radial), radial),
             distance,
         )
     };
+    // The sheet's frame at the apex, run back where the feet lie below
+    // it along the axis, so they lie on the `v > 0` nappe.
+    let at = sheet.placed(apex);
+    let below = T::zero() - (foot_a - apex).dot(k.get());
+    let frame = RigidMotion::select_le_zero(below, at, at.reversed());
     EdgeBlend {
         surface: Surface::Cone {
-            frame: geom::Frame::new(
-                apex,
-                k.get() * (foot_a - apex).dot(k.get()).unit_sign(),
-                radial,
-            ),
+            frame: geom::Frame::of_motion(&frame),
             half_angle: (g_r.abs() / g.norm()).asin(),
         },
         spine_curvature: T::zero(),
@@ -1593,7 +1714,7 @@ pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option
     };
     let axis = carrier_frame.axis();
     let (a, b) = (blend.trim_a.0.as_circle()?, blend.trim_b.0.as_circle()?);
-    let radial = perp_unit(rim - a.frame().origin(), axis);
+    let radial = perp_unit(rim - a.frame().origin(), carrier_frame.axis_unit());
     let fa = a.frame().origin() + radial * a.radius();
     let fb = b.frame().origin() + radial * b.radius();
     let (sin_a, cos_a) = half_angle.sin_cos();
@@ -1631,16 +1752,27 @@ pub fn line_meet<T: Real>(a: geom::Line<T>, b: geom::Line<T>, n: Vec3<T>) -> Poi
 /// or fills (concave) the corner and in both cases its outward normal
 /// lies on that sum's positive side; at a mixed corner the sum of the
 /// shared face's normal and the odd strip's. Folding it in as a
-/// positive multiple — `normalize(g·(g·outward))` — keeps the
-/// derivation branch-free and total; a patch plane orthogonal to
-/// `outward` poisons rather than picking a side. The face therefore
+/// positive multiple, `ĝ·(ĝ·outward)`, keeps the derivation
+/// branch-free, and its length is a cosine the frame mint decides, so
+/// collinear feet or a patch plane orthogonal to `outward` refuse
+/// rather than picking a side. The face therefore
 /// mints with sense `true`, like the strips,
 /// and this module has no convexity parameter to leave half-derived.
-#[must_use]
-pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], outward: Vec3<T>) -> Surface<T> {
+///
+/// # Errors
+///
+/// [`frame_along`]'s, for the patch's frame.
+pub fn chamfer_corner_patch<T: Decide>(
+    feet: [Point3<T>; 3],
+    outward: Vec3<T>,
+    band: Band,
+) -> Result<Surface<T>, OrthonormalizeError> {
+    // `ĝ·(ĝ·outward)`: a pure number's direction, so its length is the
+    // cosine between the patch's normal and `outward`, whatever the
+    // setback's size.
     let g = (feet[1] - feet[0]).cross(feet[2] - feet[0]);
-    let normal = (g * g.dot(outward)).normalize();
-    Surface::Plane {
-        frame: geom::Frame::new(feet[0], normal, perp_unit(feet[1] - feet[0], normal)),
-    }
+    let fold = g * (g.dot(outward) / g.dot(g));
+    Ok(Surface::Plane {
+        frame: frame_along(feet[0], fold, feet[1] - feet[0], band)?,
+    })
 }

@@ -97,7 +97,7 @@ use geom_brep::{
 };
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion,
-    Sign, Tol, Vec3,
+    Sign, Tol, UnitVec3Error, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
@@ -105,7 +105,7 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 
 use crate::swept;
 use crate::swept::{
-    CapEnd, CosurfaceNames, Placing, SweptChord, Unit2, Unit3, cap_plane, decide, face_surface_key,
+    CapEnd, CosurfaceNames, Placing, SweptChord, Unit3, cap_plane, decide, face_surface_key,
     placed_segment_spec, sketch_chord,
 };
 
@@ -678,23 +678,11 @@ impl<T: Real> Course<T> {
             Self::Vector { dir, .. } => dir,
         }
     }
-
-    /// The outward normal of the plane a line swept along this course
-    /// lies in, its swept direction `d` (a unit sketch direction) placed
-    /// by `place`: `d × dir`, which is outward for a material-left loop.
-    /// Along the normal that is the frame turning `d`'s right normal
-    /// `(d.y, −d.x)`, negated when the sweep runs against it; along a
-    /// vector, the cross product normalized.
-    fn wall_normal(self, place: Placing<T>, d: Unit2<T>) -> Unit3<T> {
-        match self {
-            Self::Normal { reversed } => {
-                let right = d.right();
-                place.direction(if reversed { right.reversed() } else { right })
-            }
-            Self::Vector { dir, .. } => place.direction(d).cross_normalized(dir),
-        }
-    }
 }
+
+/// The name a vector wall's frame is decided under: its normal
+/// `along × dir`, whose length the obliquity gate leaves near one.
+pub(crate) const EXTRUSION_WALL_FRAME: &str = "extrusion_wall_frame";
 
 /// The extrusion: its vector, the vector's length, and its course. A
 /// depth extrusion's length is its depth, decided positive and swept
@@ -707,6 +695,8 @@ struct Sweep<T: Real> {
     course: Course<T>,
     /// The sketch plane's normal, the frame's decided axis.
     normal: Unit3<T>,
+    /// The run's band, which a vector wall's frame is decided at.
+    band: Band,
 }
 
 impl<T: Real> Sweep<T> {
@@ -851,6 +841,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         length,
         course,
         normal: Unit3::from_frame(profile.plane().normal()),
+        band,
     };
     // The far station's frame: the sketch frame carried by the sweep,
     // its axes kept and its origin moved by `w`.
@@ -1179,7 +1170,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         n,
         |j| struts[j].he_minus,
         |body, j, faces| {
-            let surface = side_surface(body, segs, joins, faces, j, qs, place.into(), sweep, tol);
+            let surface = side_surface(body, segs, joins, faces, j, qs, place.into(), sweep, tol)?;
             let top = placed_segment_spec(&segs[j], top_place, qs[j] + w, tol);
             Ok::<_, ExtrudeError>(Some((top, surface)))
         },
@@ -1320,7 +1311,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         place.into(),
         sweep,
         tol,
-    );
+    )?;
     let far = q + sweep.w;
     let back = Vec3::zero() - sweep.w;
     let strut = EdgeCurveSpec {
@@ -1380,7 +1371,7 @@ struct LoopSwept {
 /// The surface spec of the wall over collapsed segment `j`, from the
 /// loop's [`swept::Join`]s and the walls minted so far (`faces`, in
 /// segment order). A line is one wall on a fresh plane through its
-/// start vertex: its normal the course's ([`Course::wall_normal`]),
+/// start vertex: its normal `d × dir` for the swept direction `d`,
 /// outward for a material-left loop, its chart along the swept
 /// segment's direction. An arc is one wall on a fresh cylinder
 /// (turn-signed axis, crate docs) whose `u_ref` is the frame turning
@@ -1390,8 +1381,15 @@ struct LoopSwept {
 /// segment's [`WallSeg::wall_sense`]: a concave arc's wall has its
 /// material outside the carrier cylinder, against the outward-radial
 /// chart normal.
+///
+/// # Errors
+///
+/// A vector wall's frame that does not mint: its normal
+/// `along × dir` under [`EXTRUSION_WALL_FRAME`], which the obliquity
+/// gate leaves unit, as [`ExtrudeError::ExtrusionEscalated`] in band and
+/// [`ExtrudeError::DegenerateExtrusion`] otherwise.
 #[allow(clippy::too_many_arguments)] // two internal call sites; the sweep's fixed context.
-fn side_surface<T: Real>(
+fn side_surface<T: Decide>(
     body: &Body<T>,
     segs: &[WallSeg<T>],
     joins: &[swept::Join],
@@ -1401,12 +1399,12 @@ fn side_surface<T: Real>(
     place: Placing<T>,
     sweep: Sweep<T>,
     tol: Tol,
-) -> FaceSurface<T> {
+) -> Result<FaceSurface<T>, ExtrudeError> {
     let course = sweep.course;
     let sense = segs[j].wall_sense;
     if let Some(f) = swept::shared_wall(joins, faces, j) {
         let key = face_surface_key(body, f);
-        return FaceSurface::Shared { key, sense };
+        return Ok(FaceSurface::Shared { key, sense });
     }
     let surface = match segs[j].chord.kind.get() {
         // A line wall's origin is the middle of the wall, from the
@@ -1419,10 +1417,10 @@ fn side_surface<T: Real>(
         // Along the normal the wall's frame is the sketch frame turned
         // onto the segment's direction ([`Placing::frame_toward`]), its
         // axes re-chosen among their own so the normal is the right
-        // normal the course signs ([`Course::wall_normal`]): rigid by
-        // construction, so nothing is re-squared. Along a vector the
-        // normal is a cross product normalized, which no frame's axis
-        // is, and the wall is squared from its two directions.
+        // normal the course signs: rigid by construction, so nothing is
+        // re-squared. Along a vector the normal is a cross product, which
+        // no frame's axis is, and the wall's frame is minted from it and
+        // the direction, its length decided.
         SegmentKind::Line { .. } => {
             let (d, length) = sketch_chord(&segs[j]);
             let along = place.direction(d);
@@ -1450,9 +1448,20 @@ fn side_surface<T: Real>(
                     };
                     geom::Frame::of_motion(&wall.with_origin(origin))
                 }
-                Course::Vector { .. } => {
-                    geom::Frame::new(origin, course.wall_normal(place, d).get(), along.get())
-                }
+                Course::Vector { dir, .. } => RigidMotion::from_axis_and_reference(
+                    origin,
+                    along.get().cross(dir.get()),
+                    along.get(),
+                    EXTRUSION_WALL_FRAME,
+                    sweep.band,
+                )
+                .map(|m| geom::Frame::of_motion(&m))
+                .map_err(|e| match e.error {
+                    UnitVec3Error::Escalated(source) => ExtrudeError::ExtrusionEscalated { source },
+                    UnitVec3Error::Degenerate
+                    | UnitVec3Error::NonFiniteLength
+                    | UnitVec3Error::UnderflowedLength => ExtrudeError::DegenerateExtrusion,
+                })?,
             };
             Surface::Plane { frame }
         }
@@ -1486,7 +1495,7 @@ fn side_surface<T: Real>(
             }
         }
     };
-    FaceSurface::New { surface, sense }
+    Ok(FaceSurface::New { surface, sense })
 }
 
 /// Upgrades one cap–wall rim edge to `Intersection { cap, wall,

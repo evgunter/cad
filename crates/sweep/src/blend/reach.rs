@@ -104,9 +104,10 @@ use super::battery::{
     Chain, Convexity, Link, MixedVertex, Turn, TurnRunOut, carrier_of, classified,
     face_clearance_margin, outward, same_supports,
 };
+use super::build::corner_frame_refused;
 use super::open::planar::{MixedGeometry, MixedLink, mixed_corner_geometry};
 use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
-use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
+use super::{BlendDecision, BlendError, BlendKind, BlendSite, carrier_frame_refused, classify};
 
 /// How many cells one face may be cut into against one reach before it
 /// is refused uncertified: the meter's cost ceiling per pair, which
@@ -1733,8 +1734,8 @@ fn corner_reach<T: Decide + Bounds>(
     v: VertexKey,
     here: &[(usize, &Link<T>)],
     mixed: &[MixedVertex],
-    size: T,
-    kind: BlendKind,
+    (size, kind): (T, BlendKind),
+    band: Band,
 ) -> Result<Option<CornerReach<T>>, BlendError> {
     let links: Vec<&Link<T>> = here.iter().map(|(_, l)| *l).collect();
     let mut chains: Vec<usize> = here.iter().map(|(ci, _)| *ci).collect();
@@ -1766,14 +1767,22 @@ fn corner_reach<T: Decide + Bounds>(
                 "a corner whose convexity mixes is not a mixed corner the battery admitted",
             )
         })?;
-        return mixed_corner_reach(body, *m, here, (&faces, pv, normals), (size, kind), chains)
-            .map(Some);
+        return mixed_corner_reach(
+            body,
+            *m,
+            here,
+            (&faces, pv, normals),
+            (size, kind, band),
+            chains,
+        )
+        .map(Some);
     }
     let mut bounds = Vec::new();
     let mut confine = None;
     let (q, anchors, surface) = match kind {
         BlendKind::Fillet => {
-            let ball = corner_ball([pv; 3], normals, size, links[0].convexity);
+            let ball = corner_ball([pv; 3], normals, size, links[0].convexity, band)
+                .map_err(corner_frame_refused(v))?;
             let c = ball.center;
             bounds.push((Role::Band, Bound::OutsideBall { o: c, r: size }));
             // Every extreme point of the corner's material — the vertex,
@@ -1819,7 +1828,10 @@ fn corner_reach<T: Decide + Bounds>(
                 feet.push(line_meet(*a, *b, n));
             }
             let feet = [feet[0], feet[1], feet[2]];
-            let patch = chamfer_corner_patch(feet, normals[0] + normals[1] + normals[2]);
+            let patch =
+                chamfer_corner_patch(feet, normals[0] + normals[1] + normals[2], band).map_err(
+                    carrier_frame_refused(BlendSite::Joint { vertex: v }, EntityId::Vertex(v)),
+                )?;
             let Surface::Plane {
                 frame: carrier_frame,
                 ..
@@ -1933,7 +1945,7 @@ fn mixed_corner_reach<T: Decide + Bounds>(
     m: MixedVertex,
     here: &[(usize, &Link<T>)],
     (faces, pv, normals): (&[FaceKey], Point3<T>, [Vec3<T>; 3]),
-    (size, kind): (T, BlendKind),
+    (size, kind, band): (T, BlendKind, Band),
     chains: Vec<usize>,
 ) -> Result<CornerReach<T>, BlendError> {
     let v = m.vertex;
@@ -1944,7 +1956,7 @@ fn mixed_corner_reach<T: Decide + Bounds>(
         host_normal: n_e,
         pair,
         ..
-    } = mixed_corner_geometry((v, m), &links, faces, (pv, normals), size, kind)?;
+    } = mixed_corner_geometry((v, m), &links, faces, (pv, normals), (size, kind), band)?;
     // The patch is the pair's link, and does to the material what the
     // pair's bands do: the reach is named by a pair band's chain.
     let chain = here
@@ -2977,7 +2989,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         if !fan.iter().all(|e| requested.binary_search(e).is_ok()) {
             continue;
         }
-        if let Some((r, ends)) = corner_reach(body, v, &at(v), mixed, size, kind)? {
+        if let Some((r, ends)) = corner_reach(body, v, &at(v), mixed, (size, kind), band)? {
             reaches.push(r);
             corners.push((v, ends));
         }

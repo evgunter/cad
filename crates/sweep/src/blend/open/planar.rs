@@ -60,9 +60,11 @@ use crate::blend::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, Foot, Joint, Junction, OpenBand, PlannedStation,
     RequestedBoundary, StationKind,
 };
-use crate::blend::arms::{BallSection, chamfer_corner_patch, corner_ball, line_meet};
+use crate::blend::arms::{
+    BallSection, chamfer_corner_patch, corner_ball, frame_about, frame_along, line_meet,
+};
 use crate::blend::battery::{Convexity, EndSection, Link, MixedVertex, Overrun, Turn, signed};
-use crate::blend::build::{fan_at, octant_chart, outward_of};
+use crate::blend::build::{corner_frame_refused, fan_at, octant_chart, outward_of};
 use crate::blend::junction::{self, JunctionReading, MixedTrim, strut_foot};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
@@ -70,7 +72,7 @@ use crate::blend::surgery::{
     disagrees, face_of_half, halves_of, host_side_half, invariant_broken, op, open_trimline,
     point_of, retire_fragment, split_fragment, unbuilt_geometry, unresolved, unwalked,
 };
-use crate::blend::{BlendDecision, BlendError, BlendKind, BlendSite};
+use crate::blend::{BlendDecision, BlendError, BlendKind, BlendSite, carrier_frame_refused};
 
 /// One corner: a trivalent vertex all of whose edges are requested.
 pub(in crate::blend) struct Corner<'a, T: Real> {
@@ -187,6 +189,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
     mixed: Option<MixedVertex>,
     radius: T,
     kind: BlendKind,
+    band: Band,
 ) -> Result<Corner<'a, T>, BlendError> {
     // Both corner tokens are derived from THIS vertex, here: the
     // faces two statements below, the links in the argument. That
@@ -211,7 +214,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
             .vec();
     }
     if let Some(mixed) = mixed {
-        return mixed_corner_plan(links, faces, mixed, (p, normals), radius, kind);
+        return mixed_corner_plan(links, faces, mixed, (p, normals), (radius, kind), band);
     }
     // Any one incident link answers for all of them (`Corner`'s field
     // doc): the battery's corner predicate admits a corner patch only
@@ -219,7 +222,8 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
     let convexity = links.first().convexity();
     let (arcs, feet, surface) = match kind {
         BlendKind::Fillet => {
-            let ball = corner_ball([p; 3], normals, radius, convexity);
+            let ball = corner_ball([p; 3], normals, radius, convexity, band)
+                .map_err(corner_frame_refused(vertex))?;
             // The ball at rest is at distance `radius` from every
             // support — inside the material at a convex corner, in the
             // void at a concave one — so its foot on each is the
@@ -242,14 +246,11 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
                 *foot = ball.center + n * toward;
             }
-            let (u_ref, axis) = octant_chart(body, &faces, &links, convexity)?;
+            let frame = octant_chart(body, &faces, &links, convexity, (ball.center, band))?;
             (
                 CornerArcs::Ball(ball.center, radius),
                 feet.map(Foot::At),
-                Surface::Sphere {
-                    frame: geom::Frame::new(ball.center, axis, u_ref),
-                    radius,
-                },
+                Surface::Sphere { frame, radius },
             )
         }
         BlendKind::Chamfer => {
@@ -258,7 +259,10 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
             (
                 CornerArcs::Chords,
                 feet.map(Foot::At),
-                chamfer_corner_patch(feet, outward),
+                chamfer_corner_patch(feet, outward, band).map_err(carrier_frame_refused(
+                    BlendSite::Joint { vertex },
+                    EntityId::Vertex(vertex),
+                ))?,
             )
         }
     };
@@ -292,13 +296,13 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
 ///   its two strips' trimlines cross; on `E`, each pair strip's trimline
 ///   meets the chord strip's, the line `s` in from the chord the odd
 ///   strip leaves in `E`; the patch is the plane through the four.
-fn mixed_corner_plan<'a, T: Real>(
+fn mixed_corner_plan<'a, T: Decide>(
     links: CornerLinks<'a, T>,
     faces: CornerFaces,
     mixed: MixedVertex,
     at: (Point3<T>, [Vec3<T>; 3]),
-    radius: T,
-    kind: BlendKind,
+    (radius, kind): (T, BlendKind),
+    band: Band,
 ) -> Result<Corner<'a, T>, BlendError> {
     let vertex = links.vertex();
     let (seed, others) = links.sorted();
@@ -312,7 +316,14 @@ fn mixed_corner_plan<'a, T: Real>(
         surface,
         convexity,
         ..
-    } = mixed_corner_geometry((vertex, mixed), &all, faces.as_slice(), at, radius, kind)?;
+    } = mixed_corner_geometry(
+        (vertex, mixed),
+        &all,
+        faces.as_slice(),
+        at,
+        (radius, kind),
+        band,
+    )?;
     Ok(Corner {
         links,
         faces,
@@ -353,13 +364,13 @@ pub(in crate::blend) struct PairFeet<T: Real> {
 /// three links, its faces and its vertex's point and outward normals:
 /// the patch ([`MixedGeometry`]). The plan carves it, and the band's
 /// reach meters it (`reach::mixed_corner_reach`).
-pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
+pub(in crate::blend) fn mixed_corner_geometry<T: Decide>(
     (vertex, mixed): (VertexKey, MixedVertex),
     links: &[&Link<T>],
     faces: &[FaceKey],
     (p, normals): (Point3<T>, [Vec3<T>; 3]),
-    radius: T,
-    kind: BlendKind,
+    (radius, kind): (T, BlendKind),
+    band: Band,
 ) -> Result<MixedGeometry<T>, BlendError> {
     let (odd, pair): (Vec<&Link<T>>, Vec<&Link<T>>) =
         links.iter().copied().partition(|l| l.edge == mixed.odd);
@@ -385,9 +396,7 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
     let (arcs, surface) = match kind {
         BlendKind::Fillet => {
             let axis_of = |l: &Link<T>| match l.blend.surface {
-                Surface::Cylinder { frame, .. } => {
-                    Ok((frame.origin(), geom_core::UnitVec3::squared(frame.axis())))
-                }
+                Surface::Cylinder { frame, .. } => Ok((frame.origin(), frame.axis_unit())),
                 _ => Err(disagrees(
                     EntityId::Vertex(vertex),
                     "a mixed corner's plane–plane fillet band is not a cylinder",
@@ -428,7 +437,12 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
                     host: (p_e, two_r),
                 },
                 Surface::Torus {
-                    frame: geom::Frame::new(q, a_odd, (rests[0].1.centre - q).normalize()),
+                    frame: frame_about(q, a_odd_unit, rests[0].1.centre - q, band).map_err(
+                        carrier_frame_refused(
+                            BlendSite::Joint { vertex },
+                            EntityId::Vertex(vertex),
+                        ),
+                    )?,
                     major_radius: two_r,
                     minor_radius: radius,
                 },
@@ -482,7 +496,11 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
             // strip face out to.
             (
                 CornerArcs::Chords,
-                chamfer_corner_patch([walls[0], host_feet[0].1, walls[1]], n_e + n_s),
+                chamfer_corner_patch([walls[0], host_feet[0].1, walls[1]], n_e + n_s, band)
+                    .map_err(carrier_frame_refused(
+                        BlendSite::Joint { vertex },
+                        EntityId::Vertex(vertex),
+                    ))?,
             )
         }
     };
@@ -690,7 +708,7 @@ pub(in crate::blend) struct MixedLinkPlan<T: Real> {
     pub(in crate::blend) surface: Surface<T>,
 }
 
-/// Plan every link of `band`, a band with junctions, off the source:
+/// Plan every link of `open`, a band with junctions, off the source:
 /// each link's host is the face its junction shares, and a cylinder's
 /// chart is read at the first junction it meets.
 ///
@@ -700,10 +718,11 @@ pub(in crate::blend) struct MixedLinkPlan<T: Real> {
 /// junction; [`junction::mixed_trims`]' and [`junction::band_chart`]'s.
 pub(in crate::blend) fn mixed_link_plans<T: Decide>(
     body: &Body<T>,
-    band: &OpenBand<'_, T>,
+    open: &OpenBand<'_, T>,
     junctions: &[JunctionPlan<'_, T>],
+    band: Band,
 ) -> Result<Vec<MixedLinkPlan<T>>, BlendError> {
-    band.links()
+    open.links()
         .map(|o| {
             let l = o.link();
             let jp = junctions
@@ -721,7 +740,7 @@ pub(in crate::blend) fn mixed_link_plans<T: Decide>(
                 host,
                 mate: l.across(host),
                 trims: junction::mixed_trims(body, l, host)?,
-                surface: junction::band_chart(body, l, Some(&jp.reading))?,
+                surface: junction::band_chart(body, l, Some(&jp.reading), band)?,
             })
         })
         .collect()
@@ -823,6 +842,7 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
     link: AdmittedOpen<'a, T>,
     vertex: VertexKey,
     section: EndSection<T>,
+    band: Band,
 ) -> Result<CutOffPlan<'a, T>, BlendError> {
     let l = link.link();
     let geom::Line {
@@ -838,7 +858,7 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
         (q_a, q_b),
         along.get(),
         section,
-        &l.blend.surface,
+        (&l.blend.surface, band),
     )?;
     Ok(CutOffPlan { link, end })
 }
@@ -939,11 +959,15 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
                     radius,
                     ..
                 } => {
-                    let (origin, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
-                    Ok(Surface::Cylinder {
-                        frame: geom::Frame::new(origin, axis, u_ref),
-                        radius,
-                    })
+                    // The band's own cylinder, its axis turned out of the
+                    // vertex along the edge's chord.
+                    let frame =
+                        frame_along(carrier_frame.origin(), axis, carrier_frame.u_ref(), band)
+                            .map_err(carrier_frame_refused(
+                                BlendSite::Joint { vertex },
+                                EntityId::Vertex(vertex),
+                            ))?;
+                    Ok(Surface::Cylinder { frame, radius })
                 }
                 _ => Err(unbuilt()),
             };
@@ -978,7 +1002,7 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
     let overrun = match turn.overrun() {
         None => None,
         Some(of) => {
-            let end = cut_off_plan(body, links[of.far], vertex, of.section.clone())?.end;
+            let end = cut_off_plan(body, links[of.far], vertex, of.section.clone(), band)?.end;
             Some(PlannedOverrun {
                 of,
                 carrier: end.carrier(),
