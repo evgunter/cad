@@ -76,7 +76,7 @@ arm 1 crates/sweep/src/test_support.rs
 arm 1 crates/topo/src/boolean/arcs.rs
 arm 9 crates/topo/src/boolean/carrier_touch.rs
 arm 1 crates/topo/src/boolean/fate.rs
-arm 15 crates/topo/src/boolean/join.rs
+arm 14 crates/topo/src/boolean/join.rs
 whole 1 crates/topo/src/boolean/join.rs
 arm 6 crates/topo/src/boolean/ops.rs
 arm 1 crates/topo/src/boolean/overlap.rs
@@ -93,7 +93,7 @@ arm 1 crates/topo/src/torus_region.rs
 arm 1 crates/topo/src/boolean/trace.rs
 whole 1 crates/topo/src/boolean/trace.rs
 whole 1 crates/topo/src/boxes.rs
-arm 2 crates/topo/src/cell_region.rs
+arm 1 crates/topo/src/cell_region.rs
 ball 1 crates/topo/src/census.rs
 arm 1 crates/topo/src/census/in_plane.rs
 arm 1 crates/topo/src/chart_region.rs
@@ -106,7 +106,7 @@ arm 2 crates/topo/src/link.rs
 arm 9 crates/topo/src/offset_axial.rs
 arm 11 crates/topo/src/offset_derive.rs
 arm 1 crates/topo/src/offset_together.rs
-arm 5 crates/topo/src/pcurves/decision.rs
+arm 4 crates/topo/src/pcurves/decision.rs
 arm 1 crates/topo/src/props.rs
 arm 3 crates/topo/src/props/quad_lane.rs
 arm 6 crates/topo/src/replace_face.rs

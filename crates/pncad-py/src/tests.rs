@@ -3011,6 +3011,10 @@ fn import_report_row_tags_are_stable() {
             "carrier_built",
         ),
         (
+            NormalizationKind::CollapsedSideMadeOne { moved_by: 3e-9 },
+            "collapsed_side_made_one",
+        ),
+        (
             NormalizationKind::CurvePromoted {
                 kind: pncad::step_import::PromotedCurveKind::Circle,
                 residual: 1e-17,
@@ -4447,6 +4451,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
+            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -5366,6 +5371,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "carrier_built",
             "chart_singularity_vertex",
+            "collapsed_side_made_one",
             "curve_promoted",
             "edge_free_sphere",
             "edge_split_at_c0_knot",
@@ -6220,7 +6226,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
-            "component_euler_violation",
             "contact_contradicted",
             "curve_datum_undecided",
             "curved_sense_inverted",

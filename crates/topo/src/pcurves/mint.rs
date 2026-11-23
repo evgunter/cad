@@ -508,21 +508,16 @@ pub(crate) fn seam_reading<T: Decide + AtRestPolicy>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, SeamUnread> {
-    geom_brep::classify_seam(
-        faces.map(|f| f.0),
-        witness,
-        reach,
-        |chart, p, reach| T::spline_chart_arm(chart, p, reach).ok(),
-        band,
-    )
-    .map_err(|refusal| match refusal {
-        geom_brep::SeamEscalation::Lever(e) => SeamUnread::Lever(e),
-        geom_brep::SeamEscalation::Crease(c) => SeamUnread::Crease(c),
-        geom_brep::SeamEscalation::SplineReadAsAnalytic => unreachable!(
-            "a SeamSide reads every spline face at its chart: seam_face and \
+    geom_brep::classify_seam(faces.map(|f| f.0), witness, reach, T::nurbs_lane(), band).map_err(
+        |refusal| match refusal {
+            geom_brep::SeamEscalation::Lever(e) => SeamUnread::Lever(e),
+            geom_brep::SeamEscalation::Crease(c) => SeamUnread::Crease(c),
+            geom_brep::SeamEscalation::SplineReadAsAnalytic => unreachable!(
+                "a SeamSide reads every spline face at its chart: seam_face and \
              SeamSide::analytic mint no other"
-        ),
-    })
+            ),
+        },
+    )
 }
 
 /// **A face of a seam edge, as its dihedral reads it** at the edge's
@@ -1343,7 +1338,8 @@ pub(super) fn computed_foot<T: Real>(foot: geom_core::Point2<f64>) -> Point2<T> 
 /// forward in the carrier parameter)?
 #[track_caller]
 pub(crate) fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
-    edge_record(body, half_edge).1.he_plus == half_edge
+    let (ek, data) = edge_record(body, half_edge);
+    crate::live::claimed(half_edge, ek, data).plus
 }
 
 /// The FIRST-CHANNEL arm of a chart — the metres a unit step of the
@@ -1508,7 +1504,7 @@ pub(crate) fn chart_side_bounds<T: Decide>(
     let Some(payload) = surface.spline_chart() else {
         return false;
     };
-    !closed && geom_brep::chart_singularity::spline_side_spans(payload, side, band)
+    !closed && geom_brep::chart_singularity::spline_side_spans(payload, side)
 }
 
 /// A spline net's channel, for the closure question [`net_closes_as`] asks.

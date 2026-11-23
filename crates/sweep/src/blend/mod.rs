@@ -1988,7 +1988,7 @@ pub enum BlendError {
     /// **An Euler operator refused during assembly.**
     ///
     /// The operator's own refusal is nested whole — `Argument`,
-    /// `Certification`, and the rest of its vocabulary reach the caller
+    /// `DescriptionUncertified`, and the rest of its vocabulary reach the caller
     /// typed rather than as prose. `site` names the surgery step that
     /// ran the operator.
     Op {
@@ -2786,7 +2786,9 @@ mod recourse_tests {
             },
             BlendError::Op {
                 site: "strut mev",
-                source: Box::new(topo::EulerOpError::DescriptionNotAdjacent { edge: None }),
+                source: Box::new(topo::EulerOpError::DescriptionNotAdjacent {
+                    edge: topo::EdgeSubject::Minted,
+                }),
             },
             BlendError::Join {
                 refusal: topo::JoinRefusal::CarrierUnsupported {

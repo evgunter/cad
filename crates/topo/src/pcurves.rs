@@ -148,10 +148,9 @@
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
 //! deterministic pipeline rather than reading stored bytes, and no
-//! pcurve-shaped field enters the schema. [`crate::transform`] takes
-//! the same posture as it already does for carriers and witnesses:
-//! construction-fresh re-derivation against the mapped geometry, never
-//! a mapped stored cache.
+//! pcurve-shaped field enters the schema. [`crate::mirror_body`] takes
+//! the same posture: its rows are re-derived against the mapped
+//! geometry, never a mapped stored cache.
 //!
 //! ## Stale rows: which ops maintain this map, and which do not
 //!
@@ -458,5 +457,7 @@ mod from_computed_rows;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod net_period_rows;
 
+#[cfg(test)]
+mod collapsed_side_rows;
 #[cfg(test)]
 mod singular_set_rows;

@@ -769,7 +769,7 @@ pub enum RevolveError {
     },
     /// An Euler operator or attachment gate refused — including every
     /// D4 ¶2 certification failure
-    /// ([`EulerOpError::Certification`]).
+    /// ([`EulerOpError::DescriptionUncertified`]).
     Op {
         /// The operator-layer failure.
         source: EulerOpError,

@@ -244,11 +244,11 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
-use crate::euler::RechartDoor;
 use crate::euler::{
     BadArgument, Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, Records,
     RunExtent, require_halves, shared_loop,
 };
+use crate::euler::{EdgeSubject, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::joint::JointElement;
 use crate::live::{Arg, Live, link, linked, lookup, require_key};
@@ -1396,16 +1396,22 @@ impl<T: Decide> Body<T> {
     /// two faces on one chart, `surface`**, of senses `from` and `to`. An
     /// element on the chart's singular set is the turn on the face's
     /// side (`crate::joint`), so it stands where the two senses agree,
-    /// or the chart has no singular set to turn at. Where it does not,
+    /// or the chart has no singular point to turn at (a spline net's
+    /// collapsed side is not one: its joint is an ordinary element, the
+    /// same at either sense). Where it does not,
     /// the door treats the loop's rows as it treats rows about another
     /// chart: dropped, and re-minted by its band door
     /// ([`Body::plan_moved_rows`]). Which joints are on the set is a
     /// decision at a band, so no door restates them without one.
     pub(crate) fn sides_agree(&self, surface: SurfaceKey, from: bool, to: bool) -> bool {
         from == to
-            || !self
-                .get_surface(surface)
-                .is_some_and(crate::pcurves::has_singular_set)
+            || !self.get_surface(surface).is_some_and(|s| {
+                geom_brep::chart_singularity::singular_points(s)
+                    .iter()
+                    .any(|(which, _)| {
+                        !matches!(which, geom_brep::chart_singularity::Singularity::Side(_))
+                    })
+            })
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve
@@ -1501,6 +1507,7 @@ impl<T: Decide> Body<T> {
         // he_plus forward order).
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
@@ -1602,6 +1609,7 @@ impl<T: Decide> Body<T> {
         // he_plus forward order).
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
@@ -1693,6 +1701,7 @@ impl<T: Decide> Body<T> {
         // he_plus forward order).
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
@@ -1793,6 +1802,7 @@ impl<T: Decide> Body<T> {
         // he_plus forward order).
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
