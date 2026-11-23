@@ -30,6 +30,12 @@ Found on 2026-11-23 by the two designers weighing what a sector bound holds (the
 - `topo::link` `fan` sets its rim at `reach · 1.01 / cos(π/8)`, "a hundredth to spare for the rounding": hand-written slack in a construction.
 - More sites that make the packed vector than the filed row lists: `census.rs` at `edge_wedge_shape(own * arm, next * arm, …)`; `second_order::thorns`' `along(d, l)`.
 
+- `side_reader` places a ray's start at `reach.length() * −2`: a lever's length as a parameter (round 3).
+
+**A key wider than what it marks** (round 3, not confirmed reachable):
+
+- `SlitTips` keys by `(vertex, face)` and `SlitTips::of` inserts both ends of a shared segment, so every corner of that face at that vertex reads as `CornerBounds::SlitTip`, not only the one between the two slit edges. A slit rooted on a boundary vertex would mark the face's ordinary corners there, and a spike among them would read as a whole turn where it should refuse.
+
 **A refusal spelled as a decision:**
 
 - `geom_brep::conic_bend_side`'s `BendBounds::Unbounded` arm decides `0 − |slope · extent|` under `decide_positive`, which can never pass.
