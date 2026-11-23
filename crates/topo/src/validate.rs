@@ -19332,3 +19332,74 @@ mod door_roster {
         assert_eq!(reached(&findings).len(), 2, "{findings:?}");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used, clippy::print_stdout)]
+mod probe_7475 {
+    use super::*;
+    use crate::euler::MevSite;
+    use crate::test_support_fixtures::plane_every_face;
+    use geom_core::{Point3, Tol};
+
+    fn words(body: &Body<f64>, tol: Tol) -> Vec<String> {
+        let (errors, _) = tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
+        errors
+            .into_iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::RingMeetsOuter { .. }
+                        | ValidationError::RingMeetsRing { .. }
+                        | ValidationError::RingContactEscalated { .. }
+                        | ValidationError::RingOutsideOuter { .. }
+                        | ValidationError::RingNestingUndecided { .. }
+                )
+            })
+            .map(|e| {
+                let s = format!("{e:?}");
+                s.split(|c| c == '{' || c == ' ').next().unwrap_or("").to_string()
+            })
+            .collect()
+    }
+
+    /// A lone-vertex ring at a ladder of inward offsets from the top
+    /// cap's far edge interior and far corner.
+    #[test]
+    fn probe_lone_vertex_ring_band_ladder() {
+        let tol = Tol::witness();
+        let (eps, k) = (tol.eps(), tol.k());
+        let t = crate::test_support_fixtures::geometric_cube::<f64>(tol);
+        let root = t.body.get_half_edge(t.mefs[1].he_plus).unwrap().start;
+        let r = vertex_point(&t.body, root).unwrap();
+        let far = (1.0 - r.x, 1.0 - r.y);
+        // inward direction from the far edge (y = far.1) is toward r.y
+        let iy = if r.y > far.1 { 1.0 } else { -1.0 };
+        let ix = if r.x > far.0 { 1.0 } else { -1.0 };
+        let ladder = [
+            0.0, 0.5 * eps, eps, 1.5 * eps, eps * k.sqrt(), 0.9 * k * eps, k * eps,
+            1.1 * k * eps, 2.0 * k * eps, 10.0 * k * eps, 1e-6, 1e-3,
+        ];
+        for d in ladder {
+            for (name, at) in [
+                ("edge", Point3::new(0.5, far.1 + iy * d, 1.0)),
+                ("corner", Point3::new(far.0 + ix * d, far.1 + iy * d, 1.0)),
+                ("edge-out", Point3::new(0.5, far.1 - iy * d, 1.0)),
+            ] {
+                let mut body = t.body.clone();
+                let strut = body
+                    .mev_line(
+                        MevSite::Fan {
+                            he1: t.mefs[1].he_plus,
+                            he2: t.mefs[1].he_plus,
+                        },
+                        at,
+                        tol,
+                    )
+                    .unwrap();
+                body.kemr(strut.he_plus, strut.he_minus).unwrap();
+                plane_every_face(&mut body, tol);
+                println!("PROBE d={d:e} ({:.3}eps) {name}: {:?}", d / eps, words(&body, tol));
+            }
+        }
+    }
+}
