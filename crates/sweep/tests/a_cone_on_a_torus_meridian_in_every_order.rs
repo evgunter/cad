@@ -187,8 +187,8 @@ fn the_meridian_triangle_and_its_torus_build_in_every_order() {
 /// its wall crossing the tube of the torus about `y`: the pair is served
 /// by kind and its coaxial pose is the closed form's, so the section
 /// table holds nothing for it. Each operation, in both orders, ends as
-/// the pin below says; a `JoinDesync` (the kernel-bug class) is red
-/// wherever it appears.
+/// the pin below says (five build; the torus less the cone refuses);
+/// a `JoinDesync` (the kernel-bug class) is red wherever it appears.
 #[test]
 fn a_coaxial_cone_against_the_torus_ends_as_pinned() {
     let tol = Tol::witness();
@@ -220,13 +220,17 @@ fn a_coaxial_cone_against_the_torus_ends_as_pinned() {
             got.push(format!("{name} {op}: {outcome}"));
         }
     }
-    let pinned: Vec<String> = ["torus first", "cone first"]
-        .iter()
-        .flat_map(|name| {
-            ["∪", "∩", "∖"]
-                .iter()
-                .map(move |op| format!("{name} {op}: GermFrameUnsupported"))
-        })
-        .collect();
+    // Measured at the default ε, 1e-6 and 1e-12 alike. The one refusal
+    // is `work/sectcone/a-torus-less-a-coaxial-cone-refuses-edge-in-face`.
+    let pinned: Vec<String> = [
+        "torus first ∪: builds",
+        "torus first ∩: builds",
+        "torus first ∖: EdgeInFace",
+        "cone first ∪: builds",
+        "cone first ∩: builds",
+        "cone first ∖: builds",
+    ]
+    .map(str::to_owned)
+    .to_vec();
     assert_eq!(got, pinned, "the coaxial pair's outcomes");
 }
