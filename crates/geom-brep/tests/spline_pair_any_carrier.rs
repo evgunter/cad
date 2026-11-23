@@ -20,9 +20,8 @@ use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CarrierEnclosureRefusal, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    NurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal, SsiLimb, SurfacePair, nurbs_pair_limbs,
-    plane_nurbs_limbs,
+    CarrierEnclosureRefusal, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, SsiLimb, SurfacePair, nurbs_pair_limbs, plane_nurbs_limbs,
 };
 use geom_core::spline::KnotVector;
 use geom_core::test_support::upper;

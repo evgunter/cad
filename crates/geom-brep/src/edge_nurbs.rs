@@ -1635,20 +1635,19 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
     }
     // The carrier's fitted chart image alone: the wall's grid and chart
     // speeds are the tube's, which incidence does not ask.
-    let fitted =
-        chart_image(carrier, params, chart, band, |_, _| Ok(())).and_then(|pcurve| {
-            crate::ssi::certify::incidence_limbs(
-                carrier,
-                params,
-                &[
-                    IncidenceOperand::Analytic(plane),
-                    IncidenceOperand::Chart(chart, &pcurve),
-                ],
-                band,
-                &mut crate::ssi::certify::Refused::default(),
-            )
-            .map_err(refusal)
-        });
+    let fitted = chart_image(carrier, params, chart, band, |_, _| Ok(())).and_then(|pcurve| {
+        crate::ssi::certify::incidence_limbs(
+            carrier,
+            params,
+            &[
+                IncidenceOperand::Analytic(plane),
+                IncidenceOperand::Chart(chart, &pcurve),
+            ],
+            band,
+            &mut crate::ssi::certify::Refused::default(),
+        )
+        .map_err(refusal)
+    });
     let (on_locus_max, hull_sup) =
         fitted.map_err(|e| after_exact(e, exact.as_ref().and_then(ExactRim::refused)))?;
     Ok(PlaneNurbsIncidence {
@@ -1768,9 +1767,8 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     let op_a = SsiOperand::nurbs(a).map_err(refusal)?;
     let op_b = SsiOperand::nurbs(b).map_err(refusal)?;
     // The two images on one list of spans, which the two-chart tube pairs.
-    let (pcurve_a, pcurve_b) =
-        crate::carrier_image::carrier_images(carrier, params, (a, b), band)
-            .map_err(image_refusal)?;
+    let (pcurve_a, pcurve_b) = crate::carrier_image::carrier_images(carrier, params, (a, b), band)
+        .map_err(image_refusal)?;
     let (feet_a, feet_b) = (
         schedule_feet(carrier, params, &pcurve_a),
         schedule_feet(carrier, params, &pcurve_b),
@@ -3034,8 +3032,8 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
     F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
-    let image = crate::carrier_image::carrier_image(carrier, params, wall, band)
-        .map_err(image_refusal)?;
+    let image =
+        crate::carrier_image::carrier_image(carrier, params, wall, band).map_err(image_refusal)?;
     for (i, foot) in (0..).zip(schedule_feet(carrier, params, &image)) {
         per_sample(i, foot)?;
     }

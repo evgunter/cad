@@ -31,13 +31,13 @@
 //!   point and the carrier's foot there, followed from the image's
 //!   ([`miss`]). The carrier's own standoff from the wall is no part of
 //!   it. A chain whose every reading is within
-//!   [`IMAGE_MISS`] of the band's zero, or of the carrier's standoff
-//!   there where that is the larger, is the image. Otherwise each
+//!   [`IMAGE_MISS`] of the band's zero, or [`IMAGE_STANDOFF_SHARE`] of
+//!   the carrier's standoff there where that is the larger, is the image. Otherwise each
 //!   knot span holding a larger one takes a knot at its middle, or,
 //!   where the path crosses a knot line of the wall there across which
-//!   the wall is less smooth than the image, a knot at the crossing of
-//!   the multiplicity that leaves the image as smooth as the wall
-//!   ([`crossing`]); the feet are followed again, at most
+//!   the wall is less smooth than the image, or meets a side of the
+//!   wall's rectangle, a knot at that break of the multiplicity that
+//!   leaves the image as smooth as the path ([`crossing`]); the feet are followed again, at most
 //!   [`IMAGE_ROUNDS`] times. Past that the image is refused with the
 //!   miss it read ([`ImageRefusal::Miss`]).
 //!
@@ -65,6 +65,11 @@ pub(crate) const CLOSED_FORM_SPANS: usize = 8;
 /// reads the miss between those midpoints too, and over-reads it.
 pub(crate) const IMAGE_MISS: f64 = 1.0 / 16.0;
 
+/// The share of the carrier's own standoff from the wall, at a reading,
+/// that the image's miss there may be where that is the larger allowance
+/// (D9).
+pub(crate) const IMAGE_STANDOFF_SHARE: f64 = 0.25;
+
 /// The most rounds of knot insertion (D9). Each halves the spans that
 /// miss, so the last round's are `2⁻²⁴` of the chain's.
 pub(crate) const IMAGE_ROUNDS: usize = 24;
@@ -84,6 +89,13 @@ const START_SEEDS: usize = 8;
 /// How many halvings place a path's crossing of a wall's knot line
 /// ([`crossing`]): to `f64`'s resolution of the unit interval (D9).
 const CROSSING_HALVINGS: u32 = 60;
+
+/// How near a chain's knot, on the unit interval, a break of the path
+/// is that knot's ([`crossing`]).
+const CREASE_SNAP: f64 = 1e-13;
+
+/// The Newton steps a settled foot is polished by ([`polished`], D9).
+const FOOT_POLISH: usize = 2;
 
 /// How many times [`follow`] halves the way to a foot it cannot reach
 /// from the last one (D9).
@@ -184,7 +196,11 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     match wall.project_from_seed(p, u, v) {
-        Ok(proj) => Ok((Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance))),
+        Ok(proj) => Ok(polished(
+            wall,
+            p,
+            (Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance)),
+        )),
         Err(e) => {
             let jet = wall.ders(T::from_computed(e.last_u), T::from_computed(e.last_v));
             let at = Point3::new(mid(jet.point.x), mid(jet.point.y), mid(jet.point.z));
@@ -200,6 +216,49 @@ where
             }
         }
     }
+}
+
+/// **A settled foot, polished**: [`FOOT_POLISH`] more Newton steps on
+/// the two orthogonality conditions, each kept where it brings the foot
+/// no farther from `p`. The projection accepts a foot within its
+/// coincidence threshold of `p` as it stands, wherever along the wall
+/// that is; a path of such feet wanders by that threshold, which a fine
+/// band's image may not.
+fn polished<T>(wall: &NurbsSurface<T>, p: Point3<T>, foot: Settled<T>) -> Settled<T>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    let (ud, vd) = (
+        wall.knots_u_f64_interim().domain(),
+        wall.knots_v_f64_interim().domain(),
+    );
+    let mut best = foot;
+    for _ in 0..FOOT_POLISH {
+        let (uv, _, distance) = best;
+        let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
+        let r = mid3(jet.point - p);
+        let (su, sv) = (mid3(jet.du), mid3(jet.dv));
+        let (fu, fv) = (su.dot(r), sv.dot(r));
+        let a = su.dot(su) + mid3(jet.duu).dot(r);
+        let b = su.dot(sv) + mid3(jet.duv).dot(r);
+        let d = sv.dot(sv) + mid3(jet.dvv).dot(r);
+        let det = a * d - b * b;
+        let step = (-(d * fu - b * fv) / det, -(a * fv - b * fu) / det);
+        if !(step.0.is_finite() && step.1.is_finite()) {
+            break;
+        }
+        let next = Point2::new(
+            (uv.x + step.0).clamp(ud.0, ud.1),
+            (uv.y + step.1).clamp(vd.0, vd.1),
+        );
+        let at = wall.eval(T::from_computed(next.x), T::from_computed(next.y));
+        let moved = mid((at - p).norm());
+        if !(moved <= distance) || (next.x == uv.x && next.y == uv.y) {
+            break;
+        }
+        best = (next, at, moved);
+    }
+    best
 }
 
 fn mid<T: Decide + Bounds>(x: T) -> f64 {
@@ -312,8 +371,8 @@ where
         let feet = path(&read, wall, &nodes, first)?;
         let collocation = geom::Collocation::on(&nodes, knots).map_err(|_| ImageRefusal::Fit)?;
         let uv: Vec<Point2<f64>> = feet.iter().map(|f| f.uv).collect();
-        let image = NurbsCurve2::<f64>::interpolate_on(&uv, &collocation)
-            .map_err(|_| ImageRefusal::Fit)?;
+        let image =
+            NurbsCurve2::<f64>::interpolate_on(&uv, &collocation).map_err(|_| ImageRefusal::Fit)?;
         // The spans that miss, by the knot each takes (at its middle, or
         // on a line of the wall the path crosses in it), and the largest
         // miss read.
@@ -322,16 +381,23 @@ where
             let at = 0.5 * (pair[0].at + pair[1].at);
             #[allow(clippy::cast_possible_truncation)]
             let (miss, standoff) = miss(&read, wall, (at, i as u32 + 1), image.eval(at))?;
-            // Where the carrier itself stands off the wall past the
-            // band, the image is held to its share of that standoff: a
-            // finer image changes nothing a certificate reads of such a
-            // carrier.
-            let tol = tol.max(IMAGE_MISS * standoff);
+            // Where the carrier itself stands off the wall, the image is
+            // held to a share of that standoff: a finer image changes
+            // nothing a certificate reads of such a carrier, and the
+            // path of one that ends on a side of the rectangle bends
+            // there by a share of it.
+            let tol = tol.max(IMAGE_STANDOFF_SHARE * standoff);
             if miss <= tol {
                 continue;
             }
             worst = worst.max(miss);
-            match crossing(&read, wall, &lines, (pair[0], pair[1])) {
+            match crossing(
+                &read,
+                wall,
+                (&lines, degree, band),
+                (pair[0], pair[1]),
+                &feet,
+            ) {
                 Some(crease) => creases.push(crease),
                 None => add.extend(span_middle(&chain, at)),
             }
@@ -344,11 +410,24 @@ where
         // A crease's knot at the multiplicity that gives the image the
         // wall's continuity there, less what the chain holds of it.
         for (k, multiplicity) in creases {
-            let held = chain.iter().filter(|x| **x == k).count()
-                + add.iter().filter(|x| **x == k).count();
+            // A break found again beside the knot it already has is that
+            // knot's: two knots a rounding apart solve no collocation.
+            let k = chain
+                .iter()
+                .copied()
+                .find(|x| (x - k).abs() <= CREASE_SNAP)
+                .unwrap_or(k);
+            if !(k > 0.0 && k < 1.0) {
+                continue;
+            }
+            add.retain(|x| (x - k).abs() > CREASE_SNAP);
+            let held =
+                chain.iter().filter(|x| **x == k).count() + add.iter().filter(|x| **x == k).count();
             add.extend(core::iter::repeat_n(k, multiplicity.saturating_sub(held)));
         }
-        if add.is_empty() || round == IMAGE_ROUNDS || chain.len() + add.len() > chain_knots + IMAGE_KNOTS
+        if add.is_empty()
+            || round == IMAGE_ROUNDS
+            || chain.len() + add.len() > chain_knots + IMAGE_KNOTS
         {
             return Err(ImageRefusal::Miss { miss: worst });
         }
@@ -382,26 +461,68 @@ fn knot_lines<T: geom_core::Real>(wall: &NurbsSurface<T>, degree: usize) -> Vec<
         .collect()
 }
 
-/// **Where the path crosses a line of the wall between two feet**: the
-/// unit fraction of the crossing, found by halving the way between the
+/// **Where the path breaks between two feet**: where it crosses a knot
+/// line of the wall, or meets or leaves a side of the wall's rectangle
+/// (a foot the side holds stops moving across it, a kink of the path).
+/// A side the path's own end lies on, or one the wall closes across, is
+/// no break. The unit fraction of the break, found by halving the way between the
 /// feet [`CROSSING_HALVINGS`] times with the path followed to each
-/// middle, and the line's multiplicity. `None` where the feet lie on
-/// one side of every line, or a middle's foot is not reached. Of two
-/// lines crossed, the first listed.
+/// middle, and the multiplicity a knot of the image takes there: a knot
+/// line's, or the image's degree at a side. `None` where the feet lie on
+/// one side of every line and both on or both off every side, or a
+/// middle's foot is not reached. Of two breaks, the first listed, knot
+/// lines before sides.
 fn crossing<T>(
     read: &Read<'_, T>,
     wall: &NurbsSurface<T>,
-    lines: &[KnotLine],
+    (lines, degree, band): (&[KnotLine], usize, Band),
     (a, b): (Foot, Foot),
+    feet: &[Foot],
 ) -> Option<(f64, usize)>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     let along = |f: &Foot, axis: usize| if axis == 0 { f.uv.x } else { f.uv.y };
-    let &(axis, k, multiplicity) = lines
+    let sides = [
+        wall.knots_u_f64_interim().domain(),
+        wall.knots_v_f64_interim().domain(),
+    ];
+    // What a foot reads of the break: its side of a line, or whether a
+    // side of the rectangle holds it.
+    let (reading, multiplicity): (Box<dyn Fn(&Foot) -> bool>, usize) = match lines
         .iter()
-        .find(|(axis, k, _)| (along(&a, *axis) - k) * (along(&b, *axis) - k) < 0.0)?;
-    let start = along(&a, axis) > k;
+        .find(|(axis, k, _)| (along(&a, *axis) - k) * (along(&b, *axis) - k) < 0.0)
+    {
+        Some(&(axis, k, multiplicity)) => (Box::new(move |f| along(f, axis) > k), multiplicity),
+        None => {
+            let (first, last) = (feet.first()?, feet.last()?);
+            let (axis, side) = (0..2)
+                .flat_map(|axis| {
+                    let (lo, hi) = sides[axis];
+                    [(axis, lo, hi), (axis, hi, lo)]
+                })
+                .find(|&(axis, side, far)| {
+                    let held = |f: &Foot| along(f, axis) == side;
+                    // A side the path's own end lies on holds that end,
+                    // no break of the path inside it.
+                    let end = if held(&a) { first } else { last };
+                    held(&a) != held(&b) && !held(end) && {
+                        // A side the wall closes across holds nothing:
+                        // the path goes on from its far side.
+                        let on = if held(&a) { a.uv } else { b.uv };
+                        let across = if axis == 0 {
+                            Point2::new(far, on.y)
+                        } else {
+                            Point2::new(on.x, far)
+                        };
+                        !closes(wall, on, across, band)
+                    }
+                })
+                .map(|(axis, side, _)| (axis, side))?;
+            (Box::new(move |f| along(f, axis) == side), degree)
+        }
+    };
+    let start = reading(&a);
     let (mut near, mut far) = (a, b);
     for _ in 0..CROSSING_HALVINGS {
         let at = 0.5 * (near.at + far.at);
@@ -409,7 +530,7 @@ where
             break;
         }
         let foot = follow(read, wall, near, at, FOLLOW_HALVINGS).ok()?;
-        if (along(&foot, axis) > k) == start {
+        if reading(&foot) == start {
             near = foot;
         } else {
             far = foot;
@@ -503,14 +624,15 @@ fn miss<T>(
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    let (_, foot, standoff) = settle(wall, read.point(at), (p.x, p.y)).map_err(|last_distance| {
-        let (t0, t1) = read.domain;
-        ImageRefusal::Foot {
-            t: t0 + (t1 - t0) * at,
-            node,
-            last_distance,
-        }
-    })?;
+    let (_, foot, standoff) =
+        settle(wall, read.point(at), (p.x, p.y)).map_err(|last_distance| {
+            let (t0, t1) = read.domain;
+            ImageRefusal::Foot {
+                t: t0 + (t1 - t0) * at,
+                node,
+                last_distance,
+            }
+        })?;
     let here = wall.eval(T::from_computed(p.x), T::from_computed(p.y));
     let d = mid((here - foot).norm());
     if d.is_nan() {
@@ -606,6 +728,16 @@ where
     best
 }
 
+/// Whether the wall's points at two chart points are one, within the
+/// band: the two sides of a seam the wall closes across.
+fn closes<T>(wall: &NurbsSurface<T>, a: Point2<f64>, b: Point2<f64>, band: Band) -> bool
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    let at = |p: Point2<f64>| wall.eval(T::from_computed(p.x), T::from_computed(p.y));
+    mid((at(a) - at(b)).norm()) <= band.zero()
+}
+
 /// **The path's first foot**: the wall's nearest point to the carrier's
 /// start ([`nearest`]). Where that lies on a side of the rectangle the wall closes
 /// across, the same point of the wall is on the far side too: the nearer
@@ -629,7 +761,9 @@ where
             last_distance,
         }
     };
-    let mut best = nearest(wall, p).map(|foot| settled(at, foot)).map_err(refused)?;
+    let mut best = nearest(wall, p)
+        .map(|foot| settled(at, foot))
+        .map_err(refused)?;
     let domains = [
         wall.knots_u_f64_interim().domain(),
         wall.knots_v_f64_interim().domain(),
@@ -648,12 +782,7 @@ where
         } else {
             Point2::new(best.uv.x, far)
         };
-        let closes = mid(
-            (wall.eval(T::from_computed(across.x), T::from_computed(across.y))
-                - wall.eval(T::from_computed(best.uv.x), T::from_computed(best.uv.y)))
-            .norm(),
-        ) <= band.zero();
-        if !closes {
+        if !closes(wall, best.uv, across, band) {
             continue;
         }
         let Ok(other) = settle(wall, p, (across.x, across.y)) else {
@@ -675,9 +804,7 @@ where
             };
             (x == lo && d < 0.0) || (x == hi && d > 0.0)
         };
-        if (tied && leaves(&best) && !leaves(&other))
-            || (!tied && other.standoff < best.standoff)
-        {
+        if (tied && leaves(&best) && !leaves(&other)) || (!tied && other.standoff < best.standoff) {
             best = other;
         }
     }
@@ -744,8 +871,8 @@ where
             let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
             let from = wall.eval(T::from_computed(last.uv.x), T::from_computed(last.uv.y));
             let moved = mid3(jet.point - from);
-            let chart = (mid3(jet.du) * (uv.x - last.uv.x) + mid3(jet.dv) * (uv.y - last.uv.y))
-                .norm();
+            let chart =
+                (mid3(jet.du) * (uv.x - last.uv.x) + mid3(jet.dv) * (uv.y - last.uv.y)).norm();
             let with_the_carrier = (moved - dc).norm() <= FOLLOW_AGREEMENT * dc.norm() + slack;
             let on_its_sheet = chart <= FOLLOW_STRETCH * (moved.norm() + dc.norm()) + slack;
             if with_the_carrier && on_its_sheet {

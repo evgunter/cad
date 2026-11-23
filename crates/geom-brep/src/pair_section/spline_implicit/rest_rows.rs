@@ -495,24 +495,28 @@ fn the_stand_off_is_decided_on_the_runs_band() {
     }
 }
 
-/// **An arc that leaves the wall past its rim between two of the image's
-/// nodes is refused by the tube, and by nothing before it**: the flat
+/// **An arc that dips past the wall's rim never certifies**: the flat
 /// wall `y = 1` over `z ∈ [0, 2]`, and a sphere whose section circle of
-/// radius `0.3` on the wall's plane dips `d` below the rim `z = 0`, its
-/// lowest point half a node past the hundredth of the finest image's 256
-/// spans. For `d` from 3 ε up, the carrier is `d` off the wall there
-/// while it stays on the wall's plane, which the wall's polynomial
-/// extension past the rim is; the image follows it out, so limbs 1 and 2
-/// read nothing, and the certificate refuses at limb 3, whose boxes are
-/// cut to the knot rectangle: four solutions on their boundary, the arc
-/// leaving and coming back. Once the dip is wide enough to hold a node
-/// (`d` past `1e-5`, measured), limb 1 or 2 reads the foot held at the
-/// rim and refuses first. An arc a micrometre inside the rim certifies.
+/// radius `0.3` on the wall's plane dips `d` below the rim `z = 0`. The
+/// carrier is `d` off the wall at its lowest point while it stays on the
+/// wall's plane, which the wall's polynomial extension past the rim is.
+/// For `d` from 3 ε up, one of two readings stops it:
 ///
-/// Red against: a certificate that stops at limbs 1 and 2, which holds
-/// the arc `d` off the wall.
+/// - where the dip falls between the image's readings of its own miss,
+///   the image follows the carrier out through the extension, limbs 1
+///   and 2 read nothing, and limb 3 refuses, its boxes cut to the knot
+///   rectangle: four solutions on their boundary, the arc leaving and
+///   coming back;
+/// - where a reading falls in the dip, the image holds the rim there (the
+///   foot path's breaks are knots of the image) and limb 1 or 2 reads the
+///   carrier off the wall, escalating in the band and refusing past it.
+///
+/// An arc a micrometre inside the rim certifies.
+///
+/// Red against: a certificate that stops at limbs 1 and 2 on an image
+/// that follows the carrier out, which holds the arc `d` off the wall.
 #[test]
-fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube() {
+fn an_arc_that_dips_past_the_walls_rim_never_certifies() {
     let eps = band().zero();
     let rho = 0.3_f64;
     let wall = Surface::Nurbs(std::sync::Arc::new(flat()));
@@ -539,26 +543,27 @@ fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube(
     for k in [3.0, 30.0, 100.0, 400.0] {
         let d = k * eps;
         let read = dipping(d);
-        let expected = if d <= 1e-5 {
-            matches!(
-                read,
-                Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::TubeNotOneArc {
-                    cause: OneArcRefusal::Count { solutions: 4 },
-                    ..
-                }))
-            )
-        } else {
-            matches!(
-                read,
-                Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb {
-                    limb: SsiLimb::OnLocus | SsiLimb::HullValueChart,
-                    ..
-                }))
-            )
-        };
+        let by_the_tube = matches!(
+            read,
+            Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::TubeNotOneArc {
+                cause: OneArcRefusal::Count { solutions: 4 },
+                ..
+            }))
+        );
+        let on_the_dip = matches!(
+            read,
+            Err(CertifyError::Escalated {
+                check: CertCheck::PlaneNurbsHullValue | CertCheck::PlaneNurbsOnLocus,
+                ..
+            } | CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb {
+                limb: SsiLimb::OnLocus | SsiLimb::HullValueChart | SsiLimb::HullSupChart,
+                ..
+            }))
+        );
         assert!(
-            expected,
-            "an arc dipping {k} ε = {d:e} m past the rim is refused, by the tube where the dip              holds no node of the image and by limb 1 or 2 where it holds one: {read:?}"
+            by_the_tube || on_the_dip,
+            "an arc dipping {k} ε = {d:e} m past the rim is refused by the tube, or on the \
+             dip itself where the image reads it: {read:?}"
         );
     }
 }

@@ -2669,10 +2669,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     SsiOperand::Analytic(s) => Ok(SsiOperand::Analytic(s)),
                 }
             }
-            tube(
-                &on_grid(a, grid_a.as_ref())?,
-                &on_grid(b, grid_b.as_ref())?,
-            )?
+            tube(&on_grid(a, grid_a.as_ref())?, &on_grid(b, grid_b.as_ref())?)?
         }
     };
     Ok(certificate((on_locus, hull_sup), three))

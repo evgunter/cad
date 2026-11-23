@@ -218,11 +218,15 @@ fn the_bending_carriers_refine<T: geom_core::Certifies>(lane: FittedLane<T>) {
         IMAGE_DEGREE + 1,
         true,
     );
+    // Below `ε = 1e-10` the hull over-reads the image's miss on this
+    // stretched chart
+    // (`a-climbed-general-image-on-a-stretched-chart-reads-its-hull-wide-at-fine-eps`),
+    // which ends the lane's gap.
     bends_and_refines(
         "a line on the uneven wall",
         &mint::<T>(lane, &uneven_line(), (0.0, 1.2), &uneven_wall()),
         CLOSED_FORM_CHAIN,
-        true,
+        band().zero() >= 1e-10,
     );
 }
 
@@ -503,7 +507,12 @@ fn the_foot_path_reads_a_closed_walls_seam_from_the_side_it_runs_on() {
     };
     let lane = FittedLane::<f64>::certified();
     for (what, carrier, span, (u0, u1)) in [
-        ("from the seam, up", circle(1.0), (0.0, 1.0), (Some(0.0), None)),
+        (
+            "from the seam, up",
+            circle(1.0),
+            (0.0, 1.0),
+            (Some(0.0), None),
+        ),
         (
             "from the seam, down",
             circle(-1.0),

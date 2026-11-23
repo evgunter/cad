@@ -495,7 +495,10 @@ fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds
                 T::NAME
             )
         };
-        assert_eq!(half_edge, bottom, "{rim:?}: the bottom rim's row refuses: {error:?}");
+        assert_eq!(
+            half_edge, bottom,
+            "{rim:?}: the bottom rim's row refuses: {error:?}"
+        );
         assert!(
             matches!(
                 error,

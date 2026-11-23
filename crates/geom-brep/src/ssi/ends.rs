@@ -50,9 +50,7 @@ use super::march::{
 use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
 use super::system::{ImplicitChartR2, LocalSystem, ParametricPairR4, SectionSystem};
-use super::{
-    BranchBound, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol,
-};
+use super::{BranchBound, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol};
 
 /// The most knots [`Ends::graded`] inserts toward one node end (D9).
 pub(crate) const NODE_GRADES: usize = 512;
@@ -156,13 +154,9 @@ impl<'a> Operands<'a> {
                 let SsiOperand::Nurbs(wall) = wall else {
                     return Ok((None, None));
                 };
-                let image = crate::carrier_image::carrier_image(
-                    &carrier,
-                    params,
-                    wall.surface(),
-                    band,
-                )
-                .map_err(super::image_refusal)?;
+                let image =
+                    crate::carrier_image::carrier_image(&carrier, params, wall.surface(), band)
+                        .map_err(super::image_refusal)?;
                 Ok((None, Some(image)))
             }
             Self::Pair { a, b } => {
