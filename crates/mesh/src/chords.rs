@@ -911,7 +911,10 @@ fn coincident_end_floors(
     for (ek, _) in body.edges() {
         if let Some(pair) = ends(ek)?
             && one_chord[&pair] >= 2
-            && !matches!(*crate::walk::edge_curve(body, ek)?.carrier(), Curve3::Line(_))
+            && !matches!(
+                *crate::walk::edge_curve(body, ek)?.carrier(),
+                Curve3::Line(_)
+            )
         {
             raised.push(ek);
         }

@@ -275,10 +275,10 @@
 //!
 //! # The retry loop
 //!
-//! The lane rebuilds a face, at most [`MAX_GRID_RETRIES`] times, for
-//! three causes: a triangle folded over the chord beside it and a
-//! triangle with a side a neighbour may make too are each split by a
-//! point inside it, and (below) a triangle certified above δ is refined.
+//! The lane rebuilds a face for two causes, each on its own budget: a
+//! triangle folded over the chord beside it is split by a point inside
+//! it, at most [`MAX_FOLD_ROUNDS`] times, and (below) a triangle
+//! certified above δ is refined, at most [`MAX_GRID_RETRIES`] times.
 //! Lattice nodes are a fixed, (v, u)-sorted list computed once, before
 //! the loop, and every arm appends, so indices only grow.
 //!
@@ -337,24 +337,39 @@ use crate::sizing::{SizingTols, ceil_count};
 use crate::tessellate::{Lane, Patch, PatchVertex};
 use crate::types::{SphereTrimCause, TessellateError};
 
-/// Retry budget for the rebuild loop (module docs). **Termination.**
-///
-/// One round budget covers all three retry kinds — the
-/// certificate-driven refinement, the fold drops and the shared-side
-/// splits — and it is a typed-refusal backstop rather than a tuning
-/// knob: exhausting it raises [`TessellateError`], it never coarsens or
-/// accepts a mesh. The loop reads it through [`last_attempt`].
+/// The certificate-driven refinement's rebuilds of one face (module
+/// docs, "The retry loop"). A typed-refusal backstop rather than a tuning
+/// knob: exhausting it raises [`TessellateError::CertificateExceeded`],
+/// it never coarsens or accepts a mesh. Read through [`budget`].
 const MAX_GRID_RETRIES: usize = 6;
 
-/// The retry loop's last attempt: [`MAX_GRID_RETRIES`], or under
-/// `cfg(test)` an override a row sets to reach an exhaustion refusal
-/// through the real call path (`tests::LAST_ATTEMPT`).
-fn last_attempt() -> usize {
+/// The winding census's rebuilds of one face: each splits every folded
+/// triangle by a point inside it, and a fold left after this many
+/// refuses [`TessellateError::FoldedTriangle`]. A backstop as
+/// [`MAX_GRID_RETRIES`] is, and its own: a fold never spends a
+/// refinement's round. Measured over the `mesh` suite at ε 10⁻⁹, 10⁻⁶ and
+/// 10⁻¹² and `sweep`'s meshing modules, a face that meshes takes at most
+/// three; the faces that reach this budget refuse as they did before the
+/// cure split folds (`sweep`'s `spheres_crossing_off_every_edge` beside
+/// its pole). Read through [`budget`].
+const MAX_FOLD_ROUNDS: usize = 6;
+
+/// A retry budget: `rounds`, or under `cfg(test)` an override a row sets
+/// on both to reach an exhaustion through the real call path
+/// (`tests::LAST_ATTEMPT`).
+fn budget(rounds: usize) -> usize {
     #[cfg(test)]
     if let Some(k) = tests::LAST_ATTEMPT.with(std::cell::Cell::get) {
         return k;
     }
-    MAX_GRID_RETRIES
+    rounds
+}
+
+/// The rebuilds one face has spent, by cause.
+#[derive(Default)]
+struct Rounds {
+    folds: usize,
+    refines: usize,
 }
 
 /// **The trimmed lane's unproved headroom**: the cylinder arm sizes its
@@ -708,8 +723,8 @@ pub(crate) fn tessellate_trimmed(
     // here, so the measurement hand-off below is on all of them —
     // including the two typed REFUSALS, which is the case the
     // falsification accumulator above exists for. It is never `None`
-    // after the loop: an attempt asks for a rebuild only below
-    // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
+    // after the loop: an attempt asks for a rebuild only within its
+    // cause's budget (`Rounds`), so the loop ends accepting or refusing.
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
     let plane = CdtPlane::of(&row, metric, &polygon, &singular);
     let straight = |i: usize| carried_by_a_line(body, polygon.edges[i]);
@@ -740,7 +755,8 @@ pub(crate) fn tessellate_trimmed(
     // shared-side and refinement points, each strictly inside a kept
     // triangle.
     let mut candidates = trimmed.lay(&lattice);
-    for attempt in 0..=last_attempt() {
+    let mut rounds = Rounds::default();
+    for _ in 0..=budget(MAX_FOLD_ROUNDS) + budget(MAX_GRID_RETRIES) {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
         // that describe the mesh the face exits on, and every path out
@@ -748,7 +764,12 @@ pub(crate) fn tessellate_trimmed(
         // pass — reaches the hand-off below. (`worst_ratio` is
         // deliberately not among them; see above.)
         measure = AttemptMeasure::fresh();
-        match trimmed.attempt(attempt, &mut candidates, &mut measure, &mut falsification) {
+        match trimmed.attempt(
+            &mut rounds,
+            &mut candidates,
+            &mut measure,
+            &mut falsification,
+        ) {
             Ok(Next::Rebuild) => {}
             Ok(Next::Accept(patch)) => {
                 outcome = Some(Ok(patch));
@@ -820,7 +841,8 @@ pub(crate) fn tessellate_trimmed(
     outcome.unwrap_or_else(|| {
         unreachable!(
             "the last attempt accepts or refuses: `TrimmedFace::attempt` asks for a \
-             rebuild only below MAX_GRID_RETRIES"
+             rebuild only within its cause's budget, and the loop runs both budgets' \
+             rounds and one more"
         )
     })
 }
@@ -1026,7 +1048,7 @@ impl TrimmedFace<'_> {
     /// refinement or the verdict.
     fn attempt(
         &self,
-        attempt: usize,
+        rounds: &mut Rounds,
         candidates: &mut Vec<(f64, f64)>,
         measure: &mut AttemptMeasure,
         falsification: &mut Falsification,
@@ -1062,9 +1084,10 @@ impl TrimmedFace<'_> {
         // the face rebuilt, which takes the fold apart; one the retry
         // budget does not clear refuses typed.
         if !folds.is_empty() {
-            if attempt == last_attempt() {
+            if rounds.folds == budget(MAX_FOLD_ROUNDS) {
                 return Err(TessellateError::FoldedTriangle { face: fk });
             }
+            rounds.folds += 1;
             candidates.extend(folds);
             return Ok(Next::Rebuild);
         }
@@ -1077,7 +1100,11 @@ impl TrimmedFace<'_> {
         // insertion cannot converge against a strip
         // still anisotropic where the CDT runs (measured — anchors and
         // centroids each re-admit the empty circle beside themselves).
-        if !refine.is_empty() && !measure.verdict.worst().is_nan() && attempt < last_attempt() {
+        if !refine.is_empty()
+            && !measure.verdict.worst().is_nan()
+            && rounds.refines < budget(MAX_GRID_RETRIES)
+        {
+            rounds.refines += 1;
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
@@ -3985,8 +4012,8 @@ pub(super) mod tests {
         /// only.
         pub(crate) static STEP_SCALE: std::cell::Cell<f64> =
             const { std::cell::Cell::new(1.0) };
-        /// The retry loop's last attempt, when a row sets it
-        /// (`super::last_attempt`). `cfg(test)` only.
+        /// Both retry budgets, when a row sets them (`super::budget`).
+        /// `cfg(test)` only.
         pub(crate) static LAST_ATTEMPT: std::cell::Cell<Option<usize>> =
             const { std::cell::Cell::new(None) };
     }
@@ -5433,7 +5460,7 @@ pub(super) mod tests {
     /// no attempt of the lane's.** The rod sliver's cylinder face makes, on
     /// its first attempt, sides between two points of one ellipse arc that
     /// are not neighbours on it, which the plane face across that arc makes
-    /// too. With the loop's last attempt set to the first (`LAST_ATTEMPT`,
+    /// too. With both retry budgets set to none (`LAST_ATTEMPT`,
     /// test-only) the lane has no second attempt, and the body meshes, a
     /// closed manifold by `check_mesh`, at every δ: the join split each such
     /// side in both patches (`crate::join`). Set on a one-thread pool's
