@@ -365,6 +365,22 @@ pub enum LoftError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
+    /// Whether a sub-arc joint of a segment (a C⁰ knot its compatible
+    /// strip carries, where the loft cuts the wall) is the same world
+    /// point in a slab's two sections escalated (`loft_corner_pinned`,
+    /// the corner's one predicate).
+    JointEscalated {
+        /// The loop, in canonical order (the outer first).
+        loop_index: usize,
+        /// The segment whose wall the joint cuts.
+        segment: usize,
+        /// The joint, counting from zero along the segment.
+        joint: usize,
+        /// The slab — the pair [`SlabPair`] names.
+        slab: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
     /// Two segments of a slab's two sections meet, a meeting the door
     /// verified: off every pinned corner they share, or anywhere where
     /// they share none. A hinge slid along its own edge, sections that
@@ -469,6 +485,14 @@ pub enum PinnedSite {
     Corner(usize),
     /// Segment `j`, both of whose corners are pinned.
     Segment(usize),
+    /// Sub-arc joint `joint` of segment `segment`: a C⁰ knot of the
+    /// segment's compatible strip, where the loft cuts its wall.
+    Joint {
+        /// The segment.
+        segment: usize,
+        /// The joint, counting from zero along the segment.
+        joint: usize,
+    },
 }
 
 impl fmt::Display for PinnedSite {
@@ -476,6 +500,9 @@ impl fmt::Display for PinnedSite {
         match self {
             Self::Corner(j) => write!(f, "corner {j}"),
             Self::Segment(j) => write!(f, "segment {j} (both its corners)"),
+            Self::Joint { segment, joint } => {
+                write!(f, "sub-arc joint {joint} of segment {segment}")
+            }
         }
     }
 }
@@ -619,6 +646,24 @@ impl LoftError {
                 source.undecided(
                     format_args!(
                         "whether loft {} hold corner {corner} of loop {loop_index} at one point",
+                        SlabPair(*slab)
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
+            ),
+            Self::JointEscalated {
+                loop_index,
+                segment,
+                joint,
+                slab,
+                source,
+            } => write!(
+                f,
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether loft {} hold sub-arc joint {joint} of segment {segment} of loop \
+                         {loop_index} at one point",
                         SlabPair(*slab)
                     ),
                     source.ending(geom_core::COINCIDENCE_RECOURSE),
@@ -787,6 +832,33 @@ fn strip_points<S: Real, T: Real>(
         .collect()
 }
 
+/// Each compatible strip's sub-arc joints as the stacking door reads
+/// them ([`stacking::Joints`]): the control index of every C⁰ knot of
+/// the strip's knot vector, which its curves share
+/// ([`crate::skin::crease_columns`]).
+///
+/// # Errors
+///
+/// [`LoftError::SectionStructure`] for a strip with no curve, or a knot
+/// vector the skin's continuous sections cannot have.
+fn strip_joints<S: geom_core::spline::SpanLocate>(
+    strips: &[Vec<Vec<geom::NurbsCurve3<S>>>],
+) -> Result<stacking::Joints, LoftError> {
+    strips
+        .iter()
+        .map(|lp| {
+            lp.iter()
+                .map(|strip| {
+                    let first = strip.first().ok_or(LoftError::SectionStructure)?;
+                    crate::skin::crease_columns(first.knot_values())
+                        .map(|joints| joints.into_iter().map(|(_, c)| c).collect())
+                        .ok_or(LoftError::SectionStructure)
+                })
+                .collect()
+        })
+        .collect()
+}
+
 /// The world point of a sketch-plane point under a lifted placement.
 fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
     place.transform_point(Point3::new(p.x, p.y, T::zero()))
@@ -943,15 +1015,14 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
     /// caps that enclose its family.
     fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T, Body<T>>, LoftError> {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
-        let strips = compatible_strips(&canonical, self.places)
-            .map_err(LoftError::Skin)?
-            .iter()
-            .map(|lp| strip_points(lp, |p| *p))
-            .collect();
+        let compat = compatible_strips(&canonical, self.places).map_err(LoftError::Skin)?;
+        let joints = strip_joints(&compat)?;
+        let strips = compat.iter().map(|lp| strip_points(lp, |p| *p)).collect();
         let pinned = stacking::stacking_door(
             self.places,
             &canonical,
             &strips,
+            &joints,
             self.v_degree,
             band,
             self.tol,
@@ -962,6 +1033,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
             self.v_degree,
             self.params,
             &|l, j, s| pinned.at(l, j, s),
+            &|l, j, i, s| pinned.joint_at(l, j, i, s),
         )
         .map_err(LoftError::Skin)?;
         assemble(
@@ -1052,19 +1124,28 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
                 })
             })
             .collect();
-        let strips = compatible_strips(&canonical, channel_places)
-            .map_err(LoftError::Skin)?
+        let compat = compatible_strips(&canonical, channel_places).map_err(LoftError::Skin)?;
+        let joints = strip_joints(&compat)?;
+        let strips = compat
             .iter()
             .map(|lp| strip_points(lp, |p| p.map(T::from_computed)))
             .collect();
-        let pinned =
-            stacking::stacking_door(places, &lifted, &strips, self.v_degree, band, self.tol)?;
+        let pinned = stacking::stacking_door(
+            places,
+            &lifted,
+            &strips,
+            &joints,
+            self.v_degree,
+            band,
+            self.tol,
+        )?;
         let geometry = skin_validated(
             canonical,
             channel_places,
             self.v_degree,
             self.params,
             &|l, j, s| pinned.at(l, j, s),
+            &|l, j, i, s| pinned.joint_at(l, j, i, s),
         )
         .map_err(LoftError::Skin)?;
         let walls = geometry
@@ -1149,29 +1230,27 @@ fn sub_arc_walls<T: geom_core::spline::SpanLocate>(
     wall: &Arc<NurbsSurface<T>>,
 ) -> Result<(Vec<Arc<NurbsSurface<T>>>, Vec<f64>), LoftError> {
     let knots = wall.knot_values_u();
-    let structure = knots.structure();
-    let creases: Vec<usize> = structure.crease_runs().collect();
+    let creases: Vec<usize> = knots.structure().crease_runs().collect();
     if creases.is_empty() {
         return Ok((vec![Arc::clone(wall)], Vec::new()));
     }
-    let p = knots.degree();
-    let mults = structure.multiplicities();
-    if creases.iter().any(|&r| mults[r] != p) {
-        return Err(LoftError::SectionStructure);
-    }
-    let Some(values) = knots.breakpoint_values() else {
+    let Some(joints) = crate::skin::crease_columns(knots) else {
         return Err(LoftError::SectionStructure);
     };
+    let p = knots.degree();
     let runs: Vec<(T, usize)> = knots.runs().collect();
     let last = runs.len() - 1;
     let (nu, nv) = wall.control_counts();
-    // The control column the net interpolates at run `r`: a run of
-    // multiplicity `p` starting at knot index `i` passes through
-    // column `i − 1`.
+    // The control column the net interpolates at run `r`.
     let column = |r: usize| match r {
         0 => 0,
         r if r == last => nu - 1,
-        r => mults[..r].iter().sum::<usize>() - 1,
+        r => {
+            joints[creases.iter().position(|&c| c == r).unwrap_or_else(|| {
+                unreachable!("run {r} bounds a piece only where it is a crease")
+            })]
+            .1
+        }
     };
     let seam = |e| LoftError::SeamStructure {
         source: geom_core::spline::Built::new(e),
@@ -1203,7 +1282,7 @@ fn sub_arc_walls<T: geom_core::spline::SpanLocate>(
                 .map_err(seam)
         })
         .collect::<Result<_, _>>()?;
-    Ok((walls, creases.iter().map(|&r| values[r]).collect()))
+    Ok((walls, joints.iter().map(|&(u, _)| u).collect()))
 }
 
 /// **A section's segment cut where its wall is** ([`sub_arc_walls`]):
@@ -1422,17 +1501,17 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // every section is one slab over all of them, where the door has
     // refused a corner or segment pinned in some and not others.
     let over = |s: usize| if slabs == 1 { 0..k - 1 } else { s..s + 1 };
-    // The door classes the profile's corners and segments; a piece is
-    // its segment's. A piece's start is pinned where it is its segment's
-    // corner and the door pinned that, or where it is a joint inside a
-    // segment held flat, whose joints coincide as its curve does.
+    // The door classes the profile's corners, segments and sub-arc
+    // joints. A piece is its segment's: held flat where its segment is,
+    // and its start pinned where that is its segment's corner or a joint
+    // the door pinned, a corner of the two walls the joint parts.
     let flat = |li: usize, q: usize, s: usize| {
         let (j, _) = owner[li][q];
         door.flat_through(li, j, over(s))
     };
     let pinned_at = |li: usize, q: usize, s: usize| match owner[li][q] {
         (j, 0) => door.at_through(li, j, over(s)),
-        (j, _) => door.flat_through(li, j, over(s)),
+        (j, sub) => door.joint_through(li, j, sub - 1, over(s)),
     };
 
     // ---- Traversals and world points, per section, per loop, per

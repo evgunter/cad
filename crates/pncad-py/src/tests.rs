@@ -5092,6 +5092,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "far_section_not_forward",
             "far_stacking_escalated",
+            "joint_escalated",
             "not_finished",
             "pcurve",
             "pinned_corner",

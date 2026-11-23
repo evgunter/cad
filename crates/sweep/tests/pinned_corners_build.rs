@@ -572,3 +572,171 @@ fn a_corner_pinned_through_a_cubic_solve_stays_one_point() {
     );
     holds("cubic", measured(&l), divergence_volume(&l), 1e-9);
 }
+
+/// **The volume of a two-section v-degree-1 loft of a curved profile,
+/// off its sections alone**: the divergence theorem over the ruled wall
+/// joining `p(u)` placed by `m0` to `p(u)` placed by `m1` (the loft pairs
+/// the two sections' curves at one parameter, and both are one profile),
+/// by 3-point Gauss on `pieces` spans of `u ∈ [0, 1)` and in the ruling,
+/// and the two caps, each its plane's offset from the origin times the
+/// profile's `area`. `p` and `dp` are the profile and its derivative,
+/// counterclockwise.
+fn ruled_curve_volume(
+    p: impl Fn(f64) -> (f64, f64),
+    dp: impl Fn(f64) -> (f64, f64),
+    area: f64,
+    (m0, m1): (&Affine3<f64>, &Affine3<f64>),
+    pieces: u32,
+) -> f64 {
+    let at = |m: &Affine3<f64>, (x, y): (f64, f64)| {
+        m.transform_point(Point3::new(x, y, 0.0)) - Point3::origin()
+    };
+    let along = |m: &Affine3<f64>, (x, y): (f64, f64)| m.transform_vec(Vec3::new(x, y, 0.0));
+    let normal = |m: &Affine3<f64>| m.transform_vec(Vec3::new(0.0, 0.0, 1.0));
+    let mut volume =
+        area * (normal(m1).dot(at(m1, (0.0, 0.0))) - normal(m0).dot(at(m0, (0.0, 0.0))));
+    let (g, w) = gauss3();
+    for i in 0..pieces {
+        let h = 1.0 / f64::from(pieces);
+        for (gu, wu) in g.iter().zip(w) {
+            let u = h * (f64::from(i) + gu);
+            let (a, b) = (at(m0, p(u)), at(m1, p(u)));
+            let (da, db) = (along(m0, dp(u)), along(m1, dp(u)));
+            for (t, wt) in g.iter().zip(w) {
+                let x = a * (1.0 - t) + b * *t;
+                let xu = da * (1.0 - t) + db * *t;
+                volume += h * wu * wt * x.dot(xu.cross(b - a));
+            }
+        }
+    }
+    volume / 3.0
+}
+
+/// **A sub-arc joint pinned while its segment moves builds.** The half
+/// disc's semicircle is two quarter walls joined at its apex `(0, 1)`;
+/// turned about the line through the apex along `x`, the apex is one
+/// world point in both sections while the chord and the rest of the arc
+/// move. The stacking door pins the joint as it pins a corner, so it is
+/// one vertex with no strut, and the two quarter walls each have a
+/// collapsed side there. The same for a full circle turned about the
+/// tangent at its 90° joint. Each is a finished body (tiers 1–3 and the
+/// at-rest census), and its volume holds the ruled solid's, read off the
+/// sections alone.
+#[test]
+fn a_pinned_sub_arc_joint_builds_as_a_pinned_corner() {
+    use core::f64::consts::PI;
+    let circle = || {
+        vec![<ProfileLoop<f64> as profile::RawLoop<f64>>::new([(
+            Point2::new(1.0, 0.0),
+            profile::Segment::Arc(geom_core::Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: core::f64::consts::TAU,
+            }),
+        )])]
+    };
+    // The half disc: the chord on u ∈ [0, ½), the semicircle after.
+    let dee_at = |u: f64| {
+        if u < 0.5 {
+            (-1.0 + 4.0 * u, 0.0)
+        } else {
+            let a = PI * (2.0 * u - 1.0);
+            (a.cos(), a.sin())
+        }
+    };
+    let dee_d = |u: f64| {
+        if u < 0.5 {
+            (4.0, 0.0)
+        } else {
+            let a = PI * (2.0 * u - 1.0);
+            (-2.0 * PI * a.sin(), 2.0 * PI * a.cos())
+        }
+    };
+    let circle_at = |u: f64| ((2.0 * PI * u).cos(), (2.0 * PI * u).sin());
+    let circle_d = |u: f64| {
+        let a = 2.0 * PI * u;
+        (-2.0 * PI * a.sin(), 2.0 * PI * a.cos())
+    };
+    let apex = |angle: f64| turn([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], angle);
+    let (m0, dee_m1, circle_m1) = (Affine3::identity(), apex(-0.4), apex(-0.6));
+    let cases = [
+        (
+            "half disc",
+            vec![dee(); 2],
+            dee_m1,
+            ruled_curve_volume(dee_at, dee_d, PI / 2.0, (&m0, &dee_m1), 256),
+            (5, 8, 5),
+        ),
+        (
+            "circle",
+            vec![circle(); 2],
+            circle_m1,
+            ruled_curve_volume(circle_at, circle_d, PI, (&m0, &circle_m1), 256),
+            (7, 11, 6),
+        ),
+    ];
+    for (what, sections, m1, want, census_want) in cases {
+        let l = build(what, &sections, &[m0, m1], 1);
+        assert_eq!(census(&l), census_want, "{what}: census");
+        assert_eq!(
+            collapsed_sides(&l),
+            2,
+            "{what}: the two quarter walls' collapsed sides at the joint"
+        );
+        let joints: Vec<Option<topo::EdgeKey>> = l.joint_edges[0]
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(
+            joints.iter().filter(|e| e.is_none()).count(),
+            1,
+            "{what}: no strut at the pinned joint, one at every other: {joints:?}"
+        );
+        holds(what, measured(&l), want, 1e-9);
+    }
+}
+
+/// **A foreign sub-arc joint on a hinge builds.** The square turned about
+/// its edge y = +1 holds that segment flat in the first slab, and a third
+/// section bulges the same segment into a 106° arc, two sub-arcs. The
+/// skin carries that arc's joint into every section's row, so the hinge
+/// line is cut there too: in the first slab the joint is one world point
+/// in both sections, pinned with the hinge (no strut, no wall on either
+/// piece), and in the second it moves (a strut between two walls). A
+/// finished body (tiers 1–3 and the at-rest census).
+#[test]
+fn a_foreign_joint_on_a_hinge_builds_pinned_with_it() {
+    let bulged = vec![bulge_loop(vec![
+        (Point2::new(-1.0, -1.0), 0.0),
+        (Point2::new(1.0, -1.0), 0.0),
+        (Point2::new(1.0, 1.0), 0.5),
+        (Point2::new(-1.0, 1.0), 0.0),
+    ])];
+    let l = build(
+        "a hinge under a bulged segment",
+        &[square(), square(), bulged],
+        &[Affine3::identity(), about_its_far_edge(), lift(2.0)],
+        1,
+    );
+    let pieces = &l.side_faces[0][2];
+    assert_eq!(pieces.len(), 2, "the hinge segment is cut at the joint");
+    for walls in pieces {
+        assert_eq!(
+            (walls[0], walls[1].is_some()),
+            (None, true),
+            "no wall in the hinge's slab, a wall above: {pieces:?}"
+        );
+    }
+    assert_eq!(
+        l.joint_edges[0][2],
+        [vec![None, l.joint_edges[0][2][0][1]]],
+        "the joint has no strut in the hinge's slab"
+    );
+    assert!(l.joint_edges[0][2][0][1].is_some(), "and a strut above it");
+    // The hinge stack's (10, 17, 9), and the joint: its vertex in the
+    // hinge's slab and in the bulged section, its strut above, the hinge
+    // and the top rim each cut in two, and the wall above in two.
+    assert_eq!(census(&l), (12, 20, 10), "census");
+}

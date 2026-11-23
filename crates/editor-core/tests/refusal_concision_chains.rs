@@ -857,7 +857,7 @@ mod kernel {
         pub(super) const LOFT_ERROR: LoftError = [
             Band, Skin, Euler, Pcurve, SeamStructure, SectionStructure,
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
-            PinnedCorner, CornerEscalated, SectionsTouch,
+            PinnedCorner, CornerEscalated, JointEscalated, SectionsTouch,
             ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
             StackingEscalated, NotFinished,
         ];
@@ -3633,6 +3633,16 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::CornerEscalated {
                 loop_index: 1,
                 corner: 12,
+                slab: 10,
+                source: diag(),
+            },
+        ),
+        (
+            "JointEscalated",
+            E::JointEscalated {
+                loop_index: 1,
+                segment: 12,
+                joint: 2,
                 slab: 10,
                 source: diag(),
             },

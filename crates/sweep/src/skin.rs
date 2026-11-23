@@ -598,6 +598,27 @@ pub(crate) fn sub_arc_count(x: f64) -> usize {
     ((x / MAX_SUB_ARC).ceil() as usize).max(1)
 }
 
+/// **A spline's C⁰ joints in one direction**: for each interior run of
+/// multiplicity equal to the degree ([`Knots::crease_values`]), its
+/// value on the value channel and the control index the spline
+/// interpolates there (a run of multiplicity `p` starting at knot index
+/// `i` passes through control `i − 1`). The skin's sub-arc joints, read
+/// once for the loft's cut ([`crate::loft`]'s `sub_arc_walls`), the
+/// stacking door's joint classes and the skin's pinned joints.
+///
+/// `None` where an interior run's multiplicity exceeds the degree (a
+/// discontinuity no skin of continuous sections has) or a crease value
+/// is no finite point.
+pub(crate) fn crease_columns<T: SpanLocate>(knots: &Knots<T>) -> Option<Vec<(f64, usize)>> {
+    let structure = knots.structure();
+    let (p, mults) = (knots.degree(), structure.multiplicities());
+    let values = knots.breakpoint_values()?;
+    structure
+        .crease_runs()
+        .map(|r| (mults[r] == p).then(|| (values[r], mults[..r].iter().sum::<usize>() - 1)))
+        .collect()
+}
+
 /// One profile segment as a NURBS curve in WORLD space, exactly.
 ///
 /// - **Line** → degree 1, two control points, unit weights: the chord,
@@ -1711,6 +1732,9 @@ fn skin_strips<T: SpanLocate>(
 /// point it holds in section `s`, slab after slab, so a run of pinned
 /// slabs holds its first section's point throughout; and in each section
 /// of the run strip `j − 1` ends on the point strip `j` starts on.
+/// Where `joint(l, j, i, s)`, strip `j`'s sub-arc joint `i` (its `i`-th
+/// C⁰ knot, [`crease_columns`]) holds its section-`s` point the same way,
+/// so the two walls the loft cuts there each have a collapsed side.
 ///
 /// # Errors
 ///
@@ -1719,6 +1743,7 @@ fn skin_strips<T: SpanLocate>(
 fn pin_strips<T: SpanLocate>(
     strips: &mut [Vec<Vec<NurbsCurve3<T>>>],
     pinned: &dyn Fn(usize, usize, usize) -> bool,
+    joint: &dyn Fn(usize, usize, usize, usize) -> bool,
 ) -> Result<(), SkinError> {
     let with_point = |c: &NurbsCurve3<T>, at: usize, p: Point3<T>| {
         let mut control = c.control().to_vec();
@@ -1741,6 +1766,20 @@ fn pin_strips<T: SpanLocate>(
                     lp[prev][section] = with_point(&lp[prev][section], last, point)?;
                 }
             }
+            let columns: Vec<usize> = lp[j]
+                .first()
+                .and_then(|c| crease_columns(c.knot_values()))
+                .map(|js| js.into_iter().map(|(_, c)| c).collect())
+                .unwrap_or_default();
+            for (i, &at) in columns.iter().enumerate() {
+                for s in 0..k.saturating_sub(1) {
+                    if !joint(l, j, i, s) {
+                        continue;
+                    }
+                    let point = lp[j][s].control()[at];
+                    lp[j][s + 1] = with_point(&lp[j][s + 1], at, point)?;
+                }
+            }
         }
     }
     Ok(())
@@ -1755,16 +1794,19 @@ fn pin_strips<T: SpanLocate>(
 /// `pinned(l, j, s)` is the loft door's verdict that loop `l`'s corner
 /// `j` is one world point in sections `s` and `s + 1`: every section of
 /// such a run holds the corner as its first section's stored point
-/// ([`pin_strips`]), so each wall beside it has a collapsed side.
+/// ([`pin_strips`]), so each wall beside it has a collapsed side;
+/// `joint(l, j, i, s)` is the door's verdict on strip `j`'s sub-arc joint
+/// `i`, written the same way.
 pub(crate) fn skin_validated<T: SpanLocate>(
     validated: Vec<ValidatedProfile<T>>,
     places: &[SketchPlane<T>],
     v_degree: usize,
     params: Option<&[f64]>,
     pinned: &dyn Fn(usize, usize, usize) -> bool,
+    joint: &dyn Fn(usize, usize, usize, usize) -> bool,
 ) -> Result<LoftGeometry<T>, SkinError> {
     let mut compat = compatible_strips(&validated, places)?;
-    pin_strips(&mut compat, pinned)?;
+    pin_strips(&mut compat, pinned, joint)?;
     let params = match params {
         Some(params) => params.iter().map(|v| T::from_computed(*v)).collect(),
         None => strip_parameters(&compat)?,

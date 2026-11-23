@@ -1691,6 +1691,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::NotFinished { .. } => "not_finished",
         LoftError::PinnedCorner { .. } => "pinned_corner",
         LoftError::CornerEscalated { .. } => "corner_escalated",
+        LoftError::JointEscalated { .. } => "joint_escalated",
         LoftError::SectionsTouch { .. } => "sections_touch",
         LoftError::ClearanceUndecided { .. } => "clearance_undecided",
         LoftError::ClearanceFault { .. } => "clearance_fault",
