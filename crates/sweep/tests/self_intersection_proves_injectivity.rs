@@ -6993,6 +6993,14 @@ fn apex_cut<T: Scalar>(r: f64, h: f64, cut: Cut) -> Result<Body<T>, String> {
 /// them; at `Interval` they hold tilted toward a ruling and are never
 /// read crossing. The whole body refuses on its cap as every cut cone
 /// does ([`refuses_on_a_cap_and_its_wall_holds`]).
+///
+/// **What is left**: this row does not pin `cone_regular`. With the
+/// guard off it still passes: on a kernel-built body the apex is a
+/// vertex of both halves, and the readings' own vertex checks refuse a
+/// rectangle that holds it before the guard is asked. The guard is
+/// pinned at `injective::focal_rows`'
+/// `a_cone_rectangle_holding_its_apex_is_read_by_no_curved_reading`,
+/// whose fixture has no apex vertex.
 #[test]
 fn a_cut_cone_that_keeps_its_apex_holds_between_its_halves() {
     for (what, cut, twin_holds) in [
