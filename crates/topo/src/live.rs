@@ -2120,10 +2120,6 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
                 "the tier-3 census hands an unwalkable loop back",
             ),
             (
-                "props.rs",
-                "the seam region walk reads its loops unchecked and refuses an unwalkable one",
-            ),
-            (
                 "euler.rs",
                 "find_half_edge is total by its contract; site_face reads keys only",
             ),
@@ -2168,10 +2164,6 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             (
                 "lineage.rs",
                 "the snapshot is taken before a door's own checks run",
-            ),
-            (
-                "props.rs",
-                "the seam region walk refuses an unwalkable loop, which the raw door reads as Corrupt",
             ),
         ];
         let strays = read_outside(
