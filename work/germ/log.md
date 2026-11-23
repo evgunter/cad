@@ -1848,3 +1848,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - `germ/a-parallel-leg-near-cos-v-minus-r-over-r-reads-touch-against-a-villarceau-edge` (P2, for Ev's eye);
     - `export/step-imports-one-record-folds-the-sense-bit-by-hand`.
   - The same reviewer (the drawn arm) is confirming its findings on the new head, as a confirmation of its own findings, not a second review.
+- 2026-11-23 12:20 — **PR 7431 confirmation: APPROVE-WITH-FIXES.**
+  - MAJOR fixed: near-parallel wrong answers went from 522/3546 to 0/3383 at default ε and from 980/3500 to 0/3420 at 1e-12.
+  - MINORs 3 and 4 fixed. MINOR 2 partly fixed: the refusal shift is measured in P, not off Q, so a leaned plane still decides in band.
+  - Decision: merge with the residual filed as a P1 row rather than run another fix pass. The residual is a strict improvement on the head; it is demonstrated at s ≈ 0.2 and settled by a narrow re-pose.
+  - Also filed by the lane: a P2 for a meeting found between ε and Kε at 1e-6, and a P3 for the slit's mislabel.
+  - The lane is checking whether `face_normal::the_planar_sense_flip_lives_in_one_place`, which names `ring_path.rs`, is a main red, and which merge caused it, starting with GERM's PR 7411.
