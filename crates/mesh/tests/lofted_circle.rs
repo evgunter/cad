@@ -2,10 +2,11 @@
 //!
 //! A circle section is two half-turn arcs, and `sweep::skin::segment_curve`
 //! cuts each into two rational quarter arcs joined at a knot of
-//! multiplicity two: each lateral wall of `sweep::test_support`'s
-//! `lofted_cylinder` carries a C⁰ crease in `u`, at the arc's
-//! mid-angle, which is `x = 0` on both walls. The trimmed lane cuts its
-//! triangles along it (`mesh::trimmed`'s `Creases`).
+//! multiplicity two, at the arc's mid-angle, `x = 0`. The loft cuts each
+//! wall there, so `sweep::test_support`'s `lofted_cylinder` has four
+//! quarter walls and the joint is a seam edge between two of them; the
+//! rows below that name "the crease" read that seam, which no triangle
+//! crosses because no face spans it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

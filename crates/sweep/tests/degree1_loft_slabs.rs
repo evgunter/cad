@@ -580,8 +580,8 @@ fn an_arc_refined_at_non_uniform_breaks_lofts_at_degree_two() {
         30f64.to_radians().tan(),
     ];
     let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();
-    let lofted =
-        loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0, 2.0]), 2, tol()).unwrap_or_else(|e| {
+    let lofted = loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0, 2.0]), 2, tol())
+        .unwrap_or_else(|e| {
             panic!(
                 "the varying arc lofts: {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
