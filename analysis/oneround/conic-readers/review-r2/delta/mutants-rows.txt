@@ -1,0 +1,89 @@
+D01 bulge halved:  Summary [   8.454s] 14 tests run: 9 passed, 5 failed, 655 skipped
+    geom cover::review_probes::delta_h1_bracketed_realizations
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+    geom cover::tests::held_arc_sweep::the_nearest_distance_from_a_point_of_a_short_far_arc_is_zero_to_its_rounding
+D02 one piece dropped:  Summary [  10.245s] 14 tests run: 9 passed, 5 failed, 655 skipped
+    geom cover::review_probes::delta_h1_bracketed_realizations
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+    geom cover::tests::held_arc_sweep::the_nearest_distance_from_a_point_of_a_short_far_arc_is_zero_to_its_rounding
+D03 near without the bulge:  Summary [   9.133s] 14 tests run: 9 passed, 5 failed, 655 skipped
+    geom cover::review_probes::delta_h1_bracketed_realizations
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+    geom cover::tests::held_arc_sweep::the_nearest_distance_from_a_point_of_a_short_far_arc_is_zero_to_its_rounding
+D04 far without the bulged corners:  Summary [  10.814s] 14 tests run: 10 passed, 4 failed, 655 skipped
+    geom cover::review_probes::delta_h1_bracketed_realizations
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+D05 ball by the smaller semi-axis:  Summary [  10.723s] 14 tests run: 11 passed, 3 failed, 655 skipped
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+D06 chord ball halved:  Summary [  10.563s] 14 tests run: 10 passed, 4 failed, 655 skipped
+    geom cover::tests::a_far_sections_cover_holds_its_stored_arc
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+D07 bulge_factor at h not h/2 (under, 2sin^2 of quarter/8):  Summary [  11.854s] 14 tests run: 9 passed, 5 failed, 655 skipped
+    geom cover::review_probes::delta_h1_bracketed_realizations
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+    geom cover::tests::held_arc_sweep::the_nearest_distance_from_a_point_of_a_short_far_arc_is_zero_to_its_rounding
+D08 bulge_factor without the 2:  Summary [  11.566s] 14 tests run: 9 passed, 5 failed, 655 skipped
+    geom cover::review_probes::delta_h1_bracketed_realizations
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+    geom cover::tests::held_arc_sweep::the_nearest_distance_from_a_point_of_a_short_far_arc_is_zero_to_its_rounding
+D09 over_anchor clamp dropped (vacuous):  Summary [  10.713s] 14 tests run: 13 passed, 1 failed, 655 skipped
+    geom cover::tests::held_arc_rows::the_interval_support_along_the_arcs_own_normal_is_of_the_arcs_size
+D10 over_anchor clamp at A (cuts k<0):  Summary [  11.110s] 14 tests run: 10 passed, 4 failed, 655 skipped
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+D11 over_anchor clamp at max(A,|k|):  Summary [  11.943s] 14 tests run: 10 passed, 4 failed, 655 skipped
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+D12 over_anchor ratio arm only:  Summary [  11.050s] 14 tests run: 11 passed, 3 failed, 655 skipped
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
+D13 over_anchor ratio halved:  Summary [   8.359s] 14 tests run: 9 passed, 5 failed, 655 skipped
+    geom cover::review_probes::delta_h1_normal_and_tilts
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+D14 trough as the crest (sign of k kept):  Summary [   8.168s] 14 tests run: 13 passed, 1 failed, 655 skipped
+    geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
+D15 support at the ends only:  Summary [   8.385s] 14 tests run: 7 passed, 7 failed, 655 skipped
+    geom cover::review_probes::delta_h1_bracketed_realizations
+    geom cover::review_probes::delta_h1_normal_and_tilts
+    geom cover::tests::a_far_sections_cover_holds_its_stored_arc
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+D16 v_ref sign flipped (Conic for Ellipse):  Summary [   8.738s] 14 tests run: 8 passed, 6 failed, 655 skipped
+    geom cover::review_probes::delta_h1_bracketed_realizations
+    geom cover::review_probes::delta_h1_normal_and_tilts
+    geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
+    geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
+    geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
+    geom cover::tests::held_arc_sweep::an_arc_held_cover_holds_its_stored_arc_over_every_window
+D17 Arc::far bulge zeroed (centre-held):  Summary [   8.258s] 14 tests run: 14 passed, 655 skipped
+    
+D18 over_anchor widened by a constant 4e-7 m:  Summary [   8.579s] 14 tests run: 13 passed, 1 failed, 655 skipped
+    geom cover::tests::held_arc_sweep::the_interval_box_of_a_world_plane_arc_held_ellipse_is_of_its_size
+D19 Arc::far bulge halved (centre-held):  Summary [   8.387s] 14 tests run: 14 passed, 655 skipped
+    

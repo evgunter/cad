@@ -1,0 +1,19 @@
+D18 over_anchor widened by a constant 4e-7 m:  Summary [ 220.147s] 592 tests run: 589 passed (1 slow), 3 failed, 77 skipped
+    geom cover::tests::a_crest_beside_a_far_anchor_reads_at_the_arcs_scale
+    geom cover::tests::held_arc_sweep::the_interval_box_of_a_world_plane_arc_held_ellipse_is_of_its_size
+    geom curves::on_carrier::rows::a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound
+D19 Arc::far bulge halved (centre-held):  Summary [ 228.883s] 592 tests run: 586 passed (1 slow), 6 failed, 77 skipped
+    geom cover::tests::a_curves_cover_over_a_span_holds_it
+    geom cover::tests::a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either
+    geom cover::tests::a_tilted_circle_arcs_range_at_interval_is_decided
+    geom cover::tests::the_chart_patches_hold_their_image
+    geom cover::tests::the_whole_carrier_covers_hold_the_sphere_and_the_torus
+    geom curves::on_carrier::rows::a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound
+D17 Arc::far bulge zeroed (centre-held):  Summary [ 245.383s] 592 tests run: 585 passed (1 slow), 7 failed, 77 skipped
+    geom cover::tests::a_closed_arcs_range_at_interval_is_decided
+    geom cover::tests::a_curves_cover_over_a_span_holds_it
+    geom cover::tests::a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either
+    geom cover::tests::a_tilted_circle_arcs_range_at_interval_is_decided
+    geom cover::tests::the_chart_patches_hold_their_image
+    geom cover::tests::the_whole_carrier_covers_hold_the_sphere_and_the_torus
+    geom curves::on_carrier::rows::a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound
