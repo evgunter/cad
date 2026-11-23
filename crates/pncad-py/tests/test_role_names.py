@@ -1,11 +1,10 @@
-"""The six role-name doors — `band`, `band_pi`, `band_rim`,
-`band_rim_pi`, `meridian_vertex` and `carried`, mirroring
-`pncad::select`'s builders.
+"""The four role-name doors — `band`, `band_rim`, `meridian_vertex` and
+`carried`, mirroring `pncad::select`'s builders.
 
 `Evaluation.select` and the whole-body materializers answer names FROM
 an evaluation. A selection that is AUTHORED — `Node.fillet`'s frozen
 selection, `Node.shell`'s open list — is written before any evaluation
-of the minting node exists, so its names are spelled, and these six
+of the minting node exists, so its names are spelled, and these four
 spell them.
 
 WHAT IS PINNED HERE, and why it is the only claim worth making: the
@@ -31,12 +30,11 @@ names the outer ones.
 The first two scenes are the two shapes a full revolve takes. A
 profile that CLEARS the axis sweeps to one face per meridian segment,
 so its bands stand alone and its latitude rims are whole circles. A
-profile that TOUCHES the axis sweeps to a pole, and the kernel splits
-every band into its `[0, pi)` and `[pi, 2pi)` halves, and every rim
-into two half-arcs — which is what `band_pi` and `band_rim_pi` exist
-for, and why the second scene is here at all. The third carries a
-HOLE, so the emitter mints a second loop's worth of bands, rims and
-meridian vertices on its second loop.
+profile that TOUCHES the axis sweeps the same way, one face per
+off-axis segment and one whole circle per off-axis corner, its segment
+on the axis sweeping to nothing. The third carries a HOLE, so the
+emitter mints a second loop's worth of bands, rims and meridian
+vertices on its second loop.
 """
 
 import json
@@ -59,9 +57,7 @@ from pncad import (
     Start,
     SurfaceKind,
     band,
-    band_pi,
     band_rim,
-    band_rim_pi,
     carried,
     evaluate,
     m,
@@ -184,8 +180,6 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         # program's segment order.
         by_id = sorted((scene.piece(0, k) for k in range(4)), key=step_id)
         self.assertEqual(bands, [band(node, p) for p in by_id])
-        # No pole, so no `[pi, 2pi)` half exists to name.
-        self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
         # A rim per meridian vertex, and a seam vertex under each.
         rims = of_role(ev, node, EntityKind.Edge, SegTag.BandRim)
         self.assertEqual(rims, [band_rim(node, p) for p in by_id])
@@ -209,44 +203,33 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
             delta=2 * sys.float_info.epsilon * H,
         )
 
-    def test_band_pi_is_the_half_a_pole_splits_off(self):
+    def test_a_profile_touching_the_axis_names_one_band_and_whole_rims(self):
         doc = Doc()
         scene, node = frustum(doc)
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
-        halves = of_role(ev, node, EntityKind.Face, SegTag.BandPi)
         self.assertEqual(len(bands), 3, "the fourth segment lies on the axis")
         # In NAME order, the pieces' step ids ascending.
         by_id = sorted((scene.piece(0, seg) for seg in range(3)), key=step_id)
         self.assertEqual(bands, [band(node, p) for p in by_id])
-        # Only the CURVED wall has a pi half: a full revolve sweeps a
-        # planar wall (the two discs) whole, one face, its `band`.
-        self.assertEqual(halves, [band_pi(node, scene.piece(0, 1))])
-        # A door answering the other door's text would pass every
-        # count above; these are two roles and two texts.
-        self.assertNotEqual(band(node, scene.piece(0, 1)), band_pi(node, scene.piece(0, 1)))
-
-    def test_band_rim_pi_is_the_rims_second_half_arc(self):
-        doc = Doc()
-        scene, node = frustum(doc)
-        ev = evaluate(doc)
         # The rims at the two off-axis corners — where piece 1 (the
-        # cone) and piece 2 (the top disc) start — each two half-arcs
-        # between the seam vertices.
-        by_id = sorted((scene.piece(0, k) for k in (1, 2)), key=step_id)
+        # cone) and piece 2 (the top disc) start — each one whole
+        # circle, its meridian vertex on it.
+        corners = sorted((scene.piece(0, k) for k in (1, 2)), key=step_id)
         self.assertEqual(
             of_role(ev, node, EntityKind.Edge, SegTag.BandRim),
-            [band_rim(node, p) for p in by_id],
+            [band_rim(node, p) for p in corners],
         )
         self.assertEqual(
-            of_role(ev, node, EntityKind.Edge, SegTag.BandRimPi),
-            [band_rim_pi(node, p) for p in by_id],
+            of_role(ev, node, EntityKind.Vertex, SegTag.MeridianVertex, MeridianEnd.Seam),
+            [meridian_vertex(MeridianEnd.Seam, node, p) for p in corners],
         )
-        # The two halves of the top rim are two texts, both standing at
-        # the top disc's height.
         top = scene.piece(0, 2)
-        self.assertNotEqual(band_rim(node, top), band_rim_pi(node, top))
-        self.assertEqual(ev.edge_frame(node, band_rim_pi(node, top)).origin[1].meters, H_F)
+        self.assertAlmostEqual(
+            ev.edge_frame(node, band_rim(node, top)).origin[1].meters,
+            H_F,
+            delta=2 * sys.float_info.epsilon * H_F,
+        )
 
     def test_a_holes_bands_are_named_at_its_own_loop(self):
         """The claim the outer-loop signature could not make: the
@@ -274,9 +257,6 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
             set(seam),
             {meridian_vertex(MeridianEnd.Seam, node, scene.piece(lp, v)) for lp in (0, 1) for v in range(4)},
         )
-        # Neither loop clears into a pole, so nothing is split at pi
-        # and no `band_pi` name exists on either loop.
-        self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
         # The same position on the two loops is two pieces, and two
         # names.
         self.assertNotEqual(band(node, scene.piece(0, 0)), band(node, scene.piece(1, 0)))
