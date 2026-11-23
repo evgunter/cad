@@ -145,8 +145,8 @@ pub enum NodeErrorClass {
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
     Naming,
-    /// [`NodeErrorKind::UnionFoldStep`].
-    UnionFoldStep,
+    /// [`NodeErrorKind::FoldStep`].
+    FoldStep,
     /// [`NodeErrorKind::Shell`].
     Shell,
     /// [`NodeErrorKind::ShellLaneUnsupported`].
@@ -285,7 +285,7 @@ impl NodeErrorKind {
             Self::CountOutOfRange { .. } => C::CountOutOfRange,
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
-            Self::UnionFoldStep { .. } => C::UnionFoldStep,
+            Self::FoldStep { .. } => C::FoldStep,
             Self::Shell(_) => C::Shell,
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
             Self::WitnessBifurcation(_) => C::WitnessBifurcation,

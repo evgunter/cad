@@ -144,15 +144,17 @@ pub struct NamedCoincidence {
 pub enum RowOrigin {
     /// The node's own operation decided it.
     Node,
-    /// A union's or an intersect's judgement of the members at these
-    /// places in its list, the lesser first: one of the node's rows
+    /// A union's, an intersect's or a subtract's judgement of the
+    /// members at these places in its list (a subtract's kept body
+    /// first, then its tools), the lesser first: one of the node's rows
     /// that are order-free modulo the members' places.
     Judged {
         /// The two members' places.
         pair: [u32; 2],
     },
-    /// The fold step of a union or an intersect of three members or
-    /// more that folds in the member at this place in its list.
+    /// The fold step of a union, an intersect or a subtract of three
+    /// members or more that folds in the member at this place in its
+    /// list. These rows follow the member order (DM4).
     Fold {
         /// The member's place.
         step: u32,
@@ -691,6 +693,7 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
         topo::Relation::SurfaceTangent => "is tangent along a locus to",
+        topo::Relation::RimJunction => "joins smoothly on a rim both end on with",
         topo::Relation::Coaxial => "shares an axis with",
         topo::Relation::SameRadius => "shares a radius with",
         topo::Relation::AxesMeet => "has an axis meeting the axis of",
@@ -733,6 +736,9 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::PlaneLadder => "a pair of planes its margins read as one",
         topo::DecisionSite::CarrierLadder => "a pair of carriers its margins read as one",
         topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
+        topo::DecisionSite::RimJunction => {
+            "a rim both faces end on, read as one circle with its wedge routed"
+        }
         topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
         topo::DecisionSite::SphereOnTorusAxis => "a sphere's centre read on a torus's axis",
         topo::DecisionSite::CoaxialCylinderTorus => "a cylinder read coaxial with a torus",

@@ -49,7 +49,7 @@ So it is charts plus images, not charts times images, and a face is never routed
 | 2 | `one-chart-table-and-the-lane-takes-every-analytic-chart` | torus × spiric, cone × ellipse |
 | 3 | `a-curved-faces-domain-is-read-from-every-loop` | the ring guards; rings on a cylinder, cone, sphere and torus, which it routes to the chart lane |
 | 4 | `a-curved-face-is-routed-by-its-domain-not-its-carriers` | the notch; the carrier-kind predicates |
-| 4b | `a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line` | the headroom on a face bounded by iso runs alone; after the lattice's place beside the boundary is settled (PR 6966) |
+| 4b | `a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line` | re-scoped on its measurement (2026-11-23): the chart lane's cylinder arm lays no rows, and a cylinder triangle its certificate refuses gets the lane's correction (PR 7526) |
 | 5 | `one-containment-lemma-for-an-oblique-boundary` | three missing-theorem rows; independent of 2 to 4 |
 | 4c | `a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it` | the rows the chart lane lays on a cylinder or cone face with a split side, and its headroom there: three cures measured (no rows with refinement on the certificate; one held edge per split side; a walk of the face's rows), then one built; after the interim route (PR 7049, merged) |
 | 6 | `rectangle-faces-move-to-the-chart-lane` | the curved lane; Ev's call, with a density measurement taken per chart, after 4c |

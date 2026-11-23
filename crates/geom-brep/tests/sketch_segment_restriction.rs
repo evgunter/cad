@@ -204,7 +204,12 @@ fn whole_range_mismatches<T: Real>(
         };
         let (q, n, pt, angle, v) = (
             Point3::new(lift(at[0] + 1.0), lift(at[1] + 2.0), lift(at[2])),
-            v3(0.3, -0.2, 1.0),
+            // `(0.3, −0.2, 1)` over its length: a revolve axis is a unit
+            // direction.
+            {
+                let len = 1.13_f64.sqrt();
+                v3(0.3 / len, -0.2 / len, 1.0 / len)
+            },
             p2(2.0, 2.0),
             lift(-1.9),
             v3(0.5, -1.5, 3.0),
@@ -237,7 +242,10 @@ fn whole_range_mismatches<T: Real>(
                     MappedSource::RevolvedPoint {
                         point: pt,
                         place,
-                        axis: geom::Line { origin: q, dir: n },
+                        axis: geom::Line {
+                            origin: q,
+                            dir: geom_core::UnitVec3::checked(n),
+                        },
                         angle,
                     },
                     Affine3::rotate_point_about_axis(q, n, s * angle, placed(pt)),
