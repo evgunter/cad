@@ -2,13 +2,14 @@
 id: carrier-frames-a-lines-dir-is-a-unitvec3
 kind: unit
 title: Carrier frames (v): a line's dir is a UnitVec3, with its chord and Ray audit
-status: review
+status: closed
 opened: 2026-11-17
 priority: P2
 cost: H
 parent: carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes
 pr: 7349
 branch: onehome/carrier-directions
+closed: 2026-11-23
 ---
 
 
