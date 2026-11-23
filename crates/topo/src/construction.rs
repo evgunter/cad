@@ -1704,8 +1704,8 @@ pub trait Construct<T: geom_core::Real> {
     ///
     /// [`BooleanError::JoinUndecided`], the kill's own refusal
     /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
-    /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
+    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
+    /// description's.
     fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError>
     where
         T: Decide + crate::props::AtRestPolicy;

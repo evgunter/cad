@@ -239,7 +239,6 @@ use crate::euler::EulerOpError;
 use crate::geometry::SurfaceKey;
 use crate::live::{dangling_link, linked, proven};
 use crate::offset_derive::WallSlot;
-use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::validate::ValidationError;
 
 /// Typed refusal of the face-replacement door. Scalar payloads echo the
@@ -826,13 +825,6 @@ pub enum ReplaceFaceError<T: Real> {
         /// The attach layer's typed refusal.
         error: EulerOpError,
     },
-    /// The whole-body pcurve mint refused on the re-described body.
-    ///
-    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
-    Pcurve {
-        /// The mint's typed refusal.
-        source: PcurveMintError,
-    },
     /// The join the public offset doors end with
     /// ([`Body::join_edges`](crate::construction::Construct::join_edges)) refused on the offset body. The body is
     /// untouched.
@@ -869,7 +861,7 @@ impl<T: Real> ReplaceFaceError<T> {
     /// ([`crate::cover::EdgeUncovered::refusal`]); the unbuilt lanes, row 2 (`*Unsupported`, the C5 boundary's
     /// `*Unroutable`), are limits; an invalid input (1(a)), a kernel or
     /// stored-data fault (4) and a payload that mixes classes (`Offset`,
-    /// `Fit`, `IsoRow`, the sections, `Op`, `Pcurve`,
+    /// `Fit`, `IsoRow`, the sections, `Op`,
     /// `Join`) abort until split. Exhaustive with no catch-all arm, so an
     /// added variant states its standing here before it compiles.
     ///
@@ -921,7 +913,6 @@ impl<T: Real> ReplaceFaceError<T> {
             | Self::TogetherAxialEdge { .. }
             | Self::TogetherConicArc { .. }
             | Self::Op { .. }
-            | Self::Pcurve { .. }
             | Self::Join { .. } => Err(geom_brep::ladder::Aborts),
         }
     }
@@ -1166,11 +1157,6 @@ impl<T: Real> ReplaceFaceError<T> {
                 f,
                 "the moved faces could not be put onto their offset surface: {}",
                 read_at(error, at)
-            ),
-            Self::Pcurve { source } => write!(
-                f,
-                "the offset body's edges could not be parametrized on their faces: {}",
-                read_at(source, at)
             ),
             Self::Join { refusal } => write!(f, "offsetting the face: {}", read_at(refusal, at)),
             Self::TogetherChartMixed { .. } => write!(
@@ -2344,7 +2330,6 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 },
             })?;
     }
-    mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
     work.close_gated("offset_charts_staged")
         .map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
     let ends: std::collections::BTreeSet<crate::VertexKey> = written

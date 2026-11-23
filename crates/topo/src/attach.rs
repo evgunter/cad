@@ -445,9 +445,18 @@ impl<T: Decide> Body<T> {
             }
         }
         let recharted = faces.iter().filter(|m| !m.on_parent_chart);
-        let dropped = self
+        let mut dropped = self
             .half_edges_proven_whole(recharted.map(|m| self.proven_face(m.face)))
             .concat();
+        // A caller's spec may move a listed edge's carrier or interval,
+        // and every row of the edge is stated over both, on a face that
+        // keeps its chart too. The kernel's restatements keep both.
+        if let crate::policy_lane::Origin::Callers = origin {
+            dropped.extend(written.rows.iter().flat_map(|&(edge, ..)| {
+                let e = proven(&self.edges, edge, EntityId::Edge);
+                [e.he_plus, e.he_minus]
+            }));
+        }
 
         // ---- Mutation (infallible from here on). ----
         //

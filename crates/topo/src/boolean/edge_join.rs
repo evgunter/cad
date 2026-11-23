@@ -1042,14 +1042,8 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         // Staged: a refusal past the first kill leaves `self` as found.
         let mut work = self.clone();
         let mut staged = work.begin_surgery();
-        let (joined, _, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
-        // A kill leaves the rows keyed by its half-edges; a body that
-        // carried rows has them re-derived whole (`pcurves::mint_pcurves`
-        // clears the map first), so none is left keyed by a dead cell.
-        if !staged.pcurves.is_empty() || !staged.joints.is_empty() {
-            crate::pcurves::mint_pcurves(&mut staged, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
-        }
+        let (joined, dead, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
+        staged.drop_rows(dead);
         staged.sweep_and_close();
         self.adopt(work);
         Ok(joined)
@@ -1070,19 +1064,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
             // call has no postcondition to sweep.
             return Ok(joined);
         }
-        if !(body.pcurves.is_empty() && body.joints.is_empty()) {
-            body.drop_rows(dead);
-            let mut faces = BTreeSet::new();
-            for j in &joined {
-                if let Some(e) = body.get_edge(j.kept) {
-                    faces.extend(body.face_of_half_edge(e.he_plus));
-                    faces.extend(body.face_of_half_edge(e.he_minus));
-                }
-            }
-            let faces: Vec<_> = faces.into_iter().collect();
-            crate::pcurves::mint_pcurves_of(&mut body, &faces, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
-        }
+        body.drop_rows(dead);
         body.sweep_and_close();
         Ok(joined)
     }

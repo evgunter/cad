@@ -182,9 +182,24 @@ pub(crate) fn complete<T: AtRestPolicy>(
     mut body: Body<T>,
     tol: Tol,
 ) -> Result<Completed<T>, NotFinished> {
-    crate::pcurves::complete_pcurves(&mut body, tol)
-        .map_err(|finding| NotFinished::new(vec![ValidationError::Pcurve { finding }]))?;
+    complete_in_place(&mut body, tol)?;
     Ok(Completed { body })
+}
+
+/// **`body`'s rows completed in place**, for a reader that reads stored
+/// rows between a producer's last write and its finish (the result
+/// sort's ray probes, `crate::pieces`). It keeps every stored row, so
+/// it launders none, and the finish that follows finds nothing to fill.
+///
+/// # Errors
+///
+/// As [`complete`].
+pub(crate) fn complete_in_place<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: Tol,
+) -> Result<(), NotFinished> {
+    crate::pcurves::complete_pcurves(body, tol)
+        .map_err(|finding| NotFinished::new(vec![ValidationError::Pcurve { finding }]))
 }
 
 /// **A body that passed tier 2 alone** ([`crate::validate_closed`]),

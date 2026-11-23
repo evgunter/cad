@@ -4133,19 +4133,6 @@ pub enum BooleanError {
     ///
     /// An abort: a kernel fault (row 4).
     Euler(EulerOpError),
-    /// The result body's pcurve mint pass refused (M5 PR 9: curved
-    /// results carry certified per-half-edge pcurves at rest — the
-    /// PR 6 contract; loud rather than shipping uncertified caches,
-    /// D4 ¶2).
-    ///
-    /// No ladder reads it (raised by the pcurve mint, on the body the join changed, after the
-    /// reduction where every reader of [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`]
-    /// stands in for a class it does not have: the pcurve pass's refusal mixes limits and kernel
-    /// faults. The first ladder that reads one splits it by cause.
-    Pcurves {
-        /// The typed pcurve-pass refusal, nested whole.
-        source: crate::pcurves::PcurveMintError,
-    },
     /// The joining stage's chord machinery refused, nested whole
     /// (`UnpairedLooseEnds`, `SectionLoopMixed`, …): never a lineage row,
     /// which is [`Self::LineageRow`] ([`BooleanJoin`]).
@@ -4730,8 +4717,6 @@ pub enum BooleanErrorKind {
     NodeUnbuilt,
     /// [`BooleanError::Euler`].
     Euler,
-    /// [`BooleanError::Pcurves`].
-    Pcurves,
     /// [`BooleanError::Join`].
     Join,
     /// [`BooleanError::JoinUndecided`].
@@ -5100,7 +5085,6 @@ impl BooleanError {
             Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
             Self::Euler(_) => BooleanErrorKind::Euler,
-            Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinPartnersTied => BooleanErrorKind::JoinPartnersTied,
@@ -5267,7 +5251,6 @@ impl BooleanError {
             | Self::ClassificationInvariant { .. }
             | Self::CrossingInsertion { .. }
             | Self::Euler(_)
-            | Self::Pcurves { .. }
             | Self::CarryRefused { .. }
             | Self::OneRecordUncertified { .. }
             | Self::JoinDesync { .. }
@@ -5786,12 +5769,6 @@ impl BooleanError {
                      point {where_}. Recourse: {recourse}"
                 )
             }
-            Self::Pcurves { source } => write!(
-                f,
-                "the result's pcurve mint pass refused (curved results carry \
-                 certified per-half-edge pcurves at rest): {}",
-                read_at(source, at)
-            ),
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a direction the Boolean measures where the solids meet has no finite \
@@ -10015,9 +9992,6 @@ mod tests {
                 b_face: face,
                 why: NodeWhy::OnBoundary(Operand::A),
             },
-            BooleanError::Pcurves {
-                source: crate::pcurves::PcurveMintError::Unminted { face },
-            },
             BooleanError::JoinDesync { what: "a lockstep" },
             BooleanError::Carve {
                 step: CarveStep::Combine,
@@ -10188,7 +10162,6 @@ mod tests {
                 BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",
                 BooleanErrorKind::Euler => "Euler",
-                BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinPartnersTied => "JoinPartnersTied",

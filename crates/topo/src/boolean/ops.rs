@@ -1313,13 +1313,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?;
     let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
-    // Curved results carry certified per-half-edge pcurves at rest
-    // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
-    // the finished body — the same pass the split lane runs. A planar
-    // body mints nothing (no curved faces), so the M3 lane is
-    // untouched bit-identically.
-    crate::pcurves::mint_pcurves(&mut body, tol)
-        .map_err(|source| BooleanError::Pcurves { source })?;
     let (contacts, mut coincidences) = carry(
         &body,
         &ledger,
@@ -1331,10 +1324,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     coincidences.extend(join_rows(&class_zeros, &ledger, views, [a, b]));
     share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
     let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
-    if !parted.is_empty() {
-        crate::pcurves::mint_pcurves(&mut body, tol)
-            .map_err(|source| BooleanError::Pcurves { source })?;
-    }
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
@@ -5971,6 +5960,10 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     tol: Tol,
 ) -> Result<T::Finished, BooleanError> {
     let mut body = body;
+    // The sort reads stored rows on a spline face, which no closed-form
+    // lift derives, so it reads them completed.
+    crate::finish::complete_in_place(&mut body, tol)
+        .map_err(|findings| BooleanError::ResultInvalid { findings })?;
     let pad = crate::boxes::sweep_pad(band);
     let face_box = |body: &Body<T>, f| Some(crate::boxes::face_box(body, f, pad, band));
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
@@ -7690,10 +7683,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         side.edges.push(created.edge);
         side.arc_splits.extend(arc_splits);
     }
-    for body in [a, b] {
-        crate::pcurves::mint_pcurves(body, tol)
-            .map_err(|source| BooleanError::Pcurves { source })?;
-    }
     Ok(made)
 }
 
@@ -8083,8 +8072,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 tol,
             )?;
             let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
-            crate::pcurves::mint_pcurves(&mut body, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
             let (contacts, mut coincidences) = carry(
                 &body,
                 &ledger,
@@ -8101,10 +8088,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             ));
             share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
             let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
-            if !parted.is_empty() {
-                crate::pcurves::mint_pcurves(&mut body, tol)
-                    .map_err(|source| BooleanError::Pcurves { source })?;
-            }
             let body = gate(body, &Held::of(&contacts, decls), band, tol)?;
             let FallbackFates {
                 substituted,
@@ -8440,8 +8423,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         tol,
     )?;
     let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
-    crate::pcurves::mint_pcurves(&mut body, tol)
-        .map_err(|source| BooleanError::Pcurves { source })?;
     let (contacts, mut coincidences) = carry(
         &body,
         &ledger,

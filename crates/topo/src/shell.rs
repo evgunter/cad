@@ -14,7 +14,7 @@
 //! is what the construction reads: an inside-out solid (check 7,
 //! [`ValidationError::NegativeVolume`](crate::ValidationError::NegativeVolume)) or an inside-out shell (check
 //! 10) would be hollowed as its complement, and a stale or missing
-//! pcurve row would vanish under the closing mint below. Neither
+//! pcurve row would reach the finish as the verb's own. Neither
 //! reaches the verb, because neither is an [`AtRestBody`](crate::AtRestBody).
 //!
 //! The door reads no second gate: what it takes is the scalar's finished
@@ -179,30 +179,14 @@
 //! that catches a bad wall, and saying otherwise misattributes the
 //! net that is doing the work.
 //!
-//! # The closing mint
+//! # Pcurve rows
 //!
 //! The void door's posture is `Transfers`
 //! (`crate::pcurves::staleness_posture::DECLARED`, the `insert_voids`
 //! row): `Body::revert` carries the cavity's rows key for key (the
 //! plane faces' rows re-stated with their frames, the curved faces'
 //! untouched), the graft copies them verbatim onto fresh keys, and
-//! that row's contract is that the producer's final mint re-derives
-//! every row of the merged body. This verb is a
-//! producer and runs [`crate::pcurves::mint_pcurves`] once, on the
-//! assembled body, before `validate_geometric` — the verb's own
-//! whole-body pass, and it stays whole-body: it is what discharges
-//! `insert_voids`'s `Transfers` row over the WHOLE merged body, which
-//! no per-solid pass covers. One pass suffices: nothing between the
-//! door and the validate reads a stored row, the simultaneous lift
-//! doors mint the rows of their own scope (the solid they were handed)
-//! and touch no other, and every other step is `Neither` for rows.
-//! The pass CLEARS the map first, so it reads none of the operand's
-//! rows; that they were sound is the operand type's promise (above),
-//! and a stale-row operand refuses where it is gated, not here
-//! (`shell9_r2_probes`). The refusal is [`ShellError::Pcurve`], carrying
-//! the mint's refusal whole: a certification refusal ends by its own
-//! ending at the build door, a refusal of the pass itself as the
-//! kernel's.
+//! the finish completes what the void door leaves rowless.
 //!
 //! # The record
 //!
@@ -400,7 +384,6 @@ use crate::entity::{
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, linked, proven};
-use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
 
@@ -642,18 +625,6 @@ pub enum ShellError<T: Real> {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// The closing pcurve mint refused on the assembled body (module
-    /// docs, "The closing mint"). Every gate before it accepted the
-    /// body — the offsets certified, the void door grafted, the rim
-    /// surgery closed — and the mint's refusal is carried whole
-    /// rather than as the validator's report of a stale row. A
-    /// certification refusal ends by its own ending at the build door
-    /// (the pose lever where an incidence read lands in band); a refusal
-    /// of the pass itself is the kernel's.
-    Pcurve {
-        /// The mint's typed refusal, verbatim.
-        source: PcurveMintError,
-    },
     /// A wall seam the rim surgery shortens to the cavity's corner,
     /// stored as the pair its two faces under-determine, reads mixed
     /// over its kept stretch when the must-carry rule is asked again
@@ -813,16 +784,6 @@ impl<T: Real> ShellError<T> {
                     source.ending(WALL_OR_GEOMETRY),
                 )
             ),
-            // The mint's certification refusal ends by its own ending at
-            // the build door (an incidence read in band is the pose
-            // lever's, not a defect); a refusal of the pass itself, on a
-            // body every gate before it accepted, is the kernel's. The
-            // payload (in `Debug`) names keys the user never saw.
-            Self::Pcurve { source } => write!(
-                f,
-                "the finished thin solid's edges could not be parametrized on its faces{}",
-                ended(at.map(|at| shell_mint_ending(source, at)))
-            ),
             Self::RimSeamMixed { stations, .. } => write!(
                 f,
                 "a wall seam the rim shortens, {stations}. Recourse: {WALL_OR_GEOMETRY}"
@@ -924,18 +885,6 @@ fn cavity_refusal_ending(
             KERNEL_DEFECT_ENDING.into()
         }
     }
-}
-
-/// The ending of a pcurve mint the shell op ran: a certification
-/// refusal's own at the build door ([`PcurveMintError::ending`]), the
-/// kernel's defect for a refusal of the pass itself.
-fn shell_mint_ending(
-    source: &PcurveMintError,
-    at: geom_brep::recourse::ReadAt,
-) -> std::borrow::Cow<'static, str> {
-    source
-        .ending(at)
-        .map_or(KERNEL_DEFECT_ENDING.into(), Into::into)
 }
 
 /// `". {ending}"`, or nothing for a payload read at no door.
@@ -1062,11 +1011,6 @@ impl<T: Real> AsShelled<'_, T> {
                 f,
                 "the shell op asked to fit an offset of {d} m at a tolerance of {tolerance} m, \
                  which its thickness gate and its tolerance never allow. {KERNEL_DEFECT_ENDING}"
-            ),
-            R::Pcurve { source } => write!(
-                f,
-                "the offset body's edges could not be parametrized on their faces{}",
-                ended(at.map(|at| shell_mint_ending(source, at)))
             ),
             error => write!(f, "{}", read_at(error, at)),
         }
@@ -2117,10 +2061,8 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
             face: designated,
             error: Box::new(error),
         })?;
-        // The rim stage runs row-free: the closing mint clears the map
-        // and re-derives every row of the assembled body, so a row the
-        // lift wrote, or one a surgery op would mint here, is never
-        // read. Clearing it keeps every op below on its keys-only door.
+        // The rim stage runs row-free, every row dropped for the finish
+        // to derive, which keeps every op below on its keys-only door.
         out.pcurves.clear();
         out.joints.clear();
         // One face per side, loops disjoint. Both reductions retire
@@ -2411,16 +2353,6 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
             seam_pieces: Vec::new(),
         });
     }
-
-    // ---- The closing mint (module docs, "The closing mint"). ----
-    //
-    // Placed where the boolean places its own, after the last write.
-    // The rim stage clears the map before each chart's surgery, so on
-    // an opened body with a curved face every such face reaches this
-    // line row-free: moved ahead of the rim stage, the pass would leave
-    // them `Unminted` at the validation below (`shell_curved_mouth`'s
-    // cap row and `verbs_shell`'s revolved cups).
-    mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
     // ---- One validation, after the join. ----
     out.sweep_and_close();
@@ -3815,96 +3747,6 @@ mod cavity_torus_endings {
     }
 }
 
-#[cfg(test)]
-mod mint_endings {
-    #![allow(clippy::unwrap_used)]
-    use super::ShellError;
-    use crate::entity::{FaceKey, HalfEdgeKey};
-    use crate::pcurves::PcurveMintError;
-    use crate::replace_face::ReplaceFaceError;
-    use geom_brep::{OffMargin, PcurveCertifyError};
-    use geom_core::{KERNEL_DEFECT_ENDING, MarginDiag};
-
-    /// **The closing mint's refusal ends by its own ending at the build
-    /// door** (D4 ¶1 (iv)), through both shell arms that carry it: an
-    /// incidence read in band ends in the pose lever, never a defect, and
-    /// a definite miss in the kernel's defect, once; an undecided reading
-    /// of the pass "not yet", a torn loop the defect. No arena key is
-    /// spelled.
-    #[test]
-    fn the_shell_ops_mint_refusal_ends_by_its_own_ending() {
-        let mint = |margin| PcurveMintError::Certify {
-            half_edge: HalfEdgeKey::default(),
-            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
-                geom::SurfaceKind::Cone,
-                geom::CurveKind::Circle,
-                "WHY",
-                margin,
-            )),
-        };
-        let in_band = Some(OffMargin::InBand(MarginDiag::value(4e-9)));
-        for (margin, defect) in [(in_band, false), (None, true)] {
-            let shell: ShellError<f64> = ShellError::Pcurve {
-                source: mint(margin),
-            };
-            let face: ShellError<f64> = ShellError::Face {
-                face: FaceKey::default(),
-                error: Box::new(ReplaceFaceError::Pcurve {
-                    source: mint(margin),
-                }),
-            };
-            for refusal in [shell, face] {
-                let text = refusal.render(geom_brep::recourse::Reading::Build);
-                assert_eq!(
-                    text.matches(KERNEL_DEFECT_ENDING).count(),
-                    usize::from(defect),
-                    "{text}"
-                );
-                assert_eq!(
-                    text.contains(geom_brep::recourse::INCIDENCE_AT_POSE.lever),
-                    !defect,
-                    "{text}"
-                );
-            }
-        }
-        // A refusal of the pass itself ends by its own arm: an undecided
-        // reading "not yet", a torn loop the kernel's defect, once.
-        let cause = geom_core::Indeterminate {
-            margin: MarginDiag::value(5e-9),
-            band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
-            predicate: Some("pcurve_loop_v_stretch"),
-            terminal_sliver: false,
-        };
-        for (source, defect) in [
-            (
-                PcurveMintError::NetStretchUndecided {
-                    half_edge: HalfEdgeKey::default(),
-                    cause,
-                },
-                false,
-            ),
-            (
-                PcurveMintError::LoopNotClosed {
-                    face: FaceKey::default(),
-                },
-                true,
-            ),
-        ] {
-            let text =
-                ShellError::<f64>::Pcurve { source }.render(geom_brep::recourse::Reading::Build);
-            assert_eq!(
-                text.matches(KERNEL_DEFECT_ENDING).count(),
-                usize::from(defect),
-                "{text}"
-            );
-            assert_eq!(text.contains("no way through yet"), !defect, "{text}");
-            assert!(
-                !text.contains("FaceKey") && !text.contains("HalfEdgeKey"),
-                "{text}"
-            );
-        }
-    }
-}
 
 /// The half-edges of `r#loop` in cycle order. Every loop the seamed
 /// band reads bounds a face of a finished wall or is a ring the glue
@@ -4350,7 +4192,6 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::EmptyGroup
         | ReplaceFaceError::Escalated { .. }
         | ReplaceFaceError::Op { edge: None, .. }
-        | ReplaceFaceError::Pcurve { .. }
         | ReplaceFaceError::Join { .. }
         | ReplaceFaceError::ResultNotClosed { .. } => None,
     }

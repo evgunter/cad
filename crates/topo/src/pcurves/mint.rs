@@ -326,29 +326,6 @@ geom_brep::ended_by_write!(PcurveMintError);
 
 impl std::error::Error for PcurveMintError {}
 
-impl PcurveMintError {
-    /// This refusal as a kernel driver receives it from a pass it called
-    /// with keys it read out of the body: passed through, where it is a
-    /// fact about the body's geometry.
-    ///
-    /// # Panics
-    ///
-    /// On [`PcurveMintError::Stale`]: a driver's keys are ones it read
-    /// out of the body, so they resolve, and one that does not is a
-    /// kernel bug and not the user's input.
-    #[must_use]
-    #[track_caller]
-    pub(crate) fn for_driver(self) -> Self {
-        if let Self::Stale { role, key } = self {
-            unreachable!(
-                "a kernel driver passed a pcurve pass a {role} key, {key}, that does not \
-                 resolve: a driver's keys are ones it read out of the body, so they resolve"
-            );
-        }
-        self
-    }
-}
-
 /// The recourse for a joint decided with less room than the joint bound
 /// ([`PcurveMintError::JointWithoutRoom`]).
 const JOINT_WITHOUT_ROOM_RECOURSE: &str = "Recourse: ask about a face whose loops keep farther \
