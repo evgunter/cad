@@ -237,8 +237,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
-    NameCarrier::Const("REACH"),
-    NameCarrier::Const("NEST"),
     NameCarrier::Const("NEAR"),
     NameCarrier::Const("FAR"),
     // The tangent rows' closed table (`TangentRow::predicate`).
@@ -376,7 +374,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTOR_APEX_WINDOW"),
     NameCarrier::Const("SESSION_BOX_REACH"),
     NameCarrier::Const("CELL_REGION_SINGULAR"),
-    NameCarrier::Const("SELF_INTERSECTION_SLIVER"),
     NameCarrier::Const("SELF_INTERSECTION_SPAN"),
     NameCarrier::Const("SPAN_ORDER_CHARGED"),
     NameCarrier::Const("SPAN_ROUNDING"),
@@ -791,6 +788,22 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
     ("chain_parity.rs: ray_parity_as: name", FORWARDS),
+    // `Gap::decide`: one channel's gap from the query to a piece's box,
+    // metered by that channel's arm, decided under the name
+    // `ray_parity_as` hands it (`g.decide(name, ..)`, the line above), so
+    // its names are that funnel's callers'. A refusal leaves the piece
+    // not clear; it is halved, and where it cannot be the query reads
+    // `Side::Near` with this diagnostic.
+    ("chain_parity.rs: decide: name", FORWARDS),
+    // `Floor::decide`: a spline cell's floor, the box gap less the read's
+    // and the cut's rounding, decided under the name its caller hands it;
+    // its one caller is the spline region's carrier walk
+    // (`cell.floor(q).decide(SPLINE_REGION_CARRIER, ..)`, a declared
+    // const). A refusal there leaves the cell walked rather than
+    // skipped and is kept as the walk's pending diagnostic: a walk that
+    // ends unsettled on it escalates the face placement as
+    // `ContainError::Escalated` on `ContainDecision::Carrier`.
+    ("spline_trim.rs: decide: name", FORWARDS),
     (
         "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,

@@ -58,3 +58,49 @@ none names this range.
 
 **Owed:** bisect the range on the first parent; re-pin with the moving
 PR's reason, or fix what it moved.
+
+## Bisected (2026-11-22, BOXFINISH's measurement lane; every step a clean checkout)
+
+Two first-parent merges moved the eleven rows between them; none is
+left unexplained. Steps run: `c390e1f9` 11 pass; `2ecec12e84` and
+`abe288332a` 11 pass; `4a94f7109b` 5 red; `f7dd37696d` the same 5,
+same payloads; `54e6a5c5b8` 11 red; `6e524e45d8`, `5a21dc9b95`,
+`69f31a4e` and `0b3433786b` (main at 23:00 UTC) 11 red with one and
+the same failure text.
+
+- **PR 7354, `sectcone/conic-pairs-on-the-value` (merge `4a94f7109b`),
+  moves five:** `seat7_sweep_lowering`'s `boss_union` digest,
+  `m10_p_fence::the_corpus_evaluation_is_bit_identical_at_interval`,
+  `revalue_corpus::revalue_boss_union_apart_to_its_parting`, and
+  `sweep`'s `bisector_nodes::the_near_node_poses_at_the_witness_band`
+  and `section_end_poses::a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds`.
+  Its body re-baselines `mesh` `route_rows` because "each section
+  conic's edges are now the carried component's arcs, seated once per
+  component ... the same conic, parametrized from another seat", and
+  names none of these five; its diff touches none of their files. Read
+  from the diff, not shown: `boss_union`'s section circle is the same
+  re-seating; the two `sweep` rows are band-edge poses whose decisions
+  now escalate (`TransversalityArm` inside a `RebasedCarrier`;
+  `Coincidence(Section, Moot)` at margin `1.0000000272e-9`) after the
+  PR changed what reads a pair's pose.
+- **PR 7299, `germ/crossing-consumers` (merge `54e6a5c5b8`), moves the
+  other six** and adds `cut_cylinder` to `seat7`'s payload:
+  `seat8_split_lowering`, `intent_s2_c_world`, `m10_p_fence`'s `f64`
+  and id-masked rows, `edit_placement_corpus_bits`,
+  `perf12_census_goldens`. Its body describes behaviour and refusal
+  changes and says nothing of geometry bits moving. Read from the
+  diff, not shown: a split vertex once placed by interpolating its
+  ends' sides is now placed at `curve_face::cross`'s root, so a
+  plane-cut cylinder's vertex bits differ in the last places.
+
+**Owed, by the program that moved each:** SECTCONE re-pins or fixes
+its five, GERM its six, each judging the move first (the two `sweep`
+rows are decisions that changed, not bits: a refusal's kind at a band
+edge). A branch that merged main at or past `54e6a5c5b8` inherits all
+eleven with these payloads; any other payload on these rows is the
+branch's own.
+
+**Also moved on these rows by an open PR:** BOXFINISH's PR 7370
+lowers `revalue_boss_union_apart_to_its_parting`'s `moved` floor for
+its own reasons (stated there); whoever re-cuts that row's other pin
+should do so on a tree that holds it if it has landed.
