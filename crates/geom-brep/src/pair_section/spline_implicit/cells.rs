@@ -631,6 +631,56 @@ impl<'a> Listed<'a> {
     }
 }
 
+/// An arc's cells ordered along `x`, so that a cell of another arc is
+/// stood only against those not already apart from it along `x`.
+struct Swept {
+    /// The cells, by index, in the order of their images' least `x`.
+    order: Vec<usize>,
+    /// Each one's least `x`, in that order: empty where an image is
+    /// refused, and every cell is then stood against.
+    least: Vec<f64>,
+    /// The widest image along `x`.
+    widest: f64,
+}
+
+impl Swept {
+    fn along_x(e: &Enclosure<'_>, mut order: Vec<usize>) -> Self {
+        let x = |k: usize| e.cells[k].image.x;
+        if !order.iter().all(|&k| x(k).is_certified()) {
+            return Self {
+                order,
+                least: Vec::new(),
+                widest: 0.0,
+            };
+        }
+        order.sort_by(|&p, &q| x(p).lo().total_cmp(&x(q).lo()));
+        Self {
+            least: order.iter().map(|&k| x(k).lo()).collect(),
+            widest: order
+                .iter()
+                .map(|&k| x(k).hi() - x(k).lo())
+                .fold(0.0, f64::max),
+            order,
+        }
+    }
+
+    /// The cells that may share a point with `c`, each widened by `by`:
+    /// all but those whose image ends short of `c`'s along `x`, or
+    /// starts past it, by more than twice `by` and a margin for the
+    /// sums' rounding. [`stand`] decides each.
+    fn near(&self, c: Box3, by: f64) -> &[usize] {
+        if self.least.is_empty() || !c.x.is_certified() {
+            return &self.order;
+        }
+        let reach = 2.0 * by * (1.0 + 1e-9) + 1e-9 * c.x.lo().abs().max(c.x.hi().abs());
+        let from = c.x.lo() - self.widest - reach;
+        let to = c.x.hi() + reach;
+        let lo = self.least.partition_point(|&x| x < from);
+        let hi = self.least.partition_point(|&x| x <= to);
+        &self.order[lo..hi]
+    }
+}
+
 /// One round's scan of the section's active cells.
 struct Scan {
     /// Per arc and cell: within reach of another arc's cell, at a shared
@@ -683,10 +733,10 @@ impl Scan {
                         .collect()
                 };
                 let live_a = within(a, &active[i], hull_b);
-                let live_b = within(b, &active[j], hull_a);
+                let live_b = Swept::along_x(b, within(b, &active[j], hull_a));
                 for &ka in &live_a {
                     let ca = &a.cells[ka];
-                    for &kb in &live_b {
+                    for &kb in live_b.near(ca.image, by) {
                         let cb = &b.cells[kb];
                         let gap = match stand(ca.image, cb.image, &node_boxes, by) {
                             Stand::Apart => continue,

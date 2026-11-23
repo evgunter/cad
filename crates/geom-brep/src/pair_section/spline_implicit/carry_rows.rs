@@ -343,8 +343,8 @@ pub(super) fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2
 /// every point of each arc (bisected along the wall's iso-lines) reads
 /// on that arc and on no other (`CarriedSection::site`), and so does the
 /// point moved half the band's zero toward the other arc. The wall's
-/// point on the rod's axis line, between the arcs and on neither, is
-/// read on no two arcs.
+/// point on the rod's axis line, between the arcs, lies in no cell of
+/// either and reads on no component.
 ///
 /// At `ε = 1e-12` the wall at `s = 100` is not read: the whole reading
 /// cannot decide its limb 2 there, before any carry (asserted, with the
@@ -401,13 +401,16 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_alone() {
                     }
                 }
             }
-            let between = on_wall(&w, 0.5, 0.5);
+            let between = carried.site(on_wall(&w, 0.5, 0.5), band());
             assert!(
-                !matches!(
-                    carried.site(between, band()),
-                    Err(SiteRefusal::Desync(why)) if why.contains("two components")
+                matches!(
+                    between,
+                    Err(SiteRefusal::Desync(
+                        "a site lies on no component of its section"
+                    ))
                 ),
-                "s = {s}, r = {r}: the point between the arcs reads on no two"
+                "s = {s}, r = {r}: the point between the arcs lies in no cell of either: \
+                 {between:?}"
             );
         }
     }
@@ -433,15 +436,17 @@ fn quickening(s: f64) -> Surface<f64> {
     ))
 }
 
-/// **Two arcs a ninth of a rung apart are carried, each point on its
-/// own arc alone**, at `s = 0.01, 1, 100`: on the wall whose chart
-/// quickens, a rod of radius `0.02·s` about the line `z = 0.06·s` cuts
-/// the slow span in two arcs `0.038·s` apart. The tube's rung is sized
-/// in the chart at the wall's fastest speed, so it certifies at a rung
-/// of `0.35·s`, each window reaching a few hundredths of that in
-/// metres: the arcs stand closer than a quarter of the rung (asserted,
-/// the row's premise). Each point of each arc, and each arc's witness,
-/// reads on its own arc.
+/// **Two arcs a ninth of the tube's rung apart are carried, each point
+/// on its own arc alone**, at `s = 0.01, 1, 100`: on the wall whose
+/// chart quickens, a rod of radius `0.02·s` about the line `z = 0.06·s`
+/// cuts the slow span in two arcs `0.038·s` apart. The rung, `0.35·s`,
+/// is the tube's at the wall's fastest speed; on the slow span a window
+/// reaches a few hundredths of it in metres, so the arcs stand closer
+/// than a quarter of the rung (asserted, the row's premise) while their
+/// windows do not overlap. Each arc's pad, `0.06·s`, is wider than the
+/// gap: it is the arcs' thin cells that stand apart, not their pads.
+/// Each point of each arc, and each arc's witness, reads on its own
+/// arc.
 ///
 /// Two scales are past what a run's ε reads, each refused before any
 /// carry and asserted with the ε it is allowed at: at `ε = 1e-6` the
@@ -522,6 +527,59 @@ fn two_arcs_a_ninth_of_a_rung_apart_on_a_quickening_wall_are_carried() {
             }
         }
     }
+}
+
+/// **Two arcs the carry cannot part are listed refusing `PadsMeet`, and
+/// the section carries none**: the rod's reading at the run's band,
+/// listed at a band whose escalation is `0.1`, where its two arcs,
+/// `0.18` apart, stand within the band of each other. Each arc's
+/// component holds the refusal, and the carry returns it.
+///
+/// Red against: a listing that drops the refusal and carries each arc on
+/// the cells it stopped at.
+#[test]
+fn two_arcs_the_carry_cannot_part_are_listed_refusing_and_carry_none() {
+    use crate::pair_section::{ClassCarrier, Components, PadsStop};
+    let (w, p) = (wall(1.0), rod(1.0, 0.09));
+    let pose = super::SplineImplicitPose::of(&w, &p).expect("a spline wall and a cylinder");
+    let reading = crate::ImplicitSection::of(&p, pose.net(), pose.domain(), band())
+        .expect("the pair is read");
+    let form = reading.form().clone();
+    let out = reading.all().expect("the pair reads whole");
+    let wide = Band::linear_at(Tol::witness(), 0.1 / Tol::witness().k()).expect("a band");
+    let partner = super::Bracketed {
+        surface: &p,
+        form: &form,
+    };
+    let section = super::listed(pose.clone(), partner, out, None, wide).expect("the arcs list");
+    let Components::Counted(components) = section.components() else {
+        panic!("a whole reading lists its components");
+    };
+    assert_eq!(components.len(), 2, "the rod's two arcs");
+    for c in components {
+        assert!(
+            matches!(
+                &c.carrier,
+                ClassCarrier::Fitted(f) if matches!(
+                    f.as_ref(),
+                    Err(CarryError::Refused(CarryRefusal::PadsMeet {
+                        stop: PadsStop::Stall,
+                        ..
+                    }))
+                )
+            ),
+            "each arc's component holds the refusal: {:?}",
+            c.carrier
+        );
+    }
+    let refused = section.carry(Some(SsiLane::marched()), wide);
+    assert!(
+        matches!(
+            refused,
+            Err(CarryError::Refused(CarryRefusal::PadsMeet { .. }))
+        ),
+        "the section carries none: {refused:?}"
+    );
 }
 
 /// **A loop on the wall's chart carries none, by name**: the reading

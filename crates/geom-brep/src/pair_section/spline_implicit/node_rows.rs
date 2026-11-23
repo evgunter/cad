@@ -1332,7 +1332,7 @@ fn two_arcs_of_one_node_are_held_apart_outside_its_box() {
         z: Interval::from_bounds(lo[2], hi[2]),
     };
     let node = [cell([-1e-3; 3], [1e-3; 3])];
-    let reach = 2.0 * band().escalate();
+    let reach = band().escalate();
     let near = |dy: f64| cell([5e-4, -2e-4 + dy, -1e-4], [0.5, 2e-4 + dy, 1e-4]);
     let far = |dy: f64| cell([0.5, -1e-4 + dy, -1e-4], [1.0, 1e-4 + dy, 1e-4]);
     assert_eq!(
