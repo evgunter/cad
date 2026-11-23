@@ -34,3 +34,7 @@ Both readers of the 0.25 s bar take one runner's reading:
 - Take the bar on the median runner class: drop or rescale a run whose reference reads a slow or fast class.
 
 Choosing among these changes how the ratified rule is measured, so it is a design question for GREEN (and Ev, if it changes the rule's text).
+
+## Who reads the drift
+
+GREEN's orchestrator reads the latest run of `.github/workflows/fast-set-drift.yml` at the start of each sitting, since a scheduled red notifies only by email. Nothing in `memories/` or `docs/prompts/` says so yet: writing it there is Ev's call (PR 7448's review, finding 8).

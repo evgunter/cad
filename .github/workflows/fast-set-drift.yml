@@ -2,12 +2,19 @@ name: fast-set drift
 
 # The per-PR gate fails a PR for the fast-set tests it adds or edits at
 # 0.25 s run alone, and for any at 1 s. A test that drifts past 0.25 s on
-# main without reaching 1 s is this check's: it reads the last day's PR-run
+# main without reaching 1 s is this check's: it reads the last 72 h of PR-run
 # junit reports (ci.yml's test job uploads them), re-times alone on main's
 # build every test whose median suggests 0.25 s, and fails on each that
 # costs it, naming the slow-set line to add (scripts/fast-set-drift.py).
 # Its own workflow, so its red is not one among the nightly's. Owner:
-# GREEN's orchestrator.
+# GREEN's orchestrator, who reads this workflow's latest run at the start of
+# each sitting.
+#
+# What it cannot see: a test is read only by the PR runs that reach its
+# crate, and at most 350 reports per shard are read (a GITHUB_TOKEN rate
+# budget), so a test read fewer than 3 times in the window is never a
+# candidate, whatever it costs. Its build env and opt-level-0 wrapper are
+# the test job's (scripts/gates/build-default-env-agrees.sh holds them so).
 
 on:
   schedule:
@@ -16,7 +23,7 @@ on:
     inputs:
       hours:
         description: "the window of PR runs read, in hours"
-        default: "24"
+        default: "72"
       min_readings:
         description: "the fewest readings a test needs in the window to be a candidate"
         default: "3"
@@ -50,10 +57,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
-      - name: the last day's PR-run readings
+      - name: the window's PR-run readings
         env:
           GH_TOKEN: ${{ github.token }}
-          HOURS: ${{ inputs.hours || '24' }}
+          HOURS: ${{ inputs.hours || '72' }}
         run: python3 scripts/fast-set-drift.py gather ${{ matrix.shard }} "$RUNNER_TEMP/drift" "$HOURS"
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -66,6 +73,7 @@ jobs:
             echo "RUSTC_WORKSPACE_WRAPPER=$GITHUB_WORKSPACE/scripts/rustc-test-crates-opt0.sh"
             echo "CAD_OPT0_LOG=$RUNNER_TEMP/opt0.log"
           } >> "$GITHUB_ENV"
+          touch "$RUNNER_TEMP/opt0-marker"
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -76,6 +84,23 @@ jobs:
           echo "scope: $scope"
           # shellcheck disable=SC2086 # scope is a list of cargo flags
           cargo nextest run --no-run --profile ci $scope
+      # The test job's check, so a wrapper that stops applying here is red
+      # rather than a drift timing other binaries than the gate's.
+      - name: every integration binary built went through the opt-level-0 wrapper
+        run: |
+          built=$(find target/debug/deps -maxdepth 1 -type f -name 'all-*' -perm -u+x \
+            -newer "$RUNNER_TEMP/opt0-marker" | wc -l)
+          touch "$CAD_OPT0_LOG"
+          seen=$(wc -l < "$CAD_OPT0_LOG")
+          bad=$(grep -Ev '^(rewrote \S+|kept \S+ [23sz])$' "$CAD_OPT0_LOG" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::the opt-level-0 wrapper met an integration binary cargo built at neither opt 1 nor above it: $bad"
+            exit 1
+          fi
+          if [ "$seen" -ne "$built" ]; then
+            echo "::error::the build wrote $built integration binaries and the opt-level-0 wrapper logged $seen"
+            exit 1
+          fi
       - name: re-time alone every test whose median suggests 0.25 s
         env:
           MIN_READINGS: ${{ inputs.min_readings || '3' }}

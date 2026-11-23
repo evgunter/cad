@@ -437,14 +437,14 @@ jobs:
           [ "$rc" != 0 ] || rc=$slow
           exit $rc
       # The parallel pass's per-test times, for the scheduled drift check
-      # (.github/workflows/fast-set-drift.yml), which reads the last day's.
+      # (.github/workflows/fast-set-drift.yml), which reads the last 72 h of them.
       - name: upload the default-eps junit report (the fast-set drift check reads it)
         if: '!cancelled() && github.event_name == ''pull_request'''
         uses: actions/upload-artifact@v4
         with:
           name: fast-set-times-${{ matrix.shard }}
           path: ${{ runner.temp }}/fast-set-times/
-          retention-days: 3
+          retention-days: 4
           if-no-files-found: ignore
           overwrite: true
       - name: test (eps 1e-6, 1e-12 — the eps-sensitive crates and test files this diff touches)
