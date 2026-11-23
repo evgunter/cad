@@ -76,6 +76,15 @@ impl ViewerBehavior<'_> {
                     );
                 }
                 self.feature_rows_ui(ui, node, &groups);
+                let doc = self.session.doc();
+                let related = crate::relations::relations(
+                    doc,
+                    &doc.read_index(),
+                    node,
+                    self.session.part_files(),
+                );
+                relation_rows(ui, Direction::Reads, &related.reads, self.ops);
+                relation_rows(ui, Direction::ReadBy, &related.read_by, self.ops);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -119,7 +128,11 @@ impl ViewerBehavior<'_> {
                     // a label a person reads is prose.
                     crate::widgets::message(
                         ui,
-                        format!("variable {} ({})", row.label, row.dimension),
+                        format!(
+                            "variable {} ({})",
+                            crate::tree::spelled_var(&row.label),
+                            row.dimension
+                        ),
                     );
                     ui.horizontal(|ui| {
                         value_field_ops(
@@ -153,7 +166,11 @@ impl ViewerBehavior<'_> {
                     // door's to refuse.
                     crate::widgets::message(
                         ui,
-                        format!("variable {} ({})", row.label, row.dimension),
+                        format!(
+                            "variable {} ({})",
+                            crate::tree::spelled_var(&row.label),
+                            row.dimension
+                        ),
                     );
                     value_field_ops(
                         ui,
@@ -164,7 +181,7 @@ impl ViewerBehavior<'_> {
                         self.notices,
                     );
                     for line in reading_notes(
-                        &row.label.to_string(),
+                        &crate::tree::spelled_var(&row.label),
                         &row.value,
                         row.dimension,
                         *self.notation,
@@ -174,7 +191,10 @@ impl ViewerBehavior<'_> {
                 } else if crate::props::index_count_row(self.session.doc(), var).is_some() {
                     crate::widgets::message(
                         ui,
-                        format!("index {}", self.session.doc().spoken_var(var)),
+                        format!(
+                            "index {}",
+                            crate::tree::spelled_var(&self.session.doc().spoken_var(var))
+                        ),
                     );
                     self.index_count_ui(ui, var);
                 }
@@ -206,7 +226,7 @@ impl ViewerBehavior<'_> {
             // selected, when its own row above says it (`reading_notes`)
             // and this pane says a fact once.
             if self.session.selection() != &Selection::Variable(row.var) {
-                for line in reading_faults(&row.label.to_string(), &row.value) {
+                for line in reading_faults(&crate::tree::spelled_var(&row.label), &row.value) {
                     crate::widgets::message_toned(ui, line, &self.theme, Tone::Advisory);
                 }
             }
@@ -230,7 +250,12 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             if crate::widgets::message_link(
                 ui,
-                format!("{} = {} ({} cop{plural})", row.label, row.body, row.copies),
+                format!(
+                    "{} = {} ({} cop{plural})",
+                    crate::tree::spelled_var(&row.label),
+                    crate::tree::spelled_var(&row.body),
+                    row.copies
+                ),
             )
             .clicked()
             {
@@ -269,7 +294,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         ui.horizontal(|ui| {
-            ui.label(format!("count of {}", row.label));
+            ui.label(format!("count of {}", crate::tree::spelled_var(&row.label)));
             value_field_ops(
                 ui,
                 defined_showing(&row, *self.notation),
@@ -280,7 +305,7 @@ impl ViewerBehavior<'_> {
             );
         });
         for line in reading_notes(
-            &format!("the count of {}", row.label),
+            &format!("the count of {}", crate::tree::spelled_var(&row.label)),
             &row.value,
             row.dimension,
             *self.notation,
@@ -1337,7 +1362,88 @@ fn selected_node_heading(
 ) -> String {
     match landed.filter(|doc| doc.node(node).is_some()) {
         Some(doc) => crate::tree::node_label(doc, node, files),
-        None => said.spoken(node).to_string(),
+        None => crate::tree::spelled(&said.spoken(node)),
+    }
+}
+
+/// **Which way a relation row reads**: what the node reads, or what
+/// reads the node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Direction {
+    /// `profile: Profile 1`.
+    Reads,
+    /// `profile of: Revolve 3`.
+    ReadBy,
+}
+
+impl Direction {
+    /// The heading over the rows.
+    pub(crate) fn heading(self) -> &'static str {
+        match self {
+            Self::Reads => "reads",
+            Self::ReadBy => "read by",
+        }
+    }
+
+    /// A row's seat, as its line opens.
+    pub(crate) fn seat(self, seat: crate::relations::Seat) -> String {
+        match self {
+            Self::Reads => format!("{}:", seat.label()),
+            Self::ReadBy => format!("{} of:", seat.label()),
+        }
+    }
+}
+
+/// **A node's relation rows, drawn** ([`crate::relations::Relations`]):
+/// under the direction's heading, each row its seat, then its entries,
+/// then `through` and the named variable read, where there is one. Each
+/// entry is a link that selects what it names, or words where it names
+/// nothing this document holds. Nothing at all for no rows.
+pub(crate) fn relation_rows(
+    ui: &mut egui::Ui,
+    direction: Direction,
+    rows: &[crate::relations::RelationRow],
+    ops: &mut Vec<SessionOp>,
+) {
+    if rows.is_empty() {
+        return;
+    }
+    ui.weak(direction.heading());
+    for row in rows {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(direction.seat(row.seat));
+            for entry in &row.entries {
+                related_entry(ui, entry, ops);
+            }
+            if let Some(through) = &row.through {
+                ui.label(THROUGH);
+                related_entry(ui, through, ops);
+            }
+        });
+    }
+}
+
+/// The word between what a read reaches and the named variable it
+/// reads it through; the placement editor's "copy of" row says it too.
+pub(crate) const THROUGH: &str = "through";
+
+/// One [`crate::relations::Related`], drawn: a link pushing its
+/// selection, or its words.
+pub(crate) fn related_entry(
+    ui: &mut egui::Ui,
+    entry: &crate::relations::Related,
+    ops: &mut Vec<SessionOp>,
+) {
+    let said = entry.said().to_string();
+    match entry.selects() {
+        Some(selection) => {
+            if crate::widgets::message_link(ui, said.as_str()).clicked() {
+                ops.push(SessionOp::Select(selection));
+            }
+        }
+        None => {
+            crate::widgets::message(ui, said.as_str());
+        }
     }
 }
 
@@ -1345,12 +1451,12 @@ fn selected_node_heading(
 /// ([`PickedName`]), and the node its Delete deletes — the feature the
 /// words name ([`PickedName::feature`]), so the button deletes what the
 /// label names. It is the node [`crate::session::FaceSelection::feature`]
-/// answers too, so the tree highlights what the header deletes.
+/// answersentence().s too, so the tree highlights what the header deletes.
 pub(crate) fn entity_header(
     picked: &PickedName<'_>,
     by: pncad::document::Speaker<'_>,
 ) -> (String, RecipeNodeId) {
-    (Said(picked, by).to_string(), picked.feature())
+    (Said(picked, by).sentence().to_string(), picked.feature())
 }
 
 /// **What the selection's standing has to SAY, drawn**: the verdict on
@@ -1417,6 +1523,7 @@ pub(crate) fn standing_verdict(
                 &AboutReference(&failure.error, format_args!("this {noun}")),
                 by,
             )
+            .sentence()
             .to_string(),
         ),
         Some(Resolution::Indeterminate(cause)) => Some(indeterminate_wording(noun, cause, by)),
@@ -1533,7 +1640,7 @@ pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldSh
 pub(crate) fn variable_line(row: &VariableRow, notation: Notation) -> String {
     format!(
         "{} = {}",
-        row.label,
+        crate::tree::spelled_var(&row.label),
         props::shown_text(
             props::rendering_unit(row.dimension, row.unit, notation),
             row.value.as_f64()
@@ -1548,7 +1655,7 @@ pub(crate) fn variable_line(row: &VariableRow, notation: Notation) -> String {
 pub(crate) fn defined_line(row: &props::DefinedRow, notation: Notation) -> String {
     format!(
         "{} = {} {} {}",
-        row.label,
+        crate::tree::spelled_var(&row.label),
         row.formula,
         props::DRIVEN,
         props::reading_text(&row.value, row.dimension, notation)
@@ -1723,7 +1830,12 @@ fn slot_notes(
         if !variables.is_empty() {
             ui.horizontal_wrapped(|ui| {
                 for var in variables {
-                    if crate::widgets::message_link(ui, format!("edit {var}")).clicked() {
+                    if crate::widgets::message_link(
+                        ui,
+                        format!("edit {var}", var = crate::tree::spelled_var(var)),
+                    )
+                    .clicked()
+                    {
                         clicked = Some(var.id());
                     }
                 }
@@ -1928,7 +2040,10 @@ mod layout_tests {
         assert_own_lines(region, values);
         let refusal = find(
             &painted,
-            &format!("{label} refused at {k} = 3, 7: {refused}"),
+            &format!(
+                "{label} refused at {k} = 3, 7: {refused}",
+                k = crate::tree::spelled_var(&k)
+            ),
         );
         assert_own_lines(region, refusal);
         assert_under(values, refusal);
@@ -1997,7 +2112,10 @@ mod layout_tests {
         );
         assert_own_lines(region, affordance);
         for var in &variables {
-            let door = find(&painted, &format!("edit {var}"));
+            let door = find(
+                &painted,
+                &format!("edit {var}", var = crate::tree::spelled_var(var)),
+            );
             assert_inside(region, door);
             assert_under(affordance, door);
         }
@@ -2751,7 +2869,7 @@ mod verdict_tests {
             body: 0,
         });
         let labelled = format!(
-            "Extrude \"base block\" ({})",
+            "\"base block\" ({})",
             test_utils::refusal::tag(block.0.digest())
         );
         let by_tag = format!("node {}", test_utils::refusal::tag(block.0.digest()));
@@ -2851,8 +2969,8 @@ mod verdict_tests {
         );
         session.perform(SessionOp::Select(face));
         assert_eq!(
-            session.selection_said().spoken(block).to_string(),
-            format!("Extrude \"base block\" ({t})"),
+            crate::tree::spelled(&session.selection_said().spoken(block)),
+            format!("\"base block\" ({t})"),
             "the landed run still held the block, so the pick keeps its label"
         );
     }
@@ -2883,7 +3001,7 @@ mod verdict_tests {
                 .is_some_and(|(landed, _)| landed.node(profile).is_none()),
             "the landed run does not hold the profile yet"
         );
-        let labelled = session.doc().spoken(profile).to_string();
+        let labelled = crate::tree::spelled(&session.doc().spoken(profile));
         assert!(labelled.contains("\"floor\""), "{labelled}");
         session.perform(SessionOp::Select(Selection::Node(profile)));
         let deleted = session.perform(SessionOp::DeleteNode { node: profile });
@@ -2938,7 +3056,7 @@ mod verdict_tests {
                     session.selection_said(),
                     block,
                 ),
-                format!("Extrude \"{after}\" ({t})"),
+                format!("\"{after}\" ({t})"),
                 "{what}: the deleted node is said by its last label"
             );
         }
@@ -2968,7 +3086,7 @@ mod verdict_tests {
                 session.selection_said(),
                 block,
             ),
-            format!("Extrude \"landed\" ({t})"),
+            format!("\"landed\" ({t})"),
             "the heading waits for the rename to land"
         );
     }

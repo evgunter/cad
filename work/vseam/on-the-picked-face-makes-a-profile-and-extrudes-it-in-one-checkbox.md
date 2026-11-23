@@ -2,10 +2,12 @@
 id: on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox
 kind: issue
 title: The add-profile form's "on the picked face" checkbox makes a profile and extrudes it, as one op
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
+closed: 2026-11-23
+pr: 7466
 ---
 
 **Reported against an older build** (Ev, in chat, 2026-11-02: "i had

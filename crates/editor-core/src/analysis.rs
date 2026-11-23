@@ -52,6 +52,8 @@
 //! column consult the SAME pair, so the analyzed interval always holds
 //! exactly the mass the tail complements.
 
+use crate::say;
+use crate::sentence;
 use std::collections::BTreeMap;
 
 use crate::distribution::Distribution;
@@ -670,35 +672,62 @@ pub enum SeedError {
     },
 }
 
-impl core::fmt::Display for SeedError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for SeedError {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         use crate::sentence::Recourse;
         match self {
-            Self::UnknownVar { var } => write!(
+            Self::UnknownVar { var } => say!(
                 f,
-                "the seed names {var}, which is not a variable of this document. {}",
-                Recourse("seed a free length, angle or scalar variable the document holds")
+                "the seed names ",
+                by.var(var),
+                format_args!(
+                    ", which is not a variable of this document. {}",
+                    Recourse("seed a free length, angle or scalar variable the document holds")
+                )
             ),
-            Self::CountVar { var } => write!(
+            Self::CountVar { var } => say!(
                 f,
-                "the seed names {var}, a Count parameter — structural parameters are fixed \
+                "the seed names ",
+                by.var(var),
+                format_args!(
+                    ", a Count parameter — structural parameters are fixed \
                  under any error analysis and carry no derivative axis. {}",
-                Recourse("seed a length, angle or scalar parameter")
+                    Recourse("seed a length, angle or scalar parameter")
+                )
             ),
-            Self::SeedOnNonFreeVar { var } => write!(
+            Self::SeedOnNonFreeVar { var } => say!(
                 f,
-                "the seed names {var}, which is not a free variable and so is no axis of its \
+                "the seed names ",
+                by.var(var),
+                sentence!(
+                    ", which is not a free variable and so is no axis of its \
                  own: a defined variable's derivative is its inputs' pushforward, and an \
-                 operation's output is a value its operation gives. {}",
-                Recourse(format_args!("seed a free variable {var} is a function of"))
+                 operation's output is a value its operation gives. ",
+                    Recourse(sentence!(
+                        "seed a free variable ",
+                        by.var(var),
+                        " is a function of"
+                    ))
+                )
             ),
-            Self::TangentUnrepresentable { var } => write!(
+            Self::TangentUnrepresentable { var } => say!(
                 f,
-                "parameter {var} is seeded and this evaluation scalar carries no tangent \
+                "parameter ",
+                by.var(var),
+                format_args!(
+                    " is seeded and this evaluation scalar carries no tangent \
                  channel. {}",
-                Recourse("evaluate at a dual scalar, or drop the seed")
+                    Recourse("evaluate at a dual scalar, or drop the seed")
+                )
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for SeedError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -817,6 +846,19 @@ impl BoxAxis {
         let (lo, hi) = self.span();
         geom::mid_param(lo, hi)
     }
+
+    /// The two halves of this axis's span, lower first, cut at
+    /// [`Self::midpoint`]. `None` for a fixed axis, and for one too
+    /// narrow to split: a midpoint that lands on an endpoint, the `f64`
+    /// grid's own floor. [`ParamBox::split`] and the range search both
+    /// halve through here.
+    pub fn halves(&self) -> Option<[(f64, f64); 2]> {
+        let Self::Varying { lo, hi } = *self else {
+            return None;
+        };
+        let mid = self.midpoint();
+        (lo < mid && mid < hi).then_some([(lo, mid), (mid, hi)])
+    }
 }
 
 /// A sub-box of the [`AnalyzedBox`]: one [`BoxAxis`] per continuous
@@ -860,18 +902,24 @@ pub enum ParamBoxError {
     SymbolsOverABox,
 }
 
-impl core::fmt::Display for ParamBoxError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for ParamBoxError {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownParam { param } => write!(
+            Self::UnknownParam { param } => say!(
                 f,
-                "the parameter box names {param}, which is not a free continuous variable of \
+                "the parameter box names ",
+                by.var(param),
+                ", which is not a free continuous variable of \
                  this document"
             ),
-            Self::AxisUnrepresentable { param, lo, hi } => write!(
+            Self::AxisUnrepresentable { param, lo, hi } => say!(
                 f,
-                "parameter {param} spans offsets [{lo}, {hi}] and this evaluation scalar carries \
+                "parameter ",
+                by.var(param),
+                format_args!(
+                    " spans offsets [{lo}, {hi}] and this evaluation scalar carries \
                  no such value — a widened box needs an enclosing scalar"
+                )
             ),
             Self::SymbolsOverABox => write!(
                 f,
@@ -880,6 +928,13 @@ impl core::fmt::Display for ParamBoxError {
                 crate::sentence::Recourse("evaluate symbolically and over the box in two runs")
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for ParamBoxError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1014,21 +1069,14 @@ impl ParamBox {
     }
 
     /// The two halves of this box across `name`, bisected at the axis
-    /// midpoint. `None` when the axis is absent, fixed, or too narrow to
-    /// split (a midpoint that lands on an endpoint — the `f64` grid's
-    /// own floor).
+    /// midpoint ([`BoxAxis::halves`]). `None` when the axis is absent,
+    /// fixed, or too narrow to split.
     ///
     /// The midpoint is [`BoxAxis::midpoint`]'s, so the same box splits
     /// into the same two halves on every machine and in every schedule
     /// (D9).
     pub fn split(&self, name: VarId) -> Option<(Self, Self)> {
-        let BoxAxis::Varying { lo, hi } = *self.axes.get(&name)? else {
-            return None;
-        };
-        let mid = BoxAxis::Varying { lo, hi }.midpoint();
-        if !(lo < mid && mid < hi) {
-            return None;
-        }
+        let [(lo, mid), (_, hi)] = self.axes.get(&name)?.halves()?;
         let mut a = self.clone();
         let mut b = self.clone();
         a.axes.insert(name, BoxAxis::Varying { lo, hi: mid });
@@ -1305,15 +1353,24 @@ impl MeasureUnavailable {
     }
 }
 
-impl core::fmt::Display for MeasureUnavailable {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for MeasureUnavailable {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::BandHasNoMeasure { param } => write!(
+            Self::BandHasNoMeasure { param } => say!(
                 f,
-                "parameter {param} carries a band: worst-case limits with no shape, so it \
+                "parameter ",
+                by.var(param),
+                " carries a band: worst-case limits with no shape, so it \
                  prices nothing — state a distribution to ask for mass"
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for MeasureUnavailable {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

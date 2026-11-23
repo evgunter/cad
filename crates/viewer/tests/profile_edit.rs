@@ -866,7 +866,7 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
     });
     assert!(
         matches!(&out.refusal, Some(Refusal::ProfileEditStale { node }) if node.id() == profile
-            && node.to_string().starts_with("Profile \"outline\" (")),
+            && editor_core::test_support::node_text(node).starts_with("\"outline\" (")),
         "{:?}",
         out.refusal
     );

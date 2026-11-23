@@ -577,3 +577,129 @@ fn a_pick_through_a_copy_of_a_copy_is_guarded() {
     );
     assert!(session.committed_doc().bit_eq(&before), "nothing recorded");
 }
+
+/// **A copy of one piece of a placement reads it, and copies no body of
+/// it**: the pick's copy is in the `⊔`'s copy's read-by at the source
+/// seat, but neither placement query counts it, so the copy carries no
+/// world badge for it and stays unseen (`world::is_seen`), as it was
+/// before read-by existed.
+///
+/// *Breaks if* a pick's copy is counted as a copy of the placement it
+/// picks from, by the node or by the body, or drops out of its read-by.
+#[test]
+fn a_copy_of_one_piece_reads_the_placement_and_copies_none_of_it() {
+    use pncad::document::OperandSlot;
+    let (session, _, assemble) = a_pick_through_a_union(Tol::witness());
+    let doc = session.committed_doc();
+    let [held] = doc.placements_of(assemble)[..] else {
+        panic!("the ⊔ is copied into the world once")
+    };
+    let pickers: Vec<RecipeNodeId> = doc
+        .read_by(held)
+        .into_iter()
+        .filter(|&(_, seat)| seat == OperandSlot::Source)
+        .map(|(reader, _)| reader)
+        .collect();
+    let [_picked] = pickers[..] else {
+        panic!("the pick's copy reads the ⊔'s copy at its source: {pickers:?}")
+    };
+    assert_eq!(doc.placements_of(held), [], "no copy of the ⊔'s copy");
+    let held_out = doc.output(held, 0).expect("the copy's body");
+    assert_eq!(
+        doc.placements_of_var(held_out),
+        [],
+        "asked by its body, none"
+    );
+    assert_eq!(doc.read_index().placements_of(held), [], "the index agrees");
+    assert!(!viewer::world::is_seen(doc, held), "nothing sees it");
+}
+
+/// **A clearance seated on a placement whose piece a pick copies reads
+/// the placement**: the pick's copy is no world copy of it, so the seat
+/// is not taken over by the one piece it draws.
+///
+/// *Breaks if* the clearance door reads the pick's copy's body instead.
+#[test]
+fn a_clearance_on_a_placement_whose_piece_is_picked_reads_the_placement() {
+    let tol = Tol::witness();
+    let (mut session, _, assemble) = a_pick_through_a_union(tol);
+    let far = common::xy_box_in(&mut session, BOX);
+    let (doc, far_copy) = common::world_copy(session.committed_doc(), far, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let [held] = doc.placements_of(assemble)[..] else {
+        panic!("the ⊔ is copied into the world once")
+    };
+    let out = session.perform(SessionOp::AddAssertion {
+        a: viewer::session::AssertedSeat::Body(Operand::Node(held)),
+        b: viewer::session::AssertedSeat::Body(Operand::Node(far_copy)),
+        claim: viewer::session::AssertedClaim::Clearance(
+            pncad::document::ClearanceBounds::AtLeast(viewer::test_support::len(0.005)),
+        ),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let made = out.made.expect("the clearance");
+    let doc = session.committed_doc();
+    assert!(
+        doc.operand_reads(made)
+            .iter()
+            .any(|read| Some(read.read) == doc.output(held, 0)),
+        "the clearance reads the ⊔'s copy, not the pick's one piece: {:?}",
+        doc.operand_reads(made)
+    );
+}
+
+/// **The product door and a seat's copy count ignore a pick's copy**:
+/// the `⊔`'s copy has no world copy for a seat to count
+/// (`world::world_copies_of_read`), and with the pick's copy already in
+/// the product, adding the `⊔`'s copy adds its own body, not the one
+/// piece the pick draws.
+///
+/// *Breaks if* a pick's copy is counted as a world copy of the placement
+/// it picks from, at a seat or at the product door.
+#[test]
+fn the_product_door_and_a_seats_copy_count_ignore_a_picks_copy() {
+    let tol = Tol::witness();
+    let (mut session, _, assemble) = a_pick_through_a_union(tol);
+    let doc = session.committed_doc().clone();
+    let [held] = doc.placements_of(assemble)[..] else {
+        panic!("the ⊔ is copied into the world once")
+    };
+    let picked: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| {
+            p != held
+                && doc
+                    .copied_read(p)
+                    .is_some_and(|read| doc.pick(doc.through_sources(read).read).is_some())
+        })
+        .collect();
+    let [pick] = picked[..] else {
+        panic!("one copy of a pick: {picked:?}")
+    };
+    assert_eq!(
+        viewer::world::world_copies_of_read(&doc, &Operand::Node(held)),
+        Vec::<VarId>::new(),
+        "no world copy of the ⊔'s copy"
+    );
+    let out = session.perform(SessionOp::AddToProduct {
+        node: pick,
+        body: None,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let out = session.perform(SessionOp::AddToProduct {
+        node: held,
+        body: None,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    let body = doc.output(held, 0).expect("the ⊔'s copy's body");
+    assert!(
+        viewer::world::product_reads(doc).contains(&body),
+        "the product reads the ⊔'s copy itself: {:?}",
+        viewer::world::product_reads(doc)
+    );
+}
