@@ -1496,7 +1496,7 @@ fn exact_value(x: Interval, moved: bool) -> Result<f64, PropsError> {
     } else if moved {
         Err(PropsError::QuadratureUnsupported {
             what: "a NURBS-face line the lift moved by periods of a closed chart is held \
-                   at a computed sum, which is no single number — only a line at an end \
+                   at a computed value, which is no single number — only a line at an end \
                    of the chart's domain, moved one period, is the other end exactly",
         })
     } else {
@@ -3088,8 +3088,9 @@ mod tests {
         /// `[lo, hi]` at `f64` and at `Interval` alike. The sum
         /// `lo + (hi − lo)` it replaces has width at `Interval` on every
         /// one of these domains and at `f64` misses `hi` by an ulp on
-        /// three of them. A column that is NOT at an end moves by the sum,
-        /// and at `Interval` the certificate refuses it, naming the move.
+        /// three of them. A column that is NOT at an end lands its offset
+        /// off the other end, a computed value that at `Interval` is no
+        /// point here, and the certificate refuses it, naming the move.
         ///
         /// Red under `Period::moved` adding `k·(hi − lo)` to every value:
         /// the `Interval` rectangles refuse and three `f64` ones miss `hi`.
@@ -3123,9 +3124,8 @@ mod tests {
                 let surface = chart::<T>(lo, hi);
                 let periods = crate::pcurves::ChartPeriods::stated(&surface);
                 let stored = piece((f(at), T::zero()), (0.0, 1.0));
-                let image = ONCE
-                    .apply(&stored.pcurve, &surface, periods)
-                    .expect("the chart states a u period");
+                // The chart states a `u` period, so the move is made.
+                let image = ONCE.apply(&stored.pcurve, &surface, periods).unwrap();
                 let mut lifted = stored.moved_for_tests(ONCE);
                 lifted.pcurve = image;
                 rows[1] = lifted;
@@ -3142,12 +3142,12 @@ mod tests {
             }
             each::<f64>();
             each::<Interval>();
-            // A column an ulp inside the domain is no end: it moves by the
-            // sum, which at `Interval` is no point.
+            // A column an ulp inside the domain is no end: it lands that
+            // ulp past the other end, which at `Interval` is no point.
             let (lo, hi) = (0.4_f64, 1.7_f64);
             match moved::<Interval>((lo, hi), f64::from_bits(lo.to_bits() + 1)) {
                 Err(PropsError::QuadratureUnsupported { what })
-                    if what.contains("computed sum") => {}
+                    if what.contains("computed value") => {}
                 other => panic!("Interval: a moved interior column is no point: {other:?}"),
             }
         }

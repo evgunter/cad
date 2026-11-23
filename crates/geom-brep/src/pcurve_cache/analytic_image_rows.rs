@@ -1165,11 +1165,8 @@ fn a_slanted_line_is_stated_as_a_curve_in_uv_on_its_carriers_knots() {
         ),
     };
     let (p0, pl) = ([-2.1, 0.45], [0.37, -1.9]);
-    assert_eq!(
-        Pcurve::<f64>::iso_line_for_tests(p0, pl).is_none(),
-        true,
-        "a slanted line has no iso form"
-    );
+    let iso = Pcurve::<f64>::iso_line_for_tests(p0, pl);
+    assert!(iso.is_none(), "a slanted line has no iso form: {iso:?}");
     let at = |t: f64| Point2::new(p0[0] + pl[0] * t, p0[1] + pl[1] * t);
     let line = |lo: f64, hi: f64, ends: [Point2<f64>; 2]| {
         NurbsCurve2::new(
@@ -1210,7 +1207,7 @@ fn a_slanted_line_is_stated_as_a_curve_in_uv_on_its_carriers_knots() {
         let on_the_span = Image::General(Arc::new(line(*t0, *t1, [at(*t0), at(*t1)])));
         for door in DOORS {
             let got = (door.certify)(&surface, &on_the_span, &net, (*t0, *t1));
-            assert_eq!(
+            assert!(
                 matches!(
                     got,
                     Err(CertifyError::NoGeneralLane {
@@ -1219,7 +1216,6 @@ fn a_slanted_line_is_stated_as_a_curve_in_uv_on_its_carriers_knots() {
                         gap: crate::LaneGap::Envelope,
                     })
                 ),
-                true,
                 "{} over ({t0}, {t1}): stated on the edge's span it is not yet imaged: {got:?}",
                 door.name
             );

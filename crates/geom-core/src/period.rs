@@ -166,21 +166,32 @@ pub enum DomainEnd {
 /// **The end of the domain `(lo, hi)` that `x` is exactly at**, `None`
 /// where it is at neither: the one home of "is this stored value this
 /// domain's end". The read is structure, of two copies of one stored
-/// number ([`Real::is_exact_zero_in_every_channel`] of the difference):
-/// a value the kernel placed AT a domain's end (a seam column, a row on
-/// a chart's side, a corner) was written from that end and equals it in
-/// every channel the scalar carries; a value that merely lands near it,
-/// or encloses it with width, is not at it. `lo` is asked first, so a
-/// domain whose two ends are one value reads [`DomainEnd::Low`].
+/// number ([`crate::is_exact_zero`] of the difference): a value the
+/// kernel placed AT a domain's end (a row on a chart's side, a corner)
+/// was written from that end and is its bits; a value that merely lands
+/// near it, or encloses it with width, is not at it. `lo` is asked
+/// first, so a domain whose two ends are one value reads
+/// [`DomainEnd::Low`].
+///
+/// What it reads at each scalar ([`crate::is_exact_zero`]'s reading):
+/// - `f64`: `x == lo`, up to the sign of zero;
+/// - `Interval`: `x` and `lo` the same point; an enclosure with width
+///   that contains `lo` is at neither end;
+/// - `Dual`, `Sym`: the value channel alone. A value at `lo` whose
+///   derivative is not `lo`'s, and another expression with `lo`'s value,
+///   both read as at `lo`. So the answer names WHERE a value sits, and
+///   is never licence to put the end in the value's place: a caller that
+///   needs the end's own channels reads them from the end
+///   ([`Period::moved`] does not ask this at all).
 ///
 /// It is not a decision: a caller that takes `None` for a value within
 /// rounding of an end must be one that reads the value some other way
-/// (a sum, a refusal, a wider route), never one that concludes the value
-/// is inside the domain.
+/// (a refusal, a wider route), never one that concludes the value is
+/// inside the domain.
 pub fn domain_end<T: Real>(x: T, (lo, hi): (T, T)) -> Option<DomainEnd> {
-    if (x - lo).is_exact_zero_in_every_channel() {
+    if crate::is_exact_zero(x - lo) {
         Some(DomainEnd::Low)
-    } else if (x - hi).is_exact_zero_in_every_channel() {
+    } else if crate::is_exact_zero(x - hi) {
         Some(DomainEnd::High)
     } else {
         None
@@ -224,41 +235,36 @@ impl<T: Real> Period<T> {
         }
     }
 
-    /// **`x` moved `k` whole periods.** A value that is exactly an end of
-    /// the domain the period is stated by ([`Period::of_domain`]), moved
-    /// the one period towards the other end, is that other end, by
-    /// definition: no sum is formed, so `lo` moved one period is `hi`
-    /// itself at every scalar, where `lo + (hi − lo)` rounds at `f64` and
-    /// has width at an enclosure scalar. Every other move adds
-    /// [`Period::times`]`(k)`: a value off both ends, a move of `k` other
-    /// than the one step towards the other end, and every move of a
-    /// period stated as a length.
+    /// **`x` moved `k` whole periods.** For a period stated by its
+    /// domain's two ends ([`Period::of_domain`]), one period up is
+    /// `hi + (x − lo)` and one period down is `lo + (x − hi)`: the value
+    /// re-anchored on the other end, the same real as `x ± (hi − lo)`.
+    /// No test is made and no branch taken on `x`. A value that IS an
+    /// end has a zero offset from it, so it moves to the other end
+    /// itself: `lo` moved one period is `hi` at every scalar, where
+    /// `lo + (hi − lo)` rounds at `f64` and has width at an enclosure
+    /// scalar. Every other move, `k` other than one step either way and
+    /// every move of a period stated as a length, adds
+    /// [`Period::times`]`(k)`.
     ///
-    /// "Exactly an end" is [`domain_end`], which reads each scalar's
-    /// every channel, so the shortcut returns an end only where the
-    /// arithmetic it skips would have:
-    /// - `f64`: `x == lo`, bit for bit up to the sign of zero. A value
-    ///   an ulp off moves by the sum.
-    /// - `Interval`: `x` and `lo` the same point. An enclosure with
-    ///   width that contains `lo` is not at it, and moves by the sum.
-    /// - `Dual`: the value AND the derivative equal the end's, so a value
-    ///   passing through `lo` with a derivative of its own keeps it
-    ///   (the sum carries `x′ + hi′ − lo′`).
-    /// - `Sym`: its numeric channel's reading, not the expression's: two
-    ///   expressions with one value at this evaluation read as one. The
-    ///   end returned is then the domain's own expression, which is the
-    ///   same real here and need not be the same function of the
-    ///   parameters as `x + (hi − lo)`; a caller whose `x` is not a copy
-    ///   of the domain's end owes that identity itself.
+    /// What the one step reads at each scalar, all by the arithmetic:
+    /// - `f64`: `hi + (lo − lo)` is `hi`'s bits; a value an ulp off `lo`
+    ///   lands that ulp's image off `hi`.
+    /// - `Interval`: the difference of two equal points is the point
+    ///   zero, so the end moves to the other end as a point; a value
+    ///   with width moves with its width.
+    /// - `Dual`: the derivative is `hi′ + x′ − lo′`, the move's own, so
+    ///   a value passing through `lo` with a derivative of its own keeps
+    ///   it.
+    /// - `Sym`: the expression `hi + (x − lo)`, the same function of
+    ///   the parameters as `x + (hi − lo)`; nothing is read off its
+    ///   value.
     pub fn moved(self, x: T, k: i32) -> T {
-        if let Stated::Domain { lo, hi } = self.stated {
-            match (k, domain_end(x, (lo, hi))) {
-                (1, Some(DomainEnd::Low)) => return hi,
-                (-1, Some(DomainEnd::High)) => return lo,
-                _ => {}
-            }
+        match (self.stated, k) {
+            (Stated::Domain { lo, hi }, 1) => hi + (x - lo),
+            (Stated::Domain { lo, hi }, -1) => lo + (x - hi),
+            _ => x + self.times(k),
         }
-        x + self.times(k)
     }
 
     /// Half the period, as a length: how far an offset may sit from a
@@ -2046,20 +2052,18 @@ mod domain_rows {
     /// **Which end a value is at, per scalar** ([`domain_end`]): the same
     /// stored value is at its end; a value an ulp off, and an enclosure
     /// with width that contains the end, is at neither. At a scalar that
-    /// carries a derivative, a value equal to the end with another
-    /// derivative is at neither.
+    /// carries more than a value the read is the value channel's.
     #[test]
     fn a_value_is_at_an_end_only_as_the_same_stored_number() {
         let (lo, hi) = (0.4, 1.7);
         assert_eq!(
-            [lo, hi, up(lo), up(hi), 1.0, -0.0 + lo].map(|x| domain_end(x, (lo, hi))),
+            [lo, hi, up(lo), up(hi), 1.0].map(|x| domain_end(x, (lo, hi))),
             [
                 Some(DomainEnd::Low),
                 Some(DomainEnd::High),
                 None,
                 None,
-                None,
-                Some(DomainEnd::Low)
+                None
             ],
             "f64"
         );
@@ -2100,29 +2104,16 @@ mod domain_rows {
         );
         let d = Dual::new;
         assert_eq!(
-            [
-                d(lo, 0.0),
-                d(lo, 1.0),
-                d(hi, 0.0),
-                d(hi, -2.0),
-                d(up(lo), 0.0)
-            ]
-            .map(|x| domain_end(x, (Dual::constant(lo), Dual::constant(hi)))),
+            [d(lo, 0.0), d(lo, 1.0), d(hi, -2.0), d(up(lo), 0.0)]
+                .map(|x| domain_end(x, (Dual::constant(lo), Dual::constant(hi)))),
             [
                 Some(DomainEnd::Low),
-                None,
+                // The value channel alone: a derivative is not read.
+                Some(DomainEnd::Low),
                 Some(DomainEnd::High),
-                None,
                 None
             ],
-            "Dual: the derivative is read too"
-        );
-        // An end that itself moves with the parameter: a value moving
-        // with it is at it.
-        assert_eq!(
-            domain_end(d(lo, 3.0), (d(lo, 3.0), d(hi, 0.0))),
-            Some(DomainEnd::Low),
-            "Dual: a value with its end's derivative is at the end"
+            "Dual: the value channel's reading"
         );
         let p =
             |name: &str, v: f64| Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), c(v));
@@ -2144,12 +2135,13 @@ mod domain_rows {
         );
     }
 
-    /// **An end moved the one period towards the other end is that end;
-    /// every other move is the sum**, at `f64` and at `Interval`: `k`
-    /// other than the one step, a step away from the domain, a value off
-    /// both ends, and a period stated as a length.
+    /// **One period either way re-anchors the value on the other end;
+    /// every other move is the sum**, at `f64` and at `Interval`. An end
+    /// moved towards the other IS the other, as a point; a value off the
+    /// ends moves by its offset from the end; `k` other than one step,
+    /// and a period stated as a length, add `k` lengths.
     #[test]
-    fn only_an_end_moved_towards_the_other_is_exact() {
+    fn one_step_re_anchors_on_the_other_end() {
         macro_rules! at {
             ($t:ty, $scalar:expr) => {{
                 let f = <$t>::from_f64;
@@ -2167,27 +2159,31 @@ mod domain_rows {
                         (lo, lo),
                         "{case}: there and back"
                     );
-                    // Every other move forms the sum, as the scalar computes it.
-                    for (x, k) in [
-                        (lo, -1),
-                        (hi, 1),
-                        (lo, 0),
-                        (hi, 0),
-                        (lo, 2),
-                        (hi, -2),
-                        (lo, -3),
-                        (up(lo), 1),
-                        (up(hi), -1),
-                        (0.5 * (lo + hi), 1),
-                        (0.5 * (lo + hi), -1),
-                    ] {
+                    // One step from anywhere else: the offset from the
+                    // near end, laid off from the far one.
+                    for x in [hi, up(lo), 0.5 * (lo + hi), lo - 0.25] {
+                        assert_eq!(
+                            ends(p.moved(f(x), 1)),
+                            ends(f(hi) + (f(x) - f(lo))),
+                            "{case}: {x} up one is hi + (x − lo)"
+                        );
+                    }
+                    for x in [lo, up(hi), 0.5 * (lo + hi), hi + 0.25] {
+                        assert_eq!(
+                            ends(p.moved(f(x), -1)),
+                            ends(f(lo) + (f(x) - f(hi))),
+                            "{case}: {x} down one is lo + (x − hi)"
+                        );
+                    }
+                    // Every other `k` forms the sum, as the scalar computes it.
+                    for (x, k) in [(lo, 0), (hi, 0), (lo, 2), (hi, -2), (lo, -3), (up(lo), 5)] {
                         assert_eq!(
                             ends(p.moved(f(x), k)),
                             ends(f(x) + f(f64::from(k)) * (f(hi) - f(lo))),
                             "{case}: {x} moved {k} is the sum"
                         );
                     }
-                    // Stated as a length, there is no end to be at.
+                    // Stated as a length, there is no end to anchor on.
                     let stated = Period::new(f(hi) - f(lo));
                     for (x, k) in [(lo, 1), (hi, -1)] {
                         assert_eq!(
@@ -2201,7 +2197,7 @@ mod domain_rows {
         }
         at!(f64, "f64");
         at!(Interval, "Interval");
-        // What the exact move is for: at `f64` the sum misses `hi` on
+        // What the re-anchoring is for: at `f64` the sum misses `hi` on
         // three of the four domains, and at `Interval` it has width on
         // every one.
         assert_eq!(
@@ -2218,12 +2214,18 @@ mod domain_rows {
             [true; 4],
             "Interval: the sum has width"
         );
+        // A value an ulp off the end lands off the other end, never on it.
+        let (lo, hi) = (0.4, 1.7);
+        let past = Period::of_domain(lo, hi).moved(up(lo), 1);
+        assert!(past > hi, "f64: an ulp past lo moves past hi: {past:e}");
     }
 
-    /// **A move keeps every channel the sum would carry**, at `Dual`: a
-    /// value AT the end in value and derivative moves to the other end
-    /// (whose derivative is the sum's); a value passing through the end
-    /// with a derivative of its own moves by the sum and keeps it.
+    /// **A move carries the value's derivative**, at `Dual`: the move's
+    /// own, `x′ + hi′ − lo′`, whether or not the value is at an end.
+    ///
+    /// Red under a move that returns the end where the value equals it
+    /// in its value channel (`moved(Dual::variable(lo), 1)` then has
+    /// the end's derivative, `0`).
     #[test]
     fn a_move_at_dual_keeps_the_values_derivative() {
         let d = Dual::new;
@@ -2235,35 +2237,36 @@ mod domain_rows {
             (1.7, 0.0),
             "the end itself moves to the other end"
         );
-        let through = p.moved(Dual::variable(0.4), 1);
         assert_eq!(
-            read(through),
-            read(Dual::variable(0.4) + p.times(1)),
-            "a value passing through lo moves by the sum"
+            read(p.moved(Dual::variable(0.4), 1)),
+            (1.7, 1.0),
+            "a value passing through lo moves to hi and keeps its derivative"
         );
-        assert_eq!(through.deriv, 1.0, "and keeps its derivative");
         assert_eq!(
             read(p.moved(Dual::variable(1.7), -1)),
-            read(Dual::variable(1.7) + p.times(-1)),
+            (0.4, 1.0),
             "likewise through hi"
         );
-        // Ends that move with the parameter: the shortcut's result has
-        // the sum's derivative, `x′ + hi′ − lo′`.
+        // Ends that move with the parameter.
         let (lo, hi) = (d(0.4, 0.25), d(1.7, 2.0));
         let p = Period::of_domain(lo, hi);
         assert_eq!(
             read(p.moved(lo, 1)),
             (1.7, 2.0),
-            "moving ends: lo up one is hi"
+            "moving ends: lo up one is hi, derivative and all"
         );
-        assert_eq!((lo + p.times(1)).deriv, 2.0, "the sum's derivative is hi's");
+        assert_eq!(
+            read(p.moved(d(0.4, 1.0), 1)),
+            (1.7, 2.75),
+            "moving ends: x′ + hi′ − lo′"
+        );
     }
 
-    /// **At `Sym` the move reads the numeric channel**: the domain's own
-    /// end moves to the other end's expression; a value an ulp off moves
-    /// by the sum.
+    /// **At `Sym` a move is arithmetic on the expression**: the
+    /// domain's own end moves to the other end's value as a point; a
+    /// value an ulp off moves with its offset.
     #[test]
-    fn a_move_at_sym_reads_the_numeric_channel() {
+    fn a_move_at_sym_is_arithmetic_on_the_expression() {
         let c = Interval::from_f64;
         let p =
             |name: &str, v: f64| Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), c(v));
@@ -2282,17 +2285,8 @@ mod domain_rows {
         let near = p("moved_near", up(0.4));
         assert_eq!(
             ends(period.moved(near, 1).value),
-            ends(c(up(0.4)) + (c(1.7) - c(0.4))),
-            "a value an ulp off moves by the sum"
-        );
-        // Another expression with the end's value reads as the end: the
-        // documented reading, which a caller with such a value owes its
-        // own identity for.
-        let twin = p("moved_twin", 0.4);
-        assert_eq!(
-            ends(period.moved(twin, 1).value),
-            (1.7, 1.7),
-            "the numeric reading"
+            ends(c(1.7) + (c(up(0.4)) - c(0.4))),
+            "a value an ulp off moves with its offset"
         );
     }
 }

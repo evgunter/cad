@@ -6384,7 +6384,7 @@ mod iso_row_span_rows {
     use geom::Surface;
     use geom_brep::Pcurve;
     use geom_core::spline::KnotVector;
-    use geom_core::{Bounds, Decide, Interval, Point3, Real};
+    use geom_core::{Bounds as _, Decide, Interval, Point3, Real};
 
     /// The bilinear patch over `[lo, hi] × [0, 1]`.
     fn patch<T: Decide>(lo: f64, hi: f64) -> Surface<T> {
@@ -6426,16 +6426,15 @@ mod iso_row_span_rows {
     }
 
     /// The span [`super::iso_image_row`] reads for row `i` of `lift`,
-    /// whose stored image is `stored`.
-    fn read<T: Decide + Bounds>(
-        lift: &Lift<T>,
-        i: usize,
-        stored: &Pcurve<T>,
-        periods: ChartPeriods<T>,
-    ) -> [(f64, f64); 2] {
-        let line = stored.held_line().unwrap().line;
-        let (a, b) = iso_row_span(line, stored, span(), lift.stored_corners(i, periods));
-        [(a.lo(), a.hi()), (b.lo(), b.hi())]
+    /// whose stored image is `stored`, as two brackets. A macro: the body
+    /// reads brackets of a deciding scalar, and names no compound bound
+    /// to do it.
+    macro_rules! read {
+        ($lift:expr, $i:expr, $stored:expr, $periods:expr) => {{
+            let line = $stored.held_line().unwrap().line;
+            let (a, b) = iso_row_span(line, $stored, span(), $lift.stored_corners($i, $periods));
+            [(a.lo(), a.hi()), (b.lo(), b.hi())]
+        }};
     }
 
     /// Red under `iso_row_span` reading the image's own ends where the
@@ -6478,7 +6477,7 @@ mod iso_row_span_rows {
                     closed(),
                 );
                 assert_eq!(
-                    read(&plain, 0, &stored, periods),
+                    read!(&plain, 0, &stored, periods),
                     whole,
                     "{scalar}: a whole-side row spans its domain"
                 );
@@ -6505,7 +6504,7 @@ mod iso_row_span_rows {
                     closed(),
                 );
                 assert_eq!(
-                    read(&lifted, 0, &stored, periods),
+                    read!(&lifted, 0, &stored, periods),
                     whole,
                     "{scalar}: lifted one period, the row still spans its stored domain"
                 );
