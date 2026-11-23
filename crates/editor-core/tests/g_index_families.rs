@@ -715,7 +715,8 @@ fn a_profile_reading_the_index_is_a_family_named_by_its_pieces() {
     // The extrusion is the binder's yield.
     let doc = fixture::yielded(doc, ext);
     let ev = run(&doc);
-    let profiles = ev.value(profile).unwrap().members.as_ref();
+    // A family of profiles is no one value: its members are its result's.
+    let profiles = ev.result(profile).and_then(editor_core::NodeResult::members);
     assert_eq!(
         profiles.map(|m| m.members.len()),
         Some(3),

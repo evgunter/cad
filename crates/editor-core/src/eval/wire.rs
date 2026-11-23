@@ -1146,7 +1146,12 @@ fn value_as<'v, T: topo::AtRestPolicy + Decide>(
     }) {
         Ok(value) => Ok(value),
         Err(super::NodeStanding::Members { .. }) => {
-            Err(operand_refusal(input, expected, super::family::FAMILY))
+            let found = results
+                .get(&input)
+                .and_then(super::NodeResult::family)
+                .map(super::FamilyResult::kind_name)
+                .unwrap_or_else(|| unreachable!("`usable_in` reads the family it names"));
+            Err(operand_refusal(input, expected, found))
         }
         Err(_) => Err(NodeErrorKind::MissingInput { input }),
     }
@@ -1162,7 +1167,7 @@ fn whole_as<'v, T: topo::AtRestPolicy + Decide>(
 ) -> Result<&'v super::NodeValue<T>, NodeErrorKind> {
     value
         .whole()
-        .map_err(|_| operand_refusal(input, expected, super::family::FAMILY))
+        .map_err(|family| operand_refusal(input, expected, family.kind_name()))
 }
 
 /// [`operand`]'s refusal alone, for callers that already hold the

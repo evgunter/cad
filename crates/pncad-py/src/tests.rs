@@ -4950,6 +4950,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_boolean",
             "node_failed",
             "not_a_body",
+            "not_a_body",
             "poisoned",
             "step_refused",
             "unknown_node",

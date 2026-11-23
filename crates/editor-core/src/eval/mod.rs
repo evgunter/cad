@@ -980,6 +980,14 @@ pub struct FamilyResult<T: topo::AtRestPolicy + Decide> {
     pub naming_key: NamingKey,
 }
 
+impl<T: topo::AtRestPolicy + Decide> FamilyResult<T> {
+    /// The family word it lands in, for typed operand mismatches, as
+    /// [`ValuePayload::kind_name`] says a value's: `family`.
+    pub fn kind_name(&self) -> &'static str {
+        family::FAMILY
+    }
+}
+
 /// **The family a member stands for**, in one member's view of it
 /// ([`NodeValue::family`]): a family of bodies, which is one value, or
 /// a family of anything else, which is only its members.

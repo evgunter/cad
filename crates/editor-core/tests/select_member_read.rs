@@ -265,9 +265,10 @@ fn a_per_copy_selection_reads_the_next_member() {
         "a measure per member"
     );
     let ev = eval(&doc);
+    // A family of measures is no one value: its members are its result's.
     let members = ev
-        .value(gap)
-        .and_then(|v| v.members.as_ref())
+        .result(gap)
+        .and_then(editor_core::NodeResult::members)
         .unwrap_or_else(|| panic!("a family of measures: {:?}", ev.result(gap)));
     let gaps: Vec<f64> = members
         .members

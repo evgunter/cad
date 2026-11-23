@@ -675,12 +675,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "asks only `is_err()` and draws nothing; the node's row carries it",
         ),
         (
-            "tree.rs",
-            ".usable(",
-            "`readout_of` is asked only of a row `rows` has read `Ok`: it picks which payload \
-             to show, never whether the row stands",
-        ),
-        (
             "matetool.rs",
             "face_carrier_kind(",
             "`MateReading::at_site` asks only whether a picked face's carrier is no plane, to \
