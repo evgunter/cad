@@ -234,9 +234,8 @@ fn a_stray_the_product_reads_is_moved_back_into_the_world() {
         "{:?}",
         session.product_fault()
     );
-    let recourse =
-        viewer::frame::product_recourse(session.product_fault(), session.committed_doc());
-    let [(label, op)] = &recourse[..] else {
+    let recourse = viewer::test_support::product_commits(session.current());
+    let [viewer::recourse::Commit { label, op }] = &recourse[..] else {
         panic!("one action, on the stray copy: {recourse:?}")
     };
     assert!(label.starts_with("Move "), "{label}");

@@ -157,6 +157,8 @@ mod msolve3_placer_refused;
 mod msolve5_unplaced_read_badge;
 #[path = "node_labels.rs"]
 mod node_labels;
+#[path = "offers.rs"]
+mod offers;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]
