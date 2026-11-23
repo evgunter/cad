@@ -1,0 +1,31 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 7019cd873..cf3552ebf 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1023,11 +1023,11 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+             Held::Centre => self.at,
+             // The centre lies `u·(a·cos θ₀) + v·(b·sin θ₀)` back from the
+             // anchor: `u·a` at the seam's own vertex, to the bit.
+-            Held::Arc { phase: (c0, s0) } => self.at.with_origin(
++            Held::Arc { phase: (c0, s0) } => { crate::suspects::note(&self.semi_u.max(self.semi_v)); self.at.with_origin(
+                 self.at.origin()
+                     - self.at.u_ref() * (self.semi_u * c0)
+                     - self.at.v_ref() * (self.semi_v * s0),
+-            ),
++            ) }
+         }
+     }
+ 
+diff --git a/crates/geom/src/lib.rs b/crates/geom/src/lib.rs
+index 188ea3d16..18e6afea8 100644
+--- a/crates/geom/src/lib.rs
++++ b/crates/geom/src/lib.rs
+@@ -169,6 +169,8 @@ mod projection_policy;
+ pub mod rows;
+ mod scalar_lift;
+ pub mod surfaces;
++#[allow(missing_docs)]
++pub mod suspects;
+ // Test fixtures; see the module's docs. `doc(hidden)` because the
+ // rustdoc gate runs `--all-features`.
+ #[cfg(any(test, feature = "test-support"))]
