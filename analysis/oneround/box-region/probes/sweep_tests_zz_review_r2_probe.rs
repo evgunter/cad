@@ -675,3 +675,87 @@ fn review_r2_delta_how_an_uncovered_face_is_said() {
     let image = topo::transform_rigid(&wedge, &at).unwrap();
     println!("WEDGE: {}", gate_word(&image, tol));
 }
+
+/// DELTA 2 PROBE: a slender cone ring cut by planes parallel to its axis
+/// (hyperbola sections), and a ball cut by a plane tilted to its poles.
+#[test]
+fn review_r2_delta2_cone_cut_along_its_axis_and_a_tilted_ball_cut() {
+    use sweep::test_support::{ball_poled_y, brick, finished};
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let ring = try_revolved_about_y_at::<f64>(
+        vec![
+            (Point2::new(0.09, 0.0), 0.0),
+            (Point2::new(0.1, 0.0), 0.0),
+            (Point2::new(0.1001, 0.1), 0.0),
+            (Point2::new(0.09, 0.1), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    )
+    .unwrap();
+    let at = RigidMotion::translation(Vec3::new(980.0, 0.0, 0.0))
+        .unwrap()
+        .compose(
+            RigidMotion::rotation(
+                UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), "z", band).unwrap(),
+                core::f64::consts::FRAC_PI_2,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    for (what, slab) in [
+        ("slab along the axis, off it", brick::<f64>((0.03, 0.2), (-0.2, 0.3), (-0.2, 0.2), tol)),
+        ("slab along the axis, through it", brick::<f64>((-0.02, 0.2), (-0.2, 0.3), (-0.2, 0.2), tol)),
+        ("thin slab along the axis", brick::<f64>((0.095, 0.2), (-0.2, 0.3), (-0.2, 0.2), tol)),
+        ("corner", brick::<f64>((0.02, 0.2), (0.03, 0.3), (0.01, 0.2), tol)),
+    ] {
+        let r = finished("ring", ring.clone(), tol);
+        let s = finished("slab", slab, tol);
+        for (op, got) in [("intersect", topo::intersect(&r, &s, tol)), ("subtract", topo::subtract(&r, &s, tol))] {
+            match got {
+                Ok(topo::BooleanResult::Body(b)) => {
+                    let image = topo::transform_rigid(&b.body, &at).unwrap();
+                    println!(
+                        "CONECUT {what} {op}: home {} | apex 100 m past the wall: {}",
+                        gate_word(&b.body, tol).chars().take(60).collect::<String>(),
+                        gate_word(&image, tol).chars().take(150).collect::<String>()
+                    );
+                }
+                other => println!("CONECUT {what} {op}: {}", format!("{other:?}").chars().take(160).collect::<String>()),
+            }
+        }
+    }
+    // A ball poled on y cut by a z-plane and by a tilted slab.
+    let ball = finished("ball", ball_poled_y::<f64>(50.0, Vec3::new(0.0, 0.0, 0.0), tol), tol);
+    let tilted = topo::transform_rigid(
+        &brick::<f64>((-100.0, 100.0), (-100.0, 100.0), (-100.0, 10.0), tol),
+        &RigidMotion::rotation(UnitVec3::new(Vec3::new(1.0, 0.0, 0.0), "x", band).unwrap(), 0.4).unwrap(),
+    )
+    .unwrap();
+    for (what, cutter) in [
+        ("z-plane cut", brick::<f64>((-100.0, 100.0), (-100.0, 100.0), (-100.0, 10.0), tol)),
+        ("tilted cut", tilted),
+    ] {
+        match topo::intersect(&ball, &finished("cutter", cutter, tol), tol) {
+            Ok(topo::BooleanResult::Body(b)) => {
+                // The kept part lies below the cut; stand it so the cut-off
+                // cap's side of the ball pokes out along +z.
+                for lift in [940.0, 960.0, 985.0] {
+                    let m = RigidMotion::translation(Vec3::new(0.0, 0.0, lift)).unwrap();
+                    let image = topo::transform_rigid(&b.body, &m).unwrap();
+                    let far = image
+                        .vertex_points()
+                        .map(|(_, q)| q.x.abs().max(q.y.abs()).max(q.z.abs()))
+                        .fold(0.0, f64::max);
+                    println!(
+                        "BALLCUT {what} lifted {lift} (ball's top {}), vertices reach {far:.2}: {}",
+                        lift + 50.0,
+                        gate_word(&image, tol).chars().take(140).collect::<String>()
+                    );
+                }
+            }
+            other => println!("BALLCUT {what}: {}", format!("{other:?}").chars().take(200).collect::<String>()),
+        }
+    }
+}
