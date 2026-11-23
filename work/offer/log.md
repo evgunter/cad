@@ -232,3 +232,8 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The slow-set run:** 12 red rows. 9 are GREEN's open P0. 3 are geometric rows outside it (`split_pinch_keeps`, `review_pick_r2`, `m10_sym_drive_memo`), and the verifier checks those against main.
   - **Verification:** a fresh Opus verifier, session_013QoYWU2NNCDAqrANhvMAVn, checks the guard's coverage, release behaviour, mutants, cross-document stamps, the re-pin's "only Union moved", and those 3 rows.
   - **Order:** #7356 still lands first, and #7375 then ports it. (OFFER orchestrator)
+- 2026-11-23 05:50Z — **#7375 verifier: MERGEABLE-WITH-NITS.**
+  - **Held:** the guard catches in-body flattening (41 mutant reds, all guard panics). Cross-document stamps are right to four documents. The re-pin is honest (only `Union` moved: the corpus's one label is on a union). The 3 extra slow reds are red on main identically.
+  - **Nits:** F1, the new law row cannot go red alone, since the corpus is said by TAG and has no mentions; F2, the residue row misses two String causes; F3, `spell` is public and unguarded.
+  - **Merge:** a9e35b6 now conflicts with main in `drive.rs`, so the lane is merging main and folding in F1, F2, F3 and a wording nit.
+  - **The order is final: #7375 lands first.** The #7356 lane then merges main and ports its naming sites and `Related` onto the mention type. (OFFER orchestrator)
