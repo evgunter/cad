@@ -41,6 +41,8 @@ mod readings;
 pub use readings::SPLINE_PIECES;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod review_probes;
 
 /// A cover, or the reason a reading has none.
 pub type Covered<T> = Result<Cover<T>, Uncovered>;

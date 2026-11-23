@@ -1,0 +1,179 @@
+a=2.2e1 dir n       : f64 +1.050000e1  Interval [+1.050e1, +1.009e280]
+a=2.2e1 dir n+1e-3u : f64 +1.052224e1  Interval [+1.052e1, +1.052e1]
+a=2.2e1 dir u       : f64 +2.225000e1  Interval [+2.225e1, +2.225e1]
+a=2.2e1 dir x       : f64 +4.170889e1  Interval [+4.171e1, +4.171e1]
+a=2.2e1 dir z       : f64 +4.058675e0  Interval [+4.059e0, +4.059e0]
+a=2.2e1 Interval world box: lo Point3 { x: Interval(DInterval { lo: 38.518801609377775, hi: 38.518801609377796, dec: Com }), y: Interval(DInterval { lo: -9.163122160618224, hi: -9.16312216061821, dec: Com }), z: Interval(DInterval { lo: 2.4636294947008763, hi: 2.4636294947008857, dec: Com }) }
+a=2.2e7 dir n       : f64 +1.050000e1  Interval [+1.050e1, +1.009e292]
+a=2.2e7 dir n+1e-3u : f64 +1.052224e1  Interval [+1.052e1, +1.052e1]
+a=2.2e7 dir u       : f64 +2.225000e1  Interval [+2.225e1, +2.225e1]
+a=2.2e7 dir x       : f64 +4.185000e1  Interval [+4.185e1, +4.185e1]
+a=2.2e7 dir z       : f64 +3.925000e0  Interval [+3.925e0, +3.925e0]
+a=2.2e7 Interval world box: lo Point3 { x: Interval(DInterval { lo: 38.64999986363635, hi: 38.64999986363638, dec: Com }), y: Interval(DInterval { lo: -9.10000006818182, hi: -9.100000068181807, dec: Com }), z: Interval(DInterval { lo: 2.325000136363635, hi: 2.325000136363643, dec: Com }) }
+.Interval cover box z: [3, 3]; aabb z [2.9999999999999996, 3.0000000000000004]; certified ellipse_arc_aabb z [3, 3]
+.a=2.2e5: site on the stored arc at -6.818181818181818e-6: distance 9.242778756934262e-16, cover near 9.642978493026249e-12
+a=2.2e5: site on the stored arc at -2.2727272727272728e-6: distance 1.051132771665264e-15, cover near 9.642067745519549e-12
+a=2.2e5: site on the stored arc at 2.272727272727272e-6: distance 3.4724600047864337e-15, cover near 9.645768488793794e-12
+a=2.2e5: site on the stored arc at 6.818181818181819e-6: distance 1.3039939803225946e-15, cover near 9.645180435958404e-12
+a=2.2e6: site on the stored arc at -6.818181818181818e-7: distance 3.204038001004744e-15, cover near 0e0
+a=2.2e6: site on the stored arc at -2.2727272727272723e-7: distance 2.368829877811777e-15, cover near 0e0
+a=2.2e6: site on the stored arc at 2.2727272727272734e-7: distance 2.047639456708819e-15, cover near 0e0
+a=2.2e6: site on the stored arc at 6.818181818181818e-7: distance 9.796363207198566e-16, cover near 0e0
+a=2.2e7: site on the stored arc at -6.818181818181819e-8: distance 2.7461576491276725e-15, cover near 7.968343022452301e-10
+a=2.2e7: site on the stored arc at -2.272727272727273e-8: distance 2.981942767119195e-15, cover near 7.968388911669456e-10
+a=2.2e7: site on the stored arc at 2.272727272727273e-8: distance 2.316898072365188e-15, cover near 7.968343022451085e-10
+a=2.2e7: site on the stored arc at 6.818181818181819e-8: distance 1.6395516425816894e-15, cover near 7.968368187505571e-10
+thread 'cover::review_probes::review_red_near_overshoots_on_a_short_far_centred_arc' (7489) panicked at crates/geom/src/cover/review_probes.rs:318:5:
+the cover's nearest distance from a point of its own arc overshoots by 7.968359092241785e-10, past 3.6415315207705135e-14
+   2: review_red_near_overshoots_on_a_short_far_centred_arc
+   3: geom::cover::review_probes::review_red_near_overshoots_on_a_short_far_centred_arc::{closure#0}
+   4: <geom::cover::review_probes::review_red_near_overshoots_on_a_short_far_centred_arc::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+cover::review_probes::review_red_near_overshoots_on_a_short_far_centred_arc --- FAILED
+a=2.2e1 b/a=0.8 short@anchor       f64[ball,near,far,sup]=+0.0e0,+0.0e0,+1.3e-15,+3.6e-15 | int=-4.3e-14,+0.0e0,-1.2e-14,-5.3e-15 | widths=3.1e-14,4.9e-14,5.4e-14,1.0e280
+a=2.2e1 b/a=0.8 short,reversed     f64[ball,near,far,sup]=+0.0e0,+0.0e0,+1.3e-15,+1.8e-15 | int=-4.3e-14,+0.0e0,-1.2e-14,-5.3e-15 | widths=3.1e-14,4.7e-14,5.1e-14,1.0e280
+a=2.2e1 b/a=0.8 short,off-anchor   f64[ball,near,far,sup]=+3.6e-15,-2.5e-16,+4.4e-15,+3.6e-15 | int=-1.4e-13,-2.5e-16,-3.2e-14,-2.8e-14 | widths=8.4e-14,6.4e-14,9.1e-14,1.0e280
+a=2.2e1 b/a=0.8 1m@anchor          f64[ball,near,far,sup]=+2.4e-15,+0.0e0,-6.7e-16,+3.6e-15 | int=-3.6e-14,+0.0e0,-6.3e-15,-1.8e-15 | widths=2.0e-14,4.1e-14,4.3e-14,1.0e280
+a=2.2e1 b/a=0.8 1m,off-anchor      f64[ball,near,far,sup]=+4.9e-15,-1.9e-15,+3.1e-15,+1.8e-15 | int=-3.0e-14,-1.9e-15,-9.0e-15,-4.4e-16 | widths=1.5e-14,3.0e-14,4.3e-14,1.0e280
+a=2.2e1 b/a=0.8 long               f64[ball,near,far,sup]=-2.0e0,-6.9e-16,-4.2e-1,+1.8e-15 | int=-2.0e0,-6.9e-16,-4.2e-1,-8.5e-14 | widths=2.3e-13,1.7e-13,2.1e-13,1.0e280
+a=2.2e1 b/a=0.8 past-half          f64[ball,near,far,sup]=-6.4e0,+0.0e0,-8.6e-1,+3.6e-15 | int=-6.4e0,+0.0e0,-8.6e-1,-1.4e-14 | widths=2.5e-13,0.0e0,2.1e-13,1.0e280
+a=2.2e1 b/a=0.8 whole              f64[ball,near,far,sup]=-6.2e0,-1.6e-15,-4.4e0,+3.6e-15 | int=-6.2e0,-1.6e-15,-4.4e0,-1.4e-14 | widths=2.1e-13,0.0e0,1.8e-13,1.0e280
+a=2.2e1 b/a=0.8 past-whole         f64[ball,near,far,sup]=-6.2e0,-2.2e-15,-3.9e0,+3.6e-15 | int=-6.2e0,-2.2e-15,-3.9e0,-1.4e-14 | widths=2.1e-13,0.0e0,2.1e-13,1.0e280
+a=2.2e1 b/a=0.1 short@anchor       f64[ball,near,far,sup]=-6.4e-3,+0.0e0,+7.8e-16,+1.8e-15 | int=-6.4e-3,+0.0e0,-4.3e-15,-1.3e-15 | widths=1.3e-14,4.1e-14,1.3e-14,1.6e278
+a=2.2e1 b/a=0.1 short,reversed     f64[ball,near,far,sup]=-6.4e-3,+0.0e0,-1.1e-16,+1.8e-15 | int=-6.4e-3,+0.0e0,-4.3e-15,-1.3e-15 | widths=1.3e-14,4.1e-14,1.1e-14,1.6e278
+a=2.2e1 b/a=0.1 short,off-anchor   f64[ball,near,far,sup]=-4.4e-16,-3.4e-16,+0.0e0,+1.8e-15 | int=-6.5e-14,-3.4e-16,-2.0e-14,-5.3e-15 | widths=4.4e-14,4.3e-14,4.8e-14,1.6e278
+a=2.2e1 b/a=0.1 1m@anchor          f64[ball,near,far,sup]=+5.8e-16,+0.0e0,-1.1e-15,+1.8e-15 | int=-2.7e-14,+0.0e0,-7.3e-15,-4.4e-16 | widths=1.1e-14,4.0e-14,1.2e-14,1.6e278
+a=2.2e1 b/a=0.1 1m,off-anchor      f64[ball,near,far,sup]=+2.2e-16,-1.3e-15,-2.1e-15,+1.8e-15 | int=-2.1e-14,-1.3e-15,-8.3e-15,-4.4e-16 | widths=1.3e-14,3.0e-14,1.3e-14,1.6e278
+a=2.2e1 b/a=0.1 long               f64[ball,near,far,sup]=+3.6e-15,-2.1e-15,-8.8e-2,+3.6e-15 | int=-2.3e-13,-2.1e-15,-8.8e-2,-7.1e-14 | widths=1.4e-13,0.0e0,1.6e-13,1.6e278
+a=2.2e1 b/a=0.1 past-half          f64[ball,near,far,sup]=-1.1e-1,+0.0e0,+3.6e-15,+3.6e-15 | int=-1.1e-1,+0.0e0,-6.8e-14,-1.4e-14 | widths=1.5e-13,0.0e0,1.5e-13,1.6e278
+a=2.2e1 b/a=0.1 whole              f64[ball,near,far,sup]=-1.1e-1,-2.5e-15,-4.6e0,+3.6e-15 | int=-1.1e-1,-2.5e-15,-4.6e0,-1.4e-14 | widths=1.4e-13,0.0e0,1.8e-13,1.6e278
+a=2.2e1 b/a=0.1 past-whole         f64[ball,near,far,sup]=-1.1e-1,-1.9e-15,-4.6e0,+3.6e-15 | int=-1.1e-1,-1.9e-15,-4.6e0,-1.4e-14 | widths=1.4e-13,0.0e0,1.8e-13,1.6e278
+a=2.2e1 b/a=1 short@anchor       f64[ball,near,far,sup]=+0.0e0,+0.0e0,+8.9e-16,+1.8e-15 | int=-5.7e-14,+0.0e0,-1.2e-14,-6.2e-15 | widths=3.7e-14,6.2e-14,5.4e-14,1.6e280
+a=2.2e1 b/a=1 short,reversed     f64[ball,near,far,sup]=+0.0e0,+0.0e0,+8.9e-16,+1.8e-15 | int=-5.7e-14,+0.0e0,-1.2e-14,-6.2e-15 | widths=3.7e-14,5.9e-14,5.5e-14,1.6e280
+a=2.2e1 b/a=1 short,off-anchor   f64[ball,near,far,sup]=-2.2e-15,-1.5e-15,-4.6e-4,+1.8e-15 | int=-1.6e-13,-1.5e-15,-4.6e-4,-3.3e-14 | widths=1.0e-13,8.9e-14,9.8e-14,1.6e280
+a=2.2e1 b/a=1 1m@anchor          f64[ball,near,far,sup]=+1.1e-15,+0.0e0,-4.4e-16,+3.6e-15 | int=-3.7e-14,+0.0e0,-4.7e-15,-1.8e-15 | widths=2.0e-14,4.3e-14,4.3e-14,1.6e280
+a=2.2e1 b/a=1 1m,off-anchor      f64[ball,near,far,sup]=+0.0e0,-4.0e-16,-1.6e-15,+1.8e-15 | int=-2.8e-14,-4.0e-16,-9.3e-15,-4.4e-16 | widths=1.6e-14,3.8e-14,4.3e-14,1.6e280
+a=2.2e1 b/a=1 long               f64[ball,near,far,sup]=-7.4e-1,-1.2e-15,-5.9e-1,+3.6e-15 | int=-7.4e-1,-1.2e-15,-5.9e-1,-9.2e-14 | widths=2.7e-13,1.9e-13,2.3e-13,1.6e280
+a=2.2e1 b/a=1 past-half          f64[ball,near,far,sup]=-6.8e0,+0.0e0,-1.4e0,+3.6e-15 | int=-6.8e0,+0.0e0,-1.4e0,-1.4e-14 | widths=2.9e-13,4.0e-13,2.4e-13,1.6e280
+a=2.2e1 b/a=1 whole              f64[ball,near,far,sup]=-9.1e0,+5.1e-16,-2.7e0,+3.6e-15 | int=-9.1e0,-3.8e-16,-2.7e0,-1.4e-14 | widths=2.5e-13,9.1e-14,2.1e-13,1.6e280
+a=2.2e1 b/a=1 past-whole         f64[ball,near,far,sup]=-9.1e0,-1.5e-15,-4.8e0,+3.6e-15 | int=-9.1e0,-1.5e-15,-4.8e0,-1.4e-14 | widths=2.5e-13,0.0e0,2.3e-13,1.6e280
+a=2.2e1 b/a=3 short@anchor       f64[ball,near,far,sup]=+0.0e0,+0.0e0,-3.3e-3,+1.8e-15 | int=-1.3e-13,+0.0e0,-3.3e-3,-1.4e-14 | widths=8.5e-14,5.6e-14,7.6e-14,1.4e281
+a=2.2e1 b/a=3 short,reversed     f64[ball,near,far,sup]=+0.0e0,+0.0e0,-3.3e-3,+1.8e-15 | int=-1.3e-13,+0.0e0,-3.3e-3,-1.4e-14 | widths=8.5e-14,5.4e-14,8.2e-14,1.4e281
+a=2.2e1 b/a=3 short,off-anchor   f64[ball,near,far,sup]=+5.3e-15,-3.6e-16,+0.0e0,+3.6e-15 | int=-4.1e-13,-3.6e-16,-5.0e-14,-4.5e-14 | widths=2.6e-13,1.5e-13,2.5e-13,1.4e281
+a=2.2e1 b/a=3 1m@anchor          f64[ball,near,far,sup]=+2.2e-15,+0.0e0,+2.2e-16,+3.6e-15 | int=-3.2e-14,+0.0e0,-6.2e-15,-2.2e-15 | widths=1.7e-14,4.1e-14,4.4e-14,1.4e281
+a=2.2e1 b/a=3 1m,off-anchor      f64[ball,near,far,sup]=+2.4e-15,-4.6e-16,+3.1e-15,+1.8e-15 | int=-2.8e-14,-4.6e-16,-5.6e-15,-4.4e-16 | widths=1.5e-14,3.0e-14,4.8e-14,1.4e281
+a=2.2e1 b/a=3 long               f64[ball,near,far,sup]=-7.1e-15,-9.3e-16,-4.6e-1,+3.6e-15 | int=-8.7e-13,-9.3e-16,-4.6e-1,-1.0e-13 | widths=6.4e-13,4.2e-13,4.3e-13,1.4e281
+a=2.2e1 b/a=3 past-half          f64[ball,near,far,sup]=-3.5e0,+0.0e0,-2.5e0,+7.1e-15 | int=-3.5e0,+0.0e0,-2.5e0,-1.4e-14 | widths=7.8e-13,0.0e0,5.1e-13,1.4e281
+a=2.2e1 b/a=3 whole              f64[ball,near,far,sup]=-3.6e0,-6.3e-16,-1.4e1,+7.1e-15 | int=-3.6e0,-6.3e-16,-1.4e1,-1.1e-14 | widths=7.7e-13,0.0e0,4.7e-13,1.4e281
+a=2.2e1 b/a=3 past-whole         f64[ball,near,far,sup]=-3.6e0,-6.3e-16,-1.4e1,+7.1e-15 | int=-3.6e0,-6.3e-16,-1.4e1,-1.1e-14 | widths=7.7e-13,0.0e0,5.1e-13,1.4e281
+a=2.2e3 b/a=0.8 short@anchor       f64[ball,near,far,sup]=+1.8e-15,+0.0e0,-2.2e-15,+7.1e-15 | int=-4.4e-14,+0.0e0,-8.9e-15,-3.6e-15 | widths=2.9e-14,2.0e-12,1.8e-12,1.0e284
+a=2.2e3 b/a=0.8 short,reversed     f64[ball,near,far,sup]=+1.8e-15,+0.0e0,-2.2e-15,+7.1e-15 | int=-4.4e-14,+0.0e0,-8.9e-15,-3.6e-15 | widths=2.9e-14,2.0e-12,1.8e-12,1.0e284
+a=2.2e3 b/a=0.8 short,off-anchor   f64[ball,near,far,sup]=+4.2e-14,-3.7e-14,-3.6e-14,+1.1e-13 | int=-8.7e-12,-3.7e-14,-1.5e-12,-1.5e-12 | widths=5.3e-12,5.3e-12,5.8e-12,1.0e284
+a=2.2e3 b/a=0.8 1m@anchor          f64[ball,near,far,sup]=-8.9e-16,+0.0e0,-5.6e-16,+1.8e-15 | int=-3.4e-14,+0.0e0,-4.9e-15,-1.8e-15 | widths=1.8e-14,2.0e-12,1.8e-12,1.0e284
+a=2.2e3 b/a=0.8 1m,off-anchor      f64[ball,near,far,sup]=+2.4e-15,-6.8e-16,-1.4e-15,+1.8e-15 | int=-2.9e-14,-6.8e-16,-8.4e-15,-4.4e-16 | widths=1.5e-14,2.0e-12,1.8e-12,1.0e284
+a=2.2e3 b/a=0.8 long               f64[ball,near,far,sup]=-2.0e2,-2.7e-14,-4.2e1,+2.3e-13 | int=-2.0e2,-2.7e-14,-4.2e1,-7.5e-12 | widths=2.3e-11,0.0e0,2.0e-11,1.0e284
+a=2.2e3 b/a=0.8 past-half          f64[ball,near,far,sup]=-6.4e2,+0.0e0,-8.7e1,+2.3e-13 | int=-6.4e2,+0.0e0,-8.7e1,-1.4e-14 | widths=2.6e-11,0.0e0,2.0e-11,1.0e284
+a=2.2e3 b/a=0.8 whole              f64[ball,near,far,sup]=-6.2e2,-1.8e-14,-4.4e2,+4.5e-13 | int=-6.2e2,-1.8e-14,-4.4e2,-1.4e-14 | widths=2.2e-11,0.0e0,2.0e-11,1.0e284
+a=2.2e3 b/a=0.8 past-whole         f64[ball,near,far,sup]=-6.2e2,-9.3e-14,-3.9e2,+4.5e-13 | int=-6.2e2,-9.3e-14,-3.9e2,-1.4e-14 | widths=2.2e-11,0.0e0,2.1e-11,1.0e284
+a=2.2e3 b/a=0.1 short@anchor       f64[ball,near,far,sup]=+2.8e-15,+0.0e0,+1.1e-16,+1.8e-15 | int=-2.5e-14,+0.0e0,-6.2e-15,-8.9e-16 | widths=1.2e-14,2.0e-12,1.2e-14,1.6e282
+a=2.2e3 b/a=0.1 short,reversed     f64[ball,near,far,sup]=+2.8e-15,+0.0e0,+3.3e-16,+1.8e-15 | int=-2.5e-14,+0.0e0,-5.9e-15,-8.9e-16 | widths=1.2e-14,2.0e-12,1.2e-14,1.6e282
+a=2.2e3 b/a=0.1 short,off-anchor   f64[ball,near,far,sup]=+1.4e-14,-5.2e-15,+8.5e-14,+2.8e-14 | int=-2.8e-12,-5.2e-15,-5.6e-13,-4.4e-13 | widths=1.8e-12,2.8e-12,1.4e-12,1.6e282
+a=2.2e3 b/a=0.1 1m@anchor          f64[ball,near,far,sup]=-9.2e-16,+0.0e0,-1.3e-15,+3.6e-15 | int=-2.0e-14,+0.0e0,-7.2e-15,-4.4e-16 | widths=1.1e-14,2.0e-12,1.2e-14,1.6e282
+a=2.2e3 b/a=0.1 1m,off-anchor      f64[ball,near,far,sup]=+5.7e-16,-1.6e-15,-1.8e-15,+3.6e-15 | int=-2.6e-14,-1.6e-15,-7.3e-15,-4.4e-16 | widths=1.1e-14,2.0e-12,1.2e-14,1.6e282
+a=2.2e3 b/a=0.1 long               f64[ball,near,far,sup]=+0.0e0,-1.1e-14,-8.8e0,+2.3e-13 | int=-2.3e-11,-1.1e-14,-8.8e0,-7.3e-12 | widths=1.4e-11,0.0e0,1.7e-11,1.6e282
+a=2.2e3 b/a=0.1 past-half          f64[ball,near,far,sup]=-1.1e1,+0.0e0,-4.5e-13,+2.3e-13 | int=-1.1e1,+0.0e0,-7.7e-12,-1.4e-14 | widths=1.5e-11,0.0e0,1.5e-11,1.6e282
+a=2.2e3 b/a=0.1 whole              f64[ball,near,far,sup]=-1.1e1,-2.7e-14,-4.6e2,+2.3e-13 | int=-1.1e1,-2.7e-14,-4.6e2,-1.4e-14 | widths=1.3e-11,0.0e0,1.9e-11,1.6e282
+a=2.2e3 b/a=0.1 past-whole         f64[ball,near,far,sup]=-1.1e1,-8.8e-14,-4.6e2,+2.3e-13 | int=-1.1e1,-8.8e-14,-4.6e2,-1.4e-14 | widths=1.3e-11,0.0e0,1.8e-11,1.6e282
+a=2.2e3 b/a=1 short@anchor       f64[ball,near,far,sup]=+3.1e-15,+6.2e-14,+4.4e-16,+3.6e-15 | int=-3.8e-14,+0.0e0,-1.3e-14,-6.2e-15 | widths=2.9e-14,2.0e-12,1.8e-12,1.6e284
+a=2.2e3 b/a=1 short,reversed     f64[ball,near,far,sup]=+3.1e-15,+5.9e-14,+4.4e-16,+3.6e-15 | int=-3.8e-14,+0.0e0,-1.3e-14,-6.2e-15 | widths=2.9e-14,2.0e-12,1.8e-12,1.6e284
+a=2.2e3 b/a=1 short,off-anchor   f64[ball,near,far,sup]=-4.4e-14,-1.1e-14,-4.6e-8,+5.7e-14 | int=-1.0e-11,-1.1e-14,-4.6e-8,-1.7e-12 | widths=6.5e-12,8.0e-12,6.8e-12,1.6e284
+a=2.2e3 b/a=1 1m@anchor          f64[ball,near,far,sup]=+2.1e-15,+0.0e0,+1.6e-15,+3.6e-15 | int=-2.9e-14,+0.0e0,-4.4e-15,-1.8e-15 | widths=1.8e-14,2.0e-12,1.8e-12,1.6e284
+a=2.2e3 b/a=1 1m,off-anchor      f64[ball,near,far,sup]=+2.8e-16,-7.4e-17,+4.4e-16,+1.8e-15 | int=-2.1e-14,-7.4e-17,-6.9e-15,-4.4e-16 | widths=1.3e-14,2.0e-12,1.8e-12,1.6e284
+a=2.2e3 b/a=1 long               f64[ball,near,far,sup]=-7.4e1,-4.1e-14,-5.9e1,+2.3e-13 | int=-7.4e1,-4.1e-14,-5.9e1,-8.6e-12 | widths=2.7e-11,1.2e-11,2.3e-11,1.6e284
+a=2.2e3 b/a=1 past-half          f64[ball,near,far,sup]=-6.8e2,+0.0e0,-1.4e2,+4.5e-13 | int=-6.8e2,+0.0e0,-1.4e2,-1.4e-14 | widths=3.0e-11,4.0e-11,2.3e-11,1.6e284
+a=2.2e3 b/a=1 whole              f64[ball,near,far,sup]=-9.1e2,-5.7e-14,-2.7e2,+4.5e-13 | int=-9.1e2,-5.7e-14,-2.7e2,-1.4e-14 | widths=2.5e-11,9.4e-12,2.2e-11,1.6e284
+a=2.2e3 b/a=1 past-whole         f64[ball,near,far,sup]=-9.1e2,-1.8e-13,-4.8e2,+4.5e-13 | int=-9.1e2,-1.8e-13,-4.8e2,-1.4e-14 | widths=2.5e-11,0.0e0,2.5e-11,1.6e284
+a=2.2e3 b/a=3 short@anchor       f64[ball,near,far,sup]=+0.0e0,+0.0e0,-1.8e-15,+1.8e-15 | int=-1.3e-13,+0.0e0,-2.3e-14,-1.4e-14 | widths=8.9e-14,2.0e-12,1.8e-12,1.4e285
+a=2.2e3 b/a=3 short,reversed     f64[ball,near,far,sup]=+0.0e0,+0.0e0,-1.8e-15,+3.6e-15 | int=-1.3e-13,+0.0e0,-2.3e-14,-1.4e-14 | widths=8.9e-14,2.0e-12,1.8e-12,1.4e285
+a=2.2e3 b/a=3 short,off-anchor   f64[ball,near,far,sup]=+4.6e-13,-5.8e-14,+2.9e-13,+2.3e-13 | int=-2.9e-11,-5.8e-14,-4.1e-12,-4.5e-12 | widths=1.9e-11,1.5e-11,1.7e-11,1.4e285
+a=2.2e3 b/a=3 1m@anchor          f64[ball,near,far,sup]=+3.3e-16,+6.6e-15,+0.0e0,+3.6e-15 | int=-3.0e-14,+0.0e0,-6.2e-15,-2.2e-15 | widths=1.9e-14,2.0e-12,1.8e-12,1.4e285
+a=2.2e3 b/a=3 1m,off-anchor      f64[ball,near,far,sup]=+2.1e-15,+1.9e-14,+0.0e0,+1.8e-15 | int=-2.6e-14,-3.4e-16,-5.6e-15,-4.4e-16 | widths=1.3e-14,2.0e-12,1.8e-12,1.4e285
+a=2.2e3 b/a=3 long               f64[ball,near,far,sup]=-1.8e-12,-1.5e-13,-4.6e1,+9.1e-13 | int=-8.6e-11,-1.5e-13,-4.6e1,-1.0e-11 | widths=6.5e-11,0.0e0,4.4e-11,1.4e285
+a=2.2e3 b/a=3 past-half          f64[ball,near,far,sup]=-3.5e2,+0.0e0,-2.5e2,+9.1e-13 | int=-3.5e2,+0.0e0,-2.5e2,-1.4e-14 | widths=7.7e-11,0.0e0,5.3e-11,1.4e285
+a=2.2e3 b/a=3 whole              f64[ball,near,far,sup]=-3.6e2,-1.8e-13,-1.4e3,+9.1e-13 | int=-3.6e2,-1.8e-13,-1.4e3,-1.1e-14 | widths=7.6e-11,0.0e0,4.5e-11,1.4e285
+a=2.2e3 b/a=3 past-whole         f64[ball,near,far,sup]=-3.6e2,-2.6e-13,-1.4e3,+4.5e-13 | int=-3.6e2,-2.6e-13,-1.4e3,-1.1e-14 | widths=7.6e-11,0.0e0,4.9e-11,1.4e285
+a=2.2e5 b/a=0.8 short@anchor       f64[ball,near,far,sup]=+2.7e-15,+9.5e-12,-8.9e-16,+3.6e-15 | int=-4.3e-14,+0.0e0,-8.9e-15,-4.0e-15 | widths=2.7e-14,2.0e-10,9.5e-11,1.0e288
+a=2.2e5 b/a=0.8 short,reversed     f64[ball,near,far,sup]=+2.7e-15,+9.5e-12,-8.9e-16,+3.6e-15 | int=-4.3e-14,+0.0e0,-8.9e-15,-4.0e-15 | widths=2.7e-14,2.0e-10,9.5e-11,1.0e288
+a=2.2e5 b/a=0.8 short,off-anchor   f64[ball,near,far,sup]=+1.2e-11,-3.3e-12,-1.8e-11,+7.3e-12 | int=-8.8e-10,-3.3e-12,-1.7e-10,-1.4e-10 | widths=5.2e-10,5.7e-10,5.8e-10,1.0e288
+a=2.2e5 b/a=0.8 1m@anchor          f64[ball,near,far,sup]=-1.1e-16,+0.0e0,-6.7e-16,+3.6e-15 | int=-3.3e-14,+0.0e0,-5.8e-15,-1.8e-15 | widths=1.8e-14,2.0e-10,8.7e-11,1.0e288
+a=2.2e5 b/a=0.8 1m,off-anchor      f64[ball,near,far,sup]=-3.9e-16,-3.2e-15,-2.7e-15,+3.6e-15 | int=-2.8e-14,-3.2e-15,-1.0e-14,-4.4e-16 | widths=1.6e-14,2.0e-10,8.7e-11,1.0e288
+a=2.2e5 b/a=0.8 long               f64[ball,near,far,sup]=-2.0e4,-3.8e-12,-4.2e3,+2.9e-11 | int=-2.0e4,-3.8e-12,-4.2e3,-7.3e-10 | widths=2.3e-9,0.0e0,2.1e-9,1.0e288
+a=2.2e5 b/a=0.8 past-half          f64[ball,near,far,sup]=-6.4e4,+0.0e0,-8.7e3,+2.9e-11 | int=-6.4e4,+0.0e0,-8.7e3,-1.4e-14 | widths=2.6e-9,0.0e0,2.0e-9,1.0e288
+a=2.2e5 b/a=0.8 whole              f64[ball,near,far,sup]=-6.2e4,-3.1e-12,-4.4e4,+2.9e-11 | int=-6.2e4,-3.1e-12,-4.4e4,-1.4e-14 | widths=2.2e-9,0.0e0,2.0e-9,1.0e288
+a=2.2e5 b/a=0.8 past-whole         f64[ball,near,far,sup]=-6.2e4,-1.3e-11,-3.9e4,+2.9e-11 | int=-6.2e4,-1.3e-11,-3.9e4,-1.4e-14 | widths=2.2e-9,0.0e0,2.2e-9,1.0e288
+a=2.2e5 b/a=0.1 short@anchor       f64[ball,near,far,sup]=+1.1e-15,+9.5e-12,+2.2e-16,+1.8e-15 | int=-2.7e-14,+0.0e0,-6.0e-15,-8.9e-16 | widths=1.2e-14,2.0e-10,6.8e-11,1.6e286
+a=2.2e5 b/a=0.1 short,reversed     f64[ball,near,far,sup]=+1.1e-15,+9.5e-12,+2.2e-16,+1.8e-15 | int=-2.7e-14,+0.0e0,-6.0e-15,-8.9e-16 | widths=1.2e-14,2.0e-10,6.8e-11,1.6e286
+a=2.2e5 b/a=0.1 short,off-anchor   f64[ball,near,far,sup]=-1.0e-12,-1.5e-12,-6.4e-12,+3.6e-12 | int=-2.8e-10,-1.5e-12,-6.9e-11,-4.5e-11 | widths=1.8e-10,3.0e-10,1.5e-10,1.6e286
+a=2.2e5 b/a=0.1 1m@anchor          f64[ball,near,far,sup]=+2.2e-15,+0.0e0,+7.8e-16,+3.6e-15 | int=-2.5e-14,+0.0e0,-6.4e-15,-8.9e-16 | widths=1.4e-14,2.0e-10,8.6e-11,1.6e286
+a=2.2e5 b/a=0.1 1m,off-anchor      f64[ball,near,far,sup]=+2.7e-15,-6.6e-16,-2.2e-16,+1.8e-15 | int=-2.5e-14,-6.6e-16,-6.2e-15,-4.4e-16 | widths=1.1e-14,2.0e-10,8.6e-11,1.6e286
+a=2.2e5 b/a=0.1 long               f64[ball,near,far,sup]=+0.0e0,-7.9e-13,-8.8e2,+1.5e-11 | int=-2.3e-9,-7.9e-13,-8.8e2,-7.3e-10 | widths=1.4e-9,0.0e0,1.7e-9,1.6e286
+a=2.2e5 b/a=0.1 past-half          f64[ball,near,far,sup]=-1.1e3,+0.0e0,+0.0e0,+2.9e-11 | int=-1.1e3,+0.0e0,-7.0e-10,-1.4e-14 | widths=1.4e-9,0.0e0,1.6e-9,1.6e286
+a=2.2e5 b/a=0.1 whole              f64[ball,near,far,sup]=-1.1e3,-3.8e-12,-4.6e4,+2.9e-11 | int=-1.1e3,-3.8e-12,-4.6e4,-1.1e-14 | widths=1.4e-9,0.0e0,2.0e-9,1.6e286
+a=2.2e5 b/a=0.1 past-whole         f64[ball,near,far,sup]=-1.1e3,-5.4e-12,-4.6e4,+2.9e-11 | int=-1.1e3,-5.4e-12,-4.6e4,-1.1e-14 | widths=1.4e-9,0.0e0,2.0e-9,1.6e286
+a=2.2e5 b/a=1 short@anchor       f64[ball,near,far,sup]=+2.7e-15,+9.5e-12,+8.9e-16,+1.8e-15 | int=-4.0e-14,+0.0e0,-1.2e-14,-4.4e-15 | widths=2.8e-14,2.0e-10,9.8e-11,1.6e288
+a=2.2e5 b/a=1 short,reversed     f64[ball,near,far,sup]=+2.7e-15,+9.5e-12,+8.9e-16,+1.8e-15 | int=-4.0e-14,+0.0e0,-1.2e-14,-4.4e-15 | widths=2.8e-14,2.0e-10,9.8e-11,1.6e288
+a=2.2e5 b/a=1 short,off-anchor   f64[ball,near,far,sup]=+4.6e-12,+4.4e-12,-5.5e-12,+1.5e-11 | int=-1.0e-5,-3.3e-12,-2.8e-10,-1.7e-10 | widths=6.6e-10,7.8e-10,7.0e-10,1.6e288
+a=2.2e5 b/a=1 1m@anchor          f64[ball,near,far,sup]=+2.0e-15,+0.0e0,-4.4e-16,+3.6e-15 | int=-2.9e-14,+0.0e0,-4.9e-15,-2.2e-15 | widths=1.8e-14,2.0e-10,8.7e-11,1.6e288
+a=2.2e5 b/a=1 1m,off-anchor      f64[ball,near,far,sup]=+1.9e-15,-5.5e-16,-2.2e-16,+1.8e-15 | int=-2.7e-14,-5.5e-16,-7.8e-15,-4.4e-16 | widths=1.4e-14,2.0e-10,8.7e-11,1.6e288
+a=2.2e5 b/a=1 long               f64[ball,near,far,sup]=-7.4e3,-3.5e-12,-5.9e3,+5.8e-11 | int=-7.4e3,-3.5e-12,-5.9e3,-8.7e-10 | widths=2.6e-9,1.2e-9,2.3e-9,1.6e288
+a=2.2e5 b/a=1 past-half          f64[ball,near,far,sup]=-6.8e4,+0.0e0,-1.4e4,+2.9e-11 | int=-6.8e4,+0.0e0,-1.4e4,-1.4e-14 | widths=3.0e-9,4.1e-9,2.4e-9,1.6e288
+a=2.2e5 b/a=1 whole              f64[ball,near,far,sup]=-9.1e4,-1.1e-11,-2.7e4,+2.9e-11 | int=-9.1e4,-1.1e-11,-2.7e4,-1.4e-14 | widths=2.6e-9,9.5e-10,2.1e-9,1.6e288
+a=2.2e5 b/a=1 past-whole         f64[ball,near,far,sup]=-9.1e4,-5.7e-12,-4.8e4,+5.8e-11 | int=-9.1e4,-5.7e-12,-4.8e4,-1.4e-14 | widths=2.6e-9,0.0e0,2.4e-9,1.6e288
+a=2.2e5 b/a=3 short@anchor       f64[ball,near,far,sup]=+3.6e-15,+9.5e-12,+1.8e-15,+1.8e-15 | int=-1.0e-13,+0.0e0,-2.0e-14,-1.4e-14 | widths=7.5e-14,2.0e-10,1.3e-10,1.4e289
+a=2.2e5 b/a=3 short,reversed     f64[ball,near,far,sup]=+3.6e-15,+9.5e-12,+1.8e-15,+1.8e-15 | int=-1.0e-13,+0.0e0,-2.0e-14,-1.4e-14 | widths=7.5e-14,2.0e-10,1.3e-10,1.4e289
+a=2.2e5 b/a=3 short,off-anchor   f64[ball,near,far,sup]=+2.3e-11,-1.5e-11,+1.1e-11,+2.9e-11 | int=-2.9e-9,-1.5e-11,-4.2e-10,-4.5e-10 | widths=1.9e-9,1.4e-9,1.7e-9,1.4e289
+a=2.2e5 b/a=3 1m@anchor          f64[ball,near,far,sup]=+7.8e-16,+4.3e-12,-2.2e-16,+3.6e-15 | int=-3.3e-14,+0.0e0,-4.7e-15,-2.2e-15 | widths=2.1e-14,2.0e-10,8.7e-11,1.4e289
+a=2.2e5 b/a=3 1m,off-anchor      f64[ball,near,far,sup]=+3.7e-15,-1.1e-15,+1.6e-15,+1.8e-15 | int=-3.1e-14,-1.1e-15,-6.0e-15,-4.4e-16 | widths=1.5e-14,2.0e-10,8.7e-11,1.4e289
+a=2.2e5 b/a=3 long               f64[ball,near,far,sup]=+0.0e0,-9.8e-12,-4.6e3,+5.8e-11 | int=-8.5e-9,-9.8e-12,-4.6e3,-1.0e-9 | widths=6.2e-9,0.0e0,4.7e-9,1.4e289
+a=2.2e5 b/a=3 past-half          f64[ball,near,far,sup]=-3.5e4,+0.0e0,-2.5e4,+5.8e-11 | int=-3.5e4,+0.0e0,-2.5e4,-1.4e-14 | widths=7.3e-9,0.0e0,5.1e-9,1.4e289
+a=2.2e5 b/a=3 whole              f64[ball,near,far,sup]=-3.6e4,-8.0e-12,-1.4e5,+5.8e-11 | int=-3.6e4,-8.0e-12,-1.4e5,-1.4e-14 | widths=7.2e-9,0.0e0,4.4e-9,1.4e289
+a=2.2e5 b/a=3 past-whole         f64[ball,near,far,sup]=-3.6e4,-2.4e-11,-1.4e5,+5.8e-11 | int=-3.6e4,-2.4e-11,-1.4e5,-1.4e-14 | widths=7.2e-9,0.0e0,5.1e-9,1.4e289
+a=2.2e7 b/a=0.8 short@anchor       f64[ball,near,far,sup]=+1.3e-15,+5.7e-10,+8.9e-16,+1.8e-15 | int=-5.4e-14,+0.0e0,-8.0e-9,-4.0e-15 | widths=3.0e-14,2.0e-8,8.7e-9,1.0e292
+a=2.2e7 b/a=0.8 short,reversed     f64[ball,near,far,sup]=+1.3e-15,+5.7e-10,+1.8e-15,+1.8e-15 | int=-5.4e-14,+0.0e0,-8.0e-9,-4.0e-15 | widths=3.0e-14,2.0e-8,8.7e-9,1.0e292
+a=2.2e7 b/a=0.8 short,off-anchor   f64[ball,near,far,sup]=-5.1e-10,-3.4e-10,-5.2e-10,+4.7e-10 | int=-8.8e-8,-3.4e-10,-2.4e-8,-1.5e-8 | widths=5.2e-8,8.4e-8,5.2e-8,1.0e292
+a=2.2e7 b/a=0.8 1m@anchor          f64[ball,near,far,sup]=+1.7e-15,+0.0e0,+2.0e-15,+1.8e-15 | int=-3.1e-14,+0.0e0,-4.1e-9,-1.8e-15 | widths=1.8e-14,1.2e-8,5.4e-9,1.0e292
+a=2.2e7 b/a=0.8 1m,off-anchor      f64[ball,near,far,sup]=+2.3e-15,+3.6e-10,+2.7e-15,+1.8e-15 | int=-3.1e-14,-5.0e-16,-3.3e-9,-4.4e-16 | widths=1.5e-14,9.8e-9,4.3e-9,1.0e292
+a=2.2e7 b/a=0.8 long               f64[ball,near,far,sup]=-2.0e6,-2.4e-10,-4.2e5,+1.9e-9 | int=-2.0e6,-2.4e-10,-4.2e5,-7.3e-8 | widths=2.3e-7,0.0e0,2.1e-7,1.0e292
+a=2.2e7 b/a=0.8 past-half          f64[ball,near,far,sup]=-6.4e6,+0.0e0,-8.7e5,+3.7e-9 | int=-6.4e6,+0.0e0,-8.7e5,-1.4e-14 | widths=2.5e-7,0.0e0,2.1e-7,1.0e292
+a=2.2e7 b/a=0.8 whole              f64[ball,near,far,sup]=-6.2e6,-5.3e-10,-4.4e6,+3.7e-9 | int=-6.2e6,-5.3e-10,-4.4e6,-1.4e-14 | widths=2.1e-7,0.0e0,1.9e-7,1.0e292
+a=2.2e7 b/a=0.8 past-whole         f64[ball,near,far,sup]=-6.2e6,-1.2e-9,-3.9e6,+3.7e-9 | int=-6.2e6,-1.2e-9,-3.9e6,-1.4e-14 | widths=2.1e-7,0.0e0,2.2e-7,1.0e292
+a=2.2e7 b/a=0.1 short@anchor       f64[ball,near,far,sup]=+1.5e-15,+5.7e-10,+1.1e-15,+3.6e-15 | int=-2.6e-14,+0.0e0,-4.5e-9,-8.9e-16 | widths=1.2e-14,2.0e-8,8.7e-9,1.6e290
+a=2.2e7 b/a=0.1 short,reversed     f64[ball,near,far,sup]=+1.5e-15,+5.7e-10,+2.2e-16,+3.6e-15 | int=-2.6e-14,+0.0e0,-4.5e-9,-8.9e-16 | widths=1.2e-14,2.0e-8,8.7e-9,1.6e290
+a=2.2e7 b/a=0.1 short,off-anchor   f64[ball,near,far,sup]=+2.0e-10,-3.3e-11,-2.3e-10,+2.3e-10 | int=-2.8e-8,-3.3e-11,-6.9e-9,-4.5e-9 | widths=1.8e-8,2.9e-8,1.4e-8,1.6e290
+a=2.2e7 b/a=0.1 1m@anchor          f64[ball,near,far,sup]=+1.3e-15,+0.0e0,-1.1e-15,+3.6e-15 | int=-2.7e-14,+0.0e0,-2.9e-9,-8.9e-16 | widths=1.1e-14,1.2e-8,5.4e-9,1.6e290
+a=2.2e7 b/a=0.1 1m,off-anchor      f64[ball,near,far,sup]=+2.6e-15,+3.6e-10,-1.1e-15,+1.8e-15 | int=-2.5e-14,-1.3e-15,-2.3e-9,-4.4e-16 | widths=1.1e-14,9.8e-9,4.3e-9,1.6e290
+a=2.2e7 b/a=0.1 long               f64[ball,near,far,sup]=+0.0e0,-2.3e-10,-8.8e4,+1.9e-9 | int=-2.3e-7,-2.3e-10,-8.8e4,-7.5e-8 | widths=1.4e-7,0.0e0,1.7e-7,1.6e290
+a=2.2e7 b/a=0.1 past-half          f64[ball,near,far,sup]=-1.1e5,+0.0e0,+0.0e0,+1.9e-9 | int=-1.1e5,+0.0e0,-6.7e-8,-1.4e-14 | widths=1.4e-7,0.0e0,1.5e-7,1.6e290
+a=2.2e7 b/a=0.1 whole              f64[ball,near,far,sup]=-1.1e5,-2.0e-10,-4.6e6,+3.7e-9 | int=-1.1e5,-2.0e-10,-4.6e6,-1.4e-14 | widths=1.3e-7,0.0e0,1.8e-7,1.6e290
+a=2.2e7 b/a=0.1 past-whole         f64[ball,near,far,sup]=-1.1e5,-6.4e-10,-4.6e6,+3.7e-9 | int=-1.1e5,-6.4e-10,-4.6e6,-1.4e-14 | widths=1.3e-7,0.0e0,1.8e-7,1.6e290
+a=2.2e7 b/a=1 short@anchor       f64[ball,near,far,sup]=+2.2e-15,+5.7e-10,+1.3e-15,+1.8e-15 | int=-1.0e-7,+0.0e0,-8.2e-9,-6.2e-15 | widths=3.6e-14,2.0e-8,8.7e-9,1.6e292
+a=2.2e7 b/a=1 short,reversed     f64[ball,near,far,sup]=+2.2e-15,+5.7e-10,+1.3e-15,+1.8e-15 | int=-1.0e-7,+0.0e0,-8.2e-9,-6.2e-15 | widths=3.6e-14,2.0e-8,8.7e-9,1.6e292
+a=2.2e7 b/a=1 short,off-anchor   f64[ball,near,far,sup]=+8.5e-10,-2.9e-10,-3.7e-10,+7.0e-10 | int=-1.7e-7,-3.5e-10,-2.9e-8,-1.7e-8 | widths=6.4e-8,1.0e-7,6.5e-8,1.6e292
+a=2.2e7 b/a=1 1m@anchor          f64[ball,near,far,sup]=+0.0e0,+0.0e0,-6.7e-16,+3.6e-15 | int=-1.1e-8,+0.0e0,-4.4e-9,-1.8e-15 | widths=1.8e-14,1.2e-8,5.4e-9,1.6e292
+a=2.2e7 b/a=1 1m,off-anchor      f64[ball,near,far,sup]=+1.1e-15,+3.6e-10,-2.7e-15,+3.6e-15 | int=-2.8e-9,-1.4e-15,-3.6e-9,-4.4e-16 | widths=1.5e-14,9.8e-9,4.3e-9,1.6e292
+a=2.2e7 b/a=1 long               f64[ball,near,far,sup]=-7.4e5,-7.0e-10,-5.9e5,+1.9e-9 | int=-7.4e5,-7.0e-10,-5.9e5,-8.8e-8 | widths=2.7e-7,1.2e-7,2.5e-7,1.6e292
+a=2.2e7 b/a=1 past-half          f64[ball,near,far,sup]=-6.8e6,+0.0e0,-1.4e6,+3.7e-9 | int=-6.8e6,+0.0e0,-1.4e6,-1.4e-14 | widths=2.9e-7,4.1e-7,2.5e-7,1.6e292
+a=2.2e7 b/a=1 whole              f64[ball,near,far,sup]=-9.1e6,-5.4e-10,-2.7e6,+3.7e-9 | int=-9.1e6,-5.4e-10,-2.7e6,-1.4e-14 | widths=2.4e-7,8.9e-8,2.1e-7,1.6e292
+a=2.2e7 b/a=1 past-whole         f64[ball,near,far,sup]=-9.1e6,-1.7e-9,-4.8e6,+3.7e-9 | int=-9.1e6,-1.7e-9,-4.8e6,-1.4e-14 | widths=2.4e-7,0.0e0,2.5e-7,1.6e292
+a=2.2e7 b/a=3 short@anchor       f64[ball,near,far,sup]=+0.0e0,+5.7e-10,-3.6e-15,+7.1e-15 | int=-1.0e-7,+0.0e0,-8.5e-9,-1.4e-14 | widths=8.3e-14,2.0e-8,8.7e-9,1.4e293
+a=2.2e7 b/a=3 short,reversed     f64[ball,near,far,sup]=+0.0e0,+5.7e-10,-3.6e-15,+7.1e-15 | int=-1.0e-7,+0.0e0,-8.5e-9,-1.4e-14 | widths=8.3e-14,2.0e-8,8.7e-9,1.4e293
+a=2.2e7 b/a=3 short,off-anchor   f64[ball,near,far,sup]=+6.3e-9,-4.6e-10,-6.6e-10,+3.7e-9 | int=-3.0e-7,-4.6e-10,-4.2e-8,-4.6e-8 | widths=1.9e-7,2.7e-7,1.8e-7,1.4e293
+a=2.2e7 b/a=3 1m@anchor          f64[ball,near,far,sup]=-1.1e-16,+1.6e-10,+1.1e-15,+3.6e-15 | int=-1.3e-9,+0.0e0,-3.6e-9,-1.8e-15 | widths=1.8e-14,9.8e-9,4.3e-9,1.4e293
+a=2.2e7 b/a=3 1m,off-anchor      f64[ball,near,far,sup]=+2.5e-15,+3.9e-11,+8.9e-16,+1.8e-15 | int=-3.2e-10,-2.0e-15,-3.6e-9,-4.4e-16 | widths=1.3e-14,9.8e-9,4.3e-9,1.4e293
+a=2.2e7 b/a=3 long               f64[ball,near,far,sup]=-2.2e-8,-1.8e-9,-4.6e5,+5.6e-9 | int=-8.5e-7,-1.8e-9,-4.6e5,-1.0e-7 | widths=6.3e-7,0.0e0,4.5e-7,1.4e293
+a=2.2e7 b/a=3 past-half          f64[ball,near,far,sup]=-3.5e6,+0.0e0,-2.5e6,+7.5e-9 | int=-3.5e6,+0.0e0,-2.5e6,-1.4e-14 | widths=7.6e-7,0.0e0,4.8e-7,1.4e293
+a=2.2e7 b/a=3 whole              f64[ball,near,far,sup]=-3.6e6,-1.4e-9,-1.4e7,+7.5e-9 | int=-3.6e6,-1.4e-9,-1.4e7,-1.4e-14 | widths=7.3e-7,0.0e0,4.5e-7,1.4e293
+a=2.2e7 b/a=3 past-whole         f64[ball,near,far,sup]=-3.6e6,-1.4e-9,-1.4e7,+7.5e-9 | int=-3.6e6,-1.4e-9,-1.4e7,-1.4e-14 | widths=7.3e-7,0.0e0,5.4e-7,1.4e293
+worst Interval miss over the sweep: 0e0
+    cover::review_probes::review_red_near_overshoots_on_a_short_far_centred_arc
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 226 filtered out; finished in 0.48s
