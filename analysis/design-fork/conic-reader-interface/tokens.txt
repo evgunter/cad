@@ -14,3 +14,6 @@ round 5: A 220857, B 219499 at hand-back
 round 5: C 341619 at hand-back
 round 6: A 226921, B 225718 at hand-back
 round 6: C 357651 at hand-back
+round 7 (final For Ev): A 273038 at hand-back
+round 7 (final For Ev): B 274070 at hand-back
+round 7 (final For Ev): C 417865 at hand-back
