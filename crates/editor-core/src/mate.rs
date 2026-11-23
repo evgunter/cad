@@ -1149,6 +1149,10 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
         "whether the mated direction lies opposite to where the orientation puts the copy's",
     ),
     (
+        geom_core::LEAST_TURN_CONDITIONING,
+        "whether a chart's least turn is determined at the tolerance by the two directions it turns between",
+    ),
+    (
         value::FACE_CHART_SELECTION_POLE,
         "whether a face's chart's least turn has an answer over the session box, before what it carries is read",
     ),

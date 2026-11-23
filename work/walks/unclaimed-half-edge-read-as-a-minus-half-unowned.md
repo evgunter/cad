@@ -2,8 +2,11 @@
 id: unclaimed-half-edge-read-as-a-minus-half-unowned
 kind: issue
 title: a half-edge its own edge does not claim is read as that edge's minus half: 2 site(s) on this ground
-status: open
+status: closed
 opened: 2026-09-30
+closed: 2026-11-22
+pr: 7418
+branch: walks/ebundle
 priority: P3
 cost: E
 ---
@@ -84,3 +87,13 @@ self-pair checks, and `merge_faces.rs`' `#[cfg(test)]` tear hooks.
 | no owner | `unclaimed-half-edge-read-as-a-minus-half-unowned` | `crates/topo/src/pcurves.rs`, `is_plus`, ~:1199 | direction |
 
 Moved from `work/issues/` to `work/walks/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed (WALKS E-bundle, 2026-11-22)
+
+PR 7418: `pcurves/mint.rs` `is_plus` reads `crate::live::claimed(..).plus`,
+which panics naming the half-edge and its edge on an unclaimed half;
+`props.rs` `run_edges` reads `Edge::claim` and answers an unclaimed
+half with its own `LoopEdgesError::Corrupt`, as every other miss in
+that function does. Re-running the sweep found 26 production sites no
+row's table lists; they are filed as
+`unclaimed-half-edge-reads-the-3532-table-does-not-list`.

@@ -24,7 +24,7 @@ It passes with any nonzero charge on the terms, whether the harmonics' own `Nᵏ
 
 ## Owed
 
-Re-pose the subdivision's touch arm under `[simple.conditioned]` so that an exact jet places the touch. Measure first which reading decides it: the convex test, the reach's depth (`crate::roots::past_noise` at zero noise), or a cut's side. If no re-pose exists, the question goes to Ev.
+Re-pose the subdivision's touch arm under `[simple.conditioned]` so that an exact jet places the touch. Measure first which reading decides it: the convex test, the reach's depth (the extreme less its noise, at zero noise), or a cut's side. If no re-pose exists, the question goes to Ev.
 
 The window's uncharged read is the ratified one and is not what this row changes.
 

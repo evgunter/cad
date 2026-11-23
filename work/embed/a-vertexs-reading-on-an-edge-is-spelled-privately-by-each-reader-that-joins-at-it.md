@@ -95,3 +95,26 @@ Whether this class wants Ev's word, as the sliver did, is part of this
 row's design question: it declares a boundary continuous at a vertex
 topology says it is continuous at, where the sliver declared a face
 absent from a cell it was in.
+
+## The eighth spelling (`embed/tangent-corner`, PR 7320, 2026-11-23)
+
+Beside the run's own end (the seventh, `RunEnd`, read from the
+corner's vertex key), PR 7320 has a second reader: **a partner's zero
+side cut at the run's vertex**, `Along::stops` recorded in
+`present_chart` and read by `Along::ending`.
+
+- **What it asks.** Does this side's one edge end at the vertex the
+  graph leaves its own edge at? By key: a line of the other axis
+  whose own edge ends at that vertex clips the rectangle (`corners`).
+- **What it bridges.** The strip between the edge's stored end and
+  the other line's outer bound: two rows' readings of one vertex's
+  coordinate, times the chart's speed along the side. `Along::ending`
+  compares no length; a keyed side is cut however far past the vertex
+  it reaches (`a_keyed_side_is_cut_at_the_vertex_however_far_past_it_reaches`,
+  to `0.1`).
+- **Which gate has run before it.** `sides_are_the_faces` (every
+  side its edges' own run on to the other line's far bound, every
+  corner convex): a stop is recorded only on a rectangle that passed
+  it, and on no whole patch
+  (`a_chart_side_stops_at_the_corners_it_makes_and_at_no_other_end`).
+  The bound is that test's and the body's, not the reader's.
