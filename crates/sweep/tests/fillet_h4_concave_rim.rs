@@ -317,11 +317,7 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
     let mut delta = Vec::with_capacity(2);
     for (name, body, concave) in [("the boss", &boss, true), ("the pip", &pip, false)] {
         let arcs = plane_sphere_rim(body);
-        assert_eq!(
-            arcs.len(),
-            1,
-            "{name}'s rim is one closed edge"
-        );
+        assert_eq!(arcs.len(), 1, "{name}'s rim is one closed edge");
         let top = top_face(body);
         assert!(
             (ring_radius(body, top) - rim_r).abs() < 1e-12,

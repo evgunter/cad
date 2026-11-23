@@ -99,9 +99,7 @@ fn every_arc_of_every_rim_names_the_same_cycle_from_wherever_it_starts() {
 #[test]
 fn the_repaired_pole_bodys_rim_is_one_edge_on_one_plane_face() {
     let mut source = lantern(tol());
-    source
-        .merge_coplanar_faces(tol())
-        .expect("the repair runs");
+    source.merge_coplanar_faces(tol()).expect("the repair runs");
     let arcs = arcs_at(&source, 1.0, 0.0);
     assert_eq!(arcs.len(), 1, "the neck rim is one closed edge");
     assert_eq!(

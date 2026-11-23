@@ -433,10 +433,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
         (5.0 * escalate, Expect::Builds((4, 8, 6, 1))),
         ((R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
         (-(R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
-        (
-            (2000.0 * R * escalate).sqrt(),
-            Expect::Builds((4, 8, 6, 1)),
-        ),
+        ((2000.0 * R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
     ] {
         let deg = (apart / R).to_degrees();
         let hemi = turned(&hemisphere, deg);

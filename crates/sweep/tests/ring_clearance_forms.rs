@@ -58,7 +58,11 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
     let mut arcs = Vec::new();
     for (rr, ry) in rims {
         let a = rim_arcs_at(body, *rr, *ry);
-        assert_eq!(a.len(), 1, "{name}: the ({rr}, {ry}) rim is one closed edge");
+        assert_eq!(
+            a.len(),
+            1,
+            "{name}: the ({rr}, {ry}) rim is one closed edge"
+        );
         arcs.extend(a);
     }
     let before = topo::mass_properties(

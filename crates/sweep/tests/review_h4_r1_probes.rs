@@ -305,10 +305,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
             );
         }
     }
-    assert_eq!(
-        spheres, 1,
-        "the ceiling is one sphere face"
-    );
+    assert_eq!(spheres, 1, "the ceiling is one sphere face");
     let arcs = rim_arcs_at(&body, big_r, floor);
     assert_eq!(arcs.len(), 1, "the floor rim is one closed edge");
 

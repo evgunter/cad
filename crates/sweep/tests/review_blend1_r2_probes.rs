@@ -54,8 +54,8 @@ use core::f64::consts::{PI, SQRT_2};
 
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
-use sweep::blend::build::fillet_edges;
 use sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::{assert_promises_either_side, revolved_about_y, rim_arcs_at, waisted};
 use topo::{Body, EdgeKey, validate_geometric};
 

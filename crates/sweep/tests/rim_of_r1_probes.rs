@@ -12,9 +12,7 @@ use sweep::ExtrudeSide;
 use geom::Curve3;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::{
-    ball_poled_z, cube, dome, lantern, realized, sphere_zone,
-};
+use sweep::test_support::{ball_poled_z, cube, dome, lantern, realized, sphere_zone};
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::rim_of;
@@ -175,4 +173,3 @@ fn phase_one_reread_and_the_rotation_claim_on_every_arc() {
         "the sweep covers more rims than the PR's ten"
     );
 }
-

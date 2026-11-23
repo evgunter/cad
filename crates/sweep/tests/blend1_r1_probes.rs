@@ -30,8 +30,8 @@ use core::f64::consts::SQRT_2;
 
 use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
-use sweep::blend::build::fillet_edges;
 use sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
     assert_promises_either_side, cube, revolved_about_y, rim_arcs_at, waisted,
 };
@@ -84,7 +84,6 @@ fn bored_lantern() -> Body<f64> {
         tol(),
     )
 }
-
 
 fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
     let ed = body.get_edge(e).unwrap();
@@ -375,11 +374,7 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_carve_the_rim_and_leave_the_seam() {
         .map(|(k, _)| k)
         .find(|&k| {
             let (a, b) = faces_of(&body, k);
-            a == b
-                && !matches!(
-                    body.face_surface(a).unwrap(),
-                    geom::Surface::Plane { .. }
-                )
+            a == b && !matches!(body.face_surface(a).unwrap(), geom::Surface::Plane { .. })
         })
         .expect("a full revolve of a pole-touching profile has seam meridians");
     req.push(seam);

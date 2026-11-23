@@ -109,11 +109,7 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
         })
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(
-        arcs.len(),
-        1,
-        "the boss's rim is one closed edge"
-    );
+    assert_eq!(arcs.len(), 1, "the boss's rim is one closed edge");
     let top = boss
         .faces()
         .find(|(fk, _)| {

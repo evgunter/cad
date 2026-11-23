@@ -252,7 +252,10 @@ fn ring_on_wall_where(
     let [(seam, t)] = meridians[..] else {
         panic!("the ring crosses the wall's one seam: {meridians:?}")
     };
-    let mid = body.split_edge(seam, t, tol).expect("the seam splits").vertex;
+    let mid = body
+        .split_edge(seam, t, tol)
+        .expect("the seam splits")
+        .vertex;
     if !halves {
         return;
     }
@@ -278,7 +281,10 @@ fn ring_on_wall_where(
         .map(|(h, _)| h)
         .collect();
     let rises = |b: &Body<f64>, h: HalfEdgeKey| {
-        let next = b.get_half_edge(b.get_half_edge(h).unwrap().next).unwrap().start;
+        let next = b
+            .get_half_edge(b.get_half_edge(h).unwrap().next)
+            .unwrap()
+            .start;
         b.get_point(b.get_vertex(next).unwrap().point).unwrap().y > p.y
     };
     out.sort_by_key(|&h| rises(body, h));
@@ -463,7 +469,10 @@ fn latitude_arc(
             .map(|(h, _)| h)
             .collect();
         let y = |b: &Body<f64>, h: HalfEdgeKey| {
-            let next = b.get_half_edge(b.get_half_edge(h).unwrap().next).unwrap().start;
+            let next = b
+                .get_half_edge(b.get_half_edge(h).unwrap().next)
+                .unwrap()
+                .start;
             b.get_point(b.get_vertex(next).unwrap().point).unwrap().y
         };
         out.sort_by(|&a, &b| y(body, a).total_cmp(&y(body, b)));
