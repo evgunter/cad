@@ -14,7 +14,7 @@
 
 use crate::common::charts::{charts, moves_by};
 use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, ValidationError};
@@ -132,5 +132,68 @@ fn offset_charts_together_moves_the_charts_in_either_winding() {
             "{what}: signed ΔV {delta}, want {want}"
         );
         finishes_iff(&format!("{what}, the result"), &body, right_way);
+    }
+}
+
+/// **A cap tilted into the gap between its scope's two reaches
+/// escalates at the axial gate.** A unit drum whose wall bulges out to
+/// radius 2 at mid-height (a torus band between the two rims), its
+/// bottom cap's plane restated through the cap's centre and tilted by
+/// `sin θ = 0.6·ε`. From the centre the scope's vertices, on the rims,
+/// reach `√2`, and its faces' covers reach about 2.09 (the bulge): levered
+/// at the first the tilt reads Zero and the drum would hollow through the
+/// axial door, at the second it is in the band. Read at both, the gate
+/// escalates. The cap's own rim stands at most `θ` off the tilted plane,
+/// inside the tolerance, so the operand finishes.
+#[test]
+fn a_cap_tilted_between_its_scopes_two_reaches_escalates_at_the_gate() {
+    let tol = Tol::witness();
+    let theta = 0.6 * Band::linear(tol).unwrap().zero();
+    let drum = revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 2.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    let (key, cap) = drum
+        .surfaces()
+        .find_map(|(k, s)| match s {
+            Surface::Plane { frame } if frame.origin().y == 0.0 => Some((k, *frame)),
+            _ => None,
+        })
+        .expect("the drum has a bottom cap");
+    let n = cap.axis();
+    let tilted = n * (1.0 - theta * theta).sqrt() + Vec3::unit_x().cross(n) * theta;
+    let body = drum
+        .with_surface_moved_for_tests(
+            key,
+            Surface::Plane {
+                frame: geom::Frame::new(Point3::origin(), tilted, cap.u_ref()),
+            },
+        )
+        .expect("the cap's key is live");
+    let finished =
+        topo::finish(topo::Built::of(body), tol).expect("the tilt is within the tolerance");
+    match topo::shell(&finished, 0.01, tol) {
+        Err(topo::ShellError::Face { error, .. })
+            if matches!(*error, topo::ReplaceFaceError::Escalated { .. }) =>
+        {
+            let topo::ReplaceFaceError::Escalated { source } = *error else {
+                unreachable!("matched above")
+            };
+            assert_eq!(
+                source.predicate,
+                Some("offset_axial_alignment"),
+                "the cap's alignment is in the band at the scope's reach from above"
+            );
+        }
+        other => panic!(
+            "the cap's alignment escalates at the gate, got {:?}",
+            other.map(|_| "a hollow")
+        ),
     }
 }

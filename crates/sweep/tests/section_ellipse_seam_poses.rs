@@ -14,13 +14,14 @@
 //!
 //! **Every split side is validated at rest**, and each row states every
 //! pose's outcome exactly: both sides valid, or the refusal named in
-//! its table, so a pose that flips either way reds the row. The split
-//! gates its own sides at rest and refuses on the first side tier 3
-//! refuses (`at-rest gate <side> <findings>`). Those refusals are tier
-//! 3's frame check on a section ellipse
-//! (`UnrepresentableCurveDatum { Ellipse, URef, Length | Tilt }`): its
-//! margin is `ε − δ·A`, the frame's own rounding `δ` amplified by the
-//! semi-axis `A ≈ r/θ`, up to 1e6 here ([`FRAME_RESIDUE`]). At
+//! its table, so a pose that flips either way reds the row; and where a
+//! pose answers, its two sides measure the cylinder's closed form on
+//! each side of the plane. The split gates its own sides at rest and
+//! refuses on the first side tier 3 refuses (`at-rest gate <side>
+//! <findings>`). Tier 3's check 1 reads no frame (a carrier's frame is
+//! rigid by its type), so a section ellipse's frame rounding, amplified
+//! by its semi-axis `A ≈ r/θ` up to 1e6 here, refuses no side: at
+//! ε = 1e-12 the 32 through-axis poses it refused build and measure. At
 //! ε = 1e-6 the `θ = 3e-5` coin-flip planes cut a wall sliver of in-band
 //! width at the seam ruling, and each side builds: the split merges the
 //! sliver into the wall face across that seam, so no side keeps it
@@ -33,9 +34,6 @@
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::splitting::{SplitError, SplitFinishError, split};
 use topo::{AtRestBody, Body, BooleanError, JoinError, ValidationError};
-
-/// The row that owns the at-rest frame refusals these tables name.
-const FRAME_RESIDUE: &str = "work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md";
 
 /// The row that owns the at-rest volume refusal of an in-band curved
 /// sliver. No pose here keeps one: each sliver lies beside the wall face
@@ -74,8 +72,8 @@ fn at_rest(body: &Body<f64>, tol: Tol) -> Option<String> {
     ))
 }
 
-/// Tier 3's findings on one side: a frame finding by its datum, measure
-/// and end, any other by its variant.
+/// Tier 3's findings on one side: an ellipse's datum finding by its
+/// datum, measure and end, any other by its variant.
 fn reasons(errors: &[ValidationError]) -> String {
     errors
         .iter()
@@ -83,10 +81,9 @@ fn reasons(errors: &[ValidationError]) -> String {
             ValidationError::UnrepresentableCurveDatum {
                 kind: geom::CurveKind::Ellipse,
                 datum,
-                measure,
                 end,
                 ..
-            } => format!("{datum:?} {measure:?} {end:?}"),
+            } => format!("{datum:?} {end:?}"),
             other => variant(&format!("{other:?}"), 1),
         })
         .collect::<Vec<_>>()
@@ -119,6 +116,57 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>, tol: Tol) -> String {
         }
         Err(e) => format!("refused {}", variant(&format!("{e:?}"), 2)),
     }
+}
+
+/// **What a split that answers holds, against its closed form**: the
+/// unit cylinder `0 ≤ z ≤ 1` on the side of the plane through `o` with
+/// normal `n` toward which `n` points, by slices. At height `z` the plane
+/// leaves the line `n_xy·p = n·o − n_z·z` across the unit disk, at signed
+/// distance `d` from its centre, and the disk's part on `n`'s side is
+/// `acos(d) − d·√(1 − d²)` (`d` clamped to `[−1, 1]`). Simpson's rule over
+/// 2000 slices; the two sides of a pose that answers measure that and
+/// `π` less it, in either order, to `1e-6 + 4ε`: the split decides its
+/// cut at ε, so a side may hold ε of movement over the cut's face, at
+/// most `2` m² here, on each side.
+fn sides_hold_their_closed_form(
+    pose: &str,
+    r: &Result<topo::SplitResult<f64>, SplitError>,
+    o: Point3<f64>,
+    n: Vec3<f64>,
+    tol: Tol,
+) {
+    let Ok(res) = r else { return };
+    let m = n.x.hypot(n.y);
+    let slice = |z: f64| {
+        let d = ((n.x * o.x + n.y * o.y + n.z * (o.z - z)) / m).clamp(-1.0, 1.0);
+        d.acos() - d * (1.0 - d * d).sqrt()
+    };
+    let steps = 2000;
+    let mut along = slice(0.0) + slice(1.0);
+    for i in 1..steps {
+        let z = f64::from(i) / f64::from(steps);
+        along += slice(z) * if i % 2 == 1 { 4.0 } else { 2.0 };
+    }
+    let along = along / (3.0 * f64::from(steps));
+    let measure = |part: &topo::splitting::SplitPart<f64>| {
+        part.body().map_or(0.0, |b| {
+            topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap_or_else(|e| panic!("{pose}: a side measures: {e:?}"))
+                .met()
+                .expect("the pinned resolution is met")
+                .volume
+        })
+    };
+    let (above, below) = (measure(&res.above), measure(&res.below));
+    let across = core::f64::consts::PI - along;
+    let off = ((above - along).abs() + (below - across).abs())
+        .min((above - across).abs() + (below - along).abs());
+    let bound = 1e-6 + 4.0 * tol.eps();
+    assert!(
+        off < bound,
+        "{pose}: the sides measure {above} and {below}, not {along} and {across} \
+         (off {off:e}, bound {bound:e})"
+    );
 }
 
 /// The first `depth` variant names of a `Debug` rendering.
@@ -170,8 +218,8 @@ fn check(got: &[(String, String)], want: &[(&str, &str)]) {
         .collect();
     assert!(
         wrong.is_empty(),
-        "poses off their table (at-rest frame refusals are {FRAME_RESIDUE}'s, \
-         at-rest volume refusals {SLIVER_RESIDUE}'s):\n{}\n\nthe run's table:\n{}",
+        "poses off their table (at-rest volume refusals are {SLIVER_RESIDUE}'s):\n{}\n\n\
+         the run's table:\n{}",
         wrong.join("\n"),
         table.join("\n"),
     );
@@ -191,10 +239,10 @@ fn planes_nearly_along_the_axis_through_a_seam_vertex_split() {
             ] {
                 let n = Vec3::new(0.0, 1.0, th);
                 let o = Point3::new(vx, 0.0, vz) + n / n.norm() * (c * eps);
-                got.push((
-                    format!("θ {th:e} ({vx}, {vz}) c {c}"),
-                    outcome(cut(&cyl, o, n, tol), tol),
-                ));
+                let pose = format!("θ {th:e} ({vx}, {vz}) c {c}");
+                let r = cut(&cyl, o, n, tol);
+                sides_hold_their_closed_form(&pose, &r, o, n, tol);
+                got.push((pose, outcome(r, tol)));
             }
         }
     }
@@ -216,10 +264,11 @@ fn planes_through_the_axis_nearly_along_it_split() {
             let phi = 0.4 + f64::from(k) * 0.7;
             for z in [0.5, 0.3] {
                 let n = Vec3::new(phi.cos(), phi.sin(), th);
-                got.push((
-                    format!("θ {th:e} φ {phi:.1} z {z}"),
-                    outcome(cut(&cyl, Point3::new(0.0, 0.0, z), n, tol), tol),
-                ));
+                let o = Point3::new(0.0, 0.0, z);
+                let pose = format!("θ {th:e} φ {phi:.1} z {z}");
+                let r = cut(&cyl, o, n, tol);
+                sides_hold_their_closed_form(&pose, &r, o, n, tol);
+                got.push((pose, outcome(r, tol)));
             }
         }
     }
@@ -411,133 +460,4 @@ const THROUGH_1E6: &[(&str, &str)] = &[
     ("θ 1e-4 φ 4.6 z 0.3", "refused Reduce SliverSector"),
 ];
 const THROUGH_1E9: &[(&str, &str)] = &[];
-const THROUGH_1E12: &[(&str, &str)] = &[
-    (
-        "θ 1e-6 φ 3.9 z 0.5",
-        "at-rest gate above URef Length Upper & URef Length Upper",
-    ),
-    (
-        "θ 1e-6 φ 3.9 z 0.3",
-        "at-rest gate above URef Length Upper & URef Length Upper",
-    ),
-    (
-        "θ 1e-6 φ 5.3 z 0.5",
-        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
-    ),
-    (
-        "θ 1e-6 φ 5.3 z 0.3",
-        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
-    ),
-    (
-        "θ 3e-6 φ 1.1 z 0.5",
-        "at-rest gate above URef Length Upper & URef Length Upper",
-    ),
-    (
-        "θ 3e-6 φ 1.1 z 0.3",
-        "at-rest gate above URef Length Upper & URef Length Upper",
-    ),
-    (
-        "θ 3e-6 φ 1.8 z 0.5",
-        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
-    ),
-    (
-        "θ 3e-6 φ 1.8 z 0.3",
-        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
-    ),
-    (
-        "θ 3e-6 φ 2.5 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 3e-6 φ 2.5 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 3e-6 φ 3.9 z 0.5",
-        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
-    ),
-    (
-        "θ 3e-6 φ 3.9 z 0.3",
-        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
-    ),
-    (
-        "θ 3e-6 φ 5.3 z 0.5",
-        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
-    ),
-    (
-        "θ 3e-6 φ 5.3 z 0.3",
-        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
-    ),
-    (
-        "θ 1e-5 φ 0.4 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 1e-5 φ 0.4 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 1e-5 φ 2.5 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 1e-5 φ 2.5 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 3e-5 φ 0.4 z 0.5",
-        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
-    ),
-    (
-        "θ 3e-5 φ 0.4 z 0.3",
-        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
-    ),
-    (
-        "θ 3e-5 φ 1.1 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 3e-5 φ 1.1 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 3e-5 φ 2.5 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 3e-5 φ 2.5 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 3e-5 φ 3.9 z 0.5",
-        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
-    ),
-    (
-        "θ 3e-5 φ 3.9 z 0.3",
-        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
-    ),
-    (
-        "θ 3e-5 φ 5.3 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 3e-5 φ 5.3 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 1e-4 φ 1.1 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 1e-4 φ 1.1 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 1e-4 φ 2.5 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-    (
-        "θ 1e-4 φ 2.5 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
-    ),
-];
+const THROUGH_1E12: &[(&str, &str)] = &[];

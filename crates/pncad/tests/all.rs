@@ -7730,7 +7730,7 @@ fn a_clearance_reports_payloads_are_nameable_from_the_facade() {
     fn caught(r: &ClearanceRefusal) -> String {
         match r {
             ClearanceRefusal::Engine { refusal, .. } => match refusal {
-                EngineRefusal::Budget(b) => budget(b),
+                EngineRefusal::Budget { stop: b, .. } => budget(b),
                 EngineRefusal::Uncertified {
                     shared: c, arm: a, ..
                 } => {

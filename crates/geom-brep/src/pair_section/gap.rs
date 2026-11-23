@@ -303,7 +303,7 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
     let e2 = rounding_charge(two * big * (big + two * size));
     match spine {
         Spine::Line(line) => {
-            let [g, g1, g2] = squared(p - line.origin, dp, ddp, Some(line.dir));
+            let [g, g1, g2] = squared(p - line.origin, dp, ddp, Some(line.dir.get()));
             let d = g.sqrt();
             Reading {
                 d: Rounded {
@@ -340,9 +340,9 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
                 e_rho,
                 e_r1,
                 e_r2,
-            } = radial(w, (dp, ddp), axis, (big, e_w, e1, e2));
+            } = radial(w, (dp, ddp), axis.get(), (big, e_w, e1, e2));
             let sigma = if far { T::one() } else { -T::one() };
-            let h = w.dot(axis);
+            let h = w.dot(axis.get());
             let across = rho + sigma * radius;
             let d = (across.powi(2) + h.powi(2)).sqrt();
             Reading {
@@ -381,11 +381,11 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
                 e_rho,
                 e_r1,
                 e_r2,
-            } = radial(w, (dp, ddp), axis, (big, e_w, e1, e2));
+            } = radial(w, (dp, ddp), axis.get(), (big, e_w, e1, e2));
             let tilt = if far { -sin } else { sin };
-            let g = rho * cos - tilt * w.dot(axis);
-            let g1 = r1 * cos - tilt * dp.dot(axis);
-            let g2 = r2 * cos - tilt * ddp.dot(axis);
+            let g = rho * cos - tilt * w.dot(axis.get());
+            let g1 = r1 * cos - tilt * dp.dot(axis.get());
+            let g2 = r2 * cos - tilt * ddp.dot(axis.get());
             let e_g = cos * e_rho + sin * e_w + rounding_charge(g.abs());
             let e_g1 = cos * e_r1 + sin * rounding_charge(big) + rounding_charge(g1.abs());
             let e_g2 = cos * e_r2 + sin * rounding_charge(big) + rounding_charge(g2.abs());
@@ -676,7 +676,7 @@ pub(crate) fn critical_gap<T: Decide>(
             geom::cover::Cover::circle(geom::cover::Core {
                 axis: geom::Line {
                     origin: core.circle.frame().origin(),
-                    dir: core.circle.frame().axis(),
+                    dir: core.circle.frame().axis_unit(),
                 },
                 radius: core.circle.radius(),
             })
@@ -805,7 +805,7 @@ mod tests {
                 geom::cover::Cover::circle(geom::cover::Core {
                     axis: geom::Line {
                         origin: core.circle.frame().origin(),
-                        dir: core.circle.frame().axis(),
+                        dir: core.circle.frame().axis_unit(),
                     },
                     radius: core.circle.radius(),
                 })
@@ -814,7 +814,7 @@ mod tests {
             .lever(),
             spine: Spine::Line(geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom_core::UnitVec3::exact_z(),
             }),
             levels: [3.0, 1.0],
             rows: &crate::rows::CT_GAP,

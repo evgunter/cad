@@ -2092,7 +2092,7 @@ fn node_error_tags_are_the_published_words() {
         CountOutOfRange => "count_out_of_range",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
-        UnionFoldStep => "union_fold_step",
+        FoldStep => "fold_step",
         Shell => "shell",
         ShellLaneUnsupported => "shell_lane_unsupported",
         WitnessBifurcation => "witness_bifurcation",
@@ -2460,9 +2460,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::DefinesNothing {
             input: sp(2),
-            slot: SlotId::Operand(OperandSlot::Cut),
+            slot: SlotId::Operand(OperandSlot::Cut(0)),
         },
-        &["input", "slot"],
+        &["input", "slot", "index"],
     );
 
     // A constraint's address answers with the ids it was given: the
@@ -4124,6 +4124,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "value_spin"
                         | "section"
                         | "member"
+                        | "cut"
                         | "index"
                         | "measured"
                         | "cleared"
@@ -4648,6 +4649,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cusp",
             "meet",
             "on_carrier",
+            "rim_junction",
             "same_opposite",
             "same_oriented",
             "same_radius",
@@ -4717,6 +4719,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "iso_join",
             "plane_ladder",
             "profile_junction",
+            "rim_junction",
             "smooth_join",
             "sphere_on_torus_axis",
             "split_on",
@@ -5280,6 +5283,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "expr",
             "extrude",
             "fillet",
+            "fold_step",
             "half_of_a_family",
             "index_count",
             "index_count_out_of_range",
@@ -5343,7 +5347,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tube",
             "underflowed_direction",
             "unfinished_leaf",
-            "union_fold_step",
             "unresolved_read",
             "unschedulable_cycle",
             "witness_bifurcation",
@@ -5433,6 +5436,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body",
             "cleared",
             "cut",
+            "cuts",
             "face",
             "frame",
             "from",
@@ -6653,6 +6657,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // loft's kept section ids.
     ("repeated", 3),
     ("revolve", 2),
+    // One fact: a coincidence row's relation and the site it was
+    // decided at name one thing, two faces joined on a rim both end on
+    // (`topo::Relation::RimJunction` at `topo::DecisionSite::RimJunction`),
+    // as `coaxial` is one fact across the coincidence and snap maps.
+    ("rim_junction", 2),
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),

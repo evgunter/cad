@@ -182,7 +182,7 @@ fn the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane() {
         let axis = frame.axis();
         // The line × cone quadratic's lead coefficient is
         // `(d̂·a)² − cos²α`: zero, the lane's degenerate pose.
-        let lead = (dir.normalize().dot(axis)).powi(2) - half_angle.cos().powi(2);
+        let lead = (dir.get().normalize().dot(axis)).powi(2) - half_angle.cos().powi(2);
         assert!(
             lead.abs() < 1e-12,
             "{label}: the refused edge runs parallel to a generator of the face's cone: {lead}"

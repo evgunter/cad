@@ -72,7 +72,10 @@ fn cylinder_kit(r: f64) -> (Surface<f64>, EdgeFn, EdgeFn) {
     };
     let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::line(p3(r * u.cos(), r * u.sin(), 0.0), v3(0.0, 0.0, 1.0)),
+            Curve3::line(
+                p3(r * u.cos(), r * u.sin(), 0.0),
+                geom_core::UnitVec3::exact_z(),
+            ),
             v0,
             v1,
             a,
@@ -210,7 +213,10 @@ fn cone_plus_domain_and_the_rectangle_both_measure() {
     };
     let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::line(p3(0.0, 0.0, 0.0), v3(sa * u.cos(), sa * u.sin(), ca)),
+            Curve3::line(
+                p3(0.0, 0.0, 0.0),
+                crate::shared::point::unit3(sa * u.cos(), sa * u.sin(), ca),
+            ),
             v0,
             v1,
             a,
@@ -553,7 +559,10 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     };
     let mer = |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::line(p3(0.0, 0.0, 0.0), v3(sa * u.cos(), sa * u.sin(), ca)),
+            Curve3::line(
+                p3(0.0, 0.0, 0.0),
+                crate::shared::point::unit3(sa * u.cos(), sa * u.sin(), ca),
+            ),
             v0,
             v1,
             a,

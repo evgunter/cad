@@ -294,13 +294,13 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             .collect();
         rows.sort_unstable();
         rows.dedup();
-        for (vertex, here, planes) in rows.into_iter().map(|i| &at_vertex[i]) {
+        for (vertex, _, planes) in rows.into_iter().map(|i| &at_vertex[i]) {
             for p in planes {
                 if !at.iter().any(|q| q.same_move(p)) {
                     at.push(p);
                 }
             }
-            arms.extend(corner_arms(body, *vertex, *here));
+            arms.extend(corner_arms(body, *vertex)?);
         }
         let planes: Vec<(Vec3<T>, T)> = at.iter().map(|p| (p.normal, p.c)).collect();
         solve_planar_corner(group[0], &planes, &arms, band)
@@ -397,7 +397,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                 dir,
             }
             .param(p_start);
-            let origin = origin + ((p_start - old_start) - dir * slide);
+            let origin = origin + ((p_start - old_start) - dir.get() * slide);
             // The other endpoint is VERIFIED onto that line rather than
             // assumed onto it: it is a different corner solve, and two
             // solves agreeing is the claim being made.
@@ -677,36 +677,38 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
     Vec3::new(p.x, p.y, p.z)
 }
 
-/// The chord length of every edge ending at a vertex — the lengths the
-/// corner's conditioning is levered by (see [`solve_planar_corner`]).
+/// How far every edge ending at a vertex reaches from it — the lengths
+/// the corner's conditioning is levered by (see
+/// [`solve_planar_corner`]), each read off the edge's cover from below
+/// ([`crate::cover::edge_reach_bounds`]): a corner is resolved only on a
+/// definite sign.
 ///
-/// **The axial door keeps its own copy, levered by ARC LENGTH, and the
-/// difference is load-bearing rather than a duplication to collapse.**
-/// A chord is the arc length here because this door's bodies are
-/// all-planar and a planar edge is a straight segment: no closed edge
-/// exists for a chord to read zero on. The axial door's do — a chart
-/// with ONE seam closes on itself — and a zero arm makes every meter
-/// read `Zero` and call a perfectly transversal corner degenerate,
-/// which is what it measured on the revolved tube.
-fn corner_arms<T: Real>(
+/// **The axial door keeps its own copy** (`offset_axial::corner_arms`):
+/// its edges include closed ones, a chart with ONE seam closing on
+/// itself, and its line and circle arms read lengths of their own. Here
+/// every edge is a straight segment, whose reach from its end is its
+/// length, so no edge reads zero.
+///
+/// # Errors
+///
+/// [`ReplaceFaceError::CarrierLaneUnsupported`] for an edge with no
+/// certified curve, whose reach no cover bounds.
+fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
-    here: Point3<T>,
-) -> Vec<geom_core::Lever<T>> {
+) -> Result<Vec<geom_core::Lever<T>>, ReplaceFaceError<T>> {
+    let here = body.point_of(vertex, proven(&body.vertices, vertex, EntityId::Vertex));
     body.vertex_orbit_linked(vertex)
         .into_iter()
         .map(|he| {
-            let next = proven(&body.half_edges, he, EntityId::HalfEdge).next;
-            let far = linked(
-                &body.half_edges,
-                next,
-                EntityId::HalfEdge,
-                EntityId::HalfEdge(he),
-                "next",
-            )
-            .start;
-            let there = body.linked_vertex_point(far, EntityId::HalfEdge(next), "start");
-            geom_brep::ExtentBall::point(here).lever_from(there)
+            let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let edge = body.linked_edge(key, EntityId::HalfEdge(he), "edge");
+            crate::cover::edge_reach_bounds(body, edge, here)
+                .map(geom_brep::LeverBounds::below)
+                .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                    edge: key,
+                    what: "it has no curve to lever its corner by",
+                })
         })
         .collect()
 }
@@ -1240,6 +1242,39 @@ mod scope_walks {
         let mut work = body.clone();
         offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol)
             .expect("the door reads its scope, and its scope charts");
+    }
+
+    /// **A corner levered by an edge with no curve refuses, naming the
+    /// lever.** The first box with one of its edges null scaffolding: the
+    /// corner solve reads each edge's reach from its corner, and the
+    /// scaffold has none, so the door refuses before it moves anything.
+    #[test]
+    fn a_corner_on_an_edge_with_no_curve_refuses_its_lever() {
+        let tol = Tol::witness();
+        let (mut body, first, _) = two_boxes();
+        let face = body.faces_of_solid(first).expect("a live solid")[0];
+        let he = body.face(face).unwrap().cycles().next().unwrap().1[0];
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let (below_end, above_end) = body.edge_vertices(edge).unwrap();
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves[curve] = crate::null::CurveGeom::NullScaffold(crate::null::NullEdge {
+            below_end,
+            above_end,
+        });
+        let moves = moves_of(&body, first, 0.1);
+        let got =
+            offset_planes_together(&mut body.clone(), &moves, Band::linear(tol).unwrap(), tol);
+        assert!(
+            matches!(
+                got,
+                Err(ReplaceFaceError::CarrierLaneUnsupported {
+                    what: "it has no curve to lever its corner by",
+                    ..
+                })
+            ),
+            "the corner's lever refuses on the scaffold edge, got {:?}",
+            got.map(|_| ())
+        );
     }
 
     /// The scope walk's two hops answer DIFFERENTLY, and that is why it

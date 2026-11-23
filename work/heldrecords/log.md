@@ -220,3 +220,15 @@
   - **ATREST's row stays open:** the at-rest move to the shell superset was reverted to the fail-loud path, because it widened two checks.
   - **Filed on ORBIT:** P2 rows on given pairs under a step's own re-chart, and on re-cut verdicts.
   - **ORBIT's re-chart row** stays P0: the tour's die with two pips dragged together refuses typed at its union. (HELDRECORDS orchestrator)
+- 2026-11-23 — **Every lane and this session stopped at about 08:40Z on the usage limit; resumed at 16:54Z (Ev: "usage is back").** Each was nudged in its own session to check for half-done work, merge main and finish its pass, saying in its report that the phase was interrupted. Where each stopped:
+  - PR 7432's last pass at `aac6beb91b` (the hooked-elbow guard, the rim-edge `On` by identity, the flanged row in both orders, the n-ary junction P2 filed);
+  - PR 7463's ε pass at `617e30f4d3`;
+  - PR 7471's pass at `e2272b1034`, before merging elbow-ends;
+  - PR 7436's n1/n2 not started;
+  - PR 7481's head at `f046087c06`, its delta read interrupted.
+  PR 7516 had merged before the stop. PR 7124 (EMBED) is still open, so PR 7421 waits. (HELDRECORDS orchestrator)
+- 2026-11-23 — **PR 7432 (the glue door's junction) merged (`9863cf938e`) on local evidence.** Head `9c9f4fdd32`. The `ci` profile for topo, sweep and editor-core at default ε; the 41 touched rows at 1e-9, 1e-6 and 1e-12; clippy (geom-brep excluded for main's own red, filed on SECTCONE as `main-red-cone-torus-pose-matches-unit-apex-variants-with-struct-patterns`); and lint. Both delta re-reads were in (R2 MERGEABLE; R1 APPROVE-WITH-FIXES, with its fixes done in the last pass). Main had moved 70 commits after the lane's re-merge; `merge-tree` was clean, and the one overlapping file (`reduce.rs`, ONEROUND's lever-site reads) is not near the change.
+  - **Landed:** `GlueClass::Junction` (a rim both faces end on, glued only on Seam, Opposite departures and both rim edges `Crease{Convex}`; everything else takes main's path verbatim); glue-door rows with a mutant table; the C4/C7 text, with PR 6079's provenance.
+  - **Filed:** `an-n-ary-fold-carrying-a-rim-junction-refuses-at-its-first-lump` (P2).
+  - **The elbow does not union yet:** it now stops at the crossing layer (PR 7463, retargeted to main), then the seam edges (PR 7471). (HELDRECORDS orchestrator)
+- 2026-11-23 — **PR 7436 (section nesting) merged (`c51d65be18`) on local evidence.** Head `8baf8c0108`, with main merged in and ONEHOME's unit `Line::dir` ported. Evidence: the `ci` profile for topo, sweep and editor-core at default ε; 160 touched rows at three ε; clippy (geom-brep excluded for main's own red); lint. The review and its delta re-read were in. Main had moved 198 commits since, none in `splitting/`, `curve_pair/` or `geom/src/curves`, and `merge-tree` was clean. Its two rows (the elliptic hole and the counterbore floor rim) are closed here. (HELDRECORDS orchestrator)

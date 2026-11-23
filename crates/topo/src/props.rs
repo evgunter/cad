@@ -2964,7 +2964,12 @@ mod region_carry_tests {
             .map(|i| {
                 let (a, b) = (corners[i as usize], corners[((i + 1) % 4) as usize]);
                 LoopEdge::hand_built(
-                    geom::Curve3::line(iv(a), iv(Point3::origin() + (b - a)) - Point3::origin()),
+                    geom::Curve3::line(
+                        iv(a),
+                        geom_core::UnitVec3::checked(
+                            iv(Point3::origin() + (b - a)) - Point3::origin(),
+                        ),
+                    ),
                     Interval::from_f64(0.0),
                     Interval::from_f64(1.0),
                     counter,

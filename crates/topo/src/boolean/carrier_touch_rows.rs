@@ -135,7 +135,10 @@ fn a_span_whose_middle_is_on_the_torus_axis_localizes_both_touches() {
         major_radius: 2.0,
         minor_radius: 0.5,
     };
-    let c = Curve3::line(Point3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 0.0, 0.0));
+    let c = Curve3::line(
+        Point3::new(0.0, 0.0, 0.5),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let found = clusters(&s, &c, rates(&c), reach(&s).unwrap(), (-3.0, 3.0), band())
         .expect("localizes within the budgets");
     for touch in [-2.0, 2.0] {

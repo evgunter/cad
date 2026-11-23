@@ -878,7 +878,10 @@ pub mod test_support {
         origin: geom_core::Point3<f64>,
         dir: geom_core::Vec3<f64>,
     ) -> (Vec<(f64, f64)>, Vec<f64>) {
-        let line = geom::Line { origin, dir };
+        let line = geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
             let off = line.distance(p);

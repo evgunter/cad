@@ -416,12 +416,12 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
             (false, true, true, false) => essential_pair([true, false], &ClassCarrier::General),
             // Across the inner bound only: the null loop at θ = 0.
             (false, true, true, true) => lone(
-                c + toward * rho_max + a * height(rho_max),
+                c + toward * rho_max + a.get() * height(rho_max),
                 &ClassCarrier::General,
             ),
             // Across the outer bound only: the null loop at θ = π.
             (true, true, true, false) => lone(
-                c + toward * (e - rc) + a * height(rho_min),
+                c + toward * (e - rc) + a.get() * height(rho_min),
                 &ClassCarrier::General,
             ),
         },
@@ -509,8 +509,8 @@ pub(super) fn parallel_torus_arm<T: Decide>(
     band: Band,
 ) -> Result<Vec<SectionComponent<T>>, Pinch> {
     let geom::Line { origin: c, dir: a } = axis;
-    let side = a.cross(toward);
-    let at = |x: T, y: T, z: T| c + toward * x + a * y + side * z;
+    let side = a.get().cross(toward);
+    let at = |x: T, y: T, z: T| c + toward * x + a.get() * y + side * z;
     // A level row is one tube's top or bottom against the other's. Left
     // pinched with datum `d`, its two ends stand within
     // `δ = |d| + slack + escalate` of level at every consumed pose (the
@@ -815,7 +815,10 @@ pub(super) fn square_pose<T: Decide>(
 ) -> Option<SquareWall<T>> {
     if sign_as(
         "section_torus_square_wall_tilt",
-        Margin::levered(a.dot(d), super::torus::lever(ball.foot_on(partner), ball)),
+        Margin::levered(
+            a.get().dot(d.get()),
+            super::torus::lever(ball.foot_on(partner), ball),
+        ),
         band,
     ) != Some(Sign::Zero)
     {
@@ -823,16 +826,16 @@ pub(super) fn square_pose<T: Decide>(
     }
     // The pivot's offset from the torus centre, summed from the stored
     // operands so that neither's distance from the origin is rounded in.
-    let reach_along = (ball.center() - o).dot(d);
-    let w = (o - c) + d * reach_along;
-    let (along, n) = super::square_part(d, a);
+    let reach_along = (ball.center() - o).dot(d.get());
+    let w = (o - c) + d.get() * reach_along;
+    let (along, n) = super::square_part(d.get(), a.get());
     let d = along / n;
-    let across = a.cross(d);
+    let across = a.get().cross(d);
     Some(SquareWall {
         d,
         across,
         e: w.dot(across),
-        z0: w.dot(a),
+        z0: w.dot(a.get()),
         slop: ((o - c).norm() + reach_along.abs() + w.norm())
             * T::from_f64(SQUARE_TRACE_ULPS * f64::EPSILON),
     })
@@ -922,7 +925,7 @@ pub(super) fn square_cylinder_arm<T: Decide>(
         z0,
         slop,
     } = wall;
-    let at = |y: T, z: T, t: T| c + across * y + a * z + d * t;
+    let at = |y: T, z: T, t: T| c + across * y + a.get() * z + d * t;
     let k = (e, z0, rc);
     let top = reaches_edge_as(
         "section_torus_square_wall_top",

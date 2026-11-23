@@ -607,7 +607,7 @@ pub(crate) fn split_d_section(r: f64, h: f64) -> Body<f64> {
         topo::construction::MefSite::Chords { he1, he2 },
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::line(pb, (pt - pb) / (pt - pb).norm()),
+            carrier: geom::Curve3::line(pb, geom::stated_direction((pt - pb) / (pt - pb).norm())),
             param_start: 0.0,
             param_end: (pt - pb).norm(),
         },
@@ -976,7 +976,7 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
         topo::construction::MefSite::Chords { he1, he2 },
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::line(p1, (p2 - p1) / (p2 - p1).norm()),
+            carrier: geom::Curve3::line(p1, geom::stated_direction((p2 - p1) / (p2 - p1).norm())),
             param_start: 0.0,
             param_end: (p2 - p1).norm(),
         },
@@ -993,7 +993,10 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
         seam,
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::line(ends.0, (ends.1 - ends.0) / (ends.1 - ends.0).norm()),
+            carrier: geom::Curve3::line(
+                ends.0,
+                geom::stated_direction((ends.1 - ends.0) / (ends.1 - ends.0).norm()),
+            ),
             param_start: 0.0,
             param_end: (ends.1 - ends.0).norm(),
         },

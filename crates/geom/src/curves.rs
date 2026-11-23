@@ -70,7 +70,7 @@ pub use conic::{Circle, Conic, Ellipse, MajorFrame};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, UnitVec3, Vec3};
 
 use crate::azimuth::{self, Azimuth};
 use crate::frame::Frame;
@@ -259,7 +259,7 @@ impl<T: Real> Curve3<T> {
         };
         match (self, other) {
             (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
-                point(*origin, *o) && vec(*dir, *d)
+                point(*origin, *o) && vec(dir.get(), d.get())
             }
             (Self::Circle(c), Self::Circle(k)) => {
                 frame(&c.frame(), &k.frame()) && same(c.radius(), k.radius())
@@ -693,22 +693,34 @@ impl<T: Real> CurveData<'_, T> {
 /// centre), whose readings against a point are [`Self::param`] and
 /// [`Self::foot`].
 ///
-/// `dir` is unit by the carriers' convention. The parameter readings
-/// ([`Self::param`], [`Self::foot`], [`Self::offset`] and their kin)
-/// divide by `|dir|²`, so they hold for any nonzero `dir`, a chord `b − a`
-/// among them. The metric readings of a point against an axis
-/// ([`Self::height`], [`Self::distance`]) divide by `|dir|`, in metres
-/// for any nonzero `dir`. **`dir` must be
-/// nonzero**: on a zero `dir` the parameter readings divide `0/0`. Nothing
-/// here decides it;
-/// at rest, `topo`'s tier-3 check 1 refuses a zero direction on every
-/// edge carrier (crate docs, "Unit-vector and orthogonality fields").
-#[derive(Clone, Copy, Debug)]
+/// `dir` is a [`UnitVec3`], so `t` is arc length from `origin`; a chord
+/// from `a` to `b` is the span `(0, |b − a|)` of [`Self::chord`]. The
+/// parameter readings ([`Self::param`], [`Self::foot`], [`Self::offset`]
+/// and their kin) still divide by `|dir|²`, and the metric readings of a
+/// point against an axis ([`Self::height`], [`Self::distance`]) by
+/// `|dir|`: the arithmetic every stored reading was pinned on, which the
+/// type moves by no bit. A `dir` squared from the zero vector is poison,
+/// and so is every reading of it.
+#[derive(Clone, Copy)]
 pub struct Line<T: Real> {
     /// The point at `t = 0`.
     pub origin: Point3<T>,
-    /// The direction increasing `t` runs along.
-    pub dir: Vec3<T>,
+    /// The direction increasing `t` runs along, unit as a type: `t` is
+    /// arc length from `origin`.
+    pub dir: UnitVec3<T>,
+}
+
+/// The direction is rendered as the vector it holds, so a line reads
+/// as it did when its direction was a bare [`Vec3`]: the corpus digests
+/// that hash geometry through `Debug` see a line's bits and not its
+/// type.
+impl<T: Real> core::fmt::Debug for Line<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Line")
+            .field("origin", &self.origin)
+            .field("dir", &self.dir.get())
+            .finish()
+    }
 }
 
 /// **Two lines' closest approach** ([`Line::closest_params`]): the
@@ -745,11 +757,11 @@ impl<T: Real> Line<T> {
     pub fn closest_params(&self, other: &Self) -> LinePair<T> {
         let w = self.origin - other.origin;
         let (aa, ab, bb) = (
-            self.dir.dot(self.dir),
-            self.dir.dot(other.dir),
-            other.dir.dot(other.dir),
+            self.dir.get().dot(self.dir.get()),
+            self.dir.get().dot(other.dir.get()),
+            other.dir.get().dot(other.dir.get()),
         );
-        let (aw, bw) = (self.dir.dot(w), other.dir.dot(w));
+        let (aw, bw) = (self.dir.get().dot(w), other.dir.get().dot(w));
         let gram = aa * bb - ab.powi(2);
         LinePair {
             s: (ab * bw - bb * aw) / gram,
@@ -758,26 +770,25 @@ impl<T: Real> Line<T> {
         }
     }
 
+    /// **The chord from `a` to `b`**, as the line through `a` along
+    /// `b − a` squared ([`UnitVec3::squared`]) and the chord's length:
+    /// the segment is the span `(0, length)`, in metres. A zero chord has
+    /// no direction, and its line is poison.
+    #[must_use]
+    pub fn chord(a: Point3<T>, b: Point3<T>) -> (Self, T) {
+        let (dir, len) = UnitVec3::chord(b - a);
+        (Self { origin: a, dir }, len)
+    }
+
     /// **The line's point at `t`**: `origin + dir·t`, the carrier's own
     /// parameterization ([`Curve3::eval`] on a line).
     #[must_use]
     pub fn at(&self, t: T) -> Point3<T> {
-        self.origin + self.dir * t
+        self.origin + self.dir.get() * t
     }
 
-    /// **The same line with its direction normalised**, for a reader that
-    /// takes the direction as unit (a meridian sheet's axis, a revolve's
-    /// seed). Readings on `self` itself need no unit direction.
-    #[must_use]
-    pub fn unit(self) -> Self {
-        Self {
-            origin: self.origin,
-            dir: self.dir.normalize(),
-        }
-    }
-
-    /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, the
-    /// coefficient of [`Vec3::project_onto`] in its association.
+    /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, arc
+    /// length along the unit direction.
     #[must_use]
     pub fn param(&self, p: Point3<T>) -> T {
         self.coefficient(p - self.origin)
@@ -786,7 +797,9 @@ impl<T: Real> Line<T> {
     /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
     /// [`Self::param`] and [`Self::param_and_offset`] read.
     fn coefficient(&self, w: Vec3<T>) -> T {
-        w.dot(self.dir) / self.dir.norm_squared()
+        // Kept for bits: a unit `dir` divides by one to rounding, and
+        // `curve_pair`'s far-carrier charge reads this rounding.
+        w.dot(self.dir.get()) / self.dir.get().norm_squared()
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.
@@ -798,8 +811,8 @@ impl<T: Real> Line<T> {
     /// **The parameter of `p`'s nearest point of the span `(t0, t1)`**
     /// of the line, `t0 ≤ t1`: [`Self::param`] held to the span by
     /// `max`/`min`, no comparison. A segment from `a` to `b` is the span
-    /// `(0, 1)` of `Line { origin: a, dir: b − a }`, and an edge its own
-    /// parameter span. A ray is held at one end ([`Self::foot_from`]).
+    /// `(0, |b − a|)` of [`Line::chord`], and an edge its own parameter
+    /// span. A ray is held at one end ([`Self::foot_from`]).
     #[must_use]
     pub fn param_within(&self, p: Point3<T>, (t0, t1): (T, T)) -> T {
         self.param(p).max(t0).min(t1)
@@ -815,8 +828,7 @@ impl<T: Real> Line<T> {
 
     /// **`p`'s distance from the span `(t0, t1)`**, `t0 ≤ t1`: its
     /// distance from its [foot on the span](Self::foot_within). A segment
-    /// from `a` to `b` is the span `(0, 1)` of `Line { origin: a, dir: b −
-    /// a }`.
+    /// from `a` to `b` is the span `(0, |b − a|)` of [`Line::chord`].
     #[must_use]
     pub fn distance_within(&self, p: Point3<T>, span: (T, T)) -> T {
         (p - self.foot_within(p, span)).norm()
@@ -892,8 +904,11 @@ impl<T: Real> Line<T> {
     #[must_use]
     pub fn height_and_distance(&self, p: Point3<T>) -> (T, T) {
         let w = p - self.origin;
-        let len = self.dir.norm();
-        (w.dot(self.dir) / len, w.cross(self.dir).norm() / len)
+        let len = self.dir.get().norm();
+        (
+            w.dot(self.dir.get()) / len,
+            w.cross(self.dir.get()).norm() / len,
+        )
     }
 
     /// **`p`'s parameter and offset together**: [`Self::param`]'s `t` and
@@ -906,7 +921,7 @@ impl<T: Real> Line<T> {
     pub fn param_and_offset(&self, p: Point3<T>) -> (T, Vec3<T>) {
         let w = p - self.origin;
         let t = self.coefficient(w);
-        (t, w - self.dir * t)
+        (t, w - self.dir.get() * t)
     }
 
     /// **`p`'s foot on the plane through `origin` square to the line**:
@@ -914,8 +929,31 @@ impl<T: Real> Line<T> {
     /// the line read as that plane's normal.
     #[must_use]
     pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
-        p - (p - self.origin).project_onto(self.dir)
+        p - (p - self.origin).project_onto(self.dir.get())
     }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+/// **A stated `f64` direction as the witness, failing loud**: `dir` kept
+/// bit for bit where it is unit within its own rounding
+/// ([`UnitVec3::stated`]), so every reading pinned to the stated bits
+/// reads them. A `dir` that is not unit to rounding is a caller's chord
+/// or a typo, never a direction a line can square in silence: a debug
+/// assertion, and in a release build the direction poisoned, which the
+/// predicate layer refuses. A construction holding a [`UnitVec3`] builds
+/// its line itself, and one holding a chord takes [`Line::chord`]. Test
+/// builds only: at the file boundary the import takes
+/// [`UnitVec3::stated`]'s `None` and refuses typed, and a kernel
+/// construction mints its direction.
+#[must_use]
+pub fn stated_direction(dir: Vec3<f64>) -> UnitVec3<f64> {
+    UnitVec3::stated(dir).unwrap_or_else(|| {
+        debug_assert!(
+            false,
+            "a line's stated direction {dir:?} is not unit to rounding"
+        );
+        UnitVec3::squared(Vec3::new(f64::NAN, f64::NAN, f64::NAN))
+    })
 }
 
 /// **A half-line**: [`Ray::line`] read forward from its start, the point
@@ -924,10 +962,8 @@ impl<T: Real> Line<T> {
 /// ray is built [starting](Ray::starting) elsewhere on its line: a ray
 /// built through a point it is aimed at keeps that point as its origin,
 /// so every reading on its line is taken from there and not from a
-/// start derived from it. An advance is in units of `|dir|`, as
-/// [`Line::param`]'s parameter is: a length only where the caller's
-/// `dir` is unit, which nothing here makes it
-/// (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+/// start derived from it. An advance is a length, as [`Line::param`]'s
+/// parameter is: the ray's direction is a [`UnitVec3`].
 /// A root's forward reading is [`Ray::ahead`], decided under the
 /// reader's own row. The touch analysis decides its own ahead readings
 /// through its verdict door (`topo` `link.rs`'s `ahead`, whose doc says
@@ -942,10 +978,9 @@ pub struct Ray<T: Real> {
 }
 
 impl<T: Real> Ray<T> {
-    /// The ray from `origin` along `dir`, any nonzero `dir`: its advance
-    /// is in units of `|dir|` (the type's doc).
+    /// The ray from `origin` along `dir`, its advance in metres.
     #[must_use]
-    pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
+    pub fn new(origin: Point3<T>, dir: UnitVec3<T>) -> Self {
         Self::starting(origin, dir, T::zero())
     }
 
@@ -953,7 +988,7 @@ impl<T: Real> Ray<T> {
     /// advance `start`, the point `origin + dir·start`: `origin` is a
     /// point of its line, ahead of the start where `start` is negative.
     #[must_use]
-    pub fn starting(origin: Point3<T>, dir: Vec3<T>, start: T) -> Self {
+    pub fn starting(origin: Point3<T>, dir: UnitVec3<T>, start: T) -> Self {
         Self {
             line: Line { origin, dir },
             start,
@@ -1044,9 +1079,9 @@ impl<T: Decide> Ray<T> {
 }
 
 impl<T: Real> Curve3<T> {
-    /// The line `origin + dir·t` as a carrier.
+    /// The line `origin + dir·t` as a carrier, `t` arc length.
     #[must_use]
-    pub fn line(origin: Point3<T>, dir: Vec3<T>) -> Self {
+    pub fn line(origin: Point3<T>, dir: UnitVec3<T>) -> Self {
         Self::Line(Line { origin, dir })
     }
 
@@ -1170,7 +1205,7 @@ impl<T: Real> Curve3<T> {
         use CurveDatum as D;
         CurveData::Analytic(match *self {
             Curve3::Line(Line { origin, dir }) => {
-                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
+                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir.get()))])
             }
             Curve3::Circle(c) => {
                 let f = c.frame();
@@ -1246,12 +1281,8 @@ impl<T: Real> Curve3<T> {
     /// - `Spiric`: `minor_radius`, lower end (the `r > 0` half of the
     ///   ring convention). `R > r` and `|offset| < R − r` relate datums,
     ///   and [`Curve3::spiric`] decides them;
-    /// - **the frame**, for `Circle`, `Ellipse` and `Spiric`: `axis` and
-    ///   `u_ref` unit and `u_ref ⊥ axis` within `band`'s ε at the
-    ///   carrier's largest radius (the circle's `radius`, the larger
-    ///   semi-axis MAGNITUDE, the spiric's `R + r`) — the surface door's
-    ///   frame margins, for the same reason: a circle whose `axis` is
-    ///   `2·ẑ` evaluates an ellipse;
+    /// - **no frame margin**: a conic's or a spiric's frame is a
+    ///   [`crate::Frame`], rigid by its type, as on the surface door;
     /// - `Line`, `Nurbs`: none — a line's `dir` spans the same line at
     ///   any length, and a spline's datum is its net.
     ///
@@ -1259,36 +1290,20 @@ impl<T: Real> Curve3<T> {
     /// quantities are computed at `T` and returned, a margin of a
     /// poisoned datum is poison, and the variants are destructured
     /// without `..` so a field a variant gains is a compile error here.
-    pub fn representability_margins(
-        &self,
-        band: Band,
-    ) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
-        use crate::convention::{frame_margins, lower};
-        let frame = |axis, u_ref, arm| {
-            frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
-        };
+    pub fn representability_margins(&self) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
+        use crate::convention::lower;
         match self {
-            Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius()))
-                .chain(frame(c.frame().axis(), c.frame().u_ref(), c.radius()))
-                .collect(),
-            Curve3::Ellipse(e) => [
+            Curve3::Circle(c) => vec![lower(CurveDatum::Radius, c.radius())],
+            Curve3::Ellipse(e) => vec![
                 lower(CurveDatum::SemiU, e.semi_u()),
                 lower(CurveDatum::SemiV, e.semi_v()),
-            ]
-            .into_iter()
-            .chain(frame(e.frame().axis(), e.frame().u_ref(), e.speed_hi()))
-            .collect(),
+            ],
             Curve3::Spiric {
-                frame: carrier_frame,
-                major_radius,
+                frame: _,
+                major_radius: _,
                 minor_radius,
                 offset: _,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
-                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
-                    .collect()
-            }
+            } => vec![lower(CurveDatum::MinorRadius, *minor_radius)],
             Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
                 Vec::new()
             }
@@ -1301,7 +1316,7 @@ impl<T: Real> Curve3<T> {
 /// its distance from the axis, whose angle is the point's minor angle.
 fn tube_section<T: Decide>(
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major_radius: T,
     p: Point3<T>,
 ) -> Azimuth<T> {
@@ -1340,7 +1355,7 @@ impl<T: Decide> Curve3<T> {
                 major_radius,
                 ..
             } => {
-                let (center, axis) = (frame.origin(), frame.axis());
+                let (center, axis) = (frame.origin(), frame.axis_unit());
                 Some(tube_section(center, axis, *major_radius, p))
             }
             Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
@@ -1941,7 +1956,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// pass).
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
-            Curve3::Line(Line { dir, .. }) => *dir,
+            Curve3::Line(Line { dir, .. }) => dir.get(),
             Curve3::Circle(c) => c.derivative_at(t),
             Curve3::Ellipse(e) => e.derivative_at(t),
             Curve3::Spiric {
@@ -1992,7 +2007,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// passes and are not projections of this one.
     pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Curve3::Line(line) => (line.at(t), line.dir),
+            Curve3::Line(line) => (line.at(t), line.dir.get()),
             Curve3::Circle(c) => c.jet_at(t),
             Curve3::Ellipse(e) => e.jet_at(t),
             Curve3::Spiric {
@@ -2083,12 +2098,12 @@ mod tests {
         let band = Band::linear(geom_core::Tol::witness()).unwrap();
         let (origin, dir) = (Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.0, 1.0));
         let ahead = |ray: Ray<f64>, at: f64| ray.ahead(at, "ray_start_row", band).unwrap();
-        let started = Ray::starting(origin, dir, -2.0);
+        let started = Ray::starting(origin, crate::stated_direction(dir), -2.0);
         assert_eq!(started.start(), -2.0);
         assert_eq!(ahead(started, -1.0), Sign::Positive);
         assert_eq!(ahead(started, -3.0), Sign::Negative);
         assert_eq!(ahead(started, -2.0), Sign::Zero);
-        let plain = Ray::new(origin, dir);
+        let plain = Ray::new(origin, crate::stated_direction(dir));
         assert_eq!(plain.start(), 0.0);
         assert_eq!(ahead(plain, -1.0), Sign::Negative);
         assert_eq!(ahead(plain, 1.0), Sign::Positive);
@@ -2122,7 +2137,7 @@ mod tests {
         let open = [
             Curve3::Line(Line {
                 origin: frame.origin(),
-                dir: frame.axis(),
+                dir: frame.axis_unit(),
             }),
             quarter_circle_nurbs(),
         ];
@@ -2132,24 +2147,25 @@ mod tests {
     }
 
     /// **Two lines' closest approach**: skew lines meet their common
-    /// perpendicular at the parameters the closed form reads, whatever the
-    /// directions' lengths; `sin2` is one for perpendicular lines, zero for
-    /// parallel ones (where `s` and `t` divide by zero), and NaN where a
-    /// direction is zero. Each point is the other line's nearest.
+    /// perpendicular at the parameters the closed form reads, in metres
+    /// along each unit direction; `sin2` is one for perpendicular lines,
+    /// zero for parallel ones (where `s` and `t` divide by zero), and NaN
+    /// where a direction is poison (a zero vector squared). Each point is
+    /// the other line's nearest.
     #[test]
     fn two_lines_closest_approach_is_their_common_perpendicular() {
         let x = Line {
             origin: Point3::new(-2.0, 0.0, 0.0),
-            dir: Vec3::new(2.0, 0.0, 0.0),
+            dir: UnitVec3::exact_x(),
         };
         let y = Line {
             origin: Point3::new(3.0, 5.0, 1.0),
-            dir: Vec3::new(0.0, -0.5, 0.0),
+            dir: -UnitVec3::exact_y(),
         };
         let pair = x.closest_params(&y);
         assert_eq!(
             (pair.s, pair.t, pair.sin2),
-            (2.5, 10.0, 1.0),
+            (5.0, 5.0, 1.0),
             "perpendicular skew lines"
         );
         let (p, q) = (x.at(pair.s), y.at(pair.t));
@@ -2160,12 +2176,12 @@ mod tests {
         );
         let tilted = Line {
             origin: Point3::new(0.3, -1.0, 2.0),
-            dir: Vec3::new(1.0, 2.0, -0.5),
+            dir: UnitVec3::squared(Vec3::new(1.0, 2.0, -0.5)),
         };
         let pair = x.closest_params(&tilted);
         let (p, q) = (x.at(pair.s), tilted.at(pair.t));
         assert!(
-            (p - q).dot(x.dir).abs() < 1e-12 && (p - q).dot(tilted.dir).abs() < 1e-12,
+            (p - q).dot(x.dir.get()).abs() < 1e-12 && (p - q).dot(tilted.dir.get()).abs() < 1e-12,
             "the joining vector is square to both lines: {p:?} {q:?}"
         );
         let expected = 1.0 - (2.0_f64 / (2.0 * 5.25_f64.sqrt())).powi(2);
@@ -2176,21 +2192,24 @@ mod tests {
         );
         let parallel = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: Vec3::new(-3.0, 0.0, 0.0),
+            dir: -UnitVec3::exact_x(),
         };
         assert_eq!(x.closest_params(&parallel).sin2, 0.0, "parallel lines");
         let point = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 0.0),
+            dir: UnitVec3::squared(Vec3::new(0.0, 0.0, 0.0)),
         };
-        assert!(x.closest_params(&point).sin2.is_nan(), "a zero direction");
+        assert!(
+            x.closest_params(&point).sin2.is_nan(),
+            "a poisoned direction"
+        );
     }
 
     #[test]
-    fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
+    fn a_lines_offset_and_square_foot_read_its_axis() {
         let l = Line {
             origin: Point3::new(1.0, 2.0, 3.0),
-            dir: Vec3::new(0.0, 0.0, 4.0),
+            dir: UnitVec3::exact_z(),
         };
         let p = Point3::new(4.0, 6.0, 11.0);
         let xyz = |v: Vec3<f64>| (v.x, v.y, v.z);
@@ -2204,45 +2223,82 @@ mod tests {
         );
     }
 
-    /// **A line's foot is square to it, whatever `dir`'s length**: the
-    /// way from the foot to the point is perpendicular to `dir`. A
-    /// reading that took `dir` as unit would land `|dir|²` times too far
-    /// along.
+    /// **A stated `f64` line keeps its direction's bits, and a chord
+    /// stated as a direction fails loud** ([`stated_direction`]): the door
+    /// for a direction unit to rounding, never one that squares a chord.
     #[test]
-    fn a_lines_foot_is_square_to_it_at_any_dir_length() {
-        let origin = Point3::new(0.5, -1.0, 2.0);
-        let p = Point3::new(3.0, 1.0, -0.5);
-        for scale in [1.0, 0.25, 3.0] {
-            let line = Line {
-                origin,
-                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
-            };
-            let foot = line.foot(p);
-            assert!(
-                (p - foot).dot(line.dir).abs() < 1e-12,
-                "|dir| = {scale}: the way to the foot is square to the line"
-            );
+    fn a_stated_line_keeps_its_bits() {
+        let d = Vec3::new(0.6, 0.8, 0.0);
+        let l = Line {
+            origin: Point3::new(1.0, 2.0, 3.0),
+            dir: stated_direction(d),
+        };
+        assert_eq!(
+            [l.dir.get().x.to_bits(), l.dir.get().y.to_bits()],
+            [d.x.to_bits(), d.y.to_bits()]
+        );
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "is not unit to rounding")]
+    fn a_line_stated_along_a_chord_fails_loud() {
+        let _ = stated_direction(Vec3::new(3.0, 0.0, 4.0));
+    }
+
+    /// **A line carrier reaches `Interval` through its direction's lift**
+    /// ([`Curve3::map_scalar`]): its direction is the polar enclosure of
+    /// the stated unit vector, which holds the stated bits, and its point
+    /// at `t` encloses the `f64` line's.
+    #[test]
+    fn a_line_lifts_its_direction_as_a_unit_vector() {
+        use geom_core::{Bounds, Interval};
+        let line = Curve3::line(
+            Point3::new(1.0, -2.0, 0.5),
+            stated_direction(Vec3::new(0.6, 0.8, 0.0)),
+        );
+        let Curve3::Line(lifted) = line.map_scalar(Interval::from_f64) else {
+            panic!("a line lifts to a line")
+        };
+        let at = lifted.at(Interval::from_f64(2.5));
+        let want = line.eval(2.5);
+        for (e, x) in [(at.x, want.x), (at.y, want.y), (at.z, want.z)] {
+            assert!(e.lo() <= x && x <= e.hi(), "{e:?} holds {x}");
         }
     }
 
-    /// **A line's `param_near` is its foot's parameter at any `dir`
-    /// length**: the parameter whose point is the foot, so a reading that
-    /// took `dir` as unit, `t·|dir|²`, fails at every length but one.
+    /// **A line's foot is square to it**: the way from the foot to the
+    /// point is perpendicular to `dir`.
     #[test]
-    fn a_lines_param_near_is_its_foots_at_any_dir_length() {
+    fn a_lines_foot_is_square_to_it() {
         let origin = Point3::new(0.5, -1.0, 2.0);
         let p = Point3::new(3.0, 1.0, -0.5);
-        for scale in [0.25, 3.0] {
-            let line = Line {
-                origin,
-                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
-            };
-            let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
-            assert!(
-                (line.origin + line.dir * t - line.foot(p)).norm() < 1e-12,
-                "|dir| = {scale}: param_near's point is the foot"
-            );
-        }
+        let line = Line {
+            origin,
+            dir: crate::stated_direction(Vec3::new(1.0, -2.0, 2.0) / 3.0),
+        };
+        let foot = line.foot(p);
+        assert!(
+            (p - foot).dot(line.dir.get()).abs() < 1e-12,
+            "the way to the foot is square to the line"
+        );
+    }
+
+    /// **A line's `param_near` is its foot's parameter**: the parameter
+    /// whose point is the foot, in metres along the unit direction.
+    #[test]
+    fn a_lines_param_near_is_its_foots() {
+        let origin = Point3::new(0.5, -1.0, 2.0);
+        let p = Point3::new(3.0, 1.0, -0.5);
+        let line = Line {
+            origin,
+            dir: crate::stated_direction(Vec3::new(1.0, -2.0, 2.0) / 3.0),
+        };
+        let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
+        assert!(
+            (line.origin + line.dir.get() * t - line.foot(p)).norm() < 1e-12,
+            "param_near's point is the foot"
+        );
     }
 
     /// **A reversed carrier is the same locus run back**: its point at
@@ -2256,7 +2312,10 @@ mod tests {
         let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
         let c = Point3::new(0.5, -1.0, 2.0);
         let curves = [
-            Curve3::Line(Line { origin: c, dir: u }),
+            Curve3::Line(Line {
+                origin: c,
+                dir: crate::stated_direction(u),
+            }),
             Curve3::circle(c, n, 0.7, u),
             Curve3::Ellipse(crate::Ellipse::new(crate::Frame::new(c, n, u), 0.9, 0.4)),
             Curve3::Spiric {
@@ -2318,7 +2377,10 @@ mod tests {
 
     #[test]
     fn line_evaluates_exactly_on_dyadic_data() {
-        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(0.0, 0.0, 1.0));
+        let line = Curve3::line(
+            Point3::new(1.0, -2.0, 0.5),
+            crate::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         let p = line.eval(3.25);
         assert_eq!((p.x, p.y, p.z), (1.0, -2.0, 3.75));
         let d = line.deriv(3.25);
@@ -2431,7 +2493,7 @@ mod tests {
         /// chain rule multiplies dir by the seed, both single products).
         #[test]
         fn line_deriv_matches_dual_of_eval(t in -1.0e3..1.0e3f64) {
-            let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0));
+            let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), crate::stated_direction(Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0)));
             let ld: Curve3<Dual64> = line.map_scalar(Dual::constant);
             let p = ld.eval(Dual::variable(t));
             let d = line.deriv(t);
@@ -2539,7 +2601,7 @@ mod tests {
             );
         }
         assert!(
-            Curve3::<f64>::line(Point3::origin(), Vec3::unit_x())
+            Curve3::<f64>::line(Point3::origin(), crate::stated_direction(Vec3::unit_x()))
                 .major_frame()
                 .is_none()
         );
@@ -3567,7 +3629,10 @@ mod tests {
     /// fixtures, at parameters that are not special to any of them.
     #[test]
     fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
-        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(0.3, -0.4, 1.2));
+        let line = Curve3::line(
+            Point3::new(1.0, -2.0, 0.5),
+            crate::stated_direction(Vec3::new(3.0 / 13.0, -4.0 / 13.0, 12.0 / 13.0)),
+        );
         for (kind, c) in [
             ("line", line),
             ("circle", tilted_circle()),
@@ -3641,7 +3706,7 @@ mod tests {
         let (jp, jd) = c.ders1(f64::NAN);
         assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
         assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
-        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
+        let line = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let lp = line.eval(f64::NAN);
         assert!(lp.x.is_nan() && lp.y.is_nan() && lp.z.is_nan());
         // The line's deriv is parameter-independent — NaN t does not
@@ -3723,7 +3788,7 @@ mod tests {
         fn line_encloses_f64_evaluation() {
             let line = Curve3::line(
                 Point3::new(1.0, -2.0, 0.5),
-                Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
+                crate::stated_direction(Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0)),
             );
             let li = line.map_scalar(Interval::from_f64);
             for t in [0.0, 1.75, -3.5e2, 1234.5678] {
