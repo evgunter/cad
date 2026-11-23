@@ -1,0 +1,15 @@
+# Review: PR 7516 (`heldrecords/nary-lineage`), frozen head `579d220d5f`, base main — single FULL review
+
+Read first: `CLAUDE.md`; `docs/prompts/reviewer-style-lane.md` IN FULL; the row `work/heldrecords/the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage.md` on the head (with the lane's trace); DESIGN `[failure.taxonomy]`. Review `git diff origin/main...579d220d5f`.
+
+**What it builds:** the n-ary door panicked (`nary.rs` `MemberLineage::of` via `step`, an `unreachable!`) when the extent scan re-charted a sphere shell (`apply_recuts` re-keys its faces) and the pair door re-entered: `BooleanNaming::recharted` recorded the turned cells and `Holdings::of_records` read it, but the lineage step rooted faces only through `FaceDescent::result_face`. New `topo::FaceDescent::input_faces` / `shell_faces` read `recharted`; `step` roots through `input_faces` on both operands; Holdings' closure calls `shell_faces` (one door). The eight die edits now refuse typed `Naming(UnsupportedTurnedCell { Edge })` (ORBIT's re-chart row, now P0).
+
+**Claims to falsify:**
+1. **The lineage is complete**: every face of every accumulation now has member lineage, re-charted or not, on both operands; the `unreachable!` cannot be reached by input. Attack: chains of re-charts (a face re-charted twice), a re-chart on operand B only, intersect/subtract as well as union, n ≥ 3 members where the re-charted shell is a member's not the accumulation's.
+2. **`input_faces`/`shell_faces` are right**: a turned cell maps to the face(s) that hold its interior, never to a wrong face (a wrong lineage would land a record or a name on the wrong cell, silently). Check against `recharted`'s own doc.
+3. **One door**: Holdings' closure and the lineage step now read one function; is there any third reader of `result_face` that should read `input_faces` (the lane filed `at_rest.rs`'s two readers on ATREST's row and the `verdicts` re-spelling on ORBIT)? Sweep `result_face` callers.
+4. **The pins can fail**: the sweep pin reds with `step` reading `result_face` alone (the lane checked); is the B-side correction pinned by anything (the lane says no — try to build a fixture)? The eight edits' refusal is the right refusal (not a different panic masked): check each row's refusal names the union and the turned edge.
+5. **No verdict moved wrong**: run topo, sweep, editor-core `ci` profiles on head vs main; the slow-set pins at default ε and 1e-12.
+6. **Is the refusal the end?** The eight edits are a valid part (pip dragged into its neighbour). Confirm that, and say whether anything short of ORBIT's re-chart row would build them.
+
+Own `CARGO_TARGET_DIR` outside the checkout; per crate. Foreground rule (never end a turn with background work). Probes to `heldrecords/review-nary-lineage-<6 hex>`. Report ≤150 lines (verdict; claims; MAJOR/MINOR/NOTE; `## Style` sure/likely/unsure; probe rows) by `mcp__claude-code-remote__send_message` to `session_018u3gVKp4QiofNJ9Z1mzgD8`, then stop. No email or personal identifier anywhere; no model names in commits.
