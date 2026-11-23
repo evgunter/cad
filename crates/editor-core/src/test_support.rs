@@ -1766,54 +1766,11 @@ pub fn node_error_witnesses(
     crate::eval::class::witnesses::all(tol)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{axes_at, moves_at};
-    use crate::{Coord, Formula, TargetAxis};
-
-    /// **A frame's quarter turns are read about the axes they turn
-    /// about**: a frame turned a quarter about each of the target
-    /// space's axes, and one turned about `x` then `z`, read back as
-    /// those spins, each `turn/4`, in the chain's order.
-    ///
-    /// *Breaks if* a turn about one axis is labelled with another.
-    #[test]
-    fn a_quarter_turn_is_read_about_its_own_axis() {
-        let quarter = Formula::turn_over(4).expect("a quarter turn");
-        let spins = |at| -> Vec<(Coord<crate::Operand>, Formula)> {
-            moves_at(&at)
-                .into_iter()
-                .filter(|(c, _)| matches!(c, Coord::Spin(_)))
-                .collect()
-        };
-        for (axis, x, y) in [
-            (TargetAxis::X, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-            (TargetAxis::Y, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
-            (TargetAxis::Z, [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]),
-        ] {
-            assert_eq!(
-                spins(axes_at([0.0; 3], x, y)),
-                vec![(Coord::Spin(Some(axis)), quarter.clone())],
-                "a quarter turn about {axis:?}"
-            );
-        }
-        // About x, then z: x ↦ y, y ↦ z, z ↦ x.
-        assert_eq!(
-            spins(axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])),
-            vec![
-                (Coord::Spin(Some(TargetAxis::X)), quarter.clone()),
-                (Coord::Spin(Some(TargetAxis::Z)), quarter),
-            ],
-        );
-    }
-}
-
 /// **The slab**: a unit square extruded by `depth` (declared with a
 /// uniform spread of ±1 mm), measured cap to cap — the thickness, whose
 /// derivative in `depth` is 1.
-pub fn measured_slab(seed: &str, depth: f64) -> MeasuredSlab {
+pub fn measured_slab(seed: &str, depth: f64, tol: geom_core::Tol) -> MeasuredSlab {
     use crate::{CapEnd, DocEdit, Formula, Node, RoleSeg, SitedRef, StableName};
-    let tol = geom_core::Tol::witness();
     let push = |doc: &crate::doc::Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>| {
         let applied = crate::apply(doc, &edit, tol).expect("the edit applies");
         (applied.doc, applied.record.minted)
@@ -1903,4 +1860,46 @@ pub struct MeasuredSlab {
     pub profile: crate::RecipeNodeId,
     /// The extrude.
     pub block: crate::RecipeNodeId,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{axes_at, moves_at};
+    use crate::{Coord, Formula, TargetAxis};
+
+    /// **A frame's quarter turns are read about the axes they turn
+    /// about**: a frame turned a quarter about each of the target
+    /// space's axes, and one turned about `x` then `z`, read back as
+    /// those spins, each `turn/4`, in the chain's order.
+    ///
+    /// *Breaks if* a turn about one axis is labelled with another.
+    #[test]
+    fn a_quarter_turn_is_read_about_its_own_axis() {
+        let quarter = Formula::turn_over(4).expect("a quarter turn");
+        let spins = |at| -> Vec<(Coord<crate::Operand>, Formula)> {
+            moves_at(&at)
+                .into_iter()
+                .filter(|(c, _)| matches!(c, Coord::Spin(_)))
+                .collect()
+        };
+        for (axis, x, y) in [
+            (TargetAxis::X, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            (TargetAxis::Y, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+            (TargetAxis::Z, [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]),
+        ] {
+            assert_eq!(
+                spins(axes_at([0.0; 3], x, y)),
+                vec![(Coord::Spin(Some(axis)), quarter.clone())],
+                "a quarter turn about {axis:?}"
+            );
+        }
+        // About x, then z: x ↦ y, y ↦ z, z ↦ x.
+        assert_eq!(
+            spins(axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])),
+            vec![
+                (Coord::Spin(Some(TargetAxis::X)), quarter.clone()),
+                (Coord::Spin(Some(TargetAxis::Z)), quarter),
+            ],
+        );
+    }
 }

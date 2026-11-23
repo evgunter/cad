@@ -2454,7 +2454,7 @@ mod tests {
         AnalyzedBox,
         Evaluation<f64>,
     ) {
-        let slab = crate::test_support::measured_slab("drive-cause-mentions", 1.0);
+        let slab = crate::test_support::measured_slab("drive-cause-mentions", 1.0, Tol::witness());
         let analyzed =
             crate::analysis::analyzed_box(&slab.doc, &crate::analysis::AnalysisPolicy::default());
         let opts = witness_options(&analyzed, &crate::Stop::default());
@@ -2563,7 +2563,7 @@ mod tests {
     /// word moved is red here.
     #[test]
     fn the_drive_report_reads_word_for_word() {
-        let slab = crate::test_support::measured_slab("drive-report-golden", 1.0);
+        let slab = crate::test_support::measured_slab("drive-report-golden", 1.0, Tol::witness());
         let analyzed =
             crate::analysis::analyzed_box(&slab.doc, &crate::analysis::AnalysisPolicy::default());
         let config = DriveConfig {

@@ -2295,7 +2295,8 @@ mod tests {
     /// **The slab** ([`crate::test_support::measured_slab`]): the
     /// document, `depth`, and the thickness.
     fn slab(depth: f64) -> (ProfileDoc, VarId, VarId) {
-        let slab = crate::test_support::measured_slab("stackup-binding-slab", depth);
+        let slab =
+            crate::test_support::measured_slab("stackup-binding-slab", depth, Tol::witness());
         (slab.doc, slab.depth, slab.thickness)
     }
 
@@ -2340,7 +2341,8 @@ mod tests {
     /// at the nominal said from it.
     #[test]
     fn a_refused_measures_cause_mentions_the_node_it_names() {
-        let slab = crate::test_support::measured_slab("stackup-cause-mentions", 1.0);
+        let slab =
+            crate::test_support::measured_slab("stackup-cause-mentions", 1.0, Tol::witness());
         let mut built = record_run(&slab.doc);
         let (measure, _) = built.read_port(slab.thickness).expect("a measure's output");
         built.nodes.insert(
