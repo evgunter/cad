@@ -2396,6 +2396,22 @@ class Node:
         made as pieces: `(p ⊔ q) − t` is `(p − t) ⊔ (q − t)`."""
 
     @staticmethod
+    def datum(
+        target: _SpaceArg,
+        constraints: Optional[_BundleArg] = None,
+    ) -> Node:
+        """A datum: a placement whose source is nothing, placing a bare
+        frame into `target` by `constraints`, written whole as
+        `Node.place`'s are; `None` stands the frame at the space's
+        origin, by the identity bundle. Its one output is the frame
+        (`Doc.output(node)`): read a plane or an axis off it through a
+        role (`RoleRead(frame, "xy")`). A mate of its bundle reads the
+        datum's own frame on its `on` side, plainly or through its
+        `"xy"` plane, `"z"` axis or `"origin"`, so it is written once
+        the datum is (`DocEdit.set_constraints`); any other `on` refuses
+        `mate_not_the_datums_own`."""
+
+    @staticmethod
     def space() -> Node:
         """A space of its own, reading nothing: a target a placement
         places copies into beside the world's. Inserting it is
@@ -4296,8 +4312,8 @@ class Doc:
         The vocabulary, in full: `profile`, `extrude`, `revolve`,
         `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
         `shell`, `split`, `mirror`, `union`, `intersect`, `assemble`,
-        `subtract`, `place`, `world`, `space`, `instantiate_part`,
-        `measure`, `assertion`.
+        `subtract`, `place`, `datum`, `world`, `space`,
+        `instantiate_part`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         placement and a union all evaluate to a value whose
@@ -6321,10 +6337,12 @@ class Mate:
     a node.
 
     `on` is a pose read off the copied shapes' geometry — a `PoseDef`
-    over one of the placement's shapes, or over the instance itself.
-    `to` is a pose of the space the copy joins (a `PoseDef`, or a pose
-    variable), read off geometry there: a mate reads only geometry,
-    never the world's frame. The kind is the primitive: plane to
+    over one of the placement's shapes, or over the instance itself — or,
+    for a datum, the datum's own frame, plainly or as a `RoleRead` of
+    its `"xy"` plane, `"z"` axis or `"origin"`. `to` is a pose of the
+    space the copy joins (a `PoseDef`, a pose variable, or a `RoleRead`
+    of a frame there, a datum's among them): a mate reads only what is
+    placed or built there, never the world's frame. The kind is the primitive: plane to
     plane rests, axis to axis is coaxial, frame to frame coincides,
     point to point is a ball, direction to direction is parallel. A
     plain plane mate equates outward normals, so two faces resting
@@ -6346,17 +6364,19 @@ class Mate:
 
     def __init__(
         self,
-        on: _Operand,
-        to: _Operand,
+        on: _PoseRead,
+        to: _PoseRead,
         *,
         orient: Optional[Orientation] = None,
     ) -> None: ...
     @property
-    def on(self) -> PoseDef:
-        """The copy's pose, as written."""
+    def on(self) -> PoseDef | RoleRead:
+        """The copy's pose, as written: a `RoleRead` where it reads
+        through a role."""
     @property
-    def to(self) -> PoseDef:
-        """The pose the copy's is equated with."""
+    def to(self) -> PoseDef | RoleRead:
+        """The pose the copy's is equated with: a `RoleRead` where it
+        reads through a role."""
     @property
     def orient(self) -> Orientation:
         """The orientation, as written."""

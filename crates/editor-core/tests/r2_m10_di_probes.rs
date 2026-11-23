@@ -318,6 +318,7 @@ fn deep_digest<T: topo::AtRestPolicy + Decide + Bounds>(ev: &Evaluation<T>) -> u
                         }
                     }
                     ValuePayload::Family => d.u64(19),
+                    ValuePayload::Datum(_) => d.u64(20),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);

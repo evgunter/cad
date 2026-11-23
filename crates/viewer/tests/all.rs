@@ -86,6 +86,12 @@ mod combine_ops;
 mod controls_guide;
 #[path = "creation_ops.rs"]
 mod creation_ops;
+#[path = "datum_authoring.rs"]
+mod datum_authoring;
+#[path = "datum_review_a.rs"]
+mod datum_review_a;
+#[path = "datum_review_b.rs"]
+mod datum_review_b;
 #[path = "debug_dumps.rs"]
 mod debug_dumps;
 #[path = "display_budget.rs"]

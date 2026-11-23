@@ -608,6 +608,16 @@ pub enum SessionOp {
         /// The loop programs, in description order.
         loops: Vec<LoopProgram<Formula>>,
     },
+    /// **A datum** (D10 `[placement.datums]`): a bare frame inserted into
+    /// `space` at its origin, every value zero, which the placement
+    /// editor then places (create, then edit). A plane or an axis is
+    /// read off it through a role; which one the editor's first row
+    /// reads is the tool's, not the document's.
+    AddDatum {
+        /// The space it is placed into: where the selected body is
+        /// drawn, or the world.
+        space: VarId,
+    },
     /// **A profile drawn on a face, tracing faces of its body** (D10
     /// `[placement]`; REFERENCES DM1; "Constructing a coincidence"):
     /// `chains` drawn on `face`'s chart at its nearest orientation, no
@@ -1305,6 +1315,7 @@ impl SessionOp {
     pub fn creates_a_node(&self) -> bool {
         match self {
             Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1433,6 +1444,7 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1663,6 +1675,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1797,6 +1810,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1834,6 +1848,7 @@ impl SessionOp {
             op => matches!(
                 op,
                 Self::AddProfile { .. }
+                    | Self::AddDatum { .. }
                     | Self::DrawOnFace { .. }
                     | Self::AddExtrude { .. }
                     | Self::AddRevolve { .. }
@@ -1896,6 +1911,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
