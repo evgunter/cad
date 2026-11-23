@@ -501,3 +501,24 @@ row's last section says what moved.
     - `document-seam-no-in-session-change-detection` (P1, design) goes to two Opus designers first.
     - `the-profile-editor-picks-an-earlier-piece-...` waits on SELFREF's units, and the two parked rows wait on FACELOOP and REPEAT, so none of those is dispatchable here.
   - **Not built in the retirement:** the GUI prefill of slides and spin from the clicked corner (Ev on 7073: "may"), and whether plain New profile takes a picked face. Both are filed as their own row and kept out of the retirement. (VSEAM)
+- 2026-11-22 — **`document-seam-no-in-session-change-detection` weighed and put to Ev** (fork-log row 301; `[ev]` PR on `vseam/ev-what-the-store-owes-a-pin`). Two Opus designers, four rounds.
+  - Both first reports rejected the framing: IDENTITY DI2 (Ev, in chat, 2026-09-04, commit 08777903615) already ruled the meaning, and its door was "`Reevaluate` re-mounts the store".
+  - Round 1 was a crossover on the meaning: does an updated part fail its instance, or stay drawn with a standing beside it?
+  - Round 2 asked the question underneath, what the store owes a pin (AQ1). Both took retention, and the interim crossed again.
+  - In round 3 both adopted the save rule, which dissolves §2.
+  - Round 4 was on the kernel `holds` check. I stated wrongly that no pncad caller primes a prior: pncad-py's `evaluate(prior=)` does. The designer corrected it, and the other moved on that fact.
+  - **Converged:**
+    - AQ1: a folder keeps every pinned version until an explicit prune;
+    - the kernel reuses a carried part only while the given store holds its pin, transitively;
+    - the session holds one read with a transitive standing, the offer reads the standing, and there is a Re-read parts door.
+  - **Order (mine, a sequencing call):** retention, then the kernel check, then the session side, so no interim meaning ships.
+  - The ratified-text edits are on the PR. §3 is filed as `the-part-chooser-calls-every-document-a-part`.
+  - Off-question findings ride with the build; they are listed on the row. (VSEAM)
+- 2026-11-23 — **Ev on PR 7462.**
+  - Ev first asked: "i think the plan was to build a full version control thing; how does this relate to that?" I answered on the PR: the only written plan is GUI-6, a per-document history store. The kept pinned versions are content-addressed objects, so under a VCS that keeps every saved state they are its object store plus one gc rule (pins are roots). I asked whether the VCS is per folder or per document, and whether AQ1 should be built now or wait.
+  - Ev's answer: "(a) i don't think it was entirely planned out, just that it should allow arbitrary non-destructive undo (b) hm, maybe open a new program for it where it just has an extra hard P0 like 'figure out how to do this and then do it' (and you can just hand it off / not build this now)".
+  - **Done on that PR:**
+    - its edits to DESIGN, ASSEMBLY and IDENTITY are reverted, since nothing was ruled;
+    - **VERSIONS** is opened (`work/versions/`, `ready`, no orchestrator) with one P0 X row, `the-store-keeps-every-version-and-history-undoes-without-destroying` (30 points, design), carrying the designers' converged recommendation as evidence;
+    - `document-seam-no-in-session-change-detection` moved there by `git mv`, parked on that row.
+  - The §3 split (`the-part-chooser-calls-every-document-a-part`) stays here. Fork-log row 301 records Ev's decision. (VSEAM)

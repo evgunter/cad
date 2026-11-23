@@ -235,7 +235,7 @@ pub enum LoftError {
     Skin(SkinError),
     /// An Euler operator or certified attach refused mid-assembly
     /// (D4 ¶2 reports surface inside
-    /// [`EulerOpError::Certification`]).
+    /// [`EulerOpError::DescriptionUncertified`]).
     Euler(EulerOpError),
     /// The whole-body pcurve mint pass refused: a wall boundary's
     /// exact line-in-UV image failed its certification.
