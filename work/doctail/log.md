@@ -643,3 +643,11 @@ body has the reasons):
   certification if it is real (stopping if that needs a design call),
   and runs the whole slow set at all three ε. The 7434 lane continues
   on 7396 and the follow-up PR.
+- 2026-11-23 06:00 — **Ev, in chat:** with the CI queue this bad, a PR
+  that touches only docs, comments or work items merges on a local
+  `work.py lint` without waiting for CI. Any PR may merge on whatever
+  local tests make the orchestrator comfortable. Applied at once:
+  - the main-red fix, the follow-up PR and 7396 report local evidence
+    (the slow set or touched rows at all three ε, fmt, clippy, gates,
+    lint) instead of polling `gate ok`;
+  - the tracker lands the same way.
