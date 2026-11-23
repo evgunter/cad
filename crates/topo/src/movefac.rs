@@ -1122,7 +1122,7 @@ mod tests {
     }
 
     #[cfg(test)]
-    mod tears;
-    #[cfg(test)]
     mod review_7438_probes;
+    #[cfg(test)]
+    mod tears;
 }
