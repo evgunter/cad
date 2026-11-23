@@ -3685,8 +3685,9 @@ impl Harmonic {
 
 impl Focal {
     /// **A focal image from its eight numbers**, or `None` where they do
-    /// not make the azimuth monotone for every member: `sense` exactly
-    /// `±1` and `β`'s enclosure strictly inside `(−1, 1)`.
+    /// not make the azimuth monotone for every member: every number
+    /// certified, `sense` exactly `±1` and `β`'s enclosure strictly inside
+    /// `(−1, 1)`.
     pub(crate) fn of(image: &geom_brep::FocalImage<Interval>) -> Option<Self> {
         let sense = if exactly(image.sense, 1.0) {
             Sense::With
@@ -3695,7 +3696,12 @@ impl Focal {
         } else {
             return None;
         };
-        let inside = image.beta.is_certified() && -1.0 < image.beta.lo() && image.beta.hi() < 1.0;
+        let certified = [
+            image.u0, image.t0, image.v0, image.va, image.vb, image.vl, image.beta,
+        ]
+        .iter()
+        .all(|x| x.is_certified());
+        let inside = certified && -1.0 < image.beta.lo() && image.beta.hi() < 1.0;
         inside.then_some(Self {
             u0: image.u0,
             t0: image.t0,
@@ -3707,13 +3713,13 @@ impl Focal {
 
     /// The Kepler angle `E + 2·atan2(β·sin E, 1 − β·cos E)` at the one
     /// parameter `t`, enclosed over `β` and `t0`; unbounded where
-    /// `1 − β·cos E` is not enclosed above zero, off which the arctangent
+    /// `1 − β·cos E` is not certified above zero, off which the arctangent
     /// stays within a quarter turn of zero and never meets its cut.
     fn anomaly(&self, t: f64) -> Interval {
         let e = at(t) - self.t0;
         let (s, c) = e.sin_cos();
         let x = at(1.0) - self.beta * c;
-        if !(x.lo() > 0.0) {
+        if !(x.is_certified() && x.lo() > 0.0) {
             return whole_line();
         }
         let lead = (self.beta * s).atan2(x);
@@ -3734,6 +3740,11 @@ impl Focal {
         match axis {
             Axis::U => {
                 let (lo, hi) = (self.anomaly(t.lo()), self.anomaly(t.hi()));
+                // A hull of two ends would read an evaluation that did
+                // not certify as one that did.
+                if !(lo.is_certified() && hi.is_certified()) {
+                    return whole_line();
+                }
                 let angle = Interval::from_bounds(lo.lo(), hi.hi());
                 match self.sense {
                     Sense::With => self.u0 + angle,
@@ -3746,14 +3757,14 @@ impl Focal {
 
     /// Its derivative on `axis` over `t`, enclosed: on the azimuth
     /// `±(1 − β²)/(1 − 2β·cos E + β²)`, `cos E` named once; unbounded
-    /// where the denominator is not enclosed above zero.
+    /// where the denominator is not certified above zero.
     fn rate(&self, axis: Axis, t: Interval) -> Interval {
         match axis {
             Axis::U => {
                 let c = (t - self.t0).sin_cos().1;
                 let b2 = self.beta.powi(2);
                 let den = at(1.0) + b2 - self.beta * c * at(2.0);
-                if !(den.lo() > 0.0) {
+                if !(den.is_certified() && den.lo() > 0.0) {
                     return whole_line();
                 }
                 let rate = (at(1.0) - b2) / den;
