@@ -871,13 +871,14 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 .ok_or(BooleanError::ClassificationInvariant {
                     what: "a pierce has no sector",
                 })?;
-            let arm = T::spline_chart_arm(chart, p, reach.length()).map_err(|cause| {
-                BooleanError::PierceLeverUnread {
+            let arm = T::nurbs_lane()
+                .ok_or(geom_brep::ChartArmRefusal::NoLane)
+                .and_then(|lane| geom_brep::NurbsLaneOf::chart_arm(lane, chart, p, reach.length()))
+                .map_err(|cause| BooleanError::PierceLeverUnread {
                     operand: pierced_op,
                     face: contact.face,
                     cause,
-                }
-            })?;
+                })?;
             PierceLever::Within(T::from_computed(arm))
         }
     };

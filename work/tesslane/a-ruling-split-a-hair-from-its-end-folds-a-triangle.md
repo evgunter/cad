@@ -2,10 +2,11 @@
 id: a-ruling-split-a-hair-from-its-end-folds-a-triangle
 kind: issue
 title: a cone face whose ruling is split a hair from its end refuses FoldedTriangle on the chart lane
-status: open
+status: closed
 opened: 2026-11-17
 priority: P3
 cost: M
+closed: 2026-11-17
 ---
 
 
@@ -26,7 +27,7 @@ returned either way. The review measured the same answer at 1° and 5°
 with a split `10⁻⁹` from an end at ε `10⁻¹²` (at the default ε
 `split_edge` reads that split as none).
 
-Pinned: `split_rulings::a_ruling_split_a_hair_from_its_end_folds_a_triangle`.
+Pinned while open: `split_rulings::a_ruling_split_a_hair_from_its_end_folds_a_triangle`, now `a_ruling_split_a_hair_from_its_end_meshes` (below).
 
 ## Not measured
 
@@ -34,3 +35,13 @@ Which triangle folds: by its shape, the split vertex's two edges are a
 sliver along the ruling beside the end vertex, and a lattice node or
 the sliver's own corners within a hair of the ruling decide its
 winding.
+
+## Closed (2026-11-17, TESSLANE, unit 4c, `tesslane/ruled-density`)
+
+The face is walked (`tessellate::Lane::Walked`, `crate::ruled_walk`), not
+triangulated in the development: the split's point and the ruling's end
+are two corners of the one triangle the walk fans from the rim point
+beside them. The 20° cone meshes at the default ε and `10⁻¹²`, and a 5°
+cone split `10⁻⁹` from its end at `10⁻¹²`
+(`split_rulings::a_ruling_split_a_hair_from_its_end_meshes`). A 1° cone's
+`10⁻⁹` split builds at none of the three ε here.
