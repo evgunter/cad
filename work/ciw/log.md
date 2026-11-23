@@ -3128,3 +3128,4 @@ Signed (ONECOPY slow-set-reach lane).
   - On slow runners the job's 16-20 saved minutes come about 10 from moving the scalpel and the rest from opt 1.
   - The scalpel is now its own job (`topo-scalpel`), and the ciw scalpel row says so.
   - `scripts/gates/build-default-env-agrees.sh` now also holds equal the env blocks of nightly.yml jobs that share a rust-cache key (`nightly-opt2`: the build and the scalpel).
+- 2026-11-23, 03:02Z — (ONEROUND orchestrator) **Filed `a-merged-prs-queued-run-keeps-its-place-and-takes-a-runner` (P0, E), with a reading of the queue at 03:00Z**: 92 `CI` runs queued, five jobs on runners, PR runs waiting 2 h 16 min to 2 h 30 min for their first long job. Three of ONEROUND's seven queued runs were on merged PRs and were cancelled by hand. Why only five jobs run while 92 runs wait is not established and is the larger question; it is in the row's body, not its fix.
