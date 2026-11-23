@@ -154,7 +154,6 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
-use crate::null::CurveGeom;
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::{decide, decide_nonzero, decide_positive};
 
@@ -2761,9 +2760,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
     };
     for (he, image) in cycle.into_iter().zip(lifted) {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
-        let edge = body
-            .get_edge(he_data.edge)
-            .ok_or(ChartRegionError::Corrupt)?;
+        let edge = body.linked_edge(he_data.edge, crate::entity::EntityId::HalfEdge(he), "edge");
         let forward = crate::pcurves::is_plus(body, he);
         let refuse = |what| ChartRegionError::NonPlanarTrim {
             face,
@@ -2777,7 +2774,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the
             // no-loop-context caveat of `pcurve_of` is vacuous here.
-            let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+            let Some(curve) = edge.certified() else {
                 return Err(ChartRegionError::Corrupt);
             };
             let (t0, t1) = curve.params();

@@ -212,14 +212,7 @@ pub(crate) fn traversals(
             .get_half_edge(half_edge)
             .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
             .start;
-        let edge = body
-            .get_edge(ek)
-            .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-            .certified()
-            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
+        let curve = edge_curve(body, ek)?;
         let mut ids = chords
             .get(&ek)
             .ok_or(TessellateError::MissingEntity {
@@ -726,13 +719,7 @@ pub(crate) fn splits_a_straight_side(
             .ok_or(TessellateError::MissingEntity {
                 what: "vertex position",
             })?;
-        let carrier = body
-            .get_edge(ek)
-            .and_then(|edge| body.get_curve_geom(edge.curve))
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-            .certified()
-            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?
-            .carrier();
+        let carrier = edge_curve(body, ek)?.carrier();
         walk.push((
             chart.v_of(*point),
             matches!(carrier, geom::Curve3::Line(..)),
@@ -1636,6 +1623,27 @@ pub(crate) fn loop_polygon(
         );
     }
     Ok(out)
+}
+
+/// **Edge `ek`'s certified curve, every miss typed**: the one mesh read
+/// of an edge's curve. [`crate::tessellate()`] takes a body it does not
+/// re-validate and refuses a dangling key typed, so the curve is read
+/// raw through [`Body::get_curve_geom`] rather than through
+/// [`topo::EdgeView`], whose curve link panics:
+/// [`TessellateError::MissingEntity`] for a stale edge (`"edge"`) or a
+/// curve key it names that does not resolve (`"edge curve"`), and
+/// [`TessellateError::NullScaffoldEdge`] for null scaffolding.
+pub(crate) fn edge_curve(
+    body: &Body<f64>,
+    ek: EdgeKey,
+) -> Result<&geom_brep::EdgeCurve<f64>, TessellateError> {
+    let edge = body
+        .get_edge(ek)
+        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
+    body.get_curve_geom(edge.curve)
+        .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+        .certified()
+        .ok_or(TessellateError::NullScaffoldEdge { edge: ek })
 }
 
 #[cfg(test)]

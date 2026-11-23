@@ -4,7 +4,7 @@ kind: issue
 title: DESIGN.md's green-row floor (engineering convention 3) has no watcher in the repo that asserts it
 status: open
 opened: 2026-09-04
-priority: P3
+priority: P4
 cost: E
 design: true
 ---
@@ -29,3 +29,5 @@ A DESIGN.md revision, so Ev's (an `[ev]` PR): retire the convention, or
 restate it as what `ci.yml` actually enforces — `gate ok` names every
 job, and a job that did not run reads `skipped`, not green. Do not build
 a row-count watcher: there is no matrix for it to count.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** A DESIGN.md prose retirement (DESIGN.md:2362, still present). The row itself says not to build a watcher, so there is no CI effect.

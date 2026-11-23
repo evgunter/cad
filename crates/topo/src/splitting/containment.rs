@@ -143,8 +143,8 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopKey};
 use crate::geometry::SurfaceKey;
+use crate::live::proven;
 use crate::live::{CycleLoop, NoCycle};
-use crate::live::{linked, proven};
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
@@ -1263,18 +1263,12 @@ fn cycle_steps<T: Decide>(
     let mut steps = Vec::new();
     for he in body.loop_walk(first).closed("loop", first) {
         let h = proven(&body.half_edges, he, EntityId::HalfEdge);
-        let edge = linked(
-            &body.edges,
-            h.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
+        let edge = body.linked_edge(h.edge, EntityId::HalfEdge(he), "edge");
         // A null-scaffolding curve is a zero-length chord.
         steps.push(LoopStep {
             point: body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"),
             edge: h.edge,
-            curve: body.edge_curve_linked(h.edge, edge).certified(),
+            curve: edge.certified(),
         });
     }
     steps

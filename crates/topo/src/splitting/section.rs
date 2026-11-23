@@ -549,14 +549,14 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
     let mut halves = Vec::new();
     for EdgeMember {
         he,
-        ek,
         edge,
         point: corner,
         ..
     } in lp.edges()
     {
-        let forward = crate::live::claimed(he, ek, edge).plus;
-        let curve = body.edge_curve_linked(ek, edge).certified();
+        let ek = edge.key();
+        let forward = crate::live::claimed(he, ek, edge.record()).plus;
+        let curve = edge.certified();
         let carrier = match curve {
             None => HalfCarrier::Chord,
             Some(curve) => match curve.carrier() {

@@ -454,16 +454,16 @@ fn edge_record<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
 ) -> Result<(CarrierSpan<'_, T>, &crate::entity::Edge), OverlapRefusal> {
-    let torn = OverlapRefusal::Unread(OverlapUnread::TornBoundary);
-    let edge = body
-        .get_edge(half_edge(body, he)?.edge)
-        .ok_or(torn.clone())?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .ok_or(torn)?
+    let edge = body.linked_edge(
+        half_edge(body, he)?.edge,
+        crate::entity::EntityId::HalfEdge(he),
+        "edge",
+    );
+    let curve = edge
+        .curve()
         .certified()
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))?;
-    Ok(((curve.carrier(), curve.params()), edge))
+    Ok(((curve.carrier(), curve.params()), edge.record()))
 }
 
 /// The corner of `face` at its vertex `v`: each, where its loops pass `v`

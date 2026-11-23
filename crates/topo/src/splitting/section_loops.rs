@@ -114,9 +114,8 @@ fn whole_conic_principal<T: Real>(
 ) -> Option<Vec3<T>> {
     let he = body.get_half_edge(first)?;
     let curve = body
-        .get_edge(he.edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
+        .linked_edge(he.edge, crate::entity::EntityId::HalfEdge(first), "edge")
+        .certified()?;
     let end = body.half_edge_end(first)?;
     if he.next != first || crate::chord_join::lone_site_placeholder(he.start, end, curve) {
         return None;
@@ -358,13 +357,9 @@ fn loop_edges<T: Decide>(lp: CycleLoop<'_, T>) -> Vec<OutlineEdge<T>> {
         .iter()
         .map(
             |&EdgeMember {
-                 he,
-                 ek,
-                 edge,
-                 point,
-                 ..
+                 he, edge, point, ..
              }| {
-                let Some(curve) = body.edge_curve_linked(ek, edge).certified() else {
+                let Some(curve) = edge.certified() else {
                     return OutlineEdge::Undecided;
                 };
                 match *curve.carrier() {

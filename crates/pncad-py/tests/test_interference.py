@@ -87,7 +87,14 @@ class TestInterferenceIsAFinding(unittest.TestCase):
         interference = finding.evidence.interference
         self.assertTrue(interference.loud)
         self.assertIsNone(interference.quiet_by)
-        self.assertTrue(interference.quietable, "a gap between two parallel faces could quiet it")
+        pair = interference.quieting
+        self.assertIsNotNone(pair, "a gap between two parallel faces could quiet it")
+        outer, inner = pair
+        self.assertEqual(
+            {outer.copy, inner.copy},
+            {interference.a, interference.b},
+            "one face of each copy",
+        )
         self.assertIsNone(interference.unlocalized)
         self.assertNotEqual(interference.a, interference.b)
         self.assertEqual(interference.a.kind, "body")
@@ -96,6 +103,16 @@ class TestInterferenceIsAFinding(unittest.TestCase):
         copies = {site.copy for site in faces}
         self.assertEqual(copies, {interference.a, interference.b}, "both copies bound it")
         self.assertTrue(all(site.face for site in faces))
+        named = {(site.copy, site.member, site.face) for site in faces}
+        for site in (outer, inner):
+            self.assertIn((site.copy, site.member, site.face), named, "a bounding face")
+        written = interference.quieting_references
+        self.assertIsNotNone(written, "written exactly where the pair is")
+        self.assertEqual(
+            [(r.read, r.name, r.pose) for r in written],
+            [(site.copy, site.face, None) for site in (outer, inner)],
+            "copies that do not repeat are written by the names they hold",
+        )
 
     def test_the_finding_moved_off_the_gate_with_its_faces(self):
         """Spec §6 row 19: `pncad.assemble` is gone, `Doc.assemble` still
