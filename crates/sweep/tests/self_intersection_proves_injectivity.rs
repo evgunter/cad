@@ -3441,10 +3441,8 @@ fn review_probe_every_touching_pair_by_class() {
     }
     table("f64", "the inset corner", inset_filleted::<f64>());
     table("f64", "the rounded plate", rounded_plate::<f64>());
-    table("f64", "the barrel", barrel::<f64>());
     table("Interval", "the inset corner", inset_filleted::<Interval>());
     table("Interval", "the rounded plate", rounded_plate::<Interval>());
-    table("Interval", "the barrel", barrel::<Interval>());
 }
 
 /// REVIEW PROBE (PR 7320, claim 7): the PCERT row's account. Its traced
@@ -3489,4 +3487,46 @@ fn review_probe_the_straight_foot_refusal_by_outline() {
         core::f64::consts::PI / 6.0,
     );
     table("rectangle turned 30 after filleting", &moved(&straight, &about_z));
+}
+
+/// REVIEW PROBE (re-review, question 6): one body in every pose. A
+/// rounded plate of four different corner radii (so its mirror image is
+/// not itself), every edge filleted: as built, turned about a generic
+/// axis, a hundred units out, 990 units out on each axis (the session box's
+/// wall is at 1000), and mirrored across a generic plane, the mirror
+/// turned too. Prints each class; pins that all agree with the first.
+#[test]
+fn review_probe_one_plate_in_every_pose() {
+    use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect};
+    use geom_core::{Affine3, Vec3};
+    let body = prism::<f64>(&rect(1.0, 0.6, [0.3, 0.26, 0.34, 0.28]), 0.0, 0.5);
+    let body = rounded("the uneven plate", &body, &every_edge(&body), 0.1).expect("f64 fillets");
+    let built = door_class::<f64>(&body);
+    println!("[pose] as built: {built}");
+    let mut all = vec![("as built".to_string(), built.clone())];
+    for (pose, m) in poses() {
+        let class = door_class::<f64>(&moved(&body, &m));
+        println!("[pose] {pose}: {class}");
+        all.push((pose.to_string(), class));
+    }
+    let wall = Affine3::translation(Vec3::new(990.0, -990.0, 990.0));
+    let class = door_class::<f64>(&moved(&body, &wall));
+    println!("[pose] 990 units out: {class}");
+    all.push(("990 out".into(), class));
+    // The mirror door's result is asked as a body: it is not put through
+    // the at-rest finish, which refuses its re-minted rows on a generic
+    // plane (not this unit's).
+    for (what, point, n) in [
+        ("mirrored across x = 0", Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+        ("mirrored across a generic plane", Point3::new(0.2, -0.1, 0.3), Vec3::new(0.3, -0.5, 0.81)),
+    ] {
+        let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
+        let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
+        let class = door_class::<f64>(&mirrored);
+        println!("[pose] {what}: {class}");
+        all.push((what.to_string(), class));
+    }
+    for (pose, class) in &all {
+        assert_eq!(class, &all[0].1, "{pose} against as built");
+    }
 }

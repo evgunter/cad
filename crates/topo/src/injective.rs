@@ -13819,4 +13819,129 @@ mod presentation_rows {
             );
         }
     }
+
+    // --------------------------------------- re-review probes (PR 7320)
+
+    /// RE-REVIEW PROBE (question 2): neighbours of the curved next edge.
+    /// The bulb of [`a_curved_next_edge_that_comes_back_into_r`] with
+    /// either arc shared, over a ladder of cells about the joint, and
+    /// with a sweep past a half turn: none is presented by a run.
+    #[test]
+    fn rereview_probe_no_cell_of_the_bulb_is_a_run() {
+        let s = floor();
+        for sweep in [1.0, core::f64::consts::FRAC_PI_2, core::f64::consts::PI, 4.0] {
+            let b = bulb(sweep);
+            for shared in [0usize, 1] {
+                for k in 0..6 {
+                    let h = 0.4 / f64::from(1 << k);
+                    for (u, v) in [
+                        ((1.0 - h, 1.0 + h / 8.0), (-h, h / 2.0)),
+                        ((1.0 - h / 4.0, 1.0 + h / 4.0), (-h / 4.0, h / 4.0)),
+                        ((0.66, 1.04), (-0.18, 0.1)),
+                    ] {
+                        let m = |(l, hh): (f64, f64)| geom::mid_param(l, hh);
+                        let ball = Ball::holding(s.point_eval(m(u), m(v)), s.rect_enclosure(u, v));
+                        let local = Local::of(&b, ball, band());
+                        let piece = Piece {
+                            face: face(1),
+                            surface: &s,
+                            whole: false,
+                            boundary: &b,
+                            u,
+                            v,
+                            local: &local,
+                            ball,
+                        };
+                        let got = present_plane(&piece, &[shared], &[], band());
+                        let run = run_of(got);
+                        assert!(
+                            run.is_none(),
+                            "sweep {sweep} shared {shared} cell {u:?} x {v:?}: {run:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// RE-REVIEW PROBE (question 2): **the read curve's own return.** The
+    /// tangent joint of the rows above, its arc run on round to 300
+    /// degrees, so it comes back across the columns `v` in `(-0.9,
+    /// -0.866)` at `u` in `(0.43, 0.5)`, inside the cell. The arc and the
+    /// line are one graph over `v` near the vertex, and the arc's far
+    /// part is a second point to those columns. Red if the cell is
+    /// presented.
+    #[test]
+    fn rereview_probe_the_read_curve_coming_back_is_not_a_run() {
+        let mut b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let (carrier, _) = b.edges[0].arc.clone().expect("the arc");
+        let end = 5.0 * core::f64::consts::FRAC_PI_3;
+        b.edges[0].arc = Some((carrier, (iv0(0.0), iv0(end))));
+        b.vertices
+            .insert(vertex(2), Point3::new(iv0(end.cos()), iv0(end.sin()), iv0(0.0)));
+        let got = on_floor(&b, vec![0, 1], vec![vertex(1)], (0.3, 1.02), (-0.9, 0.05));
+        assert!(!matches!(got, Read::Of(..)), "the arc comes back: {got:?}");
+    }
+
+    /// RE-REVIEW PROBE (question 3): **what a side that ends at the run's
+    /// vertex by key is read past it.** The wall of
+    /// [`the_graph_runs_on_along_a_runs_other_edge`], its side stopped at
+    /// vertex 1 by key, its parameters past the vertex by `d`. Prints the
+    /// ladder; nothing here bounds `d`.
+    #[test]
+    fn rereview_probe_how_far_a_keyed_side_is_cut() {
+        let s = floor();
+        let local = both_arcs();
+        let b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let x = piece_on(&s, &b, &local, 1);
+        let Ok(Presentation::Of(p)) = present_plane(&x, &[0], &[], band()) else {
+            panic!("presented");
+        };
+        let cyl = cylinder();
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let mut widest = 0.0_f64;
+        for k in 1..=16 {
+            let d = 10f64.powi(-k);
+            let wall = Presented {
+                surface: &cyl,
+                map: Map::Chart,
+                x: (-d, 0.02),
+                y: (0.0, 0.02),
+                zero: Zero::Side(
+                    Side::YLo,
+                    Along {
+                        edges: vec![edge(10)],
+                        vertex: None,
+                        whole: true,
+                        params: Some(Params {
+                            t: (-d, 0.02),
+                            periodic: true,
+                        }),
+                        on_edges: true,
+                        stops: vec![vertex(1)],
+                    },
+                ),
+                corner: false,
+                cache: Cache::default(),
+            };
+            let g = graph_of(&x, &x, &near, &p, &wall, band());
+            let parts = g.as_ref().is_some_and(|(psi, on)| {
+                matches!(
+                    (
+                        sign_on(psi, Some(on), &p, Some(&wall), band()),
+                        sign_on(psi, Some(on), &wall, Some(&p), band())
+                    ),
+                    (Some(a), Some(b)) if a == flip(b)
+                )
+            });
+            eprintln!("KEYED {d:e}: graph {} parts {parts}", g.is_some());
+            if parts {
+                widest = widest.max(d);
+            }
+        }
+        eprintln!("WIDEST keyed side past the vertex still certified: {widest:e}");
+    }
 }
