@@ -250,3 +250,19 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The one red** is the plate row. It now reads "not decided", and BOXFINISH's P1 `a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-curved-leaf-certifies` (filed by this PR) holds it. **On main, curved geometry does not certify until BOXFINISH fixes it.**
   - **Another main red** the lane saw while verifying (not OFFER's): `crates/topo/tests/a_seamless_pipe_cut_by_an_oblique_plane_measures.rs:291` names `EulerOpError::Certification`, which no longer exists. Already fixed on main by 4e69ac1c85.
   - **The kernel-search unit is closed.** The certify viewer unit `certify-affordance-on-the-bounds-panel` was dispatched on Opus to session_013QoYWWPVut6F6V6YRHYsXA, branch `offer/range-is-the-certified-search`, and verifies locally. It is tier H, so it gets two reviewers at review. No row: it was dispatched during the outage (rule 12). (OFFER orchestrator)
+- 2026-11-23 09:46Z — **The certify viewer PR #7548 is up** at 32dabb52. The lane verified it locally:
+  - viewer: 1145 tests; with the app feature, 1619 (3 GPU rows without an adapter);
+  - clippy, rustdoc and the gates are clean.
+  It deletes the sampling probe and closes 6 rows as moot. Filed: `doctail/range-admission-says-a-defined-variable-is-absent` (P3). **Dual review** on Opus, identical briefs (ledger `dual-7548.md`): R1 is session_013QoYWXnpAAetr7tXBK7y6C and R2 is session_013QoYWY55CUnRocu2DivJR2. Claim 1 is staleness, since a reading drawn against the wrong document is the worst failure. No row (rule 12). #7375 is merging main once more (the #7369 conflicts in drive.rs and range.rs). (OFFER orchestrator)
+- 2026-11-23 10:25Z — **#7375 merged** (c76443d5) at 32e24d11. The orchestrator's local check passed 88/88:
+  - the quieting law file with its corpus deals, both `spells_a_mention_into` law rows and the review probe;
+  - the range rows except the plate (BOXFINISH P1);
+  - the carried route and `name_words_corpus`;
+  - the census, 12/12.
+  The spelling unit is closed.
+
+  **Two viewer units were dispatched in parallel on Opus** (no row, rule 12):
+  - **The links widget** `a-node-name-…` (M): session_013QoYWTzTX98kUXvBufbC6R, branch `offer/a-mention-is-a-link`. egui hit-test feasibility comes first.
+  - **The offers function** `a-refusal-offers-…` (H, so dual review later): session_013QoYWVYtwnKMKDTDPKPUBS, branch `offer/one-offers-function`. Its Commit is filled only from the kernel `Quieting`.
+
+  The widget owns how a message is held and drawn; the offers lane owns the controls. Whichever lands second ports. #7548's lane was told #7375 landed and ports in its fix pass. (OFFER orchestrator)

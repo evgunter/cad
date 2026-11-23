@@ -356,9 +356,9 @@ class TestEvaluation(unittest.TestCase):
         # The root cause's tag rides along: the ancestor's refusal.
         self.assertEqual(caught.exception.kind, "boolean")
         # The standing speaks each node as the evaluated document holds
-        # it: kind, label and tag.
+        # it: label and tag (kind and tag with no label).
         self.assertIn(
-            f'Union {tag(downstream)} is poisoned by the failure at Subtract "pocket" '
+            f'Union {tag(downstream)} is poisoned by the failure at "pocket" '
             f"({tag(cut)})",
             str(caught.exception),
         )
@@ -824,7 +824,7 @@ class TestStepExport(unittest.TestCase):
         self.assertEqual(caught.exception.kind, "profile")
 
     def test_the_export_refusal_speaks_the_node_as_the_document_holds_it(self):
-        """A node reaches prose as its kind, label and tag, never as a
+        """A node reaches prose as its label and tag (its kind and tag with no label), never as a
         Rust wrapper.
 
         The one part of an export refusal a caller can act on is which
@@ -841,7 +841,7 @@ class TestStepExport(unittest.TestCase):
             ev.step_string(sketch)
         message = str(caught.exception)
         self.assertNotIn("RecipeNodeId", message)
-        self.assertIn(f'export: Profile "base sketch" ({tag(sketch)}) evaluates', message)
+        self.assertIn(f'export: "base sketch" ({tag(sketch)}) evaluates', message)
 
     def test_every_step_option_reaches_the_written_file(self):
         """The whole `StepOptions` record is the door's keywords.
@@ -1739,7 +1739,7 @@ class TestNodeLabels(unittest.TestCase):
         with self.assertRaises(ValueError) as caught:
             doc.step_ids(slab)
         self.assertIn(
-            f'Extrude "floor slab" ({tag(slab)}) is not a profile',
+            f'"floor slab" ({tag(slab)}) is not a profile',
             str(caught.exception),
         )
 
