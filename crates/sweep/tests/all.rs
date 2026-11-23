@@ -444,6 +444,8 @@ mod spiric_faces_fuzz;
 mod sym11_far_placement_rows;
 #[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
 mod the_door_reads_seam_regions_as_tier_3_does;
+#[path = "probe_nary_lineage.rs"]
+mod probe_nary_lineage;
 #[path = "the_nary_door_reads_a_re_charted_accumulation_through_its_shell.rs"]
 mod the_nary_door_reads_a_re_charted_accumulation_through_its_shell;
 #[path = "tilted_sphere_pair.rs"]
