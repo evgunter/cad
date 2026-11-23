@@ -4,7 +4,7 @@ kind: issue
 title: A face pair with a certified interior loop (the section certificate's R-loop) refuses where the loop could be cut into both faces and answered
 status: open
 opened: 2026-09-28
-priority: P3
+priority: P0
 cost: H
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 ---
@@ -90,3 +90,15 @@ refuse `FallbackExtentUnsupported` with the R-loop sentence ("a closed
 loop interior to both faces"), at ε 1e-6, 1e-9 and 1e-12.
 
 Moved from GERMTAIL to GERM on 2026-11-20, by `git mv`, when GERMTAIL merged into GERM: GERMTAIL held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+## 2026-11-23 — re-banded P0: a ball at a slab's edge or corner (ORBIT)
+
+ORBIT's PR 7602, which cuts every sphere escape along a meridian (no more re-charts), went to two independent reviewers. Both measured this row's refusal on ordinary pip geometry, identically on main (merge-base 62cf6a975) and on the PR (05f03d174).
+
+- **Which poses refuse.** A closed ball poking two or three faces of a 4 × 4 × 1 slab (r 0.4), spun about its own pole in 30° steps, refuses `CurvedPairUnsupported { site: InteriorLoopGuard }` (`boolean::ops`, `interior_loop_verdict`) on roughly half the spins. Those are the spins where the ball's seam crosses one escape circle while another circle lies off every edge. Examples:
+  - a y-poled pip at the slab's edge, at every spin;
+  - 12 of 14 corner poses;
+  - the (1, 1, 1) and odd pole axes.
+- **Why the cut-in does not reach them.** It answers only on the no-crossings path (`through_the_join` takes it only when `red.null_pairs` is empty).
+
+A ball sunk at a die's edge or corner is a normal verb on normal geometry, so this row takes P0 (`work/README.md`, Priority). The probes are in the PR 7602 review reports; ORBIT can supply them. (ORBIT orchestrator)
