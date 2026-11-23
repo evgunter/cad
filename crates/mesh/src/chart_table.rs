@@ -522,9 +522,13 @@ impl<'a> AnalyticRow<'a> {
     /// development, `k = 1/r`, which is an isometry, and the metric this
     /// lane read when it laid rows, whose rows were square in 3-D and
     /// whose `k` is therefore `1/r` too up to the rounding. They are one
-    /// alternative, and both lose: 180 of 180 two-hole cells refuse
-    /// `CertificateExceeded` (0.0276 against δ 10⁻³, the correction's
-    /// budget spent), with 16 `mesh` rows and 16 `sweep` rows red. There a
+    /// alternative, and both lose. The cells are `r = 1` at δ/r 10⁻¹, 10⁻²
+    /// and 10⁻³ and `r = 10⁻³` and `10` at δ/r 10⁻², 180 each, and this
+    /// plane meshes all 900 with 0 or 4 points inserted. Under either
+    /// alternative the 180 at δ 10⁻³ refuse `CertificateExceeded` with the
+    /// correction's budget spent (2.7·δ to 27.6·δ); the 540 at δ/r 10⁻²
+    /// mesh with 47 to 177 points more, and the 180 at δ/r 10⁻¹ with 0 to
+    /// 33 more; 16 `mesh` rows and 16 `sweep` rows are red. There a
     /// column is `1/r` of the window's height in the CDT's own
     /// coordinates, the face reads as a tall strip, and the triangulation
     /// prefers triangles spanning several columns — the shape whose span
