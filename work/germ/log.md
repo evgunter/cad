@@ -1854,3 +1854,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Decision: merge with the residual filed as a P1 row rather than run another fix pass. The residual is a strict improvement on the head; it is demonstrated at s ≈ 0.2 and settled by a narrow re-pose.
   - Also filed by the lane: a P2 for a meeting found between ε and Kε at 1e-6, and a P3 for the slit's mislabel.
   - The lane is checking whether `face_normal::the_planar_sense_flip_lives_in_one_place`, which names `ring_path.rs`, is a main red, and which merge caused it, starting with GERM's PR 7411.
+- 2026-11-23 12:50 — **PR 7431 merged** (`739ffae37c`). Its model-compare row `docs/model-compare-log/rows/PR-7431.md` landed as the last commit, after a work-only merge with main that the orchestrator resolved by keeping both notes.
+  - Merged over a queued CI, under Ev's low-risk rule: the conflict fix touched only the roster (2 lines over main) and `work/`, on a reviewed and confirmed head. The lane ran fmt, clippy, the gates and the family rows on the merged tree.
+  - The unit row is closed and the session archived.
+  - **Correction to the row's Tokens line:** the implementer session's final totals at archive were output 353,118, input 3,108, cache read 201,047,235, cache write 815,897, cost 53.83 USD. The row records the totals taken at 12:20, before the conflict merge.
+  - Next in the kind-pair line: U4 and U5. Also dispatchable:
+    - the P1 residual `a-spiric-plane-near-miss-shift-…`;
+    - the ring-path consumer row.
