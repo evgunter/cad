@@ -1,0 +1,23 @@
+A: first report tokens 143223 (subagent_tokens), 32 tool uses, 370 s
+B: first report tokens 258504 (subagent_tokens), 61 tool uses, 603 s
+A: after round 1, subagent_tokens 158440, 1 tool use, 99 s
+B: after round 1, subagent_tokens 280071, 2 tool uses, 176 s
+A: after round 2, subagent_tokens 169014, 1 tool use, 47 s
+B: after round 2, subagent_tokens 296006, 2 tool uses, 109 s
+A: after round 3, subagent_tokens 177146, 1 tool use, 34 s
+B: after round 3, subagent_tokens 309066, 4 tool uses, 232 s
+A: after round 4, subagent_tokens 200508, 1 tool use, 119 s
+B: after round 4, subagent_tokens 344634, 9 tool uses, 238 s
+A: after round 5, subagent_tokens 211358, 1 tool use, 45 s
+B: after round 5, subagent_tokens 358920, 2 tool uses, 90 s
+A: after round 6, subagent_tokens 217659, 1 tool use, 28 s
+B: after round 6, subagent_tokens 367452, 4 tool uses, 176 s
+A: after round 7, subagent_tokens 218830, 1 tool use, 73 s
+round 8 (2026-11-23): A harness subagent_tokens 231502 at hand-back
+round 8 (2026-11-23): B harness subagent_tokens 385981 at hand-back
+round 9: A subagent_tokens 236301 at hand-back
+round 9: B subagent_tokens 392410 at hand-back
+round 10: A 239501, B 398012 at hand-back
+round 11: A 241495, B 400069 at hand-back
+round 12 (final For Ev): A 256182 at hand-back
+round 12 (final For Ev): B 431141 at hand-back
