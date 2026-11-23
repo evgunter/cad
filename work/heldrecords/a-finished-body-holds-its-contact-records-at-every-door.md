@@ -187,3 +187,27 @@ fix pass:
 - `From<Body> for Built` is gone: every finish spells what it hands
   (`Built::of(body)` is a body with no record).
 
+## Second review fix pass (2026-11-23, `embed/records`)
+
+Both delta re-reads found the three paths closed and two more ways a
+finished body said more than its gate read:
+
+- **A record of two cells that touch nowhere was held** where its
+  pair's lane answered "not mine" before reading any distance. A gate
+  now holds a record on its citation only where the raise site says
+  nothing reads the pair (`ContactReach::NoLane`) and the two cells'
+  cells are not decided apart. What that leaves open is on
+  `a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation`
+  (P0 now): a kind no lane reads, whose cells no separating direction
+  parts, with a row that demonstrates one held.
+- **A join named tier 3′ beside an undecided meeting.** A join's bar
+  is decided after its census and from its findings (`Bar::of_join`
+  takes the census's report).
+
+Left open with rows of their own, since this unit closes at merge:
+`records-ride-beside-the-operand-at-the-boolean-doors`,
+`merge-faces-and-replace-face-carry-records-at-the-caller`, the flip
+(`the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build`),
+`the-cusp-edge-refusal-and-a-true-curved-record-through-a-split-are-pinned-nowhere`,
+`is-a-row-a-joins-census-mints-among-the-values-coincidences`,
+`a-join-pays-for-readings-it-does-not-use`.

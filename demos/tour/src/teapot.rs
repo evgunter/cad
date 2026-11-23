@@ -1634,11 +1634,12 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, tol: Tol) -> bool {
         };
         return matches!(
             join.error(),
-            JoinError::Euler(EulerOpError::Certification {
+            JoinError::Euler(EulerOpError::DescriptionUncertified {
                 error: CertifyError::Escalated {
                     check: CertCheck::PlaneNurbsHullValue,
                     ..
                 },
+                ..
             })
         );
     }
@@ -1844,7 +1845,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         "the outer boundary and the cavity, in ONE solid"
     );
     assert_eq!(
-        euler_counts(&pot).genus(),
+        euler_counts(&pot).h(),
         Ok(0),
         "two sphere-like shells, no handles"
     );
@@ -2514,7 +2515,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     let cup_counts = euler_counts(&cup);
     assert_eq!(
-        (cup_counts.r, cup_counts.genus(), cup_counts.s),
+        (cup_counts.r, cup_counts.h(), cup_counts.s),
         (1, Ok(0), 1),
         "ONE rim annulus carrying ONE ring, genus 0 as `topo::shell`'s docs promise a \
          cup is, and the cavity fused into the boundary"
@@ -2727,7 +2728,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             2.0 * WALL,
             planes.len(),
             euler_counts(&cup)
-                .genus()
+                .h()
                 .unwrap_or_else(|refusal| panic!("{refusal}")),
             cup_props.enclosure.volume,
         )),

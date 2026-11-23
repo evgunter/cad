@@ -76,10 +76,24 @@ pub(super) fn assembled<T: geom_core::Decide + AtRestPolicy>(
     let held = records
         .records(&body, 0)
         .map_err(|_| BooleanError::JoinDesync { what: UNREAD })?;
+    let handed = held.len();
     let body = T::finish(crate::Built::of(body).recording(held), tol)
         .map_err(|findings| BooleanError::ResultInvalid { findings })?;
+    // The material's records leave here twice: on the finished body,
+    // and as `records` beside it, which is what the cut reads
+    // (`work/onecopy/a-fold-and-a-scene-keep-a-working-copy-of-records-beside-the-body.md`).
+    // The two are one list, so a body that holds another count is a
+    // carry that dropped or doubled a record.
+    if crate::FinishedBody::records(&body).len() != handed {
+        return Err(BooleanError::JoinDesync { what: UNHELD });
+    }
     Ok((body, records, through))
 }
+
+/// A material whose finished body does not hold the records read back
+/// beside it, for [`BooleanError::JoinDesync`].
+const UNHELD: &str = "a cut's material finished holding other records than the ones read back to \
+                      its tool";
 
 /// What a fold refused to read back, for [`BooleanError::JoinDesync`].
 const UNREAD: &str = "a cell or record of a cut's material reads back to no cell or record of its \
@@ -240,13 +254,15 @@ impl Through {
             // own), input 1 the joining member, whose records cite the
             // tool's.
             let of_backing = |b: Backing| -> Result<Vec<u32>, BooleanError> {
-                match (b, &acc_records) {
-                    (Backing::Carried { input: 1, record }, _)
-                    | (Backing::Carried { input: 0, record }, None) => Ok(vec![record]),
-                    (Backing::Carried { input: 0, record }, Some(acc)) => {
+                let Backing::Carried { input, record } = b else {
+                    return Err(unread());
+                };
+                match (Operand::of_input(input), &acc_records) {
+                    (Some(Operand::B), _) | (Some(Operand::A), None) => Ok(vec![record]),
+                    (Some(Operand::A), Some(acc)) => {
                         acc.get(record as usize).cloned().ok_or_else(unread)
                     }
-                    _ => Err(unread()),
+                    (None, _) => Err(unread()),
                 }
             };
             let mut next = Vec::with_capacity(step.body.contacts().len());
@@ -919,14 +935,21 @@ impl Through {
             &mut out.body,
             crate::finish::KernelOnly(()),
             |backing| match backing {
-                Backing::Carried { input: 1, record } => records
-                    .get(record as usize)
-                    .map(|tool| {
-                        tool.iter()
-                            .map(|&record| Backing::Carried { input: 1, record })
-                            .collect()
-                    })
-                    .ok_or_else(unread),
+                Backing::Carried { input, record }
+                    if Operand::of_input(input) == Some(Operand::B) =>
+                {
+                    records
+                        .get(record as usize)
+                        .map(|tool| {
+                            tool.iter()
+                                .map(|&record| Backing::Carried {
+                                    input: Operand::B.input(),
+                                    record,
+                                })
+                                .collect()
+                        })
+                        .ok_or_else(unread)
+                }
                 other => Ok(vec![other]),
             },
             |_| unread(),

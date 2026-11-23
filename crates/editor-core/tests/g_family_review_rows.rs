@@ -214,11 +214,16 @@ fn cut_family_n(overlap_kept_first: bool, product_plain: bool, n: i64) -> usize 
     let rt = fixture::body_read(&doc, tool.into());
     let node = fixture::place_node(&doc, BodyRead::plain(rt), placed.bundle());
     let (doc, tools) = insert(doc, node);
+    // One cut per member: the tool read at `k`, so the cut is a family.
+    let tool = match doc.var_named("k") {
+        Some(k) => BodyRead::indexed(tools, vec![Formula::var(k, editor_core::Dimension::Count)]),
+        None => BodyRead::plain(Operand::Node(tools)),
+    };
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(asm)),
-            tool: BodyRead::plain(Operand::Node(tools)),
+            tool: tool.into(),
         },
     );
     if product_plain {
@@ -318,7 +323,7 @@ fn one_node_reads_a_family_plainly_at_one_seat_and_indexed_at_another() {
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(row)),
-            tool: BodyRead::indexed(row, vec![Formula::count(1)]),
+            tool: BodyRead::indexed(row, vec![Formula::count(1)]).into(),
         },
     );
     let ev = run(&doc);

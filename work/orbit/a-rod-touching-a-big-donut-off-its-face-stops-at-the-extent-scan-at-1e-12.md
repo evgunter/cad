@@ -22,3 +22,5 @@ The rod lies 1.5 units clear of the donut except at the touch, and the touch is 
 The row pins the refusal at that ε and scale (`torus_touch_off_faces::ROD_SCAN_STOPS`, keyed to the measured band), so it goes red when this is fixed. Then remove the pin.
 
 Signed: (ONEHOME session-box-fixtures lane)
+
+**Since PR 7131 (GREEN U12, 2026-11-23).** `torus_touch_off_faces::the_off_face_touches_build_at_every_scale` now stops before the scan this row pins: operand B is not a finished body (`props_cylinder_circle_off_axis`, hi 1.568e-12, nightly 44989234943). Cause: the polar read. 7131's mutant A alone turns the row green, and F1X or F1F alone does not. The refusal is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (PR 7402's branch until it merges), with probe runs 45083192761 (green at `e4d679d37e`), 45083200534 (red at `9bc9d6517b`) and 45083184695 (mutants). GREEN pins nothing until Ev rules on that count.

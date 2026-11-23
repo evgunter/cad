@@ -25,8 +25,11 @@
 //! one. A mate declares no contact: where the copies it places touch
 //! is the at-rest census's to record ([`mod@crate::checks::at_rest`]).
 
+use crate::Said;
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
+use crate::say;
+use crate::sentence;
 
 pub mod corner;
 pub mod coset;
@@ -86,11 +89,11 @@ impl MateSide {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Mate<S: crate::Slot = crate::VarId> {
-    /// The copy's pose.
-    pub on: S::Read,
-    /// The pose the copy's is equated with, read off a body in the
-    /// target space.
-    pub to: S::Read,
+    /// The copy's pose, or a datum's own frame read through a role.
+    pub on: crate::pose::RoleRead<S::Read>,
+    /// The pose the copy's is equated with, defined by something placed
+    /// or built in the target space, plainly or through a role.
+    pub to: crate::pose::RoleRead<S::Read>,
     /// **The orientation** (D10 `[placement.values]`): where the copy's
     /// axes lie along the target space's, so where the copy's mated
     /// direction should point. Read only beside a mate fixing a
@@ -118,11 +121,19 @@ impl<S: crate::Slot> Mate<S> {
         mut read: impl FnMut(MateSide, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<Mate<S2>, E> {
         Ok(Mate {
-            on: read(MateSide::On, &self.on)?,
-            to: read(MateSide::To, &self.to)?,
+            on: self.on.try_map(|r| read(MateSide::On, r))?,
+            to: self.to.try_map(|r| read(MateSide::To, r))?,
             orient: self.orient,
         })
     }
+}
+
+/// [`pin::side_kind`] of a stored side.
+pub(crate) fn side_kind<P>(
+    doc: &crate::doc::Doc<P>,
+    side: crate::pose::RoleRead<crate::VarId>,
+) -> Option<crate::VarKind> {
+    pin::side_kind(doc, &side.map(|&var| crate::Operand::Var(var)))
 }
 
 /// **The two faces a mate rests**, when it equates two faces' planes:
@@ -175,15 +186,21 @@ pub(crate) fn poses_equated<P>(
     crate::pose::RoleRead<crate::VarId>,
     bool,
 ) {
-    let unwound = |var: crate::VarId| {
-        let mut read = crate::pose::RoleRead::plain(var);
+    // A flip is unwound under a read that keeps its sense
+    // ([`crate::pose::RoleRead::keeps_sense`]), the role carried down
+    // onto the pose flipped where that pose is read plainly.
+    let unwound = |mut read: crate::pose::RoleRead<crate::VarId>| {
         let mut flipped = false;
-        while read.role.is_none()
+        while read.keeps_sense()
             && let Some(crate::var::VarDef::Pose(crate::pose::PoseDef::Flip { pose })) =
                 doc.var(read.read).map(crate::Var::def)
+            && (read.role.is_none() || pose.role.is_none())
         {
             flipped = !flipped;
-            read = *pose;
+            read = crate::pose::RoleRead {
+                read: pose.read,
+                role: read.role.or(pose.role),
+            };
         }
         (read, flipped)
     };
@@ -215,7 +232,7 @@ pub(crate) fn copies_of<P>(
 ) -> Vec<(RecipeNodeId, Copying)> {
     let own = doc.operation_of(body);
     let mut out = Vec::new();
-    for p in doc.placements() {
+    for p in doc.copies() {
         if own == Some(p) {
             out.push((p, Copying::Own));
             continue;
@@ -427,14 +444,14 @@ impl<S: crate::Slot> Constraint<S> {
                         constraint: id,
                         side: MateSide::On,
                     },
-                    &mate.on,
+                    &mate.on.read,
                 ),
                 (
                     crate::OperandSlot::Side {
                         constraint: id,
                         side: MateSide::To,
                     },
-                    &mate.to,
+                    &mate.to.read,
                 ),
             ],
             ConstraintKind::Value(value) => value
@@ -872,23 +889,29 @@ pub enum LeverRefusal {
 }
 
 // The part's own refusal is numbered in the part, so it is said by its
-// own `Display`; the instance and the node are this document's.
+// own speaker (the part's hold), written as a piece; the instance and the
+// node are this document's.
 impl crate::spoken::Say for LeverRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Reach {
                 instance, refusal, ..
-            } => write!(f, "{}'s part {refusal}", by.node_as(*instance, "instance")),
+            } => say!(
+                f,
+                by.node_as(*instance, "instance"),
+                sentence!("'s part ", Said(&refusal, by))
+            ),
             Self::Shape { shape, refusal } => {
-                write!(f, "the body {} copies {refusal}", by.node(*shape))
+                say!(
+                    f,
+                    "the body ",
+                    by.node(*shape),
+                    sentence!(" copies ", Said(&refusal, by))
+                )
             }
             Self::OutOfRange { parts, datum } => {
                 // A half that is not finite has no metre figure to print.
-                let length = |f: &mut core::fmt::Formatter<'_>, x: f64, of: &str| {
+                let length = |f: &mut crate::Sentence, x: f64, of: &str| {
                     if x.is_finite() {
                         write!(f, "{x} m of {of}")
                     } else {
@@ -918,7 +941,7 @@ impl crate::spoken::Say for LeverRefusal {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for LeverRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -975,6 +998,14 @@ pub enum MateFault {
     /// geometry other than the placement's shapes (or, for an instance,
     /// its own output), so it pins nothing of that placement.
     NotOnTheCopy {
+        /// The mate.
+        mate: MateRef,
+    },
+
+    /// A datum's mate whose `on` is not the datum's own frame read
+    /// plainly or through its xy plane, its z axis or its origin
+    /// (D10 `[placement.datums]`).
+    NotTheDatumsOwn {
         /// The mate.
         mate: MateRef,
     },
@@ -1081,6 +1112,7 @@ impl MateFault {
             | Self::Overconstrained { .. }
             | Self::Unpinned { .. }
             | Self::NotOnTheCopy { .. }
+            | Self::NotTheDatumsOwn { .. }
             | Self::Unleverable { .. }
             | Self::KindsDiffer { .. }
             | Self::NoChart { .. }
@@ -1149,6 +1181,10 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
         "whether the mated direction lies opposite to where the orientation puts the copy's",
     ),
     (
+        geom_core::LEAST_TURN_CONDITIONING,
+        "whether a chart's least turn is determined at the tolerance by the two directions it turns between",
+    ),
+    (
         value::FACE_CHART_SELECTION_POLE,
         "whether a face's chart's least turn has an answer over the session box, before what it carries is read",
     ),
@@ -1175,17 +1211,22 @@ pub(crate) const MATE_SLIDES_INDEPENDENT: &str = "mate_slides_independent";
 
 // Every node the fault names is in the mate's own document; a part's
 // face and refusal are numbered in the part and said by their own
-// `Display`. The mate is said by what it is, so a frame that has already
+// speaker, written as pieces. The mate is said by what it is, so a frame that has already
 // named it ([`crate::spoken::Speaker::about`]) reads `this mate`.
 impl crate::spoken::Say for MateFault {
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         use crate::spoken::Said;
         let mate_ = |m: MateRef| by.mate(m);
+        // What a placement places, as its sentence says it: the datum
+        // itself, any other placement its copy.
+        let placed = |placement: RecipeNodeId| {
+            if by.spoken(placement).kind() == Some("Datum") {
+                "datum"
+            } else {
+                "copy"
+            }
+        };
         let ids = |placement: RecipeNodeId, ids: &[crate::node::ConstraintId]| {
             ids.iter()
                 .map(|&id| by.constraint_numeral(MateRef { placement, id }))
@@ -1208,17 +1249,20 @@ impl crate::spoken::Say for MateFault {
                     [_] => "constraint",
                     _ => "each of constraints",
                 };
+                let it = placed(*placement);
                 let left = match free {
-                    0 => "the bundle pins its copy".to_string(),
-                    1 => "the bundle leaves its copy one freedom".to_string(),
-                    n => format!("the bundle leaves its copy {n} freedoms"),
+                    0 => format!("the bundle pins its {it}"),
+                    1 => format!("the bundle leaves its {it} one freedom"),
+                    n => format!("the bundle leaves its {it} {n} freedoms"),
                 };
-                write!(
+                say!(
                     f,
-                    "{}'s {which} {} fixes an equation the rest of its bundle already fixes \
-                     ({left}). Recourse: {OVERCONSTRAINED_RECOURSE}",
                     by.node(*placement),
-                    ids(*placement, constraints),
+                    format_args!(
+                        "'s {which} {} fixes an equation the rest of its bundle already fixes \
+                     ({left}). Recourse: {OVERCONSTRAINED_RECOURSE}",
+                        ids(*placement, constraints)
+                    )
                 )
             }
             Self::Unpinned { placement, free } => {
@@ -1226,41 +1270,53 @@ impl crate::spoken::Say for MateFault {
                     1 => "one freedom".to_string(),
                     n => format!("{n} freedoms"),
                 };
-                write!(
+                let it = placed(*placement);
+                say!(
                     f,
-                    "{}'s bundle leaves {left} of its copy unwritten, and every bundle pins its \
-                     copy. Recourse: {UNPINNED_RECOURSE}",
                     by.node(*placement),
+                    format_args!(
+                        "'s bundle leaves {left} of its {it} unwritten, and every bundle pins its \
+                     {it}. Recourse: {UNPINNED_RECOURSE}"
+                    )
                 )
             }
-            Self::NotOnTheCopy { mate } => write!(
+            Self::NotOnTheCopy { mate } => say!(
                 f,
-                "{}'s `on` pose reads geometry other than the copy its placement defines, so \
+                mate_(*mate),
+                "'s `on` pose reads geometry other than the copy its placement defines, so \
                  it pins nothing of it. Recourse: read `on` off the placement's shapes, or move \
-                 the constraint to the placement it pins",
-                mate_(*mate)
+                 the constraint to the placement it pins"
+            ),
+            Self::NotTheDatumsOwn { mate } => say!(
+                f,
+                mate_(*mate),
+                "'s `on` pose is not its datum's own frame. Recourse: read `on` as the datum's \
+                 frame, its xy plane, its z axis or its origin"
             ),
             Self::Unleverable { mate, refusal } => {
-                write!(f, "{}: {}", mate_(*mate), Said(&**refusal, by))
+                say!(f, mate_(*mate), ": ", Said(&**refusal, by))
             }
-            Self::KindsDiffer { mate, on, to } => write!(
+            Self::KindsDiffer { mate, on, to } => say!(
                 f,
-                "{} equates an `on` pose of kind {} with a `to` pose of kind {}; a mate's two \
-                 poses are of one kind, which is its primitive. Recourse: read both poses as one kind, through a role where one \
-                 is finer",
                 mate_(*mate),
-                on,
-                to
+                format_args!(
+                    " equates an `on` pose of kind {on} with a `to` pose of kind {to}; a mate's two \
+                 poses are of one kind, which is its primitive. Recourse: read both poses as one kind, through a role where one \
+                 is finer"
+                )
             ),
             Self::NoChart {
                 value,
                 why: NoChartWhy::SlideTurnsABall,
-            } => write!(
+            } => say!(
                 f,
-                "{} sets a slide beside a ball mate, which fixes every translation, so the \
-                 slide could only turn the copy about the ball. Recourse: set the turn as a \
+                mate_(*value),
+                format_args!(
+                    " sets a slide beside a ball mate, which fixes every translation, so the \
+                 slide could only turn the {} about the ball. Recourse: set the turn as a \
                  spin value, or pin it by a frame mate and its values",
-                mate_(*value)
+                    placed(value.placement)
+                )
             ),
             Self::NoChart {
                 value,
@@ -1274,55 +1330,64 @@ impl crate::spoken::Say for MateFault {
                     ),
                     None => String::new(),
                 };
-                write!(
+                say!(
                     f,
-                    "{}'s slides do not span what its mate leaves{along}. Recourse: write the \
-                     slides along {write} instead, or an orientation that puts the copy's mated \
+                    mate_(*value),
+                    format_args!(
+                        "'s slides do not span what its mate leaves{along}. Recourse: write the \
+                     slides along {write} instead, or an orientation that puts the {}'s mated \
                      direction where the slides written meet it",
-                    mate_(*value)
+                        placed(value.placement)
+                    )
                 )
             }
             Self::NoChart {
                 value,
                 why: NoChartWhy::ReadSlidesDoNotSpan,
-            } => write!(
+            } => say!(
                 f,
-                "{}'s slides do not span what its mates leave where they evaluate: a direction \
+                mate_(*value),
+                "'s slides do not span what its mates leave where they evaluate: a direction \
                  read off a body runs across the plane or the line the mates leave, or along \
                  another slide. Recourse: read a direction that lies in what the mates leave, \
-                 or slide along a target axis or the mated direction",
-                mate_(*value)
+                 or slide along a target axis or the mated direction"
             ),
             Self::Backwards {
                 mate,
                 orient,
                 write,
-            } => write!(
+            } => say!(
                 f,
-                "{}'s orientation ({orient}) puts the copy's mated direction opposite to the \
+                mate_(*mate),
+                format_args!(
+                    "'s orientation ({orient}) puts the {}'s mated direction opposite to the \
                  mated one, where no least turn is decided. Recourse: write the orientation \
                  {write}",
-                mate_(*mate)
+                    placed(mate.placement)
+                )
             ),
-            Self::Unoriented { mate } => write!(
+            Self::Unoriented { mate } => say!(
                 f,
-                "{} fixes no one direction, so it carries no orientation. Recourse: write its \
-                 orientation as the identity, and its rotation as spin values",
-                mate_(*mate)
+                mate_(*mate),
+                " fixes no one direction, so it carries no orientation. Recourse: write its \
+                 orientation as the identity, and its rotation as spin values"
             ),
             // The refusal is the pose's own, drawn on the carried line.
-            Self::SideUnevaluated { mate, side, .. } => write!(
+            Self::SideUnevaluated { mate, side, .. } => say!(
                 f,
-                "{}'s `{}` pose did not evaluate, so the bundle is not folded. Recourse: \
-                 repair the pose's definition, or what it reads",
                 mate_(*mate),
-                side.name()
+                format_args!(
+                    "'s `{}` pose did not evaluate, so the bundle is not folded. Recourse: \
+                 repair the pose's definition, or what it reads",
+                    side.name()
+                )
             ),
-            Self::ReadUnevaluated { value, .. } => write!(
+            Self::ReadUnevaluated { value, .. } => say!(
                 f,
-                "the direction or axis {} reads did not evaluate, so the bundle is not folded. \
-                 Recourse: repair the pose's definition, or what it reads",
-                mate_(*value)
+                "the direction or axis ",
+                mate_(*value),
+                " reads did not evaluate, so the bundle is not folded. \
+                 Recourse: repair the pose's definition, or what it reads"
             ),
         }
     }
@@ -1340,7 +1405,7 @@ fn axis_name(axis: TargetAxis) -> &'static str {
 /// The fault where no document is at hand: each node by its tag.
 impl core::fmt::Display for MateFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1350,7 +1415,7 @@ impl MateFault {
     /// is memoized with the solve and the evaluation, so it holds ids,
     /// never a label.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }

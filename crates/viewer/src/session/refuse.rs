@@ -16,7 +16,8 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenSpace, SpokenVar, VarId, VarName,
+    ProfileProgram, RecipeNodeId, Said, Sentence, SlotId, SlotKind, Speaker, SpokenNode,
+    SpokenSpace, SpokenVar, VarId, VarKind, VarName, say,
 };
 use std::path::{Path, PathBuf};
 
@@ -45,13 +46,12 @@ pub enum NodeKindWanted {
     /// A `Node::Profile`.
     Profile,
     /// A read of ONE body — the combining seats' kind: a node whose one
-    /// output is a body ([`combine::denotes_body`] carries the
-    /// admissible set), or a split's half read by its port
+    /// output is a body, or a split's half read by its port
     /// ([`admits_read`]).
     Body,
     /// A FAMILY — what an indexed read (`BodyRead::indexed`) indexes: a
     /// node evaluated once per value of the indices it reaches (D10
-    /// `[repetition]`), or one whose output is a `Bodies` variable.
+    /// `[repetition]`).
     Instances,
 }
 
@@ -67,22 +67,31 @@ pub enum NodeKindWanted {
 /// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
 /// answer for both is what keeps a seat from steering a pick the door
 /// would then reject.
+///
+/// **A body is the edit door's own kind check**: the read a node named
+/// alone takes ([`Doc::read_of_node`]) is a `Body` variable
+/// ([`holds_body`]). A node of several outputs (a split's sides, a
+/// revolve's body beside its axis) has no such read. A family by
+/// repetition — a pattern, or a placement of one — defines a `Body`
+/// variable reaching an index, and the gate admits it. Evaluation then
+/// follows D10 `[repetition]`: an operation reading it is evaluated
+/// once per member, except `union`, `intersect` and `assemble`, which
+/// take the family whole. The answer is about the recipe, not one
+/// evaluation of it: what the read evaluates to under the current
+/// parameters, an empty boolean or a node's own refusal, is that
+/// node's result. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
+/// holds the seat to the edit door, and
+/// `::the_body_seats_admissions_evaluate_as_bodies` to evaluation.
 pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWanted) -> bool {
     let held = doc.node(node);
     match wanted {
-        NodeKindWanted::Body => combine::denotes_body(doc, node),
+        NodeKindWanted::Body => holds_body(doc, doc.read_of_node(node)),
         NodeKindWanted::Instances => {
             held.is_some()
                 && doc
                     .node_reach(node)
                     .chain()
                     .is_some_and(|chain| !chain.is_empty())
-                || doc
-                    .read_of_node(node)
-                    .and_then(|read| doc.var(read))
-                    .is_some_and(|var| {
-                        pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
-                    })
         }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
@@ -91,10 +100,9 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
 /// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
 /// node named alone, and for a port the kind of the variable it names
 /// (a split's half is a body), a family being, as [`admits`] reads it,
-/// a variable evaluated once per member or a `Bodies` one — the gate
-/// every body seat's commit asks of the read it holds.
+/// a variable evaluated once per member — the gate every body seat's
+/// commit asks of the read it holds.
 pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
-    use pncad::document::{SlotKind, VarKind};
     let var = match read {
         Operand::Node(node) => return admits(doc, *node, wanted),
         Operand::Output { node, port } => doc.output(*node, *port),
@@ -104,19 +112,23 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Pick { .. } | Operand::Source(_) => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
-    let repeats = |var: pncad::document::VarId| {
-        doc.var_reach(var)
-            .chain()
-            .is_some_and(|chain| !chain.is_empty())
-    };
-    let kind = match wanted {
-        NodeKindWanted::Body => VarKind::Body,
-        NodeKindWanted::Instances if var.is_some_and(repeats) => return true,
-        NodeKindWanted::Instances => VarKind::Bodies,
-        NodeKindWanted::Profile => return false,
-    };
+    match wanted {
+        NodeKindWanted::Body => holds_body(doc, var),
+        NodeKindWanted::Instances => var.is_some_and(|var| {
+            doc.var_reach(var)
+                .chain()
+                .is_some_and(|chain| !chain.is_empty())
+        }),
+        NodeKindWanted::Profile => false,
+    }
+}
+
+/// **Whether `var` is a live `Body` variable**, by the edit door's own
+/// slot check (`SlotKind::admits`) — the one spelling of the body
+/// gate's kind test.
+fn holds_body(doc: &Doc<ProfileProgram>, var: Option<VarId>) -> bool {
     var.and_then(|var| doc.var(var))
-        .is_some_and(|var| SlotKind::Is(kind).admits(var))
+        .is_some_and(|var| SlotKind::Is(VarKind::Body).admits(var))
 }
 
 /// **Which seat kind a node is by its kind alone**, or `None` for a
@@ -144,6 +156,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Assemble { .. }
         | Node::InstantiatePart { .. }
         | Node::Place { .. }
+        | Node::Datum { .. }
         | Node::World
         | Node::Space
         | Node::Measure { .. }
@@ -261,8 +274,7 @@ fn parse_said(f: &mut core::fmt::Formatter<'_>, error: &ParseError) -> core::fmt
 #[derive(Debug)]
 pub enum Refusal {
     /// The slot is driven by an expression, so a drag over it is
-    /// refused with the affordance G4 ratifies, and so is a range probe
-    /// of it. A typed number is not refused: it replaces the expression
+    /// refused with the affordance G4 ratifies. A typed number is not refused: it replaces the expression
     /// ([`crate::session::SessionOp::SetSlot`]). The payload is what the
     /// affordance needs: which variables drive it (each navigable and
     /// editable), and what the slot evaluates to today.
@@ -290,9 +302,9 @@ pub enum Refusal {
     },
     /// No document variable with that id.
     ///
-    /// A LOOKUP's not-found arm, never a pre-check: the two sites that
+    /// A LOOKUP's not-found arm, never a pre-check: the sites that
     /// raise it need the declaration itself — its dimension to open a
-    /// gesture, its value and unit to seed a range probe — and neither
+    /// gesture, an operand to read — and none
     /// commits an edit, so no door below refuses on their behalf. The
     /// value door does refuse a variable the document does not hold,
     /// and says so in editor-core's words ([`EditError::UnknownVar`],
@@ -312,12 +324,6 @@ pub enum Refusal {
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
     NoSuchVariable(VarId),
-    /// A value door that reads a FREE variable's value was pointed at a
-    /// defined one: the range probe, which seeds its search from the
-    /// value it would move. A defined variable holds a formula and no
-    /// value of its own, so there is nothing to move; its range is the
-    /// ranges of the variables it reads.
-    VariableIsDefined(SpokenVar),
     /// An offer was accepted ([`SessionOp::SetSlotVariable`]) of a
     /// variable that is not on offer at that slot: the offer closed —
     /// the slot was retyped, dragged, undone — or never named it. An
@@ -444,6 +450,10 @@ pub enum Refusal {
     /// A written-unit change refused — the panel model's own typed
     /// vocabulary, unaltered.
     SlotUnit(props::SlotUnitFault),
+    /// A `range?` the kernel's admission refuses, before any geometry
+    /// runs (`pncad::analysis::range::admit`) — the refusal's own
+    /// vocabulary, unaltered.
+    Range(Box<pncad::analysis::RangeRefusal>),
     /// The session has no backing file, so there is no directory for a
     /// part reference to be picked from or to resolve against — the
     /// directory rule's consequence at authoring time. Its recourse
@@ -570,8 +580,8 @@ pub enum Refusal {
         fault: Option<Box<pncad::document::MateFault>>,
     },
     /// A takeover would re-point a copy a pick reads onto a body that
-    /// holds no pieces — a feature's result, a mirror's or a sketch's
-    /// union, a combine. A pick is never re-pointed (D10
+    /// holds no pieces — a feature's result, a mirror's union, a
+    /// combine. A pick is never re-pointed (D10
     /// `[placement.placement]`), so it would name a piece its copy no
     /// longer holds; the takeover refuses rather than strand it.
     StrandedPick {
@@ -586,6 +596,13 @@ pub enum Refusal {
     InTheProduct {
         /// The copy's placement.
         copy: SpokenNode,
+    },
+    /// A finding's assertion asked of a document that already holds an
+    /// assertion saying it ([`super::SessionOp::AssertQuieting`]):
+    /// authoring it again would write a second one.
+    ClaimHeld {
+        /// The assertion that says it.
+        assertion: SpokenNode,
     },
 }
 
@@ -648,6 +665,9 @@ impl Refusal {
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
             Self::InTheProduct { copy } => Self::InTheProduct { copy: again(copy) },
+            Self::ClaimHeld { assertion } => Self::ClaimHeld {
+                assertion: again(assertion),
+            },
             Self::StrandedPick { copy, pick } => Self::StrandedPick {
                 copy: again(copy),
                 pick: pick.respoken(doc),
@@ -656,7 +676,6 @@ impl Refusal {
                 var: var.respoken(doc),
                 source,
             },
-            Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
             Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
             Self::OfferIsNamed(var) => Self::OfferIsNamed(var.respoken(doc)),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
@@ -689,15 +708,17 @@ impl Refusal {
             | Self::NothingToDo { .. }
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
-            | Self::SelfInstance { .. }) => unspoken,
+            | Self::SelfInstance { .. }
+            // Spoken off the document the admission read, which is the
+            // shown one; a refusal outlives no edit of it.
+            | Self::Range(_)) => unspoken,
         }
     }
 
     /// **The parse error, when the refusal is the expression door's
     /// parse refusal** — the text an author typed did not parse, so
     /// nothing reached the document and the typed source is still the
-    /// author's. The one reading `frame::creation_offer` and
-    /// `frame::retype_draft` both take.
+    /// author's. The reading `frame::retype_draft` takes.
     pub fn parse_error(&self) -> Option<&ParseError> {
         match self {
             Self::Parse(error) => Some(&**error),
@@ -705,7 +726,6 @@ impl Refusal {
             | Self::NoSuchSlot { .. }
             | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
-            | Self::VariableIsDefined(_)
             | Self::NotOffered(_)
             | Self::OfferIsNamed(_)
             | Self::EmptyName
@@ -723,6 +743,7 @@ impl Refusal {
             | Self::NothingToDo { .. }
             | Self::Display(_)
             | Self::SlotUnit(_)
+            | Self::Range(_)
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
@@ -738,7 +759,8 @@ impl Refusal {
             | Self::Draft(_)
             | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
-            | Self::InTheProduct { .. } => None,
+            | Self::InTheProduct { .. }
+            | Self::ClaimHeld { .. } => None,
         }
     }
 
@@ -763,7 +785,6 @@ impl Refusal {
             Self::NoSuchSlot { .. }
             | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
-            | Self::VariableIsDefined(_)
             | Self::NotOffered(_)
             | Self::OfferIsNamed(_)
             | Self::EmptyName
@@ -776,6 +797,7 @@ impl Refusal {
             | Self::Dimension(_)
             | Self::Parse(_)
             | Self::SlotUnit(_)
+            | Self::Range(_)
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
@@ -792,6 +814,7 @@ impl Refusal {
             | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
             | Self::InTheProduct { .. }
+            | Self::ClaimHeld { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
@@ -929,18 +952,44 @@ impl Refusal {
         current: Option<SlotValue>,
         notation: Notation,
     ) -> String {
+        Self::affordance_said(variables, slot, current, notation, Speaker::TAG).to_string()
+    }
+
+    /// [`Refusal::affordance`] as a sentence, each variable a mention
+    /// said by `by`.
+    #[must_use]
+    pub fn affordance_said(
+        variables: &[SpokenVar],
+        slot: SlotId,
+        current: Option<SlotValue>,
+        notation: Notation,
+        by: Speaker<'_>,
+    ) -> Sentence {
         let over = if variables.is_empty() {
-            "an expression".to_owned()
+            Sentence::from("an expression")
         } else {
-            let names: Vec<String> = variables.iter().map(SpokenVar::to_string).collect();
-            format!("an expression over {}", names.join(", "))
+            let names = variables
+                .iter()
+                .map(|var| pncad::document::sentence!(by.var(var)));
+            pncad::document::sentence!("an expression over ", Sentence::joined(names, ", "))
         };
         match current {
-            Some(value) => format!(
-                "driven by {over} (currently {}) — edit the expression, or type a number over it",
-                props::computed_text(slot.expr_dimension(), value.as_f64(), notation)
+            Some(value) => {
+                let currently =
+                    props::computed_text(slot.expr_dimension(), value.as_f64(), notation);
+                pncad::document::sentence!(
+                    "driven by ",
+                    over,
+                    format_args!(
+                        " (currently {currently}) — edit the expression, or type a number over it"
+                    )
+                )
+            }
+            None => pncad::document::sentence!(
+                "driven by ",
+                over,
+                " — edit the expression, or type a number over it"
             ),
-            None => format!("driven by {over} — edit the expression, or type a number over it"),
         }
     }
 
@@ -976,7 +1025,14 @@ impl Refusal {
     /// attempt, and the pane is describing a selection, not answering
     /// one.
     pub fn undeclared_wording(var: &SpokenVar) -> String {
-        format!("variable {var} is not in this document")
+        Self::undeclared_said(var, Speaker::TAG).to_string()
+    }
+
+    /// [`Refusal::undeclared_wording`] as a sentence, the variable a
+    /// mention said by `by`.
+    #[must_use]
+    pub fn undeclared_said(var: &SpokenVar, by: Speaker<'_>) -> Sentence {
+        pncad::document::sentence!("variable ", by.var(var), " is not in this document")
     }
 
     /// The create-offer sentence, and its one home — shown over the
@@ -984,108 +1040,121 @@ impl Refusal {
     pub fn offer_wording(name: &VarName) -> String {
         format!("create variable {}?", name.as_str())
     }
-
-    /// **The choice this refusal offers**, when it is a save that
-    /// would give the document a second file in one folder.
-    pub fn save_choice(&self) -> Option<SaveChoice> {
-        match self {
-            Self::Workspace(error) => match &**error {
-                WorkspaceError::SaveWouldDuplicateId {
-                    existing,
-                    requested,
-                    ..
-                } => Some(SaveChoice {
-                    existing: existing.clone(),
-                    requested: requested.clone(),
-                }),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    /// The accept-offer question, and its one home — shown under an
-    /// instance row whose pin no longer holds. It names the part by
-    /// its file, as the row does, and says the accept reaches every
-    /// instance of it.
-    pub fn version_question(offer: &VersionOffer) -> String {
-        format!(
-            "accept the updated version of {}, at every instance of it?",
-            offer.part
-        )
-    }
 }
 
 impl Refusal {
-    /// Renders each arm through its payload's OWN `Display` wherever
-    /// the payload has one — `EditError`, `DimensionError` and
-    /// `PersistError` (inside [`DocIoError`]) all do, and using them is
-    /// the same rule the feature tree's badges follow: the layer that
-    /// raised the failure names it.
+    /// **Its sentence**, each node and variable it names a mention said
+    /// by `by`, ended at the door `at` reads it (`recourse::Ended`), or
+    /// its payload alone where `at` is `None`. `by` is the document the
+    /// refusal was raised in, which a reader links its mentions in
+    /// (`frame::refusal_message`); [`Speaker::TAG`] says them in no
+    /// document, which is how its `Display` reads.
+    #[must_use]
+    pub fn said(
+        &self,
+        by: Speaker<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> Sentence {
+        let mut out = Sentence::new();
+        self.write(&mut out, by, at);
+        out
+    }
+
+    /// This refusal's text ended at the door `at` reads it
+    /// (`recourse::Ended`); its `Display` is the payload alone.
+    #[must_use]
+    pub fn render(&self, at: impl Into<pncad::geom_brep::recourse::ReadAt>) -> String {
+        self.said(Speaker::TAG, Some(at.into())).to_string()
+    }
+
+    /// Writes each arm through its payload's OWN words wherever the
+    /// payload has them — the same rule the feature tree's badges
+    /// follow: the layer that raised the failure names it. A payload
+    /// that is said (`EditError`, `MateFault`, `RangeRefusal`) is
+    /// written as a sentence by `by`, and a staged one (`PersistError`
+    /// inside [`DocIoError`], `WorkspaceError`) as its labelled
+    /// sentence, so their mentions stay mentions. A payload with words
+    /// alone (`DimensionError`, `ParseError`, an OS read error, and the
+    /// viewer's own faults, filed to be said) is spelled before the
+    /// sentence is written.
     ///
     /// One exception, stated rather than hidden: the affordance arm's
     /// wording is this layer's own sentence, so it is
-    /// composed here (and here only — [`Refusal::affordance`] is its
-    /// single home).
+    /// composed here (and here only — [`Refusal::affordance_said`] is
+    /// its single home).
     fn write(
         &self,
-        f: &mut core::fmt::Formatter<'_>,
+        out: &mut Sentence,
+        by: Speaker<'_>,
         at: Option<pncad::geom_brep::recourse::ReadAt>,
-    ) -> core::fmt::Result {
-        match self {
+    ) {
+        let node = |node: &SpokenNode| by.mention(node);
+        let var = |var: &SpokenVar| by.var(var);
+        let space = |space: &SpokenSpace| Said(space, by).sentence();
+        let _ = match self {
             Self::DrivenByExpression {
                 slot,
                 variables,
                 current,
                 notation,
                 ..
-            } => write!(
-                f,
-                "{}",
-                Self::affordance(variables, *slot, *current, *notation)
+            } => say!(
+                out,
+                Self::affordance_said(variables, *slot, *current, *notation, by)
             ),
-            Self::NoSuchSlot { node, slot } => {
-                write!(f, "{node} has no {} slot", slot.label())
-            }
-            Self::NoSuchVariable(var) => {
-                write!(
-                    f,
-                    "{} — {UNKNOWN_VAR_RECOURSE}",
-                    Self::undeclared_wording(&SpokenVar::new(*var, None))
+            Self::NoSuchSlot { node: held, slot } => say!(
+                out,
+                node(held),
+                format_args!(" has no {} slot", slot.label())
+            ),
+            Self::NoSuchVariable(id) => say!(
+                out,
+                Self::undeclared_said(&SpokenVar::new(*id, None), by),
+                format_args!(" — {UNKNOWN_VAR_RECOURSE}")
+            ),
+            Self::ConstantRefused { var: held, source } => {
+                let source = source.to_string();
+                say!(
+                    out,
+                    "the value typed for ",
+                    var(held),
+                    " does not evaluate: ",
+                    source
                 )
             }
-            Self::ConstantRefused { var, source } => {
-                write!(f, "the value typed for {var} does not evaluate: {source}")
-            }
-            Self::VariableIsDefined(var) => write!(
-                f,
-                "{var} is defined by a formula and holds no value of its own to move — \
-                 probe a variable it reads"
-            ),
-            Self::NotOffered(var) => write!(
-                f,
-                "{var} is no longer offered here — type the value again to be offered \
+            Self::NotOffered(held) => say!(
+                out,
+                var(held),
+                " is no longer offered here — type the value again to be offered \
                  the variables equal to it"
             ),
-            Self::OfferIsNamed(var) => write!(
-                f,
-                "{var} already has a name, and the slot shares it by that name — accept \
+            Self::OfferIsNamed(held) => say!(
+                out,
+                var(held),
+                " already has a name, and the slot shares it by that name — accept \
                  the offer without giving it another"
             ),
-            Self::EmptyName => write!(f, "a new document needs a name"),
-            Self::WrongNodeKind { node, wanted } => {
-                write!(f, "{node} is not {} in this document", wanted.name())
-            }
-            Self::PickedMember { node } => write!(
-                f,
-                "{node} is a family, and a selection reads one body: pick on one drawn member \
+            Self::EmptyName => say!(out, "a new document needs a name"),
+            Self::WrongNodeKind { node: held, wanted } => say!(
+                out,
+                node(held),
+                format_args!(" is not {} in this document", wanted.name())
+            ),
+            Self::PickedMember { node: held } => say!(
+                out,
+                node(held),
+                " is a family, and a selection reads one body: pick on one drawn member \
                  of it, once the document has landed"
             ),
             Self::NotABodyRead { read } => match &**read {
-                Operand::Name(name) => write!(f, "no variable is named {name} in this document"),
-                _ => f.write_str(
+                Operand::Name(name) => say!(
+                    out,
+                    format_args!("no variable is named {name} in this document")
+                ),
+                _ => say!(
+                    out,
                     "a selection names cells of a body, not the body: a body seat reads a node \
-                     or one of its outputs",
+                     or one of its outputs"
                 ),
             },
             // The frame is layer 3's and the sentence is the door's.
@@ -1093,130 +1162,215 @@ impl Refusal {
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
             Self::StepClear(fault) => {
-                write!(f, "{}", pncad::geom_brep::recourse::read_at(fault, at))
+                let text = pncad::geom_brep::recourse::read_at(fault, at).to_string();
+                say!(out, text)
             }
-            Self::Frame(fault) => write!(f, "{fault}"),
-            Self::Edit(error) => write!(f, "the edit was refused: {error}"),
-            Self::Dimension(error) => write!(f, "{error}"),
-            Self::Parse(error) => parse_said(f, error),
-            Self::NoGesture => write!(f, "no drag is in progress"),
-            Self::GestureInFlight => write!(f, "finish the drag first"),
-            Self::WrongGesture => write!(f, "that is not the drag in progress"),
-            Self::Io(error) => write!(f, "{error}"),
-            Self::NothingToDo { direction } => write!(f, "nothing to {}", direction.verb()),
-            Self::Display(fault) => write!(f, "{fault}"),
-            Self::SlotUnit(fault) => write!(f, "{fault}"),
-            Self::NoDocumentDirectory => write!(
-                f,
+            Self::Frame(fault) => {
+                let text = fault.to_string();
+                say!(out, text)
+            }
+            Self::Edit(error) => say!(out, "the edit was refused: ", Said(&**error, by)),
+            Self::Dimension(error) => {
+                let text = error.to_string();
+                say!(out, text)
+            }
+            Self::Parse(error) => {
+                let text = core::fmt::from_fn(|f| parse_said(f, error)).to_string();
+                say!(out, text)
+            }
+            Self::NoGesture => say!(out, "no drag is in progress"),
+            Self::GestureInFlight => say!(out, "finish the drag first"),
+            Self::WrongGesture => say!(out, "that is not the drag in progress"),
+            Self::Io(error) => match &**error {
+                DocIoError::Persist(error) => {
+                    say!(
+                        out,
+                        pncad::document::Labelled(&**error, pncad::document::Labels::Kept)
+                    )
+                }
+                DocIoError::Read { .. } => {
+                    let text = error.to_string();
+                    say!(out, text)
+                }
+            },
+            Self::NothingToDo { direction } => {
+                say!(out, format_args!("nothing to {}", direction.verb()))
+            }
+            Self::Display(fault) => {
+                let text = fault.to_string();
+                say!(out, text)
+            }
+            Self::SlotUnit(fault) => {
+                let text = fault.to_string();
+                say!(out, text)
+            }
+            Self::Range(refusal) => say!(out, Said(&**refusal, by)),
+            Self::NoDocumentDirectory => say!(
+                out,
                 "save the document first — references resolve against the file's directory"
             ),
-            Self::Workspace(error) => write!(f, "{error}"),
-            Self::SelfInstance { id } => write!(
-                f,
-                "document {id} is the open document — a document cannot be an instance of \
-                 itself; pick another part"
+            Self::Workspace(error) => say!(
+                out,
+                pncad::document::Labelled(&**error, pncad::document::Labels::Kept)
             ),
-            Self::BundleStale { node } => write!(
-                f,
-                "{node}'s bundle changed since the editor loaded it; the editor's draft was not \
+            Self::SelfInstance { id } => say!(
+                out,
+                format_args!(
+                    "document {id} is the open document — a document cannot be an instance of \
+                     itself; pick another part"
+                )
+            ),
+            Self::BundleStale { node: held } => say!(
+                out,
+                node(held),
+                "'s bundle changed since the editor loaded it; the editor's draft was not \
                  written — the editor now shows the bundle as it is"
             ),
-            Self::PlaceOnACopy { copy } => write!(
-                f,
-                "{copy} is a copy; move it by its own placement in the placement editor, not \
+            Self::PlaceOnACopy { copy } => say!(
+                out,
+                node(copy),
+                " is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
             ),
-            Self::SeveralSources { body, sources } => {
-                write!(f, "{body} is placed through {} sources (", sources.len())?;
-                for (k, source) in sources.iter().enumerate() {
-                    if k > 0 {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{source}")?;
-                }
-                f.write_str("); place one of them, and the new copy shares it")
-            }
+            Self::SeveralSources { body, sources } => say!(
+                out,
+                var(body),
+                format_args!(" is placed through {} sources (", sources.len()),
+                Sentence::joined(
+                    sources
+                        .iter()
+                        .map(|source| pncad::document::sentence!(var(source))),
+                    ", "
+                ),
+                "); place one of them, and the new copy shares it"
+            ),
             Self::TargetHeld {
                 copy,
-                space,
+                space: from,
                 reading,
                 into,
                 ..
-            } => {
-                let into = into
-                    .as_ref()
-                    .map_or_else(|| "a new space".to_owned(), ToString::to_string);
-                write!(
-                    f,
-                    "{copy} has {reading} constraint(s) of its own reading {space}, the space \
-                     this would move it out of; its placement editor opens with the target set \
-                     to {into}: re-pick or strike the marked rows"
-                )
-            }
-            Self::CopyInAnotherSpace { copy, space, into } => write!(
-                f,
-                "{copy} is placed into {space}, and this combine is in {into}; a combine moves \
-                 no copy: set {copy}'s \"into\" row to {into} in its placement editor first"
+            } => say!(
+                out,
+                node(copy),
+                format_args!(" has {reading} constraint(s) of its own reading "),
+                space(from),
+                ", the space this would move it out of; its placement editor opens with the \
+                 target set to ",
+                into.as_ref()
+                    .map_or_else(|| Sentence::from("a new space"), |into| space(into)),
+                ": re-pick or strike the marked rows"
             ),
-            Self::Unspliced { node, fault } => match fault {
-                editor_core::continuation::SpliceFault::MemberAtSeat { .. } => write!(
-                    f,
-                    "deleting this would hand {node} one member of a family at a seat that \
-                     reads a whole body, which no edit can write; delete or re-point {node} \
-                     first"
+            Self::CopyInAnotherSpace {
+                copy,
+                space: from,
+                into,
+            } => say!(
+                out,
+                node(copy),
+                " is placed into ",
+                space(from),
+                ", and this combine is in ",
+                space(into),
+                "; a combine moves no copy: set ",
+                node(copy),
+                "'s \"into\" row to ",
+                space(into),
+                " in its placement editor first"
+            ),
+            Self::Unspliced { node: held, fault } => match fault {
+                editor_core::continuation::SpliceFault::MemberAtSeat { .. } => say!(
+                    out,
+                    "deleting this would hand ",
+                    node(held),
+                    " one member of a family at a seat that reads a whole body, which no edit \
+                     can write; delete or re-point ",
+                    node(held),
+                    " first"
                 ),
-                editor_core::continuation::SpliceFault::MemberAtProduct => write!(
-                    f,
-                    "deleting {node} would hand the product one member of a family, and the \
-                     product reads a whole body; set the product first"
+                editor_core::continuation::SpliceFault::MemberAtProduct => say!(
+                    out,
+                    "deleting ",
+                    node(held),
+                    " would hand the product one member of a family, and the product reads a \
+                     whole body; set the product first"
                 ),
-                editor_core::continuation::SpliceFault::MemberOfAMember { .. } => write!(
-                    f,
-                    "deleting this would hand a reader of one member of {node} a member of a \
-                     member, which no read spells; delete that reader first"
+                editor_core::continuation::SpliceFault::MemberOfAMember { .. } => say!(
+                    out,
+                    "deleting this would hand a reader of one member of ",
+                    node(held),
+                    " a member of a member, which no read spells; delete that reader first"
                 ),
-                editor_core::continuation::SpliceFault::ContinuationCycle { .. } => write!(
-                    f,
-                    "the delete's continuations came back to {node}, which an acyclic recipe \
-                     cannot do; nothing was deleted"
+                editor_core::continuation::SpliceFault::ContinuationCycle { .. } => say!(
+                    out,
+                    "the delete's continuations came back to ",
+                    node(held),
+                    ", which an acyclic recipe cannot do; nothing was deleted"
                 ),
             },
-            Self::SourceIsNamed { source } => write!(
-                f,
-                "{source} is named already, so the copy shares it by that name; place it \
+            Self::SourceIsNamed { source } => say!(
+                out,
+                var(source),
+                " is named already, so the copy shares it by that name; place it \
                  without a name, and rename it on its own row"
             ),
-            Self::ValueNotRemoved { node } => write!(
-                f,
-                "a value of {node} sets a freedom its mates leave, and a freedom is always set; \
+            Self::ValueNotRemoved { node: held } => say!(
+                out,
+                "a value of ",
+                node(held),
+                " sets a freedom its mates leave, and a freedom is always set; \
                  edit its number instead"
             ),
-            Self::Draft(error) => write!(f, "{error}"),
-            Self::PlacementFails { fault: Some(fault) } => write!(
-                f,
-                "the copy would not stand: {fault}; the editor's draft was not written"
+            Self::Draft(error) => {
+                let text = error.to_string();
+                say!(out, text)
+            }
+            Self::PlacementFails { fault: Some(fault) } => say!(
+                out,
+                "the copy would not stand: ",
+                Said(&**fault, by),
+                "; the editor's draft was not written"
             ),
-            Self::PlacementFails { fault: None } => write!(
-                f,
+            Self::PlacementFails { fault: None } => say!(
+                out,
                 "what the placement reads does not evaluate; the editor's draft was not written"
             ),
-            Self::ProfileEditStale { node } => write!(
-                f,
-                "{node} changed since the editor loaded it; the editor's program was not \
+            Self::ProfileEditStale { node: held } => say!(
+                out,
+                node(held),
+                " changed since the editor loaded it; the editor's program was not \
                  written — the editor now shows the profile as it is"
             ),
-            Self::StrandedPick { copy, pick } => write!(
-                f,
-                "{pick} picks a piece of {copy}, and what would take {copy} over holds no \
-                 pieces: a pick is never re-pointed, so the takeover would leave it naming a \
-                 piece its copy no longer holds"
+            Self::StrandedPick { copy, pick } => say!(
+                out,
+                var(pick),
+                " picks a piece of ",
+                node(copy),
+                ", and what would take ",
+                node(copy),
+                " over holds no pieces: a pick is never re-pointed, so the takeover would \
+                 leave it naming a piece its copy no longer holds"
             ),
-            Self::InTheProduct { copy } => write!(f, "{copy} is in the product already"),
-        }
+            Self::InTheProduct { copy } => say!(out, node(copy), " is in the product already"),
+            Self::ClaimHeld { assertion } => {
+                say!(out, node(assertion), " says this already")
+            }
+        };
     }
 }
 
-pncad::geom_brep::ended_by_write!(Refusal);
+/// Its payload alone, its mentions said in no document.
+impl core::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.said(Speaker::TAG, None))
+    }
+}
+
+impl pncad::geom_brep::recourse::Ended for Refusal {
+    fn ended(&self, at: pncad::geom_brep::recourse::ReadAt) -> String {
+        self.render(at)
+    }
+}
 
 impl core::error::Error for Refusal {}
 
@@ -1238,6 +1392,15 @@ pub struct SaveChoice {
 }
 
 impl SaveChoice {
+    /// The choice between saving over `existing`, the file that holds
+    /// the document already, and saving at `requested` as a new one.
+    pub(crate) fn new(existing: PathBuf, requested: PathBuf) -> Self {
+        Self {
+            existing,
+            requested,
+        }
+    }
+
     /// The label of the control that saves over the existing file.
     pub fn over_label(&self) -> String {
         format!("Save over {}", file_name(&self.existing))
@@ -1266,39 +1429,6 @@ fn file_name(path: &Path) -> std::borrow::Cow<'_, str> {
         .map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy())
 }
 
-/// **The offer an instance whose pin no longer holds makes**: accept
-/// its part's updated version ([`crate::frame::version_offer`] reads
-/// it off the instance's own failure).
-///
-/// It names the part and nothing about versions: the failure line it is
-/// drawn under already names both pins in the store's words, and the
-/// version accepted is the one on disk at the click.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VersionOffer {
-    id: DocumentId,
-    part: String,
-}
-
-impl VersionOffer {
-    /// **The button that accepts the offer**: the name the store's
-    /// recourse gives the edit (`pncad::workspace::PIN_MISMATCH_RECOURSE`,
-    /// "record the \"accept updated version\" edit"), so the sentence on
-    /// the row and the control under it name one act.
-    pub const LABEL: &str = "Accept updated version";
-
-    /// The offer for the part `id`, named by its file `part`.
-    pub(crate) fn new(id: DocumentId, part: String) -> Self {
-        Self { id, part }
-    }
-
-    /// **Accepting the offer**: every reference to the part moved onto
-    /// the store's version, one action at the session door, so one
-    /// undo.
-    pub fn accept(&self) -> SessionOp {
-        SessionOp::AcceptPartVersion { id: self.id }
-    }
-}
-
 /// **Why a gesture's frame could not be made**: a pattern's picked
 /// direction or axis.
 #[derive(Debug, Clone)]
@@ -1324,21 +1454,3 @@ impl core::fmt::Display for GestureFrameFault {
 }
 
 impl core::error::Error for GestureFrameFault {}
-
-#[cfg(test)]
-mod version_offer {
-    use super::VersionOffer;
-    use pncad::workspace::PIN_MISMATCH_RECOURSE;
-
-    /// **The accept button and the store's recourse name one act**: the
-    /// label is the edit's name the recourse quotes. Red if either is
-    /// re-worded without the other.
-    #[test]
-    fn the_accept_button_is_the_edit_the_pin_mismatch_recourse_quotes() {
-        let quoted = format!("\"{}\"", VersionOffer::LABEL.to_lowercase());
-        assert!(
-            PIN_MISMATCH_RECOURSE.contains(&quoted),
-            "{quoted} in: {PIN_MISMATCH_RECOURSE}"
-        );
-    }
-}

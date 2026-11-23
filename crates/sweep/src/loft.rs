@@ -236,7 +236,7 @@ pub enum LoftError {
     Skin(SkinError),
     /// An Euler operator or certified attach refused mid-assembly
     /// (D4 ¶2 reports surface inside
-    /// [`EulerOpError::Certification`]).
+    /// [`EulerOpError::DescriptionUncertified`]).
     Euler(EulerOpError),
     /// The whole-body pcurve mint pass refused: a wall boundary's
     /// exact line-in-UV image failed its certification.
@@ -1188,7 +1188,12 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), LoftError> {
-    let spec = body.stored_curve(edge)?.restated_spec();
+    let Some(curve) = body.edge(edge).and_then(topo::EdgeView::certified) else {
+        unreachable!(
+            "an interior section's rim {edge:?} is a certified edge the loft minted and still holds"
+        )
+    };
+    let spec = curve.restated_spec();
     let EdgeDescriptionSpec::Scaffold(declared) = spec.description else {
         unreachable!(
             "an interior section's rim is minted through the scaffolding door, and only this \
@@ -1880,7 +1885,7 @@ fn profile_all<T: Real>(profile: &ValidatedProfile<T>, holds: impl Fn(T) -> bool
                 point_all(&s.start, holds)
                     && point_all(&s.end, holds)
                     && match &s.kind {
-                        profile::SegmentKind::Line => true,
+                        profile::SegmentKind::Line { .. } => true,
                         profile::SegmentKind::Arc { arc, .. } => arc_all(arc, holds),
                     }
             })

@@ -188,11 +188,15 @@ fn sphere_sphere<T: Decide>(
     coincident(dist, big - small, cb + out * big, band, errors)
 }
 
-fn refused(subject: CensusSubject, what: &'static str) -> ValidationError {
+fn refused(
+    subject: CensusSubject,
+    what: &'static str,
+    reach: crate::contact::ContactReach,
+) -> ValidationError {
     ValidationError::CensusUnsupported {
         subject,
         cause: CensusUnsupportedCause::ContactLane(
-            crate::contact::ContactRefusal::NotCertifiable { what },
+            crate::contact::ContactRefusal::NotCertifiable { what, reach },
         ),
     }
 }
@@ -216,6 +220,7 @@ fn in_face<T: Decide>(
             errors.push(refused(
                 CensusSubject::Entity(EntityId::Face(face)),
                 "a point-touch record on a face whose trim the containment door does not read",
+                crate::contact::ContactReach::Unread,
             ));
             None
         }
@@ -261,6 +266,7 @@ pub(super) fn edge_face<T: Decide>(
         errors.push(refused(
             CensusSubject::Entity(EntityId::Face(face)),
             "a point-touch record on a face with no surface",
+            crate::contact::ContactReach::Unread,
         ));
         return Read::Pushed;
     };
@@ -276,6 +282,7 @@ pub(super) fn edge_face<T: Decide>(
                     subject,
                     "an edge lying on a face's carrier away from a conventional vertex: the \
                      census builds no curve-touch lane along an edge's carrier",
+                    crate::contact::ContactReach::NoLane,
                 ));
                 return Read::Pushed;
             }
@@ -284,6 +291,7 @@ pub(super) fn edge_face<T: Decide>(
                     subject,
                     "an edge through a cone face's apex: a point the cone has no tangent \
                      plane at, read by the apex vertex's records",
+                    crate::contact::ContactReach::Unread,
                 ));
                 return Read::Pushed;
             }
@@ -304,6 +312,7 @@ pub(super) fn edge_face<T: Decide>(
                         "an edge–face point touch the curve × face reading does not read: an \
                          unbuilt or spline pair, a meter that refused, or a torus outside its \
                          convention",
+                        crate::contact::ContactReach::Unread,
                     )
                 },
                 |cause| ValidationError::CensusEscalated { cause },

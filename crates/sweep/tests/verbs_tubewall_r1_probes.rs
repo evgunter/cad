@@ -386,13 +386,14 @@ mod certified {
                 let pinned = matches!(
                     &built,
                     Err(sweep::TubeError::Revolve(sweep::RevolveError::Op {
-                        source: topo::EulerOpError::Certification {
+                        source: topo::EulerOpError::DescriptionUncertified {
                             error: geom_brep::certify::CertifyError::AnalyticRung3(
                                 geom_brep::edge_nurbs::AnalyticRung3Refusal::Stalled {
                                     operand: geom::SurfaceKind::Torus,
                                     cause,
                                 },
                             ),
+                            ..
                         },
                     })) if crate::common::frame_cost::escalated(
                         cause,

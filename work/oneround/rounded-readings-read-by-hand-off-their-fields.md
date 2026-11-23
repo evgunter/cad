@@ -2,13 +2,14 @@
 id: rounded-readings-read-by-hand-off-their-fields
 kind: issue
 title: Three sites read a Rounded's room or magnitude by hand off its fields
-status: review
+status: closed
 opened: 2026-11-19
 priority: P1
 cost: E
 branch: oneround/rounded-pairs
 rides_with: value-error-pairs-are-carried-beside-rounded-in-four-modules
 pr: 7221
+closed: 2026-11-23
 ---
 
 
@@ -58,3 +59,7 @@ site's own band keeps it.
 
 P1 by `work/README.md` Priority (two implementations of one underlying
 logic); small.
+
+## Closed (2026-11-23, PR 7221)
+
+The three sites read their room and magnitude through `Rounded`; it rode with `value-error-pairs-are-carried-beside-rounded-in-four-modules`, whose closing section names what the unit left.

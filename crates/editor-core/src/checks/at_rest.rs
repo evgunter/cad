@@ -1,6 +1,9 @@
 //! **The at-rest check** (D10, Assertions; ASSEMBLY A5): what the
 //! census at each `⊔` found between its arrivals, as the registry's
-//! `AtRest` resident reports it, and the quieting rule's one home.
+//! `AtRest` resident reports it, and the quieting rule's one home: the
+//! rule that matches a holding assertion, and the mint of the assertion
+//! a loud finding carries, which keeps only what that rule takes
+//! ([`quieting`], `could_quiet`).
 //!
 //! The census decides each pair of arrivals apart, in contact,
 //! overlapping or undecided, and nothing it finds refuses. A contact is
@@ -39,6 +42,7 @@
 //! censused as one arrival (a `⊔`'s, or an instance's copy) discards what
 //! it finds inside it (`product::gather_sources`, [`finding_group`]).
 
+use crate::say;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -54,11 +58,13 @@ use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId};
 use crate::product::{GatheredCopy, Product};
 
+use super::quieting::{OpposedPair, Quieting, QuietingRef, Reference};
+
 mod carried;
 
 pub use carried::{
     AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows, CarriedFindings,
-    CarriedInterference, PinnedDoc, Route,
+    CarriedInterference, PinnedDoc, Route, RouteHop,
 };
 pub(crate) use carried::{DocRows, PartRow, Pinned, once_per_part_row};
 
@@ -88,21 +94,17 @@ pub enum AtRestEvidence {
 // door the check reads it at: its tier-3′ messages end in their own
 // recourse.
 impl crate::spoken::Say for AtRestEvidence {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NoLane(error) | Self::Malformed(error) | Self::InsideArrival(error) => {
                 write!(f, "{}", error.render(geom_brep::recourse::Reading::AtRest))
             }
-            Self::NotGathered(refusal) => write!(
+            Self::NotGathered(refusal) => say!(
                 f,
-                "its operands do not gather: {}",
+                "its operands do not gather: ",
                 crate::spoken::Said(refusal, by)
             ),
-            Self::Carried(row) => write!(f, "{}", crate::spoken::Said(&**row, by)),
+            Self::Carried(row) => say!(f, crate::spoken::Said(&**row, by)),
         }
     }
 }
@@ -110,7 +112,7 @@ impl crate::spoken::Say for AtRestEvidence {
 /// The evidence where no document is at hand.
 impl core::fmt::Display for AtRestEvidence {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -133,8 +135,13 @@ pub(crate) struct WholeReading {
     pub(crate) carried_at_rest: Vec<CarriedAtRestFinding>,
 }
 
-/// [`WholeReading`] over `product` and the gathers beside it.
-pub(crate) fn whole_reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> WholeReading {
+/// [`WholeReading`] over `product`, a gather of `doc`, and the gathers
+/// beside it.
+pub(crate) fn whole_reading<P: crate::ProfilePayload, T: LocalizeLane>(
+    doc: &Doc<P>,
+    product: &Product<T>,
+    tol: Tol,
+) -> WholeReading {
     let mut whole = WholeReading {
         reading: Reading {
             interference: Vec::new(),
@@ -160,7 +167,7 @@ pub(crate) fn whole_reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> 
         let Reading {
             interference,
             could_not_look,
-        } = reading(product, tol);
+        } = reading(doc, product, tol);
         whole.reading.interference.extend(interference);
         whole.reading.could_not_look.extend(could_not_look);
         once_per_part_row(
@@ -180,7 +187,15 @@ pub(crate) fn whole_reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> 
 /// interference between arrivals ([`partition`]) and the rest, each of
 /// which is a could-not-look finding. A contact between arrivals
 /// is not among the verdicts: the gather recorded it as a row.
-pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Reading {
+///
+/// An interference finding carries the pair an author writes a quieting
+/// `Gap` over ([`OpposedPair`]) where the rule takes what they write
+/// ([`written_pair`]), a family's copy by the name its member wraps.
+pub(crate) fn reading<P: crate::ProfilePayload, T: LocalizeLane>(
+    doc: &Doc<P>,
+    product: &Product<T>,
+    tol: Tol,
+) -> Reading {
     let errors = product.census.clone();
     if errors.is_empty() {
         return Reading {
@@ -188,7 +203,9 @@ pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Readin
             could_not_look: Vec::new(),
         };
     }
-    let (interference, rest) = partition(product, errors, tol);
+    let band = Band::linear(tol).ok();
+    let write = |outer, inner| written_pair(doc, product, outer, inner, band?);
+    let (interference, rest) = partition(product, errors, tol, &write);
     let groups = copy_groups(&product.copies);
     let could_not_look = rest
         .into_iter()
@@ -277,6 +294,12 @@ pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_boun
 /// until they only meet, the kernel records the meeting instead, which
 /// the same assertion says.
 ///
+/// **Families.** An assertion whose reads reach an index is one
+/// assertion per member (D10 `[assertions]`, "Families"), each by its
+/// own verdict, and each member's reference names its cell as that
+/// member reads it ([`member_name`]): the member at `k` quiets the row
+/// over member `k`'s cell, and no other member's.
+///
 /// The rule matches cells, so another contact between the same two
 /// reads stays loud, and it reads verdicts only, so an assertion that
 /// failed or did not evaluate quiets nothing.
@@ -293,33 +316,97 @@ where
     let said = saying(row)?;
     let band = Band::linear(tol).ok()?;
     let kinds = if said.poses {
-        let read = said.read(doc, evaluation)?;
-        let kinds = [
-            pose_kind::<T>(&read.cells[0])?,
-            pose_kind::<T>(&read.cells[1])?,
-        ];
-        if said.coaxial && kinds == [crate::VarKind::Axis; 2] && !axes_parallel(&read, band)? {
-            return None;
-        }
-        kinds.map(Some)
+        said.pose_kinds(&said.read(doc, evaluation)?, band)?
     } else {
         [None, None]
     };
     holding_measures(doc, evaluation).find_map(|held| {
-        if !said.verbs.contains(&held.verb)
-            || held.relation != AssertionRelation::Equal
+        if held.relation != Quieting::RELATION
             || decide(AT_REST_QUIET_CONTACT_BOUND, Margin::of(*held.bound), band) != Ok(Sign::Zero)
         {
             return None;
         }
-        let (Some(x), Some(y)) = (said.reference(doc, held.a), said.reference(doc, held.b)) else {
+        let reads = |var: VarId, i: usize| {
+            reference(doc, var)
+                .iter()
+                .any(|r| said.reads_cell(doc, r, &held.at, i, kinds[i]))
+        };
+        said.orders()
+            .any(|(verb, [i, j])| verb == held.verb && reads(held.a, i) && reads(held.b, j))
+            .then_some(held.id)
+    })
+}
+
+/// **The assertion that would quiet `row`** (D10 `[assertions.quiet]`),
+/// in `evaluation`, minted so that [`quiet_row`] takes it: of the
+/// measures that say what the row decided ([`saying`]), over the row's
+/// two cells in each order ([`Saying::orders`]), the first decided zero
+/// at the site the rule decides a bound at ([`Saying::zeros`]), written
+/// as an author writes it ([`Saying::minted`]): each cell a selection of
+/// its name in its read, a family member's by the name its member wraps.
+/// The mint keeps a writing only where the rule's own test
+/// ([`Saying::reads_cell`]) reads it as the row's two cells, and, for a
+/// writing whose reads reach an index, only where every member of the
+/// family it is reads zero: an assertion one of whose members is
+/// violated is no recourse.
+///
+/// `None` where no such assertion exists: a cell the measure has no form
+/// for, a name that does not resolve, a measure read non-zero, two
+/// members of one family (an assertion reading both reads them by
+/// indexed reads, which the rule matches no cell by), a family some
+/// member of which does not read zero. Such a row's finding never
+/// refuses (CHECKS DS6), and its recourse names the construction alone.
+pub(crate) fn quieting<P, T>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: Tol,
+) -> Option<Quieting>
+where
+    P: crate::ProfilePayload,
+    T: crate::mate::SolveScalar + topo::AtRestPolicy,
+{
+    let band = Band::linear(tol).ok()?;
+    let said = saying(row)?;
+    // A tool that repeats has no plane at the document's own values:
+    // each order that says the row is put to every member instead.
+    let tool = said.cells.iter().any(|c| matches!(c, RowCell::Tool(_)));
+    let (kinds, zeros) = match said.zeros(doc, evaluation, &evaluation.env, band, tol) {
+        Some(read) => read,
+        None if tool => ([None, None], said.orders().collect()),
+        None => return None,
+    };
+    zeros
+        .into_iter()
+        .find_map(|(verb, order)| said.minted(doc, evaluation, verb, order, kinds, band, tol))
+}
+
+/// **An assertion's reference, as the rule can read it**: the variable
+/// itself, which reads a split's tool where it is the tool's read,
+/// whatever pose that is; and, where it is a selection of one name in a
+/// body read plainly or a pose read directly off one
+/// (`eval::read_directly_off`), that selection and pose. An indexed read
+/// is no selection the rule reads.
+fn reference<P: crate::ProfilePayload>(doc: &Doc<P>, var: VarId) -> Vec<QuietingRef> {
+    let selected = |var: VarId| {
+        let select = doc
+            .selection(var)
+            .filter(|select| !select.body.is_indexed())?;
+        let [name] = select.names.as_slice() else {
             return None;
         };
-        let reads = |r: &(RowCell, Option<crate::VarKind>), i: usize| {
-            r.0.reads(doc, &said.cells[i]) && r.1 == kinds[i]
-        };
-        ((reads(&x, 0) && reads(&y, 1)) || (reads(&x, 1) && reads(&y, 0))).then_some(held.id)
-    })
+        Some((select.body.read, name.clone()))
+    };
+    let entity = match selected(var) {
+        Some((read, name)) => Some(QuietingRef::entity(read, name, None)),
+        None => crate::eval::read_directly_off(doc, var).and_then(|(cell, kind)| {
+            let (read, name) = selected(cell)?;
+            Some(QuietingRef::entity(read, name, Some(kind)))
+        }),
+    };
+    std::iter::once(QuietingRef::variable(var))
+        .chain(entity)
+        .collect()
 }
 
 /// **What says a row** ([`saying`]): the measures that say it and the
@@ -413,35 +500,272 @@ impl Saying {
         Some(ReadCells { cells, computing })
     }
 
-    /// **An assertion's reference as the rule matches it**: the row's
-    /// tool where it is the tool's read, whatever pose that is; else a
-    /// selection as its cell, a point, an axis or a plane read directly
-    /// off a selection as that cell with its kind
-    /// (`eval::read_directly_off`), and any other read as
-    /// a tool it is not.
-    fn reference<P>(&self, doc: &Doc<P>, var: VarId) -> Option<(RowCell, Option<crate::VarKind>)> {
-        if self.cells.contains(&RowCell::Tool(var)) {
-            return Some((RowCell::Tool(var), None));
+    /// **The measures that say the row, each over the row's two cells in
+    /// each order**: the measure, and which cell each of its two
+    /// references reads. What [`quiet_row`] matches a holding assertion
+    /// against and [`quieting`] mints from.
+    fn orders(&self) -> impl Iterator<Item = (crate::measure::MeasureVerb, [usize; 2])> + '_ {
+        self.verbs
+            .iter()
+            .flat_map(|&verb| [[0, 1], [1, 0]].map(|order| (verb, order)))
+    }
+
+    /// **The pose each cell of a row of poses is read as**
+    /// ([`pose_kind`]); `None` where a cell's carrier has none, or the
+    /// row decided two axes one and the reading does not take them
+    /// parallel ([`axes_parallel`]).
+    fn pose_kinds<T: crate::mate::SolveScalar + topo::AtRestPolicy>(
+        &self,
+        read: &ReadCells<'_, T>,
+        band: Band,
+    ) -> Option<[Option<crate::VarKind>; 2]> {
+        let kinds = [
+            pose_kind::<T>(read.cells.first()?)?,
+            pose_kind::<T>(read.cells.get(1)?)?,
+        ];
+        if self.coaxial && kinds == [crate::VarKind::Axis; 2] && !axes_parallel(read, band)? {
+            return None;
         }
-        // A member read's names are its member's, which no row's cell
-        // spells: the reference is no cell of a row.
-        let selected = |var: VarId| {
-            let select = doc
-                .selection(var)
-                .filter(|select| !select.body.is_indexed())?;
-            let [name] = select.names.as_slice() else {
+        Some(kinds.map(Some))
+    }
+
+    /// **The one test both halves of the rule read**: whether the
+    /// reference `r`, as the member at `at` of its assertion's family
+    /// reads it, reads the row's cell `i`, read as a pose of `kind`
+    /// where the row is one of poses. A variable reads the row's tool
+    /// where it is the tool's read, whatever pose that is; an entity
+    /// reads a cell where its pose is `kind` and the selection, named as
+    /// that member names it ([`member_name`]), reads the cell
+    /// ([`RowCell::reads`]). [`quiet_row`] asks it of a holding
+    /// assertion's references, [`Self::minted`] of the references it
+    /// writes.
+    fn reads_cell<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        r: &QuietingRef,
+        at: &crate::names::MemberAt,
+        i: usize,
+        kind: Option<crate::VarKind>,
+    ) -> bool {
+        let posed = match &r.0 {
+            Reference::Read(_) => true,
+            Reference::Entity { pose, .. } => *pose == kind,
+        };
+        posed && cell_of(doc, r, at).reads(doc, &self.cells[i])
+    }
+
+    /// **The poses the row's cells are read as, and the measures over
+    /// them, in each order, that read zero** at the site the rule
+    /// decides a bound at, the cells resolved and read as the measure
+    /// resolves and reads them ([`crate::eval::resolve_name`]): each as
+    /// the pose its carrier has where the row is one of poses, a split's
+    /// tool as its plane against the vertex, read in `env` (the member's,
+    /// for a tool that repeats). `None` where a cell does not read.
+    #[allow(clippy::type_complexity)] // the two halves of one reading
+    fn zeros<P, T>(
+        &self,
+        doc: &Doc<P>,
+        evaluation: &Evaluation<T>,
+        env: &crate::expr::VarEnv<T>,
+        band: Band,
+        tol: Tol,
+    ) -> Option<(
+        [Option<crate::VarKind>; 2],
+        Vec<(crate::measure::MeasureVerb, [usize; 2])>,
+    )>
+    where
+        P: crate::ProfilePayload,
+        T: crate::mate::SolveScalar + topo::AtRestPolicy,
+    {
+        use crate::eval::measure::{Carrier, Pose};
+        let read = self.read(doc, evaluation)?;
+        let tool = self.cells.iter().enumerate().find_map(|(i, c)| match c {
+            RowCell::Tool(tool) => Some((i, *tool)),
+            RowCell::Entity(..) => None,
+        });
+        let (kinds, carriers): (_, [Carrier<'_, T>; 2]) = if let Some((t, tool)) = tool {
+            let [(seat, ent)] = read.cells.as_slice() else {
                 return None;
             };
-            Some(RowCell::Entity(select.body.read, name.clone()))
+            let Carrier::Point { at, .. } = crate::eval::measure::carrier_of(*seat, *ent, band)
+            else {
+                return None;
+            };
+            let roled = crate::pose::RoleRead {
+                read: tool,
+                role: self.tool_role,
+            };
+            let plane =
+                crate::eval::read_pose(P::evaluable(doc)?, &evaluation.nodes, roled, env, tol)
+                    .ok()?;
+            let plane = Carrier::Pose {
+                pose: Pose::of(&plane)?,
+                reach: None,
+            };
+            let vertex = Carrier::Pose {
+                pose: Pose::Point(read.computing.point_in_space(at)),
+                reach: None,
+            };
+            (
+                [None, None],
+                if t == 0 {
+                    [plane, vertex]
+                } else {
+                    [vertex, plane]
+                },
+            )
+        } else if self.poses {
+            let kinds = self.pose_kinds(&read, band)?;
+            let carrier = |i: usize| {
+                let (seat, ent) = &read.cells[i];
+                crate::eval::read_off_cell(*seat, *ent, kinds[i]?, band).ok()
+            };
+            (kinds, [carrier(0)?, carrier(1)?])
+        } else {
+            let carrier = |i: usize| {
+                let (seat, ent) = &read.cells[i];
+                crate::eval::measure::carrier_of(*seat, *ent, band)
+            };
+            ([None, None], [carrier(0), carrier(1)])
         };
-        if let Some(cell) = selected(var) {
-            return Some((cell, None));
+        let zeros = self
+            .orders()
+            .filter(|&(verb, order)| {
+                let [a, b] = order.map(|i| &carriers[i]);
+                measure_sign_as(verb, a, b, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
+            })
+            .collect();
+        Some((kinds, zeros))
+    }
+
+    /// **The assertion `verb` over the cells in `order`, as an author
+    /// writes it**, where the rule takes it ([`quieting`]): each cell a
+    /// selection of its name in its read, or the tool's read; a cell
+    /// whose name is a member's of its read's family, by the name the
+    /// member wraps, which a selection of the family read plainly holds
+    /// and each member of the assertion reads as its own (D10
+    /// `[assertions]`, "Families"). Kept only where some member of the
+    /// assertion reads the row's two cells by [`Self::reads_cell`], and
+    /// every other member's two cells read zero by the same measure, as
+    /// the same poses.
+    #[allow(clippy::too_many_arguments)] // one reading, carried through
+    fn minted<P, T>(
+        &self,
+        doc: &Doc<P>,
+        evaluation: &Evaluation<T>,
+        verb: crate::measure::MeasureVerb,
+        order: [usize; 2],
+        kinds: [Option<crate::VarKind>; 2],
+        band: Band,
+        tol: Tol,
+    ) -> Option<Quieting>
+    where
+        P: crate::ProfilePayload,
+        T: crate::mate::SolveScalar + topo::AtRestPolicy,
+    {
+        let written = |i: usize| match &self.cells[i] {
+            RowCell::Tool(var) => QuietingRef::variable(*var),
+            RowCell::Entity(read, name) => {
+                QuietingRef::entity(*read, written_name(doc, *read, name), kinds[i])
+            }
+        };
+        let references = order.map(written);
+        let members = members_of::<P, T>(doc, &references)?;
+        let reads_row = |at: &crate::names::MemberAt| {
+            (0..2).all(|k| self.reads_cell(doc, &references[k], at, order[k], kinds[order[k]]))
+        };
+        if !members.iter().any(|(at, _)| reads_row(at)) {
+            return None;
         }
-        match crate::eval::read_directly_off(doc, var) {
-            Some((cell, kind)) => Some((selected(cell)?, Some(kind))),
-            None => Some((RowCell::Tool(var), None)),
+        // Each member reads its own cells, and a repeated tool its own
+        // plane: the row's reading stands for none of them.
+        for (at, env) in members.iter().filter(|(_, env)| env.is_some()) {
+            let mut cells = self.cells.clone();
+            for k in 0..2 {
+                cells[order[k]] = cell_of(doc, &references[k], at);
+            }
+            let member = Saying { cells, ..*self };
+            let env = env.as_ref().unwrap_or(&evaluation.env);
+            let (held, zeros) = member.zeros(doc, evaluation, env, band, tol)?;
+            if held != kinds || !zeros.contains(&(verb, order)) {
+                return None;
+            }
+        }
+        Some(Quieting::minted(verb, references))
+    }
+}
+
+/// **The name an author selects a cell named `name` in `read` by**: the
+/// name a family member's `Member` segment wraps, where `name` is one of
+/// `read`'s family's members, which a selection of the family read
+/// plainly holds and each member reads as its own; else `name`. A guess
+/// each mint keeps only where the rule reads it back.
+fn written_name<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    read: VarId,
+    name: &StableName,
+) -> StableName {
+    match name.path.as_slice() {
+        [crate::names::RoleSeg::Member { of, .. }] if doc.operation_of(read) == Some(name.node) => {
+            let plain: &StableName = of;
+            plain.clone()
+        }
+        _ => name.clone(),
+    }
+}
+
+/// **The cell a reference reads, as the member at `at` of its
+/// assertion's family reads it**: a variable as the tool it would be, an
+/// entity as its read's cell named as that member names it
+/// ([`member_name`]).
+fn cell_of<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    r: &QuietingRef,
+    at: &crate::names::MemberAt,
+) -> RowCell {
+    match &r.0 {
+        Reference::Read(var) => RowCell::Tool(*var),
+        Reference::Entity { read, name, .. } => {
+            RowCell::Entity(*read, member_name(doc, *read, name, at))
         }
     }
+}
+
+/// **The members of the assertion two references make**: one per
+/// member of the indices their reads reach together (D10
+/// `[repetition]`, a selection by its body read, a variable read as it
+/// is by itself), each as its values for those indices and the
+/// environment it evaluates in; one, empty and with no environment of
+/// its own, where they reach none. `None` where two of the indices are
+/// unrelated, which no assertion reads, or a count does not evaluate.
+#[allow(clippy::type_complexity)] // a member and its environment
+fn members_of<P: crate::ProfilePayload, T: Decide>(
+    doc: &Doc<P>,
+    references: &[QuietingRef; 2],
+) -> Option<Vec<(crate::names::MemberAt, Option<crate::expr::VarEnv<T>>)>> {
+    let mut reached = BTreeSet::new();
+    for r in references {
+        let read = r.read();
+        reached.extend(doc.var_reach(read).chain()?.iter().copied());
+    }
+    let chain = crate::repetition::Reach::new(doc)
+        .order(&reached)
+        .chain()?
+        .to_vec();
+    if chain.is_empty() {
+        return Some(vec![(Vec::new(), None)]);
+    }
+    doc.member_envs::<T>(&chain)
+        .map(|member| {
+            let member = member.ok()?;
+            let at = chain
+                .iter()
+                .zip(&member.at)
+                .map(|(&index, &value)| Some((index, u32::try_from(value).ok()?)))
+                .collect::<Option<_>>()?;
+            Some((at, Some(member.env)))
+        })
+        .collect()
 }
 
 /// **The pose a cell's carrier has**, as a coincidence of poses reads
@@ -476,96 +800,6 @@ fn axes_parallel<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     };
     let (a, b) = (axis(0)?, axis(1)?);
     crate::eval::measure::axes_parallel(&a, &b, band)
-}
-
-/// **Whether an assertion could quiet `row`** under the row half
-/// ([`quiet_row`]), in `evaluation`, asked of the rule itself: some
-/// measure says what the row decided ([`saying`]), and that measure,
-/// over the row's two cells resolved and read as the measure resolves
-/// and reads them ([`crate::eval::resolve_name`]), each read as the
-/// pose its carrier has where the row is one of poses, a split's tool
-/// read as its plane, is decided zero in some order at the site the
-/// rule decides its bound at. A cell the measure has no form for, a
-/// name that does not resolve, and a measure read non-zero are none of
-/// them: no assertion over the row holds, so the finding never refuses
-/// (CHECKS DS6), and its recourse names the construction alone.
-pub(crate) fn row_quietable<P, T>(
-    doc: &Doc<P>,
-    evaluation: &Evaluation<T>,
-    row: &crate::coincide::NamedCoincidence,
-    tol: Tol,
-) -> bool
-where
-    P: crate::ProfilePayload,
-    T: crate::mate::SolveScalar + topo::AtRestPolicy,
-{
-    let quietable = || -> Option<bool> {
-        let band = Band::linear(tol).ok()?;
-        let said = saying(row)?;
-        let read = said.read(doc, evaluation)?;
-        let zero = |a: &crate::eval::measure::Carrier<'_, T>,
-                    b: &crate::eval::measure::Carrier<'_, T>| {
-            said.verbs.iter().any(|&verb| {
-                [(a, b), (b, a)].into_iter().any(|(x, y)| {
-                    measure_sign_as(verb, x, y, AT_REST_QUIET_CONTACT_BOUND, band)
-                        == Some(Sign::Zero)
-                })
-            })
-        };
-        let tool = said.cells.iter().find_map(|c| match c {
-            RowCell::Tool(var) => Some(*var),
-            RowCell::Entity(..) => None,
-        });
-        if let Some(tool) = tool {
-            // A split's ON row: its tool read as its plane, in its
-            // space's coordinates, against the vertex.
-            let [(seat, ent)] = read.cells.as_slice() else {
-                return None;
-            };
-            let crate::eval::measure::Carrier::Point { at, .. } =
-                crate::eval::measure::carrier_of(*seat, *ent, band)
-            else {
-                return None;
-            };
-            let roled = crate::pose::RoleRead {
-                read: tool,
-                role: said.tool_role,
-            };
-            let plane = crate::eval::read_pose(
-                P::evaluable(doc)?,
-                &evaluation.nodes,
-                roled,
-                &evaluation.env,
-                tol,
-            )
-            .ok()?;
-            let plane = crate::eval::measure::Carrier::Pose {
-                pose: crate::eval::measure::Pose::of(&plane)?,
-                reach: None,
-            };
-            let vertex = crate::eval::measure::Carrier::Pose {
-                pose: crate::eval::measure::Pose::Point(read.computing.point_in_space(at)),
-                reach: None,
-            };
-            return Some(zero(&plane, &vertex));
-        }
-        let carrier = |i: usize| {
-            let (seat, ent) = &read.cells[i];
-            if !said.poses {
-                return Some(crate::eval::measure::carrier_of(*seat, *ent, band));
-            }
-            let kind = pose_kind::<T>(&read.cells[i])?;
-            crate::eval::read_off_cell(*seat, *ent, kind, band).ok()
-        };
-        let (a, b) = (carrier(0)?, carrier(1)?);
-        let axes = said.poses
-            && [0, 1].map(|i| pose_kind::<T>(&read.cells[i])) == [Some(crate::VarKind::Axis); 2];
-        if said.coaxial && axes && !axes_parallel(&read, band)? {
-            return Some(false);
-        }
-        Some(zero(&a, &b))
-    };
-    quietable() == Some(true)
 }
 
 /// **The sign a `Gap` assertion's measure reads over two carriers**,
@@ -614,6 +848,7 @@ fn measure_sign_as<T: Decide>(
 /// | `CensusAtRest` | `SameOpposite`, `SameOriented`, `OnCarrier` | `Gap` over the two cells |
 /// | `VertexFusion` | `OnCarrier`, `Meet` of two cells | `Gap` over the two cells |
 /// | `TangentWitness` | `SurfaceTangent` | `Gap` over the two faces: an opposed tangency is a contact, an aligned one a continuation |
+/// | `RimJunction` | `RimJunction` | `Gap` over the two faces: they meet on the rim both end on, and nowhere near it |
 /// | `CoaxialSphere`, `SphereOnTorusAxis` | `OnCarrier` | `Distance` between the poses read off the two cells |
 /// | `CoaxialCylinderTorus`, `CoaxialTori`, `BatterySupportAxis` | `Coaxial` | `Distance` between the poses, two axes read parallel (a sphere's support its centre) |
 /// | `CrossingCylinders` | `AxesMeet` | `Distance` between the two axes |
@@ -633,7 +868,8 @@ fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
         (Site::PlaneLadder | Site::CarrierLadder, R::SameOpposite | R::SameOriented)
         | (Site::CensusAtRest, R::SameOpposite | R::SameOriented | R::OnCarrier)
         | (Site::VertexFusion, R::OnCarrier | R::Meet)
-        | (Site::TangentWitness, _) => (&[M::Gap], false, false),
+        | (Site::TangentWitness, _)
+        | (Site::RimJunction, R::RimJunction) => (&[M::Gap], false, false),
         (Site::SplitOn, _) => (&[M::Gap, M::Distance], false, false),
         (Site::CoaxialSphere | Site::SphereOnTorusAxis, _)
         | (Site::CrossingCylinders, R::AxesMeet) => (&[M::Distance], true, false),
@@ -676,6 +912,15 @@ fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
         coaxial,
         tool_role,
     })
+}
+
+/// [`saying`]'s measures and whether it reads poses, for a test that
+/// writes assertions in the rule's language.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn saying_of(
+    row: &crate::coincide::NamedCoincidence,
+) -> Option<(&'static [crate::measure::MeasureVerb], bool)> {
+    saying(row).map(|said| (said.verbs, said.poses))
 }
 
 /// **A holding assertion that reads a `Gap`'s or a `Distance`'s output
@@ -752,6 +997,50 @@ fn holding_measures<'a, P, T: Decide + topo::AtRestPolicy>(
             }))
         })
         .flatten()
+}
+
+/// **The assertion in `doc` that already says `claim`**, verdict
+/// aside: a `Claim::Value` relating a measure of `claim`'s verb to zero
+/// by its relation, whose two references read, in order, as
+/// `claim`'s ([`reference()`]). `None` where none does.
+pub(crate) fn asserted<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    claim: &Quieting,
+) -> Option<RecipeNodeId> {
+    use crate::measure::MeasureVerb as M;
+    doc.ids().into_iter().find(|&id| {
+        let Some(Node::Assertion(crate::measure::Claim::Value {
+            value,
+            relation,
+            bound,
+        })) = doc.node(id)
+        else {
+            return false;
+        };
+        let Some((measure, 0)) = doc.var(*value).and_then(|v| v.def().output()) else {
+            return false;
+        };
+        let (verb, a, b) = match doc.node(measure) {
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Gap { outer, inner },
+            }) => (M::Gap, *outer, *inner),
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Distance { a, b },
+            }) => (M::Distance, *a, *b),
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Angle { a, b },
+            }) => (M::Angle, *a, *b),
+            _ => return false,
+        };
+        let [ra, rb] = claim.references();
+        verb == claim.measure()
+            && *relation == Quieting::RELATION
+            && doc.var(*bound).is_some_and(
+                |var| matches!(var.def(), crate::var::VarDef::Defined(zero) if zero.is_zero()),
+            )
+            && reference(doc, a).contains(ra)
+            && reference(doc, b).contains(rb)
+    })
 }
 
 /// **The name a selection holds, as the member at `at` reads it**: the
@@ -877,18 +1166,19 @@ pub struct InterferenceFinding {
     /// whose reads reach an index (D10 `[assertions]`, "Families"):
     /// each member quiets its own finding. Empty for any other.
     pub quiet_at: crate::names::MemberAt,
-    /// Whether an assertion the quieting rule accepts could quiet it,
-    /// asked of the rule itself ([`localize`]): the overlap is bounded;
-    /// every verdict it carries lies on it (`covered`, which no
-    /// assertion changes); and either an assertion quiets it, or two of
-    /// its bounding faces, one of each copy, in some role order, are
-    /// faces a holding `Gap ≤ −δ` over which the rule would take (the
-    /// faces opposed, their gap decided negative) and between whose
-    /// carriers the overlap lies (neither face's crossing keeps any of
-    /// it). `false` for an unlocalized overlap. A finding no assertion
-    /// could quiet is outside what the document can yet say (CHECKS
-    /// DS6): loud, and refused at no severity.
-    pub quietable: bool,
+    /// The two faces a `Gap` that would quiet it is written over
+    /// ([`OpposedPair`]), asked of the rule itself ([`localize`]): the
+    /// overlap is bounded; every verdict it carries lies on it
+    /// (`covered`, which no assertion changes); and the pair is the
+    /// quieting assertion's own, or the first two of its bounding
+    /// faces, one of each copy, in some role order, that are faces a
+    /// holding `Gap ≤ −δ` over which the rule would take (the faces
+    /// opposed, their gap decided negative) and between whose carriers
+    /// the overlap lies (neither face's crossing keeps any of it).
+    /// `None` for an unlocalized overlap and for one with no such pair:
+    /// a finding no assertion could quiet is outside what the document
+    /// can yet say (CHECKS DS6), loud, and refused at no severity.
+    pub quieting: Option<OpposedPair>,
 }
 
 impl InterferenceFinding {
@@ -899,10 +1189,10 @@ impl InterferenceFinding {
     }
 
     /// Whether [`crate::enforce_checks`] may refuse it: it is loud and
-    /// an assertion could have quieted it ([`Self::quietable`]).
+    /// an assertion could have quieted it ([`Self::quieting`]).
     #[must_use]
     pub fn refusable(&self) -> bool {
-        self.is_loud() && self.quietable
+        self.is_loud() && self.quieting.is_some()
     }
 }
 
@@ -945,35 +1235,10 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
     let Ok(band) = Band::linear(tol) else {
         return Vec::new();
     };
-    let face_of = |var: VarId, at: &crate::names::MemberAt| -> Option<(usize, FaceKey)> {
-        // A member read names no copy the product gathers by its read.
-        let select = doc
-            .selection(var)
-            .filter(|select| !select.body.is_indexed())?;
-        let body = select.body.read;
-        let [name] = select.names.as_slice() else {
-            return None;
-        };
-        let name = &member_name(doc, body, name, at);
-        // The selection reads the copy, by the copy's own name; the
-        // product's `⊔` keys that name by the copy it read.
-        let entry = names.lookup(name).or_else(|| {
-            names
-                .iter()
-                .find_map(|(held, entry)| (keyed_by(held, body) == Some(name)).then_some(entry))
-        });
-        let Some(Entry::Unique(EntityRef {
-            key: EntityKey::Face(face),
-            ..
-        })) = entry
-        else {
-            return None;
-        };
-        let solid = aggregate.solid_of_face(*face)?;
-        let copy = copies
+    let face_of = |var: VarId, at: &crate::names::MemberAt| {
+        reference(doc, var)
             .iter()
-            .position(|c| c.var == body && c.keys.solids().contains(&solid))?;
-        Some((copy, *face))
+            .find_map(|r| face_read(doc, aggregate, names, copies, r, at))
     };
     let mut out = Vec::new();
     for gap in holding_measures(doc, evaluation) {
@@ -989,7 +1254,7 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
         let (Some(outer), Some(inner)) = (face_of(gap.a, &gap.at), face_of(gap.b, &gap.at)) else {
             continue;
         };
-        if outer.0 == inner.0 || !opposed(aggregate, outer.1, inner.1, band) {
+        if !pair_takes(aggregate, outer, inner, band) {
             continue;
         }
         out.push(GapAssertion {
@@ -1000,6 +1265,139 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
         });
     }
     out
+}
+
+/// **The face of the product a `Gap`'s reference reads, as the member
+/// at `at` of its assertion reads it** (D10 `[assertions]`,
+/// "Families"): a selection of one name in a copy's read, named as that
+/// member names it ([`member_name`]), looked up in the product's table
+/// by its own name or by the name its `⊔` keyed it by, a unique face of
+/// a copy of that read. The one reading [`gap_assertions`] matches a
+/// holding assertion by and [`written_pair`] mints a pair by. `None` for
+/// a pose, a variable read as it is, or a name the table does not hold
+/// so.
+fn face_read<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
+    doc: &Doc<P>,
+    aggregate: &Body<T>,
+    names: &NameTable,
+    copies: &[GatheredCopy<T>],
+    r: &QuietingRef,
+    at: &crate::names::MemberAt,
+) -> Option<CopyFace> {
+    let Reference::Entity {
+        read,
+        name,
+        pose: None,
+    } = &r.0
+    else {
+        return None;
+    };
+    let name = &member_name(doc, *read, name, at);
+    let entry = names.lookup(name).or_else(|| {
+        names
+            .iter()
+            .find_map(|(held, entry)| (keyed_by(held, *read) == Some(name)).then_some(entry))
+    });
+    let Some(Entry::Unique(EntityRef {
+        key: EntityKey::Face(face),
+        ..
+    })) = entry
+    else {
+        return None;
+    };
+    let solid = aggregate.solid_of_face(*face)?;
+    let copy = copies
+        .iter()
+        .position(|c| c.var == *read && c.keys.solids().contains(&solid))?;
+    Some((copy, *face))
+}
+
+/// **Whether the rule takes a `Gap` over two faces of the product**:
+/// faces of two different copies, [`opposed`].
+fn pair_takes<T: Decide>(
+    aggregate: &Body<T>,
+    outer: CopyFace,
+    inner: CopyFace,
+    band: Band,
+) -> bool {
+    outer.0 != inner.0 && opposed(aggregate, outer.1, inner.1, band)
+}
+
+/// **Whether a `Gap ≤ −δ` over two faces could hold**: the rule takes
+/// the pair ([`pair_takes`]) and the gap between them reads negative.
+fn pair_holds<T: Decide>(
+    aggregate: &Body<T>,
+    outer: CopyFace,
+    inner: CopyFace,
+    band: Band,
+) -> bool {
+    use crate::eval::measure::carrier_of;
+    let carrier = |key| {
+        carrier_of(
+            crate::eval::Seat::own(aggregate),
+            EntityRef {
+                body: 0,
+                key: EntityKey::Face(key),
+            },
+            band,
+        )
+    };
+    pair_takes(aggregate, outer, inner, band)
+        && gap_sign_as(
+            &carrier(outer.1),
+            &carrier(inner.1),
+            AT_REST_QUIET_BOUND,
+            band,
+        ) == Some(Sign::Negative)
+}
+
+/// **How an author writes a `Gap` over two faces of a product**, where
+/// the rule takes what they write: the two references (each face a
+/// selection of its name in its copy's read, a family member's by the
+/// name its member wraps, [`written_name`]), kept only where some member
+/// of the assertion they make reads them back as those two faces
+/// ([`face_read`]) and at every member the two faces it reads could hold
+/// a negative gap ([`pair_holds`]). What a pair minted for an
+/// interference ([`could_quiet`]) is written as.
+pub type WritePair<'a> = dyn Fn(CopyFace, CopyFace) -> Option<[QuietingRef; 2]> + 'a;
+
+/// [`WritePair`] over `product`, a gather of `doc`.
+fn written_pair<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
+    doc: &Doc<P>,
+    product: &Product<T>,
+    outer: CopyFace,
+    inner: CopyFace,
+    band: Band,
+) -> Option<[QuietingRef; 2]> {
+    let (aggregate, names, copies) = (&*product.body, &product.names, &product.copies[..]);
+    let written = |(copy, face): CopyFace| {
+        let read = copies.get(copy)?.var;
+        let name = names.name_of(&EntityRef {
+            body: 0,
+            key: EntityKey::Face(face),
+        })?;
+        let name = keyed_by(name, read).unwrap_or(name);
+        Some(QuietingRef::entity(
+            read,
+            written_name(doc, read, name),
+            None,
+        ))
+    };
+    let references = [written(outer)?, written(inner)?];
+    let members: Vec<_> = members_of::<P, f64>(doc, &references)?
+        .into_iter()
+        .map(|(at, _)| at)
+        .collect();
+    let read = |at| {
+        Some((
+            face_read(doc, aggregate, names, copies, &references[0], at)?,
+            face_read(doc, aggregate, names, copies, &references[1], at)?,
+        ))
+    };
+    let holds = members
+        .iter()
+        .all(|at| read(at).is_some_and(|(outer, inner)| pair_holds(aggregate, outer, inner, band)));
+    (holds && members.iter().any(|at| read(at) == Some((outer, inner)))).then_some(references)
 }
 
 /// **Whether a `Gap`'s two faces are opposed**: each faces the other's
@@ -1045,10 +1443,13 @@ pub trait LocalizeLane: Decide + AtRestPolicy + crate::mate::SolveScalar {
     /// decided interfere ([`partition`]), in `pairs`' order: by default
     /// one [`Unlocalized::Lane`] finding a pair, the scalar having no
     /// lane.
+    /// `write` is how an author writes a quieting `Gap` over two faces
+    /// of the product, where the rule takes it ([`WritePair`]).
     fn localize(
         product: &Product<Self>,
         pairs: Vec<(Pair, Vec<ValidationError>)>,
         _: Tol,
+        _write: &WritePair<'_>,
     ) -> Vec<InterferenceFinding> {
         pairs
             .into_iter()
@@ -1083,7 +1484,7 @@ fn unlocalized_at_lane<T: topo::AtRestPolicy + Decide>(
         overlap: Overlap::Unlocalized(Unlocalized::Lane),
         quiet: None,
         quiet_at: Vec::new(),
-        quietable: false,
+        quieting: None,
     }]
 }
 
@@ -1107,11 +1508,12 @@ impl LocalizeLane for f64 {
         product: &Product<f64>,
         pairs: Vec<(Pair, Vec<ValidationError>)>,
         tol: Tol,
+        write: &WritePair<'_>,
     ) -> Vec<InterferenceFinding> {
         let operands = Operands::of(product);
         pairs
             .into_iter()
-            .flat_map(|((a, b), evidence)| localize(product, &operands, a, b, evidence, tol))
+            .flat_map(|((a, b), evidence)| localize(product, &operands, a, b, evidence, tol, write))
             .collect()
     }
 }
@@ -1124,6 +1526,7 @@ pub(crate) fn partition<T: LocalizeLane>(
     product: &Product<T>,
     errors: Vec<ValidationError>,
     tol: Tol,
+    write: &WritePair<'_>,
 ) -> (Vec<InterferenceFinding>, Vec<ValidationError>) {
     let copy_of: BTreeMap<SolidKey, usize> = product
         .copies
@@ -1180,7 +1583,7 @@ pub(crate) fn partition<T: LocalizeLane>(
             None => kept.push(error),
         }
     }
-    (T::localize(product, pairs, tol), kept)
+    (T::localize(product, pairs, tol, write), kept)
 }
 
 /// **The one arrival a census finding is inside**: the group (in
@@ -1400,9 +1803,10 @@ fn localize(
     b: usize,
     evidence: Vec<ValidationError>,
     tol: Tol,
+    write: &WritePair<'_>,
 ) -> Vec<InterferenceFinding> {
     let copy_ref = |i: usize| copy_ref(&product.copies[i]);
-    let finding = |overlap, quiet: Option<(RecipeNodeId, crate::names::MemberAt)>, quietable| {
+    let finding = |overlap, quiet: Option<(RecipeNodeId, crate::names::MemberAt)>, quieting| {
         let (quiet, quiet_at) = quiet.map_or((None, Vec::new()), |(id, at)| (Some(id), at));
         InterferenceFinding {
             a: copy_ref(a),
@@ -1411,10 +1815,10 @@ fn localize(
             overlap,
             quiet,
             quiet_at,
-            quietable,
+            quieting,
         }
     };
-    let unlocalized = |why| vec![finding(Overlap::Unlocalized(why), None, false)];
+    let unlocalized = |why| vec![finding(Overlap::Unlocalized(why), None, None)];
     let result = match intersection(operands, a, b, tol) {
         Ok(Some(result)) => result,
         Ok(None) => return unlocalized(Unlocalized::Empty),
@@ -1447,59 +1851,86 @@ fn localize(
     // a face is in (`could_quiet`).
     let mut crossings = BTreeMap::new();
     let mut out = Vec::with_capacity(components.len());
+    // A face of a component, as its copy's own table names it.
+    let site = |(copy, face): (usize, FaceKey)| {
+        let name = product.names.name_of(&EntityRef {
+            body: 0,
+            key: EntityKey::Face(face),
+        })?;
+        let copy = copy_ref(copy);
+        let face = keyed_by(name, copy.var).unwrap_or(name).clone();
+        Some(FaceSite { copy, face })
+    };
     for (i, (component, verdict)) in components.iter().zip(verdicts).enumerate() {
-        let mut faces = Vec::with_capacity(component.sources.len());
-        for &(copy, face) in &component.sources {
-            let Some(name) = product.names.name_of(&EntityRef {
-                body: 0,
-                key: EntityKey::Face(face),
-            }) else {
-                return unlocalized(Unlocalized::Unnamed);
-            };
-            let copy = copy_ref(copy);
-            // The site's name is the copy's own.
-            let face = keyed_by(name, copy.var).unwrap_or(name).clone();
-            faces.push(FaceSite { copy, face });
-        }
+        let Some(mut faces) = component
+            .sources
+            .iter()
+            .map(|&source| site(source))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return unlocalized(Unlocalized::Unnamed);
+        };
         faces.sort();
         faces.dedup();
-        let quietable = covered(component)
-            && (matches!(verdict, Quiet::By(..))
-                || (matches!(verdict, Quiet::Loud)
-                    && could_quiet(
-                        product,
-                        (a, b),
-                        &components,
-                        i,
-                        &result,
-                        tol,
-                        &mut crossings,
-                    )));
-        out.push(match verdict {
-            Quiet::Loud => finding(Overlap::Bounded { faces }, None, quietable),
-            Quiet::By(assertion, at) if covered(component) => {
-                finding(Overlap::Bounded { faces }, Some((assertion, at)), quietable)
+        let pair = match &verdict {
+            Quiet::By(_, _, (outer, inner)) => {
+                write(*outer, *inner).map(|written| (*outer, *inner, written))
             }
-            Quiet::By(..) => finding(Overlap::Bounded { faces }, None, quietable),
+            Quiet::Loud => could_quiet(
+                product,
+                (a, b),
+                &components,
+                i,
+                &result,
+                tol,
+                &mut crossings,
+                write,
+            ),
+            Quiet::Refused(_) => None,
+        };
+        // Each face of the pair bounds the component, which names it.
+        let quieting =
+            pair.filter(|_| covered(component))
+                .and_then(|(outer, inner, references)| {
+                    Some(OpposedPair {
+                        outer: site(outer)?,
+                        inner: site(inner)?,
+                        references,
+                    })
+                });
+        out.push(match verdict {
+            Quiet::Loud => finding(Overlap::Bounded { faces }, None, quieting),
+            Quiet::By(assertion, at, _) if covered(component) => {
+                finding(Overlap::Bounded { faces }, Some((assertion, at)), quieting)
+            }
+            Quiet::By(..) => finding(Overlap::Bounded { faces }, None, quieting),
             Quiet::Refused(refusal) => finding(
                 Overlap::Unlocalized(Unlocalized::Containment { refusal }),
                 None,
-                false,
+                None,
             ),
         });
     }
     out
 }
 
-/// **Whether an assertion the quieting rule accepts could quiet the
-/// component `i`**, asked of the rule itself: for each pair of the faces
-/// bounding it, one of copy `a` and one of copy `b`, in both role orders,
-/// whether a holding `Gap ≤ −δ` over the pair would be one the rule takes
-/// ([`gap_assertions`]: the faces [`opposed`], the gap they measure
-/// decided negative) and whether the component lies between their
-/// carriers as [`quiet_verdicts`] decides it ([`crossing`]). The caller
-/// asks [`localize`]'s `covered` first, which no assertion changes.
-/// `crossings` keeps each face's crossing, built once.
+/// A face of the product's aggregate, with its copy's index in
+/// [`Product::copies`].
+type CopyFace = (usize, FaceKey);
+
+/// **The faces an assertion the quieting rule accepts could quiet the
+/// component `i` over**, outer then inner, asked of the rule itself: the
+/// first pair of the faces bounding it, one of copy `a` and one of copy
+/// `b`, in either role order, that a holding `Gap ≤ −δ` over would be
+/// one the rule takes ([`gap_assertions`]: the faces [`opposed`], the
+/// gap they measure decided negative) and between whose carriers the
+/// component lies as [`quiet_verdicts`] decides it ([`crossing`]). The
+/// caller asks [`localize`]'s `covered` too, which no assertion changes.
+/// Of those, the first an author can write so that the rule takes it
+/// at every member of the assertion it makes (`write`, [`WritePair`]),
+/// with what they write. `crossings` keeps each face's crossing, built
+/// once.
+#[allow(clippy::too_many_arguments)] // one component's reading, carried through
 fn could_quiet(
     product: &Product<f64>,
     (a, b): (usize, usize),
@@ -1508,57 +1939,47 @@ fn could_quiet(
     result: &topo::BooleanBody<f64>,
     tol: Tol,
     crossings: &mut BTreeMap<FaceKey, Result<BTreeSet<usize>, String>>,
-) -> bool {
-    use crate::eval::measure::carrier_of;
-    let Ok(band) = Band::linear(tol) else {
-        return false;
-    };
+    write: &WritePair<'_>,
+) -> Option<(CopyFace, CopyFace, [QuietingRef; 2])> {
+    let band = Band::linear(tol).ok()?;
     let body = &product.body;
     let of = |copy| {
         components[i]
             .sources
             .iter()
             .filter(move |(c, _)| *c == copy)
-            .map(|&(_, f)| f)
-            .collect::<Vec<_>>()
-    };
-    let carrier = |key| {
-        carrier_of(
-            crate::eval::Seat::own(body),
-            EntityRef {
-                body: 0,
-                key: EntityKey::Face(key),
-            },
-            band,
-        )
+            .copied()
+            .collect::<Vec<CopyFace>>()
     };
     let (from_a, from_b) = (of(a), of(b));
     let mut candidates = Vec::new();
     for &x in &from_a {
         for &y in &from_b {
             for (outer, inner) in [(x, y), (y, x)] {
-                let negative =
-                    gap_sign_as(&carrier(outer), &carrier(inner), AT_REST_QUIET_BOUND, band)
-                        == Some(Sign::Negative);
-                if negative && opposed(body, outer, inner, band) {
+                if pair_holds(body, outer, inner, band) {
                     candidates.push((outer, inner));
                 }
             }
         }
     }
-    candidates.into_iter().any(|(outer, inner)| {
-        [outer, inner].into_iter().all(|face| {
+    candidates.into_iter().find_map(|(outer, inner)| {
+        let between = [outer.1, inner.1].into_iter().all(|face| {
             let crossed = crossings
                 .entry(face)
                 .or_insert_with(|| crossing(body, face, components, result, tol));
             matches!(crossed, Ok(set) if !set.contains(&i))
-        })
+        });
+        between
+            .then(|| write(outer, inner))
+            .flatten()
+            .map(|written| (outer, inner, written))
     })
 }
 
 /// The connected solids of `result`, each with the aggregate faces its
-/// faces descend from; `None` when a face's lineage does not reach a
-/// face of either copy.
+/// faces descend from; `None` when a face's lineage does not reach one
+/// face of either copy (a face a re-chart turned reaches every face of
+/// its shell).
 fn components<T: topo::AtRestPolicy + Decide>(
     product: &Product<T>,
     a: usize,
@@ -1575,12 +1996,20 @@ fn components<T: topo::AtRestPolicy + Decide>(
             let alone = [face];
             let held = merged.get(&face).map_or(&alone[..], Vec::as_slice);
             for &piece in held {
-                let (operand, root) = descent.result_face(piece);
-                let copy = match operand {
+                let source = descent.source(piece);
+                let copy = match source.operand {
                     topo::Operand::A => a,
                     topo::Operand::B => b,
                 };
-                sources.insert((copy, product.copies[copy].keys.face(root)?));
+                // A face a re-chart turned stands for every face of its
+                // input shell, of which it may hold no area: as a source it
+                // would let `covered` and the quieting rule read faces the
+                // component does not hold, so the component is unnamed.
+                // Not pinned: no at-rest fixture turns a shell.
+                let [input] = source.inputs[..] else {
+                    return None;
+                };
+                sources.insert((copy, product.copies[copy].keys.face(input)?));
             }
         }
         out.push(Component { solid, sources });
@@ -1592,8 +2021,9 @@ fn components<T: topo::AtRestPolicy + Decide>(
 enum Quiet {
     /// No assertion quiets it.
     Loud,
-    /// This assertion, as its member at these values, quiets it.
-    By(RecipeNodeId, crate::names::MemberAt),
+    /// This assertion, as its member at these values, over these two
+    /// faces, outer then inner, quiets it.
+    By(RecipeNodeId, crate::names::MemberAt, (CopyFace, CopyFace)),
     /// An assertion whose faces bound it could not be checked against
     /// it, and none quiets it: the kernel could not bound the overlap
     /// against the carriers.
@@ -1646,7 +2076,7 @@ fn quiet_verdicts(
         for i in bounded {
             match &outside {
                 Ok(crossed) if !crossed.contains(&i) => {
-                    verdicts[i] = Quiet::By(g.assertion, g.at.clone());
+                    verdicts[i] = Quiet::By(g.assertion, g.at.clone(), (g.outer, g.inner));
                 }
                 Ok(_) => {}
                 Err(refusal) => {
@@ -1690,11 +2120,14 @@ fn crossing(
     for (solid, _) in kept.body.solids() {
         let mut named = false;
         for f in kept.body.faces_of_solid(solid).unwrap_or_default() {
-            if let (topo::Operand::A, root) = descent.result_face(f)
-                && let Some(&i) = result
-                    .body
-                    .solid_of_face(root)
-                    .and_then(|s| of_solid.get(&s))
+            let source = descent.source(f);
+            if source.operand == topo::Operand::A
+                && let Some(&i) = source.inputs.iter().find_map(|&input| {
+                    result
+                        .body
+                        .solid_of_face(input)
+                        .and_then(|s| of_solid.get(&s))
+                })
             {
                 out.insert(i);
                 named = true;
@@ -1780,7 +2213,7 @@ fn beyond(
             origin, outward, ..
         } => (origin, outward.vec(), vec![rectangle(span)], span),
         Carrier::Cylinder { axis, radius, .. } => {
-            let base = axis.origin - axis.dir * span;
+            let base = axis.origin - axis.dir.get() * span;
             // A concave face (a bore) has its material outside the
             // carrier, so the region past it is the solid cylinder; a
             // convex one (a pin) the tube around it.
@@ -1789,7 +2222,7 @@ fn beyond(
             } else {
                 vec![circle(radius)]
             };
-            (base, axis.dir, loops, 2.0 * span)
+            (base, axis.dir.get(), loops, 2.0 * span)
         }
         _ => unreachable!("the carrier was matched above"),
     };

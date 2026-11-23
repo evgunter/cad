@@ -136,13 +136,23 @@ impl fmt::Debug for Read {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Value(_) => "Value(..)",
-            Self::Enclosure { .. } => "Enclosure(..)",
+            Self::Enclosure { lo: _, hi: _ } => "Enclosure(..)",
             Self::Unreadable => "Unreadable",
         })
     }
 }
 
 impl Reading {
+    /// The reading's ends: a value twice, an enclosure's two, `None`
+    /// where nothing was measured.
+    pub(crate) fn ends(&self) -> Option<(f64, f64)> {
+        match self.0 {
+            Read::Value(v) => Some((v, v)),
+            Read::Enclosure { lo, hi } => Some((lo, hi)),
+            Read::Unreadable => None,
+        }
+    }
+
     /// A scalar that is one number. NaN is unreadable.
     #[must_use]
     pub fn value(x: f64) -> Self {
@@ -472,6 +482,11 @@ fn write_spelled(spelled: Option<Spelled>, f: &mut fmt::Formatter<'_>) -> fmt::R
 /// tell them apart.
 impl PartialEq for Quantity {
     fn eq(&self, other: &Self) -> bool {
+        let Self {
+            held: _,
+            dimension,
+            canonical_only,
+        } = self;
         let bits = |spelled: Option<Spelled>| {
             spelled.map(|spelled| {
                 let (lo, hi) = spelled.extent(false);
@@ -482,8 +497,8 @@ impl PartialEq for Quantity {
                 )
             })
         };
-        self.dimension == other.dimension
-            && self.canonical_only == other.canonical_only
+        *dimension == other.dimension
+            && *canonical_only == other.canonical_only
             && self.role() == other.role()
             && bits(self.spelled(0)) == bits(other.spelled(0))
     }

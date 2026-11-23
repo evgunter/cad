@@ -290,7 +290,7 @@ of them is a defect.
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; the finish also completes a body's pcurve rows before its verdict, the one place they become complete: it drops rows on dead half-edges, keeps every stored row and derives each missing one, so no producer mints to close and a stale row is refused rather than replaced; in construction state a door keeps a stored row current or drops it; a move carries the rows under a motion and re-derives them under a reflection;  doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -930,8 +930,12 @@ tiers".
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
-  body's verdict: every finding but the session box is a fact of the
-  shape up to isometry. The embedding certificate is one fact per pair
+  body's verdict: whether it passes, and every finding but the session
+  box and the embedding question's, is a fact of the shape up to
+  isometry. A body that does not pass the embedding question is told
+  the first finding the question meets; which one that is, among
+  several, is a fact of the walk and not of the shape. The embedding
+  certificate is one fact per pair
   of faces, of the two faces and the cells they share: a finish
   carries the fact of a pair it finds unchanged in a finished operand,
   by comparing the faces itself, and asks the rest. The gate's fixed
@@ -1771,8 +1775,8 @@ them only through the freedoms its mates leave.
 nothing. With nothing, it is a **datum**: what it places is a bare
 frame, its one output, and the rules of spaces, bundles and values
 hold of it as written.
-Its mates' near sides are that frame's own roles (its xy plane, its z
-axis, its origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
+Its mates' near sides are that frame's own roles (its frame, xy plane, z
+axis or origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
 as a finer pose is read off any frame ([variables.poses]). An offset
 from a face is the mate's far side slid along its normal, as for a
 body ([placement.mates]); a datum has no number of its own beyond its
@@ -2738,7 +2742,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/VARIABLES.md` | Ratified | How a variable is represented, VARIABLES-DESIGN VR1–VR9: minted identity and optional name, `Expr` holds no float, `Formula` lowered at the edit door, lifecycle, id-keyed tokens |
 | `crates/verbs/README.md` | Ratified (#1388, #1870, #1983, #1997; V1's shape #5457) | The kernel query seat and one verb vocabulary, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: query doors at `topo`, the per-verb declaration (one payload type per door, `VerbKind`), the parameter→field flow |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
-| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: a sketch on a face placed against its plane, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
+| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: a sketch on a face drawn on a frame read off the face and a body on a face placed, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
 | `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04) | How editor-core keeps [assemblies.pairing] and [assemblies.saving], DI1–DI5: node ids across history, the memo and the store, an evaluation's identity stamp, saving vs forking |
 | `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and why the four grep gates stay greps (the S13 evaluation of lint alternatives) |
 | `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, CC1–CC5: a check owed on what a file says goes at the reading boundary and only there (CC1), and speaks in the harness voice (CC5); CC2–CC4 are the per-column admissions table's own |

@@ -356,7 +356,7 @@ mod tests {
 /// rows' (`crate::tier3_tests`).
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod origin_census {
+pub(crate) mod origin_census {
     use crate::source_walk::{CodeOnly, crate_sources, src_root};
     use test_utils::source::{attributed_extent, balanced_end, boundary_after, line};
 
@@ -406,7 +406,7 @@ mod origin_census {
     /// `text`'s production code — comments and literals blanked, every
     /// item a test-only `cfg` gates blanked too — and the names of the
     /// file modules it declares under such a `cfg`.
-    pub(super) fn production(text: &str) -> (String, Vec<String>) {
+    pub(crate) fn production(text: &str) -> (String, Vec<String>) {
         let code = CodeOnly::of(text);
         let code = code.as_str();
         let mut kept = code.as_bytes().to_vec();

@@ -805,7 +805,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         refusal = caught.exception
         self.assertEqual(refusal.variant, "would_cycle")
         # The refusal speaks the instance as the document holds it.
-        self.assertIn(f'InstantiatePart "post" ({tag(post_i)})', str(refusal))
+        self.assertIn(f'"post" ({tag(post_i)})', str(refusal))
         self.assertEqual(content_pin(doc), before, "nothing entered")
 
     def test_a_pose_read_off_a_failed_node_names_its_own_cause(self):
@@ -846,7 +846,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         raised = caught.exception
         self.assertEqual(raised.reason, "poisoned")
         self.assertEqual(raised.through, lifted)
-        self.assertIn(f'Place "lift" ({tag(lifted)})', str(raised))
+        self.assertIn(f'"lift" ({tag(lifted)})', str(raised))
         self.assertEqual(raised.kind, "expr")
 
     def test_a_non_finite_value_refuses_where_it_is_written(self):
@@ -978,7 +978,7 @@ class TestAssemblyRefusals(BenchWorkspace):
             with self.assertRaises(pncad.ProductError) as gather:
                 door(doc, ev)
             self.assertEqual(gather.exception.variant, "read_failed")
-            self.assertIn('InstantiatePart "lonely post" (', str(gather.exception))
+            self.assertIn('"lonely post" (', str(gather.exception))
             self.assertEqual(gather.exception.node, lonely)
 
     def test_a_moved_pin_refuses_and_carries_its_recourse_once_by_either_door(self):

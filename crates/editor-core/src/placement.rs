@@ -34,9 +34,16 @@ impl AxisRefusal {
     }
 }
 
+impl crate::Say for AxisRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
+        self.0.say(f, by)
+    }
+}
+
+/// Its sentence, each node said by tag.
 impl core::fmt::Display for AxisRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(f)
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

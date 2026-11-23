@@ -491,3 +491,237 @@ body has the reasons):
   The corrupt-input red was a random fuzz seed of CHARTTAIL's open row
   `a-split-reduce-on-a-torn-body-panics-at-pcurves-unreachable-own-loop`,
   which reproduces on main. The lane added its seed there. Lane archived.
+- 2026-11-22 10:45 — **7151's 7353 build is green** (`b252f91`). The
+  delta review was dispatched to the same FULL reviewer (cloud
+  session_013QoYWVRvFYKyod85TtCfsz).
+  - Filed by the lane:
+    - `germ/the-curve-face-pose-classes-the-carrier-not-the-span-a-trace-reads`
+      (P2, with the far-Grazing row pinned red against it);
+    - `doctail/the-tangency-prover-does-not-see-through-a-placement` (P1);
+    - `doctail/a-trace-fault-preempts-the-charts-backwards-near-the-bands-edge`
+      (P3).
+  - The traced-carriage row is created and closed in the PR.
+  - GitHub shows the PR "dirty", but a local merge-tree against main is
+    clean; it is re-checked before merge.
+- 2026-11-22 13:22 — 7151 is green on `fdd4d80`, but the head lacks
+  the delta review's last pass; the lane had missed the message. It is
+  re-sent as one task: disclose and source the levers, the prover-row
+  Owed, under-measure arc rows, fail loud in `meetings`, a traced-
+  crossing twin row, the halving limits, and slow-set timings. The
+  orchestrator reads that pass and merges.
+- 2026-11-22 15:34 — **7151 merged** (`deade68`): the face chart's band
+  is decided at each carriage (Ev's 7122 and 7353). The last pass, read
+  by the orchestrator:
+  - the ray's lever is sourced from its covered run, and `select` reads
+    `Lever::session_box()`;
+  - a `Tangent` pose falls through to the span filter, per C5 (no
+    silent drop);
+  - arc-window rows on both edges, and a traced-crossing twin row;
+  - `taken_over`'s limits are documented;
+  - the Owed rows are named;
+  - the MC-stream row went to the slow set (1.008 s against 1.0 s).
+
+  Lane archived.
+- 2026-11-22 15:35 — One P1 is still dispatchable: the 7151 follow-up
+  `the-tangency-prover-does-not-see-through-a-placement` (M). It went to
+  cloud session session_013QoYWUYphDCYapHMG41brh, on branch
+  `doctail/the-tangency-prover-sees-through-a-placement`. It checks the
+  `Through` lead first, and stops if a placement's motion entering the
+  symbolic tier needs a ruling. Review: FULL.
+- 2026-11-22 17:40 — **PR 7396 up and green** (the tangency prover
+  through a placement).
+  - **Cause:** the budget, not blindness. Written-zero spins are
+    symbols, and the `atan2` spin spelling at `Sym` grew the form past
+    256 terms.
+  - **Fix:** `Sym::spins_by_frames` is now true, so `Sym` builds charts
+    from frames as the interval lane does, a lane-wide change.
+  - **Rows:** the mated-box row is pinned against a new coincide P2,
+    and the die tour proves 42 of 42 joints.
+  - **Review:** FULL, dispatched to cloud session
+    session_013QoYWWUb1cWaS6PFWRPmfo, focused on real-function soundness,
+    value drift, and whether this needs Ev.
+- 2026-11-22 18:35 — **The FULL review of 7396 found a MAJOR: a false
+  proof.**
+  - **Mechanism:** `Sym`'s `is_exactly` / `exactly_zero` read only the
+    nominal, so at a zero-nominal tilt the least turn is constant, and
+    the frames spelling drops the folded map's dependence. The door then
+    proves MarginIdentity for a boss that is tangent only at a = 0.
+    Main, with the atan2 spelling, correctly answers Unproven.
+  - **Fix pass sent:**
+    - never prove through a value-exact branch at `Sym` (stop if it
+      needs a geom-core `Sym` semantics change);
+    - sweep every such branch, and check whether main is exposed (file
+      P0 if so);
+    - zero-nominal rows;
+    - `revalue_corpus` moving zero-nominal variables;
+    - a budget-specific pin.
+
+    Delta review to follow.
+- 2026-11-22 18:45 — **7396's fix pass stopped on a design fork
+  (`valexact`).** The deepest value-exact branch is geom-core's
+  `RigidMotion::least_turn` identity read. `Sym`'s `is_exactly` is
+  value-only, so no editor-core-only fix makes the frames spelling sound.
+  The lane's options: (A) form-aware exactness in geom-core, (B)
+  editor-core fails closed via `Sym::opaque`, (C) retreat.
+  - **Ground:** SYM / DECIDE own the tier.
+  - **Dispatched:** two Opus designers (local, read-only). The lane is
+    meanwhile building a MAIN repro of a false proof through the same
+    read: in-plane spin or a carried slide at a zero nominal. If it
+    reproduces, a P0 is filed on its own branch.
+  - **7396 is held** at 81d4566; do not merge.
+- 2026-11-22 19:10 — **`valexact` settled with no Ev ruling.** Both
+  designers agree the ratified text decides it: ERROR-DESIGN E12's
+  structural-question bullet (Ev, `[ev]` 6993) plus DESIGN `[scalars]`.
+  At `Sym`, no exactness read off the nominal chooses what is built.
+  - **Home:** DECIDE's `is-exact-zero-reads-tags-copies-and-decisions-off-a-number`.
+  - **Rejected:** (B) opaque, which kills box-face proofs and patches
+    the consumer, and (C) retreat, which keeps main exposed.
+  - **Reconciled mechanism:**
+    - the least turn goes branchless (designer 1), with no EX1
+      dependency;
+    - `turn::zero` / `aligned` take the general path at `Sym` until
+      BOXFINISH's EX1 lands (designer 2 would route both through EX1).
+  - **Ev's input needed later:** designer 2's point that E12's "and for
+    nothing else" (agent text, approved in passing) needs Ev's reading
+    once `aligned` asks the question.
+  - **Plan:** the 7396 lane builds the subset as its own PR
+    (`doctail/the-least-turn-reads-no-exactness-off-the-nominal`) after
+    its main-repro step. It creates and closes a doctail P1 (P0 if main
+    reproduces) and announces the seams on DECIDE, SCALAR, PROPS, SYM
+    and MSOLVE. 7396 then merges main and re-measures.
+- 2026-11-22 19:15 — **Main repro: NOT reproduced** (about 45 minutes,
+  two shapes).
+  - A zero-nominal chart's S is the constant world motion on main too,
+    so the slides run on world axes.
+  - The candidate false identities stayed `Unproven Numeric Budget`
+    (808–3577 nodes).
+  - So main is fail-closed only behind the budget: latent, not safe.
+  - The unit stays P1, with main's latent exposure recorded in its row,
+    and Shape 1 is added as a row.
+- 2026-11-23 00:10 — **7434's FULL review found no MAJOR.** The fix
+  closes 7396's false proof, on 7434 alone and with 7396 merged over it.
+  Reverting the fix reds the guards, and the `Sym<Interval>` [0, 0]
+  deviation is likely sound.
+  - **MINORs, in a last pass with the gated-suite marker fix:**
+    - plain `Interval`'s `zero_everywhere` default reads a subnormal
+      enclosure as zero (an override is due);
+    - the DECIDE row's wording;
+    - the mate-chart P2 overstates.
+  - **Orchestrator's read, then merge.** 7396 follows: merge main,
+    re-measure, re-check the zero-tilt P2, then a delta review.
+- 2026-11-23 04:30 — **7434 merged** (`ccabcfb`): the least turn reads
+  no exactness off the nominal at `Sym`.
+  - It merged at the green `54f303f`, without the review's last pass:
+    every remaining item is prose or a pre-existing edge, and a full CI
+    round would have held 7396 for hours behind the backlog (98 runs
+    queued).
+  - The last pass goes to a follow-up PR
+    (`doctail/zero-everywhere-at-the-plain-interval-lane`): Interval's
+    `zero_everywhere` override, the DECIDE wording, the mate-chart P2
+    reworded, and the NITs.
+  - 7396 now merges main and re-measures; its delta review comes after.
+- 2026-11-23 05:05 — **Main is red from 7434 (ccabcfb).** Eight
+  `editor-core::all` slow-set rows fail on main. They are slow rows
+  7434's diff did not edit, so its PR gate never ran them, a known CI
+  gap.
+  - **Five are pins** moved by the identity pair's new decisions and
+    the Rodrigues bits: three m10_bulge rows, two m10_9 rows, the
+    m10_p_fence digest, and the m10_sym_profile forms.
+  - **One needs analysis:** in `m10_sym_drive_memo_interval`, the drive
+    certifies 1 and refuses 7, so the race row's certified arm is
+    vacuous.
+  - **Routed** to the same lane ahead of 7396, on branch
+    `doctail/the-identity-turns-decisions-repinned-on-the-m10-rows`,
+    with a P0 row. It re-pins only attributed moves and fixes item 6
+    if it is a real loss of certification.
+  - **Lesson:** merging 7434 at a head whose slow rows never ran cost a
+    red main. A change to a shared primitive (`least_turn`) needs the
+    whole slow set run before merge.
+- 2026-11-23 05:52 — **The main-red fix went to its own cloud session,
+  session_013QoYWVTLpE3DMsK7xa2C6A.** The 7434 lane was still finishing
+  7396, and a red main shouldn't wait for one lane to work in order. It
+  re-pins only attributed moves, fixes the drive memo row's loss of
+  certification if it is real (stopping if that needs a design call),
+  and runs the whole slow set at all three ε. The 7434 lane continues
+  on 7396 and the follow-up PR.
+- 2026-11-23 06:00 — **Ev, in chat:** with the CI queue this bad, a PR
+  that touches only docs, comments or work items merges on a local
+  `work.py lint` without waiting for CI. Any PR may merge on whatever
+  local tests make the orchestrator comfortable. Applied at once:
+  - the main-red fix, the follow-up PR and 7396 report local evidence
+    (the slow set or touched rows at all three ε, fmt, clippy, gates,
+    lint) instead of polling `gate ok`;
+  - the tracker lands the same way.
+- 2026-11-23 — **From HELDRECORDS: `a-record-the-split-parts-has-no-consumption-rule` is claimed by HELDRECORDS (`git mv`, id and body unchanged) and re-banded P1.** HELDRECORDS' step 3 (PR 7481) makes the split record slits and rings, so a cut along one now refuses `Carry { Parted }` where it built. Designers are on it. `wire_split`'s interim `carry_contacts_across` is part of the question; tell HELDRECORDS before changing it. (HELDRECORDS orchestrator)
+- 2026-11-23 10:05 — **7396 is pushed at `8f20722`**, merged with main,
+  with local evidence:
+  - the gates exit 0, and fmt and clippy are clean;
+  - `coincidence_door` / `intent_s6_*` are green at all three ε;
+  - the die tour is 29 of 42;
+  - the zero-tilt P2 is closed, because it proves now.
+
+  The payload-rung red was an older merge ref. Its delta review went to
+  the same reviewer.
+- 2026-11-23 10:08 — **New main red, not DOCTAIL's.** Ten
+  `revalue_corpus` rows fail since PR 7411 (`germ/plane-pose-far-frame`),
+  bisected by the 7396 lane. Filed on GREEN, with a line on GERM's log.
+- 2026-11-23 10:30 — **7396 merged** (`f282080`), on local evidence plus
+  a clean delta review (no MAJOR). The tangency prover now sees through
+  a placement and a `Through` frame at every tilt, zero included, so the
+  P1 is closed. The die tour proves 29 of 42 (the other 13 are
+  budget-bound), and the zero-tilt P2 is closed.
+  - **Into the follow-up PR:** the review's MINOR (the mated-box pin
+    can't tell over-budget from other causes, so `swept_along` must
+    carry its reason) and two NITs.
+  - **The other MINOR** (7434's zero-tilt revalue guard is red on main
+    from #7411) is already filed on GREEN.
+- 2026-11-23 10:50 — **7554 merged** (`ef057a7`), the 7434 follow-up, on
+  local evidence:
+  - the gates exit 0, and fmt and clippy are clean on the touched lib
+    crates;
+  - 211 of 211 unit rows pass;
+  - `coincidence_door`, `intent_s6_*` and `m10_6_ci_rows_interval` pass
+    98 of 98 at all three ε.
+
+  It brings `Interval::zero_everywhere` in line with `Sym<Interval>`'s
+  [0, 0] (its row was checked red without the override) and corrects
+  the DECIDE and mate-chart rows. The 7396 review's leftover (the
+  mated-box pin's budget cause) crossed with the lane's stop, so it is
+  filed as
+  `a-mated-box-pin-cannot-tell-over-the-budget-from-any-other-cause`
+  (P3 E). The 7396/7434 lane and its reviewer are archived.
+- 2026-11-23 10:52 — Filed on GREEN, found by the lane:
+  `main-red-geom-core-test-support-fails-items-after-test-module-under-all-targets`
+  (P2 E).
+- 2026-11-23 — (OFFER orchestrator) Main's rustdoc gate was red from #7554: `eval/mod.rs:3743`'s doc linked to `Self::exactly_zero` inside a trait impl, where rustdoc cannot resolve it. #7560 fixes it by naming it in code text, verified with the gate's own lints.
+- 2026-11-23 16:45 — **7549 merged** (`b4ffffe`): main's red from 7434
+  is fixed, on local evidence (17 of 17 rows at all three ε on the
+  merged tree).
+  - **Re-pinned and attributed:** the three m10_bulge tables (the
+    identity chart's `least_turn_conditioning` / `mate_chart_pole`) and
+    step-export's `swept_elbow.step` (five DIRECTION lines, an ulp each,
+    from the Rodrigues spelling).
+  - **Superseded:** the numeric re-pins in four receipt files fell away,
+    because CIW's #7501 narrowed those receipts to the symbolic and
+    frozen columns.
+  - **Item 6 (the race row)** was a gain in certification, red since
+    2026-11-19 and not 7434's; it stays with SCALAR's row.
+  - **Filed on GREEN:** two unowned slow reds and an OFFER slow-set name.
+  - Lane archived.
+- 2026-11-23 16:50 — **Sitting ends; the track goes back `ready`.** No
+  P0 or P1 is dispatchable; the only P0 is the deferred
+  `no-docedit-splices-a-deleted-node`, which waits on a ruling. The P2
+  and lower tail (15 P2, 37 P3, 26 P4) is the successor's. This sitting
+  landed:
+  - 7082, 7116, 7122, 7126, 7129, 7148, 7149, 7150, 7151, 7330, 7353,
+    7396, 7434, 7549 and 7554;
+  - Ev's rulings on 7082, 7122, 7129 and 7353;
+  - the design forks `tracecarry`, `movedchart` and `valexact`.
+
+  Left for others (all rows):
+  - the seat rule, a design question for Ev;
+  - the one-carrier-verdict build;
+  - the mated-box pin (P3 E);
+  - GERM's span-local pose and the 7411 revalue red;
+  - the E12 "and for nothing else" wording, for when `aligned` asks
+    BOXFINISH's EX1 question.

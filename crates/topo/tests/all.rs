@@ -303,12 +303,16 @@ mod recourse_roster;
 mod result_gate_sites;
 #[path = "review_records_delta_probes.rs"]
 mod review_records_delta_probes;
+#[path = "review_a_records_delta1_probes.rs"]
+mod review_a_records_delta1_probes;
 #[path = "review_records_probes.rs"]
 mod review_records_probes;
 #[path = "review_4996_carry_probes.rs"]
 mod review_4996_carry_probes;
 #[path = "review_4996_r2_probes.rs"]
 mod review_4996_r2_probes;
+#[path = "review_7124_delta_probes.rs"]
+mod review_7124_delta_probes;
 #[path = "review_census_fixpass_probes.rs"]
 mod review_census_fixpass_probes;
 #[path = "review_census_r2_probes.rs"]
@@ -361,6 +365,8 @@ mod review_mate4a_r2_probes;
 mod review_mate9_r1_probes;
 #[path = "review_mate9_r2_probes.rs"]
 mod review_mate9_r2_probes;
+#[path = "review_records_delta_probes.rs"]
+mod review_records_delta_probes;
 #[path = "review_s1_controls.rs"]
 mod review_s1_controls;
 #[path = "review_s1_probes.rs"]

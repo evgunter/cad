@@ -4,7 +4,7 @@ kind: issue
 title: topo/tests has two tests-only vocabulary homes and neither names the other
 status: open
 opened: 2026-09-18
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -107,3 +107,5 @@ nothing to do; one that moves `fixture/` instead, or as well, owes the
 same threading over its four sites first.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Prose boundary between `topo/tests/common/mod.rs` and `fixture/mod.rs`; nothing duplicated.

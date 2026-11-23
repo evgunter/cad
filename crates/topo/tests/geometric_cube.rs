@@ -15,7 +15,9 @@ use geom_brep::{
 use geom_core::{Point3, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MevSite};
-use topo::{Body, ContactRecords, EulerOpError, validate, validate_closed, validate_geometric};
+use topo::{
+    Body, ContactRecords, EdgeSubject, EulerOpError, validate, validate_closed, validate_geometric,
+};
 
 use crate::common;
 use common::{
@@ -159,7 +161,10 @@ fn wrong_cache_is_rejected_at_attachment() {
     let edges_before = body.edges().count();
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
-    spec.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps, 0.0), Vec3::unit_x());
+    spec.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps, 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
     let err = body
         .mev(
             MevSite::Lone {
@@ -173,11 +178,12 @@ fn wrong_cache_is_rejected_at_attachment() {
     assert!(
         matches!(
             err,
-            EulerOpError::Certification {
+            EulerOpError::DescriptionUncertified {
+                edge: EdgeSubject::Minted,
                 error: CertifyError::ResidualExceeded {
                     check: CertCheck::EndpointStart,
                     ..
-                }
+                },
             }
         ),
         "{err:?}"
@@ -353,11 +359,67 @@ fn near_tangent_intersection_attachment_escalates() {
     assert!(
         matches!(
             err,
-            EulerOpError::Certification {
+            EulerOpError::DescriptionUncertified {
+                edge: EdgeSubject::Keyed(edge),
                 error: CertifyError::Escalated {
                     check: CertCheck::Transversality,
                     ..
-                }
+                },
+            } if edge == split.edge
+        ),
+        "{err:?}"
+    );
+}
+
+/// **A minted chord's refusal names the minted edge**, not a key: `mef`
+/// handed a chord whose carrier stands 100·ε off its two vertices
+/// refuses before the mutation phase, about the edge it would mint.
+#[test]
+fn a_minted_chords_refusal_names_the_minted_edge() {
+    let eps = Tol::witness().get().eps;
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    let seg = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        )
+        .unwrap();
+    let mut chord =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    chord.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps, 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
+    let err = body
+        .mef(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            chord,
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::unit_z(),
+                        Vec3::unit_x(),
+                    ),
+                },
+                sense: true,
+            },
+            Tol::witness(),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            EulerOpError::DescriptionUncertified {
+                edge: EdgeSubject::Minted,
+                error: CertifyError::ResidualExceeded { .. },
             }
         ),
         "{err:?}"
@@ -379,11 +441,14 @@ fn totality_no_panics_on_poison_inputs() {
             Point3::new(nan, 0.0, 0.0),
             Tol::witness(),
         ),
-        Err(EulerOpError::Certification { .. })
+        Err(EulerOpError::DescriptionUncertified {
+            edge: EdgeSubject::Minted,
+            ..
+        })
     ));
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
-    spec.carrier = Curve3::nurbs_placeholder();
+    spec.carrier = geom::test_support::poisoned_nurbs_segment();
     assert!(matches!(
         body.mev(
             MevSite::Lone {
@@ -393,8 +458,9 @@ fn totality_no_panics_on_poison_inputs() {
             spec,
             Tol::witness(),
         ),
-        Err(EulerOpError::Certification {
-            error: CertifyError::Unimplemented
+        Err(EulerOpError::DescriptionUncertified {
+            error: CertifyError::Unimplemented,
+            ..
         })
     ));
     assert_eq!(validate(&body), Ok(()));

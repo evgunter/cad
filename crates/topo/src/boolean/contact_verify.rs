@@ -22,11 +22,12 @@
 //! the glue door's tangency ([`tangency_reading`]) claims neither. Both
 //! read the second-order margin `κ_rel` as the glue door does: it must
 //! be definite (jet-determinate), and in band, or exactly zero at an
-//! isolated point, it escalates. The #175 clause, which bridged an exact
-//! zero so that a G1 tube chain's two neutral meridian points stayed
-//! declarable, binds nothing now: no contact is declared, and the glue
-//! door refuses such a chain at those points, as D10 has it
-//! (`mate7a_torus_rest::the_g1_tube_chain_refuses_at_the_glue_door`).
+//! isolated point, it escalates. A rim the glue door glues a junction
+//! (the routing's π seam, opposite departures, both operands' rim edges
+//! convex) never reaches this table: the door decides the rim's identity
+//! and its wedge, as tier 3 decides the edge it becomes, and a G1 tube
+//! chain's neutral meridian points are no question there. Any other rim
+//! both faces end on is read here along its whole turn, as a tangency.
 //!
 //! **The Tangent lane reuses the jet machinery, it does not restate
 //! it.** `tangent_jet`, `tangent_certificate_lane`,
@@ -97,15 +98,20 @@ pub fn rest_pair_verdict<T: Decide>(
 ) -> Result<RestVerdict, ContactRefusal> {
     let outcome =
         super::carrier_pair::carrier_pair_decided(a, fa, b, fb, band).map_err(|unread| {
-            ContactRefusal::NotCertifiable {
-                what: match unread {
-                    super::carrier_pair::PairUnread::OutsideInventory => {
-                        geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY
+            // A kind outside the inventory has no description to
+            // compare: nothing is read. An extent that cannot be read is
+            // a reading that failed.
+            match unread {
+                super::carrier_pair::PairUnread::OutsideInventory => {
+                    ContactRefusal::NotCertifiable {
+                        what: geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY,
+                        reach: crate::contact::ContactReach::NoLane,
                     }
-                    super::carrier_pair::PairUnread::Extent(_) => {
-                        "a recorded face's consumed extent cannot be read (its box has no claim to \
-                     make, or its boundary cannot be walked)"
-                    }
+                }
+                super::carrier_pair::PairUnread::Extent(_) => ContactRefusal::NotCertifiable {
+                    what: "a recorded face's consumed extent cannot be read (its box has no \
+                           claim to make, or its boundary cannot be walked)",
+                    reach: crate::contact::ContactReach::Unread,
                 },
             }
         })?;
@@ -140,6 +146,7 @@ pub fn rest_pair_verdict<T: Decide>(
             geom_brep::TorusStanding::InvalidInput(_) => ContactRefusal::NotCertifiable {
                 what: "a recorded face's torus is outside the ring convention (a horn or \
                        spindle torus, or one with no tube), which no carrier is compared on",
+                reach: crate::contact::ContactReach::Unread,
             },
         }),
     }
@@ -191,9 +198,11 @@ pub fn tangent_pair_relation<T: Decide>(
     let (face_a, face_b) = (
         a.face(fa).ok_or(ContactRefusal::NotCertifiable {
             what: "the A-side face does not resolve",
+            reach: crate::contact::ContactReach::Unread,
         })?,
         b.face(fb).ok_or(ContactRefusal::NotCertifiable {
             what: "the B-side face does not resolve",
+            reach: crate::contact::ContactReach::Unread,
         })?,
     );
     Ok(tangent_locus_relation(
@@ -265,7 +274,8 @@ pub fn tangent_locus_relation<T: Decide>(
 /// pose decides whether the surfaces are tangent and where
 /// (`geom_brep::pair_section::gap`), not that the held rim stands within
 /// ε of both all the way round, so a rim of a pair its pose decides
-/// tangent can still escalate here.
+/// tangent can still escalate here. A rim the glue door glued a
+/// junction is never read here.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn tangency_reading<T: Decide>(
     s1: &geom::Surface<T>,
@@ -807,7 +817,10 @@ mod tests {
     }
 
     fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
-        geom::Curve3::line(Point3::from_array(o), Vec3::from_array(d))
+        geom::Curve3::line(
+            Point3::from_array(o),
+            geom::stated_direction(Vec3::from_array(d)),
+        )
     }
 
     /// The certified-lane row: a cylinder resting on a plane, tangent
@@ -1157,7 +1170,10 @@ mod tests {
         );
         // The lane's other `NotCertifiable` is the contact's own refusal,
         // not the span bound's: a carrier outside the lane.
-        let outside = geom::Curve3::line(Point3::new(1.1, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let outside = geom::Curve3::line(
+            Point3::new(1.1, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         assert!(
             matches!(
                 tangency_reading(&near, true, &far, true, &outside, 0.0, 0.1, b),

@@ -47,6 +47,7 @@
 // `ParamBox` and `Seed` arms hold: a payload type a consumer can match
 // and cannot name is the refusal `crate::document` rules out for
 // `NodeRefusal`.
+use editor_core::Speaker;
 pub use editor_core::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
     MeasureUnavailable, OffsetInterval, ParamBoxError, SeedError, analyzed_box, box_mass,
@@ -57,7 +58,7 @@ pub use editor_core::{
 pub use editor_core::{
     BoxAxis, BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig,
     DriveRefusal, LeafResults, MeasureAccounting, ParamBox, ParamBoxVerdict, ReasonClass, Receipt,
-    RefusalReason, RefusedLeaf, drive,
+    RefusalReason, RefusedLeaf, Unsettled, drive,
 };
 
 /// The E4/E5 sensitivity and stackup report — the answer to "does this
@@ -86,6 +87,34 @@ pub use editor_core::drive::assertion_at;
 /// reasons its third state carries — a consumer that cannot NAME the
 /// states cannot keep them three.
 pub use editor_core::{AssertionVerdict, UnevaluatedReason};
+
+/// **The certified range of one field**: over which interval around a
+/// parameter's or a slot's current value the document is PROVABLY the
+/// same build. [`RangeSearch`] is the stepped search — one replay per
+/// step, an answer readable after any of them — and [`certified_range`]
+/// runs it until it finishes, under the search's own [`RangeBudget`].
+///
+/// The replays run at the certified scalar inside the search and the
+/// answer is plain numbers — offsets from the field's nominal, a point
+/// proven different, the reason ground is undecided — so a consumer
+/// that never evaluates at the certified scalar itself still holds the
+/// whole of it. [`CertifiedRange::pinned`] is the condition the answer
+/// holds under and is part of the answer.
+pub use editor_core::{
+    Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
+    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unproven,
+    certified_range,
+};
+
+/// The range query's doors whose names only read beside it:
+/// [`admit`](range::admit) says whether a request can be searched at
+/// all with no geometry run, [`derive`](range::derive) is the document
+/// the search replays, and [`Step`](range::Step) is what one
+/// [`RangeSearch::step`] did, and [`STALL_LEVELS`](range::STALL_LEVELS)
+/// is the schedule's one constant.
+pub mod range {
+    pub use editor_core::range::{STALL_LEVELS, Step, admit, derive};
+}
 
 /// **The E11.1 advisory estimator**: pure `f64` replay, as E11.1 says.
 /// [`summarize`] rides here for the reason it is public at all: a
@@ -167,18 +196,27 @@ pub fn clearances_at_nominal(
                     // requirement over the family: one per member.
                     ValuePayload::Family => ClearanceOutcome::over_members(doc, assertion),
                     other => ClearanceOutcome::Unanswered {
-                        sentence: format!(
-                            "{} evaluated to {}, not to a clearance verdict",
-                            doc.spoken(assertion),
-                            other.kind_name()
-                        ),
+                        sentence: editor_core::sentence!(
+                            Speaker::of(doc).node(assertion),
+                            format_args!(
+                                " evaluated to {}, not to a clearance verdict",
+                                other.kind_name()
+                            )
+                        )
+                        .to_string(),
                     },
                 },
                 Some(NodeResult::Failed(_) | NodeResult::Poisoned { .. }) | None => {
                     ClearanceOutcome::Unanswered {
                         sentence: ev.node_error(assertion).map_or_else(
-                            || format!("{} did not evaluate", doc.spoken(assertion)),
-                            |e| e.kind_spoken(doc),
+                            || {
+                                editor_core::sentence!(
+                                    Speaker::of(doc).node(assertion),
+                                    " did not evaluate"
+                                )
+                                .to_string()
+                            },
+                            |e| e.kind_spoken(doc).to_string(),
                         ),
                     }
                 }
@@ -239,12 +277,13 @@ impl ClearanceOutcome {
         assertion: crate::document::RecipeNodeId,
     ) -> Self {
         Self::OverMembers {
-            sentence: format!(
-                "{} reads the members of a pattern, so it is one requirement per member, and a \
+            sentence: editor_core::sentence!(
+                Speaker::of(doc).node(assertion),
+                " reads the members of a pattern, so it is one requirement per member, and a \
                  clearance over a pattern's members is not certified yet. Recourse: seat one \
-                 member — project it with the projection tool and pick the projection",
-                doc.spoken(assertion)
-            ),
+                 member — project it with the projection tool and pick the projection"
+            )
+            .to_string(),
         }
     }
 
@@ -258,7 +297,7 @@ impl ClearanceOutcome {
             ClearanceVerdict::Exceeded => Self::Exceeded,
             ClearanceVerdict::Refused(r) => Self::Refused {
                 name: r.name(),
-                sentence: crate::document::Said(r, by).to_string(),
+                sentence: crate::document::Said(r, by).sentence().to_string(),
             },
         }
     }

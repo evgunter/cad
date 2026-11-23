@@ -327,8 +327,11 @@ on the result, not glued on the operands: the boolean glues the two
 faces' tangency (`Tangent`), and the op and the membership decide which
 edge the result carries on the locus. One tangent pair can leave a seam
 under one op, a knife edge under another and no edge under a third.
-Rim routing by material wedge (C7) decides the rim, and the zip mints a
-seam carrying `TangentIntersection`. A G1 joint authored inside one
+Where both faces end on a rim, the pair is a `Junction` (C4) when the
+routing reads the π seam with the faces leaving on opposite sides and
+each operand's own rim edge is a convex crease; the zip mints a seam
+carrying `TangentIntersection`. Any other rim is read as a tangency
+along its circle, the table first and the routing after a touch (C7). A G1 joint authored inside one
 profile is the structural form of the same fact.
 
 **The crossing layer's one-sided cover.** An edge touching the other
@@ -464,8 +467,13 @@ once, so at full engagement union volume is the operands' sum.
 
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
 routing reads the material wedge of a junction, an edge of the result
-that both tangent faces bound (`docs/MATE-7-TANGENCY-DESIGN.md`): π ⇒
-smooth seam; 0/2π ⇒ the cusp family. A wedge-0 junction along a line
+that both tangent faces bound (`docs/MATE-7-TANGENCY-DESIGN.md`). Read
+first, as the junction's test: π with opposite departures and both
+operands' rim edges convex ⇒ a `Junction`, whatever its bend; anything
+else ⇒ the rim is read as before, by the tangency table along its turn
+and, after a touch, the routing: π ⇒ smooth seam; 0/2π ⇒ the cusp
+family; stations that disagree, or a spline face, refuse
+(`TangencyUnsupported`). A wedge-0 junction along a line
 locus builds through the ON-edge lane and passes tier 3 on its jet
 (κ_rel determinate); `BooleanError::RimCuspArmUnbuilt` remains where no
 locus arm exists. Two operands whose materials overlap beside a tangent
@@ -517,6 +525,14 @@ went to those crates' pages, and the wired-arm list, which went to
   emanating half-edge. A face's outer loop is excluded from its ring
   list (`outer ∉ rings`), so rings coincide with the Euler–Poincaré
   r-term.
+- **What a loop that is not a cycle means** is a property of the loop
+  and of the question asked, never of the reader asking it. A torn loop
+  (a walk that does not close, a key that misses) is a broken link, not
+  a boundary. A lone-vertex ring is a point on its face's boundary that
+  bounds no area. A lone-vertex outer loop (the `mvfs` skeleton) is a
+  face with no outline, which every question about the face's region
+  refuses. `live.rs` states this once, with one facet per question, and
+  no reader re-decides it.
 - **Manifold solids only.** Non-manifold (radial-edge) topology is added
   only if sheet/wire bodies demand it.
 - Topology is built **exclusively through Euler operators**: a small
@@ -787,17 +803,25 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    each record it is handed where it lies, and one the census read and
    did not confirm (stale, contradicted, in the band, undecided)
    refuses at the door that handed it over. A record no census lane
-   can read is held on its citation, and the body names the bar it
-   paid (`AtRestBody::bar`): tier 3′ over its records where the census
-   confirmed every one, tier 3 where one waits on a lane or the body
-   holds none. `finish` takes the body with its records (`Built`); a
+   can read (the lane says so where it declines:
+   `ContactReach::NoLane`) is held on its citation only where no
+   reading decides its two cells apart; where the tangent locus reads
+   the pair's carriers (a plane parallel to a cylinder's axis, two
+   parallel cylinders) that is only where they are tangent within the
+   band. The body names the bar it paid (`AtRestBody::bar`): tier 3′ over its records where the
+   census confirmed every one and, at a `⊔`, left no finding between
+   its arrivals; tier 3 where one waits on a lane or the body holds
+   none. `finish` takes the body with its records (`Built`); a
    `⊔`'s gate (`finish_assembled`) takes its arrivals, reads the
    records off them, runs the census as the deciding operation between
    them and holds what it records. That is short of the sentence above
-   in two respects, each with the rows that owe it. A recorded tangency
-   past the tangent certifier's set is the one record held unread
-   today
-   (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`).
+   in two respects, each with the rows that owe it. A record held on
+   its citation is held unread: a recorded tangency past the tangent
+   certifier's set is the one a suite reaches today
+   (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`),
+   and a false one of such a kind, whose cells no separating
+   direction parts, is held too (the same row, with the test that
+   demonstrates it): each kind owes the census a lane.
    And no gate yet searches a body for a meeting its records do not
    state, so a body handed no record is finished at tier 3 and no
    census reads it: the search waits on lanes the census does not have
@@ -1165,6 +1189,39 @@ sides of a face (`MaterialOnBothSides`).
   circle of two coaxial surfaces of revolution is, `n₁·n₂` is constant,
   so neither reaches it; a Villarceau circle two tori share can. An
   in-band κ_rel, or an exact zero at an isolated point, escalates.
+
+- *`Junction`.* Two faces that both END on one circle. Must verify:
+  the circle's identity (`rim_wedge::shared_rim`, decided Zero or
+  refused in band); the routing's π wedge at every station round it
+  (`rim_wedge::classify_shared_rim`, whose fold runs
+  `second_order_walk` at each station, so a station's in-band bend
+  still stops it, `work/select/a-seam-decided-pi-refuses-where-only-its-bend-is-undecided.md`);
+  the two faces leaving it on opposite sides (`rim_wedge::departures`);
+  and each operand's own edges on the circle convex creases
+  (`rim_wedge::rim_edges_convex`, `dihedral_sign` at each station of
+  the edge's fold). No touch is claimed along the rim.
+
+  A junction's interiors do not meet near the rim: each face leaves it
+  along the other's backward direction, outside the other operand's
+  material, which that operand's convex edge closes below π. So it
+  owes no second-order margin: a straight tube leaving a bend G1, whose
+  `κ_rel` passes through zero at two points of the rim, glues a
+  junction. Anything short of the four reads (a concave rim edge, a
+  departure on one side, a station the routing cannot decide) is no
+  junction, and the door reads the rim as a tangency, as above. Every
+  reader of a tangency answers a junction by its own arm: the sector
+  lumps read its rim bound `On` and every other bound outside the other
+  operand (`sectors::junction_lump`), and nothing descends to its second
+  order.
+
+  MATE-7's "osculating rims (in-band κ_rel) escalate" is the routing's
+  in-band arm: a station whose bend lands in the band leaves the
+  routing undecided, so no junction glues, and the table along the rim
+  escalates as it always has. An isolated decided zero of `κ_rel` on a
+  π seam is not that: the wedge there is π, a first-order fact the
+  normals decide at every station, and the material is smooth through
+  the rim whatever the bend does between them; only a tangency, whose
+  interiors meet along the locus, needs the side the sheets part to.
 
 The two doors are coupled: Door 2 receives the band Door 1's reading
 leaves its premise (`glued_pair_overlap`'s `premise`) — the run's own

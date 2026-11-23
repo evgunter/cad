@@ -68,17 +68,20 @@ fn two_cubes(gap: f64, lift: f64) -> AtRestBody<f64> {
     finish_assembled(joined, tol()).unwrap().body
 }
 
-/// Two faces a nanometre apart, recorded as touching: the census reads
-/// their carriers' offset in the band and escalates, which is not a
-/// confirmation, and the gate refuses. Red on a gate that refuses only the stale and the
-/// contradicted: it held the record.
+/// Two faces the band's midpoint apart, recorded as touching: the
+/// census reads their carriers' offset in the band, at whichever ε and
+/// ambiguity factor the suite runs, and escalates, which is not a
+/// confirmation, and the gate refuses. Red on a gate that refuses only
+/// the stale and the contradicted: it held the record.
 #[test]
 fn a_record_the_census_reads_in_the_band_refuses() {
-    let two = two_cubes(1e-9, 0.0);
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let gap = 0.5 * (band.zero() + band.escalate());
+    let two = two_cubes(gap, 0.0);
     let record = face_face(
         &two,
         face_at_x(&two, 1.0, 0.0),
-        face_at_x(&two, 1.0 + 1e-9, 0.0),
+        face_at_x(&two, 1.0 + gap, 0.0),
     );
     let got = finish(Built::of(Body::clone(&two)).recording(record), tol());
     let findings = got.expect_err("a record read in the band is not confirmed");
@@ -275,4 +278,47 @@ fn a_finished_body_names_the_bar_its_gate_paid() {
         Bar::Tier3,
         "a join of one arrival"
     );
+}
+
+/// A `⊔`'s gate takes arrivals, never a list: no `pub fn` of
+/// [`Assembled`] names a record in its signature. A census of the
+/// source, so a constructor or a method added with one goes red here.
+#[test]
+fn no_public_door_of_a_join_takes_records() {
+    let source = include_str!("../src/finish.rs");
+    let mut inside = false;
+    let mut signatures: Vec<String> = Vec::new();
+    let mut open: Option<String> = None;
+    for line in source.lines() {
+        if line.starts_with("impl") && line.contains("Assembled<T>") && !line.contains(" for ") {
+            inside = true;
+        } else if line == "}" {
+            inside = false;
+        }
+        if !inside {
+            continue;
+        }
+        if line.trim_start().starts_with("pub fn ") {
+            open = Some(String::new());
+        }
+        if let Some(signature) = open.as_mut() {
+            signature.push_str(line.trim());
+            signature.push(' ');
+            if line.trim_end().ends_with('{') {
+                signatures.extend(open.take());
+            }
+        }
+    }
+    assert!(
+        signatures.len() >= 7,
+        "the census read the type's doors: {signatures:#?}"
+    );
+    for signature in &signatures {
+        assert!(
+            !["ContactRecords", "Cited", "Contact"]
+                .iter()
+                .any(|record| signature.contains(record)),
+            "a public door of a join takes records: {signature}"
+        );
+    }
 }

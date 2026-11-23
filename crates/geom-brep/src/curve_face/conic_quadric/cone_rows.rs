@@ -938,3 +938,76 @@ fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack() {
          {found:?}"
     );
 }
+
+/// **A deflated root's side is read past the residual's rounding.** A
+/// residual of `10⁻⁶` within `2·10⁻⁶` at `ε = 10⁻⁹` reads no side though
+/// its value is past the band; within `10⁻⁷` it reads positive, and so
+/// does its negation negative.
+#[test]
+fn a_deflated_roots_side_is_read_past_its_rounding() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let at = |value: f64, error: f64| Rounded { value, error };
+    assert_eq!(
+        side_past_rounding(at(1e-6, 2e-6), band),
+        None,
+        "inside its rounding"
+    );
+    assert_eq!(
+        side_past_rounding(at(1e-6, 1e-7), band),
+        Some(Sign::Positive),
+        "past it"
+    );
+    assert_eq!(
+        side_past_rounding(at(-1e-6, 1e-7), band),
+        Some(Sign::Negative),
+        "below"
+    );
+}
+
+/// **A deflated root's slack charges both readings' bounds.** `F = 10⁻⁹`
+/// within `10⁻⁹`, `F′ = 1` within `0.2`, a drift of `0.3` across the
+/// bracket, at unit speed: the slack is `2·10⁻⁹ / 0.5`. A slope whose
+/// bound holds zero bounds nothing, and the slack is unbounded.
+#[test]
+fn a_deflated_roots_slack_charges_both_bounds() {
+    let at = |value: f64, error: f64| Rounded { value, error };
+    let slack = cone_root_slack(at(1e-9, 1e-9), at(1.0, 0.2), 0.3, 1.0);
+    assert!((slack - 4e-9).abs() < 1e-22, "the slack {slack}");
+    let flat = cone_root_slack(at(1e-9, 1e-9), at(-0.1, 0.2), 0.0, 1.0);
+    assert!(flat.is_infinite(), "a slope inside its bound: {flat}");
+}
+
+/// **The deflated reading charges `F′` twice the harmonics' noise.**
+/// Harmonics whose second-harmonic cosine is off by the whole of `noise`
+/// (an error the noise bounds) move `F` by at most `noise` and `F′` by up
+/// to `2·noise`, at `θ = π/4`: both readings hold the perturbed values
+/// within their bounds there, and `F′` would not within `noise` alone.
+#[test]
+fn the_deflated_reading_charges_the_slope_twice_the_noise() {
+    let noise = 1e-6;
+    let at = |c2: f64| crate::ConicHarmonics {
+        c0: 0.3,
+        c1: 0.5,
+        s1: -0.2,
+        c2,
+        s2: 0.1,
+        terms: 1.0,
+        per: 1.0,
+        floor: 1.0,
+    };
+    let (read, true_h) = (at(0.4), at(0.4 + noise));
+    for theta in [0.0, core::f64::consts::FRAC_PI_4, 1.0, 2.5] {
+        let (f, slope) = deflated_reading(&read, noise, theta);
+        let (f_true, slope_true) = deflated_reading(&true_h, 0.0, theta);
+        assert!(
+            (f.value - f_true.value).abs() <= f.error * (1.0 + 1e-9),
+            "F at {theta}: {f:?} against {}",
+            f_true.value
+        );
+        assert!(
+            (slope.value - slope_true.value).abs() <= slope.error * (1.0 + 1e-9),
+            "F′ at {theta}: {slope:?} against {}",
+            slope_true.value
+        );
+    }
+}

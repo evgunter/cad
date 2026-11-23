@@ -29,7 +29,10 @@ fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
 }
 
 fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
-    geom::Curve3::line(Point3::from_array(o), Vec3::from_array(d))
+    geom::Curve3::line(
+        Point3::from_array(o),
+        geom::stated_direction(Vec3::from_array(d)),
+    )
 }
 
 /// PROBE 1 (claim 2): a genuine CROSSING — a cylinder half-embedded in
@@ -133,13 +136,13 @@ fn probe_sphere_rung_mm_vs_metre_twin() {
 fn probe_cylinder_axis_near_tie_three_outcomes() {
     let base = CarrierDesc::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        axis: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         radius: 3.0,
         outward: true,
     };
     let tilt = |t: f64| CarrierDesc::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(t, 0.0, 1.0).normalize(),
+        axis: geom_core::UnitVec3::squared(Vec3::new(t, 0.0, 1.0)),
         radius: 3.0,
         outward: false,
     };

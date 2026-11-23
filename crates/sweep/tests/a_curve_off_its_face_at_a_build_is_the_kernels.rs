@@ -112,12 +112,12 @@ fn refused<T: Decide + AtRestPolicy + Bounds>(declared: bool) -> CertifyError {
         } else {
             description
         },
-        carrier: Curve3::line(start, (end - start) / len),
+        carrier: Curve3::line(start, geom_core::UnitVec3::chord(end - start).0),
         param_start: T::zero(),
         param_end: len,
     };
     match body.set_edge_curve(edge, spec, Tol::witness()) {
-        Err(EulerOpError::Certification { error }) => error,
+        Err(EulerOpError::DescriptionUncertified { error, .. }) => error,
         other => panic!(
             "{}: a chord off its sphere refuses at the mint: {other:?}",
             T::NAME

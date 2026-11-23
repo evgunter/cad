@@ -188,6 +188,19 @@ pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram<Formula> 
         .expect("finite corners")
 }
 
+/// [`rectangle_loop`] as a chain ([`pncad::trace::Chain`]), the loop
+/// vocabulary `SessionOp::DrawOnFace` takes: `w` by `h`, its lower-left
+/// corner at `origin`, counter-clockwise from that corner, closed.
+pub fn rectangle_chain(origin: [f64; 2], w: f64, h: f64) -> pncad::trace::Chain {
+    let [x0, y0] = origin;
+    let point = |x: f64, y: f64| pncad::document::ProgramTarget::Point([len(x), len(y)]);
+    pncad::trace::Chain::at(len(x0), len(y0))
+        .line_to(point(x0 + w, y0))
+        .line_to(point(x0 + w, y0 + h))
+        .line_to(point(x0, y0 + h))
+        .line_to(pncad::document::ProgramTarget::Start)
+}
+
 /// An axis-aligned rectangular profile node's payload:
 /// [`rectangle_loop`] drawn on its own plane. `square` is this with two
 /// equal sides at the plane origin, and a fixture whose block sits
@@ -330,7 +343,7 @@ pub fn mated(
 ) -> (Doc<ProfileProgram>, pncad::document::MateRef) {
     // A mate into another space re-targets the copy here, an explicit
     // fixture move, never the gesture's.
-    let doc = retargeted(doc, placement, doc.operand_space(&mate.to), tol);
+    let doc = retargeted(doc, placement, doc.operand_space(&mate.to.read), tol);
     let applied = apply(
         &doc,
         &DocEdit::AddConstraint {
@@ -402,7 +415,7 @@ fn written(
     let space = constraints
         .iter()
         .find_map(|c| c.mate())
-        .and_then(|mate| doc.operand_space(&mate.to));
+        .and_then(|mate| doc.operand_space(&mate.to.read));
     let doc = retargeted(doc, placement, space, tol);
     let edits = [DocEdit::SetConstraints {
         placement,
@@ -528,10 +541,10 @@ pub const BOSS_HEIGHT: f64 = 0.004;
 /// Each body is a construction in its own coordinates, placed in the
 /// world: the block where it stands, the boss at the block's depth up
 /// the world's `z`, slid there by its values. `tests/creation_ops.rs`'s
-/// boss row authors the scene through the op vocabulary
-/// ([`crate::session::SessionOp::SketchOnFace`]), because the gesture
-/// is what that row is about; this is the scene alone, each body
-/// placed. Its union's volume is `boss_on_block_union_volume`.
+/// boss row authors a boss on a block through the op vocabulary
+/// ([`crate::session::SessionOp::DrawOnFace`], then the extrude and the
+/// combine), because the gestures are what that row is about; this is
+/// the scene alone, each body placed. Its union's volume is `boss_on_block_union_volume`.
 pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let [width, height, depth] = BOSS_BLOCK;
     let (doc, section) = inserted(
@@ -1048,4 +1061,58 @@ fn valued(
         Constraint::of_value(ConstraintId::placeholder(i), Value { coord, by })
     }));
     bundle
+}
+
+/// **The product fault's commits** — the label and op of each act the
+/// landed run's gather refusal offers ([`crate::recourse::offers`]),
+/// read off `current`, a session's run while it is the committed
+/// document's (`DocSession::current`). Empty with no fault, and with no
+/// current run.
+pub fn product_commits(
+    current: Option<crate::session::Current<'_>>,
+) -> Vec<crate::recourse::Commit> {
+    use crate::recourse::{Failure, Offer, offers};
+    let Some(ran) = current.and_then(crate::session::Current::gather_refusal) else {
+        return Vec::new();
+    };
+    offers(Failure::Run(ran))
+        .drawn
+        .into_iter()
+        .map(|offer| match offer {
+            Offer::Commit(commit) => *commit,
+            other => panic!("a product fault offers commits alone: {other:?}"),
+        })
+        .collect()
+}
+
+/// **What each of `current`'s check findings offers**, drawn, in report
+/// order: a session's run while it is the committed document's
+/// (`DocSession::current`); `None` with no current run, or nothing
+/// checked.
+pub fn finding_offers(
+    current: Option<crate::session::Current<'_>>,
+) -> Option<Vec<Vec<crate::recourse::Offer>>> {
+    use crate::recourse::{Failure, offers};
+    let current = current?;
+    current.checks()?;
+    Some(
+        current
+            .findings()
+            .map(|ran| offers(Failure::Run(ran)).drawn)
+            .collect(),
+    )
+}
+
+/// **The commits a refused batch offers** ([`crate::recourse::offers`]),
+/// drawn, in order; a lead or words among them is the test's failure.
+pub fn refusal_commits(refusal: &crate::session::Refusal) -> Vec<crate::recourse::Commit> {
+    use crate::recourse::{Failure, Offer, offers};
+    offers(Failure::Refused(refusal))
+        .drawn
+        .into_iter()
+        .map(|offer| match offer {
+            Offer::Commit(commit) => *commit,
+            other => panic!("the refusal offers commits alone: {other:?}"),
+        })
+        .collect()
 }

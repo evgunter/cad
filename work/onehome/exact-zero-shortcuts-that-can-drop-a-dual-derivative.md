@@ -59,3 +59,5 @@ input with a live derivative takes the general spelling. Each needs a
 `Dual` pin, as PR 6988's three do (the value-channel mutation turns
 them red).
 
+
+**One more site, fixed (DOCTAIL lane, 2026-11-22):** `editor-core` `mate::turn::zero` read `exactly_zero() || (quoted() == 0 && upper() == 0)`. That is the value channel alone at `Dual`, so a mate chart's normal one axis in value, but with a live derivative, read as `aligned`. `aligned` then took the exact branches (`seated`, `spans`, `across`, `slide_direction`) and dropped the tangent. It now reads `SolveScalar::zero_everywhere`: at `Dual`, the value and the derivative both zero. No `Dual` pin was added: no mate-chart row runs at `Dual` with a normal moving off an axis.

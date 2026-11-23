@@ -263,7 +263,11 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         // that break, so the miss is its pcurve's (`ImageMiss`). It moves when the rim's derivation does,
         // so the 1e-9 arm reads it within 5%.
         let ReplaceFaceError::Op {
-            error: topo::EulerOpError::RechartFalsifies { edge, error, .. },
+            error:
+                topo::EulerOpError::DescriptionUncertified {
+                    edge: topo::EdgeSubject::Keyed(edge),
+                    error,
+                },
             ..
         } = error.as_ref()
         else {
@@ -734,7 +738,7 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         let e = topo::replace_face_offset(&mut moved, cap, d, Tol::witness())
             .expect_err("the marched rim does not certify");
         let ReplaceFaceError::Op {
-            error: topo::EulerOpError::RechartFalsifies { error, .. },
+            error: topo::EulerOpError::DescriptionUncertified { error, .. },
             ..
         } = &e
         else {
@@ -1240,7 +1244,7 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
                 matches!(
                     moved,
                     Err(ReplaceFaceError::Op {
-                        error: topo::EulerOpError::RechartFalsifies {
+                        error: topo::EulerOpError::DescriptionUncertified {
                             error: geom_brep::CertifyError::PlaneNurbs(
                                 geom_brep::PlaneNurbsRefusal::Limb {
                                     limb: geom_brep::ssi::SsiLimb::ImageMiss,

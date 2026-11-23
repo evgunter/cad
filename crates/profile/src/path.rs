@@ -4399,8 +4399,8 @@ fn seam_arrival_check<T: Decide>(
             let side = decide(
                 Gate::PathSeamArrivalSide,
                 // Unsourced lever: the shorter leg's arm (a line's length, an arc's lesser of
-                // radius and chord), a length of the consumed legs with no extent home in
-                // `profile`.
+                // radius and chord), a length of the consumed legs with no 2D door
+                // (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
                 Margin::levered(
                     arriving.unit.dot(start_ang.unit),
                     geom_core::Lever::unsourced(arm),
@@ -5072,7 +5072,7 @@ impl<T: Decide> Core<T> {
                 decide(
                     Gate::PathCornerTurn,
                     // Unsourced lever: the two anchors' separation, a length of the consumed path
-                    // with no extent home in `profile`.
+                    // with no 2D point door (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
                     Margin::levered(cross, geom_core::Lever::unsourced(wn)),
                     band,
                 )

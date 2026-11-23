@@ -77,6 +77,7 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
         (
             ContactRefusal::NotCertifiable {
                 what: "the supports meet at no definite angle",
+                reach: topo::ContactReach::NoLane,
             },
             vec!["certified", "the supports meet at no definite angle"],
         ),

@@ -173,7 +173,7 @@ fn exact<T: geom_core::Decide>(depth: Around<T>, x: Point3<T>) -> T {
                 },
             radius: major,
         }) => {
-            let (off, t) = split(x - center, axis);
+            let (off, t) = split(x - center, axis.get());
             ((off.norm() - major.abs()).powi(2) + t.powi(2)).sqrt()
         }
     }
@@ -211,10 +211,16 @@ fn draw(r: &mut Rng, i: usize) -> (Around<f64>, Piece<f64>, Vec<Point3<f64>>, f6
     let axis = if coaxial { n } else { unit(r) } * r.range(0.5, 2.0);
     let origin = centre(r, far);
     let depth = match i % 3 {
-        0 => Around::Line(geom::Line { origin, dir: axis }),
+        0 => Around::Line(geom::Line {
+            origin,
+            dir: geom_core::UnitVec3::squared(axis),
+        }),
         1 => Around::Point(origin),
         _ => Around::Circle(Core {
-            axis: geom::Line { origin, dir: axis },
+            axis: geom::Line {
+                origin,
+                dir: geom_core::UnitVec3::squared(axis),
+            },
             radius: r.range(0.0, 2.0),
         }),
     };
@@ -285,7 +291,7 @@ fn lift_depth(d: Around<f64>) -> Around<Interval> {
     match d {
         Around::Line(geom::Line { origin, dir: axis }) => Around::Line(geom::Line {
             origin: ip(origin),
-            dir: ivec(axis),
+            dir: axis.map_scalar(iv),
         }),
         Around::Point(center) => Around::Point(ip(center)),
         Around::Circle(Core {
@@ -298,7 +304,7 @@ fn lift_depth(d: Around<f64>) -> Around<Interval> {
         }) => Around::Circle(Core {
             axis: geom::Line {
                 origin: ip(center),
-                dir: ivec(axis),
+                dir: axis.map_scalar(iv),
             },
             radius: iv(radius),
         }),
@@ -432,7 +438,7 @@ fn carrier(
             depth = Around::Circle(Core {
                 axis: geom::Line {
                     origin: frame.origin(),
-                    dir: a,
+                    dir: geom_core::UnitVec3::squared(a),
                 },
                 radius: major,
             });

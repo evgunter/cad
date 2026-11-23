@@ -76,7 +76,10 @@ impl<T: Real> Built<T> {
 /// records each touch between two arrivals and reports the rest; a
 /// record an arrival carried in that it does not confirm refuses.
 ///
-/// No constructor takes records:
+/// No constructor or method takes records: `new` takes nothing (below),
+/// and a census of this type's `pub fn`s over the source goes red on
+/// one whose signature names a record
+/// (`the_gate_confirms_every_record::no_public_door_of_a_join_takes_records`).
 ///
 /// ```compile_fail,E0061
 /// let body: topo::Body<f64> = topo::Body::new();
@@ -88,17 +91,6 @@ pub struct Assembled<T: Real> {
     pub(crate) carried: ContactRecords,
     pub(crate) arrivals: Arc<std::collections::BTreeMap<crate::SolidKey, u32>>,
     pub(crate) first_row: u32,
-}
-
-impl<T: Real> Default for Assembled<T> {
-    fn default() -> Self {
-        Self {
-            body: Body::new(),
-            carried: ContactRecords::default(),
-            arrivals: Arc::default(),
-            first_row: 0,
-        }
-    }
 }
 
 /// **Why an arrival did not join an [`Assembled`]**.
@@ -114,8 +106,14 @@ pub enum AssembleError {
 impl<T: Real> Assembled<T> {
     /// No arrival yet.
     #[must_use]
+    #[allow(clippy::new_without_default)] // one spelling: `new`
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            body: Body::new(),
+            carried: ContactRecords::default(),
+            arrivals: Arc::default(),
+            first_row: 0,
+        }
     }
 
     /// `body`, each of its solids one arrival, holding no record: an
@@ -257,9 +255,17 @@ pub struct Censused<T: AtRestPolicy> {
 /// that is the kernel's alone ([`FinishedBody::try_recite`]). Its field
 /// is private, so no other crate builds one.
 ///
-/// ```compile_fail
+/// ```compile_fail,E0423
 /// let _ = topo::KernelOnly(());
 /// ```
+///
+/// It is `Copy` and reaches every [`FinishedBody::try_recite`]
+/// implementation, so what keeps it in the kernel is that no other crate
+/// can write one: [`FinishedBody`] is sealed by its own bound,
+/// `Scalar: AtRestPolicy<Finished = Self>`. A scalar is the kernel's
+/// (`AtRestPolicy: Decide: SpanLocate`, which `geom-core` seals), and
+/// each names one finished type, so no type outside this crate is any
+/// scalar's `Finished`.
 #[derive(Clone, Copy, Debug)]
 pub struct KernelOnly(pub(crate) ());
 
@@ -846,7 +852,7 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
         // The image's gate reads its records again; the bar is its
         // source's, which an isometry does not change.
         T::leaf(Built::of(image).recording(self.records().clone()), tol)
-            .map(|image| image.at_bar(self.bar()))
+            .map(|image| image.at_the_bar_of(self))
             .map_err(MoveError::NotFinished)
     }
 }
@@ -1301,7 +1307,6 @@ impl ValidationError {
             | Self::SolidWithoutShells { .. }
             | Self::ShellWithoutFaces { .. }
             | Self::EdgeAcrossShells { .. }
-            | Self::ComponentEulerViolation { .. }
             | Self::MissingProvenance { .. }
             | Self::LeakedProvenance { .. }
             | Self::NullScaffoldShared { .. }

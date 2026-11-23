@@ -42,11 +42,22 @@ pub enum GlueClass {
     Continuation,
     /// Distinct carriers tangent along a certified locus.
     Tangent,
+    /// Two faces on distinct carriers that both end on one rim, joined
+    /// there in a smooth seam whose interiors do not meet: the routing's
+    /// π wedge with the faces leaving on opposite sides, each operand's
+    /// own rim edge convex. No touch is claimed along the rim, so no
+    /// reader of a tangency reads it.
+    Junction,
 }
 
 impl GlueClass {
     /// Every class.
-    pub(crate) const ALL: &'static [GlueClass] = &[Self::Rest, Self::Continuation, Self::Tangent];
+    pub(crate) const ALL: &'static [GlueClass] = &[
+        Self::Rest,
+        Self::Continuation,
+        Self::Tangent,
+        Self::Junction,
+    ];
 
     /// The class's name, for messages.
     pub fn name(self) -> &'static str {
@@ -54,12 +65,14 @@ impl GlueClass {
             Self::Rest => "Rest",
             Self::Continuation => "Continuation",
             Self::Tangent => "Tangent",
+            Self::Junction => "Junction",
         }
     }
 
     /// Whether the class is ONE carrier (`Rest` or a continuation) —
     /// what the classification stages' same-carrier treatment and the
-    /// merge stage consume. A `Tangent` pair's carriers are distinct.
+    /// merge stage consume. A `Tangent` or `Junction` pair's carriers are
+    /// distinct.
     pub fn is_one_carrier(self) -> bool {
         matches!(self, Self::Rest | Self::Continuation)
     }
@@ -73,12 +86,13 @@ impl GlueClass {
             Self::Rest => crate::Relation::SameOpposite,
             Self::Continuation => crate::Relation::SameOriented,
             Self::Tangent => crate::Relation::SurfaceTangent,
+            Self::Junction => crate::Relation::RimJunction,
         }
     }
 
     /// The carrier relation a one-carrier class glues under: its
     /// [`Self::relation`] as the carrier ladder spells it. `None` for a
-    /// tangency, whose carriers are distinct.
+    /// tangency or a junction, whose carriers are distinct.
     pub(crate) const fn carrier_relation(self) -> Option<geom_brep::CarrierRelation> {
         match self.relation() {
             crate::Relation::SameOriented => Some(geom_brep::CarrierRelation::SameOriented),
@@ -142,7 +156,25 @@ pub enum ContactRefusal {
     NotCertifiable {
         /// Why the configuration is outside the lane.
         what: &'static str,
+        /// Whether anything was read of it ([`ContactReach`]), stated where
+        /// the refusal is raised.
+        reach: ContactReach,
     },
+}
+
+/// **What stands behind a [`ContactRefusal::NotCertifiable`]**, stated
+/// by the site that raises it. A gate reads it to tell a pair nothing
+/// can speak to from a reading that ran and did not decide: only the
+/// first is a record it may hold on its citation
+/// (`[topology.tiers]`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContactReach {
+    /// No reading the kernel has speaks to the configuration: its
+    /// kinds are outside every lane's set, and nothing was measured.
+    NoLane,
+    /// A reading ran, or was handed input it could not read, and did
+    /// not decide.
+    Unread,
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -169,7 +201,7 @@ impl core::fmt::Display for ContactRefusal {
                 "whether the faces touch escalated ({}); {CONTACT_RECOURSE}",
                 diag.payload()
             ),
-            Self::NotCertifiable { what } => {
+            Self::NotCertifiable { what, .. } => {
                 write!(f, "this contact cannot be certified ({what})")
             }
         }
@@ -295,6 +327,16 @@ pub enum Uncertified {
 }
 
 impl Uncertified {
+    /// What stands behind it: the lane's own boundary reads nothing; a
+    /// span bound the schedule did not reach is a reading that ran.
+    #[must_use]
+    pub const fn reach(self) -> ContactReach {
+        match self {
+            Self::OutsideLane | Self::NoSpanBounds => ContactReach::NoLane,
+            Self::SagUnreached => ContactReach::Unread,
+        }
+    }
+
     /// Why, as a clause.
     #[must_use]
     pub const fn what(self) -> &'static str {

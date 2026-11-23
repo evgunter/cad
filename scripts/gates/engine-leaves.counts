@@ -51,7 +51,7 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             147  boolean/mod.rs
+crate-visible             144  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              22  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
@@ -80,7 +80,7 @@ names-boolean               1  attach.rs
 names-boolean               3  bound_side.rs
 names-boolean             285  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
-names-boolean               2  census/confirm_only.rs  # work/onecopy/contact-records-are-declared-under-boolean-while-the-finished-body-at-the-root-holds-them
+names-boolean               6  census/confirm_only.rs  # work/onecopy/contact-records-are-declared-under-boolean-while-the-finished-body-at-the-root-holds-them
 names-boolean               1  census/finding_solids.rs  # work/onecopy/contact-records-are-declared-under-boolean-while-the-finished-body-at-the-root-holds-them
 names-boolean               1  census/in_plane.rs
 names-boolean               1  census/pierce_fuzz.rs
@@ -142,7 +142,7 @@ names-splitting             2  test_support_fixtures.rs
 names-splitting            27  test_support_samples.rs
 names-splitting             4  tier3_tests.rs
 names-splitting            18  torus_region.rs  # work/onedoor/splitting-arc-readers-take-no-body
-names-splitting            41  validate.rs
+names-splitting            37  validate.rs
 names-splitting            19  vertex_section.rs
 
 refused-binding             4  census.rs

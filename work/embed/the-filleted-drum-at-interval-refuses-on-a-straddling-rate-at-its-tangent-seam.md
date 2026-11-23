@@ -4,7 +4,7 @@ kind: issue
 title: With the sliver refused, the filleted drum at Interval refuses across the circle its fillet band shares with its top plane: its pairs split on a rate enclosure that straddles zero
 status: open
 opened: 2026-11-17
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -82,3 +82,7 @@ pinned so. It gates that sliver's retirement
 the touch concession's `few_ulps` is also 0 (the measurement's section
 8): the touch is not this row's, but the reading that closes this row
 is the first thing to try there.
+
+## 2026-11-23: re-banded P0 (EMBED orchestrator)
+
+With PR 7329 in the second landing branch, three valid bodies in three units refuse here at `Interval` and hold at f64: this row's drum (its `Interval` half pinned refusing by PR 7329), PR 7320's rounded plate (its plane against a torus patch across their arc; `a_support_face_c1_through_a_vertex_at_interval`) and PR 7322's three-arc filleted disc (top plane against the band across the top circle; its lane's probe decides whether it belongs here or on the cell-side row). Each lane appends its trace below when its unit lands. None of the three changes this row lists is built.

@@ -2,10 +2,13 @@
 id: a-revolve-refuses-a-profile-on-one-side-of-its-axis-as-across-it
 kind: issue
 title: A revolve refuses a profile that lies wholly on one side of its axis as lying across it, with a recourse that cannot help; reversing the axis heading builds
-status: open
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
+closed: 2026-11-23
+pr: 7425
+branch: lathe/one-side-of-the-axis
 ---
 
 

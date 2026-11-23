@@ -88,6 +88,8 @@
 //! the at-rest check reports. It reports rather than refuses, because a
 //! viewer must keep drawing a document it can diagnose.
 
+use crate::say;
+use crate::sentence;
 use std::sync::Arc;
 
 use geom_core::Decide;
@@ -215,7 +217,7 @@ impl core::fmt::Display for ProductError {
 
 /// The refusal under its stage word, each node said by `by`.
 impl Say for ProductError {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         Labelled::<Self>::open(f, Labels::Kept)?;
         self.fmt_said(f, Labels::Kept, by)
     }
@@ -228,7 +230,7 @@ impl Say for ProductError {
 impl Staged for ProductError {
     const STAGE: &'static str = "product";
 
-    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+    fn fmt_labelled(&self, f: &mut crate::Sentence, labels: Labels) -> core::fmt::Result {
         self.fmt_said(f, labels, Speaker::TAG)
     }
 }
@@ -237,8 +239,9 @@ impl Staged for ProductError {
 /// speaker: what a carrier that names the stage draws.
 pub(crate) struct BareSentence<'a>(&'a ProductError, Speaker<'a>);
 
-impl core::fmt::Display for BareSentence<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// Said by its own speaker: the one it was made with.
+impl Say for BareSentence<'_> {
+    fn say(&self, f: &mut crate::Sentence, _: Speaker<'_>) -> core::fmt::Result {
         self.0.fmt_said(f, Labels::Stripped, self.1)
     }
 }
@@ -252,7 +255,7 @@ impl ProductError {
     /// **The refusal as the frame holding the gathered document says
     /// it**: each node as `doc` holds it now ([`crate::Doc::spoken`]).
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 
@@ -260,17 +263,17 @@ impl ProductError {
     /// node said by `by`; the sentence is the same at either `Labels`.
     fn fmt_said(
         &self,
-        f: &mut core::fmt::Formatter<'_>,
+        f: &mut crate::Sentence,
         _labels: Labels,
         by: Speaker<'_>,
     ) -> core::fmt::Result {
         // The findings are the at-rest gate's.
-        let list = |f: &mut core::fmt::Formatter<'_>, errors: &[ValidationError]| {
+        let list = |f: &mut crate::Sentence, errors: &[ValidationError]| {
             crate::finding::render_lines(
                 f,
                 errors
                     .iter()
-                    .map(|e| e.render(geom_brep::recourse::Reading::AtRest)),
+                    .map(|e| e.render(geom_brep::recourse::Reading::AtRest).to_string()),
             )
         };
         let piece = |id: RecipeNodeId| by.node_as(id, "piece");
@@ -280,7 +283,7 @@ impl ProductError {
                 "the evaluation is of document {found}, not of \
                  document {expected}",
             ),
-            Self::Read(standing) => write!(f, "{}", Said(&standing.of_read(), by)),
+            Self::Read(standing) => say!(f, Said(&standing.of_read(), by)),
             Self::EmptyProduct => write!(
                 f,
                 "the product slot reads nothing, so the document has no product. {}",
@@ -298,16 +301,22 @@ impl ProductError {
                 "the product reads a body outside the world. {}",
                 crate::sentence::Recourse("set the product to a body in the world")
             ),
-            Self::Frame { node, kind } => write!(
+            Self::Frame { node, kind } => say!(
                 f,
-                "{}'s body could not be read into the frame the product computes in: {kind}",
-                piece(*node)
-            ),
-            Self::Graft { node, source } => write!(
-                f,
-                "the kernel could not graft {}'s body: {}",
                 piece(*node),
-                source.render(geom_brep::recourse::Reading::Build)
+                sentence!(
+                    "'s body could not be read into the frame the product computes in: ",
+                    Said(&kind, by)
+                )
+            ),
+            Self::Graft { node, source } => say!(
+                f,
+                "the kernel could not graft ",
+                piece(*node),
+                format_args!(
+                    "'s body: {}",
+                    source.render(geom_brep::recourse::Reading::Build)
+                )
             ),
             Self::ProductInvalid { findings } => {
                 // Every copy is finished in its own frame, so a refusal
@@ -317,14 +326,16 @@ impl ProductError {
                 f.write_str("the product does not finish:")?;
                 list(f, findings.as_slice())
             }
-            Self::ContactLineage { node, what } => write!(
+            Self::ContactLineage { node, what } => say!(
                 f,
-                "{}'s declared contact names {} {what} the \
+                piece(*node),
+                format_args!(
+                    "'s declared contact names {} {what} the \
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
-                piece(*node),
-                crate::sentence::article(what)
+                    crate::sentence::article(what)
+                )
             ),
         }
     }
@@ -570,6 +581,7 @@ pub(crate) fn sources_of<T: topo::AtRestPolicy + Decide>(
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::Assertion(_)
+        | ValuePayload::Datum(_)
         | ValuePayload::Family => None,
     }
 }
@@ -1384,8 +1396,8 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // two are held to one arena here.
         Some(decided) => {
             assert!(
-                same_arena(aggregate.body(), &decided.body),
-                "a product's graft and the graft its `⊔` door finished mint one arena: \
+                same_keys(aggregate.body(), &decided.body),
+                "a product's graft and the graft its `⊔` door finished mint the same keys: \
                  every name, record and census row below is keyed through the first \
                  onto the second"
             );
@@ -1608,9 +1620,10 @@ fn carry_names(
     }
 }
 
-/// Whether two bodies hold the same solid, face, edge and vertex keys:
-/// what two grafts of the same sources in the same order leave.
-fn same_arena<T: geom_core::Real>(a: &Body<T>, b: &Body<T>) -> bool {
+/// Whether two bodies hold the same solid, face, edge and vertex keys,
+/// in order: what two grafts of the same sources in the same order
+/// leave. It compares keys only, not what they name.
+fn same_keys<T: geom_core::Real>(a: &Body<T>, b: &Body<T>) -> bool {
     a.solids().map(|(k, _)| k).eq(b.solids().map(|(k, _)| k))
         && a.faces().map(|(k, _)| k).eq(b.faces().map(|(k, _)| k))
         && a.edges().map(|(k, _)| k).eq(b.edges().map(|(k, _)| k))

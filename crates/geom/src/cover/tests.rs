@@ -78,7 +78,8 @@ fn core_about(center: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Around<f64> 
     Around::Circle(Core {
         axis: crate::Line {
             origin: center,
-            dir: axis,
+            // The circle names its axis by direction alone.
+            dir: geom_core::UnitVec3::squared(axis),
         },
         radius,
     })
@@ -146,7 +147,8 @@ fn lift_site(site: &Site<f64>) -> Site<Interval> {
         Site::Point(q) => Site::Point(ipt(*q)),
         Site::Line(l) => Site::Line(Line {
             origin: ipt(l.origin),
-            dir: ivec(l.dir),
+            // The stated direction's lift: its polar unit enclosure.
+            dir: l.dir.map_scalar(Interval::from_f64),
         }),
     }
 }
@@ -156,7 +158,7 @@ fn distance(s: Point3<Interval>, site: &Site<f64>) -> Interval {
         Site::Point(q) => (s - ipt(*q)).norm(),
         Site::Line(l) => {
             let w = s - ipt(l.origin);
-            let d = ivec(l.dir);
+            let d = ivec(l.dir.get());
             (w - d * (w.dot(d) / d.dot(d))).norm()
         }
     }
@@ -306,7 +308,10 @@ fn sites(rng: &mut Rng, center: Point3<f64>, scale: f64) -> Vec<Site<f64>> {
         ));
         out.push(Site::Line(Line {
             origin: center + (point(rng, 2.0 * scale) - Point3::origin()),
-            dir: unit(rng) * rng.range(0.5, 2.0),
+            // A site line's distance reads its direction alone; the
+            // length's draw is kept, so every later draw is the stream it
+            // was.
+            dir: geom_core::UnitVec3::squared(unit(rng) * rng.range(0.5, 2.0)),
         }));
     }
     out
@@ -549,7 +554,7 @@ fn a_curves_cover_over_a_span_holds_it() {
         };
         let line = Curve3::Line(Line {
             origin: center,
-            dir: unit(&mut rng) * scale,
+            dir: geom_core::UnitVec3::squared(unit(&mut rng) * scale),
         });
         run("line", line, vec![]);
         let conic_extremes = |a: f64, b: f64| {
@@ -975,12 +980,13 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
         Some(unbounded.clone()),
         "Err ∨ Ok is the Err"
     );
-    let spline = Curve3::<f64>::nurbs_placeholder().cover_over(ParamWindow::new(0.0, 1.0));
+    let spline =
+        crate::test_support::poisoned_nurbs_segment::<f64>().cover_over(ParamWindow::new(0.0, 1.0));
     let poisoned = Uncovered::new(Entity::Curve(crate::CurveKind::Nurbs), Unknown::PoisonedNet);
     assert_eq!(
         spline.as_ref().err(),
         Some(&poisoned),
-        "a placeholder spline's net bounds nothing"
+        "a poisoned spline's net bounds nothing"
     );
     let both = refused.meet(spline).expect_err("Err ∧ Err is Err");
     assert_eq!(
@@ -1292,7 +1298,10 @@ fn a_non_finite_datum_builds_no_cover() {
         )),
         "an infinite sphere"
     );
-    let line = Curve3::Line(Line { origin: o, dir: x });
+    let line = Curve3::Line(Line {
+        origin: o,
+        dir: crate::stated_direction(x),
+    });
     assert_eq!(
         line.cover_over(ParamWindow::new(0.0, f64::INFINITY)).err(),
         Some(Uncovered::new(
@@ -1304,20 +1313,21 @@ fn a_non_finite_datum_builds_no_cover() {
 }
 
 /// **A segment whose end cancels is enclosed at `Interval`.** The line
-/// `x = 1e5 + 0.1·t` at `t = −1e6`: the product `0.1·t` rounds at the
-/// scale of `1e5` while the end lands near zero, so an end rounded once
+/// `x = 6e4 + 0.6·t` at `t = −1e5`: the product `0.6·t` rounds at the
+/// scale of `6e4` while the end lands near zero, so an end rounded once
 /// at `f64` misses its exact point by far more than an ulp of itself.
 /// The interval end encloses it, and the cover built at `Interval`
 /// holds that enclosure on both sides.
 #[test]
 fn a_cancelling_segment_end_is_enclosed_at_interval() {
     let line = Curve3::Line(Line {
-        origin: Point3::new(1e5, 0.0, 0.0),
-        dir: Vec3::new(0.1, 0.0, 0.0),
+        origin: Point3::new(6e4, 8e4, 0.0),
+        // `0.6` and `0.8` are not `f64`s, so the end's products round.
+        dir: crate::stated_direction(Vec3::new(0.6, 0.8, 0.0)),
     });
     let at = line.map_scalar(iv);
-    let cover = at.cover_over(ParamWindow::new(iv(-1e6), iv(0.0))).unwrap();
-    let end = at.eval(iv(-1e6)).x;
+    let cover = at.cover_over(ParamWindow::new(iv(-1e5), iv(0.0))).unwrap();
+    let end = at.eval(iv(-1e5)).x;
     let x = ivec(Vec3::unit_x());
     let (lo, hi) = (iv(0.0) - cover.support(-x), cover.support(x));
     assert!(
@@ -1491,14 +1501,14 @@ fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
             let origin = on + radial * delta + z * lift;
             let line = Line {
                 origin,
-                dir: tangent * 3.0,
+                dir: crate::stated_direction(tangent),
             };
             let scale = (origin - Point3::origin()).norm() + size;
             let tol = 64.0 * f64::EPSILON * scale;
             let (nf, _) = f.distance_range(&Site::Line(line));
             let (ni, _) = i.distance_range(&Site::Line(Line {
                 origin: ipt(line.origin),
-                dir: ivec(line.dir),
+                dir: line.dir.map_scalar(Interval::from_f64),
             }));
             assert!(
                 nf <= want + tol && nf >= least - tol,
@@ -1524,7 +1534,7 @@ fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
 fn a_circle_about_the_line_reads_its_radius_in_either_sense() {
     let line = Site::Line(Line {
         origin: Point3::new(0.0, 0.0, -7.0),
-        dir: Vec3::unit_z() * 0.5,
+        dir: geom_core::UnitVec3::exact_z(),
     });
     for axis in [Vec3::unit_z(), -Vec3::unit_z()] {
         let circle = Curve3::Circle(crate::Circle::new(
@@ -1686,7 +1696,7 @@ fn a_convex_hulls_least_distance_reaches_between_its_pieces() {
     assert_eq!((near, far), (0.0, 1.0), "the convex hull");
     let line = Site::Line(Line {
         origin: Point3::new(0.0, -3.0, 0.0),
-        dir: Vec3::unit_y(),
+        dir: crate::stated_direction(Vec3::unit_y()),
     });
     assert_eq!(
         pair().convex().distance_range(&line).0,
@@ -1826,7 +1836,7 @@ fn a_shell_reads_a_nearby_core_no_nearer_than_its_points() {
     let other = Core {
         axis: crate::Line {
             origin: Point3::new(0.3, 0.0, 0.0),
-            dir: Vec3::unit_z(),
+            dir: crate::stated_direction(Vec3::unit_z()),
         },
         radius: 1.0,
     };
@@ -1863,7 +1873,7 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     let within = Cover::segment(Point3::new(1.0, 2.0, 4.0), Point3::new(1.0, 2.0, 5.0)).unwrap();
     let xyz = |p: Point3<f64>| (p.x, p.y, p.z);
     let line = |s: &Around<f64>| match *s {
-        Around::Line(l) => Some((xyz(l.origin), (l.dir.x, l.dir.y, l.dir.z))),
+        Around::Line(l) => Some((xyz(l.origin), (l.dir.get().x, l.dir.get().y, l.dir.get().z))),
         _ => None,
     };
     let wall = Cover::wall(&frame, 0.8, &within).unwrap();
@@ -2020,7 +2030,7 @@ fn a_whole_circle_is_its_turn_whatever_its_seam() {
     let circle = Cover::circle(Core {
         axis: Line {
             origin: c,
-            dir: axis,
+            dir: crate::stated_direction(axis),
         },
         radius: r,
     })
@@ -2046,7 +2056,7 @@ fn a_whole_circle_is_its_turn_whatever_its_seam() {
         Cover::circle(Core {
             axis: Line {
                 origin: Point3::new(f64::NAN, 0.0, 0.0),
-                dir: axis,
+                dir: crate::stated_direction(axis),
             },
             radius: r,
         })
