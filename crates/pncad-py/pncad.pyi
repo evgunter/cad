@@ -4014,6 +4014,14 @@ class Doc:
 
         Exactly `insert(Node.measure(p))` per primitive, recorded as one
         action and answered with the outputs."""
+    def assert_quieting(self, quieting: Quieting) -> NodeId:
+        """Author the assertion a check carries (`CheckEvidence.quieting`)
+        as one action: a split's unnamed tool named first, the measure,
+        then the assertion, `= 0` over its output; all land or none does.
+        Answers the assertion's id, the node the quieted finding names.
+        A `quieting` the checks of another document found raises
+        `EditError` with variant `evaluation_of_another_document`; a
+        refusal of the insert door raises its own `EditError`."""
     def place(
         self,
         source: _BodyArg,
@@ -6523,6 +6531,52 @@ class CarriedInterference:
     @property
     def via(self) -> list[NodeId]: ...
 
+class QuietingRef:
+    """One reference of a `Quieting`'s measure, as the measure reads it:
+    the entity `name` names in the body `read` reads, read as that cell
+    or as the pose `pose` read off it; or, with no `name`, the variable
+    `read` itself (the plane a split cuts with). Equal where all three
+    are."""
+
+    @property
+    def read(self) -> Var:
+        """The variable read: the body the entity is selected in, or the
+        variable the measure reads as it is."""
+
+    @property
+    def name(self) -> Optional[str]:
+        """The entity's name in that body's table, as opaque text; `None`
+        for a variable read as it is."""
+
+    @property
+    def pose(self) -> Optional[str]:
+        """The kind of the pose read off the cell, `axis` or `point`;
+        `None` for the cell itself."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Quieting:
+    """The assertion that would quiet an unproven coincidence:
+    `measure(references) = 0`, a `gap` or a `distance` over the row's
+    two cells as that measure reads them, in the document the checks ran
+    over. The kernel mints it only where the rule that decides which
+    holding assertion quiets the row takes it, so the row is quiet once
+    `Doc.assert_quieting` has authored it. `str()` is the claim in words.
+    Equal where the claim and the document are."""
+
+    @property
+    def measure(self) -> str:
+        """The measure related to zero: `gap` or `distance`."""
+
+    @property
+    def references(self) -> tuple[QuietingRef, QuietingRef]:
+        """The measure's two references, in its order: a `gap`'s outer
+        then inner."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
 class CarriedCoincidence:
     """A coincidence a document BELOW this one leaves unproven, with the
     route it arrived by: an `unproven_coincidence` finding's
@@ -6627,11 +6681,19 @@ class InterferenceFinding:
     @property
     def loud(self) -> bool: ...
     @property
-    def quietable(self) -> bool:
-        """Whether an assertion the quieting rule accepts could quiet it,
-        as the rule itself answers: some holding `gap` assertion over two
-        of its bounding faces would quiet it. One no assertion could
-        quiet refuses at no severity."""
+    def quieting(self) -> tuple[FaceSite, FaceSite] | None:
+        """The two faces a `gap` that would quiet it is written over,
+        outer then inner, as the quieting rule itself answers: a holding
+        `gap(outer, inner)` related to a negative bound by `<=` or `=`
+        quiets it, and the bound is the author's. `None` where no
+        assertion could quiet it, which refuses at no severity."""
+    @property
+    def quieting_references(self) -> tuple[QuietingRef, QuietingRef] | None:
+        """The two references an author writes that `gap` over, outer
+        then inner, each a selection of one name in its copy's read: a
+        family member's face by the name its member wraps, so the
+        assertion reaches the family's index and each member reads its
+        own face. `None` exactly where `quieting` is."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the
@@ -7040,6 +7102,13 @@ class CheckEvidence:
     def coincidence(self) -> Optional[Coincidence]: ...
     @property
     def restated(self) -> Optional[list[Coincidence]]: ...
+    @property
+    def quieting(self) -> Optional[Quieting]:
+        """The assertion that would quiet an unproven coincidence, on
+        `unproven_coincidence` alone, and `None` where no assertion says
+        the row: then the finding names the construction alone and
+        `enforce_checks` refuses it at no severity."""
+
     @property
     def interference(self) -> Optional[InterferenceFinding]: ...
     @property

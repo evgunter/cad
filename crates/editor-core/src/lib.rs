@@ -115,6 +115,7 @@ pub use checks::at_rest::{
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
     PinnedDoc, Route, Unlocalized,
 };
+pub use checks::quieting::{OpposedPair, Quieting, QuietingRef};
 pub use checks::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
     ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity, Subject,

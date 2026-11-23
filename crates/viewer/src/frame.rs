@@ -3428,7 +3428,7 @@ mod tests {
                     residual: Box::new(residual),
                     recourse: editor_core::coincide::Recourse::Assert,
                     restated: Vec::new(),
-                    quietable: false,
+                    quieting: None,
                 },
                 quiet: None,
             }],
