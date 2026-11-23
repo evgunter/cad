@@ -869,7 +869,7 @@ fn carry(
 /// **A snapped carrier's frame, minted decided**: the new axis `dir`
 /// squared as the frame door squares it, and the part of the `seam` it
 /// keeps square to it decided at the least band
-/// ([`RigidMotion::from_aim_and_reference`], under
+/// ([`RigidMotion::from_aim_and_reference`](geom_core::RigidMotion::from_aim_and_reference), under
 /// [`STEP_SNAP_FRAME`](crate::interpret::STEP_SNAP_FRAME)). It is
 /// [`geom::Frame::new`]'s arithmetic step for step, so the bits are the
 /// squared frame's; a seam along the axis is `None`, where the undecided

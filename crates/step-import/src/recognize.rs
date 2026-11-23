@@ -556,8 +556,6 @@ fn curvature_at(patch: &NurbsSurface<f64>, fu: f64, fv: f64) -> Option<Curvature
 /// heights whichever parameter is the azimuth.
 const DIAGONAL: [f64; 3] = [1.0 / 8.0, 1.0 / 2.0, 7.0 / 8.0];
 
-/// The unit direction of `p − centre` with its component along `axis`
-/// removed.
 /// **A recognized carrier's frame, minted decided**: `axis`, an
 /// estimator's direction already, squared as the frame door squares it,
 /// and the part of `u_ref` square to it decided at the least band under
@@ -584,6 +582,8 @@ fn decided_frame(
     .map(|m| geom::Frame::of_motion(&m))
 }
 
+/// The unit direction of `p − centre` with its component along `axis`
+/// removed.
 fn radial_of(p: Point3<f64>, centre: Point3<f64>, axis: Vec3<f64>) -> Option<Vec3<f64>> {
     let d = p - centre;
     (d - axis * d.dot(axis))
