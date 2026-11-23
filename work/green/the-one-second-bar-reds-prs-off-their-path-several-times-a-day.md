@@ -7,6 +7,8 @@ opened: 2026-11-22
 priority: P1
 cost: M
 design: true
+pr: 7448
+branch: green/fast-set-bar
 ---
 
 
