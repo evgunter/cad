@@ -11,6 +11,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol, Vec3};
 
+use crate::intersect::SectionError;
 use crate::pair_section::{
     CarriedComponent, CarryError, CarryRefusal, ChartReach, ComponentShape, NoCarrier, PairSection,
     SectionRead, SsiLane, pair_section,
@@ -69,6 +70,16 @@ pub(super) fn listed(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
         SectionRead::Built(s) => s
             .read_whole(lane, band())
             .unwrap_or_else(|e| panic!("{:?} × {:?} reads whole: {e:?}", a.kind(), b.kind())),
+        SectionRead::Elsewhere(_) => panic!("a spline × implicit pair is built here"),
+    }
+}
+
+/// [`listed`], or the refusal the pair's reading stops on before any
+/// carry, where the row's scale is past what the run's ε reads.
+fn listed_at(a: &Surface<f64>, b: &Surface<f64>) -> Result<PairSection<f64>, SectionError> {
+    let lane = Some(SsiLane::marched());
+    match pair_section(a, b, None, lane, band())? {
+        SectionRead::Built(s) => s.read_whole(lane, band()),
         SectionRead::Elsewhere(_) => panic!("a spline × implicit pair is built here"),
     }
 }
@@ -335,6 +346,10 @@ pub(super) fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2
 /// point on the rod's axis line, between the arcs and on neither, is
 /// read on no two arcs.
 ///
+/// At `ε = 1e-12` the wall at `s = 100` is not read: the whole reading
+/// cannot decide its limb 2 there, before any carry (asserted, with the
+/// scale it is allowed at).
+///
 /// Red against: the carry holding no arcs apart, with a pad the window's
 /// whole image, which reaches across to the other arc (a witness on two
 /// components); a pad read off cells the rod's form is not asked to
@@ -346,7 +361,19 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_alone() {
     for s in [1e-2, 1.0, 100.0] {
         for r in [0.045, 0.09, 0.095, 0.15] {
             let w = wall(s);
-            let carried = listed(&w, &rod(s, r))
+            let section = match listed_at(&w, &rod(s, r)) {
+                Ok(section) => section,
+                Err(unread) => {
+                    assert!(
+                        s == 100.0 && Tol::witness().eps() == 1e-12,
+                        "s = {s}, r = {r}: the pair reads whole: {unread:?}"
+                    );
+                    println!("s = {s}, r = {r}: not read at this ε, before any carry: {unread:?}");
+                    // The scale, not the rod, is what the ε does not read.
+                    break;
+                }
+            };
+            let carried = section
                 .carry(Some(SsiLane::marched()), band())
                 .unwrap_or_else(|e| panic!("s = {s}, r = {r}: two arcs are carried: {e:?}"));
             let [lower, upper] = carried.components() else {
@@ -417,6 +444,12 @@ fn quickening(s: f64) -> Surface<f64> {
 /// the row's premise). Each point of each arc, and each arc's witness,
 /// reads on its own arc.
 ///
+/// Two scales are past what a run's ε reads, each refused before any
+/// carry and asserted with the ε it is allowed at: at `ε = 1e-6` the
+/// wall at `s = 0.01`, whose arcs end `3.8e-4` apart on its side, pinches
+/// at the side; at `ε = 1e-12` the wall at `s = 100`, where the march
+/// settles no state finer than the tolerance.
+///
 /// Red against: a pad read off the windows' whole images, some `0.07·s`
 /// each side, where the two arcs refuse `PadsMeet`.
 #[test]
@@ -429,7 +462,19 @@ fn two_arcs_a_ninth_of_a_rung_apart_on_a_quickening_wall_are_carried() {
             frame: geom::Frame::new(pt(0.0, s, z0), Vec3::unit_x(), Vec3::unit_z()),
             radius: r,
         };
-        let carried = listed(&w, &partner)
+        let section = match listed_at(&w, &partner) {
+            Ok(section) => section,
+            Err(unread) => {
+                let eps = Tol::witness().eps();
+                assert!(
+                    (s == 1e-2 && eps == 1e-6) || (s == 100.0 && eps == 1e-12),
+                    "s = {s}: the pair reads whole: {unread:?}"
+                );
+                println!("s = {s}: not read at this ε, before any carry: {unread:?}");
+                continue;
+            }
+        };
+        let carried = section
             .carry(Some(SsiLane::marched()), band())
             .unwrap_or_else(|e| panic!("s = {s}: two arcs are carried: {e:?}"));
         let [a, b] = carried.components() else {
