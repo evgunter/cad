@@ -4,7 +4,7 @@ kind: issue
 title: A refusal stored before it is shown keeps a String, so its notation is chosen before its reader is known
 status: open
 opened: 2026-11-20
-priority: P1
+priority: P2
 cost: M
 parent: patherror-display-renders-float-noise
 ---
@@ -44,3 +44,7 @@ reader's notation and stay on `Display`.
 
 Found by the notation unit's measure-first survey
 (`a-refusal-is-told-in-the-readers-notation`).
+
+## Re-banded P1 to P2 (2026-11-22)
+
+Ev, in chat: work that is only about how a number or a refusal is formatted, with no further design ramification and little risk of compounding when built on, is skipped or P2 once the P0s are done. What entrenches here (the told type, the notation plumbing, what a typed number means) is built or in review; what is left on this row is coverage of that pattern, crate by crate.

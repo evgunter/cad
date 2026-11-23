@@ -1810,7 +1810,7 @@ fn touches_only_near_the_shared_end<T: Decide>(host: &Seg<T>, other: &Seg<T>, ba
     matches!(
         decide(
             Gate::CollinearOverlap,
-            Margin::of(along.extent() + along.noise),
+            Margin::of(along.overlap().upper_end()),
             band
         ),
         Ok(Sign::Zero | Sign::Negative)
@@ -1834,7 +1834,7 @@ fn collinear_overlap<T: Decide>(
     let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
     let lower = decide_reported(
         Gate::CollinearOverlap,
-        Margin::of(along.extent() - along.noise),
+        Margin::of(along.overlap().lower_end()),
         band,
     )?;
     if lower.sign == Sign::Positive {
@@ -1842,7 +1842,7 @@ fn collinear_overlap<T: Decide>(
     }
     let upper = decide_reported(
         Gate::CollinearOverlap,
-        Margin::of(along.extent() + along.noise),
+        Margin::of(along.overlap().upper_end()),
         band,
     )?;
     Ok(match (lower.sign, upper.sign) {
