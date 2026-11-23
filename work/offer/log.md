@@ -324,3 +324,4 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **Costed:** `the-body-a-placement-copies-has-three-answers` is M. It waits for the pane-lines PR, which shares `pane/create.rs`.
   - **Held:** the four +design P2 rows, until Fable resets on Nov 28.
   - No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 16:27Z — **`properties-do-not-say-a-node-is-read-by-the-product-or-a-definition` priced** at P3, cost M, and dispatched on Opus: session_013QoYWX59PE5nLh9bDwi8ZD, branch `offer/read-by-says-the-product-and-definitions`. It touches `relations.rs`, `doc.rs`'s read index and Properties, apart from the pane-lines and wheel lanes. **`chooser-probe-misses-dbus-autolaunch`** stays open: its fix must first reproduce the `Absent` arm on a box with no zenity, a portal and no bus variable, and a cloud container cannot do that. No row (rule 12). (OFFER orchestrator)
