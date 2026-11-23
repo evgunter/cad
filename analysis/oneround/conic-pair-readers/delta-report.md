@@ -196,7 +196,7 @@ above).
 
 **D5.** Truth points: N7. Tolerance: the band's escalation, yes. Fat and thin, 0.3 m and 5 m: yes. "Owed": m1. R1,
 R4, R9: killed (R1 by six centre-held circle rows, none of them arc-held; R4 and R9 by the new jets row). R2 and R3:
-the code is gone. Red on the base: [[ROWS]].
+the code is gone. Red on the base: all eleven `arc_held_rows`, copied in, fail there at 1e-9 and at 1e-12.
 
 **D6.** The fix restores what the base did: its plane door read its constant through `plane_offset`, and the first
 head replaced that with a plain dot. `ruled_region_rows` is untouched against the base (25); `KEPT_TORUS` is still
@@ -211,7 +211,10 @@ exist (N6).
 **D8.** The design row: true of the tree, its fourteen match my join, P2 with `design: true` as ruled. The `Interval`
 row: P2 as ruled; its "past the session box" is m4. The 70 s row: filed, P3, defensible as a cost; its row runs
 nowhere (m5). The general-anchor evidence and the seed: present. `work.py lint` passes. The body: true of the frozen
-head but for m1's size, m4's scope, N2 and N4. The differential: [[DIFF]].
+head but for m1's size, m4's scope, N2 and N4. The differential: head 10,777 tests, all pass at 1e-9, and at 1e-12 all but
+`pcurve_cache::ruling_reading_rows::a_true_ruling_keeps_the_closed_form_on_both_nappes` and sweep's
+`a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta`; base 10,761 tests (without the unit's rows), all
+pass at 1e-9 and the same two fail at 1e-12. As the body says; nothing else differs.
 
 ## Style
 
