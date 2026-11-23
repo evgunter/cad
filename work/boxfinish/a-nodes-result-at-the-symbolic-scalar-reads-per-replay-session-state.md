@@ -2,12 +2,13 @@
 id: a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state
 kind: unit
 title: A node's result at the symbolic scalar reads per-replay session state: the expression table, the registry and the retry cap belong to a replay, not to a node or the drive
-status: dispatched
+status: review
 opened: 2026-11-22
 priority: P1
 cost: H
 parent: a-drive-finishes-a-body-again-in-every-leaf-whose-box-does-not-move-it
 branch: boxfinish/session-state
+pr: 7492
 ---
 
 
