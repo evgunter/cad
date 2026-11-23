@@ -133,21 +133,31 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
         "every Zero the arc rims' checks answer over the bulge, the weight margin `w − cos(h/2)` \
          among them, is a symbolic Zero: {rim_theorems:?}"
     );
-    assert!(
-        build_reads.values().all(|&n| n <= 2),
-        "a rim check's theorem is read at most twice per build, by its edge certificate and \
-         again by the mint: {build_reads:?}"
-    );
+    // The build walks the wall's loop once to mint it, the walk the
+    // loop-winding door takes, and the stated rim image's edge
+    // certificate reads its checks once more. So each theorem is read by
+    // the build as often as by the winding walk, or once more, and the
+    // "once more" is the one stated rim image's.
     let winding_reads = reads_per_theorem(winding_nodes.iter().copied());
-    let over: Vec<_> = winding_reads
-        .iter()
-        .filter(|(node, n)| build_reads.get(*node).is_none_or(|b| *n > b))
-        .collect();
+    let mut extra = 0;
+    let mut wrong = Vec::new();
+    for (node, &built) in &build_reads {
+        let walked = winding_reads.get(node).copied().unwrap_or(0);
+        if walked == 0 || built < walked || built > walked + 1 {
+            wrong.push((node, built, walked));
+        }
+        extra += built.saturating_sub(walked);
+    }
     assert!(
-        !winding_reads.is_empty() && over.is_empty(),
-        "the loop-winding door reads each arc rim's checks once, in the walk's lane choice, \
-         so it reads no theorem more often than the build that certified and minted the \
-         rims did: {over:?} past the build's {build_reads:?}"
+        wrong.is_empty() && winding_reads.len() == build_reads.len(),
+        "each rim theorem is read by the winding door once per check, in the walk's lane \
+         choice, and by the build as often or once more (its edge certificate): \
+         (theorem, build, winding) {wrong:?}"
+    );
+    assert_eq!(
+        extra, 1,
+        "the build reads exactly the one stated rim image's checks again at its edge \
+         certificate: build {build_reads:?} against winding {winding_reads:?}"
     );
 }
 

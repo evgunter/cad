@@ -166,3 +166,7 @@ difference 7299 makes there is the narrowing above: the two seam
 vertices of `cut_cylinder`, in nodes 46, 61 and 69. The row is left
 unpinned, as SECTCONE's. Whoever re-takes it re-takes both moves, and
 GERM's is judged here.
+
+## CIW, 2026-11-23
+
+PR 7501 (`ciw/census-digest-goldens`) re-cuts seat7's `boss_union` on a key-free feed and pins it at its tree's reading, with a comment citing this row: "holds PR 7354's move unjudged; SECTCONE owes the judgement". It also replaces `m10_p_fence`'s Interval golden with in-process claims, and adds `the_interval_corpus_holds_sectcones_move_unjudged`, an id-masked Interval pin citing this row for the same move. Neither pin judges the move. Each goes when SECTCONE has judged it.

@@ -2,7 +2,8 @@
 id: rule-g-trades-sixteen-of-the-links-carrier-on-surface-2
 kind: issue
 title: rule G costs the link's carrier_on_surface_2 four theorems at one attempt per rung (88 -> 84, eight more through the door); with the kept-atom ladder the predicate reads 88/0/8/12, the eight to the door on the coefficient ring and two numeric on the term budget
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-09-21
 priority: P2
 cost: H
@@ -256,3 +257,7 @@ names should merge.
 `crates/editor-core/tests/decide_3_split_rows_interval.rs` (the row
 that pins it, with the numbers asserted so a drift reds). Filed by
 DECIDE-3's fix pass with the measurement above.
+
+## Closed (CIW, 2026-11-23)
+
+The pin this row annotated is gone. PR 7501 (`ciw/census-digest-goldens`) replaces `sym_9`'s link split pin (`carrier_on_surface_2` with the ladder) with the ladder's claim, checked per document: equal totals, and each retry moves one decision from numeric to symbolic. The trade itself is DECIDE-3's ruling, recorded above. No defect is suspected.

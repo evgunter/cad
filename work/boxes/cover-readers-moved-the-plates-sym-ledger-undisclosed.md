@@ -2,7 +2,8 @@
 id: cover-readers-moved-the-plates-sym-ledger-undisclosed
 kind: issue
 title: PR 6588's cover readers grew the plate's Plain/Decision walk by 2214 forms (frozen 36 → 62, largest form 28 → 38) with no plate decision moving at these ε; its body said the row passed
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-09
 priority: P3
 cost: E
@@ -37,3 +38,7 @@ After PR 6588, the plate's `Plain/Decision` walk moved twice more on 2026-11-09,
 Calls (1203) and every other walk line are unchanged, and so is the largest form (38). PR 6639's description says "`m10_sym` plates (38 against 28) and slabs (green) are unchanged": it read the largest-form bound, which held, and not the forms line, which moved. PR 6631's description does not mention the plate. PR 6663 re-pins the plate at main's `forms 55907 frozen 66`.
 
 So the cover's readings have now grown the plate's plain walk three times (6588, 6639, 6631), 51423 → 55907 forms and 36 → 66 frozen. The question this row owes is now about all three: whether that growth is the price of the cover reading, or whether the reach can be read without building forms the decisions never needed.
+
+## Closed (CIW, 2026-11-23)
+
+The ledger golden is gone. PR 7501 (`ciw/census-digest-goldens`) replaces the plate's walk-ledger pin with a growth guard on its largest form (twice the measured 38), and the slab's with determinism and freezes-nothing. The cover readers' 2214 forms moved no decision at these ε, so no defect is suspected. The disclosure this row asked for is now owed to no pin.

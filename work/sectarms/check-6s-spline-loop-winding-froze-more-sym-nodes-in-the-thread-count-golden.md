@@ -2,7 +2,8 @@
 id: check-6s-spline-loop-winding-froze-more-sym-nodes-in-the-thread-count-golden
 kind: issue
 title: Since PR 7028 the thread-count golden's two Sym validate_geometric lines freeze 16 nodes (were 14 and 12) at every eps; pinned until the move is accounted for
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-17
 priority: P3
 cost: E
@@ -51,3 +52,7 @@ Then the lines are re-cut as explained, their mention leaves `expected`'s
 pinned list, and GREEN's
 `the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained`
 loses this move.
+
+## Closed (CIW, 2026-11-23)
+
+Judged, no defect: only `frozen` moved (14 and 12 to 16). `decisions`, `sym`/`num`, `chk`, `disp=0` and `shapes` held, and the account above fits: check 6 now winds the rational spline edges of the lofts' caps. A form frozen past the budget is a cost, not a wrong answer; `disp=0` held and the dispute-coverage guard holds. PR 7501 (`ciw/census-digest-goldens`) deletes the golden. The suite now compares the pooled walks with the serial walk, and the coverage guard is what would catch the checks going blind.

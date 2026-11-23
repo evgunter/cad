@@ -2,7 +2,8 @@
 id: the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained
 kind: issue
 title: The thread-count golden's two Sym validate_geometric lines (every eps) and arc_loft_1e9eps' volume (1e-12, one ulp) moved unexplained and are pinned at the serial reading
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-14
 priority: P2
 cost: M
@@ -26,3 +27,7 @@ What is known of when: on 2026-11-10 at main `57161586` the two `Sym` lines read
 Reproduce: `cargo nextest run -p sweep -E 'test(the_walk_matches_the_serial_golden_at_one_thread)'`, and with `CAD_TOLERANCE_EPS=1e-6` and `1e-12`.
 
 - 2026-11-17 — the two `Sym` lines moved again, `frozen` alone (14 → 16 and 12 → 16, every ε), at SECTARMS' PR 7028 (bisected): re-pinned at main's reading, the account owed on `work/sectarms/check-6s-spline-loop-winding-froze-more-sym-nodes-in-the-thread-count-golden`. (GREEN)
+
+## Closed (CIW, 2026-11-23)
+
+The thread-count goldens are gone. PR 7501 (`ciw/census-digest-goldens`) has `mass_props_are_thread_count_invariant` read the 1- and 4-thread walks against a serial walk run beside them in the same process, with the shape report installed so that `topo::props` takes its serial arm. That comparison is the suite's claim. The lines this row pinned were cross-tree moves of a committed table, and none was width-dependent, so the claim they stood for still holds.
