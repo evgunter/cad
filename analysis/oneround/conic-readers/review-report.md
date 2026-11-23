@@ -36,8 +36,7 @@ only.
 | same at `CAD_TOLERANCE_EPS=1e-6` and `1e-12`, with my probes in the tree | 651 and 652 run; the only red is my own probe for M1 |
 | `-p geom-brep -p topo` filtered `cone cover arc_ball depth_gap section extent aabb`, head, default ε, random seeds | 983 run, 982 passed; the red is `the_square_wall_arm_agrees_with_the_traced_section` |
 | that test on the merge base, at my seed `0xb91c779de973c230` and the author's `0x28ab5920d3c632ea` | red at both: it is `main`'s, not the unit's |
-| the same filter on the merge base, default ε, seed pinned `0x5eedc0de00000007` | 983 run, 983 passed |
-| the same filter, base and head, seed pinned, at default, 1e-12 and 1e-6 | see "C5/C6: the seeded differential" at the end |
+| the same filter, base and head, seed pinned, at default, 1e-12 and 1e-6 | identical pass/fail sets at each ε (the end of this report) |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings`, head, viewer included | clean |
 | `scripts/run-gates.sh`, head with my surviving gate plants applied | exit 0 |
 | my own deprecation census, base and head (`cargo check --workspace --lib --bins --all-features`, and `--all-targets`) | C1 |
@@ -98,9 +97,10 @@ base returns `[10.749999999966922, 10.750000000033078]` and the head
 What it is not: unsound (the true value is inside), and not reached
 along a world axis that the normal equals exactly (there `p` and `q`
 are exact zeros; measured, width 0) nor along a direction a rounding
-off the normal (measured, width 8.9e-16). It needs the stored normal
-itself. That is the direction a section's own plane has, bit for bit:
-`plane_cone_section` hands the plane's `n` to `ellipse_anchored`, and
+off the normal (measured, width 8.9e-16). It needs a direction the enclosure
+cannot tell from the stored normal. That is the direction a section's
+own plane has: `plane_cone_section` hands the plane's `n` to
+`ellipse_anchored` (which stores `n` over its length), and
 `topo` reads `cover.range_along(normal)` at
 `census/in_plane.rs:237`, `splitting/containment.rs:1776`,
 `chart_region.rs:1432`, `boolean/trace.rs:547`. Whether one of those
@@ -553,4 +553,23 @@ public surface and the kernel's rule disagree, and the manifests'
 
 ## C5/C6: the seeded differential
 
-SEEDED_RESULTS
+`cargo nextest run -p geom-brep -p topo` filtered to
+`cone cover arc_ball depth_gap section extent aabb`, 983 tests, every
+fuzz seed pinned to `CAD_FUZZ_SEED=0x5eedc0de00000007` on both trees:
+
+| ε | merge base `2b9cd8b24` | frozen head `bd07a867e` | the reds |
+|---|---|---|---|
+| default | 983 passed | 983 passed | none |
+| 1e-12 | 982 passed, 1 failed | 982 passed, 1 failed | `topo boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` on both |
+| 1e-6 | 981 passed, 2 failed | 981 passed, 2 failed | `geom-brep pcurve_cache::circle_lane_rows::a_circles_projected_envelope_covers_its_residual` and `geom-brep::all pair_section::one_loop_keeps_its_order_near_the_node` on both |
+
+The pass and fail sets are identical, test for test, at each ε. So
+**no verdict these 983 rows pin moved**, and the three reds are the
+merge base's (I did not look into them further; the 1e-6 pair may be
+worth a row if they are not known). What this does not show: the rows
+were not written to meet an arc-held ellipse on a long window, so m1's
+loosening has no row that could have moved.
+
+Judged against: the same test binary's verdict on the merge base, same
+seed, same ε. It is a differential of verdicts, not of bits; the bits
+are C5's dump.
