@@ -2,9 +2,10 @@
 id: a-station-far-from-the-origin-reads-indeterminate-on-its-own-carrier-and-panics
 kind: issue
 title: At eps 1e-12 and Interval a station of a face's own chart 30 or more off the origin reads indeterminate against its carrier, and the region door panics where the embedding ask should refuse
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P1
+branch: charttail/held-station
 ---
 
 
