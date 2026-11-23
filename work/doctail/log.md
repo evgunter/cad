@@ -608,3 +608,14 @@ body has the reasons):
     - the mate-chart P2 overstates.
   - **Orchestrator's read, then merge.** 7396 follows: merge main,
     re-measure, re-check the zero-tilt P2, then a delta review.
+- 2026-11-23 04:30 — **7434 merged** (`ccabcfb`): the least turn reads
+  no exactness off the nominal at `Sym`.
+  - It merged at the green `54f303f`, without the review's last pass:
+    every remaining item is prose or a pre-existing edge, and a full CI
+    round would have held 7396 for hours behind the backlog (98 runs
+    queued).
+  - The last pass goes to a follow-up PR
+    (`doctail/zero-everywhere-at-the-plain-interval-lane`): Interval's
+    `zero_everywhere` override, the DECIDE wording, the mate-chart P2
+    reworded, and the NITs.
+  - 7396 now merges main and re-measures; its delta review comes after.
