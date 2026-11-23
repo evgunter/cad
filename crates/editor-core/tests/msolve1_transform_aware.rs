@@ -797,11 +797,11 @@ fn a8b_deleting_the_operand_leaves_the_pose_unresolved() {
             .collect()
     };
     assert!(
-        reached(m.to).is_empty(),
+        reached(m.to.read).is_empty(),
         "the stranded pose reads nothing live"
     );
     assert!(
-        reached(m.on).iter().all(|&at| at == s.top) && !reached(m.on).is_empty(),
+        reached(m.on.read).iter().all(|&at| at == s.top) && !reached(m.on.read).is_empty(),
         "the live pose still reads the top"
     );
 }
@@ -878,12 +878,12 @@ fn a8d_a_placed_copy_operand_round_trips_through_persistence() {
             .collect()
     };
     assert_eq!(
-        reached(m.on),
+        reached(m.on.read),
         [s.top].into(),
         "the `on` pose's edge and corner rode the wire at the top"
     );
     assert_eq!(
-        reached(m.to),
+        reached(m.to.read),
         [s.a_at].into(),
         "the `to` pose's edge and corner rode the wire at the placed copy"
     );
@@ -1122,8 +1122,8 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         .try_into()
         .expect("its bundle holds the rest, and its values");
     assert_eq!(bundle.len(), 4, "the rest and its three values");
-    let on = fixture::face_reads(&out.remainder, m.on);
-    let to = fixture::face_reads(&out.remainder, m.to);
+    let on = fixture::face_reads(&out.remainder, m.on.read);
+    let to = fixture::face_reads(&out.remainder, m.to.read);
     let ([on], [to]) = (on.as_slice(), to.as_slice()) else {
         panic!("the rest kept one face on each pose: {on:?} {to:?}");
     };

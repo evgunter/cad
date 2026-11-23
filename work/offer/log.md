@@ -239,6 +239,7 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **Merge:** a9e35b6 now conflicts with main in `drive.rs`, so the lane is merging main and folding in F1, F2, F3 and a wording nit.
   - **The order is final: #7375 lands first.** The #7356 lane then merges main and ports its naming sites and `Related` onto the mention type. (OFFER orchestrator)
 - 2026-11-23 06:30Z — **#7356 merged** (a6853f06) at c28488d. Its substantive jobs (lint, test (app), viewer wasm) were green; only the `gate ok` aggregator was still queued behind the backlog. **Ev (06:2xZ): with CI queuing this bad, a PR that touches only docs, comments or work items merges on a local `work.py lint`; and the orchestrator may skip CI on any PR after whatever local tests make it comfortable.** The two relations units are closed. The order flipped one last time: #7375's lane folds the #7356 port into the main merge it is already doing, and is told it may verify locally. No model-comparison row (rule 12). (OFFER orchestrator)
+- 2026-11-23 — **formwords/datum (#7382) reconciles the read index with datum placements.** `Doc::placements()` is every bundle holder, datums included. `Doc::copies()` is the subset that copies. `placements_of`, `placements_of_var` and `plain_copies_of` ask among `copies()`, and `ReadIndex::placements_of` agrees through `copied_node`. A datum is a placement of no body. (formwords-datum lane)
 - 2026-11-23 07:55Z — **Main's binding census was red because of #7356** (`OperandRead`/`ReadIndex` unlisted; the Python suite was skipped again). It is fixed by #7536, merged on local verification: both are listed as `gap: B-READS`, and PYDOOR owns `python-cannot-ask-what-a-node-reads-or-what-reads-it` (P3). **#7369's fix pass reported.** The new schedule cuts two_sided from 5000 replays to 122, and the false cost text is fixed. The orchestrator's local spot-check found the plate row's red, which main's drive causes (BOXFINISH P1, filed by the lane), surfacing as a **proven difference at the nominal with empty evidence**. That is a false certified claim, so the PR went back: an unexplained refusal is `Unproven`, never `Different`. (OFFER orchestrator)
 - 2026-11-23 08:40Z — **#7362 merged** (0ffe8560) at c2d54783, after a dual review, a fix pass, a verifier and a second fix pass.
   - **Verification:** local runs, per Ev's ruling. The law file, the atrest and intent rows and the quieting rows passed 34/34 at 679e8880 and on the merged tree. The orchestrator merged main and resolved the `.config/nextest.toml` slow-set conflict as a union; `nextest list --profile ci` parses it. The lane's runs: the default set 3086/3086, and the Python suite 58 against a fresh wheel.
@@ -277,3 +278,22 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The links widget PR #7557** is up at 874eb74, and its egui hit-test feasibility check passed. It is in single review: session_013QoYWYkJNYM3B6FTXsnFkx.
   - **Main's rustdoc red from #7554** (an unresolvable `Self::exactly_zero` link) is fixed by #7560, verified with the gate's lints. DOCTAIL's log is told.
   - No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 11:59Z — **The offers PR #7562 is up** at 73fb81ba. `viewer::recourse::offers` matches exhaustively, with `wildcard_enum_match_arm` denied. Offers are Commit, Lead or Unoffered.
+  - The coincidence Commit takes the `Quieting` itself (`AssertQuieting`, through `Quieting::record`). `AssertedSeat::Read(Operand)` is replaced by `Minted(QuietingRef)`, so the raw-`NamedCell` hazard is closed by type.
+  - `DocSession::current()` gates every document-editing offer.
+  - 13 offer shapes are inventoried; 7 moved onto the function, 3 are new and 3 stay off it, with reasons.
+  - Two P3 rows filed: versions, and borders.
+  - The lane verified locally: viewer 1158, viewer with the app feature 1631/1634 (GPU rows), and the law file 11/11.
+  - **Dual review** on Opus with identical briefs (ledger `dual-7562.md`): R1 session_013QoYWX8V4H1RAvcYciGEpR, R2 session_013QoYWX3xSnngdRgmJdzMXZ. Claim 1 is that no offer edits the wrong document state.
+  - It couples with the links widget #7557, which is in single review: whichever lands second ports. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 12:01Z — **The #7557 review (links widget) is APPROVE-WITH-FIXES, with no MAJOR.** The link predicate, the hit-test (632 per-character clicks, including adjacent mentions and multi-byte labels) and the tree scroll held, and 9 of 10 mutants were red. The fix pass covers four MINORs:
+  - the feature tree's failure and carried lines are still text;
+  - `PlacementFails`' MateFault is flattened by TAG;
+  - the filed row is incomplete;
+  - a regression: a linked sentence is no longer selectable or copyable.
+  It also covers the style items: one link look, the TAG-form second door, and a spelling-tie row. (OFFER orchestrator)
+- 2026-11-23 12:58Z — **#7557 merged** (4fe2447e) at a648122e: a node a message names is a link that selects it, and the tree scrolls to an outside selection.
+  - **Verification:** the orchestrator ran it locally with the app feature, 128/128 rows (sentence, links, tree, range, relations, badges, frame policy).
+  - **The unit is closed**, and the residue is in `viewer-pane-lines-spell-their-nodes-as-text` (P2).
+  - **#7562 R1 is in:** APPROVE-WITH-FIXES, no MAJOR. The `Quieting` type allows hand-building; the tolerance words flicker; the NodeErrorClass census is missing; two offer shapes are uninventoried; the same-batch race is caught by the door. R2 is pending.
+  - #7562's fix pass ports #7557. No row (rule 12). (OFFER orchestrator)

@@ -3227,7 +3227,7 @@ mod tests {
             let answer = features_fraction(wanted, stack);
             assert!(
                 matches!(answer, Some(share)
-                    if share.is_finite() && (0.0..=FEATURES_SHARE_CAP).contains(&share)),
+                    if (0.0..=FEATURES_SHARE_CAP).contains(&share)),
                 "{what} answered {answer:?}",
             );
         }

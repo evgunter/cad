@@ -329,12 +329,12 @@ fn saved_mate(label: &str) -> (String, MateRef, [editor_core::VarId; 2]) {
     let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     let written = fixture::constraint(&doc, id);
-    let to = written.to;
+    let to = written.to.read;
     let face = |pose| match fixture::face_reads(&doc, pose).as_slice() {
         [one] => *one,
         other => panic!("a plane pose reads one face, got {other:?}"),
     };
-    (text, id, [face(written.on), face(to)])
+    (text, id, [face(written.on.read), face(to)])
 }
 
 /// Retypes the name the face selection `read` holds — its KIND and
@@ -404,10 +404,10 @@ fn a_face_to_face_mate_round_trips() {
     let (text, mate, reads) = saved_mate("onepred-matehead-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
     let kept = fixture::constraint(&loaded, mate);
-    let to = kept.to;
+    let to = kept.to.read;
     assert_eq!(
         [
-            fixture::face_reads(&loaded, kept.on),
+            fixture::face_reads(&loaded, kept.on.read),
             fixture::face_reads(&loaded, to)
         ],
         [vec![reads[0]], vec![reads[1]]],
@@ -612,8 +612,8 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
         in_part(ids[0], body, CapEnd::Start),
     ));
     let on_the_world = Mate {
-        on: cap.clone(),
-        to: cap,
+        on: cap.clone().into(),
+        to: cap.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     match apply(

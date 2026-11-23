@@ -535,6 +535,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             | ValuePayload::Instances(_)
             | ValuePayload::Measure { .. }
             | ValuePayload::Assertion(_)
+            | ValuePayload::Datum(_)
             | ValuePayload::Family => {}
         }
     }

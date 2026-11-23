@@ -17,3 +17,15 @@ Before INTENT stage 3 D this was not reached: a widened parameter moved a profil
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Line pairs repaired (2026-11-20)
+
+`seg::line_line` now takes an adjacent pair's shared ends
+(`seg::SharedEnds`, from `validate::judge_pair` by index): the shared
+vertex's sides are Zero and its contact is `CKind::SharedVertex`, none
+decided (the pen-rectangle row's PR). A square whose corner a ±0.01 or
+±0.1 box widens validates at plain `Interval`
+(`crates/profile/tests/a_boxed_rectangle_validates.rs`). Not done here:
+eval9's box scaling, which also keeps its boxes exact by bits; and the
+line × arc and arc × arc arms, which do not take the shared ends
+(`an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`).
