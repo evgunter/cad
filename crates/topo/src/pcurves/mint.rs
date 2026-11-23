@@ -362,35 +362,23 @@ pub(crate) const SINGULAR_TURN_RECOURSE: &str = "Recourse: open the face's corne
 /// The recourse for a placeholder chart, whichever enum refuses it.
 pub(crate) const PLACEHOLDER_RECOURSE: &str = geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE;
 
-/// A chart that is not the placeholder
-/// ([`Surface::is_placeholder_chart`]) — the only kind of chart the
-/// loop walk and its meters ([`chart_u_arm`], [`v_meter`]) accept.
-///
-/// The placeholder's control net is all-poison: it has no locus, so
-/// `geom_brep::chart_stretch_sup` refuses it rather than answer a lever
-/// arm, and a gap metred through it would be a verdict about nothing.
-/// Every door into the walk takes the refusal here, once, where it can
-/// still say what to do about it: the minting pass and the validator
-/// skip the face (a placeholder mints nothing), and [`loop_windings`]
-/// refuses with [`PcurveMintError::PlaceholderChart`].
-///
-/// [`loop_windings`]: super::loop_windings
+/// A described chart the loop walk and its meters ([`chart_u_arm`],
+/// [`v_meter`]) read: the slot's surface once a door has refused a
+/// pending slot ([`crate::SurfaceSlot::described`]).
 #[derive(Clone, Copy)]
 pub(crate) struct DescribedChart<'a, T: Real>(&'a Surface<T>);
 
 impl<'a, T: Real> DescribedChart<'a, T> {
-    /// `None` for exactly the surface `geom_brep::chart_stretch_sup`
-    /// refuses as [`geom_brep::NoChartSup::Placeholder`]: both read
-    /// [`Surface::is_placeholder_chart`].
-    pub(crate) fn of(surface: &'a Surface<T>) -> Option<Self> {
-        (!surface.is_placeholder_chart()).then_some(Self(surface))
+    /// The chart `surface`.
+    pub(crate) fn of(surface: &'a Surface<T>) -> Self {
+        Self(surface)
     }
 
-    /// The chart of a face the minting pass writes rows for: described,
-    /// and of a kind that mints ([`chart_mints`]). `None` is "this face
-    /// carries no rows by construction" — the placeholder and the plane.
+    /// The chart of a face the minting pass writes rows for: of a kind
+    /// that mints ([`chart_mints`]). `None` is "this face carries no
+    /// rows by construction" — the plane.
     pub(crate) fn minting(surface: &'a Surface<T>) -> Option<Self> {
-        Self::of(surface).filter(|c| chart_mints(*c))
+        Some(Self::of(surface)).filter(|c| chart_mints(*c))
     }
 
     pub(crate) fn surface(self) -> &'a Surface<T> {

@@ -74,7 +74,7 @@ use crate::dihedral::{
     DihedralClass, FirstOrderEscalation, decide_positive, decide_reported, wedge_decided,
 };
 use crate::implicit::implicit_residual;
-use crate::keys::SurfaceKey;
+use crate::keys::{SurfaceKey, SurfaceMiss};
 use crate::locus_certificate::LocusCertificate;
 use crate::pcurve_cache::IncidenceDoor as _;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, PcurveCheck, StatedDoor, chart_pcurve_over};
@@ -532,6 +532,13 @@ pub enum CertifyError {
         /// The unresolved key.
         key: SurfaceKey,
     },
+    /// A surface key in the description names a pending slot: the
+    /// face it backs has no surface yet ([`SurfaceMiss::Pending`]), so
+    /// nothing can be certified against it.
+    PendingSurface {
+        /// The pending key.
+        key: SurfaceKey,
+    },
     /// A described surface is the `Nurbs` kind (no implicit form —
     /// its residual story is the SSI foot-point machinery, not this
     /// module's), or a `Nurbs` carrier arrived under a conventional
@@ -877,11 +884,25 @@ pub fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
     }
 }
 
+impl CertifyError {
+    /// The refusal of a surface key that handed no surface: unresolved
+    /// or pending.
+    pub fn missed(key: SurfaceKey, miss: SurfaceMiss) -> Self {
+        match miss {
+            SurfaceMiss::Stale => Self::UnresolvedSurface { key },
+            SurfaceMiss::Pending => Self::PendingSurface { key },
+        }
+    }
+}
+
 impl core::fmt::Display for CertifyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::UnresolvedSurface { key } => {
                 write!(f, "surface key {key:?} does not resolve")
+            }
+            Self::PendingSurface { key } => {
+                write!(f, "surface key {key:?}: {}", crate::PENDING_SURFACE)
             }
             Self::StatedImageMissed { sample, margin } => {
                 CertCheck::StatedImage.write_exceeded(f, *sample)?;
@@ -1183,6 +1204,7 @@ impl CertifyError {
             Self::AnalyticRung3(refusal) => return Some(refusal.decided()),
             Self::Row { refusal, .. } => refusal.decision()?,
             Self::UnresolvedSurface { .. }
+            | Self::PendingSurface { .. }
             | Self::Unimplemented
             | Self::IntersectionSameSurface { .. }
             | Self::WrapOnNonPeriodic
@@ -2320,7 +2342,7 @@ impl<T: Decide> EdgeCurve<T> {
     /// Check 1's and check 2's refusals, and the chart image's.
     pub fn mint(
         spec: EdgeCurveSpec<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         band: Band,
     ) -> Result<MintedEdge<T>, CertifyError> {
         let (description, turn, reading) =
@@ -2506,7 +2528,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2530,7 +2552,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2553,7 +2575,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2600,7 +2622,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         &self,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2624,7 +2646,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         &self,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -4216,7 +4238,7 @@ fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
 /// deciding scalar.
 fn resolve_spec<T: Decide>(
     spec: &EdgeCurveSpec<T>,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
 ) -> Result<Resolved<T>, CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
     // Rung-3 (`Nurbs`) carriers certify under an intrinsic description
@@ -4250,7 +4272,7 @@ fn resolve_spec<T: Decide>(
     // would meter poison. A plane × spline `Intersection`, fitted or
     // not, never reaches it: `plane_nurbs_pair` takes that pair first.
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
-        let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
+        let s = surfaces(key).map_err(|miss| CertifyError::missed(key, miss))?;
         if !crate::edge_nurbs::is_analytic(&s) {
             return Err(CertifyError::Unimplemented);
         }
@@ -4259,17 +4281,9 @@ fn resolve_spec<T: Decide>(
     // The iso lane's resolver (M6-3): an `IsoCurve` description names
     // its surface as the CHART of the residual, so a DESCRIBED
     // `Surface::Nurbs` is exactly what it evaluates against — admitted
-    // here and nowhere else. The mvfs placeholder (all-poison control)
-    // is not a described surface and keeps refusing.
-    let resolve_iso = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
-        let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
-        if let Surface::Nurbs(ref payload) = s
-            && payload.is_placeholder()
-        {
-            return Err(CertifyError::Unimplemented);
-        }
-        Ok(s)
-    };
+    // here and nowhere else.
+    let resolve_iso =
+        |key: SurfaceKey| surfaces(key).map_err(|miss| CertifyError::missed(key, miss));
     Ok(match spec.description {
         EdgeDescriptionSpec::Intersection {
             pair,
@@ -4379,9 +4393,7 @@ fn resolve_spec<T: Decide>(
         // The chart arm resolves through the door its IMAGE needs. An
         // image the construction states is evaluated on the chart
         // itself, so a described spline chart is exactly what it needs
-        // and is admitted here and nowhere else (the mvfs placeholder,
-        // an all-poison control, is not a described surface and keeps
-        // refusing); a derived image comes from the analytic chart
+        // and is admitted here and nowhere else; a derived image comes from the analytic chart
         // machinery. A wrap edge names a chart that closes on itself,
         // which the plane never does.
         EdgeDescriptionSpec::Chart {
@@ -5042,7 +5054,7 @@ fn mint_refusal<T: Real>(
 /// [`run_checks`] runs them. No sample is read and nothing is certified.
 fn mint_checks<T: Decide>(
     spec: &EdgeCurveSpec<T>,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     band: Band,
 ) -> Result<Minted<T>, CertifyError> {
     let read = ReadSpec::of(spec, band)?;
@@ -5165,7 +5177,7 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     spec: &EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     reach: geom_core::Lever<T>,
     lane: NurbsLane<T>,
     stated: Option<&StatedImage<T>>,
@@ -6003,24 +6015,19 @@ enum Resolved<T: Real> {
 }
 
 /// The NURBS × NURBS pairing: two charts each a described NURBS
-/// surface or a fit ([`Surface::spline_chart`]), the mvfs placeholder
-/// never one.
+/// surface or a fit ([`Surface::spline_chart`]).
 fn nurbs_pair<T: Real>(
     pair: SurfacePair,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
 ) -> Option<(Surface<T>, Surface<T>)> {
     let [k1, k2] = pair.keys();
-    let (a, b) = (surfaces(k1)?, surfaces(k2)?);
-    let chart = |s: &Surface<T>| match s {
-        Surface::Nurbs(n) => !n.is_placeholder(),
-        _ => s.spline_chart().is_some(),
-    };
+    let (a, b) = (surfaces(k1).ok()?, surfaces(k2).ok()?);
+    let chart = |s: &Surface<T>| s.spline_chart().is_some();
     (chart(&a) && chart(&b)).then_some((a, b))
 }
 
 /// The plane × NURBS pairing: exactly one PLANE (returned with its
-/// key) and exactly one **described** NURBS wall (the mvfs placeholder
-/// is a mid-surgery "no description yet" fact, never an operand), or one
+/// key) and exactly one NURBS wall, or one
 /// fitted (`Approx`) wall, which is its fit here
 /// ([`Surface::spline_chart`]): the fit's distance from its description
 /// is the face's claim, re-derived per face at rest, and the edge's
@@ -6030,7 +6037,7 @@ fn nurbs_pair<T: Real>(
 /// its existing refusals verbatim.
 fn plane_nurbs_pair<T: Real>(
     pair: SurfacePair,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
 ) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
     partner_nurbs_pair(pair, surfaces, |s| matches!(s, Surface::Plane { .. }))
 }
@@ -6042,7 +6049,7 @@ fn plane_nurbs_pair<T: Real>(
 /// the analytic path.
 fn residual_nurbs_pair<T: Real>(
     pair: SurfacePair,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
 ) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
     partner_nurbs_pair(pair, surfaces, crate::edge_nurbs::is_residual_partner)
 }
@@ -6051,17 +6058,15 @@ fn residual_nurbs_pair<T: Real>(
 /// the other a wall with a spline chart.
 fn partner_nurbs_pair<T: Real>(
     pair: SurfacePair,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     partner: impl Fn(&Surface<T>) -> bool,
 ) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
-    let wall = |s: &Surface<T>| match s {
-        Surface::Nurbs(n) => !n.is_placeholder(),
-        _ => s.spline_chart().is_some(),
-    };
     pair.keys().into_iter().find_map(|k| {
-        let analytic = surfaces(k).filter(|s| partner(s))?;
+        let analytic = surfaces(k).ok().filter(|s| partner(s))?;
         let other_key = pair.other(k)?;
-        let other = surfaces(other_key).filter(|s| wall(s))?;
+        let other = surfaces(other_key)
+            .ok()
+            .filter(|s| s.spline_chart().is_some())?;
         Some((k, analytic, other_key, other))
     })
 }

@@ -150,6 +150,19 @@ pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool
         .all(|p| p.channels().into_iter().all(Real::is_poison))
 }
 
+/// **Is every channel of every control point a finite number**, at the
+/// scalar's own finiteness ([`Real::is_bounded`]: NaN and ±∞ at `f64`,
+/// an enclosure reaching ±∞ or empty at `Interval`)? The one question
+/// asked of a net: a net describes a locus, and one carrying a value
+/// that is not a finite number is corrupt. Curves and surfaces ask it
+/// alike, through `NurbsSurface::is_finite` and its curve twins, and
+/// the box screens read it.
+pub(crate) fn is_finite<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
+    control
+        .iter()
+        .all(|p| p.channels().into_iter().all(Real::is_bounded))
+}
+
 /// Does any control point carry poison in any channel?
 ///
 /// The box constructors' screen. A placeholder answers `true` here

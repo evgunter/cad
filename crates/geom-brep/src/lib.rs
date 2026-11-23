@@ -227,7 +227,7 @@ pub use intersect::{
     plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
     sphere_sphere_section, tilted_section_major,
 };
-pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
+pub use keys::{CurveKey, PENDING_SURFACE, PointKey, SurfaceKey, SurfaceMiss, SurfacePair};
 pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };

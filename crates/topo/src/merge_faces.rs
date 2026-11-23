@@ -40,7 +40,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom::SurfaceKind;
-use geom::{NetState, Surface};
+use geom::Surface;
 use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized};
 use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
@@ -278,16 +278,12 @@ impl GroupRegime {
 /// once, in [`Body::merge_coplanar_faces`]'s *The placeholder
 /// is a third kind, not a curved one*.
 ///
-/// Which nets are the placeholder is [`NetState`]'s answer, read
-/// through [`geom::NurbsSurface::net_state`] and never re-derived
-/// here. A poisoned net has NO kind at this door: it is described
-/// geometry that cannot evaluate, and [`NetState::Poisoned`]'s docs
-/// require every consumer's described arm to FAIL on it rather than
-/// hand it the placeholder's benign answer. The merge's curved arm
-/// evaluates nothing, so it could not fail on its own — it would
-/// commit surgery over a description tier 3 refuses at rest — and
-/// the door refuses the face instead
-/// ([`MergeCoplanarError::PoisonedSurfaceDescription`]).
+/// A pending slot is the placeholder. A net that is not finite
+/// ([`geom::NurbsSurface::is_finite`]) has NO kind at this door: it is
+/// corrupt geometry, and the merge's curved arm evaluates nothing, so
+/// it could not fail on its own — it would commit surgery over a
+/// description tier 3 refuses at rest — and the door refuses the face
+/// instead ([`MergeCoplanarError::PoisonedSurfaceDescription`]).
 ///
 /// Ordered so a refusal naming two members of different kinds names
 /// them the same way whichever was the group's seed
@@ -299,29 +295,26 @@ pub enum MergeKind {
     /// Any described surface that is not a plane — the analytic
     /// kinds, a described NURBS, a fitted stand-in.
     Curved,
-    /// [`NetState::Placeholder`]: no description yet.
+    /// A pending slot ([`crate::SurfaceSlot::Pending`]): no surface yet.
     Placeholder,
 }
 
-/// A net in [`NetState::Poisoned`], which has no [`MergeKind`]
+/// A net that is not finite, which has no [`MergeKind`]
 /// ([`MergeKind`]'s docs say why).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PoisonedNet;
 
 impl MergeKind {
-    /// The kind of one surface value. The plane question is
-    /// [`geom::Surface::kind`]'s — the crate's one carrier-kind read —
-    /// and the net question is [`NetState`]'s, matched exhaustively so
-    /// no state is answered by a default.
-    fn of<T: geom_core::Real>(surface: &Surface<T>) -> Result<Self, PoisonedNet> {
-        match surface {
-            Surface::Nurbs(net) => match net.net_state() {
-                NetState::Placeholder => Ok(Self::Placeholder),
-                NetState::Poisoned => Err(PoisonedNet),
-                NetState::Described => Ok(Self::Curved),
-            },
-            s if s.kind() == SurfaceKind::Plane => Ok(Self::Plane),
-            _ => Ok(Self::Curved),
+    /// The kind of one surface slot. The plane question is
+    /// [`geom::Surface::kind`]'s — the crate's one carrier-kind read.
+    fn of<T: geom_core::Real>(slot: &crate::SurfaceSlot<T>) -> Result<Self, PoisonedNet> {
+        match slot {
+            crate::SurfaceSlot::Pending => Ok(Self::Placeholder),
+            crate::SurfaceSlot::Described(Surface::Nurbs(net)) if !net.is_finite() => {
+                Err(PoisonedNet)
+            }
+            crate::SurfaceSlot::Described(s) if s.kind() == SurfaceKind::Plane => Ok(Self::Plane),
+            crate::SurfaceSlot::Described(_) => Ok(Self::Curved),
         }
     }
 
@@ -412,8 +405,8 @@ pub enum MergeCoplanarError {
         /// That member's kind.
         other_kind: MergeKind,
     },
-    /// A face's surface is a `Nurbs` net in [`NetState::Poisoned`]:
-    /// described geometry that cannot evaluate. Tier 3 refuses such a
+    /// A face's surface is a `Nurbs` net that is not finite:
+    /// corrupt geometry that cannot evaluate. Tier 3 refuses such a
     /// body at rest ([`ValidationError::PoisonedSurfaceDescription`]);
     /// this door's entry gate is tier 2, so it refuses the face itself,
     /// before any group forms — its curved arm would otherwise commit
@@ -2197,7 +2190,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         &self,
         face: crate::live::FaceView<'_, T>,
     ) -> Result<MergeKind, MergeCoplanarError> {
-        MergeKind::of(face.surface()).map_err(|PoisonedNet| {
+        MergeKind::of(face.slot()).map_err(|PoisonedNet| {
             MergeCoplanarError::PoisonedSurfaceDescription { face: face.key() }
         })
     }

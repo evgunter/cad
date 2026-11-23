@@ -833,6 +833,12 @@ impl<T: Real> NurbsSurface<T> {
         &self.control
     }
 
+    /// Is every control point a finite number, at the scalar's own
+    /// finiteness? A net that is not describes nothing: it is corrupt.
+    pub fn is_finite(&self) -> bool {
+        net::is_finite(&self.control)
+    }
+
     /// The weights held in `T`, same layout as
     /// [`NurbsSurface::control`].
     pub fn weights(&self) -> &[T] {

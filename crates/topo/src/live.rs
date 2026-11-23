@@ -76,7 +76,7 @@ use crate::entity::{
     LoopKey, LoopRole, VertexKey,
 };
 use crate::euler::{BadArgument, EulerOpError};
-use crate::geometry::PointKey;
+use crate::geometry::{PointKey, SurfaceMiss, SurfaceSlot};
 use crate::null::CurveGeom;
 use geom::Surface;
 use geom_core::{Point3, Real};
@@ -481,17 +481,29 @@ impl<'a, T: Real> FaceView<'a, T> {
         self.record.sense
     }
 
-    /// The surface the face is a region of, a link its record holds.
+    /// The face's surface slot, described or pending, a link its record
+    /// holds.
     #[track_caller]
-    pub fn surface(self) -> &'a Surface<T> {
+    pub fn slot(self) -> &'a SurfaceSlot<T> {
         let surface = self.record.surface;
-        self.body.get_surface(surface).unwrap_or_else(|| {
+        self.body.surface_slot(surface).unwrap_or_else(|| {
             dangling_link(
                 EntityId::Face(self.key),
                 "surface",
                 GeomRef::Surface(surface),
             )
         })
+    }
+
+    /// The surface the face is a region of, a link its record holds;
+    /// [`SurfaceMiss::Pending`] while the face has none yet.
+    ///
+    /// # Errors
+    ///
+    /// [`SurfaceMiss::Pending`] for a pending slot.
+    #[track_caller]
+    pub fn surface(self) -> Result<&'a Surface<T>, SurfaceMiss> {
+        self.slot().described()
     }
 
     /// The face's loops, each a link its record holds, in

@@ -14,6 +14,7 @@ use super::{
     half_edge_record, half_edge_surface, held_open, is_plus, loop_rows, misses_a_row, row_interval,
     stored_edge, stored_reach, stored_rows, walk_cycle,
 };
+use crate::SurfaceSlot;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::{JointElement, Winding};
@@ -575,8 +576,8 @@ pub(crate) struct SiteFace<T: Real> {
     /// `mfkrh`'s) — the face it is carved or promoted from. Named by
     /// the refusal.
     pub(crate) rows_from: FaceKey,
-    /// The chart the face is on after the surgery.
-    pub(crate) surface: Surface<T>,
+    /// The chart the face is on after the surgery, or pending.
+    pub(crate) surface: SurfaceSlot<T>,
     /// The face's sense after the surgery: the side of its loops the
     /// joints on its chart's singular set are decided on.
     pub(crate) sense: bool,
@@ -646,9 +647,9 @@ pub(crate) struct SiteFrom {
 pub(crate) fn site_rows_from<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    surface: &Surface<T>,
+    surface: &SurfaceSlot<T>,
 ) -> Option<SiteFrom> {
-    DescribedChart::minting(surface)?;
+    DescribedChart::minting(surface.described().ok()?)?;
     let rows = stored_rows(body, face);
     let open = rows.open_loops(body);
     rows.remints(&open, !open.is_empty())
@@ -737,7 +738,7 @@ pub(crate) fn site_rows_owed<T: Decide>(
     face: &SiteFace<T>,
     from: &SiteFrom,
 ) -> Result<bool, SiteRowRefusal> {
-    let Some(chart) = DescribedChart::minting(&face.surface) else {
+    let Some(chart) = face.surface.described().ok().and_then(DescribedChart::minting) else {
         return Ok(false);
     };
     Ok(!site_walks(body, chart, face, from)?.is_empty())
@@ -882,7 +883,7 @@ pub(crate) fn site_rows<T: Decide>(
     curves: SiteCarriers<'_, T>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
-    let Some(chart) = DescribedChart::minting(&face.surface) else {
+    let Some(chart) = face.surface.described().ok().and_then(DescribedChart::minting) else {
         return Ok(SiteRows::Leave);
     };
     let walks = site_walks(body, chart, face, from)?;
@@ -1021,7 +1022,7 @@ pub(crate) fn site_rows<T: Decide>(
                 }
                 (_, at) => {
                     let (carrier, t0, t1, plus, vertex) = traversal(at);
-                    let surface = &face.surface;
+                    let surface = chart.surface();
                     let ends = match at {
                         SiteHalf::Existing(he) | SiteHalf::Described(he) => {
                             super::decision::singular_ends(body, he, &carrier, surface, band)
@@ -1089,7 +1090,7 @@ pub(crate) fn site_rows<T: Decide>(
             }
         }
     }
-    match certify_walked(derived, &face.surface, band, None) {
+    match certify_walked(derived, chart.surface(), band, None) {
         Ok(rows) => Ok(SiteRows::Mint {
             images: rows.into_iter().map(|(at, cache, _)| (at, cache)).collect(),
             joints,

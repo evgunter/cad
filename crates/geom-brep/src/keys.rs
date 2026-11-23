@@ -101,6 +101,35 @@ impl SurfacePair {
     }
 }
 
+/// **Why a surface key handed geometry no surface.** The answer of
+/// every door that resolves a key to the [`geom::Surface`] it names:
+/// a body's own lookups and the resolver closures certification is
+/// handed. A body's surface slot is either described or pending (a
+/// face waiting for its description mid-construction), and a door
+/// that hands a surface to geometry refuses the pending slot here,
+/// once, so nothing past it is ever handed one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SurfaceMiss {
+    /// The key does not resolve.
+    Stale,
+    /// The slot is pending: the face it backs has no description yet.
+    Pending,
+}
+
+impl core::fmt::Display for SurfaceMiss {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Stale => "the surface key does not resolve",
+            Self::Pending => PENDING_SURFACE,
+        })
+    }
+}
+
+/// What a refusal of a pending surface slot says, wherever it is
+/// refused.
+pub const PENDING_SURFACE: &str =
+    "the face has no surface yet: it is still pending the description a construction gives it";
+
 impl core::fmt::Debug for SurfacePair {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self { lo, hi } = self;

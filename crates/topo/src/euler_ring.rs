@@ -1429,7 +1429,7 @@ impl<T: Decide> Body<T> {
             return true;
         }
         match (self.get_surface(a), self.get_surface(b)) {
-            (Some(x), Some(y)) => one_payload(x, y),
+            (Ok(x), Ok(y)) => one_payload(x, y),
             _ => false,
         }
     }
@@ -1446,7 +1446,8 @@ impl<T: Decide> Body<T> {
             FaceSurface::Shared { key, .. } => self.same_chart(from, *key),
             FaceSurface::New { surface, .. } => self
                 .get_surface(from)
-                .is_some_and(|own| one_payload(own, surface)),
+                .is_ok_and(|own| one_payload(own, surface)),
+            FaceSurface::Pending { .. } => false,
         }
     }
 

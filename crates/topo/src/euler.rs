@@ -287,6 +287,15 @@ pub enum FaceSurface<T: Real> {
         /// The material side against `surface`'s chart normal.
         sense: bool,
     },
+    /// Mint a pending surface slot for the new face
+    /// ([`SurfaceSlot::Pending`](crate::SurfaceSlot::Pending)): the face
+    /// waits for a describing door to give it a surface (a sweep's
+    /// transient disc, killed before the body finishes).
+    Pending {
+        /// The provisional material side; a pending slot has no chart
+        /// normal to state it against.
+        sense: bool,
+    },
     /// Share an existing surface key (identical-by-construction
     /// surfaces keep one key — the ratified no-face-merging story's
     /// sharing half). Must resolve, checked as a precondition.
@@ -2151,7 +2160,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         let point_key = self.add_point(point);
-        let surface = self.add_surface(Surface::nurbs_placeholder());
+        let surface = self.add_pending_surface();
         let vertex = self.add_vertex(
             Vertex {
                 point: point_key,
@@ -3753,7 +3762,7 @@ impl<T: Decide> Body<T> {
             spec,
             p_start,
             p_end,
-            |k| self.surfaces.get(k).cloned(),
+            |k| self.resolve_surface(k),
             reach,
             band,
             stated.as_ref(),
@@ -3779,7 +3788,7 @@ impl<T: Decide> Body<T> {
             .find_map(|he| {
                 let surface = self.faces.get(self.face_of_half_edge(he)?)?.surface;
                 let on_pair = pair.keys().contains(&surface);
-                let spline = self.surfaces.get(surface)?.spline_chart().is_some();
+                let spline = self.get_surface(surface).ok()?.spline_chart().is_some();
                 (on_pair && spline).then_some((he, surface))
             })
             .and_then(|(he, surface)| {
@@ -3982,7 +3991,7 @@ impl<T: Decide> Body<T> {
                 continue;
             };
             let (p_start, p_end) = self.rebased_endpoints(edge_key, run, p_new);
-            let surfaces = |k| self.surfaces.get(k).cloned();
+            let surfaces = |k| self.resolve_surface(k);
             let reach = crate::wedge_reach(
                 self,
                 crate::edge_faces(self, edge_key),
@@ -4061,7 +4070,9 @@ impl<T: Decide> Body<T> {
         };
         let sense = match *spec {
             FaceSurface::Inherit => derived,
-            FaceSurface::New { sense, .. } | FaceSurface::Shared { sense, .. } => {
+            FaceSurface::New { sense, .. }
+            | FaceSurface::Shared { sense, .. }
+            | FaceSurface::Pending { sense } => {
                 if on_parent_chart && sense != derived {
                     return Err(EulerOpError::SenseContradictsChart {
                         face: parent,
@@ -4091,6 +4102,7 @@ impl<T: Decide> Body<T> {
         match spec {
             FaceSurface::Inherit => inherit,
             FaceSurface::New { surface, .. } => self.add_surface(surface),
+            FaceSurface::Pending { .. } => self.add_pending_surface(),
             FaceSurface::Shared { key, .. } => key,
         }
     }
@@ -4241,8 +4253,7 @@ impl<T: Decide> Body<T> {
             }
             seen.push(face);
             let view = self.proven_face(face);
-            let surface = view.surface();
-            if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
+            if let Some(from) = crate::pcurves::site_rows_from(self, face, view.slot()) {
                 minted.push((face, from));
             }
         }
@@ -4299,7 +4310,7 @@ impl<T: Decide> Body<T> {
         killed: Option<LoopKey>,
     ) -> SiteFace<T> {
         let view = self.proven_face(face);
-        let surface = view.surface().clone();
+        let surface = view.slot().clone();
         let loops = view
             .record()
             .loop_keys()
@@ -4355,19 +4366,22 @@ impl<T: Decide> Body<T> {
         // The bit the door writes ([`Body::resolve_face_surface`]): the
         // stated one, or the one the door's topology derives.
         let sense = match *surface {
-            FaceSurface::New { sense, .. } | FaceSurface::Shared { sense, .. } => sense,
+            FaceSurface::New { sense, .. }
+            | FaceSurface::Shared { sense, .. }
+            | FaceSurface::Pending { sense } => sense,
             FaceSurface::Inherit => match side {
                 ParentSide::With => from_data.sense(),
                 ParentSide::Against => !from_data.sense(),
             },
         };
         let chart = match surface {
-            FaceSurface::Inherit => from_data.surface().clone(),
+            FaceSurface::Inherit => from_data.slot().clone(),
             FaceSurface::Shared { key, .. } => self
-                .get_surface(*key)
+                .surface_slot(*key)
                 .cloned()
                 .ok_or_else(|| Arg("surface").miss_geometry(GeomRef::Surface(*key)))?,
-            FaceSurface::New { surface, .. } => surface.clone(),
+            FaceSurface::New { surface, .. } => SurfaceSlot::Described(surface.clone()),
+            FaceSurface::Pending { .. } => SurfaceSlot::Pending,
         };
         Ok(SiteFace {
             rows_from: from,

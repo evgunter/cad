@@ -73,7 +73,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
-use crate::geometry::{CurveKey, SurfaceKey};
+use crate::geometry::{CurveKey, SurfaceKey, SurfaceSlot};
 use crate::live::{Arg, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
@@ -196,7 +196,7 @@ impl<T: Decide> Body<T> {
             | EdgeDescriptionSpec::OnPair { pair, .. } => pair.keys().contains(&k),
             EdgeDescriptionSpec::Scaffold(_) => true,
         };
-        let kept_is_plane = matches!(self.get_surface(kept), Some(Surface::Plane { .. }));
+        let kept_is_plane = matches!(self.get_surface(kept), Ok(Surface::Plane { .. }));
         let mut boundary: Vec<EdgeKey> = on_kept
             .iter()
             .flat_map(|&f| self.run_edges(&self.proven_face(f).half_edges()))
@@ -615,7 +615,7 @@ impl<T: Decide> Body<T> {
                 ChartSurface::New(surface) => Some(surface),
                 ChartSurface::Shared(_) => None,
             },
-            Slot::Kept(k) => Some(proven(&self.surfaces, k, GeomRef::Surface)),
+            Slot::Kept(k) => proven(&self.surfaces, k, GeomRef::Surface).described().ok(),
         }
     }
 
@@ -675,7 +675,7 @@ impl<T: Decide> Body<T> {
             let sides = self.sides(edge, &moved);
             for side in sides.unnamed(named, spelling) {
                 let face = sides.faces[side];
-                if !asked(face) || self.slot_chartless(reading, sides.after[side]) {
+                if !asked(face) || self.slot_chartless(sides.after[side]) {
                     continue;
                 }
                 let plane = match reading {
@@ -700,17 +700,15 @@ impl<T: Decide> Body<T> {
         Ok(out)
     }
 
-    /// Whether `slot` is the "no chart yet" placeholder, as `reading`
-    /// knows the charts its door mints: a side landing there has no
-    /// chart for a certificate to vouch on, so it is not asked. A keys-only
-    /// door's minted chart is asked of its [`Landing`] instead.
-    fn slot_chartless(&self, reading: &Reading<'_, T>, slot: Slot) -> bool {
-        match (slot, reading) {
-            (Slot::Kept(key), _) => self.wears_no_chart(key),
-            (Slot::Minted(_), Reading::Residuals { charts, .. }) => self
-                .slot_surface(charts, slot)
-                .is_some_and(Surface::is_placeholder_chart),
-            (Slot::Minted(_), Reading::Keys) => false,
+    /// Whether `slot` is pending, as `reading` knows the charts its door
+    /// mints: a side landing there has no chart for a certificate to
+    /// vouch on, so it is not asked. A describing door mints described
+    /// charts only, and a keys-only door's minted chart is asked of its
+    /// [`Landing`] instead.
+    fn slot_chartless(&self, slot: Slot) -> bool {
+        match slot {
+            Slot::Kept(key) => self.wears_no_chart(key),
+            Slot::Minted(_) => false,
         }
     }
 
@@ -1422,9 +1420,11 @@ impl<T: Decide> Body<T> {
     where
         T: Decide,
     {
+        // A certified description names described surfaces only: the
+        // certification door refuses a pending key.
         let surface = |k: SurfaceKey| {
-            let Some(s) = self.surfaces.get(k) else {
-                unreachable!("{k:?} is a surface a description this body holds names")
+            let Some(Ok(s)) = self.surfaces.get(k).map(SurfaceSlot::described) else {
+                unreachable!("{k:?} is a described surface a description this body holds names")
             };
             (k, s)
         };
@@ -1466,15 +1466,18 @@ impl<T: Decide> Body<T> {
             crate::live::proven(&self.edges, edge, EntityId::Edge),
         );
         let (ka, kb) = sides.surfaces();
-        let surface = |k: SurfaceKey| {
-            let Some(s) = self.surfaces.get(k) else {
-                unreachable!("{k:?} is the surface of a face this body holds")
-            };
-            (k, s)
+        // A pending face has no implicit form for the must-carry rule to
+        // read, so the image is kept, as beside a spline chart.
+        let surface = |k: SurfaceKey| match self.surfaces.get(k) {
+            Some(slot) => slot.described().ok().map(|s| (k, s)),
+            None => unreachable!("{k:?} is the surface of a face this body holds"),
+        };
+        let (Some(a), Some(b)) = (surface(ka), surface(kb)) else {
+            return Ok(None);
         };
         let (fa, fb) = sides.faces();
         let reach = crate::wedge_reach(self, [fa, fb], carrier, interval);
-        geom_brep::reask_chart([surface(ka), surface(kb)], carrier, interval, reach, band)
+        geom_brep::reask_chart([a, b], carrier, interval, reach, band)
     }
 
     /// Every wrap edge the at-rest reading ([`Named::adjacent_at_rest`])
@@ -1621,7 +1624,7 @@ impl<T: Decide> Body<T> {
     }
 
     /// Whether [`Body::description_rows`] plans `face` for `edge`: one
-    /// of `edge`'s halves is on it, and it is off a spline chart unless
+    /// of `edge`'s halves is on it, and it is off a spline or pending chart unless
     /// `edge` is null. The one home of that decision: the
     /// description plans a half's face by it, and
     /// [`Body::kev_describing`](crate::construction::Construct::kev_describing)'s released-loop plan leaves such a face
@@ -1641,12 +1644,12 @@ impl<T: Decide> Body<T> {
             })
     }
 
-    /// Whether `face`'s chart is a spline one, where the site mint's
-    /// closed-form lane does not reach. `face` is one the caller
-    /// resolved.
+    /// Whether `face`'s chart is a spline one or still pending, where the
+    /// site mint's closed-form lane does not reach. `face` is one the
+    /// caller resolved.
     fn face_on_spline_chart(&self, face: FaceKey) -> bool {
         let view = self.proven_face(face);
-        view.surface().spline_chart().is_some()
+        view.surface().map_or(true, |s| s.spline_chart().is_some())
     }
 
     /// The mutation half of every door that re-describes an existing
@@ -2045,7 +2048,7 @@ impl Slot {
     pub(crate) fn of_spec<T: Real>(spec: &FaceSurface<T>, own: SurfaceKey) -> Self {
         match spec {
             FaceSurface::Inherit => Self::Kept(own),
-            FaceSurface::New { .. } => Self::Minted(0),
+            FaceSurface::New { .. } | FaceSurface::Pending { .. } => Self::Minted(0),
             FaceSurface::Shared { key, .. } => Self::Kept(*key),
         }
     }
@@ -2053,9 +2056,8 @@ impl Slot {
 
 /// Where a keys-only door's moving boundary lands ([`Body::vouch_move`]):
 /// the key it leaves, the surface its face wears after the move, and
-/// whether that surface is the "no chart yet" placeholder
-/// ([`geom::Surface::is_placeholder_chart`]), which no description names
-/// and no certificate vouches on.
+/// whether that slot is pending ([`SurfaceSlot::Pending`]), which no
+/// description names and no certificate vouches on.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Landing {
     pub(crate) old: SurfaceKey,
@@ -2069,7 +2071,8 @@ impl<T: Decide> Body<T> {
     pub(crate) fn landing_of_spec(&self, old: SurfaceKey, spec: &FaceSurface<T>) -> Landing {
         let chartless = match spec {
             FaceSurface::Inherit => self.wears_no_chart(old),
-            FaceSurface::New { surface, .. } => surface.is_placeholder_chart(),
+            FaceSurface::New { .. } => false,
+            FaceSurface::Pending { .. } => true,
             FaceSurface::Shared { key, .. } => self.wears_no_chart(*key),
         };
         Landing {
@@ -2088,12 +2091,10 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Whether `key` is the "no chart yet" placeholder. A key that does
-    /// not resolve is not: the door's own lookups refuse it.
+    /// Whether `key`'s slot is pending. A key that does not resolve is
+    /// not: the door's own lookups refuse it.
     pub(crate) fn wears_no_chart(&self, key: SurfaceKey) -> bool {
-        self.surfaces
-            .get(key)
-            .is_some_and(Surface::is_placeholder_chart)
+        self.surfaces.get(key).is_some_and(SurfaceSlot::is_pending)
     }
 }
 

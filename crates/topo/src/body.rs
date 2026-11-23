@@ -79,7 +79,7 @@ use crate::entity::{
     ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::EulerOpError;
-use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
 use crate::joint::JointElement;
 use crate::live::{Arg, lookup};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
@@ -232,7 +232,7 @@ pub struct Body<T: Real> {
     // types since M2 PR 3; see `crate::geometry`).
     pub(crate) points: SlotMap<PointKey, Point3<T>>,
     pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
-    pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
+    pub(crate) surfaces: SlotMap<SurfaceKey, SurfaceSlot<T>>,
     // M5 PR 6 pcurve caches (C4): the per-HALF-EDGE certified chart
     // image of an edge's carrier, a function of the edge and the face's
     // chart alone. Parallel to the half-edge arena exactly as
@@ -369,7 +369,13 @@ impl<T: Real> Body<T> {
     ///
     /// Crate-internal raw insertion: no validity promises.
     pub(crate) fn add_surface(&mut self, surface: Surface<T>) -> SurfaceKey {
-        self.surfaces.insert(surface)
+        self.surfaces.insert(SurfaceSlot::Described(surface))
+    }
+
+    /// Inserts a pending surface slot ([`SurfaceSlot::Pending`]),
+    /// returning its key.
+    pub(crate) fn add_pending_surface(&mut self) -> SurfaceKey {
+        self.surfaces.insert(SurfaceSlot::Pending)
     }
 
     /// Inserts a vertex with its birth provenance (D5), returning its key.
@@ -1027,7 +1033,7 @@ impl<T: Real> Body<T> {
     #[must_use]
     pub fn with_surface_moved_for_tests(&self, key: SurfaceKey, moved: Surface<T>) -> Option<Self> {
         let mut out = self.clone();
-        *out.surfaces.get_mut(key)? = moved;
+        *out.surfaces.get_mut(key)? = SurfaceSlot::Described(moved);
         Some(out)
     }
 
@@ -1131,29 +1137,50 @@ impl<T: Real> Body<T> {
             .ok_or(EulerOpError::NullScaffoldCurve { curve: data.curve })
     }
 
-    /// The surface geometry at `key`, or `None` if the key is stale;
-    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
-    pub fn get_surface(&self, key: SurfaceKey) -> Option<&Surface<T>> {
+    /// The surface geometry at `key`: [`SurfaceMiss::Stale`] if the key
+    /// is stale, [`SurfaceMiss::Pending`] if its slot has no surface
+    /// yet; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    ///
+    /// # Errors
+    ///
+    /// The two misses above.
+    pub fn get_surface(&self, key: SurfaceKey) -> Result<&Surface<T>, SurfaceMiss> {
+        self.surface_slot(key).ok_or(SurfaceMiss::Stale)?.described()
+    }
+
+    /// The surface slot at `key`, described or pending, or `None` if the
+    /// key is stale; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    pub fn surface_slot(&self, key: SurfaceKey) -> Option<&SurfaceSlot<T>> {
         self.surfaces.get(key)
     }
 
-    /// **The surface `face` is a region of**, or `None` where `face`
-    /// does not resolve; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    /// The surface at `key` as a resolver closure hands it to geometry
+    /// ([`Body::get_surface`], owned).
+    pub(crate) fn resolve_surface(&self, key: SurfaceKey) -> Result<Surface<T>, SurfaceMiss> {
+        self.get_surface(key).cloned()
+    }
+
+    /// **The surface `face` is a region of**: [`SurfaceMiss::Stale`]
+    /// where `face` does not resolve, [`SurfaceMiss::Pending`] where its
+    /// surface is still pending; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     ///
     /// The public door from a face key to its surface, for a reader
-    /// outside this crate. `None` means exactly that the face key is
-    /// stale, and the caller decides what that means for its own input.
+    /// outside this crate; the caller decides what a miss means for its
+    /// own input.
     /// Inside the crate a face is read through a resolved
     /// `FaceView`, and nothing here calls this.
+    ///
+    /// # Errors
+    ///
+    /// The two misses above.
     ///
     /// # Panics
     ///
     /// Where a live face's surface key does not resolve, which only a
     /// kernel bug reaches (D2 row 4).
-    #[must_use]
     #[track_caller]
-    pub fn face_surface(&self, face: FaceKey) -> Option<&Surface<T>> {
-        Some(self.face(face)?.surface())
+    pub fn face_surface(&self, face: FaceKey) -> Result<&Surface<T>, SurfaceMiss> {
+        self.face(face).ok_or(SurfaceMiss::Stale)?.surface()
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is
@@ -1844,8 +1871,16 @@ impl<T: Real> Body<T> {
         self.null_faces.get(face)
     }
 
-    /// All surface geometry, in slot-index order (deterministic per D9).
+    /// All described surface geometry, in slot-index order
+    /// (deterministic per D9); a pending slot is not yielded.
     pub fn surfaces(&self) -> impl Iterator<Item = (SurfaceKey, &Surface<T>)> {
+        self.surfaces
+            .iter()
+            .filter_map(|(k, slot)| Some((k, slot.described().ok()?)))
+    }
+
+    /// Every surface slot, described or pending, in slot-index order.
+    pub fn surface_slots(&self) -> impl Iterator<Item = (SurfaceKey, &SurfaceSlot<T>)> {
         self.surfaces.iter()
     }
 }
