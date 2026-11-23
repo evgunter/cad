@@ -1265,6 +1265,7 @@ impl<T: Decide> Polish<'_, T> {
     fn closest(&self, band: Band) -> Result<Option<Candidate<T>>, MeetFault> {
         let (s0, t0) = self.start;
         if decide(row::CLEAR, Margin::of(self.clear - self.reach), band) == Ok(Sign::Positive) {
+            geom::probe::log(format!("polish-none clear {:?} reach {:?}", self.clear, self.reach));
             return Ok(None);
         }
         let two = T::from_f64(2.0);
@@ -1284,6 +1285,7 @@ impl<T: Decide> Polish<'_, T> {
         let ball = self.reach + e;
         if self.span_a.clear_by(crossing, ball, band) || self.span_b.clear_by(crossing, ball, band)
         {
+            geom::probe::log(format!("polish-none ball-clear {ball:?}"));
             return Ok(None);
         }
         let (s, t) = super::polish::pair_held(
@@ -1294,6 +1296,7 @@ impl<T: Decide> Polish<'_, T> {
             (hold(self.span_a), hold(self.span_b)),
         );
         let ((p, da), (q, db)) = (self.a.ders(s), self.b.ders(t));
+        geom::probe::log(format!("polish {s0:?} {t0:?} -> {s:?} {t:?}"));
         // Every pair of the window within the escalation has its first
         // point within `region` of the start along the first carrier, and
         // the polished pair is within its travel of it; its second point
@@ -1613,9 +1616,16 @@ fn line_conic<T: Decide>(
         arm,
         band,
     )? {
-        Route::Apart => return Ok(Pose::Apart),
-        Route::Parallel => return Ok(Pose::Parallel),
+        Route::Apart => {
+            geom::probe::log(format!("route-apart height {height:?} den {den:?}"));
+            return Ok(Pose::Apart);
+        }
+        Route::Parallel => {
+            geom::probe::log(format!("route-parallel height {height:?} den {den:?}"));
+            return Ok(Pose::Parallel);
+        }
         Route::Crossing => {
+            geom::probe::log(format!("route-crossing height {height:?} den {den:?}"));
             // The line's height above the plane runs `|d̂·n̂|` per metre,
             // so a point of it within the band's escalation `e` of the
             // plane is within `(e + |h|)/|d̂·n̂|` of the crossing's seed,
@@ -1641,8 +1651,7 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = n.cross(u).normalize();
-    let c0 = (k.frame().origin() - o).dot(m);
-    let (cp, sp) = k.along(m);
+    let (c0, cp, sp) = self::height(&k, o, m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite_as(row::SWING, Margin::of(swing), band)? {
         return Err(MeetFault::Unsupported {
@@ -1653,7 +1662,8 @@ fn line_conic<T: Decide>(
         c0,
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-    );
+    )
+    .probe_offsets(probe_height_offsets(&k, o, m));
     // The pair's distance is `√(R² + H²)`, `R` the residual above and `H`
     // the conic's offset along `v = û × m`, the line's other normal: a
     // line the tilt read level lies over the plane by a slant, which `H`
@@ -1662,7 +1672,7 @@ fn line_conic<T: Decide>(
     let (hc, hs) = k.along(v);
     let level = Slant {
         r: (c0, cp, sp),
-        h: ((k.frame().origin() - o).dot(v), hc, hs),
+        h: (self::height(&k, o, v).0, hc, hs),
         at: range.at_hi,
         swing,
         e,
@@ -1686,8 +1696,10 @@ fn line_conic<T: Decide>(
         let point = k.point_at(theta);
         let reach = k.speed_hi() * run + level.e;
         if a.clear_by(point, reach, band) || b.clear_by(point, reach, band) {
+            geom::probe::log(format!("place-none clear_by {theta:?} reach {reach:?} a {} b {}", a.clear_by(point, reach, band), b.clear_by(point, reach, band)));
             return Ok(None);
         }
+        geom::probe::log(format!("place {theta:?} floor {floor:?} reach {reach:?}"));
         Ok(Some(Candidate {
             point,
             ta: line.param(point),
@@ -1886,7 +1898,35 @@ enum Coplanar {
 )]
 pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
+    if geom::probe::variant() >= 1 {
+        let (h, _, _, (kc, ks)) = probe_height_offsets(k, on, n);
+        return (h - (cp * kc + sp * ks), cp, sp);
+    }
     (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
+}
+
+/// SCRATCH (probe): `k`'s height above the plane in the offsets about
+/// its stored point, `h + p·(cos θ − k_c) + q·(sin θ − k_s)`.
+pub(crate) fn probe_height_offsets<T: Decide>(
+    k: &dyn Conic<T>,
+    on: Point3<T>,
+    n: Vec3<T>,
+) -> (T, T, T, (T, T)) {
+    let (cp, sp) = k.along(n);
+    let (stored, phase) = k.probe_stored();
+    (geom::plane_offset(on, n, stored), cp, sp, phase)
+}
+
+/// SCRATCH (probe): the offsets form's two roots as angles near `near`,
+/// where variant 2 is in force and the conic is held on its arc.
+pub(crate) fn probe_offset_angles<T: Decide>(
+    (h, p, q, phase): (T, T, T, (T, T)),
+    near: T,
+) -> Option<[T; 2]> {
+    if geom::probe::variant() < 2 || (phase.0.abs() + phase.1.abs()).is_exact_zero_in_every_channel() {
+        return None;
+    }
+    Some(geom::probe::offset_roots(h, p, q, phase).map(|(y, x)| Azimuth::of(y, x).near(near)))
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).
@@ -1904,8 +1944,17 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
-    let ha = height(&ka, kb.frame().origin(), kb.axis());
-    let hb = height(&kb, ka.frame().origin(), ka.axis());
+    // SCRATCH (probe): under a variant the other conic's plane is stated
+    // through its stored point.
+    let on = |k: &dyn Conic<T>| {
+        if geom::probe::variant() >= 1 {
+            k.probe_stored().0
+        } else {
+            k.frame().origin()
+        }
+    };
+    let ha = height(&ka, on(&kb), kb.axis());
+    let hb = height(&kb, on(&ka), ka.axis());
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
     let sides = [(swing_a, ha), (swing_b, hb)];
@@ -2082,7 +2131,8 @@ fn transverse<T: Decide>(
         c0,
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-    );
+    )
+    .probe_offsets(probe_height_offsets(ka, kb.probe_stored().0, kb.axis()));
     let window = window::Window {
         a: ka,
         span_a: a.params(),
@@ -2100,6 +2150,7 @@ fn transverse<T: Decide>(
     let near = |theta: T| {
         let arc = range.band_arc(theta, band);
         if window.holds_only((theta - arc, theta + arc), &joints, band) {
+            geom::probe::log(format!("near-none holds_only {theta:?} {arc:?}"));
             return Ok(None);
         }
         let q = ka.point_at(theta);
@@ -2213,6 +2264,7 @@ fn coplanar_circles<T: Decide>(
         at_hi: toward,
         cross_lo: (T::zero() - lo) * (near + rb) / swing,
         cross_hi: hi * (far + rb) / swing,
+        offsets: None,
     };
     let found: Vec<T> = known.iter().map(|c| c.ta).collect();
     Ok(match owed(ka, &range, &found, band)? {
@@ -2453,6 +2505,8 @@ struct Range<T> {
     at_hi: T,
     cross_lo: T,
     cross_hi: T,
+    /// SCRATCH (probe): the same harmonic in the offsets form.
+    offsets: Option<(T, T, T, (T, T))>,
 }
 
 impl<T: Decide> Range<T> {
@@ -2466,6 +2520,15 @@ impl<T: Decide> Range<T> {
             at_hi,
             cross_lo: (T::zero() - lo) / two,
             cross_hi: hi / two,
+            offsets: None,
+        }
+    }
+
+    /// SCRATCH (probe).
+    fn probe_offsets(self, offsets: (T, T, T, (T, T))) -> Self {
+        Self {
+            offsets: Some(offsets),
+            ..self
         }
     }
 
@@ -2667,7 +2730,13 @@ fn harmonic_roots<T: Decide>(
         }
     };
     let roots = [r.at_hi + psi, r.at_hi - psi];
-    let gap = Margin::norm3(k.point_at(r.at_hi + psi) - k.point_at(r.at_hi - psi));
+    let roots = r
+        .offsets
+        .and_then(|o| probe_offset_angles(o, r.at_hi))
+        .unwrap_or(roots);
+    let [ra, rb] = roots;
+    geom::probe::log(format!("harmonic_roots {ra:?} {rb:?}"));
+    let gap = Margin::norm3(k.point_at(ra) - k.point_at(rb));
     // Two roots are read as two candidates, whatever their gap: where the
     // band cannot split their points they ring as one meeting. Placed at
     // the extreme between them, a touch's point would lie off the other

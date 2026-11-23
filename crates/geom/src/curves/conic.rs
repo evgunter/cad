@@ -284,6 +284,13 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// their own.
     fn running_point(&self, theta: T) -> [Rounded<T>; 3];
 
+    /// SCRATCH (probe): the stored point `S` and the pair `(k_c, k_s)`
+    /// with `P(θ) = S + u·a·(cos θ − k_c) + v·b·(sin θ − k_s)`: the
+    /// centre and `(0, 0)`, or the anchor and its phase.
+    fn probe_stored(&self) -> (Point3<T>, (T, T)) {
+        (self.frame().origin(), (T::zero(), T::zero()))
+    }
+
     /// **The centre**: the frame's origin. Stored where the conic is
     /// held at it; derived from the anchor where it is held on its arc,
     /// and then rounded at the semi-axes' own scale.
@@ -440,6 +447,9 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     }
     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
         (**self).running_point(theta)
+    }
+    fn probe_stored(&self) -> (Point3<T>, (T, T)) {
+        (**self).probe_stored()
     }
     fn center(&self) -> Point3<T> {
         (**self).center()
@@ -1144,6 +1154,13 @@ impl<T: Real> Ellipse<T> {
 }
 
 impl<T: Real> Conic<T> for Ellipse<T> {
+    fn probe_stored(&self) -> (Point3<T>, (T, T)) {
+        match self.held {
+            Held::Centre => (self.at.origin(), (T::zero(), T::zero())),
+            Held::Arc { phase } => (self.at.origin(), phase),
+        }
+    }
+
     fn frame(&self) -> Frame<T> {
         match self.held {
             Held::Centre => self.at,

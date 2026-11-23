@@ -100,6 +100,8 @@ pub mod intersect;
 pub mod keys;
 mod krawczyk;
 pub mod polygon_orientation;
+#[cfg(test)]
+mod probe_conic_harmonic;
 /// Transitional: the ladder lives at [`geom_core::ladder`]; this path
 /// stays only until the callers move
 /// (`work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md`).

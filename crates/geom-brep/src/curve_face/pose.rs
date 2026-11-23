@@ -650,9 +650,13 @@ pub(super) fn plane_conic<T: Decide>(
                 .max(T::zero() - T::one())
                 .acos();
             let turn = geom_core::period::Period::angle();
-            Ok(Pose::Isolated(Form(Formed::PlaneConic {
-                roots: [turn.near(phi + delta, near), turn.near(phi - delta, near)],
-            })))
+            let roots = [turn.near(phi + delta, near), turn.near(phi - delta, near)];
+            let roots = crate::curve_pair::pose::probe_offset_angles(
+                crate::curve_pair::pose::probe_height_offsets(conic, origin, normal),
+                near,
+            )
+            .unwrap_or(roots);
+            Ok(Pose::Isolated(Form(Formed::PlaneConic { roots })))
         }
         Sign::Zero => {
             // The graze's one root is the extremum nearest the plane: φ

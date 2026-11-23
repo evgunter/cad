@@ -166,6 +166,7 @@ mod net;
 mod periodic;
 pub mod places;
 pub mod pole_form;
+pub mod probe;
 mod projection_policy;
 pub mod rows;
 mod scalar_lift;
