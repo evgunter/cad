@@ -366,9 +366,9 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
 /// **Changing how it is written moves no bits.**
 ///
 /// The half-turn row is the case that makes the point: 90° and 0.5π are
-/// the same canonical value to within the last ulp, so the ONLY thing
-/// that distinguishes them is the stored notation — which is why
-/// rewriting the notation must not touch the value.
+/// the same canonical value, so the ONLY thing that distinguishes them
+/// is the stored notation — which is why rewriting the notation must
+/// not touch the value.
 #[test]
 fn changing_the_display_unit_leaves_the_value_bit_identical() {
     let tol = Tol::witness();

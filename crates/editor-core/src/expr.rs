@@ -2356,9 +2356,8 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
 /// A written quantity is written in the display unit it REMEMBERS
 /// ([`crate::Formula::display_unit`]) — through
 /// [`quantity::fmt_length`]/[`quantity::fmt_angle`], whose own pin is
-/// that the digits multiply back to the exact bits, and which fall back
-/// to the canonical unit for the values that have no preimage in the
-/// asked-for one. A `Scalar` one takes no unit and is written with a
+/// that the digits read back through the unit's one door to the exact
+/// bits, in the unit asked for. A `Scalar` one takes no unit and is written with a
 /// decimal point or an exponent, because a BARE integer is this
 /// grammar's spelling of a `Count`. The text has no spelling of a
 /// written dimensionless value inside a formula, so there its digits
