@@ -796,7 +796,7 @@ test_utils::f6_variants! {
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, UnschedulableCycle,
-        Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
+        Naming, FoldStep, Shell, ShellLaneUnsupported,
         WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
         MeasureNotParallel, MeasureUnsupported, PayloadExpr,
@@ -1280,7 +1280,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::CountOutOfRange { .. }
         | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::UnionFoldStep { .. }
+        | NodeErrorKind::FoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
         | NodeErrorKind::CrossingUnverified { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
@@ -5494,8 +5494,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
-            "UnionFoldStep",
-            NodeErrorKind::UnionFoldStep {
+            "FoldStep",
+            NodeErrorKind::FoldStep {
                 member: 2,
                 read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {

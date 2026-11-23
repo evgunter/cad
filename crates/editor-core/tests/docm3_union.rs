@@ -359,13 +359,7 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
 #[test]
 fn set_members_refuses_a_node_with_no_list_input() {
     let (doc, boxes, _) = three_boxes([0, 1, 2]);
-    let (doc, pair) = insert(
-        doc,
-        Node::Subtract {
-            from: boxes[0].into(),
-            tool: boxes[1].into(),
-        },
-    );
+    let pair = boxes[1];
     let err = doc
         .apply(
             &DocEdit::SetMembers {
@@ -374,7 +368,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
             },
             Tol::witness(),
         )
-        .expect_err("a subtract carries no list");
+        .expect_err("an extrude carries no list");
     assert!(
         matches!(&err, EditError::SetMembersOnNonList { node } if node.id() == pair),
         "{err:?}"
@@ -1208,7 +1202,8 @@ fn list_input(
     match node {
         Node::Union { members, .. }
         | Node::Intersect { members, .. }
-        | Node::Assemble { members } => Some(
+        | Node::Assemble { members }
+        | Node::Subtract { tool: members, .. } => Some(
             members
                 .try_map(|_, m| {
                     Ok::<_, std::convert::Infallible>(editor_core::BodyRead::plain(m.read))
