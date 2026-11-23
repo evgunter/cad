@@ -53,7 +53,7 @@ use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 /// Whether a printed carrier lies on the description built for it: how
 /// far it stands off the built carrier over its trim ([`description_gap`]),
 /// read at the file's band.
-pub(crate) const STEP_EDGE_ON_DESCRIPTION: &str = "step_edge_on_description";
+const STEP_EDGE_ON_DESCRIPTION: &str = "step_edge_on_description";
 
 /// Whether a printed vertex point lies where the build put its vertex,
 /// read at the file's band.

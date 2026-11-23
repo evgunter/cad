@@ -141,10 +141,10 @@ const WILD_CELLS: [Cell; 7] = [
 /// [`WILD_CELLS`] AND the attribution block in `demos/README.md`,
 /// per the audit.
 ///
-/// `nist_ftc_09_asme1_rd`'s sixth fillet bites its plane by 56.8 µm, in
-/// the band of the file's ε_in ≈ 34 µm: whether it is tangent is the
-/// file's ambiguity, refused at the snap at every ε. Its cell and its
-/// attribution return with it.
+/// `nist_ftc_09_asme1_rd`'s cylinder `#5130` bites parallel planes `#5116`
+/// and `#5144` by 56.8 µm, in the band of the file's ε_in ≈ 34 µm: whether
+/// it is tangent is the file's ambiguity, refused at the snap at every ε.
+/// Its cell and its attribution return with it.
 const WILD_REFUSALS: [(&str, &str); 2] = [
     ("occ-oss/b123d_nema17_bracket.step", "SURFACE_CURVE"),
     (

@@ -1,7 +1,7 @@
 ---
 id: main-red-axis-normal-snap-refuses-nist-ftc-09
 kind: issue
-title: main-red: since PR 7171's axis-normal snap change, nist_ftc_09 refuses at entity #5130 (step_snap_relation in band) and three slow-set rows go red
+title: main-red: since PR 7171's fix pass made the snap refuse an in-band pair of every kind, nist_ftc_09 refuses at its in-band tangent pair #5130 (step_snap_relation) and three slow-set rows go red
 status: closed
 opened: 2026-11-20
 closed: 2026-11-23
@@ -36,8 +36,10 @@ Reproduced on `origin/main` at `43295779ee`: the three rows red, each at
 refusing pair is a **tangent** one: plane `#5116` (origin z
 0.10908707180743679 m, normal −z) and cylinder `#5130` (axis along y at
 z 0.11359853590371839 m, r 0.004568308617999999 m), along edge `#5118`.
-Its gap is |0.1135985 − 0.1090871| − r = −5.6845e-5 m: the sixth fillet
-bites its plane by 56.8 µm. At ε_in 3.3816e-5 m (k 10) the band is
+Its gap is |0.1135985 − 0.1090871| − r = −5.6845e-5 m: the cylinder `#5130`,
+between parallel planes `#5116` and `#5144`, bites `#5116` by 56.8 µm.
+The pair `#5130` × `#5144` (edge `#5132`) reads in band too; `#5118` is
+first only by edge-id order. At ε_in 3.3816e-5 m (k 10) the band is
 (33.8 µm, 338 µm), so the reading is `InBand`, at every ε (the band's
 floor is ε_in). The axis-normal candidate of that pair reads apart (its
 axis lies in the plane). So IMPORTGATE's census, which counted no
@@ -64,10 +66,13 @@ This is a refusal-class change: `nist_ftc_09` moves from `MissInBand`
 (`step_edge_on_description`, `#4950`) to `Ambiguous`
 (`step_snap_relation`, `#5130`) in `tests/wild.rs`, in `tests/tier_gate.rs`
 and in `demos/wild`'s `WILD_REFUSALS` (the render lane's pin). The snap
-unit row is re-aimed at the sixth fillet. Its old content, the five
+unit row is re-aimed at the in-band pair. Its old content, the five
 snaps and the build's readings of the printed crossing lines, is no longer
 reachable on this file, so `build::choose_edge`, the old row's only
-caller, is gone. Mutants: the axis-normal-only condition reds the snap row
+caller, is gone. The printed-crossing-line reading has a synthetic
+witness instead:
+`a_tangent_edge_printed_as_a_crossing_line_is_read_off_its_ruling`
+(`tests/a_relation_the_file_band_reads_zero_is_snapped.rs`). Mutants: the axis-normal-only condition reds the snap row
 and `wild_refusals`; refusing on the earlier record reds the snap row
 (5116 for 5130).
 

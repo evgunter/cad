@@ -1147,16 +1147,16 @@ mod tests {
         );
     }
 
-    /// **`nist_ftc_09`'s sixth fillet reads tangent in the file's band, and
-    /// the file refuses at the snap.** The file (ε_in ≈ 33.8 µm, its band
-    /// (33.8 µm, 338 µm)) states six fillet cylinders tangent to planes.
-    /// Five bite by 1.5 to 13 µm, `Zero` at the file's band; the sixth,
-    /// cylinder `#5130` (r 4.568 mm, axis along y at z 113.599 mm) on plane
-    /// `#5116` (z 109.087 mm) along edge `#5118`, bites by 56.8 µm, which
-    /// the band does not decide: the file's ambiguity, refused on the later
-    /// record before any class is solved.
+    /// **`nist_ftc_09`'s cylinder `#5130` reads tangent to plane `#5116` in
+    /// the file's band, and the file refuses at the snap.** The cylinder
+    /// (r 0.17985467 in, axis along y at z 4.472383303296 in) lies between
+    /// parallel planes `#5116` (z 4.294766606592 in) and `#5144` (z 4.65 in)
+    /// and bites each by 56.8 µm, which the file's band (ε_in ≈ 33.8 µm,
+    /// k 10) does not decide. The file's ambiguity is refused on the later
+    /// record before any class is solved. The pair along `#5132` reads in
+    /// band too; `#5118`, along `#5116`, is read first only by edge-id order.
     #[test]
-    fn nist09s_sixth_fillet_reads_tangent_in_the_files_band_and_refuses_at_the_snap() {
+    fn nist09s_cylinder_5130_reads_tangent_in_the_files_band_and_refuses_at_the_snap() {
         let tol = geom_core::Tol::witness();
         let text = std::fs::read_to_string(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -1164,10 +1164,17 @@ mod tests {
         ))
         .unwrap();
         let parsed = crate::parse::parse_file(&text).unwrap();
+        // The tangent candidate's gap from the printed values, in inches:
+        // the axis's distance from the plane less the radius.
+        let inch = 0.0254;
+        let bite = ((4.472_383_303_296 - 4.294_766_606_592) - 0.179_854_67_f64).abs() * inch;
         match crate::entities::resolve(&parsed, None, tol) {
             Err(StepImportError::Interpretation {
                 id,
-                refusal: crate::interpret::Refusal::Ambiguous { reading, gap, .. },
+                refusal:
+                    crate::interpret::Refusal::Ambiguous {
+                        reading, gap, k, ..
+                    },
                 file,
             }) => {
                 assert_eq!(
@@ -1176,18 +1183,18 @@ mod tests {
                     "the later record"
                 );
                 assert!(
-                    (gap - 5.684_452_171_839_886e-5).abs() < 1e-12,
-                    "the bite, |z_axis − z_plane| − r: {gap:e}"
+                    (gap - bite).abs() < 1e-15,
+                    "the tangent gap |z_axis − z_plane| − r, {bite:e}: {gap:e}"
                 );
-                let band = FileBand::of_import(file.eps_in(), false, tol).unwrap();
-                assert_eq!(
-                    band.read(STEP_SNAP_RELATION, gap),
-                    Read::InBand,
-                    "{gap:e} at ε_in {:e}",
+                assert!(
+                    (file.eps_in() - 3.381_637_022_920_199_4e-5).abs() < 1e-18
+                        && file.eps_in() < gap
+                        && gap < k * file.eps_in(),
+                    "the file's declared ε_in {:e}, k {k}: {gap:e} in its band",
                     file.eps_in()
                 );
             }
-            other => panic!("the sixth fillet's ambiguity at #5130, got {other:?}"),
+            other => panic!("the in-band pair's ambiguity at #5130, got {other:?}"),
         }
     }
 }

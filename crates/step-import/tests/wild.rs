@@ -90,7 +90,7 @@ const WILD_REFUSALS: [(&str, &str); 5] = [
     // Its two records of one cylinder are one; its cylinder × sphere
     // section edges then refuse by ε, each pinned in its `tier_gate` cell.
     ("stepcode/TAIL_TURBINE.stp", TAIL_TURBINE_BY_EPS),
-    // Its sixth fillet, cylinder #5130, bites its plane by 56.8 µm, in
+    // Its cylinder #5130 bites parallel planes #5116 and #5144 by 56.8 µm, in
     // the band of the file's ε_in ≈ 34 µm: whether it is tangent is the
     // file's ambiguity, refused at the snap at every ε.
     (
@@ -175,9 +175,9 @@ fn solid(name: &str) -> (topo::Body<f64>, f64) {
 
 /// The ambient-ε window in which this corpus can CERTIFY, measured
 /// end to end on the committed files. The table below was measured
-/// with `nist_ftc_09` among the imports-class fixtures; since the build
-/// it refuses at every ε, its tangencies waiting on D7 step 3's snap
-/// catalogue ([`WILD_REFUSALS`]).
+/// with `nist_ftc_09` among the imports-class fixtures; it now refuses
+/// at every ε, on a tangency its file's band leaves undecided
+/// ([`WILD_REFUSALS`]).
 ///
 /// The wild corpus is bounded on both sides, and each bound is a fact
 /// about the files rather than about the kernel (re-measured
