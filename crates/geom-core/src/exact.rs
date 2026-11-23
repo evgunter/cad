@@ -350,8 +350,9 @@ impl Dd {
 /// denominator then clears its own error by as much: the numerator is
 /// `(√(A² + B²) − |D|)(√(A² + B²) + |D|)`, at most the denominator's
 /// square, so the denominator is at least `√(2¹¹u·M)`, far past
-/// `2⁶u²·(m_A + m_B + m_D)`. Each errs by less than a part in `2¹¹` of a
-/// `u` of itself beyond the roundings the exact reading also makes, and
+/// `2⁶u²·(m_A + m_B + m_D)`. So the numerator errs by at most half a
+/// `u` of itself (`2¹⁰u²·M` over `2¹¹u·M`) and the denominator by far
+/// less, within the `2u` the exact reading spends on its numerator, and
 /// the belly is within the same `7u`. A belly
 /// that cancels against the curve's size never clears it, and is read
 /// from the expansions.
