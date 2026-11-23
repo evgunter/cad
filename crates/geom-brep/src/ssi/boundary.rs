@@ -69,7 +69,7 @@ const STRIP_PIECES_LOG2: u32 = 6;
 use crate::nurbs_iso::{boundary_iso_u, boundary_iso_v};
 
 /// Which end of a parameter's domain.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChartEnd {
     /// The domain's low end.
     Low,
@@ -79,7 +79,7 @@ pub enum ChartEnd {
 
 /// A side of a NURBS wall's knot rectangle: the iso-line where `fixed`
 /// sits at its `end`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ChartSide {
     /// The parameter held fixed along the side.
     pub fixed: ChartAxis,
@@ -447,7 +447,7 @@ impl Partner for &ImplicitForm {
 }
 
 /// The four sides, in the pass's fixed order (D9).
-pub(crate) const SIDES: [ChartSide; 4] = [
+pub const SIDES: [ChartSide; 4] = [
     ChartSide {
         fixed: ChartAxis::U,
         end: ChartEnd::Low,
