@@ -38,8 +38,10 @@
 //!   the wall is less smooth than the image, a knot at the crossing of
 //!   the multiplicity that leaves the image as smooth as the wall
 //!   ([`crossing`]); the feet are followed again, at most
-//!   [`IMAGE_ROUNDS`] times. Past that the image is refused with the
-//!   miss it read ([`ImageRefusal::Miss`]).
+//!   [`IMAGE_ROUNDS`] times. Past that the miss is decided against the
+//!   band as limb 2 decides it: an image within the band stands, and
+//!   one in or past it is refused on that reading
+//!   ([`ImageRefusal::Miss`]).
 //!
 //! Everything here is the `f64` structure lane (C6): the image is
 //! evidence, and what makes it sound is that its consumer bounds
@@ -111,7 +113,7 @@ const FOLLOW_AGREEMENT: f64 = 0.5;
 const FOLLOW_STRETCH: f64 = 4.0;
 
 /// Why a carrier has no image on a wall.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Debug)]
 pub(crate) enum ImageRefusal {
     /// The wall is the placeholder: nothing to project onto.
     PlaceholderWall,
@@ -131,11 +133,10 @@ pub(crate) enum ImageRefusal {
     },
     /// The interpolation through the feet refused.
     Fit,
-    /// The image still missed the carrier's foot path past the cap.
-    Miss {
-        /// The largest miss the last chain read, in metres.
-        miss: f64,
-    },
+    /// The image still missed the carrier's foot path past the cap, by
+    /// more than the band holds: limb 2's own verdict on that miss
+    /// ([`crate::ssi::certify::image_miss`]).
+    Miss(crate::ssi::SsiError),
 }
 
 /// A carrier read for its image: the evaluator, the `f64` span and its
@@ -228,10 +229,7 @@ fn polished<T>(wall: &NurbsSurface<T>, p: Point3<T>, foot: Settled<T>) -> Settle
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    let (ud, vd) = (
-        wall.knots_u_f64_interim().domain(),
-        wall.knots_v_f64_interim().domain(),
-    );
+    let [ud, vd] = rectangle(wall);
     let mut best = foot;
     for _ in 0..FOOT_POLISH {
         let (uv, _, distance) = best;
@@ -242,7 +240,7 @@ where
         let a = su.dot(su) + mid3(jet.duu).dot(r);
         let b = su.dot(sv) + mid3(jet.duv).dot(r);
         let d = sv.dot(sv) + mid3(jet.dvv).dot(r);
-        let det = a * d - b * b;
+        let det = a * d - b.powi(2);
         let step = (-(d * fu - b * fv) / det, -(a * fv - b * fu) / det);
         if !(step.0.is_finite() && step.1.is_finite()) {
             break;
@@ -253,7 +251,7 @@ where
         );
         let at = wall.eval(T::from_computed(next.x), T::from_computed(next.y));
         let moved = mid((at - p).norm());
-        if !(moved <= distance) || (next.x == uv.x && next.y == uv.y) {
+        if !(moved <= distance) || next.equals_exactly(uv) {
             break;
         }
         best = (next, at, moved);
@@ -423,7 +421,12 @@ where
             || round == IMAGE_ROUNDS
             || chain.len() + add.len() > chain_knots + IMAGE_KNOTS
         {
-            return Err(ImageRefusal::Miss { miss: worst });
+            // Past the cap the miss is decided against the band itself,
+            // as limb 2 decides it: an image within the band stands as
+            // the evidence it is, and its certificate reads it.
+            return crate::ssi::certify::image_miss::<T>(worst, band)
+                .map(|()| (image, domain))
+                .map_err(ImageRefusal::Miss);
         }
         chain.extend(add);
         chain.sort_by(f64::total_cmp);
@@ -441,18 +444,37 @@ type KnotLine = (usize, f64, usize);
 /// of multiplicity `m` in a degree-`p` direction, is below the image's
 /// `C^(degree−1)`: the foot path is only as smooth as the wall across
 /// one, and an image smoother than that misses it by its kink.
-fn knot_lines<T: geom_core::Real>(wall: &NurbsSurface<T>, degree: usize) -> Vec<KnotLine> {
-    [wall.knots_u_f64_interim(), wall.knots_v_f64_interim()]
+fn knot_lines<T: Decide + Bounds>(wall: &NurbsSurface<T>, degree: usize) -> Vec<KnotLine> {
+    [wall.knot_values_u(), wall.knot_values_v()]
         .into_iter()
         .enumerate()
         .flat_map(|(axis, knots)| {
             let p = knots.degree();
-            knots.interior_knots().filter_map(move |(k, m)| {
+            interior(knots).into_iter().filter_map(move |(k, m)| {
                 let continuity = p.saturating_sub(m);
                 (continuity + 1 < degree).then(|| (axis, k, degree - continuity))
             })
         })
         .collect()
+}
+
+/// A held knot vector's interior runs, each value at its bracket's
+/// middle with its multiplicity: structure the image's chain and breaks
+/// are placed by.
+fn interior<T: Decide + Bounds>(knots: &geom_core::spline::Knots<T>) -> Vec<(f64, usize)> {
+    let runs: Vec<(f64, usize)> = knots.runs().map(|(k, m)| (mid(k), m)).collect();
+    runs.get(1..runs.len().saturating_sub(1))
+        .unwrap_or(&[])
+        .to_vec()
+}
+
+/// The wall's knot rectangle, `u`'s interval first, each end at its
+/// bracket's middle.
+fn rectangle<T: Decide + Bounds>(wall: &NurbsSurface<T>) -> [(f64, f64); 2] {
+    [wall.knot_values_u(), wall.knot_values_v()].map(|knots| {
+        let (lo, hi) = knots.domain();
+        (mid(lo), mid(hi))
+    })
 }
 
 /// **Where the path crosses a line of the wall between two feet**: the
@@ -503,7 +525,7 @@ fn chain_degree<T: geom_core::Real>(carrier: &Curve3<T>) -> usize {
 /// interior knot at the multiplicity that keeps its continuity at the
 /// image's degree, and any other carrier's uniform spans. `None` where a
 /// spline's domain has no width.
-fn chain<T: geom_core::Real>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Option<Vec<f64>> {
+fn chain<T: Decide + Bounds>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Option<Vec<f64>> {
     let degree = chain_degree(carrier);
     let mut knots = vec![0.0; degree + 1];
     match carrier {
@@ -513,7 +535,7 @@ fn chain<T: geom_core::Real>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Optio
                 return None;
             }
             let raise = degree - net.degree();
-            for (k, m) in net.knots_f64_interim().interior_knots() {
+            for (k, m) in interior(net.knot_values()) {
                 let at = (k - t0) / width;
                 if at > 0.0 && at < 1.0 {
                     knots.extend(core::iter::repeat_n(at, (m + raise).min(degree)));
@@ -647,13 +669,14 @@ fn nearest<T>(wall: &NurbsSurface<T>, p: Point3<T>) -> Result<Settled<T>, f64>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    let (ku, kv) = (wall.knots_u_f64_interim(), wall.knots_v_f64_interim());
+    let breaks = [wall.knot_values_u(), wall.knot_values_v()]
+        .map(|knots| knots.breakpoints().map(mid).collect::<Vec<f64>>());
     let n = geom::PROJECT_SEEDS_PER_SPAN;
     #[allow(clippy::cast_precision_loss)]
     let at = |a: f64, b: f64, i: usize| a + (b - a) * (i as f64 / (n - 1) as f64);
     let mut seeds: Vec<(f64, f64, f64)> = Vec::new();
-    for su in ku.knots().windows(2).filter(|w| w[0] < w[1]) {
-        for sv in kv.knots().windows(2).filter(|w| w[0] < w[1]) {
+    for su in breaks[0].windows(2) {
+        for sv in breaks[1].windows(2) {
             for i in 0..n {
                 for j in 0..n {
                     let (u, v) = (at(su[0], su[1], i), at(sv[0], sv[1], j));
@@ -716,11 +739,7 @@ where
     let mut best = nearest(wall, p)
         .map(|foot| settled(at, foot))
         .map_err(refused)?;
-    let domains = [
-        wall.knots_u_f64_interim().domain(),
-        wall.knots_v_f64_interim().domain(),
-    ];
-    for (axis, (lo, hi)) in domains.into_iter().enumerate() {
+    for (axis, (lo, hi)) in rectangle(wall).into_iter().enumerate() {
         let here = if axis == 0 { best.uv.x } else { best.uv.y };
         let far = if here == lo {
             hi
@@ -773,7 +792,7 @@ where
     let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
     let (su, sv) = (mid3(jet.du), mid3(jet.dv));
     let (a, b, d) = (su.dot(su), su.dot(sv), sv.dot(sv));
-    let det = a * d - b * b;
+    let det = a * d - b.powi(2);
     if !(det > 1e-12 * a * d) {
         return None;
     }

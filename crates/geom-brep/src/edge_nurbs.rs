@@ -3077,10 +3077,7 @@ pub(crate) fn image_refusal(e: crate::carrier_image::ImageRefusal) -> PlaneNurbs
             last_distance,
         },
         I::Fit => PlaneNurbsRefusal::PcurveFit,
-        I::Miss { miss } => PlaneNurbsRefusal::Limb {
-            limb: SsiLimb::ImageMiss,
-            margin: MarginDiag::value(miss),
-        },
+        I::Miss(read) => refusal(read),
     }
 }
 

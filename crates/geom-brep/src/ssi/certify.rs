@@ -1157,6 +1157,29 @@ const CHART_IMAGE_HULL: HullArm = HullArm {
     ..CHART_HULL
 };
 
+/// **A wall image's miss of its foot path, decided as limb 2 decides
+/// it** at a break where the miss is the image's
+/// ([`SsiLimb::ImageMiss`], [`CHART_IMAGE_HULL`]'s value): `Ok` where it
+/// decides within the band.
+///
+/// # Errors
+///
+/// [`SsiError::CertificateLimb`] where it decides past the band, and
+/// [`SsiError::CertificateEscalated`] in it.
+pub(crate) fn image_miss<T: Decide>(miss: f64, band: Band) -> Result<(), SsiError> {
+    let decided = decide_reported(
+        CHART_IMAGE_HULL.value,
+        Margin::of(T::from_computed(miss)),
+        band,
+    );
+    limb_verdict(
+        CHART_IMAGE_HULL.value_limb,
+        decided,
+        || RefusedResidual::Over(miss),
+        &mut Refused::default(),
+    )
+}
+
 /// Limb 2's verdict on where [`subdivide`] stopped, and its bound: the
 /// bound or the break's value, each decided at `arm`'s predicate.
 /// Interval arithmetic answers with `f64` bounds, lifted here so the

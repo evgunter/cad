@@ -2374,10 +2374,7 @@ pub(crate) fn image_refusal(e: crate::carrier_image::ImageRefusal) -> SsiError {
         I::Foot {
             t, last_distance, ..
         } => SsiError::FootPointInconclusive { t, last_distance },
-        I::Miss { miss } => SsiError::CertificateLimb {
-            limb: SsiLimb::ImageMiss,
-            margin: MarginDiag::value(miss),
-        },
+        I::Miss(read) => read,
         I::PlaceholderWall => SsiError::UnsupportedCertificate {
             what: "the wall is the placeholder, which has no foot path",
         },

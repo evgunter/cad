@@ -3420,7 +3420,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         ),
         // The image's own miss of the foot path past its cap: the lane's
         // gap, as a certificate's refusal of the image it derived is.
-        I::Miss { .. } => certificate(
+        I::Miss(_) => certificate(
             Some(SsiLimb::ImageMiss),
             "the derived image still missed the wall's foot path of this locus at the finest \
              chain the image takes",

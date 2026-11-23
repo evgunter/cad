@@ -4905,10 +4905,9 @@ fn a_traced_arcs_certificate_is_rests_bit_for_bit() {
             .general_image(&branch.carrier, branch.params, &wall, band())
             .unwrap_or_else(|e| panic!("{what}: the mint images the carrier: {e:?}"));
         let bits = |c: &geom::NurbsCurve2<f64>| -> Vec<u64> {
-            c.knots_f64_interim()
-                .knots()
-                .iter()
-                .copied()
+            c.knot_values()
+                .runs()
+                .flat_map(|(k, m)| core::iter::repeat_n(k, m))
                 .chain(c.control().iter().flat_map(|p| [p.x, p.y]))
                 .map(f64::to_bits)
                 .collect()
