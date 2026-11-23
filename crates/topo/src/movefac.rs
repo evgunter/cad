@@ -29,7 +29,7 @@ use crate::entity::{EntityId, Shell, ShellKey, Solid, SolidKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
-use crate::glue::face_set_glue;
+use crate::glue::{LoopClaims, face_set_glue};
 use crate::live::{Arg, linked, lookup};
 use crate::provenance::Provenance;
 
@@ -67,16 +67,20 @@ impl<T: Decide> Body<T> {
                  tier-1-valid body a face's shell lists it"
             );
         }
-        let glue = face_set_glue(self, &shell_data.faces, EntityId::Shell(shell))
-            .unwrap_or_else(|torn| unreachable!("movefac: {torn}"));
+        let glue = face_set_glue(
+            self,
+            &LoopClaims::of(self),
+            &shell_data.faces,
+            EntityId::Shell(shell),
+        );
         // A face the walk glued on from outside the list would join two
         // components through a face the move does not move.
-        if let Some(leave) = glue.leaving.first() {
+        if let Some(hop) = glue.leaving.first() {
             unreachable!(
-                "movefac reached {:?}, which is not shell {shell:?}'s: the shell does not \
-                 list it, and on a tier-1-valid body an edge's two faces share a shell and a \
-                 face's shell lists it",
-                leave.to
+                "movefac reached {:?}, which is not shell {shell:?}'s, across {:?} from {:?}: \
+                 the shell does not list it, and on a tier-1-valid body an edge's two faces \
+                 share a shell and a face's shell lists it",
+                hop.to, hop.member, hop.from
             );
         }
         let count = glue.count;
@@ -105,8 +109,8 @@ impl<T: Decide> Body<T> {
             for face in faces {
                 let Some(face_data) = self.get_face_mut(face) else {
                     unreachable!(
-                        "movefac: every labelled face was resolved by the component walk \
-                         above and this op kills no face"
+                        "movefac: every listed face was resolved by the plan's owner pre-pass \
+                         and this op kills no face"
                     )
                 };
                 face_data.shell = new_shell;
@@ -710,11 +714,7 @@ mod tests {
             "the walk crosses into the digon's loop"
         );
         assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
-        assert_panics_torn(
-            &mut body,
-            shell,
-            &format!("walked as a member of loop {walked:?}'s cycle, does not claim it"),
-        );
+        assert_panics_torn(&mut body, shell, &format!("leaving loop {walked:?}"));
     }
 
     /// **A short walk would split one component.** The strut cube's top
@@ -1006,12 +1006,59 @@ mod tests {
         }
     }
 
+    /// A pillow with an empty ring planted on one face and promoted by
+    /// `mfkrh`: one shell, two components, the second a dartless face
+    /// (an `Empty` outer loop) listed after the pillow's faces, so it
+    /// seeds after the first component.
+    fn pillow_with_a_promoted_empty_ring() -> Body<f64> {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+                tol,
+            )
+            .unwrap();
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
+        .unwrap();
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                p(2.0),
+                tol,
+            )
+            .unwrap();
+        let planted = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let promoted = body.mfkrh_plug(planted.ring, true).unwrap();
+        let shell = body.get_face(promoted.face).unwrap().shell;
+        assert_eq!(
+            body.get_shell(shell).unwrap().faces.last(),
+            Some(&promoted.face),
+            "the dartless face is listed last"
+        );
+        body
+    }
+
     /// The valid bodies the labelling is measured on: one to three
-    /// components, rings, struts, genus, and `Empty` loops both with no
-    /// half-edge in the shell (`mvfs_state`) and beside half-edges that
-    /// walk other loops of the same face (`ops_two_ring_face`'s tip ring,
-    /// which the empty-loop proof must let through).
-    fn valid_fixtures() -> [(&'static str, Body<f64>); 14] {
+    /// components, rings, struts, genus, and `Empty` loops with no
+    /// half-edge in the shell (`mvfs_state`), beside half-edges that walk
+    /// other loops of the same face (`ops_two_ring_face`'s tip ring,
+    /// which the empty-loop proof must let through), and as the outer
+    /// loop of a dartless face that seeds after another component.
+    fn valid_fixtures() -> [(&'static str, Body<f64>); 15] {
         use crate::fixtures::{
             mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strutted,
             ops_two_ring_face, pillow, raw_prism,
@@ -1033,28 +1080,41 @@ mod tests {
             ("ops_two_ring_face", ops_two_ring_face(tol).body),
             ("one detached digon", detached_digons(1).0),
             ("two detached digons", detached_digons(2).0),
+            (
+                "pillow with a promoted empty ring",
+                pillow_with_a_promoted_empty_ring(),
+            ),
         ]
     }
 
-    /// **The shared glue walk labels as the records do**: on every
-    /// [`valid_fixtures`] shell, from its face list and that list
-    /// reversed, [`crate::glue::face_set_glue`] gives each face the label
-    /// [`claimed_components`] reads off the half-edges' `edge` and
-    /// `parent_loop` claims, numbered the same way, and no hop leaves the
-    /// shell.
+    /// No over-refusal, and the shared walk's labels: on every valid
+    /// body here ([`valid_fixtures`]), from each shell's face list and
+    /// that list reversed, [`crate::glue::face_set_glue`] gives each face
+    /// the label [`claimed_components`] reads off the half-edges' `edge`
+    /// and `parent_loop` claims, numbered the same way, with no hop
+    /// leaving the shell, and `movefac` partitions the shell exactly as
+    /// those records do. An enumeration, not a sample.
     #[test]
-    fn the_glue_walk_labels_as_the_claims_do() {
+    fn valid_fixtures_partition_as_their_records_do() {
+        let mut most = 0;
         for (fixture, body) in valid_fixtures() {
+            assert_eq!(validate(&body), Ok(()), "{fixture} is valid");
             for (shell, _) in body.shells() {
+                let components = claimed_count(&body, shell);
+                most = most.max(components);
                 for reversed in [false, true] {
                     let mut trial = body.clone();
                     if reversed {
                         trial.get_shell_mut(shell).unwrap().faces.reverse();
                     }
-                    let faces = trial.get_shell(shell).unwrap().faces.clone();
                     let truth = claimed_components(&trial, shell);
-                    let glue = crate::glue::face_set_glue(&trial, &faces, EntityId::Shell(shell))
-                        .unwrap_or_else(|e| panic!("{fixture}: the valid shell is torn: {e}"));
+                    let faces = trial.get_shell(shell).unwrap().faces.clone();
+                    let glue = crate::glue::face_set_glue(
+                        &trial,
+                        &crate::glue::LoopClaims::of(&trial),
+                        &faces,
+                        EntityId::Shell(shell),
+                    );
                     assert_eq!(
                         glue.leaving,
                         [],
@@ -1063,37 +1123,11 @@ mod tests {
                     let labels: Vec<usize> = faces.iter().map(|&f| glue.labels[f]).collect();
                     let claimed: Vec<usize> = faces.iter().map(|&f| truth[f]).collect();
                     assert_eq!(
-                        labels, claimed,
-                        "{fixture}: each face's component label (reversed {reversed})"
+                        (labels, glue.count),
+                        (claimed, components),
+                        "{fixture}: each face's component label and the count (reversed \
+                         {reversed})"
                     );
-                    assert_eq!(
-                        glue.count,
-                        claimed_count(&trial, shell),
-                        "{fixture}: the component count (reversed {reversed})"
-                    );
-                }
-            }
-        }
-    }
-
-    /// No over-refusal: on every valid body here ([`valid_fixtures`]),
-    /// `movefac` partitions each shell exactly as its records do, from
-    /// its face list and from that list reversed. An enumeration, not a
-    /// sample.
-    #[test]
-    fn valid_fixtures_partition_as_their_records_do() {
-        let mut most = 0;
-        for (fixture, body) in valid_fixtures() {
-            assert_eq!(validate(&body), Ok(()), "{fixture} is valid");
-            for (shell, _) in body.shells() {
-                let truth = claimed_components(&body, shell);
-                let components = claimed_count(&body, shell);
-                most = most.max(components);
-                for reversed in [false, true] {
-                    let mut trial = body.clone();
-                    if reversed {
-                        trial.get_shell_mut(shell).unwrap().faces.reverse();
-                    }
                     let shells = trial.movefac(shell).unwrap_or_else(|e| {
                         panic!("the valid {fixture} refuses {e:?} (reversed {reversed})")
                     });

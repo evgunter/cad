@@ -151,6 +151,7 @@ use crate::entity::{
 use crate::euler::{MefSite, MevSite};
 use crate::euler_kill::MergedMember;
 use crate::euler_ring::{KemrResult, MekrSite};
+use crate::glue::{FaceSetComponents, LoopClaims, face_set_glue};
 use crate::iso::canonical_form;
 use crate::readback::{EulerCounts, euler_counts};
 
@@ -912,8 +913,9 @@ fn any_movefac(body: &Body<f64>, _tol: Tol) -> bool {
 }
 
 fn movefac_sites(body: &Body<f64>) -> impl Iterator<Item = ShellKey> + '_ {
+    let claims = LoopClaims::of(body);
     body.shells()
-        .filter(move |&(shell, _)| shell_components(body, shell) >= 2)
+        .filter(move |&(shell, _)| shell_glue(body, &claims, shell).count >= 2)
         .map(|(shell, _)| shell)
 }
 
@@ -921,7 +923,7 @@ fn movefac_sites(body: &Body<f64>) -> impl Iterator<Item = ShellKey> + '_ {
 /// under the glue relation `movefac` partitions on
 /// ([`crate::glue::face_set_glue`]).
 pub(crate) fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
-    shell_glue(body, shell).count
+    shell_glue(body, &LoopClaims::of(body), shell).count
 }
 
 /// [`shell_components`]' components themselves, as `movefac` reads
@@ -930,15 +932,14 @@ pub(crate) fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
 /// its `k`-th shell.
 fn shell_component_faces(body: &Body<f64>, shell: ShellKey) -> Vec<Vec<FaceKey>> {
     let faces = &body.get_shell(shell).expect("shell resolves").faces;
-    shell_glue(body, shell).components(faces)
+    shell_glue(body, &LoopClaims::of(body), shell).components(faces)
 }
 
 /// `shell`'s glue, for a body the generator built through the
 /// operators: a torn record, or a hop off the shell, panics naming it.
-fn shell_glue(body: &Body<f64>, shell: ShellKey) -> crate::glue::FaceSetComponents {
+fn shell_glue(body: &Body<f64>, claims: &LoopClaims, shell: ShellKey) -> FaceSetComponents {
     let faces = &body.get_shell(shell).expect("shell resolves").faces;
-    let glue = crate::glue::face_set_glue(body, faces, EntityId::Shell(shell))
-        .unwrap_or_else(|torn| panic!("seqgen: {torn}"));
+    let glue = face_set_glue(body, claims, faces, EntityId::Shell(shell));
     assert!(
         glue.leaving.is_empty(),
         "seqgen: shell {shell:?}'s glue walk leaves it: {:?}",
@@ -1497,7 +1498,9 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
 fn fusion_remake_shell(body: &Body<f64>, f1: FaceKey, f2: FaceKey) -> Option<ShellKey> {
     let shell1 = body.get_face(f1)?.shell;
     let shell2 = body.get_face(f2)?.shell;
-    if shell_components(body, shell1) != 1 || shell_components(body, shell2) != 1 {
+    let claims = LoopClaims::of(body);
+    if shell_glue(body, &claims, shell1).count != 1 || shell_glue(body, &claims, shell2).count != 1
+    {
         return None;
     }
     let solid = body.get_shell(shell2)?.solid;

@@ -5595,6 +5595,7 @@ fn check_designation<T: Decide>(
             return Err(ShellError::OpenFaceChartPartial { face, other });
         }
     }
+    let claims = crate::glue::LoopClaims::of(body);
     for (shell, data) in body.shells() {
         let remaining: Vec<FaceKey> = data
             .faces
@@ -5605,7 +5606,7 @@ fn check_designation<T: Decide>(
         if remaining.is_empty() {
             return Err(ShellError::OpenFacesExhaustShell { shell });
         }
-        let components = count_components(body, shell, &remaining);
+        let components = count_components(body, &claims, shell, &data.faces, &remaining);
         if components != 1 {
             return Err(ShellError::OpenFacesDisconnect { shell, components });
         }
@@ -5613,15 +5614,31 @@ fn check_designation<T: Decide>(
     Ok(())
 }
 
-/// How many components `shell`'s listed `faces`, a subset of its list,
-/// fall into under the glue relation ([`crate::glue::face_set_glue`]);
-/// a hop to a face outside the subset is not followed. A torn record
-/// panics naming it.
+/// How many components `remaining`, the faces of `shell`'s list that
+/// are not open, fall into under the glue relation
+/// ([`crate::glue::face_set_glue`]). A hop into an open face is not
+/// followed; a hop out of the shell, or a torn record, panics naming it.
 #[track_caller]
-fn count_components<T: Decide>(body: &Body<T>, shell: ShellKey, faces: &[FaceKey]) -> usize {
-    crate::glue::face_set_glue(body, faces, EntityId::Shell(shell))
-        .unwrap_or_else(|torn| unreachable!("shell: {torn}"))
-        .count
+fn count_components<T: Decide>(
+    body: &Body<T>,
+    claims: &crate::glue::LoopClaims,
+    shell: ShellKey,
+    listed: &[FaceKey],
+    remaining: &[FaceKey],
+) -> usize {
+    let glue = crate::glue::face_set_glue(body, claims, remaining, EntityId::Shell(shell));
+    for hop in &glue.leaving {
+        assert!(
+            listed.contains(&hop.to),
+            "shell {shell:?}'s face {:?} reaches {:?} across {:?}, which the shell does not \
+             list: on a tier-1-valid body an edge's two faces share a shell and a face's \
+             shell lists it",
+            hop.from,
+            hop.to,
+            hop.member
+        );
+    }
+    glue.count
 }
 
 /// The faces `face` shares an edge with, for a face a shell's record
