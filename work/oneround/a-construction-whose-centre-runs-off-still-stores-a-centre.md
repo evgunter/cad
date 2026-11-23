@@ -2,11 +2,12 @@
 id: a-construction-whose-centre-runs-off-still-stores-a-centre
 kind: unit
 title: a construction whose centre runs off still stores a centre: four mints hold a point of their arc
-status: open
+status: parked
 opened: 2026-11-22
 priority: P1
 cost: H
 refs: [7258, 7203]
+blocked_on: [one-stored-form-waits-on-the-readers-of-a-conics-centre, a-section-conic-is-anchored-at-a-general-point-of-its-arc]
 ---
 
 
@@ -45,3 +46,12 @@ Ground shared with `sect`, `germ`, `tang`, `importgate`, `exch` and
 `band`; a note goes on each live program's log when this is dispatched.
 
 Waits on PR 7203.
+
+## Parked (2026-11-23)
+
+On `oneround/conic-readers`
+(`one-stored-form-waits-on-the-readers-of-a-conics-centre`): until the
+readers go through the conic, a second arc-held conic meets the same
+derived-centre reads the cone's section meets today. And on
+`a-section-conic-is-anchored-at-a-general-point-of-its-arc`: the
+cylinder's tilted ellipse needs an anchor at a general point.

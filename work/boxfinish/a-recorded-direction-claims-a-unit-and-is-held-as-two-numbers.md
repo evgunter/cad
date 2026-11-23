@@ -123,3 +123,12 @@ read).
 (`Real::Expression`; the line mint's two branches are two makers), and
 signed-radius (which adds the door). Dual tier when it is dispatched:
 a witness type every profile and sweep reader holds.
+
+**From PR 7384's second review (2026-11-23), three more places this
+unit takes:** `swept::Traversed::half_turn(…, radial: Vec2<T>)` takes a
+bare vector for a unit claim (new in that PR); every field of
+`ValidatedSegment` and `SegmentKind` is public, so another crate can
+write a free-standing segment whose director has length 5 (it cannot
+enter a `ValidatedLoop`); and `SegmentKind::map` accepts any closure,
+so nothing in its signature keeps a mapped director a unit or the map
+upward.
