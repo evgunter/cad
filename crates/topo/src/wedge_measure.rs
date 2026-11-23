@@ -32,11 +32,26 @@ pub(crate) fn narrow_mode() -> bool {
     on() && NARROW.with(Cell::get)
 }
 
+pub(crate) fn fold_mode() -> bool {
+    on() && FOLD.with(Cell::get)
+}
+
+pub(crate) fn refused_at(depth: u32) {
+    REFUSED_AT.with(|c| {
+        let (n, lo, hi) = c.get();
+        c.set((n + 1, lo.min(depth), hi.max(depth)));
+    });
+}
+
 thread_local! {
     static ON: Cell<bool> = const { Cell::new(false) };
     static DEPTH_GUARD: Cell<u32> = const { Cell::new(0) };
     pub(crate) static MUTANT: Cell<bool> = const { Cell::new(false) };
     pub(crate) static NARROW: Cell<bool> = const { Cell::new(false) };
+    pub(crate) static FOLD: Cell<bool> = const { Cell::new(false) };
+    /// Depths at which a cell pair beside an edge was refused for good
+    /// this ask: (count, least, greatest).
+    pub(crate) static REFUSED_AT: Cell<(usize, u32, u32)> = const { Cell::new((0, u32::MAX, 0)) };
     /// While set (inside the narrow mode's `opposite`), the summed reading.
     pub(crate) static SUMMED: Cell<bool> = const { Cell::new(false) };
     /// While set, `levered_sign` decides by the sine's sign alone.
@@ -73,7 +88,7 @@ pub(crate) fn on() -> bool {
 }
 
 fn write(line: &str) {
-    let Ok(dir) = std::env::var("CAD_WM_LOG") else {
+    let Ok(dir) = log_dir() else {
         return;
     };
     if let Ok(mut f) = std::fs::OpenOptions::new()
@@ -103,7 +118,7 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
     faces: &[FaceKey],
     band: geom_core::Band,
 ) -> bool {
-    if std::env::var_os("CAD_WM_LOG").is_none() {
+    if log_dir().is_err() {
         return false;
     }
     let outer = DEPTH_GUARD.with(|d| {
@@ -115,8 +130,10 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
         return false;
     }
     ON.with(|o| o.set(true));
-    MUTANT.with(|m| m.set(std::env::var_os("CAD_WM_MUTANT").is_some()));
-    NARROW.with(|m| m.set(std::env::var_os("CAD_WM_NARROW").is_some()));
+    MUTANT.with(|m| m.set(flag("CAD_WM_MUTANT")));
+    NARROW.with(|m| m.set(flag("CAD_WM_NARROW")));
+    FOLD.with(|m| m.set(flag("CAD_WM_FOLD")));
+    REFUSED_AT.with(|c| c.set((0, u32::MAX, 0)));
     FLIPS.with(|f| f.borrow_mut().clear());
     COUNTS.with(|c| c.set([0; 5]));
     let in_scope: BTreeSet<FaceKey> = faces.iter().copied().collect();
@@ -217,7 +234,7 @@ pub(crate) fn leave<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     budgets: crate::clearance::Budgets,
     verdict: &crate::clearance::Embedding,
 ) {
-    if std::env::var_os("CAD_WM_LOG").is_none() {
+    if log_dir().is_err() {
         return;
     }
     if !outer {
@@ -247,8 +264,8 @@ pub(crate) fn leave<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     emit(
         "WMV",
         &format!(
-            "calls={}\tcrease_calls={}\tflips={}\tcrease_final={}\tfold_diff={}\tfaces={}\tnamed={named}\t{verdict:?}",
-            c[0], c[1], c[2], c[3], c[4], body.faces().count()
+            "calls={}\tcrease_calls={}\tflips={}\tcrease_final={}\tfold_diff={}\tfaces={}\trefused_at={:?}\tnamed={named}\t{verdict:?}",
+            c[0], c[1], c[2], c[3], c[4], body.faces().count(), REFUSED_AT.with(Cell::get)
         ),
     );
     let flips: Vec<(FaceKey, FaceKey)> = FLIPS.with(|f| f.borrow().iter().copied().collect());
@@ -306,4 +323,26 @@ fn seg_dist(q: [f64; 3], a: [f64; 3], b: [f64; 3]) -> f64 {
     };
     let r = [w[0] - t * d[0], w[1] - t * d[1], w[2] - t * d[2]];
     (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]).sqrt()
+}
+
+thread_local! {
+    static OVERRIDE: RefCell<Option<(String, Vec<&'static str>)>> = const { RefCell::new(None) };
+}
+
+/// MEASUREMENT ONLY: a test's own switches, in place of the environment
+/// (`None` hands back to it).
+pub fn set_modes(log: Option<(String, Vec<&'static str>)>) {
+    OVERRIDE.with(|o| *o.borrow_mut() = log);
+}
+
+fn log_dir() -> Result<String, std::env::VarError> {
+    if let Some(d) = OVERRIDE.with(|o| o.borrow().as_ref().map(|(d, _)| d.clone())) {
+        return Ok(d);
+    }
+    std::env::var("CAD_WM_LOG")
+}
+
+fn flag(name: &str) -> bool {
+    OVERRIDE.with(|o| o.borrow().as_ref().map(|(_, f)| f.contains(&name)))
+        .unwrap_or_else(|| std::env::var_os(name).is_some())
 }

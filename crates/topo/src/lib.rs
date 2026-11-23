@@ -1464,6 +1464,8 @@ pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 /// MEASUREMENT ONLY (embed/wedge-measure).
 mod wedge_measure;
+/// MEASUREMENT ONLY.
+pub use wedge_measure::set_modes as wedge_measure_modes;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 

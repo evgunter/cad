@@ -6372,13 +6372,14 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if !wm::on() || near.edges.is_empty() {
         return departure_inner(x, y, near, band, two);
     }
-    if wm::narrow_mode() {
+    if wm::narrow_mode() || wm::fold_mode() {
+        let fold = wm::fold_mode();
         let narrow = wm::EDGES.with(|m| {
             near.edges
                 .iter()
                 .map(|&(i, _)| {
                     let k = x.boundary.edges.get(i)?.key;
-                    m.borrow().get(&k).map(|e| e.narrow)
+                    m.borrow().get(&k).map(|e| if fold { e.fold } else { e.narrow })
                 })
                 .collect::<Option<Vec<f64>>>()
         });
@@ -6394,6 +6395,10 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
             }
         };
         wm::ARM.with(|c| c.set(None));
+        let (depth, max) = wm::CELL.with(Cell::get);
+        if matches!(o, Outcome::Refuse(_)) || (matches!(o, Outcome::Split { .. }) && depth >= max) {
+            wm::refused_at(depth);
+        }
         return o;
     }
     let reset = || {
@@ -14304,5 +14309,107 @@ mod wedge_measure_rows {
         }
         let alone = if sine.lo() > 0.0 || sine.hi() < 0.0 { "CERTIFIES" } else { "REFUSES" };
         eprintln!("WM1 (c) sign alone: rate enclosure excludes 0? => {alone}");
+        // The narrower face's run across the edge: the sliver's own width.
+        let width = r * u_far.abs();
+        let d = sign_on(&psi, None, &p, None, Some(fixture_lever(iv0(width))), b);
+        eprintln!(
+            "WM1 (d) narrower face's run {width:e}: margin [{:e},{:e}] => {}",
+            (sine * iv0(width)).lo(),
+            (sine * iv0(width)).hi(),
+            if d.is_some() { "CERTIFIES" } else { "REFUSES" }
+        );
+    }
+
+    fn line_along(e: u64) -> Along {
+        Along { edges: vec![key(e)], vertex: None, whole: true, params: None, on_edges: true }
+    }
+
+    /// The plane through the `x` axis rising at sine `s` in its chart's
+    /// `y` direction: `y` runs along `(0, cos, sin)`.
+    fn rising(s: f64) -> Surface<Interval> {
+        let c = (1.0 - s * s).sqrt();
+        Surface::Plane {
+            frame: geom::Frame::new(p3([0.0; 3]), v3([0.0, -s, c]), v3([1.0, 0.0, 0.0])),
+        }
+    }
+
+    fn strip<'a>(surface: &'a Surface<Interval>, width: f64) -> Presented<'a> {
+        Presented {
+            surface,
+            map: Map::Chart,
+            x: (0.0, 1.0),
+            y: (0.0, width),
+            zero: Zero::Side(Side::YLo, line_along(1)),
+            corner: false,
+            cache: Cache::default(),
+        }
+    }
+
+    /// The rate `sign_on` reads across the zero side `YLo`.
+    fn rate(psi: &Psi, p: &Presented<'_>) -> Interval {
+        let (_, fy, _) = p.jet();
+        let g = psi.gradient(p.whole());
+        g.dot(fy) / (g.norm() * fy.norm()) * at(Side::YLo.into())
+    }
+
+    /// The flat twin: a strip 1e-7 wide folded off the 1 m floor at sine
+    /// 5e-5, the floor's carrier the separator.
+    #[test]
+    fn the_flat_twin_through_sign_on() {
+        let b = band();
+        let s = 5e-5;
+        let (floor, folded) = (rising(0.0), rising(s));
+        let fold = geom_brep::folded_lever_arm(&floor, &folded, p3([0.5, 0.0, 0.0]), fixture_lever(iv0(1.0)));
+        let class = geom_brep::classify_dihedral_reported(&floor, &folded, p3([0.5, 0.0, 0.0]), fixture_lever(iv0(1.0)), b);
+        eprintln!("WM1T check4 at reach 1: fold={:?} read={:?}", fold.length(), class.map(|(d, m)| (d.class(), m)));
+        let psi = Psi::Carrier(Implicit::Plane { o: p3([0.0; 3]), n: v3([0.0, 0.0, 1.0]) });
+        let p = strip(&folded, 1e-7);
+        let r = rate(&psi, &p);
+        eprintln!("WM1T rate [{:e},{:e}]; far edge psi = {:e}", r.lo(), r.hi(), 1e-7 * s);
+        for (name, lever) in [("reach 1.0", 1.0), ("fold", fold.length().lo()), ("narrower run 1e-7", 1e-7)] {
+            let o = sign_on(&psi, None, &p, None, Some(fixture_lever(iv0(lever))), b);
+            eprintln!(
+                "WM1T ({name}) lever={lever:e} margin=[{:e},{:e}] => {}",
+                (r * iv0(lever)).lo(),
+                (r * iv0(lever)).hi(),
+                if o.is_some() { "CERTIFIES" } else { "REFUSES" }
+            );
+        }
+    }
+
+    /// The summed rate: a crease of two planes through the `x` axis whose
+    /// wedge's sine is 1.2 times the escalation over a reach of 1.
+    #[test]
+    fn the_summed_rate_under_two_separators() {
+        let b = band();
+        let reach = 1.0;
+        let delta = (1.2 * b.escalate() / reach).asin();
+        let (fx, fy) = (rising(0.0), rising(delta.sin()));
+        // The floor's face runs toward +y from the axis; the folded face
+        // toward +y rising. Their wedge is `delta`.
+        let (px, py) = (strip(&fx, 1.0), strip(&fy, 1.0));
+        let lever = || Some(fixture_lever(iv0(reach)));
+        let carrier = Psi::Carrier(Implicit::Plane { o: p3([0.0; 3]), n: v3([0.0, 0.0, 1.0]) });
+        let ry = rate(&carrier, &py);
+        let c = sign_on(&carrier, None, &py, None, lever(), b);
+        eprintln!(
+            "WM7 carrier arm (floor's carrier): folded face rate [{:e},{:e}] x {reach} => {:?}; floor rate 0; sum = {:e} => {}",
+            ry.lo(), ry.hi(), c, ry.lo() * reach,
+            if c.is_some() { "CERTIFIES" } else { "REFUSES" }
+        );
+        // The bisecting plane: normal halfway, so each face leaves at half the wedge.
+        let h = delta / 2.0;
+        let n = v3([0.0, -h.sin(), h.cos()]);
+        let bis = Psi::Linear { n, q: p3([0.0; 3]) };
+        let on = On { edges: vec![key(1)], vertices: Vec::new(), whole: true };
+        let (rx, ry) = (rate(&bis, &px), rate(&bis, &py));
+        let ax = sign_on(&bis, Some(&on), &px, Some(&py), lever(), b);
+        let ay = sign_on(&bis, Some(&on), &py, Some(&px), lever(), b);
+        let sum = (rx - ry) * iv0(reach);
+        let ds = decide(SELF_INTERSECTION_DEPARTURE, Margin::levered(rx - ry, fixture_lever(iv0(reach))), b);
+        eprintln!(
+            "WM7 bisector: floor rate [{:e},{:e}] alone {:?}; folded rate [{:e},{:e}] alone {:?}; summed |rx-ry|*reach [{:e},{:e}] => {:?}",
+            rx.lo(), rx.hi(), ax, ry.lo(), ry.hi(), ay, sum.lo(), sum.hi(), ds
+        );
     }
 }
