@@ -218,13 +218,13 @@ fn both_witnesses_build_under_every_boolean() {
 }
 
 /// **The plain witness builds every op at the `Interval` scalar.**
-/// Re-charted along the centre line, each ball's seam meridians lie in
-/// planes holding the other ball's centre, where the circle × sphere
-/// roots' phase is the first-harmonic door's degenerate case. The phase
-/// is read within half a turn of the span's middle
+/// Each ball is cut along its meridian through the centre line, which
+/// lies in the plane holding the other ball's centre, where the circle ×
+/// sphere roots' phase is the first-harmonic door's degenerate case. The
+/// phase is read within half a turn of the span's middle
 /// (`geom::Azimuth::near`), so an enclosure of it stays as narrow as its
 /// inputs and each op builds, its volume bracketing the oracle's. At
-/// ε 1e-12 the ops [`PLAIN_FRAME_COST`] names refuse instead.
+/// ε 1e-12 every op refuses instead ([`PLAIN_ENVELOPE`]).
 #[test]
 fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
     use crate::common::interval::iv;
@@ -245,19 +245,19 @@ fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
         ("b ∖ a", topo::subtract(&b, &a, tol), vb - l),
         ("a ∩ b", topo::intersect(&a, &b, tol), l),
     ] {
-        if crate::common::frame_cost::at_the_least_band() && PLAIN_FRAME_COST.contains(&op) {
+        if crate::common::frame_cost::at_the_least_band() {
             assert!(
                 matches!(
                     &out,
-                    Err(BooleanError::Escalated { decision: topo::BooleanDecision::SeamJet, diag })
-                        if crate::common::frame_cost::escalated(
-                            diag,
-                            "tangent_second_order",
-                            (1.3e-12, 1.45e-12),
+                    Err(BooleanError::Pcurves { source })
+                        if crate::common::frame_cost::pcurve_escalates(
+                            source,
+                            "pcurve_envelope",
+                            PLAIN_ENVELOPE,
                         )
                 ),
-                "Interval {op}: pinned to escalate its seam jet, tangent_second_order in \
-                 (1.3e-12, 1.45e-12], at ε 1e-12: {:?}",
+                "Interval {op}: pinned to escalate the cut's pcurve envelope in {PLAIN_ENVELOPE:?} \
+                 at ε 1e-12 ({PLAIN_ENVELOPE_ROW}): {:?}",
                 out.as_ref().map(|_| "a result")
             );
             continue;
@@ -285,16 +285,18 @@ fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
     }
 }
 
-/// The ops of [`the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar`]
-/// that refuse at ε 1e-12 (`crate::common::frame_cost::at_the_least_band`):
-/// the seam crossing's jet escalates `tangent_second_order` with its
-/// margin in `(1.3e-12, 1.45e-12]` (measured 1.380e-12). Cause: bracket,
-/// the balls' frames built at `Interval` from bracket inputs (fork 274);
-/// mutant F1X (PR 7131's body) builds every op, and turns this pin red.
-/// The pcurve envelope
-/// `work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`
-/// names is not reached at 1e-12, with the mutant or without it.
-const PLAIN_FRAME_COST: [&str; 1] = ["b ∖ a"];
+/// Where every op of
+/// [`the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar`]
+/// refuses at ε 1e-12 (`crate::common::frame_cost::at_the_least_band`):
+/// the pcurve pass escalates the envelope's radius term on the meridian
+/// the cut-in mints (`EnvelopeTerm(Radius)`, `pcurve_envelope`, measured
+/// 2.990e-12), before the seam jet PR 7131's frame cost stops `b ∖ a`
+/// at. Its cause is [`PLAIN_ENVELOPE_ROW`]'s to read; it is not measured
+/// under PR 7131's mutants.
+const PLAIN_ENVELOPE: (f64, f64) = (2.9e-12, 3.1e-12);
+
+/// The row the plain witness's 1e-12 envelope is pinned under.
+const PLAIN_ENVELOPE_ROW: &str = "work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion.md";
 
 /// The small ball's radius, from a pebble to one larger than the unit
 /// ball, against its centre's height across the whole crossing range
