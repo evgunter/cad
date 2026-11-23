@@ -36,3 +36,9 @@
   - a crossing row with no count.
 
   The fix pass is running on the union. **PR 7455** (`the-section-value-claims-a-cone-pairs-winding-on-the-partner`): dual Opus review on `7447c5a47f`, both APPROVE-WITH-FIXES, no MAJOR. Orchestrator's ruling: a winding read that doesn't settle claims nothing rather than refusing the section. A missing claim is weaker, never wrong, and this keeps the poses main reads. Its fix pass is running. **PR 7457** (cone × sphere / cone × cone doors) is open, and the lane is bringing CI to green. Ev asked about local build contention; the investigation is in `[ev]` PR 7539 (a hold cap, `--status`, nice for long jobs).
+- 2026-11-22 — **A note from BOXFINISH, for whoever holds SECTCONE: a merge of yours turned default-set rows red on main without knowing it.** Bisected on main's first parent; the rows, payloads and what each PR's own body says are in `work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`. PR 7354 (`sectcone/conic-pairs-on-the-value`) moves five: `boss_union`'s lowering digest, the m10 fence's `Interval` row, the boss-union parting, and two `sweep` band-edge poses whose DECISIONS changed (not bits). Also yours: `work/green/main-red-geom-breps-recourse-roster-misses-three-ssi-enclose-cone-sites.md`. The move is yours to judge and re-pin or fix; every program's gate inherits these reds until then.
+- 2026-11-23 — **PR 7455 merged** (`the-section-value-claims-a-cone-pairs-winding-on-the-partner`, closed). Two reds are inherited from main and annotated on the PR:
+  - lint `payload-rung-sweep` on `NodeErrorClass`, tracked in `work/tally/main-red-payload-rung-sweep-flags-node-error-class-half-of-a-family`;
+  - the app slow-set name check that can't see `app`-feature tests, tracked in `work/green/the-slow-set-name-check-cannot-see-app-feature-tests`.
+
+  fmt and clippy were skipped on CI behind the failing gates step, and are clean locally on geom-brep. U2 un-parks.

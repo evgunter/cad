@@ -618,6 +618,24 @@ where
             };
             wire_measure(primitive, doc, &at, env.lane.params, tol)
         }
+        Node::Datum {
+            target: _,
+            constraints,
+        } => {
+            // Its frame before placement is its target's own axes, which
+            // its mates' `on` read through their roles, as an instance's
+            // read its copy; it reaches nowhere past them.
+            let own: Results<T> = BTreeMap::from([(
+                id,
+                NodeResult::Ok(super::NodeValue::scratch(OpOut::plain(
+                    ValuePayload::Datum(RigidMotion::identity()),
+                    names::empty(),
+                ))),
+            )]);
+            let placed = fold_with(doc, &own, unprojected, id, constraints, Ok(0.0), env, tol)?;
+            let frame = placed.unwrap_or_else(RigidMotion::identity);
+            Ok(OpOut::plain(ValuePayload::Datum(frame), names::empty()).moved(placed))
+        }
         Node::InstantiatePart {
             doc_ref,
             interface,
@@ -819,25 +837,11 @@ where
             constraint: c.id,
             side,
         };
-        let on = pose::eval_pose(
-            doc,
-            on_results,
-            seat(MateSide::On),
-            crate::pose::RoleRead::plain(m.on),
-            params,
-            tol,
-        )
-        .map_err(|kind| unevaluated(MateSide::On, kind))?;
+        let on = pose::eval_pose(doc, on_results, seat(MateSide::On), m.on, params, tol)
+            .map_err(|kind| unevaluated(MateSide::On, kind))?;
         let on = crate::mate::solve::tightened(on);
-        let to = pose::eval_pose(
-            doc,
-            to_results,
-            seat(MateSide::To),
-            crate::pose::RoleRead::plain(m.to),
-            params,
-            tol,
-        )
-        .map_err(|kind| unevaluated(MateSide::To, kind))?;
+        let to = pose::eval_pose(doc, to_results, seat(MateSide::To), m.to, params, tol)
+            .map_err(|kind| unevaluated(MateSide::To, kind))?;
         let to = crate::mate::solve::tightened(to);
         charted.push((
             mate,
@@ -1558,10 +1562,13 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
         let lp = profile::replay_guided(steps, record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
-                step: error.step,
-                structure: match error.kind {
-                    profile::ReplayErrorKind::Path(profile::PathError::Structure(r)) => Some(r),
-                    _ => None,
+                step: error.step(),
+                structure: match &error.kind {
+                    profile::ReplayErrorKind::Path(source) => match source.refusal() {
+                        profile::PathError::Structure(r) => Some(r.clone()),
+                        _ => None,
+                    },
+                    profile::ReplayErrorKind::Transition { .. } => None,
                 },
             }
         })?;
@@ -2298,7 +2305,7 @@ fn select_one<T: topo::AtRestPolicy + Decide>(
 /// reference resolves it**: the read to the operation whose value
 /// holds it, then the name through that value's table under the
 /// [`ladder`], into an entity of the name's own kind. The quieting
-/// rule's [`crate::checks::at_rest::row_quietable`] resolves a row's
+/// rule's [`crate::checks::at_rest::quieting`] resolves a row's
 /// cell here, as [`select_one`] resolves a selection's one name, so the
 /// two read one entity.
 ///
@@ -3439,7 +3446,16 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
         .unwrap_or_else(|| unreachable!("a split defines a port per half"));
     let value = value_of(results, split)?;
     let ValuePayload::Split { above, below } = &value.payload else {
-        unreachable!("a split evaluates to its two sides")
+        // A split of a family is a family of splits (D10
+        // `[repetition]`), read here by a reader of no member of it.
+        return Err(match value.payload {
+            ValuePayload::Family => NodeErrorKind::HalfOfAFamily {
+                read: var,
+                input: split,
+                half,
+            },
+            _ => wrong_operand(value, split, super::family::SPLIT),
+        });
     };
     let body = split_side(split, half, above, below)?;
     // The half's names are its own output's (N1, the scope).
@@ -4484,17 +4500,20 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     }
                 }
                 decided @ topo::Backing::Decided(_) => vec![decided],
-                topo::Backing::Carried { input: 0, record } => held
-                    .rows()
-                    .get(record as usize)
-                    .map(|c| c.cites.iter().collect())
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "union {id:?}'s fold step {step} carries accumulation record \
+                topo::Backing::Carried { input, record }
+                    if topo::Operand::of_input(input) == Some(topo::Operand::A) =>
+                {
+                    held.rows()
+                        .get(record as usize)
+                        .map(|c| c.cites.iter().collect())
+                        .unwrap_or_else(|| {
+                            unreachable!(
+                                "union {id:?}'s fold step {step} carries accumulation record \
                              {record}, which the fold does not hold, though the step's operand \
                              A is that accumulation"
-                        )
-                    }),
+                            )
+                        })
+                }
                 topo::Backing::Carried { record, .. } => vec![topo::Backing::Carried {
                     input: member,
                     record,

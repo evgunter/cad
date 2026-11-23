@@ -432,8 +432,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
 /// beside them is a count of SITES, so a mention of the cell in a
 /// comment must not answer for one and must not inflate the total.
 /// The view keeps every code byte at its own offset, so the three
-/// anchors and the count are exactly what the raw text offered. This
-/// site's ledger row is in `crates/test-utils/tests/reader_census.rs`.
+/// anchors and the count are exactly what the raw text offered.
 #[test]
 fn every_site_of_the_gather_counter_carries_the_debug_gate() {
     let source = test_utils::source::code_only(include_str!("../../editor-core/src/product.rs"));

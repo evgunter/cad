@@ -333,7 +333,6 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey}
 use crate::face_normal::NormalAbort;
 use crate::geometry::PointKey;
 use crate::live::proven;
-use crate::null::CurveGeom;
 use crate::solid_contain::SolidContainment;
 use crate::sweep_trace::SweepPairs;
 
@@ -391,8 +390,12 @@ struct Span<T: Real> {
 }
 
 impl<T: Real> Span<T> {
-    fn len(&self) -> T {
-        self.at.1 - self.at.0
+    /// The span's extent, read off its line over `at`.
+    fn extent(&self) -> geom_core::Lever<T>
+    where
+        T: geom_core::spline::SpanLocate,
+    {
+        geom_brep::edge_extent_inf(&geom::Curve3::Line(self.line()), self.at.0, self.at.1)
     }
 
     /// The line it is a span of, `s` its parameter.
@@ -924,6 +927,9 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
 /// dangling key), the touch analysis reports
 /// [`Undecided::CorruptInstance`] — a kernel defect — about a body the
 /// caller never validated. The sentence is only as true as the caller.
+/// The census reads an edge through [`crate::Body::edge`], so a stale
+/// edge stays its own miss; the curve past a resolved edge is a link
+/// ([`crate::live::EdgeView::curve`]), and a dangling one panics.
 #[cfg(feature = "sweep-testing")]
 pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
@@ -2425,11 +2431,7 @@ fn edge_line_span<T: Real>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
 ) -> Option<(geom::Line<T>, (T, T))> {
-    let curve = body
-        .edges
-        .get(ek)
-        .and_then(|e| body.curves.get(e.curve))
-        .and_then(CurveGeom::certified)?;
+    let curve = body.edge(ek)?.certified()?;
     Some((curve.carrier().as_line()?, curve.params()))
 }
 
@@ -4796,8 +4798,8 @@ fn edge_in_curved_face<T: Decide>(
     for sheet in [w.own, w.next] {
         match decide(
             "pm_census_ef_curved_wall_side",
-            // Unsourced lever: the wedge's arm, `sector_shape`'s shorter scaled sheet (each about
-            // the line edge's chord); the chord's own extent read rounds differently.
+            // Unsourced lever: the wedge's arm, `SectorShape::arm`, the shorter of the two sheets
+            // as scaled by the edge's length; it waits on that record (the metering-arm family).
             Margin::levered(sheet.dot(floor), geom_core::Lever::unsourced(w.arm)),
             band,
         ) {
@@ -4965,15 +4967,30 @@ fn boundary_crossings<T: Decide>(
     use crate::splitting::containment::carrier_loop;
     let refused =
         |r: CrossRefusal, errors: &mut Vec<ValidationError>| refuse_crossing(f.key, r, errors);
-    let Some(face) = body.get_face(f.key) else {
+    let Some(face) = body.face(f.key) else {
         census_fault(
             format_args!("face {:?} does not resolve", f.key),
             NAMES_ONLY_LIVE,
         )
     };
+    // A lone ring holds no edge to cross: an edge through its vertex is
+    // a vertex-edge contact, which pass 2 reads over every vertex
+    // ([`sweep_vertex_edge`]). A face with no outline has no boundary
+    // edge to read.
+    let area = match face.area_loops() {
+        Ok(area) => area,
+        Err(no) => {
+            refused(
+                CrossRefusal::Unsupported(ContainError::EmptyLoop(no.r#loop)),
+                errors,
+            );
+            return None;
+        }
+    };
     let mut cuts = Vec::new();
-    for lk in face.loop_keys() {
-        let lp = match carrier_loop(body, lk, EF_CROSS_CONIC, band) {
+    for (cycle, _) in area.cycles() {
+        let lk = cycle.key();
+        let lp = match carrier_loop(cycle, EF_CROSS_CONIC, band) {
             Ok(lp) => lp,
             Err(err) => {
                 let r = match ContainError::from(err) {
@@ -5069,9 +5086,8 @@ fn edge_crossings<T: Decide>(
 ) -> Option<Vec<(T, CutAt)>> {
     use crate::splitting::containment::LoopEdge;
     let stored = body
-        .get_edge(side.key)
-        .and_then(|edge| body.get_curve_geom(edge.curve))
-        .and_then(CurveGeom::certified);
+        .edge(side.key)
+        .and_then(crate::live::EdgeView::certified);
     // Two straight segments from one point meet nowhere else unless they
     // run together, and a shared run is no cut either.
     let straight = stored.is_none_or(|c| !c.carrier().is_curved());
@@ -5478,12 +5494,7 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero_as(
         "pm_census_ee_parallel",
-        Margin::levered(
-            a.dir.cross(b.dir).norm(),
-            // Unsourced lever: the shorter straight span's parameter interval on its unit-direction
-            // line; no extent read takes a line's interval, and its chord read rounds differently.
-            geom_core::Lever::unsourced(a.len().min(b.len())),
-        ),
+        Margin::levered(a.dir.cross(b.dir).norm(), a.extent().min(b.extent())),
         band,
         errors,
     )
@@ -6049,14 +6060,13 @@ fn span_charge<T: Decide>(noise: T, band: Band) -> Option<T> {
     }
 }
 
-/// `a` against `b` read past the charge `n` (`name`'s bounds, decided
-/// through the funnel): the verdict where `a − b − n` and `a − b + n`
+/// `a − b`, read with the charge it carries (`name`'s bounds, decided
+/// through the funnel): the verdict where its enclosure's two ends
 /// agree, and the straddle between them ([`SPAN_ROUNDING`]) where they
 /// do not. `None` escalated (pushed).
 fn charged_cmp<T: Decide>(
     name: &'static str,
-    m: T,
-    n: T,
+    m: geom_core::Rounded<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Sign> {
@@ -6065,11 +6075,11 @@ fn charged_cmp<T: Decide>(
         errors.push(ValidationError::CensusEscalated { cause });
         None
     };
-    let lower = match read(m - n) {
+    let lower = match read(m.lower_end()) {
         Ok(d) => d,
         Err(cause) => return escalated(cause, errors),
     };
-    let upper = match read(m + n) {
+    let upper = match read(m.upper_end()) {
         Ok(d) => d,
         Err(cause) => return escalated(cause, errors),
     };
@@ -6134,7 +6144,15 @@ fn span_cmp<T: Decide>(
         return Some(core::cmp::Ordering::Equal);
     }
     Some(
-        match charged_cmp(SPAN_ORDER_CHARGED, x.at - y.at, n, band, errors)? {
+        match charged_cmp(
+            SPAN_ORDER_CHARGED,
+            geom_core::Rounded {
+                value: x.at - y.at,
+                error: n,
+            },
+            band,
+            errors,
+        )? {
             Sign::Positive => core::cmp::Ordering::Greater,
             Sign::Negative => core::cmp::Ordering::Less,
             Sign::Zero => core::cmp::Ordering::Equal,
@@ -6259,7 +6277,15 @@ fn projected_overlap<T: Decide>(
             if one_point(lo, hi, band, errors)? {
                 Sign::Zero
             } else {
-                charged_cmp(EE_OVERLAP_CHARGED, hi.at - lo.at, n, band, errors)?
+                charged_cmp(
+                    EE_OVERLAP_CHARGED,
+                    geom_core::Rounded {
+                        value: hi.at - lo.at,
+                        error: n,
+                    },
+                    band,
+                    errors,
+                )?
             }
         }
         None => match decide("pm_census_ee_overlap", Margin::of(hi.at - lo.at), band) {
@@ -9653,10 +9679,9 @@ pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3
 /// Whether edge `e`'s certified carrier is a circle
 /// ([`crate::link::Bound::circle`]).
 fn on_circle<T: Real>(body: &Body<T>, e: EdgeKey) -> bool {
-    body.get_edge(e)
-        .and_then(|d| body.get_curve_geom(d.curve))
-        .and_then(|g| g.certified())
-        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
+    body.edge(e)
+        .and_then(crate::live::EdgeView::certified)
+        .is_some_and(|c| c.carrier().as_circle().is_some())
 }
 
 /// **A resolved corner face's normal at the vertex**, or no tangent
@@ -12535,7 +12560,7 @@ fn shared_interior_witness<T: Decide>(
             .into_iter()
             .filter_map(|v| Some((geo.vmap.get(&v).copied()?, FaceContainment::OnVertex(v))));
         let middles = edges.iter().filter_map(|&e| {
-            let curve = body.get_curve_geom(body.get_edge(e)?.curve)?.certified()?;
+            let curve = body.proven_edge(e).certified()?;
             Some((curve.mid_point(), FaceContainment::OnEdge(e)))
         });
         probes.extend(
@@ -18875,13 +18900,10 @@ mod tests {
             (t0, t1): (f64, f64),
         ) -> (Body<f64>, FaceKey) {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-            let geom::Curve3::Ellipse(geom::Ellipse {
-                frame: carrier_frame,
-                ..
-            }) = carrier
-            else {
+            let geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = carrier else {
                 panic!("an ellipse carrier")
             };
+            let carrier_frame = the_ellipse.frame();
             let tol = Tol::witness();
             let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
             let mut body = Body::<f64>::new();
@@ -21644,7 +21666,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(circle @ geom::Circle { .. }) if circle.frame().origin().z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");
@@ -23396,5 +23418,37 @@ mod line_pass_rows {
             "the span runs through the edge's stored line: gap {:?}",
             pass.gap
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod edge_view_review_probes {
+    use crate::geometry::CurveKey;
+    use crate::test_support_fixtures::declined_cube;
+    use geom_core::Tol;
+
+    /// Claim 3: census tag reads no longer read a torn curve as "no".
+    #[test]
+    fn on_circle_and_line_span_panic_on_a_torn_curve_link() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().unwrap().0;
+        assert!(!super::on_circle(&body, edge));
+        assert!(super::edge_line_span(&body, edge).is_some());
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
+        for (what, f) in [
+            (
+                "on_circle",
+                &(|| {
+                    let _ = super::on_circle(&body, edge);
+                }) as &dyn Fn(),
+            ),
+            ("edge_line_span", &|| {
+                let _ = super::edge_line_span(&body, edge);
+            }),
+        ] {
+            let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(f));
+            assert!(msg.contains("curve names"), "{what}: {msg}");
+        }
     }
 }

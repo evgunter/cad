@@ -2,10 +2,11 @@
 id: doc-citations-no-gate-checks-rot-silently
 kind: issue
 title: A CLASS - hand-written citations nothing checks: line-numbered file.rs:NNN citations across work/ (seven rot in one doc-only PR) and test-function names in doc comments, which cannot be intra-doc links
-status: open
+status: closed
 opened: 2026-09-12
 priority: P3
 cost: D
+closed: 2026-11-22
 ---
 
 
@@ -187,3 +188,7 @@ reads and a claim no gate reads are one kind of work. Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Arm A puts the check in `scripts/work.py lint`, which runs on every PR. By the row's own measurement, one docs-only length change (PR 2475) broke 7 citations across 5 programs' slates, so the check would red unrelated PRs on files they never touched. Arm B is a doc-gate grep the row admits over-fires ("population unknown"). The payoff is citation hygiene (P4 by README), while the cost is new reds on every PR. `docs/prompts/implementer-discipline.md` §7 already states the rule.

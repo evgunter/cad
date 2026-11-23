@@ -172,7 +172,9 @@ fn m10r2_split_lineage_after_graft() {
         v_ball + v_donut
     );
     for (fk, f) in held.faces() {
-        let Ok((outer, _)) = topo::props::loop_edges(&held, f.outer) else {
+        let Ok((outer, _)) =
+            topo::props::loop_edges(held.cycle_loop(f.outer).expect("a cycle loop"))
+        else {
             continue;
         };
         let ids: Vec<_> = outer
@@ -289,19 +291,13 @@ fn m10r2_set_edge_curve_on_a_split_child() {
             .unwrap()
             .clone();
         let mut spec = cert.restated_spec();
-        let Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_1,
-                ..
-            },
-        ) = spec.carrier
-        else {
+        let Curve3::Circle(conic_k) = spec.carrier else {
             panic!("the seam is a circle")
         };
         let (center, axis, u_ref) = (
-            carrier_frame_1.origin(),
-            carrier_frame_1.axis(),
-            carrier_frame_1.u_ref(),
+            conic_k.frame().origin(),
+            conic_k.frame().axis(),
+            conic_k.frame().u_ref(),
         );
         let radius = conic_k.radius();
         let w = axis.cross(u_ref);

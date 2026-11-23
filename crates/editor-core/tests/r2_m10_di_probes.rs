@@ -90,16 +90,11 @@ impl Fnv {
                 self.p3(origin);
                 self.v3(dir);
             }
-            Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: carrier_frame_2,
-                    ..
-                },
-            ) => {
+            Curve3::Circle(circle) => {
                 let (center, axis, u_ref) = (
-                    carrier_frame_2.origin(),
-                    carrier_frame_2.axis(),
-                    carrier_frame_2.u_ref(),
+                    circle.frame().origin(),
+                    circle.frame().axis(),
+                    circle.frame().u_ref(),
                 );
                 let radius = circle.radius();
                 self.u64(41);
@@ -108,16 +103,11 @@ impl Fnv {
                 self.s(radius);
                 self.v3(&u_ref);
             }
-            Curve3::Ellipse(
-                ellipse @ geom::Ellipse {
-                    frame: carrier_frame_1,
-                    ..
-                },
-            ) => {
+            Curve3::Ellipse(ellipse) => {
                 let (center, axis, u_ref) = (
-                    carrier_frame_1.origin(),
-                    carrier_frame_1.axis(),
-                    carrier_frame_1.u_ref(),
+                    ellipse.frame().origin(),
+                    ellipse.frame().axis(),
+                    ellipse.frame().u_ref(),
                 );
                 let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 self.u64(42);
@@ -328,6 +318,7 @@ fn deep_digest<T: topo::AtRestPolicy + Decide + Bounds>(ev: &Evaluation<T>) -> u
                         }
                     }
                     ValuePayload::Family => d.u64(19),
+                    ValuePayload::Datum(_) => d.u64(20),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);

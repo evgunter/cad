@@ -135,11 +135,12 @@ fn the_certifying_doors_build_a_two_level_rim_row_inside_the_endpoint_band() {
     assert!(
         matches!(
             &escalated,
-            Err(EulerOpError::Certification {
+            Err(EulerOpError::DescriptionUncertified {
                 error: CertifyError::Escalated {
                     check: CertCheck::EndpointStart,
                     ..
-                }
+                },
+                ..
             })
         ),
         "a junction 1.5ε off both carriers is the endpoint pin's to escalate: {escalated:?}"
@@ -273,7 +274,9 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
         let body = two_level_rim_cap(f * tol.eps() / RS).unwrap();
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
-            let (outer, _) = topo::props::loop_edges(&body, face.outer).unwrap();
+            let (outer, _) =
+                topo::props::loop_edges(body.cycle_loop(face.outer).expect("a cycle loop"))
+                    .unwrap();
             assert_eq!(outer.len(), 2, "a rim-only loop: two arcs, no meridian");
             assert_eq!(require_one_chart_branch(surface, &outer, band), Ok(()));
             let door = require_iso_rectangle(surface, &outer, band);

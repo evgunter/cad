@@ -73,7 +73,7 @@ fn arcs(body: &Body<f64>, face: crate::FaceKey) -> Vec<(Curve3<f64>, Point3<f64>
     let view = body.proven_face(face);
     view.boundary()
         .filter_map(|m| match m {
-            crate::live::BoundaryMember::Edge { ek, .. } => Some(ek),
+            crate::live::BoundaryMember::Edge { edge, .. } => Some(edge.key()),
             crate::live::BoundaryMember::Isolated { .. } => None,
         })
         .map(|ek| {

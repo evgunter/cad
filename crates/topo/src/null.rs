@@ -218,15 +218,15 @@ pub(crate) enum Scaffolding {
 /// before it ([`crate::live::OPERATORS_KEEP_LINKS`]).
 #[track_caller]
 pub(crate) fn is_placeholder<T: Real>(body: &Body<T>, edge: crate::entity::EdgeKey) -> bool {
-    let data = crate::live::proven(&body.edges, edge, EntityId::Edge);
-    if body.edge_curve_linked(edge, data).null_scaffold().is_none() {
+    let view = body.proven_edge(edge);
+    if view.curve().null_scaffold().is_none() {
         return false;
     }
     let point = |he| {
         let start = crate::live::proven(&body.half_edges, he, EntityId::HalfEdge).start;
         body.resolve_vertex_point_key(start, crate::live::Proven)
     };
-    point(data.he_plus) == point(data.he_minus)
+    point(view.record().he_plus) == point(view.record().he_minus)
 }
 
 impl<T: geom_core::Decide> Body<T> {
@@ -1119,9 +1119,10 @@ mod tests {
             .edges()
             .find_map(|(e, data)| {
                 let c = body.get_curve_geom(data.curve)?.certified()?;
-                let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
+                let geom::Curve3::Circle(circle @ geom::Circle { .. }) = *c.carrier() else {
                     return None;
                 };
+                let frame = circle.frame();
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 if center.z != z {
                     return None;

@@ -290,7 +290,9 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
             panic!("corner face {corner:?} is a sphere patch");
         };
         let center = frame.origin();
-        let (outer, _) = topo::props::loop_edges(&f.body, face.outer).expect("its loop");
+        let (outer, _) =
+            topo::props::loop_edges(f.body.cycle_loop(face.outer).expect("a cycle loop"))
+                .expect("its loop");
         assert_eq!(outer.len(), 3, "corner face {corner:?} is a triangle");
         let u: Vec<Vec3<f64>> = outer
             .iter()

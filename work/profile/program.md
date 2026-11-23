@@ -2,7 +2,7 @@
 id: profile
 kind: program
 title: PROFILE — the profile lattice after PATHS, its goal: the lowering epic's tail, the planar-primitive dedupe and the validation pair pass
-status: active
+status: ready
 opened: 2026-10-21
 group: kernel/sketch
 prefix: profile/
@@ -88,7 +88,7 @@ The second of four tracks cut from PATHS's rows at PATHS's close
   - Refusals the viewer draws with no recourse.
   - `SketchSegment::eval`'s far end.
   - The short run out's chord reading.
-  - The departure-tangent arc gap.
+  - The departure-tangent arc gap (moved to SMOOTH on 2026-11-22, closed there by the `End` mode's fused rows).
   - The fillet corner at unequal radii. This row waits on a
     ratification, Ev's ruling on LB4, not on an item.
 - **Validation's P3 reads:**

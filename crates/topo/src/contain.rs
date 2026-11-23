@@ -19,8 +19,8 @@ use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
-use crate::live::{linked, proven};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
+use crate::live::{AreaLoops, CycleLoop, proven};
 use crate::region::RegionRefusal;
 use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
@@ -435,9 +435,11 @@ pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
 
 /// `face`'s outer loop and rings ([`crate::live::FaceView::loops`]), the face
 /// the caller's key.
-fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
-    let face_data = body.face(face).ok_or(ContainError::StaleFace(face))?;
-    Ok(face_data.loops().map(|(lk, _, _)| lk).collect())
+fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<AreaLoops<'_, T>, ContainError> {
+    body.face(face)
+        .ok_or(ContainError::StaleFace(face))?
+        .area_loops()
+        .map_err(|no| ContainError::EmptyLoop(no.r#loop))
 }
 
 /// **`contfp`** — classifies point `q` (already on the plane of `face`,
@@ -477,7 +479,7 @@ pub(crate) fn contfp_decided<T: Decide>(
 ) -> Result<(FaceContainment, Option<MarginDiag>), ContainError> {
     let loops = face_loops(body, face)?;
 
-    let read = match boundary_pre_pass(body, &loops, q, band)? {
+    let read = match boundary_pre_pass(&loops, q, band)? {
         PrePass::On(on, margin) => return Ok((on, Some(margin))),
         PrePass::Off(read) => read,
     };
@@ -529,30 +531,21 @@ pub(crate) fn contfp_decided<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`ContainError`] — a carrier-agreement escalation, or a loop this
-/// walk cannot read.
+/// [`ContainError`] — a carrier-agreement escalation.
 pub(crate) fn loop_circle<T: Decide>(
-    body: &Body<T>,
-    r#loop: crate::entity::LoopKey,
+    r#loop: CycleLoop<'_, T>,
     band: Band,
 ) -> Result<Option<geom::Circle<T>>, ContainError> {
     use geom_core::ladder::{Answering, Climb, Refusal, Rung, climb};
     // Each edge's carrier, in cycle order; the first circle is the one
     // every other edge is read against.
-    let carriers: Vec<Option<geom::Curve3<T>>> = loop_cycle_points(body, r#loop)?
+    let body = r#loop.body();
+    let carriers: Vec<Option<geom::Curve3<T>>> = loop_cycle_points(r#loop)
         .into_iter()
         .map(|(_, he, _)| {
             let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            let edge = linked(
-                &body.edges,
-                edge_key,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            body.edge_curve_linked(edge_key, edge)
-                .certified()
-                .map(|c| c.carrier().clone())
+            let edge = body.linked_edge(edge_key, EntityId::HalfEdge(he), "edge");
+            edge.certified().map(|c| c.carrier().clone())
         })
         .collect();
     let reference = carriers
@@ -564,7 +557,7 @@ pub(crate) fn loop_circle<T: Decide>(
     let Some(geom::Curve3::Circle(c)) = carriers[at] else {
         unreachable!("loop_circle: the reference is a circle")
     };
-    let (c0, a0, r0) = (c.frame.origin(), c.frame.axis(), c.radius());
+    let (c0, a0, r0) = (c.frame().origin(), c.frame().axis(), c.radius());
     // Any edge decided off the reference circle answers "not one circle",
     // whatever another edge read ([`climb`], [`Answering::Any`]: an
     // identity). An edge read in band is kept, and refuses only where
@@ -574,9 +567,9 @@ pub(crate) fn loop_circle<T: Decide>(
         carriers.iter().enumerate().filter(|&(k, _)| k != at),
         |(_, carrier)| match carrier {
             Some(geom::Curve3::Circle(arc)) => {
-                let d = (arc.frame.origin() - c0).norm()
+                let d = (arc.frame().origin() - c0).norm()
                     + (arc.radius() - r0).abs()
-                    + arc.frame.axis().cross(a0).norm() * r0;
+                    + arc.frame().axis().cross(a0).norm() * r0;
                 match decide("bool_face_disc_carrier", Margin::of(d), band) {
                     Ok(Sign::Zero) => Rung::Passes,
                     Ok(Sign::Positive | Sign::Negative) => Rung::Answers(()),
@@ -619,7 +612,7 @@ pub(super) fn curved_boundary_containment<T: Decide>(
     band: Band,
 ) -> Result<Option<(FaceContainment, MarginDiag)>, ContainError> {
     let loops = face_loops(body, face)?;
-    Ok(match boundary_pre_pass(body, &loops, q, band)? {
+    Ok(match boundary_pre_pass(&loops, q, band)? {
         PrePass::On(on, margin) => Some((on, margin)),
         PrePass::Off(_) => None,
     })
@@ -650,24 +643,31 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// refuses ahead of every edge, and one loop's ahead of every later loop,
 /// as [`crate::splitting::containment::CarrierLoop::place_off`] refuses ahead of a later edge.
 fn boundary_pre_pass<T: Decide>(
-    body: &Body<T>,
-    loops: &[LoopKey],
+    loops: &AreaLoops<'_, T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<PrePass<T>, ContainError> {
-    for &lk in loops {
-        let cycle = loop_cycle_points(body, lk)?;
-        for (v, _, p) in &cycle {
-            if let Some(margin) = one_vertex_at(q, *p, band)
-                .map_err(|diag| ContainError::on(LoopDecision::Boundary, diag))?
-            {
-                return Ok(PrePass::On(FaceContainment::OnVertex(*v), margin));
-            }
+    let vertices = loops
+        .cycles()
+        .flat_map(|(lp, _)| loop_cycle_points(lp))
+        .map(|(v, _, p)| (v, p))
+        .chain(
+            loops
+                .lone_rings()
+                .iter()
+                .map(|lone| (lone.vertex, lone.point)),
+        );
+    for (v, p) in vertices {
+        if let Some(margin) = one_vertex_at(q, p, band)
+            .map_err(|diag| ContainError::on(LoopDecision::Boundary, diag))?
+        {
+            return Ok(PrePass::On(FaceContainment::OnVertex(v), margin));
         }
     }
-    let mut read = Vec::with_capacity(loops.len());
-    for &lk in loops {
-        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS.conic(), band)?
+    let mut read = Vec::new();
+    for (cycle, _) in loops.cycles() {
+        let lk = cycle.key();
+        let OnLoop { lp, edge: i, on } = match carrier_loop(cycle, ROWS.conic(), band)?
             .place_off(q, ROWS, band)
             .map_err(|e| ContainError::Escalated {
                 decision: Some(LoopDecision::Boundary.into()),
@@ -1219,28 +1219,14 @@ pub(super) fn solid_err(e: crate::solid_contain::PointInSolidError) -> ContainEr
     }
 }
 
-/// The loop's (start vertex, half-edge, point) cycle, for a loop key
-/// read out of a face record. A lone-vertex loop is
-/// [`ContainError::EmptyLoop`]: it bounds no region.
-#[allow(clippy::type_complexity)]
+/// The loop's (start vertex, half-edge, point) cycle.
 fn loop_cycle_points<T: Decide>(
-    body: &Body<T>,
-    lk: LoopKey,
-) -> Result<Vec<(VertexKey, crate::entity::HalfEdgeKey, Point3<T>)>, ContainError> {
-    let first = match proven(&body.loops, lk, EntityId::Loop).boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { .. } => return Err(ContainError::EmptyLoop(lk)),
-    };
-    Ok(body
-        .loop_walk(first)
-        .closed("loop", first)
-        .into_iter()
-        .map(|he| {
-            let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-            let p = body.linked_vertex_point(start, EntityId::HalfEdge(he), "start");
-            (start, he, p)
-        })
-        .collect())
+    lp: CycleLoop<'_, T>,
+) -> Vec<(VertexKey, crate::entity::HalfEdgeKey, Point3<T>)> {
+    lp.edges()
+        .iter()
+        .map(|m| (m.half.start, m.he, m.point))
+        .collect()
 }
 
 /// **Whether two points are one vertex** (`bool_contact_vertex`, the
@@ -1599,12 +1585,10 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let mut loops = 0;
         for f in body.face_views() {
-            for (lk, ..) in f.loops() {
+            for (lp, _) in f.area_loops().expect("an outline").cycles() {
                 loops += 1;
                 assert!(
-                    loop_circle(&body, lk, band)
-                        .expect("the box walks")
-                        .is_none(),
+                    loop_circle(lp, band).expect("the box walks").is_none(),
                     "a straight-edged loop bounds no disc"
                 );
             }

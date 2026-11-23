@@ -2,8 +2,9 @@
 id: a-chart-branch-guard-row-is-red-locally-and-green-on-the-hosted-kernel-job
 kind: issue
 title: topo's no_file_outside_the_mint_pins_a_chart_branch is red in a clean checkout and green on the hosted kernel job
-status: open
+status: closed
 opened: 2026-11-17
+closed: 2026-11-22
 ---
 
 
@@ -33,3 +34,12 @@ whoever owns `mesh/src/walk.rs`'s pole junction.
   (PR 7051 re-listed the walk's count). The question this row asks
   stands: the row was red for as long as main carried the 6-against-2
   count, and the hosted kernel job did not see it.
+
+## Closed
+
+2026-11-22, CIW triage (stale). Question answered: the row is in the `ci` slow set (`.config/nextest.toml:39`, `:260`,
+0.73 s), and the PR gate runs a slow row only when the diff edits/names it; the input here
+is every crate's source, read by a directory walk (`lift_agreement_rows.rs:345-360`), so a
+`mesh/src/walk.rs` edit did not select it. Greened by PR 7051 (2026-11-16; green/log.md:425).
+Duplicates GREEN's open `work/green/a-slow-row-reaching-its-data-file-by-a-built-name-is-not-gated`
+(title names "a directory walk"), which is the better home.

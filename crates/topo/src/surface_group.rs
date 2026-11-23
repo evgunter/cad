@@ -72,10 +72,10 @@ pub(super) fn coaxial_margins<T: Decide>(
     let geom::Line { origin, dir: axis } = axis;
     [
         Margin::levered(
-            circle.frame.axis().cross(axis).norm(),
+            circle.frame().axis().cross(axis).norm(),
             geom_brep::circle_curvature_arm(circle),
         ),
-        Margin::of(off_axis(origin, axis, circle.frame.origin())),
+        Margin::of(off_axis(origin, axis, circle.frame().origin())),
     ]
 }
 
@@ -134,17 +134,16 @@ fn unmated_boundary<T: Decide>(
             return Ok(None);
         }
         for boundary in f.boundary() {
-            let BoundaryMember::Edge { he, .. } = boundary else {
+            let BoundaryMember::Edge { he, edge, .. } = boundary else {
                 return Ok(None);
             };
             let hop = body.proven_mate(he, crate::live::Proven);
             if members.contains(&body.face_of_linked(hop.mate)) {
                 continue;
             }
-            let Some(geom::Curve3::Circle(circle)) = body
-                .edge_curve_linked(hop.edge, hop.edge_data)
+            let Some(circle) = edge
                 .certified()
-                .map(|c| c.carrier().clone())
+                .and_then(|c| c.carrier().as_circle().copied())
             else {
                 return Ok(None);
             };
@@ -246,10 +245,10 @@ pub(super) fn wrap_rims_within<T: Decide>(
         found
             .into_iter()
             .map(|(_, circle)| Rim {
-                center: circle.frame.origin(),
-                axis: circle.frame.axis(),
+                center: circle.frame().origin(),
+                axis: circle.frame().axis(),
                 radius: circle.radius(),
-                u_ref: circle.frame.u_ref(),
+                u_ref: circle.frame().u_ref(),
             })
             .collect(),
     ))

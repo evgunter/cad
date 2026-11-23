@@ -2,11 +2,12 @@
 id: a-sweep-diff-gates-no-eps-row-of-sweep
 kind: issue
 title: a kernel diff's rows that it does not edit — sweep's under a topo change (PR 5192), or a seeded crate's outside the four — meet 1e-6/1e-12 only at the nightly
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
 refs: [5211]
+closed: 2026-11-22
 ---
 
 Filed by the reach-eps lane (REACH, PR 3636).
@@ -105,3 +106,14 @@ would give it are past the 5000-line tail that `get_job_logs` returns.
   changed topo module, if a reverse index from module to suites is
   cheap to keep.
 
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). - The row prices its own remedy: `package(sweep)` at the extra ε costs
+about 4.9 min per PR (runs 38804490307 and 38806115057).
+- Its same-file half shipped (`eps_rows_filter`).
+- What remains is the dependents' untouched rows at 1e-6 and 1e-12.
+About 33 of the month's main reds are in that class. They are
+behaviour rows spread across sweep and editor-core, with no cheap
+selector.
+- The nightly attribution (`dependents-…`, rewritten) is the
+zero-latency answer.

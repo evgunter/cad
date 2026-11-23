@@ -67,6 +67,7 @@ fn wall_values<
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .flat_map(|face| {
             match lofted
                 .body

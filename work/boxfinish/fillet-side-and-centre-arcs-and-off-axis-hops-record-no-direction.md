@@ -7,7 +7,7 @@ opened: 2026-11-14
 priority: P1
 cost: M
 refs: [6963]
-blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions]
+blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners]
 ---
 
 
@@ -67,3 +67,9 @@ P0. What PR 6963's repair found applies here: a direction is recorded
 as a constant only where the construction holds it as an identity of
 the parameters, never where it is zero or axis-aligned at one
 valuation.
+
+**Re-parked (2026-11-23).** The doors' unit closed as a type move (PR
+7384): no door reads a recorded direction yet, so the test that closes
+this row still has no reader. It waits on the row that makes a door
+read the record,
+`a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners`.

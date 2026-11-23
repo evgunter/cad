@@ -55,8 +55,8 @@
 //! instruments are CI's wasm32 row, a non-dev `cargo check` of the
 //! kernel and `editor-core` on every code run, and the E0365 a
 //! re-export of the shut arm's trait now produces. A gate that compiles
-//! a downstream witness is filed, not built
-//! (`work/bool/raw-door-compile-proof-needs-a-gate.md`).
+//! a downstream witness was weighed and declined as not worth its CI
+//! cost (`work/ciw/raw-door-compile-proof-needs-a-gate.md`, closed).
 //!
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
 //! binders, [`circle`], [`circle_split`], [`rectangle`].
@@ -70,12 +70,12 @@ pub use ::profile::{lift, path};
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
     ArcCarrierScalar, ArcData, ArcForm, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center,
-    ChainShape, ClosedLoop, ContinueTarget, CornerReason, CornerRefusal, CornerWindow, FormLowered,
-    FormTarget, LegFit, LeveredTurn, LineTarget, OntoTarget, Open, OrderFault, PartialPath,
-    PathError, PathErrorKind, PathNoCornerReason, PenAt, PointLeg, Radius, Recourse, Refused,
-    ReplayError, ReplayErrorKind, ShapeFault, ShapeFaultKind, SpecForms, Start, Step, StepForm,
-    Sweep, Takes, TangentArcTarget, Target, TargetKind, TipState, TurnLever, Verb, Via, Vocabulary,
-    arc_specs_at, chain_shape, chain_states, circle, circle_split, rectangle, replay,
+    ChainShape, ClosedLoop, ContinueTarget, CornerReason, CornerRefusal, CornerWindow, Deferral,
+    FormLowered, FormTarget, LegFit, LeveredTurn, LineTarget, OntoTarget, Open, OrderFault,
+    PartialPath, PathError, PathErrorKind, PathNoCornerReason, PenAt, PointLeg, Radius, Recourse,
+    Refused, ReplayError, ReplayErrorKind, ShapeFault, ShapeFaultKind, SpecForms, Start, Step,
+    StepForm, Sweep, Takes, TangentArcTarget, Target, TargetKind, TipState, TurnLever, Verb, Via,
+    Vocabulary, arc_specs_at, chain_shape, chain_states, circle, circle_split, rectangle, replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a

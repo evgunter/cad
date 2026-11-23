@@ -243,7 +243,11 @@ pub(crate) fn slid_by(
         }
     };
     let Some(editor_core::Mate {
-        to: Operand::Pose(def),
+        to:
+            editor_core::pose::RoleRead {
+                read: Operand::Pose(def),
+                role: None,
+            },
         ..
     }) = placed.mates.first_mut()
     else {

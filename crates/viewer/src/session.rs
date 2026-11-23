@@ -18,7 +18,7 @@
 //! recourse wording is [`refuse`], the operation vocabulary itself is
 //! [`op`], the authoring specs and their lowering to nodes are
 //! [`author`], the delete cascade's wording is [`delete`], and the
-//! range probe is [`probe`] (`crates/viewer/README.md`, Module
+//! `range?` reading is [`range`] (`crates/viewer/README.md`, Module
 //! boundaries). None of their `use` blocks names [`DocSession`].
 //!
 //! # One shape, from the toolkit and from a test
@@ -75,7 +75,8 @@ use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{
     CertifyDone, CertifyRequest, CertifyService, DoorDone, DoorRequest, DoorService, EvalRequest,
-    EvalService, InlineCertifier, InlineEvaluator, InlineProver,
+    EvalService, InlineCertifier, InlineEvaluator, InlineProver, InlineRanger, RangeReport,
+    RangeRequest, RangeRun, RangeService, RangeState,
 };
 use crate::g1;
 use crate::generation::Generation;
@@ -90,7 +91,7 @@ use crate::tree::{self, TreeRow};
 pub mod author;
 pub mod delete;
 pub mod op;
-pub mod probe;
+pub mod range;
 pub mod refuse;
 pub mod select;
 pub(crate) mod snap;
@@ -101,7 +102,7 @@ pub use op::{
     AssertedClaim, AssertedSeat, CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome,
     PlaceTarget, PlacementBase, SessionOp, ToolPlane, ValueGestureName, measured,
 };
-pub use probe::{BoundsReading, BoundsTarget};
+pub use range::{RangeReading, RangeTarget};
 pub use refuse::{
     BundleRefusal, GestureFrameFault, NodeKindWanted, ParseRefusal, Refusal, SaveChoice, Step,
     VersionOffer, admits, admits_read,
@@ -244,8 +245,8 @@ fn reads_a_variable(expr: &Formula) -> bool {
     !ids.is_empty() || !names.is_empty()
 }
 
-/// Refuse a numeric edit to a driven slot, with the affordance, or
-/// say the slot is not there.
+/// Refuse a drag over a driven slot, with the
+/// affordance, or say the slot is not there.
 ///
 /// Over a document rather than over the session, so a begin's target
 /// check can run inside [`g1::Slot::begin`]'s closure, where the
@@ -266,10 +267,11 @@ fn guard_driven(
     driven_refusal(node, &row, notation)
 }
 
-/// **A number written over `row`, where an expression drives it**,
-/// refused with the affordance: the driven-slot rule, for a slot the
-/// document holds ([`guard_driven`]) and for an argument a profile
-/// editor's draft holds as a formula.
+/// **A drag over `row`, where an expression drives
+/// it**, refused with the affordance: the driven-slot rule, for a slot
+/// the document holds ([`guard_driven`]), for an argument a profile
+/// editor's draft holds as a formula (its held field's drag), and for
+/// the control that asks it ahead of the click.
 pub(crate) fn driven_refusal(
     node: RecipeNodeId,
     row: &SlotRow,
@@ -302,7 +304,8 @@ pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formul
 /// **A profile editor's program with every unmoved argument of every
 /// kept step carried from the committed program** — the variable the
 /// document holds, so its identity and its distribution survive the
-/// reshaping; what moved is written as the program holds it.
+/// reshaping; what moved is written as the program holds it, over an
+/// expression as over a literal ([`SessionOp::SetSlot`]'s rule).
 ///
 /// A step is the committed one when `ids` keeps its id; the argument
 /// is the same one when it has the same
@@ -310,26 +313,15 @@ pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formul
 /// the committed variable or is written as the committed argument is
 /// written ([`sketch::written_as`]: the bits and the unit).
 ///
-/// # Errors
-///
-/// [`Refusal::DrivenByExpression`], with the affordance, for an
-/// argument of a kept step that an expression drives and that the
-/// editor's program does not hold unmoved: a number written over a
-/// computation, exactly as the slot field refuses it. A step the
-/// program drops takes its arguments with it, driven or not — that is
-/// not a write over them.
-///
 /// An id that is not the committed program's, or `ids` of the wrong
 /// shape, carries nothing here: the edit door refuses those typed
 /// ([`pncad::document::EditError::StepIdsRefused`]).
 fn carry_unmoved(
     doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
     current: &ProfileProgram,
     loops: Vec<LoopProgram<Formula>>,
     ids: &[Vec<Option<StepId>>],
-    notation: Notation,
-) -> Result<Vec<LoopProgram<Formula>>, Refusal> {
+) -> Vec<LoopProgram<Formula>> {
     let was: std::collections::HashMap<StepId, (u32, u32)> = current
         .ids
         .iter()
@@ -386,18 +378,16 @@ fn carry_unmoved(
         let reader = Formula::var(committed, arg.dimension());
         let written =
             Formula::from(doc.written(&pncad::document::Expr::var(committed, arg.dimension())));
-        match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(&reader) || sketch::written_as(held, &written) => {
-                *held = reader;
-            }
-            _ if doc.is_typed_value(committed) => {}
-            _ => guard_driven(doc, node, slot, notation)?,
+        if let Some(held) = new.expr_mut(moved)
+            && (held.bit_eq(&reader) || sketch::written_as(held, &written))
+        {
+            *held = reader;
         }
     }
     let Node::Profile(program) = new else {
         unreachable!("the carried program was built as a profile node")
     };
-    Ok(program.loops)
+    program.loops
 }
 
 /// A position in a profile program as the slot vocabulary spells it.
@@ -423,6 +413,13 @@ pub struct DocSession {
     /// scalar, and the next request cancels it
     /// ([`DocSession::request_eval`]).
     certifier: Box<dyn CertifyService>,
+    /// **The range seam**: a `range?` run steps here, at rest, beside
+    /// every other seam, and an edit stops it
+    /// ([`DocSession::request_eval`]).
+    ranger: Box<dyn RangeService>,
+    /// The last [`RangeRun`] minted: each `range?` takes the next, so a
+    /// report of a run since replaced is told from the current one.
+    range_runs: u64,
     generation: Generation,
     /// Where the current request's run ran out of its member budget,
     /// once it has landed so; cleared by the next request.
@@ -558,7 +555,7 @@ pub type PlacementOffers = Vec<crate::frame::PlacementOffer>;
 
 /// What the session knows because of the document under it: what is
 /// picked out of it, what a drag is previewing over it, what the last
-/// run said about it, and what a range probe found in it.
+/// run said about it, and what a `range?` run proved in it.
 ///
 /// **One value, because replacing the document invalidates all of it
 /// at once.** `Open` and `NewDocument` install a different document
@@ -624,24 +621,16 @@ struct Derived {
     /// The last completed run and everything taken from it; `None`
     /// before anything has landed.
     landed: Option<LandedRun>,
-    /// The last locally-valid-range probe, and the field it was taken
-    /// for — layer-3 state, never persisted, and its one home.
+    /// **The `range?` run**, and the field it was taken for: layer-3
+    /// state, never persisted, and its one home.
     ///
-    /// Kept rather than recomputed per frame because a probe costs tens
-    /// of evaluations: it is taken when asked for
-    /// ([`SessionOp::ProbeBounds`]) and DISCARDED, never repaired, the
-    /// moment the document changes. A range is a statement about one
-    /// document, and showing yesterday's range beside today's number is
-    /// the class of stale-confident answer this crate's staleness rules
-    /// exist to prevent. That discard is at every submit
-    /// ([`DocSession::request_eval`]) and so is STRICTER than this
-    /// value's own reset: a commit or an undo drops the probe without
-    /// touching anything else here. Both doors therefore drop it
-    /// twice, once with this value and again at the submit each ends
-    /// with. The redundancy is deliberate — the walk names every
-    /// field it invalidates rather than leaving one of them to a route
-    /// a reader of the walk cannot see.
-    bounds: Option<BoundsReading>,
+    /// A range is a statement about one document, so the reading is
+    /// DROPPED, never repaired, the moment the shown document changes:
+    /// at every submit ([`DocSession::request_eval`]), which also stops
+    /// the run. Showing yesterday's range beside today's number is the
+    /// class of stale-confident answer this crate's staleness rules
+    /// exist to prevent.
+    range: Option<RangeReading>,
     /// The slot whose typed value is offered the variables of equal
     /// value ([`DocSession::offered`]), and the variable that typing
     /// minted. It stands until it is accepted or declined, or until the
@@ -719,7 +708,7 @@ impl SlotOffer {
 
 impl Derived {
     /// Nothing known about the document underneath: nothing picked,
-    /// nothing hovered, no preview, nothing landed, no range probed.
+    /// nothing hovered, no preview, nothing landed, no range taken.
     fn none() -> Self {
         Self {
             selection: Selection::None,
@@ -727,7 +716,7 @@ impl Derived {
             hover: None,
             scratch: None,
             landed: None,
-            bounds: None,
+            range: None,
             offer: None,
             seeded: None,
             names: Names::Abstain,
@@ -756,7 +745,7 @@ impl core::fmt::Debug for Derived {
             hover,
             scratch,
             landed,
-            bounds,
+            range,
             offer,
             seeded,
             names,
@@ -768,7 +757,7 @@ impl core::fmt::Debug for Derived {
             .field("hover", hover)
             .field("scratch", &scratch.as_ref().map(|_| format_args!("<Doc>")))
             .field("landed", landed)
-            .field("bounds", bounds)
+            .field("range", range)
             .field("offer", offer)
             .field("seeded", &seeded.as_ref().map(|run| run.generation))
             .field("names", names)
@@ -1038,12 +1027,19 @@ impl OutOfBudget {
     pub fn said(&self, doc: &Doc<ProfileProgram>) -> String {
         format!(
             "ran out of the member budget at {} ({} of {} listing steps held before it); {}",
-            doc.spoken(self.at),
+            crate::tree::spelled(&doc.spoken(self.at)),
             self.held,
             self.budget,
             pncad::document::RAISE_THE_MEMBER_BUDGET
         )
     }
+}
+
+/// **A `range?` request the kernel's admission door admitted**: the
+/// field, and the seed it is searched over.
+struct AdmittedRange {
+    field: pncad::analysis::RangeField,
+    seed: pncad::analysis::RangeSeed,
 }
 
 /// What the session owes at one moment: the picture against the
@@ -1096,6 +1092,8 @@ impl DocSession {
             eval,
             door: Box::new(InlineProver::new()),
             certifier: Box::new(InlineCertifier::new()),
+            ranger: Box::new(InlineRanger::new()),
+            range_runs: 0,
             generation: Generation::FIRST,
             exhausted: None,
             derived: Derived::none(),
@@ -1134,6 +1132,16 @@ impl DocSession {
     #[must_use]
     pub fn with_certifier(mut self, certifier: Box<dyn CertifyService>) -> Self {
         self.certifier = certifier;
+        self
+    }
+
+    /// This session with its `range?` runs stepped through `ranger`, in
+    /// place of the inline seam [`DocSession::new`] gives it, which takes
+    /// one step per [`DocSession::pump`]. Taken before the first
+    /// `range?`: a run the replaced seam holds is dropped with it.
+    #[must_use]
+    pub fn with_ranger(mut self, ranger: Box<dyn RangeService>) -> Self {
+        self.ranger = ranger;
         self
     }
 
@@ -1305,17 +1313,16 @@ impl DocSession {
     /// selection.
     fn spoken_now(&self, selection: &Selection) -> HeldNodes {
         let landed = self.landed_pair().map(|(doc, _)| doc);
-        selection
-            .nodes()
-            .into_iter()
-            .map(|id| {
+        HeldNodes::of_nodes(
+            self.doc().id(),
+            selection.nodes().into_iter().map(|id| {
                 let shown = self.doc().spoken(id);
                 match landed {
                     Some(landed) if shown.kind().is_none() => landed.spoken(id),
                     Some(_) | None => shown,
                 }
-            })
-            .collect()
+            }),
+        )
     }
 
     /// One picked name's verdict against the run a name question is
@@ -1546,11 +1553,18 @@ impl DocSession {
             .as_ref()
     }
 
-    /// The last locally-valid-range probe, with the field it was taken
-    /// for and the unit it was searched in. `None` before any probe,
-    /// and after every document change (`request_eval`'s discard).
-    pub fn bounds(&self) -> Option<&BoundsReading> {
-        self.derived.bounds.as_ref()
+    /// **The `range?` reading**: the field, and what the run has proven
+    /// so far. `None` before any run, and after every change of the
+    /// shown document (`request_eval`'s discard); never a reading of
+    /// another document than the one shown.
+    pub fn range(&self) -> Option<&RangeReading> {
+        self.derived.range.as_ref()
+    }
+
+    /// Whether a `range?` run is stepping — the range seam's work, not
+    /// the picture's: [`DocSession::busy`] does not read it.
+    pub fn ranging(&self) -> bool {
+        self.ranger.busy()
     }
 
     /// **The variables a value typed at `slot` on `node` is offered**
@@ -1867,6 +1881,9 @@ impl DocSession {
         }
         while let Some(done) = self.certifier.poll() {
             self.settle(Owed::Certify(done));
+        }
+        if let Some(report) = self.ranger.poll() {
+            self.take_range(report);
         }
         landings
     }
@@ -2231,7 +2248,7 @@ impl DocSession {
             }
             SessionOp::DeleteNode { node } => self.delete_node(node),
             SessionOp::SetSlot { node, slot, value } => self.set_slot(node, slot, value),
-            SessionOp::ProbeBounds { target } => self.probe_bounds(target),
+            SessionOp::ProveRange { target } => self.prove_range(target),
             SessionOp::SetSlotUnit { node, slot, unit } => self.set_slot_unit(node, slot, unit),
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
@@ -2294,6 +2311,10 @@ impl DocSession {
             SessionOp::Redo => self.step(Step::Redo),
             SessionOp::CancelEvaluation => {
                 self.eval.cancel();
+                OpOutcome::default()
+            }
+            SessionOp::StopRange => {
+                self.ranger.stop();
                 OpOutcome::default()
             }
             SessionOp::Reevaluate => {
@@ -2367,7 +2388,6 @@ impl DocSession {
                 ids,
             } => self.edit_profile(node, &base, loops, ids),
             op @ (SessionOp::AddProfile { .. }
-            | SessionOp::SketchOnFace { .. }
             | SessionOp::DrawOnFace { .. }
             | SessionOp::AddExtrude { .. }
             | SessionOp::AddRevolve { .. }
@@ -2425,12 +2445,6 @@ impl DocSession {
     fn creation_door(&self, op: SessionOp) -> Result<Creating, Refusal> {
         match op {
             SessionOp::AddProfile { loops } => self.add_profile(loops),
-            SessionOp::SketchOnFace {
-                face,
-                loops,
-                distance,
-                spin,
-            } => self.sketch_on_face(&face, loops, distance, spin),
             SessionOp::DrawOnFace {
                 face,
                 traced,
@@ -2637,11 +2651,20 @@ impl DocSession {
             .map_err(Refusal::from)
     }
 
+    /// **A number written at a slot**: the slot reads a literal of it,
+    /// whatever it read before. A number over an expression replaces the
+    /// expression, as the same number typed with its unit as text does
+    /// ([`Self::set_slot_expression`]); only a drag over one is refused
+    /// ([`Self::begin_gesture`]). The literal is written in the unit its
+    /// field showed the number in: the one the slot is written in, else
+    /// the working notation's ([`props::rendering_unit`], as a held
+    /// field's number is).
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation) {
-            return OpOutcome::refused(refusal);
-        }
-        let unit = props::slot_unit(self.committed_doc(), node, slot);
+        let unit = props::rendering_unit(
+            slot.expr_dimension(),
+            props::slot_unit(self.committed_doc(), node, slot),
+            self.notation,
+        );
         match props::slot_typed_edit(node, slot, value, unit) {
             Ok(edit) => {
                 let outcome = self.commit_written(edit);
@@ -2735,48 +2758,85 @@ impl DocSession {
         }
     }
 
-    /// Take one locally-valid-range probe for `target` and keep the
-    /// reading.
-    ///
-    /// The search itself is [`probe::probe_bounds`]; what this door
-    /// adds is the driven-slot guard, the document and evaluation the
-    /// search is taken against, and the store.
-    fn probe_bounds(&mut self, target: BoundsTarget) -> OpOutcome {
-        // A driven slot is not a field the user can put a number into,
-        // so a range of numbers for it is not an answer to any question
-        // they can act on: the probe refuses it with the same
-        // affordance the write and the drag do, which names the
-        // variables to probe instead. A variable has no driver and
-        // reaches this door unguarded.
-        if let BoundsTarget::Slot { node, slot } = target
-            && let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation)
+    /// **Start a `range?` run for `target`**: admit it as the control
+    /// did ([`Self::range_refusal`]), stop any run in flight, and hand
+    /// the shown document to the range seam under a fresh run. A refused
+    /// request changes nothing, the run in flight included: a refusal
+    /// is a no-op here as at every door.
+    fn prove_range(&mut self, target: RangeTarget) -> OpOutcome {
+        let admitted = match self.range_request(&target) {
+            Ok(admitted) => admitted,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        self.range_runs += 1;
+        let run = RangeRun(self.range_runs);
+        self.derived.range = Some(RangeReading {
+            unit: target.unit(self.doc(), self.notation),
+            target,
+            run,
+            state: RangeState::Starting,
+        });
+        self.ranger.submit(RangeRequest {
+            run,
+            doc: Arc::new(self.doc().clone()),
+            field: admitted.field,
+            seed: admitted.seed,
+            resolver: self.run_resolver(),
+            tol: self.tol,
+        });
+        OpOutcome::default()
+    }
+
+    /// **What `SessionOp::ProveRange` would answer for `target`, or
+    /// `None` where it would start a run** — asked ahead of the click by
+    /// the control that pushes the op, so the control greys with the
+    /// refusal's own words. The kernel's admission door
+    /// (`pncad::analysis::range::admit`) runs no geometry: it reads the
+    /// field off the shown document and, where the picture answers that
+    /// document, the session's own build of it.
+    pub fn range_refusal(&self, target: &RangeTarget) -> Option<Refusal> {
+        self.range_request(target).err()
+    }
+
+    /// The field and seed a run of `target` searches, admitted.
+    fn range_request(&self, target: &RangeTarget) -> Result<AdmittedRange, Refusal> {
+        let doc = self.doc();
+        let field = target.field();
+        let built = self
+            .derived
+            .landed
+            .as_ref()
+            .filter(|run| !self.busy() && run.generation == self.generation)
+            .map(|run| &*run.evaluation);
+        pncad::analysis::RangeSeed::of(doc, &field)
+            .and_then(|seed| {
+                pncad::analysis::range::admit(doc, &field, seed, built)
+                    .map(|_| AdmittedRange { field, seed })
+            })
+            .map_err(|refusal| Refusal::Range(Box::new(refusal)))
+    }
+
+    /// **Takes a range seam's report** into the reading it answers, and
+    /// only that one: a report of a run since replaced or dropped is
+    /// dropped.
+    fn take_range(&mut self, report: RangeReport) {
+        if let Some(reading) = self
+            .derived
+            .range
+            .as_mut()
+            .filter(|reading| reading.run == report.run)
         {
-            return OpOutcome::refused(refusal);
-        }
-        // Read off `base` — the document the samples below are applied
-        // to — and not off the session again. One document answers
-        // where the search starts, what it steps by, and what every
-        // candidate is judged against, so a probe cannot seed from one
-        // document and search another.
-        let base = self.doc().clone();
-        let resolver = self.run_resolver();
-        let prior = self.memo_under(&resolver);
-        match probe::probe_bounds(&base, target, prior.as_deref(), &resolver, self.tol) {
-            Ok(reading) => {
-                self.derived.bounds = Some(reading);
-                OpOutcome::default()
-            }
-            Err(refusal) => OpOutcome::refused(refusal),
+            reading.state = report.state;
         }
     }
 
     /// Rewrite a slot literal's display unit — the value stays put.
     ///
     /// No `guard_driven` here, and deliberately: the driven refusal
-    /// protects a computed slot from being overwritten with a NUMBER,
-    /// and this op writes no number. What a driven slot refuses is the
-    /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
-    /// an expression has no authored notation to change.
+    /// is a drag's, and this op is not one. What a driven
+    /// slot refuses is the narrower `SlotUnitFault::NotALiteral` the
+    /// panel model raises — an expression has no authored notation to
+    /// change.
     fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
         match props::slot_unit_edit(self.committed_doc(), node, slot, unit) {
             Ok(edit) => self.commit(edit),
@@ -2823,9 +2883,9 @@ impl DocSession {
             Ok(expr) => expr,
             Err(refusal) => return OpOutcome::refused(refusal.into()),
         };
-        // An expression edit is available on a driven slot AND on a
-        // literal one — the refusal is about writing a number over a
-        // computation, not about the slot being off limits.
+        // An entry is taken on a driven slot AND on a literal one, as
+        // the number door's is: only a drag over a computation is
+        // refused.
         let edit = if slot.is_structural() {
             DocEdit::SetStructuralParam {
                 node,
@@ -3452,6 +3512,10 @@ impl DocSession {
     /// two are the same state under a pointer and now get the same
     /// answer ([`SessionOp::permitted_during_free_move`]).
     fn clear_for_new_document(&mut self) {
+        // The reading goes with `Derived`; its run is stopped here too,
+        // so no door that replaces the document can leave the outgoing
+        // document's search stepping.
+        self.ranger.stop();
         self.derived = Derived::none();
         self.display.clear();
         // A landing's report names the outgoing document's nodes, which
@@ -3460,6 +3524,9 @@ impl DocSession {
         // History ids are arena positions of the outgoing history.
         self.inserts.clear();
         self.forget_priced_delete();
+        // A bundle's scratch solve names a placement of the outgoing
+        // document, which the incoming one may hold by the same id.
+        self.landing = None;
     }
 
     /// Drop the kept delete rehearsal (`DocSession::priced`).
@@ -3485,53 +3552,6 @@ impl DocSession {
                 ids: Vec::new(),
                 on: None,
             }))
-        }))
-    }
-
-    /// **"Sketch on this face"** ([`SessionOp::SketchOnFace`]): the
-    /// kernel's one gesture (`Recording::sketch_on_face`) over the body
-    /// the face is on, and the union taking over what read that body
-    /// ([`Takeover`]), in one action. The node made is the profile, the
-    /// piece the gesture adds.
-    fn sketch_on_face(
-        &self,
-        face: &FaceSelection,
-        loops: Vec<LoopProgram<Formula>>,
-        distance: Formula,
-        spin: Formula,
-    ) -> Result<Creating, Refusal> {
-        let doc = self.committed_doc();
-        let (body, name) =
-            picked_body(doc, self.evaluation(), face).ok_or_else(|| Refusal::PickedMember {
-                node: doc.spoken(face.node),
-            })?;
-        self.require_read(&body.read, NodeKindWanted::Body)?;
-        let opts = self.eval_options();
-        let takeover = self.takeover(&body.read)?;
-        Ok(taking_over(takeover, move |run| {
-            let sketched = run.sketch_on_face(
-                body,
-                name,
-                ProfileProgram {
-                    loops,
-                    ids: Vec::new(),
-                    on: None,
-                },
-                distance,
-                spin,
-                None,
-                &opts,
-                &pncad::document::CancelToken::new(),
-            )?;
-            // The made node is the added piece's root (the profile), so
-            // deleting it collapses the union back to the body
-            // (`editor_core::continuation::splice`); the union replaces the body.
-            Ok(Wrote {
-                made: sketched.profile,
-                replacement: sketched.union,
-                whole: None,
-                intact: Vec::new(),
-            })
         }))
     }
 
@@ -3696,7 +3716,7 @@ impl DocSession {
                 node: doc.spoken(node),
             });
         }
-        let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
+        let loops = carry_unmoved(doc, current, loops, &ids);
         // The carried loops read each unmoved argument's variable, so
         // they are compared with the program re-authored.
         let authored = ProfileProgram {
@@ -4320,8 +4340,7 @@ impl DocSession {
     /// **The takeover of the body `read` names**, in the committed
     /// document ([`Takeover::of`]), refused where it would strand a pick
     /// ([`Takeover::stranded_pick`]): the takeover a gesture whose result
-    /// holds no pieces makes (a feature, a mirror's or a sketch's union,
-    /// a pattern).
+    /// holds no pieces makes (a feature, a mirror's union, a pattern).
     fn takeover(&self, read: &Operand) -> Result<Takeover, Refusal> {
         let takeover = self.unchecked_takeover(read);
         takeover.stranded_pick(self.committed_doc())?;
@@ -5285,8 +5304,10 @@ impl DocSession {
     /// given ([`EvalRequest::seed`]).
     fn request_eval_from(&mut self, seed: Option<crate::evalseam::Seed>) {
         // **Every route that changes the shown document passes here**,
-        // which is why the range probe is discarded here and nowhere
-        // else: a commit, a gesture preview, an undo, an open. TWO
+        // which is why the range run is stopped and its reading dropped
+        // here: a commit, a gesture preview, an undo, an open, a new
+        // document. `clear_for_new_document` drops the reading too, before
+        // this runs, so the stop does not ask whether one was held. TWO
         // callers do not change the document — `Reevaluate`, and a
         // save-as into a different directory, which resubmits the same
         // document against a new resolver (`SessionOp::Save`'s row in
@@ -5294,7 +5315,8 @@ impl DocSession {
         // them too is the conservative direction: a range
         // recomputed on request costs a button press, a stale one costs
         // a wrong decision.
-        self.derived.bounds = None;
+        self.derived.range = None;
+        self.ranger.stop();
         self.generation = self.generation.next();
         self.exhausted = None;
         // ONE clone of the shown document per request: into the
@@ -5541,7 +5563,8 @@ impl ProductDoor {
                 }),
             };
         }
-        let world_copies: Vec<(RecipeNodeId, VarId)> = crate::world::placements_of_var(doc, var)
+        let world_copies: Vec<(RecipeNodeId, VarId)> = doc
+            .placements_of_var(var)
             .into_iter()
             .filter(|&copy| doc.node_space(copy) == Some(VarId::WORLD))
             .filter_map(|copy| Some((copy, doc.output(copy, 0)?)))
@@ -5651,7 +5674,7 @@ impl Takeover {
     /// pick reads through — a copy of the body that is the pick's own
     /// placement, or a `⊔` whose operand is the piece the pick names,
     /// read by the pick's placement or along its path. A feature's
-    /// result, a mirror's or a sketch's union, a combine and a pattern
+    /// result, a mirror's union, a combine and a pattern
     /// hold no pieces, and a pick is never re-pointed, so re-pointing
     /// that reader would leave the pick naming a piece its copy no
     /// longer holds.
@@ -5673,7 +5696,7 @@ impl Takeover {
         let copies = self
             .sources
             .iter()
-            .flat_map(|&source| crate::world::placements_of_var(doc, source));
+            .flat_map(|&source| doc.placements_of_var(source));
         for copy in copies {
             let outputs = doc.outputs(copy);
             if let Some(&(pick, _)) = picks
@@ -6485,8 +6508,8 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         // Copies bodies this document already holds; its constraints
         // relate copies some other node put in the document.
         Node::Place { .. } => false,
-        // Where copies stand; it puts nothing in.
-        Node::World | Node::Space => false,
+        // Where copies stand, or a frame there; it puts nothing in.
+        Node::World | Node::Space | Node::Datum { .. } => false,
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -6514,7 +6537,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 /// a second time here.
 ///
 /// The `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
-/// no content to print; `eval`, `door` and `certifier` are `dyn`
+/// no content to print; `eval`, `door`, `certifier` and `ranger` are `dyn`
 /// services and implement no `Debug`; `requested_doc` is a whole recipe
 /// DAG; and `display` is
 /// not derived from the document, is as large as the document's hidden
@@ -6536,6 +6559,8 @@ impl core::fmt::Debug for DocSession {
             eval: _,
             door: _,
             certifier: _,
+            ranger: _,
+            range_runs,
             generation,
             exhausted,
             requested_doc: _,
@@ -6555,6 +6580,7 @@ impl core::fmt::Debug for DocSession {
             landing: _,
         } = self;
         f.debug_struct("DocSession")
+            .field("range_runs", range_runs)
             .field("generation", generation)
             .field("exhausted", exhausted)
             .field("states", &history.len())

@@ -1,93 +1,43 @@
 ---
 id: ledger-notes-have-no-guard-that-their-recovery-command-resolves
 kind: issue
-title: Nothing checks that a doc-ledger note's recovery command resolves
-status: open
+title: Fifteen doc-ledger notes recover their file from a commit that does not hold it
+status: closed
 opened: 2026-09-22
+priority: P4
+cost: E
+closed: 2026-11-23
 ---
 
+`docs/doc-ledger/auth-1-spec.md` through `auth-15-spec.md` each say
+"Recover with `git show 29b8874a1:docs/AUTH-<n>-SPEC.md`". Commit
+`29b8874a10` (2026-10-02, "the last commit with work/author/ in the tree")
+holds no `docs/AUTH-*-SPEC.md`: `git ls-tree --name-only 29b8874a1 docs/`
+lists none, and neither does its parent. The habit is the one the three
+TINT notes had in September (the SHA of the commit that deleted the file, or
+a later one), so it recurred after PR 3063 repaired those three.
 
-A note in `docs/doc-ledger/` is a pointer, and its whole job is the one
-line that recovers the deleted file:
+Measured 2026-11-22 over `origin/main`: of the 401 distinct literal
+`git show <sha>:<path>` strings in `docs/doc-ledger/*.md`, 240 resolve, 146
+are template lines with a `<FILE>`/`<file>`/`<NAME>` placeholder, and these
+15 are the only real failures. The audit is one loop of
+`git cat-file -e "<sha>:<path>"` (with `git cat-file -e "<sha>^{commit}"`
+first, so a commit a shallow clone lacks is reported apart from a path
+that is gone).
 
-```
-Recover with `git show <sha>:<path>`.
-```
+Owed, and no gate: repoint the fifteen notes at a commit that holds each
+spec (on a full clone, `git log --all --diff-filter=D -- docs/AUTH-1-SPEC.md`
+gives the deleting commit; its parent holds the file), and add one sentence
+to the ledger's note template saying the recovery SHA is the deleting
+commit's parent, never the deleting or a later commit. A per-PR check is not
+wanted: a broken note costs nothing until someone recovers from it, and the
+loop above, run by whoever sweeps the ledger, finds the class in a second.
 
-**Nothing runs it.** `scripts/work.py lint` reads `work/` and says
-nothing about `docs/`; no CI row opens a note; the gates under
-`scripts/gates/` have no ledger arm. A note whose SHA is wrong is
-indistinguishable from a note whose SHA is right, and it fails at the
-one moment it exists for — when a reader needs the file back.
+What would close it: all fifteen `auth-*-spec.md` recovery commands resolve,
+and the template carries the parent-of-deletion rule.
 
-## The instances, and they were found by hand
+- 2026-11-22 — **Reformulated by CIW triage** (the earlier body is in git history): No latency effect, and a per-PR check would add cost for a defect that only bites at recovery time. But the class recurred. Measured today: of the 401 literal `git show <sha>:<path>` strings in `docs/doc-ledger/`, 240 resolve, 146 are placeholders, and 15 are broken. All 15 are `auth-*-spec.md` → `29b8874a1:docs/AUTH-<n>-SPEC.md`; commit 29b8874a10 (2026-10-02) holds no AUTH spec. Fix those notes, plus a template sentence. `reform/ledger-notes-have-no-guard-that-their-recovery-command-resolves.md`.
 
-Of the 144 notes migrated out of `docs/DOC-LEDGER.md` into
-`docs/doc-ledger/` on PR 3063, **three name a commit at which the file
-was already deleted**:
+## Closed
 
-| note | cited SHA | the file at it |
-| --- | --- | --- |
-| `docs/doc-ledger/tint-3-spec.md` | `da1b20f85` | gone |
-| `docs/doc-ledger/tint-4-spec.md` | `5494b9927` | gone |
-| `docs/doc-ledger/tint-5-spec.md` | `8e7bcc02b` | gone |
-
-All three were carried verbatim from the old single-file ledger, where
-they are equally broken on `main` today, so the migration did not
-introduce them. The cause is one habit: S-TINT's entries named "the
-fix-pass head" as the recovery SHA, and each spec was deleted **in that
-same fix pass**, so the commit the entry points at is the first commit
-without the file. PR 3063 repoints them at `387600f79`, `72555a2fb` and
-`82f956582`, each verified to hold the file and to be an ancestor of
-`origin/main`.
-
-They were found by an audit run by hand on the branch, not by any
-check. That is the defect this row is about: a second reader happened to
-look. The same audit ran all 139 recovery commands in the directory:
-the other 135 resolve, and one is unverifiable here for the clone reason
-below.
-
-## The check, which is cheap
-
-For every `` `git show <sha>:<path>` `` in `docs/doc-ledger/*.md`, run
-`git cat-file -e "<sha>:<path>"`. It needs no build and no network.
-
-**The one class it must not fail on is a commit the clone does not
-have.** `docs/doc-ledger/topo-d265-spec.md` names
-`7253e5efb66c479aa27c7381b878be0d1a2bd52a`, whose commit object is
-absent from a shallow checkout; `git cat-file -e <sha>^{commit}` tells
-that case apart from a path that is genuinely gone at a commit the clone
-does hold, and only the second is a failure. A check that cannot make
-that distinction would red `main` on CI's fetch depth rather than on
-anything about the tree.
-
-The sweep notes' template lines (`git show <sweep-sha>:work/<program>/<FILE>`)
-carry placeholders and are not resolvable commands; the check keys on a
-literal hex SHA.
-
-**It must not key on the backticks.** A sweep note's concrete pointers
-sit in an indented block with no backticks around them, and eighteen of
-the directory's 139 runnable commands are of that shape — the exit-walk
-and design-doc recoveries in `blend-`, `cite-`, `docm-`, `door-`,
-`eval-`, `fillet-`, `fix-`, `gates-`, `m10-`, `meter-`, `s-bool-`,
-`s-cert-`, `s-mate-`, `s-mesh-`, `seat-` and `verbs-leaves-the-tracker`.
-A pattern requiring a closing backtick reads 121 of the 139 and reports
-a clean sweep over the rest, which is the failure mode this row exists
-to prevent: a check that passes because it did not look.
-
-## Disposition
-
-This row proposes the check; it does not write it. `docs/doc-ledger/`
-is META's by `work/meta/program.md`'s `paths`, so a META unit takes it.
-Where it belongs is the question the unit answers — a `scripts/gates/`
-member, or an arm of `scripts/work.py --selftest`'s neighbours — but it
-is a docs-tier input, so it must run in a job the docs tier reaches.
-
-## Moved (2026-10-26)
-
-UNSEEN folded into UNREAD (Ev, in chat, 2026-10-26): a reference no gate
-reads and a claim no gate reads are one kind of work. Id and body unchanged.
-
-## Moved to CIW (2026-11-02)
-
-- 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+2026-11-23, PR 7419 (CIW drive-by bundle). The 15 `auth-*-spec.md` notes now recover from `84cc49f1f`, the parent of `bb8a91c59a`, the commit that deleted the specs. All 15 commands resolve. No template sentence is owed: `memories/docs-ledger.md` already says to record "a commit hash from before the deletion", and these notes broke that rule.
