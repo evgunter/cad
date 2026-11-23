@@ -1193,15 +1193,20 @@ pub(crate) fn analytic_root<T: Decide>(
     Ok(Ok(t))
 }
 
-/// **The farthest a wall stands from `at`, from above**: its control
-/// net's hull's far distance ([`geom::cover::Cover::net`]), which holds
-/// the wall. Poison for a net with a non-finite point, which the SSI
-/// domain's check refuses.
-fn net_reach_from(wall: &NurbsSurface<f64>, at: Point3<f64>) -> f64 {
-    geom::cover::Cover::net(wall.control().to_vec()).map_or(f64::NAN, |net| {
-        net.distance_range(&geom::cover::Site::Point(at)).1
-    })
+/// **The farthest a wall stands from `at`, from above**: the radius of
+/// the ball about `at` holding its control net's hull
+/// ([`geom::cover::Cover::net`], [`geom_brep::ExtentBall::of_cover_from`]),
+/// which holds the wall. `None` for a net with a point that is not
+/// finite, which has no hull.
+fn net_reach_from(wall: &NurbsSurface<f64>, at: Point3<f64>) -> Option<f64> {
+    geom::cover::Cover::net(wall.control().to_vec())
+        .map(|net| geom_brep::ExtentBall::of_cover_from(Some(&net), at).radius())
 }
+
+/// The refusal of a wall whose control net has no hull.
+const UNHULLED_NET: SectionVerdict = SectionVerdict::Unsupported {
+    what: "a wall's control net holds a point that is not finite, so no hull holds the wall",
+};
 
 /// Newton's fixed step count on an analytic root: quadratic from a seed
 /// one offset away, so far more than the digits need.
@@ -1233,12 +1238,16 @@ fn plane_wall_section<'w, 's>(
         Some(Ok(row)) => row,
         Some(Err(v)) => return Ok(Err(v)),
         None => {
-            // The window holds the wall: the section lies in the wall's
-            // control net's hull, which stands within its far distance of
-            // the plane's origin.
+            // The chart lane only checks the slab and keys its pass on
+            // it (`SsiDomain::half_extent`): the wall's rectangle bounds
+            // the search. It is the ball about the plane's origin holding
+            // the wall's control net's hull, where the section lies.
+            let Some(half_extent) = net_reach_from(wall, origin) else {
+                return Ok(Err(UNHULLED_NET));
+            };
             let domain = SsiDomain {
                 center: origin,
-                half_extent: net_reach_from(wall, origin),
+                half_extent,
                 extent: extent.length(),
                 floor_scale: 1.0,
             };
@@ -1336,12 +1345,16 @@ fn pair_section<'w, 's>(
 ) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
     let mid = old.mid_point(t0, t1);
     let tangent = old.deriv(geom::mid_param(t0, t1));
-    // The rectangles bound the search; the slab, which bounds nothing
-    // here, holds the section: it lies in both walls' control nets'
-    // hulls.
+    // The rectangles bound the search, and the chart lane only checks the
+    // slab and keys its pass on it (`SsiDomain::half_extent`). It holds
+    // the section, which lies in both walls' control nets' hulls.
+    let (Some(near_a), Some(near_b)) = (net_reach_from(a.net, mid), net_reach_from(b.net, mid))
+    else {
+        return Ok(Err(UNHULLED_NET));
+    };
     let domain = SsiDomain {
         center: mid,
-        half_extent: net_reach_from(a.net, mid).min(net_reach_from(b.net, mid)),
+        half_extent: near_a.min(near_b),
         extent: extent.length(),
         floor_scale: 1.0,
     };
@@ -1863,12 +1876,12 @@ mod regions {
     fn a_walls_reach_is_its_nets_far_corner() {
         let wall = net(&|_, _| 0.0);
         let close = |got: f64, want: f64| (got - want).abs() <= 1e-12;
-        let from_origin = net_reach_from(&wall, Point3::origin());
+        let from_origin = net_reach_from(&wall, Point3::origin()).expect("a finite net");
         assert!(
             close(from_origin, 2f64.sqrt()),
             "from the origin: {from_origin}"
         );
-        let from_edge = net_reach_from(&wall, Point3::new(0.5, 0.0, 0.0));
+        let from_edge = net_reach_from(&wall, Point3::new(0.5, 0.0, 0.0)).expect("a finite net");
         assert!(
             close(from_edge, 1.25f64.sqrt()),
             "from the edge: {from_edge}"

@@ -410,12 +410,11 @@ pub fn min_radius_of_curvature_toward<T: Real>(
         // the apple's outward where `ρ < R`. Zero on both sides is the
         // bound that holds on either sheet.
         (Surface::Spindle { .. }, _) => T::zero(),
-        (Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. }, SurfaceSide::Inner) => {
-            *radius
-        }
-        (Surface::Cone { .. }, SurfaceSide::Inner) => crate::curvature_arm::parallel_radius(s, p),
-        (Surface::Torus { minor_radius, .. }, SurfaceSide::Inner) => *minor_radius,
-        (Surface::Nurbs(_) | Surface::Approx(_), _) => poison(),
+        // The rest bend toward their inside at their principal radius:
+        // a sphere's or a cylinder's radius, a torus's tube, a cone's
+        // parallel at `p`; a spline is poison.
+        (_, SurfaceSide::Inner) => crate::curvature_arm::principal_radius(s, p),
+        (Surface::Nurbs(_) | Surface::Approx(_), SurfaceSide::Outer) => poison(),
     }
 }
 

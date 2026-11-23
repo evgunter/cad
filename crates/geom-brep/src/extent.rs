@@ -249,14 +249,16 @@ impl<T: Real> ExtentBall<T> {
         (q - self.center).norm() - self.radius
     }
 
-    /// **The run of `line`'s parameter that can reach the ball**:
-    /// centred on the line's closest approach to the centre, the radius
-    /// over `|dir|` either side. No point of the line off the run stands
-    /// in the ball.
+    /// **How far the ball reaches from `pivot` along `dir`**, either
+    /// way: the centre's reading `(centre − pivot)·dir`, less and plus
+    /// the radius times `|dir|`. Along a line's unit direction from its
+    /// origin it is the run of the line's parameter that can reach the
+    /// ball: no point of the line off it stands in the ball.
+    /// ([`Reach::range_along`]'s ball.)
     #[must_use]
-    pub fn run_on(self, line: &Line<T>) -> (T, T) {
-        let (centre, half) = (line.param(self.center), self.radius / line.dir.get().norm());
-        (centre - half, centre + half)
+    pub fn range_along(self, pivot: Point3<T>, dir: Vec3<T>) -> (T, T) {
+        let (c, r) = ((self.center - pivot).dot(dir), self.radius * dir.norm());
+        (c - r, c + r)
     }
 
     /// **The farthest the ball reaches from either of two pivots**: the
@@ -1080,10 +1082,7 @@ impl<T: Real> Reach<T> {
     pub fn range_along(&self, pivot: Point3<T>, dir: Vec3<T>) -> (T, T) {
         let at = |p: Point3<T>| (p - pivot).dot(dir);
         match self {
-            Self::Ball(ball) => {
-                let (c, r) = (at(ball.center()), ball.radius() * dir.norm());
-                (c - r, c + r)
-            }
+            Self::Ball(ball) => ball.range_along(pivot, dir),
             Self::Measured { at: from, lever } => (at(*from) - *lever, at(*from) + *lever),
             Self::Face {
                 at: from,
@@ -2201,7 +2200,7 @@ mod geometry_door_rows {
             origin: Point3::new(-10.0, 3.0, 0.0),
             dir: UnitVec3::exact_x(),
         };
-        assert_eq!(ball.run_on(&line), (9.0, 19.0));
+        assert_eq!(ball.range_along(line.origin, line.dir.get()), (9.0, 19.0));
     }
 
     /// **A ball's lever from two pivots is its reach from the farther**,

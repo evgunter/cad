@@ -969,14 +969,7 @@ fn face_geo_arms<T: Decide>(
                     region,
                     sense: f.sense(),
                 }),
-                None => {
-                    let anchor = boundary_point(body, face)?;
-                    Ok(FaceGeo::PartialWall {
-                        axis: geom::Line { origin, dir: axis },
-                        radius,
-                        ball: partial_ball(body, face, anchor, band)?,
-                    })
-                }
+                None => partial_wall(body, face, (geom::Line { origin, dir: axis }, radius), band),
             }
         }
         &Surface::Cone {
@@ -993,14 +986,18 @@ fn face_geo_arms<T: Decide>(
                     region,
                     sense: f.sense(),
                 }),
-                None => Ok(FaceGeo::PartialCone {
-                    axis: geom::Line {
-                        origin: apex,
-                        dir: axis,
-                    },
-                    half_angle,
-                    ball: partial_ball(body, face, apex, band)?,
-                }),
+                None => partial_cone(
+                    body,
+                    face,
+                    (
+                        geom::Line {
+                            origin: apex,
+                            dir: axis,
+                        },
+                        half_angle,
+                    ),
+                    band,
+                ),
             }
         }
         &Surface::Sphere { frame, radius, .. } => {
@@ -1140,6 +1137,47 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PointInSolidError> {
     let kind = body.proven_face(face).surface().kind();
     (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
+}
+
+/// **A wall face whose region the ruled reader cannot read**, on the
+/// wall `(axis, radius)`: held as the ball about a point of its boundary
+/// that holds it ([`FaceGeo::PartialWall`]).
+///
+/// # Errors
+///
+/// As [`boundary_point`] and [`partial_ball`].
+fn partial_wall<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (axis, radius): (geom::Line<T>, T),
+    band: Band,
+) -> Result<FaceGeo<T>, PointInSolidError> {
+    let anchor = boundary_point(body, face)?;
+    Ok(FaceGeo::PartialWall {
+        axis,
+        radius,
+        ball: partial_ball(body, face, anchor, band)?,
+    })
+}
+
+/// **A cone face whose region the ruled reader cannot read**, on the
+/// cone `(axis, half_angle)` (the axis's origin its apex): held as the
+/// ball about the apex that holds it ([`FaceGeo::PartialCone`]).
+///
+/// # Errors
+///
+/// As [`partial_ball`].
+fn partial_cone<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (axis, half_angle): (geom::Line<T>, T),
+    band: Band,
+) -> Result<FaceGeo<T>, PointInSolidError> {
+    Ok(FaceGeo::PartialCone {
+        axis,
+        half_angle,
+        ball: partial_ball(body, face, axis.origin, band)?,
+    })
 }
 
 /// **A ball about `anchor` that a cylinder or cone face lies within**
@@ -3462,16 +3500,13 @@ fn carrier_roots<T: Decide>(
                     ref region,
                     ..
                 } => {
-                    // The face lies within its reach of the apex, never
-                    // under it (`RuledFaceRegion::reach`), so off the run
-                    // centred on the line's closest approach to the apex
-                    // and that long either side.
+                    // No point of the ray's line off the run that can
+                    // reach the face's ball about the apex is on the face.
+                    let Some(ball) = region.apex_ball() else {
+                        unreachable!("a cone face's region holds its ball about the apex")
+                    };
                     let line = ray.line();
-                    let (centre, half) = (
-                        line.param(cone.origin),
-                        region.reach() / line.dir.get().norm(),
-                    );
-                    let run = (centre - half, centre + half);
+                    let run = ball.range_along(line.origin, line.dir.get());
                     match cone_door(ray, ((cone, half_angle), face), run, band)? {
                         // Unordered: `A` may be negative, and the count
                         // orders by advance anyway.
@@ -4173,7 +4208,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 let Some(ts) = cone_door(
                     ray,
                     ((cone, half_angle), face),
-                    ball.run_on(&ray.line()),
+                    ball.range_along(ray.line().origin, ray.line().dir.get()),
                     band,
                 )?
                 else {
@@ -4956,6 +4991,9 @@ mod r1_generic_poses;
 #[cfg(test)]
 #[path = "torus_predicate_rows.rs"]
 mod torus_predicate_rows;
+
+#[cfg(test)]
+mod partial_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

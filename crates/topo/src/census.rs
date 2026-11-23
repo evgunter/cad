@@ -9611,8 +9611,8 @@ fn tangent_sectors<T: Decide>(
         }
     }
     let reach = || {
-        crate::cover::face_reach_from(body, f, p, band)
-            .map(geom_core::Lever::length)
+        crate::cover::face_ball_about(body, f, p, band)
+            .map(geom_brep::ExtentBall::radius)
             .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))
     };
     let held_edge = |e: EdgeKey| holds.contains(&Held::Edge(e));
@@ -23308,6 +23308,59 @@ mod lone_vertex_rows {
             Err(TouchUnread::LoneLoop),
             "the face's polygon reading refuses as a lone loop"
         );
+    }
+
+    /// **A tangent fan inside an edge reaches the face's far side, and
+    /// not past its rim**: inside the top edge of the unit box's top face
+    /// at its middle `(½, 0, 1)`, the face's far corners stand `√1.25`
+    /// off, and the half-fan's rim stands at that reach over
+    /// `cos(π/8)`, with its hundredth to spare. Red against the reach
+    /// read twice too long, and against its near side.
+    #[test]
+    fn an_edge_fan_reaches_the_faces_far_side() {
+        use super::Held;
+        let (body, top, _) = box_with_a_lone_ring(Tol::witness());
+        let band = geom_core::Band::linear(Tol::witness()).expect("a band");
+        let geo = super::snapshot(&body);
+        let at = |v| geo.vmap.get(&v).copied().expect("a vertex of the snapshot");
+        let (edge, (a, b)) = body
+            .edges
+            .keys()
+            .find_map(|e| {
+                let (a, b) = body.edge_vertices(e)?;
+                let (pa, pb) = (at(a), at(b));
+                ((pa.z - 1.0).abs() < 1e-12
+                    && (pb.z - 1.0).abs() < 1e-12
+                    && pa.y.abs() < 1e-12
+                    && pb.y.abs() < 1e-12)
+                    .then_some((e, (pa, pb)))
+            })
+            .expect("the top face's edge along y = 0");
+        let p = a + (b - a) * 0.5;
+        let pieces = super::tangent_sectors(&body, &geo, top, p, &[Held::Edge(edge)], band)
+            .expect("the edge's half-plane");
+        let reach = 1.25f64.sqrt();
+        let rim = reach * 1.01 / core::f64::consts::FRAC_PI_8.cos();
+        let mut read = 0;
+        for piece in pieces {
+            let crate::link::TangentPiece::Sector(sector) = piece else {
+                panic!("a planar face's edge pass is a sector")
+            };
+            let _ = sector.map_sector(|s| {
+                for &(x, y) in &s.wedges {
+                    for q in [x, y] {
+                        let d = (q - p).norm();
+                        assert!(
+                            (d - rim).abs() <= 1e-9 * rim,
+                            "a fan point {d} off the edge's middle, not the rim's {rim}"
+                        );
+                        read += 1;
+                    }
+                }
+                s
+            });
+        }
+        assert!(read > 0, "the fan has points");
     }
 }
 

@@ -219,6 +219,10 @@ pub(crate) struct RuledFaceRegion<T: geom_core::Real> {
     /// bound on the farthest a cone face's boundary reaches from the
     /// apex, never under it.
     scale: T,
+    /// A cone face's ball about the apex: out to its boundary edges'
+    /// covers' far distance from it, which holds the face. `None` on a
+    /// cylinder.
+    apex_ball: Option<geom_brep::ExtentBall<T>>,
     edges: Vec<Edge<T>>,
 }
 
@@ -325,17 +329,30 @@ pub(crate) fn ruled_face_region<T: Decide>(
         .map(|e| crate::cover::edge_cover(body, e.edge))
         .collect();
     let scale = reach_bound(&surface, &covers);
+    let apex_ball = match surface {
+        Ruled::Cone { apex, .. } => {
+            let hull = covers
+                .iter()
+                .cloned()
+                .collect::<Result<Vec<_>, _>>()
+                .ok()
+                .and_then(|covers| covers.into_iter().reduce(geom::cover::Cover::hull));
+            Some(geom_brep::ExtentBall::of_cover_from(hull.as_ref(), apex))
+        }
+        Ruled::Cylinder { .. } => None,
+    };
     Ok(Some(RuledFaceRegion {
         charted: Charted::record(f.record().surface, f.surface()),
         surface,
         sense: f.sense(),
         outer: f.record().outer,
         scale,
+        apex_ball,
         edges,
     }))
 }
 
-/// The lever of a face's crossings ([`RuledFaceRegion::reach`]): the
+/// The lever of a face's crossings (`RuledFaceRegion`'s `scale`): the
 /// cylinder's radius, or a bound on the farthest the cone face's
 /// boundary reaches from the apex, never under it: edge by edge, its
 /// edge cover's farthest distance from the apex
@@ -413,11 +430,10 @@ impl<T: Decide> RuledFaceRegion<T> {
         region::walk(self, foot, band).map(Some)
     }
 
-    /// The face's scale: the cylinder's radius, or a bound on the
-    /// farthest its boundary reaches from the cone's apex, never under
-    /// it.
-    pub(crate) fn reach(&self) -> T {
-        self.scale
+    /// A cone face's ball about the apex, which holds the face; `None`
+    /// on a cylinder.
+    pub(crate) fn apex_ball(&self) -> Option<geom_brep::ExtentBall<T>> {
+        self.apex_ball
     }
 
     /// A point of the face's surface the side-at-infinity reader may aim
