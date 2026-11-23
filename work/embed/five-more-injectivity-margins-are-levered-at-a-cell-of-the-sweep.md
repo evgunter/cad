@@ -130,3 +130,16 @@ changes what a margin requires or at what scale:
 
 `embed/tangent-corner` met `_corner_departs` from the other side, a
 tangent joint's rate straddling zero.
+
+## 2026-11-23: the planar corner's ray is not one of these (embed/corner-pieces)
+
+`ray_inside` (`crates/topo/src/injective.rs`) decides the ray that cuts
+a two-line corner at `self_intersection_corner`: the sine of the angle
+from an edge to the ray, times that edge's whole length, the far end
+less the vertex. The lean it replaces was levered the same way. That
+lever is a face's own extent, not a cell's or a piece's of the sweep,
+so the decision does not move with the subdivision and is not among
+the sites listed here. Whether an edge's length is the lever the ruling
+on PR 7095 asks for (how far the narrower face runs from what the
+faces share) is not settled by this note.
+

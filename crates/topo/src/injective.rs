@@ -3447,8 +3447,9 @@ fn partial_zero(
 /// side of one of its corner's edges**, `u` that edge's unit toward-face
 /// normal and `l` its length: the sine of the angle from the edge to the
 /// ray, `m·u / |m|`, times `l`, metres, decided positive at
-/// [`SELF_INTERSECTION_CORNER`]. A length times a sine at a cell-scale
-/// lever, as the lean it replaces was. Both edges' answers together put
+/// [`SELF_INTERSECTION_CORNER`]. A sine levered at the edge's own
+/// length, a face's extent and not a cell's of the sweep, as the lean it
+/// replaces was. Both edges' answers together put
 /// the ray strictly inside the face's sector with each piece under a
 /// half turn; a spike or a slit (the two normals opposed, `m` vanishing)
 /// is not decided and refuses.
