@@ -100,7 +100,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// a node stores, an id minted earlier, or a document the corpus gains
 /// re-pins it; the PR that moves it says which words moved, and that
 /// with each tag masked no other did where that is so.
-const SAID_DIGEST: u64 = 0x1bd0_e2a7_9b08_1dfe;
+const SAID_DIGEST: u64 = 0x0f58_5f72_242b_a3af;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
