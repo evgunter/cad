@@ -2,7 +2,8 @@
 id: a-spiric-oval-wholly-inside-the-band-on-one-side-of-the-cutting-plane-reads-as-a-miss
 kind: issue
 title: The spiric × plane door answers a miss for an oval wholly inside the band on one side of the cutting plane: both extremes of its height in (0, escalate) leave the count at none on all three lines
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-23
 priority: P1
 cost: M
@@ -70,3 +71,7 @@ branch none do. Past-band poses that refuse do so on the line × torus
 ladder's own band (its wide band about the tube's top and bottom
 circles), on main and the branch alike; the row excuses a refusal only
 where the ladder itself refuses on one of the three lines.
+
+## Closed
+
+2026-11-23, by the GERM orchestrator. Closed by PR 7596 (merge `f1c2ac796f`). The oval is convex in the two-oval regime, so where all three counts are 0, one point read across L decides whether the oval lies between the lines (refuse) or past them, on the row `spiric_plane_oval_in_band`. The review checked the proof at 80 digits and found 0 in-band answers in 47,540 poses on 10 tori.
