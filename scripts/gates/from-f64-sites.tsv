@@ -4,6 +4,7 @@
 crates/editor-core/src/analysis.rs	4	constant	value	a free variable's authored nominal; the box's offset, or the door's symbol, is the variable, and a Fixed axis holds it at that nominal (a constant at every scalar)
 crates/editor-core/src/coincide/replay.rs	1	constant	geom_core::Bounds::hi(arm.length()).log2().ceil().exp2()	the power of two at or above a decided pair's reach, a lever's scale: a positive constant factor, so the margin it levers is zero as a polynomial exactly where its sine is
 crates/editor-core/src/doc.rs	1	constant	value	a free variable's authored nominal, bound unvaried
+crates/editor-core/src/eval/mod.rs	1	constant	value	a free variable a probe lowered into the document minted (a typed offset), bound at its authored nominal as Doc::var_env binds every free one
 crates/editor-core/src/eval/mod.rs	1	constant	self.angle	a computing twist's stated angle (EvalOptions::computing_twist, test-facing), written in f64 by its caller
 crates/editor-core/src/eval/mod.rs	1	constant	v[0]	a computing twist's stated part (EvalOptions::computing_twist, test-facing), a motion written in f64 by its caller
 crates/editor-core/src/eval/mod.rs	1	constant	v[1]	a computing twist's stated part (EvalOptions::computing_twist, test-facing), a motion written in f64 by its caller
@@ -34,6 +35,7 @@ crates/geom-brep/src/curve_face/cross.rs	1	constant	band.escalate()	the band's e
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a touch's reach past which a span is apart
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a touch's in-band depth
 crates/geom-brep/src/curve_face/pose.rs	1	constant	k / 4.0	a quarter of the span, from a literal schedule: the not-Lies rung's sample shares
+crates/geom-brep/src/curve_face/spiric_plane.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: how far the line is moved across itself to read a near miss of the oval in band
 crates/geom-brep/src/curve_pair/pose.rs	4	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/curve_pair/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a slanted touch keeps its extreme within it
 crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
@@ -119,7 +121,6 @@ crates/geom-core/src/spline/projective.rs	1	constant	num	form_coef: degree eleva
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/azimuth.rs	1	constant	0.5 * f64::from(self.0)	a quarter-turn count
 crates/geom/src/carrier_speed.rs	1	constant	i as f64 / LENGTH_PIECES as f64	a length sum's piece end as a fraction of the stretch, a fixed schedule (length_hi)
-crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/cover.rs	1	constant	f64::from(k)	a piece index
 crates/geom/src/cover/readings.rs	1	constant	cut	a spline window's interior cut, a point the cover chooses from the window's point ends (geom-brep `net_param`'s posture)
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot

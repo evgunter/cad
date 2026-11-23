@@ -88,8 +88,9 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 
 /// The decisions the part's profile pre-pass makes on the one-solid
 /// part: the program's four junctions and the f64 validation of the
-/// assembled profile, drawn on its own xy.
-const PRE_PASS: usize = 80;
+/// assembled profile, drawn on its own xy, which reads no corner's shared
+/// vertex (`profile::seg`'s `line_line`).
+const PRE_PASS: usize = 56;
 /// The one-solid part's log sizes by node at `f64`: profile, extrude,
 /// placement. At `f64` the Profile node's op takes the pre-pass's
 /// validated form (`editor_core::ProfileLane`) and logs what the second
@@ -108,7 +109,7 @@ const PRE_PASS: usize = 80;
 const EXTRUDE_LOG: usize = 905;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
-const LANE_OP: usize = 75;
+const LANE_OP: usize = 51;
 const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// A placement standing where its body stands ([`fixture::place`]): the
 /// identity bundle, which the fold places by no map, deciding nothing.
@@ -351,8 +352,13 @@ fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
     // shorter arm once it is stored), four from validation's joint
     // pass, which reads the same turn.
     assert_eq!(histogram["path_junction_turn"], 11, "{histogram:?}");
-    assert_eq!(histogram["chord_side"], 28, "{histogram:?}");
-    assert_eq!(histogram["line_span"], 8, "{histogram:?}");
+    assert_eq!(histogram["chord_side"], 20, "{histogram:?}");
+    // The box's corners are adjacent pairs, whose shared vertex no pair
+    // reading asks about (`profile::seg`'s `line_line`); no other pair
+    // has an end on a carrier.
+    for unread in ["line_span", "contact_at_shared_vertex"] {
+        assert!(!histogram.contains_key(unread), "{unread}: {histogram:?}");
+    }
     assert_eq!(
         log[0].predicate, "path_junction_turn",
         "the replay decides first"

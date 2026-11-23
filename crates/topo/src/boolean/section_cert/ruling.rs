@@ -342,7 +342,7 @@ impl<T: Real> Quadric<T> {
         };
         let (alpha, beta, gamma) = (V::S::of(alpha), V::S::of(beta), V::S::of(gamma));
         let two = V::S::of(exact(T::from_f64(2.0)));
-        let (nu, nv) = (u.along(n), v.along(n));
+        let (nu, nv) = (u.along(n.get()), v.along(n.get()));
         let p2 = alpha.times(v.dot(v)).plus(beta.times(nv.times(nv)));
         let p1 = two.times(alpha.times(u.dot(v)).plus(beta.times(nu.times(nv))));
         let p0 = alpha
@@ -369,7 +369,7 @@ impl<T: Real> Quadric<T> {
                 r,
                 ..
             } => {
-                let m = running::cross(w, running::exact_vec(d));
+                let m = running::cross(w, running::exact_vec(d.get()));
                 let reach = running::dot(u, m);
                 let reach = Rounded {
                     value: reach.value.abs(),
@@ -405,9 +405,9 @@ impl<T: Real> Quadric<T> {
                 axis: geom::Line { origin: o, dir: d },
                 r,
             } => {
-                let m = (x - o).cross(d);
+                let m = (x - o).cross(d.get());
                 let rho = m.norm();
-                (rho - r, m.dot(w.cross(d)) / rho)
+                (rho - r, m.dot(w.cross(d.get())) / rho)
             }
             Self::Cone {
                 axis:
@@ -418,8 +418,8 @@ impl<T: Real> Quadric<T> {
                 sc: (s, c),
             } => {
                 let y = x - apex;
-                let (h, aw) = (y.dot(a), w.dot(a));
-                let p = a.cross(y.cross(a));
+                let (h, aw) = (y.dot(a.get()), w.dot(a.get()));
+                let p = a.get().cross(y.cross(a.get()));
                 let rho = p.norm();
                 (
                     rho * c - h.abs() * s,
@@ -484,7 +484,11 @@ impl<T: Real> Chart<T> {
     fn line(&self, theta: T) -> geom::Line<T> {
         geom::Line {
             origin: self.base + self.offset.at(theta),
-            dir: self.dir.at(theta),
+            // The chart's ruling swing, `a·c + u_ref·s` or the wall's
+            // `(a × u_ref)·s` over a squared frame, weighted by one
+            // angle's cosine and sine: an enclosure of a unit vector by
+            // that construction.
+            dir: geom_core::UnitVec3::checked(self.dir.at(theta)),
         }
     }
 }
@@ -661,7 +665,7 @@ fn reading<T: Decide>(
             running::exact_vec(b - Point3::origin()),
             running::exact_vec(at - Point3::origin()),
         );
-        ([0, 1, 2].map(|i| b[i] - p[i]), running::exact_vec(w))
+        ([0, 1, 2].map(|i| b[i] - p[i]), running::exact_vec(w.get()))
     };
     let at_line = |theta: T| {
         let (u, w) = line_at(theta);
@@ -773,10 +777,10 @@ fn reading<T: Decide>(
             };
             let reach = (wide - narrow).abs() / four;
             for _ in 0..2 {
-                let (level, slope) = partner.level(b + w * t, w);
+                let (level, slope) = partner.level(b + w.get() * t, w.get());
                 let step = (level / slope).max(T::zero() - reach).min(reach);
                 let next = t - step;
-                let after = partner.level(b + w * next, w).0;
+                let after = partner.level(b + w.get() * next, w.get()).0;
                 // A step through the partner's axis (its apex, for a cone)
                 // reads a 0/0 slope; a poisoned comparison keeps the
                 // closed-form root rather than passing NaN on.
@@ -785,7 +789,7 @@ fn reading<T: Decide>(
                     t = gain.select_le_zero(next, t);
                 }
             }
-            b + w * t
+            b + w.get() * t
         };
         let side = |theta: T| {
             sign_as(
@@ -965,7 +969,7 @@ mod tests {
         let partner = Quadric::Cylinder {
             axis: geom::Line {
                 origin: Point3::new(3.0, 0.0, 0.0),
-                dir: Vec3::new(s, 0.0, c),
+                dir: geom::stated_direction(Vec3::new(s, 0.0, c)),
             },
             r: 1.0,
         };

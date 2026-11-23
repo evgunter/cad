@@ -882,6 +882,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &["placement", "constraints", "free"],
     );
     carries(&F::NotOnTheCopy { mate: m(1) }, &["mate"]);
+    carries(&F::NotTheDatumsOwn { mate: m(1) }, &["mate"]);
     carries(
         &F::KindsDiffer {
             mate: m(1),
@@ -2110,6 +2111,7 @@ fn node_error_tags_are_the_published_words() {
         MateOverconstrained => "mate_overconstrained",
         MateUnpinned => "mate_unpinned",
         MateNotOnTheCopy => "mate_not_on_the_copy",
+        MateNotTheDatumsOwn => "mate_not_the_datums_own",
         MateUnleverable => "mate_unleverable",
         MateKindsDiffer => "mate_kinds_differ",
         MateSideUnevaluated => "mate_side_unevaluated",
@@ -4644,6 +4646,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cusp",
             "meet",
             "on_carrier",
+            "rim_junction",
             "same_opposite",
             "same_oriented",
             "same_radius",
@@ -4713,6 +4716,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "iso_join",
             "plane_ladder",
             "profile_junction",
+            "rim_junction",
             "smooth_join",
             "sphere_on_torus_axis",
             "split_on",
@@ -5167,6 +5171,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "corrupt",
             "empty_contains",
             "face",
+            "no_outline",
             "null_scaffold_edge",
             "poisoned",
             "resolution_finer_than_eps",
@@ -5284,6 +5289,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_kinds_differ",
             "mate_no_chart",
             "mate_not_on_the_copy",
+            "mate_not_the_datums_own",
             "mate_overconstrained",
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
@@ -6645,6 +6651,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // loft's kept section ids.
     ("repeated", 3),
     ("revolve", 2),
+    // One fact: a coincidence row's relation and the site it was
+    // decided at name one thing, two faces joined on a rim both end on
+    // (`topo::Relation::RimJunction` at `topo::DecisionSite::RimJunction`),
+    // as `coaxial` is one fact across the coincidence and snap maps.
+    ("rim_junction", 2),
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),
@@ -10433,6 +10444,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "assemble",
     "assertion",
     "chamfer",
+    "datum",
     "extrude",
     "fillet",
     "hollow_tube",

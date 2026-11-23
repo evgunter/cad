@@ -343,7 +343,7 @@ pub fn mated(
 ) -> (Doc<ProfileProgram>, pncad::document::MateRef) {
     // A mate into another space re-targets the copy here, an explicit
     // fixture move, never the gesture's.
-    let doc = retargeted(doc, placement, doc.operand_space(&mate.to), tol);
+    let doc = retargeted(doc, placement, doc.operand_space(&mate.to.read), tol);
     let applied = apply(
         &doc,
         &DocEdit::AddConstraint {
@@ -415,7 +415,7 @@ fn written(
     let space = constraints
         .iter()
         .find_map(|c| c.mate())
-        .and_then(|mate| doc.operand_space(&mate.to));
+        .and_then(|mate| doc.operand_space(&mate.to.read));
     let doc = retargeted(doc, placement, space, tol);
     let edits = [DocEdit::SetConstraints {
         placement,
@@ -1060,4 +1060,58 @@ fn valued(
         Constraint::of_value(ConstraintId::placeholder(i), Value { coord, by })
     }));
     bundle
+}
+
+/// **The product fault's commits** — the label and op of each act the
+/// landed run's gather refusal offers ([`crate::recourse::offers`]),
+/// read off `current`, a session's run while it is the committed
+/// document's (`DocSession::current`). Empty with no fault, and with no
+/// current run.
+pub fn product_commits(
+    current: Option<crate::session::Current<'_>>,
+) -> Vec<crate::recourse::Commit> {
+    use crate::recourse::{Failure, Offer, offers};
+    let Some(ran) = current.and_then(crate::session::Current::gather_refusal) else {
+        return Vec::new();
+    };
+    offers(Failure::Run(ran))
+        .drawn
+        .into_iter()
+        .map(|offer| match offer {
+            Offer::Commit(commit) => *commit,
+            other => panic!("a product fault offers commits alone: {other:?}"),
+        })
+        .collect()
+}
+
+/// **What each of `current`'s check findings offers**, drawn, in report
+/// order: a session's run while it is the committed document's
+/// (`DocSession::current`); `None` with no current run, or nothing
+/// checked.
+pub fn finding_offers(
+    current: Option<crate::session::Current<'_>>,
+) -> Option<Vec<Vec<crate::recourse::Offer>>> {
+    use crate::recourse::{Failure, offers};
+    let current = current?;
+    current.checks()?;
+    Some(
+        current
+            .findings()
+            .map(|ran| offers(Failure::Run(ran)).drawn)
+            .collect(),
+    )
+}
+
+/// **The commits a refused batch offers** ([`crate::recourse::offers`]),
+/// drawn, in order; a lead or words among them is the test's failure.
+pub fn refusal_commits(refusal: &crate::session::Refusal) -> Vec<crate::recourse::Commit> {
+    use crate::recourse::{Failure, Offer, offers};
+    offers(Failure::Refused(refusal))
+        .drawn
+        .into_iter()
+        .map(|offer| match offer {
+            Offer::Commit(commit) => *commit,
+            other => panic!("the refusal offers commits alone: {other:?}"),
+        })
+        .collect()
 }

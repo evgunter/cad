@@ -235,6 +235,11 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             ),
         )),
         ChartRegionError::Corrupt,
+        ChartRegionError::NoOutline(crate::NoOutline {
+            face: FaceKey::default(),
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
     ];
     v.push(ChartRegionError::ChartDivergence {
         detail: "two descriptions that do not read bit-identical — no one chart holds both",
@@ -1085,6 +1090,11 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         MassPropsError::NullScaffoldEdge {
             edge: EdgeKey::default(),
         },
+        MassPropsError::NoOutline(crate::NoOutline {
+            face,
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
         MassPropsError::ResolutionFinerThanEps {
             resolution: 1e-10,
             eps: 1e-9,
@@ -1715,42 +1725,35 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
         ));
-        // Every measure at every end, the frame's included: the
-        // renderings differ by measure, so each is budget-checked.
-        for measure in geom::ConventionMeasure::iter() {
-            for end in geom::ConventionEnd::iter() {
-                s.push((
-                    format!(
-                        "{}/{measure:?}",
-                        label("UnrepresentableSurfaceDatum", &datum)
-                    ),
-                    ValidationError::UnrepresentableSurfaceDatum {
-                        face,
-                        kind,
-                        datum,
-                        measure,
-                        end,
-                    },
-                ));
-            }
-            // Undecided: read over a box, and at a point.
-            for verdict in [diags()[1], diags()[0]] {
-                s.push((
-                    format!(
-                        "{}/{measure:?}/{:?}",
-                        label("SurfaceDatumUndecided", &datum),
-                        verdict.margin.kind()
-                    ),
-                    ValidationError::SurfaceDatumUndecided {
-                        face,
-                        kind,
-                        datum,
-                        measure,
-                        end: geom::ConventionEnd::Upper,
-                        verdict,
-                    },
-                ));
-            }
+        // Every end: the renderings differ by end, so each is
+        // budget-checked.
+        for end in geom::ConventionEnd::iter() {
+            s.push((
+                label("UnrepresentableSurfaceDatum", &datum),
+                ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind,
+                    datum,
+                    end,
+                },
+            ));
+        }
+        // Undecided: read over a box, and at a point.
+        for verdict in [diags()[1], diags()[0]] {
+            s.push((
+                format!(
+                    "{}/{:?}",
+                    label("SurfaceDatumUndecided", &datum),
+                    verdict.margin.kind()
+                ),
+                ValidationError::SurfaceDatumUndecided {
+                    face,
+                    kind,
+                    datum,
+                    end: geom::ConventionEnd::Upper,
+                    verdict,
+                },
+            ));
         }
     }
 
@@ -1762,38 +1765,34 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedCurveDatum", &datum),
             ValidationError::PoisonedCurveDatum { edge, kind, datum },
         ));
-        // Every measure at every end, the frame's included: the
-        // renderings differ by measure, so each is budget-checked.
-        for measure in geom::ConventionMeasure::iter() {
-            for end in geom::ConventionEnd::iter() {
-                s.push((
-                    format!("{}/{measure:?}", label("UnrepresentableCurveDatum", &datum)),
-                    ValidationError::UnrepresentableCurveDatum {
-                        edge,
-                        kind,
-                        datum,
-                        measure,
-                        end,
-                    },
-                ));
-            }
-            for verdict in [diags()[1], diags()[0]] {
-                s.push((
-                    format!(
-                        "{}/{measure:?}/{:?}",
-                        label("CurveDatumUndecided", &datum),
-                        verdict.margin.kind()
-                    ),
-                    ValidationError::CurveDatumUndecided {
-                        edge,
-                        kind,
-                        datum,
-                        measure,
-                        end: geom::ConventionEnd::Upper,
-                        verdict,
-                    },
-                ));
-            }
+        // Every end: the renderings differ by end, so each is
+        // budget-checked.
+        for end in geom::ConventionEnd::iter() {
+            s.push((
+                label("UnrepresentableCurveDatum", &datum),
+                ValidationError::UnrepresentableCurveDatum {
+                    edge,
+                    kind,
+                    datum,
+                    end,
+                },
+            ));
+        }
+        for verdict in [diags()[1], diags()[0]] {
+            s.push((
+                format!(
+                    "{}/{:?}",
+                    label("CurveDatumUndecided", &datum),
+                    verdict.margin.kind()
+                ),
+                ValidationError::CurveDatumUndecided {
+                    edge,
+                    kind,
+                    datum,
+                    end: geom::ConventionEnd::Upper,
+                    verdict,
+                },
+            ));
         }
     }
 

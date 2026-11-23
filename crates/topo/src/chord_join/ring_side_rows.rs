@@ -1,5 +1,5 @@
 //! **A ring vertex's containment refusal stands by its own standing**
-//! (`vertex_side`, [`PointInLoopError::refusal`]): an exhausted ray
+//! (`side_rung`, [`PointInLoopError::refusal`]): an exhausted ray
 //! schedule (in band), an edge no ray crosses (a limit) or an escalation
 //! (its margin) at the first vertex is kept, and a later vertex's `In`
 //! answers; a loop that does not walk, or a point off its plane, aborts
@@ -10,16 +10,16 @@
 use geom_brep::ladder::{Answering, Climb, climb};
 use geom_core::{Band, Indeterminate, MarginDiag};
 
-use super::{RingSide, vertex_side};
+use super::side_rung;
 use crate::entity::{EdgeKey, LoopKey};
 use crate::splitting::Uncrossable;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, UncrossableCarrier};
 
-fn side(first: PointInLoopError) -> Climb<Result<RingSide, PointInLoopError>, PointInLoopError> {
+fn side(first: PointInLoopError) -> Climb<Result<bool, PointInLoopError>, PointInLoopError> {
     climb(
         Answering::Any,
         [Err(first), Ok(LoopContainment::In)],
-        vertex_side,
+        side_rung,
     )
 }
 
@@ -50,7 +50,7 @@ fn a_ring_vertex_refusal_stands_by_its_own_standing() {
             matches!(
                 side(refused.clone()),
                 Climb::Answered {
-                    answer: Ok(RingSide::In),
+                    answer: Ok(true),
                     ..
                 }
             ),

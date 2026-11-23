@@ -265,11 +265,21 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// moves none of these counts: the copy's stated images are carried with
 /// its certificates, so none is metered again where it is placed.
 ///
-/// **The decided least-turn mint** (fork 270): a pair that is one
-/// direction exactly turns by the identity with no pole verdict, its
-/// chord being 2, and this copy's mated directions agree exactly, so
-/// `mate_chart_pole` 0/1 decides nothing. Nothing else moved; deciding
-/// the pole at the identity again puts back the row.
+/// **The decided least-turn mint** (fork 270) reads no exactness off the
+/// nominal: this copy's mated directions agree, and their identity turn
+/// decides its pole verdict and its conditioning like any other pair,
+/// `mate_chart_pole` 0/1 and `least_turn_conditioning` 0/1.
+///
+/// **An adjacent line pair's shared vertex is not read**
+/// (`profile::seg`'s `line_line`): the tab's two straight corners each
+/// lose their two `chord_side` sides, two `line_span` spans and two
+/// `contact_at_shared_vertex` coincidences, all of which the tier proved,
+/// so `chord_side` 6/12 -> 2/12, `line_span` 6/4 -> 2/4 and
+/// `contact_at_shared_vertex` 12/4 -> 8/4, in both spellings and at every
+/// ε row. What stands of the three is read elsewhere, the tab's
+/// line × arc joints among them, whose shared vertex is still read
+/// (`profile/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`).
+/// Nothing else moved.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -282,10 +292,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("carrier_on_surface_1", [126, 18]),
     ("carrier_on_surface_2", [126, 18]),
     ("carrier_pose_axes_parallel", [1, 0]),
-    ("chord_side", [6, 12]),
+    ("chord_side", [2, 12]),
     ("circle_side", [2, 2]),
-    ("contact_at_shared_vertex", [12, 4]),
-    ("mate_chart_pole", [0, 1]),
+    ("contact_at_shared_vertex", [8, 4]),
     ("pose_unit_norm", [0, 2]),
     // The extrude reads each of its 16 edges by its whole wedge, the
     // arm, the wedge and a corner's sign at 7 stations, where it read
@@ -296,10 +305,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
-    // Main's least-turn read decides the mated chart's conditioning and
-    // its pole at the identity again, one each (red at main's head too).
     ("least_turn_conditioning", [0, 1]),
-    ("line_span", [6, 4]),
+    ("line_span", [2, 4]),
+    ("mate_chart_pole", [0, 1]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 11]),
     ("pcurve_chart_cut_side", [0, 26]),
@@ -489,11 +497,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// 126/0, `pcurve_chart_radial_moving` 22/20 -> 14/12, the other
 /// `pcurve_*` rows about four in ten, `ssi_hull_sup` 28/0 -> 20/0.
 ///
-/// **The decided least-turn mint** (fork 270): a pair that is one
-/// direction exactly turns by the identity with no pole verdict, its
-/// chord being 2, and this copy's mated directions agree exactly, so
-/// `mate_chart_pole` 0/1 decides nothing. Nothing else moved; deciding
-/// the pole at the identity again puts back the row.
+/// **The decided least-turn mint** (fork 270) reads no exactness off the
+/// nominal: this copy's mated directions agree, and their identity turn
+/// decides its pole verdict and its conditioning like any other pair,
+/// `mate_chart_pole` 0/1 and `least_turn_conditioning` 0/1.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -524,7 +531,6 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),
-            // Main's least-turn read, as the d-tab's.
             ("least_turn_conditioning", [0, 1]),
             ("line_span", [2, 0]),
             ("mate_chart_pole", [0, 1]),

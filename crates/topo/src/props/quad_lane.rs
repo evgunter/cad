@@ -756,7 +756,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
-        Curve3::Line(geom::Line { dir, .. }) => (dir.norm() * Interval::point(span)).mag(),
+        Curve3::Line(geom::Line { dir, .. }) => (dir.get().norm() * Interval::point(span)).mag(),
         Curve3::Circle(_) | Curve3::Ellipse(_) => match e.carrier.conic() {
             Some(k) => (k.speed_hi() * Interval::point(span)).mag(),
             None => unreachable!("a circle or an ellipse is a conic"),
@@ -1616,7 +1616,7 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<f64, PropsError> {
     Ok(match carrier {
         Curve3::Line(geom::Line { dir, .. }) => {
-            (Interval::from_certified(dir.norm()) * Interval::from_certified(t1 - t0)).mag()
+            (Interval::from_certified(dir.get().norm()) * Interval::from_certified(t1 - t0)).mag()
         }
         // The control polygon bounds the spline's arc length
         // (the convex-hull/variation-diminishing fact).
@@ -1914,7 +1914,7 @@ mod tests {
             let line = LoopEdge::hand_built(
                 Curve3::line(
                     Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 iv(0.0),
                 iv(1.0),
@@ -1983,14 +1983,9 @@ mod tests {
         }
 
         fn line(a: Point3<Interval>, b: Point3<Interval>, tags: (u32, u32)) -> LoopEdge<Interval> {
-            LoopEdge::hand_built(
-                Curve3::line(a, b - a),
-                iv(0.0),
-                iv(1.0),
-                true,
-                tags.0,
-                tags.1,
-            )
+            // The side is its chord, its span in metres.
+            let (dir, len) = geom_core::UnitVec3::chord(b - a);
+            LoopEdge::hand_built(Curve3::line(a, dir), iv(0.0), len, true, tags.0, tags.1)
         }
 
         fn nurbs(
@@ -2337,7 +2332,7 @@ mod tests {
             for (key, _) in body.faces() {
                 let face = body.proven_face(key);
                 let surface = face.surface();
-                let loops = flat_loops(body, face.record()).unwrap();
+                let loops = flat_loops(face).unwrap();
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
@@ -2510,11 +2505,11 @@ mod tests {
                 let centre = corner_of(lane, run);
                 let face = body.proven_face(run.face);
                 let surface = face.surface();
-                let loops = face_loops(&body, face.record()).unwrap();
+                let loops = face_loops(face).unwrap();
                 let (c, _) = super::super::closed_form(
                     surface,
                     &loops,
-                    &crate::props::face_tips(&body, face.record()).unwrap(),
+                    &crate::props::face_tips(face).unwrap(),
                     face.sense(),
                     band,
                     centre,
@@ -2524,13 +2519,7 @@ mod tests {
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon
-                    + match vertex_rings(
-                        &body,
-                        surface,
-                        &flat_loops(&body, face.record()).unwrap(),
-                        lane,
-                    )
-                    .unwrap()
+                    + match vertex_rings(&body, surface, &flat_loops(face).unwrap(), lane).unwrap()
                     {
                         Some(rings) => {
                             let &geom::Surface::Plane { frame, .. } = surface else {

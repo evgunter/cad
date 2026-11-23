@@ -557,18 +557,22 @@ fn holds_until_parting(
 /// identity shortcut: an identity chart decides its pole verdict and
 /// conditioning, in step at both builds. It came 3 sooner when a chart's
 /// spin was set from its frames at `Sym`, which decides no renormalized
-/// axis. Each edge's certification asks the session box of the edge
-/// first, one `session_box_reach` per certified edge, so 78 more
-/// decisions and as many checks come before the parting (`3252 → 3330`,
-/// `7228 → 7306`) at every ε row; nothing parts or flips earlier.
+/// axis. Validation stopped reading an adjacent line pair's
+/// shared vertex (`profile::seg`'s `line_line`): the four corners, on
+/// both builds, lost 16 each of `chord_side`, `line_span` and
+/// `contact_at_shared_vertex`, so 48 fewer decisions are compared
+/// before the parting, at every ε row. The checks paired do not move.
+/// Fewer of the margins moved and re-valued: at the default ε 1994 ->
+/// 1990 (floor 1993 -> 1989), and at 1e-6 the row reads 1952 (floor 1955
+/// -> 1951). The 1e-12 row still clears its floor.
 #[test]
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        (3330, 7306),
+        (3204, 7228),
         PerRow {
-            at_1e6: 1955,
-            at_1e9: 1993,
+            at_1e6: 1951,
+            at_1e9: 1989,
             at_1e12: 1802,
         },
         &[],
@@ -584,11 +588,15 @@ fn revalue_plate_param_apart_to_its_parting() {
 /// order where `p0`'s exactly axis-aligned faces used to merge them
 /// (the owed item's `bool_pair_gap` swap). Its parting came later, as
 /// `plate_param`'s did, when the least turn lost its identity shortcut.
+/// Then validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`): its four corners, on both
+/// builds, ask 24 fewer decisions before the parting, at
+/// every ε row; the checks paired do not move.
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        (2396, 3856),
+        (2372, 3856),
         PerRow {
             at_1e6: 1414,
             at_1e9: 1462,

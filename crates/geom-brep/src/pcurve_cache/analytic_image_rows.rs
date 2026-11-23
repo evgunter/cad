@@ -954,8 +954,17 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
             |t| [p0[0] + pl[0] * t, p0[1] + pl[1] * t],
             [0.0, 0.0],
         );
+        // The line is its chord over `(0, 1)`, so the chart step it runs
+        // is a unit one: a metre on the orthonormal plane, the line's own
+        // parameter.
+        let pl1 = [0.6, 0.8];
+        let (lnet, _) = polyline_under(
+            &plane,
+            |t| [p0[0] + pl1[0] * t, p0[1] + pl1[1] * t],
+            [0.0, 0.0],
+        );
         let o = plane.eval(p0[0], p0[1]);
-        let line = Curve3::line(o, plane.eval(p0[0] + pl[0], p0[1] + pl[1]) - o);
+        let line = Curve3::Line(geom::Line::chord(o, plane.eval(p0[0] + pl1[0], p0[1] + pl1[1])).0);
         let cylinder = Surface::Cylinder {
             frame: geom::Frame::new(Point3::new(far, far, -far), n, u),
             radius: 0.5 * far,
@@ -967,7 +976,7 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
         );
         let rows = [
             (&plane, [p0, pl], &net, &polyline, "plane, polyline"),
-            (&plane, [p0, pl], &net, &line, "plane, line"),
+            (&plane, [p0, pl1], &lnet, &line, "plane, line"),
             (
                 &cylinder,
                 [[1.3, -0.2 * far], [0.0, 1e-2 * far]],

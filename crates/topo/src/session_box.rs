@@ -103,7 +103,7 @@ fn unmoved_reads<T: Decide>(
 /// **[`Reads`] of `body` where it stands under `motion`**, the body
 /// unmoved: the one fold over the data `transform::map_isometry`
 /// writes into the image. Each vertex's point goes through the motion's
-/// affine; each certified edge's stored carrier through `map_carrier`,
+/// affine; each certified edge's stored carrier through `map_carrier_stretched`,
 /// its reading over its span re-taken on the image
 /// (`EdgeCurve::carried`); its two ends through the affine; each face's
 /// carrier through `transform::surface_at`. So it reads the image's own
@@ -130,7 +130,8 @@ fn reads_at<T: Decide>(
 }
 
 /// **An edge where it stands under `iso`, as the image holds it**: its
-/// stored carrier mapped (`map_carrier`) and its reading over its span
+/// stored carrier mapped (`map_carrier_stretched`) and its reading over
+/// its span, stretched as the map stretched the carrier's parameter,
 /// re-taken on the image (`EdgeCurve::carried`), as
 /// `transform::map_isometry` writes it. On a periodic cubic the reading
 /// is a clamped view of the loop, and mapping that view instead rounds
@@ -144,8 +145,13 @@ fn placed_edge<T: Decide>(
     iso: &crate::Isometry<T>,
     curve: &geom_brep::EdgeCurve<T>,
 ) -> Result<geom_brep::EdgeCurve<T>, crate::TransformError> {
-    let carrier = crate::transform::map_carrier(iso, curve.stored_carrier())?;
-    Ok(curve.carried(carrier, curve.description().clone(), curve.authority()))
+    let (carrier, stretch) = crate::transform::map_carrier_stretched(iso, curve.stored_carrier())?;
+    Ok(curve.carried(
+        carrier,
+        stretch,
+        curve.description().clone(),
+        curve.authority(),
+    ))
 }
 
 /// **One edge's cover where it stands**: its carrier's cover over its
@@ -592,6 +598,7 @@ mod tests {
             .unwrap_or_else(|e| panic!("span {k} certifies: {e:?}"));
             let curve = span.carried(
                 carrier.clone(),
+                1.0,
                 span.description().clone(),
                 span.authority(),
             );
@@ -626,7 +633,7 @@ mod tests {
             let imaged = reach(image);
             assert_eq!(placed.to_bits(), imaged.to_bits(), "span {k}");
             let viewed = crate::transform::map_carrier(&iso, curve.carrier()).unwrap();
-            let viewed = curve.carried(viewed, curve.description().clone(), curve.authority());
+            let viewed = curve.carried(viewed, 1.0, curve.description().clone(), curve.authority());
             if reach(&viewed).to_bits() != imaged.to_bits() {
                 view_differs += 1;
             }
