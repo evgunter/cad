@@ -285,6 +285,10 @@ const INDIRECT: &[(&str, &str)] = &[
         FORWARDS,
     ),
     (
+        "carrier_resolution.rs: a_far_centred_section_stands_at_the_scale_its_form_is_stored_at: &cut",
+        CARRIER_CALL,
+    ),
+    (
         "carrier_resolution.rs: the_resolution_bounds_each_section_tables_carrier: &cut",
         CARRIER_CALL,
     ),
