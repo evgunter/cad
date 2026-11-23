@@ -2293,16 +2293,16 @@ mod tests {
                     );
                     assert!(in_unit(&told(Told::at_least))[0] >= x, "{x:e}");
                     assert!(in_unit(&told(Told::at_most))[0] <= x, "{x:e}");
-                    let wide = Interval::from_bounds(x.min(x * 1.001), x.max(x * 1.001));
+                    // An enclosure a thousandth wide, or a float where
+                    // that is narrower.
+                    let far = (x + x.abs() * 1e-3).max(x.next_up());
+                    let wide = Interval::from_bounds(x, far);
                     let ends = in_unit(
                         &Told::computed(&wide, dimension)
                             .told_in(notation)
                             .to_string(),
                     );
-                    assert!(
-                        ends[0] <= x.min(x * 1.001) && ends[1] >= x.max(x * 1.001),
-                        "{x:e}"
-                    );
+                    assert!(ends[0] <= x && ends[1] >= far, "{x:e}");
                     for y in [x.next_up(), x * 1.000_04, -x] {
                         for a in roles {
                             for b in roles {
