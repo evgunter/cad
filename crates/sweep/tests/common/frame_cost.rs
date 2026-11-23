@@ -14,12 +14,29 @@ pub fn at_the_least_band() -> bool {
     geom_core::test_support::at_the_frame_cost_band(geom_core::Tol::witness())
 }
 
-/// Whether `cause` escalated `predicate` with its margin's upper end in
-/// `(lo, hi]`.
+/// [`geom_core::test_support::escalated`].
 #[must_use]
-pub fn escalated(cause: &Indeterminate, predicate: &str, (lo, hi): (f64, f64)) -> bool {
-    let m = geom_core::test_support::upper(cause.margin);
-    cause.predicate == Some(predicate) && m > lo && m <= hi
+pub fn escalated(cause: &Indeterminate, predicate: &str, band: (f64, f64)) -> bool {
+    geom_core::test_support::escalated(cause, predicate, band)
+}
+
+/// Asserts `got`, the finish of the rod `what`, refused as the frame
+/// cost: its wall's volume escalating `props_cylinder_circle_off_axis`
+/// with its margin in `band`.
+#[track_caller]
+pub fn assert_rod_refuses_its_finish(
+    what: &str,
+    got: &Result<(), topo::NotFinished>,
+    band: (f64, f64),
+) {
+    assert!(
+        matches!(
+            got,
+            Err(findings) if volume_escalates(findings.as_slice(), "props_cylinder_circle_off_axis", band)
+        ),
+        "{what}: pinned to refuse its own finish, props_cylinder_circle_off_axis in {band:?}, at \
+         ε 1e-12: {got:?}"
+    );
 }
 
 /// Whether every finding is a face's volume escalating `predicate` with

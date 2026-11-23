@@ -621,6 +621,7 @@ pub mod conic_oracle;
 pub mod conic_quadric;
 pub mod cross;
 pub mod ellipse_torus;
+pub mod end_root;
 pub mod line_quadric;
 pub mod plane_crossing;
 pub mod pose;
