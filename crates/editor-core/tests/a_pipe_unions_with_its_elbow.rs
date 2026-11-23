@@ -17,7 +17,7 @@
 //! away from the pipe pass it and stop at the finish, where the seams'
 //! edges still carry a construction's stand-in description. The four that
 //! bend back into the pipe are no junction (their walls leave the rim on
-//! one side) and stop at the crossing layer
+//! one side) and refuse their rims at the glue door
 //! (`work/tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -56,6 +56,8 @@ enum OffCap {
 /// evaluated to.
 struct Joined {
     ev: Evaluation<f64>,
+    /// The pipe (or rod).
+    base: RecipeNodeId,
     built: RecipeNodeId,
     union: RecipeNodeId,
 }
@@ -178,7 +180,12 @@ fn join(hollow: bool, end: CapEnd, off: OffCap) -> Joined {
         "what is built off the {end:?} cap builds ({off:?}): {:?}",
         ev.node_error(built).map(|e| e.kind.to_string())
     );
-    Joined { ev, built, union }
+    Joined {
+        ev,
+        base: pipe,
+        built,
+        union,
+    }
 }
 
 /// The eight elbows that build: either cap, the axis on either side,
@@ -207,13 +214,9 @@ fn the_eight_poses() -> [(CapEnd, OffCap); 8] {
     ]
 }
 
-/// Whether the pose bends the elbow away from the pipe: a turn of −π/2
-/// off either cap.
-fn outward(off: OffCap) -> bool {
-    match off {
-        OffCap::Elbow { angle, .. } => angle < 0.0,
-        OffCap::Extrude(_) => true,
-    }
+/// Whether a pose bends away from the pipe: a turn of −π/2.
+fn bends_away(off: OffCap) -> bool {
+    matches!(off, OffCap::Elbow { angle, .. } if angle < 0.0)
 }
 
 /// The union's refusal.
@@ -228,55 +231,115 @@ fn refusal<'j>(j: &'j Joined, what: &str) -> &'j topo::BooleanError {
     }
 }
 
-/// An outward pose passes the crossing layer and stops at the finish on
-/// the seams' stand-in descriptions; an inward one stops at the crossing
-/// layer.
+/// A pose bent away passes the crossing layer and stops at the finish,
+/// on the seams' stand-in descriptions.
 #[track_caller]
-fn stops_where_its_pose_does(j: &Joined, off: OffCap, what: &str) {
+fn stops_at_the_finish(j: &Joined, what: &str) {
     let e = refusal(j, what);
-    if outward(off) {
-        let said = format!("{e:?}");
+    let said = format!("{e:?}");
+    assert!(
+        matches!(e, topo::BooleanError::ResultInvalid { .. }) && said.contains("ScaffoldAtRest"),
+        "{what}: past the crossing layer, at the finish's stand-in edges: {said}"
+    );
+}
+
+/// **The four elbows bent away from the pipe glue a junction on both
+/// rims**: every pair of walls ending on a rim, the pipe's cylinder and
+/// the elbow's torus, is the routing's π seam with the faces leaving on
+/// opposite sides and each body's own rim edge convex, and no other pair
+/// glues. The union then passes the crossing layer, where an edge of one
+/// body ending on the rim tangent to the other's wall has that end's root
+/// factored, and stops at the finish.
+#[test]
+fn an_elbow_bent_away_from_its_pipe_glues_a_junction_on_both_rims() {
+    for (end, off) in the_eight_poses()
+        .into_iter()
+        .filter(|&(_, off)| bends_away(off))
+    {
+        let what = format!("pipe, {end:?} cap, {off:?}");
+        let j = join(true, end, off);
+        glues_its_walls_a_junction(&j, 8, &what);
+        stops_at_the_finish(&j, &what);
+    }
+}
+
+/// **The four elbows bent back into the pipe refuse at the glue door,
+/// as before the junction**: the two walls leave each rim on one side, so
+/// no junction glues, and the door reads the rim as it always has, the
+/// tangency table along its turn, where the bend's relative curvature
+/// passes through zero and lands in the band. What these poses owe is
+/// TANG's (`work/tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing.md`).
+#[test]
+fn an_elbow_bent_back_into_its_pipe_refuses_its_rims_at_the_glue_door() {
+    for (end, off) in the_eight_poses()
+        .into_iter()
+        .filter(|&(_, off)| !bends_away(off))
+    {
+        let what = format!("pipe, {end:?} cap, {off:?}");
+        let j = join(true, end, off);
+        let (walls, _) = door(&j);
         assert!(
-            matches!(e, topo::BooleanError::ResultInvalid { .. })
-                && said.contains("ScaffoldAtRest"),
-            "{what}: past the crossing layer, at the finish's stand-in edges: {said}"
+            walls.iter().all(|d| matches!(
+                d,
+                topo::boolean::RimDoor::Refused(topo::BooleanErrorKind::Escalated)
+            )),
+            "{what}: each wall pair refuses in band at the table: {walls:?}"
         );
-    } else {
+        let refusal =
+            j.ev.node_error(j.union)
+                .unwrap_or_else(|| panic!("{what}: the union refuses"));
         assert!(
-            matches!(e, topo::BooleanError::CurvedPierceUnsupported { .. }),
-            "{what}: bent back into the pipe, at the crossing layer: {e:?}"
+            matches!(
+                &refusal.kind,
+                editor_core::NodeErrorKind::Boolean(topo::BooleanError::Escalated { .. })
+            ),
+            "{what}: the door's in-band refusal: {:?}",
+            refusal.kind
         );
     }
 }
 
 #[test]
-fn a_pipe_and_an_elbow_off_either_cap_stop_where_their_pose_does() {
-    for (end, off) in the_eight_poses() {
-        stops_where_its_pose_does(
-            &join(true, end, off),
-            off,
-            &format!("pipe, {end:?} cap, {off:?}"),
-        );
-    }
-}
-
-#[test]
-fn a_rod_and_its_elbow_stop_where_their_pose_does() {
-    for (end, off) in [the_eight_poses()[0], the_eight_poses()[1]] {
-        stops_where_its_pose_does(&join(false, end, off), off, &format!("rod, {off:?}"));
-    }
+fn a_rod_and_its_elbow_glue_one_junction() {
+    let (end, off) = the_eight_poses()[1];
+    assert!(bends_away(off));
+    let j = join(false, end, off);
+    glues_its_walls_a_junction(&j, 4, "rod");
+    stops_at_the_finish(&j, "rod");
 }
 
 /// The neutral points moved off the routing's stations: the axis turned
 /// two ε about the cap's normal, an outward pose.
 #[test]
-fn an_elbow_whose_neutral_points_sit_between_the_stations_passes_the_crossing_layer() {
-    let off = OffCap::Elbow {
-        axis_x: BEND,
-        heading: -FRAC_PI_2 + 2.0 * Tol::witness().eps(),
-        angle: -FRAC_PI_2,
-    };
-    stops_where_its_pose_does(&join(true, CapEnd::End, off), off, "turned 2ε");
+fn an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction() {
+    for k in [2.0, 1e3] {
+        let off = OffCap::Elbow {
+            axis_x: BEND,
+            heading: -FRAC_PI_2 + k * Tol::witness().eps(),
+            angle: -FRAC_PI_2,
+        };
+        let what = format!("turned {k}ε");
+        let j = join(true, CapEnd::End, off);
+        glues_its_walls_a_junction(&j, 8, &what);
+        stops_at_the_finish(&j, &what);
+    }
+}
+
+/// The door's row for a pose bent away: `walls` pairs of a cylinder and a
+/// torus sharing a rim, each glued a junction, and no other pair glued.
+#[track_caller]
+fn glues_its_walls_a_junction(j: &Joined, walls: usize, what: &str) {
+    use topo::boolean::RimDoor;
+    let (w, rest) = door(j);
+    assert_eq!(w.len(), walls, "{what}: the wall pairs on the rims");
+    assert!(
+        w.iter().all(|d| *d == RimDoor::Junction),
+        "{what}: every wall pair a junction: {w:?}"
+    );
+    assert!(
+        rest.iter().all(|d| *d == RimDoor::NotTangent),
+        "{what}: every other pair meets at a corner: {rest:?}"
+    );
 }
 
 /// The extrude's walls continue the pipe's on one carrier, and each wall
@@ -301,6 +364,32 @@ fn a_pipe_unions_with_an_extrude_off_its_own_cap() {
         "volume {} against the closed form {want}",
         built.volume
     );
+}
+
+/// **What the glue door returns for each pair of the two bodies' faces
+/// that share a rim** (`topo::boolean::rim_door`), the walls' pairs
+/// apart from the rest: the pairs whose kinds are a cylinder and a
+/// torus, and every other.
+fn door(j: &Joined) -> (Vec<topo::boolean::RimDoor>, Vec<topo::boolean::RimDoor>) {
+    let at_rest = |node| {
+        topo::test_support::finished(
+            "an operand",
+            crate::corpus::body_of(&j.ev, node).clone(),
+            Tol::witness(),
+        )
+    };
+    let walls = |(ka, kb): (geom::SurfaceKind, geom::SurfaceKind)| {
+        matches!(
+            (ka, kb),
+            (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Torus)
+        )
+    };
+    let rows = topo::boolean::rim_door(&at_rest(j.base), &at_rest(j.built), Tol::witness());
+    let (w, rest): (Vec<_>, Vec<_>) = rows.into_iter().partition(|(kinds, _)| walls(*kinds));
+    (
+        w.into_iter().map(|(_, d)| d).collect(),
+        rest.into_iter().map(|(_, d)| d).collect(),
+    )
 }
 
 /// What a union that builds came to.

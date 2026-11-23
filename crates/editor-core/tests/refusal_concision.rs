@@ -677,29 +677,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "RimJunctionUnsettled (mixed)",
-            BooleanError::RimJunctionUnsettled {
-                pair: [
-                    (Operand::A, topo::FaceKey::default()),
-                    (Operand::B, topo::FaceKey::default()),
-                ],
-                junction: topo::RimJunction::Mixed(geom_brep::MixedStations::Class {
-                    transverse: 2,
-                    smooth: 3,
-                }),
-            },
-        ),
-        (
-            "RimJunctionUnsettled (lamina)",
-            BooleanError::RimJunctionUnsettled {
-                pair: [
-                    (Operand::A, topo::FaceKey::default()),
-                    (Operand::B, topo::FaceKey::default()),
-                ],
-                junction: topo::RimJunction::Lamina,
-            },
-        ),
-        (
             "HeldPierceUnbuilt",
             BooleanError::HeldPierceUnbuilt {
                 operand: Operand::A,
