@@ -348,12 +348,13 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// point the conic stores: its centre, or the anchor of an ellipse held
     /// on its arc, which lies in the plane as stored. Read at `p`'s own
     /// distance from that point, so a point beside the anchor reads at
-    /// the arc's scale however far the centre lies; a point formed far
-    /// from it carries its coordinates' rounding, and the dot rounds at
-    /// `u·|p − x|`. The plane is the one normal to the stored axis: the
-    /// frame is taken as square ("A unit frame, by its type").
+    /// the arc's scale however far the centre lies; the offset is posed
+    /// so its digits are its own ([`crate::plane_offset`]), and a point
+    /// formed far from it carries only its own coordinates' rounding. The
+    /// plane is the one normal to the stored axis: the frame is taken as
+    /// square ("A unit frame, by its type").
     fn height_of(&self, p: Point3<T>) -> T {
-        (p - self.frame().origin()).dot(self.axis())
+        crate::frame::plane_offset(self.frame().origin(), self.axis(), p)
     }
 
     /// **The conic's level at the foreign point `p`** (the frame taken as
@@ -900,7 +901,7 @@ impl<T: Real> Conic<T> for Circle<T> {
     fn height_along(&self, o: Point3<T>, n: Vec3<T>) -> Height<T> {
         let (p, q) = self.along(n);
         Height {
-            at: (self.at.origin() - o).dot(n),
+            at: crate::frame::plane_offset(o, n, self.at.origin()),
             p,
             q,
             held: Held::Centre,
@@ -1517,7 +1518,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     fn height_along(&self, o: Point3<T>, n: Vec3<T>) -> Height<T> {
         let (p, q) = self.along(n);
         Height {
-            at: (self.at.origin() - o).dot(n),
+            at: crate::frame::plane_offset(o, n, self.at.origin()),
             p,
             q,
             held: self.held,
@@ -1525,7 +1526,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn height_of(&self, p: Point3<T>) -> T {
-        (p - self.at.origin()).dot(self.at.axis())
+        crate::frame::plane_offset(self.at.origin(), self.at.axis(), p)
     }
 
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
