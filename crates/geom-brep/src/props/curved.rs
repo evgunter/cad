@@ -262,8 +262,7 @@ pub fn boundary_material_sign_holding<T: Decide>(
             sheet_material_sign(
                 center,
                 axis,
-                major_radius,
-                minor_radius,
+                (major_radius, minor_radius),
                 crate::uniform_curvature_arm(surface),
                 loops,
                 held,
@@ -5789,7 +5788,16 @@ fn torus_chart<T: Decide>(
         if let Tube::Sheet(side) = tube {
             sheet_apex_jumps(center, axis, major, minor, &mut pieces, side, band)?;
             if let (Some(dir), true) = (first_rim_dir, pieces.iter().all(|p| p.rising.is_none())) {
-                sheet_tip_closure(center, axis, (major, minor), &mut pieces, dir, side, held, band)?;
+                sheet_tip_closure(
+                    center,
+                    axis,
+                    (major, minor),
+                    &mut pieces,
+                    dir,
+                    side,
+                    held,
+                    band,
+                )?;
             }
         }
         chart_loops.push(torus_chart_loop(
@@ -5942,12 +5950,13 @@ fn sheet_tip_closure<T: Decide>(
     };
     let mut own = false;
     for &h in held {
-        own |= crate::chart_singularity::vertex_at_singular_point(h, tip, band).map_err(
-            |cause| PropsError::Escalated {
-                cause,
-                check: PropsCheck::Inventory,
-            },
-        )?;
+        own |=
+            crate::chart_singularity::vertex_at_singular_point(h, tip, band).map_err(|cause| {
+                PropsError::Escalated {
+                    cause,
+                    check: PropsCheck::Inventory,
+                }
+            })?;
     }
     if !own {
         return Err(PropsError::LoopsWindChart);
@@ -6139,7 +6148,9 @@ fn torus_face<T: Decide>(
     held: &[Point3<T>],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let chart = torus_chart(center, axis, major, minor, tube_arm, loops, tube, held, band)?;
+    let chart = torus_chart(
+        center, axis, major, minor, tube_arm, loops, tube, held, band,
+    )?;
     let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
     for edges in loops {
         va = va + loop_vector_area(edges, center)?;
@@ -6197,8 +6208,7 @@ fn torus_material_sign<T: Decide>(
 fn sheet_material_sign<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
-    major: T,
-    minor: T,
+    (major, minor): (T, T),
     tube_arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     held: &[Point3<T>],
