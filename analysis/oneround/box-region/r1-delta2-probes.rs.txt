@@ -1,0 +1,115 @@
+//! Reviewer r1's second delta-read probes for PR 7225 at `2e9fa0b6`.
+//! Print only.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout)]
+
+use core::f64::consts::PI;
+use geom_core::{Band, Point2, RigidMotion, Tol, UnitVec3, Vec3};
+use sweep::Revolution;
+use sweep::test_support::revolved_about_y;
+
+fn unit(v: Vec3<f64>, tol: Tol) -> UnitVec3<f64> {
+    UnitVec3::new(v, "probe axis", Band::linear(tol).unwrap()).unwrap()
+}
+
+fn class(errors: &[topo::ValidationError]) -> String {
+    match errors {
+        [topo::ValidationError::OutsideSessionBox { margin }] => format!("Outside({})", margin.readable_below_zero()),
+        [topo::ValidationError::SessionBoxUnshown { margin }] => format!("Unshown({})", margin.readable_below_zero()),
+        other => format!("Other[{}]({})", other.len(), other.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ").chars().take(300).collect::<String>()),
+    }
+}
+fn gate(body: &topo::Body<f64>, tol: Tol) -> String {
+    match topo::validate_geometric(body, tol) { Ok(_) => "Ok".into(), Err(e) => class(&e) }
+}
+fn door(home: &topo::Body<f64>, at: &RigidMotion<f64>, tol: Tol) -> String {
+    match topo::session_box_at(home, at, tol) {
+        Ok(()) => "Ok".into(),
+        Err(topo::MoveError::NotFinished(found)) => class(found.as_slice()),
+        Err(other) => format!("Map({other:?})"),
+    }
+}
+
+/// Which edge kinds bound which ruled faces, per body a door builds.
+fn kinds(what: &str, body: &topo::Body<f64>) {
+    let mut seen = std::collections::BTreeSet::new();
+    for (e, _) in body.edges() {
+        let ek = topo::readback::edge_carrier_kind(body, e).map(|k| format!("{k:?}")).unwrap_or_else(|x| format!("err {x:?}"));
+        if let Ok(s) = topo::readback::edge_sides(body, e) {
+            for f in [s.plus.face, s.minus.face] {
+                let fk = topo::readback::face_carrier_kind(body, f).map(|k| format!("{k:?}")).unwrap_or_default();
+                seen.insert(format!("{fk} <- {ek}"));
+            }
+        }
+    }
+    println!("R1D2 KINDS {what}: {seen:?}");
+}
+
+fn rod_y(r: f64, h: f64, tol: Tol) -> topo::Body<f64> {
+    revolved_about_y(
+        vec![(Point2::new(0.0, -h), 0.0), (Point2::new(r, -h), 0.0), (Point2::new(r, h), 0.0), (Point2::new(0.0, h), 0.0)],
+        Revolution::Full,
+        tol,
+    )
+}
+
+/// G1: the doors' edge kinds on ruled faces; then the class at the wall.
+#[test]
+fn r1d2_edge_kinds_on_ruled_faces() {
+    let tol = Tol::witness();
+    let a = sweep::test_support::finished("rod y", rod_y(1.0, 3.0, tol), tol);
+    let turn = RigidMotion::rotation(unit(Vec3::new(0.0, 0.0, 1.0), tol), PI / 2.0).unwrap();
+    let b = topo::transform_rigid(&rod_y(0.8, 3.0, tol), &turn).unwrap();
+    let b = sweep::test_support::finished("rod x", b, tol);
+    for (op, got) in [("union", topo::union(&a, &b, tol)), ("subtract", topo::subtract(&a, &b, tol)), ("intersect", topo::intersect(&a, &b, tol))] {
+        match got {
+            Ok(r) => match r.body() {
+                Some(body) => {
+                    let body = body.body.clone();
+                    kinds(&format!("crossed rods {op}"), &body);
+                    for t in [997.0, 998.5] {
+                        let at = RigidMotion::translation(Vec3::new(t, 0.0, 0.0)).unwrap();
+                        let image = topo::transform_rigid(&body, &at).unwrap();
+                        println!("R1D2 crossed rods {op} +x {t}: gate {} door {}", gate(&image, tol), door(&body, &at, tol));
+                    }
+                }
+                None => println!("R1D2 crossed rods {op}: no body"),
+            },
+            Err(e) => println!("R1D2 crossed rods {op} refused: {}", e.to_string().chars().take(200).collect::<String>()),
+        }
+    }
+    kinds("loft prism", &sweep::test_support::loft_prism(tol));
+    kinds("lofted cylinder", &sweep::test_support::lofted_cylinder(1.0, tol));
+    let ball = sweep::test_support::ball_poled_z(1.5, Vec3::new(0.0, 0.0, 0.0), tol);
+    let brick = sweep::test_support::finished("brick", sweep::test_support::brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 3.0), tol), tol);
+    if let Ok(r) = topo::intersect(&sweep::test_support::finished("ball", ball, tol), &brick, tol) {
+        if let Some(b) = r.body() { kinds("ball ∩ brick", &b.body.clone()); }
+    }
+}
+
+
+/// G1 sphere line: a boolean's cut of a ball (r = 1.5) by a brick
+/// `[-1, 1]² × [0, 3]`, moved so the ball's absent part would cross the
+/// box's `+x` face while the cut stays inside.
+#[test]
+fn r1d2_a_cut_ball_at_the_wall() {
+    let tol = Tol::witness();
+    let ball = sweep::test_support::finished("ball", sweep::test_support::ball_poled_z(1.5, Vec3::new(0.0, 0.0, 0.0), tol), tol);
+    let brick = sweep::test_support::finished("brick", sweep::test_support::brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 3.0), tol), tol);
+    for (op, got) in [("intersect", topo::intersect(&ball, &brick, tol)), ("subtract", topo::subtract(&ball, &brick, tol))] {
+        let Ok(r) = got else { println!("R1D2 cut ball {op} refused"); continue; };
+        let Some(b) = r.body() else { continue; };
+        let body = b.body.clone();
+        let band = Band::linear(tol).unwrap();
+        for (f, _) in body.faces() {
+            let kind = topo::readback::face_carrier_kind(&body, f).map(|k| format!("{k:?}")).unwrap_or_default();
+            let cov = topo::face_cover(&body, f, band).map(|c| { let (lo, hi) = c.box_in(&geom::cover::BoxAxes::World); (lo.x, hi.x, lo.z, hi.z) });
+            let loops = 0;
+            println!("R1D2 cut ball {op} face {kind} loops {loops}: x/z {cov:?}");
+        }
+        for t in [998.7, 998.9] {
+            let at = RigidMotion::translation(Vec3::new(t, 0.0, 0.0)).unwrap();
+            let image = topo::transform_rigid(&body, &at).unwrap();
+            println!("R1D2 cut ball {op} +x {t}: gate {} door {}", gate(&image, tol), door(&body, &at, tol));
+        }
+    }
+}

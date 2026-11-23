@@ -1,0 +1,41 @@
+
+/// Reviewer r1 (second delta read) probe, appended and reverted: the
+/// box's sentences on hand-broken bodies.
+#[test]
+fn r1d2_probe_uncovered_sentences() {
+    let tol = Tol::witness();
+    let show = |what: &str, body: &Body<f64>| {
+        let e = crate::validate::validate_geometric(body, tol).err().unwrap_or_default();
+        println!("R1D2 {what}: [{}] {:?}", e.len(), e.iter().map(|x| x.to_string()).collect::<Vec<_>>());
+    };
+    let (cap, _) = crate::test_support_fixtures::sphere_cap(0.5, tol);
+    let set = |b: &mut Body<f64>, f: &dyn Fn(&mut Surface<f64>)| {
+        for k in b.faces().map(|(fk, _)| b.get_face(fk).unwrap().surface).collect::<Vec<_>>() {
+            f(b.surfaces.get_mut(k).unwrap());
+        }
+    };
+    let mut c = cap.clone();
+    set(&mut c, &|s| if let Surface::Sphere { radius, .. } = s { *radius = f64::INFINITY });
+    show("cap, infinite radius", &c);
+    let mut c = cap.clone();
+    set(&mut c, &|s| if let Surface::Sphere { frame, .. } = s {
+        *frame = geom::Frame::new(geom_core::Point3::new(f64::NAN, 0.0, 0.0), frame.axis(), frame.u_ref());
+    });
+    show("cap, NaN centre", &c);
+    let mut c = cap.clone();
+    set(&mut c, &|s| if let Surface::Sphere { radius, .. } = s { *radius = -0.5 });
+    show("cap, negative radius", &c);
+    let mut b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let pts: Vec<_> = b.vertices().map(|(_, d)| d.point).take(2).collect();
+    for p in pts { *b.points.get_mut(p).unwrap() = geom_core::Point3::new(f64::NAN, 0.0, 0.0); }
+    show("brick, two NaN corners", &b);
+    let mut b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let p = b.vertices().map(|(_, d)| d.point).next().unwrap();
+    *b.points.get_mut(p).unwrap() = geom_core::Point3::new(f64::INFINITY, 0.0, 0.0);
+    show("brick, one infinite corner", &b);
+    let mut b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    set(&mut b, &|s| if let Surface::Plane { frame } = s {
+        *frame = geom::Frame::new(frame.origin(), geom_core::Vec3::new(f64::NAN, 0.0, 0.0), frame.u_ref());
+    });
+    show("brick, NaN plane normals", &b);
+}
