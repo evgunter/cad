@@ -219,7 +219,7 @@ impl Channel {
         match self {
             Self::Axis(frame) => frame.azimuth(p),
             Self::Core(circle) => {
-                let frame = circle.frame;
+                let frame = circle.frame();
                 let (_, rho) = super::square_part(p - frame.origin(), frame.axis());
                 geom::Azimuth::tube(frame.height(p), rho, circle.radius())
             }
@@ -241,7 +241,7 @@ impl Channel {
                 clears(x) || clears(y)
             }
             Self::Core(circle) => {
-                let (h, rho) = over_core(&circle.frame, b);
+                let (h, rho) = over_core(&circle.frame(), b);
                 clears(rho - lift(circle.radius())) || clears(h)
             }
         }

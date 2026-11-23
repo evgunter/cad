@@ -727,7 +727,7 @@ fn the_overrun_carves_at_the_certified_scalar() {
                 &out,
                 Err(e) if matches!(
                     &e.error,
-                    sweep::blend::BlendError::Certify { site: "pcurve re-mint after surgery", source }
+                    sweep::blend::BlendError::PcurveMint { source }
                         if crate::common::frame_cost::pcurve_escalates(
                             source,
                             "pcurve_envelope",

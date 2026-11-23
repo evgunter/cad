@@ -237,13 +237,10 @@ fn cone_cylinder_reads_one_verdict_at_every_stored_origin() {
         match cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()) {
             Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
                 for (c, want) in [(c1, station), (c2, -station)] {
-                    let geom::Curve3::Circle(geom::Circle {
-                        frame: carrier_frame,
-                        ..
-                    }) = c
-                    else {
+                    let geom::Curve3::Circle(the_circle @ geom::Circle { .. }) = c else {
                         panic!("stored {along} m along: a circle");
                     };
+                    let carrier_frame = the_circle.frame();
                     let center = carrier_frame.origin();
                     assert!(
                         (center - Point3::new(want, 0.0, 0.0)).norm() < 1e-12,
