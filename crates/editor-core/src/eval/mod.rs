@@ -3740,7 +3740,7 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         self.lo() == 0.0 && self.hi() == 0.0
     }
 
-    /// The point enclosure `[0, 0]`, as [`Self::exactly_zero`]: an
+    /// The point enclosure `[0, 0]`, as `exactly_zero` reads it: an
     /// enclosure's midpoint rounds to zero for `[−5e−324, 0]`, which is no
     /// zero everywhere it stands for.
     fn zero_everywhere(self) -> bool {

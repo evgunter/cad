@@ -231,6 +231,8 @@ pub mod replace_face;
 pub(crate) mod revalue_pin;
 pub mod revert;
 #[cfg(test)]
+mod review_7474_probes;
+#[cfg(test)]
 mod review_d18;
 #[cfg(test)]
 mod review_d18_probes;
@@ -1542,7 +1544,7 @@ pub use entity::{
 };
 pub use euler::{BadArgument, EdgeSubject, EulerOpError, RechartDoor};
 pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
-pub use live::{EdgeView, FaceView};
+pub use live::{AreaLoops, CycleLoop, EdgeView, FaceView, LoneRing, NoCycle, NoOutline};
 pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
