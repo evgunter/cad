@@ -440,10 +440,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     ] {
         let deg = (apart / R).to_degrees();
         let hemi = turned(&hemisphere, deg);
-        for (order, x, y, tube_is) in [
-            ("tube ∪ cap", &tube, &hemi, topo::Operand::A),
-            ("cap ∪ tube", &hemi, &tube, topo::Operand::B),
-        ] {
+        for (order, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
             let label = format!("turned {deg}°, {order}");
             let r = topo::union(x, y, tol);
             match expect {
