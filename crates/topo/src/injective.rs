@@ -3675,12 +3675,6 @@ impl Harmonic {
     fn rate(&self, axis: Axis, t: Interval) -> Interval {
         channel_rate(self.channel(axis), t)
     }
-
-    /// The chart point at `t`, or the image over the parameters `t`,
-    /// enclosed, `[u, v]`.
-    pub(crate) fn at(&self, t: Interval) -> [Interval; 2] {
-        [self.on(Axis::U, t), self.on(Axis::V, t)]
-    }
 }
 
 impl Focal {
@@ -12995,7 +12989,7 @@ mod presentation_rows {
             along.lo().abs() < 1e-12 && along.hi().abs() < 1e-12,
             "on the zero set: {along:?}"
         );
-        let [u, v] = h.at(t);
+        let [u, v] = ChartCurve::Harmonic(h).at(t);
         let boxed = psi.value(cyl.eval(u, v)).expect("a closed form");
         assert!(boxed.hi() - boxed.lo() > 0.1, "the box read: {boxed:?}");
     }
