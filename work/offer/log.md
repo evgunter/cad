@@ -296,3 +296,7 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The unit is closed**, and the residue is in `viewer-pane-lines-spell-their-nodes-as-text` (P2).
   - **#7562 R1 is in:** APPROVE-WITH-FIXES, no MAJOR. The `Quieting` type allows hand-building; the tolerance words flicker; the NodeErrorClass census is missing; two offer shapes are uninventoried; the same-batch race is caught by the door. R2 is pending.
   - #7562's fix pass ports #7557. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 13:07Z — **The next cut begins.** Only P2/P3 rows remain besides the offers function, which is in dual review.
+  - **Dispatched now on Opus:** `some-spoken-causes-and-reports-are-still-text` (kernel side, so it is clear of the offers PR's viewer sites): session_013QoYWXqCH3gHdpWprRxMis, branch `offer/spoken-causes-are-sentences`.
+  - **After offers merges:** `viewer-pane-lines-spell-their-nodes-as-text` and `the-wheels-modifier-decisions-are-outside-the-binding-table`.
+  - **Held:** the four +design P2 rows (stranded-name rebind, expected component count, the tolerance door, the member-budget door). The design-fork protocol needs a Fable designer, and Fable is out until Nov 28 15:00 UTC. (OFFER orchestrator)
