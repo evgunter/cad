@@ -3323,6 +3323,22 @@ pub(crate) const SESSION_BOX: &str =
 /// says the cause's class ([`crate::cover::FaceUncovered`]), and the
 /// face's surface and boundary say which of the body's data it is, so
 /// the refusal's sentence is true of the face it names.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match it, since `pncad` re-exports `topo`
+/// whole. A prelude entry would add the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` for a new
+/// payload and a Python word for each cause; both are the façade crate's
+/// to write. Today a Python caller gets the finding's variant
+/// (`session_box_uncovered`) and its sentence, which names the cause in
+/// words.
+///
+/// **The falsifier is a Python caller who must tell a face with no
+/// surface yet from a corrupt one** without reading the sentence. When
+/// the façade carries the cause, delete this paragraph and the
+/// disposition row with it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UncoveredCause {
     /// The face's spline surface is the placeholder a construction starts
