@@ -6877,3 +6877,44 @@ fn a_needle_and_a_near_flat_cone_cut_read_as_any_cone() {
         }
     }
 }
+
+/// Reviewer probe (embed/cone-image review): blocks through the wall wholly
+/// inside the crescent below the level of the arc's ends, beside the arc's
+/// interior slant extreme, which an extent drawn from the arc's end values
+/// alone would leave unasked. Never `Embedded`, at either scalar.
+#[test]
+fn review_a_block_in_the_crescent_below_the_arcs_ends_is_never_embedded() {
+    use topo::clearance::Embedding;
+    fn with_block<T: Scalar>(cut: Cut, at: Point3<f64>, side: f64) -> Body<T> {
+        let mut body = cone_cut::<T>(OFF_GRID, cut, true).into_body();
+        let h = side / 2.0;
+        let s = |c: f64| (c - h, c + h);
+        let block = sweep::test_support::brick::<T>(s(at.x), s(at.y), s(at.z), tol());
+        topo::graft_disjoint_all_keyed(&mut body, &block).expect("the block grafts");
+        body
+    }
+    let tilted = (0.43, 0.3, 0.7);
+    let beside = |theta: f64, up: f64| {
+        let (r0, r1, h) = OFF_GRID;
+        let y = on_section(OFF_GRID, tilted, theta).y + up;
+        let r = r0 + (r1 - r0) / h * y;
+        Point3::new(r * theta.cos(), y, r * theta.sin())
+    };
+    let ends = on_section(OFF_GRID, tilted, 0.0).y.min(on_section(OFF_GRID, tilted, core::f64::consts::PI).y);
+    let low = on_section(OFF_GRID, tilted, 0.7).y;
+    println!("[review] section y at the lowest point {low}, at the nearer end {ends}");
+    let mut bad = Vec::new();
+    for (theta, up, side) in [(0.7, 0.02, 0.02), (0.7, 0.015, 0.012), (0.9, 0.02, 0.02), (0.5, 0.012, 0.01)] {
+        let c = beside(theta, up);
+        assert!(c.y + side / 2.0 < ends, "the block is below the ends' level: {} vs {ends}", c.y + side / 2.0);
+        let f = door(&with_block::<f64>(tilted, c, side), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+        let i = door(&with_block::<Interval>(tilted, c, side), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+        println!("[review] block theta {theta} up {up} side {side}: f64 {f:?} | Interval {i:?}");
+        for v in [&f, &i] {
+            if matches!(v, Embedding::Embedded) {
+                bad.push(format!("theta {theta} up {up} side {side}: {v:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}

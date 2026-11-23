@@ -21203,3 +21203,158 @@ mod focal_rows {
         assert!(reads_curve(&cone(), &rim));
     }
 }
+
+/// Reviewer probes (embed/cone-image review): the focal enclosure attacked
+/// member by member at random brackets, pieces and turns.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod focal_review_probes {
+    use super::*;
+    use geom_brep::{FocalImage, Pcurve};
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn f(&mut self) -> f64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            #[allow(clippy::cast_precision_loss)]
+            let x = (self.0 >> 11) as f64 / (1u64 << 53) as f64;
+            x
+        }
+        fn r(&mut self, lo: f64, hi: f64) -> f64 {
+            lo + (hi - lo) * self.f()
+        }
+    }
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+    fn pt(m: &FocalImage<f64>) -> FocalImage<Interval> {
+        FocalImage {
+            u0: iv0(m.u0), t0: iv0(m.t0), v0: iv0(m.v0), va: iv0(m.va), vb: iv0(m.vb),
+            vl: iv0(m.vl), beta: iv0(m.beta), sense: iv0(m.sense),
+        }
+    }
+
+    /// Definite misses: a member's own interval evaluation disjoint from the
+    /// enclosure (so the true value is outside it).
+    #[test]
+    fn review_focal_enclosure_random_members() {
+        let mut g = Lcg(0x5eed_1b94_ad);
+        let (mut asked, mut definite, mut partial, mut rate_miss, mut unbounded) = (0u64, 0u64, 0u64, 0u64, 0u64);
+        let mut first: Vec<String> = Vec::new();
+        for case in 0..4000 {
+            let bmax = match case % 4 { 0 => 0.3, 1 => 0.9, 2 => 0.999, _ => 1.0 - 1e-9 };
+            let beta = g.r(-bmax, bmax);
+            let wb = [0.0, 1e-12, 1e-6, 1e-3, 0.05][case % 5].min((1.0 - beta.abs()) * 0.5);
+            let wu = [0.0, 1e-9, 1e-3, 0.5, 3.0][(case / 5) % 5];
+            let wt = [0.0, 1e-9, 1e-3, 0.3][(case / 25) % 4];
+            let sense = if g.f() < 0.5 { 1.0 } else { -1.0 };
+            let c = FocalImage {
+                u0: g.r(-20.0, 20.0), t0: g.r(-10.0, 10.0), v0: g.r(0.5, 3.0), va: g.r(-1.0, 1.0),
+                vb: g.r(-1.0, 1.0), vl: 0.0, beta, sense,
+            };
+            let x = |v: f64, w: f64| Interval::from_bounds(v - w, v + w);
+            let lifted = FocalImage {
+                u0: x(c.u0, wu), t0: x(c.t0, wt), v0: x(c.v0, wu * 0.1), va: x(c.va, 0.0), vb: x(c.vb, 0.0),
+                vl: iv0(0.0), beta: x(c.beta, wb), sense: iv0(sense),
+            };
+            let Some(f) = Focal::of(&lifted) else { continue };
+            let lo = g.r(-60.0, 60.0);
+            let width = [1e-12, 1e-6, 1e-3, 0.5, 3.0, TURN, 7.0, 40.0][case % 8];
+            let t = Interval::from_bounds(lo, lo + width);
+            let (u, v) = (f.on(Axis::U, t), f.on(Axis::V, t));
+            let ru = f.rate(Axis::U, t);
+            if !u.is_certified() || !ru.is_certified() { unbounded += 1; continue; }
+            for sb in [-1.0, 0.0, 1.0] { for su in [-1.0, 1.0] { for st in [-1.0, 1.0] {
+                let m = FocalImage { beta: c.beta + sb * wb, u0: c.u0 + su * wu, t0: c.t0 + st * wt, ..c };
+                for k in 0..=16 {
+                    let s = (lo + width * f64::from(k) / 16.0).min(lo + width);
+                    asked += 1;
+                    let e = Pcurve::FocalSection(pt(&m)).eval(iv0(s));
+                    if e.x.hi() < u.lo() || e.x.lo() > u.hi() || e.y.hi() < v.lo() - 1e-3 || e.y.lo() > v.hi() + 1e-3 {
+                        definite += 1;
+                        if first.len() < 5 { first.push(format!("case {case} m={m:?} s={s} eval={e:?} u={u:?} v={v:?}")); }
+                    } else if e.x.lo() < u.lo() || e.x.hi() > u.hi() {
+                        partial += 1;
+                    }
+                    // the member's derivative, exact formula at the point
+                    let ee = iv0(s) - iv0(m.t0);
+                    let cc = ee.sin_cos().1;
+                    let b = iv0(m.beta);
+                    let d = (iv0(1.0) - b.powi(2)) / (iv0(1.0) + b.powi(2) - b * cc * iv0(2.0)) * iv0(sense);
+                    if d.hi() < ru.lo() || d.lo() > ru.hi() {
+                        rate_miss += 1;
+                        if first.len() < 8 { first.push(format!("RATE case {case} s={s} d={d:?} ru={ru:?}")); }
+                    }
+                }
+            }}}
+        }
+        println!("[review] asked {asked} definite {definite} partial {partial} rate_miss {rate_miss} unbounded {unbounded}");
+        assert!(definite == 0 && rate_miss == 0, "{first:#?}");
+    }
+
+    /// The extent (`ChartCurve::at` over a whole span) against members on a
+    /// fine grid, including spans of several turns.
+    #[test]
+    fn review_focal_extent_over_arcs() {
+        let mut g = Lcg(42);
+        let mut bad = Vec::new();
+        for case in 0..2000 {
+            let beta = g.r(-0.95, 0.95);
+            let sense = if case % 2 == 0 { 1.0 } else { -1.0 };
+            let c = FocalImage { u0: g.r(-7.0, 7.0), t0: g.r(-4.0, 4.0), v0: g.r(0.5, 3.0),
+                va: g.r(-1.0, 1.0), vb: g.r(-1.0, 1.0), vl: 0.0, beta, sense };
+            let f = Focal::of(&pt(&c)).unwrap();
+            let lo = g.r(-10.0, 10.0);
+            let w = g.r(0.0, 15.0);
+            let [u, v] = ChartCurve::Focal(f).at(Interval::from_bounds(lo, lo + w));
+            for k in 0..=400 {
+                let s = (lo + w * f64::from(k) / 400.0).min(lo + w);
+                let e = Pcurve::FocalSection(pt(&c)).eval(iv0(s));
+                if e.x.hi() < u.lo() || e.x.lo() > u.hi() || e.y.hi() < v.lo() || e.y.lo() > v.hi() {
+                    bad.push(format!("{case} s={s} {e:?} {u:?} {v:?}"));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{:#?}", &bad[..bad.len().min(5)]);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod focal_review_isolate {
+    use super::*;
+    use geom_brep::{FocalImage, Pcurve};
+    #[test]
+    fn review_isolate_case() {
+        // replay the LCG to case 383 and 770
+        let mut st: u64 = 42;
+        let mut f = || { st = st.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            #[allow(clippy::cast_precision_loss)] let x = (st >> 11) as f64 / (1u64 << 53) as f64; x };
+        for case in 0..2000 {
+            let r = |lo: f64, hi: f64, x: f64| lo + (hi - lo) * x;
+            let beta = r(-0.95, 0.95, f());
+            let sense = if case % 2 == 0 { 1.0 } else { -1.0 };
+            let (a, b, c2, d, e) = (f(), f(), f(), f(), f());
+            let c = FocalImage { u0: r(-7.0, 7.0, a), t0: r(-4.0, 4.0, b), v0: r(0.5, 3.0, c2),
+                va: r(-1.0, 1.0, d), vb: r(-1.0, 1.0, e), vl: 0.0, beta, sense };
+            let lo = r(-10.0, 10.0, f());
+            let w = r(0.0, 15.0, f());
+            if case != 383 && case != 770 { continue; }
+            let p = |x: f64| Interval::from_bounds(x, x);
+            let img = FocalImage { u0: p(c.u0), t0: p(c.t0), v0: p(c.v0), va: p(c.va), vb: p(c.vb), vl: p(0.0), beta: p(c.beta), sense: p(sense) };
+            let fo = Focal::of(&img).unwrap();
+            let t = Interval::from_bounds(lo, lo + w);
+            println!("case {case} c={c:?} t=[{}, {}]", t.lo(), t.hi());
+            println!("  az(lo)={:?}\n  az(hi)={:?}", fo.azimuth_at(t.lo()), fo.azimuth_at(t.hi()));
+            println!("  on={:?}", fo.on(Axis::U, t));
+            for k in [0u32, 1, 399, 400] {
+                let s = lo + w * f64::from(k) / 400.0;
+                println!("  k={k} s={s} eval={:?} f64eval={:?}", Pcurve::FocalSection(img).eval(p(s)).x, Pcurve::FocalSection(c).eval(s).x);
+            }
+            // scan for where the eval leaves
+            let u = fo.on(Axis::U, t);
+            for k in 0..=400u32 { let s = lo + w * f64::from(k) / 400.0; let x = Pcurve::FocalSection(img).eval(p(s)).x;
+                if x.hi() < u.lo() || x.lo() > u.hi() { println!("  OUT k={k} s={s} x={x:?}"); } }
+        }
+    }
+}
