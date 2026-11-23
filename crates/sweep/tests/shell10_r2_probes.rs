@@ -369,7 +369,8 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
 /// carries none.
 #[test]
 fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() {
-    let mut b = vessel(1.0, 2.0);
+    // The disc drum: two wall faces on one cylinder, parted by struts.
+    let mut b = crate::common::shell_operands::disc_drum(1.0, 2.0);
     topo::mint_pcurves(&mut b, tol()).expect("mints");
     assert_eq!(dead_rows(&b), 0);
     let total = b.pcurves().count();
