@@ -2705,8 +2705,11 @@ fn envelope_at_the_tightest_eps(refusal: &str) -> bool {
 /// share, `Uncertified` on the departure arm, the tangent seam of
 /// `work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`,
 /// which the band's sliver closed until the sliver retired. It is asked
-/// of the body as built; the other poses' twins are built and not asked
-/// (each refuses at the same seam, a minute a pose). The pin flips to
+/// of the body as built; the other poses' twins are built and not asked,
+/// as each spends its budget refusing at the same seam (95 s for the
+/// three). Measured once on this tree: turned and a hundred units off
+/// read the same `Uncertified` at the plane against the band, and the
+/// mirrored twin exhausts the pair budget on that pair. The pin flips to
 /// holding the day a tangent seam is read at `Interval`. At ε = 1e-12
 /// the twin's pcurve envelope escalates
 /// ([`envelope_at_the_tightest_eps`]) and that half is skipped, said.
