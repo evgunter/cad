@@ -83,7 +83,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), pb.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), pb.into()]),
         },
     );
     let ev = run(&doc);
@@ -176,7 +176,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let (doc, u2) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), n.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), n.into()]),
         },
     );
     let ev = run(&doc);
@@ -389,7 +389,7 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![a.into(), tb.into()]),
+                members: editor_core::Bodies::spelled(vec![a.into(), tb.into()]),
             },
         );
         (doc, u, tb)
@@ -420,7 +420,7 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![a.into(), tb.into()]),
+                members: editor_core::Bodies::spelled(vec![a.into(), tb.into()]),
             },
         );
         (doc, u, tb)

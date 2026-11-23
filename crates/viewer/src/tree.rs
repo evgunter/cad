@@ -534,7 +534,7 @@ pub enum Certified {
     /// `sentence` says so, with the recourse.
     OutOfBudget {
         /// What the row says under it.
-        sentence: String,
+        sentence: pncad::document::Sentence,
     },
     /// The answer, in plain numbers. At `f64` it is the third state,
     /// naming the lane that certifies.
@@ -630,16 +630,16 @@ impl Cleared {
     /// **The sentence drawn under the row**: a refusal said with its
     /// recourse, why the assertion did not evaluate, or that nothing is
     /// certifying it.
-    pub fn sentence(&self) -> Option<&str> {
+    pub fn sentence(&self) -> Option<pncad::document::Sentence> {
         use pncad::analysis::ClearanceOutcome as O;
         match &self.answer {
             Certified::Answered(
                 O::Refused { sentence, .. }
                 | O::OverMembers { sentence }
                 | O::Unanswered { sentence },
-            ) => Some(sentence),
-            Certified::Stopped => Some(CERTIFY_STOPPED),
-            Certified::OutOfBudget { sentence } => Some(sentence),
+            ) => Some(sentence.clone()),
+            Certified::Stopped => Some(CERTIFY_STOPPED.into()),
+            Certified::OutOfBudget { sentence } => Some(sentence.clone()),
             Certified::Certifying
             | Certified::Answered(O::Holds | O::Within(_) | O::Violated(_) | O::Exceeded) => None,
         }
@@ -1545,7 +1545,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::HalfOfAFamily { .. }
         | NodeErrorKind::MemberOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
@@ -1575,7 +1574,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Naming(_) => None,
         // The member names the step that refused, not the node to
         // repair: the refusal is the union's.
-        NodeErrorKind::UnionFoldStep { .. } => None,
+        NodeErrorKind::FoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
         | NodeErrorKind::PoseRead { .. }
@@ -1613,7 +1612,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::CountOutOfRange { .. }
-        | NodeErrorKind::IndicesUnrelated { .. }
+        | NodeErrorKind::TwoBinders { .. }
+        | NodeErrorKind::YieldsNothing { .. }
         | NodeErrorKind::IndexCount { .. }
         | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
@@ -1813,14 +1813,14 @@ mod picked_name {
         let (doc, union) = insert(
             &doc,
             Node::Union {
-                members: Bodies::Spelled(vec![read(block_copy), read(place)]),
+                members: Bodies::spelled(vec![read(block_copy), read(place)]),
             },
         );
         let (doc, subtract) = insert(
             &doc,
             Node::Subtract {
                 from: read(place),
-                tool: read(block_copy),
+                tool: read(block_copy).into(),
             },
         );
         let evaluation = evaluated(&doc);
