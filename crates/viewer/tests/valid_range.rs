@@ -405,9 +405,9 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
 }
 
 /// **A driven slot is refused, with the affordance.** The probe's
-/// answer would be a range of numbers for a field that takes no
-/// number, so the door refuses it exactly as the numeric write and the
-/// drag do — and the payload names the variable to probe instead.
+/// answer would be how far a number can move a slot only its
+/// variables move, so the door refuses it exactly as the drag is
+/// refused — and the payload names the variable to probe instead.
 #[test]
 fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
     let tol = Tol::witness();
@@ -506,7 +506,7 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     //
     // ONE WRITTEN MILLIMETRE is this row's own statement of the seed
     // it expects, and is deliberately not imported from the session's
-    // `probe_seed`: the rule that a field steps by one of the unit it
+    // seed: the rule that a field steps by one of the unit it
     // was WRITTEN in is the thing under test here, so reading it from
     // the code under test would make the row agree by construction
     // (the argument `tests/edge_pick.rs` makes for spelling its own

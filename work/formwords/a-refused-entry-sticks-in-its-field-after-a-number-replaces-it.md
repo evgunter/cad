@@ -2,10 +2,13 @@
 id: a-refused-entry-sticks-in-its-field-after-a-number-replaces-it
 kind: issue
 title: viewer: once a slot field refuses an entry, a corrected entry or a plain number keeps showing it wrong, and its unit reads 'computed'
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: M
+pr: 7378
+branch: formwords/refused-entry
+closed: 2026-11-22
 ---
 
 **Ev reported this** (in chat, 2026-11-22). If variables are typed into a field correctly the first time, it works. If one is typed wrong, then switching it to the right thing, or back to a plain number, keeps saying something is wrong, and the unit shows as "computed" rather than "m". Ev was not sure this happens everywhere.
@@ -16,3 +19,7 @@ The cause has two parts, each from reading the code; neither has been reproduced
 2. **A committed expression refuses a plain number.** If the wrong entry parsed and committed (an expression that evaluates badly, say), the slot is expression-driven. The unit picker then truthfully reads "computed" (`properties.rs:1034-1035`, via `slot_unit_refusal`, `crates/viewer/src/session.rs:2771-2775`, and `props::slot_literal`'s `NotALiteral`, `props.rs:1971-1991`). A plain number typed next goes through `SetSlot` and hits the driven-slot guard (`driven_refusal`, `session.rs:270-287`, `Refusal::DrivenByExpression`). Nothing in the field replaces an expression with a literal.
 
 The fix is one field-edit path: every edit the field makes (number or expression) releases the field's draft, and a number typed into an expression-driven slot replaces the expression rather than being refused. Then "computed" clears once a literal lands. First, write a test reproducing Ev's sequence (good entry; bad entry; corrected entry; plain number) on a slot field and on a profile field.
+
+## Closed (2026-11-22)
+
+PR 7378. A number and a text are two ways into one field. Either writes over a literal or an expression, and either releases the refused text at its own field. A drag or probe over an expression stays refused, and says so with its affordance at both slot rows and held fields. Ev's sequence is pinned at every slot field of four node kinds and at held profile fields. Both doors write the unit the field showed.

@@ -2,9 +2,11 @@
 id: vacuous-reads-a-cell-at-a-corner-local-at-every-depth
 kind: issue
 title: injective's vacuous reads a cell that touches a face's corner from outside Local at every depth, because the touching line's edge is read without running on past the corner
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P0
+pr: 7322
+branch: embed/collinear-cover
 ---
 
 
