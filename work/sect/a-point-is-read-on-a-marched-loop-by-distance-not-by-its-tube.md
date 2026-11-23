@@ -57,6 +57,19 @@ a site on both, and the join aborted `JoinDesync`
 (`work/sectarms/a-rim-arcs-pad-is-its-widest-certifying-rung.md`). The
 carry now holds every two fitted spline arcs apart by more than both
 pads and both bands, or refuses `CarryRefusal::PadsMeet`
-(`pair_section::spline_implicit::apart`). Marched loops are not held
+(`pair_section::spline_implicit::cells::apart`). Marched loops are not held
 apart that way: two loops within a pad of each other still desync on a
 site between them.
+
+## The spline wall's reader moved (sectarms, 2026-11-23)
+
+Ev's decision on PR 7045 (fork-log row 280) moved the rim arc's reader
+to its cells (`pair_section::spline_implicit::cells`): the tube's
+windows less what the partner's form clears of the band, each cell read
+against the whole carrier, the section's arcs held apart on the cells
+and refined until they read apart, and a site read in the same cells.
+The decision names this door as the later step on the same reader.
+What it would take here: cells of the ℝ³ chain boxes that both
+surfaces' forms do not clear, in place of `Tube::of`'s boxes read whole
+against nine carrier points of their own span (which reads a short
+span's box wider), and the loops of one section held apart on them.

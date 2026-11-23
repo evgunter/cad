@@ -53,7 +53,7 @@ escalation that a site in a node's box owes on its own
 answers it the same way.
 
 Outside the node's box, the carry holds two arcs of one node apart by
-their boxes (`spline_implicit::apart`), each widened by the band, and
+their boxes (`spline_implicit::cells::apart`), each widened by the band, and
 refuses `PadsMeet` where two of them meet. So a site outside the box
 reads on two such arcs only where the carry has already refused them.
 A box's pad there is the farthest its window's image stands from the

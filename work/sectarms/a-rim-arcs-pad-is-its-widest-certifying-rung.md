@@ -146,4 +146,6 @@ in the same cells (`CarriedComponent::boxes`).
 
 Left open, each filed: the overlapping windows' sweep
 (`a-rim-arcs-overlapping-tube-windows-are-each-cut-to-cells`) and the
-marched-loop door (`a-marched-loops-pad-is-read-off-its-chain-boxes-whole`).
+marched-loop door (SECT's
+`a-point-is-read-on-a-marched-loop-by-distance-not-by-its-tube`, with
+this lane's note).
