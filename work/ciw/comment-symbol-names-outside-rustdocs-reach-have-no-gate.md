@@ -2,10 +2,11 @@
 id: comment-symbol-names-outside-rustdocs-reach-have-no-gate
 kind: issue
 title: a symbol named in a comment rustdoc cannot read is checked by nothing, and 26 of them sit in viewer alone
-status: open
+status: closed
 opened: 2026-09-10
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -170,3 +171,10 @@ charter (`work/unread/plan.md`). Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Asks for a new gate over `//` comments, which by its own text needs a path resolver
+(`cargo doc --output-format json`), i.e. another doc build. Population was 26 spans, all
+clean (2026-09-10); both worked-example sites deleted (its 2026-09-11 note). No incident since
+September. Per-PR cost of a doc-JSON pass is far above the zero fix cycles on record.
