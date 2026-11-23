@@ -114,7 +114,8 @@ pub struct Span<'a, T: Real> {
     carrier: &'a Curve3<T>,
     t0: T,
     t1: T,
-    /// The carrier's points at `t0` and `t1`, evaluated once.
+    /// The points of the ends at `t0` and `t1`: the carrier's, evaluated
+    /// once, or the vertex a caller names ([`Span::joined`]).
     ends: (Point3<T>, Point3<T>),
     ended: bool,
     lo: InfSpeed<T>,
@@ -379,6 +380,23 @@ impl<'a, T: Decide> Span<'a, T> {
             ended: false,
             ..self
         }
+    }
+
+    /// **The same span with `which` end's point named `point`**: the
+    /// stored point of the vertex the caller's topology ends it at. Two
+    /// spans joined at one vertex, each so named there, meet there
+    /// because their ends are one point, whatever their carriers'
+    /// rounding or the band left between them: a vertex fusion decided
+    /// Zero can leave each carrier's own end up to the band off the
+    /// vertex, so two such ends, read by their chord, can lie in the band
+    /// of each other.
+    #[must_use]
+    pub fn joined(self, which: SpanEnd, point: Point3<T>) -> Self {
+        let ends = match which {
+            SpanEnd::Start => (point, self.ends.1),
+            SpanEnd::Stop => (self.ends.0, point),
+        };
+        Self { ends, ..self }
     }
 
     /// Whether the span has ends: `false` for [`Self::endless`].

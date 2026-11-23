@@ -980,6 +980,12 @@ and otherwise the stretch escalates.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
+A caller that holds the topology makes that so by naming each end that
+sits on a stored point that point on both spans (`Span::joined`): a vertex
+fusion decided Zero leaves each carrier's own end up to the band's zero
+from the vertex, so two carriers' ends at one vertex can lie in the band
+of each other, and read by their chord would escalate on a joint the
+topology already decides.
 Two curves on one surface record are not a curve pair to this table.
 Their 3D gap is identically zero in the model, so a contact decision on
 it reads only the construction's rounding against the band. They meet

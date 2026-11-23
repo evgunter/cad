@@ -5097,7 +5097,7 @@ fn edge_crossings<T: Decide>(
         return Some(Vec::new());
     }
     let meets = |errors: &mut Vec<ValidationError>| {
-        meetings(e, edge, side, stored, band)
+        meetings(body, e, edge, side, stored, band)
             .map_err(|r| refuse_crossing(face, r, errors))
             .ok()
     };
@@ -5131,6 +5131,7 @@ fn edge_crossings<T: Decide>(
 /// [`edge_crossings`]' meeting reading of `e`'s segment and the boundary
 /// edge's span, past its gates.
 fn meetings<T: Decide>(
+    body: &Body<T>,
     e: &EdgeGeo<T>,
     edge: &crate::splitting::containment::LoopEdge<T>,
     side: BoundarySide<T>,
@@ -5162,12 +5163,20 @@ fn meetings<T: Decide>(
             )));
         }
     };
-    let met = meet(
-        &CarrierSpan::new(&along, (T::zero(), e.len)),
-        &boundary,
-        band,
-    )
-    .map_err(|r| {
+    // The segment's ends and a stored boundary curve's, where they sit on
+    // one stored point, are that point ([`curved::joined`]).
+    let segment = CarrierSpan::new(&along, (T::zero(), e.len));
+    let (segment, boundary) = match stored {
+        Some(_) => curved::joined(
+            (
+                segment,
+                [(e.points[0], e.p0), (e.points[1], e.p1)].map(|(k, p)| k.map(|k| (k, p))),
+            ),
+            (boundary, curved::stored_ends(body, side.key)),
+        ),
+        None => (segment, boundary),
+    };
+    let met = meet(&segment, &boundary, band).map_err(|r| {
         cross_refused(
             r.fault,
             format_args!("edge {:?} against boundary edge {:?}", e.key, side.key),
@@ -12687,9 +12696,16 @@ fn arc_interiors_meet<T: Decide>(
     };
     let mut cuts_a: Vec<Vec<T>> = sa.iter().map(|(_, s)| ends(s)).collect();
     let mut cuts_b: Vec<Vec<T>> = sb.iter().map(|(_, s)| ends(s)).collect();
+    let stored = |spans: &[(EdgeKey, curved::EdgeSpan<T>)]| -> Vec<_> {
+        spans
+            .iter()
+            .map(|&(e, _)| curved::stored_ends(body, e))
+            .collect()
+    };
+    let (ends_a, ends_b) = (stored(&sa), stored(&sb));
     for (i, (_, x)) in sa.iter().enumerate() {
         for (j, (_, y)) in sb.iter().enumerate() {
-            let (x, y) = (x.span(), y.span());
+            let (x, y) = curved::joined((x.span(), ends_a[i]), (y.span(), ends_b[j]));
             match meet(&x, &y, band) {
                 Ok(met) => {
                     for m in &met.points {
