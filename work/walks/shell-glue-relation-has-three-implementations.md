@@ -2,11 +2,15 @@
 id: shell-glue-relation-has-three-implementations
 kind: issue
 title: the per-shell component glue relation is implemented three times, and the test-support copy is the one that drifts
-status: open
+status: closed
 opened: 2026-09-06
 refs: [S69, 2014]
 priority: P1
-cost: D
+cost: M
+design: true
+pr: 7438
+branch: walks/glue-home
+closed: 2026-11-23
 ---
 
 ## What
@@ -15,10 +19,10 @@ One relation — *a face glues all its loops; a cycle loop glues across
 each edge via `mate`; an empty-loop face is its own dartless
 component* — is written out three times in `crates/topo/src`:
 
-1. **`movefac.rs:74-118`**, the operator's plan phase. It labels
+1. **`movefac.rs`'s `Body::movefac`**, the operator's plan phase. It labels
    components to decide the partition, and its labelling IS the
    partition: whatever it computes is what the shells become.
-2. **`validate.rs:5225-5266`**, tier 1's pass 11, whose per-shell counts
+2. **`validate.rs`'s `shell_component`**, tier 1's pass 11, whose per-shell counts
    land in `Tier1Report.shell_components` and are reused by tier 2's
    `c = 1` check. `Tier1Report` is a private struct and the counts are
    not reachable from outside the validator.
@@ -97,3 +101,38 @@ clean, and pass 7 checks every loop's owner both ways. A unified routine has to
 carry the proofs to the copy that reads unvalidated input, so the
 `seqgen` register entry in `scripts/gates/loop-boundary-discards.sh`
 now says it lacks the proof that audits `movefac`'s.
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Still live, and a fourth copy: movefac.rs's test-module `claimed_components` (glues by edge via `parent_loop`, a deliberately record-based oracle). validate.rs `shell_component` seeds in face-arena order, not the shell's list order, and skips a mate in another shell; seqgen.rs `shell_component_faces` is still registered `unaudited` in scripts/gates/loop-boundary-discards.sh. Weighed with `euler-characteristic-has-three-carriers` as fork F5.
+
+## Closed (2026-11-23, PR 7438)
+
+The movefac / generator / open-face copies are one walk. Pass 11
+stays out of it, as Ev ruled on PR 7424: it is the independent
+instrument for the relation it validates.
+
+- `crates/topo/src/glue.rs`'s `face_set_glue` is the one `pub(crate)`
+  walk of the relation over a face set: seeded in the set's order, it
+  hops through each cycle member's mate and returns each face's
+  component label, numbered in that order, the count, and every mate
+  hop that leaves the set. It carries `movefac`'s loop-owner and claim
+  proofs and panics naming the record a proof finds torn (D2 row 4).
+  The per-loop claim counts (`LoopClaims`) are read once per body and
+  passed in, so a caller looping over shells reads the arena once.
+- `movefac`'s plan reads its partition from it and panics on any hop
+  leaving the shell. The face-owner proof (each listed face names the
+  shell) is `movefac`'s own pre-pass: a fact about a shell, not a face
+  set.
+- `seqgen`'s `shell_components` and `shell_component_faces` read it.
+  Their `unaudited` register entry is gone; `movefac`'s audited one
+  moved to `face_set_glue`.
+- `shell`'s `count_components` reads it over the shell's non-open
+  faces and requires each leaving hop to land on one of the shell's
+  open faces. `face_neighbours` stays, for the antiparallel-walls pair
+  check, which asks about adjacency and not components.
+- Left independent: pass 11's `shell_component`, `movefac`'s test
+  oracle `claimed_components` (checked against `face_set_glue` over
+  `movefac`'s valid fixtures, one with a dartless face seeded after the
+  first component), and `review_m1_pr4`'s vertex-glue
+  `shell_components`.

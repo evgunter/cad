@@ -90,6 +90,7 @@ far side. Filed as P0 on DOORS:
 `the-placement-editor-cannot-author-an-offset-from-a-face`.
 
 - 2026-11-22 — (FORMWORDS orchestrator) PR 7374 (seat-vocab) merged after a style review with correctness claims and a fix pass. It closes `a-fifth-spelling-of-this-seat-is-empty`, `four-pick-state-vocabularies-in-one-create-module` and the ride-along `a-per-kind-sentence-lives-in-the-widget-not-on-the-choice`. Merged on the fix pass's green CI and the orchestrator's read, without a delta review.
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7376 (held-pick) merged after a full review and a fix pass, on the fix pass's green jobs and the orchestrator's read. It closes `a-creation-forms-held-pick-survives-a-document-swap` and the claimed `the-drafts-keep-held-slot-ids-across-a-document-replacement`.
 ## 2026-11-22 — mirror-plane reviewed
 
 (FORMWORDS orchestrator) PR 7373's review found it mergeable. It
@@ -142,7 +143,9 @@ a pick route checks its own seats against that doc.
   that caught it; future briefs ask reviewers for one mutation per new
   gate row.
 
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7378 (refused-entry, Ev's report) merged after a full review and a fix pass, on green CI. A class finding with no home yet: app-feature test rows can be neither in the slow set (`check-slow-set-names.py` reads them as dead) nor timed (`check-fast-set-times` times only the default-eps step). So the app-feature job has no time bar, and a 12 s row runs on every viewer PR.
 - 2026-11-22 — (FORMWORDS orchestrator) PR 7372 (dimension-ladders) merged after a style review with correctness claims and a fix pass, on green CI. It closes the three ladder rows. The fix pass added API to editor-core, quantity and geom-core (`Dimension::quantity`, `Notation::unit_of`, `UnitQuantity::units`), and its PR names their owners.
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7379 (denotes-body) merged after a full review and a fix pass. Its one red, test (kernel), is a sweep row at 1e-12 inherited from main: reproduced on main, and owned by TESSLIE row `main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12`, where the reproduction is now noted. Annotated on the PR.
 ## 2026-11-22 — subtract-by-family weighed
 
 (FORMWORDS orchestrator) Both designers agree, independently: the
@@ -184,3 +187,4 @@ after Ev's answer.
 - 2026-11-23 — (FORMWORDS orchestrator) Binder kernel PR 7506 dual-reviewed: not mergeable. Containment held only at SetProduct, so three edits and a hand-written file left the product gathering every member silently. 11 rows red on the head. The test fixture re-implemented the implicit map: every fixture-built document was rewritten into binders, so the new refusals could not be met by tests. That is the class the style lane names, a fix minting a copy of what it closes, here in the tests rather than in `src/`. A combined fix pass was sent: containment in `product_fault`, the fixture rewriting removed, goldens re-pinned with reasons, `xs[i]` as a row, a typed retirement for an old `index(N)`, per-fault recourse, and deferrals filed as items.
 
 - 2026-11-23 — (FORMWORDS orchestrator) PR 7426 delta review: mergeable. An n-ary subtract equals the chain of pair cuts in every order across seven tangent and flush layouts, and the union path is unchanged. Ruled without Ev (dominant answer): a subtract does not publish its tool-pair judgement rows, because they are read for verdicts only and say nothing about the cut. Filed follow-ups: adding a second tool renames the first cut (one-tool pair path versus the n-ary fold), and a pre-existing tangent-slot order dependence in the pair boolean, on topo's owner.
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7380 (face-offset, P0) merged after a full review (one MAJOR: the offset sank into the material on a foreign spelling) and a fix pass that closes it. Merged on green CI and the orchestrator's read; no delta review. Edges recorded on the row: a `Spin(Plane)` side takes its spun normal, and a named pose is not unfolded.
