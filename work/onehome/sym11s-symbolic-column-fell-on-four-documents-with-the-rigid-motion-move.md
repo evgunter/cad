@@ -65,3 +65,7 @@ PR 6953 re-pinned `m10_9_pins_interval`'s pad receipt for the same move
 unit where they read the placed vertices' difference") but not this slow
 row, which its gate did not run. The row stays red on main until it is
 re-cut for that move; nothing else in it moves.
+
+## Witness pin (CIW, 2026-11-23)
+
+PR 7501 (`ciw/census-digest-goldens`) drops sym11's exact receipts but keeps this row's witness. `PAST_THE_CEILING` holds a floor on `symbolic` and a ceiling on `frozen` per document, at this tree's readings, citing this row. A theorem going numeric reds; a move the other way does not. The pin narrows to each replay's stop once this row and ONEDOOR's twin close.

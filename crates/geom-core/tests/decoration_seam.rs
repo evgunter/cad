@@ -42,7 +42,10 @@
 //!   `probe_tube_chart` and therefore runs `certified_coords` as well;
 //! - `topo::props`'s bracket helper — pinned by that file's
 //!   `bracket_seam_tests`;
-//! - `geom_brep::ssi::enclose`'s, which **no row named here pins**.
+//! - `geom_brep::ssi::enclose`'s — pinned by that file's `tests::decoration_seam`
+//!   (`every_ring_crossing_refuses_exactly_where_the_decoration_degrades`,
+//!   `no_crossing_may_be_rebounded_to_the_bracket_door`,
+//!   `a_violated_radius_refuses_the_pad`).
 //!
 //! The sweeps are **paired**: each walks an operand across the domain
 //! boundary and requires refusal *iff* the decoration degraded, with

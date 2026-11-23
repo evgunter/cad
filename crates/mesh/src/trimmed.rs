@@ -12,6 +12,17 @@
 //! place) refuses with the door's cause
 //! ([`TessellateError::DomainUnread`]).
 //!
+//! One class of face here is not triangulated: a cylinder or cone face
+//! that is an iso rectangle of its chart but for a point on a straight
+//! side (`walk::splits_a_straight_side`), whose loop is the walk's
+//! ([`walkable`]), is **walked** (`tessellate::Lane::Walked`,
+//! `crate::ruled_walk`): no lattice and no CDT, its triangles written along
+//! its two rows in order of angle, a side shared with a neighbour that may
+//! make it cut at its midpoint ([`may_make`]), and each triangle read by
+//! the row's certificate. Its target is δ ([`face_target`]), by the
+//! theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`; every
+//! other analytic face here sizes at [`UNPROVED_HEADROOM`] of δ.
+//!
 //! # Watertightness is inherited, not re-derived
 //!
 //! The polygon's mesh-vertex ids are the per-edge chord ids computed
@@ -23,7 +34,7 @@
 //!
 //! Every chart constructs here, from the face's chart row
 //! (`crate::chart_table`): the analytic charts — **cylinder** (M5 PR 11 —
-//! the tiltedcut walls; every split cylinder wall), **cone** (a frustum
+//! the tiltedcut walls; a split cylinder wall is walked), **cone** (a frustum
 //! cut by a tilted plane), **sphere** (a sphere face a circle tilted
 //! against its chart bounds — the sphere pairs, a ball cut by a tilted
 //! plane, the oblique fillet corners), **torus** (a hollowed partial
@@ -36,8 +47,10 @@
 //! the swept-rectangle walk has no NURBS chart; RATIONAL faces since
 //! M8-5, whose Hessian bound is the second-order quotient statement over
 //! the homogeneous nets). An analytic face routes here when it holds a
-//! ring or the curved lane's doors decide it is no iso-rectangle of its
-//! chart (`crate::tessellate::route_of`).
+//! ring, stores an image of no iso form, or the curved lane's doors decide
+//! it is no iso-rectangle of its chart; or when it is a ruled rectangle
+//! whose straight side holds a point, which the route marks walked where
+//! its loop is the walk's (`crate::tessellate::route_of`; module header).
 //! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory). Its boundary pcurves
@@ -311,15 +324,17 @@ use std::collections::{HashMap, HashSet};
 
 use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
-use geom_core::Point3;
 use geom_core::period::Period;
+use geom_core::{Band, Indeterminate, Point3};
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::pcurves::{FaceLift, Lift};
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::chart_table::{Analytic, AnalyticRow, ChartRow, RowEnd, SingularPoint};
+use crate::chart_table::{
+    Analytic, AnalyticRow, ChartRow, RowEnd, SingularPoint, at_a_singular_point,
+};
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid};
 use crate::planar::{Pinches, Walk, shoelace2};
@@ -374,6 +389,10 @@ fn last_attempt() -> usize {
 /// is missing on every chart alike is the lemma that bounds a triangle
 /// beside a boundary run crossing lattice lines
 /// (`work/tesslane/one-containment-lemma-for-an-oblique-boundary.md`).
+///
+/// A face the lane walks (`tessellate::Lane::Walked`) does not read it: its triangles
+/// are no CDT's, and the step functions' theorems hold them at δ
+/// (`crate::ruled_walk`).
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
 /// **The sphere arm's per-edge chord budget**, `2^16`. **Work**: it
@@ -407,7 +426,8 @@ pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
 
 /// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face
 /// this lane meshes on an analytic chart (one whose surface has no spline
-/// chart), δ for every other face. The one statement those arms size
+/// chart), δ for every other face, a face it walks among them
+/// (`tessellate::Lane::Walked`). The one statement those arms size
 /// their lattices at and the chord pass chords the face's boundary at
 /// (`chords::edge_target`), each reading the face's lane from the run's
 /// route (`tessellate::Routes`).
@@ -417,6 +437,70 @@ pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64
     } else {
         delta
     }
+}
+
+/// **Whether the walk takes a face the route sends to this lane for a
+/// split straight side** (`tessellate::route_of`'s fourth fact, which
+/// asks it once per run and carries the answer as
+/// `tessellate::Trim::Walked`): the face's outer loop is a cycle of rims
+/// and lines in one of the walk's two shapes (`ruled_walk::rim_runs`),
+/// two runs of rims with no vertex at a cone's apex, or one run whose
+/// sides meet at the apex. A face whose sides pass through the apex onto
+/// the other nappe is neither (no body built here makes one), and one
+/// whose apex the band cannot decide is not answered: both keep the
+/// lattice and the CDT (`Trim::Structural`), which refuse them typed. The
+/// apex is read as the lane reads it (`chart_table::at_a_pole`, the
+/// decision [`AnalyticRow::is_singular`] makes), with no row minted for a
+/// window the route has not read.
+pub(crate) fn walkable(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+    band: Band,
+) -> Result<bool, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    let (mut line, mut apexes) = (Vec::new(), 0usize);
+    for (hek, ek, _) in crate::walk::loop_half_edges(body, face.outer, fk)? {
+        match edge_carrier(body, ek)? {
+            geom::Curve3::Line(..) => line.push(true),
+            geom::Curve3::Circle(..) => line.push(false),
+            _ => return Ok(false),
+        }
+        // The vertex's point through topo's one read of it, the read behind
+        // `Body::vertex_points`, whose copy the lane's mesh position of this
+        // vertex is (`tessellate`): the lane reads the apex there
+        // (`singular_vertices`), so both read one point.
+        let he = body
+            .get_half_edge(hek)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
+        let start = topo::readback::vertex_point(body, he.start).map_err(|_| {
+            TessellateError::MissingEntity {
+                what: "vertex position",
+            }
+        })?;
+        let at_apex = crate::chart_table::at_a_pole(surface, start, band).ok_or(
+            TessellateError::MissingEntity {
+                what: "an analytic surface's chart",
+            },
+        )?;
+        match at_apex {
+            Ok(true) => apexes += 1,
+            Ok(false) => {}
+            Err(_) => return Ok(false),
+        }
+    }
+    Ok(match crate::ruled_walk::rim_runs(&line) {
+        1 => apexes > 0,
+        2 => apexes == 0,
+        _ => false,
+    })
+}
+
+/// The carrier of edge `ek`.
+fn edge_carrier(body: &Body<f64>, ek: EdgeKey) -> Result<&geom::Curve3<f64>, TessellateError> {
+    crate::walk::edge_curve(body, ek).map(|c| c.carrier())
 }
 
 /// **The trimmed lane's steps on an analytic chart** `(h_u, h_v)`: the
@@ -470,6 +554,7 @@ pub(crate) fn tessellate_trimmed(
     bounds: &FaceBounds,
     lift: &FaceLift<f64>,
     clearance: f64,
+    walked: bool,
 ) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
@@ -488,26 +573,38 @@ pub(crate) fn tessellate_trimmed(
         ChartRow::Analytic(_) => None,
     };
     let spline = matches!(row, ChartRow::Spline { .. });
-    // The loop's vertices that are the chart's singular points, decided
-    // where the kernel decides it, at the run's band (`chart_table`'s
-    // module docs). Each vertex's mesh id is its edges' end chord id.
-    let singular = match row {
-        ChartRow::Analytic(ref a) if !a.singular_points().is_empty() => {
-            singular_vertices(body, fk, lift, chords, shared, a, tol.band)?
-        }
-        ChartRow::Analytic(_) | ChartRow::Spline { .. } => HashSet::new(),
-    };
-    // The UV polygon: per half-edge, the pcurve evaluated at the
-    // shared chord parameters (each traversal contributes all but its
-    // last point; ids stay the shared 3-D chord ids), every loop.
-    // Every loop has at least three points: the chord pass's short-loop
-    // floor (`chords`).
-    let polygon = one_location_per_branch(
-        trim_polygon(body, fk, lift, chords, spline, creases.as_ref(), &singular)?,
-        surface.angle_periods(),
-        &singular,
-    );
+    let (singular, polygon) = face_polygon(&PolygonOf {
+        body,
+        fk,
+        surface,
+        row: &row,
+        lift,
+        creases: creases.as_ref(),
+        chords,
+        shared,
+        band: tol.band,
+        delta: tol.delta,
+    })?;
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
+    if walked {
+        // `[failure.taxonomy]` row 0: could the route hand this lane a
+        // type that only a cylinder or cone face's row inhabits, as
+        // `curved::Rectangle` is the rectangle lane's? No, not locally:
+        // whether a face's row is analytic or a spline's is `ChartRow::of`'s
+        // run-time match on the surface's kind, the constructor every arm of
+        // this lane shares, and a walked row by type would change it for
+        // all of them. So row 4.
+        let ChartRow::Analytic(ref a) = row else {
+            unreachable!(
+                "face {fk:?}: the route walks only a face whose split-side fact \
+                 held (`walk::splits_a_straight_side`, which answers no off a \
+                 cylinder or a cone, `chart_table::ruled`), and a cylinder's or a \
+                 cone's chart row is analytic (`ChartRow::of`); a spline row here \
+                 means the route and the row read two surfaces"
+            );
+        };
+        return walk_face(body, fk, a, &polygon, &singular, chords, shared, tol);
+    }
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
     // `singular_row_shape` admits, so the duplicate-id skip in the emit
     // pass never collapses a fan at one (#678).
@@ -573,7 +670,7 @@ pub(crate) fn tessellate_trimmed(
                 // than their gaps.
                 match a.development() {
                     Some(_) => 1.0,
-                    None => a.metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
+                    None => a.trimmed_metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
                 },
             )
         }
@@ -731,7 +828,7 @@ pub(crate) fn tessellate_trimmed(
                     steps: c.bound.grid_steps(budget),
                 })
                 .collect(),
-            worst_cert: measure.worst,
+            worst_cert: measure.verdict.worst(),
             worst_dev: measure.worst_dev,
             worst_dev_cert: measure.worst_dev_cert,
             worst_ratio: falsification.worst_ratio,
@@ -763,13 +860,8 @@ struct Falsification {
 /// One attempt's measurements: the budget CSV's deviation columns and
 /// the face's worst certificate, reset at the top of each attempt.
 struct AttemptMeasure {
-    worst: f64,
-    /// Some triangle's bound is [`cert::Verdict::Exceeded`] at its own
-    /// rounding magnitude: the attempt refuses.
-    exceeded: bool,
-    /// The largest allowance a [`cert::Verdict::Unresolved`] triangle
-    /// would have had to absorb, if any.
-    unresolved: Option<f64>,
+    /// The attempt's certificate verdict over its triangles.
+    verdict: cert::FaceVerdict,
     worst_dev: f64,
     worst_dev_cert: f64,
     dev_samples: u64,
@@ -778,9 +870,7 @@ struct AttemptMeasure {
 impl AttemptMeasure {
     fn fresh() -> Self {
         Self {
-            worst: 0.0,
-            exceeded: false,
-            unresolved: None,
+            verdict: cert::FaceVerdict::new(),
             worst_dev: f64::NAN,
             worst_dev_cert: f64::NAN,
             dev_samples: 0,
@@ -1039,25 +1129,11 @@ impl TrimmedFace<'_> {
         // centroids each re-admit the empty circle beside themselves).
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid).
-        if !refine.is_empty() && !measure.worst.is_nan() && attempt < last_attempt() {
+        if !refine.is_empty() && !measure.verdict.worst().is_nan() && attempt < last_attempt() {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
-        if measure.exceeded {
-            return Err(TessellateError::CertificateExceeded {
-                face: fk,
-                bound: measure.worst,
-                requested: self.tol.delta,
-            });
-        }
-        if let Some(allowance) = measure.unresolved {
-            return Err(TessellateError::RoundingUnresolved {
-                face: fk,
-                bound: measure.worst,
-                requested: self.tol.delta,
-                allowance,
-            });
-        }
+        measure.verdict.refusal(fk, self.tol.delta)?;
         // D2 addendum row 5, the same re-derivation `curved`'s emit
         // pass makes and for the same class (issue 897): an edge
         // incident to a vertex this walk placed at two distinct UV
@@ -1067,8 +1143,9 @@ impl TrimmedFace<'_> {
         // such a vertex are one vertex on two branches, a seam's double
         // traversal (on one branch it is one location,
         // `one_location_per_branch`; a spline chart's entries are read
-        // as walked), and a singular point's copies — the sphere's and the spindle's pole sides, and the
-        // cone's apex, which its development holds as one CDT vertex, so
+        // as walked), and a singular point's copies — the sphere's and the
+        // spindle's pole sides, a spline chart's walked collapsed sides
+        // ([`SidePoints`]), and the cone's apex, which its development holds as one CDT vertex, so
         // its fan's edges are used twice at most — so on every other face
         // the set is empty and the census returns on one branch.
         let patch = Patch {
@@ -1456,16 +1533,21 @@ impl TrimmedFace<'_> {
                 // A triangle with two corners on one mesh vertex is
                 // degenerate in 3-D. Dropping it is `curved`'s idiom, and
                 // there it collapses a pole fan (#678). On the sphere's and
-                // the spindle's arms it does the same at a pole side; the
-                // cone's apex is one CDT vertex in its development, so no
+                // the spindle's arms it does the same at a pole side, and on
+                // a spline chart at each piece of a walked collapsed side
+                // ([`SidePoints`]); the cone's apex is one CDT vertex in its development, so no
                 // triangle there has two corners on it; elsewhere the drop is
                 // all it is, because neither ingredient of that fan reaches
                 // the face — no singular point, and no repeated id at two UV
                 // locations with a single interior column between them.
                 //
                 // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The singular
-                // half is the row's: a chart with singular points holds its
-                // polygon to `singular_row_shape`'s shapes. The INGREDIENT
+                // half is the row's: an analytic chart with singular points
+                // holds its polygon to `singular_row_shape`'s shapes. A
+                // spline chart's singular points are its collapsed sides, and
+                // no shape check runs on that arm: what it relies on is the
+                // census after this loop, which re-derives the fan about each
+                // walked side's vertex. The INGREDIENT
                 // half — a repeated id with a single interior column between
                 // the entries — is checked at the cylinder arm's `nu`, kept
                 // off at a singular point by `pole_side_columns`, and this
@@ -1506,8 +1588,6 @@ impl TrimmedFace<'_> {
                 // face holds both of.
                 if n_poly >= 3 {
                     let on = corners.map(|c| c.places);
-                    let next = |i| self.polygon.next(i);
-                    let across = self.across;
                     a_shared_side |= [(0, 1), (1, 2), (2, 0)].into_iter().any(|(a, b)| {
                         let (Some(pa), Some(pb)) = (on[a], on[b]) else {
                             return false;
@@ -1516,15 +1596,10 @@ impl TrimmedFace<'_> {
                         else {
                             return false;
                         };
-                        let neighbours = pa
-                            .iter()
-                            .any(|&i| pb.iter().any(|&j| next(i) == j || next(j) == i));
-                        !neighbours
-                            && across.get(&ia).is_some_and(|fa| {
-                                across
-                                    .get(&ib)
-                                    .is_some_and(|fb| fa.iter().any(|f| fb.contains(f)))
-                            })
+                        !self
+                            .polygon
+                            .faces_holding_side(self.across, (pa, ia), (pb, ib))
+                            .is_empty()
                     });
                 }
                 // A triangle f64 cannot wind refuses the face at once
@@ -1551,18 +1626,10 @@ impl TrimmedFace<'_> {
                     folded_grid.extend(grid);
                 }
                 let (bound, scale) = self.row.cert(tri, uv, singular);
-                let verdict = cert::verdict(bound, tol.delta, scale, tol.eps);
-                match verdict {
-                    cert::Verdict::Certified => {}
-                    cert::Verdict::Exceeded => measure.exceeded = true,
-                    cert::Verdict::Unresolved { allowance } => {
-                        measure.unresolved = Some(
-                            measure
-                                .unresolved
-                                .map_or(allowance, |a: f64| a.max(allowance)),
-                        );
-                    }
-                }
+                // The attempt's verdict takes the triangle in, its worst bound
+                // a NaN kept once met (`cert::FaceVerdict`): what a refusal
+                // reports is what refused.
+                let verdict = measure.verdict.read(bound, tol.delta, scale, tol.eps);
                 // THE DEVIATION PASS (`crate::budget`, issue #320):
                 // barycentric samples of |S(w) − Π(w)| on this triangle,
                 // reduced to the largest ratio against the triangle's OWN
@@ -1631,9 +1698,6 @@ impl TrimmedFace<'_> {
                         }
                     }
                 }
-                // The attempt's worst bound, a NaN kept once met
-                // (`cert::worse`): what a refusal reports is what refused.
-                measure.worst = cert::worse(measure.worst, bound);
                 if refine_lane && verdict == cert::Verdict::Exceeded {
                     refine.push(inside_point());
                 }
@@ -1808,16 +1872,9 @@ fn faces_across(
 /// `(u, v)` as the CDT sees it on `plane`, `singular` where the point
 /// is a copy of the chart's singular vertex.
 ///
-/// - **The chart** ([`CdtPlane::Lattice`]): floored
-///   ([`crate::cdt::spade_point`]), then in the lattice metric, `(u/k,
-///   v)` times a uniform power of two (module docs, "The lattice
-///   metric", on what that scale does and does not leave unchanged).
-///   The axis that GROWS is scaled, `v` by `k` when `k > 1` and `u` by
-///   `1/k` when `k < 1`: a power of two of at least one, which rounds
-///   nothing and cannot carry a value spade accepts into the floor's
-///   band, so the scale is injective on floored points and two chart
-///   points are one CDT vertex exactly when
-///   [`crate::cdt::ids_at_two_uvs`] reads them as one location.
+/// - **The chart** ([`CdtPlane::Lattice`]): in the lattice metric
+///   ([`crate::cdt::lattice_point`]; module docs, "The lattice metric",
+///   on what that scale does and does not leave unchanged).
 /// - **The cone's development** ([`CdtPlane::Development`], module
 ///   docs, "The development"): every copy of the apex at the origin, any
 ///   other point at [`developed`], then floored. The development rounds,
@@ -1828,14 +1885,7 @@ fn faces_across(
 /// orientation and every certificate read UV.
 fn cdt_point(plane: CdtPlane, u: f64, v: f64, singular: bool) -> SpadePoint<f64> {
     match plane {
-        CdtPlane::Lattice { metric } => {
-            let p = crate::cdt::spade_point(u, v);
-            if metric > 1.0 {
-                SpadePoint::new(p.x, p.y * metric)
-            } else {
-                SpadePoint::new(p.x / metric, p.y)
-            }
-        }
+        CdtPlane::Lattice { metric } => crate::cdt::lattice_point(u, v, metric),
         CdtPlane::Development { .. } if singular => crate::cdt::spade_point(0.0, 0.0),
         CdtPlane::Development { sin_alpha, nappe } => {
             let (x, y) = developed(sin_alpha, nappe, u, v);
@@ -2293,10 +2343,7 @@ fn developed_runs(
 /// Whether edge `ek` is carried by a line, which on a cone is a ruling:
 /// what [`developed_runs`] reads of the polygon side an edge carries.
 fn carried_by_a_line(body: &Body<f64>, ek: EdgeKey) -> bool {
-    body.get_edge(ek)
-        .and_then(|edge| body.get_curve_geom(edge.curve))
-        .and_then(|geom| geom.certified())
-        .is_some_and(|curve| matches!(curve.carrier(), geom::Curve3::Line(..)))
+    edge_carrier(body, ek).is_ok_and(|carrier| !carrier.is_curved())
 }
 
 /// The [`Run`] that `group`, every polygon point at one CDT point, is;
@@ -2447,26 +2494,104 @@ fn one_location_per_branch(
     trim
 }
 
+/// **What a face's polygon is read from** ([`face_polygon`]): the face
+/// and its chart, its lift, and what the run shares (the chord pass and
+/// its positions, the band, δ).
+struct PolygonOf<'a> {
+    body: &'a Body<f64>,
+    fk: FaceKey,
+    surface: &'a Surface<f64>,
+    row: &'a ChartRow<'a>,
+    lift: &'a FaceLift<f64>,
+    creases: Option<&'a Creases>,
+    chords: &'a ChordPass,
+    shared: &'a [Point3<f64>],
+    band: Band,
+    delta: f64,
+}
+
+/// **The face's singular vertices and its UV polygon** ([`tessellate_trimmed`]).
+///
+/// The singular vertices are the loop's vertices that are the chart's
+/// singular points, decided at the run's band by the one read of that
+/// incidence (`chart_table`'s `at_a_singular_point`, through
+/// `geom_brep::chart_singularity::vertex_at_singular_point`): an analytic
+/// chart's poles and apexes, a spline chart's collapsed sides
+/// ([`CollapsedSides`]). It is the read topo's lift makes where it turns the
+/// face at a vertex (`pcurves` `singular_at`), on the same points at the
+/// same band. The lift does not store that decision: a joint at a singular
+/// point stores an ordinary deck element, as every joint does, so the mesh
+/// reads the incidence again rather than reading it off the lift. Each
+/// vertex's mesh id is its edges' end chord id.
+///
+/// The polygon: per half-edge, the pcurve evaluated at the shared chord
+/// parameters (each traversal contributes all but its last point; ids
+/// stay the shared 3-D chord ids), every loop, a spline chart's
+/// collapsed sides walked at the face's chord steps at `delta`
+/// ([`SidePoints`]), the steps its rims are chorded at. Every loop has at
+/// least three points: the chord pass's short-loop floor (`chords`).
+fn face_polygon(of: &PolygonOf<'_>) -> Result<(HashSet<u32>, TrimPolygon), TessellateError> {
+    let PolygonOf {
+        body,
+        fk,
+        surface,
+        row,
+        lift,
+        creases,
+        chords,
+        shared,
+        band,
+        delta,
+    } = *of;
+    let sides = CollapsedSides::of(surface);
+    let singular = match row {
+        ChartRow::Analytic(a) if !a.singular_points().is_empty() => {
+            singular_vertices(body, fk, lift, chords, shared, |p| a.is_singular(p, band))?
+        }
+        ChartRow::Spline { .. } if !sides.is_empty() => {
+            singular_vertices(body, fk, lift, chords, shared, |p| sides.holds(p, band))?
+        }
+        ChartRow::Analytic(_) | ChartRow::Spline { .. } => HashSet::new(),
+    };
+    let walk = match row {
+        ChartRow::Spline { .. } if !singular.is_empty() => sides.points(
+            shared,
+            &singular,
+            row.steps(face_target(surface, Lane::Trimmed, delta)),
+            band,
+        ),
+        ChartRow::Analytic(_) | ChartRow::Spline { .. } => SidePoints::default(),
+    };
+    let spline = matches!(row, ChartRow::Spline { .. });
+    let polygon = one_location_per_branch(
+        trim_polygon(body, fk, lift, chords, spline, creases, (&singular, &walk))?,
+        surface.angle_periods(),
+        &singular,
+    );
+    Ok((singular, polygon))
+}
+
 /// **The loops' vertices that are the chart's singular points**, as mesh
 /// ids, a ring's as an outer loop's: each loop edge's end chord ids (the
 /// vertices' own points, bitwise, `crate::chords`), kept where
-/// [`AnalyticRow::is_singular`] decides the point is one, at `band`. It
-/// is the decision the loop's lift takes to turn the face there
-/// (`chart_table`'s module docs), read on the same points, so the
-/// polygon's sides at a singular point are the lift's.
+/// `is_singular` decides the point is one: [`AnalyticRow::is_singular`]
+/// or [`CollapsedSides::holds`], each at the run's band, the decision the
+/// loop's lift takes to turn the face there (`chart_table`'s module
+/// docs), read on the same points, so the polygon's sides at a singular
+/// point are the lift's.
 ///
 /// # Errors
 ///
-/// `SphereTrimShape { SingularUndecided }` at a vertex the band cannot
-/// place on or off a singular point, read before the polygon is walked.
+/// `SphereTrimShape { SingularUndecided }` at a vertex `is_singular`
+/// cannot place on or off a singular point, read before the polygon is
+/// walked.
 fn singular_vertices(
     body: &Body<f64>,
     fk: FaceKey,
     lift: &FaceLift<f64>,
     chords: &ChordPass,
     shared: &[Point3<f64>],
-    row: &AnalyticRow<'_>,
-    band: geom_core::predicate::Band,
+    is_singular: impl Fn(Point3<f64>) -> Result<bool, geom_core::Indeterminate>,
 ) -> Result<HashSet<u32>, TessellateError> {
     let mut out = HashSet::new();
     for lifted in every_loop(lift).flat_map(Lift::rows) {
@@ -2483,7 +2608,7 @@ fn singular_vertices(
                 .ok_or(TessellateError::MissingEntity {
                     what: "vertex position",
                 })?;
-            match row.is_singular(p, band) {
+            match is_singular(p) {
                 Ok(true) => {
                     out.insert(id);
                 }
@@ -2903,8 +3028,10 @@ pub(crate) fn every_loop(lift: &FaceLift<f64>) -> impl Iterator<Item = &Lift<f64
 /// half-edge, `pcurve.eval` at the shared chord parameters (module
 /// docs; each traversal contributes all but its last point, and its last
 /// point too where that is a `singular` vertex the next traversal leaves
-/// from another `u`, so the singular point's row is a side of the polygon
-/// — [`singular_row_shape`]).
+/// from another chart location, so the singular point's row (a pole's
+/// latitude, a collapsed side) is a side of the polygon
+/// — [`singular_row_shape`]; a spline chart's collapsed side is then
+/// walked through its vertex, [`SidePoints::along`]).
 /// `nurbs_chart` widens the accepted image forms to `IsoLine`,
 /// `IsoArc` and `General`; `Fitted` refuses typed on every chart
 /// (module docs). It is the SPLINE-chart flag, not a `Surface::Nurbs`
@@ -2922,10 +3049,19 @@ fn trim_polygon(
     chords: &ChordPass,
     nurbs_chart: bool,
     creases: Option<&Creases>,
-    singular: &HashSet<u32>,
+    (singular, walk): (&HashSet<u32>, &SidePoints),
 ) -> Result<TrimPolygon, TessellateError> {
-    let read =
-        |lift: &Lift<f64>| loop_polygon(body, fk, lift, chords, nurbs_chart, creases, singular);
+    let read = |lift: &Lift<f64>| {
+        walk.along(loop_polygon(
+            body,
+            fk,
+            lift,
+            chords,
+            nurbs_chart,
+            creases,
+            singular,
+        )?)
+    };
     let (outer, rings) = domain_loops(lift);
     let mut trim = TrimPolygon::new(read(outer)?);
     for ring in rings {
@@ -3100,8 +3236,9 @@ fn loop_polygon(
 
 /// The traversals joined into one loop's polygon: each contributes all but
 /// its last point, and its last point too where that is a `singular`
-/// vertex the next traversal leaves from another `u`, so the singular
-/// point's row is a side of the polygon ([`singular_row_shape`]).
+/// vertex the next traversal leaves from another chart location, so the
+/// singular point's row (a pole's latitude, a collapsed side) is a side of
+/// the polygon ([`singular_row_shape`], [`SidePoints`]).
 /// Beside it, the edge each point's traversal walks.
 fn flatten_traversals(
     travs: &[Vec<(f64, f64, u32)>],
@@ -3137,6 +3274,212 @@ fn flat_points<'t>(
             .map(move |&p| (k, p))
             .chain(side.then_some((k, last)))
     })
+}
+
+/// **A spline chart's collapsed sides**: each side of the knot rectangle
+/// whose boundary iso is one stored point, read from the one home
+/// (`geom_brep::chart_singularity::singular_points`). Empty on an analytic
+/// chart, whose singular points its row reads.
+struct CollapsedSides(Vec<CollapsedSide>);
+
+/// One collapsed side: which side, its one point, and the chart value
+/// its fixed axis holds there (the knot rectangle's end).
+#[derive(Clone, Copy, Debug)]
+struct CollapsedSide {
+    side: geom_brep::ChartSide,
+    point: Point3<f64>,
+    held: f64,
+}
+
+impl CollapsedSides {
+    fn of(surface: &Surface<f64>) -> Self {
+        use geom_brep::chart_singularity::{Singularity, singular_points};
+        use geom_brep::{ChartAxis, ChartEnd};
+        let Some(net) = surface.spline_chart() else {
+            return Self(Vec::new());
+        };
+        Self(
+            singular_points(surface)
+                .into_iter()
+                .filter_map(|(which, point)| match which {
+                    Singularity::Side(side) => {
+                        let (lo, hi) = match side.fixed {
+                            ChartAxis::U => net.knot_values_u().domain(),
+                            ChartAxis::V => net.knot_values_v().domain(),
+                        };
+                        let held = match side.end {
+                            ChartEnd::Low => lo,
+                            ChartEnd::High => hi,
+                        };
+                        Some(CollapsedSide { side, point, held })
+                    }
+                    _ => None,
+                })
+                .collect(),
+        )
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Whether vertex position `p` is a collapsed side's point, decided at
+    /// `band` by the one read of a vertex on a singular point
+    /// (`crate::chart_table`'s `at_a_singular_point`, [`face_polygon`]).
+    fn holds(&self, p: Point3<f64>, band: Band) -> Result<bool, Indeterminate> {
+        at_a_singular_point(self.0.iter().map(|s| s.point), p, band)
+    }
+
+    /// The points along each side ([`SidePoints`]) at the face's chord
+    /// steps `(h_u, h_v)`: every `singular` vertex decided on exactly one
+    /// side, and clear of every other, walks it at the step of the axis the
+    /// side runs along.
+    fn points(
+        &self,
+        shared: &[Point3<f64>],
+        singular: &HashSet<u32>,
+        (hu, hv): (f64, f64),
+        band: Band,
+    ) -> SidePoints {
+        use geom_brep::ChartAxis;
+        let mut along = HashMap::new();
+        for &id in singular {
+            let p = *shared.get(id as usize).unwrap_or_else(|| {
+                unreachable!(
+                    "singular id {id} is a loop vertex's end chord id, which the chord \
+                     pass mints into the shared positions"
+                )
+            });
+            let reads: Vec<_> = self
+                .0
+                .iter()
+                .map(|s| (s, at_a_singular_point(core::iter::once(s.point), p, band)))
+                .collect();
+            // A vertex the band leaves undecided against one side, or decides
+            // on two, may stand at the sides' shared corner, where the loop's
+            // path between its copies turns: it keeps its two copies and no
+            // point between, a shape that is sound and coarse
+            // (`work/tesslane/a-spline-vertex-on-two-collapsed-sides-keeps-its-polygons-copies-unwalked.md`).
+            if reads.iter().any(|(_, r)| r.is_err()) {
+                continue;
+            }
+            let mut on = reads
+                .iter()
+                .filter(|(_, r)| *r == Ok(true))
+                .map(|(s, _)| *s);
+            let (Some(s), None) = (on.next(), on.next()) else {
+                continue;
+            };
+            let step = match s.side.fixed {
+                ChartAxis::U => hv,
+                ChartAxis::V => hu,
+            };
+            along.insert(
+                id,
+                Along {
+                    fixed: s.side.fixed,
+                    held: s.held,
+                    step,
+                },
+            );
+        }
+        SidePoints { along }
+    }
+}
+
+/// How one vertex's collapsed side is walked: the axis the side holds
+/// fixed, the chart value it holds it at, and the face's chord step along
+/// the other axis.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Along {
+    fixed: geom_brep::ChartAxis,
+    held: f64,
+    step: f64,
+}
+
+/// **The points a spline chart's polygon walks a collapsed side through**,
+/// by vertex id ([`Along`]).
+///
+/// A singular vertex the loop arrives at from one place on its side and
+/// leaves from another is held twice ([`flat_points`]), and the polygon's
+/// side between the copies is the collapsed side. The spline certificate
+/// bounds a triangle by its chart box (`NurbsCellGrid::cert`), so a
+/// triangle with a corner at one copy spans, in the chart, as far along
+/// the side as that copy is from its other corners, however small it is
+/// in space. The side is therefore walked as a rim is chorded
+/// (`crates/mesh/README.md` `[mesh.sizing]`, "Rim chords use the face's
+/// grid step"): its image moves at unit speed along its free axis, so it
+/// takes `⌈span/h⌉` pieces, each point a copy of the vertex. That is as
+/// fine as a strut on that column would be chorded, which is finer than
+/// the certificate alone needs. Each point holds the side's fixed axis at
+/// the side's own value, so it lies on the side, where the surface is the
+/// vertex, and the corner a triangle holds there is the surface's point
+/// at its chart corner: every kept triangle's certificate bounds its
+/// points' distance from the surface.
+///
+/// **The triangles the walk leaves out.** A triangle on two copies has two
+/// corners on one mesh vertex, and the emit pass drops it before any
+/// certificate, as it drops a sphere's or a spindle's at a pole side: its
+/// 3-D image is the segment from the vertex to its third corner, an edge
+/// of kept, certified triangles, so it adds no point to the mesh and the
+/// promise (every point of the mesh within δ of the surface) is not
+/// reached by it. What the surface does over the dropped chart region,
+/// against that segment, is measured and not proved: within 0.061 δ over
+/// the 2,184 such triangles of the loft's class at four δ (the review of
+/// PR 7517). The triangles left about the vertex are a fan, which the emit
+/// pass's census of identified vertices re-derives.
+///
+/// Empty on every analytic chart: the sphere's and spindle's certificates
+/// read the triangle in space and the cone's reads no azimuth at its
+/// apex, so their pole sides hold no point between the copies.
+#[derive(Default)]
+struct SidePoints {
+    along: HashMap<u32, Along>,
+}
+
+impl SidePoints {
+    /// One loop's points with each walked side's points inserted between
+    /// the copies that end it, each beside the edge of the copy it
+    /// follows.
+    ///
+    /// # Errors
+    ///
+    /// [`ceil_count`]'s, on a side's count.
+    fn along(&self, (points, edges): LoopPoints) -> Result<LoopPoints, TessellateError> {
+        use geom_brep::ChartAxis;
+        if self.along.is_empty() {
+            return Ok((points, edges));
+        }
+        let n = points.len();
+        let (mut out, mut out_edges) = (Vec::with_capacity(n), Vec::with_capacity(n));
+        for i in 0..n {
+            let (a, b) = (points[i], points[(i + 1) % n]);
+            out.push(a);
+            out_edges.push(edges[i]);
+            let Some(&Along { fixed, held, step }) = self.along.get(&a.2) else {
+                continue;
+            };
+            let (fa, fb) = match fixed {
+                ChartAxis::U => (a.1, b.1),
+                ChartAxis::V => (a.0, b.0),
+            };
+            #[allow(clippy::float_cmp)] // two copies at one place on the side bound no piece
+            if b.2 != a.2 || fa == fb {
+                continue;
+            }
+            let pieces = ceil_count((fb - fa).abs(), step)?;
+            for k in 1..pieces {
+                #[allow(clippy::cast_precision_loss)]
+                let free = fa + (fb - fa) * (k as f64 / pieces as f64);
+                out.push(match fixed {
+                    ChartAxis::U => (held, free, a.2),
+                    ChartAxis::V => (free, held, a.2),
+                });
+                out_edges.push(edges[i]);
+            }
+        }
+        Ok((out, out_edges))
+    }
 }
 
 /// One loop's points, each its chart `(u, v)` and mesh id in walk order,
@@ -3197,6 +3540,35 @@ impl TrimPolygon {
         let k = self.ends.partition_point(|&e| e <= i);
         let start = if k == 0 { 0 } else { self.ends[k - 1] };
         if i + 1 == self.ends[k] { start } else { i + 1 }
+    }
+
+    /// **The one test of a shared side**: the faces across this
+    /// polygon's loops ([`faces_across`]) that hold both ends of a side
+    /// joining boundary ids `a` and `b`, which sit at polygon places `at_a`
+    /// and `at_b` (a pinch or a singular point's copies sit at several).
+    /// None where the two are neighbours on their loop (the side is a
+    /// boundary chord) or no one face holds both. A face listed may make
+    /// the side in its own triangulation, so a triangle of this face that
+    /// has it can be an edge of four: the CDT arms cure it by inserting a
+    /// point (`TrimmedFace::emit`), the walk by cutting the side
+    /// ([`walk_face`]), which first asks whether the face can reach it
+    /// ([`may_make`]).
+    fn faces_holding_side(
+        &self,
+        across: &HashMap<u32, Vec<FaceKey>>,
+        (at_a, a): (&[usize], u32),
+        (at_b, b): (&[usize], u32),
+    ) -> Vec<FaceKey> {
+        let neighbours = at_a
+            .iter()
+            .any(|&i| at_b.iter().any(|&j| self.next(i) == j || self.next(j) == i));
+        if neighbours {
+            return Vec::new();
+        }
+        match (across.get(&a), across.get(&b)) {
+            (Some(fa), Some(fb)) => fa.iter().filter(|f| fb.contains(f)).copied().collect(),
+            _ => Vec::new(),
+        }
     }
 
     /// Point `i`'s predecessor along its own loop.
@@ -3430,6 +3802,256 @@ impl Creases {
         }
     }
 }
+
+/// **Whether a neighbouring face on `neighbour` may make the side `a–b`**
+/// in a mesh at `delta`, read where it provably cannot, as a function of
+/// the body and δ alone: no ε is read (DESIGN `[tolerance.chordal]`, an ε
+/// flip never moves emitted coordinates with δ held fixed; `[mesh.winding]`).
+///
+/// A triangle the neighbour emits passes its certificate
+/// (`cert::verdict`): its computed bound is within δ, or past δ by no more
+/// than the certificate's own rounding allowance
+/// (`cert::rounding_allowance`, 8 ulps of the coordinates' magnitude) while
+/// that allowance is small beside δ (`ALLOWANCE_SHARE`). The true bound is
+/// within that allowance of the computed one, so a passed triangle lies
+/// within `δ·(1 + ALLOWANCE_SHARE)` plus one allowance of its surface. This
+/// test computes the side's midpoint's distance from the neighbour's
+/// surface (`geom::Surface::foot`, in closed form on every analytic kind)
+/// and keeps the side uncut only where that distance exceeds
+/// `δ·(1 + ALLOWANCE_SHARE)` by more than TWO allowances at the magnitude
+/// of the points it reads: one for the neighbour's bound, one for this
+/// distance's own rounding (a midpoint, a closed-form foot, a difference
+/// and a norm: a chain of the certificate's kind, which its 8 ulps bound
+/// with room, `cert::ROUNDING_ULPS`). Past that, no triangle the neighbour
+/// passes holds the side. Everything else cuts: a distance within it, a
+/// surface with no foot, a point where the foot is not one point.
+///
+/// **A planar neighbour** has no certificate: its triangles lie in its
+/// plane, so it holds a side only where the side's midpoint is in the
+/// plane, and there the distance is within rounding of zero, never past
+/// the reach; the walk cuts such a side.
+///
+/// **The magnitude read.** The allowance is taken at the side's two ends
+/// and the midpoint's foot. The neighbour's verdict reads its own
+/// triangle's third corner and its chart's anchor too
+/// (`cert::position_scale`); where those stand farther from the origin,
+/// its allowance is larger than the one read here (by at most
+/// `δ·ALLOWANCE_SHARE`, past which the verdict does not pass the
+/// triangle). A side excluded on that difference, which no body built here
+/// reaches, is the census's (`tessellate::overused_side`) to refuse.
+///
+/// Every face of one run is meshed at its one δ (the run's `SizingTols`),
+/// and a face sized finer than δ is still within it.
+fn may_make(neighbour: &Surface<f64>, a: Point3<f64>, b: Point3<f64>, delta: f64) -> bool {
+    let mid = Point3::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0.5 * (a.z + b.z));
+    let Some(foot) = neighbour.foot(mid) else {
+        return true;
+    };
+    let allowance = cert::rounding_allowance(cert::coordinate_scale([a, b, foot]));
+    (mid - foot).norm() <= delta * (1.0 + cert::ALLOWANCE_SHARE) + 2.0 * allowance
+}
+
+/// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
+/// rows, each side a neighbouring face may also make cut at a point of the
+/// surface between its ends, then each triangle read as every triangle of
+/// this lane is: its winding resolved and outward, its certificate within
+/// δ.
+///
+/// **The shared side**, the polygon's one test
+/// ([`TrimPolygon::faces_holding_side`], which the CDT arms read too): a
+/// side joining two polygon points that are not neighbours on their loop
+/// and that one face across the loop's edges holds both of is a side that
+/// face's own triangulation may make, an edge of four triangles. A
+/// neighbour holding both of this face's rims (a sphere or a torus face
+/// round a bore, at a δ past the shell's thickness) makes rim-to-rim sides
+/// exactly as the walk does. The walk has no triangulation to rebuild
+/// round an inserted point, as the CDT arms do: it cuts the side, where
+/// the face across may reach it ([`may_make`]), at the surface point at
+/// its chart midpoint (the apex's `u` left out), and each triangle on it
+/// becomes two. That point lies between the same two rulings, so the two
+/// keep the walk's bound, and each cut adds two triangles to the face's
+/// count.
+///
+/// # Errors
+///
+/// The lane's per-triangle refusals: [`TessellateError::UnresolvedWinding`],
+/// [`TessellateError::FoldedTriangle`],
+/// [`TessellateError::CertificateExceeded`],
+/// [`TessellateError::RoundingUnresolved`].
+#[allow(clippy::too_many_arguments)] // the face, its domain, and what the run shares
+fn walk_face(
+    body: &Body<f64>,
+    fk: FaceKey,
+    row: &AnalyticRow<'_>,
+    polygon: &TrimPolygon,
+    singular: &HashSet<u32>,
+    chords: &ChordPass,
+    shared: &[Point3<f64>],
+    tol: &SizingTols,
+) -> Result<Patch, TessellateError> {
+    let sense = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?
+        .sense;
+    let points = &polygon.points;
+    let line: Vec<bool> = polygon
+        .edges
+        .iter()
+        .map(|&ek| carried_by_a_line(body, ek))
+        .collect();
+    // `[failure.taxonomy]` row 0: no. The two rows are read again here off
+    // the polygon the chord pass built, after the route read the loop's
+    // carriers (`walkable`); the route cannot hand the lane the polygon,
+    // which does not exist when it runs. A re-derivation that a correct
+    // kernel always passes is row 4, and it is a re-derivation of one
+    // decision, not a second decision that should agree: the apex flags
+    // here (`singular_vertices`) and the route's are one function on the
+    // same arguments, `chart_table::at_a_singular_point` over
+    // `topo::chart::Chart::of(surface).poles()` (the route through
+    // `chart_table::at_a_pole`, the lane through `AnalyticRow::is_singular`,
+    // its row minted on the same surface), at the vertex's point by topo's
+    // one read of it (`readback::vertex_point`; the lane's mesh position is
+    // `Body::vertex_points`' copy of it), at the run's one band
+    // (`tessellate` mints it once and hands it to the route and to
+    // `SizingTols`). A vertex in the band between them cannot exist: where
+    // the route's reading is undecided it does not walk the face.
+    let Some(rows) = (polygon.ends.len() == 1)
+        .then(|| crate::ruled_walk::Rows::of(points, &line, singular))
+        .flatten()
+    else {
+        unreachable!(
+            "face {fk:?}: the route walks a face only where its outer loop, with no \
+             ring, is lines and rims in the walk's shape (`walkable`, deciding its \
+             vertices on the apex at the run's band), and the trim polygon is that \
+             loop in order with chord points added along its edges and the apex \
+             decided at the same band (`singular_vertices`), so it reads as the same \
+             two rows: here it has {} loop(s) and {} point(s)",
+            polygon.ends.len(),
+            points.len()
+        );
+    };
+    let across = faces_across(body, fk, chords)?;
+    // Each boundary id's places on the polygon: the apex's copies are one
+    // point, and so are a full turn's seam ends.
+    let mut places: HashMap<u32, Vec<usize>> = HashMap::new();
+    for (i, point) in points.iter().enumerate() {
+        places.entry(point.2).or_default().push(i);
+    }
+    // A side one face across holds both ends of (the polygon's one test,
+    // `TrimPolygon::faces_holding_side`), which that face may also make
+    // ([`may_make`]).
+    let shares = |p: u32, q: u32| {
+        let at = |id: u32| places.get(&id).map_or(&[][..], Vec::as_slice);
+        for f in polygon.faces_holding_side(&across, (at(p), p), (at(q), q)) {
+            let neighbour = crate::tessellate::face_surface(body, f)?;
+            if may_make(neighbour, shared[p as usize], shared[q as usize], tol.delta) {
+                return Ok(true);
+            }
+        }
+        Ok::<bool, TessellateError>(false)
+    };
+    // Each corner: its mesh vertex, its chart point, and whether it is the
+    // apex.
+    let mut corners: Vec<[(PatchVertex, [f64; 2], bool); 3]> = rows
+        .walk(points)
+        .into_iter()
+        .map(|t| {
+            t.map(|k| {
+                let (u, v, id) = points[k];
+                (PatchVertex::Shared(id), [u, v], singular.contains(&id))
+            })
+        })
+        .collect();
+    // The shared sides, in the order the walk meets them.
+    let mut split: Vec<(u32, u32)> = Vec::new();
+    for c in &corners {
+        for q in 0..3 {
+            if let (PatchVertex::Shared(p), PatchVertex::Shared(r)) = (c[q].0, c[(q + 1) % 3].0)
+                && !split.contains(&(p.min(r), p.max(r)))
+                && shares(p, r)?
+            {
+                split.push((p.min(r), p.max(r)));
+            }
+        }
+    }
+    // Each shared side is cut at the surface point at its chart midpoint
+    // (the apex's `u` left out), and each triangle on it made two.
+    let mut interior: Vec<Point3<f64>> = Vec::new();
+    for (p, r) in split {
+        let mut cut = None;
+        let mut next = Vec::with_capacity(corners.len() + 2);
+        for c in corners {
+            let at = (0..3).find(|&q| {
+                let (x, y) = (c[q].0, c[(q + 1) % 3].0);
+                (x, y) == (PatchVertex::Shared(p), PatchVertex::Shared(r))
+                    || (x, y) == (PatchVertex::Shared(r), PatchVertex::Shared(p))
+            });
+            let Some(q) = at else {
+                next.push(c);
+                continue;
+            };
+            let (x, y, z) = (c[q], c[(q + 1) % 3], c[(q + 2) % 3]);
+            let mid = *cut.get_or_insert_with(|| {
+                let u = match (x.2, y.2) {
+                    (true, _) => y.1[0],
+                    (_, true) => x.1[0],
+                    _ => 0.5 * (x.1[0] + y.1[0]),
+                };
+                let v = 0.5 * (x.1[1] + y.1[1]);
+                interior.push(row.surface().eval(u, v));
+                #[allow(clippy::cast_possible_truncation)]
+                let id = PatchVertex::Local(interior.len() as u32 - 1);
+                (id, [u, v], false)
+            });
+            next.push([x, mid, z]);
+            next.push([mid, y, z]);
+        }
+        corners = next;
+    }
+    let mut triangles = Vec::with_capacity(corners.len());
+    let mut verdict = cert::FaceVerdict::new();
+    for c in corners {
+        let ids = c.map(|c| c.0);
+        let tri = ids.map(|id| id.position(shared, &interior));
+        let normal = crate::validate::resolved_normal(tri).map_err(|unresolved| {
+            TessellateError::UnresolvedWinding {
+                face: fk,
+                unresolved: Box::new(unresolved),
+            }
+        })?;
+        let centroid = Point3::new(
+            (tri[0].x + tri[1].x + tri[2].x) / 3.0,
+            (tri[0].y + tri[1].y + tri[2].y) / 3.0,
+            (tri[0].z + tri[1].z + tri[2].z) / 3.0,
+        );
+        // Folded unless wound outward: a zero dot is a fold.
+        if normal
+            .dot(row.outward(sense, centroid).vec())
+            .partial_cmp(&0.0)
+            != Some(core::cmp::Ordering::Greater)
+        {
+            return Err(TessellateError::FoldedTriangle { face: fk });
+        }
+        // Which corners are the apex: an apex corner's chart `u` is a copy's
+        // (the polygon places the apex at the `u` of each ruling meeting
+        // it), and the certificate reads such a corner as the apex itself,
+        // a point at every `u`, not as `S(u, v)` at that copy's `u`
+        // (`cert::cert_cone`'s `pole`), as the CDT arms read theirs. A cut
+        // point is never the apex.
+        let (bound, scale) = row.cert(tri, c.map(|c| c.1), c.map(|c| c.2));
+        verdict.read(bound, tol.delta, scale, tol.eps);
+        triangles.push(ids);
+    }
+    verdict.refusal(fk, tol.delta)?;
+    Ok(Patch {
+        interior,
+        triangles,
+    })
+}
+
+#[cfg(test)]
+#[path = "trimmed_collapsed_rows.rs"]
+mod collapsed_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -3833,10 +4455,17 @@ pub(super) mod tests {
             assert_eq!(grid.creases(), (&[0.5][..], &[][..]), "face {fk:?}");
             let c = Creases::of(grid, chart, fk).unwrap();
             let lift = body.face_lift(fk, band()).unwrap();
-            let polygon =
-                trim_polygon(&body, fk, &lift, &chords, true, c.as_ref(), &HashSet::new())
-                    .unwrap()
-                    .points;
+            let polygon = trim_polygon(
+                &body,
+                fk,
+                &lift,
+                &chords,
+                true,
+                c.as_ref(),
+                (&HashSet::new(), &super::SidePoints::default()),
+            )
+            .unwrap()
+            .points;
             let (_, v0, v1) = polygon
                 .iter()
                 .fold((0, f64::MAX, f64::MIN), |(n, lo, hi), p| {
@@ -4708,12 +5337,21 @@ pub(super) mod tests {
                 panic!("a sphere face has an analytic row");
             };
             let lift = body.face_lift(fk, band()).unwrap();
-            let singular =
-                super::singular_vertices(&body, fk, &lift, &chords, &positions, &row, band())
-                    .unwrap();
-            let polygon = super::trim_polygon(&body, fk, &lift, &chords, false, None, &singular)
-                .unwrap()
-                .points;
+            let singular = super::singular_vertices(&body, fk, &lift, &chords, &positions, |p| {
+                row.is_singular(p, band())
+            })
+            .unwrap();
+            let polygon = super::trim_polygon(
+                &body,
+                fk,
+                &lift,
+                &chords,
+                false,
+                None,
+                (&singular, &super::SidePoints::default()),
+            )
+            .unwrap()
+            .points;
             let n = polygon.len();
             let pole_sides = (0..n)
                 .filter(|&i| {
@@ -5483,6 +6121,7 @@ pub(super) mod tests {
                     let lift = super::face_domain(body, fk, tol.band).unwrap();
                     let answer = super::tessellate_trimmed(
                         body, fk, surface, &chords, &positions, &tol, &bounds, &lift, clearance,
+                        false,
                     );
                     (fk, answer.map(|patch| patch.triangles.len()))
                 })
@@ -6223,13 +6862,21 @@ pub(super) mod tests {
                     panic!("a cone face has an analytic row");
                 };
                 let lift = body.face_lift(fk, band).unwrap();
-                let singular = super::super::singular_vertices(
-                    &body, fk, &lift, &chords, &positions, analytic, band,
+                let singular =
+                    super::super::singular_vertices(&body, fk, &lift, &chords, &positions, |p| {
+                        analytic.is_singular(p, band)
+                    })
+                    .unwrap();
+                let polygon = super::super::trim_polygon(
+                    &body,
+                    fk,
+                    &lift,
+                    &chords,
+                    false,
+                    None,
+                    (&singular, &super::super::SidePoints::default()),
                 )
                 .unwrap();
-                let polygon =
-                    super::super::trim_polygon(&body, fk, &lift, &chords, false, None, &singular)
-                        .unwrap();
                 let plane = CdtPlane::of(&row, 1.0, &polygon, &singular);
                 let runs = developed_runs(plane, &polygon, &singular, &|i| {
                     carried_by_a_line(&body, polygon.edges[i])

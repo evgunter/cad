@@ -489,7 +489,7 @@ pub(crate) mod tests {
         match (try_arc_sector_from(r, span, phi_deg.to_radians()), pinned) {
             (Ok(built), false) => Some(built),
             (
-                Err(crate::euler::EulerOpError::Certification {
+                Err(crate::euler::EulerOpError::DescriptionUncertified {
                     error:
                         geom_brep::certify::CertifyError::AnalyticRung3(
                             geom_brep::edge_nurbs::AnalyticRung3Refusal::KernelLimit {
@@ -498,6 +498,7 @@ pub(crate) mod tests {
                                 ..
                             },
                         ),
+                    ..
                 }),
                 true,
             ) if bound > 1.0e-12 && bound <= 1.1e-12 => None,
@@ -4352,7 +4353,11 @@ pub(crate) mod sphere_rect_rows {
             // exactly when the rim runs about `+ẑ` and the tip is above
             // it, or about `−ẑ` and below: set from the stored traversal,
             // not from the side reader these rows test.
-            let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
+            let (outer, _) = crate::props::loop_edges(
+                body.cycle_loop(body.faces[north].outer)
+                    .expect("a cycle loop"),
+            )
+            .unwrap();
             let base = outer
                 .iter()
                 .find(|e| matches!(e.carrier, Curve3::Circle(circle_2 @ geom::Circle { .. }) if circle_2.frame().axis().dot(z) > 0.5))

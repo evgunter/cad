@@ -68,7 +68,11 @@ fn top_circle<T: Decide + Bounds>(body: &Body<T>) -> LoopKey {
 fn misreads<T: Decide + Bounds>(what: &str, body: &Body<T>) -> Vec<String> {
     let band = Band::linear(Tol::witness()).unwrap();
     let l = top_circle(body);
-    let n = Vec3::new(0.0, 0.0, 1.0).map(T::from_f64);
+    let n = geom::Frame::new(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0).map(T::from_f64),
+        Vec3::new(1.0, 0.0, 0.0).map(T::from_f64),
+    );
     let mut wrong = Vec::new();
     for (name, (x, y), want) in [
         ("inside, off the chord", (0.0, 0.5), LoopContainment::In),
@@ -109,7 +113,19 @@ fn disc<T: Decide + topo::AtRestPolicy>() -> Body<T> {
 /// the refusal is not the one wanted.
 fn wrong_refusals<T: Decide + Bounds>(what: &str, body: &Body<T>) -> Vec<String> {
     let band = Band::linear(Tol::witness()).unwrap();
-    let v = |x: f64, y: f64, z: f64| Vec3::new(x, y, z).map(T::from_f64);
+    // The plane square to `(x, y, z)` through the origin, as a frame.
+    let v = |x: f64, y: f64, z: f64| {
+        let u = if x.abs() < 0.5 {
+            (1.0, 0.0, 0.0)
+        } else {
+            (0.0, 1.0, 0.0)
+        };
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(x, y, z).map(T::from_f64),
+            Vec3::new(u.0, u.1, u.2).map(T::from_f64),
+        )
+    };
     let p = |x: f64, y: f64, z: f64| Point3::new(x, y, z).map(T::from_f64);
     let cap = top_circle(body);
     // Either of the two half-cylinder walls: two lines and two arcs.
@@ -148,13 +164,6 @@ fn wrong_refusals<T: Decide + Bounds>(what: &str, body: &Body<T>) -> Vec<String>
             v(0.0, 0.0, 1.0),
             p(0.0, 0.5, 51.5),
             "query",
-        ),
-        (
-            "a normal of length 2",
-            cap,
-            v(0.0, 0.0, 2.0),
-            p(0.0, 0.5, 2.5),
-            "normal",
         ),
     ] {
         let got = point_in_loop(body, l, n, q, band);

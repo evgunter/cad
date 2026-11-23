@@ -30,8 +30,8 @@ pub trait Staged {
     ///
     /// # Errors
     ///
-    /// The formatter's.
-    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result;
+    /// None from a sentence: the type is the one `write!` returns.
+    fn fmt_labelled(&self, f: &mut crate::Sentence, labels: Labels) -> core::fmt::Result;
 
     /// The refusal as a carrier that names the stage renders it.
     fn sentence(&self) -> Labelled<'_, Self> {
@@ -45,7 +45,7 @@ pub struct Labelled<'a, E: ?Sized>(pub &'a E, pub Labels);
 impl<E: Staged + ?Sized> Labelled<'_, E> {
     /// The stage word and its joint, written when `labels` are kept:
     /// the one spelling of a refusal's opening, whoever says the rest.
-    pub(crate) fn open(f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+    pub(crate) fn open(f: &mut crate::Sentence, labels: Labels) -> core::fmt::Result {
         if labels == Labels::Kept {
             write!(f, "{}: ", E::STAGE)?;
         }
@@ -53,10 +53,18 @@ impl<E: Staged + ?Sized> Labelled<'_, E> {
     }
 }
 
+impl<E: Staged + ?Sized> crate::Put for Labelled<'_, E> {
+    fn put(self, out: &mut crate::Sentence) {
+        let _ = Self::open(out, self.1);
+        let _ = self.0.fmt_labelled(out, self.1);
+    }
+}
+
 impl<E: Staged + ?Sized> core::fmt::Display for Labelled<'_, E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        Self::open(f, self.1)?;
-        self.0.fmt_labelled(f, self.1)
+        let mut out = crate::Sentence::new();
+        crate::Put::put(Labelled(self.0, self.1), &mut out);
+        write!(f, "{out}")
     }
 }
 

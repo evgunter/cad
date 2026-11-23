@@ -17,14 +17,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::a_check_carries_the_assertion_that_quiets_it::{
+    every_offered_assertion_quiets as law, refuses_at_error,
+};
 use crate::blocks::{block, failure, run};
 use crate::fixture::{against, axes_at, insert, len, union_over};
 
 use editor_core::{
-    AssertionRelation, AssertionVerdict, CheckEvidence, CheckFinding, CheckId, ChecksConfig,
-    EntityKey, Entry, Evaluation, FindingSubject, LoopProgram, MeasurePrimitive, NamedCell,
-    NamedCoincidence, Node, Operand, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, SitedRef,
-    StableName, ValuePayload, enforce_checks,
+    AssertionRelation, AssertionVerdict, CheckEvidence, CheckFinding, CheckId, EntityKey, Entry,
+    Evaluation, FindingSubject, LoopProgram, MeasurePrimitive, NamedCell, NamedCoincidence, Node,
+    Operand, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, StableName, ValuePayload,
 };
 use geom_core::Tol;
 use topo::{DecisionSite, Relation};
@@ -225,14 +227,7 @@ fn checks(doc: &ProfileDoc, holding: Option<RecipeNodeId>) -> editor_core::Check
             ev.nodes.get(&assertion)
         );
     }
-    editor_core::run_checks(
-        doc,
-        &ev,
-        &ChecksConfig::default(),
-        &editor_core::Stop::default(),
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the checks run: {e}"))
+    crate::a_check_carries_the_assertion_that_quiets_it::checks_of(doc, &ev)
 }
 
 /// The lint's finding over `row`, decided at `node`.
@@ -263,24 +258,6 @@ fn finding_over(
         panic!("one finding over {row:?}: {found:?}\n{report}")
     };
     (*one).clone()
-}
-
-/// **Whether [`enforce_checks`] refuses `finding` at `Error`.** The
-/// lint's knob is an `Advisory` and spells no `Error`, so the finding is
-/// read alone under the knob of a check that does: what the refusing
-/// path reads of a finding is its `quiet` and its evidence, not which
-/// check it is.
-fn refuses_at_error(report: &editor_core::ChecksReport, finding: &CheckFinding) -> bool {
-    let mut alone = report.clone();
-    alone.findings = vec![CheckFinding {
-        check: CheckId::AtRest,
-        ..finding.clone()
-    }];
-    let cfg = ChecksConfig {
-        at_rest: Severity::Error,
-        ..ChecksConfig::default()
-    };
-    enforce_checks(&alone, &cfg).is_err()
 }
 
 /// The rows `node` decided.
@@ -325,6 +302,8 @@ fn turned_rest() -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
     let (doc, union) = turned_rest();
+    let offers = law("a glue", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let got = rows(&ev, union);
     let glue = got
@@ -359,6 +338,22 @@ fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
             "{why}: a quiet finding refuses nothing"
         );
     }
+
+    // A holding measure the row's site does not say it by, over the
+    // row's own two cells, says nothing of it.
+    let (wrong, assertion) = measured_by(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        [top.clone().into(), bottom.clone().into()],
+        AssertionRelation::Equal,
+        0.0,
+    );
+    let report = checks(&wrong, Some(assertion));
+    assert_eq!(
+        finding_of(&report, union, &glue).quiet,
+        None,
+        "a Distance = 0 over the glue's two faces is no measure that says it: {report}"
+    );
 
     let corner = corners[0];
     let [vertex, face] = sites(&doc, corner);
@@ -401,6 +396,8 @@ fn a_flush_glue_is_quiet_under_its_gap() {
     let (doc, left) = against(doc, anchor, left, &at);
     let (doc, right) = against(doc, anchor, right, &at);
     let (doc, union) = union_over(doc, &[left, right]);
+    let offers = law("a flush glue", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let flush: Vec<NamedCoincidence> = rows(&ev, union)
         .into_iter()
@@ -515,6 +512,8 @@ fn a_splits_on_row_is_quiet_under_its_tool_gap() {
         ),
     ] {
         let (doc, prism, split) = pinched(id, normal);
+        let offers = law(id, &doc);
+        assert!(offers >= 1, "the document offers an assertion: {offers}");
         let ev = run(&doc);
         let got = rows(&ev, split);
         assert_eq!(got.len(), 2, "{id}: one row per tip vertex: {got:?}");
@@ -613,6 +612,7 @@ fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
     assert_eq!(rims.len(), 8, "both rims: {rims:?}");
     let (doc, copy) = against(doc, anchor, the_box, &turned([0.3, -0.2, 0.5]));
     let (doc, fillet) = insert(doc, Node::fillet(copy, len(0.1), rims));
+    law("a blend's turns", &doc);
     let ev = run(&doc);
     let turns = rows(&ev, fillet);
     assert_eq!(turns.len(), 8, "one turn per corner: {turns:?}");
@@ -675,6 +675,8 @@ fn a_rod_on_a_plate_is_quiet_under_its_gap() {
     let (doc, plate) = against(doc, anchor, plate, &at);
     let (doc, rod) = against(doc, anchor, rod, &at);
     let (doc, union) = union_over(doc, &[plate, rod]);
+    let offers = law("a rod on a plate", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let got = rows(&ev, union);
     let tangent = got
@@ -779,7 +781,7 @@ const QUARTER: f64 = std::f64::consts::FRAC_PI_2;
 /// would refuse at `Error` has one that does.
 ///
 /// *Breaks if* a refusing finding has no holding `Gap = 0` over its
-/// cells: `quietable` reading admission rather than the rule.
+/// cells: the assertion minted by admission rather than by the rule.
 #[test]
 fn a_refusing_finding_has_a_gap_zero_that_holds() {
     for (r1, r2) in [(0.5, 0.5), (0.5, 0.3)] {
@@ -949,7 +951,7 @@ fn row_over(
 /// pose as the cell it was read off, or a pose of the wrong kind quiets.
 #[test]
 fn a_coincidence_of_poses_is_quiet_under_its_distance() {
-    use editor_core::test_support::{quiet_row, row_quietable};
+    use editor_core::test_support::{quiet_row, quieting};
     use geom::SurfaceKind as S;
     let ring = |doc, major: f64, minor: f64| {
         revolved(
@@ -1045,11 +1047,25 @@ fn a_coincidence_of_poses_is_quiet_under_its_distance() {
             }
             let row = row_over(&doc, site, relation, cells);
             let what = format!("{poses}, off by {off}");
+            let offered = quieting(&doc, &ev, &row, Tol::witness());
             assert_eq!(
-                row_quietable(&doc, &ev, &row, Tol::witness()),
+                offered.is_some(),
                 on_axis,
                 "{what}: whether a Distance = 0 over its poses could hold"
             );
+            // The law, on a row no document reaches: the offered
+            // assertion, authored, quiets it.
+            if let Some(offered) = &offered {
+                let (doc, assertion) =
+                    crate::a_check_carries_the_assertion_that_quiets_it::authored(
+                        &what, &doc, offered,
+                    );
+                assert_eq!(
+                    quiet_row(&doc, &run(&doc), &row, Tol::witness()),
+                    Some(assertion),
+                    "{what}: the offered assertion quiets the row: {offered:?}"
+                );
+            }
             let [a, b] = refs;
             let distance = MeasurePrimitive::Distance { a: 0, b: 1 };
             for (refs, order) in [
@@ -1079,6 +1095,37 @@ fn a_coincidence_of_poses_is_quiet_under_its_distance() {
                     "{what}: {relation:?} {bound} quiets nothing"
                 );
             }
+        }
+        // Two tori about one axis share their centre too, so a
+        // `Distance = 0` between the centres read off the row's own two
+        // cells holds, and says nothing of their axes.
+        if on_axis {
+            let row = row_over(
+                &doc,
+                DecisionSite::CoaxialTori,
+                Relation::Coaxial,
+                [torus_a.clone(), torus_b.clone()],
+            );
+            let (doc, assertion) = measured_by(
+                &doc,
+                MeasurePrimitive::Distance { a: 0, b: 1 },
+                [point_of(sited(&torus_a)), point_of(sited(&torus_b))],
+                AssertionRelation::Equal,
+                0.0,
+            );
+            let ev = run(&doc);
+            assert!(
+                matches!(
+                    ev.value(assertion).map(|v| &v.payload),
+                    Some(ValuePayload::Assertion(AssertionVerdict::Holds { .. }))
+                ),
+                "the premise, two tori's centres one point"
+            );
+            assert_eq!(
+                quiet_row(&doc, &ev, &row, Tol::witness()),
+                None,
+                "a pose of another kind off the row's own cells quiets nothing"
+            );
         }
     }
 }
@@ -1116,6 +1163,8 @@ fn crossing_axes_are_quiet_under_their_distance_and_a_radius_is_not() {
             .compose(&down),
     );
     let (doc, union) = union_over(doc, &[a_copy, b]);
+    let offers = law("crossing axes", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let meet = row_at(
         &ev,
@@ -1191,6 +1240,8 @@ fn r1_probe_a_split_by_a_face_plane_is_quiet_under_its_tool_gap() {
             tool: tool.into(),
         },
     );
+    let offers = law("a split by a frame's plane", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let got = rows(&ev, split);
     let row = got
@@ -1271,6 +1322,8 @@ fn r2_probe_a_split_by_a_faces_plane_is_quiet_under_its_tool_gap() {
             tool,
         },
     );
+    let offers = law("a split by a face's plane", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let got = rows(&ev, split);
     let row = got
@@ -1326,7 +1379,7 @@ fn gap_zero_var(
 /// it) should not be said by it: red if it quiets.
 #[test]
 fn r2_probe_meeting_axes_do_not_say_coaxial() {
-    use editor_core::test_support::{quiet_row, row_quietable};
+    use editor_core::test_support::{quiet_row, quieting};
     use geom::SurfaceKind as S;
     let ring = |doc, major: f64, minor: f64| {
         revolved(
@@ -1363,7 +1416,7 @@ fn r2_probe_meeting_axes_do_not_say_coaxial() {
         Relation::Coaxial,
         [torus_a.clone(), torus_b.clone()],
     );
-    let quietable = row_quietable(&doc, &ev, &row, Tol::witness());
+    let offered = quieting(&doc, &ev, &row, Tol::witness());
     let (doc, assertion) = measured_by(
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
@@ -1378,7 +1431,184 @@ fn r2_probe_meeting_axes_do_not_say_coaxial() {
     let verdict = ev.value(assertion).map(|v| v.payload.clone());
     let quiet = quiet_row(&doc, &ev, &row, Tol::witness());
     assert!(
-        quiet.is_none(),
-        "axes at right angles quiet a Coaxial row: quietable {quietable}, verdict {verdict:?}"
+        quiet.is_none() && offered.is_none(),
+        "axes at right angles quiet a Coaxial row: offered {offered:?}, verdict {verdict:?}"
     );
+}
+
+/// The claim the loud findings over `split`'s rows carry, one per row.
+fn claims_over(doc: &ProfileDoc, split: RecipeNodeId) -> Vec<editor_core::Quieting> {
+    crate::a_check_carries_the_assertion_that_quiets_it::checks(doc)
+        .findings
+        .iter()
+        .filter(|f| f.subject == FindingSubject::Node(split) && f.quiet.is_none())
+        .filter_map(|f| match &f.evidence {
+            CheckEvidence::UnprovenCoincidence { quieting, .. } => quieting.clone(),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The name `quieting`'s edits give the split's tool first, `None`
+/// where they give none.
+fn named_by(doc: &ProfileDoc, quieting: &editor_core::Quieting) -> Option<String> {
+    match quieting.edits(doc, Tol::witness()).ok()?.edits.first()? {
+        editor_core::DocEdit::RenameVar { name, .. } => name.as_ref().map(ToString::to_string),
+        _ => None,
+    }
+}
+
+/// **A split's unnamed tool is named, by its claim's sentence and its
+/// edits alike, by the first of `tool`, `tool_2`, … the document does
+/// not hold**: a measure is the tool's second reader, and an unnamed
+/// variable has one (VARIABLES VR2). With `tool`, `tool_2` and `Tool_3`
+/// held, it is `tool_3`. Two splits' unnamed tools, with `tool` held,
+/// are each said `tool_2` in the document they were found in, and
+/// authored one after the other they are `tool_2` and `tool_3`.
+///
+/// *Breaks if* the sentence says the tool by another name than its
+/// edits give it, or the name collides with one the document holds.
+#[test]
+fn a_splits_unnamed_tool_is_named_by_a_free_name() {
+    let held = |doc, names: &[&str]| {
+        names
+            .iter()
+            .fold(doc, |doc, name| crate::fixture::index(doc, name, 1).0)
+    };
+    let (doc, _, split) = pinched("atrest-op-tool-names", [0.0, 1.0, 0.0]);
+    let doc = held(doc, &["tool", "tool_2", "Tool_3"]);
+    let claims = claims_over(&doc, split);
+    assert!(!claims.is_empty(), "the split's rows carry claims");
+    let by = editor_core::Speaker::of(&doc);
+    for claim in &claims {
+        assert_eq!(
+            named_by(&doc, claim).as_deref(),
+            Some("tool_3"),
+            "{claim:?}"
+        );
+        assert!(
+            claim.said(by).to_string().contains("tool_3"),
+            "the sentence names the tool as its edits do: {}",
+            claim.said(by)
+        );
+    }
+    law("a split's tool beside held names", &doc);
+
+    let (doc, prism, split) = pinched("atrest-op-two-tools", [0.0, 1.0, 0.0]);
+    let (s, c) = 0.17f64.sin_cos();
+    let tool = crate::fixture::plane_on_frame(&doc, prism, [4.0, 1.0, 0.0], [-s, c, 0.0]);
+    let (doc, other) = insert(
+        doc,
+        Node::Split {
+            target: prism.into(),
+            tool,
+        },
+    );
+    let doc = held(doc, &["tool"]);
+    let (first, second) = (claims_over(&doc, split), claims_over(&doc, other));
+    let by = editor_core::Speaker::of(&doc);
+    for claim in first.iter().chain(&second) {
+        assert!(
+            claim.said(by).to_string().contains("tool_2")
+                && named_by(&doc, claim).as_deref() == Some("tool_2"),
+            "each tool, found in this document, is tool_2 there: {}",
+            claim.said(by)
+        );
+    }
+    let (after, _) = crate::a_check_carries_the_assertion_that_quiets_it::authored(
+        "the first tool",
+        &doc,
+        &first[0],
+    );
+    assert_eq!(
+        named_by(&after, &second[0]).as_deref(),
+        Some("tool_3"),
+        "the second, authored after the first, is tool_3"
+    );
+    law("two splits' tools", &doc);
+}
+
+/// **The mint takes the measures that say a row in order, and each over
+/// the row's cells in the row's order first**: a glue's `Gap` reads
+/// zero in either role order, and its claim reads the row's first cell
+/// as outer; a split's ON row is said by a `Gap` from the vertex to the
+/// tool, the row's order, before a `Distance`.
+///
+/// *Breaks if* the mint walks the orders or the measures in another
+/// order than the one its claim is documented in.
+#[test]
+fn the_mint_takes_the_rows_own_order_first() {
+    use editor_core::test_support::quieting;
+    let (doc, union) = turned_rest();
+    let ev = run(&doc);
+    let (doc_split, _, split) = pinched("atrest-op-mint-order", [0.0, 1.0, 0.0]);
+    let ev_split = run(&doc_split);
+    for (doc, ev, node, site) in [
+        (&doc, &ev, union, DecisionSite::PlaneLadder),
+        (&doc_split, &ev_split, split, DecisionSite::SplitOn),
+    ] {
+        let row = rows(ev, node)
+            .into_iter()
+            .find(|r| r.site == site)
+            .unwrap_or_else(|| panic!("a {site:?} row"));
+        let claim = quieting(doc, ev, &row, Tol::witness())
+            .unwrap_or_else(|| panic!("{site:?}: the row carries a claim"));
+        assert_eq!(claim.measure(), editor_core::MeasureVerb::Gap, "{site:?}");
+        let reads = editor_core::QuietingRef::read;
+        let input = |c: &NamedCell| match c {
+            NamedCell::Entity { input, .. } | NamedCell::Tool { input, .. } => *input,
+            NamedCell::Piece { .. } => panic!("a piece"),
+        };
+        assert_eq!(
+            claim.references().each_ref().map(reads),
+            [input(&row.cells[0]), input(&row.cells[1])],
+            "{site:?}: the claim reads the row's cells in the row's order"
+        );
+    }
+}
+
+/// **A split whose tool reaches an index**: the notched prism split by
+/// `y = 1` slid zero along its own normal by `k · 0`, so the tool reads
+/// the index and its plane is the same at every member.
+fn pinched_by_a_repeated_tool(id: &str) -> (ProfileDoc, RecipeNodeId) {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let (doc, prism, _) = pinched(id, [0.0, 1.0, 0.0]);
+    let (doc, k) = crate::fixture::index(doc, "k", 2);
+    let tool = crate::fixture::plane_on_frame(&doc, prism, [4.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
+    let by = editor_core::Formula::mul(crate::fixture::scalar_of(k), len(0.0)).unwrap();
+    let slid = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(tool.read.clone()),
+        along: RoleRead::through(tool.read, PoseRole::Z),
+        by,
+    }));
+    let tool = RoleRead {
+        read: slid,
+        role: tool.role,
+    };
+    insert(
+        doc,
+        Node::Split {
+            target: prism.into(),
+            tool,
+        },
+    )
+}
+
+/// **A split whose tool repeats carries the assertion over the
+/// repeated tool, where its plane holds the vertex at every member.**
+/// The tool reads the index, so the split is one per member, each
+/// reporting its rows; a `Gap(vertex, tool) = 0` reading the tool is one
+/// assertion per member, each over that member's plane, and quiets the
+/// row. The mint reads the plane in each member's environment before it
+/// offers it.
+///
+/// *Breaks if* the mint refuses a claim the rule takes over a repeated
+/// tool (the law's completeness half), or offers one it read only at
+/// the document's own values.
+#[test]
+fn a_split_by_a_repeated_tool_carries_its_claim() {
+    let (doc, split) = pinched_by_a_repeated_tool("atrest-op-repeated-tool");
+    let claims = claims_over(&doc, split);
+    assert!(!claims.is_empty(), "the split's rows carry claims");
+    assert!(law("a repeated tool", &doc) >= claims.len());
 }

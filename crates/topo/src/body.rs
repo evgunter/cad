@@ -81,7 +81,7 @@ use crate::entity::{
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
-use crate::live::{Arg, lookup};
+use crate::live::Arg;
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
 use crate::validate::ValidatorSeal;
@@ -1002,6 +1002,20 @@ impl<T: Real> Body<T> {
     }
 
     /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with curve `curve` removed and every edge that names it
+    /// left naming it, the state [`Self::with_entity_removed_for_tests`]
+    /// cannot reach because a curve is geometry, not an [`EntityId`].
+    ///
+    /// Returns `None` if `curve` is stale.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_curve_removed_for_tests(&self, curve: CurveKey) -> Option<Self> {
+        let mut out = self.clone();
+        out.curves.remove(curve).is_some().then_some(out)
+    }
+
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
     /// this body with point `point` removed and every vertex that names
     /// it left naming it, the state [`Self::with_entity_removed_for_tests`]
     /// cannot reach because a point is geometry, not an [`EntityId`].
@@ -1125,10 +1139,12 @@ impl<T: Real> Body<T> {
         edge: EdgeKey,
         from: Arg,
     ) -> Result<&EdgeCurve<T>, EulerOpError> {
-        let data = lookup(&self.edges, edge, EntityId::Edge, from)?;
-        self.edge_curve_linked(edge, data)
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve: data.curve })
+        let view = self
+            .edge(edge)
+            .ok_or_else(|| from.miss(EntityId::Edge(edge)))?;
+        view.certified().ok_or(EulerOpError::NullScaffoldCurve {
+            curve: view.record().curve,
+        })
     }
 
     /// The surface geometry at `key`, or `None` if the key is stale;
@@ -1293,6 +1309,21 @@ impl<T: Real> Body<T> {
         match self.loops.get(r#loop)?.boundary {
             crate::entity::LoopBoundary::Cycle { first } => self.loop_cycle(first),
             crate::entity::LoopBoundary::Empty { .. } => Some(Vec::new()),
+        }
+    }
+
+    /// **A loop's vertices in cycle order, by the loop's key**: each
+    /// half-edge's start along [`Body::loop_cycle`], or a lone-vertex
+    /// loop's one vertex. `None` where the loop, or a link on the walk,
+    /// does not resolve.
+    pub(crate) fn loop_vertices(&self, r#loop: LoopKey) -> Option<Vec<VertexKey>> {
+        match self.loops.get(r#loop)?.boundary {
+            crate::entity::LoopBoundary::Cycle { first } => self
+                .loop_cycle(first)?
+                .into_iter()
+                .map(|he| self.half_edges.get(he).map(|h| h.start))
+                .collect(),
+            crate::entity::LoopBoundary::Empty { vertex } => Some(vec![vertex]),
         }
     }
 
@@ -1748,7 +1779,7 @@ impl<T: Real> Body<T> {
 
     /// **A face's loops in one sheet** ([`crate::pcurves::FaceLift`]):
     /// its outer loop's lift as [`Body::loop_lift`] reads it, and each
-    /// ring's moved by the one whole number of periods per closed
+    /// cycle ring's moved by the one whole number of periods per closed
     /// channel that puts the ring's first point in the region the outer
     /// loop's lift bounds, decided at `band` against the outer loop
     /// alone (`crate::pcurves`' ring rule).
@@ -1756,9 +1787,10 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`crate::pcurves::RingPlacementError`]: a loop has no lift, the
-    /// outer loop or a ring does not close in the chart, the outer loop
-    /// of a ringed face or a ring is one vertex, or a ring has no one
-    /// decided place.
+    /// outer loop or a ring does not close in the chart, the face has no
+    /// outline (its outer loop is one vertex), or a ring has no one
+    /// decided place. A lone-vertex ring bounds no area and is no ring
+    /// of the lift.
     ///
     /// # Panics
     ///
