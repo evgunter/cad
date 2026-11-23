@@ -60,3 +60,5 @@ main at `fa4e9ba921`: the same failure (run).
 
 
 - 2026-11-22 — **another seed, from TESSLANE's PR 7096** (its diff is `crates/mesh`, `.config/nextest.toml` and tracker files): the same job drew `0xa9c4d3c03b0ffeb2` on the work-in-progress head `4a546df0e1` on 2026-11-17 and panicked at `crates/topo/src/pcurves/site.rs:381`. Not replayed on main by that lane.
+
+**Another seed (2026-11-23, `oneround/lever-sites-topo`, PR 7228's CI run 45095926336, corrupt-input job).** `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise` at `CAD_FUZZ_SEED=0xc5a70b56d9b20bfb CAD_FUZZ_EFFORT=1` panics at `pcurves/site.rs:395` ("HalfEdgeKey(4v1) is a member of its own loop"). The replay used `cargo test --release -p topo --lib` with `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false`, as the job runs it. It panics identically on `origin/main` at `2130aa45f5` and on the lane's head.

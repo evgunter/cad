@@ -393,14 +393,9 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     let cone = far_cone();
     let alpha = 0.01_f64.atan();
     let b = band();
-    let on = super::carrier_pair::face_witnesses(&body, face).unwrap();
+    let cover = || crate::cover::face_cover(&body, face, b);
     let reading = |a: &geom::Surface<f64>, c: &geom::Surface<f64>| {
-        let (on_a, on_b) = if matches!(a, geom::Surface::Plane { .. }) {
-            (Vec::new(), on.clone())
-        } else {
-            (on.clone(), Vec::new())
-        };
-        let at = frame_reading(a, on_a, on_b).unwrap();
+        let at = frame_reading(a, cover, cover).unwrap();
         let extent = frame_extent((a, &body, face), (c, &body, face), at, b).unwrap();
         (at, extent)
     };
@@ -956,5 +951,27 @@ fn the_mint_takes_the_pairs_held_reading() {
             Err(BooleanError::JoinDesync { .. })
         ),
         "a pierce germ along a ruling the held reading reads as a loop is a desync"
+    );
+}
+
+/// **A plane×cone surface pair's reach is read from inside its faces.**
+/// The glue door's reach ([`super::join::surface_pair_reach`]) of
+/// [`far_generator_wall`], its face its own window, is measured from a
+/// point of the face's region: its farthest distance from there is no
+/// more than the generator it holds, about 1 m, and no less than half
+/// it, where the apex a hundred metres off, or a carrier's stored
+/// origin, would read about a hundred.
+#[test]
+fn a_cone_surface_pairs_reach_is_read_from_inside_its_faces() {
+    let (body, face) = far_generator_wall();
+    let reach =
+        super::join::surface_pair_reach((&body, &body), &[(face, face)], &far_cone(), band())
+            .unwrap();
+    // A face reach's lever is its measure from its own `at`, whatever
+    // pivot it is asked from.
+    let across = reach.lever_from(Point3::new(1.0, 0.0, 0.0)).length();
+    assert!(
+        (0.5..=1.01).contains(&across),
+        "the surface pair's reach reads its faces from inside them, got {across}"
     );
 }

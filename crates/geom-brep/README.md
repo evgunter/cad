@@ -718,7 +718,7 @@ nothing it does not already prove. For `Pcurve::Harmonic` (both sides
 in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
 is unrepresentable) that spelling is the carrier's incidence with the
 chart (centre on the axis, radius, orientation, axial line, per chart
-arm, and the chart frame's own unit and orthogonality defects) plus the
+arm, and the chart frame's rounding, `Frame::rounding`) plus the
 stored image's fidelity to the image `certify` re-derives from the
 carrier, metered through the chart's stretch; the shared schedule is
 then the closed-form tables' cross-check, run on the point lane (the

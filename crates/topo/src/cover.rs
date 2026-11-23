@@ -518,6 +518,29 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     })
 }
 
+/// **How far apart two points of `face` stand at least**: the largest
+/// of its boundary edges' own extents from below
+/// ([`geom_brep::edge_extent_inf`], each edge a part of the face), the
+/// lever of a reading consumed over the face that claims a definite
+/// sign. `None` for a face with no certified boundary edge, whose
+/// points this reads none of.
+pub(crate) fn face_extent_below<T: SpanLocate>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<geom_core::Lever<T>> {
+    body.face(face)?
+        .boundary()
+        .filter_map(|member| match member {
+            BoundaryMember::Edge { edge, .. } => edge.certified(),
+            BoundaryMember::Isolated { .. } => None,
+        })
+        .map(|curve| {
+            let (t0, t1) = curve.params();
+            geom_brep::edge_extent_inf(curve.carrier(), t0, t1)
+        })
+        .reduce(geom_core::Lever::max)
+}
+
 /// **The boundary's cover**: each boundary edge's cover
 /// ([`edge_cover_linked`]), hulled with each isolated vertex and each
 /// placeholder's one point (a null edge whose two ends are one point,
@@ -1131,7 +1154,8 @@ pub(crate) fn edge_reach_bounds<T: SpanLocate>(
 
 /// **How far a piece of an edge reaches from `pivot`, bounded from both
 /// sides**: the piece of `carrier` over `span` from a point inside the
-/// edge to one of its vertices (`overlap`'s half-turns), its region the
+/// edge to one of its vertices (`overlap`'s half-turns, `fate`'s
+/// straight corners), its region the
 /// edge cover's construction over the piece ([`edge_cover_over`]), read
 /// as [`edge_reach_bounds`] reads the whole edge's.
 pub(crate) fn piece_reach_bounds<T: SpanLocate>(
