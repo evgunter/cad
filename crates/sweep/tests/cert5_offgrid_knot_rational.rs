@@ -154,6 +154,7 @@ fn offgrid_interior_v_knots(row: &str, lofted: &sweep::Lofted<f64>) -> usize {
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .collect();
     let interior = interior_of(walls[0]);
