@@ -112,7 +112,9 @@
 
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid, Frame, SpiricInvalid, SquareFrame, SurfaceKind};
-use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Rounded, Sign, Vec3,
+};
 
 use geom_core::k_stats::{decide_across, decide_across_reported};
 
@@ -2508,8 +2510,11 @@ pub fn plane_cone_section<T: Decide>(
         let rounding = |x: Vec3<T>, y: Vec3<T>, per_unit: T| {
             per_unit * (x.x.abs() * y.x.abs() + x.y.abs() * y.y.abs() + x.z.abs() * y.z.abs())
         };
-        let gap_err = rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON));
-        let size = apex_gap.abs() + gap_err;
+        let gap = Rounded {
+            value: apex_gap,
+            error: rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON)),
+        };
+        let size = gap.magnitude();
         const PN_APEX_PAIR_REACH: &str = "pn_apex_pair_reach";
         const PN_APEX_TANGENT_REACH: &str = "pn_apex_tangent_reach";
         const PN_APEX_POINT_REACH: &str = "pn_apex_point_reach";
@@ -2520,12 +2525,12 @@ pub fn plane_cone_section<T: Decide>(
                     reach,
                     (apex, a, cos_a, sin_a, seam_width),
                     (discr, steep, s),
-                    (apex_gap, gap_err),
-                    (
-                        c,
-                        rounding(a, n, T::from_f64(2.0 * f64::EPSILON))
+                    gap,
+                    Rounded {
+                        value: c,
+                        error: rounding(a, n, T::from_f64(2.0 * f64::EPSILON))
                             + T::from_f64(0.5 * f64::EPSILON) * s,
-                    ),
+                    },
                 ),
             ),
             // Unsourced lever: no lever. The plane's stand-off from the apex over the sine it is
@@ -2750,11 +2755,11 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     (apex, a, cos_a, sin_a, seam_width): (Point3<T>, Vec3<T>, T, T, T),
     (d, m, s): (T, T, T),
-    (gap, gap_err): (T, T),
-    (c, c_err): (T, T),
+    gap: Rounded<T>,
+    c: Rounded<T>,
 ) -> Margin<T> {
     let zero = T::zero();
-    let size = gap.abs() + gap_err;
+    let size = gap.magnitude();
     // Unsourced lever: no lever. The plane's stand-off from the apex over `d` is plain
     // arithmetic inside the bound (`work/oneround/unsourced-levers-with-no-door-that-names-them.md`).
     let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
@@ -2764,13 +2769,13 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
     let rho = lo.max(zero - hi).max(zero) / cos_a;
     // `δ·c < 0` puts the near start on `+a`; read only where both signs
     // clear their rounding (step 4).
-    let undecided = (gap.abs() - gap_err).min(c.abs() - c_err);
+    let undecided = gap.room().min(c.room());
     let unlike = |when_unlike: T, when_like: T| {
         undecided.select_le_zero(
             far,
-            gap.select_le_zero(
-                c.select_le_zero(when_like, when_unlike),
-                c.select_le_zero(when_unlike, when_like),
+            gap.value.select_le_zero(
+                c.value.select_le_zero(when_like, when_unlike),
+                c.value.select_le_zero(when_unlike, when_like),
             ),
         )
     };
