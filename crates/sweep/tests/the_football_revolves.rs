@@ -70,7 +70,7 @@ fn pappus(big: f64, r: f64) -> (f64, f64) {
 /// The body revolved, its datum read, meshed closed, through tier 3, and
 /// measured against `(volume, area)`.
 fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, expected: (f64, f64)) {
-    holds_by(what, lp, Revolution::Full, (2, sheet), expected);
+    holds_by(what, lp, Revolution::Full, (1, sheet), expected);
 }
 
 /// [`holds`] revolved `by`, with `faces` sheet faces of major radius
@@ -514,10 +514,15 @@ fn a_football_cavity_revolves() {
     }
 }
 
-/// **What a sheet face's own boundary encodes.** The football's π-bands
-/// part the closed sheet in two, so their boundary encodes no side and
-/// the bit is the face's one reading; a bullet's band and the needle's,
-/// closed by a rim, encode the side the bit states.
+/// **What a sheet face's own boundary encodes**, read as every reader
+/// takes it: the chart image, with the wrap tips it drops held. The
+/// football is the whole sheet, its loop the seam out and back, so it
+/// encodes no side and the bit is the face's one reading. A bullet's cap
+/// is closed by a rim and reaches one apex by its tip: of the rim's two
+/// caps only one holds that apex, so it encodes the side the bit states.
+/// The needle's rim parts the horn into two caps that both end at its one
+/// cusp, so the held tip tells them apart no more than the rim does, and
+/// the bit is its reading too.
 #[test]
 fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
     let tol = Tol::witness();
@@ -540,7 +545,7 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
         ("the apple", football(0.4, 1.0), false),
         ("a lemon bullet", bullet(-0.5), true),
         ("an apple bullet", bullet(0.4), true),
-        ("the needle", needle, true),
+        ("the needle", needle, false),
     ] {
         let body = revolve(&validated(vec![lp]), y_axis(), Revolution::Full, tol)
             .unwrap()
@@ -552,8 +557,21 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
                 continue;
             }
             sheets += 1;
-            let (edges, _) = topo::props::loop_edges(&body, f.outer).unwrap();
-            let got = geom_brep::props::boundary_material_sign_loops(s, &[&edges], band);
+            // The face's loop as every reader takes it: its chart image,
+            // the wrap tips it drops held as the side's datum.
+            let (edges, hes) = topo::props::chart_image_edges(&body, f.outer).unwrap();
+            let (_, cycle) = topo::props::loop_edges(&body, f.outer).unwrap();
+            let held: Vec<_> = topo::surface_boundary::tips(&body, &cycle)
+                .unwrap()
+                .into_iter()
+                .map(|v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap())
+                .collect();
+            let loops: Vec<&[geom_brep::props::LoopEdge<f64>]> = if hes.is_empty() {
+                Vec::new()
+            } else {
+                vec![&edges]
+            };
+            let got = geom_brep::props::boundary_material_sign_holding(s, &loops, &held, band);
             let want = if encodes {
                 geom_brep::props::MaterialSign::Encoded(if f.sense {
                     geom_core::Sign::Positive
@@ -565,15 +583,13 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
             };
             assert_eq!(got, Ok(want), "{what}: sense {}", f.sense);
         }
-        assert_eq!(sheets, 2, "{what}");
+        assert_eq!(sheets, 1, "{what}: one sheet face");
     }
 }
 
-/// **A football face with its bit flipped is refused**, one face or
-/// both: the π-bands encode no side and no seam region reads a sheet
-/// (`work/spiricarm/a-sheet-face-whose-boundary-encodes-no-side-has-no-seam-region-reading.md`),
-/// so what refuses is the body: the two faces' wedge at each meridian
-/// where one is flipped, a negative volume where both are.
+/// **A football with its one sheet face's bit flipped is refused**: the
+/// face is the whole sheet, whose loop encodes no side, so the body is
+/// the sheet's inside out, a negative volume.
 #[test]
 fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
     let tol = Tol::witness();
@@ -585,27 +601,23 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
             tol,
         )
         .unwrap();
-        let sheet: Vec<_> = built.body.faces().map(|(k, _)| k).collect();
-        for keys in [vec![sheet[0]], sheet.clone()] {
-            let mut body = built.body.clone().into_body();
-            for &k in &keys {
-                body = body
-                    .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
-                    .unwrap();
-            }
-            let errors = topo::finish(body, tol).expect_err("a flipped bit");
-            let refused = if keys.len() == 1 {
-                errors
-                    .iter()
-                    .all(|e| matches!(e, topo::ValidationError::LaminaWedge { .. }))
-            } else {
-                matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::NegativeVolume { .. }]
-                )
-            };
-            assert!(refused, "R {big}, {} flipped: {errors:?}", keys.len());
-        }
+        let [sheet] = built.body.faces().map(|(k, _)| k).collect::<Vec<_>>()[..] else {
+            panic!("R {big}: the football is one face");
+        };
+        let body = built
+            .body
+            .clone()
+            .into_body()
+            .flipped_face_sense_for_tests(sheet, geom_core::Tol::witness())
+            .unwrap();
+        let errors = topo::finish(body, tol).expect_err("a flipped bit");
+        assert!(
+            matches!(
+                errors.as_slice(),
+                [topo::ValidationError::NegativeVolume { .. }]
+            ),
+            "R {big}: {errors:?}"
+        );
     }
 }
 

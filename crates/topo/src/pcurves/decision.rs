@@ -1143,8 +1143,19 @@ fn singular_turn<T: Decide>(
 ) -> Result<(i32, bool), PinMiss> {
     use geom_brep::chart_singularity::Singularity;
     let above = match which {
-        Singularity::South | Singularity::SheetApexDown => true,
-        Singularity::North | Singularity::SheetApexUp => false,
+        Singularity::South => true,
+        Singularity::North => false,
+        // A sheet's apex is the end of its `v` window the arriving image
+        // reaches, `v = ±v*`: read off the image, since a horn's two
+        // apexes are its one cusp, which the point alone cannot tell.
+        Singularity::SheetApexUp | Singularity::SheetApexDown => {
+            match decide("pcurve_sheet_apex_end", Margin::of(prev.y), band) {
+                Ok(Sign::Negative) => true,
+                Ok(Sign::Positive) => false,
+                Ok(Sign::Zero) => return Err(PinMiss::Singular(SingularMiss::NoLever)),
+                Err(cause) => return Err(PinMiss::Escalated(cause)),
+            }
+        }
         Singularity::Apex => {
             let arrived = apex_nappe(chart, sides.arrived, band)?;
             if arrived != apex_nappe(chart, sides.leaving, band)? {

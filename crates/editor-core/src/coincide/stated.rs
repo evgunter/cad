@@ -270,10 +270,8 @@ pub(crate) fn axis_of<P: crate::ProfilePayload>(
     }
 }
 
-/// **The carrier a swept face is on, named once**: a revolve's band's
-/// two halves ([`RoleSeg::BandPi`] beside [`RoleSeg::Band`]) are one
-/// carrier, and so are the faces an extrude or a revolve of `doc`
-/// sweeps over the pieces of one circle-form loop (`circle`,
+/// **The carrier a swept face is on, named once**: the faces an extrude
+/// or a revolve of `doc` sweeps over the pieces of one circle-form loop (`circle`,
 /// `circle_split`: every piece an arc of one carrier), named by the
 /// loop's first piece. A `rectangle`'s pieces are four lines, so each
 /// is its own, and so is a piece whose loop this document cannot read
@@ -311,7 +309,7 @@ pub(crate) fn carrier<P: crate::ProfilePayload>(
         .unwrap_or_else(|| run.clone())
     };
     let path = match name.path.as_slice() {
-        [RoleSeg::Band(run) | RoleSeg::BandPi(run)] => vec![RoleSeg::Band(first(run))],
+        [RoleSeg::Band(run)] => vec![RoleSeg::Band(first(run))],
         [RoleSeg::Lateral(run)] => vec![RoleSeg::Lateral(first(run))],
         _ => return cell.clone(),
     };

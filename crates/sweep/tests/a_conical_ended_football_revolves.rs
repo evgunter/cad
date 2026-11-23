@@ -517,7 +517,7 @@ fn the_near_horn_ladder_reads_its_band() {
         .unwrap_or_else(|e| panic!("{what} (d = {d:e}): {e}"));
         let k = kinds(&built.body);
         assert!(
-            k.iter().filter(|s| s.starts_with(kind)).count() == 2,
+            k.iter().filter(|s| s.starts_with(kind)).count() == 1,
             "{what} (d = {d:e}): {k:?}"
         );
         holds_exact(what, built.body, b.exact(), 1e-10);

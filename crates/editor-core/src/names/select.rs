@@ -143,8 +143,6 @@ seg_tags! {
     // Revolve
     Band,
     BandRim,
-    BandRimPi,
-    BandPi,
     Meridian,
     MeridianVertex,
     RevolveCap,
@@ -236,8 +234,6 @@ impl SegTag {
             RoleSeg::LoftSectionVertex(..) => Self::LoftSectionVertex,
             RoleSeg::Band(..) => Self::Band,
             RoleSeg::BandRim(..) => Self::BandRim,
-            RoleSeg::BandRimPi(..) => Self::BandRimPi,
-            RoleSeg::BandPi(..) => Self::BandPi,
             RoleSeg::Meridian(..) => Self::Meridian,
             RoleSeg::MeridianVertex(..) => Self::MeridianVertex,
             RoleSeg::RevolveCap(..) => Self::RevolveCap,
@@ -292,8 +288,6 @@ impl SegTag {
             | Self::LoftSectionVertex => OpGroup::Extrude,
             Self::Band
             | Self::BandRim
-            | Self::BandRimPi
-            | Self::BandPi
             | Self::Meridian
             | Self::MeridianVertex
             | Self::RevolveCap
@@ -357,8 +351,6 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::LoftSectionVertex(..)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
-        | RoleSeg::BandRimPi(_)
-        | RoleSeg::BandPi(_)
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
         | RoleSeg::From { .. }
