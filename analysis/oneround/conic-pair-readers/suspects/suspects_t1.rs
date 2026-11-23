@@ -37,7 +37,7 @@ fn stored(c: &Curve3<f64>) -> String {
         Curve3::Line(l) => format!(
             "{{\"k\":\"line\",\"o\":{},\"d\":{}}}",
             p3(l.origin),
-            v3(l.dir)
+            v3(l.dir.get())
         ),
         Curve3::Circle(k) => {
             let f = k.frame();
@@ -288,7 +288,7 @@ fn main() {
                     }
                 }
                 // ---- A: a line in the plane, square to the arc (row 1 ii; the measured miss, kept as the baseline)
-                let line = Curve3::line(p - d * 2.0, d);
+                let line = Curve3::line(p - d * 2.0, geom_core::UnitVec3::checked(d));
                 run_meet(&c, "A", "through", &line, (0.0, 4.0), &ce, se, (2.0, theta));
                 // ending short of the arc from inside / starting past it outside by k eps
                 for k in [30.0, 300.0] {
@@ -307,7 +307,7 @@ fn main() {
                 for gamma in [90.0_f64, 30.0, 5.0, 0.5] {
                     let g = gamma.to_radians();
                     let dir = (d * g.cos() + n * g.sin()).normalize();
-                    let through = Curve3::line(p - dir * 2.0, dir);
+                    let through = Curve3::line(p - dir * 2.0, geom_core::UnitVec3::checked(dir));
                     run_meet(
                         &c,
                         "C",
@@ -319,7 +319,7 @@ fn main() {
                         (2.0, theta),
                     );
                     // moved off the arc, along d, so that the line passes 30 eps from it
-                    let off = Curve3::line(p + d * (30.0 * eps / g.sin()) - dir * 2.0, dir);
+                    let off = Curve3::line(p + d * (30.0 * eps / g.sin()) - dir * 2.0, geom_core::UnitVec3::checked(dir));
                     run_meet(
                         &c,
                         "C",
@@ -482,7 +482,7 @@ fn main() {
             let half = 10.0 / b;
             for k in [-300.0, -30.0, -2.0, 0.0, 30.0, 300.0] {
                 // the line starts k eps outside (+) / inside (-) the vertex and runs outward
-                let line = Curve3::line(anchor + u * (k * eps), u);
+                let line = Curve3::line(anchor + u * (k * eps), geom_core::UnitVec3::checked(u));
                 run_meet(
                     &c,
                     "B",

@@ -1,0 +1,122 @@
+===== eps 1e-9: 2016 readings
+--- ACCEPTANCE: in the box, seam at the anchor: 864 readings
+  f64: head wrong 0, right->wrong 0, base wrong 29
+    base WRONG    -> head refused  6
+    base WRONG    -> head right    23
+    base refused  -> head refused  24
+    base refused  -> head right    21
+    base right    -> head right    358
+  interval: head wrong 0, right->wrong 0, base wrong 36
+    base WRONG    -> head refused  18
+    base WRONG    -> head right    18
+    base refused  -> head refused  30
+    base refused  -> head right    86
+    base right    -> head right    280
+  every head refusal, by (lane, row):
+     f64 refused:curve_pair_pose_basin 30
+     interval refused:curve_pair_pose_basin 30
+     interval refused:curve_pair_pose_level_arc 18
+--- past the box (no claim): 1152 readings
+  f64: head wrong 5, right->wrong 2, base wrong 27
+    base WRONG    -> head WRONG    2
+    base WRONG    -> head refused  4
+    base WRONG    -> head right    21
+    base refused  -> head WRONG    1
+    base refused  -> head refused  8
+    base refused  -> head right    15
+    base right    -> head WRONG    2
+    base right    -> head refused  8
+    base right    -> head right    515
+  interval: head wrong 0, right->wrong 0, base wrong 38
+    base WRONG    -> head refused  29
+    base WRONG    -> head right    9
+    base refused  -> head refused  111
+    base refused  -> head right    30
+    base right    -> head refused  70
+    base right    -> head right    327
+  right on base, refused on head, by (lane, door, refusing row):
+     f64 circle WRONG 2
+     f64 circle refused:curve_pair_meet_window 1
+     f64 circle refused:curve_pair_pose_basin 1
+     f64 line refused:curve_pair_pose_closest 1
+     f64 line refused:curve_pair_walk_pair_gap 5
+     interval circle refused:curve_pair_pose_basin 64
+     interval line refused:curve_pair_pose_level_arc 4
+     interval line refused:curve_pair_walk_pair_gap 2
+  every head refusal, by (lane, row):
+     f64 refused:curve_pair_meet_window 2
+     f64 refused:curve_pair_pose_basin 5
+     f64 refused:curve_pair_pose_closest 4
+     f64 refused:curve_pair_walk_pair_gap 9
+     interval refused:curve_pair_pose_basin 102
+     interval refused:curve_pair_pose_level_arc 83
+     interval refused:curve_pair_walk_pair_gap 25
+  HEAD WRONG line f64 True 100000000.0 13 0.0 theta=0.5 gap=1.28e-09 said=meets truth=between off=['1.51e-08'] base=refused:curve_pair_walk_pair_gap
+  HEAD WRONG circle f64 True 1000000000.0 3 0.0 theta=0.5 gap=9.06e-09 said=meets truth=between off=['3.09e-08'] base=right
+  HEAD WRONG circle f64 True 1000000000.0 8 0.0 theta=0.5 gap=4.79e-09 said=meets truth=between off=['3.48e-08'] base=right
+  HEAD WRONG line f64 False 100000000.0 4 0.0 theta=2 gap=2.83e-09 said=meets truth=between off=['1.48e-08'] base=WRONG
+  HEAD WRONG circle f64 False 1000000000.0 14 0.0 theta=2 gap=4.74e-10 said=apart truth=meets off=[] base=WRONG
+--- in the box, seam off the anchor: 0 readings
+===== eps 1e-12: 2016 readings
+--- ACCEPTANCE: in the box, seam at the anchor: 864 readings
+  f64: head wrong 0, right->wrong 0, base wrong 107
+    base WRONG    -> head refused  26
+    base WRONG    -> head right    81
+    base refused  -> head refused  4
+    base refused  -> head right    17
+    base right    -> head right    304
+  interval: head wrong 0, right->wrong 0, base wrong 72
+    base WRONG    -> head refused  33
+    base WRONG    -> head right    39
+    base refused  -> head refused  47
+    base refused  -> head right    125
+    base right    -> head right    188
+  every head refusal, by (lane, row):
+     f64 refused:curve_pair_pose_basin 30
+     interval refused:curve_pair_pose_basin 33
+     interval refused:curve_pair_pose_level_arc 40
+     interval refused:curve_pair_walk_pair_gap 7
+--- past the box (no claim): 1152 readings
+  f64: head wrong 9, right->wrong 2, base wrong 40
+    base WRONG    -> head WRONG    5
+    base WRONG    -> head refused  3
+    base WRONG    -> head right    32
+    base refused  -> head WRONG    2
+    base refused  -> head refused  6
+    base refused  -> head right    9
+    base right    -> head WRONG    2
+    base right    -> head refused  26
+    base right    -> head right    491
+  interval: head wrong 0, right->wrong 0, base wrong 40
+    base WRONG    -> head refused  40
+    base refused  -> head refused  193
+    base refused  -> head right    41
+    base right    -> head refused  181
+    base right    -> head right    121
+  right on base, refused on head, by (lane, door, refusing row):
+     f64 circle WRONG 1
+     f64 circle refused:curve_pair_pose_basin 15
+     f64 circle refused:curve_pair_walk_pair_gap 1
+     f64 line WRONG 1
+     f64 line refused:curve_pair_meet_window 1
+     f64 line refused:curve_pair_pose_closest 5
+     f64 line refused:curve_pair_walk_pair_gap 4
+     interval circle refused:curve_pair_pose_basin 177
+     interval line refused:curve_pair_pose_level_arc 4
+  every head refusal, by (lane, row):
+     f64 refused:curve_pair_meet_window 1
+     f64 refused:curve_pair_pose_basin 18
+     f64 refused:curve_pair_pose_closest 5
+     f64 refused:curve_pair_walk_pair_gap 11
+     interval refused:curve_pair_pose_basin 217
+     interval refused:curve_pair_pose_level_arc 197
+  HEAD WRONG circle f64 True 100000.0 14 0.0 theta=2 gap=2.19e-13 said=apart truth=meets off=[] base=refused:curve_pair_walk_pair_gap
+  HEAD WRONG circle f64 True 1000000.0 4 2e-11 theta=2 gap=9.77e-13 said=apart truth=meets off=[] base=WRONG
+  HEAD WRONG circle f64 True 1000000.0 8 0.0 theta=0.5 gap=5.2e-12 said=meets truth=between off=['1.38e-11'] base=right
+  HEAD WRONG circle f64 True 1000000.0 9 0.0 theta=2 gap=7.63e-14 said=apart truth=meets off=[] base=WRONG
+  HEAD WRONG line f64 False 100000.0 11 0.0 theta=2 gap=4.16e-13 said=meets truth=meets off=['8.75e-11'] base=WRONG
+  HEAD WRONG circle f64 False 100000.0 11 0.0 theta=2 gap=1.07e-12 said=meets truth=between off=['1.08e-11'] base=WRONG
+  HEAD WRONG line f64 False 1000000.0 6 0.0 theta=0.5 gap=9.97e-12 said=meets truth=between off=['1.12e-11'] base=refused:curve_pair_pose_closest
+  HEAD WRONG circle f64 False 100000000.0 2 0.0 theta=0.05368 gap=9.35e-13 said=apart truth=meets off=[] base=WRONG
+  HEAD WRONG line f64 False 1000000000.0 2 0.0 theta=0.01697 gap=2.26e-12 said=meets truth=between off=['1.68e-11'] base=right
+--- in the box, seam off the anchor: 0 readings

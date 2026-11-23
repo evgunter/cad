@@ -1,10 +1,10 @@
 ---
 id: an-arc-held-pairs-new-refusals-at-interval-and-at-a-coplanar-touch
 kind: issue
-title: the re-posed curve_pair readers refuse where the base answered rightly: the slanted arc's width at Interval, a small ellipse 30 eps off an arc-held one
+title: the re-posed curve_pair readers refuse where the base answered rightly: the circle door's basin at Interval (a centre-held ellipse's too), a small ellipse 30 eps off an arc-held one
 status: open
 opened: 2026-11-23
-priority: P3
+priority: P2
 cost: M
 refs: [an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre]
 ---
@@ -15,16 +15,7 @@ readers of where a conic is from its stored point. No reading is wrong;
 these are refusals where the base answered rightly, measured on the two
 ladders under `analysis/oneround/conic-pair-readers/`.
 
-- **`curve_pair_pose_level_arc` at `Interval`** (the line door in the
-  ellipse's plane, `analysis/oneround/conic-pair-readers/ladder.rs`): `Slant::read`
-  (`crates/geom-brep/src/curve_pair/pose.rs`) takes the `|R| ≤ e` arc's
-  ends from `Height::roots(±e)` and reads its width up `θ` within a turn,
-  `up − τ·⌊up/τ⌋`; where `up`'s enclosure reaches below zero the floor
-  hulls the width to a whole turn and the arc refuses. 146 readings at
-  1e-9 and 306 at 1e-12, most of them poses the base read `apart`
-  rightly; at 1e-12 the `Interval` lane's right answers fall from 468 to
-  302 of 1008. A width read per arc case (the side arcs are at most half
-  a turn by construction) would keep the enclosure narrow.
+- **The circle door's `curve_pair_pose_basin` at `Interval`**, and centre-held ellipses with it. On the unit's ladder (`analysis/oneround/conic-pair-readers/ladder.rs`), the readings right on the base and refused on the head at `Interval` are, by refusing row, with twins `20ε` apart (`analysis/oneround/conic-pair-readers/ladder/join-base-head.txt`): at 1e-9, `curve_pair_pose_basin` on the circle door 64, `curve_pair_pose_level_arc` 4 and `curve_pair_walk_pair_gap` 2 (70 in all); at 1e-12, basin 177 and `level_arc` 4 (181). Every one of them is past the session box; in the box, with the seam at the anchor, the head refuses nothing the base read rightly. The review's counts on the first head were 103 and 245 on basin, 27 and 42 on `walk_pair_gap`, 2 and 2 on `level_arc`. The loss is the circle door's polish basin. The line door's `curve_pair_pose_level_arc`, which this row named first, loses next to nothing: it refuses where the base also refused or read wrongly. The loss is not only the placement class. The review's probe (`analysis/oneround/conic-pair-readers/review/probe_window.rs` on PR 7543's review branch, `review/out/window-{base,head}-1e-12.txt`) reads a unit circle across an ellipse through its point at ε 1e-12, `Interval`. An ellipse held at its **centre**, semi-axis 100 m, θ = 0.5, goes from `Ok` with one meeting on the base to `curve_pair_pose_basin` on the head. An arc-held one of 10 m at θ = 2 goes the same way. Both are far below the regression floor. The likely cause, not bisected: `Window::holds_only` at `Interval` now reads the parts it used to pass over (`reaches`, PR 7543's fix of a wrong answer), and the basin meter refuses the extra parts. A refusal, never a wrong answer; but a centre-held verdict newly refused is a regression this row schedules, banded P2.
 - **`Unsettled(Tangency)` for a small centre-held ellipse `30ε` off an
   arc-held one in its plane** (the suspects' family F, `clear±30`): every
   such pose refuses at both ε, where the base answered 14 (1e-9) and 45

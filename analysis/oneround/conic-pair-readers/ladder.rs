@@ -224,7 +224,7 @@ fn main() {
                     // at `gamma` to the arc, lifted off the plane by `shift`.
                     let d = (tan * gamma.cos() + across * gamma.sin()).normalize();
                     let lo = t - d * 2.0 + n * shift;
-                    let line = Curve3::line(lo, d);
+                    let line = Curve3::line(lo, geom_core::UnitVec3::checked(d));
                     let (sa, sb) = (Span::new(&line, (0.0, 4.0)), Span::new(&carrier, span_e));
                     let got = meet(&sa, &sb, band);
                     let in_box = span_in_box(&line, (0.0, 4.0)) && span_in_box(&carrier, span_e);

@@ -1,48 +1,38 @@
-circle	f64	apart	refused:Escalated	10
-circle	f64	apart	refused:Unsettled	13
-circle	f64	apart	right	287
+circle	f64	apart	refused:curve_pair_pose_basin	4
+circle	f64	apart	right	370
 circle	f64	between	WRONG	2
-circle	f64	between	refused:Escalated	25
-circle	f64	between	refused:Unsettled	30
-circle	f64	between	right	25
-circle	f64	meets	WRONG	5
-circle	f64	meets	refused:Escalated	4
-circle	f64	meets	refused:Unsettled	35
-circle	f64	meets	right	68
-circle	interval	apart	refused:Escalated	22
-circle	interval	apart	refused:Unsettled	183
-circle	interval	apart	right	105
-circle	interval	between	refused:Escalated	20
-circle	interval	between	refused:Unsettled	62
-circle	interval	meets	refused:Unsettled	74
-circle	interval	meets	right	38
-line	f64	apart	refused:Escalated	9
-line	f64	apart	refused:Unsettled	16
-line	f64	apart	right	292
-line	f64	between	WRONG	3
-line	f64	between	refused:Escalated	42
-line	f64	between	refused:Unsettled	3
-line	f64	between	right	35
-line	f64	meets	WRONG	2
-line	f64	meets	refused:Escalated	8
-line	f64	meets	right	94
-line	interval	apart	refused:Escalated	19
-line	interval	apart	refused:Unsettled	164
-line	interval	apart	right	134
-line	interval	between	refused:Escalated	13
-line	interval	between	refused:Unsettled	70
-line	interval	meets	refused:Escalated	7
-line	interval	meets	refused:Unsettled	72
+circle	f64	between	refused:curve_pair_pose_basin	8
+circle	f64	between	refused:curve_pair_walk_pair_gap	1
+circle	f64	between	right	7
+circle	f64	meets	WRONG	4
+circle	f64	meets	refused:curve_pair_pose_basin	36
+circle	f64	meets	right	72
+circle	interval	apart	refused:curve_pair_pose_basin	159
+circle	interval	apart	right	215
+circle	interval	between	refused:curve_pair_pose_basin	18
+circle	interval	meets	refused:curve_pair_pose_basin	73
+circle	interval	meets	right	39
+line	f64	apart	right	377
+line	f64	between	WRONG	2
+line	f64	between	refused:curve_pair_meet_window	1
+line	f64	between	refused:curve_pair_pose_closest	5
+line	f64	between	refused:curve_pair_walk_pair_gap	4
+line	f64	between	right	11
+line	f64	meets	WRONG	1
+line	f64	meets	refused:curve_pair_walk_pair_gap	6
+line	f64	meets	right	97
+line	interval	apart	refused:curve_pair_pose_level_arc	142
+line	interval	apart	right	235
+line	interval	between	refused:curve_pair_pose_level_arc	23
+line	interval	meets	refused:curve_pair_pose_level_arc	72
+line	interval	meets	refused:curve_pair_walk_pair_gap	7
 line	interval	meets	right	25
-WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 100000.0, "case": 14, "place": "far", "theta": 2.0, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.1887804939776418e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
-WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 1000000.0, "case": 4, "place": "far", "theta": 2.0, "gamma": 1.5707963267948966, "shift": 1e-11, "kind": "ok", "fault": null, "gap": 9.76511458840334e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
-WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 1000000.0, "case": 8, "place": "far", "theta": 0.5, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 5.2025345632175285e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.3787360938108865e-11]}
-WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 1000000.0, "case": 9, "place": "far", "theta": 2.0, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 7.629860417277403e-14, "truth": "meets", "said": "apart", "wrong": true, "off": []}
-WRONG {"door": "line", "lane": "f64", "fat": false, "target": 10000.0, "case": 11, "place": "far", "theta": 2.0, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 1.0832853039960815e-13, "truth": "meets", "said": "meets", "wrong": true, "off": [1.1920324719524273e-11]}
-WRONG {"door": "line", "lane": "f64", "fat": false, "target": 100000.0, "case": 11, "place": "far", "theta": 2.0, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 4.157119577785355e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
-WRONG {"door": "circle", "lane": "f64", "fat": false, "target": 100000.0, "case": 11, "place": "far", "theta": 2.0, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 1.0727910155542242e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.0777988805472329e-11]}
-WRONG {"door": "line", "lane": "f64", "fat": false, "target": 1000000.0, "case": 6, "place": "far", "theta": 0.5, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 9.973237307234287e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.1192722067531917e-11]}
-WRONG {"door": "circle", "lane": "f64", "fat": false, "target": 100000000.0, "case": 2, "place": "near", "theta": 0.05367635272860473, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 9.354854037472892e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
-WRONG {"door": "line", "lane": "f64", "fat": false, "target": 100000000.0, "case": 12, "place": "near", "theta": 0.05367635272860473, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.7111887830661463e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.6916634956158084e-11]}
-WRONG {"door": "circle", "lane": "f64", "fat": false, "target": 100000000.0, "case": 12, "place": "near", "theta": 0.05367635272860473, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 7.715328453506822e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
-WRONG {"door": "line", "lane": "f64", "fat": false, "target": 1000000000.0, "case": 2, "place": "near", "theta": 0.016973954464143855, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.2562917926499216e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.6772564906623424e-11]}
+WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 100000.0, "case": 14, "place": "far", "theta": 2.0, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 2.1887804939776418e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 1000000.0, "case": 4, "place": "far", "theta": 2.0, "gamma": 1.5707963267948966, "shift": 2e-11, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 9.76511458840334e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 1000000.0, "case": 8, "place": "far", "theta": 0.5, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 5.2025345632175285e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.3787360938108865e-11]}
+WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 1000000.0, "case": 9, "place": "far", "theta": 2.0, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 7.629860417277403e-14, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": false, "target": 100000.0, "case": 11, "place": "far", "theta": 2.0, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 4.157119577785355e-13, "truth": "meets", "said": "meets", "wrong": true, "off": [8.747983871189024e-11]}
+WRONG {"door": "circle", "lane": "f64", "fat": false, "target": 100000.0, "case": 11, "place": "far", "theta": 2.0, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 1.0727910155542242e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.0777988805472329e-11]}
+WRONG {"door": "line", "lane": "f64", "fat": false, "target": 1000000.0, "case": 6, "place": "far", "theta": 0.5, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 9.973237307234287e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.1192722067531917e-11]}
+WRONG {"door": "circle", "lane": "f64", "fat": false, "target": 100000000.0, "case": 2, "place": "near", "theta": 0.05367635272860473, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 9.354854037472892e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": false, "target": 1000000000.0, "case": 2, "place": "near", "theta": 0.016973954464143855, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "row": null, "in_box": false, "seam_at_anchor": true, "gap": 2.2562917926499216e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.6772564906623424e-11]}
