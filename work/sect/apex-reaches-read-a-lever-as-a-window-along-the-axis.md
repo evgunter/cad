@@ -4,8 +4,9 @@ kind: issue
 title: Coaxial and apex rows read a lever as a window along an axis
 status: open
 opened: 2026-11-23
+priority: P1
+cost: M
 ---
-
 
 Three rows of `geom_brep::intersect` read a lever's length as a window along an axis, where a lever read back as a length is a margin's business (`geom_core::Lever`'s doc):
 

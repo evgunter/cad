@@ -4,8 +4,9 @@ kind: issue
 title: A pierce's and a planar rim's extent balls are built from an arm, not from the runs' geometry
 status: open
 opened: 2026-11-23
+priority: P1
+cost: M
 ---
-
 
 Two extent balls are built from an arm through `ExtentBall::unsourced`, a region made from a lever:
 

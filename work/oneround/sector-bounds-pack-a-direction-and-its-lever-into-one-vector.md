@@ -18,7 +18,7 @@ The vector is made at:
 - `topo::bound_side::BoundSupport::point`: `base + dir.normalize() * self.lever().length()`.
 - `topo::star::walk::Bound::ray`: `self.dir * self.reach.lever().length()`.
 - `topo::validate` `along` (the `LeverBounds` arm, about line 9153): `dir * arm.length()`, and `dir * below.length()` / `dir * above.length()`.
-- `topo::link::second_order` (`reach`, then `p + t.normalize() * l` at the plane residue near line 245; `toward(p, l, …)` near 462 and 488), `topo::link` near line 5053 (`p + d.normalize() * l`), and `topo::link`'s ruled chord fan (`fan(p, outward, a, far, half)` near line 2897, `far` being `face_reach_from(..).length()`).
+- `topo::link::second_order` (`reach`, then `p + t.normalize() * l` at the plane residue near line 245; `toward(p, l, …)` near 462 and 488), `topo::link` near line 5053 (`p + d.normalize() * l`).
 - `topo::bound_side`'s witness at `arm.length()` (`self.witnessed(leading, arm.length())`, near line 1196) and `conic_bend_side(self.dir, extent.length(), …)` (near 1118), where a lever's length is taken as an arc length.
 
 It is read as a lever by `geom_brep::sector_shape::metering_arm(u.ray().norm()…)` (`topo::splitting::insert`), by the sector predicates behind `geom_brep::chart_normal_beside((own, next))` (`topo::sector_face`), and by `corner_holds(edge.ray(), …)` (`topo::boolean::fate`, `topo::boolean::overlap`). It is read as geometry by `topo::link::Cone::gathered`'s rays, the fans in `topo::boolean::sectors`, `topo::boolean::vtxfac`'s `reach.point(p, dir)`, and `topo::splitting::rules` (`p + along`).
