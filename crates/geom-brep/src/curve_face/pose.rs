@@ -127,13 +127,11 @@ pub(super) enum Formed<T: Real> {
     TorusWalk { floor: T },
     /// A spiric across a plane not parallel to its own: the line where
     /// the two planes meet, a unit direction from its point nearest the
-    /// spiric's foot ([`super::spiric_plane`]); `across`, the unit in the
-    /// spiric's plane square to the line; and `rounding`, a bound on how
-    /// far the line as read stands from the exact one over the span.
+    /// spiric's foot ([`super::spiric_plane`]), and `across`, the unit in
+    /// the spiric's plane square to the line.
     SpiricPlane {
         line: geom::Line<T>,
         across: geom_core::Vec3<T>,
-        rounding: T,
     },
 }
 
@@ -771,7 +769,7 @@ fn spiric_plane<T: Decide>(
     let (center, u) = (spiric_frame.origin(), spiric_frame.u_ref());
     let (origin, n) = (plane_frame.origin(), plane_frame.axis());
     let foot = center + u * offset;
-    let Some((height, arm, stretch)) = span_in_plane(span, (foot, u), (origin, n)) else {
+    let Some((height, arm)) = span_in_plane(span, (foot, u), (origin, n)) else {
         return Err(PoseRefusal::Fault(
             "a spiric span in its convention with no cover",
         ));
@@ -805,16 +803,15 @@ fn spiric_plane<T: Decide>(
     // `α = m·n̂`, `β = â·n̂`, `γ` the foot's height off `Q`. Its point
     // nearest the foot is `foot − across·γ/s`, `s = √(α² + β²)` the
     // planes' tilt and `across = (α·m + β·â)/s`, and it runs along
-    // `(α·â − β·m)/s`: built from `P`'s data, it lies in `P` to one
-    // rounding whatever the tilt. Each of `α`, `β` is read to `e₁`, a
-    // short chain's rounding of a unit, and `γ` to `e_γ`, that of its
-    // terms; a perturbation of them moves the line, at a point of `P`
-    // within `stretch` of the foot, by at most `(e_γ + 2·stretch·e₁)/s`
-    // to first order, and placing it in space adds a short chain's
-    // rounding of its scale. That is the two planes' own conditioning,
-    // `1/s`, and no worse: the span's meetings are within `stretch` of
-    // the foot, so the line as read holds them to within `rounding`,
-    // which the method meters against the band.
+    // `(α·â − β·m)/s`. Built from `P`'s own data, it lies in `P` to a
+    // rounding of the foot's scale at any tilt. A change `δ` in `α`, `β`
+    // or `γ` moves it, at a point of `P` a distance `d` from the foot, by
+    // `(|δγ| + d·|δ(α, β)|)/s` to first order: the two planes' own
+    // conditioning, `1/s`, and no worse, where the closest-point form
+    // `((o − h·k)·û + (h − o·k)·n̂)/(1 − k²)`, `k = û·n̂`, cancels to
+    // `1/s²` in both `1 − k²` and its numerators. A meeting's height off
+    // `Q` is read along the oval to a rounding of its scale, and its place
+    // to that over the crossing's slope.
     let axis = spiric_frame.axis();
     let m = axis.cross(u);
     let (alpha, beta) = (m.dot(n), axis.dot(n));
@@ -823,33 +820,26 @@ fn spiric_plane<T: Decide>(
     let across = (m * alpha + axis * beta) / s;
     let along = (axis * alpha - m * beta) / s;
     let to_line = gamma / s;
-    let scale = (foot - origin).norm() + (center - Point3::origin()).norm() + offset.abs();
-    let e1 = geom_core::rounding_charge(T::one());
-    let rounding = (geom_core::rounding_charge(scale) + T::from_f64(2.0) * stretch * e1) / s
-        + geom_core::rounding_charge((foot - Point3::origin()).norm() + to_line.abs() + stretch);
     Ok(Pose::Isolated(Form(Formed::SpiricPlane {
         line: geom::Line {
             origin: foot - across * to_line,
             dir: along,
         },
         across,
-        rounding,
     })))
 }
 
-/// **A planar span's height off a plane `(origin, n)`, the radius it
-/// holds to, and how far it stands from `through`**: the span's cover
-/// ball, its centre read onto the span's own plane `(through, u)`. Every
-/// point of the span lies in that plane within the ball's radius of the
-/// centre's foot there, so its height off the other plane is the foot's to
-/// within that radius times the planes' tilt, and it stands within the
-/// foot's distance from `through` plus that radius of `through`. `None`
-/// where the span has no cover.
+/// **A planar span's height off a plane `(origin, n)`, and the radius it
+/// holds to**: the span's cover ball, its centre read onto the span's own
+/// plane `(through, u)`. Every point of the span lies in that plane within
+/// the ball's radius of the centre's foot there, so its height off the
+/// other plane is the foot's to within that radius times the planes' tilt.
+/// `None` where the span has no cover.
 fn span_in_plane<T: Decide>(
     span: &Span<'_, T>,
     (through, u): (Point3<T>, geom_core::Vec3<T>),
     (origin, n): (Point3<T>, geom_core::Vec3<T>),
-) -> Option<(T, T, T)> {
+) -> Option<(T, T)> {
     let (t0, t1) = span.params();
     let cover = span
         .carrier()
@@ -857,7 +847,7 @@ fn span_in_plane<T: Decide>(
         .ok()?;
     let (ball, radius) = cover.ball();
     let at = ball - u * (ball - through).dot(u);
-    Some(((at - origin).dot(n), radius, (at - through).norm() + radius))
+    Some(((at - origin).dot(n), radius))
 }
 
 // -------------------------------------------------------------- line

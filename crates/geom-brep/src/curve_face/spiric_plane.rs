@@ -7,12 +7,10 @@
 //! `L = P ∩ Q`, and a point of `L` is on the oval where it is on `T` and
 //! on the oval's side of the axis's projection on `P`. The pose
 //! ([`super::pose()`]) excludes `Lies` and reads `L` in `P`'s own frame,
-//! so `L` lies in `P` to one rounding at any tilt and stands off the exact
-//! line by no more than the planes' own conditioning, a bound it carries
-//! ([`super::pose::Formed::SpiricPlane`]).
+//! so `L` lies in `P` to a rounding at any tilt and stands off the exact
+//! line by no more than the planes' own conditioning, `1/tilt`.
 //!
-//! The door meters that bound against the band, then reads `L` against
-//! `T` by the line × torus door's ladder
+//! The door reads `L` against `T` by the line × torus door's ladder
 //! ([`super::line_quadric::line_torus_roots`]). It keeps each root on the
 //! oval's side (`spiric_plane_oval_side`, the root's offset along
 //! `m = axis × û` from the axis's projection), and names each kept root by
@@ -23,8 +21,8 @@
 //!
 //! The ovals stand at least `√((R − r)² − offset²)` from the axis's
 //! projection, past the band wherever the regime is (the pose's rung),
-//! and `L` and its roots lie in `P` to within the metered bound, so the
-//! side decision is never near a root.
+//! and `L` and its roots lie in `P` to a rounding, so the side decision is
+//! never near a root.
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
@@ -36,43 +34,27 @@ use crate::roots::{RootRefusal, Roots, Unsettled};
 /// The row a root of the line is decided on the oval's side under.
 const OVAL_SIDE: &str = "spiric_plane_oval_side";
 
-/// The row the line's own rounding is metered against the band under.
-const LINE_ROUNDING: &str = "spiric_plane_line_rounding";
-
 /// **The spiric × plane method**: the span's parameters at which `line`
-/// (the pose's `P ∩ Q`, with `across` its unit square to it in `P` and
-/// `rounding` the bound on how far it stands from the exact line over the
-/// span) meets its oval, each within half a turn of the span's middle.
+/// (the pose's `P ∩ Q`, with `across` its unit square to it in `P`) meets
+/// its oval, each within half a turn of the span's middle.
 ///
-/// The line's rounding is metered first (`spiric_plane_line_rounding`):
-/// past the band's zero, the meetings as read would not be the exact
-/// ones' to within it, and the reading refuses. Then the oval's meetings
-/// with the line, and with the line moved by the band's escalation either
-/// way across it in `P`: the oval is a smooth curve, so where it comes
-/// within that distance of the line without crossing it (a graze, or a
+/// The oval's meetings with the line, and with the line moved by the
+/// band's escalation either way across it in `P`: the oval is a smooth
+/// curve, so where it comes within that distance of the line without crossing it (a graze, or a
 /// near miss in the band), the count on one side differs, and the reading
 /// refuses as a tangency rather than answer a count the band cannot hold.
 ///
 /// # Errors
 ///
-/// [`MeetFault::Unsettled`]: the line's rounding past the band's zero
-/// ([`Unsettled::Meter`]), a count the shifted lines do not keep
+/// [`MeetFault::Unsettled`]: a count the shifted lines do not keep
 /// ([`Unsettled::Tangency`]), or one the ladder does not certify (a graze
 /// of either oval); [`MeetFault::Escalated`] on a ladder rung or a root's
 /// side in band; [`MeetFault::Desync`] on a carrier not a spiric.
 pub(super) fn spiric_plane_method<T: Decide>(
     span: &Span<'_, T>,
-    (line, across, rounding): (geom::Line<T>, Vec3<T>, T),
+    (line, across): (geom::Line<T>, Vec3<T>),
     band: Band,
 ) -> Result<Vec<T>, MeetFault> {
-    match decide(LINE_ROUNDING, Margin::of(rounding), band) {
-        Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => {
-            return Err(MeetFault::Unsettled(Unsettled::Meter {
-                row: LINE_ROUNDING,
-            }));
-        }
-    }
     let found = on_the_oval(span, line, band)?;
     let shift = T::from_f64(band.escalate());
     for shift in [shift, T::zero() - shift] {
@@ -403,9 +385,10 @@ mod tests {
     }
 
     /// The oracle's count and the door's on one plane: `Ok(None)` where
-    /// the door refused, `Ok(Some(n))` where it answered and every meeting
-    /// stands within the band's escalation of the oracle's, `Err` naming
-    /// what is wrong.
+    /// the door refused, `Ok(Some(n))` where it answered `n` meetings, as
+    /// many as the oracle's, each with its height off the plane in the
+    /// band's zero and the oracle's sign change within a hundred times the
+    /// band's escalation of it along the oval; `Err` naming what is wrong.
     fn read_against_oracle(
         origin: Point3<f64>,
         normal: Vec3<f64>,
@@ -422,9 +405,15 @@ mod tests {
             ));
         }
         for (m, w) in got.meetings.iter().zip(&want) {
+            let height = (m.point - origin).dot(normal.normalize());
+            if height.abs() > band().zero() {
+                return Err(format!("a meeting {height} off the plane"));
+            }
             let off = (m.point - curve.eval(*w)).norm();
-            if off > band().escalate() {
-                return Err(format!("a meeting {off} off the oracle's at {w}"));
+            if off > 100.0 * band().escalate() {
+                return Err(format!(
+                    "a meeting {off} along the oval from the oracle's at {w}"
+                ));
             }
         }
         Ok(Some(want.len()))
@@ -433,13 +422,12 @@ mod tests {
     /// **A plane all but parallel to the spiric's** (`[simple.conditioned]`):
     /// tilted by θ from 1e-2 down to 3e-8 about two axes of the oval's
     /// plane, each through a line that crosses the oval twice. The line
-    /// where the planes meet is read in the oval's own plane, so its
-    /// rounding grows only as the two planes' own conditioning, `1/θ`:
-    /// every answer stands within the band's escalation of the oracle's,
-    /// with no charge, and where the line's rounding reaches the band the
-    /// reading refuses. The tilts down to 1e-4 answer.
+    /// where the planes meet is read in the oval's own plane, so a meeting
+    /// stands off the exact one by the planes' own conditioning, `1/θ`, and
+    /// no worse: every tilt answers both meetings, each on the plane to
+    /// within the band's zero and at the oracle's crossing along the oval.
     #[test]
-    fn a_plane_near_the_spirics_own_answers_to_its_digits_or_refuses() {
+    fn a_plane_near_the_spirics_own_answers_to_its_digits() {
         let tilts = [
             1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5, 3e-6, 1e-6, 3e-7, 1e-7, 3e-8,
         ];
@@ -460,7 +448,6 @@ mod tests {
             ] {
                 match read_against_oracle(origin, normal) {
                     Ok(Some(2)) => {}
-                    Ok(None) if theta < 1e-4 => {}
                     other => wrong.push(format!("θ {theta}, {label}: {other:?}")),
                 }
             }
