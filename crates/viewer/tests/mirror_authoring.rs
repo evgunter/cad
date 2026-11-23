@@ -715,7 +715,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
             assert_eq!(role, viewer::seats::PlaneRole::Mirror, "the plane is named");
             assert_eq!(
                 error.to_string(),
-                "no mirror plane picked yet: pick a face",
+                "no mirror plane picked yet: pick a face or a datum",
                 "the refusal names both kinds of plane the seat takes"
             );
         }

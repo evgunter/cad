@@ -654,7 +654,7 @@ pub(super) fn certified<T: geom_core::Real>(
 /// reads its side by: the split's rule
 /// ([`crate::vertex_section::decide_vertex_on_plane`]). The face's
 /// outward normal is read into the section table as a unit direction
-/// over the face's reach ([`crate::separating::planar_axis`]), and a
+/// over the face's extent ([`crate::separating::planar_axis`]), and a
 /// far vertex of `x` takes its side from its own offset, under this
 /// door's name.
 fn vertex_face_side<T: Decide>(
@@ -668,14 +668,14 @@ fn vertex_face_side<T: Decide>(
         let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
             VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
         )?;
-        let normal = crate::separating::planar_axis(
-            y,
-            face,
-            || crate::census::face_reach(y, face, band),
-            band,
-        )
-        .ok_or(VertexRefusal::Plane(
-            "the face's outward normal does not read as a unit direction over its reach",
+        // The normal is levered by the face's extent from below, its
+        // certified boundary edges': a face with none has no extent to
+        // read it over, which is what failed, not the normal.
+        crate::cover::face_extent_below(y, face).ok_or(VertexRefusal::Plane(
+            "the face has no certified boundary edge to read its normal over",
+        ))?;
+        let normal = crate::separating::planar_axis(y, face, band).ok_or(VertexRefusal::Plane(
+            "the face's outward normal does not read as a unit direction over its extent",
         ))?;
         Ok(SectionPlane {
             origin: plane.origin,
@@ -3137,10 +3137,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let f2 = match surface {
                 geom::Surface::Cylinder { frame, radius, .. } => {
                     let axis = frame.axis();
-                    let d_ax = dir.dot(axis);
-                    (dir.norm_squared() - d_ax.powi(2)) / radius
+                    let d_ax = dir.get().dot(axis);
+                    (dir.get().norm_squared() - d_ax.powi(2)) / radius
                 }
-                geom::Surface::Sphere { radius, .. } => dir.norm_squared() / radius,
+                geom::Surface::Sphere { radius, .. } => dir.get().norm_squared() / radius,
                 // Post-gate/pre-check unreachable kinds keep the
                 // frontier door.
                 _ => return Err(frontier()),
@@ -3279,7 +3279,7 @@ fn conic_clearance<T: Decide>(
         frame, half_angle, ..
     } = *surface
     {
-        let (apex, axis) = (frame.origin(), frame.axis());
+        let (apex, axis) = (frame.origin(), frame.axis_unit());
         let h = geom_brep::conic_cone_harmonics(
             conic,
             geom::Line {
@@ -6667,7 +6667,7 @@ mod declaration_order_rows {
         );
         let witness = geom::Curve3::line(
             Point3::new(profile[3].0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            geom::stated_direction(geom_core::Vec3::new(0.0, 0.0, 1.0)),
         );
         contact_door(
             (&prism.body, prism.side_faces[3]),
@@ -6699,6 +6699,7 @@ mod declaration_order_rows {
                 )
             }),
             GlueClass::Continuation => unreachable!("a continuation is no contact"),
+            GlueClass::Junction => unreachable!("a line witness is no rim junction"),
         }
     }
 
@@ -7299,7 +7300,7 @@ mod wall_root_tests {
         let got = line_quadric_roots(
             geom::Line {
                 origin: Point3::new(d, -2.0, 0.5),
-                dir: Vec3::new(0.0, 1.0, 0.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
             },
             (0.0, 4.0),
             &wall,
@@ -7358,7 +7359,10 @@ mod edge_span_tests {
         };
         let y = Body::<f64>::new();
         let crossing = |delta: f64, (t0, t1): (f64, f64)| {
-            let line = geom::Curve3::line(Point3::new(2.0, 0.0, 0.0), Vec3::new(delta, 0.0, 1.0));
+            let line = geom::Curve3::line(
+                Point3::new(2.0, 0.0, 0.0),
+                geom_core::UnitVec3::squared(Vec3::new(delta, 0.0, 1.0)),
+            );
             wall_crossing(
                 &y,
                 FaceKey::default(),
@@ -8511,7 +8515,7 @@ mod arc_end_rows {
         };
         let line = geom::Curve3::line(
             geom_core::Point3::origin(),
-            (q - geom_core::Point3::origin()) / reach,
+            geom_core::UnitVec3::chord(q - geom_core::Point3::origin()).0,
         );
         let got = wall_crossing(
             &body,
@@ -9392,7 +9396,8 @@ mod spline_face_rows {
         let tol = Tol::witness();
         let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
         let pt = |k| p.body.resolve_vertex_point(k, crate::live::Proven);
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, (b - a).normalize());
+        let line =
+            |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, geom_core::UnitVec3::squared(b - a));
         let (a, b, c) = (pt(p.bottom[0]), pt(p.bottom[1]), pt(p.bottom[2]));
         let ends = |q, r| [(p.bottom[0], q), (p.bottom[0], r)];
         let edge = line(a, b);
@@ -9512,7 +9517,7 @@ mod line_root_lane_tests {
         };
         let line = geom::Line {
             origin: Point3::new(d, -2.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
         };
         assert_eq!(
             escalated_as(line, (0.0, 4.0), &sphere, band),
@@ -9535,7 +9540,7 @@ mod line_root_lane_tests {
         };
         let line = geom::Line {
             origin: Point3::new(in_the_gap(band), -1.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
         };
         assert_eq!(
             escalated_as(line, (0.0, 2.0), &cone, band),
@@ -9688,7 +9693,10 @@ mod review_5993_rows {
         for eps in [1e-12, 1e-9, 1e-6] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let got = geom_brep::curve_face::line_quadric::line_quadric_roots(
-                geom::Line { origin: o, dir: d },
+                geom::Line {
+                    origin: o,
+                    dir: geom::stated_direction(d),
+                },
                 (-2.0, 0.0),
                 &torus(),
                 band,

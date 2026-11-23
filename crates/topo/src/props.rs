@@ -2558,7 +2558,7 @@ fn splice_in_arena_order<T: Decide>(
 ///
 /// The end-to-end rows live in `sweep`'s
 /// `mass_props_are_thread_count_invariant` — a real body, the public
-/// doors, 4 threads against the serial walk's golden. This one pins the rule those rows depend
+/// doors, 1 and 4 threads against the serial walk. This one pins the rule those rows depend
 /// on at the site that carries it, with the refusal placed where no
 /// fixture body puts it: at a chosen slot, with a recording on every
 /// slot before and after, so a fold that spliced one face too few or
@@ -2964,7 +2964,12 @@ mod region_carry_tests {
             .map(|i| {
                 let (a, b) = (corners[i as usize], corners[((i + 1) % 4) as usize]);
                 LoopEdge::hand_built(
-                    geom::Curve3::line(iv(a), iv(Point3::origin() + (b - a)) - Point3::origin()),
+                    geom::Curve3::line(
+                        iv(a),
+                        geom_core::UnitVec3::checked(
+                            iv(Point3::origin() + (b - a)) - Point3::origin(),
+                        ),
+                    ),
                     Interval::from_f64(0.0),
                     Interval::from_f64(1.0),
                     counter,

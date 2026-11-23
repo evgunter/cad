@@ -151,12 +151,12 @@ fn far_line_grazes(far: f64) -> (usize, usize, usize, usize) {
         let g = graze(&mut rng, far, false);
         let gap = rng.range(-2.0, 2.0) * band.escalate();
         let origin = g.crest + g.outward * gap + g.along * rng.range(-3.0, 3.0);
-        let line = Curve3::line(origin, g.along);
+        let line = Curve3::line(origin, geom::stated_direction(g.along));
         let Curve3::Line(stored) = line else {
             unreachable!("a line")
         };
         let axis = Vec3::from_array(g.stored.axis);
-        let m = axis.cross(stored.dir.normalize()).normalize();
+        let m = axis.cross(stored.dir.get()).normalize();
         let read = match pose(
             &Span::new(&line, (-10.0, 10.0)),
             &Span::new(&g.conic, (0.0, TAU)),

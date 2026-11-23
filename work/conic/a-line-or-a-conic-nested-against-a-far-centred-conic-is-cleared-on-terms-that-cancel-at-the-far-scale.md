@@ -89,10 +89,22 @@ stored); a plain `c + u·a` still rounds at `u·far`.
 
 Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
 
-## 2026-11-23 — `line_clears_conic` fixed by GERM's PR 7553; `conics_clear` stays open
+## 2026-11-23 — both sites removed (HELDRECORDS, PR 7436)
 
-PR 7553 (`germ/harmonic-belly`) re-poses `line_clears_conic`. Its gap `|m·(c − p)| − reach` is now the negated belly `−Conic::belly_along(p, m)`. That reads the conic's stored placement (its stored point and phase, the axis, the seam, and the across-seam direction crossed exactly) and forms `(A² + B² − d₀²)/(√(A² + B²) + |d₀|)` with the numerator exact (`geom_core::Real::harmonic_belly`, within 7u of the belly to first order).
-- **The row:** `splitting::section_loops::far_clear_rows::a_line_clears_a_far_centred_conic_only_where_it_is_clear`, judged by an exact dyadic oracle on the stored data.
-  - It reads 0 wrong clears at far 1e4 / 1e5 / 1e6: 481 / 370 / 580 clears at seed 0x1, centre- and arc-held, the line grazing at any angle round the turn.
-  - Under the mutant that restores the plain gap it reads wrong (PR 7553's body).
-- **Not fixed:** `conics_clear`, which bounds a conic's distance from the origin of another's unit coordinates by a singular value. It is not a first harmonic's belly, and it still reads `c′` and `M` about the far centre. This row stays open for it.
+PR 7436 (`heldrecords/nesting`) deletes `line_clears_conic` and
+`conics_clear`. `outlines_disjoint` now reads every pair with an
+ellipse edge through `geom_brep::curve_pair::meet` over the two edges'
+spans (`section_loops::edges_clear`), and nothing reads the whole
+carriers. What this row owes at those two sites is gone with them. The
+pose family here now reaches the nesting through `meet`'s line–conic
+and conic–conic closed forms (`curve_pair::pose`). Whether those read
+a far-centred conic soundly is the question
+`a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex` lists
+them under, so it moves there. Not probed at far scale here.
+
+## 2026-11-23 — probed at far scale through `edges_clear` (GERM, PR 7553)
+
+PR 7553 re-poses the extreme nearer zero of `line_conic`'s first harmonic and of `conic_conic`'s parallel screen (`Conic::belly_along`, exact on the stored data). After PR 7436's merge, PR 7553's row `splitting::section_loops::far_clear_rows::a_segment_clears_a_far_centred_conic_only_where_it_is_clear` reads `edges_clear` on a ten-metre segment beside a centre-held far ellipse.
+- **The judge:** an exact dyadic oracle on the stored data.
+- **The exception:** a touch dropped by the carrier walk is counted apart, and is filed as `a-centre-held-far-conics-touch-is-dropped-by-a-carrier-walk-on-points-evaluated-about-its-centre`.
+- **What it reads:** that row's PR body has the counts. Conic × conic nesting at far scale is not probed there.

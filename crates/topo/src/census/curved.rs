@@ -251,7 +251,7 @@ pub(super) fn edge_tangent_at<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<EdgeTangent<T>>> {
     if let Some(line) = super::edge_line(body, e) {
-        return Some(Some(EdgeTangent::Straight(line.dir.normalize())));
+        return Some(Some(EdgeTangent::Straight(line.dir.get().normalize())));
     }
     let r = read(body, e, band, errors)?;
     Some(on_interior_at(body, &r, q, band, errors)?.map(|(t, _)| {
@@ -833,7 +833,7 @@ mod tests {
         Curve3::circle(center, Vec3::unit_z(), radius, Vec3::unit_x())
     }
 
-    fn line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
+    fn line(origin: Point3<f64>, dir: geom_core::UnitVec3<f64>) -> Curve3<f64> {
         Curve3::Line(geom::Line { origin, dir })
     }
 
@@ -903,13 +903,19 @@ mod tests {
                     },
                     (-3.0, 0.3),
                 ),
-                read(line(Point3::new(d, 2.0, -1.0), Vec3::unit_z()), (0.0, 2.0)),
+                read(
+                    line(Point3::new(d, 2.0, -1.0), geom_core::UnitVec3::exact_z()),
+                    (0.0, 2.0),
+                ),
                 Some(true),
             ),
             (
                 "spline × line",
                 read(spline(), (0.0, 1.0)),
-                read(line(on - Vec3::unit_z() * 0.3, Vec3::unit_z()), (0.0, 1.0)),
+                read(
+                    line(on - Vec3::unit_z() * 0.3, geom_core::UnitVec3::exact_z()),
+                    (0.0, 1.0),
+                ),
                 Some(true),
             ),
             (
@@ -949,7 +955,7 @@ mod tests {
                 "a line tangent to a circle",
                 unit,
                 read(
-                    line(Point3::new(-1.0, 1.0, 0.0), Vec3::unit_x()),
+                    line(Point3::new(-1.0, 1.0, 0.0), geom_core::UnitVec3::exact_x()),
                     (0.0, 2.3),
                 ),
                 Some(true),
@@ -964,7 +970,10 @@ mod tests {
                 "a line crossing it at 0.01 rad",
                 unit,
                 read(
-                    line(Point3::new(0.0, 1.0, 0.0) - shallow * 0.2, shallow),
+                    line(
+                        Point3::new(0.0, 1.0, 0.0) - shallow * 0.2,
+                        geom::stated_direction(shallow),
+                    ),
                     (0.0, 0.4),
                 ),
                 Some(true),
@@ -979,7 +988,10 @@ mod tests {
                 "a line 1e-4 off it",
                 unit,
                 read(
-                    line(Point3::new(-1.0, 1.0 + 1e-4, 0.0), Vec3::unit_x()),
+                    line(
+                        Point3::new(-1.0, 1.0 + 1e-4, 0.0),
+                        geom_core::UnitVec3::exact_x(),
+                    ),
                     (0.0, 2.3),
                 ),
                 Some(false),
@@ -1034,7 +1046,10 @@ mod tests {
         let thin = read(ellipse(1.0, 0.02, Vec3::unit_x()), (t0, t0 + 1.0));
         let (q, d) = thin.curve.ders1(t0 - 30.0 * eps);
         let across = Vec3::unit_z().cross(d).normalize();
-        let crossing = read(line(q - across * 0.1, across), (0.0, 0.2));
+        let crossing = read(
+            line(q - across * 0.1, geom::stated_direction(across)),
+            (0.0, 0.2),
+        );
         assert_eq!(
             meet(&thin, &crossing),
             (Some(false), vec![]),
@@ -1074,7 +1089,10 @@ mod tests {
                     continue;
                 }
                 let across = Vec3::unit_z().cross(d).normalize();
-                let crossing = read(line(q - across * 0.1, across), (0.0, 0.2));
+                let crossing = read(
+                    line(q - across * 0.1, geom::stated_direction(across)),
+                    (0.0, 0.2),
+                );
                 assert_eq!(
                     meet(&r, &crossing),
                     (Some(inside), vec![]),
@@ -1210,12 +1228,12 @@ mod tests {
             (met, errors)
         };
         let joint = read(
-            line(Point3::new(0.0, 1.0, 0.0), -Vec3::unit_x()),
+            line(Point3::new(0.0, 1.0, 0.0), -geom_core::UnitVec3::exact_x()),
             (0.0, 1.0),
         );
         assert_eq!(pass(&joint), (Some(None), vec![]), "the joint");
         let through = read(
-            line(Point3::new(1.0, 1.0, 0.0), -Vec3::unit_x()),
+            line(Point3::new(1.0, 1.0, 0.0), -geom_core::UnitVec3::exact_x()),
             (0.0, 2.0),
         );
         assert_eq!(
@@ -1225,7 +1243,10 @@ mod tests {
         );
         let radial = arc.curve.eval(0.5) - Point3::new(0.0, 0.0, 0.0);
         let across = read(
-            line(Point3::new(0.0, 0.0, 0.0) + radial * 0.5, radial),
+            line(
+                Point3::new(0.0, 0.0, 0.0) + radial * 0.5,
+                geom::stated_direction(radial),
+            ),
             (0.0, 1.0),
         );
         assert_eq!(pass(&across), (Some(Some(false)), vec![]), "a crossing");

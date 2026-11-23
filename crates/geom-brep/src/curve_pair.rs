@@ -1015,6 +1015,8 @@ impl From<SpanRefusal> for MeetFault {
 #[cfg(test)]
 pub(crate) mod far_graze_rows;
 #[cfg(test)]
+mod lever_rows;
+#[cfg(test)]
 mod meet_oracle;
 #[cfg(test)]
 mod meet_rows;

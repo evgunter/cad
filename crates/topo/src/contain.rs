@@ -461,6 +461,56 @@ pub fn contfp<T: Decide>(
     contfp_decided(body, face, normal, q, band).map(|(at, _)| at)
 }
 
+/// Whether `q`, placed off every edge of a loop by the boundary pass, is
+/// inside that loop's region: the walk that trusts the pass.
+fn inside_read<T: Decide>(
+    normal: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> impl Fn(&(LoopKey, OffLoop<T>)) -> Result<bool, ContainError> {
+    move |(lk, read)| Ok(carrier_loop_side(*lk, read, normal, q, band)?)
+}
+
+/// **[`contfp`]'s reading against one loop alone**: its boundary pass
+/// ([`cycles_pre_pass`]: the loop's vertices, then its edges, each on
+/// its own carrier) over `r#loop`, then the region that loop bounds, by
+/// the walk that trusts the pass. A point on the loop is named at the
+/// vertex or edge it lies on. Check 9's nesting arm reads a ring's
+/// vertices against its face's outer loop through it, so check 9 and the
+/// face door read one loop through one instrument.
+///
+/// # Errors
+///
+/// As [`contfp`].
+pub(crate) fn loop_placement<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    normal: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<FaceContainment, ContainError> {
+    let cycle = body.cycle_loop(r#loop).map_err(|miss| match miss {
+        crate::live::NoCycle::Stale | crate::live::NoCycle::Torn => {
+            ContainError::LoopUnreadable(r#loop)
+        }
+        crate::live::NoCycle::Lone(_) => ContainError::EmptyLoop(r#loop),
+    })?;
+    let read = match cycles_pre_pass(&[cycle], &[], q, band)? {
+        PrePass::On(on, _) => return Ok(on),
+        PrePass::Off(read) => read,
+    };
+    let inside_one = inside_read(normal, q, band);
+    let mut inside = true;
+    for one in &read {
+        inside &= inside_one(one)?;
+    }
+    Ok(if inside {
+        FaceContainment::In
+    } else {
+        FaceContainment::Out
+    })
+}
+
 /// [`contfp`], with the margin that decided an `OnEdge` or `OnVertex`
 /// verdict (`None` for `In` and `Out`, which decide no coincidence).
 /// A site that reads a face of either kind reads
@@ -488,9 +538,7 @@ pub(crate) fn contfp_decided<T: Decide>(
     // each read on its edges' own carriers by a walk that trusts the
     // pre-pass above — `q` is definitely off every edge — so it answers
     // inside or outside.
-    let inside = |(lk, read): &(LoopKey, OffLoop<T>)| -> Result<bool, ContainError> {
-        Ok(carrier_loop_side(*lk, read, normal, q, band)?)
-    };
+    let inside = inside_read(normal, q, band);
     let Some((outer, rings)) = read.split_first() else {
         unreachable!("the pre-pass reads every loop of the face, and a face has its outer loop")
     };
@@ -647,16 +695,24 @@ fn boundary_pre_pass<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<PrePass<T>, ContainError> {
-    let vertices = loops
-        .cycles()
-        .flat_map(|(lp, _)| loop_cycle_points(lp))
+    let cycles: Vec<CycleLoop<'_, T>> = loops.cycles().map(|(lp, _)| lp).collect();
+    cycles_pre_pass(&cycles, loops.lone_rings(), q, band)
+}
+
+/// [`boundary_pre_pass`] over `cycles` and the lone-vertex rings `lone`,
+/// whatever face they bound: a face's whole boundary, or one loop of it
+/// ([`loop_placement`]).
+fn cycles_pre_pass<T: Decide>(
+    cycles: &[CycleLoop<'_, T>],
+    lone: &[crate::live::LoneRing<T>],
+    q: Point3<T>,
+    band: Band,
+) -> Result<PrePass<T>, ContainError> {
+    let vertices = cycles
+        .iter()
+        .flat_map(|&lp| loop_cycle_points(lp))
         .map(|(v, _, p)| (v, p))
-        .chain(
-            loops
-                .lone_rings()
-                .iter()
-                .map(|lone| (lone.vertex, lone.point)),
-        );
+        .chain(lone.iter().map(|lone| (lone.vertex, lone.point)));
     for (v, p) in vertices {
         if let Some(margin) = one_vertex_at(q, p, band)
             .map_err(|diag| ContainError::on(LoopDecision::Boundary, diag))?
@@ -665,7 +721,7 @@ fn boundary_pre_pass<T: Decide>(
         }
     }
     let mut read = Vec::new();
-    for (cycle, _) in loops.cycles() {
+    for &cycle in cycles {
         let lk = cycle.key();
         let OnLoop { lp, edge: i, on } = match carrier_loop(cycle, ROWS.conic(), band)?
             .place_off(q, ROWS, band)
@@ -954,7 +1010,7 @@ fn curved_interior_placement<T: Decide>(
     let view = body.proven_face(face);
     let analytic = match *view.surface() {
         geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             let radial = geom::Line { origin, dir: axis }.offset(q);
             ruled_face_containment(body, face, radial.norm() - radius, q, band, cut)
         }
@@ -965,7 +1021,7 @@ fn curved_interior_placement<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let elevation = geom_brep::cone_elevation(
                 geom::Line {
                     origin: apex,
@@ -987,7 +1043,7 @@ fn curved_interior_placement<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             torus_face_containment(
                 body,
                 face,

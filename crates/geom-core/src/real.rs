@@ -2059,10 +2059,9 @@ pub mod bounds_allowlist {
     //! `Surface::representability_margins` — a cylinder's, sphere's or
     //! torus tube's radius, and a cone half-angle's distance from each end
     //! of `(0, π/2)` — and `Curve3::representability_margins`, a circle's
-    //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
-    //! for the axisymmetric kinds of both, the frame's unit-ness and
-    //! orthogonality stated as ε-slack margins at the kind's radius), the
-    //! representability read. Its `hi` decides nothing either: the datum
+    //! radius, an ellipse's semi-axes and a spiric's tube radius; a
+    //! carrier's frame has no margin, being a `geom::Frame`, rigid by its
+    //! type, so no bracket of it is read), the representability read. Its `hi` decides nothing either: the datum
     //! passes on `lo` alone, and `hi` only says which refusal a margin not
     //! passed is reported as, outside the convention where the whole
     //! bracket is, undecided where it straddles zero (ONEHOME fork 259).

@@ -21,6 +21,12 @@ Left by `a-node-name-the-viewer-shows-is-not-a-link-to-it`, which made the statu
 
 **Notices built from text**: `frame::Withdrawal::notice` (`self.to_string()`) and the maintenance row (`row.to_string()` in `frame.rs`, the kernel `Maintenance`, which has no `Say`).
 
+**Badges and rows read as text**, found by `some-spoken-causes-and-reports-are-still-text`'s review (PR #7576). A `Badge` holds its label as a `String`, so these need it to hold a `Sentence` too:
+- `frame::product_badge` (`crates/viewer/src/frame.rs`): `fault.spoken(doc).to_string()`, a gather refusal's nodes;
+- the undrawn-copies badge in `frame.rs` (`Said(copy, by).sentence().to_string()` per `index.undrawn()` copy), its label and its detail;
+- `drafts::latch_said` (`crates/viewer/src/drafts.rs`): a form's latch row, `Said(held, by).sentence().to_string()`;
+- `session::OutOfBudget::said` (`crates/viewer/src/session.rs`): the run-out line names its node with `crate::tree::spelled`.
+
 **Hover texts stay text**, by design: a tooltip is gone once the pointer moves toward it, so it cannot hold a link (`on_disabled_hover_text(crate::shown(..))` in `pane/features.rs`, `pane/properties.rs`, `pane/create.rs`). No fix is owed there.
 
 **The fix.** Have each producer above return its `Sentence` and draw it through `widgets::sentence` with its tone, give each viewer fault a `Say`, and hold `PanelRefusal`'s reason as a `Sentence`.

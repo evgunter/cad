@@ -11,7 +11,7 @@ use pncad::document::{
 use crate::app::{GLYPH_WORLD, ViewerBehavior, toned};
 use crate::frame;
 use crate::props::Notation;
-use crate::session::{Refusal, Selection, SessionOp, VersionOffer};
+use crate::session::{Refusal, Selection, SessionOp};
 use crate::theme::Theme;
 use crate::tree::{self, Readout, RowStatus, TreeRow};
 
@@ -167,10 +167,14 @@ pub(crate) fn feature_row_ui(
         clicks.select = Some(to);
     }
     clicks.followed = under.followed;
-    if let Some(offer) = &row.version_offer
-        && version_offer_lines(ui, offer, theme)
-    {
-        clicks.accept = Some(offer.accept());
+    if !row.offers.is_empty() {
+        clicks.offered = ui
+            .horizontal(|ui| {
+                ui.add_space(nested_indent(ui, 1));
+                ui.vertical(|ui| crate::widgets::offer_controls(ui, &row.offers, theme))
+                    .inner
+            })
+            .inner;
     }
     clicks
 }
@@ -199,18 +203,6 @@ pub(crate) const REMOVE_CONSTRAINT: &str = "remove";
 /// The label on a placement row's button that opens its editor.
 pub(crate) const EDIT_PLACEMENT: &str = "edit placement";
 
-/// **The accept a pin-mismatched instance row offers, drawn** under
-/// its failure: the question, and the button that is the edit the
-/// failure's recourse names. Whether the button was clicked.
-fn version_offer_lines(ui: &mut egui::Ui, offer: &VersionOffer, theme: &Theme) -> bool {
-    advisory_line(ui, &Refusal::version_question(offer), theme);
-    ui.horizontal(|ui| {
-        ui.add_space(nested_indent(ui, 1));
-        ui.button(VersionOffer::LABEL).clicked()
-    })
-    .inner
-}
-
 /// **What the feature tree last drew**: the selection it drew, and the
 /// one a click in it asked for that frame — so the next frame can tell
 /// a selection the tree made from one made outside it.
@@ -234,9 +226,9 @@ pub(crate) struct RowClicks {
     /// Whether the instance should now be hidden, when its toggle was
     /// clicked.
     pub(crate) hide: Option<bool>,
-    /// The operation accepting the row's [`TreeRow::version_offer`],
-    /// when its button was clicked.
-    pub(crate) accept: Option<SessionOp>,
+    /// The offer among the row's [`TreeRow::offers`] whose control was
+    /// clicked.
+    pub(crate) offered: Option<crate::widgets::Taken>,
     /// The constraint whose remove button was clicked, among the row's
     /// [`TreeRow::constraints`].
     pub(crate) remove: Option<MateRef>,
@@ -374,7 +366,7 @@ fn lines_under(
     on_screen: &Doc<ProfileProgram>,
     theme: &Theme,
 ) -> FailureClicks {
-    let clicked = failure_lines(ui, row, on_screen, theme);
+    let mut clicked = failure_lines(ui, row, on_screen, theme);
     match &row.readout {
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
@@ -391,7 +383,8 @@ fn lines_under(
         // A clearance's third state is a sentence with its recourse.
         Some(Readout::Clearance(cleared)) => {
             if let Some(sentence) = cleared.sentence() {
-                advisory_line(ui, sentence, theme);
+                let followed = advisory_said_at(ui, 1, &sentence, on_screen, theme);
+                clicked.followed = clicked.followed.or(followed);
             }
         }
         Some(Readout::Value(_) | Readout::Empty(_)) | None => {}
@@ -522,8 +515,17 @@ impl ViewerBehavior<'_> {
                 on: !hidden,
             });
         }
-        if let Some(accept) = clicks.accept.take() {
-            self.ops.push(accept);
+        match clicks.offered.take() {
+            Some(crate::widgets::Taken::Op(op)) => self.offered.push(op),
+            Some(crate::widgets::Taken::Lead(lead)) => {
+                if let Some(notice) =
+                    self.drafts
+                        .take_lead(lead, self.tools, self.session.committed_doc())
+                {
+                    self.notices.push(notice);
+                }
+            }
+            None => {}
         }
         if clicks.edit {
             match crate::matetool::MateTool::edit(self.session.committed_doc(), row.id) {
@@ -666,7 +668,7 @@ mod tests {
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         }
     }
@@ -716,7 +718,7 @@ mod tests {
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         };
         let drawn = painted_text(|ui| {
@@ -783,7 +785,7 @@ mod tests {
             },
             repair_at,
             readout: None,
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         }
     }
@@ -1173,7 +1175,7 @@ mod tests {
             status: RowStatus::Ok,
             repair_at: None,
             readout: Some(Readout::Empty(readout)),
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         };
         for (emptiness, phrase) in [
@@ -1740,7 +1742,7 @@ mod tests {
         super::RowClicks {
             select: select.get(),
             hide: hide.get(),
-            accept: None,
+            offered: None,
             remove: remove.get(),
             edit: false,
             hovered: false,
@@ -1762,7 +1764,7 @@ mod tests {
             status: RowStatus::Ok,
             repair_at: None,
             readout: None,
-            version_offer: None,
+            offers: Vec::new(),
             constraints: Vec::new(),
         }
     }
@@ -1819,47 +1821,50 @@ mod tests {
         );
     }
 
-    /// **An instance row whose pin no longer holds draws the accept its
-    /// failure offers, and the button is that offer's operation.**
+    /// **A failed row's offers are drawn under it, and a control's click
+    /// answers that offer's operation**; an act with no door here is its
+    /// words alone.
     ///
-    /// The row is assembled here with the two fields `tree::rows` fills
-    /// from such a failure: its words, and the offer the real
-    /// `frame::version_offer` reads off it. The session's own rows are
-    /// `tests/instance_authoring.rs`'s. Red if
-    /// the question or the button is not drawn, if clicking the button
-    /// answers anything but the offer's op or also selects, or if a row
-    /// with no offer draws either.
+    /// The row is assembled here with the fields `tree::rows` and
+    /// `DocSession::tree_rows` fill from a pin that no longer holds: its
+    /// words, and the accept `recourse::offers` reads off it. The
+    /// session's own rows are `tests/instance_authoring.rs`'s. Red if the
+    /// control is not drawn, if clicking it answers anything but the
+    /// offer's op or also selects, if a row with no offer draws it, or if
+    /// the tolerance's words are not drawn.
     #[test]
-    fn a_pin_mismatched_instance_row_draws_the_accept_and_its_button_is_the_offer() {
-        use pncad::document::{PartFault, ResolveFault};
+    fn a_failed_rows_offers_are_drawn_under_it_and_a_click_is_the_offers_op() {
+        use pncad::document::{NodeErrorKind, PartFault, ResolveFault};
 
-        use crate::session::{Refusal, SessionOp, VersionOffer};
+        use crate::recourse::{Offer, Unoffered};
+        use crate::session::SessionOp;
         use crate::test_support::part_refused;
+        use crate::widgets::Taken;
 
-        let (kind, files) = part_refused(PartFault::Unresolved {
+        let (kind, _) = part_refused(PartFault::Unresolved {
             fault: ResolveFault::PinMismatch,
-            message: "the store's own words".to_owned(),
+            message: "the store's own words".into(),
         });
-        let offer = crate::frame::version_offer(&kind, &files).expect("a pin mismatch offers");
+        let NodeErrorKind::Part { doc_ref, .. } = &kind else {
+            unreachable!("the fixture is a part refusal")
+        };
+        let label = "Accept updated version of part.pncad, at every instance of it";
+        let accept = SessionOp::AcceptPartVersion { id: doc_ref.id };
         let row = TreeRow {
             status: RowStatus::Failed {
                 message: kind.to_string().into(),
                 carried: Vec::new(),
             },
-            version_offer: Some(offer.clone()),
+            offers: vec![Offer::commit(label, accept.clone())],
             ..instance_row()
         };
 
         let drawn = painted_text(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
-        assert!(
-            drawn.contains(&Refusal::version_question(&offer))
-                && drawn.contains(VersionOffer::LABEL),
-            "{drawn}"
-        );
+        assert!(drawn.contains(label), "{drawn}");
 
         let clicked = core::cell::RefCell::new(None);
         let mut selected = None;
-        painted_after_clicking(VersionOffer::LABEL, |ui| {
+        painted_after_clicking(label, |ui| {
             let clicks = feature_row_ui(
                 ui,
                 &row,
@@ -1871,32 +1876,30 @@ mod tests {
                 Notation::DEFAULT,
             );
             selected = selected.or(clicks.select);
-            if let Some(op) = clicks.accept {
-                *clicked.borrow_mut() = Some(op);
+            if let Some(taken) = clicks.offered {
+                *clicked.borrow_mut() = Some(taken);
             }
         });
-        let clicked = clicked.into_inner();
-        assert!(
-            matches!(
-                (&clicked, offer.accept()),
-                (
-                    Some(SessionOp::AcceptPartVersion { id }),
-                    SessionOp::AcceptPartVersion { id: offered },
-                ) if *id == offered
-            ),
-            "{clicked:?}"
-        );
-        assert_eq!(selected, None, "the button selects nothing");
+        assert_eq!(clicked.into_inner(), Some(Taken::Op(accept)));
+        assert_eq!(selected, None, "the control selects nothing");
 
         let unoffered = TreeRow {
-            version_offer: None,
-            ..row
+            offers: Vec::new(),
+            ..row.clone()
         };
         let drawn = painted_text(|ui| feature_row_drawn(ui, &unoffered, &Theme::DEFAULT));
-        assert!(
-            !drawn.contains(VersionOffer::LABEL)
-                && !drawn.contains(&Refusal::version_question(&offer)),
-            "{drawn}"
+        assert!(!drawn.contains(label), "{drawn}");
+
+        let words = TreeRow {
+            offers: vec![Offer::Unoffered(Unoffered::Tolerance)],
+            ..row
+        };
+        let drawn = painted_text(|ui| feature_row_drawn(ui, &words, &Theme::DEFAULT));
+        assert!(drawn.contains(Unoffered::Tolerance.words()), "{drawn}");
+        assert_eq!(
+            Offer::Unoffered(Unoffered::Tolerance).label(),
+            None,
+            "an act with no door has no control"
         );
     }
 
@@ -2041,7 +2044,7 @@ mod tests {
             &doc,
             Node::Subtract {
                 from: body(union),
-                tool: body(hole),
+                tool: body(hole).into(),
             },
             tol,
         );

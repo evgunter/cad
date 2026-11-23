@@ -168,11 +168,8 @@ pub(crate) fn loaded_chain_turn<R>(
     chain: &[Coord<R>],
     tol: pncad::geom_core::Tol,
 ) -> Option<ChainTurn> {
-    let (raw, instance) = match doc.node(placement)? {
-        Node::Place { constraints, .. } => (constraints, false),
-        Node::InstantiatePart { constraints, .. } => (constraints, true),
-        _ => return None,
-    };
+    let node = doc.node(placement)?;
+    let (raw, instance) = (node.bundle()?, reads_its_own_output(node));
     let c = raw.iter().find(|c| c.id == id)?;
     let m = c.mate()?;
     let bind = |side, var| {
@@ -249,11 +246,8 @@ pub(crate) fn draft_snap(
         return Some(unsnapped);
     }
     let doc = run.doc();
-    let (raw, instance) = match doc.node(placement)? {
-        Node::Place { constraints, .. } => (constraints.clone(), false),
-        Node::InstantiatePart { constraints, .. } => (constraints.clone(), true),
-        _ => return None,
-    };
+    let node = doc.node(placement)?;
+    let (raw, instance) = (node.bundle()?.to_vec(), reads_its_own_output(node));
     let bind = |id: ConstraintId, side, var| {
         editor_core::eval::bound_pose(
             doc,
@@ -339,4 +333,11 @@ pub(crate) fn draft_snap(
         along: Some(slides_left_along(slides, n)),
         chart: Some((on.clone(), to.clone(), to_flipped)),
     })
+}
+
+/// **Whether a placement's near sides read its own output**, solved, so
+/// a snap reads them back at the identity: an instance's (off its
+/// copy) and a datum's (its frame); a `Place` reads its source.
+fn reads_its_own_output(node: &Node<ProfileProgram>) -> bool {
+    matches!(node, Node::InstantiatePart { .. } | Node::Datum { .. })
 }

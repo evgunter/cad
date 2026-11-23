@@ -362,7 +362,7 @@ mod tests {
     fn square(cuts: &[(u64, u64, u64)]) -> (SolidSpec, Vec<Vec<EdgeUse>>) {
         let line = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let spec = |start, end| EdgeSpec {
             start,

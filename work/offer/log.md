@@ -297,3 +297,56 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The unit is closed**, and the residue is in `viewer-pane-lines-spell-their-nodes-as-text` (P2).
   - **#7562 R1 is in:** APPROVE-WITH-FIXES, no MAJOR. The `Quieting` type allows hand-building; the tolerance words flicker; the NodeErrorClass census is missing; two offer shapes are uninventoried; the same-batch race is caught by the door. R2 is pending.
   - #7562's fix pass ports #7557. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 13:07Z — **The next cut begins.** Only P2/P3 rows remain besides the offers function, which is in dual review.
+  - **Dispatched now on Opus:** `some-spoken-causes-and-reports-are-still-text` (kernel side, so it is clear of the offers PR's viewer sites): session_013QoYWXqCH3gHdpWprRxMis, branch `offer/spoken-causes-are-sentences`.
+  - **After offers merges:** `viewer-pane-lines-spell-their-nodes-as-text` and `the-wheels-modifier-decisions-are-outside-the-binding-table`.
+  - **Held:** the four +design P2 rows (stranded-name rebind, expected component count, the tolerance door, the member-budget door). The design-fork protocol needs a Fable designer, and Fable is out until Nov 28 15:00 UTC. (OFFER orchestrator)
+- 2026-11-23 13:09Z — **#7562 adjudicated on the union of R1 and R2. Both say APPROVE-WITH-FIXES.**
+  - **R2 demonstrated a MAJOR, which R1 rated MINOR:** the "ruled out by type" claim is false. `Quieting` and `QuietingRef` have pub fields, so a raw-name `Minted` seat is still buildable. The fix privatises them, with a compile_fail doctest.
+  - **The rest of the union:**
+    - the door has no check of its own: a duplicate or same-batch Commit is accepted (a batch rule plus a door check);
+    - the tolerance words flicker;
+    - there is no census of the no-offer class arms;
+    - the mate arms need Leads into the placement editor;
+    - two inventory gaps;
+    - five surviving mutants;
+    - `Current`'s pairing is untyped;
+    - style items, including one source for the beside-its-assertion rule.
+  - **The fix pass** went to the lane with the #7557 port. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 16:25Z — **#7562 merged** (ca373503) at f9b31535: one offers function. All OFFER's P1 units have now landed.
+  - **The merge:** the orchestrator resolved a second main conflict itself. In `tools.rs` it kept main's datum functions with the PR's `hold_target`; in the gesture table it moved `AssertQuieting` to index 64, past main's `AddDatum`.
+  - **Verification** (orchestrator, local): at 43d380c2, 101/102 rows (the red is a flake, filed on GREEN) and 3/3 compile_fail doctests; at 77d14d6d, 45/45 plus 13/13; on the merged tree, 67/67, and clippy is clean.
+  - **The unit is closed.**
+  - **#7576 (kernel residue)** is in single review: session_013QoYWWfzMp4rzNLA6sxZTw.
+  - **Dispatched on Opus:**
+    - `viewer-pane-lines-spell-their-nodes-as-text`: session_013QoYWV9XkZLMg2qDsZc77R, branch `offer/pane-lines-are-sentences`;
+    - `the-wheels-modifier-decisions-are-outside-the-binding-table`: session_013QoYWVGtGVxZeqAdBE7szS, branch `offer/the-wheel-is-in-the-binding-table`.
+  - **Costed:** `the-body-a-placement-copies-has-three-answers` is M. It waits for the pane-lines PR, which shares `pane/create.rs`.
+  - **Held:** the four +design P2 rows, until Fable resets on Nov 28.
+  - No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 16:27Z — **`properties-do-not-say-a-node-is-read-by-the-product-or-a-definition` priced** at P3, cost M, and dispatched on Opus: session_013QoYWX59PE5nLh9bDwi8ZD, branch `offer/read-by-says-the-product-and-definitions`. It touches `relations.rs`, `doc.rs`'s read index and Properties, apart from the pane-lines and wheel lanes. **`chooser-probe-misses-dbus-autolaunch`** stays open: its fix must first reproduce the `Absent` arm on a box with no zenity, a portal and no bus variable, and a cloud container cannot do that. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 16:40Z — **Correction (Ev asked why OFFER was working P2s).** `memories/orchestration-model.md`, "A sitting ends when its track's P0 and P1 rows are done" (Ev, 2026-10-19), says to hand the track back once no P0/P1 row is dispatchable. The only exception is easy (`cost: E`) tail rows that this sitting's context makes cheap.
+  - **Why it was missed:** this orchestrator compacted at ~10:50Z and did not re-read the orchestration model afterwards, as CLAUDE.md requires. Its summary did not carry the rule.
+  - **Rows wrongly dispatched**, all cost M: the pane-lines row, the wheel row and the read-by row. Their three lanes were stopped about 15 minutes after dispatch, and the rows are back to `open`. Their pushed branches (`offer/pane-lines-are-sentences`, `offer/the-wheel-is-in-the-binding-table`, `offer/read-by-says-the-product-and-definitions`) are left for whoever picks the rows up, with no PR.
+  - **The read-by row** keeps the P3 / M pricing set today.
+  - **#7576** (`some-spoken-causes-…`, M) was also tail work. It is a direct follow-up to #7375 and is already in review, so it is left for Ev's call.
+  - **Withdrawn:** the "hold the design rows for Fable" plan. That is the next sitting's choice. (OFFER orchestrator)
+- 2026-11-23 19:35Z — **#7576 merged** (503d2d90) at 5b3bbfec. The kernel's spoken causes and reports are `Sentence`/`Lines`.
+  - **Verification:** the orchestrator ran it locally, 24/24 rows (cause mentions, goldens, the line-break refusal, part documents, e6, m10_6), and a `to_string()` revert mutant reddened exactly its own row.
+  - **The row is closed.**
+- 2026-11-23 19:36Z — **OFFER is handed back (`ready`).** The sitting ends with its P0/P1 rows done ("A sitting ends…", `memories/orchestration-model.md`).
+  - **Landed this sitting:**
+    - #7333 (the re-cut), #7336 (the controls guide), #7346 (the cascade strand count), #7348 (one assertion tool);
+    - #7356 (reads and read-by), #7362 (a check carries its quieting assertion), #7369 (the certified range search), #7375 (a sentence of words and mentions);
+    - #7548 (`range?` is the certified search), #7557 (a mention is a link), #7562 (one offers function), #7576 (spoken causes are sentences);
+    - main-red fixes #7377, #7536 and #7560, and the trackers.
+  - **Open, the tail** (11 rows; `STATUS.md` ranks it):
+    - P2: `viewer-pane-lines-spell-their-nodes-as-text`, `the-wheels-modifier-decisions-are-outside-the-binding-table` and `the-body-a-placement-copies-has-three-answers` (M).
+    - P2, +design: `a-stranded-name-row-offers-no-rebind-in-the-viewer`, `the-checks-expected-component-count-has-no-home`, `the-tolerance-recourse-is-prose-and-has-no-viewer-door` and `the-viewer-has-no-member-budget-door`.
+    - P3: `properties-do-not-say-a-node-is-read-by-the-product-or-a-definition` (M), `an-expression-refusal-spells-its-variables-as-text`, and `chooser-probe-misses-dbus-autolaunch`, which needs a box with no zenity, a portal and no bus variable to reproduce.
+    - P3, +design: `viewer-expresses-no-gpu-adapter-preference`.
+  - **For a successor:**
+    - The five +design rows need a design fork, and the design-fork protocol needs a Fable designer. Fable's usage limit resets Nov 28, 15:00 UTC.
+    - Model-comparison draws resume after that reset. Every unit dispatched during the outage records no row (rule 12; the analysis branch says so).
+    - Branches `offer/pane-lines-are-sentences`, `offer/the-wheel-is-in-the-binding-table` and `offer/read-by-says-the-product-and-definitions` hold the first commits of three lanes stopped at hand-back, with no PRs. Use or discard them.
+  - (OFFER orchestrator)

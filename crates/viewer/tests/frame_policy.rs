@@ -3295,8 +3295,8 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
 /// **The unknown-variable refusal carries its offer, and the frame
 /// policies hand both to the chrome.** An expression naming an
 /// undeclared variable refuses at the parse door (typo-safety — text
-/// never creates a variable); `creation_offer` extracts the name to
-/// prefill the add-variable affordance, and `retype_draft` hands the
+/// never creates a variable); its offer is the lead that prefills
+/// the add-variable affordance, and `retype_draft` hands the
 /// refused text back so acting on the offer does not cost the very
 /// expression that raised it.
 #[test]
@@ -3328,9 +3328,14 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         }
     }
     assert_eq!(
-        frame::creation_offer(refusal.as_ref()),
-        Some(VarName::from_static("margin")),
-        "the offer is the undeclared name"
+        refusal_offers(refusal.as_ref()),
+        viewer::recourse::Offers {
+            drawn: Vec::new(),
+            heard: vec![viewer::recourse::Heard::CreateVariable {
+                name: VarName::from_static("margin")
+            }],
+        },
+        "the offer is the heard lead to create the undeclared name"
     );
     assert_eq!(
         frame::retype_draft(&batch, refusal.as_ref()),
@@ -3352,7 +3357,10 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         }
     }
     assert!(refusal.is_some(), "the malformed text refuses");
-    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert_eq!(
+        refusal_offers(refusal.as_ref()),
+        viewer::recourse::Offers::default()
+    );
     assert!(frame::retype_draft(&batch, refusal.as_ref()).is_some());
 
     // And a clean batch offers and restores nothing.
@@ -3368,8 +3376,18 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         }
     }
     assert!(refusal.is_none(), "{refusal:?}");
-    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert_eq!(
+        refusal_offers(refusal.as_ref()),
+        viewer::recourse::Offers::default()
+    );
     assert_eq!(frame::retype_draft(&batch, refusal.as_ref()), None);
+}
+
+/// The offers a refused batch makes, or none for a clean one.
+fn refusal_offers(refusal: Option<&Refusal>) -> viewer::recourse::Offers {
+    refusal.map_or_else(viewer::recourse::Offers::default, |refused| {
+        viewer::recourse::offers(viewer::recourse::Failure::Refused(refused))
+    })
 }
 
 /// The XDG rules for where preferences live, held as a table.

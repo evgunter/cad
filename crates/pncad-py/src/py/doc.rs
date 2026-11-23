@@ -992,16 +992,18 @@ impl BodyArg {
     }
 }
 
-/// **A union's or an intersect's members as Python writes them**: ONE
-/// operand, a family read whole (a pattern's output), or a sequence of
-/// reads, each on its own (an operand, or a member `op[i]`) — the
-/// kernel's `Bodies`. Whether a read in a sequence is itself a family
-/// is the kernel's question at the door (`slot_var_kind`), not this
-/// one's.
+/// **A union's, an intersect's or an assemble's members, or a
+/// subtract's tools, as Python writes them**: ONE operand, or a sequence
+/// of reads, each on its own (an operand, or a member `op[i]`) — the
+/// kernel's `Bodies`. One operand is spelled alone (`Bodies::one`): a
+/// body, or a family read whole as its every member (a pattern's
+/// output), so every door that takes a list writes one operand one way.
+/// Whether a read is itself a family is the kernel's question at the
+/// door, not this one's.
 #[derive(FromPyObject)]
 pub(crate) enum MembersArg {
-    /// One read: the family it reads, whole.
-    Family(BodyArg),
+    /// One read, spelled alone.
+    One(BodyArg),
     /// A sequence of reads, in the order written.
     Spelled(Vec<BodyArg>),
 }
@@ -1010,7 +1012,7 @@ impl MembersArg {
     /// The authored argument.
     pub(crate) fn bodies(self) -> d::Bodies<d::BodyRead<d::Formula>> {
         match self {
-            Self::Family(read) => d::Bodies::Family(read.read()),
+            Self::One(read) => d::Bodies::one(read.read()),
             Self::Spelled(reads) => {
                 d::Bodies::Spelled(reads.into_iter().map(BodyArg::read).collect())
             }
@@ -3470,7 +3472,7 @@ impl Node {
     /// Members whose faces a margin decides on one surface glue there,
     /// and the coincidence is recorded for the `unproven_coincidence`
     /// check. A refusal only a fold step raises is
-    /// `kind == "union_fold_step"`, naming the member it folds in.
+    /// `kind == "fold_step"`, naming the member it folds in.
     #[staticmethod]
     fn union(members: MembersArg) -> PyResult<Self> {
         Ok(Self {
@@ -3510,20 +3512,23 @@ impl Node {
         })
     }
 
-    /// **The subtract**: `from_` with the material of `tool` cut away.
+    /// **The subtract**: `from_` with the material of every tool cut
+    /// away.
     ///
     /// The one pair node: difference neither commutes nor associates,
     /// so its two operands are named slots (`from`, spelled `from_`
-    /// here because `from` is a Python keyword, and `tool`). Several
-    /// tools are one subtract of their union,
-    /// `Node.subtract(body, Node.union([t1, t2]))`. A body cut by
-    /// itself, `Node.subtract(a, a)`, is the typed empty body.
+    /// here because `from` is a Python keyword, and `tool`). `tool` is
+    /// read as `Node.union`'s members are: one operand — a body, or a
+    /// family read whole, which is every member — or a list of them, and
+    /// the cut is the fold `from − t₁ − … − tₙ`, which fuses no tool
+    /// with another. A body cut by itself, `Node.subtract(a, a)`, is the
+    /// typed empty body.
     #[staticmethod]
-    fn subtract(from_: BodyArg, tool: BodyArg) -> PyResult<Self> {
+    fn subtract(from_: BodyArg, tool: MembersArg) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Subtract {
                 from: from_.read(),
-                tool: tool.read(),
+                tool: tool.bodies(),
             },
         })
     }
@@ -4596,7 +4601,8 @@ impl DocEdit {
     }
 
     /// **Replace a node's whole LIST input** — a `Node.union`'s or a
-    /// `Node.intersect`'s members, a `Node.loft`'s sections — with the
+    /// `Node.intersect`'s members, a `Node.subtract`'s tools, a
+    /// `Node.loft`'s sections — with the
     /// list stated in full. `members` takes `Node.union`'s shape: a
     /// sequence of operands, or one operand reading a family whole.
     ///
