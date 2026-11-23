@@ -511,6 +511,17 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         [b.symbolic + d.retried, b.numeric - d.retried],
         "the shipped receipt is the bare one with each retry moved from numeric to symbolic"
     );
+    // The witness of an open defect, not a baseline: rule H loses two of
+    // this leaf's `carrier_on_surface` decisions to a coefficient freeze
+    // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`),
+    // and no general claim can see such a loss, since the tier is not
+    // monotone in its rules. Once that row closes, this exact receipt
+    // narrows to the general form above.
+    assert_eq!(
+        [d.symbolic, d.numeric, d.retried],
+        [1390, 1801, 0],
+        "the shipped ladder's leaf receipt"
+    );
     let retried = d.retried > 0;
     assert_eq!(
         line.contains(&format!("retried={}", d.retried)),
