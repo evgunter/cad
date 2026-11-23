@@ -2301,7 +2301,7 @@ fn select_one<T: topo::AtRestPolicy + Decide>(
 /// reference resolves it**: the read to the operation whose value
 /// holds it, then the name through that value's table under the
 /// [`ladder`], into an entity of the name's own kind. The quieting
-/// rule's [`crate::checks::at_rest::row_quietable`] resolves a row's
+/// rule's [`crate::checks::at_rest::quieting`] resolves a row's
 /// cell here, as [`select_one`] resolves a selection's one name, so the
 /// two read one entity.
 ///

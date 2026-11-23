@@ -126,8 +126,9 @@ fn reach_of<T: Decide, E>(
         .vertices()
         .map(|(v, data)| (place(body.point_of(v, data)) - origin).norm_inf())
         .fold(T::zero(), T::max);
-    for (e, data) in body.edges() {
-        let Some(stored) = body.edge_curve_linked(e, data).certified() else {
+    for view in body.edge_views() {
+        let (e, data) = (view.key(), view.record());
+        let Some(stored) = view.certified() else {
             continue;
         };
         let moved = curve_of(stored)?;
