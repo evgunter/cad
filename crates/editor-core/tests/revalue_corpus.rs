@@ -586,11 +586,15 @@ fn revalue_plate_param_apart_to_its_parting() {
 /// order where `p0`'s exactly axis-aligned faces used to merge them
 /// (the owed item's `bool_pair_gap` swap). Its parting came later, as
 /// `plate_param`'s did, when the least turn lost its identity shortcut.
+/// Then validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`): its four corners, on both
+/// builds, ask 24 fewer decisions before the parting, 2399 -> 2375, at
+/// every ε row; the checks paired do not move.
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        (2399, 3856),
+        (2375, 3856),
         PerRow {
             at_1e6: 1414,
             at_1e9: 1462,
