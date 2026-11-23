@@ -156,7 +156,7 @@ impl<T: Decide> Body<T> {
         band: Band,
     ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
         let surface = |k| {
-            self.get_surface(k).unwrap_or_else(|| {
+            self.get_surface(k).unwrap_or_else(|_| {
                 dangling_link(
                     EntityId::Edge(edge),
                     "curve's description",

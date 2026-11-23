@@ -181,17 +181,10 @@ pub enum PcurveMintError {
     },
     /// The run's linear band could not be built.
     Band(BandError),
-    /// The chart [`loop_windings`] was handed is the placeholder
-    /// ([`Surface::is_placeholder_chart`]): it has no description yet,
-    /// so there is no lever arm to meter a joint gap through and no
-    /// region of it for a loop to bound. Refused before any loop is
-    /// walked, so there is no half-edge to carry a
-    /// [`PcurveMintError::Certify`] with
-    /// [`PcurveCertifyError::PlaceholderChart`] — the same fact, refused
-    /// per half-edge by the certification lanes. Never produced at rest:
-    /// the minting pass and the validator skip a placeholder face.
-    ///
-    /// [`loop_windings`]: super::loop_windings
+    /// The face is pending ([`crate::SurfaceSlot::Pending`]): it has no
+    /// surface yet, so a row on it has no chart to be derived or carried
+    /// on. Never produced at rest: the minting pass and the validator
+    /// skip a pending face.
     PlaceholderChart {
         /// The face whose boundary was asked for.
         face: FaceKey,

@@ -956,7 +956,14 @@ fn face_geo_arms<T: Decide>(
     band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
-    match f.surface() {
+    // A pending face is refused as the spline kind is: no ray arm.
+    let Ok(surface) = f.surface() else {
+        return Err(PointInSolidError::KindUnsupported {
+            face,
+            kind: geom::SurfaceKind::Nurbs,
+        });
+    };
+    match surface {
         Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Ok(FaceGeo::Plane(plane_desc_of(f.record(), origin, normal)))
@@ -1140,7 +1147,10 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 ///
 /// Where `face`, a face of the selection, does not resolve.
 pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PointInSolidError> {
-    let kind = body.proven_face(face).surface().kind();
+    let kind = body
+        .proven_face(face)
+        .surface()
+        .map_or(geom::SurfaceKind::Nurbs, Surface::kind);
     (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
 }
 
@@ -3601,7 +3611,7 @@ fn root_outward<T: Decide>(
                     "bool_ray_cone_incidence",
                     Margin::levered(
                         d.dot(chart_normal(body, face, p)?),
-                        geom_brep::curvature_lever_arm(body.proven_face(face).surface(), p),
+                        geom_brep::curvature_lever_arm(body.proven_face(face).described(), p),
                     ),
                     band,
                 )
@@ -3615,7 +3625,7 @@ fn root_outward<T: Decide>(
                     "bool_ray_torus_incidence",
                     Margin::levered(
                         d.dot(chart_normal(body, face, p)?),
-                        geom_brep::uniform_curvature_arm(body.proven_face(face).surface()),
+                        geom_brep::uniform_curvature_arm(body.proven_face(face).described()),
                     ),
                     band,
                 )
@@ -3639,7 +3649,7 @@ fn chart_normal<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, RayFault<PointInSolidError>> {
     Ok(geom_brep::implicit_gradient(
-        body.proven_face(face).surface(),
+        body.proven_face(face).described(),
         p,
     ))
 }
@@ -3666,7 +3676,7 @@ fn reach_margin<T: Decide>(
     root: T,
 ) -> Result<T, RayFault<PointInSolidError>> {
     let geom::Line { origin: q, dir: d } = ray.line();
-    let surface = body.proven_face(face).surface();
+    let surface = body.proven_face(face).described();
     let (at, passage) = (q + d * root, q + d * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
     let n = chart_normal(body, face, at)?;

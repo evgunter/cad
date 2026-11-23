@@ -45,7 +45,6 @@ use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
 use crate::curves::nurbs::NurbsCurve3;
 use crate::curves::{Conic, Curve3};
-use crate::net;
 
 /// A bracket as the certified scalar's enclosure of it. The box doors
 /// read only the result's bounds, never its decoration, so the

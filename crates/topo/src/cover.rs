@@ -159,7 +159,7 @@ pub fn face_nearest<T: Decide>(
 ) -> T {
     let near = cover.distance_range(site).0;
     let f = body.proven_face(face);
-    let Surface::Plane { frame, .. } = *f.surface() else {
+    let Ok(&Surface::Plane { frame, .. }) = f.surface() else {
         return near;
     };
     let (origin, normal) = (frame.origin(), frame.axis());
@@ -312,7 +312,14 @@ fn face_cover_in<T: Decide>(
     aim: Option<UnitVec3<T>>,
 ) -> FaceCovered<T> {
     let f = body.proven_face(face);
-    let surface = f.surface();
+    // A pending face bounds nothing: refused as the net that describes
+    // no region, the answer a carrier with no locus gives.
+    let Ok(surface) = f.surface() else {
+        return Err(FaceUncovered::of_carrier(geom::cover::Uncovered::new(
+            geom::cover::Entity::Surface(geom::SurfaceKind::Nurbs),
+            geom::cover::Unknown::PoisonedNet,
+        )));
+    };
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
     // A lone-vertex outer loop bounds nothing: a ruled face holds no
     // hull of it.

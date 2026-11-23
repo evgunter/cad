@@ -215,8 +215,7 @@ pub(crate) fn sphere_face_region<T: Decide>(
     };
     // Read after the boundary, so a torn curve panics whatever the face's
     // surface.
-    let surface = body.proven_face(face).surface();
-    let geom::Surface::Sphere { .. } = surface else {
+    let Ok(surface @ geom::Surface::Sphere { .. }) = body.proven_face(face).surface() else {
         return Err(PointInSolidError::CorruptFace { face });
     };
     Ok(Some(SphereFaceRegion::on(

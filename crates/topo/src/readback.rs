@@ -236,7 +236,11 @@ pub(crate) fn carrier_surface<T: Real>(
     let f = body.face(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
-    Ok((f.record().surface, f.surface(), f.sense()))
+    // A pending face has no carrier, so no frame.
+    let surface = f.surface().map_err(|_| ReadbackError::NoCanonicalFrame {
+        carrier: "pending surface",
+    })?;
+    Ok((f.record().surface, surface, f.sense()))
 }
 
 /// **A face's carrier frame** — the stored plane/axis data of the

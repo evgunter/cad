@@ -47,18 +47,15 @@ enum Held {
 }
 
 impl<T: Decide> SplineWall<T> {
-    /// The wall of `surface`; `None` for any other kind, for a chart
-    /// with no net, and for a net whose weights are constant along
-    /// neither parameter, which the iso collapse does not cut
+    /// The wall of `surface`; `None` for any other kind, and for a net
+    /// whose weights are constant along neither parameter, which the iso
+    /// collapse does not cut
     /// ([`geom_brep::IsoRowError::WeightsNotSeparable`]): a product net
     /// `wu ⊗ wv` with both factors varying is one.
     pub(crate) fn of(surface: &geom::Surface<T>) -> Option<Self> {
         let geom::Surface::Nurbs(chart) = surface else {
             return None;
         };
-        if chart.is_placeholder() {
-            return None;
-        }
         let wall = Self {
             chart: chart.clone(),
             swapped: Arc::new(chart.transposed()),

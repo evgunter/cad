@@ -222,7 +222,11 @@ impl<T: Decide> Orbit<T> {
             crate::sector_face::resolve(body, vertex, he, band).map_err(StarFault::Face)?;
         let face = resolved.face;
         let view = body.proven_face(face);
-        let bend = FaceBend::at(view.surface(), view.sense(), p);
+        // A pending face bends as a spline one does: uncertified.
+        let bend = match view.surface() {
+            Ok(surface) => FaceBend::at(surface, view.sense(), p),
+            Err(_) => FaceBend::Fitted,
+        };
         let corner_bounds = tips.bounds(vertex, face, n == 1);
         let shape = |fault| StarFault::Shape(face, fault);
         let sector = |at, arm| Sector {

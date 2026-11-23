@@ -12,7 +12,6 @@
 use bvh::Aabb;
 use geom_core::Bounds;
 
-use crate::net;
 use crate::surfaces::nurbs::NurbsSurface;
 
 /// The certified-conservative box of a NURBS surface: the AABB of its

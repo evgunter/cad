@@ -470,7 +470,7 @@ pub(crate) enum SplineNormalError {
     /// The face's carrier is not a spline chart: the point door
     /// ([`face_outward_normal_at`]) answers for it.
     NotSpline,
-    /// The face's chart is the placeholder, which has no locus.
+    /// The face's surface is still pending: it has no locus.
     PlaceholderChart,
     /// The chart point read no normal ([`NormalAtError`]).
     At(NormalAtError),

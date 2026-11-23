@@ -1998,8 +1998,8 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
         let p0 = body.resolve_vertex_point(start, crate::live::Proven);
         let p1 = body.resolve_vertex_point(end, crate::live::Proven);
         let (surf_self, surf_other) = (
-            body.proven_face(face).surface(),
-            body.proven_face(other_face).surface(),
+            body.proven_face(face).described(),
+            body.proven_face(other_face).described(),
         );
         let existing = body
             .edge_curve_linked(edge, &edge_data)

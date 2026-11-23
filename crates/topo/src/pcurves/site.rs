@@ -1,7 +1,6 @@
 //! **The doors' limbs**: an Euler operator's site mint, a split's
 //! carried rows and a kill's turn.
 
-use geom::Surface;
 use geom_brep::{ChartImage, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve_over_ends};
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;

@@ -140,6 +140,7 @@ use std::collections::BTreeSet;
 use geom::Surface;
 use geom_core::Real;
 
+use crate::SurfaceSlot;
 use crate::body::Body;
 use crate::census::CollinearOverlap;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey};
@@ -242,7 +243,7 @@ impl<T: Real> Body<T> {
         // for this door.
         let turned_faces: BTreeSet<FaceKey> = self
             .face_views()
-            .filter(|face| Reversal::of(face.surface()).turns_chart())
+            .filter(|face| face.surface().is_ok_and(|s| Reversal::of(s).turns_chart()))
             .map(FaceView::key)
             .collect();
         let turned_images: BTreeSet<CurveKey> = self
@@ -253,7 +254,7 @@ impl<T: Real> Body<T> {
                     return false;
                 };
                 curve.description().chart().is_some_and(|chart| {
-                    Reversal::of(self.get_surface(chart.surface).unwrap_or_else(|| {
+                    Reversal::of(self.get_surface(chart.surface).unwrap_or_else(|_| {
                         dangling_link(
                             GeomRef::Curve(key),
                             "chart image's surface",
@@ -354,10 +355,11 @@ impl<T: Real> Body<T> {
         for (he_key, element) in new_joints {
             out.write_joint(he_key, element);
         }
-        for (_, surface) in out.surfaces.iter_mut() {
-            match Reversal::of(surface) {
-                Reversal::Chart(reversed) => *surface = reversed,
-                Reversal::Sense => {}
+        for (_, slot) in out.surfaces.iter_mut() {
+            if let SurfaceSlot::Described(surface) = slot
+                && let Reversal::Chart(reversed) = Reversal::of(surface)
+            {
+                *surface = reversed;
             }
         }
         // The reversed charts' images and rows go with their frames
@@ -398,7 +400,12 @@ impl<T: Real> Body<T> {
             let Some(reverted) = out.faces.get_mut(face.key()) else {
                 unreachable!("revert: `face` was iterated out of the arena `out` clones")
             };
-            reverted.sense = reverted_sense(face.surface(), reverted.sense);
+            // A pending face carries the reversal itself, as a spline
+            // face does.
+            reverted.sense = match face.surface() {
+                Ok(surface) => reverted_sense(surface, reverted.sense),
+                Err(_) => !reverted.sense,
+            };
         }
 
         #[cfg(debug_assertions)]

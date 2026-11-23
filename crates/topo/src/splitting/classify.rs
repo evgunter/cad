@@ -54,7 +54,7 @@ pub(super) fn carrier_gate<T: Decide>(
     let frame = BoxAxes::aimed(plane.normal);
     for face in body.face_views() {
         let face_key = face.key();
-        let surface = face.surface();
+        let surface = face.described();
         let kind = surface.kind();
         match kind {
             geom::SurfaceKind::Plane | geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone => {}
