@@ -89,3 +89,8 @@ reading 0 wrong at 1e5 and 1e6, with no charge.
   - **The red:** seed `0x310ae3910d809302`, far 1e6, one wrong `Apart`, red on the merged head and on its pre-merge parent alike.
   - **The cause:** the belly reads the touch right. `place`'s carrier walk `clear_by` then reads the far conic clear of its own point at `u·far` (CONIC's `on_carrier.rs`).
   - **What was done:** filed on CONIC as `a-centre-held-far-conics-touch-is-dropped-by-a-carrier-walk-on-points-evaluated-about-its-centre`. The row is narrowed openly to `…_past_the_touchs_placement`: it counts `placed` apart, and M3 still reds it.
+- 2026-11-23, PR 7553's fast-set time bar.
+  - **The red:** `topo chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path` read 1.116 s on CI.
+  - **Measured locally**, `--profile ci`, default ε, interleaved, four runs each: main median 2.34 s, this head 2.69 s. Replacing the exact path with the plain formula reads 2.45 s, so the exact path is the whole added cost.
+  - **The fix keeps exactness wherever it decides.** A double-double reading answers first, on its own error bound against the terms' magnitudes. The exact expansions answer only where the belly cancels below that bound, and their terms are compressed before they multiply. The new head reads a median of 2.30 s, main's time.
+  - **The filter is witnessed:** a draw at the data's own rounding, pinned from the proptest's own failure under the always-accepting mutant.

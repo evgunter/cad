@@ -1861,3 +1861,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-23 — **PR 7553's CI red traced.**
   - The line row's one wrong `Apart` at far 1e6 is the carrier walk's `clear_by` on points evaluated about the far centre, behind a correct touch from the belly.
   - Filed on CONIC; the row is narrowed openly, and the oracle is unchanged.
+- 2026-11-23 — **PR 7553's time bar.** The exact belly's expansion arithmetic added about 15% to the ring-path torus row. A double-double filter on its own error bound brings it back to main's time, and the reading stays exact wherever it could cancel.
