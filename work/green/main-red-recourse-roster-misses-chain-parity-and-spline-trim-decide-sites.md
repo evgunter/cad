@@ -25,3 +25,14 @@ Each new site needs a roster line with its disposition, or the decide call
 has to move back under the name the roster lists. The gating gap that lets
 such a change past its PR is
 `green/a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+
+**More lines on main (2026-11-23, `oneround/lever-sites-topo`).** On `origin/main` at `2130aa45f5`, `recourse_roster::every_decided_name_has_its_door_and_every_site_is_read` prints five more lines beside the two above:
+
+- `a declared carrier matched nothing in src: Const(NEST)`;
+- the same for `Const(REACH)` (`crates/topo/tests/recourse_roster.rs:240-241`);
+- `an indirect site not listed` for `pcurves/collapsed_side_rows.rs: joint` and `joint_at`, both `DescribedChart::of(surface).unwrap()`;
+- the same for `pcurves/decision.rs: decide_joint: chart`.
+
+That lane's branch prints the same lines and nothing else.
+
+**On `origin/main` at `ffb8d91ae5` (2026-11-23).** The two `Const(NEST)`/`Const(REACH)` lines are gone. Two new indirect sites are not listed: `boolean/join.rs: conic_section_frame_at: sa` and `boolean/section_cert.rs: cone_torus: f`. The other five lines stand. `oneround/lever-sites-topo` at its merge with that main prints the same seven lines.

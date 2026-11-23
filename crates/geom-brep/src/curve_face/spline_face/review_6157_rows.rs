@@ -83,12 +83,15 @@ fn read(
     dir: Vec3<f64>,
     toward: bool,
 ) -> Result<Vec<ChartMeeting<f64>>, SplineFaceRefusal> {
+    // The segment from the origin to `0.4·dir`, on its unit direction:
+    // its span in metres.
+    let (unit, len) = (geom_core::UnitVec3::squared(dir), dir.norm());
     let line = if toward {
-        Curve3::line(Point3::new(0.0, 0.0, 0.0) + dir * 0.4, -dir)
+        Curve3::line(Point3::new(0.0, 0.0, 0.0) + dir * 0.4, -unit)
     } else {
-        Curve3::line(Point3::new(0.0, 0.0, 0.0), dir)
+        Curve3::line(Point3::new(0.0, 0.0, 0.0), unit)
     };
-    crate::NurbsLane::<f64>::certified().chart_meetings(&line, (0.0, 0.4), chart, band())
+    crate::NurbsLane::<f64>::certified().chart_meetings(&line, (0.0, 0.4 * len), chart, band())
 }
 
 const ORIENTATIONS: [(bool, bool, bool); 8] = [

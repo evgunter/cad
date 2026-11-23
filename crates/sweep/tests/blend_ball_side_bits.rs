@@ -53,7 +53,7 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
     let m = Meridian {
         axis: geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom_core::UnitVec3::exact_z(),
         },
         rim: Point3::new(2.0, 0.0, 1.0),
     };
@@ -246,7 +246,7 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
 #[test]
 fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
     let r = Ruling {
-        tau: Vec3::new(0.0, 0.0, 1.0),
+        tau: geom_core::UnitVec3::exact_z(),
         rim: Point3::new(1.0, 0.0, 0.0),
         lever: 1.0,
     };
@@ -390,7 +390,7 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
     let p = Point3::new(1.3, 0.7, 1.0);
     let tau = Vec3::new(1.0, 0.0, 0.0);
     for (convexity, sign) in [(Convexity::Convex, 1.0), (Convexity::Concave, -1.0)] {
-        let blend = plane_plane_blend(p, tau, n, up, 0.1, convexity);
+        let blend = plane_plane_blend(p, geom::stated_direction(tau), n, up, 0.1, convexity);
         let Surface::Cylinder {
             frame: carrier_frame,
             ..
@@ -410,7 +410,14 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
         let ivv = |v: Vec3<f64>| v.map(iv);
         let n_i = ivv(n);
         let unit_i = (n_i * iv(sign)).normalize();
-        let blend = plane_plane_blend(p.map(iv), ivv(tau), n_i, ivv(up), iv(0.1), convexity);
+        let blend = plane_plane_blend(
+            p.map(iv),
+            geom_core::UnitVec3::checked(tau).map_scalar(iv),
+            n_i,
+            ivv(up),
+            iv(0.1),
+            convexity,
+        );
         let Surface::Cylinder { frame, .. } = blend.surface else {
             panic!("{convexity}: the plane–plane arm mints a cylinder at Interval");
         };
