@@ -13,3 +13,10 @@ Where it came from: unit 4b's stage 1 (`work/tesslane/a-boundary-run-on-a-chart-
 
 ## First reports
 
+Dispatched 2026-11-23, concurrently, one identical prompt (the statement under a nine-line header), each as its own cloud session:
+
+- **A** (Opus; session `session_01BJC3B4Wth6ZzdMHLJJRnDj`, configured `claude-opus-5-5`), created 00:13:43Z.
+- **B** (Fable; session `session_01BJC3B2LUpUeS4a7VRY1b1i`, configured `claude-fable-5-2`), created 00:13:45Z.
+
+Owed to both at once when it arrives: the implementer's row with the headroom kept and the rows off.
+
