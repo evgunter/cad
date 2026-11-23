@@ -45,6 +45,11 @@ triangle inside one cell of its grid, and takes the coarsest step that
 bound allows at δ. The step chooses how dense the mesh is. What holds
 a triangle within δ is its certificate.
 
+"Without extra work" means: where refining to exactly δ would be more
+work than refining slightly past it, the lane refines slightly past
+it. It never does something extra to get a less precise mesh on
+purpose.
+
 - **The step is a first guess, and the certificate decides.** Each
   chart has a cell bound: a closed-form bound on the deviation of a
   triangle inside one cell of the lane's grid, pinned by a test next
