@@ -75,7 +75,6 @@ fn shown_at() -> pncad::geom_brep::recourse::ReadAt {
 }
 
 pub mod blend;
-pub mod bounds;
 pub mod camera;
 pub mod combine;
 pub mod display;
@@ -204,9 +203,9 @@ pub use props::{MemberFault, MemberValues, Reading, SlotDriver, SlotFault, SlotR
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use seats::{EdgeRole, Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
-    BoundsReading, DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing,
-    NodeKindWanted, OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp,
-    Standing, VertexSelection,
+    DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing, NodeKindWanted,
+    OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp, Standing,
+    VertexSelection,
 };
 pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};
