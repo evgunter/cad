@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-23
 priority: P1
 cost: M
-design: true
 parent: one-stored-form-waits-on-the-readers-of-a-conics-centre
 refs: [7510, 7258]
 ---
@@ -35,3 +34,14 @@ Cut from `one-stored-form-waits-on-the-readers-of-a-conics-centre` on 2026-11-23
 - **A reversed axis** (`column_circle`, `half_turn_curve`, `Curve3::reversed`'s callers): for an ellipse it is `Ellipse::reversed()`, not `mapped(Frame::reversed)`, which is a half turn about the line through the stored point along the seam and so another ellipse when that point is the anchor. For a circle `placed(Frame::reversed)` is right only because a circle's stored point is its centre. `column_circle` and `half_turn_curve` also re-square the frame through `Curve3::circle`/`Frame::new`, a second change of bits beside the placement.
 - **A homothety** (`replace_face::homothety`) **and an offset** (`offset_axial.rs`) change the sizes; no existing door does that keeping the placement. Whether an offset of an ellipse is a conic at all is `mint_carrier`'s own question.
 - **Not known:** whether any of these doors is handed an arc-held ellipse today. `mint_carrier`, `torus_circle_arc`, `distance_floor`, `piece_along`, `end_face::of`, `Conic::of` and `cone_v_range` take a conic or an ellipse and are the ones to check first.
+
+## Decided (Ev, PR 7523, 2026-11-23): a conic from a conic is a map
+
+The design question is answered (the three designers' final texts, PR 7523's body): **a conic made from a conic is a map applied to the conic, which keeps its placement**, never a constructor called on pieces read off `frame()`. The maps owed beyond the isometries that exist: a homothety, a concentric offset, and a re-seam at a point. A record that holds a conic as `(centre, axis, u_ref, radius)` either carries the conic or says its result is another conic.
+
+- `centred_at` may have a production caller (`pcurve_cache::anchored`); two of the three designers read it as tests only. Find out before it goes or stays.
+- The closures passed to the maps, and a struct that another function fills, are what PR 7510's gate does not see.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
