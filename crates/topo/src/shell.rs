@@ -1629,6 +1629,7 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
     let body: &Body<T> = body;
+    crate::gate_measure::operands(&[body]);
     let mut naming = ShellNaming::default();
     // `shell` reaches this door, so both verbs derive here, once.
     let band = Band::linear(tol).map_err(|error| ShellError::Band { error })?;
@@ -2435,6 +2436,7 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
     #[cfg(debug_assertions)]
     record_rooted(body, &out_body, &naming);
     naming.source = crate::SourceGeometry::of(body);
+    let _site = crate::gate_measure::site("shell");
     let body = T::finish(out_body, tol).map_err(|findings| ShellError::NotValid { findings })?;
     Ok(Shelled { body, naming })
 }
@@ -4582,12 +4584,6 @@ fn wall_clearance<T: Decide>(
     Ok(())
 }
 
-/// **The cell-pair budget of the cavity's self-intersection question**,
-/// the document door's own default for the same question
-/// (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`). A recorded run
-/// dial: exhausting it refuses typed and never answers.
-const CAVITY_MAX_CELL_PAIRS: usize = 65_536;
-
 /// **The cavity is embedded**: the verdict door
 /// ([`crate::clearance::embedded`]) asked of the moved clone, every face
 /// against every face and itself, before the void door grafts it. A
@@ -4601,7 +4597,7 @@ fn cavity_embedded<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds
     cavity: &Body<T>,
     band: Band,
 ) -> Result<(), ShellError<T>> {
-    use crate::clearance::{Budgets, Crossing, DEFAULT_MAX_CELL_DEPTH, Embedding, Side, embedded};
+    use crate::clearance::{Crossing, Embedding, GATE_BUDGETS, Side, embedded};
     match CavityGate::at::<T>() {
         CavityGate::Asks => {}
         CavityGate::WaitsOnTheEngineRows => return Ok(()),
@@ -4609,12 +4605,23 @@ fn cavity_embedded<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds
     let side = Side {
         body: cavity,
         faces: cavity.faces().map(|(k, _)| k).collect(),
+        excluded: crate::clearance::FacePairs::none(),
     };
-    let budgets = Budgets {
-        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-        max_cell_pairs: CAVITY_MAX_CELL_PAIRS,
-    };
-    match embedded(&side, band, budgets).verdict {
+    let report = embedded(&side, band, GATE_BUDGETS);
+    if std::env::var_os("CV_CAVITY_F64").is_some() {
+        let kinds: Vec<String> = cavity
+            .faces()
+            .map(|(k, f)| format!("{k:?}={:?}", cavity.get_surface(f.surface)))
+            .collect();
+        eprintln!(
+            "CAVITY faces={} {:?} verdict={:?} receipt={:?}",
+            cavity.faces().count(),
+            kinds,
+            report.verdict,
+            report.receipt
+        );
+    }
+    match report.verdict {
         Embedding::Embedded => Ok(()),
         Embedding::Crosses(Crossing {
             faces: (face, other),
@@ -4652,6 +4659,7 @@ impl CavityGate {
     fn at<T: Decide + crate::props::AtRestPolicy>() -> Self {
         match T::clearance_lane() {
             Some(_) => Self::Asks,
+            None if std::env::var_os("CV_CAVITY_F64").is_some() => Self::Asks,
             None => Self::WaitsOnTheEngineRows,
         }
     }

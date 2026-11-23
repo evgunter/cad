@@ -550,6 +550,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 ) -> Result<Blended<T>, BlendError> {
     // Every chain is carved inside the one shell its links lie in; the
     // body's other shells and solids are carried through untouched.
+    topo::gate_measure::operands(&[source]);
     let mut link_shells: BTreeMap<EdgeKey, ShellKey> = BTreeMap::new();
     for chain in &verdict.chains {
         let shell = chain_shell(source, chain)?;
@@ -1008,6 +1009,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     rec.dead.faces.sort_unstable();
     rec.source = topo::SourceGeometry::of(source);
     // The door's finish: the blended body leaves finished at its scalar.
+    let _site = topo::gate_measure::site("blend");
     let body = T::finish(body, tol).map_err(|findings| BlendError::NotFinished { findings })?;
     Ok(Blended {
         body,
