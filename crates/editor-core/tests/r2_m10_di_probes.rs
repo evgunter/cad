@@ -88,7 +88,7 @@ impl Fnv {
             Curve3::Line(geom::Line { origin, dir }) => {
                 self.u64(40);
                 self.p3(origin);
-                self.v3(dir);
+                self.v3(&dir.get());
             }
             Curve3::Circle(circle) => {
                 let (center, axis, u_ref) = (

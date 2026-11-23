@@ -903,7 +903,7 @@ enum Clearances {
     Stopped,
     /// The certify job ran out of its member budget before it answered:
     /// the row's sentence, with the recourse.
-    OutOfBudget(String),
+    OutOfBudget(pncad::document::Sentence),
     /// The certifying scalar's answer, one per clearance assertion, in
     /// document order.
     Settled(Vec<pncad::analysis::ClearanceAnswer>),
@@ -2009,11 +2009,11 @@ impl DocSession {
                     run.clearances = match done.answers {
                         Ok(answers) => Clearances::Settled(answers),
                         Err(pncad::document::Stopped::Exhausted { budget }) => {
-                            Clearances::OutOfBudget(format!(
+                            Clearances::OutOfBudget(pncad::document::sentence!(format_args!(
                                 "certifying ran out of the member budget of {budget} listing \
                                  steps before it answered. {}",
                                 pncad::document::Recourse(pncad::document::RAISE_THE_MEMBER_BUDGET)
-                            ))
+                            )))
                         }
                         // A canceled job was superseded: the request that
                         // canceled it makes this landing stale.

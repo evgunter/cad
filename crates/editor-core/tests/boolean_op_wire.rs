@@ -45,7 +45,7 @@ fn rows() -> [(&'static str, AuthoredNode, &'static str); 3] {
                 from: a.into(),
                 tool: b.into(),
             },
-            r#"{"Subtract":{"from":{"Node":"0:0000000000000001"},"tool":{"Node":"0:0000000000000002"}}}"#,
+            r#"{"Subtract":{"from":{"Node":"0:0000000000000001"},"tool":{"Spelled":[{"Node":"0:0000000000000002"}]}}}"#,
         ),
     ]
 }
