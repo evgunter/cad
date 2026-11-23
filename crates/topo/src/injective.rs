@@ -8638,6 +8638,225 @@ mod presentation_rows {
         }
     }
 
+    // ------------------------------------------- review probes (re-review)
+
+    /// REVIEW PROBE F1 (re-review). A fuzz of `present_plane` over chains
+    /// of three line edges `Q0 -> P1 -> P2 -> Q3` (the face on the left),
+    /// each corner convex or reflex, turned in the chart, in cells whose
+    /// local boundary is read by `Local::of` off the cell's own ball.
+    /// Ground truth is nearest-feature sidedness. A presentation must
+    /// hold every sampled face point of the cell; `Vacuous` must hold
+    /// none.
+    #[test]
+    fn review2_probe_fuzz_a_presented_end_holds_the_faces_part() {
+        struct Rng(u64);
+        impl Rng {
+            fn next(&mut self) -> f64 {
+                self.0 ^= self.0 << 13;
+                self.0 ^= self.0 >> 7;
+                self.0 ^= self.0 << 17;
+                (self.0 >> 11) as f64 / (1u64 << 53) as f64
+            }
+            fn log(&mut self, lo: f64, hi: f64) -> f64 {
+                (lo.ln() + self.next() * (hi.ln() - lo.ln())).exp()
+            }
+        }
+        let k = band().escalate();
+        let mut rng = Rng(0x9E3779B97F4A7C15);
+        let (mut of3, mut vac3, mut loc3, mut of2, mut vac, mut of1, mut bad) = (0, 0, 0, 0, 0, 0, 0);
+        let dir = |t: f64| (t.cos(), t.sin());
+        for case in 0..60_000 {
+            let w = rng.log(0.3 * k, 1.0);
+            let (l1, l3) = (rng.log(w, 20.0), rng.log(w, 20.0));
+            let turn = |r: &mut Rng| {
+                let t = 0.02 + r.next() * 3.0;
+                if r.next() < 0.75 { t } else { -t }
+            };
+            let (t1, t2) = (turn(&mut rng), turn(&mut rng));
+            let phi = if rng.next() < 0.2 { 0.0 } else { rng.next() * 6.283 };
+            let p1 = (rng.next() - 0.5, rng.next() - 0.5);
+            let d2 = dir(phi);
+            let p2 = (p1.0 + w * d2.0, p1.1 + w * d2.1);
+            let d1 = dir(phi - t1);
+            let q0 = (p1.0 - l1 * d1.0, p1.1 - l1 * d1.1);
+            let d3 = dir(phi + t2);
+            let q3 = (p2.0 + l3 * d3.0, p2.1 + l3 * d3.1);
+            let cross = |a: (f64, f64), b: (f64, f64)| a.0 * b.1 - a.1 * b.0;
+            let sub = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0, a.1 - b.1);
+            // The ground truth runs the first edge back and the last on
+            // as rays (a presented or Vacuous cell holds neither's end).
+            // Where the rays cross, at X: the triangle X P1 P2 if both
+            // corners are convex, else the case is skipped; a cell whose
+            // ball reaches X is skipped below.
+            let far = 1e3;
+            let (r, s) = ((-d1.0, -d1.1), d3);
+            let den = cross(r, s);
+            let mut apex: Option<(f64, f64)> = None;
+            if den.abs() > 1e-300 {
+                let t = cross(sub(p2, p1), s) / den;
+                let u = cross(sub(p2, p1), r) / den;
+                if t > 0.0 && u > 0.0 {
+                    if t1 < 0.0 || t2 < 0.0 {
+                        continue;
+                    }
+                    apex = Some((p1.0 + t * r.0, p1.1 + t * r.1));
+                }
+            }
+            let tq0 = apex.unwrap_or((p1.0 - far * d1.0, p1.1 - far * d1.1));
+            let tq3 = apex.unwrap_or((p2.0 + far * d3.0, p2.1 + far * d3.1));
+            let pts = [tq0, p1, p2, tq3];
+            // The edges as the face holds them stop short of the apex.
+            if let Some(x) = apex {
+                let d = |a: (f64, f64)| ((a.0 - x.0).powi(2) + (a.1 - x.1).powi(2)).sqrt();
+                if d(q0) < 1e-6 * l1 || d(q3) < 1e-6 * l3 || l1 > d(p1) || l3 > d(p2) {
+                    continue;
+                }
+            }
+            let (plane, mut b) = segments(&[
+                (1, q0, p1, [1, 2]),
+                (2, p1, p2, [2, 3]),
+                (3, p2, q3, [3, 4]),
+            ]);
+            // The face side of a point: nearest feature's; None at a free end.
+            // Each feature from a point at the end: its anchor, its unit
+            // direction of travel, and its run from the anchor (signed).
+            let norm = |a: (f64, f64)| (a.0 * a.0 + a.1 * a.1).sqrt();
+            let feats = [
+                (p1, d1, -norm(sub(tq0, p1)), 0.0),
+                (p1, d2, 0.0, w),
+                (p2, d3, 0.0, norm(sub(tq3, p2))),
+            ];
+            let in_face = |p: (f64, f64)| -> Option<(bool, f64)> {
+                let mut best: Option<(f64, usize, f64)> = None;
+                for (i, &(a, dv, lo, hi)) in feats.iter().enumerate() {
+                    let r = sub(p, a);
+                    let t = (r.0 * dv.0 + r.1 * dv.1).clamp(lo, hi);
+                    let d = norm((r.0 - t * dv.0, r.1 - t * dv.1));
+                    if best.is_none_or(|(bd, ..)| d < bd) {
+                        best = Some((d, i, t));
+                    }
+                }
+                let (d, i, t) = best?;
+                let (a, dv, lo, hi) = feats[i];
+                if (i == 0 && t == lo) || (i == 2 && t == hi) {
+                    return if apex.is_some() { Some((false, d)) } else { None };
+                }
+                Some(if (i == 0 && t == hi) || (i == 1 && t == lo) {
+                    (t1 < 0.0, d)
+                } else if (i == 1 && t == hi) || (i == 2 && t == lo) {
+                    (t2 < 0.0, d)
+                } else {
+                    (cross(dv, sub(p, a)) > 0.0, d)
+                })
+            };
+            for _ in 0..4 {
+                let anchor = pts[1 + (rng.next() * 2.0) as usize];
+                let (hu, hv) = (rng.log(0.05 * w, 300.0 * w), rng.log(0.05 * w, 300.0 * w));
+                let c = (
+                    anchor.0 + (rng.next() - 0.5) * 3.0 * hu,
+                    anchor.1 + (rng.next() - 0.5) * 3.0 * hv,
+                );
+                let cell = ((c.0 - hu, c.0 + hu), (c.1 - hv, c.1 + hv));
+                let (local, ball) = real_local(&mut b, cell);
+                if let Some(x) = apex {
+                    let reach = (hu * hu + hv * hv).sqrt();
+                    if ((x.0 - c.0).powi(2) + (x.1 - c.1).powi(2)).sqrt() < 1.05 * reach {
+                        continue;
+                    }
+                }
+                // The truth is unknown where an edge's real end, or the run
+                // past it, comes into the ball: skip those cells.
+                {
+                    let reach = (hu * hu + hv * hv).sqrt();
+                    let seg = |a: (f64, f64), e: (f64, f64)| {
+                        let v = sub(e, a);
+                        let t = (((c.0 - a.0) * v.0 + (c.1 - a.1) * v.1) / (v.0 * v.0 + v.1 * v.1)).clamp(0.0, 1.0);
+                        ((c.0 - a.0 - t * v.0).powi(2) + (c.1 - a.1 - t * v.1).powi(2)).sqrt()
+                    };
+                    if seg(q0, tq0) < 1.05 * reach || seg(q3, tq3) < 1.05 * reach {
+                        continue;
+                    }
+                }
+                let shared: &[usize] = [&[][..], &[0], &[1], &[2]][(rng.next() * 4.0) as usize];
+                if !shared.iter().all(|e| local.edges.contains(e)) {
+                    continue;
+                }
+                let piece = Piece {
+                    face: FaceKey::default(),
+                    surface: &plane,
+                    whole: false,
+                    boundary: &b,
+                    u: cell.0,
+                    v: cell.1,
+                    local: &local,
+                    ball,
+                };
+                let got = present_plane(&piece, shared, &[], band());
+                let n = local.edges.len();
+                let mut samples = Vec::new();
+                for i in 0..12 {
+                    for j in 0..12 {
+                        samples.push((
+                            cell.0 .0 + (i as f64 + 0.5) / 12.0 * 2.0 * hu,
+                            cell.1 .0 + (j as f64 + 0.5) / 12.0 * 2.0 * hv,
+                        ));
+                    }
+                }
+                let clear = 1e-9 * (hu + hv) + 3e-15;
+                let faced: Vec<(f64, f64)> = samples
+                    .into_iter()
+                    .filter(|&p| in_face(p).is_some_and(|(inside, d)| inside && d > clear))
+                    .collect();
+                let mut fail = None;
+                match &got {
+                    Ok(Presentation::Vacuous) => {
+                        vac += 1;
+                        if n == 3 { vac3 += 1; }
+                        if let Some(p) = faced.first() {
+                            fail = Some(format!("Vacuous, yet {p:?} is a face point of the cell"));
+                        }
+                    }
+                    Ok(Presentation::Of(q)) => {
+                        match n { 3 => of3 += 1, 2 => of2 += 1, _ => of1 += 1 }
+                        if let Map::Affine { o, a, b: bv } = q.map {
+                            let m = |x: Interval| 0.5 * (x.lo() + x.hi());
+                            let (o, a, bv) = ((m(o[0]), m(o[1])), (m(a[0]), m(a[1])), (m(bv[0]), m(bv[1])));
+                            let det = cross(a, bv);
+                            for &p in &faced {
+                                let d = sub(p, o);
+                                let (x, y) = (cross(d, bv) / det, cross(a, d) / det);
+                                let (sx, sy) = (1e-7 * (1.0 + x.abs()), 1e-7 * (1.0 + y.abs()));
+                                if x < q.x.0 - sx || x > q.x.1 + sx || y < q.y.0 - sy || y > q.y.1 + sy {
+                                    fail = Some(format!(
+                                        "presented x {:?} y {:?}, yet face point {p:?} is at ({x}, {y})",
+                                        q.x, q.y
+                                    ));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => { if n == 3 { loc3 += 1; } }
+                }
+                if let Some(why) = fail {
+                    bad += 1;
+                    if bad <= 8 {
+                        println!(
+                            "[F1] case {case}: {why}\n     pts {pts:?} t1 {t1} t2 {t2} w {w:e} cell {cell:?} local {:?}/{} shared {shared:?}",
+                            local.edges,
+                            local.vertices.len()
+                        );
+                    }
+                }
+            }
+        }
+        println!(
+            "[F1] band K eps {k:e}: three-edge cells presented {of3}, vacuous {vac3}, refused {loc3}; \
+             two-edge presented {of2}; one-edge presented {of1}; vacuous in all {vac}; FAILURES {bad}"
+        );
+        assert_eq!(bad, 0, "a presentation missed a face point, or Vacuous held one");
+    }
+
     /// **`edge_piece`**: the hull of an edge's parameters whose points the
     /// boxes may hold, narrowed to them from both ends.
     #[test]
