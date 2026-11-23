@@ -165,7 +165,7 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     assert!((volume(&hollow.body) - want1).abs() < 1e-9);
 
     // The vessel top's void twin, named through the record; the whole
-    // chart it wears (a full revolve's cap is two half-discs).
+    // chart it wears (a full revolve's cap is one disc).
     let ceiling = hollow
         .naming
         .inner_of(top[0])
