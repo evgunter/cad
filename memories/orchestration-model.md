@@ -170,6 +170,15 @@ Ev's standing instructions for implementation work:
   reaches code re-earns the gate.
 - **Merge over a running CI when the risk is low** (Ev, 2026-11-22),
   such as after resolving a straightforward conflict with main.
+- **When the hosted queue is long, a reviewed PR merges on the gate run
+  locally.** Where a PR's jobs have waited more than half an hour for a
+  runner, a PR whose reviews are in and whose fix pass is read merges
+  once its lane has run, on that head, what the gate would have: fmt,
+  clippy as CI spells it, `scripts/run-gates.sh`, the doc gate, and the
+  test sets and ε rows the change filter selects, each listed in the PR
+  body with its result. The queued hosted run is left to finish and is
+  read when it does; a red in it that is the PR's is a red main, fixed
+  by that lane at P0.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch, **LAST, after every review is delivered** (an experiment row
