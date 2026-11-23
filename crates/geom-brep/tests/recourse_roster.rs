@@ -194,6 +194,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("HalfAngleRows"),
     NameCarrier::Call("QuarticRows"),
     NameCarrier::Call("SubdivisionRows"),
+    NameCarrier::Call("GapRows"),
     NameCarrier::Call("apart_as"),
     NameCarrier::Call("band_verdict"),
     NameCarrier::Call("chart_point_normal"),

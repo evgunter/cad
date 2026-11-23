@@ -26,6 +26,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("agree_at"),
     NameCarrier::Const("STEP_AT_DOMAIN_END"),
     NameCarrier::Const("STEP_BAND_RIM_COAXIAL"),
+    NameCarrier::Const("STEP_COLLAPSED_SIDE"),
     NameCarrier::Const("STEP_BAND_SEAM_VERTEX"),
     NameCarrier::Const("STEP_BUILT_SENSE"),
     NameCarrier::Const("STEP_EDGE_ON_DESCRIPTION"),
