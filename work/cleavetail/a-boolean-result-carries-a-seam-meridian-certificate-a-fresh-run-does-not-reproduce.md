@@ -69,3 +69,21 @@ the bridges apart once this row is fixed.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to CLEAVETAIL (`work/cleavetail/`) by `git mv`, id and body unchanged: the track opened for CLEAVE's P3 and P4 tail: refusal stories, guards that cannot go red, latent soundness and hygiene. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## A lead from LATHE (2026-11-23, PR 7414)
+
+On the one-band branch, a full revolve's bare ball stored
+`max_residual: 1.5700924586837752e-16` on its seam meridian, where a fresh
+run minted `1.2246467991473532e-16`. The cause there was that the meridian
+was restated with no chart image, so the door derived the image and
+certified over the derived one, and a run over a derived image differs
+in the last bits from a run over the same image stated. The fix
+(`sweep/src/revolve/upgrade.rs`, `upgrade_meridian_wrap`) restates it once
+more from what it stores
+(`work/lathe/a-one-band-balls-seam-certificate-is-not-the-fresh-runs.md`).
+The carried value this row measured in one operand order is the same
+number, `1.5700924586837752e-16`. But this row was measured on two-band
+balls that "alone re-certify bit for bit", so the derived-image cause
+does not obviously explain it. Not checked further: re-measure this row
+once PR 7414 lands, and check whether the boolean's own restatement of the
+B ball's meridian derives its image.

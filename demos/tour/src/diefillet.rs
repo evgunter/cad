@@ -222,7 +222,7 @@ struct Die {
     pipped: RecipeNodeId,
     composed: RecipeNodeId,
     /// What the two geometric selections actually materialized, kept
-    /// for the captions: the twelve box edges and the 42 rim arcs.
+    /// for the captions: the twelve box edges and the 21 rims.
     box_edges: usize,
     rims: usize,
 }
@@ -553,16 +553,16 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
 
     // The two geometric selections ARE the composed stop's claim, so
-    // they are pinned as counts: twelve lines, and 21 rims × two arcs
-    // (a full revolve's band is two half-faces split at the seam
-    // meridians, so each rim is two arcs rather than one circle).
+    // they are pinned as counts: twelve lines, and 21 rims, each one
+    // closed edge (a full revolve's wall is one band, so a rim is one
+    // circle).
     assert_eq!(
         die.box_edges, 12,
         "CurveKind(Line) is exactly the box edges"
     );
     assert_eq!(
-        die.rims, 42,
-        "AdjacentKinds(Plane, Sphere) is exactly the 21 pip rims, two arcs each"
+        die.rims, 21,
+        "AdjacentKinds(Plane, Sphere) is exactly the 21 pip rims, one edge each"
     );
 
     let blank = body_at(&ev, die.blank, tol);
@@ -611,9 +611,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         composed.edges().count(),
         composed.vertices().count(),
     );
-    // On each pip's planar trimline, the foot its band's slit does not
-    // reach has valence two and is joined away: one vertex and one edge.
-    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
+    // Each pip's rim is one closed edge crossed once at its seam: two
+    // faces, four edges and three vertices a pip.
+    assert_eq!((cf, ce, cv), (26 + 21 * 2, 48 + 21 * 4, 24 + 21 * 3));
 
     vec![
         TourStop {
@@ -698,8 +698,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  definite-miss rider. The composed body: {cf} faces, {ce} edges, {cv} \
                  vertices, tier-3 certified, V = {:.6} m³ on the closed form \
                  (Steiner blank − 21·(cap + rim-torus term)) at zero enclosure pad. \
-                 Neither blend names an edge by hand: {} lines and {} plane–sphere arcs \
-                 come back from `select_where`, and the 42 co-surface meridians it does \
+                 Neither blend names an edge by hand: {} lines and {} plane–sphere rims \
+                 come back from `select_where`, and the 21 seam meridians it does \
                  NOT return are the ones `fillet_edges` would refuse at margin zero",
                 comp.enclosure.volume, die.box_edges, die.rims
             )),
