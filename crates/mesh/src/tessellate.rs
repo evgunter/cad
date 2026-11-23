@@ -754,11 +754,6 @@ fn tessellate_impl(
     // The meter's arming as a value: a lane runs on a worker thread,
     // which nobody armed (`budget`'s module docs).
     let arming = budget::arming();
-    let (probe_test, probe_call) = (crate::cd_probe::test_name(), crate::cd_probe::next_call());
-    let probe_eps: f64 = std::env::var("CAD_TOLERANCE_EPS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(1e-9);
     let reader = memo.as_deref();
     let work: Vec<FaceWork<'_>> = {
         let shared = &positions[..shared_below];
@@ -833,24 +828,6 @@ fn tessellate_impl(
                             shared,
                             &tol,
                         ),
-                    };
-                    let run = || {
-                        crate::cd_probe::logged(
-                            &probe_test,
-                            probe_call,
-                            fk,
-                            match lane {
-                                Lane::Planar => "planar",
-                                Lane::Curved => "curved",
-                                Lane::Trimmed => "trimmed",
-                                Lane::Walked => "walked",
-                            },
-                            surface,
-                            chordal,
-                            probe_eps,
-                            |p: &Patch| p.triangles.len(),
-                            run,
-                        )
                     };
                     let Some(memo) = reader else {
                         return (None, run().map(Placement::Lane));

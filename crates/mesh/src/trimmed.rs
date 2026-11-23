@@ -338,21 +338,45 @@ use crate::nurbs_cert::{FaceBounds, NurbsCellGrid};
 use crate::planar::{Pinches, Walk, shoelace2};
 use crate::region::{Crossings, classify_faces, edge_key};
 use crate::sizing::{SizingTols, ceil_count};
-use crate::tessellate::{Lane, Patch, PatchVertex};
+use crate::tessellate::{Patch, PatchVertex};
 use crate::types::{SphereTrimCause, TessellateError};
 
-/// Retry budget for the rebuild loop (module docs). **Termination.**
+/// Retry budget for the rebuild loop's fold drops and shared-side
+/// splits (module docs). **Termination.**
 ///
-/// One round budget covers all three retry kinds — the
-/// certificate-driven refinement, the fold drops and the shared-side
-/// splits — and it is a typed-refusal backstop rather than a tuning
-/// knob: exhausting it raises [`TessellateError`], it never coarsens or
-/// accepts a mesh. The loop reads it through [`last_attempt`].
+/// It is a typed-refusal backstop rather than a tuning knob: exhausting
+/// it raises [`TessellateError`], it never coarsens or accepts a mesh.
+/// The loop reads it through [`last_attempt`]. The correction of a
+/// refused certificate counts against its own budget
+/// ([`MAX_CORRECTION_ROUNDS`]).
 const MAX_GRID_RETRIES: usize = 6;
 
-/// The retry loop's last attempt: [`MAX_GRID_RETRIES`], or under
-/// `cfg(test)` an override a row sets to reach an exhaustion refusal
-/// through the real call path (`tests::LAST_ATTEMPT`).
+/// **The correction's round budget** (module docs, "The correction").
+/// **Termination.**
+///
+/// A face whose triangles still read over δ after this many rounds of
+/// added points refuses [`TessellateError::CertificateExceeded`]. It is
+/// a budget, not a proof: nothing bounds the rounds a face needs. The
+/// most any face took is 3, over every chart-lane face the `mesh` suite,
+/// `sweep`'s meshing modules and `step-import` build (about 3,300
+/// analytic and 2,500 spline meshings) at ε `10⁻⁹`, `10⁻⁶` and `10⁻¹²`.
+/// The rectangle lane reads the same constant (`curved`). The loop reads
+/// it through [`correction_rounds`].
+pub(crate) const MAX_CORRECTION_ROUNDS: usize = 6;
+
+/// The correction's budget: [`MAX_CORRECTION_ROUNDS`], or under
+/// `cfg(test)` an override a row sets (`tests::CORRECTION_ROUNDS`).
+pub(crate) fn correction_rounds() -> usize {
+    #[cfg(test)]
+    if let Some(k) = tests::CORRECTION_ROUNDS.with(std::cell::Cell::get) {
+        return k;
+    }
+    MAX_CORRECTION_ROUNDS
+}
+
+/// The retry loop's last structural attempt: [`MAX_GRID_RETRIES`], or
+/// under `cfg(test)` an override a row sets to reach an exhaustion
+/// refusal through the real call path (`tests::LAST_ATTEMPT`).
 fn last_attempt() -> usize {
     #[cfg(test)]
     if let Some(k) = tests::LAST_ATTEMPT.with(std::cell::Cell::get) {
@@ -360,38 +384,6 @@ fn last_attempt() -> usize {
     }
     MAX_GRID_RETRIES
 }
-
-/// **The trimmed lane's unproved headroom**: the cylinder arm sizes its
-/// lattice, and the chord pass chords that face's edges
-/// (`chords::edge_target`), at this share of δ rather than at δ
-/// ([`face_target`]).
-///
-/// The lane has no worst-triangle theorem (`crates/mesh/README.md`
-/// `[mesh.sizing]`). It lays no lattice on the cylinder
-/// (`chart_table::AnalyticRow::lattice_rows`), and a constrained
-/// Delaunay triangle on the face's boundary points certifies at the
-/// sagitta of its span round the axis, which can be more than one
-/// column — nothing yet bounds by how much. The certificate refuses typed where it is exceeded; this
-/// factor is what keeps that refusal rare, and it is a debt
-/// (`work/tesslane/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
-/// the fix is the theorem, not a retuned factor.
-///
-/// The sphere arm reads it the same way and for the same reason, at its
-/// lattice steps ([`arm_steps`]) and its edges' chords: its
-/// cells are the curved lane's sphere cells, whose theorem
-/// (`sizing::sphere_grid_steps`) does not cover a CDT triangle beside a
-/// trim chord the lattice did not place
-/// (`work/tesslane/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
-/// The cone, torus and spindle arms read it for the same reason: each
-/// chart's cell bound is proved (`crate::chart_table`'s steps), and what
-/// is missing on every chart alike is the lemma that bounds a triangle
-/// beside a boundary run crossing lattice lines
-/// (`work/tesslane/one-containment-lemma-for-an-oblique-boundary.md`).
-///
-/// A face the lane walks (`tessellate::Lane::Walked`) does not read it: its triangles
-/// are no CDT's, and the step functions' theorems hold them at δ
-/// (`crate::ruled_walk`).
-pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
 /// **The sphere arm's per-edge chord budget**, `2^16`. **Work**: it
 /// bounds what one face's CDT is asked to hold, as `sizing::MAX_COUNT`
@@ -421,21 +413,6 @@ pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
 /// Read by `tessellate`, which hands it to [`tessellate_trimmed`]; the
 /// lane takes its clearance as a value ([`TrimmedFace::clearance`]).
 pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
-
-/// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face
-/// this lane meshes on an analytic chart (one whose surface has no spline
-/// chart), δ for every other face, a face it walks among them
-/// (`tessellate::Lane::Walked`). The one statement those arms size
-/// their lattices at and the chord pass chords the face's boundary at
-/// (`chords::edge_target`), each reading the face's lane from the run's
-/// route (`tessellate::Routes`).
-pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64 {
-    if lane == Lane::Trimmed && surface.spline_chart().is_none() {
-        delta * crate::cd_probe::factor(surface)
-    } else {
-        delta
-    }
-}
 
 /// **Whether the walk takes a face the route sends to this lane for a
 /// split straight side** (`tessellate::route_of`'s fourth fact, which
@@ -645,8 +622,7 @@ pub(crate) fn tessellate_trimmed(
             // The row's steps at the face's target, the steps the chord
             // pass bounded this face's boundary UV steps by (`arm_steps`),
             // and the lattice the row lays from them.
-            let (hu, hv) =
-                a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
+            let (hu, hv) = a.lattice_steps(arm_steps(a, tol.delta));
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
             let rows = a.lattice_rows((v0, v1), (hu, hv))?;
             (
@@ -701,14 +677,7 @@ pub(crate) fn tessellate_trimmed(
     // reset at the top of each; `worst_ratio` above deliberately is
     // not. They live out here so the single hand-off below can read
     // them whichever way the loop ends.
-    let mut measure = AttemptMeasure::fresh();
-    // THE FACE'S ONE EXIT. Every path out of the retry loop lands
-    // here, so the measurement hand-off below is on all of them —
-    // including the two typed REFUSALS, which is the case the
-    // falsification accumulator above exists for. It is never `None`
-    // after the loop: an attempt asks for a rebuild only below
-    // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
-    let mut outcome: Option<Result<Patch, TessellateError>> = None;
+    let mut measure;
     let plane = CdtPlane::of(&row, metric, &polygon, &singular);
     let straight = |i: usize| carried_by_a_line(body, polygon.edges[i]);
     let runs = developed_runs(plane, &polygon, &singular, &straight).map_err(|i| {
@@ -739,19 +708,17 @@ pub(crate) fn tessellate_trimmed(
     // shared-side and refinement points, each strictly inside a kept
     // triangle.
     let mut candidates = trimmed.lay(&lattice);
-    crate::cd_probe::note(|n| {
-        n.boundary = polygon.points.len();
-        n.family = family_of(body, &polygon, &singular);
-    });
-    let (mut structural, mut cert_rounds) = (0usize, 0usize);
-    loop {
-        // Shared budget (today): one counter. Own budget: the fold and
-        // shared-side rebuilds count against `MAX_GRID_RETRIES`, the
-        // correction against its own.
-        let attempt = match crate::cd_probe::cfg().budget {
-            Some(_) => structural,
-            None => structural + cert_rounds,
-        };
+    // The loop's two budgets (module docs, "The retry loop"): the fold
+    // drops and shared-side splits count against `MAX_GRID_RETRIES`, the
+    // correction's rounds against `MAX_CORRECTION_ROUNDS`. Each rebuild
+    // raises one of them and an attempt asks for one only below its
+    // budget, so the loop ends.
+    //
+    // THE FACE'S ONE EXIT. Every path out of the loop lands on the
+    // hand-off below, the typed refusals included, which is the case the
+    // falsification accumulator above exists for.
+    let (mut structural, mut corrections) = (0usize, 0usize);
+    let outcome = loop {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
         // that describe the mesh the face exits on, and every path out
@@ -759,36 +726,21 @@ pub(crate) fn tessellate_trimmed(
         // pass — reaches the hand-off below. (`worst_ratio` is
         // deliberately not among them; see above.)
         measure = AttemptMeasure::fresh();
-        match trimmed.attempt(
-            attempt,
-            cert_rounds,
+        let next = trimmed.attempt(
+            structural,
+            corrections,
             &mut candidates,
             &mut dropped,
             &mut measure,
             &mut falsification,
-        ) {
-            Ok(Next::Rebuild(Cause::Certificate)) => {
-                cert_rounds += 1;
-                crate::cd_probe::note(|n| n.cert_rounds += 1);
-            }
-            Ok(Next::Rebuild(Cause::Fold)) => {
-                structural += 1;
-                crate::cd_probe::note(|n| n.fold_rounds += 1);
-            }
-            Ok(Next::Rebuild(Cause::SharedSide)) => {
-                structural += 1;
-                crate::cd_probe::note(|n| n.shared_rounds += 1);
-            }
-            Ok(Next::Accept(patch)) => {
-                outcome = Some(Ok(patch));
-                break;
-            }
-            Err(e) => {
-                outcome = Some(Err(e));
-                break;
-            }
+        );
+        match next {
+            Ok(Next::Rebuild(Cause::Certificate)) => corrections += 1,
+            Ok(Next::Rebuild(Cause::Fold | Cause::SharedSide)) => structural += 1,
+            Ok(Next::Accept(patch)) => break Ok(patch),
+            Err(e) => break Err(e),
         }
-    }
+    };
 
     // BUDGET METER (dead in normal runs): this face's measurements,
     // handed over ONCE, however the face ENDED — everything derivable
@@ -802,7 +754,6 @@ pub(crate) fn tessellate_trimmed(
     // the likeliest carrier of a violating sample there is. The other
     // columns describe the attempt the face exited on — for a refusal
     // that is the attempt that lost, which is the only mesh there was.
-    crate::cd_probe::note(|n| n.worst = measure.verdict.worst());
     if crate::budget::armed()
         && let (Some(stats), ChartRow::Spline { grid }) = (nurbs_stats, &row)
     {
@@ -847,12 +798,7 @@ pub(crate) fn tessellate_trimmed(
             dev_samples: measure.dev_samples,
         });
     }
-    outcome.unwrap_or_else(|| {
-        unreachable!(
-            "the last attempt accepts or refuses: `TrimmedFace::attempt` asks for a \
-             rebuild only below MAX_GRID_RETRIES"
-        )
-    })
+    outcome
 }
 
 /// Handle-index → (mesh id or grid candidate index, uv).
@@ -899,42 +845,15 @@ enum Next {
     Accept(Patch),
 }
 
-/// Why an attempt asks for a rebuild.
+/// Why an attempt asks for a rebuild, which is the budget it counts
+/// against ([`tessellate_trimmed`]'s loop).
 enum Cause {
+    /// A triangle read over δ: the correction's round.
     Certificate,
+    /// A folded triangle's lattice corners dropped.
     Fold,
+    /// A shared side split.
     SharedSide,
-}
-
-/// The face's family for the probe's log: its rings, its boundary
-/// images' forms, and whether its loop passes a singular point.
-fn family_of(body: &Body<f64>, polygon: &TrimPolygon, singular: &HashSet<u32>) -> String {
-    let mut forms: Vec<&'static str> = Vec::new();
-    let mut seen: HashSet<EdgeKey> = HashSet::new();
-    for &ek in &polygon.edges {
-        if !seen.insert(ek) {
-            continue;
-        }
-        forms.push(match edge_carrier(body, ek) {
-            Ok(geom::Curve3::Line(..)) => "line",
-            Ok(geom::Curve3::Circle(..)) => "circle",
-            Ok(geom::Curve3::Ellipse(..)) => "ellipse",
-            Ok(_) => "other",
-            Err(_) => "?",
-        });
-    }
-    forms.sort_unstable();
-    forms.dedup();
-    format!(
-        "rings{}|{}{}",
-        polygon.ends.len() - 1,
-        forms.join("+"),
-        if polygon.points.iter().any(|p| singular.contains(&p.2)) {
-            "|singular"
-        } else {
-            ""
-        }
-    )
 }
 
 /// What every attempt on one face reads and none changes.
@@ -1069,6 +988,67 @@ impl TrimmedFace<'_> {
         }
     }
 
+    /// **The point a triangle read over δ adds** (module docs, "The
+    /// correction"): the middle, where the CDT runs, of the triangle's
+    /// side whose own chord stands farthest from the surface, among its
+    /// sides that are no constraint (`free`; a boundary side's middle is
+    /// the neighbouring face's to place, and a crease link's is the
+    /// crease's). A triangle of three constraint sides takes its
+    /// [`Self::inside_point`].
+    ///
+    /// A side's distance is its chord's middle against the surface at the
+    /// side's middle in the chart, one evaluation a side. The side is the
+    /// one whose split lowers the reading: on a ruled chart the longest
+    /// side can lie along a ruling, where a point moves no certificate.
+    /// No ε is read, and nothing but the triangle's own corners.
+    fn correction_point(
+        plane: CdtPlane,
+        surface: &Surface<f64>,
+        uv: &[[f64; 2]; 3],
+        at: [SpadePoint<f64>; 3],
+        apex: [bool; 3],
+        p: [Point3<f64>; 3],
+        free: [bool; 3],
+    ) -> (f64, f64) {
+        let middle = |k: usize| {
+            let j = (k + 1) % 3;
+            match plane {
+                CdtPlane::Lattice { .. } => (
+                    f64::midpoint(uv[k][0], uv[j][0]),
+                    f64::midpoint(uv[k][1], uv[j][1]),
+                ),
+                // The side's middle in the development, read back to the
+                // chart as the inside point is: of the triangle that is
+                // the middle three times, at the azimuth of the side's
+                // end that is no apex.
+                CdtPlane::Development { .. } => {
+                    let m = SpadePoint::new(
+                        f64::midpoint(at[k].x, at[j].x),
+                        f64::midpoint(at[k].y, at[j].y),
+                    );
+                    let near = if apex[k] { uv[j] } else { uv[k] };
+                    Self::inside_point(plane, &[near; 3], [m; 3], [false; 3])
+                }
+            }
+        };
+        let sag = |k: usize| {
+            let (a, b) = (p[k], p[(k + 1) % 3]);
+            let (u, v) = middle(k);
+            let s = surface.eval(u, v);
+            ((s.x - f64::midpoint(a.x, b.x)).powi(2)
+                + (s.y - f64::midpoint(a.y, b.y)).powi(2)
+                + (s.z - f64::midpoint(a.z, b.z)).powi(2))
+            .sqrt()
+        };
+        match (0..3)
+            .filter(|&k| free[k])
+            .max_by(|&a, &b| sag(a).total_cmp(&sag(b)))
+        {
+            Some(k) => middle(k),
+            None => Self::inside_point(plane, uv, at, apex),
+        }
+    }
+
     /// The lattice the face lays ([`lay`]) at its clearance.
     fn lay(&self, nodes: &[Node]) -> Vec<(f64, f64)> {
         lay(
@@ -1101,17 +1081,13 @@ impl TrimmedFace<'_> {
     fn attempt(
         &self,
         attempt: usize,
-        cert_rounds: usize,
+        corrections: usize,
         candidates: &mut Vec<(f64, f64)>,
         dropped: &mut HashSet<usize>,
         measure: &mut AttemptMeasure,
         falsification: &mut Falsification,
     ) -> Result<Next, TessellateError> {
         let fk = self.fk;
-        crate::cd_probe::note(|n| {
-            n.passes += 1;
-            n.points += self.polygon.points.len() + candidates.len() - dropped.len();
-        });
         let mut at = self.insert_points(candidates, dropped)?;
         let crossings = self.constrain_boundary(&mut at)?;
         crate::region::require_a_region(fk, &crossings)?;
@@ -1173,33 +1149,14 @@ impl TrimmedFace<'_> {
             }
             _ => {}
         }
-        // Refinement retry (module docs): a centroid is strictly
-        // interior to its kept triangle, hence inside the trim polygon;
-        // splitting an offending triangle shrinks the empty region its
-        // circumcircle spanned. Fires only for a triangle that would
-        // otherwise REFUSE (bound > δ) — a RARE backstop: the lattice
-        // metric (module docs) is the sliver cure, because an
-        // insertion cannot converge against a strip
-        // still anisotropic where the CDT runs (measured — anchors and
-        // centroids each re-admit the empty circle beside themselves).
+        // THE CORRECTION (module docs): every triangle read over δ has
+        // queued a point, and the face is triangulated again with them.
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid).
-        let may_correct = match crate::cd_probe::cfg().budget {
-            Some(budget) => cert_rounds < budget,
-            None => attempt < last_attempt(),
-        };
-        if cert_rounds == 0 {
-            crate::cd_probe::note(|n| n.over_first = refine.len());
-        }
-        if !refine.is_empty() && !measure.verdict.worst().is_nan() && may_correct {
-            // One location queued twice (a side's midpoint, by both its
-            // triangles) enters once.
-            let mut seen: HashSet<(u64, u64)> = HashSet::new();
-            let refine: Vec<(f64, f64)> = refine
-                .into_iter()
-                .filter(|&(u, v)| seen.insert((u.to_bits(), v.to_bits())))
-                .collect();
-            crate::cd_probe::note(|n| n.added += refine.len());
+        if !refine.is_empty()
+            && !measure.verdict.worst().is_nan()
+            && corrections < correction_rounds()
+        {
             candidates.extend(refine);
             return Ok(Next::Rebuild(Cause::Certificate));
         }
@@ -1513,16 +1470,11 @@ impl TrimmedFace<'_> {
             None
         };
         let mut triangles = Vec::new();
-        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
-        // triangles certifying above the per-face sizing target get
-        // their UV centroid queued as a new candidate for the next
-        // round.
+        // The correction's points (module docs, "The correction"), one
+        // per triangle read over δ, each location once: a side's middle
+        // is asked by both its triangles.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let rule = match (crate::cd_probe::cfg().rule, self.row) {
-            (crate::cd_probe::Rule::Off, ChartRow::Spline { .. }) => crate::cd_probe::Rule::Centroid,
-            (rule, _) => rule,
-        };
-        let refine_lane = rule != crate::cd_probe::Rule::Off;
+        let mut refined: HashSet<(u64, u64)> = HashSet::new();
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the shared-side test below.
@@ -1599,69 +1551,17 @@ impl TrimmedFace<'_> {
                 let apex = corners.map(|c| c.is_singular(self.singular));
                 move || Self::inside_point(plane, &uv, developed, apex)
             };
-            // The midpoint rule's point: the middle, where the CDT runs,
-            // of the triangle's widest side (in 3-D) that is no
-            // constraint; the inside point where it has none.
             let correction_point = {
                 let uv = corners.map(|c| c.uv);
                 let apex = corners.map(|c| c.is_singular(self.singular));
-                let ids = corners.map(|c| c.id);
+                let at = corners.map(|c| c.id);
                 let free: [bool; 3] = core::array::from_fn(|k| {
-                    let (a, b) = (vs[k].fix(), vs[(k + 1) % 3].fix());
-                    !cdt.exists_constraint(a, b)
+                    !cdt.exists_constraint(vs[k].fix(), vs[(k + 1) % 3].fix())
                 });
                 let interior = &interior;
                 move || {
-                    if rule == crate::cd_probe::Rule::Centroid || rule == crate::cd_probe::Rule::Off {
-                        return Self::inside_point(plane, &uv, developed, apex);
-                    }
-                    let p = ids.map(|id| id.position(shared, interior));
-                    // A side's middle where the CDT runs, in the chart.
-                    let middle = |k: usize| {
-                        let j = (k + 1) % 3;
-                        match plane {
-                            CdtPlane::Lattice { .. } => (
-                                f64::midpoint(uv[k][0], uv[j][0]),
-                                f64::midpoint(uv[k][1], uv[j][1]),
-                            ),
-                            CdtPlane::Development { .. } => {
-                                let m = SpadePoint::new(
-                                    f64::midpoint(developed[k].x, developed[j].x),
-                                    f64::midpoint(developed[k].y, developed[j].y),
-                                );
-                                Self::inside_point(
-                                    plane,
-                                    &[uv[k], uv[j], if apex[k] { uv[j] } else { uv[k] }],
-                                    [m, m, m],
-                                    [apex[k], apex[j], apex[k] && apex[j]],
-                                )
-                            }
-                        }
-                    };
-                    let weight = |k: usize| {
-                        let (a, b) = (p[k], p[(k + 1) % 3]);
-                        if rule == crate::cd_probe::Rule::Midpoint {
-                            return ((a.x - b.x).powi(2) + (a.y - b.y).powi(2) + (a.z - b.z).powi(2))
-                                .sqrt();
-                        }
-                        // The side's own sag: its chord's middle against
-                        // the surface at the side's middle in the chart.
-                        let (u, v) = middle(k);
-                        let s = surface.eval(u, v);
-                        let m = [
-                            f64::midpoint(a.x, b.x),
-                            f64::midpoint(a.y, b.y),
-                            f64::midpoint(a.z, b.z),
-                        ];
-                        ((s.x - m[0]).powi(2) + (s.y - m[1]).powi(2) + (s.z - m[2]).powi(2)).sqrt()
-                    };
-                    match (0..3)
-                        .filter(|&k| free[k])
-                        .max_by(|&a, &b| weight(a).total_cmp(&weight(b)))
-                    {
-                        Some(k) => middle(k),
-                        None => Self::inside_point(plane, &uv, developed, apex),
-                    }
+                    let p = at.map(|id| id.position(shared, interior));
+                    Self::correction_point(plane, surface, &uv, developed, apex, p, free)
                 }
             };
             let mut a_shared_side = false;
@@ -1831,8 +1731,11 @@ impl TrimmedFace<'_> {
                         }
                     }
                 }
-                if refine_lane && verdict == cert::Verdict::Exceeded {
-                    refine.push(correction_point());
+                if verdict == cert::Verdict::Exceeded {
+                    let (u, v) = correction_point();
+                    if refined.insert((u.to_bits(), v.to_bits())) {
+                        refine.push((u, v));
+                    }
                 }
                 triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
             }
@@ -3925,6 +3828,10 @@ pub(super) mod tests {
         /// only.
         pub(crate) static STEP_SCALE: std::cell::Cell<f64> =
             const { std::cell::Cell::new(1.0) };
+        /// The correction's budget, when a row sets it
+        /// (`super::correction_rounds`). `cfg(test)` only.
+        pub(crate) static CORRECTION_ROUNDS: std::cell::Cell<Option<usize>> =
+            const { std::cell::Cell::new(None) };
         /// The retry loop's last attempt, when a row sets it
         /// (`super::last_attempt`). `cfg(test)` only.
         pub(crate) static LAST_ATTEMPT: std::cell::Cell<Option<usize>> =
@@ -4538,10 +4445,7 @@ pub(super) mod tests {
             }
             faces += 1;
             let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-            let (hu, hv) = super::arm_steps(
-                &row,
-                super::face_target(surface, crate::tessellate::Lane::Trimmed, delta),
-            );
+            let (hu, hv) = super::arm_steps(&row, delta);
             for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap() {
                 let image = body.pcurve(hek).unwrap().pcurve();
                 let uv: Vec<_> = chords.params[&ek].iter().map(|&t| image.eval(t)).collect();
@@ -4779,10 +4683,7 @@ pub(super) mod tests {
                     }
                     faces += 1;
                     let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-                    let (hu, hv) = super::arm_steps(
-                        &row,
-                        super::face_target(surface, crate::tessellate::Lane::Trimmed, delta),
-                    );
+                    let (hu, hv) = super::arm_steps(&row, delta);
                     for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap()
                     {
                         let image = body.pcurve(hek).unwrap().pcurve();
@@ -4815,18 +4716,7 @@ pub(super) mod tests {
                             .certified()
                             .unwrap()
                             .carrier();
-                        let target =
-                            super::face_target(surface, crate::tessellate::Lane::Trimmed, delta);
-                        // The new arms size at the lane's headroom, as the
-                        // cylinder and sphere arms do: it stands in for
-                        // the containment lemma no arm has yet.
-                        assert_eq!(
-                            target.to_bits(),
-                            (delta * super::UNPROVED_HEADROOM).to_bits(),
-                            "{name}, δ {delta:e}, face {fk:?}: a trimmed {:?} face sizes at the \
-                             lane's headroom",
-                            surface.kind()
-                        );
+                        let target = delta;
                         let own = match *carrier {
                             geom::Curve3::Spiric {
                                 major_radius,
