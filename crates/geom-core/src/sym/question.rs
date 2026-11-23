@@ -1,41 +1,58 @@
 //! **The structural question** (ERROR-DESIGN E12): whether an
 //! expression is zero as a function of the document's variables, asked
 //! of the expression ([`crate::Expression::proves_zero`]) and answered
-//! by the normal form and the retry ladder with every rule that reads a
-//! value shut, at rules and a budget that are constants here.
+//! by the normal form and the retry ladder.
 //!
-//! The answer is a function of the nodes the installed session
-//! recorded and of nothing else in it. The walks run in a second
-//! session's state ([`Session::question`]) that borrows the installed
-//! one's node table for the ask: its forms, atoms and counts are its
-//! own, so the installed session's memos, counts, deferral list and
-//! drive memo are neither read nor written. A node the session did not
-//! record (minted outside it) is an unknown, as it is to every walk.
+//! **What an ask can read.** Each ask runs in a state of its own, made
+//! for that ask and dropped with it, that holds the installed session's
+//! node table for the ask's length and nothing else of it: no registry,
+//! no parameter bracket, no witness kind, no memo, no count, no
+//! deferral list. So no rule that reads a value has anything to read
+//! (the certified read at `min` / `max` / `select` needs a bracket and
+//! a witness kind; the registered-identity door needs a registry), no
+//! earlier ask can move a later one, and the installed session is
+//! neither read nor written. The rules, the retry ladder and the budget
+//! are constants here, not the session's.
+//!
+//! **What the answer is a function of**: the nodes the installed
+//! session has recorded when the ask is made. For a document built
+//! inside its session that is the document's expression graph, and one
+//! graph gets one answer at every valuation and in every session. A
+//! node minted outside the session is an unknown to it, as to every
+//! walk, and proves nothing; outside any session there is no graph.
 
 use super::{Path, SESSION, Session, SymBudget, SymId, SymRetry, SymRules, ladder};
 use crate::real::ProvedZero;
 
-/// The question's term and degree bounds. A hop between two points
-/// that share a coordinate is a difference of two short forms, and a
-/// form that is not zero has to fail fast: every identity the profile
-/// corpus asks about is proved at 64 terms exactly as at 4096, where
-/// one unproved guided hop costs 750 ms against 4 ms here.
-const BUDGET: SymBudget = SymBudget {
+/// The question's term and degree bounds. Any budget is sound (a form
+/// past it freezes into one unknown, which still cancels with itself);
+/// a smaller one fails faster on a value that is not zero and proves
+/// less only where two different spellings of one form both pass it
+/// (`the_budget_bounds_what_is_proved`). A chord's component that is
+/// zero by identity is a difference of two short forms. No row holds
+/// the budget against the document corpus: that measurement needs the
+/// documents, which live above this crate.
+pub(super) const BUDGET: SymBudget = SymBudget {
     max_terms: 64,
     max_degree: 128,
 };
 
-/// The shipped algebra without the two rules that read a value: the
-/// certified read at `min` / `max` / `select`, and the
-/// registered-identity door, whose entries are witnessed against
-/// values.
+/// The shipped algebra. The two rules that read a value are named off;
+/// what keeps them from firing is that an ask's state has nothing for
+/// them to read (module docs;
+/// `a_max_is_not_proved_once_the_session_holds_a_witness`, and `sym`'s
+/// `the_structural_question_does_not_read_the_registry`).
 const RULES: SymRules = SymRules {
     decision_read: false,
     registered: false,
     ..SymRules::shipped()
 };
 
-/// The drive's shipped ladder.
+/// The drive's shipped ladder, as E12 states the question. At this
+/// budget the shapes the ladder was measured on close on the first
+/// attempt (a form the retry would keep as an atom is already frozen
+/// into one), and no identity is known that needs it here
+/// (`sym`'s `the_kept_atom_shapes_close_without_the_ladder_at_the_questions_budget`).
 const RETRY: SymRetry = SymRetry::kept_atom();
 
 impl crate::real::expression_seal::Sealed for SymId {}
@@ -43,29 +60,35 @@ impl crate::real::expression_seal::Sealed for SymId {}
 impl crate::real::Expression for SymId {
     /// `None` outside a session: there is no graph to read.
     fn proves_zero(self) -> Option<ProvedZero> {
-        SESSION.with(|s| {
-            let mut slot = s.borrow_mut();
-            let mut ask = Ask::open(slot.as_mut()?);
-            ladder(&mut ask.own, self, Path::Decision).map(|_| ProvedZero::by_the_tier())
-        })
+        asked(self, BUDGET, RETRY).then(ProvedZero::by_the_tier)
     }
 }
 
-/// One ask: the question's state holding the installed session's node
-/// table, handed back when the ask ends, by any path.
+/// Whether the ladder proves `id` zero in a fresh ask at `budget` and
+/// `retry`.
+pub(super) fn asked(id: SymId, budget: SymBudget, retry: SymRetry) -> bool {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let Some(installed) = slot.as_mut() else {
+            return false;
+        };
+        let mut ask = Ask::open(installed, budget, retry);
+        ladder(&mut ask.own, id, Path::Decision).is_some()
+    })
+}
+
+/// One ask: its own state, holding the installed session's node table
+/// until the ask ends, by any path.
 struct Ask<'s> {
     installed: &'s mut Session,
-    own: Box<Session>,
+    own: Session,
     #[cfg(feature = "sym-profile-testing")]
     origin: super::profile::Origin,
 }
 
 impl<'s> Ask<'s> {
-    fn open(installed: &'s mut Session) -> Self {
-        let mut own = installed
-            .question
-            .take()
-            .unwrap_or_else(|| Box::new(Session::new(BUDGET, RULES, RETRY, None)));
+    fn open(installed: &'s mut Session, budget: SymBudget, retry: SymRetry) -> Self {
+        let mut own = Session::new(budget, RULES, retry, None);
         own.lend_nodes(installed);
         Self {
             installed,
@@ -79,13 +102,6 @@ impl<'s> Ask<'s> {
 impl Drop for Ask<'_> {
     fn drop(&mut self) {
         self.own.lend_nodes(self.installed);
-        // The state goes back to its slot; the empty box left here is
-        // dropped with the ask.
-        let own = core::mem::replace(
-            &mut self.own,
-            Box::new(Session::new(BUDGET, RULES, RETRY, None)),
-        );
-        self.installed.question = Some(own);
         #[cfg(feature = "sym-profile-testing")]
         super::profile::set_origin(self.origin);
     }
@@ -197,23 +213,118 @@ mod tests {
         }
     }
 
-    /// **A coincidence of values is not proved, and neither is anything
-    /// that rests on a value**: two parameters equal at the valuation,
-    /// and a `max` or a `min` on either side of its comparison, which
-    /// the session's certified read takes an arm of. The registered
-    /// pair is `sym`'s
-    /// `the_structural_question_does_not_read_the_registry`.
+    /// **A coincidence of values is not proved**: two parameters equal
+    /// at the valuation. An ask that proves everything is red here.
     #[test]
-    fn nothing_that_reads_a_value_is_proved() {
+    fn equal_values_are_not_proved() {
         for kind in KINDS {
             session(kind, shipped(), SymRules::shipped(), || {
-                assert!(!proved(p("a", 1.0) - p("b", 1.0)), "{kind:?}: equal values");
-                for a in [0.5, 1.5] {
-                    let (a, b) = (boxed("a", a, 0.0), boxed("b", 1.0, 0.0));
-                    assert!(!proved(a.max(b) - b), "{kind:?}: max, a = {a:?}");
-                    assert!(!proved(a.min(b) - b), "{kind:?}: min, a = {a:?}");
-                }
+                assert!(!proved(p("a", 1.0) - p("b", 1.0)), "{kind:?}");
             });
+        }
+    }
+
+    /// **A `max` is not proved once the session holds a witness and
+    /// brackets**: the session takes a decision first, so its witness
+    /// kind is set and its certified read at `max` can take an arm
+    /// (`a < b` over point boxes, so `max(a, b)` reads `b`). The
+    /// question's state holds neither a bracket nor a witness kind, and
+    /// `max(a, b) − b` is not proved. An answer taken from the installed
+    /// session's ladder proves it and is red here; so is an ask's state
+    /// lent the session's brackets and witness.
+    #[test]
+    fn a_max_is_not_proved_once_the_session_holds_a_witness() {
+        let answer = session(Kind::Eager, shipped(), SymRules::shipped(), || {
+            let (a, b) = (boxed("a", 0.5, 0.0), boxed("b", 1.0, 0.0));
+            assert!((a - b).sign_within(Band::least()).is_ok(), "a decision");
+            proved(a.max(b) - b)
+        });
+        assert!(!answer);
+    }
+
+    /// Expressions over one variable set; four are built on an 84-term
+    /// power, which freezes at the question's 64 terms and not at the
+    /// drive's 4096.
+    fn mixed_bag() -> Vec<Sym<f64>> {
+        let (x, y, z, w) = (p("x", 0.3), p("y", 0.7), p("z", 1.1), p("w", 1.9));
+        let s = x + y + z + w;
+        let big = s.powi(6);
+        let r = (x * x + y * y).sqrt();
+        vec![
+            big - big,
+            big - (s * s * s) * (s * s * s),
+            (big + x) - x - big,
+            r * r - (x * x + y * y),
+            (x + y) * (x - y) - (x * x - y * y),
+            ((x + w) - w) - x,
+            r - (y * y + x * x).sqrt(),
+            big * r - r * big,
+            x - y,
+        ]
+    }
+
+    fn in_one_session<R>(f: impl FnOnce() -> R) -> R {
+        session(Kind::Eager, shipped(), SymRules::shipped(), f)
+    }
+
+    /// **No ask leaves a trace for the next**: each of nine expressions
+    /// answers alone as it answers after any other of them, and a node
+    /// the session records only after it was first asked about answers
+    /// as it would in a session that recorded it first. An ask's state
+    /// kept between asks is red on the second half: the node stays the
+    /// unknown it was at the first ask.
+    #[test]
+    fn an_ask_does_not_move_a_later_answer() {
+        let n = mixed_bag().len();
+        let alone: Vec<bool> = (0..n)
+            .map(|k| in_one_session(|| proved(mixed_bag()[k])))
+            .collect();
+        assert!(alone.contains(&true) && alone.contains(&false), "{alone:?}");
+        for a in 0..n {
+            for b in 0..n {
+                let pair = in_one_session(|| {
+                    let e = mixed_bag();
+                    [proved(e[a]), proved(e[b])]
+                });
+                assert_eq!(pair, [alone[a], alone[b]], "{a} then {b}");
+            }
+        }
+        let outside = p("x", 0.3) * p("y", 0.7);
+        let (unknown, recorded) = in_one_session(|| {
+            let (x, y) = (p("x", 0.3), p("y", 0.7));
+            let unknown = proved(outside - y * x);
+            let inside = x * y;
+            (unknown, proved(inside - y * x))
+        });
+        assert!(!unknown, "a node minted outside the session is an unknown");
+        assert!(recorded, "recorded since, it is read");
+    }
+
+    /// **What the budget trades.** A form past the budget freezes into
+    /// one unknown, which still cancels with itself: every identity
+    /// around the 84-term power is proved at 64 terms as at 4096. Two
+    /// different spellings of that power are one form only where it is
+    /// expanded: proved at 4096, not at 64. A budget under which a
+    /// frozen node stopped cancelling with itself is red on the first
+    /// half; the second half is the price the constant states.
+    #[test]
+    fn the_budget_bounds_what_is_proved() {
+        let at = |budget: SymBudget| {
+            in_one_session(|| {
+                mixed_bag()
+                    .into_iter()
+                    .map(|e| asked(e.node(), budget, RETRY))
+                    .collect::<Vec<_>>()
+            })
+        };
+        let (small, large) = (at(BUDGET), at(shipped()));
+        let two_spellings = 1;
+        for (k, (s, l)) in small.iter().zip(&large).enumerate() {
+            if k == two_spellings {
+                assert_eq!((*s, *l), (false, true), "two spellings past the budget");
+            } else {
+                assert_eq!(s, l, "expression {k}");
+            }
         }
     }
 

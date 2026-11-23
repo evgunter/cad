@@ -2685,11 +2685,6 @@ struct Session {
     /// against one the ring's guards refused
     /// ([`form::Refusal::Ring`]).
     budget_frozen: IdSet,
-    /// **The structural question's own state** ([`question`]): a second
-    /// session at the question's constants, made at the first ask. It
-    /// holds this session's node table for the length of an ask and
-    /// nothing of this session's otherwise.
-    question: Option<Box<Session>>,
 }
 
 /// One memoized per-node reduction ([`Session::reductions`]).
@@ -2808,7 +2803,6 @@ impl Session {
             plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
             budget_frozen: IdSet::default(),
-            question: None,
         }
     }
 
@@ -6999,6 +6993,27 @@ mod tests {
                     .is_none()
             );
         });
+    }
+
+    /// **The kept-atom shapes close without the ladder at the question's
+    /// budget**: the two identities the retry ladder was measured on
+    /// (rule G shut, rule A shut) are proved by an ask with the ladder
+    /// and by one without it. At 64 terms the form each retry would keep
+    /// as an atom is already frozen into one.
+    #[test]
+    fn the_kept_atom_shapes_close_without_the_ladder_at_the_questions_budget() {
+        for build in [
+            closes_only_with_rule_g_off as fn() -> Sym<f64>,
+            closes_only_with_rule_a_off,
+        ] {
+            let answers = with_session(budget(), || {
+                let id = build().node();
+                [SymRetry::kept_atom(), SymRetry::none()]
+                    .map(|retry| question::asked(id, question::BUDGET, retry))
+            })
+            .0;
+            assert_eq!(answers, [true, true]);
+        }
     }
 
     /// **The door discharges the rim residual.** Without the

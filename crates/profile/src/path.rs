@@ -3676,6 +3676,11 @@ impl<T: Decide> Core<T> {
     /// Records `dir` as the director of the straight segment leaving
     /// vertex `segment`, just set by a verb that drew it along `dir`.
     fn direct_leaving(&mut self, segment: usize, dir: Dir<T>) {
+        debug_assert!(
+            segment < self.verts.len(),
+            "the directed segment {segment} is one of the chain's {}",
+            self.verts.len()
+        );
         if let Some(v) = self.verts.get_mut(segment) {
             v.director = Some(dir.unit);
         }
@@ -6496,16 +6501,23 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         )
     }
 
-    /// The leg's derived tangents ([`chord_tangents`] for its stored
-    /// sweep) and its chord length.
+    /// The leg's derived tangents and its chord length: an arc's are
+    /// [`chord_tangents`] for its stored sweep; a leg lowered to a line
+    /// is a hop, and both are its minted director ([`hop_director`]).
     fn arc_angles(
         at: Point2<T>,
         target: Point2<T>,
         leg: Option<BuiltArc<T>>,
-    ) -> (Dir<T>, Dir<T>, T) {
+    ) -> Result<(Dir<T>, Dir<T>, T), PathError<T>> {
         let d = target - at;
-        let (start, end) = chord_tangents(d, sweep_of(leg));
-        (start, end, d.norm_squared().sqrt())
+        let (start, end) = match leg {
+            Some(_) => chord_tangents(d, sweep_of(leg)),
+            None => {
+                let director = hop_director(d)?;
+                (director, director)
+            }
+        };
+        Ok((start, end, d.norm_squared().sqrt()))
     }
 
     pub(super) fn arc_to_point(
@@ -6517,7 +6529,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         order::arc_leg_leaves_no_open_fillet(self.core.pending.is_some(), order::site::ARC_TO)?;
         let pos = self.tip_pos()?;
         let at = pos.at;
-        let (start_t, end_t, chord) = Self::arc_angles(at, p, leg);
+        let (start_t, end_t, chord) = Self::arc_angles(at, p, leg)?;
         if let Some(inc) = pos.incoming {
             self.core.pend_junction(&inc, start_t, tol)?;
         }
@@ -6526,6 +6538,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         let carrier = carrier_of(leg);
         self.core.push_leg(p, leg)?;
+        if leg.is_none() {
+            self.core.direct_leaving(self.core.verts.len() - 2, start_t);
+        }
         let arm = leg_arm(carrier, chord);
         Ok(in_state(self.core, leg_end_tip(p, end_t, arm)))
     }
@@ -6549,7 +6564,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let pos = self.tip_pos()?;
         let at = pos.at;
-        let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg);
+        let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg)?;
         if let Some(inc) = pos.incoming {
             self.core.pend_junction(&inc, start_t, tol)?;
         }
@@ -6564,6 +6579,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             tol,
         )?;
         self.core.close_leaving(leg, FirstSeg::Arc)?;
+        if leg.is_none() {
+            self.core.direct_leaving(self.core.verts.len() - 1, start_t);
+        }
         self.core.build(tol)
     }
 }

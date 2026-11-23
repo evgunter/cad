@@ -349,9 +349,11 @@ pub trait Real:
     /// of an expression is asked of this type ([`Expression`]), so a
     /// question about the expression cannot be put to a number.
     ///
-    /// One sentence per scalar: `Sym<T>` carries the node its value was
-    /// computed as; `f64`, [`crate::Interval`], [`crate::Dual`] and
-    /// [`crate::Probe`] carry a value and no expression.
+    /// One sentence per scalar: `Sym<T>` carries its node, the
+    /// expression its value was computed as, or the identity a margin
+    /// was given in its place ([`crate::Decide::free_identity`]); `f64`,
+    /// [`crate::Interval`], [`crate::Dual`] and [`crate::Probe`] carry a
+    /// value and no expression.
     type Expression: Expression;
 
     /// This value's expression: the node at [`crate::Sym`], and nothing
@@ -2132,9 +2134,10 @@ pub trait Expression: Copy + Debug + Send + Sync + 'static + expression_seal::Se
     /// it shows nothing: the value may still be zero.
     ///
     /// Not a decision: it counts nothing, records nothing, defers
-    /// nothing, and reads no value, so one expression graph gets one
-    /// answer in every session. Its licence is to choose between two
-    /// spellings of one real value.
+    /// nothing, and reads no value, so a graph built inside its session
+    /// gets one answer at every valuation and in every session. Its
+    /// licence is to choose between two spellings of one real value,
+    /// and the proof is spent on the spelling it chooses.
     ///
     /// It is a method of the expression, so it cannot be asked of a
     /// number or of a scalar that may be one:
@@ -2146,7 +2149,7 @@ pub trait Expression: Copy + Debug + Send + Sync + 'static + expression_seal::Se
     ///
     /// ```compile_fail,E0599
     /// use geom_core::Expression;
-    /// let _ = geom_core::Interval::point(0.0).proves_zero();
+    /// let _ = geom_core::Interval::from_bounds(0.0, 0.0).proves_zero();
     /// ```
     ///
     /// ```compile_fail,E0599
@@ -2184,14 +2187,23 @@ impl Expression for NoExpression {
 
 /// **A proof that an expression is zero** wherever the build takes the
 /// decisions it took ([`Expression::proves_zero`]). Only the symbolic
-/// tier makes one.
-#[derive(Clone, Copy, Debug)]
+/// tier makes one, and it is neither copied nor cloned: the caller that
+/// chooses a spelling on it gives it up there.
+#[derive(Debug)]
+#[must_use]
 pub struct ProvedZero(());
 
 impl ProvedZero {
     /// The tier's proof.
     pub(crate) fn by_the_tier() -> Self {
         Self(())
+    }
+
+    /// **The closed spelling of the value proved zero**: the literal
+    /// zero, for which the proof is given up.
+    #[must_use]
+    pub fn zero<T: Real>(self) -> T {
+        T::zero()
     }
 }
 
