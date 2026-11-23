@@ -315,3 +315,62 @@ fn review_the_f64_turn_decides_as_the_three_component_form_did() {
     }
     println!("REVIEW f64 turn: {n} points, worst |new − old| = {worst:e}");
 }
+
+/// **What stops each ray, by payload, and where the bottom cap's ray
+/// leaves an `f64` member** (claim 7): the lined brick's aims at
+/// `± 0.1` and `± 0.4`, and, at members of depth `1.40` to `1.50`,
+/// whether the bottom cap's aimed line leaves through the top cap or a
+/// wall.
+#[test]
+fn review_what_stops_each_ray_and_where_the_bottom_ray_leaves() {
+    for half in [0.1, 0.4, 0.47] {
+        let each = over_tilted(half, (0.0, 0.0), false, each_aim_report);
+        for r in &each {
+            println!("REVIEW stops ±{half}: {}", &r[..r.len().min(420)]);
+        }
+    }
+    let tol = Tol::witness();
+    for k in 0..=20 {
+        let d = 1.40 + 0.005 * f64::from(k);
+        let body = tilted::<f64>(d, (0.0, 0.0), false, tol);
+        let (face, normal) = body
+            .faces()
+            .find_map(|(face, _)| {
+                let n = crate::face_normal::face_plane(&body, face)?.normal;
+                (n.z < -0.5).then_some((face, n))
+            })
+            .expect("a bottom cap");
+        let aim = loop_aim(&body, face, normal).expect("the bottom cap aims");
+        let (along, across) = AIM_INCIDENCE;
+        let (b1, b2) = normal.orthonormal_basis();
+        let (s, c) = aim_turn();
+        let out = normal * along + (b1 * c + b2 * s) * across;
+        let dir = -out;
+        // Up from the aim through the brick: the first of the top cap
+        // and the four walls it reaches.
+        let mut hits = vec![("top", (d - aim.z) / dir.z)];
+        for (name, axis, at) in [
+            ("x=0", 0, 0.0),
+            ("x=1", 0, 1.0),
+            ("y=0", 1, 0.0),
+            ("y=1", 1, 1.0),
+        ] {
+            let (p, v) = if axis == 0 {
+                (aim.x, dir.x)
+            } else {
+                (aim.y, dir.y)
+            };
+            if v != 0.0 {
+                let t = (at - p) / v;
+                if t > 0.0 {
+                    hits.push((name, t));
+                }
+            }
+        }
+        hits.sort_by(|a, b| a.1.total_cmp(&b.1));
+        println!(
+            "REVIEW depth {d:.3}: aim {aim:?}, dir {dir:?}, leaves through {} at t {}",
+            hits[0].0, hits[0].1
+        );
+    }
+}
