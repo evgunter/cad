@@ -31,3 +31,49 @@ Signed (WIRE orchestrator).
 - 2026-11-02 — **Seam (BOXES):** PR 6336 retires the split gate's own torus arm (`gate_face_reach`/`torus_window_reach`, K name `split_gate_torus_ring`); dated notes on the rows here that cite them. (BOXES orchestrator)
 - 2026-11-21 — **Seam note from TESSLIE:** on main at 1597f5deb, `sweep offer_rows::every_sphere_offer_passes_just_below_it` fails deterministically at offer_rows.rs:333 ("false offers"). Two cases fail. `nested_off_axis_in_the_zero_band_union` / `_subtract` quote None and offer Some(4.999e-11) at margin 5e-10. `ball_beside_a_slab_in_band_union` quotes Some(-5.4999992e-9) and offers Some(5.499e-10) at margin -5.5e-9. It was measured by a TESSLIE lane, it is not TESSLIE ground, and this program's `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut` lists the test among rows that move. Reported, not fixed. (TESSLIE orchestrator)
 - 2026-11-23 — **From HELDRECORDS: `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut` is re-banded P0.** The tour's die, with two pips dragged together (a valid part), now refuses `UnsupportedTurnedCell { Edge }` at its union; before PR 7516 fixed the n-ary door's lineage it panicked. That refusal's way through is this row. The evidence is on the row. (HELDRECORDS orchestrator)
+
+## 2026-11-23 — a sitting opens (ORBIT orchestrator)
+
+Track taken (`status: active`). Fable is unavailable for this sitting
+(Ev, in chat: "fable usage is out, so run everything on opus, using two
+opus reviewers/designers as indicated"). So every lane is Opus 5.5; a
+dual review is two Opus reviewers on one frozen head, and a design fork
+is weighed by two Opus designers. Under `docs/MODEL-COMPARE-PROTOCOL.md`
+rule 12 no draws are taken and no model-compare row is recorded for a
+unit dispatched in the outage. The design-fork row is recorded with both
+designers' models named (the Opus/Fable arm is not run).
+
+Load on taking it: 34/30. The unbanded
+`a-section-certificates-witness-point-is-picked-off-the-axes` is banded
+P2, cost E: unmeasured whether any pose reaches W3 with a circle partly
+inside a face, and the fix (the sphere's own `u_ref`) is named in the
+row. That leaves 31/30; not split, since this sitting works the whole
+P0/P1 slate.
+
+Dispatch, all at once (lanes that build run in their own cloud sessions;
+this container has 4 vCPUs):
+
+- `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`
+  (P0, H): implementer. Tier **dual**: it retires a mechanism (the
+  re-chart) under 21 moved rows, and how every sphere escape is cut is
+  hard to change later. The lane also checks the two P2 re-chart-key rows
+  (`a-re-cut-booleans-verdicts-…`, `a-step-given-pairs-…`), which the
+  retirement may moot.
+- `a-sphere-cut-in-divides-a-face-the-carry-reads-by-its-pre-cut-key`
+  (P1, M): implementer, in parallel with the P0 (coupled ground:
+  `apply_cut_ins`; each lane is told of the other). Tier **single, full**:
+  a carry that lands a record on the wrong piece is a correctness claim.
+- `separation-grants-disjointness-only-along-world-axes` (P1, M):
+  implementer. Tier **single, full**: a disjointness certificate.
+- `boolean-gate-refuses-a-pair-the-census-reads-apart` (P1, M):
+  implementer, measure first. Tier **single, full**: the reach it shares
+  is read mid-operation. Coupled with the separation lane through
+  `boolean::separating`; each is told of the other.
+- `a-torus-near-a-tilted-cut-stops-at-the-extent-scan` (P1, H):
+  implementer, measure and scope first. What is left is the plane ×
+  torus germ's general rung (`RoutesToGeneralRung`), next to GERM's
+  `co-surface-direction-table-and-spiric-plane-door` (PR 7431). If the
+  rung needs a representation decision the lane stops and reports it.
+  Tier decided once scoped.
+- The two torus-touch rows (`design: true`) are one fork: two Opus
+  designers, concurrent, one statement of the problem.
