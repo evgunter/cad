@@ -304,7 +304,7 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
             e_at = e.render(geom_brep::recourse::Reading::Build)
         )
     });
-    assert_eq!(topo::validate_geometric(&moved, tol()), Ok(()), "tier 3");
+    assert_eq!(topo::test_support::validate_completed(&moved, tol()), Ok(()), "tier 3");
     // The door ends with the join: the image stands between the two
     // half-seams on one generator of the moved wall, so the join takes
     // it, and the seam is whole again on the moved wall.
@@ -478,7 +478,7 @@ fn cavity_at_closed_form(
         },
     );
     assert_eq!(
-        topo::validate_geometric(&cavity, tol()),
+        topo::test_support::validate_completed(&cavity, tol()),
         Ok(()),
         "{what}: cavity tier 3"
     );
@@ -625,7 +625,7 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
                 )
             });
         assert_eq!(
-            topo::validate_geometric(&cavity, tol()),
+            topo::test_support::validate_completed(&cavity, tol()),
             Ok(()),
             "station {v}: tier 3"
         );
@@ -667,7 +667,7 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
                     )
                 });
             assert_eq!(
-                topo::validate_geometric(&cavity, tol()),
+                topo::test_support::validate_completed(&cavity, tol()),
                 Ok(()),
                 "{label}: tier 3"
             );
@@ -932,7 +932,7 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
                 )
             });
             assert_eq!(
-                topo::validate_geometric(&body, tol()),
+                topo::test_support::validate_completed(&body, tol()),
                 Ok(()),
                 "{what}, d {d}: tier 3"
             );

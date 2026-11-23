@@ -147,6 +147,20 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             Completes,
             "`join_edges` over the vertices it is handed, on the same terms",
         ),
+        // ---- The fixture builders that run the pass over what they
+        // grew. ----
+        (
+            "cyl_wall_sheet",
+            Maintains,
+            "a fixture builder: grows the sheet through `cyl_wall_sheet_keyed`, then runs \
+             the pass over it",
+        ),
+        (
+            "set_sheet_sense",
+            Maintains,
+            "a fixture setter: flips a sheet's face sense, then runs the pass over the \
+             sheet",
+        ),
         // ---- The pass itself. ----
         (
             "mint_pcurves",

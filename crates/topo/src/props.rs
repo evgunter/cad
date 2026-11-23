@@ -7237,7 +7237,9 @@ pub trait AtRestPolicy: Decide {
     /// [`crate::NotFinished`]: every finding, none folded into another;
     /// completion's refusal as [`ValidationError::Pcurve`].
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        Self::finish_completed(crate::finish::complete(body, tol)?, tol)
+        let mut completed = crate::finish::complete(body, tol)?;
+        let refused = completed.take_refused();
+        crate::finish::with_refusals(Self::finish_completed(completed, tol), refused)
     }
 
     /// **The verdict of a completed body**: tier 3, whose first act is
@@ -7316,7 +7318,9 @@ pub trait AtRestPolicy: Decide {
     /// [`crate::NotFinished`]: the finish's findings, or tier 2's at
     /// the box scalars; completion's refusal as [`ValidationError::Pcurve`].
     fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        Self::leaf_completed(crate::finish::complete(body, tol)?, tol)
+        let mut completed = crate::finish::complete(body, tol)?;
+        let refused = completed.take_refused();
+        crate::finish::with_refusals(Self::leaf_completed(completed, tol), refused)
     }
 
     /// **The leaf of a completed body** ([`AtRestPolicy::leaf`], its

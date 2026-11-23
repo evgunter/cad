@@ -643,7 +643,8 @@ pub enum ShellError<T: Real> {
         refusal: crate::boolean::JoinRefusal,
     },
     /// The assembled result is not a finished body
-    /// ([`crate::AtRestPolicy::finish`]), so it is discarded: every
+    /// ([`crate::AtRestPolicy::finish`]), or the moved cavity's rows do
+    /// not complete before its walls are asked, so it is discarded: every
     /// finding, each read through its family.
     NotValid {
         /// The finish's findings.
@@ -1792,6 +1793,12 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
             error: Box::new(error),
         })?;
     }
+
+    // The questions below read the cavity's stored rows on its curved
+    // faces, which the offset doors left for the finish; they read them
+    // completed, every row the doors kept as kept.
+    crate::finish::complete_in_place(&mut cavity, tol)
+        .map_err(|findings| ShellError::NotValid { findings })?;
 
     // ---- Decide: no two moved walls meeting at an angle cross. ----
     moved_walls_cross(&cavity, &partition, thickness, band)?;

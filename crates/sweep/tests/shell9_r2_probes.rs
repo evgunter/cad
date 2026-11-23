@@ -247,12 +247,12 @@ fn r2_drum_reverted_cavity_alone_is_the_reason() {
     topo::offset_charts_together(&mut cavity, &hollow_moves(&d, 0.1), band, tol())
         .expect("the cavity is built");
     assert_eq!(
-        topo::validate_geometric(&cavity, tol()),
+        topo::test_support::validate_completed(&cavity, tol()),
         Ok(()),
         "the cavity itself is tier-3 valid"
     );
     let reverted = cavity.revert().unwrap();
-    let verdict = topo::validate_geometric(&reverted, tol());
+    let verdict = topo::test_support::validate_completed(&reverted, tol());
     println!("[r2] reverted drum cavity alone: {verdict:?}");
     assert!(
         verdict.is_err(),
@@ -274,21 +274,21 @@ fn refused_on_rows(body: Body<f64>) -> Vec<String> {
         .collect()
 }
 
-/// **Claim 7 — an operand whose own pcurve map is wrong cannot be
-/// handed to the verb.** The closing mint clears the map before
-/// re-deriving, so the verb itself cannot see a missing row. The door
-/// takes an `AtRestBody` (pinned by type in `topo`'s
-/// `shell_operand_gate`), so the refusal is the gate that builds the
-/// operand, and this row shows that gate refusing the maimed vessel.
+/// **Claim 7 — a missing row is not a wrong one.** A row in
+/// construction state is current or absent, and the gate that builds the
+/// verb's operand completes an absent one: the vessel with a row taken
+/// off finishes, the row derived again, bit for bit.
 #[test]
-fn r2_an_operand_missing_a_row_is_refused_at_the_gate() {
-    let mut maimed = vessel(1.0, 2.0);
-    let victim = maimed.pcurves().map(|(he, _)| he).next().expect("a row");
+fn r2_an_operand_missing_a_row_is_completed_at_the_gate() {
+    let whole = vessel(1.0, 2.0);
+    let victim = whole.pcurves().map(|(he, _)| he).next().expect("a row");
+    let mut maimed = whole.clone();
     maimed.detach_pcurve(victim).expect("removed");
-    let findings = refused_on_rows(maimed);
-    assert!(
-        !findings.is_empty(),
-        "the maimed operand fails the tier-3 pcurve pass"
+    let finished = topo::finish(maimed, tol()).expect("the gate completes the missing row");
+    assert_eq!(
+        format!("{:?}", finished.pcurve(victim)),
+        format!("{:?}", whole.pcurve(victim)),
+        "the completed row is the one taken off"
     );
 }
 

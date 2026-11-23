@@ -148,7 +148,7 @@ fn r1p1_a_bulged_box_is_axial_and_hollows_to_its_closed_form() {
     topo::offset_charts_together(&mut work, &moves, band(), tol)
         .unwrap_or_else(|e| panic!("the axial door takes the bulged box: {e:?}"));
     assert_eq!(
-        topo::validate_geometric(&work, tol),
+        topo::test_support::validate_completed(&work, tol),
         Ok(()),
         "the door's tier 3"
     );

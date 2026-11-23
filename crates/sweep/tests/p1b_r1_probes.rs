@@ -75,7 +75,7 @@ fn authority_census(body: &Body<f64>) -> Vec<(EdgeKey, bool)> {
 ///   scaffold reached rest and validation cannot see it.
 fn fence_crosscheck(body: &Body<f64>, ctx: &str) {
     let scaffolds = scaffold_edges(body);
-    let verdict = topo::validate_geometric(body, Tol::witness());
+    let verdict = topo::test_support::validate_completed(body, Tol::witness());
     match (scaffolds.is_empty(), verdict) {
         (true, Ok(())) => {}
         (true, Err(errs)) => panic!("{ctx}: tier 3 refuses a scaffold-free body: {errs:?}"),

@@ -50,18 +50,20 @@ enum Fill<T: geom_core::Real> {
     Element(JointElement),
 }
 
-/// **`body`'s pcurve rows completed** (module docs). Every row is
-/// derived before any is written, so a refusal leaves the body as found.
+/// **`body`'s pcurve rows completed** (module docs). Each face's rows
+/// are derived before any is written, and a face that refuses is left as
+/// found, so the verdict that follows reads it and every other finding
+/// besides.
 ///
 /// # Errors
 ///
-/// [`PcurveMintError`]: the band's, or the first face's refusal whose
-/// rows are owed, as the mint reports it.
+/// Every refusal whose rows are owed, a face's first as the mint reports
+/// it, in face order; or the band's alone.
 pub(crate) fn complete_pcurves<T: AtRestPolicy>(
     body: &mut Body<T>,
     tol: Tol,
-) -> Result<(), PcurveMintError> {
-    let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
+) -> Result<(), Vec<PcurveMintError>> {
+    let band = Band::linear(tol).map_err(|e| vec![PcurveMintError::Band(e)])?;
     let dead: Vec<HalfEdgeKey> = body
         .pcurves
         .keys()
@@ -71,8 +73,13 @@ pub(crate) fn complete_pcurves<T: AtRestPolicy>(
     body.drop_rows(dead);
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     let mut fills: Vec<(HalfEdgeKey, Fill<T>)> = Vec::new();
+    let mut refused = Vec::new();
     for face in faces {
-        fill_face(body, face, band, &mut fills)?;
+        let mut face_fills = Vec::new();
+        match fill_face(body, face, band, &mut face_fills) {
+            Ok(()) => fills.extend(face_fills),
+            Err(e) => refused.push(e),
+        }
     }
     for (he, fill) in fills {
         match fill {
@@ -80,7 +87,11 @@ pub(crate) fn complete_pcurves<T: AtRestPolicy>(
             Fill::Element(element) => body.write_joint(he, Some(element)),
         }
     }
-    Ok(())
+    if refused.is_empty() {
+        Ok(())
+    } else {
+        Err(refused)
+    }
 }
 
 /// The rows completion writes on `face` (module docs), appended to

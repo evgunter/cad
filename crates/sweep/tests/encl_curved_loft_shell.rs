@@ -344,6 +344,7 @@ fn the_prisms_inward_cap_offset_mints_its_rim_on_the_walls_interior_row() {
     let cap = top_cap(&body);
     topo::replace_face_offset(&mut moved, cap, -THICKNESS, Tol::witness())
         .expect("the prism's cap moves inward");
+    let moved = topo::test_support::completed(moved, Tol::witness()).expect("the rows complete");
     let mut rims = 0;
     for (he, cache) in moved.pcurves() {
         let Some(face) = moved.face_of_half_edge(he) else {

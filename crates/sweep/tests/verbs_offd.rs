@@ -191,7 +191,7 @@ fn the_cylinder_wall_offsets_at_both_signs() {
             "d = {d}: both outer rims moved with the wall and neither inner rim did"
         );
         assert_eq!(
-            topo::validate_geometric(&body, Tol::witness()),
+            topo::test_support::validate_completed(&body, Tol::witness()),
             Ok(()),
             "d = {d}: tier 3 on the re-described tube"
         );
@@ -277,7 +277,7 @@ fn a_planar_cap_offsets_at_both_signs() {
             "d = {d}: the plane moved along its own normal, got {origin:?}"
         );
         assert_eq!(
-            topo::validate_geometric(&body, Tol::witness()),
+            topo::test_support::validate_completed(&body, Tol::witness()),
             Ok(()),
             "d = {d}: tier 3 on the re-described tube"
         );
@@ -304,7 +304,7 @@ fn every_face_of_a_tube_offsets_in_turn() {
         });
     }
     assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
+        topo::test_support::validate_completed(&body, Tol::witness()),
         Ok(()),
         "tier 3 on the tube with every face replaced"
     );

@@ -850,6 +850,46 @@ pub mod test_support {
         body.finished(what, tol)
     }
 
+    /// **Tier 3 over `body` with its rows completed**, as the finish asks
+    /// it ([`crate::AtRestPolicy::finish`]): a construction door leaves
+    /// each row current or absent, and [`crate::validate_geometric`], a
+    /// pure check, reads an absent one as missing. Its findings as that
+    /// check spells them, completion's among them.
+    ///
+    /// # Errors
+    ///
+    /// Tiers 1 and 2's findings, completion's, or tier 3's.
+    pub fn validate_completed<T>(
+        body: &Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<(), Vec<crate::ValidationError>>
+    where
+        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
+    {
+        let mut completed =
+            crate::finish::complete(body.clone(), tol).map_err(|e| e.as_slice().to_vec())?;
+        let refused = completed.take_refused();
+        let body = completed.into_body();
+        let verdict = crate::validate_geometric(&body, tol).map_err(crate::NotFinished::new);
+        crate::finish::with_refusals(verdict, refused).map_err(|e| e.as_slice().to_vec())
+    }
+
+    /// **`body` with its rows completed**, the finish's first act
+    /// ([`crate::AtRestPolicy::finish`]) without its verdict: for a row
+    /// that reads the rows a construction door left for the finish on a
+    /// body the verdict refuses for another reason.
+    ///
+    /// # Errors
+    ///
+    /// Tiers 1 and 2's findings, or completion's.
+    pub fn completed<T: crate::AtRestPolicy>(
+        mut body: Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Body<T>, Vec<crate::ValidationError>> {
+        crate::finish::complete_in_place(&mut body, tol).map_err(|e| e.as_slice().to_vec())?;
+        Ok(body)
+    }
+
     /// **What of `body` lies along a line**: the line through `origin`
     /// along the unit `dir`, and each edge both of whose ends lie on it
     /// (within 1e-9) as their parameters along it, the lesser first, and

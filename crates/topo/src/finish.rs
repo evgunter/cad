@@ -157,10 +157,13 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 /// [`AtRestPolicy::finish`] and [`AtRestPolicy::leaf`] run first. It
 /// drops the rows on dead half-edges, keeps every stored row and derives
 /// each missing one (`crate::pcurves`' completion), so no producer mints
-/// to close and a stale row reaches the verdict to be refused.
+/// to close and a stale row reaches the verdict to be refused. A face
+/// whose rows do not complete is left as found, its refusal held for the
+/// door to report beside the verdict's findings.
 #[derive(Debug)]
 pub struct Completed<T: Real> {
     body: Body<T>,
+    refused: Vec<ValidationError>,
 }
 
 impl<T: Real> Completed<T> {
@@ -169,21 +172,71 @@ impl<T: Real> Completed<T> {
     pub fn into_body(self) -> Body<T> {
         self.body
     }
+
+    /// Completion's refusals, taken for the door to report.
+    pub(crate) fn take_refused(&mut self) -> Vec<ValidationError> {
+        core::mem::take(&mut self.refused)
+    }
 }
 
-/// **`body` completed** ([`Completed`]). Its derivations are a build's,
-/// not the verdict's: they run before, and outside, the checking scope.
+/// **`body` completed** ([`Completed`]), after tiers 1 and 2
+/// ([`complete_in_place`] says why). Its derivations are a build's, not
+/// the verdict's: they run before, and outside, the checking scope.
 ///
 /// # Errors
 ///
-/// [`NotFinished`] holding completion's refusal as
-/// [`ValidationError::Pcurve`].
+/// [`NotFinished`] holding tiers 1 and 2's findings.
 pub(crate) fn complete<T: AtRestPolicy>(
     mut body: Body<T>,
     tol: Tol,
 ) -> Result<Completed<T>, NotFinished> {
-    complete_in_place(&mut body, tol)?;
-    Ok(Completed { body })
+    closed(&body)?;
+    let refused = refusals(crate::pcurves::complete_pcurves(&mut body, tol));
+    Ok(Completed { body, refused })
+}
+
+/// **A verdict with completion's refusals beside it**: each refusal the
+/// verdict's own findings do not already hold, so a face tier 3 derives
+/// again and refuses alike is reported once; at a replay, which runs no
+/// tier 3, the refusals alone.
+///
+/// # Errors
+///
+/// `verdict`'s findings and the refusals, or the refusals alone.
+pub(crate) fn with_refusals<F>(
+    verdict: Result<F, NotFinished>,
+    refused: Vec<ValidationError>,
+) -> Result<F, NotFinished> {
+    if refused.is_empty() {
+        return verdict;
+    }
+    match verdict {
+        Ok(_) => Err(NotFinished::new(refused)),
+        Err(mut found) => {
+            for r in refused {
+                if !found.findings.contains(&r) {
+                    found.findings.push(r);
+                }
+            }
+            Err(found)
+        }
+    }
+}
+
+/// Tiers 1 and 2 over `body`, as a check.
+fn closed<T: Real>(body: &Body<T>) -> Result<(), NotFinished> {
+    geom_core::k_stats::checking(|| crate::validate::validate_closed(body))
+        .map_err(NotFinished::new)
+}
+
+/// Completion's refusals as findings.
+fn refusals(completed: Result<(), Vec<crate::pcurves::PcurveMintError>>) -> Vec<ValidationError> {
+    completed
+        .err()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|finding| ValidationError::Pcurve { finding })
+        .collect()
 }
 
 /// **`body`'s rows completed in place**, for a reader that reads stored
@@ -191,15 +244,26 @@ pub(crate) fn complete<T: AtRestPolicy>(
 /// sort's ray probes, `crate::pieces`). It keeps every stored row, so
 /// it launders none, and the finish that follows finds nothing to fill.
 ///
+/// Tiers 1 and 2 are asked first: completion walks every face's loops
+/// and derives from every edge's carrier, which only a closed body of
+/// resolving records holds, and the verdict's own first act would
+/// report the same findings.
+///
 /// # Errors
 ///
-/// As [`complete`].
+/// Tiers 1 and 2's findings, or every refusal of completion: the reader
+/// reads no face left short.
 pub(crate) fn complete_in_place<T: AtRestPolicy>(
     body: &mut Body<T>,
     tol: Tol,
 ) -> Result<(), NotFinished> {
-    crate::pcurves::complete_pcurves(body, tol)
-        .map_err(|finding| NotFinished::new(vec![ValidationError::Pcurve { finding }]))
+    closed(body)?;
+    let refused = refusals(crate::pcurves::complete_pcurves(body, tol));
+    if refused.is_empty() {
+        Ok(())
+    } else {
+        Err(NotFinished::new(refused))
+    }
 }
 
 /// **A body that passed tier 2 alone** ([`crate::validate_closed`]),
@@ -338,9 +402,10 @@ pub(crate) fn moved_and_asked<T: AtRestPolicy>(
 ) -> Result<Body<T>, MoveError> {
     let mut body = moved_body(body, iso).map_err(MoveError::Map)?;
     if let crate::Isometry::Improper(_) = iso {
-        crate::pcurves::complete_pcurves(&mut body, tol).map_err(|finding| {
-            MoveError::NotFinished(NotFinished::new(vec![ValidationError::Pcurve { finding }]))
-        })?;
+        let refused = refusals(crate::pcurves::complete_pcurves(&mut body, tol));
+        if !refused.is_empty() {
+            return Err(MoveError::NotFinished(NotFinished::new(refused)));
+        }
     }
     let scope = geom_core::k_stats::Bracket::open();
     let asked = asked_after_isometry(&body, tol);

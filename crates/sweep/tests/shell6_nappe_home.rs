@@ -142,7 +142,7 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
                 "{what}: {door}: half-angle carried"
             );
             assert_eq!(
-                topo::validate_geometric(&work, tol),
+                topo::test_support::validate_completed(&work, tol),
                 Ok(()),
                 "{what}: the {door} door's own output must validate"
             );
