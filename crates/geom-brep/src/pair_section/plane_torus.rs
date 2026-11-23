@@ -62,8 +62,11 @@ pub enum PtCut {
     AroundAxis,
     /// Between them: two loops, each round the tube.
     AroundTube,
-    /// One tube circle: one null loop.
-    Null,
+    /// One tube circle, about `k₊` where `near`: one null loop.
+    Null {
+        /// Whether it is the tube circle about `k₊`.
+        near: bool,
+    },
     /// Neither, and not between: no section.
     Empty,
 }
@@ -243,7 +246,8 @@ fn tilted<T: Decide>(
     }
     let cut = match (near.0 == Sign::Positive, far.0 == Sign::Positive) {
         (true, true) => PtCut::AroundAxis,
-        (true, false) | (false, true) => PtCut::Null,
+        (true, false) => PtCut::Null { near: true },
+        (false, true) => PtCut::Null { near: false },
         (false, false) => {
             let between = row(BETWEEN, s * big_r - r - h.abs(), slack, band)?;
             match between.0 {
@@ -254,6 +258,34 @@ fn tilted<T: Decide>(
         }
     };
     Ok((PtStance::Tilted(Some(cut)), TorusGap::Transverse))
+}
+
+/// **A point of the null loop**: where the plane cuts the tube circle
+/// `T_σ` about `k_σ` it cuts, in the meridian half-plane `Π` through it.
+/// With `x` along `ê`, the unit part of `n` square to the axis, and `y`
+/// along the axis, `T_σ` is centred `(σR, 0)` with radius `r`, and the
+/// plane is the line `s·x + (n·a)·y = h`, whose unit normal is
+/// `(s, n·a)`: `d = h − σsR` is its offset from the centre, `(σR + ds,
+/// d·(n·a))` its foot, and the point `√(r² − d²)` from the foot along the
+/// line lies on both surfaces. `None` where it is not finite.
+fn null_witness<T: Decide>(pose: &PlaneTorusPose<T>, near: bool) -> Option<Point3<T>> {
+    let &Surface::Plane { frame } = &pose.plane else {
+        return None;
+    };
+    let ring = pose.ring;
+    let (c, a, [big_r, r]) = (ring.center(), ring.axis(), ring.radii());
+    let n = frame.axis().normalize();
+    let (perp, s) = square_part(n, a);
+    let (h, na) = (n.dot(frame.origin() - c), n.dot(a));
+    let sigma = if near { T::one() } else { T::zero() - T::one() };
+    let d = h - sigma * s * big_r;
+    let half = ((r - d.abs()) * (r + d.abs())).sqrt();
+    let (x, y) = (sigma * big_r + d * s - na * half, d * na + s * half);
+    let p = c + perp / s * x + a * y;
+    [p.x, p.y, p.z]
+        .into_iter()
+        .all(geom_core::is_finite_length)
+        .then_some(p)
 }
 
 /// **The plane × torus section over its tilted pose** (module docs, the
@@ -282,7 +314,15 @@ pub(super) fn plane_torus<T: Decide>(pose: PlaneTorusPose<T>) -> Result<PairSect
             });
         }
         PtStance::Tilted(Some(PtCut::AroundAxis | PtCut::AroundTube)) => loops(2, true),
-        PtStance::Tilted(Some(PtCut::Null)) => loops(1, false),
+        PtStance::Tilted(Some(PtCut::Null { near })) => {
+            let witness = null_witness(&pose, near);
+            Components::Counted(vec![SectionComponent::closed_form(
+                ComponentShape::Loop,
+                [false, false],
+                witness,
+                ClassCarrier::General,
+            )])
+        }
         PtStance::Tilted(Some(PtCut::Empty)) => Components::Counted(Vec::new()),
         PtStance::Tilted(None) => {
             let touch = match pose.gap {
