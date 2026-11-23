@@ -669,3 +669,21 @@ fn a_faces_senses_are_levered_at_its_reach() {
         "the senses read in band at the face's reach: {got:?}"
     );
 }
+
+/// **A face's senses are levered at its reach from the point they are
+/// read at.** The row above's rectangles, a hundred metres along `x̂`:
+/// from the middle of their first edge the reach is the same `√2` or
+/// `√4.25`, and the reading is in band. From the world origin it would
+/// be about 102, past the escalation, and the senses would read
+/// definite. Red where the reach is read from anywhere but `p`.
+#[test]
+fn a_faces_senses_are_levered_from_where_they_are_read() {
+    let (bx, fx) = at_one(&rect((100.0, 101.0), (0.0, 2.0)), true);
+    let (by, fy) = at_one(&rect((100.0, 101.0), (0.0, 2.0)), true);
+    let wide = Band::new(1.1, 11.0).unwrap();
+    let got = overlap((&bx, fx), (&by, fy), wide);
+    assert!(
+        matches!(&got, Err(OverlapRefusal::Senses(diag)) if diag.predicate == Some("bool_overlap_senses")),
+        "the senses read in band at the face's reach from its edge: {got:?}"
+    );
+}
