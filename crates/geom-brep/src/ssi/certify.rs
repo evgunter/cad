@@ -1610,7 +1610,7 @@ fn pcurve_end<T: geom_core::CertifiedBounds>(
     } else {
         spans.last()?.ends.1
     };
-    let p = pcurve.span_at(t)?.eval_in_span(T::from_computed(t));
+    let p = pcurve.span_at(t)?.eval_in_span_at(t);
     let (u, v): (f64, f64) = (
         geom::mid_param(Bounds::lo(p.x), Bounds::hi(p.x)),
         geom::mid_param(Bounds::lo(p.y), Bounds::hi(p.y)),
@@ -1664,7 +1664,7 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
         // The transverse chart direction is a DIRECTION — structure —
         // so it is selected through the bracket, exactly as the tube
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
-        let t = pcurve.deriv(T::from_f64(w.mid));
+        let t = pcurve.deriv_at(w.mid);
         let tn = (t.x.powi(2) + t.y.powi(2)).sqrt().hi();
         let (tx, ty) = (t.x.hi(), t.y.hi());
         // A positive finite norm and a nonzero direction: a lane whose
