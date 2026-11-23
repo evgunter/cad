@@ -11,10 +11,11 @@
 //!
 //! Per face:
 //!
-//! - **A face that stores no row** is derived whole ([`derive_face`]),
-//!   the rows the mint writes there.
+//! - **A face that stores no row** — no image and no element — is
+//!   derived whole ([`derive_face`]), the rows the mint writes there.
 //! - **A complete face** keeps its rows.
-//! - **A half-minted face** keeps every stored image and element, and
+//! - **A half-minted face** — one storing any image or any element —
+//!   keeps every stored image and element, and
 //!   on each loop with a gap the walk derives what is missing: the
 //!   image of every rowless half ([`derive_image`]) and the element of
 //!   every joint that stores none, decided between the two images
@@ -25,18 +26,19 @@
 //!   mint would. Where a kept row is stale the filled joints disagree
 //!   with it and the verdict's pass refuses the loop.
 //!
-//! A face whose refusal is not owed ([`not_owed`]) is left as found;
+//! A face is read whole before it is excused, as the mint reads it: one
+//! whose every refusal is not owed ([`not_owed`]) is left as found, and
 //! the verdict excuses exactly those. A face on a chart that mints
 //! nothing derives nothing.
 
-use geom_brep::{CertifyingDoor, PcurveCache};
+use geom_brep::PcurveCache;
 use geom_core::Tol;
 use geom_core::predicate::Band;
 
 use super::{
     DescribedChart, PcurveMintError, SiteImage, WalkFail, WalkItem, Walked, certify_walked,
-    derive_face, derive_image, entry_vertex, first_owed, half_edge_carrier, is_plus, joint_refusal,
-    not_owed, stored_edge, stored_reach, stored_rows, walk_cycle,
+    derive_face, derive_image, entry_vertex, first_owed, fitted_door, half_edge_carrier, is_plus,
+    joint_refusal, not_owed, stored_edge, stored_reach, stored_rows, walk_cycle, walk_runs,
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey};
@@ -78,6 +80,7 @@ pub(crate) fn complete_pcurves<T: AtRestPolicy>(
         let mut face_fills = Vec::new();
         match fill_face(body, face, band, &mut face_fills) {
             Ok(()) => fills.extend(face_fills),
+            Err(e) if not_owed::<T>(&e) => {}
             Err(e) => refused.push(e),
         }
     }
@@ -111,7 +114,16 @@ fn fill_face<T: AtRestPolicy>(
     if rows.complete() {
         return Ok(());
     }
-    if !rows.stores {
+    // A face keeps whatever it stores: an image, or an element on a
+    // joint whose images it does not store (`Construct::detach_pcurve`
+    // takes the image and leaves the element). Only a face storing
+    // neither is derived whole.
+    let keeps = rows.stores
+        || rows
+            .loops
+            .iter()
+            .any(|(_, cycle)| cycle.iter().any(|&he| body.joint(he).is_some()));
+    if !keeps {
         return match derive_face(body, face, band) {
             Ok(derived) => {
                 out.extend(
@@ -121,28 +133,16 @@ fn fill_face<T: AtRestPolicy>(
                 );
                 Ok(())
             }
-            Err(e) if not_owed::<T>(&e) => Ok(()),
             Err(e) => Err(e),
         };
     }
     let sense = view.sense();
     let wedges = crate::wedge_reach::WedgeReach::new(body);
-    let fitted = |w: &Walked<T>| match w.pcurve().certifying_door() {
-        CertifyingDoor::Fitted | CertifyingDoor::Either => PcurveCache::certify_stated_image(
-            w.pcurve(),
-            w.window(),
-            &w.carrier,
-            surface,
-            band,
-            T::fitted_lane(),
-        ),
-        CertifyingDoor::ClosedForm => unreachable!(
-            "certify_walked hands the fitted door only the images it certifies: {:?}",
-            w.pcurve()
-        ),
-    };
+    let fitted = |w: &Walked<T>| fitted_door(w, surface, band);
     let mut face_fills: Vec<(HalfEdgeKey, Fill<T>)> = Vec::new();
     let mut derived: Vec<Walked<T>> = Vec::new();
+    let mut refused: Vec<PcurveMintError> = Vec::new();
+    let mut broken: Vec<&[HalfEdgeKey]> = Vec::new();
     for (lp, cycle) in &rows.loops {
         if !rows.gaps.iter().any(|gap| gap.r#loop == *lp) {
             continue;
@@ -187,10 +187,15 @@ fn fill_face<T: AtRestPolicy>(
             true,
         ) {
             Ok(walked) => walked,
-            Err(WalkFail::Item(e)) if not_owed::<T>(&e) => return Ok(()),
-            Err(WalkFail::Item(e)) => return Err(e),
-            Err(WalkFail::Miss { index, miss }) => return Err(joint_refusal(cycle[index], miss)),
-            Err(WalkFail::NotClosed) => return Err(PcurveMintError::LoopNotClosed { face }),
+            Err(fail) => {
+                refused.push(match fail {
+                    WalkFail::Item(e) => e,
+                    WalkFail::Miss { index, miss } => joint_refusal(cycle[index], miss),
+                    WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
+                });
+                broken.push(cycle);
+                continue;
+            }
         };
         for (&he, (image, .., element)) in cycle.iter().zip(walked) {
             match image {
@@ -205,6 +210,26 @@ fn fill_face<T: AtRestPolicy>(
             }
         }
     }
+    if !refused.is_empty() {
+        // As the mint's (`derive_face`): a walk stops at its loop's first
+        // refusal, so a face is read whole before it is excused — each
+        // broken loop's covered runs walked, and every derived image
+        // certified — and it is excused only when every refusal it meets
+        // is ([`not_owed`]).
+        if refused.iter().all(not_owed::<T>) {
+            for cycle in broken {
+                walk_runs(body, chart, sense, cycle, band, &mut derived, &mut refused);
+            }
+            if let Err(certs) = certify_walked(derived, surface, band, Some(&fitted)) {
+                refused.extend(
+                    certs
+                        .into_iter()
+                        .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error }),
+                );
+            }
+        }
+        return Err(first_owed::<T>(refused));
+    }
     match certify_walked(derived, surface, band, Some(&fitted)) {
         Ok(certified) => face_fills.extend(
             certified
@@ -212,14 +237,12 @@ fn fill_face<T: AtRestPolicy>(
                 .map(|(he, image, element)| (he, Fill::Row(image, element))),
         ),
         Err(refused) => {
-            let refused: Vec<PcurveMintError> = refused
-                .into_iter()
-                .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error })
-                .collect();
-            if refused.iter().all(not_owed::<T>) {
-                return Ok(());
-            }
-            return Err(first_owed::<T>(refused));
+            return Err(first_owed::<T>(
+                refused
+                    .into_iter()
+                    .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error })
+                    .collect(),
+            ));
         }
     }
     out.extend(face_fills);

@@ -2031,25 +2031,7 @@ pub(super) fn derive_face<T: AtRestPolicy>(
             broken.push(lp);
         }
     }
-    // The fitted door goes in as the scalar's policy answers it, `None`
-    // and all: the own-chart arm of `nurbs_iso_derive` hands a
-    // construction's STATED `General` image here at every scalar, a dual
-    // included, and an absent door refuses at check 4, so an image that
-    // fails checks 1–3 draws those checks' verdict at every scalar.
-    let fitted = |w: &Walked<T>| match w.pcurve().certifying_door() {
-        CertifyingDoor::Fitted | CertifyingDoor::Either => PcurveCache::certify_stated_image(
-            w.pcurve(),
-            w.window(),
-            &w.carrier,
-            surface,
-            band,
-            T::fitted_lane(),
-        ),
-        CertifyingDoor::ClosedForm => unreachable!(
-            "certify_walked hands the fitted door only the images it certifies: {:?}",
-            w.pcurve()
-        ),
-    };
+    let fitted = |w: &Walked<T>| fitted_door(w, surface, band);
     if !refused.is_empty() {
         // A walk stops at the first refusal of its loop, so an edge
         // whose rows are not owed would hide every edge after it: the
@@ -2092,6 +2074,35 @@ pub(super) fn derive_face<T: AtRestPolicy>(
                 .collect(),
         )
     })
+}
+
+/// **The fitted door a face's derived images certify through**
+/// ([`certify_walked`]), shared by the mint and completion.
+///
+/// It goes in as the scalar's policy answers it, `None` and all: the
+/// own-chart arm of `nurbs_iso_derive` hands a construction's STATED
+/// `General` image here at every scalar, a dual included, and an absent
+/// door refuses at check 4, so an image that fails checks 1–3 draws
+/// those checks' verdict at every scalar.
+pub(super) fn fitted_door<T: AtRestPolicy>(
+    w: &Walked<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<PcurveCache<T>, PcurveCertifyError> {
+    match w.pcurve().certifying_door() {
+        CertifyingDoor::Fitted | CertifyingDoor::Either => PcurveCache::certify_stated_image(
+            w.pcurve(),
+            w.window(),
+            &w.carrier,
+            surface,
+            band,
+            T::fitted_lane(),
+        ),
+        CertifyingDoor::ClosedForm => unreachable!(
+            "certify_walked hands the fitted door only the images it certifies: {:?}",
+            w.pcurve()
+        ),
+    }
 }
 
 /// The refusal a face reports: its first whose rows are owed, or — when
