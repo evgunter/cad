@@ -246,6 +246,14 @@ pub enum Witness {
     Inexact,
 }
 
+/// **The plain formula `(q − o)·n`**, in [`crate::Vec3::dot`]'s order:
+/// [`Real::difference_dot`]'s default, and the reading every scalar falls
+/// back to where its posed one does not apply.
+#[must_use]
+pub fn plain_difference_dot<T: Real>(q: [T; 3], o: [T; 3], n: [T; 3]) -> T {
+    (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
+}
+
 /// The scalar type the geometry evaluation layer is generic over.
 ///
 /// See the [module docs](self) for the design rationale: the deliberately
@@ -482,7 +490,7 @@ pub trait Real:
     /// through `T`'s own.
     #[must_use]
     fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
-        (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
+        plain_difference_dot(q, o, n)
     }
 
     /// **The `f64` this value states**, where it is a plain enclosure
@@ -2315,7 +2323,7 @@ impl Real for f64 {
         if v.is_finite() {
             v
         } else {
-            (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
+            plain_difference_dot(q, o, n)
         }
     }
 
@@ -2916,12 +2924,7 @@ mod tests {
             let q = crate::Point3::new(c[0], c[1], c[2]);
             let o = q - n * gap + w * far;
             let (q, o, n) = ([q.x, q.y, q.z], [o.x, o.y, o.z], [n.x, n.y, n.z]);
-            let mut e = Expansion::default();
-            for i in 0..3 {
-                e.add_expansion(&Expansion::product(q[i], n[i]));
-                e.add_expansion(&Expansion::product(-o[i], n[i]));
-            }
-            let exact: f64 = e.components().iter().sum();
+            let exact: f64 = Expansion::difference_dot(q, o, n).components().iter().sum();
             let ulp = |x: f64| f64::EPSILON * x.abs().max(f64::MIN_POSITIVE);
             let got = f64::difference_dot(q, o, n);
             // `Dot2`'s bound: the result's rounding and a second-order term.

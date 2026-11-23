@@ -317,9 +317,7 @@ pub fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -
 }
 
 /// The plain formula `(q − origin)·normal` with a first-order bound on
-/// its own rounding, its inputs exact ([`geom_core::running`]). The bound
-/// also covers [`plane_offset`]'s value, which lies within its own
-/// rounding of the exact offset.
+/// its own rounding, its inputs exact ([`geom_core::running`]).
 #[must_use]
 pub fn plane_offset_rounded<T: Real>(
     origin: Point3<T>,

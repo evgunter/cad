@@ -538,7 +538,7 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// The value `T`'s ([`Real::difference_dot`]); the derivative the
     /// plain formula's chain rule.
     fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
-        let plain = (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2];
+        let plain = crate::real::plain_difference_dot(q, o, n);
         Self {
             value: T::difference_dot(q.map(|x| x.value), o.map(|x| x.value), n.map(|x| x.value)),
             deriv: plain.deriv,

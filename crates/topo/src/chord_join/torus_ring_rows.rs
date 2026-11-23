@@ -269,13 +269,13 @@ fn scaled_frames() -> Vec<Frame> {
 /// the run the reading missed would show on the paths that cross it.
 #[test]
 fn a_torus_ring_run_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(islands, 904);
+    winds_as_the_oracle(islands, 965_856);
 }
 
 /// The winding rows over the islands `islands` names in each frame.
 fn winds_as_the_oracle(
     islands: fn(Frame) -> Vec<(&'static str, Island)>,
-    twice_verdicts_per_run: usize,
+    twice_verdicts: usize,
 ) {
     let mut seen = [0usize; 2];
     let mut paths = 0usize;
@@ -346,10 +346,12 @@ fn winds_as_the_oracle(
         verdicts[0] < verdicts[1],
         "each reference stops at its first deciding path: {verdicts:?}"
     );
+    // A plane crossing records its pose's and its placement's verdicts,
+    // which differ by pose, so the record is pinned whole, not per run.
     assert_eq!(
         2 * verdicts[0],
-        twice_verdicts_per_run * runs,
-        "twice the verdicts the winding records, per run ({runs} at this band's scales): a \
+        twice_verdicts,
+        "twice the verdicts the winding records over {runs} runs at this band's scales: a \
          change here moves the K record (a path read past a reference's first that decides, \
          a reference more or fewer)"
     );
@@ -453,7 +455,7 @@ fn re_homes_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
 /// into the island exactly when it lies inside.
 #[test]
 fn a_run_on_a_spiric_oval_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(spiric_islands, 924);
+    winds_as_the_oracle(spiric_islands, 984_864);
     re_homes_as_the_oracle(spiric_islands);
 }
 
@@ -506,6 +508,6 @@ fn a_ring_on_the_runs_planes_off_its_arcs_stays() {
 /// it lies inside.
 #[test]
 fn a_run_on_the_tubes_top_or_bottom_circle_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(crest_islands, 904);
+    winds_as_the_oracle(crest_islands, 750_720);
     re_homes_as_the_oracle(crest_islands);
 }
