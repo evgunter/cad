@@ -57,6 +57,8 @@ mod span_fixtures;
 
 #[path = "a_nodes_answer_at_the_symbolic_scalar_is_its_own.rs"]
 mod a_nodes_answer_at_the_symbolic_scalar_is_its_own;
+#[path = "review_session_state_probes.rs"]
+mod review_session_state_probes;
 #[path = "a_value_with_no_expression_is_named_where_it_was_minted.rs"]
 mod a_value_with_no_expression_is_named_where_it_was_minted;
 #[path = "ambiguity_k_env.rs"]

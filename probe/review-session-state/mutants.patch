@@ -1,8 +1,8 @@
 diff --git a/crates/geom-core/src/sym.rs b/crates/geom-core/src/sym.rs
-index f1ad5480..22d77e2f 100644
+index f1ad5480..e2a60b80 100644
 --- a/crates/geom-core/src/sym.rs
 +++ b/crates/geom-core/src/sym.rs
-@@ -2590,6 +2590,27 @@ impl Session {
+@@ -2590,6 +2590,47 @@ impl Session {
      }
  }
  
@@ -16,21 +16,41 @@ index f1ad5480..22d77e2f 100644
 +    use std::io::Write as _;
 +    let Some(path) = std::env::var_os("RSS_ROOT_TRACE") else { return };
 +    let bt = std::backtrace::Backtrace::force_capture().to_string();
-+    let frames: Vec<&str> = bt
-+        .lines()
-+        .map(str::trim)
-+        .filter(|l| l.contains("editor_core::") || l.contains("sweep::") || l.contains("topo::") || l.contains("verbs::"))
-+        .take(14)
++    // The function names only (generic arguments cut), innermost first:
++    // the kernel frames nearest the decision, then every editor-core one.
++    let name = |l: &str| -> Option<String> {
++        let l = l.split_once(": ").map_or(l, |(_, r)| r);
++        let head = l.split('<').next().unwrap_or(l);
++        (!head.is_empty() && !l.starts_with("at ")).then(|| l.chars().take(90).collect())
++    };
++    let lines: Vec<String> = bt.lines().map(str::trim).filter_map(name).collect();
++    let kernel: Vec<&str> = lines
++        .iter()
++        .map(String::as_str)
++        .filter(|l| l.contains("sweep::") || l.contains("topo::") || l.contains("verbs::"))
++        .take(3)
 +        .collect();
++    let editor: Vec<&str> = lines
++        .iter()
++        .map(String::as_str)
++        .filter(|l| l.contains("editor_core::"))
++        .collect();
++    let thread = std::thread::current();
 +    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-+        let _ = writeln!(f, "{what} | {}", frames.join(" < "));
++        let _ = writeln!(
++            f,
++            "{what} | {} | {} | {}",
++            thread.name().unwrap_or("?"),
++            kernel.join(" < "),
++            editor.join(" < ")
++        );
 +    }
 +}
 +
  /// Closes the node scope [`node_scope`] opened, by any path including a
  /// panic: the enclosing scope's state is the open one again and has
  /// absorbed this one's.
-@@ -2607,14 +2628,17 @@ impl NodeGuard {
+@@ -2607,14 +2648,17 @@ impl NodeGuard {
                  return None;
              }
              let outer = sess.outer.pop()?;
@@ -50,7 +70,7 @@ index f1ad5480..22d77e2f 100644
                  for &(a, b) in &inner.identities {
                      if let Some(recorded) = sess.record_identity(a, b) {
                          sess.node.identities.push(recorded);
-@@ -2656,9 +2680,15 @@ pub(crate) fn node_scope<'a, R>(
+@@ -2656,9 +2700,15 @@ pub(crate) fn node_scope<'a, R>(
              registry: sess.node.registry.clone(),
              ..NodeState::default()
          };
@@ -67,7 +87,7 @@ index f1ad5480..22d77e2f 100644
              for &(a, b) in &record.identities {
                  let _ = sess.record_identity(a, b);
              }
-@@ -2764,7 +2794,7 @@ impl Session {
+@@ -2764,7 +2814,7 @@ impl Session {
      ) -> Self {
          // A leaf of a drive starts with the caches an earlier leaf
          // left (`memo`'s header): entries of the drive's table.
@@ -76,7 +96,7 @@ index f1ad5480..22d77e2f 100644
          Self {
              budget,
              rules,
-@@ -2773,7 +2803,7 @@ impl Session {
+@@ -2773,7 +2823,7 @@ impl Session {
              outer: Vec::new(),
              nodes: warm.nodes,
              forms: warm.forms,
@@ -85,7 +105,7 @@ index f1ad5480..22d77e2f 100644
              params: IndetMap::default(),
              mints: IndetMap::default(),
              atoms: warm.atoms,
-@@ -3076,6 +3106,11 @@ fn with_session_in<R>(
+@@ -3076,6 +3126,11 @@ fn with_session_in<R>(
              nodes: core::mem::take(&mut s.nodes),
              forms: core::mem::take(&mut s.forms),
              atoms: core::mem::take(&mut s.atoms),
@@ -97,7 +117,7 @@ index f1ad5480..22d77e2f 100644
          });
      }
      let counts = sess.map_or_else(SymCounts::default, |s| s.node.counts);
-@@ -4681,6 +4716,9 @@ fn note_witness(witness: crate::real::Witness) {
+@@ -4681,6 +4736,9 @@ fn note_witness(witness: crate::real::Witness) {
  fn count_decision(proven: bool) {
      SESSION.with(|s| {
          if let Some(sess) = s.borrow_mut().as_mut() {
@@ -107,7 +127,7 @@ index f1ad5480..22d77e2f 100644
              if proven {
                  sess.node.counts.symbolic += 1;
              } else {
-@@ -4999,6 +5037,9 @@ impl<T: Real> Sym<T> {
+@@ -4999,6 +5057,9 @@ impl<T: Real> Sym<T> {
              // have changed, the first attempt's and every retry's
              // (`Session::record_identity` clears them); the plain and early memos
              // never consult the registry.
