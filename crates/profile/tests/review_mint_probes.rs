@@ -151,3 +151,31 @@ fn p4_a_coincident_other_component_is_refused_by_name() {
     println!("P4: {r}");
     assert!(r.starts_with("Err"), "{r}");
 }
+
+/// **P5 — the `max` row only bites once the session has a witness**:
+/// `nothing_that_reads_a_value_is_proved` asks `max(a, b) - b` before
+/// any decision is taken, when the installed session's witness kind is
+/// still unset and its decision read cannot fire. Here a decision is
+/// taken first. On the head the question still proves nothing; an
+/// answer taken from the installed session's ladder (T1) proves the
+/// `max` hop here.
+#[test]
+fn p5_max_after_a_decision() {
+    use geom_core::{Band, Expression};
+    let boxed = |name: &str, c: f64| {
+        Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id(name)),
+            Interval::from_bounds(c, c),
+            c,
+            c,
+        )
+    };
+    let out = eager(|| {
+        let (a, b) = (boxed("a", 0.5), boxed("b", 1.0));
+        let _ = (a - b).sign_within(Band::least());
+        let m = a.max(b) - b;
+        m.expression().and_then(Expression::proves_zero).is_some()
+    });
+    println!("P5 proved max(a,b)-b after a decision: {out}");
+    assert!(!out);
+}
