@@ -343,7 +343,11 @@ fn a_revolved_circles_latitude_over_a_centre_box_is_exact() {
 fn assert_latitudes_exact(what: &str, body: &Body<S>, rims: &[Vec<Option<topo::EdgeKey>>]) {
     let mut seen = 0;
     for rim in rims.iter().flatten().flatten() {
-        let carrier = topo::readback::edge_carrier_ref(body, *rim).expect("a carried rim");
+        let carrier = body
+            .edge(*rim)
+            .and_then(topo::EdgeView::certified)
+            .expect("a carried rim")
+            .carrier();
         let circle = carrier.as_circle().expect("a latitude is a circle");
         assert_exact_unit(
             &format!("{what} latitude {rim:?} u_ref"),
@@ -663,7 +667,11 @@ where
     let (_, normal, u_ref) = plane(body, end_cap);
     let mut out = vec![normal, u_ref];
     for rim in r.rims.iter().flatten().flatten() {
-        let carrier = topo::readback::edge_carrier_ref(body, *rim).expect("a carried rim");
+        let carrier = body
+            .edge(*rim)
+            .and_then(topo::EdgeView::certified)
+            .expect("a carried rim")
+            .carrier();
         out.push(
             carrier
                 .as_circle()
