@@ -583,8 +583,6 @@ mod blend_operand_gate;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
-#[path = "conic_sizes_are_decided.rs"]
-mod conic_sizes_are_decided;
 #[path = "blend_value_decided_rows.rs"]
 mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]
@@ -599,6 +597,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "conic_edge_curved_face.rs"]
 mod conic_edge_curved_face;
+#[path = "conic_sizes_are_decided.rs"]
+mod conic_sizes_are_decided;
 #[path = "contact11_torus_chart_l.rs"]
 mod contact11_torus_chart_l;
 #[path = "contact_edge_must_carry.rs"]

@@ -1258,10 +1258,11 @@ pub(crate) fn moved_radius<T: Decide>(size: T, band: Band) -> Result<Option<T>, 
     } else {
         geom_core::width(size)
     };
-    Ok(
-        matches!(decide(MOVED_RADIUS, Margin::of(read), band)?, Sign::Positive)
-            .then_some(size),
+    Ok(matches!(
+        decide(MOVED_RADIUS, Margin::of(read), band)?,
+        Sign::Positive
     )
+    .then_some(size))
 }
 
 /// K name: a moved circle's radius, as a length ([`moved_radius`]).
@@ -6474,7 +6475,12 @@ mod corner_rows {
 /// Each row's mutant is `moved_radius` answering `Ok(Some(size))`
 /// undecided, under which the row panics in `Circle::new`.
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::float_cmp)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 mod moved_radius_rows {
     use geom::{Curve3, Surface};
     use geom_brep::Nappe;
@@ -6491,7 +6497,12 @@ mod moved_radius_rows {
     }
 
     fn moved(old: &Surface<f64>, d: f64, radius: f64, z: f64) -> Result<Option<f64>, ()> {
-        let circle = Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), radius, Vec3::unit_x());
+        let circle = Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::unit_z(),
+            radius,
+            Vec3::unit_x(),
+        );
         let mid = Point3::new(-radius, 0.0, z);
         transport_curve(old, Nappe::Opening, d, &circle, mid, band())
             .map(|image| {
@@ -6511,9 +6522,21 @@ mod moved_radius_rows {
             frame: frame_at(0.0),
             radius: 1.0,
         };
-        assert_eq!(moved(&cylinder, -0.75, 0.5, 0.0), Ok(None), "decided not positive");
-        assert_eq!(moved(&cylinder, 0.25, 1.0, 0.0), Ok(Some(1.25)), "the control");
-        assert_eq!(moved(&cylinder, f64::INFINITY, 1.0, 0.0), Err(()), "no finite radius");
+        assert_eq!(
+            moved(&cylinder, -0.75, 0.5, 0.0),
+            Ok(None),
+            "decided not positive"
+        );
+        assert_eq!(
+            moved(&cylinder, 0.25, 1.0, 0.0),
+            Ok(Some(1.25)),
+            "the control"
+        );
+        assert_eq!(
+            moved(&cylinder, f64::INFINITY, 1.0, 0.0),
+            Err(()),
+            "no finite radius"
+        );
     }
 
     /// The homothety's ratio `(R + d)/R` overflows at a finite `d` that
@@ -6524,9 +6547,21 @@ mod moved_radius_rows {
             frame: frame_at(0.0),
             radius: 1e-3,
         };
-        assert_eq!(moved(&sphere, 1e306, 1e-3, 0.0), Err(()), "the ratio overflows");
-        assert_eq!(moved(&sphere, f64::INFINITY, 1e-3, 0.0), Err(()), "an infinite move");
-        assert_eq!(moved(&sphere, 1e-3, 1e-3, 0.0), Ok(Some(2e-3)), "the control");
+        assert_eq!(
+            moved(&sphere, 1e306, 1e-3, 0.0),
+            Err(()),
+            "the ratio overflows"
+        );
+        assert_eq!(
+            moved(&sphere, f64::INFINITY, 1e-3, 0.0),
+            Err(()),
+            "an infinite move"
+        );
+        assert_eq!(
+            moved(&sphere, 1e-3, 1e-3, 0.0),
+            Ok(Some(2e-3)),
+            "the control"
+        );
     }
 
     /// A torus parallel moves by `d·cos v` from its own stored radius:
@@ -6540,10 +6575,22 @@ mod moved_radius_rows {
             major_radius: 1.0,
             minor_radius: 0.25,
         };
-        assert_eq!(moved(&torus, 0.125, 1.25, 0.0), Ok(Some(1.375)), "outer equator");
-        assert_eq!(moved(&torus, 0.125, 0.75, 0.0), Ok(Some(0.625)), "inner equator");
+        assert_eq!(
+            moved(&torus, 0.125, 1.25, 0.0),
+            Ok(Some(1.375)),
+            "outer equator"
+        );
+        assert_eq!(
+            moved(&torus, 0.125, 0.75, 0.0),
+            Ok(Some(0.625)),
+            "inner equator"
+        );
         assert_eq!(moved(&torus, 0.125, 1.0, 0.25), Ok(Some(1.0)), "top circle");
         // `cos v = (0.25 − 1)/0.25 = −3`: off the torus, and `0.25 − 3·0.125 < 0`.
-        assert_eq!(moved(&torus, 0.125, 0.25, 0.0), Ok(None), "decided not positive");
+        assert_eq!(
+            moved(&torus, 0.125, 0.25, 0.0),
+            Ok(None),
+            "decided not positive"
+        );
     }
 }

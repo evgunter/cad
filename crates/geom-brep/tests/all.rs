@@ -103,6 +103,8 @@ mod certify_turn_rule;
 mod computed_values_enter_as_unknowns;
 #[path = "cone_pair_section.rs"]
 mod cone_pair_section;
+#[path = "conic_sizes_are_decided.rs"]
+mod conic_sizes_are_decided;
 #[path = "coplanar_ellipses_one_locus.rs"]
 mod coplanar_ellipses_one_locus;
 #[path = "curved_torus_arc_residual.rs"]
@@ -139,8 +141,6 @@ mod imported_chart_arc_rim;
 mod interior_iso_column;
 #[path = "interior_iso_review.rs"]
 mod interior_iso_review;
-#[path = "conic_sizes_are_decided.rs"]
-mod conic_sizes_are_decided;
 #[path = "intersect_table.rs"]
 mod intersect_table;
 #[path = "m4_remint_headroom.rs"]
