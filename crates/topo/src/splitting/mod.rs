@@ -76,6 +76,7 @@ pub mod rules;
 mod section;
 mod section_cones;
 mod section_loops;
+pub use section_loops::UnplacedHole;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 
@@ -130,6 +131,17 @@ impl<T: Real> SplitPlane<T> {
                 geom::cover::BoxAxes::aimed(self.normal).rows()[1],
             ),
         }
+    }
+
+    /// The plane's frame for reading loops in it: its axis the normal,
+    /// bit for bit, and its `u_ref` the one [`Self::surface`] charts
+    /// with.
+    pub(in crate::splitting) fn frame(&self) -> geom::Frame<T> {
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+            self.origin,
+            self.normal,
+            geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+        ))
     }
 }
 
@@ -1374,7 +1386,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             section_cones::fuse_section_cones(body, side, &mut result.naming, tol)?;
             // On this run's own output: a refusal discards it.
-            finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
+            finish::end_maximal(body, side, &mut result.naming, plane.frame(), tol)?;
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;

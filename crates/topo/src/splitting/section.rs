@@ -180,15 +180,10 @@ pub enum SectionError<T: Real> {
         /// The winding's diagnostic, when it escalated.
         diag: Option<Indeterminate>,
     },
-    /// Nothing decides which outline encloses a hole — an outline edge
-    /// on a spiric or NURBS carrier, or a contact or containment in the
-    /// band ([`super::section_loops`]'s `nest` says what else could).
-    /// The split keeps such a hole as a face of its own; a region list
-    /// cannot state it.
-    UnplacedHole {
-        /// A corner of the hole.
-        corner: Point3<T>,
-    },
+    /// A hole of the section no outline is decided to enclose
+    /// ([`super::UnplacedHole`], `hole` a corner of it), as the split
+    /// refuses it ([`super::SplitFinishError::UnplacedHole`]).
+    UnplacedHole(super::UnplacedHole<Point3<T>>),
     /// Two outlines each read as enclosing the other around a hole
     /// (a kernel bug).
     NestingContradiction {
@@ -238,13 +233,9 @@ impl<T: Real> SectionError<T> {
                  cannot enclose). Recourse: \
                  {SECTION_PLANE_RECOURSE}"
             ),
-            Self::UnplacedHole { .. } => write!(
-                f,
-                "no outline of the section can be shown to enclose one of its holes: an \
-                 outline edge the nesting cannot read (spiric or NURBS), a contact too close \
-                 to call, or a sliver the section join mints across a curved face. Recourse: \
-                 {SECTION_PLANE_RECOURSE}"
-            ),
+            Self::UnplacedHole(hole) => {
+                write!(f, "{}. Recourse: {SECTION_PLANE_RECOURSE}", hole.reason())
+            }
             Self::NestingContradiction { .. } => write!(
                 f,
                 "two outlines of the section each read as enclosing the other around a hole. {}",
@@ -307,7 +298,8 @@ where
     let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
-    let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);
+    let below = section_loops::section_frame(plane.frame(), PlaneSide::Below);
+    let normal = below.axis();
 
     let mut u_ref = None;
     let mut v_ref = None;
@@ -394,23 +386,25 @@ where
             holes.push((polygon, section.below_loop));
         }
     }
-    let nesting = section_loops::nest(&red.body, outlines, holes, normal, band).map_err(
-        |fault| match fault {
-            // `section_walk` resolved, on this body, every record the
-            // nesting reads of these loops.
-            NestFault::Torn(unresolved) => unreachable!(
-                "the section nesting read a torn scratch body ({unresolved}), over loops whose \
+    let nesting =
+        section_loops::nest(&red.body, outlines, holes, below, band).map_err(|fault| {
+            match fault {
+                // `section_walk` resolved, on this body, every record the
+                // nesting reads of these loops.
+                NestFault::Torn(unresolved) => unreachable!(
+                    "the section nesting read a torn scratch body ({unresolved}), over loops whose \
                  every record the section walk resolved on the same body"
-            ),
-            NestFault::Contradiction(hole) => SectionError::NestingContradiction {
-                corner: hole.points()[0],
-            },
-        },
-    )?;
+                ),
+                NestFault::Contradiction(hole) => SectionError::NestingContradiction {
+                    corner: hole.points()[0],
+                },
+            }
+        })?;
     if let Some(hole) = nesting.unplaced.first() {
-        return Err(SectionError::UnplacedHole {
-            corner: hole.points()[0],
-        });
+        return Err(SectionError::UnplacedHole(super::UnplacedHole {
+            hole: hole.points()[0],
+            beside: None,
+        }));
     }
     Ok(Section {
         plane: *plane,

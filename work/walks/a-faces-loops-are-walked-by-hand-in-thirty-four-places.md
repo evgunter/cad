@@ -2,13 +2,13 @@
 id: a-faces-loops-are-walked-by-hand-in-thirty-four-places
 kind: issue
 title: a face loop that is not a Cycle is re-decided by each per-loop reader; the outer walk itself is one door since PR 6460
-status: review
+status: closed
 pr: 7474
 branch: walks/face-region
 opened: 2026-09-14
 priority: P1
 cost: M
-design: true
+closed: 2026-11-23
 ---
 
 Filed by PR 2531's fix pass, on its reviewers' Q1 finding: the unit
@@ -145,3 +145,7 @@ discard register keeps its shape (a source pin of the files matching
 `LoopBoundary` would list over a hundred); its entries for the sites
 routed through the facet are gone, and the Euler operators' entries are
 audited as the preconditions they are.
+
+## Closed
+
+2026-11-23: PR 7474 merged — a non-Cycle loop's meaning stated once in live.rs (torn / lone ring / lone outer), `FaceView::area_loops`, a `CycleLoop` built only by `prove_cycle`. The binding clause for crates/topo/README.md is `[ev]` PR 7547.

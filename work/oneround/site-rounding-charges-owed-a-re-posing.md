@@ -130,7 +130,8 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `profile::sugar::offset_circles`: the least lever, at `LEVER_ULPS`.
 - `topo::boolean::boxes::sphere_reach`, `topo::boolean::circle_roots`
   (`conic_off_plane`, `harmonic_crossing`),
-  `topo::splitting::section_loops::conics_clear`.
+  `topo::splitting::section_loops::conics_clear` (deleted by PR 7436;
+  the nesting reads `curve_pair::meet`).
 - `topo::injective::few_ulps`, `topo::separation::image`'s slop,
   `topo::props::rounding_bound`, `topo::props::quad_lane::end_slack`.
 

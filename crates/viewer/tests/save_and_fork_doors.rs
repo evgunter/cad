@@ -61,10 +61,13 @@ fn new_save_beside_fork_undo_resave_and_reopen_both() {
         .perform(SessionOp::Save(copy.clone()))
         .refusal
         .expect("beside the original, the save refuses");
-    let choice = refusal.save_choice().expect("and offers its choice");
+    let commits = viewer::test_support::refusal_commits(&refusal);
+    let [_, fork] = &commits[..] else {
+        panic!("and offers its two saves: {commits:?}")
+    };
     assert!(!copy.exists());
 
-    assert!(session.perform(choice.fork()).refusal.is_none());
+    assert!(session.perform(fork.op.clone()).refusal.is_none());
     let fork_id = session.committed_doc().id();
     assert_ne!(fork_id, original_id);
     assert!(
@@ -356,7 +359,10 @@ fn a_save_over_a_file_holding_a_third_document_refuses_and_offers_no_fork() {
         ),
         "{refusal:?}"
     );
-    assert!(refusal.save_choice().is_none(), "no choice to offer");
+    assert!(
+        viewer::test_support::refusal_commits(&refusal).is_empty(),
+        "no choice to offer"
+    );
     assert_eq!(
         file_id(&other, tol),
         third.id(),

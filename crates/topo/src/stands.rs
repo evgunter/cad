@@ -57,6 +57,7 @@
 //! a complex every point of which on a planar face, an edge or a vertex
 //! lies on another surface reads nothing.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Point3, Tol, Vec3};
 use slotmap::SecondaryMap;
 
@@ -475,8 +476,11 @@ fn across_edges<T: Decide>(
         carriers.push(curve.carrier());
         let (t0, t1) = curve.params();
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
-        let w = inward(normal, if plus { t } else { -t }).normalize();
-        if [w.x, w.y, w.z].iter().all(|c| !c.is_poison()) {
+        let w = UnitVec3::squared(inward(normal, if plus { t } else { -t }));
+        if [w.get().x, w.get().y, w.get().z]
+            .iter()
+            .all(|c| !c.is_poison())
+        {
             inward_lines.push(geom::Line {
                 origin: curve.mid_point(),
                 dir: w,
@@ -491,7 +495,7 @@ fn across_edges<T: Decide>(
                 if geom_core::is_finite_length(s)
                     && crate::validate::definitely_positive("stands_across_meeting", s, band)
                 {
-                    out.push(m + w * (s * half));
+                    out.push(m + w.get() * (s * half));
                 }
             }
         }
@@ -514,7 +518,7 @@ fn line_meetings<T: Decide>(
         let v = axis.cross(u);
         let r = m - center;
         let (x0, y0) = (r.dot(u) / a, r.dot(v) / b);
-        let (xw, yw) = (w.dot(u) / a, w.dot(v) / b);
+        let (xw, yw) = (w.get().dot(u) / a, w.get().dot(v) / b);
         let qa = xw.powi(2) + yw.powi(2);
         let qb = (x0 * xw + y0 * yw) * T::from_f64(2.0);
         let qc = x0.powi(2) + y0.powi(2) - T::one();
@@ -526,7 +530,7 @@ fn line_meetings<T: Decide>(
     };
     match *c {
         geom::Curve3::Line(geom::Line { origin, dir }) => {
-            vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
+            vec![(origin - m).cross(dir.get()).dot(normal) / w.get().cross(dir.get()).dot(normal)]
         }
         geom::Curve3::Circle(circle) => {
             let (center, axis, u_ref) = (

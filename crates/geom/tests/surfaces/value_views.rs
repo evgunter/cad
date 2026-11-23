@@ -120,11 +120,7 @@ fn a_scalar_that_is_its_own_value_channel_views_itself() {
             Dual64::from_f64(0.0),
             Dual64::from_f64(0.0),
         ),
-        geom_core::Vec3::new(
-            Dual64::from_f64(1.0),
-            Dual64::from_f64(0.0),
-            Dual64::from_f64(0.0),
-        ),
+        geom_core::UnitVec3::exact_x(),
     );
     let on = curve.value_view();
     let at = curve.eval(Dual64::from_f64(0.25));

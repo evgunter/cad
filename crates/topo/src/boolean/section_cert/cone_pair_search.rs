@@ -119,7 +119,7 @@ fn ruled((line, slop): (LineAt<'_>, Slop), scale: f64, partner: &Surface<f64>) -
                 let traced = trace(
                     &|u, psi| {
                         let geom::Line { origin: b, dir: v } = line(u + shift);
-                        b + v * (scale * psi.tan())
+                        b + v.get() * (scale * psi.tan())
                     },
                     &|q| geom_brep::implicit_residual(partner, q),
                     window,
@@ -360,7 +360,7 @@ fn resolves(
     let (coefficients, errors): (Vec<[f64; 3]>, Vec<[f64; 3]>) = (0..n)
         .map(|i| {
             let geom::Line { origin: b, dir: v } = line(TAU * (i as f64 + SHIFT) / n as f64);
-            along(partner, b, v, slop)
+            along(partner, b, v.get(), slop)
         })
         .unzip();
     // `E` is true to within what its coefficients' errors and its own two
@@ -497,7 +497,7 @@ fn cylinder(o: Point3<f64>, d: Vec3<f64>, r: f64, scale: f64) -> Partner {
         },
         line: Box::new(move |u| geom::Line {
             origin: o + (e1 * u.cos() + e2 * u.sin()) * r,
-            dir: d,
+            dir: geom::stated_direction(d),
         }),
         chart: Box::new(move |q| {
             let w = q - o;
@@ -517,7 +517,7 @@ fn cone(k: Frame) -> Partner {
             let (s, c) = k1.alpha.sin_cos();
             geom::Line {
                 origin: k1.apex,
-                dir: k1.a * c + k1.radial(u) * s,
+                dir: geom::stated_direction(k1.a * c + k1.radial(u) * s),
             }
         }),
         chart: Box::new(move |q| {
@@ -585,7 +585,11 @@ fn cylinder_near_apex(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let beta = rng.range(0.1, FRAC_PI_2);
     let d = leaning(rng, k, beta);
     let o = k.apex + unit_vec(rng) * (sc * rng.range(0.2, 1.5));
-    let dist = geom::Line { origin: o, dir: d }.distance(k.apex);
+    let dist = geom::Line {
+        origin: o,
+        dir: geom::stated_direction(d),
+    }
+    .distance(k.apex);
     let shift = sc * offset(rng);
     let r = dist + shift;
     (r > 0.05 * sc).then(|| Pose {
@@ -841,7 +845,7 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
     let off_cone = |apex: Point3<f64>, a: Vec3<f64>, alpha: f64, q: Point3<f64>| {
         let (h, rho) = geom::Line {
             origin: apex,
-            dir: a,
+            dir: geom::stated_direction(a),
         }
         .height_and_distance(q);
         (rho * alpha.cos() - h.abs() * alpha.sin()).abs()
@@ -850,7 +854,13 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
         Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             let d = axis.normalize();
-            let apex = (geom::Line { origin, dir: d }.distance(k.apex) - radius).abs();
+            let apex = (geom::Line {
+                origin,
+                dir: geom::stated_direction(d),
+            }
+            .distance(k.apex)
+                - radius)
+                .abs();
             let aperture = (d.dot(k.a).abs().acos() - k.alpha).abs() * lever;
             apex.min(aperture)
         }
@@ -1000,7 +1010,7 @@ fn against_the_trace(
         (
             &|u| geom::Line {
                 origin: k.apex,
-                dir: k.a * c + k.radial(u) * s,
+                dir: geom::stated_direction(k.a * c + k.radial(u) * s),
             },
             slop_of(&cone),
         ),

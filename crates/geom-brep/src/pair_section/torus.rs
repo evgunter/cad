@@ -40,6 +40,7 @@
 
 use geom::cover::Cover;
 use geom::{Curve3, Surface};
+use geom_core::UnitVec3;
 use geom_core::k_stats::decide_reported;
 use geom_core::{
     Band, Circles, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Point3, Real, Sign,
@@ -132,7 +133,7 @@ pub fn axis_pose<T: Decide>(
     band: Band,
 ) -> AxisPose<T> {
     let at = ball.foot_on(partner);
-    let tilt = a.cross(d).norm();
+    let tilt = a.get().cross(d.get()).norm();
     if !matches!(
         geom_core::k_stats::decide(
             "section_axes_tilt",
@@ -143,8 +144,8 @@ pub fn axis_pose<T: Decide>(
     ) {
         return AxisPose::Other;
     }
-    let (perp, e) = square_part(at - c, a);
-    let swing = line_tilt(a, d) * ball.lever_from(at).length()
+    let (perp, e) = square_part(at - c, a.get());
+    let swing = line_tilt(a.get(), d.get()) * ball.lever_from(at).length()
         + turn(&Turn {
             at,
             tilt,
@@ -232,7 +233,7 @@ impl From<TorusPoseRefusal> for SectionError {
 #[derive(Clone, Copy, Debug)]
 pub struct Ring<T: Real> {
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom_core::UnitVec3<T>,
     u_ref: Vec3<T>,
     big_r: T,
     r: T,
@@ -244,7 +245,7 @@ impl<T: Decide> Ring<T> {
     /// the convention's margins as poison, so the torus is not shown a
     /// ring and refuses typed there: every ring this mints has finite
     /// data.
-    fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
+    pub(super) fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
         let Surface::Torus {
             frame: carrier_frame,
             major_radius,
@@ -258,9 +259,17 @@ impl<T: Decide> Ring<T> {
             carrier_frame.axis(),
             carrier_frame.u_ref(),
         );
-        let axis = axis.normalize();
+        let axis = UnitVec3::squared(axis);
         let finite = [
-            center.x, center.y, center.z, axis.x, axis.y, axis.z, u_ref.x, u_ref.y, u_ref.z,
+            center.x,
+            center.y,
+            center.z,
+            axis.get().x,
+            axis.get().y,
+            axis.get().z,
+            u_ref.x,
+            u_ref.y,
+            u_ref.z,
         ]
         .into_iter()
         .all(geom_core::is_finite_length);
@@ -287,7 +296,7 @@ impl<T: Real> Ring<T> {
     /// The torus's placement: its centre, unit axis and seam.
     #[must_use]
     pub fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::new(self.center, self.axis, self.u_ref)
+        geom::Frame::new(self.center, self.axis.get(), self.u_ref)
     }
 
     /// The torus centre.
@@ -297,7 +306,7 @@ impl<T: Real> Ring<T> {
 
     /// The unit axis.
     pub fn axis(&self) -> Vec3<T> {
-        self.axis
+        self.axis.get()
     }
 
     /// `[R, r]`.
@@ -331,15 +340,15 @@ impl<T: Real> Ring<T> {
     /// The size of the torus's coordinates: its centre's distance from
     /// the origin and its reach from it, what a reading's rounding is a
     /// charge of.
-    fn size(self) -> T {
+    pub(super) fn size(self) -> T {
         (self.center - Point3::origin()).norm() + self.big_r + self.r
     }
 
     /// The parallel of radius `rho` at height `z`.
     fn parallel(self, rho: T, z: T) -> Curve3<T> {
         Curve3::circle(
-            self.center + self.axis * z,
-            self.axis,
+            self.center + self.axis.get() * z,
+            self.axis.get(),
             rho,
             self.frame().square().u_ref,
         )
@@ -374,7 +383,7 @@ pub(super) const TT_GAP: GapRows = crate::rows::TT_GAP;
 const ST_GAP: [&str; 2] = ["st_critical_gap", "st_critical_gap_floor"];
 
 /// The sweep's verdict as the pose holds it.
-fn swept<T: Decide>(
+pub(super) fn swept<T: Decide>(
     ring: Ring<T>,
     spine: Spine<T>,
     radii: [T; 2],
@@ -414,7 +423,7 @@ pub enum TorusGap<T: Real> {
 }
 
 impl<T: Real> TorusGap<T> {
-    fn tangency(self) -> Option<ZeroVerdict> {
+    pub(super) fn tangency(self) -> Option<ZeroVerdict> {
         match self {
             Self::Transverse => None,
             Self::Tangent { row, margin, .. } => Some(ZeroVerdict {
@@ -503,7 +512,10 @@ fn crossing_parallels<T: Real>(
 
 /// The one component a tangent pose lists: a point where the arm reads a
 /// touch there, else a tangent loop.
-fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> SectionComponent<T> {
+pub(super) fn tangent_component<T: Real>(
+    touch: Option<Point3<T>>,
+    winds: [bool; 2],
+) -> SectionComponent<T> {
     let (shape, winds) = if touch.is_some() {
         (ComponentShape::Point, [false, false])
     } else {
@@ -601,10 +613,10 @@ impl<T: Decide> SphereTorusPose<T> {
             radius_guard("st_sphere_radius", SectionRadius::Sphere, radius, band)?;
             let ring = ring?;
             let q = center - ring.center;
-            let (perp, s) = square_part(q, ring.axis);
+            let (perp, s) = square_part(q, ring.axis.get());
             let coaxial =
                 decide_reported("st_coaxial", Margin::of(s), band).map_err(undecided_symmetry)?;
-            let h = q.dot(ring.axis);
+            let h = q.dot(ring.axis.get());
             let (stance, gap) = if coaxial.sign == Sign::Zero {
                 // The centre's distance from every core point as the
                 // coaxial reading has it, and the sphere against the tube
@@ -706,7 +718,7 @@ impl<T: Decide> SphereTorusPose<T> {
             return None;
         }
         let ring = self.ring;
-        let ca = (self.center - ring.center).dot(ring.axis);
+        let ca = (self.center - ring.center).dot(ring.axis.get());
         let (c1, c2) = (
             Point2::new(ring.big_r, T::zero()),
             Point2::new(T::zero(), ca),
@@ -764,7 +776,7 @@ pub(super) fn sphere_torus<T: Decide>(
             let winds = order(torus_first, [true, false]);
             match tube.0 {
                 Sign::Positive => {
-                    let ca = (pose.center - ring.center).dot(ring.axis);
+                    let ca = (pose.center - ring.center).dot(ring.axis.get());
                     crossing_parallels(ring, (T::zero(), ca, pose.radius), winds)
                 }
                 Sign::Zero => vec![tangent_component(None, winds)],
@@ -772,7 +784,8 @@ pub(super) fn sphere_torus<T: Decide>(
             }
         }
         StStance::Apart => {
-            let meridian = SphereMeridian::of(ring.center, ring.axis, ring.big_r, pose.center);
+            let meridian =
+                SphereMeridian::of(ring.center, ring.axis.get(), ring.big_r, pose.center);
             let radii = ring.radii();
             match pose.gap {
                 TorusGap::Transverse => {
@@ -879,7 +892,7 @@ impl<T: Decide> CylinderTorusPose<T> {
         let &Surface::Cylinder { radius, .. } = cylinder else {
             return None;
         };
-        let cylinder_axis = cylinder.axis_line()?.unit();
+        let cylinder_axis = cylinder.axis_line()?;
         let ring = Ring::of(torus, band)?;
         Some((|| {
             radius_guard("ct_cylinder_radius", SectionRadius::Cylinder, radius, band)?;
@@ -1162,7 +1175,7 @@ impl<T: Decide> TorusTorusPose<T> {
             // The centre's height is read off `c2` itself, which the turn
             // onto the torus axis lifts by its station from the pivot
             // times `1 − cos`, at most `sin²`.
-            let turn = |t: &Turn<T>| (c2 - t.at).dot(a2).abs() * t.tilt.powi(2);
+            let turn = |t: &Turn<T>| (c2 - t.at).dot(a2.get()).abs() * t.tilt.powi(2);
             let (stance, gap) = match axis_pose(
                 r1.frame().axis_line(),
                 r2.frame().axis_line(),
@@ -1171,7 +1184,7 @@ impl<T: Decide> TorusTorusPose<T> {
                 band,
             ) {
                 AxisPose::Coaxial { slack, margin } => {
-                    let z2 = (c2 - r1.center).dot(r1.axis);
+                    let z2 = (c2 - r1.center).dot(r1.axis.get());
                     let tubes = Circles::new(Vec2::new(r2.big_r - r1.big_r, z2).norm(), r1.r, r2.r);
                     let mut tube = None;
                     for (row, m) in [(TUBE_REACH, tubes.reach()), (TUBE_NEST, tubes.internal())] {
@@ -1290,7 +1303,7 @@ pub(super) fn torus_torus<T: Decide>(
             });
             match tube.0 {
                 Sign::Positive => {
-                    let z2 = (r2.center - r1.center).dot(r1.axis);
+                    let z2 = (r2.center - r1.center).dot(r1.axis.get());
                     Components::Counted(crossing_parallels(r1, (r2.big_r, z2, r2.r), [true, true]))
                 }
                 Sign::Zero => Components::Counted(vec![tangent_component(None, [true, true])]),
@@ -1298,7 +1311,7 @@ pub(super) fn torus_torus<T: Decide>(
             }
         }
         (TtStance::Parallel { e, toward, slack }, TorusGap::Transverse) => {
-            let h = (r2.center - r1.center).dot(r1.axis);
+            let h = (r2.center - r1.center).dot(r1.axis.get());
             let parts = torus_arms::parallel_torus_arm(
                 r1.frame().axis_line(),
                 [r1.radii(), r2.radii()],
