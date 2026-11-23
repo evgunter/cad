@@ -160,7 +160,7 @@ fn loop_cut_in<T: Decide + AtRestPolicy>(
     let [component] = carried.components() else {
         return None;
     };
-    let net = component.carrier.whole_net()?.control().to_vec();
+    let net = component.carrier.whole_net()?.control();
     if component.runs.is_empty() || net.is_empty() || !component.closed() {
         return None;
     }
@@ -174,8 +174,6 @@ fn loop_cut_in<T: Decide + AtRestPolicy>(
         radius,
         section: CutSection::Loop {
             toward,
-            net,
-            pad: component.pad,
             tube: component.runs.iter().map(|r| (r.lo, r.hi)).collect(),
         },
     })
