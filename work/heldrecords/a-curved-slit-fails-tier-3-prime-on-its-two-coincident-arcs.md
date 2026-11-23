@@ -143,25 +143,28 @@ the rows PR 5793 moved onto this gap among them, and the SECT torus less
 a disc on a parallel with them.
 
 **The exemption off.** `census.rs` `ee_collinear_lane` with `recorded`
-read from the records alone, the split's tests reading each side's own
-records, the `ci` profile of topo, sweep and editor-core at the default
-ε: 20 rows red, none of them a pair the split mints.
+read from the records alone, the `ci` profile of topo, sweep and
+editor-core at the default ε: 27 rows red as the tests stand (topo 18,
+sweep 6, editor-core 3; the review's count), 20 with the split's tests
+reading each side's own records. None is a pair the split mints: the
+editor-core three refuse on their own records too, their operand a
+Boolean's unrecorded pair.
 
 - The Boolean's straight lanes (filed:
   `the-booleans-straight-slit-and-pinch-lanes-record-no-edge-edge-pair`):
   `a_face_inside_an_edges_wedge_refuses_at_tier_3_prime` (2),
   `a_figure_eight_hole_cut_through_its_pinch`,
   `a_vertex_read_by_two_sector_passes::an_edge_through_two_blocks_glued_faces_builds_at_rest`,
-  and the union pinch through `common/touch_union.rs` (3).
+  the union pinch through `common/touch_union.rs` (3), the bore's slit
+  forms (`a_keel_on_a_bores_ruling`, `a_slit_tip_on_a_curved_face…`, red
+  as the tests stand), and the splits of a Boolean's unrecorded pair
+  (`split_pinch_keeps`, 3).
 - The exemption's own pins: `census::tests::a_tip_copy_on_its_own_bit_equal_point_is_an_unrecorded_contact`,
   `m3_pr6_tier3prime` (2), `union_flush_onto_edge_contact::a_pinch_without_its_edge_edge_row_reads_its_shared_ends`.
 - Tests that hand no records where the body holds its own:
-  `m3_pr3_split` (3, `pseudomanifold_door`),
-  `split_pinch_keeps::a_split_along_a_diamond_pocket_floor_touching_the_block_walls_builds`;
-  and fixtures built unrecorded: `a_doubled_line_does_not_revert`,
+  `m3_pr3_split` (3, `pseudomanifold_door`); and fixtures built
+  unrecorded: `a_doubled_line_does_not_revert`,
   `a_slit_tip_at_a_cone_apex_reads_its_full_turn` (3).
-- `union_fold_face_face_touch`, red on PR 7421's own head with the
-  exemption on.
 
 Not reached by that run: the split's curved pinch along a closed keel
 (filed: `a-splits-curved-pinch-along-a-closed-keel-records-no-edge-edge-pair`).

@@ -85,3 +85,4 @@ Notes for a successor:
   - `topo::recourse_roster`'s stale `tangent_sector_order2`.
   - nist_ftc_09's refusal drift, which keeps the render lane red, so the tour frames await the nightly.
 - 2026-11-22 — (GREEN orchestrator) Filed `main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12` (P1) here: red at ε 1e-12 on GREEN's PR 7399 gate, whose diff cannot reach it; not on the 11-21 nightly's failure list. Not bisected.
+- 2026-11-23 — (HELDRECORDS split-on lane) Re-banded `two-coincident-edges-between-one-vertex-pair-mesh-non-manifold` P2 → P1 on the HELDRECORDS orchestrator's word: PR 7481 ships the split's curved ring, whose walls' side meshes `Ok` and fails `check_mesh` (`MismatchedWinding`), a silently wrong output newly reachable; evidence on the row.

@@ -34,7 +34,21 @@ lanes still record nothing:
   `crates/topo/tests/a_figure_eight_hole_cut_through_its_pinch.rs`
   (the subtract `x + y = 0`);
   `crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`
-  `an_edge_through_two_blocks_glued_faces_builds_at_rest`.
+  `an_edge_through_two_blocks_glued_faces_builds_at_rest`; and the
+  bore's slit forms, `crates/sweep/tests/a_keel_on_a_bores_ruling.rs`
+  `the_slit_form_holds_its_closed_form` and
+  `crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs`
+  `the_block_carries_the_keel_as_a_slit_of_the_bore`.
+- **Splits of a Boolean's unrecorded pair**: an operand the Boolean
+  built with two coincident line edges and no record, which a later cut
+  crosses, leaves each side two coincident halves the split cannot
+  record (it carries what its operand holds, and mints only the pairs
+  over an operand edge in its plane):
+  `crates/editor-core/tests/split_pinch_keeps.rs`
+  `a_diamond_moat_reaching_the_block_wall_holds_its_touches_on_the_pocket_wall_as_corners`,
+  `a_moat_reaching_the_block_walls_at_its_corners_quarters_both_sections`
+  and `a_split_along_a_diamond_pocket_floor_touching_the_block_walls_builds`,
+  which refuse on their own records as well (measured 2026-11-23).
 - **The union pinch along a line** (two solids touching along an edge,
   each end collapsed to one vertex): `crates/sweep/tests/common/touch_union.rs`
   through `review_4704_flush_round_oracle::a_same_side_tangent_touch_answers_every_op`,
@@ -56,8 +70,6 @@ comes out.
 Tests that hand the census no records, where the body holds its own,
 also go red, and are a test-side change once the doors record:
 `crates/topo/tests/m3_pr3_split.rs` (`pseudomanifold_door`, three rows),
-`crates/editor-core/tests/split_pinch_keeps.rs`
-`a_split_along_a_diamond_pocket_floor_touching_the_block_walls_builds`,
 and hand-built fixtures with no records
 (`crates/topo/tests/a_doubled_line_does_not_revert.rs`
 `the_slit_body_reverted_unpaired_refuses_its_wedges_at_tier_3_prime`;

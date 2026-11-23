@@ -4,7 +4,7 @@ kind: issue
 title: Two coincident edges between one vertex pair mesh as one segment of four triangles, which check_mesh refuses
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -126,4 +126,19 @@ so the curved ring ships again. Measured on that branch at the default
 - **The Boolean's twin**
   (`crates/sweep/tests/a_curved_keel_on_the_floor_builds_its_slit_form.rs`),
   both forms: clean at 1e-2 and 0.1, `Triangulation` at 1e-3.
+
+## Re-banded P1 (2026-11-23, HELDRECORDS split-on, on its orchestrator's word)
+
+A silently wrong output is now newly reachable from a shape that used to
+refuse: PR 7481 ships the split's curved ring, where the split refused
+`CurvedSlitTrace` before. The walls' side of
+`crates/sweep/tests/a_curved_keel_in_the_plane.rs`'s `keeled(s, 60°)`
+split by `y = 1` meshes `Ok` from `tessellate` and `check_mesh` refuses
+`MismatchedWinding`, with the tip on the plane and at `+0.6 ε`, either
+normal (measurements in the 2026-11-22 section above). A wrong mesh with
+no refusal is a P1 by `work/README.md` Priority. The split side passes
+tier 3′ on its records, so the defect is the mesher's reading of the two
+coincident arcs, not the body. Making `tessellate` refuse typed on two
+coincident edges between one vertex pair (curved or straight) closes the
+silent half before the mesh itself is built right.
 
