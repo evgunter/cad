@@ -2,13 +2,14 @@
 id: edge-join-singular-at-reads-a-spline-pole-as-not-singular
 kind: issue
 title: edge_join::singular_at answers false for a spline chart by its last arm, so a pole on a spline face is read as regular
-status: review
+status: closed
 opened: 2026-11-01
 priority: P3
 cost: E
 rides_with: a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint
 branch: charttail/collapsed-column
 pr: 7325
+closed: 2026-11-23
 ---
 
 Disclosed and left unscheduled by PR 6220's sweep for last-arm
@@ -33,3 +34,7 @@ last arm. Its witness is a loft wedge
 (`crates/sweep/tests/pinned_corners_build.rs`). No join of an edge
 ending at its pole was built to pin the boolean reading; the arm
 reads the same home the loop walk and tier 3 read.
+
+## Closed (2026-11-23)
+
+By PR 7325, on Ev's ruling on PR 7287: a spline chart's singular set is read exactly off its net, with one home, `singular_points(&Surface)`. A vertex on a collapsed side takes `AzimuthRule::OnCollapsedSide` (the free channel along the side, both ends checked on it), and the loft builds a pinned corner (class 1), a hinge and a lune exactly. `edge_join` and `cell_region` ask the home. The full turn's single pinned vertex is LATHE's `a-full-turns-pinned-vertex-refuses-at-the-loft-door`, and the closed collapsed side is `a-closed-collapsed-side-has-no-turn-or-side-reading`.

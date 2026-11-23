@@ -2,12 +2,13 @@
 id: a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint
 kind: issue
 title: a NURBS wall with a collapsed boundary column (a loft's pinned corner) has no loop joint: the walk resets only on a sphere's or cone's singular point
-status: review
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: H
 branch: charttail/collapsed-column
 pr: 7325
+closed: 2026-11-23
 ---
 
 Filed by CARVE's `carve/pinned-corners` lane (phase 1 of CARVE's
@@ -101,3 +102,7 @@ and they disagreed. What the branch makes true:
   rectangle.
 - **Import heals** a side read one point at ε_in, and reports it
   (`NormalizationKind::CollapsedSideMadeOne`).
+
+## Closed (2026-11-23)
+
+By PR 7325, on Ev's ruling on PR 7287: a spline chart's singular set is read exactly off its net, with one home, `singular_points(&Surface)`. A vertex on a collapsed side takes `AzimuthRule::OnCollapsedSide` (the free channel along the side, both ends checked on it), and the loft builds a pinned corner (class 1), a hinge and a lune exactly. `edge_join` and `cell_region` ask the home. The full turn's single pinned vertex is LATHE's `a-full-turns-pinned-vertex-refuses-at-the-loft-door`, and the closed collapsed side is `a-closed-collapsed-side-has-no-turn-or-side-reading`.
