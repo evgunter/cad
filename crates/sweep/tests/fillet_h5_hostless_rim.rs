@@ -173,7 +173,11 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
 
         for v in rim_vertices(body, &arcs) {
             let inc = body.edges_of_vertex(v).unwrap();
-            assert_eq!(inc.len(), 2, "{name}: the rim's vertex holds the rim and one seam");
+            assert_eq!(
+                inc.len(),
+                2,
+                "{name}: the rim's vertex holds the rim and one seam"
+            );
             let seams: Vec<EdgeKey> = inc.iter().copied().filter(|e| !arcs.contains(e)).collect();
             assert_eq!(seams.len(), 1, "{name}: one seam meets a crossing");
             assert!(

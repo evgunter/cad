@@ -1559,8 +1559,10 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         // feet IN this cycle, so an edge of it the request did not name
         // would end up inside a strip the carve excises. The recourse is
         // true at the site because its clause asks for the rim to be the
-        // host's WHOLE outer cycle. A finished host reaches it through a
-        // pinch: `fillet_h5_r2_probes::a_finished_pinched_host_refuses_at_the_hostless_gate`.
+        // host's WHOLE outer cycle. A finished host pinched at a one-edge
+        // rim refuses before it, at the one-edge rim door
+        // (`fillet_h5_r2_probes::a_finished_pinched_host_refuses_at_the_one_edge_rim_door`),
+        // so no finished fixture reaches this arm.
         if cycle != want {
             return Err(unbuilt_chain(
                 link0.edge,

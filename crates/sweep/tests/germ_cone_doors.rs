@@ -134,7 +134,11 @@ fn contain(body: &Body<f64>, f: FaceKey, q: Point3<f64>) -> Option<FaceContainme
 fn the_frustum_bands_partition_their_wall_under_face_containment() {
     let body = frustum();
     let bands = cone_faces(&body);
-    assert_eq!(bands.len(), 2, "a full revolve splits its cone wall in two");
+    assert_eq!(
+        bands.len(),
+        1,
+        "a full revolve sweeps its cone wall as one face"
+    );
     for k in 0..12 {
         let phi = 0.1 + f64::from(k) * core::f64::consts::TAU / 12.0;
         for y in [0.1, 0.5, 0.9] {

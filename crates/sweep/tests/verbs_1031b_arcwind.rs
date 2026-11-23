@@ -143,7 +143,7 @@ fn assert_the_cup_as_built(label: &str, cup: &Body<f64>, tol: Tol) {
             cup.vertices().count(),
             cup.edges().count()
         ),
-        (19, 24, 36),
+        (13, 12, 18),
         "{label}: the census the merge used to reach"
     );
     let roles = annulus_roles(cup);

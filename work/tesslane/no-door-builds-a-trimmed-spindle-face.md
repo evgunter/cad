@@ -47,3 +47,14 @@ spindle face against a plane. The first body that does is the row's
 first fixture: a lemon split by a tilted plane, meshed at three δ with
 `reach_probes`' geometry check (volume, winding against the surface's
 own normal, sampled deviation, and the shape bound).
+
+## Seam copies on the spindle arm are admitted untested (LATHE, 2026-11-23)
+
+Since `lathe/seam-twice-remnant` (PR 7473) the spindle arm, like the
+sphere's, admits a trimmed face whose loop walks its seam both ways:
+`singular_row_shape` no longer refuses `SeamTwice`, and
+`trimmed::repeat_columns` keeps #678's column shape off the copies. No
+body reaches that on the spindle row either. The first fixture this row
+asks for should include a cut whose remnant keeps the sheet's seam (the
+plane clear of the seam meridian, so the seam survives into a trimmed
+face), meshed as above.

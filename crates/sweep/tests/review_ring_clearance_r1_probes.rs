@@ -105,7 +105,7 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
         let name = if up { "boss" } else { "dimple" };
         let body = topo::test_support::finished("body", repaired(up), tol());
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
-        assert_eq!(arcs.len(), 2);
+        assert_eq!(arcs.len(), 1);
         let [fa, fb] = faces_of(&body, arcs[0]);
         let is_plane = |f: FaceKey| matches!(body.face_surface(f).unwrap(), Surface::Plane { .. });
         let (top, dome) = if is_plane(fa) { (fa, fb) } else { (fb, fa) };

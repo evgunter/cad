@@ -162,7 +162,7 @@ fn r2_the_split_rule_is_measured_by_splitting_not_read_off_prose() {
         let b = repaired_boss(up);
         let arcs = rim_arcs_at(&b, 0.5, 1.0);
         let o = orientations(&b, &arcs);
-        assert_eq!(o.len(), 2, "the boss's dome rim has two rim vertices");
+        assert_eq!(o.len(), 1, "the boss's dome rim has one rim vertex");
         for (split, hp) in &o {
             assert_eq!(
                 split, hp,
@@ -174,7 +174,7 @@ fn r2_the_split_rule_is_measured_by_splitting_not_read_off_prose() {
     let pip = slab_with(BooleanOp::Subtract, SLAB + (BALL_R - CAP_H));
     let arcs = plane_sphere_rim(&pip);
     let o = orientations(&pip, &arcs);
-    assert_eq!(o.len(), 2);
+    assert_eq!(o.len(), 1);
     for (split, hp) in &o {
         assert_eq!(
             split, hp,
@@ -193,11 +193,7 @@ fn r2_the_split_rule_is_measured_by_splitting_not_read_off_prose() {
 fn r2_a_pip_cut_from_below_runs_pole_to_rim_through_the_boolean_door() {
     let pip = slab_with(BooleanOp::Subtract, -(BALL_R - CAP_H));
     let arcs = plane_sphere_rim(&pip);
-    assert_eq!(
-        arcs.len(),
-        2,
-        "the underside pip rim is two arcs across the seam"
-    );
+    assert_eq!(arcs.len(), 1, "the underside pip rim is one closed edge");
     let o = orientations(&pip, &arcs);
     assert_eq!(
         o,
@@ -216,11 +212,7 @@ fn r2_a_pip_cut_from_below_runs_pole_to_rim_through_the_boolean_door() {
 fn r2_a_boss_grown_downward_runs_rim_to_pole_on_a_concave_rim() {
     let b = slab_with(BooleanOp::Union, BALL_R - CAP_H);
     let arcs = plane_sphere_rim(&b);
-    assert_eq!(
-        arcs.len(),
-        2,
-        "the underside boss rim is two arcs across the seam"
-    );
+    assert_eq!(arcs.len(), 1, "the underside boss rim is one closed edge");
     let o = orientations(&b, &arcs);
     assert_eq!(
         o,
@@ -273,7 +265,11 @@ fn r2_a_profile_authored_in_reverse_mints_the_same_meridian_direction() {
         .merge_coplanar_faces(tol())
         .expect("the reversed boss repairs");
     let arcs = rim_arcs_at(&reversed2, 0.5, 1.0);
-    assert_eq!(arcs.len(), 2, "the reversed boss's dome rim is two arcs");
+    assert_eq!(
+        arcs.len(),
+        1,
+        "the reversed boss's dome rim is one closed edge"
+    );
     let o = orientations(&reversed2, &arcs);
     let forward = orientations(
         &repaired_boss(true),

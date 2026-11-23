@@ -67,7 +67,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
             matches!(c.carrier(), geom::Curve3::Circle(..))
         })
         .count();
-    assert_eq!(circles, 2, "the two half-circles of the latitude ring");
+    assert_eq!(circles, 1, "the latitude ring's one circle");
     assert_eq!(
         on_plane.len(),
         4,
@@ -191,7 +191,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
             );
         }
     }
-    assert_eq!(circles, 2, "the latitude ring's two half-circles");
+    assert_eq!(circles, 1, "the latitude ring's one circle");
 }
 
 /// **Sphere, the closing mint.** The grafted body is tier-3 valid on

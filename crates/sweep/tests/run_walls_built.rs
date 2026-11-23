@@ -784,7 +784,10 @@ fn arc_runs_build_one_wall_at_interval() {
                 let label = format!("{what} {label}");
                 let r = revolve(&at(d_chain(x0, k, start)), axis, Revolution::Full, t)
                     .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                assert_eq!(r.body.faces().count(), 2, "{label}: one wall");
+                // The sphere's arc run is its one face; the torus's D
+                // closes its arc run with a chord, a second wall.
+                let walls = if what == "sphere" { 1 } else { 2 };
+                assert_eq!(r.body.faces().count(), walls, "{label}: one wall per run");
                 validate_geometric(&r.body, t).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
                 topo::mass_properties(
                     &topo::test_support::finished(
