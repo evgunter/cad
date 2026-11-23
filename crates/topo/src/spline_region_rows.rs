@@ -2196,3 +2196,91 @@ fn a_spline_faces_stations_read_on_its_own_chart() {
     assert_eq!(region((0.5, 0.5)), Some(FaceContainment::In));
     assert_eq!(region((0.02, 0.5)), Some(FaceContainment::Out));
 }
+
+/// Review probes (PR 7652 review, kept on the review branch only).
+mod review_probes {
+    use super::super::{Rect, bezier_cells};
+    use geom::NurbsSurface;
+    use geom_core::Point3;
+    use geom_core::exact::Expansion;
+    use geom_core::running::Tracked;
+    use geom_core::spline::KnotVector;
+
+    fn times(a: &Expansion, b: &Expansion) -> Expansion {
+        let mut out = Expansion::default();
+        for &c in a.components() {
+            out.add_expansion(&b.scaled(c));
+        }
+        out
+    }
+    fn diff(a: f64, b: f64) -> Expansion {
+        let mut e = Expansion::product(a, 1.0);
+        e.add(-b);
+        e
+    }
+    fn sum(e: &Expansion) -> f64 {
+        e.components().iter().sum()
+    }
+
+    /// **A restriction whose ratio rounds to the half is cut as the
+    /// exact half** (`Patch::split`, `s == 0.5` → `Tracked::exact`):
+    /// `(w0 − r0)/(r1 − r0)` for the knots below rounds to `0.5` while the
+    /// true ratio is about `0.99u` off it, and the cell's cut point then
+    /// drifts past the worst bound its channel carries over the whole
+    /// cell, judged in exact arithmetic against the restriction at the
+    /// true ratio. Red on the frozen head.
+    #[test]
+    fn review_a_restriction_at_a_ratio_rounded_to_the_half_holds_its_drift() {
+        let (r0, w0, r1) = (
+            -0.028_895_572_897_523_092,
+            1.990_979_372_367_584,
+            4.010_854_317_632_69,
+        );
+        assert_eq!((w0 - r0) / (r1 - r0), 0.5, "the ratio rounds to the half");
+        let (xa, xb) = (-0.723_449_517_348_052, -0.638_406_370_805_139_3);
+        let (wa, wb) = (0.012_119_248_256_316_217, 0.011_717_390_114_376_844);
+        let ku = KnotVector::clamped(vec![r0, r0, r1, r1], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        // Row-major in `u`: index i·2 + j.
+        let control = vec![
+            Point3::new(xa, 0.0, 0.0),
+            Point3::new(xa, 1.0, 0.0),
+            Point3::new(xb, 0.0, 0.0),
+            Point3::new(xb, 1.0, 0.0),
+        ];
+        let chart = NurbsSurface::new(ku, kv, control, vec![wa, wa, wb, wb]).unwrap();
+        let cell = bezier_cells(&chart).unwrap().remove(0);
+        let c = cell.centre.x;
+        let cut = cell.restricted(Rect {
+            u: (w0, r1),
+            v: (0.0, 1.0),
+        });
+        let worst = cut
+            .net
+            .iter()
+            .map(|h| Tracked::dehomogenized(*h, "review_probe_weight").unwrap()[0].rounding())
+            .fold(0.0f64, f64::max);
+        // The exact cut point at the true ratio, times (r1 − r0).
+        let (d1, d2) = (diff(r1, r0), diff(w0, r0));
+        let ha = diff(xa, c).scaled(wa);
+        let hb = diff(xb, c).scaled(wb);
+        let mut hd = hb.clone();
+        hd.add_expansion(&ha.negated());
+        let mut h = times(&ha, &d1);
+        h.add_expansion(&times(&hd, &d2));
+        let mut w = d1.scaled(wa);
+        w.add_expansion(&d2.scaled(wb - 0.0));
+        w.add_expansion(&d2.scaled(-wa));
+        let got = cut.net[0].map(|t| t.value());
+        let p = got[0] / got[3];
+        let mut gap = w.scaled(p);
+        gap.add_expansion(&h.negated());
+        let drift = sum(&gap).abs() / sum(&w).abs();
+        eprintln!("[review] cut point drift {drift:e}, the channel's worst bound {worst:e}, ratio {}", drift / worst);
+        assert!(
+            drift <= worst,
+            "the cut point drifts {drift:e}, {} times the channel's worst bound {worst:e}",
+            drift / worst
+        );
+    }
+}
