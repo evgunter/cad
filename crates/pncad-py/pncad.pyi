@@ -6686,6 +6686,13 @@ class InterferenceFinding:
         `gap(outer, inner)` related to a negative bound by `<=` or `=`
         quiets it, and the bound is the author's. `None` where no
         assertion could quiet it, which refuses at no severity."""
+    @property
+    def quieting_references(self) -> tuple[QuietingRef, QuietingRef] | None:
+        """The two references an author writes that `gap` over, outer
+        then inner, each a selection of one name in its copy's read: a
+        family member's face by the name its member wraps, so the
+        assertion reaches the family's index and each member reads its
+        own face. `None` exactly where `quieting` is."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the

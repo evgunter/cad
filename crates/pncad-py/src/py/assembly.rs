@@ -471,6 +471,7 @@ pub(crate) struct InterferenceFinding {
     quiet_by: Option<NodeId>,
     quiet_at: Vec<(Var, u32)>,
     quieting: Option<(FaceSite, FaceSite)>,
+    quieting_references: Option<(super::checks::QuietingRef, super::checks::QuietingRef)>,
 }
 
 impl InterferenceFinding {
@@ -524,6 +525,17 @@ impl InterferenceFinding {
                 .quieting
                 .as_ref()
                 .map(|pair| Ok::<_, PyErr>((face(&pair.outer)?, face(&pair.inner)?)))
+                .transpose()?,
+            quieting_references: finding
+                .quieting
+                .as_ref()
+                .map(|pair| {
+                    let [outer, inner] = &pair.references;
+                    Ok::<_, PyErr>((
+                        super::checks::QuietingRef::of(py, var, outer)?,
+                        super::checks::QuietingRef::of(py, var, inner)?,
+                    ))
+                })
                 .transpose()?,
         })
     }
@@ -599,6 +611,18 @@ impl InterferenceFinding {
     #[getter]
     fn quieting(&self) -> Option<(FaceSite, FaceSite)> {
         self.quieting.clone()
+    }
+
+    /// The two references an author writes that `gap` over, outer then
+    /// inner, each a selection of one name in its copy's read: a family
+    /// member's face by the name its member wraps, so the assertion
+    /// reaches the family's index and each member reads its own face.
+    /// `None` exactly where `quieting` is.
+    #[getter]
+    fn quieting_references(
+        &self,
+    ) -> Option<(super::checks::QuietingRef, super::checks::QuietingRef)> {
+        self.quieting_references.clone()
     }
 
     fn __repr__(&self) -> String {

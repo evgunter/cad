@@ -741,6 +741,30 @@ pub(crate) struct QuietingRef {
     pose: Option<&'static str>,
 }
 
+impl QuietingRef {
+    /// The reference, each variable as `var` hands it out.
+    pub(crate) fn of(
+        py: Python<'_>,
+        var: &dyn Fn(d::VarId) -> Var,
+        r: &d::QuietingRef,
+    ) -> PyResult<Self> {
+        Ok(match r {
+            d::QuietingRef::Read(read) => Self {
+                read: var(*read),
+                name: None,
+                pose: None,
+            },
+            d::QuietingRef::Entity {
+                read, name, pose, ..
+            } => Self {
+                read: var(*read),
+                name: Some(super::doc::name_text(py, name)?),
+                pose: pose.map(crate::errors::var_kind_tag),
+            },
+        })
+    }
+}
+
 #[pymethods]
 impl QuietingRef {
     /// The variable read: the body the entity is selected in, or the
@@ -814,22 +838,8 @@ impl Quieting {
     /// inner.
     #[getter]
     fn references(&self, py: Python<'_>) -> PyResult<(QuietingRef, QuietingRef)> {
-        let reference = |r: &d::QuietingRef| {
-            Ok::<_, PyErr>(match r {
-                d::QuietingRef::Read(var) => QuietingRef {
-                    read: Var::of(&self.1, *var),
-                    name: None,
-                    pose: None,
-                },
-                d::QuietingRef::Entity {
-                    read, name, pose, ..
-                } => QuietingRef {
-                    read: Var::of(&self.1, *read),
-                    name: Some(super::doc::name_text(py, name)?),
-                    pose: pose.map(crate::errors::var_kind_tag),
-                },
-            })
-        };
+        let var = |id| Var::of(&self.1, id);
+        let reference = |r| QuietingRef::of(py, &var, r);
         let [a, b] = &self.0.references;
         Ok((reference(a)?, reference(b)?))
     }

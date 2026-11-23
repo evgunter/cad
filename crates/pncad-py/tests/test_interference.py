@@ -106,6 +106,13 @@ class TestInterferenceIsAFinding(unittest.TestCase):
         named = {(site.copy, site.member, site.face) for site in faces}
         for site in (outer, inner):
             self.assertIn((site.copy, site.member, site.face), named, "a bounding face")
+        written = interference.quieting_references
+        self.assertIsNotNone(written, "written exactly where the pair is")
+        self.assertEqual(
+            [(r.read, r.name, r.pose) for r in written],
+            [(site.copy, site.face, None) for site in (outer, inner)],
+            "copies that do not repeat are written by the names they hold",
+        )
 
     def test_the_finding_moved_off_the_gate_with_its_faces(self):
         """Spec §6 row 19: `pncad.assemble` is gone, `Doc.assemble` still

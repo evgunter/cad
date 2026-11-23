@@ -1568,3 +1568,49 @@ fn the_mint_takes_the_rows_own_order_first() {
         );
     }
 }
+
+/// **A split whose tool reaches an index**: the notched prism split by
+/// `y = 1` slid zero along its own normal by `k · 0`, so the tool reads
+/// the index and its plane is the same at every member.
+fn pinched_by_a_repeated_tool(id: &str) -> (ProfileDoc, RecipeNodeId) {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let (doc, prism, _) = pinched(id, [0.0, 1.0, 0.0]);
+    let (doc, k) = crate::fixture::index(doc, "k", 2);
+    let tool = crate::fixture::plane_on_frame(&doc, prism, [4.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
+    let by = editor_core::Formula::mul(crate::fixture::scalar_of(k), len(0.0)).unwrap();
+    let slid = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(tool.read.clone()),
+        along: RoleRead::through(tool.read, PoseRole::Z),
+        by,
+    }));
+    let tool = RoleRead {
+        read: slid,
+        role: tool.role,
+    };
+    insert(
+        doc,
+        Node::Split {
+            target: prism.into(),
+            tool,
+        },
+    )
+}
+
+/// **A split whose tool repeats carries the assertion over the
+/// repeated tool, where its plane holds the vertex at every member.**
+/// The tool reads the index, so the split is one per member, each
+/// reporting its rows; a `Gap(vertex, tool) = 0` reading the tool is one
+/// assertion per member, each over that member's plane, and quiets the
+/// row. The mint reads the plane in each member's environment before it
+/// offers it.
+///
+/// *Breaks if* the mint refuses a claim the rule takes over a repeated
+/// tool (the law's completeness half), or offers one it read only at
+/// the document's own values.
+#[test]
+fn a_split_by_a_repeated_tool_carries_its_claim() {
+    let (doc, split) = pinched_by_a_repeated_tool("atrest-op-repeated-tool");
+    let claims = claims_over(&doc, split);
+    assert!(!claims.is_empty(), "the split's rows carry claims");
+    assert!(law("a repeated tool", &doc) >= claims.len());
+}

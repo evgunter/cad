@@ -60,6 +60,9 @@ impl QuietingRef {
                     Some(VarKind::Axis) => PoseDef::Axis { of },
                     Some(VarKind::Point) => PoseDef::Point { of },
                     Some(VarKind::Plane) => PoseDef::Plane { face: of },
+                    // `Entity` is `#[non_exhaustive]`: only the mint and the
+                    // rule's decode (`eval::read_directly_off`) build one,
+                    // and neither reads any other kind off a cell.
                     Some(kind) => unreachable!("a pose read directly off a cell: {kind:?}"),
                 };
                 Operand::Pose(Box::new(pose))
@@ -202,25 +205,35 @@ pub(crate) fn tool_name<P: crate::ProfilePayload>(
 /// **The two faces a `Gap` that would quiet an interference is written
 /// over** (D10 `[assertions.quiet]`): one face of each copy, opposed,
 /// their gap decided negative, the overlap lying between their
-/// carriers. The bound is the author's: any `Gap(outer, inner) ≤ −δ`
-/// that holds quiets the finding.
+/// carriers, and the two references an author writes the `Gap` over.
+/// The bound is the author's: any `Gap(references) ≤ −δ` that holds at
+/// every member of the assertion quiets the finding.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct OpposedPair {
-    /// The `Gap`'s outer face.
+    /// The `Gap`'s outer face, as the finding's copy names it.
     pub outer: FaceSite,
-    /// The `Gap`'s inner face.
+    /// The `Gap`'s inner face, likewise.
     pub inner: FaceSite,
+    /// The two references as an author writes them, outer then inner:
+    /// each a selection of one name in its copy's read
+    /// ([`QuietingRef::operand`]), a family member's face by the name
+    /// its member wraps, so that the assertion reaches the family's index
+    /// and each member reads its own face. The kernel mints them only
+    /// where the rule reads them back as [`Self::outer`] and
+    /// [`Self::inner`].
+    pub references: [QuietingRef; 2],
 }
 
 impl OpposedPair {
-    /// The pair in words, each face as `by` speaks its name, outer then
-    /// inner.
+    /// The pair in words, each reference's face as `by` speaks its name,
+    /// outer then inner.
     #[must_use]
     pub fn said(&self, by: crate::spoken::Speaker<'_>) -> String {
-        format!(
-            "{} and {}",
-            by.name(&self.outer.face),
-            by.name(&self.inner.face)
-        )
+        let face = |r: &QuietingRef| match r {
+            QuietingRef::Entity { name, .. } => by.name(name).to_string(),
+            QuietingRef::Read(var) => by.read(*var),
+        };
+        let [outer, inner] = &self.references;
+        format!("{} and {}", face(outer), face(inner))
     }
 }

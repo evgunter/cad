@@ -311,15 +311,19 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
     let report = checks_of(&after, &ev);
     let by = Speaker::of(&after);
     let now = coincidences(&report);
+    // A family's operation reports a row once per member, each the same
+    // row: every one is held to the law.
     let found_now = |subject, row: &NamedCoincidence| {
-        let rows: Vec<_> = now
+        let rows: Vec<&CheckFinding> = now
             .iter()
             .filter(|(f, r, _)| f.subject == subject && *r == row)
+            .map(|(f, _, _)| *f)
             .collect();
-        let [(found, _, _)] = rows.as_slice() else {
-            panic!("{what}: the row is still reported, once: {rows:?}\n{report}")
-        };
-        *found
+        assert!(
+            !rows.is_empty(),
+            "{what}: the row is still reported: {row:?}\n{report}"
+        );
+        rows
     };
     for (quieting, assertion) in &assertions {
         let held = verdicts(&ev, *assertion);
@@ -330,28 +334,30 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
         );
     }
     for (subject, row, claim, assertion) in &offered {
-        let found = found_now(*subject, row);
-        assert_eq!(
-            found.quiet,
-            Some(*assertion),
-            "{what}: the row is quiet under the assertion authored for {claim}: {found}"
-        );
-        let named = by.node_as(*assertion, "assertion").to_string();
-        let said = editor_core::Said(found, by).to_string();
-        assert!(
-            said.contains(&format!("quiet: {named} says so")),
-            "{what}: the quiet row names the new assertion {named}: {said}"
-        );
+        for found in found_now(*subject, row) {
+            assert_eq!(
+                found.quiet,
+                Some(*assertion),
+                "{what}: the row is quiet under the assertion authored for {claim}: {found}"
+            );
+            let named = by.node_as(*assertion, "assertion").to_string();
+            let said = editor_core::Said(found, by).to_string();
+            assert!(
+                said.contains(&format!("quiet: {named} says so")),
+                "{what}: the quiet row names the new assertion {named}: {said}"
+            );
+        }
     }
     for (subject, row) in &unoffered {
-        let found = found_now(*subject, row);
-        if let Some(quiet) = found.quiet {
-            assert!(
-                !verdicts(&ev, quiet).iter().all(|&holds| holds),
-                "{what}: a row carrying no assertion is quieted by {}, which holds at every \
+        for found in found_now(*subject, row) {
+            if let Some(quiet) = found.quiet {
+                assert!(
+                    !verdicts(&ev, quiet).iter().all(|&holds| holds),
+                    "{what}: a row carrying no assertion is quieted by {}, which holds at every \
                  member: {found}",
-                by.node_as(quiet, "assertion")
-            );
+                    by.node_as(quiet, "assertion")
+                );
+            }
         }
     }
     offered.len()
@@ -454,7 +460,7 @@ fn the_laws_rosters_name_corpus_documents() {
 
 /// `body` placed `n` times by one placement whose slide reads
 /// `k = index(n)`: `pitch · k` along x, and `z + rise · k` up.
-fn family(
+pub(crate) fn family(
     doc: ProfileDoc,
     body: RecipeNodeId,
     k: editor_core::VarId,

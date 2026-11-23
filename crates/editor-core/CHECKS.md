@@ -150,7 +150,10 @@ measure, its two references as it reads them, `= 0`, with the edits
 that author it (`Quieting`), and the recourse is worded from it
 (`coincide::Recourse::words`). An interference carries the opposed pair
 of faces its `Gap` is written over (`InterferenceFinding::quieting`),
-the bound being the author's, where neither copy repeats. A row whose
+the bound being the author's, and the two references an author writes
+it over, kept only where the rule reads them back as those faces and
+every member of the assertion they make could hold it: a family's
+copy by the name its member wraps. A row whose
 cells are family members carries the one assertion whose reads reach
 the families' index, one member of each family at a time, which quiets
 each member's row by its own member (DESIGN `[assertions]`,

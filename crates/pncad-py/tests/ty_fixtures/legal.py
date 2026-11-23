@@ -685,6 +685,9 @@ overlap: InterferenceFinding | None = at_rest[0].evidence.interference
 # quieting `gap` is written over, and the claim an unproven coincidence
 # carries, authored as one action.
 gap_over: tuple[FaceSite, FaceSite] | None = overlap.quieting if overlap is not None else None
+gap_refs: tuple[QuietingRef, QuietingRef] | None = (
+    overlap.quieting_references if overlap is not None else None
+)
 claim: Quieting | None = findings[0].evidence.quieting
 if claim is not None:
     claim_measure: str = claim.measure
