@@ -355,6 +355,19 @@ impl<P: crate::ProfilePayload> Doc<P> {
         Binders::of(self).yielding(var)
     }
 
+    /// **Whether `read` is a member read at its binder's own key**,
+    /// `xs[k]` inside `{k in xs: …}`: `xs` a yield and its indices
+    /// exactly its binder's, outermost first (D10 `[repetition]`). Such a
+    /// read is the member the reader stands at, as a plain read of a
+    /// k-reader is.
+    #[must_use]
+    pub fn reads_own_member(&self, read: &crate::BodyRead<VarId>) -> bool {
+        read.is_indexed()
+            && self
+                .yielding(read.read)
+                .is_some_and(|binder| self.binder_indices(binder) == read.at)
+    }
+
     /// **The list entry reading `var` as `read`**: spliced in whole,
     /// `…var`, where `var` is through its sources a family a binder
     /// yields, and read as one body otherwise (D10 `[repetition]`).

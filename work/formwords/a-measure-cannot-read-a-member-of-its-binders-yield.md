@@ -2,7 +2,8 @@
 id: a-measure-cannot-read-a-member-of-its-binders-yield
 kind: issue
 title: A measure inside a binder cannot read the member of the binder's yield: a sited reference carries no index
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-23
 ---
 
@@ -25,3 +26,9 @@ assert gap ≤ −0.1}`. Since PR 7506 it cannot be built:
 A node's body seat reads the member as `xs[k]` (DM3). A measure's sited
 reference needs the same read, or the measure must read the member some
 other way. The row is held `#[ignore]` against this item.
+
+**Closed (2026-11-23).** The measure reads the member as a selection of
+`fins[k]`: `Operand::select` over the member read at the binder's own key.
+The at-rest quieting takes such a selection as the member the assertion
+stands at: `checks::at_rest::reference`, via
+`Doc::reads_own_member`. The row is un-ignored and green.

@@ -197,9 +197,14 @@ fn sunk_fins(n: i64) -> (ProfileDoc, VarId, RecipeNodeId, RecipeNodeId) {
     let (doc, gap) = fixture::measure_node(
         &doc,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
+        // Inside the binder the measure reads the fin of its own member,
+        // `fins[k]` (DM3): a selection of the member read at the key.
         vec![
-            SitedRef::new(fins, fixture::fname(fin, RoleSeg::Cap(CapEnd::Start))),
-            SitedRef::new(base_copy, fixture::fname(base, RoleSeg::Cap(CapEnd::End))),
+            Operand::select(
+                editor_core::BodyRead::indexed(fins, vec![Formula::var(k, Dimension::Count)]),
+                vec![fixture::fname(fin, RoleSeg::Cap(CapEnd::Start))],
+            ),
+            SitedRef::new(base_copy, fixture::fname(base, RoleSeg::Cap(CapEnd::End))).into(),
         ],
     );
     let value = fixture::value_of(&doc, gap);
@@ -221,7 +226,6 @@ fn sunk_fins(n: i64) -> (ProfileDoc, VarId, RecipeNodeId, RecipeNodeId) {
 /// fixed at authoring, or one member's finding is quieted by another
 /// member's assertion.
 #[test]
-#[ignore = "a measure cannot read a member of its binder's yield: work/formwords/a-measure-cannot-read-a-member-of-its-binders-yield.md"]
 fn one_assertion_over_a_family_quiets_each_members_own_finding() {
     let (doc, k, fins, assertion) = sunk_fins(12);
     let check = |doc: &ProfileDoc, n: u32| {
