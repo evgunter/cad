@@ -4,7 +4,9 @@
 //! the ambient tolerance (ε and k enter every decision the ops make,
 //! so they are inputs by D9's replay identity). Bit-exact floats in,
 //! so same key ⇒ same inputs ⇒ (D9 determinism) same output: the key
-//! IS the correctness proof for reuse.
+//! IS the correctness proof for reuse. A value's bits are its exact
+//! representation at its scalar ([`ContentBits`]): at the symbolic
+//! scalar that is its number and its expression's id.
 //!
 //! # Hasher choice (spec D4)
 //!
@@ -38,7 +40,9 @@ pub struct ContentKey(pub u128);
 /// naming_key(input_i)), …])` — computed like a content key but
 /// INCLUDING input node ids, composing recursively through the DAG.
 /// Names embed minting node ids (N1) while content keys exclude them
-/// (D8), so the naming half of a memoized value is a pure function of
+/// (D8; the one id a content key can hash is in the name of a value
+/// with no expression at the symbolic scalar, `eval::node_mints`), so
+/// the naming half of a memoized value is a pure function of
 /// THIS key, not of the content key; a memo hit additionally requires
 /// naming-key equality, else the op re-runs (geometry bit-identical
 /// by D9, names honestly re-derived). The recursion is what catches

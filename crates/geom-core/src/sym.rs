@@ -1378,8 +1378,10 @@ impl SymNode {
     }
 
     /// An opaque value's node: its ordinal in the payload and its mint
-    /// scope's name in the first child slot, which the op's arity
-    /// leaves outside [`Self::kids`], so no walk reads it as a node.
+    /// scope's name in the first child slot. The slot holds no node:
+    /// the op's arity is zero, so [`Self::kids`], which is what a walk
+    /// of a node's children reads, is empty, and a reader of the raw
+    /// slots reads them by an op that has children.
     fn opaque(scope: u128, ordinal: u64) -> Self {
         SymNode {
             op: SymOp::Opaque,

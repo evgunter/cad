@@ -34,3 +34,30 @@ the simpler final state (Ev was told on PR 7368 it would be taken and
 logged).
 
 After `a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`.
+
+**From the node-key unit's fix pass (PR 7470), two things the store
+should know:**
+
+- **A name is a function of the document only inside a session.** A
+  value with no expression is named by its node's mint scope and
+  ordinal inside a session, and by its minting thread outside one
+  (`geom_core::sym::mint`). A walk that maps its units in parallel
+  where decisions are thread-portable and runs them in order under a
+  session (`topo::props`' face walk, the evaluator's level map) so
+  names the same work two ways (`geom-core`'s
+  `the_two_arms_of_a_walk_share_no_name`). A drive replays every leaf
+  inside a session, on the serial arm, so every entry of one store is
+  named one way; a store that ever took an entry built under no
+  session would hold names no replay reproduces.
+- **A held axis keys apart from the unboxed build at `Sym`.**
+  `analysis::var_env_over` binds a `Fixed` axis `nominal + 0` and the
+  unboxed environment binds `nominal`: one number, two expressions, so
+  two content keys now that the key hashes the expression. The `+ 0`
+  is the arithmetic a varying axis binds through (`nominal + offset`),
+  kept so that a held axis and a degenerate varying one are the same
+  bits, a negative zero included; binding a held axis as the bare
+  literal at `Sym` alone would make the symbolic lane's numeric channel
+  differ from the plain lane's there. Every leaf of a drive goes
+  through `var_env_over`, so inside one store a held axis is one
+  expression and nothing misses; the miss is between an unboxed build
+  and a boxed replay, which no store shares.

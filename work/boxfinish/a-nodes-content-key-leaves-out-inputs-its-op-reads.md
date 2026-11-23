@@ -11,7 +11,11 @@ opened: 2026-11-22
 Found while auditing what `eval::eval_node` and `wire::run_op` read
 against what `eval::content_key` hashes, for the node-key unit
 (`a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression`).
-**By reading; none of these was executed into a wrong answer.** They
+Found here by reading. **All five have since been executed into a
+wrong answer** (the review of PR 7470, its probe
+`review_node_key_stale_member_read`, and PR 7512), and the fix is
+`a-family-members-read-of-another-member-is-served-from-a-prior-that-read-its-old-body`
+(`boxfinish/member-read-key`). They
 are at every scalar, not the symbolic one alone, and each matters to
 whatever serves a node across two runs whose `EvalOptions` or box
 differ: the evaluator's prior today (a prior is refused only for
